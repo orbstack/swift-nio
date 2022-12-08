@@ -107,6 +107,7 @@ func main() {
 	gvproxyFile, err := startGvproxyPair()
 	check(err)
 	handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(gvproxyFile)
+	handleNet.SetMaximumTransmissionUnit(gvproxyMtu)
 	check(err)
 	network2, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
 	check(err)

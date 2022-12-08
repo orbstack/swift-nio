@@ -17,13 +17,14 @@ import (
 const (
 	gatewayIP    = "192.168.127.1"
 	sshHostPort  = "192.168.127.2:22"
-	dgramSockBuf = 131072
+	dgramSockBuf = 256 * 1024
+	gvproxyMtu   = 65520
 )
 
 func startGvproxyPair() (file *os.File, err error) {
 	config := types.Configuration{
 		Debug:             false,
-		MTU:               1500,
+		MTU:               gvproxyMtu,
 		Subnet:            "192.168.127.0/24",
 		GatewayIP:         gatewayIP,
 		GatewayMacAddress: "5a:94:ef:e4:0c:dd",
