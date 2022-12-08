@@ -15,12 +15,13 @@ import (
 )
 
 // https://developer.apple.com/documentation/virtualization/running_linux_in_a_virtual_machine?language=objc#:~:text=Configure%20the%20Serial%20Port%20Device%20for%20Standard%20In%20and%20Out
-func setRawMode(f *os.File) {
+func setRawMode(f *os.File) *unix.Termios {
+	var oldAttr unix.Termios
 	var attr unix.Termios
 
 	// Get settings for terminal
-	// this still isn't raw mode, still converts ^C
-	//termios.Tcgetattr(f.Fd(), &attr)
+	// this still isn't raw mode, still converts ^C, so we set new one
+	termios.Tcgetattr(f.Fd(), &oldAttr)
 
 	// Put stdin into raw mode, disabling local echo, input canonicalization,
 	// and CR-NL mapping.
@@ -35,6 +36,12 @@ func setRawMode(f *os.File) {
 
 	// reflects the changed settings
 	termios.Tcsetattr(f.Fd(), termios.TCSANOW, &attr)
+
+	return &oldAttr
+}
+
+func revertRawMode(f *os.File, oldAttr *unix.Termios) {
+	termios.Tcsetattr(f.Fd(), termios.TCSANOW, oldAttr)
 }
 
 func check(err error) {
@@ -214,8 +221,9 @@ func main() {
 
 	err = vm.Start()
 	check(err)
-	setRawMode(os.Stdin)
-	// TODO unset raw mode
+
+	oldAttr := setRawMode(os.Stdin)
+	defer revertRawMode(os.Stdin, oldAttr)
 
 	errCh := make(chan error, 1)
 
