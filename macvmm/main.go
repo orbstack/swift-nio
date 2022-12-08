@@ -89,16 +89,30 @@ func main() {
 	// Network
 	nat, err := vz.NewNATNetworkDeviceAttachment()
 	check(err)
-	network, err := vz.NewVirtioNetworkDeviceConfiguration(nat)
+	network1, err := vz.NewVirtioNetworkDeviceConfiguration(nat)
 	check(err)
-	config.SetNetworkDevicesVirtualMachineConfiguration([]*vz.VirtioNetworkDeviceConfiguration{
-		network,
-	})
 	macAddr, err := net.ParseMAC("86:6c:f1:2e:9e:1e")
 	check(err)
 	mac, err := vz.NewMACAddress(macAddr)
 	check(err)
-	network.SetMACAddress(mac)
+	network1.SetMACAddress(mac)
+
+	gvproxyFile, err := startGvproxyPair()
+	check(err)
+	handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(gvproxyFile)
+	check(err)
+	network2, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
+	check(err)
+	macAddr2, err := net.ParseMAC("86:6c:f1:2e:9e:1f")
+	check(err)
+	mac2, err := vz.NewMACAddress(macAddr2)
+	check(err)
+	network2.SetMACAddress(mac2)
+
+	config.SetNetworkDevicesVirtualMachineConfiguration([]*vz.VirtioNetworkDeviceConfiguration{
+		network1,
+		network2,
+	})
 
 	// RNG
 	rng, err := vz.NewVirtioEntropyDeviceConfiguration()
