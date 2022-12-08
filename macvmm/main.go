@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -54,6 +55,7 @@ func main() {
 		"rcu_nocbs=0-7",
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
+		"mitigations=off",
 		// userspace
 		"vc.data_size=10240",
 		"vc.vcontrol_token=test",
@@ -61,47 +63,48 @@ func main() {
 	}, " ")
 	fmt.Println("cmdline", cmdline)
 
-	bootLoader, err := vz.NewLinuxBootLoader(
+	bootloader, err := vz.NewLinuxBootLoader(
 		"../assets/kernel",
 		vz.WithCommandLine(cmdline),
 	)
 	check(err)
-	fmt.Println("bootloader", bootLoader)
+	fmt.Println("bootloader", bootloader)
 
 	config, err := vz.NewVirtualMachineConfiguration(
-		bootLoader,
+		bootloader,
 		8,
 		1200*1024*1024,
 	)
 	check(err)
 
 	// Console
-	setRawMode(os.Stdin)
-	serialPortAttachment, err := vz.NewFileHandleSerialPortAttachment(os.Stdin, os.Stdout)
+	serialConsoleFds, err := vz.NewFileHandleSerialPortAttachment(os.Stdin, os.Stdout)
 	check(err)
-	consoleConfig, err := vz.NewVirtioConsoleDeviceSerialPortConfiguration(serialPortAttachment)
+	serialConsole, err := vz.NewVirtioConsoleDeviceSerialPortConfiguration(serialConsoleFds)
 	check(err)
 	config.SetSerialPortsVirtualMachineConfiguration([]*vz.VirtioConsoleDeviceSerialPortConfiguration{
-		consoleConfig,
+		serialConsole,
 	})
 
 	// Network
-	natAttachment, err := vz.NewNATNetworkDeviceAttachment()
+	nat, err := vz.NewNATNetworkDeviceAttachment()
 	check(err)
-	networkConfig, err := vz.NewVirtioNetworkDeviceConfiguration(natAttachment)
+	network, err := vz.NewVirtioNetworkDeviceConfiguration(nat)
 	check(err)
 	config.SetNetworkDevicesVirtualMachineConfiguration([]*vz.VirtioNetworkDeviceConfiguration{
-		networkConfig,
+		network,
 	})
-	mac, err := vz.NewRandomLocallyAdministeredMACAddress()
+	macAddr, err := net.ParseMAC("86:6c:f1:2e:9e:1e")
 	check(err)
-	networkConfig.SetMACAddress(mac)
+	mac, err := vz.NewMACAddress(macAddr)
+	check(err)
+	network.SetMACAddress(mac)
 
 	// RNG
-	entropyConfig, err := vz.NewVirtioEntropyDeviceConfiguration()
+	rng, err := vz.NewVirtioEntropyDeviceConfiguration()
 	check(err)
 	config.SetEntropyDevicesVirtualMachineConfiguration([]*vz.VirtioEntropyDeviceConfiguration{
-		entropyConfig,
+		rng,
 	})
 
 	// Disks (raw!)
@@ -137,23 +140,55 @@ func main() {
 	})
 
 	// Balloon
-	memoryBalloonDevice, err := vz.NewVirtioTraditionalMemoryBalloonDeviceConfiguration()
+	balloon, err := vz.NewVirtioTraditionalMemoryBalloonDeviceConfiguration()
 	check(err)
 	config.SetMemoryBalloonDevicesVirtualMachineConfiguration([]vz.MemoryBalloonDeviceConfiguration{
-		memoryBalloonDevice,
+		balloon,
 	})
 
 	// Vsock
-	vsockDevice, err := vz.NewVirtioSocketDeviceConfiguration()
+	vsock, err := vz.NewVirtioSocketDeviceConfiguration()
 	check(err)
 	config.SetSocketDevicesVirtualMachineConfiguration([]vz.SocketDeviceConfiguration{
-		vsockDevice,
+		vsock,
 	})
 	validated, err := config.Validate()
 	check(err)
 	if !validated {
 		log.Fatal("validation failed", err)
 	}
+
+	// virtiofs (shared)
+	virtiofs, err := vz.NewVirtioFileSystemDeviceConfiguration("shared")
+	check(err)
+	virtiofsDevices := []vz.DirectorySharingDeviceConfiguration{
+		*virtiofs,
+	}
+
+	// Rosetta (virtiofs)
+	switch vz.LinuxRosettaDirectoryShareAvailability() {
+	case vz.LinuxRosettaAvailabilityNotInstalled:
+		err = vz.LinuxRosettaDirectoryShareInstallRosetta()
+		check(err)
+		fallthrough
+	case vz.LinuxRosettaAvailabilityInstalled:
+		rosettaDir, err := vz.NewLinuxRosettaDirectoryShare()
+		check(err)
+		virtiofsRosetta, err := vz.NewVirtioFileSystemDeviceConfiguration("rosetta")
+		virtiofsRosetta.SetDirectoryShare(rosettaDir)
+		virtiofsDevices = append(virtiofsDevices, *virtiofsRosetta)
+	}
+
+	config.SetDirectorySharingDevicesVirtualMachineConfiguration(virtiofsDevices)
+
+	// Sound
+	sound, err := vz.NewVirtioSoundDeviceConfiguration()
+	check(err)
+	soundOutput, err := vz.NewVirtioSoundDeviceHostOutputStreamConfiguration()
+	sound.SetStreams(soundOutput)
+	config.SetAudioDevicesVirtualMachineConfiguration([]vz.AudioDeviceConfiguration{
+		sound,
+	})
 
 	// Boot!
 	vm, err := vz.NewVirtualMachine(config)
@@ -165,6 +200,8 @@ func main() {
 
 	err = vm.Start()
 	check(err)
+	setRawMode(os.Stdin)
+	// TODO unset raw mode
 
 	errCh := make(chan error, 1)
 
