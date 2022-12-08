@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	gatewayIP   = "192.168.127.1"
-	sshHostPort = "192.168.127.2:22"
+	gatewayIP    = "192.168.127.1"
+	sshHostPort  = "192.168.127.2:22"
+	dgramSockBuf = 131072
 )
 
 func startGvproxyPair() (file *os.File, err error) {
@@ -79,19 +80,19 @@ func runGvproxy(config *types.Configuration) (file0 *os.File, err error) {
 	if err != nil {
 		return
 	}
-	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_SNDBUF, 16384)
+	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_SNDBUF, dgramSockBuf)
 	if err != nil {
 		return
 	}
-	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_RCVBUF, 16384*4)
+	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_RCVBUF, dgramSockBuf*4)
 	if err != nil {
 		return
 	}
-	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_SNDBUF, 16384)
+	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_SNDBUF, dgramSockBuf)
 	if err != nil {
 		return
 	}
-	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_RCVBUF, 16384*4)
+	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_RCVBUF, dgramSockBuf*4)
 	if err != nil {
 		return
 	}
