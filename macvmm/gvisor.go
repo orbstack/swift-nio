@@ -79,10 +79,22 @@ func runGvproxy(config *types.Configuration) (file0 *os.File, err error) {
 	if err != nil {
 		return
 	}
-	unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_SNDBUF, 16384)
-	unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_RCVBUF, 16384*4)
-	unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_SNDBUF, 16384)
-	unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_RCVBUF, 16384*4)
+	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_SNDBUF, 16384)
+	if err != nil {
+		return
+	}
+	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_RCVBUF, 16384*4)
+	if err != nil {
+		return
+	}
+	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_SNDBUF, 16384)
+	if err != nil {
+		return
+	}
+	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_RCVBUF, 16384*4)
+	if err != nil {
+		return
+	}
 	// fd 0 for VMM, fd 1 for us
 	err = unix.SetNonblock(fds[0], true)
 	if err != nil {
