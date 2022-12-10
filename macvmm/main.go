@@ -63,7 +63,7 @@ func main() {
 		"rcu_nocbs=0-7",
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
-		"mitigations=off",
+		//"mitigations=off", // free with e0pd
 		// userspace
 		"vc.data_size=10240",
 		"vc.vcontrol_token=test",
@@ -184,6 +184,11 @@ func main() {
 	// virtiofs (shared)
 	virtiofs, err := vz.NewVirtioFileSystemDeviceConfiguration("shared")
 	check(err)
+	hostDir, err := vz.NewSharedDirectory("/", false)
+	check(err)
+	hostDirShare, err := vz.NewSingleDirectoryShare(hostDir)
+	check(err)
+	virtiofs.SetDirectoryShare(hostDirShare)
 	virtiofsDevices := []vz.DirectorySharingDeviceConfiguration{
 		*virtiofs,
 	}
@@ -232,12 +237,12 @@ func main() {
 	for {
 		select {
 		case <-signalCh:
-			result, err := vm.RequestStop()
+			log.Println("recieved signal")
+			err := vm.Stop()
 			if err != nil {
 				log.Println("request stop error:", err)
 				return
 			}
-			log.Println("recieved signal", result)
 		case newState := <-vm.StateChangedNotify():
 			if newState == vz.VirtualMachineStateRunning {
 				log.Println("start VM is running")

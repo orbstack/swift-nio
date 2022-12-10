@@ -1,0 +1,15 @@
+clock_gettime: ..........
+    syscall:	181 ns
+    libc:	17 ns
+
+read file: ..........
+    mmap:	7030 ns
+    read:	3521 ns
+[root@arch callbench]# ./callbench
+clock_gettime: ..........
+    syscall:	181 ns
+    libc:	17 ns
+
+read file: ..........
+    mmap:	7006 ns
+    read:	3530 ns
