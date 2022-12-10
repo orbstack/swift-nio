@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -79,7 +80,7 @@ func main() {
 
 	config, err := vz.NewVirtualMachineConfiguration(
 		bootloader,
-		8,
+		uint(runtime.NumCPU()),
 		1200*1024*1024,
 	)
 	check(err)
