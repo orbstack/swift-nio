@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -60,12 +61,12 @@ func main() {
 		"init=/opt/vc/preinit",
 		"console=hvc0",
 		// kernel tuning
-		"rcu_nocbs=0-7",
+		"rcu_nocbs=0-" + strconv.Itoa(runtime.NumCPU()-1),
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
 		//"mitigations=off", // free with e0pd
 		// userspace
-		"vc.data_size=10240",
+		"vc.data_size=65536",
 		"vc.vcontrol_token=test",
 		"vc.timezone=America/Los_Angeles",
 	}, " ")
@@ -81,7 +82,7 @@ func main() {
 	config, err := vz.NewVirtualMachineConfiguration(
 		bootloader,
 		uint(runtime.NumCPU()),
-		1200*1024*1024,
+		8192*1024*1024,
 	)
 	check(err)
 
