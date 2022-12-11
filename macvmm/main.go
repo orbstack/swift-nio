@@ -222,6 +222,13 @@ func main() {
 	vm, err := vz.NewVirtualMachine(config)
 	check(err)
 
+	go func() {
+		err := runVsockServices(vm.SocketDevices()[0])
+		if err != nil {
+			log.Println("vsock services error:", err)
+		}
+	}()
+
 	// Listen for signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGTERM)
