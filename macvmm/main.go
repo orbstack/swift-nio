@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -242,6 +243,13 @@ func main() {
 	defer revertRawMode(os.Stdin, oldAttr)
 
 	errCh := make(chan error, 1)
+
+	controlServer := HostControlServer{
+		balloon: vm.MemoryBalloonDevices()[0],
+	}
+	httpServer, err := controlServer.Serve()
+	check(err)
+	defer httpServer.Shutdown(context.Background())
 
 	for {
 		select {
