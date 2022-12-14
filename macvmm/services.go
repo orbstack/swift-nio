@@ -1,6 +1,6 @@
 package main
 
-import "github.com/Code-Hex/vz/v3"
+import "github.com/kdrag0n/vz-macvirt/v3"
 
 const (
 	portGvproxy = 101
