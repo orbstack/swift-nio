@@ -1,0 +1,5 @@
+commit 5aa77e16eae5771f38017bab3852f97bf6f77ac6
+ubuntu kinetic
+gcc
+
+make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j48  1472.11s user 181.18s system 3762% cpu 43.940 total

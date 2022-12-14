@@ -1,0 +1,44 @@
+commit 26e73d1f0cf8044ab486b9add76d9bf15a719824
+all 8 vcpu due to qemu limitation
+
+Apple VMM, allnoconfig
+    real	0m22.390s
+    user	2m23.469s
+    sys	0m13.900s
+
+    real    0m22.125s
+    user    2m24.664s
+    sys     0m13.138s
+
+Apple VMM, vc config
+    real	1m38.003s
+    user	11m11.308s
+    sys	0m55.725s
+
+qemu untuned qcow2 512b, allnoconfig
+    real    0m23.610s
+    user    2m30.683s
+    sys     0m13.372s
+
+qemu untuned qcow2 512b, vc config
+    real	1m39.017s
+    user	11m22.946s
+    sys	0m55.356s
+
+qemu raw 4k threads direct multiqueue, allnoconfig
+    real    0m23.610s
+    user    2m30.683s
+    sys     0m13.372s
+
+    real    0m22.745s
+    user    2m27.639s
+    sys     0m12.839s
+
+qemu raw 4k single-queue, allnoconfig
+    real    0m23.206s
+    user    2m26.795s
+    sys     0m13.011s
+
+    real    0m22.525s
+    user    2m26.327s
+    sys     0m12.117s

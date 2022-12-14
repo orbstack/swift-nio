@@ -10,6 +10,18 @@ user	0m0.214s
 sys	0m0.337s
 
 
+root@ubuntu:/mnt/shared/Volumes/CaseSensitive/vm# time fdfind >/dev/null
+
+real	0m0.777s
+user	0m0.207s
+sys	0m0.368s
+root@ubuntu:/mnt/shared/Volumes/CaseSensitive/vm# time fdfind >/dev/null
+
+real	0m0.651s
+user	0m0.091s
+sys	0m0.545s
+
+
 seq1m-q8-read: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=io_uring, iodepth=8
 seq1m-q8-write: (g=1): rw=write, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=io_uring, iodepth=8
 seq1m-q1-read: (g=2): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=io_uring, iodepth=1

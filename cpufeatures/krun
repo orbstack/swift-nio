@@ -1,0 +1,17 @@
+[    0.000000] CPU features: detected: Address authentication (IMP DEF algorithm)
+[    0.000000] CPU features: detected: Spectre-v4
+[    0.003675] CPU features: detected: ARMv8.4 Translation Table Level
+[    0.003675] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    0.003676] CPU features: detected: Common not Private translations
+[    0.003676] CPU features: detected: CRC32 instructions
+[    0.003676] CPU features: detected: Data cache clean to Point of Deep Persistence
+[    0.003676] CPU features: detected: Data cache clean to Point of Persistence
+[    0.003677] CPU features: detected: E0PD
+[    0.003677] CPU features: detected: Generic authentication (IMP DEF algorithm)
+[    0.003677] CPU features: detected: RCpc load-acquire (LDAPR)
+[    0.003678] CPU features: detected: LSE atomic instructions
+[    0.003678] CPU features: detected: Privileged Access Never
+[    0.003678] CPU features: detected: RAS Extension Support
+[    0.003678] CPU features: detected: Speculation barrier (SB)
+[    0.003678] CPU features: detected: TLB range maintenance instructions
+[    0.003679] CPU features: detected: Speculative Store Bypassing Safe (SSBS)

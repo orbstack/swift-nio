@@ -1,0 +1,16 @@
+[    0.000000] CPU features: detected: GIC system register CPU interface
+[    0.000000] CPU features: detected: Spectre-v4
+[    0.000000] CPU features: kernel page table isolation disabled by kernel configuration
+[    0.000000] GICv3: GICv3 features: 16 PPIs
+[    0.003122] CPU features: detected: ARMv8.4 Translation Table Level
+[    0.003122] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    0.003123] CPU features: detected: Common not Private translations
+[    0.003123] CPU features: detected: CRC32 instructions
+[    0.003123] CPU features: detected: E0PD
+[    0.003124] CPU features: detected: RCpc load-acquire (LDAPR)
+[    0.003124] CPU features: detected: LSE atomic instructions
+[    0.003124] CPU features: detected: Privileged Access Never
+[    0.003125] CPU features: detected: RAS Extension Support
+[    0.003125] CPU features: detected: Speculation barrier (SB)
+[    0.003125] CPU features: detected: TLB range maintenance instructions
+[    0.003125] CPU features: detected: Speculative Store Bypassing Safe (SSBS)

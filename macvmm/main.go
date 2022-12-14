@@ -53,6 +53,7 @@ func check(err error) {
 }
 
 func main() {
+	vcpus := runtime.NumCPU()
 	cmdline := strings.Join([]string{
 		// boot
 		"root=/dev/vda",
@@ -61,7 +62,7 @@ func main() {
 		"init=/opt/vc/preinit",
 		"console=hvc0",
 		// kernel tuning
-		"rcu_nocbs=0-" + strconv.Itoa(runtime.NumCPU()-1),
+		"rcu_nocbs=0-" + strconv.Itoa(vcpus-1),
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
 		//"mitigations=off", // free with e0pd
@@ -81,8 +82,8 @@ func main() {
 
 	config, err := vz.NewVirtualMachineConfiguration(
 		bootloader,
-		uint(runtime.NumCPU()),
-		8192*1024*1024,
+		uint(vcpus),
+		6144*1024*1024,
 	)
 	check(err)
 
@@ -211,13 +212,13 @@ func main() {
 	config.SetDirectorySharingDevicesVirtualMachineConfiguration(virtiofsDevices)
 
 	// Sound
-	sound, err := vz.NewVirtioSoundDeviceConfiguration()
-	check(err)
-	soundOutput, err := vz.NewVirtioSoundDeviceHostOutputStreamConfiguration()
-	sound.SetStreams(soundOutput)
-	config.SetAudioDevicesVirtualMachineConfiguration([]vz.AudioDeviceConfiguration{
-		sound,
-	})
+	// sound, err := vz.NewVirtioSoundDeviceConfiguration()
+	// check(err)
+	// soundOutput, err := vz.NewVirtioSoundDeviceHostOutputStreamConfiguration()
+	// sound.SetStreams(soundOutput)
+	// config.SetAudioDevicesVirtualMachineConfiguration([]vz.AudioDeviceConfiguration{
+	// 	sound,
+	// })
 
 	// Boot!
 	vm, err := vz.NewVirtualMachine(config)
