@@ -2,13 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/kdrag0n/vz-macvirt/v3"
 )
 
 type HostControlServer struct {
-	balloon *vz.VirtioMemoryBalloonDevice
+	balloon  *vz.VirtioMemoryBalloonDevice
+	netPair2 *os.File
+	routerVm *vz.VirtualMachine
 }
 
 type SetBalloonRequest struct {
@@ -17,6 +21,7 @@ type SetBalloonRequest struct {
 
 func (s *HostControlServer) Serve() (*http.Server, error) {
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/balloon", func(w http.ResponseWriter, r *http.Request) {
 		// parse json
 		var req SetBalloonRequest
@@ -28,6 +33,18 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 
 		// set balloon
 		s.balloon.SetTargetVirtualMachineMemorySize(req.Target * 1024 * 1024)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mux.HandleFunc("/reboot_router", func(w http.ResponseWriter, r *http.Request) {
+		println("stop")
+		err := s.routerVm.Stop()
+		if err != nil {
+			log.Println(err)
+		}
+
+		println("start")
+		s.routerVm = StartRouterVm(s.netPair2)
 		w.WriteHeader(http.StatusOK)
 	})
 

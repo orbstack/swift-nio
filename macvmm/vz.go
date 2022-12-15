@@ -11,6 +11,10 @@ import (
 	"github.com/kdrag0n/vz-macvirt/v3"
 )
 
+const (
+	vcontrolToken = "test"
+)
+
 type VmConfig struct {
 	Cpus             int
 	Memory           uint64
@@ -32,13 +36,9 @@ type VmConfig struct {
 }
 
 func CreateVm(c *VmConfig) *vz.VirtualMachine {
-	cmdline := strings.Join([]string{
+	cmdline := []string{
 		// boot
-		"root=/dev/vda",
-		"rootfstype=erofs",
-		"ro",
 		"init=/opt/vc/preinit",
-		"console=hvc0",
 		// Kernel tuning
 		"rcu_nocbs=0-" + strconv.Itoa(c.Cpus-1),
 		"workqueue.power_efficient=1",
@@ -46,14 +46,20 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 		//"mitigations=off", // free with e0pd
 		// userspace
 		"vc.data_size=65536",
-		"vc.vcontrol_token=test",
+		"vc.vcontrol_token=" + vcontrolToken,
 		"vc.timezone=America/Los_Angeles",
-	}, " ")
+	}
+	if c.DiskRootfs != "" {
+		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
+	}
+	if c.Console {
+		cmdline = append(cmdline, "console=hvc0")
+	}
 	fmt.Println("cmdline", cmdline)
 
 	bootloader, err := vz.NewLinuxBootLoader(
 		c.Kernel,
-		vz.WithCommandLine(cmdline),
+		vz.WithCommandLine(strings.Join(cmdline, " ")),
 	)
 	check(err)
 
@@ -77,32 +83,47 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 
 	// Network
 	netDevices := []*vz.VirtioNetworkDeviceConfiguration{}
+	var attachment1 vz.NetworkDeviceAttachment
 	if c.NetworkNat {
-		nat, err := vz.NewNATNetworkDeviceAttachment()
+		attachment1, err = vz.NewNATNetworkDeviceAttachment()
 		check(err)
-		network1, err := vz.NewVirtioNetworkDeviceConfiguration(nat)
+	} else {
+		fd1, _, err := makeUnixDgramPair()
 		check(err)
-		macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":00")
+		attachment1, err = vz.NewFileHandleNetworkDeviceAttachment(fd1)
 		check(err)
-		mac, err := vz.NewMACAddress(macAddr)
-		check(err)
-		network1.SetMACAddress(mac)
 	}
+	network1, err := vz.NewVirtioNetworkDeviceConfiguration(attachment1)
+	check(err)
+	macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":00")
+	check(err)
+	mac, err := vz.NewMACAddress(macAddr)
+	check(err)
+	network1.SetMACAddress(mac)
+	netDevices = append(netDevices, network1)
 
+	var attachment2 *vz.FileHandleNetworkDeviceAttachment
 	if c.NetworkGvproxy {
 		gvproxyFile, err := startGvproxyPair()
 		check(err)
-		handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(gvproxyFile)
-		handleNet.SetMaximumTransmissionUnit(gvproxyMtu)
+		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(gvproxyFile)
 		check(err)
-		network2, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
+	} else {
+		fd2, _, err := makeUnixDgramPair()
 		check(err)
-		macAddr2, err := net.ParseMAC(c.MacAddressPrefix + ":01")
+		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(fd2)
 		check(err)
-		mac2, err := vz.NewMACAddress(macAddr2)
-		check(err)
-		network2.SetMACAddress(mac2)
 	}
+	attachment2.SetMaximumTransmissionUnit(gvproxyMtu)
+	check(err)
+	network2, err := vz.NewVirtioNetworkDeviceConfiguration(attachment2)
+	check(err)
+	macAddr2, err := net.ParseMAC(c.MacAddressPrefix + ":01")
+	check(err)
+	mac2, err := vz.NewMACAddress(macAddr2)
+	check(err)
+	network2.SetMACAddress(mac2)
+	netDevices = append(netDevices, network2)
 
 	if c.NetworkPairFd != nil {
 		handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(c.NetworkPairFd)
@@ -114,6 +135,7 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 		mac3, err := vz.NewMACAddress(macAddr3)
 		check(err)
 		network3.SetMACAddress(mac3)
+		netDevices = append(netDevices, network3)
 	}
 
 	config.SetNetworkDevicesVirtualMachineConfiguration(netDevices)

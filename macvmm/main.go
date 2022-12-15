@@ -11,6 +11,10 @@ import (
 	"github.com/kdrag0n/vz-macvirt/v3"
 )
 
+const (
+	useRouterPair = true
+)
+
 func check(err error) {
 	if err != nil {
 		panic(err)
@@ -18,16 +22,17 @@ func check(err error) {
 }
 
 func main() {
-	netPair1, _, err := makeUnixDgramPair()
+	netPair1, netPair2, err := makeUnixDgramPair()
 	config := &VmConfig{
-		Cpus:             runtime.NumCPU(),
-		Memory:           6144,
-		Kernel:           "../assets/kernel",
-		Console:          true,
+		Cpus:   runtime.NumCPU(),
+		Memory: 6144,
+		Kernel: "../assets/kernel",
+		// this one uses gvproxy ssh
+		//Console:          true,
 		DiskRootfs:       "../assets/rootfs.img",
 		DiskData:         "../assets/data.img",
 		DiskSwap:         "../assets/swap.img",
-		NetworkNat:       true,
+		NetworkNat:       !useRouterPair,
 		NetworkGvproxy:   true,
 		NetworkPairFd:    netPair1,
 		MacAddressPrefix: "86:6c:f1:2e:9e",
@@ -41,18 +46,23 @@ func main() {
 
 	vm := CreateVm(config)
 
+	oldAttr := setRawMode(os.Stdin)
+	defer revertRawMode(os.Stdin, oldAttr)
+
+	err = vm.Start()
+	check(err)
+
+	var routerVm *vz.VirtualMachine
+	if useRouterPair {
+		routerVm = StartRouterVm(netPair2)
+	}
+
 	go func() {
 		err := runVsockServices(vm.SocketDevices()[0])
 		if err != nil {
 			log.Println("vsock services error:", err)
 		}
 	}()
-
-	oldAttr := setRawMode(os.Stdin)
-	defer revertRawMode(os.Stdin, oldAttr)
-
-	err = vm.Start()
-	check(err)
 
 	// Listen for signals
 	signalCh := make(chan os.Signal, 1)
@@ -61,11 +71,15 @@ func main() {
 	errCh := make(chan error, 1)
 
 	controlServer := HostControlServer{
-		balloon: vm.MemoryBalloonDevices()[0],
+		balloon:  vm.MemoryBalloonDevices()[0],
+		routerVm: routerVm,
+		netPair2: netPair2,
 	}
 	httpServer, err := controlServer.Serve()
 	check(err)
 	defer httpServer.Shutdown(context.Background())
+
+	routerVm = nil
 
 	/*
 		go func() {

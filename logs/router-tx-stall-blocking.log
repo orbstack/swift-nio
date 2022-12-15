@@ -1,0 +1,60 @@
+[   51.838359] ------------[ cut here ]------------
+[   51.842200] NETDEV WATCHDOG: eth2 (virtio_net): transmit queue 0 timed out
+[   51.842432] WARNING: CPU: 8 PID: 0 at net/sched/sch_generic.c:525 dev_watchdog+0x21c/0x22c
+[   51.842689] CPU: 8 PID: 0 Comm: swapper/8 Not tainted 6.1.0-nestbox-00058-g92e174c826fb-dirty #117
+[   51.842829] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[   51.842895] pc : dev_watchdog+0x21c/0x22c
+[   51.842947] lr : dev_watchdog+0x21c/0x22c
+[   51.843012] sp : ffff672de0fe3680
+[   51.843132] x29: ffff672de0fe3680 x28: ffff672de0fdaa40 x27: ffffbd8611f06980
+[   51.843266] x26: ffff672de0fe3748 x25: 00000000000000e0 x24: 0000000000000000
+[   51.843429] x23: dead000000000122 x22: ffffbd8611f06000 x21: 0000000000000000
+[   51.843569] x20: ffff672db254f000 x19: ffff672db254f448 x18: ffffffffffffffff
+[   51.843725] x17: ffffa9a7cf1bc000 x16: ffff672de0fe3840 x15: 0000000000000006
+[   51.843871] x14: 0000000000000000 x13: ffffbd8611f25000 x12: 0000000000000417
+[   51.844025] x11: 000000000000015d x10: ffffbd8611f7d000 x9 : ffffbd8611f25000
+[   51.844176] x8 : 00000000ffffefff x7 : ffffbd8611f7d000 x6 : 80000000fffff000
+[   51.844371] x5 : 000000000000bff4 x4 : 0000000000000000 x3 : 0000000000000000
+[   51.844510] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffff672db1553300
+[   51.844665] Call trace:
+[   51.844709]  dev_watchdog+0x21c/0x22c
+[   51.844776]  call_timer_fn.constprop.0+0x20/0x80
+[   51.844899]  __run_timers.part.0+0x26c/0x2e4
+[   51.844962]  run_timer_softirq+0x38/0x6c
+[   51.845056]  _stext+0x104/0x27c
+[   51.845127]  ____do_softirq+0xc/0x14
+[   51.845199]  call_on_irq_stack+0x2c/0x40
+[   51.845291]  do_softirq_own_stack+0x18/0x2c
+[   51.845363]  __irq_exit_rcu+0xb0/0xdc
+[   51.845442]  irq_exit_rcu+0xc/0x14
+[   51.845520]  el1_interrupt+0x34/0x50
+[   51.845607]  el1h_64_irq_handler+0x14/0x20
+[   51.845713]  el1h_64_irq+0x64/0x68
+[   51.845795]  default_idle_call+0x20/0x4c
+[   51.845894]  do_idle+0x230/0x260
+[   51.845981]  cpu_startup_entry+0x20/0x30
+[   51.846051]  secondary_start_kernel+0x120/0x144
+[   51.846187]  __secondary_switched+0x64/0x68
+[   51.846275] ---[ end trace 0000000000000000 ]---
+[   51.846347] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 9010000 usecs ago
+[   56.877852] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 14040000 usecs ago
+[   61.838383] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 19000000 usecs ago
+[   66.873590] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 24040000 usecs ago
+[   71.836190] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 29000000 usecs ago
+[   76.876526] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 34040000 usecs ago
+[   81.838361] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 39000000 usecs ago
+
+localhost:~# [   86.877896] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 44040000 usecs ago
+[   91.837366] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 49000000 usecs ago
+[   96.877249] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 54040000 usecs ago
+[  101.836205] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 59000000 usecs ago
+[  106.877816] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 64040000 usecs ago
+[  111.835935] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 69000000 usecs ago
+[  116.877783] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 74040000 usecs ago
+[  121.836259] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 79000000 usecs ago
+[  126.879030] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 84040000 usecs ago
+[  131.833463] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 89000000 usecs ago
+[  136.877712] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 94040000 usecs ago
+[  141.836881] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 99000000 usecs ago
+[  146.877821] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 104040000 usecs ago
+[  151.834057] virtio_net virtio2 eth2: TX timeout on queue: 0, sq: output.0, vq: 0x1, name: output.0, 109000000 usecs ago

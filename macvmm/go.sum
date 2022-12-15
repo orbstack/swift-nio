@@ -31,6 +31,8 @@ github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215064627-790422deed3a h1:/EJIqEH
 github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215064627-790422deed3a/go.mod h1:NzeXDsYIY4OB1vjjgt5yvTXraFYmKCZQe9cWQUut4Bs=
 github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221214213626-aee37e46febb h1:uSGjm91BRmHFv8DFfuM4LXM3EvTv/j6tzirFT/s3yNY=
 github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221214213626-aee37e46febb/go.mod h1:B6qVSd1t1fjXKwGkIDogFKMwGTMaBfX5lzH+m93D96s=
+github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221215204933-81fcd48b1574 h1:wGw7JKaDl1z8PUB3CoOwcaeO2+mlbV7bbu97VwclBjM=
+github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221215204933-81fcd48b1574/go.mod h1:B6qVSd1t1fjXKwGkIDogFKMwGTMaBfX5lzH+m93D96s=
 github.com/mdlayher/ethernet v0.0.0-20190606142754-0394541c37b7 h1:lez6TS6aAau+8wXUP3G9I3TGlmPFEq2CTxBaRqY6AGE=
 github.com/mdlayher/ethernet v0.0.0-20190606142754-0394541c37b7/go.mod h1:U6ZQobyTjI/tJyq2HG+i/dfSoFUt8/aZCM+GKtmFk/Y=
 github.com/mdlayher/netlink v0.0.0-20190409211403-11939a169225/go.mod h1:eQB3mZE4aiYnlUsyGGCOpPETfdQq4Jhsgf1fk3cwQaA=

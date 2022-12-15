@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215064627-790422deed3a
-	github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221214213626-aee37e46febb
+	github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221215204933-81fcd48b1574
 	github.com/pkg/term v1.1.0
 	golang.org/x/sys v0.3.0
 )
