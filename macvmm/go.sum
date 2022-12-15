@@ -27,6 +27,8 @@ github.com/jsimonetti/rtnetlink v0.0.0-20201110080708-d2c240429e6c/go.mod h1:huN
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215063549-cffd69d04c07 h1:CE2v8fw1AN5jTIv3mn+pQ3oGbn44ofz4Kzv4oggPxhU=
 github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215063549-cffd69d04c07/go.mod h1:NzeXDsYIY4OB1vjjgt5yvTXraFYmKCZQe9cWQUut4Bs=
+github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215064627-790422deed3a h1:/EJIqEHcARhvPBWmwSDu9hBtsxDXLdp9EBpGmDXN/mY=
+github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215064627-790422deed3a/go.mod h1:NzeXDsYIY4OB1vjjgt5yvTXraFYmKCZQe9cWQUut4Bs=
 github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221214213626-aee37e46febb h1:uSGjm91BRmHFv8DFfuM4LXM3EvTv/j6tzirFT/s3yNY=
 github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221214213626-aee37e46febb/go.mod h1:B6qVSd1t1fjXKwGkIDogFKMwGTMaBfX5lzH+m93D96s=
 github.com/mdlayher/ethernet v0.0.0-20190606142754-0394541c37b7 h1:lez6TS6aAau+8wXUP3G9I3TGlmPFEq2CTxBaRqY6AGE=
