@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/containers/gvisor-tap-vsock/pkg/types"
-	"github.com/containers/gvisor-tap-vsock/pkg/virtualnetwork"
+	"github.com/kdrag0n/gvproxy-macvirt/pkg/types"
+	"github.com/kdrag0n/gvproxy-macvirt/pkg/virtualnetwork"
 	"golang.org/x/sys/unix"
 )
 
