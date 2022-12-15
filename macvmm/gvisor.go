@@ -19,6 +19,7 @@ const (
 	gatewayIP    = subnet + ".1"
 	dgramSockBuf = 256 * 1024
 	gvproxyMtu   = 65520
+	guestSshAddr = subnet + ".3:22"
 )
 
 func makeGvproxyConfig() *types.Configuration {
@@ -60,7 +61,9 @@ func makeGvproxyConfig() *types.Configuration {
 			},
 		},
 		DNSSearchDomains: searchDomains(),
-		Forwards:         map[string]string{},
+		Forwards: map[string]string{
+			"127.0.0.1:2222": guestSshAddr,
+		},
 		NAT: map[string]string{
 			subnet + ".254": "127.0.0.1",
 		},
