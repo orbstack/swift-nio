@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/kdrag0n/vz-macvirt/v3"
 	"github.com/pkg/term/termios"
@@ -250,6 +251,20 @@ func main() {
 	httpServer, err := controlServer.Serve()
 	check(err)
 	defer httpServer.Shutdown(context.Background())
+
+	go func() {
+		time.Sleep(5 * time.Second)
+		conn, err := vm.SocketDevices()[0].Connect(5200)
+		if err != nil {
+			log.Println("vsock connect error:", err)
+			return
+		}
+
+		err = benchmarkVsock(conn)
+		if err != nil {
+			log.Println("vsock benchmark error:", err)
+		}
+	}()
 
 	for {
 		select {
