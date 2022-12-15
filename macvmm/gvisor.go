@@ -11,7 +11,6 @@ import (
 
 	"github.com/kdrag0n/gvproxy-macvirt/pkg/types"
 	"github.com/kdrag0n/gvproxy-macvirt/pkg/virtualnetwork"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -78,49 +77,19 @@ func startGvproxyPair() (file *os.File, err error) {
 	return runGvproxyDgramPair(config)
 }
 
-func makeUnixDgramPair() (file0 *os.File, file1 *os.File, conn1 net.Conn, err error) {
-	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
-	if err != nil {
-		return
-	}
-	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_SNDBUF, dgramSockBuf)
-	if err != nil {
-		return
-	}
-	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_RCVBUF, dgramSockBuf*4)
-	if err != nil {
-		return
-	}
-	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_SNDBUF, dgramSockBuf)
-	if err != nil {
-		return
-	}
-	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_RCVBUF, dgramSockBuf*4)
-	if err != nil {
-		return
-	}
-	// fd 0 for VMM, fd 1 for us
-	err = unix.SetNonblock(fds[0], true)
-	if err != nil {
-		return
-	}
-	file0 = os.NewFile(uintptr(fds[0]), "socketpair0")
-	file1 = os.NewFile(uintptr(fds[1]), "socketpair1")
-	conn1, err = net.FileConn(file1)
-	if err != nil {
-		return
-	}
-
-	return
-}
-
 func runGvproxyDgramPair(config *types.Configuration) (file0 *os.File, err error) {
 	vn, err := virtualnetwork.New(config)
 	if err != nil {
 		return
 	}
 
-	file0, _, conn1, err := makeUnixDgramPair()
+	file0, file1, err := makeUnixDgramPair()
+	if err != nil {
+		return
+	}
+
+	// fd 0 for VMM, fd 1 for us
+	conn1, err := net.FileConn(file1)
 	if err != nil {
 		return
 	}
