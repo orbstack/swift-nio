@@ -6,6 +6,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const (
+	dgramSockBuf = 512 * 1024
+)
+
 func makeUnixDgramPair() (file0 *os.File, file1 *os.File, err error) {
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
 	if err != nil {
