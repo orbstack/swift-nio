@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-# ip forward
-echo 1 > /proc/sys/net/ipv4/ip_forward
-echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
-
 killall udhcpc
 ip link set eth0 up
 #udhcpc -i eth0

@@ -128,6 +128,7 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	if c.NetworkPairFd != nil {
 		handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(c.NetworkPairFd)
 		check(err)
+		handleNet.SetMaximumTransmissionUnit(65520)
 		network3, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
 		check(err)
 		macAddr3, err := net.ParseMAC(c.MacAddressPrefix + ":02")
