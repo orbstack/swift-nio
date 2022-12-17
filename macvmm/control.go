@@ -11,7 +11,7 @@ import (
 
 type HostControlServer struct {
 	balloon  *vz.VirtioMemoryBalloonDevice
-	netPair2 *os.File
+	netPairs []*os.File
 	routerVm *vz.VirtualMachine
 }
 
@@ -44,7 +44,7 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 		}
 
 		println("start")
-		s.routerVm = StartRouterVm(s.netPair2)
+		s.routerVm = StartRouterVm(s.netPairs)
 		w.WriteHeader(http.StatusOK)
 	})
 

@@ -7,7 +7,7 @@ import (
 	"github.com/kdrag0n/vz-macvirt/v3"
 )
 
-func StartRouterVm(netPair2 *os.File) *vz.VirtualMachine {
+func StartRouterVm(netPairs []*os.File) *vz.VirtualMachine {
 	config := &VmConfig{
 		Cpus:             runtime.NumCPU(),
 		Memory:           800,
@@ -16,7 +16,7 @@ func StartRouterVm(netPair2 *os.File) *vz.VirtualMachine {
 		DiskRootfs:       "../assets_router/rootfs.img",
 		DiskData:         "../assets_router/data.img",
 		NetworkNat:       true,
-		NetworkPairFd:    netPair2,
+		NetworkPairFds:   netPairs,
 		MacAddressPrefix: "86:6c:f1:2e:9f",
 		Balloon:          true,
 		Rng:              true,
