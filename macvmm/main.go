@@ -22,10 +22,7 @@ func check(err error) {
 }
 
 func main() {
-	netPair1a, netPair1b, err := makeUnixDgramPair()
-	check(err)
-	netPair2a, netPair2b, err := makeUnixDgramPair()
-	check(err)
+	netPair1, netPair2, err := makeUnixDgramPair()
 	config := &VmConfig{
 		Cpus:   runtime.NumCPU(),
 		Memory: 6144,
@@ -37,7 +34,7 @@ func main() {
 		DiskSwap:         "../assets/swap.img",
 		NetworkNat:       !useRouterPair,
 		NetworkGvproxy:   true,
-		NetworkPairFds:   []*os.File{netPair1a, netPair2a},
+		NetworkPairFd:    netPair1,
 		MacAddressPrefix: "86:6c:f1:2e:9e",
 		Balloon:          true,
 		Rng:              true,
@@ -57,7 +54,7 @@ func main() {
 
 	var routerVm *vz.VirtualMachine
 	if useRouterPair {
-		routerVm = StartRouterVm([]*os.File{netPair1b, netPair2b})
+		routerVm = StartRouterVm(netPair2)
 	}
 
 	go func() {
@@ -76,7 +73,7 @@ func main() {
 	controlServer := HostControlServer{
 		balloon:  vm.MemoryBalloonDevices()[0],
 		routerVm: routerVm,
-		netPairs: []*os.File{netPair1b, netPair2b},
+		netPair2: netPair2,
 	}
 	httpServer, err := controlServer.Serve()
 	check(err)

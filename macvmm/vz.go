@@ -25,7 +25,7 @@ type VmConfig struct {
 	DiskSwap         string
 	NetworkNat       bool
 	NetworkGvproxy   bool
-	NetworkPairFds   []*os.File
+	NetworkPairFd    *os.File
 	MacAddressPrefix string
 	Balloon          bool
 	Rng              bool
@@ -125,20 +125,18 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	network2.SetMACAddress(mac2)
 	netDevices = append(netDevices, network2)
 
-	if c.NetworkPairFds != nil {
-		for i, file := range c.NetworkPairFds {
-			handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(file)
-			check(err)
-			handleNet.SetMaximumTransmissionUnit(1500)
-			network3, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
-			check(err)
-			macAddr3, err := net.ParseMAC(fmt.Sprintf("%s:%02x", c.MacAddressPrefix, 2+i))
-			check(err)
-			mac3, err := vz.NewMACAddress(macAddr3)
-			check(err)
-			network3.SetMACAddress(mac3)
-			netDevices = append(netDevices, network3)
-		}
+	if c.NetworkPairFd != nil {
+		handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(c.NetworkPairFd)
+		check(err)
+		handleNet.SetMaximumTransmissionUnit(65520)
+		network3, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
+		check(err)
+		macAddr3, err := net.ParseMAC(c.MacAddressPrefix + ":02")
+		check(err)
+		mac3, err := vz.NewMACAddress(macAddr3)
+		check(err)
+		network3.SetMACAddress(mac3)
+		netDevices = append(netDevices, network3)
 	}
 
 	config.SetNetworkDevicesVirtualMachineConfiguration(netDevices)
