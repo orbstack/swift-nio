@@ -16,7 +16,7 @@ import (
 const (
 	subnet       = "172.30.30"
 	gatewayIP    = subnet + ".1"
-	gvproxyMtu   = 65535
+	gvproxyMtu   = 65520
 	guestSshAddr = subnet + ".3:22"
 )
 
