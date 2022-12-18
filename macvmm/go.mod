@@ -3,7 +3,7 @@ module github.com/kdrag0n/macvirt/macvmm
 go 1.19
 
 require (
-	github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221218012223-1282f2e8beca
+	github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215064627-790422deed3a
 	github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221215204933-81fcd48b1574
 	github.com/pkg/term v1.1.0
 	golang.org/x/sys v0.3.0
@@ -24,6 +24,6 @@ require (
 	golang.org/x/net v0.2.0 // indirect
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	golang.org/x/tools v0.1.12 // indirect
-	gvisor.dev/gvisor v0.0.0-20221209225809-6ec92611f024 // indirect
+	gvisor.dev/gvisor v0.0.0-20220908032458-edc830a43ba6 // indirect
 	inet.af/tcpproxy v0.0.0-20220326234310-be3ee21c9fa0 // indirect
 )

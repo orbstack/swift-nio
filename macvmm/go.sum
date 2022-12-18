@@ -29,8 +29,6 @@ github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215063549-cffd69d04c07 h1:CE2v8fw
 github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215063549-cffd69d04c07/go.mod h1:NzeXDsYIY4OB1vjjgt5yvTXraFYmKCZQe9cWQUut4Bs=
 github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215064627-790422deed3a h1:/EJIqEHcARhvPBWmwSDu9hBtsxDXLdp9EBpGmDXN/mY=
 github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221215064627-790422deed3a/go.mod h1:NzeXDsYIY4OB1vjjgt5yvTXraFYmKCZQe9cWQUut4Bs=
-github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221218012223-1282f2e8beca h1:uU8NFfLSxx+I2aszJiM1AdiUUjfRbm0eZvgSnmkehR8=
-github.com/kdrag0n/gvproxy-macvirt v0.0.0-20221218012223-1282f2e8beca/go.mod h1:REuN6ZFgWd1ZCuC6vGFwQmb/XFDXa8BV9cYvTlcvf9o=
 github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221214213626-aee37e46febb h1:uSGjm91BRmHFv8DFfuM4LXM3EvTv/j6tzirFT/s3yNY=
 github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221214213626-aee37e46febb/go.mod h1:B6qVSd1t1fjXKwGkIDogFKMwGTMaBfX5lzH+m93D96s=
 github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221215204933-81fcd48b1574 h1:wGw7JKaDl1z8PUB3CoOwcaeO2+mlbV7bbu97VwclBjM=
@@ -135,7 +133,5 @@ gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gvisor.dev/gvisor v0.0.0-20220908032458-edc830a43ba6 h1:Aq4piePGzmo0ij3yfseJ0rj9W8jxSJgRfiA9QMWngdA=
 gvisor.dev/gvisor v0.0.0-20220908032458-edc830a43ba6/go.mod h1:TIvkJD0sxe8pIob3p6T8IzxXunlp6yfgktvTNp+DGNM=
-gvisor.dev/gvisor v0.0.0-20221209225809-6ec92611f024 h1:e8uzJZsBgwp4Hp6mgKSGGH8IgPfvRpaRe+S8FnpHZmQ=
-gvisor.dev/gvisor v0.0.0-20221209225809-6ec92611f024/go.mod h1:Dn5idtptoW1dIos9U6A2rpebLs/MtTwFacjKb8jLdQA=
 inet.af/tcpproxy v0.0.0-20220326234310-be3ee21c9fa0 h1:PqdHrvQRVK1zapJkd0qf6+tevvSIcWdfenVqJd3PHWU=
 inet.af/tcpproxy v0.0.0-20220326234310-be3ee21c9fa0/go.mod h1:Tojt5kmHpDIR2jMojxzZK2w2ZR7OILODmUo2gaSwjrk=
