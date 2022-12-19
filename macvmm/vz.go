@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kdrag0n/macvirt/macvmm/network"
 	"github.com/kdrag0n/vz-macvirt/v3"
 )
 
@@ -104,7 +105,7 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 
 	var attachment2 *vz.FileHandleNetworkDeviceAttachment
 	if c.NetworkGvproxy {
-		gvproxyFile, err := startGvproxyPair()
+		gvproxyFile, err := network.StartGvnetPair()
 		check(err)
 		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(gvproxyFile)
 		check(err)

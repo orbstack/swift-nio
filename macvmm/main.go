@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	useRouterPair = true
+	useRouterPair = false
 )
 
 func check(err error) {
@@ -28,7 +28,7 @@ func main() {
 		Memory: 6144,
 		Kernel: "../assets/kernel",
 		// this one uses gvproxy ssh
-		//Console:          true,
+		Console:          !useRouterPair,
 		DiskRootfs:       "../assets/rootfs.img",
 		DiskData:         "../assets/data.img",
 		DiskSwap:         "../assets/swap.img",
