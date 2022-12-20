@@ -17,7 +17,7 @@ import (
 )
 
 func pump1(errc chan<- error, src, dst net.Conn) {
-	buf := make([]byte, 4*1024*1024)
+	buf := make([]byte, 512*1024)
 	_, err := io.CopyBuffer(src, dst, buf)
 
 	// half-close to allow graceful shutdown

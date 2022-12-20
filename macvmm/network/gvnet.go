@@ -169,14 +169,14 @@ func runGvnetDgramPair() (*os.File, error) {
 	// 	}
 	// }
 
-	{
-		opt := tcpip.TCPReceiveBufferSizeRangeOption{Min: 1, Default: 4 * 1024 * 1024, Max: 4 * 1024 * 1024}
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt)
-	}
-	{
-		opt := tcpip.TCPSendBufferSizeRangeOption{Min: 1, Default: 4 * 1024 * 1024, Max: 4 * 1024 * 1024}
-		s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt)
-	}
+	// {
+	// 	opt := tcpip.TCPReceiveBufferSizeRangeOption{Min: 1, Default: 2 * 1024 * 1024, Max: 2 * 1024 * 1024}
+	// 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt)
+	// }
+	// {
+	// 	opt := tcpip.TCPSendBufferSizeRangeOption{Min: 1, Default: 2 * 1024 * 1024, Max: 2 * 1024 * 1024}
+	// 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt)
+	// }
 
 	var natLock sync.Mutex
 	tcpForwarder := newTcpForwarder(s, nil, &natLock)
