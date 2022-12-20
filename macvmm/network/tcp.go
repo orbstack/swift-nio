@@ -36,12 +36,12 @@ func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 			externalAddr = fmt.Sprintf("[%s]:%d", localAddress, r.ID().LocalPort)
 		}
 		outbound, err := net.Dial("tcp", externalAddr)
-		defer outbound.Close()
 		if err != nil {
 			log.Tracef("net.Dial() = %v", err)
 			r.Complete(true)
 			return
 		}
+		defer outbound.Close()
 
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)
