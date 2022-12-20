@@ -138,16 +138,6 @@ func runGvnetDgramPair() (*os.File, error) {
 	}
 
 	{
-		opt := tcpip.DefaultTTLOption(64)
-		if err := s.SetNetworkProtocolOption(ipv4.ProtocolNumber, &opt); err != nil {
-			return nil, errors.New(err.String())
-		}
-		if err := s.SetNetworkProtocolOption(ipv6.ProtocolNumber, &opt); err != nil {
-			return nil, errors.New(err.String())
-		}
-	}
-
-	{
 		opt := tcpip.TCPModerateReceiveBufferOption(true)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
 			return nil, errors.New(err.String())
