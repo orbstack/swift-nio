@@ -57,15 +57,16 @@ func runGvnetDgramPair() (*os.File, error) {
 	}
 
 	endpoint, err := dgramlink.New(&dgramlink.Options{
-		FDs:                []int{fd1},
-		MTU:                gvnetMtu,
-		EthernetHeader:     true,
-		Address:            macAddr,
-		GSOMaxSize:         gvnetMtu, // TODO full
-		GvisorGSOEnabled:   true,
+		FDs:            []int{fd1},
+		MTU:            gvnetMtu,
+		EthernetHeader: true,
+		Address:        macAddr,
+		// no need for GSO when our MTU is so high. 16 -> 17 Gbps
+		// GSOMaxSize:         gvnetMtu,
+		GvisorGSOEnabled:   false,
 		PacketDispatchMode: dgramlink.Readv,
-		// TXChecksumOffload: true,
-		RXChecksumOffload: true,
+		TXChecksumOffload:  true,
+		RXChecksumOffload:  true,
 	})
 	if err != nil {
 		return nil, err
@@ -179,7 +180,10 @@ func runGvnetDgramPair() (*os.File, error) {
 
 	var natLock sync.Mutex
 	tcpForwarder := newTcpForwarder(s, nil, &natLock)
-	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
+	s.SetTransportProtocolHandler(tcp.ProtocolNumber, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+		// println("tcp pkt")
+		return tcpForwarder.HandlePacket(id, pkt)
+	})
 	// dbgf := tcp.NewForwarder(s, 0, 10, func(r *tcp.ForwarderRequest) {
 	// 	println("got req")
 	// 	r.Complete(true)
@@ -190,6 +194,7 @@ func runGvnetDgramPair() (*os.File, error) {
 
 	s.SetTransportProtocolHandler(icmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		fmt.Println("icmp4 id", id, "pkt", pkt)
+		//pkt.RXChecksumValidated
 		return true
 	})
 
