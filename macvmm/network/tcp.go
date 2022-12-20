@@ -16,10 +16,40 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func pump(errc chan<- error, src, dst net.Conn) {
+func pump1(errc chan<- error, src, dst net.Conn) {
 	buf := make([]byte, 512*1024)
 	_, err := io.CopyBuffer(src, dst, buf)
+
+	// half-close to allow graceful shutdown
+	if dstTcp, ok := dst.(*net.TCPConn); ok {
+		dstTcp.CloseWrite()
+	}
+	if dstTcp, ok := src.(*gonet.TCPConn); ok {
+		dstTcp.CloseWrite()
+	}
+
+	if srcTcp, ok := src.(*net.TCPConn); ok {
+		srcTcp.CloseRead()
+	}
+	if srcTcp, ok := dst.(*gonet.TCPConn); ok {
+		srcTcp.CloseRead()
+	}
+
 	errc <- err
+}
+
+func pump2(c1, c2 net.Conn) {
+	errChan := make(chan error, 2)
+	go pump1(errChan, c1, c2)
+	go pump1(errChan, c2, c1)
+
+	// Don't wait for both if one side failed (not EOF)
+	if err1 := <-errChan; err1 != nil {
+		return
+	}
+	if err2 := <-errChan; err2 != nil {
+		return
+	}
 }
 
 func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mutex) *tcp.Forwarder {
@@ -37,7 +67,9 @@ func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 		} else {
 			externalAddr = fmt.Sprintf("[%s]:%d", localAddress, r.ID().LocalPort)
 		}
-		outbound, err := net.Dial("tcp", externalAddr)
+
+		// TODO propagate TTL
+		extConn, err := net.Dial("tcp", externalAddr)
 		if err != nil {
 			log.Printf("net.Dial() = %v", err)
 			// if connection refused
@@ -55,7 +87,7 @@ func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 			}
 			return
 		}
-		defer outbound.Close()
+		defer extConn.Close()
 
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)
@@ -65,12 +97,9 @@ func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 			return
 		}
 
-		inbound := gonet.NewTCPConn(&wq, ep)
-		defer inbound.Close()
+		virtConn := gonet.NewTCPConn(&wq, ep)
+		defer virtConn.Close()
 
-		errc := make(chan error, 1)
-		go pump(errc, inbound, outbound)
-		go pump(errc, outbound, inbound)
-		<-errc
+		pump2(virtConn, extConn)
 	})
 }
