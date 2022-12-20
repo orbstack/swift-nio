@@ -10,8 +10,14 @@ require (
 )
 
 require (
+	github.com/google/uuid v1.2.0 // indirect
+	golang.org/x/sync v0.1.0 // indirect
+)
+
+require (
 	github.com/Microsoft/go-winio v0.6.0 // indirect
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
+	github.com/go-ping/ping v1.1.0
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20220504074936-1ca156eafb9f // indirect

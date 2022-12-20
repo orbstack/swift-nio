@@ -8,12 +8,14 @@ import (
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink"
+	"github.com/kdrag0n/macvirt/macvmm/network/icmpfwd"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/raw"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
@@ -49,6 +51,8 @@ func runGvnetDgramPair() (*os.File, error) {
 			icmp.NewProtocol4,
 			icmp.NewProtocol6,
 		},
+		RawFactory:               raw.EndpointFactory{},
+		AllowPacketEndpointWrite: true,
 	})
 
 	macAddr, err := tcpip.ParseMACAddress("24:d2:f4:58:34:d7")
@@ -181,6 +185,8 @@ func runGvnetDgramPair() (*os.File, error) {
 	// s.SetTransportProtocolHandler(tcp.ProtocolNumber, dbgf.HandlePacket)
 	udpForwarder := newUdpForwarder(s, nil, &natLock)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
+
+	go icmpfwd.Handle(s)
 
 	s.SetTransportProtocolHandler(icmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		fmt.Println("icmp4 id", id, "pkt", pkt)
