@@ -1,12 +1,14 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -37,8 +39,20 @@ func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 		}
 		outbound, err := net.Dial("tcp", externalAddr)
 		if err != nil {
-			log.Tracef("net.Dial() = %v", err)
-			r.Complete(true)
+			log.Printf("net.Dial() = %v", err)
+			// if connection refused
+			if errors.Is(err, unix.ECONNREFUSED) || errors.Is(err, unix.ECONNRESET) {
+				// send RST
+				r.Complete(true)
+			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) || errors.Is(err, unix.ENETUNREACH) {
+				// TODO: icmp response
+				r.Complete(false)
+			} else if errors.Is(err, unix.ETIMEDOUT) {
+				r.Complete(false)
+			} else {
+				// unknown
+				r.Complete(false)
+			}
 			return
 		}
 		defer outbound.Close()
