@@ -2,9 +2,9 @@ package network
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -61,17 +61,12 @@ func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 			localAddress = replaced
 		}
 		natLock.Unlock()
-		var externalAddr string
-		if localAddress.To4() != "" {
-			externalAddr = fmt.Sprintf("%s:%d", localAddress, r.ID().LocalPort)
-		} else {
-			externalAddr = fmt.Sprintf("[%s]:%d", localAddress, r.ID().LocalPort)
-		}
+		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
 
 		// TODO propagate TTL
-		extConn, err := net.Dial("tcp", externalAddr)
+		extConn, err := net.Dial("tcp", extAddr)
 		if err != nil {
-			log.Printf("net.Dial() = %v", err)
+			log.Tracef("net.Dial() = %v", err)
 			// if connection refused
 			if errors.Is(err, unix.ECONNREFUSED) || errors.Is(err, unix.ECONNRESET) {
 				// send RST

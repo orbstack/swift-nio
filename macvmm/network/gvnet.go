@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -23,7 +24,7 @@ const (
 	gvnetMtu     = 65520
 	guestSshAddr = subnet + ".3:22"
 
-	subnet6 = "fc00:2:2::"
+	subnet6 = "fc00:96dc:7096:1d21::"
 )
 
 func StartGvnetPair() (file *os.File, err error) {
@@ -50,7 +51,7 @@ func runGvnetDgramPair() (*os.File, error) {
 		},
 	})
 
-	macAddr, err := tcpip.ParseMACAddress("01:01:01:01:01:01")
+	macAddr, err := tcpip.ParseMACAddress("24:d2:f4:58:34:d7")
 	if err != nil {
 		return nil, err
 	}
@@ -91,10 +92,10 @@ func runGvnetDgramPair() (*os.File, error) {
 		return nil, errors.New(err.String())
 	}
 
-	// TODO ?
 	if err := s.SetSpoofing(1, true); err != nil {
 		return nil, errors.New(err.String())
 	}
+	// Accept all packets so we can forward them
 	if err := s.SetPromiscuousMode(1, true); err != nil {
 		return nil, errors.New(err.String())
 	}
@@ -186,6 +187,16 @@ func runGvnetDgramPair() (*os.File, error) {
 	// s.SetTransportProtocolHandler(tcp.ProtocolNumber, dbgf.HandlePacket)
 	udpForwarder := newUdpForwarder(s, nil, &natLock)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
+
+	s.SetTransportProtocolHandler(icmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+		fmt.Println("icmp4 id", id, "pkt", pkt)
+		return true
+	})
+
+	s.SetTransportProtocolHandler(icmp.ProtocolNumber6, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+		fmt.Println("icmp6 id", id, "pkt", pkt)
+		return true
+	})
 
 	// TODO close the file eventually
 	return file0, nil
