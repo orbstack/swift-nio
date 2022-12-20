@@ -3,10 +3,8 @@ package network
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
-	"runtime"
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink"
@@ -18,9 +16,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
-
-	"net/http"
-	_ "net/http/pprof"
 )
 
 const (
@@ -207,11 +202,6 @@ func runGvnetDgramPair() (*os.File, error) {
 		fmt.Println("icmp6 id", id, "pkt", pkt)
 		return true
 	})
-
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-	runtime.SetMutexProfileFraction(3)
 
 	// TODO close the file eventually
 	return file0, nil
