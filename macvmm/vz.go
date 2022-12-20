@@ -105,7 +105,7 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 
 	var attachment2 *vz.FileHandleNetworkDeviceAttachment
 	if c.NetworkGvproxy {
-		gvproxyFile, err := network.StartVpnkitPair()
+		gvproxyFile, err := network.StartGvnetPair()
 		check(err)
 		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(gvproxyFile)
 		check(err)
