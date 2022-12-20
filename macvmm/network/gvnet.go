@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kdrag0n/gvproxy-macvirt/pkg/services/forwarder"
 	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
@@ -185,8 +184,9 @@ func runGvnetDgramPair() (*os.File, error) {
 	// 	r.Complete(true)
 	// })
 	// s.SetTransportProtocolHandler(tcp.ProtocolNumber, dbgf.HandlePacket)
-	udpForwarder := forwarder.UDP(s, nil, &natLock)
+	udpForwarder := newUdpForwarder(s, nil, &natLock)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
+	// TODO close the file eventually
 	return file0, nil
 }
