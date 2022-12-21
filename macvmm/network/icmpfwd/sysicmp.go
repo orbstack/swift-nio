@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"golang.org/x/net/icmp"
 	goicmp "golang.org/x/net/icmp"
 	goipv4 "golang.org/x/net/ipv4"
+	goipv6 "golang.org/x/net/ipv6"
+	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/bufferv2"
-	"gvisor.dev/gvisor/pkg/tcpip/checksum"
+	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
-	"gvisor.dev/gvisor/pkg/tcpip/header/parse"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	gvipv4 "gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
@@ -22,23 +26,65 @@ import (
 )
 
 type IcmpFwd struct {
-	stack      *stack.Stack
-	conn4      *goicmp.PacketConn
-	conn6      *goicmp.PacketConn
-	lastOutPkt *stack.PacketBufferPtr
+	stack *stack.Stack
+	conn4 *goipv4.PacketConn
+	conn6 *goipv6.PacketConn
+	// to send reply packets
+	lastSourceAddr4 tcpip.Address
+	lastSourceAddr6 tcpip.Address
+}
+
+// don't set STRIPHDR - we want the IP header
+func newIcmpPacketConn4() (*goipv4.PacketConn, error) {
+	s, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, unix.IPPROTO_ICMP)
+	if err != nil {
+		return nil, err
+	}
+
+	// all zero = any
+	sa := &unix.SockaddrInet4{}
+	if err := unix.Bind(s, sa); err != nil {
+		return nil, err
+	}
+
+	f := os.NewFile(uintptr(s), "icmp")
+	c, err := net.FilePacketConn(f)
+	return goipv4.NewPacketConn(c), nil
+}
+
+// don't set STRIPHDR - we want the IP header
+func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
+	s, err := unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, unix.IPPROTO_ICMPV6)
+	if err != nil {
+		return nil, err
+	}
+
+	// all zero = any
+	sa := &unix.SockaddrInet6{}
+	if err := unix.Bind(s, sa); err != nil {
+		return nil, err
+	}
+
+	f := os.NewFile(uintptr(s), "icmp")
+	c, err := net.FilePacketConn(f)
+	return goipv6.NewPacketConn(c), nil
 }
 
 func NewIcmpFwd(s *stack.Stack) (*IcmpFwd, error) {
-	conn4, err := goicmp.ListenPacket("udp4", "0.0.0.0")
+	conn4, err := newIcmpPacketConn4()
 	if err != nil {
 		return nil, err
 	}
-	conn6, err := goicmp.ListenPacket("udp6", "::")
+	conn6, err := newIcmpPacketConn6()
 	if err != nil {
 		return nil, err
 	}
 
-	return &IcmpFwd{s, conn4, conn6, nil}, nil
+	return &IcmpFwd{
+		stack: s,
+		conn4: conn4,
+		conn6: conn6,
+	}, nil
 }
 
 func (i *IcmpFwd) ProxyRequests() {
@@ -81,9 +127,13 @@ func (i *IcmpFwd) ProxyRequests() {
 	for {
 		clonedPacket := <-match.pktChan
 		go func() {
+			defer clonedPacket.DecRef()
+			if clonedPacket.NetworkProtocolNumber == ipv4.ProtocolNumber {
+				i.lastSourceAddr4 = clonedPacket.Network().SourceAddress()
+			} else if clonedPacket.NetworkProtocolNumber == ipv6.ProtocolNumber {
+				i.lastSourceAddr6 = clonedPacket.Network().SourceAddress()
+			}
 			i.sendOut(clonedPacket)
-			//TODO
-			//clonedPacket.DecRef()
 		}()
 	}
 }
@@ -97,28 +147,33 @@ func (i *IcmpFwd) sendOut(packet stack.PacketBufferPtr) {
 	// TODO check if we should do this one
 	conn := i.conn4
 	if packet.NetworkProtocolNumber == ipv6.ProtocolNumber {
-		conn = i.conn6
+		//conn = i.conn6
 	}
 	// transHeader := header.ICMPv6(netHeader.Payload())
 	// switch transHeader.Type() {
 	// case header.ICMPv6EchoRequest
 
-	i.lastOutPkt = &packet
-	conn.WriteTo(netHeader.Payload(), &net.UDPAddr{
+	// TODO TTL
+	conn.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
 		IP: net.IP(netHeader.DestinationAddress()),
 	})
 }
 
 func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
-	buf := make([]byte, 65535)
+	fullBuf := make([]byte, 65535)
 	for {
-		n, addr, err := i.conn4.ReadFrom(buf)
+		// TODO TTL
+		n, _, addr, err := i.conn4.ReadFrom(fullBuf)
 		if err != nil {
+			log.Println("error reading from icmp socket", err)
 			return err
 		}
+		fmt.Println("got icmp reply from", addr.String(), n, "bytes")
+		buf := fullBuf[:n]
 
-		msg, err := goicmp.ParseMessage(1, buf[:n])
+		msg, err := goicmp.ParseMessage(1, buf[20:n-20])
 		if err != nil {
+			log.Println("error parsing icmp message", err)
 			return err
 		}
 
@@ -135,48 +190,32 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 			continue
 		}
 
-		// make ip header
-		// srcAddr := tcpip.Address(addr.(*net.UDPAddr).IP)
-		// if i.lastOutPkt == nil {
-		// 	fmt.Println("no i.lastOutPkt")
-		// 	continue
-		// }
-		ipHdr := header.IPv4(i.lastOutPkt.NetworkHeader().Slice())
-		localAddr := ipHdr.DestinationAddress()
-		r, errT := i.stack.FindRoute(1, localAddr, ipHdr.SourceAddress(), gvipv4.ProtocolNumber, false /* multicastLoop */)
+		if i.lastSourceAddr4 == "" {
+			fmt.Println("no i.lastSourceAddr4")
+			continue
+		}
+
+		// TODO fix len
+		replyHdr := header.IPv4(buf[:header.IPv4MinimumSize])
+		replyHdr.SetDestinationAddress(i.lastSourceAddr4)
+		replyHdr.SetTotalLength(uint16(n))
+		replyHdr.SetChecksum(0)
+		replyHdr.SetChecksum(^replyHdr.CalculateChecksum())
+		decpkt := gopacket.NewPacket(buf, layers.LayerTypeIPv4, gopacket.Default)
+		fmt.Println("reply", decpkt.String())
+
+		r, errT := i.stack.FindRoute(1, replyHdr.SourceAddress(), replyHdr.DestinationAddress(), gvipv4.ProtocolNumber, false /* multicastLoop */)
 		if errT != nil {
+			log.Printf("FindRoute: %v", errT)
 			return errors.New(errT.String())
 		}
-		newOptions := make([]byte, 0)
-		replyData := bufferv2.NewViewWithData(buf[:n])
-		replyHeaderLength := uint8(header.IPv4MinimumSize + len(newOptions))
-		replyIPHdrView := bufferv2.NewView(int(replyHeaderLength))
-		replyIPHdrView.Write(ipHdr[:header.IPv4MinimumSize])
-		replyIPHdrView.Write(newOptions)
-		replyIPHdr := header.IPv4(replyIPHdrView.AsSlice())
-		replyIPHdr.SetHeaderLength(replyHeaderLength)
-		replyIPHdr.SetSourceAddress(r.LocalAddress())
-		replyIPHdr.SetDestinationAddress(r.RemoteAddress())
-		replyIPHdr.SetTTL(64)
-		replyIPHdr.SetTotalLength(uint16(len(replyIPHdr) + len(replyData.AsSlice())))
-		replyIPHdr.SetChecksum(0)
-		replyIPHdr.SetChecksum(^replyIPHdr.CalculateChecksum())
 
-		replyICMPHdr := header.ICMPv4(replyData.AsSlice())
-		replyICMPHdr.SetType(header.ICMPv4EchoReply)
-		replyICMPHdr.SetChecksum(0)
-		replyICMPHdr.SetChecksum(^checksum.Checksum(replyData.AsSlice(), 0))
-
-		replyBuf := bufferv2.MakeWithView(replyIPHdrView)
-		replyBuf.Append(replyData.Clone())
+		replyBuf := bufferv2.MakeWithData(buf)
 		replyPkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			ReserveHeaderBytes: int(r.MaxHeaderLength()),
 			Payload:            replyBuf,
 		})
 		defer replyPkt.DecRef()
-
-		parse.IPv4(replyPkt)
-		parse.ICMPv4(replyPkt)
 
 		netEp, errT := i.stack.GetNetworkEndpoint(1, ipv4.ProtocolNumber)
 		if errT != nil {
