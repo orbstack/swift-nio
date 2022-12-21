@@ -7,10 +7,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"golang.org/x/net/icmp"
-	goicmp "golang.org/x/net/icmp"
 	goipv4 "golang.org/x/net/ipv4"
 	goipv6 "golang.org/x/net/ipv6"
 	"golang.org/x/sys/unix"
@@ -142,67 +138,63 @@ func (i *IcmpFwd) ProxyRequests() {
 func (i *IcmpFwd) sendOut(packet stack.PacketBufferPtr) {
 	// Parse ICMP packet type.
 	netHeader := packet.Network()
-	log.Printf("(client %v) - Transport: ICMP -> %v", netHeader.SourceAddress(), netHeader.DestinationAddress())
+	// log.Printf("(client %v) - Transport: ICMP -> %v", netHeader.SourceAddress(), netHeader.DestinationAddress())
 
-	// TODO check if we should do this one
-	conn := i.conn4
-	if packet.NetworkProtocolNumber == ipv6.ProtocolNumber {
-		//conn = i.conn6
+	// TODO check if we should forward it
+	if packet.NetworkProtocolNumber == ipv4.ProtocolNumber {
+		i.conn4.SetTTL(int(netHeader.(header.IPv4).TTL()))
+		i.conn4.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
+			IP: net.IP(netHeader.DestinationAddress()),
+		})
+	} else if packet.NetworkProtocolNumber == ipv6.ProtocolNumber {
+		i.conn6.SetHopLimit(int(netHeader.(header.IPv6).HopLimit()))
+		i.conn6.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
+			IP: net.IP(netHeader.DestinationAddress()),
+		})
 	}
-	// transHeader := header.ICMPv6(netHeader.Payload())
-	// switch transHeader.Type() {
-	// case header.ICMPv6EchoRequest
-
-	// TODO TTL
-	conn.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
-		IP: net.IP(netHeader.DestinationAddress()),
-	})
 }
 
 func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 	fullBuf := make([]byte, 65535)
 	for {
-		// TODO TTL
-		n, _, addr, err := i.conn4.ReadFrom(fullBuf)
+		n, _, _, err := i.conn4.ReadFrom(fullBuf)
 		if err != nil {
 			log.Println("error reading from icmp socket", err)
 			return err
 		}
-		fmt.Println("got icmp reply from", addr.String(), n, "bytes")
 		buf := fullBuf[:n]
 
-		msg, err := goicmp.ParseMessage(1, buf[20:n-20])
-		if err != nil {
-			log.Println("error parsing icmp message", err)
-			return err
-		}
+		// msg, err := goicmp.ParseMessage(1, buf[20:n-20])
+		// if err != nil {
+		// 	log.Println("error parsing icmp message", err)
+		// 	return err
+		// }
 
-		switch msg.Type {
-		case goipv4.ICMPTypeEchoReply:
-			fmt.Println("got echo reply from", addr.String())
-		case goipv4.ICMPTypeTimeExceeded:
-			fmt.Println("got time exceeded from", addr.String(), msg.Body)
-			body := msg.Body.(*icmp.TimeExceeded)
-			fmt.Println("  data", addr.String(), body.Data)
-		default:
-			fmt.Println("got", msg.Type, "from", addr.String())
-			// will fail (panic: PullUp failed)
-			continue
-		}
+		// switch msg.Type {
+		// case goipv4.ICMPTypeEchoReply:
+		// 	fmt.Println("got echo reply from", addr.String())
+		// case goipv4.ICMPTypeTimeExceeded:
+		// 	fmt.Println("got time exceeded from", addr.String(), msg.Body)
+		// 	body := msg.Body.(*icmp.TimeExceeded)
+		// 	fmt.Println("  data", addr.String(), body.Data)
+		// default:
+		// 	fmt.Println("got", msg.Type, "from", addr.String())
+		// 	// will fail (panic: PullUp failed)
+		// 	continue
+		// }
 
 		if i.lastSourceAddr4 == "" {
 			fmt.Println("no i.lastSourceAddr4")
 			continue
 		}
 
-		// TODO fix len
-		replyHdr := header.IPv4(buf[:header.IPv4MinimumSize])
+		replyHdr := header.IPv4(buf)
 		replyHdr.SetDestinationAddress(i.lastSourceAddr4)
 		replyHdr.SetTotalLength(uint16(n))
 		replyHdr.SetChecksum(0)
 		replyHdr.SetChecksum(^replyHdr.CalculateChecksum())
-		decpkt := gopacket.NewPacket(buf, layers.LayerTypeIPv4, gopacket.Default)
-		fmt.Println("reply", decpkt.String())
+		// decpkt := gopacket.NewPacket(buf, layers.LayerTypeIPv4, gopacket.Default)
+		// fmt.Println("reply", decpkt.String())
 
 		r, errT := i.stack.FindRoute(1, replyHdr.SourceAddress(), replyHdr.DestinationAddress(), gvipv4.ProtocolNumber, false /* multicastLoop */)
 		if errT != nil {

@@ -5,7 +5,6 @@ package network
 
 import (
 	"encoding/binary"
-	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -135,7 +134,7 @@ func (proxy *UDPProxy) Run() {
 		// Set TTL
 		newTtl := proxy.listener.underlying.LastTTL
 		if newTtl != lastTtl {
-			fmt.Printf("TTL changed %d -> %d", lastTtl, newTtl)
+			// fmt.Printf("TTL changed %d -> %d", lastTtl, newTtl)
 			lastTtl = newTtl
 			rawConn, err := proxyConn.(*net.UDPConn).SyscallConn()
 			if err != nil {
