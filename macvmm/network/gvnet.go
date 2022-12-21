@@ -9,6 +9,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmm/network/icmpfwd"
+	"github.com/kdrag0n/macvirt/macvmm/network/udpfwd"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
@@ -184,7 +185,7 @@ func runGvnetDgramPair() (*os.File, error) {
 	// 	r.Complete(true)
 	// })
 	// s.SetTransportProtocolHandler(tcp.ProtocolNumber, dbgf.HandlePacket)
-	udpForwarder := newUdpForwarder(s, nil, &natLock)
+	udpForwarder := udpfwd.NewUdpForwarder(s, nil, &natLock)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
 	s.SetTransportProtocolHandler(icmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {

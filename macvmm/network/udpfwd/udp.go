@@ -1,4 +1,4 @@
-package network
+package udpfwd
 
 import (
 	"net"
@@ -13,7 +13,7 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func newUdpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mutex) *udp.Forwarder {
+func NewUdpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mutex) *udp.Forwarder {
 	return udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
 		localAddress := r.ID().LocalAddress
 

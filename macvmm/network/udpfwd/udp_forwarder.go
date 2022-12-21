@@ -1,4 +1,4 @@
-package network
+package udpfwd
 
 // Modified version of https://github.com/moby/moby/blob/master/cmd/docker-proxy/udp_proxy.go and
 // https://github.com/moby/vpnkit/blob/master/go/pkg/libproxy/udp_proxy.go
