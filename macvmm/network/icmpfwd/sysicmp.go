@@ -1,7 +1,6 @@
 package icmpfwd
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -166,25 +165,17 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 
 		// Fix the IP header
 		ipHdr := header.IPv4(msg)
-		// Wrong for UDP. Will be fixed below.
+		// Wrong for UDP, will be fixed below
 		ipHdr.SetDestinationAddress(i.lastSourceAddr4)
 		ipHdr.SetTotalLength(uint16(n)) // macOS sets 16384
 
 		icmpHdr := header.ICMPv4(msg[ipHdr.HeaderLength():])
 		if icmpHdr.Type() == header.ICMPv4TimeExceeded {
 			origMsg := icmpHdr.Payload()
-
-			// fmt.Println("gv payload len ", len(origMsg))
+			// Discard too-small packets
 			if len(origMsg) < header.IPv4MinimumSize {
-				log.Println("origMsg too short")
 				continue
 			}
-			// body := icmpMsg.Body.(*goicmp.TimeExceeded)
-			// origMsg := body.Data
-
-			// fmt.Println("origMsg len", len(origMsg), "exts", body.Extensions, len(body.Extensions))
-			// gopkt := gopacket.NewPacket(origMsg, layers.LayerTypeIPv4, gopacket.Default)
-			// fmt.Println("orig", gopkt.String())
 
 			// Fix original IP header
 			origIpHdr := header.IPv4(origMsg)
@@ -192,37 +183,33 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 
 			// Fix nested L4 header
 			switch origIpHdr.TransportProtocol() {
+			// ICMP: fix source IP
 			case header.ICMPv4ProtocolNumber:
-				// ICMP: fix source IP
 				if i.lastSourceAddr4 == "" {
-					log.Println("no last source addr")
 					continue
 				}
 				origIpHdr.SetSourceAddress(i.lastSourceAddr4)
+			// UDP: fix source IP and port. (IP ident is wrong too)
 			case header.UDPProtocolNumber:
-				// UDP: fix source IP and port. (IP ident is wrong too)
 				// Find the connection in the UDP conntrack map
 				origUdpHdr := header.UDP(origMsg[origIpHdr.HeaderLength():])
-				fmt.Println("lookup addr", origIpHdr.SourceAddress().String(), "port", origUdpHdr.SourcePort())
 				localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
 					// our external IP, not virtual
 					IP:   net.IP(origIpHdr.SourceAddress()),
 					Port: int(origUdpHdr.SourcePort()),
 				})
 				if localSrcAddr == nil {
-					log.Println("no udp conntrack entry")
 					continue
 				}
 
-				fmt.Println("translate src =", localSrcAddr.Port)
 				origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To4()))
-				// This will fix the checksum. It's actually wrong if we recalculate it.
-				origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
+				// TODO fix checksum
+				origUdpHdr.SetSourcePortWithChecksumUpdate(uint16(localSrcAddr.Port))
 				// Fix reply IP destination
 				ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To4()))
+			// TCP: not supported
 			case header.TCPProtocolNumber:
-				// TCP: not supported
-				log.Println("TCP not supported")
+			default:
 				continue
 			}
 
