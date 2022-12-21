@@ -1,4 +1,4 @@
-package network
+package tcpfwd
 
 import (
 	"errors"
@@ -52,7 +52,7 @@ func pump2(c1, c2 net.Conn) {
 	}
 }
 
-func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mutex) *tcp.Forwarder {
+func NewTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mutex) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, 10, func(r *tcp.ForwarderRequest) {
 		localAddress := r.ID().LocalAddress
 
@@ -63,7 +63,6 @@ func newTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 		natLock.Unlock()
 		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
 
-		// TODO propagate TTL
 		extConn, err := net.Dial("tcp", extAddr)
 		if err != nil {
 			log.Tracef("net.Dial() = %v", err)

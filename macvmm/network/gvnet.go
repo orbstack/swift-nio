@@ -9,6 +9,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmm/network/icmpfwd"
+	"github.com/kdrag0n/macvirt/macvmm/network/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/network/udpfwd"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
@@ -175,7 +176,7 @@ func runGvnetDgramPair() (*os.File, error) {
 	// }
 
 	var natLock sync.Mutex
-	tcpForwarder := newTcpForwarder(s, nil, &natLock)
+	tcpForwarder := tcpfwd.NewTcpForwarder(s, nil, &natLock)
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		// println("tcp pkt")
 		return tcpForwarder.HandlePacket(id, pkt)
