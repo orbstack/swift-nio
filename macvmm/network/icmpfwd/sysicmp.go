@@ -9,8 +9,11 @@ import (
 	"golang.org/x/net/icmp"
 	goicmp "golang.org/x/net/icmp"
 	goipv4 "golang.org/x/net/ipv4"
-	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
+	"gvisor.dev/gvisor/pkg/tcpip/header/parse"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	gvipv4 "gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	gvipv6 "gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
@@ -106,7 +109,7 @@ func (i *IcmpFwd) sendOut(packet stack.PacketBufferPtr) {
 	})
 }
 
-func (i *IcmpFwd) MonitorReplies() error {
+func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 	buf := make([]byte, 65535)
 	for {
 		n, addr, err := i.conn4.ReadFrom(buf)
@@ -133,24 +136,54 @@ func (i *IcmpFwd) MonitorReplies() error {
 		}
 
 		// make ip header
-		srcAddr := tcpip.Address(addr.(*net.UDPAddr).IP)
-		if i.lastOutPkt == nil {
-			fmt.Println("no i.lastOutPkt")
-			continue
+		// srcAddr := tcpip.Address(addr.(*net.UDPAddr).IP)
+		// if i.lastOutPkt == nil {
+		// 	fmt.Println("no i.lastOutPkt")
+		// 	continue
+		// }
+		ipHdr := header.IPv4(i.lastOutPkt.NetworkHeader().Slice())
+		localAddr := ipHdr.DestinationAddress()
+		r, errT := i.stack.FindRoute(1, localAddr, ipHdr.SourceAddress(), gvipv4.ProtocolNumber, false /* multicastLoop */)
+		if errT != nil {
+			return errors.New(errT.String())
 		}
-		netHeader := i.lastOutPkt.Network().(header.IPv4)
+		newOptions := make([]byte, 0)
+		replyData := bufferv2.NewViewWithData(buf[:n])
+		replyHeaderLength := uint8(header.IPv4MinimumSize + len(newOptions))
+		replyIPHdrView := bufferv2.NewView(int(replyHeaderLength))
+		replyIPHdrView.Write(ipHdr[:header.IPv4MinimumSize])
+		replyIPHdrView.Write(newOptions)
+		replyIPHdr := header.IPv4(replyIPHdrView.AsSlice())
+		replyIPHdr.SetHeaderLength(replyHeaderLength)
+		replyIPHdr.SetSourceAddress(r.LocalAddress())
+		replyIPHdr.SetDestinationAddress(r.RemoteAddress())
+		replyIPHdr.SetTTL(64)
+		replyIPHdr.SetTotalLength(uint16(len(replyIPHdr) + len(replyData.AsSlice())))
+		replyIPHdr.SetChecksum(0)
+		replyIPHdr.SetChecksum(^replyIPHdr.CalculateChecksum())
 
-		// write it
-		srcFullAddr := &tcpip.FullAddress{
-			NIC:  1,
-			Addr: netHeader.DestinationAddress(),
+		replyICMPHdr := header.ICMPv4(replyData.AsSlice())
+		replyICMPHdr.SetType(header.ICMPv4EchoReply)
+		replyICMPHdr.SetChecksum(0)
+		replyICMPHdr.SetChecksum(^checksum.Checksum(replyData.AsSlice(), 0))
+
+		replyBuf := bufferv2.MakeWithView(replyIPHdrView)
+		replyBuf.Append(replyData.Clone())
+		replyPkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+			ReserveHeaderBytes: int(r.MaxHeaderLength()),
+			Payload:            replyBuf,
+		})
+		defer replyPkt.DecRef()
+
+		parse.IPv4(replyPkt)
+		parse.ICMPv4(replyPkt)
+
+		netEp, errT := i.stack.GetNetworkEndpoint(1, ipv4.ProtocolNumber)
+		if errT != nil {
+			log.Printf("SendPacket: %v", errT)
+			return errors.New(errT.String())
 		}
-		netHeader.SetDestinationAddress(netHeader.SourceAddress())
-		netHeader.SetSourceAddress(srcAddr)
-		netHeader.SetChecksum(0)
-		netHeader.SetChecksum(^netHeader.CalculateChecksum())
-		netHeader.SetTotalLength(uint16(len(netHeader) + n))
-		if err := SendPacket(i.stack, append(netHeader, buf[:n]...), srcFullAddr, gvipv4.ProtocolNumber); err != nil {
+		if err := netEp.WriteHeaderIncludedPacket(r, replyPkt); err != nil {
 			log.Printf("SendPacket: %v", err)
 			return errors.New(err.String())
 		}

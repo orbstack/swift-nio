@@ -203,7 +203,7 @@ func runGvnetDgramPair() (*os.File, error) {
 		return nil, err
 	}
 	go icmpFwd.ProxyRequests()
-	go icmpFwd.MonitorReplies()
+	go icmpFwd.MonitorReplies(endpoint)
 
 	// TODO close the file eventually
 	return file0, nil
