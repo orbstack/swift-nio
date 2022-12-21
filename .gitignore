@@ -1,2 +1,4 @@
 /assets/
 /assets_router/
+.DS_Store
+*.pcap

@@ -57,6 +57,16 @@ type UDPProxy struct {
 	connTrackLock  sync.Mutex
 }
 
+// External connection source addr -> local (virtual) source addr
+var localExtConnTrack = make(map[connTrackKey]*net.UDPAddr)
+var localExtConnTrackLock sync.RWMutex
+
+func LookupExternalConn(localAddr *net.UDPAddr) *net.UDPAddr {
+	localExtConnTrackLock.RLock()
+	defer localExtConnTrackLock.RUnlock()
+	return localExtConnTrack[*newConnTrackKey(localAddr)]
+}
+
 // NewUDPProxy creates a new UDPProxy.
 func NewUDPProxy(listener *autoStoppingListener, dialer func() (net.Conn, error)) (*UDPProxy, error) {
 	return &UDPProxy{
@@ -66,11 +76,23 @@ func NewUDPProxy(listener *autoStoppingListener, dialer func() (net.Conn, error)
 	}, nil
 }
 
-func (proxy *UDPProxy) replyLoop(proxyConn net.Conn, clientAddr net.Addr, clientKey *connTrackKey) {
+func (proxy *UDPProxy) replyLoop(proxyConn net.Conn, clientAddr net.Addr, clientKey *connTrackKey, localExtKey *connTrackKey) {
 	defer func() {
 		proxy.connTrackLock.Lock()
 		delete(proxy.connTrackTable, *clientKey)
 		proxy.connTrackLock.Unlock()
+
+		go func() {
+			// Keep conntrack entry for a while for ICMP time exceeded
+			time.Sleep(UDPConnTrackTimeout)
+			// CAS in case a new connection
+			localExtConnTrackLock.Lock()
+			if newAddr, ok := localExtConnTrack[*localExtKey]; ok && newAddr == clientAddr.(*net.UDPAddr) {
+				delete(localExtConnTrack, *localExtKey)
+			}
+			localExtConnTrackLock.Unlock()
+		}()
+
 		proxyConn.Close()
 	}()
 
@@ -127,7 +149,14 @@ func (proxy *UDPProxy) Run() {
 				continue
 			}
 			proxy.connTrackTable[*fromKey] = proxyConn
-			go proxy.replyLoop(proxyConn, from, fromKey)
+
+			// Track local source address
+			localExtKey := newConnTrackKey(proxyConn.LocalAddr().(*net.UDPAddr))
+			localExtConnTrackLock.Lock()
+			localExtConnTrack[*localExtKey] = from.(*net.UDPAddr)
+			localExtConnTrackLock.Unlock()
+
+			go proxy.replyLoop(proxyConn, from, fromKey, localExtKey)
 		}
 		proxy.connTrackLock.Unlock()
 

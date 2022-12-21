@@ -1,12 +1,12 @@
 package icmpfwd
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
 
+	"github.com/kdrag0n/macvirt/macvmm/network/udpfwd"
 	goipv4 "golang.org/x/net/ipv4"
 	goipv6 "golang.org/x/net/ipv6"
 	"golang.org/x/sys/unix"
@@ -138,7 +138,7 @@ func (i *IcmpFwd) ProxyRequests() {
 func (i *IcmpFwd) sendOut(packet stack.PacketBufferPtr) {
 	// Parse ICMP packet type.
 	netHeader := packet.Network()
-	// log.Printf("(client %v) - Transport: ICMP -> %v", netHeader.SourceAddress(), netHeader.DestinationAddress())
+	log.Printf("(client %v) - Transport: ICMP -> %v", netHeader.SourceAddress(), netHeader.DestinationAddress())
 
 	// TODO check if we should forward it
 	if packet.NetworkProtocolNumber == ipv4.ProtocolNumber {
@@ -162,61 +162,106 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 			log.Println("error reading from icmp socket", err)
 			return err
 		}
-		buf := fullBuf[:n]
+		msg := fullBuf[:n]
 
-		// msg, err := goicmp.ParseMessage(1, buf[20:n-20])
-		// if err != nil {
-		// 	log.Println("error parsing icmp message", err)
-		// 	return err
-		// }
+		// Fix the IP header
+		ipHdr := header.IPv4(msg)
+		// Wrong for UDP. Will be fixed below.
+		ipHdr.SetDestinationAddress(i.lastSourceAddr4)
+		ipHdr.SetTotalLength(uint16(n)) // macOS sets 16384
 
-		// switch msg.Type {
-		// case goipv4.ICMPTypeEchoReply:
-		// 	fmt.Println("got echo reply from", addr.String())
-		// case goipv4.ICMPTypeTimeExceeded:
-		// 	fmt.Println("got time exceeded from", addr.String(), msg.Body)
-		// 	body := msg.Body.(*icmp.TimeExceeded)
-		// 	fmt.Println("  data", addr.String(), body.Data)
-		// default:
-		// 	fmt.Println("got", msg.Type, "from", addr.String())
-		// 	// will fail (panic: PullUp failed)
-		// 	continue
-		// }
+		icmpHdr := header.ICMPv4(msg[ipHdr.HeaderLength():])
+		if icmpHdr.Type() == header.ICMPv4TimeExceeded {
+			origMsg := icmpHdr.Payload()
 
-		if i.lastSourceAddr4 == "" {
-			fmt.Println("no i.lastSourceAddr4")
+			// fmt.Println("gv payload len ", len(origMsg))
+			if len(origMsg) < header.IPv4MinimumSize {
+				log.Println("origMsg too short")
+				continue
+			}
+			// body := icmpMsg.Body.(*goicmp.TimeExceeded)
+			// origMsg := body.Data
+
+			// fmt.Println("origMsg len", len(origMsg), "exts", body.Extensions, len(body.Extensions))
+			// gopkt := gopacket.NewPacket(origMsg, layers.LayerTypeIPv4, gopacket.Default)
+			// fmt.Println("orig", gopkt.String())
+
+			// Fix original IP header
+			origIpHdr := header.IPv4(origMsg)
+			origIpHdr.SetTotalLength(uint16(len(origMsg))) // macOS sets 16384
+
+			// Fix nested L4 header
+			switch origIpHdr.TransportProtocol() {
+			case header.ICMPv4ProtocolNumber:
+				// ICMP: fix source IP
+				if i.lastSourceAddr4 == "" {
+					log.Println("no last source addr")
+					continue
+				}
+				origIpHdr.SetSourceAddress(i.lastSourceAddr4)
+			case header.UDPProtocolNumber:
+				// UDP: fix source IP and port. (IP ident is wrong too)
+				// Find the connection in the UDP conntrack map
+				origUdpHdr := header.UDP(origMsg[origIpHdr.HeaderLength():])
+				fmt.Println("lookup addr", origIpHdr.SourceAddress().String(), "port", origUdpHdr.SourcePort())
+				localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
+					// our external IP, not virtual
+					IP:   net.IP(origIpHdr.SourceAddress()),
+					Port: int(origUdpHdr.SourcePort()),
+				})
+				if localSrcAddr == nil {
+					log.Println("no udp conntrack entry")
+					continue
+				}
+
+				fmt.Println("translate src =", localSrcAddr.Port)
+				origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To4()))
+				// This will fix the checksum. It's actually wrong if we recalculate it.
+				origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
+				// Fix reply IP destination
+				ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To4()))
+			case header.TCPProtocolNumber:
+				// TCP: not supported
+				log.Println("TCP not supported")
+				continue
+			}
+
+			// Fix orig IP checksum (after updating)
+			origIpHdr.SetChecksum(0)
+			origIpHdr.SetChecksum(^origIpHdr.CalculateChecksum())
+
+			// Fix ICMP checksum
+			icmpHdr.SetChecksum(0)
+			icmpHdr.SetChecksum(header.ICMPv4Checksum(icmpHdr, 0))
+		}
+
+		// Fix IP checksum
+		ipHdr.SetChecksum(0)
+		ipHdr.SetChecksum(^ipHdr.CalculateChecksum())
+
+		// decpkt := gopacket.NewPacket(msg, layers.LayerTypeIPv4, gopacket.Default)
+		// fmt.Println("reply", decpkt.String())
+
+		r, errT := i.stack.FindRoute(1, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), gvipv4.ProtocolNumber, false)
+		if errT != nil {
+			log.Printf("FindRoute: %v", errT)
 			continue
 		}
 
-		replyHdr := header.IPv4(buf)
-		replyHdr.SetDestinationAddress(i.lastSourceAddr4)
-		replyHdr.SetTotalLength(uint16(n))
-		replyHdr.SetChecksum(0)
-		replyHdr.SetChecksum(^replyHdr.CalculateChecksum())
-		// decpkt := gopacket.NewPacket(buf, layers.LayerTypeIPv4, gopacket.Default)
-		// fmt.Println("reply", decpkt.String())
-
-		r, errT := i.stack.FindRoute(1, replyHdr.SourceAddress(), replyHdr.DestinationAddress(), gvipv4.ProtocolNumber, false /* multicastLoop */)
-		if errT != nil {
-			log.Printf("FindRoute: %v", errT)
-			return errors.New(errT.String())
-		}
-
-		replyBuf := bufferv2.MakeWithData(buf)
-		replyPkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			ReserveHeaderBytes: int(r.MaxHeaderLength()),
-			Payload:            replyBuf,
+			Payload:            bufferv2.MakeWithData(msg),
 		})
-		defer replyPkt.DecRef()
+		defer pkt.DecRef()
 
 		netEp, errT := i.stack.GetNetworkEndpoint(1, ipv4.ProtocolNumber)
 		if errT != nil {
 			log.Printf("SendPacket: %v", errT)
-			return errors.New(errT.String())
+			continue
 		}
-		if err := netEp.WriteHeaderIncludedPacket(r, replyPkt); err != nil {
+		if err := netEp.WriteHeaderIncludedPacket(r, pkt); err != nil {
 			log.Printf("SendPacket: %v", err)
-			return errors.New(err.String())
+			continue
 		}
 	}
 }
