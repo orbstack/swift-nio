@@ -5,13 +5,14 @@ package network
 
 import (
 	"encoding/binary"
-	"io"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/kdrag0n/macvirt/macvmm/network/gonet"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -51,14 +52,14 @@ type connTrackMap map[connTrackKey]net.Conn
 // interface to handle UDP traffic forwarding between the frontend and backend
 // addresses.
 type UDPProxy struct {
-	listener       udpConn
+	listener       *autoStoppingListener
 	dialer         func() (net.Conn, error)
 	connTrackTable connTrackMap
 	connTrackLock  sync.Mutex
 }
 
 // NewUDPProxy creates a new UDPProxy.
-func NewUDPProxy(listener udpConn, dialer func() (net.Conn, error)) (*UDPProxy, error) {
+func NewUDPProxy(listener *autoStoppingListener, dialer func() (net.Conn, error)) (*UDPProxy, error) {
 	return &UDPProxy{
 		listener:       listener,
 		connTrackTable: make(connTrackMap),
@@ -103,6 +104,7 @@ func (proxy *UDPProxy) replyLoop(proxyConn net.Conn, clientAddr net.Addr, client
 // Run starts forwarding the traffic using UDP.
 func (proxy *UDPProxy) Run() {
 	readBuf := make([]byte, UDPBufSize)
+	lastTtl := uint8(64)
 	for {
 		read, from, err := proxy.listener.ReadFrom(readBuf)
 		if err != nil {
@@ -129,6 +131,25 @@ func (proxy *UDPProxy) Run() {
 			go proxy.replyLoop(proxyConn, from, fromKey)
 		}
 		proxy.connTrackLock.Unlock()
+
+		// Set TTL
+		newTtl := proxy.listener.underlying.LastTTL
+		if newTtl != lastTtl {
+			fmt.Printf("TTL changed %d -> %d", lastTtl, newTtl)
+			lastTtl = newTtl
+			rawConn, err := proxyConn.(*net.UDPConn).SyscallConn()
+			if err != nil {
+				log.Errorf("Can't set TTL on UDP socket: %s\n", err)
+			} else {
+				rawConn.Control(func(fd uintptr) {
+					err := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, int(newTtl))
+					if err != nil {
+						log.Errorf("Can't set TTL on UDP socket: %s\n", err)
+					}
+				})
+			}
+		}
+
 		for i := 0; i != read; {
 			_ = proxyConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
 			written, err := proxyConn.Write(readBuf[i:read])
@@ -162,15 +183,8 @@ func isClosedError(err error) bool {
 	return strings.HasSuffix(err.Error(), "use of closed network connection")
 }
 
-type udpConn interface {
-	ReadFrom(b []byte) (int, net.Addr, error)
-	WriteTo(b []byte, addr net.Addr) (int, error)
-	SetReadDeadline(t time.Time) error
-	io.Closer
-}
-
 type autoStoppingListener struct {
-	underlying udpConn
+	underlying *gonet.UDPConn
 }
 
 func (l *autoStoppingListener) ReadFrom(b []byte) (int, net.Addr, error) {

@@ -10,6 +10,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmm/network/icmpfwd"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
@@ -76,9 +77,9 @@ func runGvnetDgramPair() (*os.File, error) {
 		return nil, err
 	}
 
-	// _ = os.Remove("gv.pcap")
-	// f, err := os.Create("gv.pcap")
-	//ep2, err := sniffer.NewWithWriter(endpoint, f, 2147483647)
+	_ = os.Remove("gv.pcap")
+	f, err := os.Create("gv.pcap")
+	endpoint, err = sniffer.NewWithWriter(endpoint, f, 2147483647)
 
 	if err := s.CreateNIC(1, endpoint); err != nil {
 		return nil, errors.New(err.String())
@@ -186,8 +187,6 @@ func runGvnetDgramPair() (*os.File, error) {
 	udpForwarder := newUdpForwarder(s, nil, &natLock)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
-	go icmpfwd.Handle(s)
-
 	s.SetTransportProtocolHandler(icmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		fmt.Println("icmp4 id", id, "pkt", pkt)
 		//pkt.RXChecksumValidated
@@ -198,6 +197,13 @@ func runGvnetDgramPair() (*os.File, error) {
 		fmt.Println("icmp6 id", id, "pkt", pkt)
 		return true
 	})
+
+	icmpFwd, err := icmpfwd.NewIcmpFwd(s)
+	if err != nil {
+		return nil, err
+	}
+	go icmpFwd.ProxyRequests()
+	go icmpFwd.MonitorReplies()
 
 	// TODO close the file eventually
 	return file0, nil

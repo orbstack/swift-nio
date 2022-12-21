@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/kdrag0n/macvirt/macvmm/network/gonet"
 	log "github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
@@ -29,6 +29,10 @@ func newUdpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 			log.Errorf("r.CreateEndpoint() = %v", tcpErr)
 			return
 		}
+
+		// TTL info
+		ep.SocketOptions().SetReceiveHopLimit(true)
+		ep.SocketOptions().SetReceiveTTL(true)
 
 		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
 		p, _ := NewUDPProxy(&autoStoppingListener{underlying: gonet.NewUDPConn(s, &wq, ep)}, func() (net.Conn, error) {

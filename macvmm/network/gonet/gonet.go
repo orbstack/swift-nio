@@ -299,7 +299,7 @@ type opErrorer interface {
 
 // commonRead implements the common logic between net.Conn.Read and
 // net.PacketConn.ReadFrom.
-func commonRead(b []byte, ep tcpip.Endpoint, wq *waiter.Queue, deadline <-chan struct{}, addr *tcpip.FullAddress, errorer opErrorer) (int, error) {
+func commonRead(b []byte, ep tcpip.Endpoint, wq *waiter.Queue, deadline <-chan struct{}, addr *tcpip.FullAddress, ttl *uint8, errorer opErrorer) (int, error) {
 	select {
 	case <-deadline:
 		return 0, errorer.newOpError("read", &timeoutError{})
@@ -339,6 +339,14 @@ func commonRead(b []byte, ep tcpip.Endpoint, wq *waiter.Queue, deadline <-chan s
 	if addr != nil {
 		*addr = res.RemoteAddr
 	}
+	if ttl != nil {
+		cm := res.ControlMessages
+		if cm.HasTTL {
+			*ttl = cm.TTL
+		} else if cm.HasHopLimit {
+			*ttl = cm.HopLimit
+		}
+	}
 	return res.Count, nil
 }
 
@@ -349,7 +357,7 @@ func (c *TCPConn) Read(b []byte) (int, error) {
 
 	deadline := c.readCancel()
 
-	n, err := commonRead(b, c.ep, c.wq, deadline, nil, c)
+	n, err := commonRead(b, c.ep, c.wq, deadline, nil, nil, c)
 	if n != 0 {
 		c.ep.ModerateRecvBuf(n)
 	}
@@ -548,9 +556,10 @@ func DialContextTCP(ctx context.Context, s *stack.Stack, addr tcpip.FullAddress,
 type UDPConn struct {
 	deadlineTimer
 
-	stack *stack.Stack
-	ep    tcpip.Endpoint
-	wq    *waiter.Queue
+	stack   *stack.Stack
+	ep      tcpip.Endpoint
+	wq      *waiter.Queue
+	LastTTL uint8
 }
 
 // NewUDPConn creates a new UDPConn.
@@ -640,7 +649,7 @@ func (c *UDPConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	deadline := c.readCancel()
 
 	var addr tcpip.FullAddress
-	n, err := commonRead(b, c.ep, c.wq, deadline, &addr, c)
+	n, err := commonRead(b, c.ep, c.wq, deadline, &addr, &c.LastTTL, c)
 	if err != nil {
 		return 0, nil, err
 	}
