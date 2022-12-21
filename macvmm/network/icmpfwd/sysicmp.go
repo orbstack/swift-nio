@@ -118,7 +118,6 @@ func (i *IcmpFwd) ProxyRequests() {
 	PushRule(i.stack, rule4, tid, false)
 	PushRule(i.stack, rule6, tid, true)
 
-	log.Println("Transport: ICMP listener up")
 	for {
 		clonedPacket := <-match.pktChan
 		go func() {
