@@ -1820,6 +1820,9 @@ func (p *protocol) allowICMPReply(icmpType header.ICMPv4Type, code header.ICMPv4
 	if icmpType == header.ICMPv4DstUnreachable && code == header.ICMPv4FragmentationNeeded {
 		return true
 	}
+	if icmpType == header.ICMPv4EchoReply {
+		return false
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 

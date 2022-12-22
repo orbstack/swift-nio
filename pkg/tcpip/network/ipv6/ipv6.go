@@ -2642,6 +2642,9 @@ func (*protocol) Parse(pkt stack.PacketBufferPtr) (proto tcpip.TransportProtocol
 // allowICMPReply reports whether an ICMP reply with provided type may
 // be sent following the rate mask options and global ICMP rate limiter.
 func (p *protocol) allowICMPReply(icmpType header.ICMPv6Type) bool {
+	if icmpType == header.ICMPv6EchoReply {
+		return false
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
