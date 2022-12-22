@@ -4,6 +4,8 @@ go 1.19
 
 replace github.com/Code-Hex/vz/v3 => /Users/dragon/code/vm/vz
 
+replace gvisor.dev/gvisor => /Users/dragon/code/vm/gvisor
+
 require (
 	github.com/Code-Hex/vz/v3 v3.0.0
 	github.com/pkg/term v1.1.0
@@ -11,6 +13,7 @@ require (
 )
 
 require (
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
 	golang.org/x/sync v0.1.0 // indirect
