@@ -136,7 +136,7 @@ func (i *IcmpFwd) ProxyRequests() {
 func (i *IcmpFwd) sendOut(packet stack.PacketBufferPtr) {
 	// Parse ICMP packet type.
 	netHeader := packet.Network()
-	log.Printf("(client %v) - Transport: ICMP -> %v", netHeader.SourceAddress(), netHeader.DestinationAddress())
+	//log.Printf("(client %v) - Transport: ICMP -> %v", netHeader.SourceAddress(), netHeader.DestinationAddress())
 
 	// TODO check if we should forward it
 	if packet.NetworkProtocolNumber == ipv4.ProtocolNumber {
