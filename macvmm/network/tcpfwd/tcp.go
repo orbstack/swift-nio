@@ -18,27 +18,7 @@ import (
 
 func pump1(errc chan<- error, src, dst net.Conn) {
 	buf := make([]byte, 512*1024)
-	var err error
-	var n, w int
-outer:
-	for {
-		n, err = src.Read(buf)
-		if err != nil {
-			break
-		}
-		if n == 0 {
-			continue
-		}
-
-		written := 0
-		for written < n {
-			w, err = dst.Write(buf[written:n])
-			if err != nil {
-				break outer
-			}
-			written += w
-		}
-	}
+	_, err := io.CopyBuffer(dst, src, buf)
 
 	// half-close to allow graceful shutdown
 	if dstTcp, ok := dst.(*net.TCPConn); ok {
@@ -64,10 +44,10 @@ func pump2(c1, c2 net.Conn) {
 	go pump1(errChan, c2, c1)
 
 	// Don't wait for both if one side failed (not EOF)
-	if err1 := <-errChan; err1 != nil && !errors.Is(err1, io.EOF) {
+	if err1 := <-errChan; err1 != nil {
 		return
 	}
-	if err2 := <-errChan; err2 != nil && !errors.Is(err2, io.EOF) {
+	if err2 := <-errChan; err2 != nil {
 		return
 	}
 }
