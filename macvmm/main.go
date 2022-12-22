@@ -33,7 +33,7 @@ func main() {
 		DiskData:         "../assets/data.img",
 		DiskSwap:         "../assets/swap.img",
 		NetworkNat:       !useRouterPair,
-		NetworkGvproxy:   true,
+		NetworkGvnet:     true,
 		NetworkPairFd:    netPair1,
 		MacAddressPrefix: "86:6c:f1:2e:9e",
 		Balloon:          true,

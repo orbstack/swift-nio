@@ -25,7 +25,7 @@ type VmConfig struct {
 	DiskData         string
 	DiskSwap         string
 	NetworkNat       bool
-	NetworkGvproxy   bool
+	NetworkGvnet     bool
 	NetworkPairFd    *os.File
 	MacAddressPrefix string
 	Balloon          bool
@@ -104,10 +104,10 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	netDevices = append(netDevices, network1)
 
 	var attachment2 *vz.FileHandleNetworkDeviceAttachment
-	if c.NetworkGvproxy {
-		gvproxyFile, err := network.StartGvnetPair()
+	if c.NetworkGvnet {
+		gvnetFile, err := network.StartGvnetPair()
 		check(err)
-		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(gvproxyFile)
+		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(gvnetFile)
 		check(err)
 	} else {
 		fd2, _, err := makeUnixDgramPair()
@@ -115,7 +115,7 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(fd2)
 		check(err)
 	}
-	attachment2.SetMaximumTransmissionUnit(gvproxyMtu)
+	attachment2.SetMaximumTransmissionUnit(network.GvnetMtu)
 	check(err)
 	network2, err := vz.NewVirtioNetworkDeviceConfiguration(attachment2)
 	check(err)

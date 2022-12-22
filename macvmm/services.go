@@ -14,11 +14,11 @@ func runVsockServices(device *vz.VirtioSocketDevice) error {
 	//defer gvproxyListener.Close()
 	go func() {
 		for {
-			conn, err := gvproxyListener.Accept()
+			_, err := gvproxyListener.Accept()
 			if err != nil {
 				return
 			}
-			go handleGvproxyConn(conn)
+			//go handleGvproxyConn(conn)
 		}
 	}()
 

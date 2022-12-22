@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	gvnetMtu  = 65520
+	GvnetMtu  = 65520
 	writePcap = false
 	nicId     = 1
 
@@ -91,11 +91,11 @@ func runGvnetDgramPair() (*os.File, error) {
 
 	endpoint, err := dgramlink.New(&dgramlink.Options{
 		FDs:            []int{fd1},
-		MTU:            gvnetMtu,
+		MTU:            GvnetMtu,
 		EthernetHeader: true,
 		Address:        macAddr,
 		// no need for GSO when our MTU is so high. 16 -> 17 Gbps
-		// GSOMaxSize:         gvnetMtu,
+		// GSOMaxSize:         GvnetMtu,
 		GvisorGSOEnabled:   false,
 		PacketDispatchMode: dgramlink.Readv,
 		TXChecksumOffload:  true,
