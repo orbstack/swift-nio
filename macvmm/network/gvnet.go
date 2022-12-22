@@ -47,8 +47,9 @@ const (
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]string{
-		"127.0.0.1:2222": guestIP4 + ":22",
-		"[::1]:2222":     "[" + guestIP6 + "]:22",
+		"127.0.0.1:2222":  guestIP4 + ":22",
+		"[::1]:2222":      "[" + guestIP6 + "]:22",
+		"127.0.0.1:62429": guestIP4 + ":2049",
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
