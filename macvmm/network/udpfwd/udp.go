@@ -13,15 +13,15 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func NewUdpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mutex) *udp.Forwarder {
+func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *udp.Forwarder {
 	return udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
 		localAddress := r.ID().LocalAddress
 
-		natLock.Lock()
-		if replaced, ok := nat[localAddress]; ok {
+		natLock.RLock()
+		if replaced, ok := natTable[localAddress]; ok {
 			localAddress = replaced
 		}
-		natLock.Unlock()
+		natLock.RUnlock()
 
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)
@@ -31,8 +31,8 @@ func NewUdpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLoc
 		}
 
 		// TTL info
-		ep.SocketOptions().SetReceiveHopLimit(true)
 		ep.SocketOptions().SetReceiveTTL(true)
+		ep.SocketOptions().SetReceiveHopLimit(true)
 
 		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
 		p, _ := NewUDPProxy(&autoStoppingListener{underlying: gonet.NewUDPConn(s, &wq, ep)}, func() (net.Conn, error) {

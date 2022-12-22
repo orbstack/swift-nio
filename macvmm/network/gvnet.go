@@ -3,6 +3,7 @@ package network
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"sync"
@@ -24,12 +25,34 @@ import (
 )
 
 const (
-	subnet       = "172.30.30"
-	gatewayIP    = subnet + ".1"
-	gvnetMtu     = 65520
-	guestSshAddr = subnet + ".3:22"
+	gvnetMtu  = 65520
+	writePcap = false
+	nicId     = 1
 
-	subnet6 = "fc00:96dc:7096:1d21::"
+	subnet4    = "172.30.30"
+	gatewayIP4 = subnet4 + ".1"
+	guestIP4   = subnet4 + ".2"
+	hostNatIP4 = subnet4 + ".254"
+
+	subnet6    = "fc00:96dc:7096:1d21:"
+	gatewayIP6 = subnet6 + ":1"
+	guestIP6   = subnet6 + ":2"
+	hostNatIP6 = subnet6 + ":254"
+
+	gatewayMac = "24:d2:f4:58:34:d7"
+)
+
+var (
+	// host -> guest
+	hostForwardsToGuest = map[string]string{
+		"127.0.0.1:2222": guestIP4 + ":22",
+		"[::1]:2222":     "[" + guestIP6 + "]:22",
+	}
+	// guest -> host
+	natFromGuest = map[string]string{
+		hostNatIP4: "127.0.0.1",
+		hostNatIP6: "::1",
+	}
 )
 
 func StartGvnetPair() (file *os.File, err error) {
@@ -58,7 +81,7 @@ func runGvnetDgramPair() (*os.File, error) {
 		AllowPacketEndpointWrite: true,
 	})
 
-	macAddr, err := tcpip.ParseMACAddress("24:d2:f4:58:34:d7")
+	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
 	if err != nil {
 		return nil, err
 	}
@@ -79,61 +102,61 @@ func runGvnetDgramPair() (*os.File, error) {
 		return nil, err
 	}
 
-	_ = os.Remove("gv.pcap")
-	f, err := os.Create("gv.pcap")
-	endpoint, err = sniffer.NewWithWriter(endpoint, f, 2147483647)
+	if writePcap {
+		_ = os.Remove("gv.pcap")
+		f, err := os.Create("gv.pcap")
+		if err != nil {
+			return nil, err
+		}
+		endpoint, err = sniffer.NewWithWriter(endpoint, f, math.MaxUint32)
+	}
 
-	if err := s.CreateNIC(1, endpoint); err != nil {
+	if err := s.CreateNIC(nicId, endpoint); err != nil {
 		return nil, errors.New(err.String())
 	}
 
-	if err := s.AddProtocolAddress(1, tcpip.ProtocolAddress{
+	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
-		AddressWithPrefix: tcpip.Address(net.ParseIP(gatewayIP).To4()).WithPrefix(),
+		AddressWithPrefix: tcpip.Address(net.ParseIP(gatewayIP4)).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
-	if err := s.AddProtocolAddress(1, tcpip.ProtocolAddress{
+	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol:          ipv6.ProtocolNumber,
-		AddressWithPrefix: tcpip.Address(net.ParseIP(subnet6 + "1").To16()).WithPrefix(),
+		AddressWithPrefix: tcpip.Address(net.ParseIP(gatewayIP6)).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
 
-	if err := s.SetSpoofing(1, true); err != nil {
+	if err := s.SetSpoofing(nicId, true); err != nil {
 		return nil, errors.New(err.String())
 	}
 	// Accept all packets so we can forward them
-	if err := s.SetPromiscuousMode(1, true); err != nil {
+	if err := s.SetPromiscuousMode(nicId, true); err != nil {
 		return nil, errors.New(err.String())
 	}
 
-	_, ipSubnet4, err := net.ParseCIDR(subnet + ".0/24")
+	_, ipSubnet4, err := net.ParseCIDR(subnet4 + ".0/24")
 	if err != nil {
 		return nil, err
 	}
-	subnet4, err := tcpip.NewSubnet(tcpip.Address(ipSubnet4.IP.To4()), tcpip.AddressMask(ipSubnet4.Mask))
+	subnet4, err := tcpip.NewSubnet(tcpip.Address(ipSubnet4.IP), tcpip.AddressMask(ipSubnet4.Mask))
 	if err != nil {
 		return nil, err
 	}
 
-	_, ipSubnet6, err := net.ParseCIDR(subnet6 + "0/64")
+	_, ipSubnet6, err := net.ParseCIDR(subnet6 + ":0/64")
 	if err != nil {
 		return nil, err
 	}
-	subnet6, err := tcpip.NewSubnet(tcpip.Address(ipSubnet6.IP.To16()), tcpip.AddressMask(ipSubnet6.Mask))
+	subnet6, err := tcpip.NewSubnet(tcpip.Address(ipSubnet6.IP), tcpip.AddressMask(ipSubnet6.Mask))
 	if err != nil {
 		return nil, err
 	}
+
 	s.SetRouteTable([]tcpip.Route{
-		{
-			Destination: subnet4,
-			NIC:         1,
-		},
-		{
-			Destination: subnet6,
-			NIC:         1,
-		},
+		{Destination: subnet4, NIC: nicId},
+		{Destination: subnet6, NIC: nicId},
 	})
 
 	// Performance
@@ -175,18 +198,18 @@ func runGvnetDgramPair() (*os.File, error) {
 	// 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt)
 	// }
 
-	var natLock sync.Mutex
-	tcpForwarder := tcpfwd.NewTcpForwarder(s, nil, &natLock)
-	s.SetTransportProtocolHandler(tcp.ProtocolNumber, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
-		// println("tcp pkt")
-		return tcpForwarder.HandlePacket(id, pkt)
-	})
-	// dbgf := tcp.NewForwarder(s, 0, 10, func(r *tcp.ForwarderRequest) {
-	// 	println("got req")
-	// 	r.Complete(true)
-	// })
-	// s.SetTransportProtocolHandler(tcp.ProtocolNumber, dbgf.HandlePacket)
-	udpForwarder := udpfwd.NewUdpForwarder(s, nil, &natLock)
+	// Build NAT table
+	var natLock sync.RWMutex
+	natTable := make(map[tcpip.Address]tcpip.Address)
+	for virtIp, hostIp := range natFromGuest {
+		natTable[tcpip.Address(net.ParseIP(virtIp))] = tcpip.Address(net.ParseIP(hostIp))
+	}
+
+	// Forwarders
+	tcpForwarder := tcpfwd.NewTcpForwarder(s, natTable, &natLock)
+	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
+
+	udpForwarder := udpfwd.NewUdpForwarder(s, natTable, &natLock)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
 	s.SetTransportProtocolHandler(icmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
@@ -200,12 +223,21 @@ func runGvnetDgramPair() (*os.File, error) {
 		return true
 	})
 
+	// ICMP
 	icmpFwd, err := icmpfwd.NewIcmpFwd(s)
 	if err != nil {
 		return nil, err
 	}
 	go icmpFwd.ProxyRequests()
 	go icmpFwd.MonitorReplies(endpoint)
+
+	// Host forwards
+	for listenAddr, connectAddr := range hostForwardsToGuest {
+		err := tcpfwd.StartTcpHostForward(s, nicId, listenAddr, connectAddr)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// TODO close the file eventually
 	return file0, nil

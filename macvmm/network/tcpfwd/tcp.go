@@ -2,7 +2,6 @@ package tcpfwd
 
 import (
 	"errors"
-	"io"
 	"net"
 	"strconv"
 	"sync"
@@ -16,51 +15,15 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-func pump1(errc chan<- error, src, dst net.Conn) {
-	buf := make([]byte, 512*1024)
-	_, err := io.CopyBuffer(dst, src, buf)
-
-	// half-close to allow graceful shutdown
-	if dstTcp, ok := dst.(*net.TCPConn); ok {
-		dstTcp.CloseWrite()
-	}
-	if dstTcp, ok := dst.(*gonet.TCPConn); ok {
-		dstTcp.CloseWrite()
-	}
-
-	if srcTcp, ok := src.(*net.TCPConn); ok {
-		srcTcp.CloseRead()
-	}
-	if srcTcp, ok := src.(*gonet.TCPConn); ok {
-		srcTcp.CloseRead()
-	}
-
-	errc <- err
-}
-
-func pump2(c1, c2 net.Conn) {
-	errChan := make(chan error, 2)
-	go pump1(errChan, c1, c2)
-	go pump1(errChan, c2, c1)
-
-	// Don't wait for both if one side failed (not EOF)
-	if err1 := <-errChan; err1 != nil {
-		return
-	}
-	if err2 := <-errChan; err2 != nil {
-		return
-	}
-}
-
-func NewTcpForwarder(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mutex) *tcp.Forwarder {
+func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, 10, func(r *tcp.ForwarderRequest) {
 		localAddress := r.ID().LocalAddress
 
-		natLock.Lock()
-		if replaced, ok := nat[localAddress]; ok {
+		natLock.RLock()
+		if replaced, ok := natTable[localAddress]; ok {
 			localAddress = replaced
 		}
-		natLock.Unlock()
+		natLock.RUnlock()
 		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
 
 		extConn, err := net.Dial("tcp", extAddr)
