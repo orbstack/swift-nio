@@ -9,19 +9,14 @@ replace gvisor.dev/gvisor => /Users/dragon/code/vm/gvisor
 
 require (
 	github.com/Code-Hex/vz/v3 v3.0.0
+	github.com/google/gopacket v1.1.19
 	github.com/pkg/term v1.1.0
 	golang.org/x/sys v0.3.0
 )
 
-require (
-	github.com/google/go-cmp v0.5.9 // indirect
-	github.com/google/uuid v1.2.0 // indirect
-	github.com/stretchr/testify v1.8.1 // indirect
-	golang.org/x/sync v0.1.0 // indirect
-)
+require github.com/stretchr/testify v1.8.1 // indirect
 
 require (
-	github.com/go-ping/ping v1.1.0
 	github.com/google/btree v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.9.0
 	golang.org/x/mod v0.7.0 // indirect

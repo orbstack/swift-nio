@@ -1,6 +1,8 @@
 package icmpfwd
 
 import (
+	"bytes"
+	"errors"
 	"log"
 	"net"
 	"os"
@@ -11,12 +13,13 @@ import (
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
-	gvipv4 "gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	gvicmp "gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
+	"gvisor.dev/gvisor/pkg/waiter"
 )
 
 type IcmpFwd struct {
@@ -42,7 +45,7 @@ func newIcmpPacketConn4() (*goipv4.PacketConn, error) {
 		return nil, err
 	}
 
-	f := os.NewFile(uintptr(s), "icmp")
+	f := os.NewFile(uintptr(s), "icmp4")
 	c, err := net.FilePacketConn(f)
 	return goipv4.NewPacketConn(c), nil
 }
@@ -60,7 +63,7 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 		return nil, err
 	}
 
-	f := os.NewFile(uintptr(s), "icmp")
+	f := os.NewFile(uintptr(s), "icmp6")
 	c, err := net.FilePacketConn(f)
 	return goipv6.NewPacketConn(c), nil
 }
@@ -84,45 +87,86 @@ func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID) (*IcmpFwd, error) {
 }
 
 func (i *IcmpFwd) ProxyRequests() {
+	// var wq waiter.Queue
+	// ep6, err := i.stack.NewRawEndpoint(gvicmp.ProtocolNumber6, header.IPv6ProtocolNumber, &wq, true)
+	// if err != nil {
+	// 	log.Println("error creating raw endpoint for icmp6", err)
+	// 	return
+	// }
+
 	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
-		if pkt.NetworkProtocolNumber == ipv4.ProtocolNumber {
-			i.lastSourceAddr4 = pkt.Network().SourceAddress()
-		} else if pkt.NetworkProtocolNumber == ipv6.ProtocolNumber {
-			i.lastSourceAddr6 = pkt.Network().SourceAddress()
-		}
-		i.sendOut(pkt)
-		return true
+		i.lastSourceAddr4 = pkt.Network().SourceAddress()
+		return i.sendPkt(pkt)
+	})
+
+	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber6, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+		i.lastSourceAddr6 = pkt.Network().SourceAddress()
+		return i.sendPkt(pkt)
 	})
 }
 
 // handleICMPMessage parses ICMP packets and proxies them if possible.
-func (i *IcmpFwd) sendOut(packet stack.PacketBufferPtr) {
-	// Parse ICMP packet type.
-	netHeader := packet.Network()
-	//log.Printf("(client %v) - Transport: ICMP -> %v", netHeader.SourceAddress(), netHeader.DestinationAddress())
+func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
+	ipHdr := pkt.Network()
+	icmpMsg := ipHdr.Payload()
+	dstAddr := &net.UDPAddr{
+		IP: net.IP(ipHdr.DestinationAddress()),
+	}
 
-	// TODO check if we should forward it
-	if packet.NetworkProtocolNumber == ipv4.ProtocolNumber {
-		i.conn4.SetTTL(int(netHeader.(header.IPv4).TTL()))
-		_, err := i.conn4.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
-			IP: net.IP(netHeader.DestinationAddress()),
-		})
+	// Only forward ICMP Echo Request.
+	// For IPv4, macOS also allows Timestamp and Address Mask Request
+	// For IPv6, macOS also allows Node Information Query
+	// But no one uses them, so don't bother
+	if pkt.NetworkProtocolNumber == ipv4.ProtocolNumber {
+		// Check type
+		icmpHdr := header.ICMPv4(icmpMsg)
+		if icmpHdr.Type() != header.ICMPv4Echo {
+			return false
+		}
+
+		// TTL
+		ip4Hdr := ipHdr.(header.IPv4)
+		tos, _ := ip4Hdr.TOS()
+		i.conn4.SetTTL(int(ip4Hdr.TTL()))
+		i.conn4.SetTOS(int(tos))
+
+		_, err := i.conn4.WriteTo(icmpMsg, nil, dstAddr)
 		// TODO dont print
 		if err != nil {
 			log.Println("error writing to icmp4 socket", err)
+			return false
 		}
-	} else if packet.NetworkProtocolNumber == ipv6.ProtocolNumber {
-		i.conn6.SetHopLimit(int(netHeader.(header.IPv6).HopLimit()))
-		_, err := i.conn6.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
-			IP: net.IP(netHeader.DestinationAddress()),
-		})
+		return true
+	} else if pkt.NetworkProtocolNumber == ipv6.ProtocolNumber {
+		// Check type
+		icmpHdr := header.ICMPv6(icmpMsg)
+		if icmpHdr.Type() != header.ICMPv6EchoRequest {
+			return false
+		}
+
+		// TTL
+		ip6Hdr := ipHdr.(header.IPv6)
+		trafficClass, _ := ip6Hdr.TOS()
+		i.conn6.SetHopLimit(int(ip6Hdr.HopLimit()))
+		i.conn6.SetTrafficClass(int(trafficClass))
+
+		_, err := i.conn6.WriteTo(icmpMsg, nil, dstAddr)
 		if err != nil {
 			log.Println("error writing to icmp6 socket", err)
+			return false
 		}
+		return true
 	}
+
+	return false
 }
 
-func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
+func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) {
+	go i.forwardReplies4(ep)
+	go i.forwardReplies6(ep)
+}
+
+func (i *IcmpFwd) forwardReplies4(ep stack.LinkEndpoint) error {
 	fullBuf := make([]byte, 65535)
 	for {
 		n, _, _, err := i.conn4.ReadFrom(fullBuf)
@@ -138,7 +182,7 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 		ipHdr.SetDestinationAddress(i.lastSourceAddr4)
 		ipHdr.SetTotalLength(uint16(n)) // macOS sets 16384
 
-		icmpHdr := header.ICMPv4(msg[ipHdr.HeaderLength():])
+		icmpHdr := header.ICMPv4(ipHdr.Payload())
 		if icmpHdr.Type() == header.ICMPv4TimeExceeded {
 			origMsg := icmpHdr.Payload()
 			// Discard too-small packets
@@ -161,7 +205,7 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 			// UDP: fix source IP and port. (IP ident is wrong too)
 			case header.UDPProtocolNumber:
 				// Find the connection in the UDP conntrack map
-				origUdpHdr := header.UDP(origMsg[origIpHdr.HeaderLength():])
+				origUdpHdr := header.UDP(origIpHdr[header.IPv4MinimumSize:])
 				localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
 					// our external IP, not virtual
 					IP:   net.IP(origIpHdr.SourceAddress()),
@@ -203,30 +247,155 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 		ipHdr.SetChecksum(0)
 		ipHdr.SetChecksum(^ipHdr.CalculateChecksum())
 
-		// decpkt := gopacket.NewPacket(msg, layers.LayerTypeIPv4, gopacket.Default)
-		// fmt.Println("reply", decpkt.String())
-
-		r, errT := i.stack.FindRoute(i.nicId, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), gvipv4.ProtocolNumber, false)
-		if errT != nil {
-			log.Printf("FindRoute: %v", errT)
-			continue
-		}
-		defer r.Release()
-
-		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-			ReserveHeaderBytes: int(r.MaxHeaderLength()),
-			Payload:            bufferv2.MakeWithData(msg),
-		})
-		defer pkt.DecRef()
-
-		netEp, errT := i.stack.GetNetworkEndpoint(i.nicId, ipv4.ProtocolNumber)
-		if errT != nil {
-			log.Printf("SendPacket: %v", errT)
-			continue
-		}
-		if err := netEp.WriteHeaderIncludedPacket(r, pkt); err != nil {
-			log.Printf("SendPacket: %v", err)
-			continue
+		if err := i.sendReply(ipv4.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), msg); err != nil {
+			log.Println("error sending icmp4 reply", err)
 		}
 	}
+}
+
+func (i *IcmpFwd) forwardReplies6(ep stack.LinkEndpoint) error {
+	i.conn6.SetControlMessage(goipv6.FlagTrafficClass, true)
+	i.conn6.SetControlMessage(goipv6.FlagHopLimit, true)
+
+	fullBuf := make([]byte, 65535)
+	for {
+		n, cm, addr, err := i.conn6.ReadFrom(fullBuf)
+		if err != nil {
+			log.Println("error reading from icmp socket", err)
+			return err
+		}
+		msg := fullBuf[:n]
+
+		// p := gopacket.NewPacket(msg, layers.LayerTypeICMPv6, gopacket.Default)
+		// fmt.Println("ICMPv6", p)
+		// fmt.Println("dump", p.Dump())
+
+		if len(msg) < header.ICMPv6MinimumSize {
+			continue
+		}
+
+		// Make a new IP header
+		replyMsg := make([]byte, n+header.IPv6MinimumSize)
+		copy(replyMsg[header.IPv6MinimumSize:], msg)
+		ipHdr := header.IPv6(replyMsg)
+		ipHdr.SetPayloadLength(uint16(n))
+		ipHdr.SetHopLimit(uint8(cm.HopLimit))
+		ipHdr.SetTOS(uint8(cm.TrafficClass), 0) // flow label = 0
+		ipHdr.SetDestinationAddress(i.lastSourceAddr6)
+		ipHdr.SetSourceAddress(tcpip.Address(addr.(*net.UDPAddr).IP.To16()))
+		ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
+
+		icmpHdr := header.ICMPv6(ipHdr.Payload())
+		if icmpHdr.Type() == header.ICMPv6TimeExceeded {
+			origMsg := icmpHdr.Payload()
+			// Discard too-small packets
+			if len(origMsg) < header.IPv6MinimumSize+header.UDPMinimumSize {
+				continue
+			}
+
+			// Fix original IP header
+			origIpHdr := header.IPv6(origMsg)
+			origIpHdr.SetPayloadLength(uint16(len(origMsg) - header.IPv6MinimumSize)) // macOS sets 16384
+
+			// Fix nested L4 header
+			switch origIpHdr.TransportProtocol() {
+			// ICMP: fix source IP
+			case header.ICMPv6ProtocolNumber:
+				if i.lastSourceAddr6 == "" {
+					continue
+				}
+				origIpHdr.SetSourceAddress(i.lastSourceAddr6)
+			// UDP: fix source IP and port. (IP ident is wrong too)
+			case header.UDPProtocolNumber:
+				// Find the connection in the UDP conntrack map
+				origUdpHdr := header.UDP(origIpHdr[header.IPv6MinimumSize:])
+				localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
+					// our external IP, not virtual
+					IP:   net.IP(origIpHdr.SourceAddress()),
+					Port: int(origUdpHdr.SourcePort()),
+				})
+				if localSrcAddr == nil {
+					continue
+				}
+
+				// UDP checksum includes IP pseudo-header with addresses. Fix it.
+				virtSrcAddr := tcpip.Address(localSrcAddr.IP.To16())
+				// If checksum is non-zero, update it
+				if origUdpHdr.Checksum() != 0 {
+					origUdpHdr.UpdateChecksumPseudoHeaderAddress(origIpHdr.SourceAddress(), virtSrcAddr, true)
+					origUdpHdr.SetSourcePortWithChecksumUpdate(uint16(localSrcAddr.Port))
+				} else {
+					origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
+				}
+				// Then fix original source IP
+				origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To16()))
+				// Fix reply IP destination
+				ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To16()))
+			// TCP: not supported
+			case header.TCPProtocolNumber:
+			default:
+				continue
+			}
+
+			// Fix ICMP checksum
+			icmpHdr.SetChecksum(0)
+			icmpHdr.SetChecksum(header.ICMPv6Checksum(header.ICMPv6ChecksumParams{
+				Header:      icmpHdr,
+				Src:         ipHdr.SourceAddress(),
+				Dst:         ipHdr.DestinationAddress(),
+				PayloadCsum: checksum.Checksum(origMsg, 0),
+				PayloadLen:  len(origMsg),
+			}))
+		}
+
+		if err := i.sendReply(ipv6.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), replyMsg); err != nil {
+			log.Println("error sending icmp6 reply", err)
+		}
+	}
+}
+
+func (i *IcmpFwd) sendReply(netProto tcpip.NetworkProtocolNumber, srcAddr, dstAddr tcpip.Address, msg []byte) error {
+	r, err := i.stack.FindRoute(i.nicId, srcAddr, dstAddr, netProto, false)
+	if err != nil {
+		return errors.New(err.String())
+	}
+	defer r.Release()
+
+	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+		ReserveHeaderBytes: int(r.MaxHeaderLength()),
+		Payload:            bufferv2.MakeWithData(msg),
+	})
+	defer pkt.DecRef()
+
+	netEp, err := i.stack.GetNetworkEndpoint(i.nicId, netProto)
+	if err != nil {
+		return errors.New(err.String())
+	}
+
+	err = netEp.WriteHeaderIncludedPacket(r, pkt)
+	if err != nil {
+		return errors.New(err.String())
+	}
+	return nil
+}
+
+func SendPacket2(s *stack.Stack, packet []byte, addr *tcpip.FullAddress, netProto tcpip.NetworkProtocolNumber) tcpip.Error {
+	// Create network layer endpoint for spoofing source address.
+	var wq waiter.Queue
+	ep, tcpipErr := s.NewPacketEndpoint(true, netProto, &wq)
+	if tcpipErr != nil {
+		return tcpipErr
+	}
+	defer ep.Close()
+
+	// Send packet.
+	buf := bytes.NewReader(packet)
+	_, tcpipErr = ep.Write(buf, tcpip.WriteOptions{
+		To: addr,
+	})
+	if tcpipErr != nil {
+		return tcpipErr
+	}
+
+	return nil
 }

@@ -18,7 +18,7 @@ func ParseTcpipAddress(ip string) tcpip.Address {
 }
 
 func GetDefaultAddress4() net.IP {
-	conn, err := net.Dial("udp", "1.1.1.1:33000")
+	conn, err := net.Dial("udp", "1.0.0.1:33000")
 	if err != nil {
 		return nil
 	}
@@ -27,7 +27,7 @@ func GetDefaultAddress4() net.IP {
 }
 
 func GetDefaultAddress6() net.IP {
-	conn, err := net.Dial("udp", "[2606:4700:4700::1111]:33000")
+	conn, err := net.Dial("udp", "[2606:4700:4700::1001]:33000")
 	if err != nil {
 		return nil
 	}

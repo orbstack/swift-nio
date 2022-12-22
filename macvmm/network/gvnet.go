@@ -2,7 +2,6 @@ package network
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"os"
@@ -215,18 +214,13 @@ func runGvnetDgramPair() (*os.File, error) {
 	udpForwarder := udpfwd.NewUdpForwarder(s, natTable, &natLock)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
-	s.SetTransportProtocolHandler(icmp.ProtocolNumber6, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
-		fmt.Println("icmp6 id", id, "pkt", pkt)
-		return true
-	})
-
 	// ICMP
 	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicId)
 	if err != nil {
 		return nil, err
 	}
 	go icmpFwd.ProxyRequests()
-	go icmpFwd.MonitorReplies(endpoint)
+	icmpFwd.MonitorReplies(endpoint)
 
 	// Host forwards
 	for listenAddr, connectAddr := range hostForwardsToGuest {

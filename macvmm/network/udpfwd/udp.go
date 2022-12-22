@@ -38,6 +38,6 @@ func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		p, _ := NewUDPProxy(&autoStoppingListener{underlying: gonet.NewUDPConn(s, &wq, ep)}, func() (net.Conn, error) {
 			return net.Dial("udp", extAddr)
 		})
-		go p.Run()
+		go p.Run(true)
 	})
 }

@@ -112,18 +112,18 @@ func (proxy *UDPProxy) replyLoop(proxyConn net.Conn, clientAddr net.Addr, client
 			}
 			return
 		}
-		for i := 0; i != read; {
-			written, err := proxy.listener.WriteTo(readBuf[i:read], clientAddr)
-			if err != nil {
-				return
-			}
-			i += written
+		written, err := proxy.listener.WriteTo(readBuf[:read], clientAddr)
+		if err != nil {
+			return
+		}
+		if written != read {
+			return
 		}
 	}
 }
 
 // Run starts forwarding the traffic using UDP.
-func (proxy *UDPProxy) Run() {
+func (proxy *UDPProxy) Run(useTtl bool) {
 	readBuf := make([]byte, UDPBufSize)
 	lastTtl := uint8(64)
 	for {
@@ -162,15 +162,19 @@ func (proxy *UDPProxy) Run() {
 
 		// Set TTL
 		newTtl := proxy.listener.underlying.LastTTL
-		if newTtl != lastTtl {
-			// fmt.Printf("TTL changed %d -> %d", lastTtl, newTtl)
+		if useTtl && newTtl != lastTtl {
 			lastTtl = newTtl
 			rawConn, err := proxyConn.(*net.UDPConn).SyscallConn()
 			if err != nil {
 				log.Errorf("Can't set TTL on UDP socket: %s\n", err)
 			} else {
 				rawConn.Control(func(fd uintptr) {
-					err := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, int(newTtl))
+					var err error
+					if proxyConn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
+						err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, int(newTtl))
+					} else {
+						err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_UNICAST_HOPS, int(newTtl))
+					}
 					if err != nil {
 						log.Errorf("Can't set TTL on UDP socket: %s\n", err)
 					}
@@ -178,14 +182,15 @@ func (proxy *UDPProxy) Run() {
 			}
 		}
 
-		for i := 0; i != read; {
-			_ = proxyConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
-			written, err := proxyConn.Write(readBuf[i:read])
-			if err != nil {
-				log.Errorf("Can't proxy a datagram to udp: %s\n", err)
-				break
-			}
-			i += written
+		_ = proxyConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
+		written, err := proxyConn.Write(readBuf[:read])
+		if err != nil {
+			log.Errorf("Can't proxy a datagram to udp: %s\n", err)
+			break
+		}
+		if written != read {
+			log.Errorf("Can't proxy a datagram to udp: short write\n")
+			break
 		}
 	}
 }
