@@ -22,6 +22,7 @@ import (
 
 type IcmpFwd struct {
 	stack *stack.Stack
+	nicId tcpip.NICID
 	conn4 *goipv4.PacketConn
 	conn6 *goipv6.PacketConn
 	// to send reply packets
@@ -65,7 +66,7 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 	return goipv6.NewPacketConn(c), nil
 }
 
-func NewIcmpFwd(s *stack.Stack) (*IcmpFwd, error) {
+func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID) (*IcmpFwd, error) {
 	conn4, err := newIcmpPacketConn4()
 	if err != nil {
 		return nil, err
@@ -77,6 +78,7 @@ func NewIcmpFwd(s *stack.Stack) (*IcmpFwd, error) {
 
 	return &IcmpFwd{
 		stack: s,
+		nicId: nicId,
 		conn4: conn4,
 		conn6: conn6,
 	}, nil
@@ -141,14 +143,21 @@ func (i *IcmpFwd) sendOut(packet stack.PacketBufferPtr) {
 	// TODO check if we should forward it
 	if packet.NetworkProtocolNumber == ipv4.ProtocolNumber {
 		i.conn4.SetTTL(int(netHeader.(header.IPv4).TTL()))
-		i.conn4.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
+		_, err := i.conn4.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
 			IP: net.IP(netHeader.DestinationAddress()),
 		})
+		// TODO dont print
+		if err != nil {
+			log.Println("error writing to icmp4 socket", err)
+		}
 	} else if packet.NetworkProtocolNumber == ipv6.ProtocolNumber {
 		i.conn6.SetHopLimit(int(netHeader.(header.IPv6).HopLimit()))
-		i.conn6.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
+		_, err := i.conn6.WriteTo(netHeader.Payload(), nil, &net.UDPAddr{
 			IP: net.IP(netHeader.DestinationAddress()),
 		})
+		if err != nil {
+			log.Println("error writing to icmp6 socket", err)
+		}
 	}
 }
 
@@ -236,11 +245,12 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 		// decpkt := gopacket.NewPacket(msg, layers.LayerTypeIPv4, gopacket.Default)
 		// fmt.Println("reply", decpkt.String())
 
-		r, errT := i.stack.FindRoute(1, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), gvipv4.ProtocolNumber, false)
+		r, errT := i.stack.FindRoute(i.nicId, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), gvipv4.ProtocolNumber, false)
 		if errT != nil {
 			log.Printf("FindRoute: %v", errT)
 			continue
 		}
+		defer r.Release()
 
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			ReserveHeaderBytes: int(r.MaxHeaderLength()),
@@ -248,7 +258,7 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 		})
 		defer pkt.DecRef()
 
-		netEp, errT := i.stack.GetNetworkEndpoint(1, ipv4.ProtocolNumber)
+		netEp, errT := i.stack.GetNetworkEndpoint(i.nicId, ipv4.ProtocolNumber)
 		if errT != nil {
 			log.Printf("SendPacket: %v", errT)
 			continue

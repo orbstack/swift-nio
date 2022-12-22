@@ -227,7 +227,7 @@ func runGvnetDgramPair() (*os.File, error) {
 	})
 
 	// ICMP
-	icmpFwd, err := icmpfwd.NewIcmpFwd(s)
+	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicId)
 	if err != nil {
 		return nil, err
 	}
