@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/network"
-	"github.com/kdrag0n/vz-macvirt/v3"
 )
 
 const (

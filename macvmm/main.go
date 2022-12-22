@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/kdrag0n/vz-macvirt/v3"
+	"github.com/Code-Hex/vz/v3"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/kdrag0n/vz-macvirt/v3"
+	"github.com/Code-Hex/vz/v3"
 )
 
 func StartRouterVm(netPair2 *os.File) *vz.VirtualMachine {

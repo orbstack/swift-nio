@@ -2,8 +2,10 @@ module github.com/kdrag0n/macvirt/macvmm
 
 go 1.19
 
+replace github.com/Code-Hex/vz/v3 => /Users/dragon/code/vm/vz
+
 require (
-	github.com/kdrag0n/vz-macvirt/v3 v3.0.0-20221215204933-81fcd48b1574
+	github.com/Code-Hex/vz/v3 v3.0.0
 	github.com/pkg/term v1.1.0
 	golang.org/x/sys v0.3.0
 )
