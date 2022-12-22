@@ -215,12 +215,6 @@ func runGvnetDgramPair() (*os.File, error) {
 	udpForwarder := udpfwd.NewUdpForwarder(s, natTable, &natLock)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
-	s.SetTransportProtocolHandler(icmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
-		fmt.Println("icmp4 id", id, "pkt", pkt)
-		//pkt.RXChecksumValidated
-		return true
-	})
-
 	s.SetTransportProtocolHandler(icmp.ProtocolNumber6, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		fmt.Println("icmp6 id", id, "pkt", pkt)
 		return true

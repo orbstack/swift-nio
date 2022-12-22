@@ -4,6 +4,7 @@ go 1.19
 
 replace github.com/Code-Hex/vz/v3 => /Users/dragon/code/vm/vz
 
+// go branch
 replace gvisor.dev/gvisor => /Users/dragon/code/vm/gvisor
 
 require (

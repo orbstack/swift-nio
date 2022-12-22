@@ -15,7 +15,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	gvipv4 "gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
-	gvipv6 "gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	gvicmp "gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
 )
@@ -85,53 +84,15 @@ func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID) (*IcmpFwd, error) {
 }
 
 func (i *IcmpFwd) ProxyRequests() {
-	// create iptables rule that drops icmp, but clones packet and sends it to this handler.
-	headerFilter4 := stack.IPHeaderFilter{
-		Protocol:      gvicmp.ProtocolNumber4,
-		CheckProtocol: true,
-	}
-
-	headerFilter6 := stack.IPHeaderFilter{
-		Protocol:      gvicmp.ProtocolNumber6,
-		CheckProtocol: true,
-	}
-
-	match := preroutingMatch{
-		pktChan: make(chan stack.PacketBufferPtr),
-	}
-
-	rule4 := stack.Rule{
-		Filter:   headerFilter4,
-		Matchers: []stack.Matcher{match},
-		Target: &stack.DropTarget{
-			NetworkProtocol: gvipv4.ProtocolNumber,
-		},
-	}
-
-	rule6 := stack.Rule{
-		Filter:   headerFilter6,
-		Matchers: []stack.Matcher{match},
-		Target: &stack.DropTarget{
-			NetworkProtocol: gvipv6.ProtocolNumber,
-		},
-	}
-
-	tid := stack.NATID
-	PushRule(i.stack, rule4, tid, false)
-	PushRule(i.stack, rule6, tid, true)
-
-	for {
-		clonedPacket := <-match.pktChan
-		go func() {
-			defer clonedPacket.DecRef()
-			if clonedPacket.NetworkProtocolNumber == ipv4.ProtocolNumber {
-				i.lastSourceAddr4 = clonedPacket.Network().SourceAddress()
-			} else if clonedPacket.NetworkProtocolNumber == ipv6.ProtocolNumber {
-				i.lastSourceAddr6 = clonedPacket.Network().SourceAddress()
-			}
-			i.sendOut(clonedPacket)
-		}()
-	}
+	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+		if pkt.NetworkProtocolNumber == ipv4.ProtocolNumber {
+			i.lastSourceAddr4 = pkt.Network().SourceAddress()
+		} else if pkt.NetworkProtocolNumber == ipv6.ProtocolNumber {
+			i.lastSourceAddr6 = pkt.Network().SourceAddress()
+		}
+		i.sendOut(pkt)
+		return true
+	})
 }
 
 // handleICMPMessage parses ICMP packets and proxies them if possible.
