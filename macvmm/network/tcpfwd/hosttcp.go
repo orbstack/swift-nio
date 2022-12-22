@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmm/network/gonet"
+	"github.com/kdrag0n/macvirt/macvmm/network/netutil"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
@@ -21,11 +22,12 @@ const (
 type TcpHostForwarder struct {
 	listener    net.Listener
 	connectAddr tcpip.FullAddress
+	gatewayAddr tcpip.Address
 	stack       *stack.Stack
 	nicId       tcpip.NICID
 }
 
-func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, listenAddr string, connectAddr string) error {
+func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr string, listenAddr string, connectAddr string) error {
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return err
@@ -43,8 +45,9 @@ func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, listenAddr string, c
 			Addr: tcpip.Address(connectAddrPort.Addr().AsSlice()),
 			Port: uint16(connectAddrPort.Port()),
 		},
-		stack: s,
-		nicId: nicId,
+		gatewayAddr: netutil.ParseTcpipAddress(gatewayAddr),
+		stack:       s,
+		nicId:       nicId,
 	}
 
 	go f.listen()
@@ -65,18 +68,35 @@ func (f *TcpHostForwarder) listen() {
 func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 	defer conn.Close()
 
-	// Spoof source address
+	// Detect IPv4 or IPv6
 	remoteAddr := conn.RemoteAddr().(*net.TCPAddr)
-	virtSrcAddr := tcpip.FullAddress{
-		NIC:  f.nicId,
-		//Addr: tcpip.Address(remoteAddr.IP),
-		Addr: tcpip.Address(net.ParseIP("172.30.30.1").To4()),
-		Port: uint16(remoteAddr.Port),
+	proto := ipv4.ProtocolNumber
+	if remoteAddr.IP.To4() == nil {
+		proto = ipv6.ProtocolNumber
 	}
 
-	proto := ipv4.ProtocolNumber
-	if remoteAddr.IP.To16() != nil {
-		proto = ipv6.ProtocolNumber
+	// Spoof source address
+	var srcAddr tcpip.Address
+	if remoteAddr.IP.IsLoopback() {
+		// We can't spoof loopback. Look up the host's default address.
+		if proto == ipv4.ProtocolNumber {
+			srcAddr = tcpip.Address(netutil.GetDefaultAddress4())
+		} else {
+			srcAddr = tcpip.Address(netutil.GetDefaultAddress6())
+		}
+
+		// Fallback = gateway (i.e. if airplane mode)
+		if srcAddr == "" {
+			srcAddr = f.gatewayAddr
+		}
+	} else {
+		srcAddr = tcpip.Address(remoteAddr.IP)
+	}
+
+	virtSrcAddr := tcpip.FullAddress{
+		NIC:  f.nicId,
+		Addr: srcAddr,
+		Port: uint16(remoteAddr.Port),
 	}
 
 	fmt.Println("dial from", virtSrcAddr, "to", f.connectAddr, "with proto", proto, "and timeout", connectTimeout)

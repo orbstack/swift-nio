@@ -6,10 +6,12 @@ import (
 	"math"
 	"net"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmm/network/icmpfwd"
+	"github.com/kdrag0n/macvirt/macvmm/network/netutil"
 	"github.com/kdrag0n/macvirt/macvmm/network/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/network/udpfwd"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -117,13 +119,13 @@ func runGvnetDgramPair() (*os.File, error) {
 
 	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
-		AddressWithPrefix: tcpip.Address(net.ParseIP(gatewayIP4)).WithPrefix(),
+		AddressWithPrefix: netutil.ParseTcpipAddress(gatewayIP4).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
 	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol:          ipv6.ProtocolNumber,
-		AddressWithPrefix: tcpip.Address(net.ParseIP(gatewayIP6)).WithPrefix(),
+		AddressWithPrefix: netutil.ParseTcpipAddress(gatewayIP6).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
@@ -140,7 +142,7 @@ func runGvnetDgramPair() (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	subnet4, err := tcpip.NewSubnet(tcpip.Address(ipSubnet4.IP), tcpip.AddressMask(ipSubnet4.Mask))
+	subnet4, err := tcpip.NewSubnet(tcpip.Address(ipSubnet4.IP.To4()), tcpip.AddressMask(ipSubnet4.Mask))
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +151,7 @@ func runGvnetDgramPair() (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	subnet6, err := tcpip.NewSubnet(tcpip.Address(ipSubnet6.IP), tcpip.AddressMask(ipSubnet6.Mask))
+	subnet6, err := tcpip.NewSubnet(tcpip.Address(ipSubnet6.IP.To16()), tcpip.AddressMask(ipSubnet6.Mask))
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +204,7 @@ func runGvnetDgramPair() (*os.File, error) {
 	var natLock sync.RWMutex
 	natTable := make(map[tcpip.Address]tcpip.Address)
 	for virtIp, hostIp := range natFromGuest {
-		natTable[tcpip.Address(net.ParseIP(virtIp))] = tcpip.Address(net.ParseIP(hostIp))
+		natTable[netutil.ParseTcpipAddress(virtIp)] = netutil.ParseTcpipAddress(hostIp)
 	}
 
 	// Forwarders
@@ -233,7 +235,11 @@ func runGvnetDgramPair() (*os.File, error) {
 
 	// Host forwards
 	for listenAddr, connectAddr := range hostForwardsToGuest {
-		err := tcpfwd.StartTcpHostForward(s, nicId, listenAddr, connectAddr)
+		gatewayAddr := gatewayIP4
+		if strings.ContainsRune(connectAddr, '[') {
+			gatewayAddr = gatewayIP6
+		}
+		err := tcpfwd.StartTcpHostForward(s, nicId, gatewayAddr, listenAddr, connectAddr)
 		if err != nil {
 			return nil, err
 		}
