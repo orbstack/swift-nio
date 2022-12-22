@@ -172,7 +172,7 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 		if icmpHdr.Type() == header.ICMPv4TimeExceeded {
 			origMsg := icmpHdr.Payload()
 			// Discard too-small packets
-			if len(origMsg) < header.IPv4MinimumSize {
+			if len(origMsg) < header.IPv4MinimumSize+header.UDPMinimumSize {
 				continue
 			}
 
@@ -201,9 +201,17 @@ func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) error {
 					continue
 				}
 
+				// UDP checksum includes IP pseudo-header with addresses. Fix it.
+				virtSrcAddr := tcpip.Address(localSrcAddr.IP.To4())
+				// If checksum is non-zero, update it
+				if origUdpHdr.Checksum() != 0 {
+					origUdpHdr.UpdateChecksumPseudoHeaderAddress(origIpHdr.SourceAddress(), virtSrcAddr, true)
+					origUdpHdr.SetSourcePortWithChecksumUpdate(uint16(localSrcAddr.Port))
+				} else {
+					origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
+				}
+				// Then fix original source IP
 				origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To4()))
-				// TODO fix checksum
-				origUdpHdr.SetSourcePortWithChecksumUpdate(uint16(localSrcAddr.Port))
 				// Fix reply IP destination
 				ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To4()))
 			// TCP: not supported
