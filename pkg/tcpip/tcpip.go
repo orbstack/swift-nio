@@ -1522,12 +1522,10 @@ type StatCounter struct {
 
 // Increment adds one to the counter.
 func (s *StatCounter) Increment() {
-	s.IncrementBy(1)
 }
 
 // Decrement minuses one to the counter.
 func (s *StatCounter) Decrement() {
-	s.IncrementBy(^uint64(0))
 }
 
 // Value returns the current value of the counter.
@@ -1537,7 +1535,6 @@ func (s *StatCounter) Value() uint64 {
 
 // IncrementBy increments the counter by v.
 func (s *StatCounter) IncrementBy(v uint64) {
-	s.count.Add(v)
 }
 
 func (s *StatCounter) String() string {
