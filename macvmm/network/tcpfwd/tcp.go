@@ -24,14 +24,14 @@ func pump1(errc chan<- error, src, dst net.Conn) {
 	if dstTcp, ok := dst.(*net.TCPConn); ok {
 		dstTcp.CloseWrite()
 	}
-	if dstTcp, ok := src.(*gonet.TCPConn); ok {
+	if dstTcp, ok := dst.(*gonet.TCPConn); ok {
 		dstTcp.CloseWrite()
 	}
 
 	if srcTcp, ok := src.(*net.TCPConn); ok {
 		srcTcp.CloseRead()
 	}
-	if srcTcp, ok := dst.(*gonet.TCPConn); ok {
+	if srcTcp, ok := src.(*gonet.TCPConn); ok {
 		srcTcp.CloseRead()
 	}
 
