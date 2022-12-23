@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -18,6 +19,10 @@ import (
 func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, 10, func(r *tcp.ForwarderRequest) {
 		localAddress := r.ID().LocalAddress
+		if !netutil.ShouldProxy(localAddress) {
+			r.Complete(false)
+			return
+		}
 
 		natLock.RLock()
 		if replaced, ok := natTable[localAddress]; ok {

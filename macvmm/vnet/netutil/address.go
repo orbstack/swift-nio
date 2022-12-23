@@ -34,3 +34,17 @@ func GetDefaultAddress6() net.IP {
 	defer conn.Close()
 	return conn.LocalAddr().(*net.UDPAddr).IP.To16()
 }
+
+func ShouldProxy(addr tcpip.Address) bool {
+	ip := net.IP(addr)
+	if ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() {
+		return false
+	}
+
+	// IPv4 broadcast (DHCP)
+	if ip.Equal(net.IPv4bcast) {
+		return false
+	}
+
+	return true
+}

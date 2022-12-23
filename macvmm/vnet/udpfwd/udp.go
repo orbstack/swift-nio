@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
 	log "github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -16,6 +17,9 @@ import (
 func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *udp.Forwarder {
 	return udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
 		localAddress := r.ID().LocalAddress
+		if !netutil.ShouldProxy(localAddress) {
+			return
+		}
 
 		natLock.RLock()
 		if replaced, ok := natTable[localAddress]; ok {
