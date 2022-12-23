@@ -25,6 +25,7 @@ type IcmpFwd struct {
 	conn4 *goipv4.PacketConn
 	conn6 *goipv6.PacketConn
 	// to send reply packets
+	// TODO proper connection tracking
 	lastSourceAddr4 tcpip.Address
 	lastSourceAddr6 tcpip.Address
 }
@@ -65,7 +66,7 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 	return goipv6.NewPacketConn(c), nil
 }
 
-func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID) (*IcmpFwd, error) {
+func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6 tcpip.Address) (*IcmpFwd, error) {
 	conn4, err := newIcmpPacketConn4()
 	if err != nil {
 		return nil, err
@@ -76,10 +77,12 @@ func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID) (*IcmpFwd, error) {
 	}
 
 	return &IcmpFwd{
-		stack: s,
-		nicId: nicId,
-		conn4: conn4,
-		conn6: conn6,
+		stack:           s,
+		nicId:           nicId,
+		conn4:           conn4,
+		conn6:           conn6,
+		lastSourceAddr4: initialAddr4,
+		lastSourceAddr6: initialAddr6,
 	}, nil
 }
 

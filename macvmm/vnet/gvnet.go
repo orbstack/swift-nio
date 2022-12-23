@@ -221,7 +221,7 @@ func runGvnetDgramPair() (*os.File, error) {
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
 	// ICMP
-	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicId)
+	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicId, guestIP4, guestIP6)
 	if err != nil {
 		return nil, err
 	}
