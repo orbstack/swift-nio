@@ -13,6 +13,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -76,7 +77,7 @@ func NewUDPProxy(listener *autoStoppingListener, dialer func() (net.Conn, error)
 	}, nil
 }
 
-func (proxy *UDPProxy) replyLoop(proxyConn net.Conn, clientAddr net.Addr, clientKey *connTrackKey, localExtKey *connTrackKey) {
+func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKey *connTrackKey, localExtKey *connTrackKey) {
 	defer func() {
 		proxy.connTrackLock.Lock()
 		delete(proxy.connTrackTable, *clientKey)
@@ -93,14 +94,14 @@ func (proxy *UDPProxy) replyLoop(proxyConn net.Conn, clientAddr net.Addr, client
 			localExtConnTrackLock.Unlock()
 		}()
 
-		proxyConn.Close()
+		extConn.Close()
 	}()
 
 	readBuf := make([]byte, UDPBufSize)
 	for {
-		_ = proxyConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
+		_ = extConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
 	again:
-		read, err := proxyConn.Read(readBuf)
+		read, err := extConn.Read(readBuf)
 		if err != nil {
 			if err, ok := err.(*net.OpError); ok && err.Err == syscall.ECONNREFUSED {
 				// This will happen if the last write failed
@@ -140,23 +141,23 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 
 		fromKey := newConnTrackKey(from.(*net.UDPAddr))
 		proxy.connTrackLock.Lock()
-		proxyConn, hit := proxy.connTrackTable[*fromKey]
+		extConn, hit := proxy.connTrackTable[*fromKey]
 		if !hit {
-			proxyConn, err = proxy.dialer()
+			extConn, err = proxy.dialer()
 			if err != nil {
 				log.Errorf("Can't proxy a datagram to udp: %s\n", err)
 				proxy.connTrackLock.Unlock()
 				continue
 			}
-			proxy.connTrackTable[*fromKey] = proxyConn
+			proxy.connTrackTable[*fromKey] = extConn
 
 			// Track local source address
-			localExtKey := newConnTrackKey(proxyConn.LocalAddr().(*net.UDPAddr))
+			localExtKey := newConnTrackKey(extConn.LocalAddr().(*net.UDPAddr))
 			localExtConnTrackLock.Lock()
 			localExtConnTrack[*localExtKey] = from.(*net.UDPAddr)
 			localExtConnTrackLock.Unlock()
 
-			go proxy.replyLoop(proxyConn, from, fromKey, localExtKey)
+			go proxy.replyLoop(extConn, from, fromKey, localExtKey)
 		}
 		proxy.connTrackLock.Unlock()
 
@@ -164,13 +165,13 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 		newTtl := proxy.listener.underlying.LastTTL
 		if useTtl && newTtl != lastTtl {
 			lastTtl = newTtl
-			rawConn, err := proxyConn.(*net.UDPConn).SyscallConn()
+			rawConn, err := extConn.(*net.UDPConn).SyscallConn()
 			if err != nil {
 				log.Errorf("Can't set TTL on UDP socket: %s\n", err)
 			} else {
 				rawConn.Control(func(fd uintptr) {
 					var err error
-					if proxyConn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
+					if extConn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
 						err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, int(newTtl))
 					} else {
 						err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_UNICAST_HOPS, int(newTtl))
@@ -182,13 +183,14 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 			}
 		}
 
-		_ = proxyConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
-		written, err := proxyConn.Write(readBuf[:read])
+		_ = extConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
+		written, err := extConn.Write(readBuf[:read])
 		if err != nil {
-			log.Errorf("Can't proxy a datagram to udp: %s\n", err)
-			break
-		}
-		if written != read {
+			if !errors.Is(err, unix.ENOBUFS) {
+				log.Errorf("Can't proxy a datagram to udp: %s\n", err)
+				break
+			}
+		} else if written != read {
 			log.Errorf("Can't proxy a datagram to udp: short write\n")
 			break
 		}

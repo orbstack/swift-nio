@@ -55,6 +55,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		ep, tcpErr := r.CreateEndpoint(&wq)
 		r.Complete(false)
 		if tcpErr != nil {
+			// Maybe VM abandoned the connection already, nothing to do
 			log.Errorf("r.CreateEndpoint() = %v", tcpErr)
 			return
 		}
