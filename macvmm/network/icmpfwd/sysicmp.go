@@ -1,7 +1,6 @@
 package icmpfwd
 
 import (
-	"bytes"
 	"errors"
 	"log"
 	"net"
@@ -18,7 +17,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	gvicmp "gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
-	"gvisor.dev/gvisor/pkg/waiter"
 )
 
 type IcmpFwd struct {
@@ -382,26 +380,5 @@ func (i *IcmpFwd) sendReply(netProto tcpip.NetworkProtocolNumber, srcAddr, dstAd
 	if err != nil {
 		return errors.New(err.String())
 	}
-	return nil
-}
-
-func SendPacket2(s *stack.Stack, packet []byte, addr *tcpip.FullAddress, netProto tcpip.NetworkProtocolNumber) tcpip.Error {
-	// Create network layer endpoint for spoofing source address.
-	var wq waiter.Queue
-	ep, tcpipErr := s.NewPacketEndpoint(true, netProto, &wq)
-	if tcpipErr != nil {
-		return tcpipErr
-	}
-	defer ep.Close()
-
-	// Send packet.
-	buf := bytes.NewReader(packet)
-	_, tcpipErr = ep.Write(buf, tcpip.WriteOptions{
-		To: addr,
-	})
-	if tcpipErr != nil {
-		return tcpipErr
-	}
-
 	return nil
 }
