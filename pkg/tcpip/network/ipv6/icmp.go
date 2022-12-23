@@ -670,6 +670,7 @@ func (e *endpoint) handleICMP(pkt stack.PacketBufferPtr, hasFragmentHeader bool,
 
 		if !e.protocol.allowICMPReply(header.ICMPv6EchoReply) {
 			sent.rateLimited.Increment()
+			e.dispatcher.DeliverTransportPacket(header.ICMPv6ProtocolNumber, pkt)
 			return
 		}
 
