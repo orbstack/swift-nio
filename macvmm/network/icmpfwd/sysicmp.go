@@ -158,12 +158,12 @@ func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
 	return false
 }
 
-func (i *IcmpFwd) MonitorReplies(ep stack.LinkEndpoint) {
-	go i.forwardReplies4(ep)
-	go i.forwardReplies6(ep)
+func (i *IcmpFwd) MonitorReplies() {
+	go i.forwardReplies4()
+	go i.forwardReplies6()
 }
 
-func (i *IcmpFwd) forwardReplies4(ep stack.LinkEndpoint) error {
+func (i *IcmpFwd) forwardReplies4() error {
 	fullBuf := make([]byte, 65535)
 	for {
 		n, _, _, err := i.conn4.ReadFrom(fullBuf)
@@ -258,7 +258,7 @@ func (i *IcmpFwd) forwardReplies4(ep stack.LinkEndpoint) error {
 	}
 }
 
-func (i *IcmpFwd) forwardReplies6(ep stack.LinkEndpoint) error {
+func (i *IcmpFwd) forwardReplies6() error {
 	i.conn6.SetControlMessage(goipv6.FlagTrafficClass, true)
 	i.conn6.SetControlMessage(goipv6.FlagHopLimit, true)
 	i.conn6.SetControlMessage(goipv6.FlagDst, true)

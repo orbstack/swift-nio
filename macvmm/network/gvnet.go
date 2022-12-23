@@ -220,7 +220,7 @@ func runGvnetDgramPair() (*os.File, error) {
 		return nil, err
 	}
 	go icmpFwd.ProxyRequests()
-	icmpFwd.MonitorReplies(endpoint)
+	icmpFwd.MonitorReplies()
 
 	// Host forwards
 	for listenAddr, connectAddr := range hostForwardsToGuest {
