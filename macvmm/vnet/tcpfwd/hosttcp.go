@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strconv"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
@@ -20,17 +21,39 @@ const (
 )
 
 type TcpHostForwarder struct {
-	listener     net.Listener
-	connectAddr4 tcpip.FullAddress
-	connectAddr6 tcpip.FullAddress
-	gatewayAddr4 tcpip.Address
-	gatewayAddr6 tcpip.Address
-	stack        *stack.Stack
-	nicId        tcpip.NICID
+	listener        net.Listener
+	requireLoopback bool
+	connectAddr4    tcpip.FullAddress
+	connectAddr6    tcpip.FullAddress
+	gatewayAddr4    tcpip.Address
+	gatewayAddr6    tcpip.Address
+	stack           *stack.Stack
+	nicId           tcpip.NICID
+}
+
+func listenTcp(addr string) (net.Listener, bool, error) {
+	addrPort, err := netip.ParseAddrPort(addr)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if addrPort.Addr().IsLoopback() && addrPort.Port() < 1024 {
+		// Bypass privileged ports by listening on 0.0.0.0
+		addr := net.IPv4zero
+		if addrPort.Addr().Is6() {
+			addr = net.IPv6zero
+		}
+
+		l, err := net.Listen("tcp", net.JoinHostPort(addr.String(), strconv.Itoa(int(addrPort.Port()))))
+		return l, true, err
+	}
+
+	l, err := net.Listen("tcp", addr)
+	return l, false, err
 }
 
 func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewayAddr6, listenAddr, connectAddr4, connectAddr6 string) error {
-	listener, err := net.Listen("tcp", listenAddr)
+	listener, requireLoopback, err := listenTcp(listenAddr)
 	if err != nil {
 		return err
 	}
@@ -46,7 +69,8 @@ func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewa
 	}
 
 	f := &TcpHostForwarder{
-		listener: listener,
+		listener:        listener,
+		requireLoopback: requireLoopback,
 		connectAddr4: tcpip.FullAddress{
 			NIC:  nicId,
 			Addr: tcpip.Address(connectAddrPort4.Addr().AsSlice()),
@@ -88,6 +112,12 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 	if remoteAddr.IP.To4() == nil {
 		proto = ipv6.ProtocolNumber
 		connectAddr = f.connectAddr6
+	}
+
+	// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
+	if f.requireLoopback && !remoteAddr.IP.IsLoopback() {
+		fmt.Println("rejecting connection from non-loopback address", remoteAddr)
+		return
 	}
 
 	// Spoof source address

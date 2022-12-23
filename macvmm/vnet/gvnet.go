@@ -27,7 +27,7 @@ import (
 
 const (
 	GvnetMtu    = 65520
-	capturePcap = true
+	capturePcap = false
 	nicId       = 1
 
 	subnet4    = "172.30.30"
@@ -49,7 +49,6 @@ var (
 		"127.0.0.1:2222":  22,
 		"[::1]:2222":      22,
 		"127.0.0.1:62429": 2049,
-		"0.0.0.0:80":      22,
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
