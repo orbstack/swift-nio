@@ -5,7 +5,7 @@ import (
 	"math"
 	"net"
 	"os"
-	"strings"
+	"strconv"
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/dgramlink"
@@ -45,10 +45,11 @@ const (
 
 var (
 	// host -> guest
-	hostForwardsToGuest = map[string]string{
-		"127.0.0.1:2222":  guestIP4 + ":22",
-		"[::1]:2222":      "[" + guestIP6 + "]:22",
-		"127.0.0.1:62429": guestIP4 + ":2049",
+	hostForwardsToGuest = map[string]int{
+		"127.0.0.1:2222":  22,
+		"[::1]:2222":      22,
+		"127.0.0.1:62429": 2049,
+		"0.0.0.0:80":      22,
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -223,12 +224,10 @@ func runGvnetDgramPair() (*os.File, error) {
 	icmpFwd.MonitorReplies()
 
 	// Host forwards
-	for listenAddr, connectAddr := range hostForwardsToGuest {
-		gatewayAddr := gatewayIP4
-		if strings.ContainsRune(connectAddr, '[') {
-			gatewayAddr = gatewayIP6
-		}
-		err := tcpfwd.StartTcpHostForward(s, nicId, gatewayAddr, listenAddr, connectAddr)
+	for listenAddr, connectPort := range hostForwardsToGuest {
+		connectAddr4 := guestIP4 + ":" + strconv.Itoa(connectPort)
+		connectAddr6 := "[" + guestIP6 + "]:" + strconv.Itoa(connectPort)
+		err := tcpfwd.StartTcpHostForward(s, nicId, gatewayIP4, gatewayIP6, listenAddr, connectAddr4, connectAddr6)
 		if err != nil {
 			return nil, err
 		}
