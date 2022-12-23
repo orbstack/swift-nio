@@ -23,9 +23,7 @@ import (
 
 type IcmpFwd struct {
 	stack *stack.Stack
-	nicID tcpip.NICID
-	ep4   tcpip.Endpoint
-	ep6   tcpip.Endpoint
+	nicId tcpip.NICID
 	conn4 *goipv4.PacketConn
 	conn6 *goipv6.PacketConn
 	// to send reply packets
@@ -69,7 +67,7 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 	return goipv6.NewPacketConn(c), nil
 }
 
-func NewIcmpFwd(s *stack.Stack, nicID tcpip.NICID) (*IcmpFwd, error) {
+func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID) (*IcmpFwd, error) {
 	conn4, err := newIcmpPacketConn4()
 	if err != nil {
 		return nil, err
@@ -79,31 +77,22 @@ func NewIcmpFwd(s *stack.Stack, nicID tcpip.NICID) (*IcmpFwd, error) {
 		return nil, err
 	}
 
-	var wq4 waiter.Queue
-	ep4, errT := s.NewRawEndpoint(gvicmp.ProtocolNumber4, header.IPv4ProtocolNumber, &wq4, true)
-	if errT != nil {
-		log.Println("error creating raw endpoint for icmp4", errT)
-		return nil, errors.New(errT.String())
-	}
-
-	var wq6 waiter.Queue
-	ep6, errT := s.NewRawEndpoint(gvicmp.ProtocolNumber6, header.IPv6ProtocolNumber, &wq6, true)
-	if errT != nil {
-		log.Println("error creating raw endpoint for icmp6", errT)
-		return nil, errors.New(errT.String())
-	}
-
 	return &IcmpFwd{
 		stack: s,
-		nicID: nicID,
-		ep4:   ep4,
-		ep6:   ep6,
+		nicId: nicId,
 		conn4: conn4,
 		conn6: conn6,
 	}, nil
 }
 
 func (i *IcmpFwd) ProxyRequests() {
+	// var wq waiter.Queue
+	// ep6, err := i.stack.NewRawEndpoint(gvicmp.ProtocolNumber6, header.IPv6ProtocolNumber, &wq, true)
+	// if err != nil {
+	// 	log.Println("error creating raw endpoint for icmp6", err)
+	// 	return
+	// }
+
 	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		i.lastSourceAddr4 = pkt.Network().SourceAddress()
 		return i.sendPkt(pkt)
@@ -265,7 +254,7 @@ func (i *IcmpFwd) forwardReplies4(ep stack.LinkEndpoint) error {
 		ipHdr.SetChecksum(0)
 		ipHdr.SetChecksum(^ipHdr.CalculateChecksum())
 
-		if err := i.sendReply(i.ep4, ipHdr.DestinationAddress(), msg); err != nil {
+		if err := i.sendReply(ipv4.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), msg); err != nil {
 			log.Println("error sending icmp4 reply", err)
 		}
 	}
@@ -365,26 +354,53 @@ func (i *IcmpFwd) forwardReplies6(ep stack.LinkEndpoint) error {
 		// Fix ICMP checksum for NAT
 		icmpHdr.UpdateChecksumPseudoHeaderAddress(tcpip.Address(cm.Dst), ipHdr.DestinationAddress())
 
-		if err := i.sendReply(i.ep6, ipHdr.DestinationAddress(), replyMsg); err != nil {
+		if err := i.sendReply(ipv6.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), replyMsg); err != nil {
 			log.Println("error sending icmp6 reply", err)
 		}
 	}
 }
 
-func (i *IcmpFwd) sendReply(ep tcpip.Endpoint, dstAddr tcpip.Address, msg []byte) error {
+func (i *IcmpFwd) sendReply(netProto tcpip.NetworkProtocolNumber, srcAddr, dstAddr tcpip.Address, msg []byte) error {
+	r, err := i.stack.FindRoute(i.nicId, srcAddr, dstAddr, netProto, false)
+	if err != nil {
+		return errors.New(err.String())
+	}
+	defer r.Release()
+
 	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-		Payload: bufferv2.MakeWithData(msg),
+		ReserveHeaderBytes: int(r.MaxHeaderLength()),
+		Payload:            bufferv2.MakeWithData(msg),
 	})
 	defer pkt.DecRef()
 
-	_, err := ep.Write(bytes.NewReader(msg), tcpip.WriteOptions{
-		To: &tcpip.FullAddress{
-			NIC:  i.nicID,
-			Addr: dstAddr,
-		},
-	})``
+	netEp, err := i.stack.GetNetworkEndpoint(i.nicId, netProto)
 	if err != nil {
 		return errors.New(err.String())
+	}
+
+	err = netEp.WriteHeaderIncludedPacket(r, pkt)
+	if err != nil {
+		return errors.New(err.String())
+	}
+	return nil
+}
+
+func SendPacket2(s *stack.Stack, packet []byte, addr *tcpip.FullAddress, netProto tcpip.NetworkProtocolNumber) tcpip.Error {
+	// Create network layer endpoint for spoofing source address.
+	var wq waiter.Queue
+	ep, tcpipErr := s.NewPacketEndpoint(true, netProto, &wq)
+	if tcpipErr != nil {
+		return tcpipErr
+	}
+	defer ep.Close()
+
+	// Send packet.
+	buf := bytes.NewReader(packet)
+	_, tcpipErr = ep.Write(buf, tcpip.WriteOptions{
+		To: addr,
+	})
+	if tcpipErr != nil {
+		return tcpipErr
 	}
 
 	return nil
