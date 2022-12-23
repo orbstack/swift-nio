@@ -2,7 +2,6 @@ package tcpfwd
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/netip"
 	"time"
@@ -99,7 +98,6 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 		Port: uint16(remoteAddr.Port),
 	}
 
-	fmt.Println("dial from", virtSrcAddr, "to", f.connectAddr, "with proto", proto, "and timeout", connectTimeout)
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(connectTimeout))
 	defer cancel()
 	virtConn, err := gonet.DialTCPWithBind(ctx, f.stack, virtSrcAddr, f.connectAddr, proto)

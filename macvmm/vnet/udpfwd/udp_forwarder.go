@@ -5,8 +5,8 @@ package udpfwd
 
 import (
 	"encoding/binary"
+	"errors"
 	"net"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -132,7 +132,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 			// NOTE: Apparently ReadFrom doesn't return
 			// ECONNREFUSED like Read do (see comment in
 			// UDPProxy.replyLoop)
-			if !isClosedError(err) {
+			if !errors.Is(err, net.ErrClosed) {
 				log.Debugf("Stopping udp proxy (%s)", err)
 			}
 			break
@@ -204,16 +204,6 @@ func (proxy *UDPProxy) Close() error {
 		conn.Close()
 	}
 	return nil
-}
-
-func isClosedError(err error) bool {
-	/* This comparison is ugly, but unfortunately, net.go doesn't export errClosing.
-	 * See:
-	 * http://golang.org/src/pkg/net/net.go
-	 * https://code.google.com/p/go/issues/detail?id=4337
-	 * https://groups.google.com/forum/#!msg/golang-nuts/0_aaCvBmOcM/SptmDyX1XJMJ
-	 */
-	return strings.HasSuffix(err.Error(), "use of closed network connection")
 }
 
 type autoStoppingListener struct {
