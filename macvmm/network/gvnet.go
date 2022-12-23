@@ -27,7 +27,7 @@ import (
 
 const (
 	GvnetMtu    = 65520
-	capturePcap = false
+	capturePcap = true
 	nicId       = 1
 
 	subnet4    = "172.30.30"

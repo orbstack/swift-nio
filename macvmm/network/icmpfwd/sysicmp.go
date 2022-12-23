@@ -182,7 +182,13 @@ func (i *IcmpFwd) forwardReplies4(ep stack.LinkEndpoint) error {
 		ipHdr.SetTotalLength(uint16(n)) // macOS sets 16384
 
 		icmpHdr := header.ICMPv4(ipHdr.Payload())
-		if icmpHdr.Type() == header.ICMPv4TimeExceeded {
+		switch icmpHdr.Type() {
+		case header.ICMPv4EchoReply:
+			// do nothing special
+		// Types with nested payloads: need to fix nested packet
+		case header.ICMPv4DstUnreachable:
+			fallthrough
+		case header.ICMPv4TimeExceeded:
 			origMsg := icmpHdr.Payload()
 			// Discard too-small packets
 			if len(origMsg) < header.IPv4MinimumSize+header.UDPMinimumSize {
@@ -240,6 +246,8 @@ func (i *IcmpFwd) forwardReplies4(ep stack.LinkEndpoint) error {
 			// Fix ICMP checksum
 			icmpHdr.SetChecksum(0)
 			icmpHdr.SetChecksum(header.ICMPv4Checksum(icmpHdr, 0))
+		default:
+			continue
 		}
 
 		// Fix IP checksum
@@ -266,10 +274,6 @@ func (i *IcmpFwd) forwardReplies6(ep stack.LinkEndpoint) error {
 		}
 		msg := fullBuf[:n]
 
-		// p := gopacket.NewPacket(msg, layers.LayerTypeICMPv6, gopacket.Default)
-		// fmt.Println("ICMPv6", p)
-		// fmt.Println("dump", p.Dump())
-
 		if len(msg) < header.ICMPv6MinimumSize {
 			continue
 		}
@@ -286,7 +290,13 @@ func (i *IcmpFwd) forwardReplies6(ep stack.LinkEndpoint) error {
 		ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
 
 		icmpHdr := header.ICMPv6(ipHdr.Payload())
-		if icmpHdr.Type() == header.ICMPv6TimeExceeded {
+		switch icmpHdr.Type() {
+		case header.ICMPv6EchoReply:
+			// do nothing special
+		// Types with nested payloads: need to fix nested packet
+		case header.ICMPv6DstUnreachable:
+			fallthrough
+		case header.ICMPv6TimeExceeded:
 			origMsg := icmpHdr.Payload()
 			// Discard too-small packets
 			if len(origMsg) < header.IPv6MinimumSize+header.UDPMinimumSize {
@@ -336,6 +346,9 @@ func (i *IcmpFwd) forwardReplies6(ep stack.LinkEndpoint) error {
 			default:
 				continue
 			}
+		default:
+			// Drop Neighbor S/A, RA/RS, etc.
+			continue
 		}
 
 		// Fix ICMP checksum for NAT
