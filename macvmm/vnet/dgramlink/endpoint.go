@@ -40,7 +40,7 @@ package dgramlink
 import (
 	"fmt"
 
-	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink/rawfile"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/dgramlink/rawfile"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/atomicbitops"
 	"gvisor.dev/gvisor/pkg/bufferv2"

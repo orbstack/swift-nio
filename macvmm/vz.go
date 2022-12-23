@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/Code-Hex/vz/v3"
-	"github.com/kdrag0n/macvirt/macvmm/network"
+	network "github.com/kdrag0n/macvirt/macvmm/vnet"
 )
 
 const (

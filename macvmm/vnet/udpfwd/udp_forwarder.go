@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmm/network/gonet"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	log "github.com/sirupsen/logrus"
 )
 

@@ -4,7 +4,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/kdrag0n/macvirt/macvmm/network/gonet"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 )
 
 func pump1(errc chan<- error, src, dst net.Conn) {

@@ -7,8 +7,8 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmm/network/gonet"
-	"github.com/kdrag0n/macvirt/macvmm/network/netutil"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"

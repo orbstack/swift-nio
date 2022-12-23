@@ -15,8 +15,8 @@
 package dgramlink
 
 import (
-	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink/rawfile"
-	"github.com/kdrag0n/macvirt/macvmm/network/dgramlink/stopfd"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/dgramlink/rawfile"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/dgramlink/stopfd"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"

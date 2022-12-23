@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmm/network/gonet"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	log "github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
