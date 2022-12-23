@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/udpfwd"
+	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
@@ -48,7 +50,11 @@ var (
 	hostForwardsToGuest = map[string]int{
 		"127.0.0.1:2222":  22,
 		"[::1]:2222":      22,
-		"127.0.0.1:62429": 2049,
+		"127.0.0.1:62429": 2049, // nfs alt
+		"127.0.0.1:2049":  2049, // nfs
+		"127.0.0.1:445":   445,  // smb
+		"127.0.0.1:10445": 445,  // smb alt
+		"127.0.0.1:548":   548,  // afp
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -231,6 +237,9 @@ func runGvnetDgramPair() (*os.File, error) {
 			return nil, err
 		}
 	}
+
+	// TODO logger
+	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
 	// TODO close the file eventually
 	return file0, nil
