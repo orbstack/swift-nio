@@ -13,7 +13,6 @@ import (
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
@@ -256,6 +255,7 @@ func (i *IcmpFwd) forwardReplies4(ep stack.LinkEndpoint) error {
 func (i *IcmpFwd) forwardReplies6(ep stack.LinkEndpoint) error {
 	i.conn6.SetControlMessage(goipv6.FlagTrafficClass, true)
 	i.conn6.SetControlMessage(goipv6.FlagHopLimit, true)
+	i.conn6.SetControlMessage(goipv6.FlagDst, true)
 
 	fullBuf := make([]byte, 65535)
 	for {
@@ -336,17 +336,10 @@ func (i *IcmpFwd) forwardReplies6(ep stack.LinkEndpoint) error {
 			default:
 				continue
 			}
-
-			// Fix ICMP checksum
-			icmpHdr.SetChecksum(0)
-			icmpHdr.SetChecksum(header.ICMPv6Checksum(header.ICMPv6ChecksumParams{
-				Header:      icmpHdr,
-				Src:         ipHdr.SourceAddress(),
-				Dst:         ipHdr.DestinationAddress(),
-				PayloadCsum: checksum.Checksum(origMsg, 0),
-				PayloadLen:  len(origMsg),
-			}))
 		}
+
+		// Fix ICMP checksum for NAT
+		icmpHdr.UpdateChecksumPseudoHeaderAddress(tcpip.Address(cm.Dst), ipHdr.DestinationAddress())
 
 		if err := i.sendReply(ipv6.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), replyMsg); err != nil {
 			log.Println("error sending icmp6 reply", err)

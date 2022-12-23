@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	GvnetMtu  = 65520
-	writePcap = false
-	nicId     = 1
+	GvnetMtu    = 65520
+	capturePcap = false
+	nicId       = 1
 
 	subnet4    = "172.30.30"
 	gatewayIP4 = subnet4 + ".1"
@@ -104,7 +104,7 @@ func runGvnetDgramPair() (*os.File, error) {
 		return nil, err
 	}
 
-	if writePcap {
+	if capturePcap {
 		_ = os.Remove("gv.pcap")
 		f, err := os.Create("gv.pcap")
 		if err != nil {
