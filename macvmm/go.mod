@@ -16,9 +16,11 @@ require (
 
 require (
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/pkg/sftp v1.13.5 // indirect
+	github.com/miekg/dns v1.1.50
+	github.com/pkg/sftp v1.13.5
 	github.com/stretchr/testify v1.8.1 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/tools v0.1.12 // indirect
 )
 
 require (

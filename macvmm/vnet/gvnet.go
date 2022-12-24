@@ -13,6 +13,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmm/vnet/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
+	dnssrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/dns"
 	ntpsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/ntp"
 	sftpsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/sftp"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/tcpfwd"
@@ -48,8 +49,9 @@ const (
 
 	gatewayMac = "24:d2:f4:58:34:d7"
 
-	runSftp = false
+	runDns  = true
 	runNtp  = true
+	runSftp = false
 )
 
 var (
@@ -264,17 +266,28 @@ func runGvnetDgramPair() (*os.File, error) {
 
 func startNetServices(s *stack.Stack) {
 	addr := netutil.ParseTcpipAddress(servicesIP4)
-	if runSftp {
-		err := sftpsrv.ListenSFTP(s, addr)
+
+	// DNS (53): using system resolver
+	if runDns {
+		err := dnssrv.ListenDNS(s, addr)
 		if err != nil {
-			fmt.Printf("Failed to start SFTP server: %v\n", err)
+			fmt.Printf("Failed to start DNS server: %v\n", err)
 		}
 	}
 
+	// NTP (123): using system time
 	if runNtp {
 		err := ntpsrv.ListenNTP(s, addr)
 		if err != nil {
 			fmt.Printf("Failed to start NTP server: %v\n", err)
+		}
+	}
+
+	// SFTP (22323): Android file sharing
+	if runSftp {
+		err := sftpsrv.ListenSFTP(s, addr)
+		if err != nil {
+			fmt.Printf("Failed to start SFTP server: %v\n", err)
 		}
 	}
 }
