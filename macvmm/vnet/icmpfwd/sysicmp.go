@@ -89,13 +89,6 @@ func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6 tc
 }
 
 func (i *IcmpFwd) ProxyRequests() {
-	// var wq waiter.Queue
-	// ep6, err := i.stack.NewRawEndpoint(gvicmp.ProtocolNumber6, header.IPv6ProtocolNumber, &wq, true)
-	// if err != nil {
-	// 	log.Println("error creating raw endpoint for icmp6", err)
-	// 	return
-	// }
-
 	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		i.lastSourceAddr4 = pkt.Network().SourceAddress()
 		return i.sendPkt(pkt)
