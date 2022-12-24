@@ -181,7 +181,7 @@ func (i *IcmpFwd) forwardReplies4() error {
 	for {
 		n, _, _, err := i.conn4.ReadFrom(fullBuf)
 		if err != nil {
-			log.Println("error reading from icmp socket", err)
+			log.Println("error reading from icmp4 socket", err)
 			return err
 		}
 		msg := fullBuf[:n]
@@ -296,7 +296,7 @@ func (i *IcmpFwd) forwardReplies6() error {
 	for {
 		n, cm, addr, err := i.conn6.ReadFrom(fullBuf)
 		if err != nil {
-			log.Println("error reading from icmp socket", err)
+			log.Println("error reading from icmp6 socket", err)
 			return err
 		}
 		msg := fullBuf[:n]
