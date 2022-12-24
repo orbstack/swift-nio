@@ -2,6 +2,7 @@ package icmpfwd
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -24,6 +25,7 @@ type IcmpFwd struct {
 	nicId tcpip.NICID
 	conn4 *goipv4.PacketConn
 	conn6 *goipv6.PacketConn
+
 	// to send reply packets
 	// TODO proper connection tracking
 	lastSourceAddr4 tcpip.Address
@@ -118,6 +120,10 @@ func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
 	// For IPv6, macOS also allows Node Information Query
 	// But no one uses them, so don't bother
 	if pkt.NetworkProtocolNumber == ipv4.ProtocolNumber {
+		if len(icmpMsg) < header.ICMPv4MinimumSize {
+			return false
+		}
+
 		// Check type
 		icmpHdr := header.ICMPv4(icmpMsg)
 		if icmpHdr.Type() != header.ICMPv4Echo {
@@ -138,6 +144,10 @@ func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
 		}
 		return true
 	} else if pkt.NetworkProtocolNumber == ipv6.ProtocolNumber {
+		if len(icmpMsg) < header.ICMPv6MinimumSize {
+			return false
+		}
+
 		// Check type
 		icmpHdr := header.ICMPv6(icmpMsg)
 		if icmpHdr.Type() != header.ICMPv6EchoRequest {
@@ -176,89 +186,105 @@ func (i *IcmpFwd) forwardReplies4() error {
 		}
 		msg := fullBuf[:n]
 
-		// Fix the IP header
-		ipHdr := header.IPv4(msg)
-		// Wrong for UDP, will be fixed below
-		ipHdr.SetDestinationAddress(i.lastSourceAddr4)
-		ipHdr.SetTotalLength(uint16(n)) // macOS sets 16384
-
-		icmpHdr := header.ICMPv4(ipHdr.Payload())
-		switch icmpHdr.Type() {
-		case header.ICMPv4EchoReply:
-			// do nothing special
-		// Types with nested payloads: need to fix nested packet
-		case header.ICMPv4DstUnreachable:
-			fallthrough
-		case header.ICMPv4TimeExceeded:
-			origMsg := icmpHdr.Payload()
-			// Discard too-small packets
-			if len(origMsg) < header.IPv4MinimumSize+header.UDPMinimumSize {
-				continue
-			}
-
-			// Fix original IP header
-			origIpHdr := header.IPv4(origMsg)
-			origIpHdr.SetTotalLength(uint16(len(origMsg))) // macOS sets 16384
-
-			// Fix nested L4 header
-			switch origIpHdr.TransportProtocol() {
-			// ICMP: fix source IP
-			case header.ICMPv4ProtocolNumber:
-				if i.lastSourceAddr4 == "" {
-					continue
-				}
-				origIpHdr.SetSourceAddress(i.lastSourceAddr4)
-			// UDP: fix source IP and port. (IP ident is wrong too)
-			case header.UDPProtocolNumber:
-				// Find the connection in the UDP conntrack map
-				origUdpHdr := header.UDP(origIpHdr[header.IPv4MinimumSize:])
-				localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
-					// our external IP, not virtual
-					IP:   net.IP(origIpHdr.SourceAddress()),
-					Port: int(origUdpHdr.SourcePort()),
-				})
-				if localSrcAddr == nil {
-					continue
-				}
-
-				// UDP checksum includes IP pseudo-header with addresses. Fix it.
-				virtSrcAddr := tcpip.Address(localSrcAddr.IP.To4())
-				// If checksum is non-zero, update it
-				if origUdpHdr.Checksum() != 0 {
-					origUdpHdr.UpdateChecksumPseudoHeaderAddress(origIpHdr.SourceAddress(), virtSrcAddr, true)
-					origUdpHdr.SetSourcePortWithChecksumUpdate(uint16(localSrcAddr.Port))
-				} else {
-					origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
-				}
-				// Then fix original source IP
-				origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To4()))
-				// Fix reply IP destination
-				ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To4()))
-			// TCP: not supported
-			case header.TCPProtocolNumber:
-			default:
-				continue
-			}
-
-			// Fix orig IP checksum (after updating)
-			origIpHdr.SetChecksum(0)
-			origIpHdr.SetChecksum(^origIpHdr.CalculateChecksum())
-
-			// Fix ICMP checksum
-			icmpHdr.SetChecksum(0)
-			icmpHdr.SetChecksum(header.ICMPv4Checksum(icmpHdr, 0))
-		default:
-			continue
-		}
-
-		// Fix IP checksum
-		ipHdr.SetChecksum(0)
-		ipHdr.SetChecksum(^ipHdr.CalculateChecksum())
-
-		if err := i.sendReply(ipv4.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), msg); err != nil {
-			log.Println("error sending icmp4 reply", err)
+		err = i.handleReply4(msg)
+		if err != nil {
+			log.Println("error handling icmp4 reply", err)
 		}
 	}
+}
+
+func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+
+	if len(msg) < header.IPv4MinimumSize+header.ICMPv4MinimumSize {
+		return fmt.Errorf("packet too small")
+	}
+
+	// Fix the IP header
+	ipHdr := header.IPv4(msg)
+	// Wrong for UDP, will be fixed below
+	ipHdr.SetDestinationAddress(i.lastSourceAddr4)
+	ipHdr.SetTotalLength(uint16(len(msg))) // macOS sets 16384
+
+	// Do surgery on packet
+	icmpHdr := header.ICMPv4(ipHdr.Payload())
+	switch icmpHdr.Type() {
+	case header.ICMPv4EchoReply:
+		// do nothing special
+	// Types with nested payloads: need to fix nested packet
+	case header.ICMPv4DstUnreachable:
+		fallthrough
+	case header.ICMPv4TimeExceeded:
+		origMsg := icmpHdr.Payload()
+		// Discard too-small packets
+		if len(origMsg) < header.IPv4MinimumSize+header.UDPMinimumSize {
+			return
+		}
+
+		// Fix original IP header
+		origIpHdr := header.IPv4(origMsg)
+		origIpHdr.SetTotalLength(uint16(len(origMsg))) // macOS sets 16384
+
+		// Fix nested L4 header
+		switch origIpHdr.TransportProtocol() {
+		// ICMP: fix source IP
+		case header.ICMPv4ProtocolNumber:
+			if i.lastSourceAddr4 == "" {
+				return
+			}
+			origIpHdr.SetSourceAddress(i.lastSourceAddr4)
+		// UDP: fix source IP and port. (IP ident is wrong too)
+		case header.UDPProtocolNumber:
+			// Find the connection in the UDP conntrack map
+			origUdpHdr := header.UDP(origIpHdr[header.IPv4MinimumSize:])
+			localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
+				// our external IP, not virtual
+				IP:   net.IP(origIpHdr.SourceAddress()),
+				Port: int(origUdpHdr.SourcePort()),
+			})
+			if localSrcAddr == nil {
+				return
+			}
+
+			// UDP checksum includes IP pseudo-header with addresses. Fix it.
+			virtSrcAddr := tcpip.Address(localSrcAddr.IP.To4())
+			// If checksum is non-zero, update it
+			if origUdpHdr.Checksum() != 0 {
+				origUdpHdr.UpdateChecksumPseudoHeaderAddress(origIpHdr.SourceAddress(), virtSrcAddr, true)
+				origUdpHdr.SetSourcePortWithChecksumUpdate(uint16(localSrcAddr.Port))
+			} else {
+				origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
+			}
+			// Then fix original source IP
+			origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To4()))
+			// Fix reply IP destination
+			ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To4()))
+		// TCP: not supported
+		case header.TCPProtocolNumber:
+		default:
+			return
+		}
+
+		// Fix orig IP checksum (after updating)
+		origIpHdr.SetChecksum(0)
+		origIpHdr.SetChecksum(^origIpHdr.CalculateChecksum())
+
+		// Fix ICMP checksum
+		icmpHdr.SetChecksum(0)
+		icmpHdr.SetChecksum(header.ICMPv4Checksum(icmpHdr, 0))
+	default:
+		return
+	}
+
+	// Fix IP checksum
+	ipHdr.SetChecksum(0)
+	ipHdr.SetChecksum(^ipHdr.CalculateChecksum())
+
+	return i.sendReply(ipv4.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), msg)
 }
 
 func (i *IcmpFwd) forwardReplies6() error {
@@ -275,90 +301,101 @@ func (i *IcmpFwd) forwardReplies6() error {
 		}
 		msg := fullBuf[:n]
 
-		if len(msg) < header.ICMPv6MinimumSize {
-			continue
-		}
-
-		// Make a new IP header
-		replyMsg := make([]byte, n+header.IPv6MinimumSize)
-		copy(replyMsg[header.IPv6MinimumSize:], msg)
-		ipHdr := header.IPv6(replyMsg)
-		ipHdr.SetPayloadLength(uint16(n))
-		ipHdr.SetHopLimit(uint8(cm.HopLimit))
-		ipHdr.SetTOS(uint8(cm.TrafficClass), 0) // flow label = 0
-		ipHdr.SetDestinationAddress(i.lastSourceAddr6)
-		ipHdr.SetSourceAddress(tcpip.Address(addr.(*net.UDPAddr).IP.To16()))
-		ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
-
-		icmpHdr := header.ICMPv6(ipHdr.Payload())
-		switch icmpHdr.Type() {
-		case header.ICMPv6EchoReply:
-			// do nothing special
-		// Types with nested payloads: need to fix nested packet
-		case header.ICMPv6DstUnreachable:
-			fallthrough
-		case header.ICMPv6TimeExceeded:
-			origMsg := icmpHdr.Payload()
-			// Discard too-small packets
-			if len(origMsg) < header.IPv6MinimumSize+header.UDPMinimumSize {
-				continue
-			}
-
-			// Fix original IP header
-			origIpHdr := header.IPv6(origMsg)
-			origIpHdr.SetPayloadLength(uint16(len(origMsg) - header.IPv6MinimumSize)) // macOS sets 16384
-
-			// Fix nested L4 header
-			switch origIpHdr.TransportProtocol() {
-			// ICMP: fix source IP
-			case header.ICMPv6ProtocolNumber:
-				if i.lastSourceAddr6 == "" {
-					continue
-				}
-				origIpHdr.SetSourceAddress(i.lastSourceAddr6)
-			// UDP: fix source IP and port. (IP ident is wrong too)
-			case header.UDPProtocolNumber:
-				// Find the connection in the UDP conntrack map
-				origUdpHdr := header.UDP(origIpHdr[header.IPv6MinimumSize:])
-				localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
-					// our external IP, not virtual
-					IP:   net.IP(origIpHdr.SourceAddress()),
-					Port: int(origUdpHdr.SourcePort()),
-				})
-				if localSrcAddr == nil {
-					continue
-				}
-
-				// UDP checksum includes IP pseudo-header with addresses. Fix it.
-				virtSrcAddr := tcpip.Address(localSrcAddr.IP.To16())
-				// If checksum is non-zero, update it
-				if origUdpHdr.Checksum() != 0 {
-					origUdpHdr.UpdateChecksumPseudoHeaderAddress(origIpHdr.SourceAddress(), virtSrcAddr, true)
-					origUdpHdr.SetSourcePortWithChecksumUpdate(uint16(localSrcAddr.Port))
-				} else {
-					origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
-				}
-				// Then fix original source IP
-				origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To16()))
-				// Fix reply IP destination
-				ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To16()))
-			// TCP: not supported
-			case header.TCPProtocolNumber:
-			default:
-				continue
-			}
-		default:
-			// Drop Neighbor S/A, RA/RS, etc.
-			continue
-		}
-
-		// Fix ICMP checksum for NAT
-		icmpHdr.UpdateChecksumPseudoHeaderAddress(tcpip.Address(cm.Dst), ipHdr.DestinationAddress())
-
-		if err := i.sendReply(ipv6.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), replyMsg); err != nil {
-			log.Println("error sending icmp6 reply", err)
+		err = i.handleReply6(msg, cm, addr)
+		if err != nil {
+			log.Println("error handling icmp6 reply", err)
 		}
 	}
+}
+
+func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.Addr) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+
+	if len(msg) < header.ICMPv6MinimumSize {
+		return
+	}
+
+	// Make a new IP header
+	replyMsg := make([]byte, len(msg)+header.IPv6MinimumSize)
+	copy(replyMsg[header.IPv6MinimumSize:], msg)
+	ipHdr := header.IPv6(replyMsg)
+	ipHdr.SetPayloadLength(uint16(len(msg)))
+	ipHdr.SetHopLimit(uint8(cm.HopLimit))
+	ipHdr.SetTOS(uint8(cm.TrafficClass), 0) // flow label = 0
+	ipHdr.SetDestinationAddress(i.lastSourceAddr6)
+	ipHdr.SetSourceAddress(tcpip.Address(addr.(*net.UDPAddr).IP.To16()))
+	ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
+
+	icmpHdr := header.ICMPv6(ipHdr.Payload())
+	switch icmpHdr.Type() {
+	case header.ICMPv6EchoReply:
+		// do nothing special
+	// Types with nested payloads: need to fix nested packet
+	case header.ICMPv6DstUnreachable:
+		fallthrough
+	case header.ICMPv6TimeExceeded:
+		origMsg := icmpHdr.Payload()
+		// Discard too-small packets
+		if len(origMsg) < header.IPv6MinimumSize+header.UDPMinimumSize {
+			return
+		}
+
+		// Fix original IP header
+		origIpHdr := header.IPv6(origMsg)
+		origIpHdr.SetPayloadLength(uint16(len(origMsg) - header.IPv6MinimumSize)) // macOS sets 16384
+
+		// Fix nested L4 header
+		switch origIpHdr.TransportProtocol() {
+		// ICMP: fix source IP
+		case header.ICMPv6ProtocolNumber:
+			if i.lastSourceAddr6 == "" {
+				return
+			}
+			origIpHdr.SetSourceAddress(i.lastSourceAddr6)
+		// UDP: fix source IP and port. (IP ident is wrong too)
+		case header.UDPProtocolNumber:
+			// Find the connection in the UDP conntrack map
+			origUdpHdr := header.UDP(origIpHdr[header.IPv6MinimumSize:])
+			localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
+				// our external IP, not virtual
+				IP:   net.IP(origIpHdr.SourceAddress()),
+				Port: int(origUdpHdr.SourcePort()),
+			})
+			if localSrcAddr == nil {
+				return
+			}
+
+			// UDP checksum includes IP pseudo-header with addresses. Fix it.
+			virtSrcAddr := tcpip.Address(localSrcAddr.IP.To16())
+			// If checksum is non-zero, update it
+			if origUdpHdr.Checksum() != 0 {
+				origUdpHdr.UpdateChecksumPseudoHeaderAddress(origIpHdr.SourceAddress(), virtSrcAddr, true)
+				origUdpHdr.SetSourcePortWithChecksumUpdate(uint16(localSrcAddr.Port))
+			} else {
+				origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
+			}
+			// Then fix original source IP
+			origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To16()))
+			// Fix reply IP destination
+			ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To16()))
+		// TCP: not supported
+		case header.TCPProtocolNumber:
+		default:
+			return
+		}
+	default:
+		// Drop Neighbor S/A, RA/RS, etc.
+		return
+	}
+
+	// Fix ICMP checksum for NAT
+	icmpHdr.UpdateChecksumPseudoHeaderAddress(tcpip.Address(cm.Dst), ipHdr.DestinationAddress())
+
+	return i.sendReply(ipv6.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), replyMsg)
 }
 
 func (i *IcmpFwd) sendReply(netProto tcpip.NetworkProtocolNumber, srcAddr, dstAddr tcpip.Address, msg []byte) error {
