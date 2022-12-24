@@ -48,7 +48,7 @@ const (
 
 	gatewayMac = "24:d2:f4:58:34:d7"
 
-	runSftp = true
+	runSftp = false
 	runNtp  = true
 )
 
