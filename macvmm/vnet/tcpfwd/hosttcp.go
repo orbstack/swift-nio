@@ -148,7 +148,7 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 	}
 
 	fmt.Println("dial from", virtSrcAddr, "to", connectAddr, "with proto", proto, "and timeout", connectTimeout)
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(connectTimeout))
+	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(connectTimeout))
 	defer cancel()
 	virtConn, err := gonet.DialTCPWithBind(ctx, f.stack, virtSrcAddr, connectAddr, proto)
 	if err != nil {

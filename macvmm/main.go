@@ -80,7 +80,7 @@ func main() {
 	}
 	httpServer, err := controlServer.Serve()
 	check(err)
-	defer httpServer.Shutdown(context.Background())
+	defer httpServer.Shutdown(context.TODO())
 
 	routerVm = nil
 
