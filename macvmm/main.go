@@ -13,6 +13,7 @@ import (
 
 const (
 	useRouterPair = false
+	useConsole    = false
 )
 
 func check(err error) {
@@ -28,7 +29,7 @@ func main() {
 		Memory: 6144,
 		Kernel: "../assets/kernel",
 		// this one uses gvproxy ssh
-		Console:          !useRouterPair,
+		Console:          useConsole,
 		DiskRootfs:       "../assets/rootfs.img",
 		DiskData:         "../assets/data.img",
 		DiskSwap:         "../assets/swap.img",
@@ -46,8 +47,10 @@ func main() {
 
 	vm := CreateVm(config)
 
-	oldAttr := setRawMode(os.Stdin)
-	defer revertRawMode(os.Stdin, oldAttr)
+	if useConsole {
+		oldAttr := setRawMode(os.Stdin)
+		defer revertRawMode(os.Stdin, oldAttr)
+	}
 
 	err = vm.Start()
 	check(err)

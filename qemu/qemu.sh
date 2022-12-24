@@ -26,7 +26,7 @@ qemu-system-aarch64 \
   -chardev stdio,id=virtiocon0 \
   -device virtio-serial \
   -device virtconsole,chardev=virtiocon0 \
-  -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
+  -nic user,model=virtio-net-pci,hostfwd=tcp::2224-:22 \
   -device virtio-rng-pci \
   -device virtio-balloon-pci,free-page-hint,free-page-reporting,iothread=iothread4 \
   -append "root=/dev/vda rootfstype=erofs ro init=/opt/vc/preinit console=hvc0 rcu_nocbs=0-7 workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket vc.data_size=65536 vc.vcontrol_token=test vc.timezone=America/Los_Angeles" \
@@ -36,7 +36,8 @@ qemu-system-aarch64 \
   -drive file=assets/data.img,if=none,id=drive1,format=raw,discard=on,aio=threads,cache.direct=on \
   -device virtio-blk-pci,drive=drive2,id=virtblk2,num-queues=$CPUS,physical_block_size=4096,logical_block_size=4096,iothread=iothread3 \
   -drive file=assets/swap.img,if=none,id=drive2,format=raw,discard=on,aio=threads,cache.direct=on \
-  -kernel assets/kernel
+  -kernel assets/kernel \
+  -virtfs local,mount_tag=shared,path=/,security_model=none
 
 
 #-device qemu-xhci,id=usb-bus

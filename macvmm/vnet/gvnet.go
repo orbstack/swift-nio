@@ -167,14 +167,21 @@ func runGvnetDgramPair() (*os.File, error) {
 		{Destination: subnet6, NIC: nicId},
 	})
 
-	// Performance
+	// Fix NFS panic: disable RACK, but keep SACK on
 	{
 		opt := tcpip.TCPSACKEnabled(true)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
 			return nil, errors.New(err.String())
 		}
 	}
+	{
+		opt := tcpip.TCPRecovery(tcpip.TCPRACKStaticReoWnd)
+		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
+			return nil, errors.New(err.String())
+		}
+	}
 
+	// Performance
 	{
 		opt := tcpip.TCPModerateReceiveBufferOption(true)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
