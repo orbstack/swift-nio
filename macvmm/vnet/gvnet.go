@@ -3,6 +3,7 @@ package network
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math"
 	"net"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"github.com/kdrag0n/macvirt/macvmm/vnet/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
+	ntpsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/ntp"
+	sftpsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/sftp"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/udpfwd"
 	"gvisor.dev/gvisor/pkg/log"
@@ -32,10 +35,11 @@ const (
 	capturePcap = false
 	nicId       = 1
 
-	subnet4    = "172.30.30"
-	gatewayIP4 = subnet4 + ".1"
-	guestIP4   = subnet4 + ".2"
-	hostNatIP4 = subnet4 + ".254"
+	subnet4     = "172.30.30"
+	gatewayIP4  = subnet4 + ".1"
+	guestIP4    = subnet4 + ".2"
+	servicesIP4 = subnet4 + ".200"
+	hostNatIP4  = subnet4 + ".254"
 
 	subnet6    = "fc00:96dc:7096:1d21:"
 	gatewayIP6 = subnet6 + ":1"
@@ -43,6 +47,9 @@ const (
 	hostNatIP6 = subnet6 + ":254"
 
 	gatewayMac = "24:d2:f4:58:34:d7"
+
+	runSftp = true
+	runNtp  = true
 )
 
 var (
@@ -50,11 +57,11 @@ var (
 	hostForwardsToGuest = map[string]int{
 		"127.0.0.1:2222":  22,
 		"[::1]:2222":      22,
-		"127.0.0.1:62429": 2049, // nfs alt
-		"127.0.0.1:2049":  2049, // nfs
-		"127.0.0.1:445":   445,  // smb
-		"127.0.0.1:10445": 445,  // smb alt
-		"127.0.0.1:548":   548,  // afp
+		"127.0.0.1:62429": 2049,  // nfs alt
+		"127.0.0.1:2049":  2049,  // nfs
+		"127.0.0.1:445":   445,   // smb
+		"127.0.0.1:10445": 10445, // smb alt
+		"127.0.0.1:548":   548,   // afp
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -174,6 +181,12 @@ func runGvnetDgramPair() (*os.File, error) {
 			return nil, errors.New(err.String())
 		}
 	}
+	{
+		opt := tcpip.TCPDelayEnabled(false)
+		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
+			return nil, errors.New(err.String())
+		}
+	}
 
 	// Performance
 	{
@@ -239,9 +252,29 @@ func runGvnetDgramPair() (*os.File, error) {
 		}
 	}
 
+	// Services
+	startNetServices(s)
+
 	// TODO logger
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
 	// TODO close the file eventually
 	return file0, nil
+}
+
+func startNetServices(s *stack.Stack) {
+	addr := netutil.ParseTcpipAddress(servicesIP4)
+	if runSftp {
+		err := sftpsrv.ListenSFTP(s, addr)
+		if err != nil {
+			fmt.Printf("Failed to start SFTP server: %v\n", err)
+		}
+	}
+
+	if runNtp {
+		err := ntpsrv.ListenNTP(s, addr)
+		if err != nil {
+			fmt.Printf("Failed to start NTP server: %v\n", err)
+		}
+	}
 }
