@@ -34,9 +34,9 @@ var (
 )
 
 type queryState struct {
-	answers  []QueryAnswer
-	err      error
-	doneChan chan struct{}
+	ref     C.DNSServiceRef
+	answers []QueryAnswer
+	err     error
 }
 
 type QueryAnswer struct {
@@ -61,7 +61,7 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 	}
 
 	query := &queryState{
-		doneChan: make(chan struct{}, 1),
+		ref: sdRef,
 	}
 
 	fmt.Println("adding to map")
@@ -73,48 +73,41 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 		delete(queryMap, queryId)
 		queryMapMu.Unlock()
 	}()
-	// last to avoid race
-	defer C.DNSServiceRefDeallocate(sdRef)
 
 	fd := int32(C.DNSServiceRefSockFD(sdRef))
 	if fd < 0 {
 		return nil, errors.New("invalid fd")
 	}
 
-	processChan := make(chan struct{}, 1)
 	for {
 		fmt.Println("selecting")
-		go func() {
-			pfds := []unix.PollFd{
-				{
-					Fd:     fd,
-					Events: unix.POLLIN,
-				},
-			}
-			fmt.Println("  poll...")
-			n, err := unix.Poll(pfds, -1)
-			if err != nil {
-				fmt.Printf("  poll err: %v\n", err)
-				return
-			}
-			if n == 1 && pfds[0].Revents&unix.POLLIN != 0 {
-				processChan <- struct{}{}
-			}
-		}()
-
-		select {
-		case <-query.doneChan:
-			fmt.Printf("done\n")
-			return query.answers, query.err
-		case <-processChan:
+		pfds := []unix.PollFd{
+			{
+				Fd:     fd,
+				Events: unix.POLLIN,
+			},
+		}
+		fmt.Println("  poll...")
+		n, err := unix.Poll(pfds, -1)
+		if err != nil {
+			fmt.Printf("  poll err: %v\n", err)
+			break
+		}
+		if n == 1 && pfds[0].Revents&unix.POLLIN != 0 {
 			fmt.Println("  process")
 			ret := C.DNSServiceProcessResult(sdRef)
 			if ret != C.kDNSServiceErr_NoError {
 				fmt.Printf("  process result err %v\n", mapError(int(ret)))
 				return nil, mapError(int(ret))
 			}
+		} else {
+			fmt.Printf("  poll end\n")
+			break
 		}
 	}
+
+	fmt.Printf("done\n")
+	return query.answers, query.err
 }
 
 func validateType(rtype uint16) bool {
