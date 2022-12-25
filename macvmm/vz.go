@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/Code-Hex/vz/v3"
@@ -41,7 +40,6 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 		// boot
 		"init=/opt/vc/preinit",
 		// Kernel tuning
-		"rcu_nocbs=0-" + strconv.Itoa(c.Cpus-1),
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
 		//"mitigations=off", // free with e0pd

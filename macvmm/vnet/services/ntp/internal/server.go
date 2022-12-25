@@ -168,7 +168,7 @@ func (s *Server) Respond(r *ServerReq) {
 		return
 	}
 
-	log.Infof("Recieved NTP request from %s", r.Client)
+	log.Infof("Got NTP request from %s", r.Client)
 
 	// BUG(marineam): We doesn't account for the possibility of
 	// UpdateOffset behaving differently for the transmit time instead of

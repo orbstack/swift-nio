@@ -1,11 +1,11 @@
 package dnssrv
 
 import (
-	"context"
 	"fmt"
 	"net"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/services/dns/dnssd"
 	"github.com/miekg/dns"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -27,145 +27,40 @@ func (h *dnsHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	m.RecursionAvailable = true
 
 	// TODO check other fields
+	// TTLs and classes wrong
 	for _, q := range r.Question {
-		// TODO handle errors - by forwarding?
-		switch q.Qtype {
-		case dns.TypeA:
-			ips, err := h.sysResolver.LookupIP(context.TODO(), "ip4", q.Name)
-			if err != nil {
-				fmt.Println("h.sysResolver.LookupIP() =", err)
-				continue
-			}
-
-			for _, ip := range ips {
-				m.Answer = append(m.Answer, &dns.A{
-					Hdr: dns.RR_Header{
-						Name:   q.Name,
-						Rrtype: dns.TypeA,
-						Class:  dns.ClassINET,
-						Ttl:    0,
-					},
-					A: ip,
-				})
-			}
-		case dns.TypeAAAA:
-			ips, err := h.sysResolver.LookupIP(context.TODO(), "ip6", q.Name)
-			if err != nil {
-				fmt.Println("h.sysResolver.LookupIP() =", err)
-				continue
-			}
-
-			for _, ip := range ips {
-				m.Answer = append(m.Answer, &dns.AAAA{
-					Hdr: dns.RR_Header{
-						Name:   q.Name,
-						Rrtype: dns.TypeAAAA,
-						Class:  dns.ClassINET,
-						Ttl:    0,
-					},
-					AAAA: ip,
-				})
-			}
-		case dns.TypeCNAME:
-			cname, err := h.sysResolver.LookupCNAME(context.TODO(), q.Name)
-			if err != nil {
-				fmt.Println("h.sysResolver.LookupCNAME() =", err)
-				continue
-			}
-
-			m.Answer = append(m.Answer, &dns.CNAME{
-				Hdr: dns.RR_Header{
-					Name:   q.Name,
-					Rrtype: dns.TypeCNAME,
-					Class:  dns.ClassINET,
-					Ttl:    0,
-				},
-				Target: cname,
-			})
-		// TODO doesn't use sys resolver
-		case dns.TypeMX:
-			mxs, err := h.sysResolver.LookupMX(context.TODO(), q.Name)
-			if err != nil {
-				fmt.Println("h.sysResolver.LookupMX() =", err)
-				continue
-			}
-
-			for _, mx := range mxs {
-				m.Answer = append(m.Answer, &dns.MX{
-					Hdr: dns.RR_Header{
-						Name:   q.Name,
-						Rrtype: dns.TypeMX,
-						Class:  dns.ClassINET,
-						Ttl:    0,
-					},
-					Preference: mx.Pref,
-					Mx:         mx.Host,
-				})
-			}
-		// TODO doesn't use sys resolver
-		case dns.TypeNS:
-			nss, err := h.sysResolver.LookupNS(context.TODO(), q.Name)
-			if err != nil {
-				fmt.Println("h.sysResolver.LookupNS() =", err)
-				continue
-			}
-
-			for _, ns := range nss {
-				m.Answer = append(m.Answer, &dns.NS{
-					Hdr: dns.RR_Header{
-						Name:   q.Name,
-						Rrtype: dns.TypeNS,
-						Class:  dns.ClassINET,
-						Ttl:    0,
-					},
-					Ns: ns.Host,
-				})
-			}
-		case dns.TypePTR:
-			// TODO wrong addr
-			ptr, err := h.sysResolver.LookupAddr(context.TODO(), q.Name)
-			if err != nil {
-				fmt.Println("h.sysResolver.LookupAddr() =", err)
-				continue
-			}
-
-			for _, p := range ptr {
-				m.Answer = append(m.Answer, &dns.PTR{
-					Hdr: dns.RR_Header{
-						Name:   q.Name,
-						Rrtype: dns.TypePTR,
-						Class:  dns.ClassINET,
-						Ttl:    0,
-					},
-					Ptr: p,
-				})
-			}
-		// TODO doesn't use sys resolver
-		case dns.TypeTXT:
-			txts, err := h.sysResolver.LookupTXT(context.TODO(), q.Name)
-			if err != nil {
-				fmt.Println("h.sysResolver.LookupTXT() =", err)
-				continue
-			}
-
-			for _, txt := range txts {
-				m.Answer = append(m.Answer, &dns.TXT{
-					Hdr: dns.RR_Header{
-						Name:   q.Name,
-						Rrtype: dns.TypeTXT,
-						Class:  dns.ClassINET,
-						Ttl:    0,
-					},
-					Txt: []string{txt},
-				})
-			}
-		// TODO: SRV (doesn't use sys resolver...)
-		default:
+		// dns-sd only support sthis
+		if q.Qclass != dns.ClassINET {
 			continue
 		}
 
-		// TODO: if we can't answer it, forward it
+		fmt.Println("query dnssd")
+
+		answers, err := dnssd.Query(q.Name, q.Qtype)
+		if err != nil {
+			fmt.Println("dnssd.Query() =", err)
+			continue
+		}
+		for _, a := range answers {
+			fmt.Println("answer =", a)
+			hdr := dns.RR_Header{
+				Name:     a.Name,
+				Rrtype:   a.Type,
+				Class:    a.Class,
+				Ttl:      a.TTL,
+				Rdlength: uint16(len(a.Data)),
+			}
+			rr, _, err := dns.UnpackRRWithHeader(hdr, a.Data, 0)
+			if err != nil {
+				fmt.Println("dns.UnpackRRWithHeader() =", err)
+				continue
+			}
+			fmt.Println("rr", rr)
+			m.Answer = append(m.Answer, rr)
+		}
 	}
+
+	fmt.Println("=>m", m)
 
 	if err := w.WriteMsg(m); err != nil {
 		fmt.Println("w.WriteMsg() =", err)
