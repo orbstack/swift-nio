@@ -1,7 +1,7 @@
 package dnssd
 
 /*
-#cgo CFLAGS: -g -Wall
+#cgo CFLAGS: -Wall
 #include <dns_sd.h>
 
 extern void go_dnssd_callback(uint64_t context, DNSServiceFlags flags, uint32_t interfaceIndex,

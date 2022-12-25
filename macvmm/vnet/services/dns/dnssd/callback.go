@@ -1,7 +1,7 @@
 package dnssd
 
 /*
-#cgo CFLAGS: -g -Wall
+#cgo CFLAGS: -Wall
 #include <dns_sd.h>
 */
 import "C"
