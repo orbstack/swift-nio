@@ -39,6 +39,22 @@ func (h *dnsHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		answers, err := dnssd.Query(q.Name, q.Qtype)
 		if err != nil {
 			fmt.Println("dnssd.Query() =", err)
+			switch err {
+			// simulate timeout
+			case dnssd.ErrTimeout:
+				return
+			case dnssd.ErrServiceNotRunning:
+				return
+			case dnssd.ErrDefunctConnection:
+				return
+			case dnssd.ErrBadInterfaceIndex:
+				return
+			case dnssd.ErrFirewall:
+				return
+			// return an error
+			default:
+				m.Rcode = mapErrorcode(err)
+			}
 			continue
 		}
 		for _, a := range answers {
@@ -112,4 +128,25 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address) error {
 	}()
 
 	return nil
+}
+
+func mapErrorcode(err error) int {
+	switch err {
+	case dnssd.ErrNoSuchName:
+		return dns.RcodeNameError
+	case dnssd.ErrNoSuchRecord:
+		return dns.RcodeNameError
+	case dnssd.ErrNoAuth:
+		return dns.RcodeNotAuth
+	case dnssd.ErrRefused:
+		return dns.RcodeRefused
+	case dnssd.ErrBadTime:
+		return dns.RcodeBadTime
+	case dnssd.ErrBadSig:
+		return dns.RcodeBadSig
+	case dnssd.ErrBadKey:
+		return dns.RcodeBadKey
+	default:
+		return dns.RcodeServerFailure
+	}
 }
