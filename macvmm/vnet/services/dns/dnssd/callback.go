@@ -26,17 +26,18 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 
 	if errorCode != 0 {
 		fmt.Printf("go_dnssd_callback: error %d\n", errorCode)
-		query.errChan <- mapError(int(errorCode))
+		query.err = mapError(int(errorCode))
 		return
 	}
 
-	query.answerChan <- QueryAnswer{
+	answer := QueryAnswer{
 		Name:  C.GoString(fullname),
 		Type:  uint16(rrtype),
 		Class: uint16(rrclass),
 		Data:  C.GoBytes(rdata, C.int(rdlen)),
 		TTL:   uint32(ttl),
 	}
+	query.answers = append(query.answers, answer)
 
 	if flags&C.kDNSServiceFlagsMoreComing != 0 {
 		fmt.Printf("go_dnssd_callback: MoreComing\n")

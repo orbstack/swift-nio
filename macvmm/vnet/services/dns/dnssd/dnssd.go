@@ -29,14 +29,14 @@ import (
 )
 
 var (
-	queryMap   = map[uint64]queryState{}
+	queryMap   = map[uint64]*queryState{}
 	queryMapMu = sync.RWMutex{}
 )
 
 type queryState struct {
-	errChan    chan error
-	answerChan chan QueryAnswer
-	doneChan   chan struct{}
+	answers  []QueryAnswer
+	err      error
+	doneChan chan struct{}
 }
 
 type QueryAnswer struct {
@@ -60,10 +60,8 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 		return nil, mapError(int(ret))
 	}
 
-	query := queryState{
-		errChan:    make(chan error, 1),
-		answerChan: make(chan QueryAnswer, 1),
-		doneChan:   make(chan struct{}, 1),
+	query := &queryState{
+		doneChan: make(chan struct{}, 1),
 	}
 
 	fmt.Println("adding to map")
@@ -83,9 +81,7 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 		return nil, errors.New("invalid fd")
 	}
 
-	answers := []QueryAnswer{}
 	processChan := make(chan struct{}, 1)
-loop:
 	for {
 		fmt.Println("selecting")
 		go func() {
@@ -107,26 +103,18 @@ loop:
 		}()
 
 		select {
-		case err := <-query.errChan:
-			fmt.Printf("err: %v\n", err)
-			return nil, err
-		case answer := <-query.answerChan:
-			fmt.Printf("answer: %v\n", answer)
-			answers = append(answers, answer)
 		case <-query.doneChan:
 			fmt.Printf("done\n")
-			break loop
+			return query.answers, query.err
 		case <-processChan:
 			fmt.Println("  process")
 			ret := C.DNSServiceProcessResult(sdRef)
 			if ret != C.kDNSServiceErr_NoError {
 				fmt.Printf("  process result err %v\n", mapError(int(ret)))
-				query.errChan <- mapError(int(ret))
+				return nil, mapError(int(ret))
 			}
 		}
 	}
-
-	return answers, nil
 }
 
 func validateType(rtype uint16) bool {
