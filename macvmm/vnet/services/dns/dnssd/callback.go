@@ -1,7 +1,7 @@
 package dnssd
 
 /*
-#cgo CFLAGS: -Wall
+#cgo CFLAGS: -g -Wall
 #include <dns_sd.h>
 */
 import "C"
@@ -27,6 +27,7 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 	if errorCode != 0 {
 		fmt.Printf("go_dnssd_callback: error %d\n", errorCode)
 		query.err = mapError(int(errorCode))
+		query.done = true
 		C.DNSServiceRefDeallocate(query.ref)
 		return
 	}
@@ -43,6 +44,7 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 	if flags&C.kDNSServiceFlagsMoreComing != 0 {
 		fmt.Printf("go_dnssd_callback: MoreComing\n")
 	} else {
+		query.done = true
 		C.DNSServiceRefDeallocate(query.ref)
 	}
 	fmt.Println("go_dnssd_callback: done")

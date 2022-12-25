@@ -1,7 +1,7 @@
 package dnssd
 
 /*
-#cgo CFLAGS: -Wall
+#cgo CFLAGS: -g -Wall
 #include <dns_sd.h>
 
 extern void go_dnssd_callback(uint64_t context, DNSServiceFlags flags, uint32_t interfaceIndex,
@@ -24,8 +24,6 @@ import (
 	"math/rand"
 	"sync"
 	"unsafe"
-
-	"golang.org/x/sys/unix"
 )
 
 var (
@@ -37,6 +35,7 @@ type queryState struct {
 	ref     C.DNSServiceRef
 	answers []QueryAnswer
 	err     error
+	done    bool
 }
 
 type QueryAnswer struct {
@@ -80,29 +79,15 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 	}
 
 	for {
-		fmt.Println("selecting")
-		pfds := []unix.PollFd{
-			{
-				Fd:     fd,
-				Events: unix.POLLIN,
-			},
-		}
-		fmt.Println("  poll...")
-		n, err := unix.Poll(pfds, -1)
-		if err != nil {
-			fmt.Printf("  poll err: %v\n", err)
+		if query.done {
 			break
 		}
-		if n == 1 && pfds[0].Revents&unix.POLLIN != 0 {
-			fmt.Println("  process")
-			ret := C.DNSServiceProcessResult(sdRef)
-			if ret != C.kDNSServiceErr_NoError {
-				fmt.Printf("  process result err %v\n", mapError(int(ret)))
-				return nil, mapError(int(ret))
-			}
-		} else {
-			fmt.Printf("  poll end\n")
-			break
+
+		fmt.Println("  process")
+		ret := C.DNSServiceProcessResult(sdRef)
+		if ret != C.kDNSServiceErr_NoError {
+			fmt.Printf("  process result err %v\n", mapError(int(ret)))
+			return nil, mapError(int(ret))
 		}
 	}
 
