@@ -18,13 +18,14 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-// mitigation for hangs with 10 concurrent dials
 const (
-	tcpConnectTimeout = 15 * time.Second
+	tcpConnectTimeout = 30 * time.Second
+	// this is global
+	listenBacklog = 512
 )
 
 func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *tcp.Forwarder {
-	return tcp.NewForwarder(s, 0, 10, func(r *tcp.ForwarderRequest) {
+	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
 		// Workaround for NFS panic
 		defer func() {
 			if err := recover(); err != nil {
