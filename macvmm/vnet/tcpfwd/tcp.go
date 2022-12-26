@@ -21,7 +21,7 @@ import (
 const (
 	tcpConnectTimeout = 30 * time.Second
 	// this is global
-	listenBacklog = 512
+	listenBacklog = 1000
 )
 
 func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *tcp.Forwarder {
