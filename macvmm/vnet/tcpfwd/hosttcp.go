@@ -16,10 +16,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-const (
-	connectTimeout = 30 * time.Second
-)
-
 type TcpHostForwarder struct {
 	listener        net.Listener
 	requireLoopback bool
@@ -151,8 +147,8 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 		Port: uint16(remoteAddr.Port),
 	}
 
-	fmt.Println("dial from", virtSrcAddr, "to", connectAddr, "with proto", proto, "and timeout", connectTimeout)
-	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(connectTimeout))
+	fmt.Println("dial from", virtSrcAddr, "to", connectAddr, "with proto", proto, "and timeout", tcpConnectTimeout)
+	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(tcpConnectTimeout))
 	defer cancel()
 	virtConn, err := gonet.DialTCPWithBind(ctx, f.stack, virtSrcAddr, connectAddr, proto)
 	if err != nil {
