@@ -24,6 +24,8 @@ import (
 	"math/rand"
 	"sync"
 	"unsafe"
+
+	"github.com/miekg/dns"
 )
 
 var (
@@ -53,7 +55,6 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 	defer C.free(unsafe.Pointer(nameC))
 	queryId := rand.Uint64()
 	var sdRef C.DNSServiceRef
-	//TODO handle cname intermediates?
 	ret := C.start_query_record(&sdRef, C.kDNSServiceFlagsTimeout|C.kDNSServiceFlagsReturnIntermediates, 0, nameC, C.ushort(rtype), C.ushort(rclass), C.uint64_t(queryId))
 	if ret != C.kDNSServiceErr_NoError {
 		return nil, mapError(int(ret))
@@ -93,6 +94,48 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 
 	fmt.Printf("done\n")
 	return query.answers, query.err
+}
+
+func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
+	// Keep CNAME at the top even if we're not looking for it
+	allAnswers := []QueryAnswer{}
+	for {
+		fmt.Println("\n\n********** RECURSE ROUND for", name, "**********")
+		newAnswers, err := Query(name, rtype)
+		if err != nil {
+			return nil, err
+		}
+		allAnswers = append(allAnswers, newAnswers...)
+
+		// Recurse if we only got CNAMEs for a non-CNAME query
+		// Happens when macOS doesn't have A/AAAA cached
+		// If it's cached, we don't need to recurse
+		if len(newAnswers) > 0 && rtype != C.kDNSServiceType_CNAME {
+			for _, answer := range newAnswers {
+				if answer.Type == C.kDNSServiceType_CNAME {
+					// Got a CNAME, so use this name for the next recursion
+					// (parse target)
+					rr, _, err := dns.UnpackRRWithHeader(dns.RR_Header{
+						Name:     answer.Name,
+						Rrtype:   answer.Type,
+						Class:    answer.Class,
+						Ttl:      answer.TTL,
+						Rdlength: uint16(len(answer.Data)),
+					}, answer.Data, 0)
+					if err != nil {
+						return nil, err
+					}
+
+					name = string(rr.(*dns.CNAME).Target)
+				} else {
+					// We got a non-CNAME answer, so we're done
+					return allAnswers, nil
+				}
+			}
+		} else {
+			return allAnswers, nil
+		}
+	}
 }
 
 func validateType(rtype uint16) bool {

@@ -59,9 +59,9 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 
 		fmt.Println("query dnssd")
 
-		answers, err := dnssd.Query(q.Name, q.Qtype)
+		answers, err := dnssd.QueryRecursive(q.Name, q.Qtype)
 		if err != nil {
-			fmt.Println("dnssd.Query() =", err)
+			fmt.Println("dnssd.QueryRecursive() =", err)
 
 			// No network? macOS returns NXDOMAIN but let's return timeout
 			if (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName) && netutil.GetDefaultAddress4() == nil {
