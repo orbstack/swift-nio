@@ -183,12 +183,14 @@ func runGvnetDgramPair() (*os.File, error) {
 			return nil, errors.New(err.String())
 		}
 	}
-	{
-		opt := tcpip.TCPDelayEnabled(false)
-		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-			return nil, errors.New(err.String())
+	/*
+		{
+			opt := tcpip.TCPDelayEnabled(false)
+			if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
+				return nil, errors.New(err.String())
+			}
 		}
-	}
+	*/
 
 	// Performance
 	{
