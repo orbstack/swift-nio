@@ -29,6 +29,9 @@ type TcpHostForwarder struct {
 	gatewayAddr6    tcpip.Address
 	stack           *stack.Stack
 	nicId           tcpip.NICID
+	// whether this port forward is an internal implementation detail
+	// if so, spoof gateway ip for localhost, not external ip
+	isInternal bool
 }
 
 func listenTcp(addr string) (net.Listener, bool, error) {
@@ -52,7 +55,7 @@ func listenTcp(addr string) (net.Listener, bool, error) {
 	return l, false, err
 }
 
-func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewayAddr6, listenAddr, connectAddr4, connectAddr6 string) error {
+func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewayAddr6, listenAddr, connectAddr4, connectAddr6 string, isInternal bool) error {
 	listener, requireLoopback, err := listenTcp(listenAddr)
 	if err != nil {
 		return err
@@ -85,6 +88,7 @@ func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewa
 		gatewayAddr6: netutil.ParseTcpipAddress(gatewayAddr6),
 		stack:        s,
 		nicId:        nicId,
+		isInternal:   isInternal,
 	}
 
 	go f.listen()
@@ -127,13 +131,13 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 		if proto == ipv4.ProtocolNumber {
 			srcAddr = tcpip.Address(netutil.GetDefaultAddress4())
 			// Fallback = gateway (i.e. if airplane mode)
-			if srcAddr == "" {
+			if srcAddr == "" || f.isInternal {
 				srcAddr = f.gatewayAddr4
 			}
 		} else {
 			srcAddr = tcpip.Address(netutil.GetDefaultAddress6())
 			// Fallback = gateway (i.e. if airplane mode)
-			if srcAddr == "" {
+			if srcAddr == "" || f.isInternal {
 				srcAddr = f.gatewayAddr6
 			}
 		}

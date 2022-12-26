@@ -248,7 +248,7 @@ func runGvnetDgramPair() (*os.File, error) {
 	for listenAddr, connectPort := range hostForwardsToGuest {
 		connectAddr4 := guestIP4 + ":" + strconv.Itoa(connectPort)
 		connectAddr6 := "[" + guestIP6 + "]:" + strconv.Itoa(connectPort)
-		err := tcpfwd.StartTcpHostForward(s, nicId, gatewayIP4, gatewayIP6, listenAddr, connectAddr4, connectAddr6)
+		err := tcpfwd.StartTcpHostForward(s, nicId, gatewayIP4, gatewayIP6, listenAddr, connectAddr4, connectAddr6, true)
 		if err != nil {
 			return nil, err
 		}
