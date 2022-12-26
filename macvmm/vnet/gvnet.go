@@ -14,6 +14,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmm/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
 	dnssrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/dns"
+	hcsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/hcontrol"
 	ntpsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/ntp"
 	sftpsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/sftp"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/tcpfwd"
@@ -49,9 +50,10 @@ const (
 
 	gatewayMac = "24:d2:f4:58:34:d7"
 
-	runDns  = true
-	runNtp  = true
-	runSftp = false
+	runDns      = true
+	runNtp      = true
+	runHcontrol = true
+	runSftp     = false // Android
 )
 
 var (
@@ -290,6 +292,14 @@ func startNetServices(s *stack.Stack) {
 		err := ntpsrv.ListenNTP(s, addr)
 		if err != nil {
 			fmt.Printf("Failed to start NTP server: %v\n", err)
+		}
+	}
+
+	// Host control (8300): HTTP API
+	if runHcontrol {
+		err := hcsrv.ListenHcontrol(s, addr)
+		if err != nil {
+			fmt.Printf("Failed to start host control server: %v\n", err)
 		}
 	}
 
