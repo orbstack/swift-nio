@@ -15,35 +15,35 @@ import (
 )
 
 func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *udp.Forwarder {
+	// can't move to goroutine - packet ref issue: PullUp failed; see udp-goroutine-panic.log
+	// happens with DNS packets (to 192.168.66.1 nameserver)
 	return udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
-		go func() {
-			localAddress := r.ID().LocalAddress
-			if !netutil.ShouldProxy(localAddress) {
-				return
-			}
+		localAddress := r.ID().LocalAddress
+		if !netutil.ShouldProxy(localAddress) {
+			return
+		}
 
-			natLock.RLock()
-			if replaced, ok := natTable[localAddress]; ok {
-				localAddress = replaced
-			}
-			natLock.RUnlock()
+		natLock.RLock()
+		if replaced, ok := natTable[localAddress]; ok {
+			localAddress = replaced
+		}
+		natLock.RUnlock()
 
-			var wq waiter.Queue
-			ep, tcpErr := r.CreateEndpoint(&wq)
-			if tcpErr != nil {
-				log.Errorf("r.CreateEndpoint() = %v", tcpErr)
-				return
-			}
+		var wq waiter.Queue
+		ep, tcpErr := r.CreateEndpoint(&wq)
+		if tcpErr != nil {
+			log.Errorf("r.CreateEndpoint() = %v", tcpErr)
+			return
+		}
 
-			// TTL info
-			ep.SocketOptions().SetReceiveTTL(true)
-			ep.SocketOptions().SetReceiveHopLimit(true)
+		// TTL info
+		ep.SocketOptions().SetReceiveTTL(true)
+		ep.SocketOptions().SetReceiveHopLimit(true)
 
-			extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
-			p, _ := NewUDPProxy(&autoStoppingListener{underlying: gonet.NewUDPConn(s, &wq, ep)}, func() (net.Conn, error) {
-				return net.Dial("udp", extAddr)
-			})
-			go p.Run(true)
-		}()
+		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
+		p, _ := NewUDPProxy(&autoStoppingListener{underlying: gonet.NewUDPConn(s, &wq, ep)}, func() (net.Conn, error) {
+			return net.Dial("udp", extAddr)
+		})
+		go p.Run(true)
 	})
 }
