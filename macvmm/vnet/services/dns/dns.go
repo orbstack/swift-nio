@@ -2,9 +2,9 @@ package dnssrv
 
 import (
 	"fmt"
-	"net"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/services/dns/dnssd"
 	"github.com/miekg/dns"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -16,20 +16,43 @@ const (
 	DNSPort = 53
 )
 
-// TODO aliases
-type dnsHandler struct {
-	sysResolver net.Resolver
+type StaticHost struct {
+	IP4 string
+	IP6 string
 }
 
-func (h *dnsHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	m := new(dns.Msg)
-	m.SetReply(r)
-	m.RecursionAvailable = true
+type dnsHandler struct{}
 
-	// TODO check other fields
-	// TTLs and classes wrong
-	for _, q := range r.Question {
-		// dns-sd only support sthis
+func sendReply(w dns.ResponseWriter, req *dns.Msg, msg *dns.Msg, isUdp bool) {
+	// EDNS and truncation
+	ednsOpt := req.IsEdns0()
+	if ednsOpt != nil {
+		msg.SetEdns0(ednsOpt.UDPSize(), false)
+		if isUdp {
+			msg.Truncate(int(ednsOpt.UDPSize()))
+		} else {
+			msg.Truncate(dns.MaxMsgSize)
+		}
+	} else {
+		if isUdp {
+			msg.Truncate(dns.MinMsgSize)
+		} else {
+			msg.Truncate(dns.MaxMsgSize)
+		}
+	}
+
+	if err := w.WriteMsg(msg); err != nil {
+		fmt.Println("w.WriteMsg() =", err)
+	}
+}
+
+func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool) {
+	msg := new(dns.Msg)
+	msg.SetReply(req)
+	msg.RecursionAvailable = true
+
+	for _, q := range req.Question {
+		// dns-sd only support this
 		if q.Qclass != dns.ClassINET {
 			continue
 		}
@@ -39,6 +62,13 @@ func (h *dnsHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		answers, err := dnssd.Query(q.Name, q.Qtype)
 		if err != nil {
 			fmt.Println("dnssd.Query() =", err)
+
+			// No network? macOS returns NXDOMAIN but let's return timeout
+			if (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName) && netutil.GetDefaultAddress4() == nil {
+				return
+			}
+
+			// Default error handling
 			switch err {
 			// simulate timeout
 			case dnssd.ErrTimeout:
@@ -53,7 +83,7 @@ func (h *dnsHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				return
 			// return an error
 			default:
-				m.Rcode = mapErrorcode(err)
+				msg.Rcode = mapErrorcode(err)
 			}
 			continue
 		}
@@ -72,18 +102,15 @@ func (h *dnsHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				continue
 			}
 			fmt.Println("rr", rr)
-			m.Answer = append(m.Answer, rr)
+			msg.Answer = append(msg.Answer, rr)
 		}
 	}
 
-	fmt.Println("=>m", m)
-
-	if err := w.WriteMsg(m); err != nil {
-		fmt.Println("w.WriteMsg() =", err)
-	}
+	fmt.Println("=>m", msg)
+	sendReply(w, req, msg, isUdp)
 }
 
-func ListenDNS(stack *stack.Stack, address tcpip.Address) error {
+func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string]StaticHost) error {
 	udpConn, err := gonet.DialUDP(stack, &tcpip.FullAddress{
 		Addr: address,
 		Port: DNSPort,
@@ -100,17 +127,53 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address) error {
 		return err
 	}
 
-	handler := &dnsHandler{
-		sysResolver: net.Resolver{
-			PreferGo:     false,
-			StrictErrors: false,
-		},
+	staticRrs := map[string][]dns.RR{}
+	for host, staticHost := range staticHosts {
+		if staticHost.IP4 != "" {
+			rr, err := dns.NewRR(fmt.Sprintf("%s. IN A %s", host, staticHost.IP4))
+			if err != nil {
+				return err
+			}
+			staticRrs[host] = append(staticRrs[host], rr)
+		}
+		if staticHost.IP6 != "" {
+			rr, err := dns.NewRR(fmt.Sprintf("%s. IN AAAA %s", host, staticHost.IP6))
+			if err != nil {
+				return err
+			}
+			staticRrs[host] = append(staticRrs[host], rr)
+		}
 	}
-	mux := dns.NewServeMux()
-	mux.Handle(".", handler)
+	fmt.Println("rmap", staticRrs)
+
+	handler := &dnsHandler{}
 
 	// UDP
 	go func() {
+		mux := dns.NewServeMux()
+		for _zone, _rrs := range staticRrs {
+			// Copy variables for closure
+			zone := _zone
+			rrs := _rrs
+			mux.HandleFunc(zone+".", func(w dns.ResponseWriter, req *dns.Msg) {
+				msg := new(dns.Msg)
+				msg.SetReply(req)
+				msg.RecursionAvailable = true
+				for _, q := range req.Question {
+					for _, rr := range rrs {
+						if q.Qtype == rr.Header().Rrtype {
+							fmt.Println("reply", "q", q, "rr", rr, "zone", zone)
+							msg.Answer = append(msg.Answer, rr)
+						}
+					}
+				}
+				sendReply(w, req, msg, true)
+			})
+		}
+		mux.HandleFunc(".", func(w dns.ResponseWriter, req *dns.Msg) {
+			handler.handleDnsReq(w, req, true)
+		})
+
 		server := &dns.Server{PacketConn: udpConn, Handler: mux}
 		err := server.ActivateAndServe()
 		if err != nil {
@@ -120,6 +183,30 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address) error {
 
 	// TCP
 	go func() {
+		mux := dns.NewServeMux()
+		for _zone, _rrs := range staticRrs {
+			// Copy variables for closure
+			zone := _zone
+			rrs := _rrs
+			mux.HandleFunc(zone+".", func(w dns.ResponseWriter, req *dns.Msg) {
+				msg := new(dns.Msg)
+				msg.SetReply(req)
+				msg.RecursionAvailable = true
+				for _, q := range req.Question {
+					for _, rr := range rrs {
+						if q.Qtype == rr.Header().Rrtype {
+							fmt.Println("reply", "q", q, "rr", rr, "zone", zone)
+							msg.Answer = append(msg.Answer, rr)
+						}
+					}
+				}
+				sendReply(w, req, msg, true)
+			})
+		}
+		mux.HandleFunc(".", func(w dns.ResponseWriter, req *dns.Msg) {
+			handler.handleDnsReq(w, req, false)
+		})
+
 		server := &dns.Server{Listener: tcpListener, Handler: mux}
 		err := server.ActivateAndServe()
 		if err != nil {

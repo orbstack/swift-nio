@@ -70,6 +70,14 @@ var (
 		hostNatIP4: "127.0.0.1",
 		hostNatIP6: "::1",
 	}
+	staticDnsHosts = map[string]dnssrv.StaticHost{
+		"host":              {IP4: hostNatIP4, IP6: hostNatIP6},
+		"host.internal":     {IP4: hostNatIP4, IP6: hostNatIP6},
+		"services":          {IP4: servicesIP4},
+		"services.internal": {IP4: servicesIP4},
+		"gateway":           {IP4: gatewayIP4, IP6: gatewayIP6},
+		"gateway.internal":  {IP4: gatewayIP4, IP6: gatewayIP6},
+	}
 )
 
 func StartGvnetPair() (file *os.File, err error) {
@@ -271,7 +279,7 @@ func startNetServices(s *stack.Stack) {
 
 	// DNS (53): using system resolver
 	if runDns {
-		err := dnssrv.ListenDNS(s, addr)
+		err := dnssrv.ListenDNS(s, addr, staticDnsHosts)
 		if err != nil {
 			fmt.Printf("Failed to start DNS server: %v\n", err)
 		}
