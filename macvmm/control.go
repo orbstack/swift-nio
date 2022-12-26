@@ -5,8 +5,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 
 	"github.com/Code-Hex/vz/v3"
+
+	_ "net/http/pprof"
+)
+
+const (
+	runPprof = false
 )
 
 type HostControlServer struct {
@@ -51,6 +58,14 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 	server := &http.Server{
 		Addr:    "127.0.0.1:3333",
 		Handler: mux,
+	}
+
+	if runPprof {
+		go func() {
+			runtime.SetBlockProfileRate(1)
+			runtime.SetMutexProfileFraction(1)
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
 	}
 
 	go server.ListenAndServe()
