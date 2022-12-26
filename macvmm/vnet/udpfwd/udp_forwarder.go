@@ -19,8 +19,6 @@ import (
 const (
 	// UDPConnTrackTimeout is the timeout used for UDP connection tracking
 	UDPConnTrackTimeout = 60 * time.Second
-	// UDPBufSize is the buffer size for the UDP proxy
-	UDPBufSize = 65507
 )
 
 // A net.Addr where the IP is split into two fields so you can use it as a key
@@ -97,7 +95,7 @@ func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKe
 		extConn.Close()
 	}()
 
-	readBuf := make([]byte, UDPBufSize)
+	readBuf := make([]byte, 65536)
 	for {
 		_ = extConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
 	again:
@@ -125,7 +123,7 @@ func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKe
 
 // Run starts forwarding the traffic using UDP.
 func (proxy *UDPProxy) Run(useTtl bool) {
-	readBuf := make([]byte, UDPBufSize)
+	readBuf := make([]byte, 65536)
 	lastTtl := uint8(64)
 	for {
 		read, from, err := proxy.listener.ReadFrom(readBuf)
