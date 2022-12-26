@@ -5,6 +5,7 @@ package udpfwd
 
 import (
 	"errors"
+	"io"
 	"net"
 	"net/netip"
 	"sync"
@@ -42,11 +43,18 @@ func newConnTrackKey(addr *net.UDPAddr) *connTrackKey {
 
 type connTrackMap map[connTrackKey]net.Conn
 
+type udpConn interface {
+	ReadFrom(b []byte) (int, net.Addr, error)
+	WriteTo(b []byte, addr net.Addr) (int, error)
+	SetReadDeadline(t time.Time) error
+	io.Closer
+}
+
 // UDPProxy is proxy for which handles UDP datagrams. It implements the Proxy
 // interface to handle UDP traffic forwarding between the frontend and backend
 // addresses.
 type UDPProxy struct {
-	listener       *autoStoppingListener
+	listener       udpConn
 	dialer         func() (net.Conn, error)
 	connTrackTable connTrackMap
 	connTrackLock  sync.Mutex
@@ -63,7 +71,7 @@ func LookupExternalConn(localAddr *net.UDPAddr) *net.UDPAddr {
 }
 
 // NewUDPProxy creates a new UDPProxy.
-func NewUDPProxy(listener *autoStoppingListener, dialer func() (net.Conn, error)) (*UDPProxy, error) {
+func NewUDPProxy(listener udpConn, dialer func() (net.Conn, error)) (*UDPProxy, error) {
 	return &UDPProxy{
 		listener:       listener,
 		connTrackTable: make(connTrackMap),
@@ -156,24 +164,30 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 		proxy.connTrackLock.Unlock()
 
 		// Set TTL
-		newTtl := proxy.listener.underlying.LastTTL
-		if useTtl && newTtl != lastTtl {
-			lastTtl = newTtl
-			rawConn, err := extConn.(*net.UDPConn).SyscallConn()
-			if err != nil {
-				log.Errorf("Can't set TTL on UDP socket: %s\n", err)
-			} else {
-				rawConn.Control(func(fd uintptr) {
-					var err error
-					if extConn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
-						err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, int(newTtl))
-					} else {
-						err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_UNICAST_HOPS, int(newTtl))
-					}
+		if useTtl {
+			connWrapper, ok := proxy.listener.(*autoStoppingListener)
+			if ok {
+				newTtl := connWrapper.underlying.LastTTL
+				if newTtl != lastTtl {
+					rawConn, err := extConn.(*net.UDPConn).SyscallConn()
 					if err != nil {
 						log.Errorf("Can't set TTL on UDP socket: %s\n", err)
+					} else {
+						rawConn.Control(func(fd uintptr) {
+							var err error
+							if extConn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
+								err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, int(newTtl))
+							} else {
+								err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_UNICAST_HOPS, int(newTtl))
+							}
+							if err != nil {
+								log.Errorf("Can't set TTL on UDP socket: %s\n", err)
+							}
+						})
 					}
-				})
+					// if setting it this time failed, it probably won't work next time
+					lastTtl = newTtl
+				}
 			}
 		}
 
