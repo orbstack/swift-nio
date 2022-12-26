@@ -18,6 +18,13 @@ import (
 
 func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, 10, func(r *tcp.ForwarderRequest) {
+		// Workaround for NFS panic
+		defer func() {
+			if err := recover(); err != nil {
+				log.Errorf("tcpfwd: panic: %v", err)
+			}
+		}()
+
 		localAddress := r.ID().LocalAddress
 		if !netutil.ShouldProxy(localAddress) {
 			r.Complete(false)
