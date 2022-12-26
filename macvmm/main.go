@@ -14,6 +14,7 @@ import (
 const (
 	useRouterPair = false
 	useConsole    = false
+	useNat        = false
 )
 
 func check(err error) {
@@ -33,7 +34,7 @@ func main() {
 		DiskRootfs:       "../assets/rootfs.img",
 		DiskData:         "../assets/data.img",
 		DiskSwap:         "../assets/swap.img",
-		NetworkNat:       !useRouterPair,
+		NetworkNat:       useNat && !useRouterPair,
 		NetworkGvnet:     true,
 		NetworkPairFd:    netPair1,
 		MacAddressPrefix: "86:6c:f1:2e:9e",
@@ -60,12 +61,14 @@ func main() {
 		routerVm = StartRouterVm(netPair2)
 	}
 
-	go func() {
-		err := runVsockServices(vm.SocketDevices()[0])
-		if err != nil {
-			log.Println("vsock services error:", err)
-		}
-	}()
+	/*
+		go func() {
+			err := runVsockServices(vm.SocketDevices()[0])
+			if err != nil {
+				log.Println("vsock services error:", err)
+			}
+		}()
+	*/
 
 	// Listen for signals
 	signalCh := make(chan os.Signal, 1)

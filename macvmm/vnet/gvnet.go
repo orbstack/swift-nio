@@ -2,15 +2,19 @@ package network
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"math"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"sync"
 
+	"github.com/kdrag0n/macvirt/macvmm/vclient"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/dgramlink"
+	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
 	dnssrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/dns"
@@ -60,12 +64,7 @@ var (
 	// host -> guest
 	hostForwardsToGuest = map[string]int{
 		"127.0.0.1:2222":  22,
-		"[::1]:2222":      22,
-		"127.0.0.1:62429": 2049,  // nfs alt
-		"127.0.0.1:2049":  2049,  // nfs
-		"127.0.0.1:445":   445,   // smb
-		"127.0.0.1:10445": 10445, // smb alt
-		"127.0.0.1:548":   548,   // afp
+		"127.0.0.1:62429": 2049, // nfs alt
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -268,6 +267,21 @@ func runGvnetDgramPair() (*os.File, error) {
 
 	// Services
 	startNetServices(s)
+
+	// TODO put this somewhere else
+	tr := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return gonet.DialContextTCP(ctx, s, tcpip.FullAddress{
+				Addr: netutil.ParseTcpipAddress(guestIP4),
+				Port: vclient.VcontrolPort,
+			}, ipv4.ProtocolNumber)
+		},
+	}
+	vc := vclient.NewClient(tr)
+	err = vc.StartBackground()
+	if err != nil {
+		return nil, err
+	}
 
 	// TODO logger
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})

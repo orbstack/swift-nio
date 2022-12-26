@@ -8,11 +8,9 @@ import (
 	"strings"
 
 	"github.com/Code-Hex/vz/v3"
+	"github.com/kdrag0n/macvirt/macvmm/vclient"
 	network "github.com/kdrag0n/macvirt/macvmm/vnet"
-)
-
-const (
-	vcontrolToken = "test"
+	hcsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/hcontrol"
 )
 
 type VmConfig struct {
@@ -45,7 +43,8 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 		//"mitigations=off", // free with e0pd
 		// userspace
 		"vc.data_size=65536",
-		"vc.vcontrol_token=" + vcontrolToken,
+		"vc.vcontrol_token=" + vclient.GetCurrentToken(),
+		"vc.hcontrol_token=" + hcsrv.GetCurrentToken(),
 		"vc.timezone=America/Los_Angeles",
 	}
 	if c.DiskRootfs != "" {

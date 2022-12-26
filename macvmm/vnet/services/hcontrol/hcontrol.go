@@ -28,7 +28,7 @@ func genToken() string {
 	}
 
 	// to base32
-	b32str := base32.StdEncoding.EncodeToString(buf)
+	b32str := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf)
 	return b32str
 }
 
