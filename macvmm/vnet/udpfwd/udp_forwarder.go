@@ -18,7 +18,7 @@ import (
 
 const (
 	// UDPConnTrackTimeout is the timeout used for UDP connection tracking
-	UDPConnTrackTimeout = 90 * time.Second
+	UDPConnTrackTimeout = 60 * time.Second
 	// UDPBufSize is the buffer size for the UDP proxy
 	UDPBufSize = 65507
 )
