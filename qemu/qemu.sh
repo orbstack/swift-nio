@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 
   # -chardev socket,id=char1,path=/tmp/vhost-fs.sock \
   # -device vhost-user-fs-pci,chardev=char1,tag=rvfs \
+#  -nic user,model=virtio-net-pci,hostfwd=tcp::2224-:22 \
 
 CPUS=8
 
@@ -26,7 +27,7 @@ qemu-system-aarch64 \
   -chardev stdio,id=virtiocon0 \
   -device virtio-serial \
   -device virtconsole,chardev=virtiocon0 \
-  -nic user,model=virtio-net-pci,hostfwd=tcp::2224-:22 \
+  -nic vmnet-shared,model=virtio-net-pci \
   -device virtio-rng-pci \
   -device virtio-balloon-pci,free-page-hint,free-page-reporting,iothread=iothread4 \
   -append "root=/dev/vda rootfstype=erofs ro init=/opt/vc/preinit console=hvc0 rcu_nocbs=0-7 workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket vc.data_size=65536 vc.vcontrol_token=test vc.timezone=America/Los_Angeles" \
