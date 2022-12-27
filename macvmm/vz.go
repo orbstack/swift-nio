@@ -23,8 +23,8 @@ type VmConfig struct {
 	DiskRootfs       string
 	DiskData         string
 	DiskSwap         string
-	NetworkNat       bool
 	NetworkGvnet     bool
+	NetworkNat       bool
 	NetworkPairFd    *os.File
 	MacAddressPrefix string
 	Balloon          bool

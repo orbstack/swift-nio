@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/Code-Hex/vz/v3"
+	"github.com/kdrag0n/macvirt/macvmm/conf"
 )
 
 const (
@@ -40,8 +41,8 @@ func main() {
 		DiskRootfs:       "../assets/rootfs.img",
 		DiskData:         "../assets/data.img",
 		DiskSwap:         "../assets/swap.img",
-		NetworkNat:       useNat && !useRouterPair,
 		NetworkGvnet:     true,
+		NetworkNat:       useNat && !useRouterPair,
 		NetworkPairFd:    netPair1,
 		MacAddressPrefix: "86:6c:f1:2e:9e",
 		Balloon:          true,
@@ -78,7 +79,7 @@ func main() {
 
 	// Listen for signals
 	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, syscall.SIGTERM)
+	signal.Notify(signalCh, syscall.SIGTERM, syscall.SIGINT)
 
 	errCh := make(chan error, 1)
 
@@ -109,21 +110,40 @@ func main() {
 		}()
 	*/
 
+	// Mount NFS
+	nfsMounted := false
+	go func() {
+		err := conf.MountNfs()
+		if err != nil {
+			log.Println("NFS mount error:", err)
+			return
+		}
+		nfsMounted = true
+	}()
+	defer func() {
+		if nfsMounted {
+			err := conf.UnmountNfs()
+			if err != nil {
+				log.Println("NFS unmount error:", err)
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-signalCh:
-			log.Println("recieved signal")
+			log.Println("stop (signal)")
 			err := vm.Stop()
 			if err != nil {
-				log.Println("request stop error:", err)
+				log.Println("VM stop error:", err)
 				return
 			}
 		case newState := <-vm.StateChangedNotify():
 			if newState == vz.VirtualMachineStateRunning {
-				log.Println("start VM is running")
+				log.Println("VM started")
 			}
 			if newState == vz.VirtualMachineStateStopped {
-				log.Println("stopped successfully")
+				log.Println("VM stopped")
 				return
 			}
 			if newState == vz.VirtualMachineStateError {
@@ -131,7 +151,7 @@ func main() {
 				return
 			}
 		case err := <-errCh:
-			log.Println("in start:", err)
+			log.Println("VM start error:", err)
 		}
 	}
 }

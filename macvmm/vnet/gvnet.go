@@ -58,13 +58,15 @@ const (
 	runNtp      = true
 	runHcontrol = true
 	runSftp     = false // Android
+
+	NfsForwardPort = 62429
 )
 
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]int{
 		"127.0.0.1:2222":  22,
-		"127.0.0.1:62429": 2049, // nfs alt
+		"127.0.0.1:" + strconv.Itoa(NfsForwardPort): 2049, // nfs alt
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
