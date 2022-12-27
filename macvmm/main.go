@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
 	"syscall"
@@ -24,6 +25,14 @@ func check(err error) {
 	}
 }
 
+func extractSparse(tarPath string) {
+	target := conf.DataDir()
+	// Go archive/tar doesn't fully support sparse. bsdtar does.
+	cmd := exec.Command("/usr/bin/bsdtar", "-xf", tarPath, "-C", target)
+	err := cmd.Run()
+	check(err)
+}
+
 func main() {
 	var netPair1, netPair2 *os.File
 	var err error
@@ -32,15 +41,22 @@ func main() {
 		check(err)
 	}
 
+	if _, err := os.Stat(conf.DataImage()); os.IsNotExist(err) {
+		extractSparse(conf.GetAssetFile("data.img.tar"))
+	}
+	if _, err := os.Stat(conf.SwapImage()); os.IsNotExist(err) {
+		extractSparse(conf.GetAssetFile("swap.img.tar"))
+	}
+
 	config := &VmConfig{
 		Cpus:   runtime.NumCPU(),
 		Memory: 6144,
-		Kernel: "../assets/kernel",
+		Kernel: conf.GetAssetFile("kernel"),
 		// this one uses gvproxy ssh
 		Console:          useConsole,
-		DiskRootfs:       "../assets/rootfs.img",
-		DiskData:         "../assets/data.img",
-		DiskSwap:         "../assets/swap.img",
+		DiskRootfs:       conf.GetAssetFile("rootfs.img"),
+		DiskData:         conf.DataImage(),
+		DiskSwap:         conf.SwapImage(),
 		NetworkGvnet:     true,
 		NetworkNat:       useNat && !useRouterPair,
 		NetworkPairFd:    netPair1,

@@ -3,12 +3,11 @@ package conf
 import (
 	"os/exec"
 	"strconv"
-
-	"github.com/kdrag0n/macvirt/macvmm/vnet"
 )
 
 var (
-	nfsMountOptions = "vers=4,tcp,inet,port=" + strconv.Itoa(vnet.NfsForwardPort) + ",soft"
+	NfsForwardPort  = 62429
+	nfsMountOptions = "vers=4,tcp,inet,port=" + strconv.Itoa(NfsForwardPort) + ",soft"
 )
 
 func MountNfs() error {

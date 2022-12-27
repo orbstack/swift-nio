@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/kdrag0n/macvirt/macvmm/conf"
 	"github.com/kdrag0n/macvirt/macvmm/vclient"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
@@ -58,15 +59,13 @@ const (
 	runNtp      = true
 	runHcontrol = true
 	runSftp     = false // Android
-
-	NfsForwardPort = 62429
 )
 
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]int{
-		"127.0.0.1:2222":  22,
-		"127.0.0.1:" + strconv.Itoa(NfsForwardPort): 2049, // nfs alt
+		"127.0.0.1:2222": 22,
+		"127.0.0.1:" + strconv.Itoa(conf.NfsForwardPort): 2049, // nfs alt
 	}
 	// guest -> host
 	natFromGuest = map[string]string{

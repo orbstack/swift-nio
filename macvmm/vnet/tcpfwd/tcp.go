@@ -2,7 +2,6 @@ package tcpfwd
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"strconv"
 	"sync"

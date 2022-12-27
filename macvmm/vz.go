@@ -6,10 +6,12 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/arch"
+	"github.com/kdrag0n/macvirt/macvmm/conf"
 	"github.com/kdrag0n/macvirt/macvmm/vclient"
 	"github.com/kdrag0n/macvirt/macvmm/vnet"
 	hcsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/hcontrol"
@@ -48,7 +50,7 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 		// boot
 		"init=/opt/vc/preinit",
 		// userspace
-		"vc.data_size=65536",
+		"vc.data_size=" + strconv.FormatUint(conf.DiskSize(), 10),
 		"vc.vcontrol_token=" + vclient.GetCurrentToken(),
 		"vc.hcontrol_token=" + hcsrv.GetCurrentToken(),
 		"vc.timezone=America/Los_Angeles",
