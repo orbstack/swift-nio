@@ -45,15 +45,15 @@ func findBestMtu() int {
 
 func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	cmdline := []string{
-		// Kernel tuning
-		"workqueue.power_efficient=1",
-		"cgroup.memory=nokmem,nosocket",
-		// rcu_nocbs is in kernel
 		// userspace
 		"vc.data_size=65536",
 		"vc.vcontrol_token=" + vclient.GetCurrentToken(),
 		"vc.hcontrol_token=" + hcsrv.GetCurrentToken(),
 		"vc.timezone=America/Los_Angeles",
+		// Kernel tuning
+		"workqueue.power_efficient=1",
+		"cgroup.memory=nokmem,nosocket",
+		// rcu_nocbs is in kernel
 	}
 	if runtime.GOARCH == "amd64" {
 		// on ARM: kpti is free with E0PD
