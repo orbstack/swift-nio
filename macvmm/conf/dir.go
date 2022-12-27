@@ -54,9 +54,13 @@ func SwapImage() string {
 
 // TODO
 func AssetsDir() string {
-	return "../assets"
+	return "../assets/" + buildVariant
 }
 
 func GetAssetFile(name string) string {
 	return AssetsDir() + "/" + name
+}
+
+func DockerSocket() string {
+	return ConfigDir() + "/docker.sock"
 }
