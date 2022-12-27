@@ -35,7 +35,6 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		}()
 
 		localAddress := r.ID().LocalAddress
-		fmt.Println("new tcp conn req", localAddress)
 		if !netutil.ShouldProxy(localAddress) {
 			r.Complete(false)
 			return
@@ -48,9 +47,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		natLock.RUnlock()
 		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
 
-		fmt.Println("dialing", extAddr)
 		extConn, err := net.DialTimeout("tcp", extAddr, tcpConnectTimeout)
-		fmt.Println("done dialing", extAddr, err)
 		if err != nil {
 			log.Errorf("net.Dial() %v = %v", extAddr, err)
 			// if connection refused
@@ -71,7 +68,6 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		defer extConn.Close()
 
 		var wq waiter.Queue
-		fmt.Printf("creating endpoint %v\n", extAddr)
 		ep, tcpErr := r.CreateEndpoint(&wq)
 		r.Complete(false)
 		if tcpErr != nil {
@@ -83,7 +79,6 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		virtConn := gonet.NewTCPConn(&wq, ep)
 		defer virtConn.Close()
 
-		fmt.Println("pumping", extAddr)
 		pump2(virtConn, extConn)
 	})
 }
