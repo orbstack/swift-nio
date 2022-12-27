@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Code-Hex/vz/v3"
+	"github.com/kdrag0n/macvirt/macvmm/arch"
 	"github.com/kdrag0n/macvirt/macvmm/vclient"
 	network "github.com/kdrag0n/macvirt/macvmm/vnet"
 	hcsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/hcontrol"
@@ -224,16 +225,9 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 
 	// Rosetta (virtiofs)
 	if c.Rosetta {
-		switch vz.LinuxRosettaDirectoryShareAvailability() {
-		case vz.LinuxRosettaAvailabilityNotInstalled:
-			err = vz.LinuxRosettaDirectoryShareInstallRosetta()
-			check(err)
-			fallthrough
-		case vz.LinuxRosettaAvailabilityInstalled:
-			rosettaDir, err := vz.NewLinuxRosettaDirectoryShare()
-			check(err)
-			virtiofsRosetta, err := vz.NewVirtioFileSystemDeviceConfiguration("rosetta")
-			virtiofsRosetta.SetDirectoryShare(rosettaDir)
+		virtiofsRosetta, err := arch.CreateRosettaDevice()
+		check(err)
+		if virtiofsRosetta != nil {
 			fsDevices = append(fsDevices, *virtiofsRosetta)
 		}
 	}
