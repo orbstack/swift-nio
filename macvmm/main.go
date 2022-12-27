@@ -24,7 +24,13 @@ func check(err error) {
 }
 
 func main() {
-	netPair1, netPair2, err := makeUnixDgramPair()
+	var netPair1, netPair2 *os.File
+	var err error
+	if useRouterPair {
+		netPair1, netPair2, err = makeUnixDgramPair()
+		check(err)
+	}
+
 	config := &VmConfig{
 		Cpus:   runtime.NumCPU(),
 		Memory: 6144,
