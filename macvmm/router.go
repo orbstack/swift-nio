@@ -22,7 +22,7 @@ func StartRouterVm(netPair2 *os.File) *vz.VirtualMachine {
 		Rng:              true,
 	}
 
-	vm := CreateVm(config)
+	_, vm := CreateVm(config)
 	err := vm.Start()
 	check(err)
 

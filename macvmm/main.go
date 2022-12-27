@@ -69,7 +69,12 @@ func main() {
 		Sound:            false,
 	}
 
-	vm := CreateVm(config)
+	vnetwork, vm := CreateVm(config)
+
+	// VM control server client
+	vc := vnetwork.VClient
+	err = vc.StartBackground()
+	check(err)
 
 	if useConsole {
 		oldAttr := setRawMode(os.Stdin)
@@ -99,6 +104,7 @@ func main() {
 
 	errCh := make(chan error, 1)
 
+	// Start host control server for Swift
 	controlServer := HostControlServer{
 		balloon:  vm.MemoryBalloonDevices()[0],
 		routerVm: routerVm,
@@ -110,28 +116,14 @@ func main() {
 
 	routerVm = nil
 
-	/*
-		go func() {
-			time.Sleep(5 * time.Second)
-			conn, err := vm.SocketDevices()[0].Connect(5200)
-			if err != nil {
-				log.Println("vsock connect error:", err)
-				return
-			}
-
-			err = benchmarkVsock(conn)
-			if err != nil {
-				log.Println("vsock benchmark error:", err)
-			}
-		}()
-	*/
-
 	// Mount NFS
 	nfsMounted := false
 	go func() {
+		vc.WaitForReady()
 		log.Println("Mounting NFS...")
 		err := conf.MountNfs()
 		if err != nil {
+			// if already mounted, we'll just reuse it
 			log.Println("NFS mount error:", err)
 			return
 		}

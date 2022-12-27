@@ -45,7 +45,7 @@ func findBestMtu() int {
 	}
 }
 
-func CreateVm(c *VmConfig) *vz.VirtualMachine {
+func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	cmdline := []string{
 		// boot
 		"init=/opt/vc/preinit",
@@ -101,10 +101,12 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	netDevices := []*vz.VirtioNetworkDeviceConfiguration{}
 	mtu := findBestMtu()
 	// 1. gvnet
+	var vnetwork *vnet.Network
 	if c.NetworkGvnet {
-		gvnetFile, err := vnet.StartGvnetPair(vnet.NetOptions{
+		newNetwork, gvnetFile, err := vnet.StartGvnetPair(vnet.NetOptions{
 			MTU: uint32(mtu),
 		})
+		vnetwork = newNetwork
 		check(err)
 		attachment, err := vz.NewFileHandleNetworkDeviceAttachment(gvnetFile)
 		check(err)
@@ -259,5 +261,5 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	vm, err := vz.NewVirtualMachine(config)
 	check(err)
 
-	return vm
+	return vnetwork, vm
 }

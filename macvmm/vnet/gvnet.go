@@ -61,6 +61,12 @@ const (
 	runSftp     = false // Android
 )
 
+type Network struct {
+	Stack   *stack.Stack
+	NIC     tcpip.NICID
+	VClient *vclient.VClient
+}
+
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]int{
@@ -86,14 +92,14 @@ type NetOptions struct {
 	MTU uint32
 }
 
-func StartGvnetPair(opts NetOptions) (file *os.File, err error) {
+func StartGvnetPair(opts NetOptions) (*Network, *os.File, error) {
 	return runGvnetDgramPair(opts)
 }
 
-func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
+func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 	file0, fd1, err := makeUnixDgramPair()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	s := stack.New(stack.Options{
@@ -114,7 +120,7 @@ func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 
 	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	endpoint, err := dgramlink.New(&dgramlink.Options{
@@ -130,59 +136,59 @@ func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 		RXChecksumOffload:  true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if capturePcap {
 		_ = os.Remove("gv.pcap")
 		f, err := os.Create("gv.pcap")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		endpoint, err = sniffer.NewWithWriter(endpoint, f, math.MaxUint32)
 	}
 
 	if err := s.CreateNIC(nicId, endpoint); err != nil {
-		return nil, errors.New(err.String())
+		return nil, nil, errors.New(err.String())
 	}
 
 	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
 		AddressWithPrefix: netutil.ParseTcpipAddress(gatewayIP4).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
-		return nil, errors.New(err.String())
+		return nil, nil, errors.New(err.String())
 	}
 	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol:          ipv6.ProtocolNumber,
 		AddressWithPrefix: netutil.ParseTcpipAddress(gatewayIP6).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
-		return nil, errors.New(err.String())
+		return nil, nil, errors.New(err.String())
 	}
 
 	if err := s.SetSpoofing(nicId, true); err != nil {
-		return nil, errors.New(err.String())
+		return nil, nil, errors.New(err.String())
 	}
 	// Accept all packets so we can forward them
 	if err := s.SetPromiscuousMode(nicId, true); err != nil {
-		return nil, errors.New(err.String())
+		return nil, nil, errors.New(err.String())
 	}
 
 	_, ipSubnet4, err := net.ParseCIDR(subnet4 + ".0/24")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	subnet4, err := tcpip.NewSubnet(tcpip.Address(ipSubnet4.IP.To4()), tcpip.AddressMask(ipSubnet4.Mask))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	_, ipSubnet6, err := net.ParseCIDR(subnet6 + ":0/64")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	subnet6, err := tcpip.NewSubnet(tcpip.Address(ipSubnet6.IP.To16()), tcpip.AddressMask(ipSubnet6.Mask))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	s.SetRouteTable([]tcpip.Route{
@@ -194,14 +200,14 @@ func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 	{
 		opt := tcpip.TCPSACKEnabled(false)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-			return nil, errors.New(err.String())
+			return nil, nil, errors.New(err.String())
 		}
 	}
 	/*
 		{
 			opt := tcpip.TCPDelayEnabled(false)
 			if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-				return nil, errors.New(err.String())
+				return nil, nil, errors.New(err.String())
 			}
 		}
 	*/
@@ -210,14 +216,14 @@ func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 	{
 		opt := tcpip.TCPModerateReceiveBufferOption(true)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-			return nil, errors.New(err.String())
+			return nil, nil, errors.New(err.String())
 		}
 	}
 
 	{
 		opt := tcpip.CongestionControlOption("cubic")
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-			return nil, errors.New(err.String())
+			return nil, nil, errors.New(err.String())
 		}
 	}
 
@@ -225,7 +231,7 @@ func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 	// {
 	// 	opt := tcpip.TCPDelayEnabled(false)
 	// 	if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-	// 		return nil, errors.New(err.String())
+	// 		return nil, nil, errors.New(err.String())
 	// 	}
 	// }
 
@@ -255,7 +261,7 @@ func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 	// ICMP
 	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicId, guestIP4, guestIP6)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	go icmpFwd.ProxyRequests()
 	icmpFwd.MonitorReplies()
@@ -266,14 +272,14 @@ func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 		connectAddr6 := "[" + guestIP6 + "]:" + strconv.Itoa(connectPort)
 		err := tcpfwd.StartTcpHostForward(s, nicId, gatewayIP4, gatewayIP6, listenAddr, connectAddr4, connectAddr6, true)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	// Services
 	startNetServices(s)
 
-	// TODO put this somewhere else
+	// vcontrol client
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, s, tcpip.FullAddress{
@@ -283,16 +289,18 @@ func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 		},
 	}
 	vc := vclient.NewClient(tr)
-	err = vc.StartBackground()
-	if err != nil {
-		return nil, err
-	}
 
 	// TODO logger
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
 	// TODO close the file eventually
-	return file0, nil
+
+	network := &Network{
+		Stack:   s,
+		NIC:     nicId,
+		VClient: vc,
+	}
+	return network, file0, nil
 }
 
 func startNetServices(s *stack.Stack) {
