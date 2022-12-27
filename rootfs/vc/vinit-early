@@ -17,32 +17,13 @@ ip link set lo up # too early
 vcontrol_token=$(cat /proc/cmdline | sed 's/ /\n/g' | grep vc.vcontrol_token= | sed 's/vc.vcontrol_token=//g') || true
 /opt/vc/vcontrol "$vcontrol_token" &
 
-# vsock proxies
-socat VSOCK-LISTEN:22,reuseaddr,fork TCP:127.0.0.1:22 &
-socat VSOCK-LISTEN:103,reuseaddr,fork TCP:127.0.0.1:103 &
-#socat VSOCK-LISTEN:8443,reuseaddr,fork TCP:127.0.0.1:8443 &
-socat VSOCK-LISTEN:102,reuseaddr,fork UNIX-CONNECT:/var/lib/lxd/unix.socket &
-
-# network: gvproxy
-/opt/vc/lvproxy-guest /run/gvproxy.sock 100 -d
-/opt/vc/gvproxy-guest -url unix:///run/gvproxy.sock -mtu 65520 &
-# TODO proper wait
-(
-    sleep 0.1
-    ip link set tap0 mtu 65520
-    sleep 0.25
-    ip link set tap0 mtu 65520
-) &
-
-# network: passt tap
-# /lvproxy-guest-tun &
-# (
-#     # TODO: proper wait for interface
-#     sleep 0.25
-#     udhcpc -i lvtap0 &
-# ) &
-
-#/opt/vc/lvproxy-guest /run/9p.sock 900 -d
+# net
+sysctl net.ipv6.conf.eth0.accept_ra=0
+ip link set eth0 up
+ip addr add 172.30.30.2/24 dev eth0
+ip route add default via 172.30.30.1 dev eth0
+ip addr add fc00:96dc:7096:1d21::2/64 dev eth0
+ip route add default via fc00:96dc:7096:1d21::1 dev eth0
 
 # prepare mounts for 9p
 # /mnt/android *will* be 9p
@@ -53,29 +34,6 @@ socat VSOCK-LISTEN:102,reuseaddr,fork UNIX-CONNECT:/var/lib/lxd/unix.socket &
 # shared subtree docs: https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
 mount --make-slave /
 mount --make-shared /
-
-# mount 9p
-# this blocks until 9P server is ready, so run in bg
-(
-    #/opt/vc/9p-vsmount
-    #mount -t 9p -o version=9p2000.L,trans=unix,uname=root,cache=mmap,msize=262144 /run/9p.sock /mnt/android
-
-    /opt/vc/sshfs-vsmount
-    # wait up to 10 sec for it to be mounted after sshfs-vsmount returns
-    for i in {1..20}; do
-        if mountpoint -q /mnt/android; then
-            break
-        fi
-        sleep 0.5
-    done
-
-    # then bind mount over lxc sdcard
-    mount --bind /mnt/android/storage/emulated/0 /mnt/sdcard
-) &
-
-for pid in $(pidof lvproxy-guest gvproxy-guest socat); do
-    echo -n -1000 > /proc/$pid/oom_score_adj
-done
 
 # resize data
 # parse vc.data_size=10240 from /proc/cmdline
@@ -94,5 +52,15 @@ if [[ -n "$data_size" ]]; then
         echo "attempt to reduce data size: $data_size"
     fi
 fi
+
+# virtiofs share
+mkdir /mnt/shared
+mount -t virtiofs shared /mnt/shared
+
+# rosetta
+mkdir /mnt/rosetta
+mount -t virtiofs rosetta /mnt/rosetta
+mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc
+echo ':rosetta:M:0:\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00:\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/mnt/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register
 
 echo "[END] vinit-early"

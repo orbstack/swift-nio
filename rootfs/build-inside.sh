@@ -3,7 +3,7 @@ set -eo pipefail
 IS_RELEASE=false
 
 echo nameserver 1.1.1.1 > /etc/resolv.conf
-apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra sshfs eudev
+apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra sshfs eudev nfs-utils
 #lxd lxd-client
 
 # new lxd 5.8 builds, patched to disable xfs quota
@@ -21,7 +21,7 @@ sed -i '/getty/d' /etc/inittab
 
 if ! $IS_RELEASE; then
     echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
-    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr
+    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind
     rc-update add sshd default
 fi
 
@@ -121,10 +121,17 @@ echo '/dev/vdb1 /data xfs rw,noatime,discard,pquota 0 0' >> /etc/fstab
 echo 'tmpfs /tmp tmpfs rw,noatime 0 0' >> /etc/fstab
 
 # accurate time (PTP KVM clock)
-# sync every 64 sec
-echo 'refclock PHC /dev/ptp0 poll 6 dpoll 6' > /etc/chrony/chrony.conf
-echo 'makestep 1.0 2' >> /etc/chrony/chrony.conf
+# sync every 128 sec after init/suspendresume
+echo 'server 172.30.30.200 iburst minpoll 7' > /etc/chrony/chrony.conf
+# always step clock if needed
+echo 'makestep 3.0 2147483647' >> /etc/chrony/chrony.conf
 echo 'cmdport 0' >> /etc/chrony/chrony.conf
+
+# prod config
+echo nameserver 172.30.30.200 > /etc/resolv.conf
+
+# NFS
+echo '/Linux 172.30.30.1/32(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)' > /etc/exports
 
 # HACK: fix usbip ld lib path
 mkdir /usbip

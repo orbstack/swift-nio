@@ -62,31 +62,16 @@ function wait_for_lxc() {
 }
 
 echo "[VINIT-LATE] wait for lxc"
-wait_for_lxc
+#wait_for_lxc
+
+# late nfs start because we need bind mount
+mkdir /Linux
+mount --bind /data /Linux
+rc-service nfs start
 
 # late lxd tuning
 # TODO: do this for nic too
 ip link set lxdbr0 txqueuelen 10000
-
-# upgrade data: v1 -> v2
-if [[ "$(cat /data/version)" -lt 2 ]]; then
-    echo "[DATA UPGRADE] v1 -> v2: start"
-
-    set +e
-    for container in $(lxc list -c n -f csv)
-    do
-        echo "[DATA UPGRADE] v1 -> v2: container $container"
-        lxc config device remove $container shared-sdcard
-        lxc config device add $container shared-sdcard disk source=/mnt/sdcard path=/sdcard
-        # fails if already running
-        lxc start $container
-    done
-    set -e
-
-    echo 2 > /data/version
-    sync
-    echo "[DATA UPGRADE] v1 -> v2: done"
-fi
 
 # always update profile
 # profile update may fail:
@@ -149,34 +134,5 @@ devices:
 name: default
 EOF
 set -e
-
-# upgrade data: v2 -> v3
-if [[ "$(cat /data/version)" -lt 3 ]]; then
-    echo "[DATA UPGRADE] v2 -> v3: start"
-
-    set +e
-    for container in $(lxc list -c n -f csv)
-    do
-        echo "[DATA UPGRADE] v2 -> v3: container $container"
-        lxc config unset $container security.nesting
-        lxc config unset $container security.privileged
-        lxc config device remove $container shared-sdcard
-    done
-    set -e
-
-    echo 3 > /data/version
-    sync
-    echo "[DATA UPGRADE] v2 -> v3: done"
-fi
-
-# upgrade data: v3 -> v4
-if [[ "$(cat /data/version)" -lt 4 ]]; then
-    echo "[DATA UPGRADE] v3 -> v4: start"
-
-    # done in pre-upgrade
-    echo 4 > /data/version
-    sync
-    echo "[DATA UPGRADE] v3 -> v4: done"
-fi
 
 echo "[END] vinit-late"
