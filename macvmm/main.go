@@ -152,6 +152,7 @@ func main() {
 			}
 		case err := <-errCh:
 			log.Println("VM start error:", err)
+			return
 		}
 	}
 }
