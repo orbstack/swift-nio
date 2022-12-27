@@ -23,8 +23,10 @@ mount --bind /tmp /tmp/overlay/overlay/orig/tmp
 mount --bind / /tmp/overlay/overlay/orig/root
 
 # ulimits (PAM doesn't take effect here)
-ulimit -SHn 1048576
-ulimit -SHl unlimited
+ulimit -Sn 1048576
+ulimit -Hn 1048576
+ulimit -Sl unlimited
+ulimit -Hl unlimited
 
 echo "[END] preinit"
 exec /opt/vc/switch_overlay_root /tmp/overlay/overlay /sbin/init "$@"

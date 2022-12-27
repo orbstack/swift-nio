@@ -2,6 +2,7 @@
 /rd/
 /rd-old/
 /rd-compile
+/rd-compile86
 
 /data/
 
@@ -22,3 +23,7 @@
 # TEMP
 /lxd-preseed/
 /packages/
+
+*.img
+*.qcow2
+*.img.tar

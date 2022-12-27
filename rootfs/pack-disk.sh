@@ -22,10 +22,6 @@ mkfs.erofs rootfs.img rd -z lz4hc
 # cp initrd ~/code/android/app/virtcontainer/app/src/main/assets/initrd
 #cp ../linux/kernel ~/code/android/app/virtcontainer/app/src/main/assets/kernel
 
-# qcow2 workaround
-qemu-img convert -f raw -O qcow2 rootfs.img rootfs.qcow2
-mv rootfs.qcow2 rootfs.img
-
 
 # data volume
 rm -f data.qcow2
@@ -48,11 +44,6 @@ cp -raf data/. /mnt/tmp/
 umount /mnt/tmp
 qemu-nbd -d /dev/nbd0
 
-# compact image
-# qemu-img convert -c -O qcow2 data.qcow2 data.qcow2.tmp
-# mv data.qcow2.tmp data.qcow2
-# trap 'rm -f data.qcow2.tmp' EXIT
-
 
 # swap volume
 rm -f swap.qcow2
@@ -70,6 +61,17 @@ trap 'qemu-nbd -d /dev/nbd0' EXIT
 mkswap /dev/nbd0p2
 qemu-nbd -d /dev/nbd0
 
+# to raw sparse
+qemu-img convert data.qcow2 data.img
+qemu-img convert swap.qcow2 swap.img
+rm -f data.qcow2 swap.qcow2
+
+# sparse tars
+rm -f data.img.tar swap.img.tar
+bsdtar -cf data.img.tar data.img
+bsdtar -cf swap.img.tar swap.img
+rm -f data.img swap.img
+
 # is release?
 if grep -q 'IS_RELEASE=true' build-inside.sh; then
 	build_type=release
@@ -85,12 +87,12 @@ copy_file() {
 		local btype=debug
 	fi
 
-	# cat "$1" | zstd -T0 - > ~/code/android/app/virtcontainer/app/src/main/assets/"$2.zst"
-	mkdir -p ~/code/android/app/virtcontainer/app/src/$btype/assets
-	cp "$1" ~/code/android/app/virtcontainer/app/src/$btype/assets/$2
+	mkdir -p ../assets/$btype
+	cp "$1" ../assets/$btype/$2
 }
 
 copy_file rootfs.img rootfs.img
 copy_file ~/code/android/kvm/linux/arch/arm64/boot/Image kernel
-copy_file data.qcow2 data.qcow2
-copy_file swap.qcow2 swap.qcow2
+copy_file ~/code/c/linux/arch/x86_64/boot/bzImage kernel86
+copy_file data.img.tar data.img.tar
+copy_file swap.img.tar swap.img.tar

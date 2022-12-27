@@ -3,12 +3,16 @@ set -eo pipefail
 IS_RELEASE=false
 
 echo nameserver 1.1.1.1 > /etc/resolv.conf
-apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra sshfs eudev nfs-utils
-#lxd lxd-client
+apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra sshfs eudev nfs-utils docker-engine
 
 # new lxd 5.8 builds, patched to disable xfs quota
 # dqlite patched to stop 500 ms heartbeat
-apk add /packages/dqlite-1* /packages/lxd-5* /packages/lxd-client-5* /packages/lxd-openrc-5*
+# TODO (TEMP): use prebuilts for x86
+if [ "$(uname -m)" == "x86_64" ]; then
+    apk add lxd lxd-client lxd-openrc dqlite
+else
+    apk add /packages/dqlite-1* /packages/lxd-5* /packages/lxd-client-5* /packages/lxd-openrc-5*
+fi
 
 # only keep xfs_growfs from extra, remove python3
 cp -a /usr/sbin/xfs_growfs /usr/sbin/xfs_quota /
@@ -21,7 +25,7 @@ sed -i '/getty/d' /etc/inittab
 
 if ! $IS_RELEASE; then
     echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
-    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind
+    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind docker
     rc-update add sshd default
 fi
 
@@ -42,6 +46,7 @@ rc-update add networking default
 rc-update add udev default
 rc-update add lxd default
 rc-update add chronyd default
+rc-update add docker default
 touch /etc/network/interfaces
 
 # spped up boot
@@ -63,6 +68,14 @@ echo '
 * hard memlock unlimited
 ' >> /etc/security/limits.conf
 echo '
+#
+# Copyright 2022-2023 Danny Lin <danny@kdrag0n.dev>. All rights reserved.
+# 
+# Unauthorized copying of this software and associated documentation files (the "Software"), via any medium, is strictly prohibited. Confidential and proprietary.
+# 
+# The above copyright notice shall be included in all copies or substantial portions of the Software.
+#
+
 # idle cpu
 vm.compaction_proactiveness=0
 vm.stat_interval=30
@@ -153,17 +166,17 @@ mkdir /data/etc
 mv /etc/resolv.conf /data/etc
 ln -s /data/etc/resolv.conf /etc/resolv.conf
 
-mkdir /data/etc/ssh
-if ! $IS_RELEASE; then
-    for f in ssh_host_dsa_key ssh_host_dsa_key.pub ssh_host_ecdsa_key ssh_host_ecdsa_key.pub ssh_host_ed25519_key ssh_host_ed25519_key.pub ssh_host_rsa_key ssh_host_rsa_key.pub
-    do
-        ln -s /data/etc/ssh/$f /etc/ssh/$f
-    done
-fi
+# mkdir /data/etc/ssh
+# if ! $IS_RELEASE; then
+#     for f in ssh_host_dsa_key ssh_host_dsa_key.pub ssh_host_ecdsa_key ssh_host_ecdsa_key.pub ssh_host_ed25519_key ssh_host_ed25519_key.pub ssh_host_rsa_key ssh_host_rsa_key.pub
+#     do
+#         ln -s /data/etc/ssh/$f /etc/ssh/$f
+#     done
+# fi
 
 # v1: initial
 # v2: changed shared-sdcard mount source
 # v3: moved security.nesting=true, security.privileged=true, device shared-sdcard to default profile; added devnode-ppp device
 # v4: fixed each container storage having a separate project quota id (modded lxd), enable quota at upgrade
 # TODO: update lxd-preseed with v3 profile
-echo 3 > /data/version
+echo 4 > /data/version

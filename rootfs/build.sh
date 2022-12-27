@@ -2,6 +2,13 @@
 
 set -eo pipefail
 
+# arm, x86
+ARCH="$1"
+if [ -z "$ARCH" ]; then
+    echo "Usage: $0 <arch>"
+    exit 1
+fi
+
 # require root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
@@ -11,12 +18,30 @@ fi
 HOME=/home/dragon
 
 cd "$(dirname "$0")"
+
+# build vcontrol first
+pushd vcontrol
+if [[ "$ARCH" == "arm" ]]; then
+    cargo build --release --target aarch64-unknown-linux-musl
+elif [[ "$ARCH" == "x86" ]]; then
+    cargo build --release --target x86_64-unknown-linux-musl
+else
+    echo "Unknown architecture: $ARCH"
+    exit 1
+fi
+popd
+
 rm -fr rd
 mkdir rd
 pushd rd
 
-# ALPINE
-tar xvf $HOME/Downloads/alpine-minirootfs-20220809-aarch64.tar.gz 
+# Alpine rootfs
+if [[ "$ARCH" == "arm" ]]; then
+    tar xf $HOME/Downloads/alpine-minirootfs-20221110-aarch64.tar.gz 
+else
+    tar xf $HOME/Downloads/alpine-minirootfs-20221110-x86_64.tar.gz
+fi
+
 cp ../build-inside.sh .
 # for custom lxd builds
 cp ../packages/*.pub etc/apk/keys/
@@ -30,18 +55,24 @@ rm -r packages
 OPT=opt/vc
 cp -r ../vc $OPT
 # legal
-cp ../LICENSE .
+cp ../../LICENSE .
 
-# preinit
-cp ../rd-compile/switch_overlay_root $OPT
-# vcontrol server
-cp ../../vcontrol/target/aarch64-unknown-linux-musl/release/vcontrol $OPT
-# debugging tools
-cp ../rd-compile/eventstat/eventstat $OPT
+# ARCH DEPENDENT
+if [[ "$ARCH" == "arm" ]]; then
+    # preinit
+    cp ../rd-compile/switch_overlay_root $OPT
+    # vcontrol server
+    cp ../vcontrol/target/aarch64-unknown-linux-musl/release/vcontrol $OPT
+else
+    # preinit
+    cp ../rd-compile86/switch_overlay_root $OPT
+    # vcontrol server
+    cp ../vcontrol/target/x86_64-unknown-linux-musl/release/vcontrol $OPT
+fi
 
 
-# TODO handle ssh host keys
-cp ../../vcontainer86/rd/data/etc/ssh/ssh_host_* ./data/etc/ssh/
+# TODO generate
+cp ../ssh_host_keys/* etc/ssh/
 
 # data volume
 popd
