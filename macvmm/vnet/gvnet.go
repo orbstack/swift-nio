@@ -37,9 +37,9 @@ import (
 )
 
 const (
-	GvnetMtu    = 65520
-	capturePcap = false
-	nicId       = 1
+	PreferredMtu = 65520
+	capturePcap  = false
+	nicId        = 1
 
 	subnet4     = "172.30.30"
 	gatewayIP4  = subnet4 + ".1"
@@ -81,11 +81,15 @@ var (
 	}
 )
 
-func StartGvnetPair() (file *os.File, err error) {
-	return runGvnetDgramPair()
+type NetOptions struct {
+	MTU uint32
 }
 
-func runGvnetDgramPair() (*os.File, error) {
+func StartGvnetPair(opts NetOptions) (file *os.File, err error) {
+	return runGvnetDgramPair(opts)
+}
+
+func runGvnetDgramPair(opts NetOptions) (*os.File, error) {
 	file0, fd1, err := makeUnixDgramPair()
 	if err != nil {
 		return nil, err
@@ -114,11 +118,11 @@ func runGvnetDgramPair() (*os.File, error) {
 
 	endpoint, err := dgramlink.New(&dgramlink.Options{
 		FDs:            []int{fd1},
-		MTU:            GvnetMtu,
+		MTU:            opts.MTU,
 		EthernetHeader: true,
 		Address:        macAddr,
 		// no need for GSO when our MTU is so high. 16 -> 17 Gbps
-		// GSOMaxSize:         GvnetMtu,
+		// GSOMaxSize:         opts.MTU,
 		GvisorGSOEnabled:   false,
 		PacketDispatchMode: dgramlink.Readv,
 		TXChecksumOffload:  true,

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/Code-Hex/vz/v3"
@@ -34,19 +35,31 @@ type VmConfig struct {
 	Sound            bool
 }
 
+func findBestMtu() int {
+	if err := vz.MacOSAvailable(13); err != nil {
+		return 1500
+	} else {
+		return network.PreferredMtu // prefer 65520
+	}
+}
+
 func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	cmdline := []string{
-		// boot
-		"init=/opt/vc/preinit",
 		// Kernel tuning
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
-		//"mitigations=off", // free with e0pd
+		// rcu_nocbs is in kernel
 		// userspace
 		"vc.data_size=65536",
 		"vc.vcontrol_token=" + vclient.GetCurrentToken(),
 		"vc.hcontrol_token=" + hcsrv.GetCurrentToken(),
 		"vc.timezone=America/Los_Angeles",
+	}
+	if runtime.GOARCH == "amd64" {
+		// on ARM: kpti is free with E0PD
+		// But on x86, there are too many, just disable it like Docker
+		// Also prevent TSC from being disabled after sleep with tsc=reliable
+		cmdline = append(cmdline, "mitigations=off", "clocksource=tsc", "tsc=reliable")
 	}
 	if c.DiskRootfs != "" {
 		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
@@ -82,60 +95,53 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 
 	// Network
 	netDevices := []*vz.VirtioNetworkDeviceConfiguration{}
-	var attachment1 vz.NetworkDeviceAttachment
-	if c.NetworkNat {
-		attachment1, err = vz.NewNATNetworkDeviceAttachment()
-		check(err)
-	} else {
-		fd1, _, err := makeUnixDgramPair()
-		check(err)
-		attachment1, err = vz.NewFileHandleNetworkDeviceAttachment(fd1)
-		check(err)
-	}
-	network1, err := vz.NewVirtioNetworkDeviceConfiguration(attachment1)
-	check(err)
-	macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":00")
-	check(err)
-	mac, err := vz.NewMACAddress(macAddr)
-	check(err)
-	network1.SetMACAddress(mac)
-	netDevices = append(netDevices, network1)
-
-	var attachment2 *vz.FileHandleNetworkDeviceAttachment
+	mtu := findBestMtu()
+	// 1. gvnet
 	if c.NetworkGvnet {
-		gvnetFile, err := network.StartGvnetPair()
+		gvnetFile, err := network.StartGvnetPair(network.NetOptions{
+			MTU: uint32(mtu),
+		})
 		check(err)
-		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(gvnetFile)
+		attachment, err := vz.NewFileHandleNetworkDeviceAttachment(gvnetFile)
 		check(err)
-	} else {
-		fd2, _, err := makeUnixDgramPair()
+		_ = attachment.SetMaximumTransmissionUnit(mtu) // ignore: err on macOS 12
+		network, err := vz.NewVirtioNetworkDeviceConfiguration(attachment)
 		check(err)
-		attachment2, err = vz.NewFileHandleNetworkDeviceAttachment(fd2)
+		macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":01")
 		check(err)
+		mac, err := vz.NewMACAddress(macAddr)
+		check(err)
+		network.SetMACAddress(mac)
+		netDevices = append(netDevices, network)
 	}
-	attachment2.SetMaximumTransmissionUnit(network.GvnetMtu)
-	check(err)
-	network2, err := vz.NewVirtioNetworkDeviceConfiguration(attachment2)
-	check(err)
-	macAddr2, err := net.ParseMAC(c.MacAddressPrefix + ":01")
-	check(err)
-	mac2, err := vz.NewMACAddress(macAddr2)
-	check(err)
-	network2.SetMACAddress(mac2)
-	netDevices = append(netDevices, network2)
 
+	// 2. NAT
+	if c.NetworkNat {
+		attachment, err := vz.NewNATNetworkDeviceAttachment()
+		check(err)
+		network, err := vz.NewVirtioNetworkDeviceConfiguration(attachment)
+		check(err)
+		macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":02")
+		check(err)
+		mac, err := vz.NewMACAddress(macAddr)
+		check(err)
+		network.SetMACAddress(mac)
+		netDevices = append(netDevices, network)
+	}
+
+	// 3. pair
 	if c.NetworkPairFd != nil {
 		handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(c.NetworkPairFd)
 		check(err)
-		handleNet.SetMaximumTransmissionUnit(65520)
-		network3, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
+		handleNet.SetMaximumTransmissionUnit(mtu)
+		network, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
 		check(err)
-		macAddr3, err := net.ParseMAC(c.MacAddressPrefix + ":02")
+		macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":03")
 		check(err)
-		mac3, err := vz.NewMACAddress(macAddr3)
+		mac, err := vz.NewMACAddress(macAddr)
 		check(err)
-		network3.SetMACAddress(mac3)
-		netDevices = append(netDevices, network3)
+		network.SetMACAddress(mac)
+		netDevices = append(netDevices, network)
 	}
 
 	config.SetNetworkDevicesVirtualMachineConfiguration(netDevices)
