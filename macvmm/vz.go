@@ -45,6 +45,8 @@ func findBestMtu() int {
 
 func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	cmdline := []string{
+		// boot
+		"init=/opt/vc/preinit",
 		// userspace
 		"vc.data_size=65536",
 		"vc.vcontrol_token=" + vclient.GetCurrentToken(),
