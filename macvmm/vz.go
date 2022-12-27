@@ -11,7 +11,7 @@ import (
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/arch"
 	"github.com/kdrag0n/macvirt/macvmm/vclient"
-	network "github.com/kdrag0n/macvirt/macvmm/vnet"
+	"github.com/kdrag0n/macvirt/macvmm/vnet"
 	hcsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/hcontrol"
 )
 
@@ -39,7 +39,7 @@ func findBestMtu() int {
 	if err := vz.MacOSAvailable(13); err != nil {
 		return 1500
 	} else {
-		return network.PreferredMtu // prefer 65520
+		return vnet.PreferredMtu // prefer 65520
 	}
 }
 
@@ -100,7 +100,7 @@ func CreateVm(c *VmConfig) *vz.VirtualMachine {
 	mtu := findBestMtu()
 	// 1. gvnet
 	if c.NetworkGvnet {
-		gvnetFile, err := network.StartGvnetPair(network.NetOptions{
+		gvnetFile, err := vnet.StartGvnetPair(vnet.NetOptions{
 			MTU: uint32(mtu),
 		})
 		check(err)
