@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+
+#
+# Copyright 2022 Danny Lin <danny@kdrag0n.dev>. All rights reserved.
+# 
+# Unauthorized copying of this software and associated documentation files (the "Software"), via any medium, is strictly prohibited. Confidential and proprietary.
+# 
+# The above copyright notice shall be included in all copies or substantial portions of the Software.
+#
+
+set -uo pipefail
+set -e
+
+echo "[BEGIN] vinit-late"
+
+sysctl -qp /etc/sysctl.conf
+
+# swap
+(
+    # zram = 2x ram
+    zram_mib=$(( $(cat /proc/meminfo | grep MemTotal | awk '{print $2}') / 1024 * 2 ))
+    echo /dev/vdc1 > /sys/block/zram0/backing_dev
+    echo "${zram_mib}M" > /sys/block/zram0/disksize
+    echo huge_idle > /sys/block/zram0/writeback
+    mkswap /dev/zram0
+    swapon -d -p 32767 /dev/zram0
+    sysctl vm.swappiness=100 vm.page-cluster=1
+  
+    # 1 gib emergency disk swap
+    swapon -d -p 1 /dev/vdc2
+) &
+
+# resize fs
+xfs_growfs /dev/vdb1
+
+# upgrade data: v3 -> v4
+if [[ "$(cat /data/version)" -lt 4 ]]; then
+    echo "[DATA pre-UPGRADE] v3 -> v4: start"
+
+    set +e
+    xfs_quota -x -c 'project -s -p /data/ 1' /data
+    set -e
+
+    sync
+    echo "[DATA pre-UPGRADE] v3 -> v4: done"
+fi
+
+# ok to update quota/balloon now
+mkdir -p /tmp/flags
+touch /tmp/flags/data_resized
+sync -f /data
+
+# lxc needs home for .config
+export HOME=/root
+function wait_for_lxc() {
+    while true; do
+        if lxc list -c n -f csv > /dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+}
+
+echo "[VINIT-LATE] wait for lxc"
+wait_for_lxc
+
+# late lxd tuning
+# TODO: do this for nic too
+ip link set lxdbr0 txqueuelen 10000
+
+# upgrade data: v1 -> v2
+if [[ "$(cat /data/version)" -lt 2 ]]; then
+    echo "[DATA UPGRADE] v1 -> v2: start"
+
+    set +e
+    for container in $(lxc list -c n -f csv)
+    do
+        echo "[DATA UPGRADE] v1 -> v2: container $container"
+        lxc config device remove $container shared-sdcard
+        lxc config device add $container shared-sdcard disk source=/mnt/sdcard path=/sdcard
+        # fails if already running
+        lxc start $container
+    done
+    set -e
+
+    echo 2 > /data/version
+    sync
+    echo "[DATA UPGRADE] v1 -> v2: done"
+fi
+
+# always update profile
+# profile update may fail:
+# Error: The following instances failed to update (profile change still saved):
+# - Project: default, Instance: alpine: Failed to create instance update operation: Instance is busy running a "start" operation
+# /dev/kmsg to fix empty dmesg in some distros (e.g. nixos) if they write to it
+# global kmsg isn't ideal, but it's ok for us
+set +e
+lxc config edit <<EOF
+config:
+  core.https_address:
+  core.trust_password:
+  images.auto_update_interval: "0"
+EOF
+lxc network edit lxdbr0 <<EOF
+config:
+  ipv4.address: 10.99.99.1/24
+  ipv4.nat: "true"
+  ipv6.address: fc00:9999:9999::1/64
+  ipv6.nat: "true"
+  ipv4.dhcp.expiry: 720h
+  ipv6.dhcp.expiry: 720h
+  bridge.mtu: 65520
+description: ""
+EOF
+lxc profile edit default <<EOF
+config:
+  security.nesting: "true"
+  security.privileged: "true"
+  security.devlxd: "false"
+  boot.host_shutdown_timeout: "2"
+description: vchost profile
+devices:
+  dev-ppp:
+    source: /dev/ppp
+    type: unix-char
+  dev-kmsg:
+    source: /dev/kmsg
+    type: unix-char
+  dev-loopcontrol:
+    source: /dev/loop-control
+    type: unix-char
+  eth0:
+    name: eth0
+    network: lxdbr0
+    type: nic
+  root:
+    path: /
+    pool: default
+    type: disk
+  shared-sdcard:
+    path: /sdcard
+    source: /mnt/sdcard
+    type: disk
+  # fake for k8s
+  proc-sysctl-panic:
+    path: /proc/sys/kernel/panic
+    source: /fake/sysctl/kernel.panic
+    type: disk
+name: default
+EOF
+set -e
+
+# upgrade data: v2 -> v3
+if [[ "$(cat /data/version)" -lt 3 ]]; then
+    echo "[DATA UPGRADE] v2 -> v3: start"
+
+    set +e
+    for container in $(lxc list -c n -f csv)
+    do
+        echo "[DATA UPGRADE] v2 -> v3: container $container"
+        lxc config unset $container security.nesting
+        lxc config unset $container security.privileged
+        lxc config device remove $container shared-sdcard
+    done
+    set -e
+
+    echo 3 > /data/version
+    sync
+    echo "[DATA UPGRADE] v2 -> v3: done"
+fi
+
+# upgrade data: v3 -> v4
+if [[ "$(cat /data/version)" -lt 4 ]]; then
+    echo "[DATA UPGRADE] v3 -> v4: start"
+
+    # done in pre-upgrade
+    echo 4 > /data/version
+    sync
+    echo "[DATA UPGRADE] v3 -> v4: done"
+fi
+
+echo "[END] vinit-late"

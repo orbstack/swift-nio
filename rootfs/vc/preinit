@@ -1,0 +1,30 @@
+#!/bin/sh
+
+#
+# Copyright 2022 Danny Lin <danny@kdrag0n.dev>. All rights reserved.
+# 
+# Unauthorized copying of this software and associated documentation files (the "Software"), via any medium, is strictly prohibited. Confidential and proprietary.
+# 
+# The above copyright notice shall be included in all copies or substantial portions of the Software.
+#
+
+echo "[BEGIN] preinit"
+. /etc/profile
+set -eu
+
+mount -t tmpfs tmpfs -o noatime /tmp
+mkdir -p /tmp/overlay/root /tmp/overlay/upper /tmp/overlay/work /tmp/overlay/overlay
+mount --bind / /tmp/overlay/root
+mount -t overlay root-overlay -o lowerdir=/tmp/overlay/root,upperdir=/tmp/overlay/upper,workdir=/tmp/overlay/work /tmp/overlay/overlay
+
+# make original fs available
+mkdir -p /tmp/overlay/overlay/orig/tmp /tmp/overlay/overlay/orig/root
+mount --bind /tmp /tmp/overlay/overlay/orig/tmp
+mount --bind / /tmp/overlay/overlay/orig/root
+
+# ulimits (PAM doesn't take effect here)
+ulimit -SHn 1048576
+ulimit -SHl unlimited
+
+echo "[END] preinit"
+exec /opt/vc/switch_overlay_root /tmp/overlay/overlay /sbin/init "$@"

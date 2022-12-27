@@ -1,0 +1,3 @@
+/dev/vda / erofs rw,noatime 0 0
+/dev/vdb1 /data xfs rw,noatime,discard,pquota 0 0
+tmpfs /tmp tmpfs rw,noatime 0 0

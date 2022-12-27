@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+#
+# Copyright 2022 Danny Lin <danny@kdrag0n.dev>. All rights reserved.
+# 
+# Unauthorized copying of this software and associated documentation files (the "Software"), via any medium, is strictly prohibited. Confidential and proprietary.
+# 
+# The above copyright notice shall be included in all copies or substantial portions of the Software.
+#
+
+set -uo pipefail
+
+echo "[BEGIN] vinit-early"
+
+# control server
+ip link set lo up # too early
+vcontrol_token=$(cat /proc/cmdline | sed 's/ /\n/g' | grep vc.vcontrol_token= | sed 's/vc.vcontrol_token=//g') || true
+/opt/vc/vcontrol "$vcontrol_token" &
+
+# vsock proxies
+socat VSOCK-LISTEN:22,reuseaddr,fork TCP:127.0.0.1:22 &
+socat VSOCK-LISTEN:103,reuseaddr,fork TCP:127.0.0.1:103 &
+#socat VSOCK-LISTEN:8443,reuseaddr,fork TCP:127.0.0.1:8443 &
+socat VSOCK-LISTEN:102,reuseaddr,fork UNIX-CONNECT:/var/lib/lxd/unix.socket &
+
+# network: gvproxy
+/opt/vc/lvproxy-guest /run/gvproxy.sock 100 -d
+/opt/vc/gvproxy-guest -url unix:///run/gvproxy.sock -mtu 65520 &
+# TODO proper wait
+(
+    sleep 0.1
+    ip link set tap0 mtu 65520
+    sleep 0.25
+    ip link set tap0 mtu 65520
+) &
+
+# network: passt tap
+# /lvproxy-guest-tun &
+# (
+#     # TODO: proper wait for interface
+#     sleep 0.25
+#     udhcpc -i lvtap0 &
+# ) &
+
+#/opt/vc/lvproxy-guest /run/9p.sock 900 -d
+
+# prepare mounts for 9p
+# /mnt/android *will* be 9p
+# /mnt/sdcard *will* be bound to 9p
+# mark / (fs containing /mnt) as "shared and slave"
+# this will propagate our sdcard mount to LXC, but not the other way around
+# so lazy 9p init is safe
+# shared subtree docs: https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
+mount --make-slave /
+mount --make-shared /
+
+# mount 9p
+# this blocks until 9P server is ready, so run in bg
+(
+    #/opt/vc/9p-vsmount
+    #mount -t 9p -o version=9p2000.L,trans=unix,uname=root,cache=mmap,msize=262144 /run/9p.sock /mnt/android
+
+    /opt/vc/sshfs-vsmount
+    # wait up to 10 sec for it to be mounted after sshfs-vsmount returns
+    for i in {1..20}; do
+        if mountpoint -q /mnt/android; then
+            break
+        fi
+        sleep 0.5
+    done
+
+    # then bind mount over lxc sdcard
+    mount --bind /mnt/android/storage/emulated/0 /mnt/sdcard
+) &
+
+for pid in $(pidof lvproxy-guest gvproxy-guest socat); do
+    echo -n -1000 > /proc/$pid/oom_score_adj
+done
+
+# resize data
+# parse vc.data_size=10240 from /proc/cmdline
+data_size=$(cat /proc/cmdline | sed 's/ /\n/g' | grep vc.data_size= | sed 's/vc.data_size=//g') || true
+if [[ -n "$data_size" ]]; then
+    # get existing size
+    old_size_bytes=$(blockdev --getsize64 /dev/vdb1)
+    old_size=$((old_size_bytes / 1024 / 1024))
+    # for safety, only allow increasing size
+    if [[ "$old_size" -lt "$data_size" ]]; then
+        echo "resize data to $data_size"
+        echo ",${data_size}M" | sfdisk --force /dev/vdb
+        # FS must be resized in vinit-late
+        # XFS can only be resized online
+    elif [[ "$old_size" -gt "$data_size" ]]; then
+        echo "attempt to reduce data size: $data_size"
+    fi
+fi
+
+echo "[END] vinit-early"

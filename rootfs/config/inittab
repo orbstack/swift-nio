@@ -1,0 +1,9 @@
+::sysinit:/sbin/openrc sysinit
+::sysinit:/sbin/openrc boot
+::wait:/sbin/openrc default
+::shutdown:/sbin/openrc shutdown
+
+hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root
+
+::sysinit:/opt/vc/vinit-early
+::wait:/opt/vc/vinit-late

@@ -1,0 +1,24 @@
+/logs/
+/rd/
+/rd-old/
+/rd-compile
+
+/data/
+
+/rootfs.img
+/swap.qcow2
+/data.qcow2
+
+/alpine.initrd.gz
+/old/beta4/
+/test.qcow2
+/disk.img
+/initrd
+/kernel
+
+/bins/
+
+
+# TEMP
+/lxd-preseed/
+/packages/
