@@ -120,6 +120,10 @@ func main() {
 				log.Println("stopped successfully")
 				return
 			}
+			if newState == vz.VirtualMachineStateError {
+				log.Println("VM error")
+				return
+			}
 		case err := <-errCh:
 			log.Println("in start:", err)
 		}
