@@ -1,13 +1,23 @@
 package tcpfwd
 
 import (
+	"fmt"
 	"io"
 	"net"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
+	log "github.com/sirupsen/logrus"
 )
 
 func pump1(errc chan<- error, src, dst net.Conn) {
+	// Workaround for NFS panic
+	defer func() {
+		if err := recover(); err != nil {
+			log.Errorf("tcp pump1: panic: %v", err)
+			errc <- fmt.Errorf("tcp pump1: panic: %v", err)
+		}
+	}()
+
 	buf := make([]byte, 512*1024)
 	_, err := io.CopyBuffer(dst, src, buf)
 
