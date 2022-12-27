@@ -129,19 +129,23 @@ func main() {
 	// Mount NFS
 	nfsMounted := false
 	go func() {
+		log.Println("Mounting NFS...")
 		err := conf.MountNfs()
 		if err != nil {
 			log.Println("NFS mount error:", err)
 			return
 		}
+		log.Println("NFS mounted")
 		nfsMounted = true
 	}()
 	defer func() {
 		if nfsMounted {
+			log.Println("Unmounting NFS...")
 			err := conf.UnmountNfs()
 			if err != nil {
 				log.Println("NFS unmount error:", err)
 			}
+			log.Println("NFS unmounted")
 		}
 	}()
 
