@@ -45,20 +45,10 @@ COPY LICENSE /opt/vc/
 # Tools
 # preinit
 COPY rd-compile/switch_overlay_root /opt/vc/
-# network
-COPY rd-compile/lvproxy-guest /opt/vc/
-# network: gvproxy
-COPY bins/gvproxy-guest /opt/vc/
 # vcontrol
 COPY bins/vcontrol /opt/vc/
-# usb/ip
-COPY rd-compile/usbip/prefix /opt/vc/usbip
-#     (hack: fix usbip ld lib path)
-RUN mkdir /usbip && ln -s /opt/vc/usbip /usbip/prefix
 # debugging
 COPY rd-compile/eventstat/eventstat /opt/vc/
-# file sharing: sshfs
-COPY rd-compile/sshfs-vsmount /opt/vc/
 
 # Init services
 RUN rc-update add devfs && \
