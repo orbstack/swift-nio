@@ -1,0 +1,19 @@
+panic: got available=-65440, want available>=0. limit -65440, s.MaxPayloadSize 65440, seg.payloadSize() 220, gso.MaxSize 0, gso.MSS 0
+
+goroutine 15 [running]:
+gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*sender).maybeSendSegment(0x140005b9600, 0x140004525a0, 0xffffffffffff0060, 0x2473ce8?)
+        /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/tcp/snd.go:865 +0x2fc
+gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*sender).sendData(0x140005b9600)
+        /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/tcp/snd.go:977 +0x1b0
+gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*sender).handleRcvdSegment(0x140005b9600, 0x1400085c2d0)
+        /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/tcp/snd.go:1626 +0x428
+gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*endpoint).handleSegmentLocked(0x140004e8600, 0x1400085c2d0)
+        /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/tcp/connect.go:1283 +0xc0
+gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*endpoint).handleSegmentsLocked(0x140004e8600)
+        /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/tcp/connect.go:1173 +0x94
+gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*processor).handleConnected(0x140004e8820?, 0x140004e8600)
+        /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/tcp/dispatcher.go:192 +0xf4
+gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*processor).start(0x140001b2510, 0x0?)
+        /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/tcp/dispatcher.go:312 +0x224
+created by gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*dispatcher).init
+        /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/tcp/dispatcher.go:391 +0x100
