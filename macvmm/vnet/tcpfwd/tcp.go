@@ -2,6 +2,7 @@ package tcpfwd
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 	"sync"
@@ -23,6 +24,38 @@ const (
 	// set very high for nmap
 	listenBacklog = 65535
 )
+
+func tryClose(conn *gonet.TCPConn) (err error) {
+	defer func() {
+		if err := recover(); err != nil {
+			err = fmt.Errorf("tcpfwd: close panic: %v", err)
+			log.Error(err)
+		}
+	}()
+
+	conn.Close()
+	return
+}
+
+func tryAbort(conn *gonet.TCPConn) (err error) {
+	defer func() {
+		if err := recover(); err != nil {
+			err = fmt.Errorf("tcpfwd: abort panic: %v", err)
+			log.Error(err)
+		}
+	}()
+
+	conn.Endpoint().Abort()
+	return
+}
+
+func tryBestCleanup(conn *gonet.TCPConn) error {
+	err := tryClose(conn)
+	if err != nil {
+		return err
+	}
+	return tryAbort(conn)
+}
 
 func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
@@ -76,7 +109,12 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		}
 
 		virtConn := gonet.NewTCPConn(&wq, ep)
-		defer virtConn.Close()
+		defer func() {
+			err := tryBestCleanup(virtConn)
+			if err != nil {
+				log.Errorf("tcpfwd: cleanup panic: %v", err)
+			}
+		}()
 
 		pump2(virtConn, extConn)
 	})
