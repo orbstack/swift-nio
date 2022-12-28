@@ -64,7 +64,6 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 		ref: sdRef,
 	}
 
-	fmt.Println("adding to map")
 	queryMapMu.Lock()
 	queryMap[queryId] = query
 	queryMapMu.Unlock()
@@ -84,15 +83,12 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 			break
 		}
 
-		fmt.Println("  process")
 		ret := C.DNSServiceProcessResult(sdRef)
 		if ret != C.kDNSServiceErr_NoError {
-			fmt.Printf("  process result err %v\n", mapError(int(ret)))
 			return nil, mapError(int(ret))
 		}
 	}
 
-	fmt.Printf("done\n")
 	return query.answers, query.err
 }
 
@@ -100,7 +96,6 @@ func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
 	// Keep CNAME at the top even if we're not looking for it
 	allAnswers := []QueryAnswer{}
 	for {
-		fmt.Println("\n\n********** RECURSE ROUND for", name, "**********")
 		newAnswers, err := Query(name, rtype)
 		if err != nil {
 			return nil, err
