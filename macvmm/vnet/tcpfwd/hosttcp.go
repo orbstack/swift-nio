@@ -30,7 +30,7 @@ type TcpHostForwarder struct {
 	isInternal bool
 }
 
-func listenTcp(addr string) (net.Listener, bool, error) {
+func ListenTCP(addr string) (net.Listener, bool, error) {
 	addrPort, err := netip.ParseAddrPort(addr)
 	if err != nil {
 		return nil, false, err
@@ -52,7 +52,7 @@ func listenTcp(addr string) (net.Listener, bool, error) {
 }
 
 func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewayAddr6, listenAddr, connectAddr4, connectAddr6 string, isInternal bool) error {
-	listener, requireLoopback, err := listenTcp(listenAddr)
+	listener, requireLoopback, err := ListenTCP(listenAddr)
 	if err != nil {
 		return err
 	}

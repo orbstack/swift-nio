@@ -62,16 +62,26 @@ const (
 )
 
 type Network struct {
-	Stack   *stack.Stack
-	NIC     tcpip.NICID
-	VClient *vclient.VClient
+	Stack       *stack.Stack
+	NIC         tcpip.NICID
+	VClient     *vclient.VClient
+	VsockDialer func(uint32) (net.Conn, error)
+	file0       *os.File
+	fd1         int
+}
+
+func str(port int) string {
+	return strconv.Itoa(port)
 }
 
 var (
 	// host -> guest
-	hostForwardsToGuest = map[string]int{
-		"127.0.0.1:2222": 22,
-		"127.0.0.1:" + strconv.Itoa(conf.NfsForwardPort): 2049, // nfs alt
+	HostForwardsToGuest = map[string]string{
+		"tcp:127.0.0.1:" + str(conf.HostPortSSH):      "tcp:" + str(conf.GuestPortSSH),
+		"tcp:127.0.0.1:" + str(conf.HostPortNFS):      "tcp:" + str(conf.GuestPortNFS),
+		"udp:127.0.0.1:" + str(conf.HostPortNFS):      "udp:" + str(conf.GuestPortNFS),
+		"tcp:127.0.0.1:" + str(conf.HostPortNFSVsock): "vsock:" + str(conf.GuestPortNFS),
+		"unix:" + conf.DockerSocket():                 "tcp:" + str(conf.GuestPortDocker),
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -272,16 +282,6 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 	go icmpFwd.ProxyRequests()
 	icmpFwd.MonitorReplies()
 
-	// Host forwards
-	for listenAddr, connectPort := range hostForwardsToGuest {
-		connectAddr4 := guestIP4 + ":" + strconv.Itoa(connectPort)
-		connectAddr6 := "[" + guestIP6 + "]:" + strconv.Itoa(connectPort)
-		err := tcpfwd.StartTcpHostForward(s, nicId, gatewayIP4, gatewayIP6, listenAddr, connectAddr4, connectAddr6, true)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
 	// Services
 	startNetServices(s)
 
@@ -299,12 +299,13 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 	// TODO logger
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
-	// TODO close the file eventually
-
 	network := &Network{
-		Stack:   s,
-		NIC:     nicId,
-		VClient: vc,
+		Stack:       s,
+		NIC:         nicId,
+		VClient:     vc,
+		VsockDialer: nil,
+		file0:       file0,
+		fd1:         fd1,
 	}
 	return network, file0, nil
 }
@@ -343,4 +344,13 @@ func startNetServices(s *stack.Stack) {
 			fmt.Printf("Failed to start SFTP server: %v\n", err)
 		}
 	}
+}
+
+func (n *Network) Close() error {
+	n.VClient.Close()
+	n.Stack.Destroy()
+	n.file0.Close()
+	file1 := os.NewFile(uintptr(n.fd1), "fd1")
+	file1.Close()
+	return nil
 }

@@ -193,3 +193,8 @@ func (vc *VClient) reportDiskStats() {
 
 	vc.lastStats = stats
 }
+
+func (vc *VClient) Close() error {
+	vc.client.CloseIdleConnections()
+	return nil
+}

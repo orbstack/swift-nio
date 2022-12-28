@@ -55,9 +55,10 @@ type udpConn interface {
 // addresses.
 type UDPProxy struct {
 	listener       udpConn
-	dialer         func() (net.Conn, error)
+	dialer         func(*net.UDPAddr) (net.Conn, error)
 	connTrackTable connTrackMap
 	connTrackLock  sync.Mutex
+	trackExtConn   bool
 }
 
 // External connection source addr -> local (virtual) source addr
@@ -71,11 +72,12 @@ func LookupExternalConn(localAddr *net.UDPAddr) *net.UDPAddr {
 }
 
 // NewUDPProxy creates a new UDPProxy.
-func NewUDPProxy(listener udpConn, dialer func() (net.Conn, error)) (*UDPProxy, error) {
+func NewUDPProxy(listener udpConn, dialer func(*net.UDPAddr) (net.Conn, error), trackExtConn bool) (*UDPProxy, error) {
 	return &UDPProxy{
 		listener:       listener,
 		connTrackTable: make(connTrackMap),
 		dialer:         dialer,
+		trackExtConn:   trackExtConn,
 	}, nil
 }
 
@@ -85,16 +87,18 @@ func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKe
 		delete(proxy.connTrackTable, *clientKey)
 		proxy.connTrackLock.Unlock()
 
-		go func() {
-			// Keep conntrack entry for a while for ICMP time exceeded
-			time.Sleep(UDPConnTrackTimeout)
-			// CAS in case a new connection
-			localExtConnsLock.Lock()
-			if newAddr, ok := localExtConns[*localExtKey]; ok && newAddr == clientAddr.(*net.UDPAddr) {
-				delete(localExtConns, *localExtKey)
-			}
-			localExtConnsLock.Unlock()
-		}()
+		if proxy.trackExtConn {
+			go func() {
+				// Keep conntrack entry for a while for ICMP time exceeded
+				time.Sleep(UDPConnTrackTimeout)
+				// CAS in case a new connection
+				localExtConnsLock.Lock()
+				if newAddr, ok := localExtConns[*localExtKey]; ok && newAddr == clientAddr.(*net.UDPAddr) {
+					delete(localExtConns, *localExtKey)
+				}
+				localExtConnsLock.Unlock()
+			}()
+		}
 
 		extConn.Close()
 	}()
@@ -145,7 +149,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 		proxy.connTrackLock.Lock()
 		extConn, hit := proxy.connTrackTable[*fromKey]
 		if !hit {
-			extConn, err = proxy.dialer()
+			extConn, err = proxy.dialer(from.(*net.UDPAddr))
 			if err != nil {
 				log.Errorf("Can't proxy a datagram to udp: %s\n", err)
 				proxy.connTrackLock.Unlock()
@@ -155,9 +159,11 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 
 			// Track local source address
 			localExtKey := newConnTrackKey(extConn.LocalAddr().(*net.UDPAddr))
-			localExtConnsLock.Lock()
-			localExtConns[*localExtKey] = from.(*net.UDPAddr)
-			localExtConnsLock.Unlock()
+			if proxy.trackExtConn {
+				localExtConnsLock.Lock()
+				localExtConns[*localExtKey] = from.(*net.UDPAddr)
+				localExtConnsLock.Unlock()
+			}
 
 			go proxy.replyLoop(extConn, from, fromKey, localExtKey)
 		}

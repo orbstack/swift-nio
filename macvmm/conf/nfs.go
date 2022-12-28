@@ -6,8 +6,7 @@ import (
 )
 
 var (
-	NfsForwardPort  = 62429
-	nfsMountOptions = "vers=4,tcp,inet,port=" + strconv.Itoa(NfsForwardPort) + ",soft"
+	nfsMountOptions = "vers=4,tcp,inet,port=" + strconv.Itoa(HostPortNFS) + ",soft"
 )
 
 func MountNfs() error {

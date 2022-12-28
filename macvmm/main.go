@@ -1,16 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/conf"
+	"github.com/kdrag0n/macvirt/macvmm/vnet"
 )
 
 const (
@@ -31,6 +35,28 @@ func extractSparse(tarPath string) {
 	cmd := exec.Command("/usr/bin/bsdtar", "-xf", tarPath, "-C", target)
 	err := cmd.Run()
 	check(err)
+}
+
+func createDockerContext() {
+	var errBuf bytes.Buffer
+	createCmd := exec.Command("docker", "context", "create", conf.AppName(), "--description", conf.AppNameUser(), "--docker", "host=unix://"+conf.DockerSocket())
+	createCmd.Stderr = &errBuf
+	err := createCmd.Run()
+	if err != nil {
+		if strings.Contains(errBuf.String(), "already exists") {
+			return
+		}
+		log.Println("Failed to create Docker context:", err)
+	}
+}
+
+func setDockerContext() {
+	createDockerContext()
+
+	err := exec.Command("docker", "context", "use", conf.AppName()).Run()
+	if err != nil {
+		log.Println("Failed to set Docker context:", err)
+	}
 }
 
 func main() {
@@ -114,7 +140,26 @@ func main() {
 	check(err)
 	defer httpServer.Shutdown(context.TODO())
 
-	routerVm = nil
+	// Host forwards (setup vsock)
+	vsock := vm.SocketDevices()[0]
+	vnetwork.VsockDialer = func(port uint32) (net.Conn, error) {
+		conn, err := vsock.Connect(port)
+		if err != nil {
+			return nil, err
+		}
+
+		return conn.RawConn(), nil
+	}
+	for fromSpec, toSpec := range vnet.HostForwardsToGuest {
+		err := vnetwork.StartForward(fromSpec, toSpec)
+		if err != nil {
+			log.Println("host forward error:", err)
+		}
+	}
+
+	// Docker context
+	go setDockerContext()
+	defer os.Remove(conf.DockerSocket())
 
 	// Mount NFS
 	nfsMounted := false

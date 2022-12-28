@@ -8,8 +8,9 @@ import (
 
 const (
 	// TODO
-	appName    = "macvirt"
-	nfsDirName = "Linux"
+	appName     = "macvirt"
+	appNameUser = "MacVirt"
+	nfsDirName  = "Linux"
 )
 
 func HomeDir() string {
@@ -82,4 +83,12 @@ func Arch() string {
 	default:
 		panic("unsupported architecture " + runtime.GOARCH)
 	}
+}
+
+func AppName() string {
+	return appName
+}
+
+func AppNameUser() string {
+	return appNameUser
 }
