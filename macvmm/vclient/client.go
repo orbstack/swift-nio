@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmm/conf"
@@ -12,9 +13,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var (
+	baseUrl = "http://172.30.30.2:" + strconv.Itoa(conf.GuestPortVcontrol)
+)
+
 const (
-	VcontrolPort      = 103
-	baseUrl           = "http://172.30.30.2:103/"
 	diskStatsInterval = 1 * time.Minute
 	readyPollInterval = 200 * time.Millisecond
 )
@@ -44,7 +47,7 @@ func NewClient(tr *http.Transport) *VClient {
 }
 
 func (vc *VClient) Get(endpoint string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", baseUrl+endpoint, nil)
+	req, err := http.NewRequest("GET", baseUrl+"/"+endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +72,7 @@ func (vc *VClient) Post(endpoint string, body any) (*http.Response, error) {
 	}
 
 	reader := bytes.NewReader(msg)
-	req, err := http.NewRequest("POST", baseUrl+endpoint, reader)
+	req, err := http.NewRequest("POST", baseUrl+"/"+endpoint, reader)
 	if err != nil {
 		return nil, err
 	}

@@ -41,7 +41,7 @@ func extractSparse(tarPath string) {
 
 func createDockerContext() {
 	var errBuf bytes.Buffer
-	createCmd := exec.Command("docker", "context", "create", conf.AppName(), "--description", conf.AppNameUser(), "--docker", "host=tcp://127.0.0.1:62375")
+	createCmd := exec.Command("docker", "context", "create", conf.AppName(), "--description", conf.AppNameUser(), "--docker", "host=unix://"+conf.DockerSocket())
 	createCmd.Stderr = &errBuf
 	err := createCmd.Run()
 	if err != nil {

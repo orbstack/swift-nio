@@ -69,7 +69,6 @@ var (
 		"udp:127.0.0.1:" + str(conf.HostPortNFS):      "udp:" + str(conf.GuestPortNFS),
 		"tcp:127.0.0.1:" + str(conf.HostPortNFSVsock): "vsock:" + str(conf.GuestPortNFS),
 		"unix:" + conf.DockerSocket():                 "tcp:" + str(conf.GuestPortDocker),
-		"tcp:127.0.0.1:" + str(conf.HostPortDocker):   "tcp:" + str(conf.GuestPortDocker),
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -291,7 +290,7 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, s, tcpip.FullAddress{
 				Addr: netutil.ParseTcpipAddress(guestIP4),
-				Port: vclient.VcontrolPort,
+				Port: conf.GuestPortVcontrol,
 			}, ipv4.ProtocolNumber)
 		},
 	}
