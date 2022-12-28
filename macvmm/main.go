@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -40,7 +41,7 @@ func extractSparse(tarPath string) {
 
 func createDockerContext() {
 	var errBuf bytes.Buffer
-	createCmd := exec.Command("docker", "context", "create", conf.AppName(), "--description", conf.AppNameUser(), "--docker", "host=unix://"+conf.DockerSocket())
+	createCmd := exec.Command("docker", "context", "create", conf.AppName(), "--description", conf.AppNameUser(), "--docker", "host=tcp://127.0.0.1:62375")
 	createCmd.Stderr = &errBuf
 	err := createCmd.Run()
 	if err != nil {
@@ -74,6 +75,17 @@ func isMountpoint(path string) bool {
 	}
 
 	return stat.Dev != parentStat.Dev
+}
+
+func tryStop(vm *vz.VirtualMachine) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("stop panic: %v", r)
+		}
+	}()
+
+	err = vm.Stop()
+	return
 }
 
 func main() {
@@ -214,7 +226,7 @@ func main() {
 		select {
 		case <-signalCh:
 			log.Println("stop (signal)")
-			err := vm.Stop()
+			err := tryStop(vm)
 			if err != nil {
 				log.Println("VM stop error:", err)
 				return
