@@ -1,6 +1,10 @@
 package conf
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+)
 
 const (
 	// TODO
@@ -52,9 +56,13 @@ func SwapImage() string {
 	return GetDataFile("swap.img")
 }
 
-// TODO
 func AssetsDir() string {
-	return "../assets/" + buildVariant
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	exPath := filepath.Dir(ex)
+	return exPath + "../assets/" + buildVariant + "/" + Arch()
 }
 
 func GetAssetFile(name string) string {
@@ -63,4 +71,15 @@ func GetAssetFile(name string) string {
 
 func DockerSocket() string {
 	return ConfigDir() + "/docker.sock"
+}
+
+func Arch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+	case "arm64":
+		return "arm64"
+	default:
+		panic("unsupported architecture " + runtime.GOARCH)
+	}
 }
