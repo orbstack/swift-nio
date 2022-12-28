@@ -62,7 +62,7 @@ function wait_for_lxc() {
 }
 
 echo "[VINIT-LATE] wait for lxc"
-#wait_for_lxc
+wait_for_lxc
 
 # late nfs start because we need bind mount
 mkdir /Linux
@@ -86,15 +86,16 @@ config:
   core.trust_password:
   images.auto_update_interval: "0"
 EOF
+eth_mtu="$(ip link show eth0 | head -n1 | cut -d' ' -f5)"
 lxc network edit lxdbr0 <<EOF
 config:
-  ipv4.address: 10.99.99.1/24
+  ipv4.address: 172.30.31.1/24
   ipv4.nat: "true"
-  ipv6.address: fc00:9999:9999::1/64
+  ipv6.address: fc00:30:31::1/64
   ipv6.nat: "true"
   ipv4.dhcp.expiry: 720h
   ipv6.dhcp.expiry: 720h
-  bridge.mtu: 65520
+  bridge.mtu: $eth_mtu
 description: ""
 EOF
 lxc profile edit default <<EOF

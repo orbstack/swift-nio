@@ -16,19 +16,6 @@ use std::{net::SocketAddr, sync::{Arc}, path::Path};
 
 mod error;
 
-/*
- /ping
- /net/start_port_forward
- /usb/attach_device
- /usb/detach_device
- /sys/sync
- /sys/emergency_shutdown
- /sys/shutdown
- /sys/run_command
- /disk/report_stats
- /time/sync
- */
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct NetStartPortForward {
     port: u32,
@@ -169,6 +156,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/ping", get(ping))
+        .route("/flag/data_resized", get(flag_data_resized))
         .route("/net/start_port_forward", post(net_start_port_forward))
         .route("/usb/attach_device", post(usb_attach_device))
         .route("/usb/detach_device", post(usb_detach_device))
@@ -380,6 +368,17 @@ async fn time_sync() -> AppResult<impl IntoResponse> {
     Command::new("chronyc").arg("online")
         .output()
         .await?;
+
+    Ok(())
+}
+
+// flag_data_resized
+async fn flag_data_resized() -> AppResult<impl IntoResponse> {
+    info!("flag_data_resized");
+
+    if !Path::new("/tmp/flags/data_resized").exists() {
+        return Err(anyhow!("data not ready").into());
+    }
 
     Ok(())
 }

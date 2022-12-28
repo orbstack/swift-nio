@@ -3,6 +3,27 @@
 set -eo pipefail
 HOME=/home/dragon
 
+# arm64, x86_64
+ARCH="$1"
+BTYPE="$2"
+if [ -z "$ARCH" ] || [ -z "$BTYPE" ]; then
+    echo "Usage: $0 <arch> <build type>"
+    exit 1
+fi
+
+IS_RELEASE=false
+if [[ "$BTYPE" == "release" ]]; then
+    IS_RELEASE=true
+elif [[ "$BTYPE" != "debug" ]]; then
+    echo "Unknown build type: $BTYPE"
+    exit 1
+fi
+
+if [[ "$ARCH" != "arm64" ]] && [[ "$ARCH" != "x86_64" ]]; then
+    echo "Unknown architecture: $ARCH"
+    exit 1
+fi
+
 # require root
 if [[ $EUID -ne 0 ]]; then
 	echo "This script must be run as root" 1>&2
@@ -72,27 +93,16 @@ bsdtar -cf data.img.tar data.img
 bsdtar -cf swap.img.tar swap.img
 rm -f data.img swap.img
 
-# is release?
-if grep -q 'IS_RELEASE=true' build-inside.sh; then
-	build_type=release
-else
-	build_type=debug
-fi
-
 copy_file() {
-	# location depends on whether it's release
-	if [[ $build_type == release ]]; then
-		local btype=main
-	else
-		local btype=debug
-	fi
-
-	mkdir -p ../assets/$btype
-	cp "$1" ../assets/$btype/$2
+	mkdir -p ../assets/$BTYPE/$ARCH
+	cp "$1" ../assets/$BTYPE/$ARCH/$2
 }
 
 copy_file rootfs.img rootfs.img
-copy_file ~/code/android/kvm/linux/arch/arm64/boot/Image kernel
-copy_file ~/code/c/linux/arch/x86_64/boot/bzImage kernel86
+if [[ "$ARCH" == "arm64" ]]; then
+	copy_file ~/code/android/kvm/linux/arch/arm64/boot/Image kernel
+else
+	copy_file ~/code/c/linux/arch/x86_64/boot/bzImage kernel
+fi
 copy_file data.img.tar data.img.tar
 copy_file swap.img.tar swap.img.tar

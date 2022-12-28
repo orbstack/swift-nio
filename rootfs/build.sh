@@ -4,8 +4,22 @@ set -eo pipefail
 
 # arm64, x86_64
 ARCH="$1"
-if [ -z "$ARCH" ]; then
-    echo "Usage: $0 <arch>"
+BTYPE="$2"
+if [ -z "$ARCH" ] || [ -z "$BTYPE" ]; then
+    echo "Usage: $0 <arch> <build type>"
+    exit 1
+fi
+
+IS_RELEASE=false
+if [[ "$BTYPE" == "release" ]]; then
+    IS_RELEASE=true
+elif [[ "$BTYPE" != "debug" ]]; then
+    echo "Unknown build type: $BTYPE"
+    exit 1
+fi
+
+if [[ "$ARCH" != "arm64" ]] && [[ "$ARCH" != "x86_64" ]]; then
+    echo "Unknown architecture: $ARCH"
     exit 1
 fi
 
@@ -23,11 +37,8 @@ cd "$(dirname "$0")"
 pushd vcontrol
 if [[ "$ARCH" == "arm64" ]]; then
     cargo build --release --target aarch64-unknown-linux-musl
-elif [[ "$ARCH" == "x86_64" ]]; then
-    cargo build --release --target x86_64-unknown-linux-musl
 else
-    echo "Unknown architecture: $ARCH"
-    exit 1
+    cargo build --release --target x86_64-unknown-linux-musl
 fi
 popd
 
@@ -46,7 +57,7 @@ cp ../build-inside.sh .
 # for custom lxd builds
 cp ../packages/*.pub etc/apk/keys/
 cp -r ../packages .
-arch-chroot . /bin/sh -l /build-inside.sh
+arch-chroot . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
 
 rm build-inside.sh
 rm -r packages
@@ -73,6 +84,7 @@ fi
 
 # TODO generate
 cp ../ssh_host_keys/* etc/ssh/
+chmod -R 0600 etc/ssh/*key*
 
 # data volume
 popd
@@ -87,4 +99,4 @@ mkdir -p data/var/log/lxd
 cp -raf lxd-preseed/var/lib/lxd/. data/var/lib/lxd/
 chown -R root:root data/var/lib/lxd
 
-./pack-disk.sh
+./pack-disk.sh "$@"

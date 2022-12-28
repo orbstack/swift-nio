@@ -1,6 +1,6 @@
 set -eo pipefail
 
-IS_RELEASE=false
+#IS_RELEASE=false
 
 echo nameserver 1.1.1.1 > /etc/resolv.conf
 apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra sshfs eudev nfs-utils docker-engine
@@ -58,6 +58,7 @@ ln -s /usr/bin/dash /bin/sh
 
 # lxd tuning
 echo 'rc_cgroup_mode="unified"' >> /etc/rc.conf
+echo 'rc_need="localmount"' >> /etc/conf.d/lxd
 # systemd cgroup is no longer needed. mounting it causes lxc to not detect cgroup v2
 sed -i 's/systemd_ctr mount/:/' /etc/init.d/lxd
 sed -i 's/systemd_ctr unmount/:/' /etc/init.d/lxd
@@ -139,6 +140,10 @@ echo 'server 172.30.30.200 iburst minpoll 7' > /etc/chrony/chrony.conf
 # always step clock if needed
 echo 'makestep 3.0 2147483647' >> /etc/chrony/chrony.conf
 echo 'cmdport 0' >> /etc/chrony/chrony.conf
+
+# Docker
+echo 'rc_need="localmount"' >> /etc/conf.d/docker
+echo 'DOCKER_OPTS="-H tcp://172.30.30.2:62375"' >> /etc/conf.d/docker
 
 # prod config
 echo nameserver 172.30.30.200 > /etc/resolv.conf
