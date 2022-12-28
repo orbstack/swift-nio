@@ -136,11 +136,22 @@ func (vc *VClient) StartBackground() error {
 			<-wakeChan
 			fmt.Println("sync req")
 			go func() {
+				// For some reason, we have to sync *twice* in order for chrony to step the clock after suspend.
+				// Running it twice back-to-back doesn't work, and neither does "chronyc makestep"
 				_, err := vc.Post("time/sync", nil)
 				if err != nil {
 					fmt.Println("sync err:", err)
 				}
 				fmt.Println("r done")
+
+				// 2 sec per iburst check * 4 = 8 sec, plus margin
+				time.Sleep(10 * time.Second)
+				fmt.Println("sync req 2")
+				_, err = vc.Post("time/sync", nil)
+				if err != nil {
+					fmt.Println("sync err:", err)
+				}
+				fmt.Println("r done 2")
 			}()
 		}
 	}()

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/conf"
+	"github.com/kdrag0n/macvirt/macvmm/vclient"
 
 	_ "net/http/pprof"
 )
@@ -22,6 +23,7 @@ type HostControlServer struct {
 	balloon  *vz.VirtioMemoryBalloonDevice
 	netPair2 *os.File
 	routerVm *vz.VirtualMachine
+	vc       *vclient.VClient
 }
 
 type SetBalloonRequest struct {

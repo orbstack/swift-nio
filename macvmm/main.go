@@ -168,6 +168,7 @@ func main() {
 		balloon:  vm.MemoryBalloonDevices()[0],
 		routerVm: routerVm,
 		netPair2: netPair2,
+		vc:       vc,
 	}
 	httpServer, err := controlServer.Serve()
 	check(err)
