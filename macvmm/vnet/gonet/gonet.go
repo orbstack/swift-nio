@@ -468,6 +468,10 @@ func (c *TCPConn) RemoteAddr() net.Addr {
 	return fullToTCPAddr(a)
 }
 
+func (c *TCPConn) Endpoint() tcpip.Endpoint {
+	return c.ep
+}
+
 func (c *TCPConn) newOpError(op string, err error) *net.OpError {
 	return &net.OpError{
 		Op:     op,
