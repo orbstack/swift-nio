@@ -2,7 +2,6 @@ package tcpfwd
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/netip"
 	"time"
@@ -59,11 +58,7 @@ func (f *UnixTcpHostForwarder) listen() {
 }
 
 func (f *UnixTcpHostForwarder) handleConn(conn net.Conn) {
-	fmt.Println("defer close unix:", conn, conn.RemoteAddr())
-	defer func() {
-		fmt.Println("close unix:", conn, conn.RemoteAddr())
-		conn.Close()
-	}()
+	defer conn.Close()
 
 	proto := ipv4.ProtocolNumber
 	if f.connectAddr.Addr.To4() == "" {
@@ -76,15 +71,9 @@ func (f *UnixTcpHostForwarder) handleConn(conn net.Conn) {
 	if err != nil {
 		return
 	}
-	fmt.Println("defer close virt:", virtConn, virtConn.RemoteAddr())
-	defer func() {
-		fmt.Println("close virt:", virtConn, virtConn.RemoteAddr())
-		virtConn.Close()
-	}()
+	defer virtConn.Close()
 
-	fmt.Println("start pump2")
 	pump2(conn.(*net.UnixConn), virtConn)
-	fmt.Println("end pump2")
 }
 
 func (f *UnixTcpHostForwarder) Stop() {
