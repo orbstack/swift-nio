@@ -54,7 +54,7 @@ func (f *TcpVsockHostForwarder) handleConn(conn net.Conn) {
 	}
 	defer virtConn.Close()
 
-	pump2(conn, virtConn)
+	pump2(conn.(*net.TCPConn), virtConn.(*net.UnixConn))
 }
 
 func (f *TcpVsockHostForwarder) Stop() {

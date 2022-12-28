@@ -5,11 +5,16 @@ import (
 	"io"
 	"net"
 
-	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	log "github.com/sirupsen/logrus"
 )
 
-func pump1(errc chan<- error, src, dst net.Conn) {
+type FullDuplexConn interface {
+	net.Conn
+	CloseRead() error
+	CloseWrite() error
+}
+
+func pump1(errc chan<- error, src, dst FullDuplexConn) {
 	// Workaround for NFS panic
 	defer func() {
 		if err := recover(); err != nil {
@@ -22,24 +27,13 @@ func pump1(errc chan<- error, src, dst net.Conn) {
 	_, err := io.CopyBuffer(dst, src, buf)
 
 	// half-close to allow graceful shutdown
-	if dstTcp, ok := dst.(*net.TCPConn); ok {
-		dstTcp.CloseWrite()
-	}
-	if dstTcp, ok := dst.(*gonet.TCPConn); ok {
-		dstTcp.CloseWrite()
-	}
-
-	if srcTcp, ok := src.(*net.TCPConn); ok {
-		srcTcp.CloseRead()
-	}
-	if srcTcp, ok := src.(*gonet.TCPConn); ok {
-		srcTcp.CloseRead()
-	}
+	dst.CloseWrite()
+	src.CloseRead()
 
 	errc <- err
 }
 
-func pump2(c1, c2 net.Conn) {
+func pump2(c1, c2 FullDuplexConn) {
 	errChan := make(chan error, 2)
 	go pump1(errChan, c1, c2)
 	go pump1(errChan, c2, c1)

@@ -156,7 +156,7 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 	}
 	defer virtConn.Close()
 
-	pump2(conn, virtConn)
+	pump2(conn.(*net.TCPConn), virtConn)
 }
 
 func (f *TcpHostForwarder) Stop() {

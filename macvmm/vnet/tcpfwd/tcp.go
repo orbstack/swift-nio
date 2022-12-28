@@ -116,6 +116,6 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			}
 		}()
 
-		pump2(virtConn, extConn)
+		pump2(virtConn, extConn.(*net.TCPConn))
 	})
 }
