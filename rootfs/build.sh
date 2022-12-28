@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-# arm, x86
+# arm64, x86_64
 ARCH="$1"
 if [ -z "$ARCH" ]; then
     echo "Usage: $0 <arch>"
@@ -21,9 +21,9 @@ cd "$(dirname "$0")"
 
 # build vcontrol first
 pushd vcontrol
-if [[ "$ARCH" == "arm" ]]; then
+if [[ "$ARCH" == "arm64" ]]; then
     cargo build --release --target aarch64-unknown-linux-musl
-elif [[ "$ARCH" == "x86" ]]; then
+elif [[ "$ARCH" == "x86_64" ]]; then
     cargo build --release --target x86_64-unknown-linux-musl
 else
     echo "Unknown architecture: $ARCH"
@@ -36,7 +36,7 @@ mkdir rd
 pushd rd
 
 # Alpine rootfs
-if [[ "$ARCH" == "arm" ]]; then
+if [[ "$ARCH" == "arm64" ]]; then
     tar xf $HOME/Downloads/alpine-minirootfs-20221110-aarch64.tar.gz 
 else
     tar xf $HOME/Downloads/alpine-minirootfs-20221110-x86_64.tar.gz
@@ -58,7 +58,7 @@ cp -r ../vc $OPT
 cp ../../LICENSE .
 
 # ARCH DEPENDENT
-if [[ "$ARCH" == "arm" ]]; then
+if [[ "$ARCH" == "arm64" ]]; then
     # preinit
     cp ../rd-compile/switch_overlay_root $OPT
     # vcontrol server
