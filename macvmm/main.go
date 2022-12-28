@@ -89,6 +89,10 @@ func tryStop(vm *vz.VirtualMachine) (err error) {
 }
 
 func main() {
+	if err := vz.MacOSAvailable(12); err != nil {
+		log.Fatal(err)
+	}
+
 	var netPair1, netPair2 *os.File
 	var err error
 	if useRouterPair {
