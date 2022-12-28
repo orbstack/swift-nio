@@ -119,7 +119,7 @@ func main() {
 	// Mount NFS
 	nfsMounted := false
 	go func() {
-		vc.WaitForReady()
+		vc.WaitForDataReady()
 		log.Println("Mounting NFS...")
 		err := conf.MountNfs()
 		if err != nil {

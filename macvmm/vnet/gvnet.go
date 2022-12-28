@@ -198,7 +198,13 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 
 	// Fix NFS panic: disable SACK. Technically we only need to disable RACK, but SACK without RACK just increases overhead.
 	{
-		opt := tcpip.TCPSACKEnabled(false)
+		opt := tcpip.TCPSACKEnabled(true)
+		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
+			return nil, nil, errors.New(err.String())
+		}
+	}
+	{
+		opt := tcpip.TCPRecovery(tcpip.TCPRACKStaticReoWnd)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
 			return nil, nil, errors.New(err.String())
 		}

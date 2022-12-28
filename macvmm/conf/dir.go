@@ -62,7 +62,7 @@ func AssetsDir() string {
 		panic(err)
 	}
 	exPath := filepath.Dir(ex)
-	return exPath + "../assets/" + buildVariant + "/" + Arch()
+	return exPath + "/../assets/" + buildVariant + "/" + Arch()
 }
 
 func GetAssetFile(name string) string {

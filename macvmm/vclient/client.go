@@ -22,6 +22,7 @@ const (
 type VClient struct {
 	client    *http.Client
 	ready     bool
+	dataReady bool
 	lastStats diskReportStats
 	dataDir   string
 	dataImg   string
@@ -103,6 +104,23 @@ func (vc *VClient) WaitForReady() {
 	vc.ready = true
 }
 
+func (vc *VClient) WaitForDataReady() {
+	if vc.dataReady {
+		return
+	}
+
+	for {
+		_, err := vc.Get("flag/data_resized")
+		if err == nil {
+			break
+		}
+		time.Sleep(readyPollInterval)
+	}
+
+	fmt.Println("data ready")
+	vc.dataReady = true
+}
+
 func (vc *VClient) StartBackground() error {
 	// Sync time on wake
 	wakeChan, err := iokit.MonitorSleepWake()
@@ -127,7 +145,7 @@ func (vc *VClient) StartBackground() error {
 	// Report disk stats periodically
 	go func() {
 		// don't want to miss the first report, or we'll have to wait
-		vc.WaitForReady()
+		vc.WaitForDataReady()
 		vc.reportDiskStats()
 
 		ticker := time.NewTicker(diskStatsInterval)
