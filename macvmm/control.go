@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
 
 	"github.com/Code-Hex/vz/v3"
+	"github.com/kdrag0n/macvirt/macvmm/conf"
 
 	_ "net/http/pprof"
 )
@@ -56,7 +58,7 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 	})
 
 	server := &http.Server{
-		Addr:    "127.0.0.1:3333",
+		Addr:    "127.0.0.1:" + strconv.Itoa(conf.HostPortHcontrol),
 		Handler: mux,
 	}
 
