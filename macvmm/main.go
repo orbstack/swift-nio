@@ -15,6 +15,7 @@ import (
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/conf"
 	"github.com/kdrag0n/macvirt/macvmm/vnet"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -57,6 +58,22 @@ func setDockerContext() {
 	if err != nil {
 		log.Println("Failed to set Docker context:", err)
 	}
+}
+
+func isMountpoint(path string) bool {
+	var stat unix.Stat_t
+	err := unix.Stat(path, &stat)
+	if err != nil {
+		return false
+	}
+
+	var parentStat unix.Stat_t
+	err = unix.Stat(path+"/..", &parentStat)
+	if err != nil {
+		return false
+	}
+
+	return stat.Dev != parentStat.Dev
 }
 
 func main() {
@@ -168,6 +185,13 @@ func main() {
 		log.Println("Mounting NFS...")
 		err := conf.MountNfs()
 		if err != nil {
+			// careful, this could hang
+			if isMountpoint(conf.NfsMountpoint()) {
+				log.Println("NFS already mounted")
+				nfsMounted = true
+				return
+			}
+
 			// if already mounted, we'll just reuse it
 			log.Println("NFS mount error:", err)
 			return

@@ -10,7 +10,7 @@ var (
 )
 
 func MountNfs() error {
-	err := exec.Command("mount", "-t", "nfs", "-o", nfsMountOptions, "127.0.0.1:", GetNfsMountDir()).Run()
+	err := exec.Command("mount", "-t", "nfs", "-o", nfsMountOptions, "127.0.0.1:", NfsMountpoint()).Run()
 	if err != nil {
 		return err
 	}
@@ -19,7 +19,7 @@ func MountNfs() error {
 }
 
 func UnmountNfs() error {
-	err := exec.Command("umount", "-f", GetNfsMountDir()).Run()
+	err := exec.Command("umount", "-f", NfsMountpoint()).Run()
 	if err != nil {
 		return err
 	}

@@ -27,7 +27,7 @@ func ConfigDir() string {
 	return dir
 }
 
-func GetNfsMountDir() string {
+func NfsMountpoint() string {
 	dir := HomeDir() + "/" + nfsDirName
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {

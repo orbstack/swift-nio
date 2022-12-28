@@ -61,19 +61,6 @@ const (
 	runSftp     = false // Android
 )
 
-type Network struct {
-	Stack       *stack.Stack
-	NIC         tcpip.NICID
-	VClient     *vclient.VClient
-	VsockDialer func(uint32) (net.Conn, error)
-	file0       *os.File
-	fd1         int
-}
-
-func str(port int) string {
-	return strconv.Itoa(port)
-}
-
 var (
 	// host -> guest
 	HostForwardsToGuest = map[string]string{
@@ -82,6 +69,7 @@ var (
 		"udp:127.0.0.1:" + str(conf.HostPortNFS):      "udp:" + str(conf.GuestPortNFS),
 		"tcp:127.0.0.1:" + str(conf.HostPortNFSVsock): "vsock:" + str(conf.GuestPortNFS),
 		"unix:" + conf.DockerSocket():                 "tcp:" + str(conf.GuestPortDocker),
+		"tcp:127.0.0.1:" + str(conf.HostPortDocker):   "tcp:" + str(conf.GuestPortDocker),
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -97,6 +85,19 @@ var (
 		"gateway.internal":  {IP4: gatewayIP4, IP6: gatewayIP6},
 	}
 )
+
+type Network struct {
+	Stack       *stack.Stack
+	NIC         tcpip.NICID
+	VClient     *vclient.VClient
+	VsockDialer func(uint32) (net.Conn, error)
+	file0       *os.File
+	fd1         int
+}
+
+func str(port int) string {
+	return strconv.Itoa(port)
+}
 
 type NetOptions struct {
 	MTU uint32
