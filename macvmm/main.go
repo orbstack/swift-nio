@@ -93,7 +93,7 @@ func tryStop(vm *vz.VirtualMachine) (err error) {
 }
 
 func main() {
-	if err := vz.MacOSAvailable(12); err != nil {
+	if err := vz.MacOSAvailable(12.6); err != nil {
 		log.Fatal(err)
 	}
 
@@ -152,6 +152,20 @@ func main() {
 	if useRouterPair {
 		routerVm = StartRouterVm(netPair2)
 	}
+
+	// Monitor state changes even if observer panics
+	stateChan := make(chan vz.VirtualMachineState)
+	go func() {
+		vmChan := vm.StateChangedNotify()
+		for {
+			select {
+			case state := <-vmChan:
+				stateChan <- state
+			case state := <-vz.GlobalStateChan:
+				stateChan <- state
+			}
+		}
+	}()
 
 	// Listen for signals
 	signalCh := make(chan os.Signal, 1)
@@ -243,7 +257,7 @@ func main() {
 				log.Println("VM stop error:", err)
 				return
 			}
-		case newState := <-vm.StateChangedNotify():
+		case newState := <-stateChan:
 			if newState == vz.VirtualMachineStateRunning {
 				log.Println("VM started")
 			}
