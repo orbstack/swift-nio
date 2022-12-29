@@ -155,6 +155,24 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 		return
 	}
 	defer virtConn.Close()
+	closed := false
+	defer func() {
+		closed = true
+	}()
+
+	go func() {
+		for !closed {
+			time.Sleep(2 * time.Second)
+			var opt tcpip.TCPInfoOption
+			err := virtConn.Endpoint().GetSockOpt(&opt)
+			if err != nil {
+				fmt.Println("error getting tcp info", err)
+				continue
+			}
+
+			fmt.Println("tcp info", opt)
+		}
+	}()
 
 	pump2(conn.(*net.TCPConn), virtConn)
 }
