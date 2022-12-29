@@ -95,6 +95,11 @@ func tryStop(vm *vz.VirtualMachine) (err error) {
 func main() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
+		logrus.SetFormatter(&logrus.TextFormatter{
+			ForceColors:     true,
+			FullTimestamp:   true,
+			TimestampFormat: "01-02 15:04:05",
+		})
 	}
 
 	if err := vz.MacOSAvailable(12.6); err != nil {
