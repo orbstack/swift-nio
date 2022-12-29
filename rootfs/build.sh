@@ -57,7 +57,9 @@ cp ../build-inside.sh .
 # for custom lxd builds
 cp ../packages/*.pub etc/apk/keys/
 cp -r ../packages .
-arch-chroot . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
+#arch-chroot . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
+systemd-nspawn -D . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
+
 
 rm build-inside.sh
 rm -r packages
