@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
-	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -56,7 +56,7 @@ func ListenHcontrol(stack *stack.Stack, address tcpip.Address) error {
 	go func() {
 		err := server.Serve(listener)
 		if err != nil {
-			logrus.Error("hcontrol: Serve() =", err)
+			klog.Error("hcontrol: Serve() =", err)
 		}
 	}()
 

@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 
 func benchmarkVsock(conn net.Conn) error {
 	defer conn.Close()
-	logrus.Debug("benchmarking vsock")
+	klog.V(1).Info("benchmarking vsock")
 
 	i := 0
 
@@ -45,7 +45,7 @@ func benchmarkVsock(conn net.Conn) error {
 	}
 	pingDuration := time.Since(pingStart)
 	rtt := pingDuration / pingIters
-	logrus.Debug("ping rtt: %v ms", rtt.Seconds()*1000)
+	klog.V(1).Info("ping rtt: %v ms", rtt.Seconds()*1000)
 
 	bulkBuf := make([]byte, bulkBufferSize)
 	for i := 0; i < bulkBufferSize; i++ {
@@ -70,7 +70,7 @@ func benchmarkVsock(conn net.Conn) error {
 	// bytes per second
 	bandwidth := float64(bulkBufferSize*i) / bulkDuration.Seconds()
 	gbps := bandwidth * 8 / 1000 / 1000 / 1000
-	logrus.Debug("bulk speed host->guest: %v Gbps", gbps)
+	klog.V(1).Info("bulk speed host->guest: %v Gbps", gbps)
 
 	// flip direction
 	time.Sleep(250 * time.Millisecond)
@@ -115,7 +115,7 @@ func benchmarkVsock(conn net.Conn) error {
 	// bytes per second
 	bandwidth = float64(bulkBufferSize*i) / bulkDuration.Seconds()
 	gbps = bandwidth * 8 / 1000 / 1000 / 1000
-	logrus.Debug("bulk speed guest->host: %v Gbps", gbps)
+	klog.V(1).Info("bulk speed guest->host: %v Gbps", gbps)
 
 	return nil
 }

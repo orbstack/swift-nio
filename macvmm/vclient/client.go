@@ -10,8 +10,8 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/conf"
 	"github.com/kdrag0n/macvirt/macvmm/vclient/iokit"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -121,7 +121,7 @@ func (vc *VClient) WaitForDataReady() {
 		time.Sleep(readyPollInterval)
 	}
 
-	logrus.Info("data ready")
+	klog.Info("data ready")
 	vc.dataReady = true
 }
 
@@ -135,20 +135,20 @@ func (vc *VClient) StartBackground() error {
 	go func() {
 		for {
 			<-wakeChan
-			logrus.Info("sync time")
+			klog.Info("sync time")
 			go func() {
 				// For some reason, we have to sync *twice* in order for chrony to step the clock after suspend.
 				// Running it twice back-to-back doesn't work, and neither does "chronyc makestep"
 				_, err := vc.Post("time/sync", nil)
 				if err != nil {
-					logrus.Error("sync err", err)
+					klog.Error("sync err", err)
 				}
 
 				// 2 sec per iburst check * 4 = 8 sec, plus margin
 				time.Sleep(10 * time.Second)
 				_, err = vc.Post("time/sync", nil)
 				if err != nil {
-					logrus.Error("sync err", err)
+					klog.Error("sync err", err)
 				}
 			}()
 		}
@@ -174,14 +174,14 @@ func (vc *VClient) reportDiskStats() {
 	var statFs unix.Statfs_t
 	err := unix.Statfs(vc.dataDir, &statFs)
 	if err != nil {
-		logrus.Error("statfs err", err)
+		klog.Error("statfs err", err)
 		return
 	}
 
 	var imgStat unix.Stat_t
 	err = unix.Stat(vc.dataImg, &imgStat)
 	if err != nil {
-		logrus.Error("stat err", err)
+		klog.Error("stat err", err)
 		return
 	}
 
@@ -194,13 +194,13 @@ func (vc *VClient) reportDiskStats() {
 	}
 
 	if stats != vc.lastStats {
-		logrus.Debug("report stats:", stats)
+		klog.V(1).Info("report stats:", stats)
 		_, err := vc.Post("disk/report_stats", stats)
 		if err != nil {
-			logrus.Error("report err", err)
+			klog.Error("report err", err)
 		}
 	} else {
-		logrus.Debug("stats unchanged, not reporting")
+		klog.V(1).Info("stats unchanged, not reporting")
 	}
 
 	vc.lastStats = stats

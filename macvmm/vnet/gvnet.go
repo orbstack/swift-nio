@@ -23,7 +23,6 @@ import (
 	sftpsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/sftp"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/udpfwd"
-	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
@@ -35,6 +34,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/raw"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -310,7 +310,7 @@ func startNetServices(s *stack.Stack) {
 	if runDns {
 		err := dnssrv.ListenDNS(s, addr, staticDnsHosts)
 		if err != nil {
-			logrus.Error("Failed to start DNS server", err)
+			klog.Error("Failed to start DNS server", err)
 		}
 	}
 
@@ -318,7 +318,7 @@ func startNetServices(s *stack.Stack) {
 	if runNtp {
 		err := ntpsrv.ListenNTP(s, addr)
 		if err != nil {
-			logrus.Error("Failed to start NTP server", err)
+			klog.Error("Failed to start NTP server", err)
 		}
 	}
 
@@ -326,7 +326,7 @@ func startNetServices(s *stack.Stack) {
 	if runHcontrol {
 		err := hcsrv.ListenHcontrol(s, addr)
 		if err != nil {
-			logrus.Error("Failed to start host control server", err)
+			klog.Error("Failed to start host control server", err)
 		}
 	}
 
@@ -334,7 +334,7 @@ func startNetServices(s *stack.Stack) {
 	if runSftp {
 		err := sftpsrv.ListenSFTP(s, addr)
 		if err != nil {
-			logrus.Error("Failed to start SFTP server", err)
+			klog.Error("Failed to start SFTP server", err)
 		}
 	}
 }
