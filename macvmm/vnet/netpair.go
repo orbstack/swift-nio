@@ -7,7 +7,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func makeUnixDgramPair() (file0 *os.File, fd1 int, err error) {
+func MakeUnixgramPair() (file0 *os.File, fd1 int, err error) {
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
 	if err != nil {
 		return

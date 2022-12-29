@@ -149,7 +149,9 @@ echo 'DOCKER_OPTS="-H tcp://172.30.30.2:62375"' >> /etc/conf.d/docker
 echo nameserver 172.30.30.200 > /etc/resolv.conf
 
 # NFS
-echo '/Linux 172.30.30.1/32(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)' > /etc/exports
+echo '/Linux 127.0.0.8/32(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)' > /etc/exports
+# 32 threads for perf
+echo 'OPTS_RPC_NFSD="32"' >> /etc/conf.d/nfsd
 
 # HACK: fix usbip ld lib path
 mkdir /usbip

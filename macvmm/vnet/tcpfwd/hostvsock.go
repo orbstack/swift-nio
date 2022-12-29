@@ -3,6 +3,9 @@ package tcpfwd
 import (
 	"fmt"
 	"net"
+
+	"github.com/kdrag0n/macvirt/macvmm/vnet/sockets"
+	"golang.org/x/sys/unix"
 )
 
 type TcpVsockHostForwarder struct {
@@ -53,6 +56,34 @@ func (f *TcpVsockHostForwarder) handleConn(conn net.Conn) {
 		return
 	}
 	defer virtConn.Close()
+
+	// NFS tuning (we only use this proxy for NFS now)
+	// TODO: make this configurable
+	rawConn, err := virtConn.(*net.UnixConn).SyscallConn()
+	if err != nil {
+		return
+	}
+	rawConn.Control(func(fd uintptr) {
+		err := sockets.SetLargeBuffers(int(fd))
+		if err != nil {
+			fmt.Println("failed to set large buffers:", err)
+		}
+	})
+
+	rawConn, _ = conn.(*net.TCPConn).SyscallConn()
+	if err != nil {
+		return
+	}
+	rawConn.Control(func(fd uintptr) {
+		err := sockets.SetLargeBuffers(int(fd))
+		if err != nil {
+			fmt.Println("failed to set large buffers:", err)
+		}
+		err = unix.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_NODELAY, 1)
+		if err != nil {
+			fmt.Println("failed to set TCP_NODELAY:", err)
+		}
+	})
 
 	pump2(conn.(*net.TCPConn), virtConn.(*net.UnixConn))
 }

@@ -5,7 +5,6 @@ const (
 	HostPortSSH      = 2222
 	HostPortHcontrol = 3333
 	HostPortNFS      = 62429
-	HostPortNFSVsock = HostPortNFS + 1
 
 	// guest
 	GuestPortSSH      = 22

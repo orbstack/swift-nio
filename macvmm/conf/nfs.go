@@ -7,7 +7,8 @@ import (
 
 var (
 	// mutejukebox = don't show "fs not responding" dialog
-	nfsMountOptions = "vers=4,tcp,inet,port=" + strconv.Itoa(HostPortNFS) + ",soft,mutejukebox"
+	// rwsize=131072,readahead=64 optimal for vsock
+	nfsMountOptions = "vers=4,tcp,inet,port=" + strconv.Itoa(HostPortNFS) + ",soft,mutejukebox,rwsize=131072,readahead=64"
 )
 
 func MountNfs() error {

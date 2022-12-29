@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/conf"
@@ -23,6 +24,9 @@ const (
 	useRouterPair = false
 	useConsole    = false
 	useNat        = false
+
+	nfsMountTries = 5
+	nfsMountDelay = 500 * time.Millisecond
 )
 
 func check(err error) {
@@ -94,10 +98,11 @@ func main() {
 	}
 
 	var netPair1, netPair2 *os.File
-	var err error
 	if useRouterPair {
-		netPair1, netPair2, err = makeUnixDgramPair()
+		file1, fd2, err := vnet.MakeUnixgramPair()
 		check(err)
+		netPair1 = file1
+		netPair2 = os.NewFile(uintptr(fd2), "socketpair1")
 	}
 
 	if _, err := os.Stat(conf.DataImage()); os.IsNotExist(err) {
@@ -132,7 +137,7 @@ func main() {
 
 	// VM control server client
 	vc := vnetwork.VClient
-	err = vc.StartBackground()
+	err := vc.StartBackground()
 	check(err)
 
 	if useConsole {
@@ -147,15 +152,6 @@ func main() {
 	if useRouterPair {
 		routerVm = StartRouterVm(netPair2)
 	}
-
-	/*
-		go func() {
-			err := runVsockServices(vm.SocketDevices()[0])
-			if err != nil {
-				log.Println("vsock services error:", err)
-			}
-		}()
-	*/
 
 	// Listen for signals
 	signalCh := make(chan os.Signal, 1)
@@ -199,22 +195,29 @@ func main() {
 	nfsMounted := false
 	go func() {
 		vc.WaitForDataReady()
-		log.Println("Mounting NFS...")
-		err := conf.MountNfs()
-		if err != nil {
-			// careful, this could hang
-			if isMountpoint(conf.NfsMountpoint()) {
-				log.Println("NFS already mounted")
-				nfsMounted = true
-				return
+
+		// vsock fails immediately unlike tcp dialing, so try 5 times
+		for i := 0; i < nfsMountTries; i++ {
+			log.Println("Mounting NFS...")
+			err := conf.MountNfs()
+			if err != nil {
+				// if already mounted, we'll just reuse it
+				// careful, this could hang
+				if isMountpoint(conf.NfsMountpoint()) {
+					log.Println("NFS already mounted")
+					nfsMounted = true
+					return
+				}
+
+				log.Println("NFS mount error:", err)
+				time.Sleep(nfsMountDelay)
+				continue
 			}
 
-			// if already mounted, we'll just reuse it
-			log.Println("NFS mount error:", err)
-			return
+			log.Println("NFS mounted")
+			nfsMounted = true
+			break
 		}
-		log.Println("NFS mounted")
-		nfsMounted = true
 	}()
 	defer func() {
 		if nfsMounted {

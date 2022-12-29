@@ -64,11 +64,9 @@ const (
 var (
 	// host -> guest
 	HostForwardsToGuest = map[string]string{
-		"tcp:127.0.0.1:" + str(conf.HostPortSSH):      "tcp:" + str(conf.GuestPortSSH),
-		"tcp:127.0.0.1:" + str(conf.HostPortNFS):      "tcp:" + str(conf.GuestPortNFS),
-		"udp:127.0.0.1:" + str(conf.HostPortNFS):      "udp:" + str(conf.GuestPortNFS),
-		"tcp:127.0.0.1:" + str(conf.HostPortNFSVsock): "vsock:" + str(conf.GuestPortNFS),
-		"unix:" + conf.DockerSocket():                 "tcp:" + str(conf.GuestPortDocker),
+		"tcp:127.0.0.1:" + str(conf.HostPortSSH): "tcp:" + str(conf.GuestPortSSH),
+		"tcp:127.0.0.1:" + str(conf.HostPortNFS): "vsock:" + str(conf.GuestPortNFS),
+		"unix:" + conf.DockerSocket():            "tcp:" + str(conf.GuestPortDocker),
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -107,7 +105,7 @@ func StartGvnetPair(opts NetOptions) (*Network, *os.File, error) {
 }
 
 func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
-	file0, fd1, err := makeUnixDgramPair()
+	file0, fd1, err := MakeUnixgramPair()
 	if err != nil {
 		return nil, nil, err
 	}
