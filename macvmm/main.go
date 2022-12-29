@@ -219,7 +219,7 @@ func main() {
 			break
 		}
 	}()
-	defer func() {
+	unmountNfs := func() {
 		if nfsMounted {
 			log.Println("Unmounting NFS...")
 			err := conf.UnmountNfs()
@@ -227,13 +227,17 @@ func main() {
 				log.Println("NFS unmount error:", err)
 			}
 			log.Println("NFS unmounted")
+			nfsMounted = false
 		}
-	}()
+	}
+	defer unmountNfs()
 
 	for {
 		select {
 		case <-signalCh:
 			log.Println("stop (signal)")
+			// unmount nfs first
+			unmountNfs()
 			err := tryStop(vm)
 			if err != nil {
 				log.Println("VM stop error:", err)
