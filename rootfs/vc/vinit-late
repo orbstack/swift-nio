@@ -66,7 +66,18 @@ wait_for_lxc
 
 # late nfs start because we need bind mount
 mkdir /Linux
-mount --bind /data /Linux
+mount -t tmpfs tmpfs -o noatime /Linux
+# try to reduce nfs cpu usage
+touch /Linux/.metadata_never_index /Linux/.metadata-never-index /Linux/.metadata_never_index_unless_rootfs
+mkdir /Linux/Data
+mount --bind /data /Linux/Data
+mkdir /Linux/DockerVolumes
+mount --bind /data/var/lib/docker/volumes /Linux/DockerVolumes
+mkdir /Linux/Containers
+mkdir -p /data/var/lib/lxd/storage-pools/default/containers # first boot
+mount --bind /data/var/lib/lxd/storage-pools/default/containers /Linux/Containers
+# lock
+mount -o remount,ro /Linux
 rc-service nfs start
 # vsock
 /opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist
