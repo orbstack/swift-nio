@@ -1,6 +1,7 @@
 package vnet
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	sftpsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/sftp"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/udpfwd"
+	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
@@ -67,7 +69,6 @@ var (
 		"udp:127.0.0.1:" + str(conf.HostPortNFS):      "udp:" + str(conf.GuestPortNFS),
 		"tcp:127.0.0.1:" + str(conf.HostPortNFSVsock): "vsock:" + str(conf.GuestPortNFS),
 		"unix:" + conf.DockerSocket():                 "tcp:" + str(conf.GuestPortDocker),
-		"tcp:127.0.0.1:5202":                          "vsock:5201",
 	}
 	// guest -> host
 	natFromGuest = map[string]string{
@@ -289,6 +290,9 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 		MaxIdleConns: 3,
 	}
 	vc := vclient.NewClient(tr)
+
+	// TODO logger
+	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
 	network := &Network{
 		Stack:       s,
