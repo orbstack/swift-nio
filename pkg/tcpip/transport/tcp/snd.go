@@ -341,6 +341,10 @@ func (s *sender) sendAck() {
 // updateRTO updates the retransmit timeout when a new roud-trip time is
 // available. This is done in accordance with section 2 of RFC 6298.
 func (s *sender) updateRTO(rtt time.Duration) {
+	// Fix NFS panic
+	if rtt < time.Millisecond {
+		rtt = time.Millisecond
+	}
 	s.rtt.Lock()
 	if !s.rtt.TCPRTTState.SRTTInited {
 		s.rtt.TCPRTTState.RTTVar = rtt / 2
