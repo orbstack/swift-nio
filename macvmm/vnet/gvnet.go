@@ -289,7 +289,7 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 	}
 	vc := vclient.NewClient(tr)
 
-	// TODO logger
+	// Silence gvisor logs
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
 	network := &Network{
