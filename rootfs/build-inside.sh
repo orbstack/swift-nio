@@ -98,8 +98,8 @@ net.ipv4.neigh.default.gc_thresh3=8192
 net.ipv6.neigh.default.gc_thresh3=8192
 vm.max_map_count=262144
 
-# lxd net tuning (= min tcp_mem)
-net.core.netdev_max_backlog=13116
+# lxd net tuning (= ~min tcp_mem)
+net.core.netdev_max_backlog=16384
 
 # k8s
 vm.overcommit_memory=1
@@ -143,10 +143,11 @@ echo 'cmdport 0' >> /etc/chrony/chrony.conf
 
 # Docker
 echo 'rc_need="localmount"' >> /etc/conf.d/docker
-echo 'DOCKER_OPTS="-H tcp://172.30.30.2:62375"' >> /etc/conf.d/docker
+echo 'DOCKER_OPTS="-H tcp://172.30.30.2:62375 -H unix:///var/run/docker.sock"' >> /etc/conf.d/docker
 
 # prod config
 echo nameserver 172.30.30.200 > /etc/resolv.conf
+rm -f /etc/motd
 
 # NFS
 echo '/Linux 127.0.0.8/32(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)' > /etc/exports
