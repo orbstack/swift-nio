@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	nfsMountOptions = "vers=4,tcp,inet,port=" + strconv.Itoa(HostPortNFS) + ",soft"
+	// mutejukebox = don't show "fs not responding" dialog
+	nfsMountOptions = "vers=4,tcp,inet,port=" + strconv.Itoa(HostPortNFS) + ",soft,mutejukebox"
 )
 
 func MountNfs() error {
