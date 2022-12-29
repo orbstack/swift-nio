@@ -46,6 +46,22 @@ func sendReply(w dns.ResponseWriter, req *dns.Msg, msg *dns.Msg, isUdp bool) {
 	}
 }
 
+func mapToRR(a dnssd.QueryAnswer) (dns.RR, error) {
+	hdr := dns.RR_Header{
+		Name:     a.Name,
+		Rrtype:   a.Type,
+		Class:    a.Class,
+		Ttl:      a.TTL,
+		Rdlength: uint16(len(a.Data)),
+	}
+	rr, _, err := dns.UnpackRRWithHeader(hdr, a.Data, 0)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("rr", rr)
+	return rr, nil
+}
+
 func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool) {
 	msg := new(dns.Msg)
 	msg.SetReply(req)
@@ -60,6 +76,7 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		fmt.Println("query dnssd")
 
 		answers, err := dnssd.QueryRecursive(q.Name, q.Qtype)
+		// First error handling round: try to fix it
 		if err != nil {
 			fmt.Println("dnssd.QueryRecursive() =", err)
 
@@ -68,6 +85,28 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 				return
 			}
 
+			// For domains with A but no AAAA (github.com), macOS returns "no such record".
+			// musl resolver turns that into a NXDOMAIN response: https://github.com/docker/for-mac/issues/5020
+			// Fix: query SOA. if we get a SOA, return it with status=NOERROR. otherwise, return NXDOMAIN if SOA is missing.
+			if (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName) && len(answers) == 0 {
+				soa, err2 := dnssd.QueryRecursive(q.Name, dns.TypeSOA)
+				if err2 == nil {
+					// Got SOA. Return it in the *authority* section, not answer section.
+					for _, a := range soa {
+						rr, err := mapToRR(a)
+						if err != nil {
+							fmt.Println("mapToRR() =", err)
+							continue
+						}
+						msg.Ns = append(msg.Ns, rr)
+					}
+					err = nil
+				}
+			}
+		}
+
+		// Error handling after SOA logic
+		if err != nil {
 			// Default error handling
 			switch err {
 			// simulate timeout
@@ -87,21 +126,14 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 			}
 			continue
 		}
+
 		for _, a := range answers {
 			fmt.Println("answer =", a)
-			hdr := dns.RR_Header{
-				Name:     a.Name,
-				Rrtype:   a.Type,
-				Class:    a.Class,
-				Ttl:      a.TTL,
-				Rdlength: uint16(len(a.Data)),
-			}
-			rr, _, err := dns.UnpackRRWithHeader(hdr, a.Data, 0)
+			rr, err := mapToRR(a)
 			if err != nil {
-				fmt.Println("dns.UnpackRRWithHeader() =", err)
+				fmt.Println("mapToRR() =", err)
 				continue
 			}
-			fmt.Println("rr", rr)
 			msg.Answer = append(msg.Answer, rr)
 		}
 	}
