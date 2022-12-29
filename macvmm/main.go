@@ -25,7 +25,7 @@ const (
 	useConsole    = false
 	useNat        = false
 
-	nfsMountTries = 5
+	nfsMountTries = 10
 	nfsMountDelay = 500 * time.Millisecond
 )
 
