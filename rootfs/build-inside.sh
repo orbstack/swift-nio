@@ -153,6 +153,8 @@ rm -f /etc/motd
 echo '/Linux 127.0.0.8/32(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)' > /etc/exports
 # 32 threads for perf
 echo 'OPTS_RPC_NFSD="32"' >> /etc/conf.d/nfs
+# fix fd hang
+echo 'OPTS_NFSD="nfsv4leasetime=30 nfsv4gracetime=1"' >> /etc/conf.d/nfs
 
 # HACK: fix usbip ld lib path
 mkdir /usbip
