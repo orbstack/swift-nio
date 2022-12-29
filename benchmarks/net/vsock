@@ -1,0 +1,1 @@
+iperf3 forwarded over tcp, socat in vm, golang vsock on host: 5.25/7 gbps
