@@ -144,8 +144,8 @@ echo 'cmdport 0' >> /etc/chrony/chrony.conf
 # Docker
 echo 'rc_need="localmount"' >> /etc/conf.d/docker
 echo 'DOCKER_OPTS="-H tcp://172.30.30.2:62375 -H unix:///var/run/docker.sock"' >> /etc/conf.d/docker
-# missing group without full "docker" package
-addgroup -S docker
+# missing group without full "docker" package, but fails if "docker" is installed
+addgroup -S docker || :
 
 # prod config
 echo nameserver 172.30.30.200 > /etc/resolv.conf
