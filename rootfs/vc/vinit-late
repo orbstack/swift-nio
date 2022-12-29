@@ -69,7 +69,7 @@ mkdir /Linux
 mount --bind /data /Linux
 rc-service nfs start
 # vsock
-/opt/vc/add-nfs-vsock > /proc/fs/nfsd/portlist
+/opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist
 
 # late lxd tuning
 # TODO: do this for nic too
