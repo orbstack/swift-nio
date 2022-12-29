@@ -73,14 +73,14 @@ if [[ "$ARCH" == "arm64" ]]; then
     # preinit
     cp ../rd-compile/switch_overlay_root $OPT
     # nfs vsock
-    cp ../rd-compile/add-nfs-vsock $OPT
+    cp ../rd-compile/add-nfsd-vsock $OPT
     # vcontrol server
     cp ../vcontrol/target/aarch64-unknown-linux-musl/release/vcontrol $OPT
 else
     # preinit
     cp ../rd-compile86/switch_overlay_root $OPT
     # nfs vsock
-    cp ../rd-compile86/add-nfs-vsock $OPT
+    cp ../rd-compile86/add-nfsd-vsock $OPT
     # vcontrol server
     cp ../vcontrol/target/x86_64-unknown-linux-musl/release/vcontrol $OPT
 fi
