@@ -3,11 +3,8 @@ package vnet
 import (
 	"os"
 
+	"github.com/kdrag0n/macvirt/macvmm/vnet/sockets"
 	"golang.org/x/sys/unix"
-)
-
-const (
-	dgramSockBuf = 512 * 1024
 )
 
 func makeUnixDgramPair() (file0 *os.File, fd1 int, err error) {
@@ -15,19 +12,11 @@ func makeUnixDgramPair() (file0 *os.File, fd1 int, err error) {
 	if err != nil {
 		return
 	}
-	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_SNDBUF, dgramSockBuf)
+	err = sockets.SetLargeBuffers(fds[0])
 	if err != nil {
 		return
 	}
-	err = unix.SetsockoptUint64(fds[0], unix.SOL_SOCKET, unix.SO_RCVBUF, dgramSockBuf*4)
-	if err != nil {
-		return
-	}
-	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_SNDBUF, dgramSockBuf)
-	if err != nil {
-		return
-	}
-	err = unix.SetsockoptUint64(fds[1], unix.SOL_SOCKET, unix.SO_RCVBUF, dgramSockBuf*4)
+	err = sockets.SetLargeBuffers(fds[1])
 	if err != nil {
 		return
 	}
