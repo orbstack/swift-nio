@@ -1,0 +1,212 @@
+package vclient
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
+)
+
+var (
+	baseUrl = "http://172.30.30.2:" + strconv.Itoa(conf.GuestPortVcontrol)
+)
+
+const (
+	diskStatsInterval = 1 * time.Minute
+	readyPollInterval = 200 * time.Millisecond
+)
+
+type VClient struct {
+	client    *http.Client
+	ready     bool
+	dataReady bool
+	lastStats diskReportStats
+	dataDir   string
+	dataImg   string
+}
+
+type diskReportStats struct {
+	HostFsSize  uint64 `json:"hostFsSize"`
+	HostFsFree  uint64 `json:"hostFsFree"`
+	DataImgSize uint64 `json:"dataImgSize"`
+}
+
+func NewClient(tr *http.Transport) *VClient {
+	httpClient := &http.Client{Transport: tr}
+	return &VClient{
+		client:  httpClient,
+		dataDir: conf.DataDir(),
+		dataImg: conf.DataImage(),
+	}
+}
+
+func (vc *VClient) Get(endpoint string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", baseUrl+"/"+endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", GetCurrentToken())
+	resp, err := vc.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	return resp, nil
+}
+
+func (vc *VClient) Post(endpoint string, body any) (*http.Response, error) {
+	msg, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	reader := bytes.NewReader(msg)
+	req, err := http.NewRequest("POST", baseUrl+"/"+endpoint, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", GetCurrentToken())
+	resp, err := vc.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	return resp, nil
+}
+
+func (vc *VClient) WaitForReady() {
+	if vc.ready {
+		return
+	}
+
+	for {
+		_, err := vc.Get("ping")
+		if err == nil {
+			break
+		}
+		time.Sleep(readyPollInterval)
+	}
+
+	vc.ready = true
+}
+
+func (vc *VClient) WaitForDataReady() {
+	if vc.dataReady {
+		return
+	}
+
+	for {
+		_, err := vc.Get("flag/data_resized")
+		if err == nil {
+			break
+		}
+		time.Sleep(readyPollInterval)
+	}
+
+	logrus.Info("data ready")
+	vc.dataReady = true
+}
+
+func (vc *VClient) StartBackground() error {
+	// Sync time on wake
+	wakeChan, err := iokit.MonitorSleepWake()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		for {
+			<-wakeChan
+			logrus.Info("sync time")
+			go func() {
+				// For some reason, we have to sync *twice* in order for chrony to step the clock after suspend.
+				// Running it twice back-to-back doesn't work, and neither does "chronyc makestep"
+				_, err := vc.Post("time/sync", nil)
+				if err != nil {
+					logrus.Error("sync err", err)
+				}
+
+				// 2 sec per iburst check * 4 = 8 sec, plus margin
+				time.Sleep(10 * time.Second)
+				_, err = vc.Post("time/sync", nil)
+				if err != nil {
+					logrus.Error("sync err", err)
+				}
+			}()
+		}
+	}()
+
+	// Report disk stats periodically
+	go func() {
+		// don't want to miss the first report, or we'll have to wait
+		vc.WaitForDataReady()
+		vc.reportDiskStats()
+
+		ticker := time.NewTicker(diskStatsInterval)
+		for {
+			<-ticker.C
+			vc.reportDiskStats()
+		}
+	}()
+
+	return nil
+}
+
+func (vc *VClient) reportDiskStats() {
+	var statFs unix.Statfs_t
+	err := unix.Statfs(vc.dataDir, &statFs)
+	if err != nil {
+		logrus.Error("statfs err", err)
+		return
+	}
+
+	var imgStat unix.Stat_t
+	err = unix.Stat(vc.dataImg, &imgStat)
+	if err != nil {
+		logrus.Error("stat err", err)
+		return
+	}
+
+	stats := diskReportStats{
+		HostFsSize: statFs.Blocks * uint64(statFs.Bsize),
+		// excl. reserved blocks
+		HostFsFree: statFs.Bavail * uint64(statFs.Bsize),
+		// size is apparent, we want real
+		DataImgSize: uint64(imgStat.Blocks) * 512,
+	}
+
+	if stats != vc.lastStats {
+		logrus.Debug("report stats:", stats)
+		_, err := vc.Post("disk/report_stats", stats)
+		if err != nil {
+			logrus.Error("report err", err)
+		}
+	} else {
+		logrus.Debug("stats unchanged, not reporting")
+	}
+
+	vc.lastStats = stats
+}
+
+func (vc *VClient) Close() error {
+	vc.client.CloseIdleConnections()
+	return nil
+}
