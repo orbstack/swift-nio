@@ -58,7 +58,6 @@ func mapToRR(a dnssd.QueryAnswer) (dns.RR, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("rr", rr)
 	return rr, nil
 }
 
@@ -72,8 +71,6 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		if q.Qclass != dns.ClassINET {
 			continue
 		}
-
-		fmt.Println("query dnssd")
 
 		answers, err := dnssd.QueryRecursive(q.Name, q.Qtype)
 		// First error handling round: try to fix it
@@ -128,7 +125,6 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		}
 
 		for _, a := range answers {
-			fmt.Println("answer =", a)
 			rr, err := mapToRR(a)
 			if err != nil {
 				fmt.Println("mapToRR() =", err)
@@ -138,7 +134,6 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		}
 	}
 
-	fmt.Println("=>m", msg)
 	sendReply(w, req, msg, isUdp)
 }
 
@@ -176,7 +171,6 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 			staticRrs[host] = append(staticRrs[host], rr)
 		}
 	}
-	fmt.Println("rmap", staticRrs)
 
 	handler := &dnsHandler{}
 
@@ -194,7 +188,6 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 				for _, q := range req.Question {
 					for _, rr := range rrs {
 						if q.Qtype == rr.Header().Rrtype {
-							fmt.Println("reply", "q", q, "rr", rr, "zone", zone)
 							msg.Answer = append(msg.Answer, rr)
 						}
 					}
@@ -227,7 +220,6 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 				for _, q := range req.Question {
 					for _, rr := range rrs {
 						if q.Qtype == rr.Header().Rrtype {
-							fmt.Println("reply", "q", q, "rr", rr, "zone", zone)
 							msg.Answer = append(msg.Answer, rr)
 						}
 					}
