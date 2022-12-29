@@ -165,9 +165,11 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	storages := []vz.StorageDeviceConfiguration{}
 	// 1. rootfs
 	if c.DiskRootfs != "" {
-		disk1, err := vz.NewDiskImageStorageDeviceAttachment(
+		disk1, err := vz.NewDiskImageStorageDeviceAttachmentWithCacheAndSync(
 			c.DiskRootfs,
-			true,
+			true, // read-only
+			vz.DiskImageCachingModeCached,
+			vz.DiskImageSynchronizationModeFsync,
 		)
 		check(err)
 		storage1, err := vz.NewVirtioBlockDeviceConfiguration(disk1)
@@ -176,9 +178,13 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	}
 	// 2. data
 	if c.DiskData != "" {
-		disk2, err := vz.NewDiskImageStorageDeviceAttachment(
+		disk2, err := vz.NewDiskImageStorageDeviceAttachmentWithCacheAndSync(
 			c.DiskData,
 			false,
+			// cache for perf
+			vz.DiskImageCachingModeCached,
+			// fsync for safety, but not full fsync (degrades to 50-75 IOPS)
+			vz.DiskImageSynchronizationModeFsync,
 		)
 		check(err)
 		storage2, err := vz.NewVirtioBlockDeviceConfiguration(disk2)
@@ -187,9 +193,12 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	}
 	// 3. swap
 	if c.DiskSwap != "" {
-		disk3, err := vz.NewDiskImageStorageDeviceAttachment(
+		disk3, err := vz.NewDiskImageStorageDeviceAttachmentWithCacheAndSync(
 			c.DiskSwap,
 			false,
+			vz.DiskImageCachingModeCached,
+			// no point in fsyncing swap. we'll never use it again after reboot
+			vz.DiskImageSynchronizationModeNone,
 		)
 		check(err)
 		storage3, err := vz.NewVirtioBlockDeviceConfiguration(disk3)

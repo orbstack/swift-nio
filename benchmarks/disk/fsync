@@ -1,0 +1,7 @@
+IOPS:
+host = 51388
+default (full fsync) = 78
+uncached, partial fsync = 7552,7344
+cached, partial fsync = 9374,9830
+cached, no fsync = 11714
+"write through" queue/write_cache = 20231,19508 (ignores fsync)
