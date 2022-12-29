@@ -99,7 +99,7 @@ func main() {
 
 	var netPair1, netPair2 *os.File
 	if useRouterPair {
-		file1, fd2, err := vnet.MakeUnixgramPair()
+		file1, fd2, err := vnet.NewUnixgramPair()
 		check(err)
 		netPair1 = file1
 		netPair2 = os.NewFile(uintptr(fd2), "socketpair1")

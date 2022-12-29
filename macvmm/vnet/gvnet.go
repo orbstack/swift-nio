@@ -105,7 +105,7 @@ func StartGvnetPair(opts NetOptions) (*Network, *os.File, error) {
 }
 
 func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
-	file0, fd1, err := MakeUnixgramPair()
+	file0, fd1, err := NewUnixgramPair()
 	if err != nil {
 		return nil, nil, err
 	}
