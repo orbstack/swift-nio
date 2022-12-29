@@ -16,7 +16,7 @@ import (
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/conf"
 	"github.com/kdrag0n/macvirt/macvmm/vnet"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
 
@@ -52,7 +52,7 @@ func createDockerContext() {
 		if strings.Contains(errBuf.String(), "already exists") {
 			return
 		}
-		logrus.Error("Failed to create Docker context:", err)
+		zap.S().Error("Failed to create Docker context:", err)
 	}
 }
 
@@ -61,7 +61,7 @@ func setDockerContext() {
 
 	err := exec.Command("docker", "context", "use", conf.AppName()).Run()
 	if err != nil {
-		logrus.Error("Failed to set Docker context:", err)
+		zap.S().Error("Failed to set Docker context:", err)
 	}
 }
 
@@ -94,11 +94,12 @@ func tryStop(vm *vz.VirtualMachine) (err error) {
 
 func main() {
 	if conf.Debug() {
-		logrus.SetLevel(logrus.DebugLevel)
+		logger, _ := zap.NewDevelopment()
+		zap.ReplaceGlobals(logger)
 	}
 
 	if err := vz.MacOSAvailable(12.6); err != nil {
-		logrus.Fatal("macOS too old", err)
+		zap.S().Fatal("macOS too old", err)
 	}
 
 	var netPair1, netPair2 *os.File
@@ -201,7 +202,7 @@ func main() {
 	for fromSpec, toSpec := range vnet.HostForwardsToGuest {
 		err := vnetwork.StartForward(fromSpec, toSpec)
 		if err != nil {
-			logrus.Error("host forward failed", err)
+			zap.S().Error("host forward failed", err)
 		}
 	}
 
@@ -216,35 +217,35 @@ func main() {
 
 		// vsock fails immediately unlike tcp dialing, so try 5 times
 		for i := 0; i < nfsMountTries; i++ {
-			logrus.Info("Mounting NFS...")
+			zap.S().Info("Mounting NFS...")
 			err := conf.MountNfs()
 			if err != nil {
 				// if already mounted, we'll just reuse it
 				// careful, this could hang
 				if isMountpoint(conf.NfsMountpoint()) {
-					logrus.Info("NFS already mounted")
+					zap.S().Info("NFS already mounted")
 					nfsMounted = true
 					return
 				}
 
-				logrus.Error("NFS mount error:", err)
+				zap.S().Error("NFS mount error:", err)
 				time.Sleep(nfsMountDelay)
 				continue
 			}
 
-			logrus.Info("NFS mounted")
+			zap.S().Info("NFS mounted")
 			nfsMounted = true
 			break
 		}
 	}()
 	unmountNfs := func() {
 		if nfsMounted {
-			logrus.Info("Unmounting NFS...")
+			zap.S().Info("Unmounting NFS...")
 			err := conf.UnmountNfs()
 			if err != nil {
-				logrus.Error("NFS unmount error:", err)
+				zap.S().Error("NFS unmount error:", err)
 			}
-			logrus.Info("NFS unmounted")
+			zap.S().Info("NFS unmounted")
 			nfsMounted = false
 		}
 	}
@@ -253,28 +254,28 @@ func main() {
 	for {
 		select {
 		case <-signalCh:
-			logrus.Info("stop (signal)")
+			zap.S().Info("stop (signal)")
 			// unmount nfs first
 			unmountNfs()
 			err := tryStop(vm)
 			if err != nil {
-				logrus.Info("VM stop error:", err)
+				zap.S().Info("VM stop error:", err)
 				return
 			}
 		case newState := <-stateChan:
 			if newState == vz.VirtualMachineStateRunning {
-				logrus.Info("VM started")
+				zap.S().Info("VM started")
 			}
 			if newState == vz.VirtualMachineStateStopped {
-				logrus.Info("VM stopped")
+				zap.S().Info("VM stopped")
 				return
 			}
 			if newState == vz.VirtualMachineStateError {
-				logrus.Error("VM error")
+				zap.S().Error("VM error")
 				return
 			}
 		case err := <-errCh:
-			logrus.Error("VM start error:", err)
+			zap.S().Error("VM start error:", err)
 			return
 		}
 	}

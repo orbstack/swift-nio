@@ -26,7 +26,7 @@ import (
 	"unsafe"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 var (
@@ -86,7 +86,7 @@ func Query(name string, rtype uint16) ([]QueryAnswer, error) {
 
 		ret := C.DNSServiceProcessResult(sdRef)
 		if ret != C.kDNSServiceErr_NoError {
-			logrus.Error("DNSServiceProcessResult err", mapError(int(ret)))
+			zap.S().Error("DNSServiceProcessResult err", mapError(int(ret)))
 			return nil, mapError(int(ret))
 		}
 	}

@@ -8,7 +8,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 //export go_dnssd_callback
@@ -20,12 +20,12 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 	query, ok := queryMap[context]
 	queryMapMu.RUnlock()
 	if !ok {
-		logrus.Error("no dns query for context", context)
+		zap.S().Error("no dns query for context", context)
 		return
 	}
 
 	if errorCode != 0 {
-		logrus.Error("dnssd error %d", errorCode)
+		zap.S().Error("dnssd error %d", errorCode)
 		query.err = mapError(int(errorCode))
 		query.done = true
 		C.DNSServiceRefDeallocate(query.ref)

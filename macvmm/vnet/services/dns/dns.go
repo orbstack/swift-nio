@@ -7,7 +7,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/services/dns/dnssd"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -43,7 +43,7 @@ func sendReply(w dns.ResponseWriter, req *dns.Msg, msg *dns.Msg, isUdp bool) {
 	}
 
 	if err := w.WriteMsg(msg); err != nil {
-		logrus.Error("w.WriteMsg() =", err)
+		zap.S().Error("w.WriteMsg() =", err)
 	}
 }
 
@@ -76,7 +76,7 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		answers, err := dnssd.QueryRecursive(q.Name, q.Qtype)
 		// First error handling round: try to fix it
 		if err != nil {
-			logrus.Error("dnssd.QueryRecursive() =", err)
+			zap.S().Error("dnssd.QueryRecursive() =", err)
 
 			// No network? macOS returns NXDOMAIN but let's return timeout
 			if (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName) && netutil.GetDefaultAddress4() == nil {
@@ -93,7 +93,7 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 					for _, a := range soa {
 						rr, err := mapToRR(a)
 						if err != nil {
-							logrus.Error("mapToRR() =", err)
+							zap.S().Error("mapToRR() =", err)
 							continue
 						}
 						msg.Ns = append(msg.Ns, rr)
@@ -128,7 +128,7 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		for _, a := range answers {
 			rr, err := mapToRR(a)
 			if err != nil {
-				logrus.Error("mapToRR() =", err)
+				zap.S().Error("mapToRR() =", err)
 				continue
 			}
 			msg.Answer = append(msg.Answer, rr)
@@ -203,7 +203,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 		server := &dns.Server{PacketConn: udpConn, Handler: mux}
 		err := server.ActivateAndServe()
 		if err != nil {
-			logrus.Error("dns.Server.ActivateAndServe() =", err)
+			zap.S().Error("dns.Server.ActivateAndServe() =", err)
 		}
 	}()
 
@@ -235,7 +235,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 		server := &dns.Server{Listener: tcpListener, Handler: mux}
 		err := server.ActivateAndServe()
 		if err != nil {
-			logrus.Error("dns.Server.ActivateAndServe() =", err)
+			zap.S().Error("dns.Server.ActivateAndServe() =", err)
 		}
 	}()
 
