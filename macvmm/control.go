@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -11,6 +10,7 @@ import (
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmm/conf"
 	"github.com/kdrag0n/macvirt/macvmm/vclient"
+	"github.com/sirupsen/logrus"
 
 	_ "net/http/pprof"
 )
@@ -51,7 +51,7 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 		println("stop")
 		err := s.routerVm.Stop()
 		if err != nil {
-			log.Println(err)
+			logrus.Error("router vm stop", err)
 		}
 
 		println("start")
@@ -68,7 +68,10 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 		go func() {
 			runtime.SetBlockProfileRate(1)
 			runtime.SetMutexProfileFraction(1)
-			log.Println(http.ListenAndServe("localhost:6060", nil))
+			err := http.ListenAndServe("localhost:6060", nil)
+			if err != nil {
+				logrus.Error("pprof: ListenAndServe() =", err)
+			}
 		}()
 	}
 

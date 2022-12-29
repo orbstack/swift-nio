@@ -3,11 +3,11 @@ package icmpfwd
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/udpfwd"
+	"github.com/sirupsen/logrus"
 	goipv4 "golang.org/x/net/ipv4"
 	goipv6 "golang.org/x/net/ipv6"
 	"golang.org/x/sys/unix"
@@ -130,9 +130,8 @@ func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
 		i.conn4.SetTOS(int(tos))
 
 		_, err := i.conn4.WriteTo(icmpMsg, nil, dstAddr)
-		// TODO dont print
 		if err != nil {
-			log.Println("error writing to icmp4 socket", err)
+			logrus.Error("error writing to icmp4 socket", err)
 			return false
 		}
 		return true
@@ -155,7 +154,7 @@ func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
 
 		_, err := i.conn6.WriteTo(icmpMsg, nil, dstAddr)
 		if err != nil {
-			log.Println("error writing to icmp6 socket", err)
+			logrus.Error("error writing to icmp6 socket", err)
 			return false
 		}
 		return true
@@ -174,14 +173,14 @@ func (i *IcmpFwd) forwardReplies4() error {
 	for {
 		n, _, _, err := i.conn4.ReadFrom(fullBuf)
 		if err != nil {
-			log.Println("error reading from icmp4 socket", err)
+			logrus.Error("error reading from icmp4 socket", err)
 			return err
 		}
 		msg := fullBuf[:n]
 
 		err = i.handleReply4(msg)
 		if err != nil {
-			log.Println("error handling icmp4 reply", err)
+			logrus.Error("error handling icmp4 reply", err)
 		}
 	}
 }
@@ -289,14 +288,14 @@ func (i *IcmpFwd) forwardReplies6() error {
 	for {
 		n, cm, addr, err := i.conn6.ReadFrom(fullBuf)
 		if err != nil {
-			log.Println("error reading from icmp6 socket", err)
+			logrus.Error("error reading from icmp6 socket", err)
 			return err
 		}
 		msg := fullBuf[:n]
 
 		err = i.handleReply6(msg, cm, addr)
 		if err != nil {
-			log.Println("error handling icmp6 reply", err)
+			logrus.Error("error handling icmp6 reply", err)
 		}
 	}
 }

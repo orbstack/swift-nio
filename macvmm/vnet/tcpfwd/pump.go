@@ -5,7 +5,7 @@ import (
 	"io"
 	"net"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type FullDuplexConn interface {
@@ -18,7 +18,6 @@ func pump1(errc chan<- error, src, dst FullDuplexConn) {
 	// Workaround for NFS panic
 	defer func() {
 		if err := recover(); err != nil {
-			log.Errorf("tcp pump1: panic: %v", err)
 			errc <- fmt.Errorf("tcp pump1: panic: %v", err)
 		}
 	}()
@@ -40,9 +39,11 @@ func pump2(c1, c2 FullDuplexConn) {
 
 	// Don't wait for both if one side failed (not EOF)
 	if err1 := <-errChan; err1 != nil {
+		logrus.Error("tcp pump2 error 1", err1)
 		return
 	}
 	if err2 := <-errChan; err2 != nil {
+		logrus.Error("tcp pump2 error 2", err2)
 		return
 	}
 }

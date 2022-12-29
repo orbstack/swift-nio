@@ -85,7 +85,6 @@ func NonBlockingWriteIovec(fd int, iovec []unix.Iovec) tcpip.Error {
 	iovecLen := uintptr(len(iovec))
 	_, _, e := unix.RawSyscall(unix.SYS_WRITEV, uintptr(fd), uintptr(unsafe.Pointer(&iovec[0])), iovecLen)
 	if e != 0 {
-		//fmt.Println("[NonBlockingWriteIovec] writev error: ", e)
 		return TranslateErrno(e)
 	}
 	return nil
@@ -110,7 +109,6 @@ func BlockingReadvUntilStopped(efd int, fd int, iovecs []unix.Iovec) (int, tcpip
 			return int(n), nil
 		}
 		if e != 0 && e != unix.EWOULDBLOCK {
-			//fmt.Println("[BlockingReadvUntilStopped] readv error: ", e)
 			return 0, TranslateErrno(e)
 		}
 		stopped, e := BlockingPollUntilStopped(efd, fd, unix.POLLIN)
@@ -118,7 +116,6 @@ func BlockingReadvUntilStopped(efd int, fd int, iovecs []unix.Iovec) (int, tcpip
 			return -1, nil
 		}
 		if e != 0 && e != unix.EINTR {
-			//fmt.Println("[BlockingReadvUntilStopped] poll error: ", e)
 			return 0, TranslateErrno(e)
 		}
 	}

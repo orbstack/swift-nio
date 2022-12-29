@@ -9,7 +9,6 @@ replace gvisor.dev/gvisor => /Users/dragon/code/vm/gvisor
 
 require (
 	github.com/Code-Hex/vz/v3 v3.0.0
-	github.com/google/gopacket v1.1.19
 	github.com/pkg/term v1.1.0
 	golang.org/x/sys v0.3.0
 )

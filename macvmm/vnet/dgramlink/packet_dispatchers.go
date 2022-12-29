@@ -177,7 +177,6 @@ func (d *readVDispatcher) release() {
 func (d *readVDispatcher) dispatch() (bool, tcpip.Error) {
 	n, err := rawfile.BlockingReadvUntilStopped(d.EFD, d.fd, d.buf.nextIovecs())
 	if n <= 0 || err != nil {
-		//fmt.Println("[READ_ERROR] ", err, "n: ", n, "")
 		return false, err
 	}
 

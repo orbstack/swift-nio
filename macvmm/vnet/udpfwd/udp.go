@@ -7,7 +7,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
@@ -32,7 +32,7 @@ func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)
 		if tcpErr != nil {
-			log.Errorf("r.CreateEndpoint() = %v", tcpErr)
+			logrus.Error("r.CreateEndpoint() =", tcpErr)
 			return
 		}
 
@@ -45,7 +45,7 @@ func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			return net.Dial("udp", extAddr)
 		}, true)
 		if err != nil {
-			log.Errorf("NewUDPProxy() = %v", err)
+			logrus.Error("NewUDPProxy() =", err)
 			return
 		}
 

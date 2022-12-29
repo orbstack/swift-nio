@@ -3,10 +3,10 @@ package hcsrv
 import (
 	"crypto/rand"
 	"encoding/base32"
-	"log"
 	"net/http"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -56,7 +56,7 @@ func ListenHcontrol(stack *stack.Stack, address tcpip.Address) error {
 	go func() {
 		err := server.Serve(listener)
 		if err != nil {
-			log.Printf("hcontrol: Serve() = %v", err)
+			logrus.Error("hcontrol: Serve() =", err)
 		}
 	}()
 

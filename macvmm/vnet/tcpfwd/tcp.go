@@ -10,7 +10,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -29,7 +29,6 @@ func tryClose(conn *gonet.TCPConn) (err error) {
 	defer func() {
 		if err := recover(); err != nil {
 			err = fmt.Errorf("tcpfwd: close panic: %v", err)
-			log.Error(err)
 		}
 	}()
 
@@ -41,7 +40,6 @@ func tryAbort(conn *gonet.TCPConn) (err error) {
 	defer func() {
 		if err := recover(); err != nil {
 			err = fmt.Errorf("tcpfwd: abort panic: %v", err)
-			log.Error(err)
 		}
 	}()
 
@@ -62,7 +60,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		// Workaround for NFS panic
 		defer func() {
 			if err := recover(); err != nil {
-				log.Errorf("tcpfwd: panic: %v", err)
+				logrus.Error("tcpfwd: panic in forwarder", err)
 			}
 		}()
 
@@ -81,7 +79,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 
 		extConn, err := net.DialTimeout("tcp", extAddr, tcpConnectTimeout)
 		if err != nil {
-			log.Errorf("net.Dial() %v = %v", extAddr, err)
+			logrus.Errorf("TCP forward [%v] dial failed: %v", extAddr, err)
 			// if connection refused
 			if errors.Is(err, unix.ECONNREFUSED) || errors.Is(err, unix.ECONNRESET) {
 				// send RST
@@ -104,7 +102,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		r.Complete(false)
 		if tcpErr != nil {
 			// Maybe VM abandoned the connection already, nothing to do
-			log.Errorf("r.CreateEndpoint() [%v] = %v", extAddr, tcpErr)
+			logrus.Errorf("TCP forward [%v] create endpoint failed: %v", extAddr, tcpErr)
 			return
 		}
 
@@ -112,7 +110,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		defer func() {
 			err := tryBestCleanup(virtConn)
 			if err != nil {
-				log.Errorf("tcpfwd: cleanup panic: %v", err)
+				logrus.Error("tcpfwd: cleanup panic", err)
 			}
 		}()
 
