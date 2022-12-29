@@ -5,7 +5,7 @@ import (
 	"io"
 	"net"
 
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 )
 
 type FullDuplexConn interface {
@@ -39,11 +39,11 @@ func pump2(c1, c2 FullDuplexConn) {
 
 	// Don't wait for both if one side failed (not EOF)
 	if err1 := <-errChan; err1 != nil {
-		zap.S().Error("tcp pump2 error 1", err1)
+		logrus.Error("tcp pump2 error 1", err1)
 		return
 	}
 	if err2 := <-errChan; err2 != nil {
-		zap.S().Error("tcp pump2 error 2", err2)
+		logrus.Error("tcp pump2 error 2", err2)
 		return
 	}
 }

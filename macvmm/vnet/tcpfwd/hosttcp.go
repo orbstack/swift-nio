@@ -9,7 +9,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
@@ -116,7 +116,7 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 
 	// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
 	if f.requireLoopback && !remoteAddr.IP.IsLoopback() {
-		zap.S().Debug("rejecting connection from non-loopback address", remoteAddr)
+		logrus.Debug("rejecting connection from non-loopback address", remoteAddr)
 		return
 	}
 
@@ -147,7 +147,7 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 		Port: uint16(remoteAddr.Port),
 	}
 
-	zap.S().Debug("dial from", virtSrcAddr, "to", connectAddr, "with proto", proto, "and timeout", tcpConnectTimeout)
+	logrus.Trace("dial from", virtSrcAddr, "to", connectAddr, "with proto", proto, "and timeout", tcpConnectTimeout)
 	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(tcpConnectTimeout))
 	defer cancel()
 	virtConn, err := gonet.DialTCPWithBind(ctx, f.stack, virtSrcAddr, connectAddr, proto)

@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -56,7 +56,7 @@ func ListenHcontrol(stack *stack.Stack, address tcpip.Address) error {
 	go func() {
 		err := server.Serve(listener)
 		if err != nil {
-			zap.S().Error("hcontrol: Serve() =", err)
+			logrus.Error("hcontrol: Serve() =", err)
 		}
 	}()
 

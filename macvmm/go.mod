@@ -14,12 +14,6 @@ require (
 )
 
 require (
-	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/multierr v1.9.0 // indirect
-	go.uber.org/zap v1.24.0 // indirect
-)
-
-require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/miekg/dns v1.1.50
 	github.com/pkg/sftp v1.13.5

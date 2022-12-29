@@ -13,7 +13,7 @@ import (
 	"time"
 	"unsafe"
 
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 )
 
 //export go_iokit_sleepwake_callback
@@ -21,13 +21,13 @@ func go_iokit_sleepwake_callback(refcon unsafe.Pointer, service C.io_service_t, 
 	switch messageType {
 	// Always allow sleep. The purpose of this callback is just for notifying
 	case C.kIOMessageCanSystemSleep:
-		zap.S().Debug("**** can sleep")
+		logrus.Debug("**** can sleep")
 		C.IOAllowPowerChange(rootPort, C.long(uintptr(messageArgument)))
 	case C.kIOMessageSystemWillSleep:
-		zap.S().Debug("**** will sleep")
+		logrus.Debug("**** will sleep")
 		C.IOAllowPowerChange(rootPort, C.long(uintptr(messageArgument)))
 	case C.kIOMessageSystemWillPowerOn:
-		zap.S().Info("**** sync time")
+		logrus.Info("**** sync time")
 		// Never block
 		go func() {
 			wakeChan <- time.Now()
