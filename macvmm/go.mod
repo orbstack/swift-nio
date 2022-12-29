@@ -14,11 +14,6 @@ require (
 )
 
 require (
-	github.com/go-logr/logr v1.2.3 // indirect
-	k8s.io/klog/v2 v2.80.1 // indirect
-)
-
-require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/miekg/dns v1.1.50
 	github.com/pkg/sftp v1.13.5

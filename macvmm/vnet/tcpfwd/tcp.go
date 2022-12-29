@@ -10,12 +10,12 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -60,7 +60,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		// Workaround for NFS panic
 		defer func() {
 			if err := recover(); err != nil {
-				klog.Error("tcpfwd: panic in forwarder", err)
+				logrus.Error("tcpfwd: panic in forwarder", err)
 			}
 		}()
 
@@ -79,7 +79,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 
 		extConn, err := net.DialTimeout("tcp", extAddr, tcpConnectTimeout)
 		if err != nil {
-			klog.Errorf("TCP forward [%v] dial failed: %v", extAddr, err)
+			logrus.Errorf("TCP forward [%v] dial failed: %v", extAddr, err)
 			// if connection refused
 			if errors.Is(err, unix.ECONNREFUSED) || errors.Is(err, unix.ECONNRESET) {
 				// send RST
@@ -102,7 +102,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		r.Complete(false)
 		if tcpErr != nil {
 			// Maybe VM abandoned the connection already, nothing to do
-			klog.Errorf("TCP forward [%v] create endpoint failed: %v", extAddr, tcpErr)
+			logrus.Errorf("TCP forward [%v] create endpoint failed: %v", extAddr, tcpErr)
 			return
 		}
 
@@ -110,7 +110,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		defer func() {
 			err := tryBestCleanup(virtConn)
 			if err != nil {
-				klog.Error("tcpfwd: cleanup panic", err)
+				logrus.Error("tcpfwd: cleanup panic", err)
 			}
 		}()
 

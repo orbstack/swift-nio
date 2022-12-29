@@ -8,7 +8,7 @@ import "C"
 import (
 	"unsafe"
 
-	"k8s.io/klog/v2"
+	"github.com/sirupsen/logrus"
 )
 
 //export go_dnssd_callback
@@ -20,12 +20,12 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 	query, ok := queryMap[context]
 	queryMapMu.RUnlock()
 	if !ok {
-		klog.Error("no dns query for context", context)
+		logrus.Error("no dns query for context", context)
 		return
 	}
 
 	if errorCode != 0 {
-		klog.Error("dnssd error %d", errorCode)
+		logrus.Error("dnssd error %d", errorCode)
 		query.err = mapError(int(errorCode))
 		query.done = true
 		C.DNSServiceRefDeallocate(query.ref)

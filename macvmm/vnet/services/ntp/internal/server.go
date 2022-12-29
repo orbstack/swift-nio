@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog/v2"
+	"github.com/sirupsen/logrus"
 )
 
 // BUG(marineam): Since our clock source is UTC instead of TAI or some type of
@@ -97,7 +97,7 @@ func (s *Server) UpdateOffset(now time.Time) (time.Duration, LeapIndicator) {
 	}
 
 	if s.leapType == LEAP_ADD && !now.Before(s.leapTime) {
-		klog.Infof("Inserting leap second at %s", s.leapTime)
+		logrus.Infof("Inserting leap second at %s", s.leapTime)
 		s.offset -= time.Second
 		s.leapTime = time.Time{}
 		s.leapType = LEAP_NONE
@@ -105,7 +105,7 @@ func (s *Server) UpdateOffset(now time.Time) (time.Duration, LeapIndicator) {
 	} else if s.leapType == LEAP_SUB &&
 		!now.Before(s.leapTime.Add(-time.Second)) {
 
-		klog.Infof("Skipping leap second at %s", s.leapTime)
+		logrus.Infof("Skipping leap second at %s", s.leapTime)
 		s.offset += time.Second
 		s.leapTime = time.Time{}
 		s.leapType = LEAP_NONE
@@ -122,7 +122,7 @@ func (s *Server) Serve() {
 			// gracefully quit
 			return
 		} else if err != nil {
-			klog.Error("NTP server failed", err)
+			logrus.Error("NTP server failed", err)
 			return
 		}
 		go s.Respond(req)
@@ -146,27 +146,27 @@ func (s *Server) Accept() (*ServerReq, error) {
 // Respond to a single NTP request.
 func (s *Server) Respond(r *ServerReq) {
 	if len(r.Packet) == cap(r.Packet) {
-		klog.Errorf("Ignoring huge NTP packet from %s", r.Client)
+		logrus.Errorf("Ignoring huge NTP packet from %s", r.Client)
 		return
 	}
 
 	recv := Header{}
 	if err := recv.UnmarshalBinary(r.Packet); err != nil {
-		klog.Errorf("Invalid NTP packet from %s: %v", r.Client, err)
+		logrus.Errorf("Invalid NTP packet from %s: %v", r.Client, err)
 		return
 	}
 
 	if recv.VersionNumber != NTPv4 {
-		klog.Errorf("Invalid NTP version from %s: %d", r.Client, recv.VersionNumber)
+		logrus.Errorf("Invalid NTP version from %s: %d", r.Client, recv.VersionNumber)
 		return
 	}
 
 	if recv.Mode != MODE_CLIENT {
-		klog.Errorf("Invalid NTP mode from %s: %d", r.Client, recv.Mode)
+		logrus.Errorf("Invalid NTP mode from %s: %d", r.Client, recv.Mode)
 		return
 	}
 
-	klog.V(1).Info("NTP request from ", r.Client)
+	logrus.Debug("NTP request from ", r.Client)
 
 	// BUG(marineam): We doesn't account for the possibility of
 	// UpdateOffset behaving differently for the transmit time instead of
@@ -190,13 +190,13 @@ func (s *Server) Respond(r *ServerReq) {
 
 	pkt, err := resp.MarshalBinary()
 	if err != nil {
-		klog.Error("create NTP packet failed: %v", err)
+		logrus.Error("create NTP packet failed: %v", err)
 		return
 	}
 
 	_, err = s.WriteTo(pkt, r.Client)
 	if err != nil {
-		klog.Errorf("send NTP reply to %s: %v", r.Client, err)
+		logrus.Errorf("send NTP reply to %s: %v", r.Client, err)
 		return
 	}
 }

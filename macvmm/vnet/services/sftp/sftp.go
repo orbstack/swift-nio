@@ -3,10 +3,10 @@ package sftpsrv
 import (
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	"github.com/pkg/sftp"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -34,14 +34,14 @@ func ListenSFTP(stack *stack.Stack, address tcpip.Address) error {
 
 				server, err := sftp.NewServer(conn, sftp.WithAllocator())
 				if err != nil {
-					klog.Error("sftp.NewServer() =", err)
+					logrus.Error("sftp.NewServer() =", err)
 					return
 				}
 				defer server.Close()
 
 				err = server.Serve()
 				if err != nil {
-					klog.Error("server.Serve() =", err)
+					logrus.Error("server.Serve() =", err)
 					return
 				}
 			}()

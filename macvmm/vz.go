@@ -13,7 +13,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmm/vclient"
 	"github.com/kdrag0n/macvirt/macvmm/vnet"
 	hcsrv "github.com/kdrag0n/macvirt/macvmm/vnet/services/hcontrol"
-	"k8s.io/klog/v2"
+	"github.com/sirupsen/logrus"
 )
 
 type VmConfig struct {
@@ -70,7 +70,7 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	if c.Console {
 		cmdline = append(cmdline, "console=hvc0")
 	}
-	klog.V(1).Info("cmdline", cmdline)
+	logrus.Debug("cmdline", cmdline)
 
 	bootloader, err := vz.NewLinuxBootLoader(
 		c.Kernel,
@@ -227,7 +227,7 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	validated, err := config.Validate()
 	check(err)
 	if !validated {
-		klog.Fatal("validation failed", err)
+		logrus.Fatal("validation failed", err)
 	}
 
 	// virtiofs (shared)

@@ -4,8 +4,8 @@ import (
 	"net"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/sockets"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
-	"k8s.io/klog/v2"
 )
 
 type TcpVsockHostForwarder struct {
@@ -47,7 +47,7 @@ func (f *TcpVsockHostForwarder) handleConn(conn net.Conn) {
 	// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
 	remoteAddr := conn.RemoteAddr().(*net.TCPAddr)
 	if f.requireLoopback && !remoteAddr.IP.IsLoopback() {
-		klog.V(1).Info("rejecting connection from non-loopback address", remoteAddr)
+		logrus.Debug("rejecting connection from non-loopback address", remoteAddr)
 		return
 	}
 
@@ -66,7 +66,7 @@ func (f *TcpVsockHostForwarder) handleConn(conn net.Conn) {
 	rawConn.Control(func(fd uintptr) {
 		err := sockets.SetLargeBuffers(int(fd))
 		if err != nil {
-			klog.Error("failed to set large buffers", err)
+			logrus.Error("failed to set large buffers", err)
 		}
 	})
 
@@ -77,11 +77,11 @@ func (f *TcpVsockHostForwarder) handleConn(conn net.Conn) {
 	rawConn.Control(func(fd uintptr) {
 		err := sockets.SetLargeBuffers(int(fd))
 		if err != nil {
-			klog.Error("failed to set large buffers", err)
+			logrus.Error("failed to set large buffers", err)
 		}
 		err = unix.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_NODELAY, 1)
 		if err != nil {
-			klog.Error("failed to set TCP_NODELAY", err)
+			logrus.Error("failed to set TCP_NODELAY", err)
 		}
 	})
 

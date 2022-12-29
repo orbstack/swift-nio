@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -140,7 +140,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 			// ECONNREFUSED like Read do (see comment in
 			// UDPProxy.replyLoop)
 			if !errors.Is(err, net.ErrClosed) {
-				klog.Error("UDP proxy conn ReadFrom() failed:", err)
+				logrus.Error("UDP proxy conn ReadFrom() failed:", err)
 			}
 			break
 		}
@@ -151,7 +151,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 		if !hit {
 			extConn, err = proxy.dialer(from.(*net.UDPAddr))
 			if err != nil {
-				klog.Error("UDP dial failed", err)
+				logrus.Error("UDP dial failed", err)
 				proxy.connTrackLock.Unlock()
 				continue
 			}
@@ -177,7 +177,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 				if newTtl != lastTtl {
 					rawConn, err := extConn.(*net.UDPConn).SyscallConn()
 					if err != nil {
-						klog.Error("UDP set TTL failed", err)
+						logrus.Error("UDP set TTL failed", err)
 					} else {
 						rawConn.Control(func(fd uintptr) {
 							var err error
@@ -187,7 +187,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 								err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_UNICAST_HOPS, int(newTtl))
 							}
 							if err != nil {
-								klog.Error("UDP set TTL failed", err)
+								logrus.Error("UDP set TTL failed", err)
 							}
 						})
 					}
@@ -201,11 +201,11 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 		written, err := extConn.Write(readBuf[:read])
 		if err != nil {
 			if !errors.Is(err, unix.ENOBUFS) {
-				klog.Error("UDP write failed", err)
+				logrus.Error("UDP write failed", err)
 				break
 			}
 		} else if written != read {
-			klog.Error("UDP write failed: short write")
+			logrus.Error("UDP write failed: short write")
 			break
 		}
 	}

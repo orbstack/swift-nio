@@ -7,11 +7,11 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmm/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmm/vnet/netutil"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
-	"k8s.io/klog/v2"
 )
 
 func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *udp.Forwarder {
@@ -32,7 +32,7 @@ func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)
 		if tcpErr != nil {
-			klog.Error("r.CreateEndpoint() =", tcpErr)
+			logrus.Error("r.CreateEndpoint() =", tcpErr)
 			return
 		}
 
@@ -45,7 +45,7 @@ func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			return net.Dial("udp", extAddr)
 		}, true)
 		if err != nil {
-			klog.Error("NewUDPProxy() =", err)
+			logrus.Error("NewUDPProxy() =", err)
 			return
 		}
 
