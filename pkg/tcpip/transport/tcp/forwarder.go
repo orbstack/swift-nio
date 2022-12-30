@@ -65,6 +65,14 @@ func NewForwarder(s *stack.Stack, rcvWnd, maxInFlight int, handler func(*Forward
 // This function is expected to be passed as an argument to the
 // stack.SetTransportProtocolHandler function.
 func (f *Forwarder) HandlePacket(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+	fPkt := pkt.Clone()
+	fRefDecNeeded := true
+	defer func() {
+		if fRefDecNeeded {
+			fPkt.DecRef()
+		}
+	}()
+
 	s, err := newIncomingSegment(id, f.stack.Clock(), pkt)
 	if err != nil {
 		return false
@@ -94,10 +102,13 @@ func (f *Forwarder) HandlePacket(id stack.TransportEndpointID, pkt stack.PacketB
 	// Launch a new goroutine to handle the request.
 	f.inFlight[id] = struct{}{}
 	s.IncRef()
+	// pass ownership to handler
+	fRefDecNeeded = false
 	go f.handler(&ForwarderRequest{ // S/R-SAFE: not used by Sentry.
 		forwarder:  f,
 		segment:    s,
 		synOptions: opts,
+		Pkt:        fPkt,
 	})
 
 	return true
@@ -111,6 +122,7 @@ type ForwarderRequest struct {
 	forwarder  *Forwarder
 	segment    *segment
 	synOptions header.TCPSynOptions
+	Pkt        stack.PacketBufferPtr
 }
 
 // ID returns the 4-tuple (src address, src port, dst address, dst port) that
