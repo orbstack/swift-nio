@@ -114,6 +114,12 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			}
 		}()
 
+		err = setExtNodelay(extConn.(*net.TCPConn), virtConn.RemoteAddr().(*net.TCPAddr).Port)
+		if err != nil {
+			logrus.Errorf("TCP forward [%v] set ext opts failed: %v", extAddr, err)
+			return
+		}
+
 		pump2(virtConn, extConn.(*net.TCPConn))
 	})
 }

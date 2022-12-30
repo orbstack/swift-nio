@@ -156,6 +156,12 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 	}
 	defer virtConn.Close()
 
+	err = setExtNodelay(conn.(*net.TCPConn), int(connectAddr.Port))
+	if err != nil {
+		logrus.Errorf("set ext opts failed ", err)
+		return
+	}
+
 	pump2(conn.(*net.TCPConn), virtConn)
 }
 

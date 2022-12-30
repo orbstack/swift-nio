@@ -211,14 +211,13 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 			return nil, nil, errors.New(err.String())
 		}
 	}
-	/*
-		{
-			opt := tcpip.TCPDelayEnabled(false)
-			if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-				return nil, nil, errors.New(err.String())
-			}
+	// Our network link is pretty much perfect. We control this on the external end instead
+	{
+		opt := tcpip.TCPDelayEnabled(false)
+		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
+			return nil, nil, errors.New(err.String())
 		}
-	*/
+	}
 
 	// Performance
 	{

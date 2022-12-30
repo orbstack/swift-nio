@@ -19,7 +19,7 @@ var (
 )
 
 const (
-	diskStatsInterval = 1 * time.Minute
+	diskStatsInterval = 90 * time.Second
 	readyPollInterval = 200 * time.Millisecond
 )
 
