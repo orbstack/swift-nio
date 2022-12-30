@@ -13,7 +13,6 @@ package iokit
 
 extern void go_iokit_sleepwake_callback(void* refcon, io_service_t service, natural_t messageType, void* messageArgument);
 void iokit_sleepwake_callback(void* refcon, io_service_t service, natural_t messageType, void* messageArgument) {
-	printf("iokit_sleepwake_callback(refcon=%p, service=%d, messageType=%d, messageArgument=%p)\n", refcon, service, messageType, messageArgument);
 	go_iokit_sleepwake_callback(refcon, service, messageType, messageArgument);
 }
 

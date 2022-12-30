@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
@@ -55,12 +57,18 @@ func tryBestCleanup(conn *gonet.TCPConn) error {
 	return tryAbort(conn)
 }
 
-func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex) *tcp.Forwarder {
+func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex, i *icmpfwd.IcmpFwd) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
 		// Workaround for NFS panic
+		// defer func() {
+		// 	if err := recover(); err != nil {
+		// 		logrus.Error("tcpfwd: panic in forwarder: ", err)
+		// 	}
+		// }()
+		refDec := false
 		defer func() {
-			if err := recover(); err != nil {
-				logrus.Error("tcpfwd: panic in forwarder", err)
+			if !refDec {
+				r.Pkt.DecRef()
 			}
 		}()
 
@@ -85,7 +93,12 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 				// send RST
 				r.Complete(true)
 			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) || errors.Is(err, unix.ENETUNREACH) {
-				// TODO: icmp response
+				logrus.Debug("inject ICMP unreachable")
+				if localAddress.To4() == "" {
+					i.InjectDestUnreachable6(r.Pkt, header.ICMPv6NetworkUnreachable)
+				} else {
+					// TODO
+				}
 				r.Complete(false)
 			} else if errors.Is(err, unix.ETIMEDOUT) {
 				r.Complete(false)
@@ -96,6 +109,8 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			return
 		}
 		defer extConn.Close()
+		r.Pkt.DecRef()
+		refDec = true
 
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)

@@ -83,13 +83,20 @@ var (
 	}
 )
 
+type HostForward interface {
+	Close() error
+}
+
 type Network struct {
-	Stack       *stack.Stack
-	NIC         tcpip.NICID
-	VClient     *vclient.VClient
-	VsockDialer func(uint32) (net.Conn, error)
-	file0       *os.File
-	fd1         int
+	Stack        *stack.Stack
+	NIC          tcpip.NICID
+	VClient      *vclient.VClient
+	VsockDialer  func(uint32) (net.Conn, error)
+	ICMP         *icmpfwd.IcmpFwd
+	NatTable     map[tcpip.Address]tcpip.Address
+	hostForwards map[string]HostForward
+	file0        *os.File
+	fd1          int
 }
 
 func str(port int) string {
@@ -100,16 +107,44 @@ type NetOptions struct {
 	MTU uint32
 }
 
-func StartGvnetPair(opts NetOptions) (*Network, *os.File, error) {
-	return runGvnetDgramPair(opts)
-}
-
-func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
+func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	file0, fd1, err := NewUnixgramPair()
 	if err != nil {
 		return nil, nil, err
 	}
 
+	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nicEp, err := dgramlink.New(&dgramlink.Options{
+		FDs:            []int{fd1},
+		MTU:            opts.MTU,
+		EthernetHeader: true,
+		Address:        macAddr,
+		// no need for GSO when our MTU is so high. 16 -> 17 Gbps
+		// GSOMaxSize:         opts.MTU,
+		GvisorGSOEnabled:   false,
+		PacketDispatchMode: dgramlink.Readv,
+		TXChecksumOffload:  true,
+		RXChecksumOffload:  true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	network, err := startNet(opts, nicEp)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	network.file0 = file0
+	network.fd1 = fd1
+	return network, file0, nil
+}
+
+func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	s := stack.New(stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -126,77 +161,56 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 		AllowPacketEndpointWrite: true,
 	})
 
-	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	endpoint, err := dgramlink.New(&dgramlink.Options{
-		FDs:            []int{fd1},
-		MTU:            opts.MTU,
-		EthernetHeader: true,
-		Address:        macAddr,
-		// no need for GSO when our MTU is so high. 16 -> 17 Gbps
-		// GSOMaxSize:         opts.MTU,
-		GvisorGSOEnabled:   false,
-		PacketDispatchMode: dgramlink.Readv,
-		TXChecksumOffload:  true,
-		RXChecksumOffload:  true,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
 	if capturePcap {
 		_ = os.Remove("gv.pcap")
 		f, err := os.Create("gv.pcap")
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		endpoint, err = sniffer.NewWithWriter(endpoint, f, math.MaxUint32)
+		nicEp, err = sniffer.NewWithWriter(nicEp, f, math.MaxUint32)
 	}
 
-	if err := s.CreateNIC(nicId, endpoint); err != nil {
-		return nil, nil, errors.New(err.String())
+	if err := s.CreateNIC(nicId, nicEp); err != nil {
+		return nil, errors.New(err.String())
 	}
 
 	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
 		AddressWithPrefix: netutil.ParseTcpipAddress(gatewayIP4).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
-		return nil, nil, errors.New(err.String())
+		return nil, errors.New(err.String())
 	}
 	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol:          ipv6.ProtocolNumber,
 		AddressWithPrefix: netutil.ParseTcpipAddress(gatewayIP6).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
-		return nil, nil, errors.New(err.String())
+		return nil, errors.New(err.String())
 	}
 
 	if err := s.SetSpoofing(nicId, true); err != nil {
-		return nil, nil, errors.New(err.String())
+		return nil, errors.New(err.String())
 	}
 	// Accept all packets so we can forward them
 	if err := s.SetPromiscuousMode(nicId, true); err != nil {
-		return nil, nil, errors.New(err.String())
+		return nil, errors.New(err.String())
 	}
 
 	_, ipSubnet4, err := net.ParseCIDR(subnet4 + ".0/24")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	subnet4, err := tcpip.NewSubnet(tcpip.Address(ipSubnet4.IP.To4()), tcpip.AddressMask(ipSubnet4.Mask))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	_, ipSubnet6, err := net.ParseCIDR(subnet6 + ":0/64")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	subnet6, err := tcpip.NewSubnet(tcpip.Address(ipSubnet6.IP.To16()), tcpip.AddressMask(ipSubnet6.Mask))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	s.SetRouteTable([]tcpip.Route{
@@ -208,14 +222,14 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 	{
 		opt := tcpip.TCPSACKEnabled(true)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-			return nil, nil, errors.New(err.String())
+			return nil, errors.New(err.String())
 		}
 	}
 	// Our network link is pretty much perfect. We control this on the external end instead
 	{
 		opt := tcpip.TCPDelayEnabled(false)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-			return nil, nil, errors.New(err.String())
+			return nil, errors.New(err.String())
 		}
 	}
 
@@ -223,25 +237,18 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 	{
 		opt := tcpip.TCPModerateReceiveBufferOption(true)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-			return nil, nil, errors.New(err.String())
+			return nil, errors.New(err.String())
 		}
 	}
 
 	{
 		opt := tcpip.CongestionControlOption("cubic")
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-			return nil, nil, errors.New(err.String())
+			return nil, errors.New(err.String())
 		}
 	}
 
-	// TODO: pmtu, nagle's algorithm, buffer sizes
-	// {
-	// 	opt := tcpip.TCPDelayEnabled(false)
-	// 	if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
-	// 		return nil, nil, errors.New(err.String())
-	// 	}
-	// }
-
+	// TODO: buffer sizes
 	// {
 	// 	opt := tcpip.TCPReceiveBufferSizeRangeOption{Min: 1, Default: 2 * 1024 * 1024, Max: 2 * 1024 * 1024}
 	// 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt)
@@ -251,6 +258,18 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 	// 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt)
 	// }
 
+	// ICMP, used by forwarders
+	guestAddr4 := netutil.ParseTcpipAddress(guestIP4)
+	guestAddr6 := netutil.ParseTcpipAddress(guestIP6)
+	gatewayAddr4 := netutil.ParseTcpipAddress(gatewayIP4)
+	gatewayAddr6 := netutil.ParseTcpipAddress(gatewayIP6)
+	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicId, guestAddr4, guestAddr6, gatewayAddr4, gatewayAddr6)
+	if err != nil {
+		return nil, err
+	}
+	go icmpFwd.ProxyRequests()
+	icmpFwd.MonitorReplies()
+
 	// Build NAT table
 	var natLock sync.RWMutex
 	natTable := make(map[tcpip.Address]tcpip.Address)
@@ -259,28 +278,17 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 	}
 
 	// Forwarders
-	tcpForwarder := tcpfwd.NewTcpForwarder(s, natTable, &natLock)
+	tcpForwarder := tcpfwd.NewTcpForwarder(s, natTable, &natLock, icmpFwd)
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
-	udpForwarder := udpfwd.NewUdpForwarder(s, natTable, &natLock)
+	udpForwarder := udpfwd.NewUdpForwarder(s, natTable, &natLock, icmpFwd)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
-
-	// ICMP
-	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicId, guestIP4, guestIP6)
-	if err != nil {
-		return nil, nil, err
-	}
-	go icmpFwd.ProxyRequests()
-	icmpFwd.MonitorReplies()
-
-	// Services
-	startNetServices(s)
 
 	// vcontrol client
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, s, tcpip.FullAddress{
-				Addr: netutil.ParseTcpipAddress(guestIP4),
+				Addr: guestAddr4,
 				Port: conf.GuestPortVcontrol,
 			}, ipv4.ProtocolNumber)
 		},
@@ -296,18 +304,24 @@ func runGvnetDgramPair(opts NetOptions) (*Network, *os.File, error) {
 		NIC:         nicId,
 		VClient:     vc,
 		VsockDialer: nil,
-		file0:       file0,
-		fd1:         fd1,
+		ICMP:        icmpFwd,
+		NatTable:    natTable,
+		file0:       nil,
+		fd1:         -1,
 	}
-	return network, file0, nil
+
+	// Services
+	network.startNetServices()
+
+	return network, nil
 }
 
-func startNetServices(s *stack.Stack) {
+func (n *Network) startNetServices() {
 	addr := netutil.ParseTcpipAddress(servicesIP4)
 
 	// DNS (53): using system resolver
 	if runDns {
-		err := dnssrv.ListenDNS(s, addr, staticDnsHosts)
+		err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts)
 		if err != nil {
 			logrus.Error("Failed to start DNS server", err)
 		}
@@ -315,7 +329,7 @@ func startNetServices(s *stack.Stack) {
 
 	// NTP (123): using system time
 	if runNtp {
-		err := ntpsrv.ListenNTP(s, addr)
+		err := ntpsrv.ListenNTP(n.Stack, addr)
 		if err != nil {
 			logrus.Error("Failed to start NTP server", err)
 		}
@@ -323,7 +337,7 @@ func startNetServices(s *stack.Stack) {
 
 	// Host control (8300): HTTP API
 	if runHcontrol {
-		err := hcsrv.ListenHcontrol(s, addr)
+		err := hcsrv.ListenHcontrol(n.Stack, addr)
 		if err != nil {
 			logrus.Error("Failed to start host control server", err)
 		}
@@ -331,7 +345,7 @@ func startNetServices(s *stack.Stack) {
 
 	// SFTP (22323): Android file sharing
 	if runSftp {
-		err := sftpsrv.ListenSFTP(s, addr)
+		err := sftpsrv.ListenSFTP(n.Stack, addr)
 		if err != nil {
 			logrus.Error("Failed to start SFTP server", err)
 		}
@@ -341,8 +355,12 @@ func startNetServices(s *stack.Stack) {
 func (n *Network) Close() error {
 	n.VClient.Close()
 	n.Stack.Destroy()
-	n.file0.Close()
-	file1 := os.NewFile(uintptr(n.fd1), "fd1")
-	file1.Close()
+	if n.file0 != nil {
+		n.file0.Close()
+	}
+	if n.fd1 != -1 {
+		file1 := os.NewFile(uintptr(n.fd1), "fd1")
+		file1.Close()
+	}
 	return nil
 }

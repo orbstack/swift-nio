@@ -102,7 +102,7 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	// 1. gvnet
 	var vnetwork *vnet.Network
 	if c.NetworkGvnet {
-		newNetwork, gvnetFile, err := vnet.StartGvnetPair(vnet.NetOptions{
+		newNetwork, gvnetFile, err := vnet.StartUnixgramPair(vnet.NetOptions{
 			MTU: uint32(mtu),
 		})
 		vnetwork = newNetwork

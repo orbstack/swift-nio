@@ -13,11 +13,16 @@ import (
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	gvicmp "gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
+)
+
+const (
+	maxIcmp6PktSize = 1280
 )
 
 type IcmpFwd struct {
@@ -30,6 +35,12 @@ type IcmpFwd struct {
 	// TODO proper connection tracking
 	lastSourceAddr4 tcpip.Address
 	lastSourceAddr6 tcpip.Address
+	gatewayAddr4    tcpip.Address
+	gatewayAddr6    tcpip.Address
+}
+
+func newFlowLabel(s *stack.Stack) uint32 {
+	return uint32(s.Rand().Int31n(0xfffff))
 }
 
 // don't set STRIPHDR - we want the IP header
@@ -68,7 +79,7 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 	return goipv6.NewPacketConn(c), nil
 }
 
-func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6 tcpip.Address) (*IcmpFwd, error) {
+func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6, gatewayAddr4, gatewayAddr6 tcpip.Address) (*IcmpFwd, error) {
 	conn4, err := newIcmpPacketConn4()
 	if err != nil {
 		return nil, err
@@ -85,6 +96,8 @@ func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6 tc
 		conn6:           conn6,
 		lastSourceAddr4: initialAddr4,
 		lastSourceAddr6: initialAddr6,
+		gatewayAddr4:    gatewayAddr4,
+		gatewayAddr6:    gatewayAddr6,
 	}, nil
 }
 
@@ -317,7 +330,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 	ipHdr := header.IPv6(replyMsg)
 	ipHdr.SetPayloadLength(uint16(len(msg)))
 	ipHdr.SetHopLimit(uint8(cm.HopLimit))
-	ipHdr.SetTOS(uint8(cm.TrafficClass), 0) // flow label = 0
+	ipHdr.SetTOS(uint8(cm.TrafficClass), newFlowLabel(i.stack))
 	ipHdr.SetDestinationAddress(i.lastSourceAddr6)
 	ipHdr.SetSourceAddress(tcpip.Address(addr.(*net.UDPAddr).IP.To16()))
 	ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
@@ -388,6 +401,46 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 	icmpHdr.UpdateChecksumPseudoHeaderAddress(tcpip.Address(cm.Dst), ipHdr.DestinationAddress())
 
 	return i.sendReply(ipv6.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), replyMsg)
+}
+
+func (i *IcmpFwd) InjectDestUnreachable6(pkt stack.PacketBufferPtr, code header.ICMPv6Code) error {
+	// Make a new IP header
+	// TODO do this better
+	payload := append(pkt.NetworkHeader().View().ToSlice(), pkt.Network().Payload()...)
+	totalLen := header.IPv6MinimumSize + header.ICMPv6MinimumSize + len(payload)
+	if totalLen > maxIcmp6PktSize {
+		totalLen = maxIcmp6PktSize
+	}
+	payloadLen := totalLen - header.IPv6MinimumSize - header.ICMPv6MinimumSize
+	if len(payload) > payloadLen {
+		payload = payload[:payloadLen]
+	}
+
+	msg := make([]byte, totalLen)
+	ipHdr := header.IPv6(msg)
+	ipHdr.SetPayloadLength(uint16(len(msg) - header.IPv6MinimumSize))
+	ipHdr.SetHopLimit(64)
+	// TODO traffic class
+	ipHdr.SetTOS(0, newFlowLabel(i.stack))
+	ipHdr.SetDestinationAddress(i.lastSourceAddr6)
+	ipHdr.SetSourceAddress(i.gatewayAddr6)
+	ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
+
+	icmpHdr := header.ICMPv6(ipHdr.Payload())
+	icmpHdr.SetType(header.ICMPv6DstUnreachable)
+	icmpHdr.SetCode(code)
+	icmpHdr.SetChecksum(header.ICMPv6Checksum(header.ICMPv6ChecksumParams{
+		Header:      icmpHdr,
+		Src:         i.gatewayAddr6,
+		Dst:         i.lastSourceAddr6,
+		PayloadCsum: checksum.Checksum(payload, 0),
+		PayloadLen:  pkt.Size(),
+	}))
+
+	// Copy payload
+	copy(icmpHdr.Payload(), payload)
+
+	return i.sendReply(ipv6.ProtocolNumber, i.gatewayAddr6, i.lastSourceAddr6, msg)
 }
 
 func (i *IcmpFwd) sendReply(netProto tcpip.NetworkProtocolNumber, srcAddr, dstAddr tcpip.Address, msg []byte) error {

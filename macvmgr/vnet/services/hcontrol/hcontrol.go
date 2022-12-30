@@ -20,6 +20,10 @@ var (
 	instanceToken = genToken()
 )
 
+type HostForwarder interface {
+
+}
+
 func genToken() string {
 	buf := make([]byte, 32)
 	_, err := rand.Read(buf)
