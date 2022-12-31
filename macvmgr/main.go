@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -29,6 +30,19 @@ const (
 	nfsMountTries = 10
 	nfsMountDelay = 500 * time.Millisecond
 )
+
+var (
+	// host -> guest
+	hostForwardsToGuest = map[string]string{
+		"tcp:127.0.0.1:" + str(conf.HostPortSSH): "tcp:" + str(conf.GuestPortSSH),
+		"tcp:127.0.0.1:" + str(conf.HostPortNFS): "vsock:" + str(conf.GuestPortNFS),
+		"unix:" + conf.DockerSocket():            "tcp:" + str(conf.GuestPortDocker),
+	}
+)
+
+func str(port int) string {
+	return strconv.Itoa(port)
+}
 
 func check(err error) {
 	if err != nil {
@@ -205,7 +219,7 @@ func main() {
 
 		return conn.RawConn(), nil
 	}
-	for fromSpec, toSpec := range vnet.HostForwardsToGuest {
+	for fromSpec, toSpec := range hostForwardsToGuest {
 		err := vnetwork.StartForward(fromSpec, toSpec)
 		if err != nil {
 			logrus.Error("host forward failed", err)

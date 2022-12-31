@@ -6,10 +6,8 @@ import (
 	"math"
 	"net"
 	"os"
-	"strconv"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
@@ -58,12 +56,6 @@ const (
 )
 
 var (
-	// host -> guest
-	HostForwardsToGuest = map[string]string{
-		"tcp:127.0.0.1:" + str(conf.HostPortSSH): "tcp:" + str(conf.GuestPortSSH),
-		"tcp:127.0.0.1:" + str(conf.HostPortNFS): "vsock:" + str(conf.GuestPortNFS),
-		"unix:" + conf.DockerSocket():            "tcp:" + str(conf.GuestPortDocker),
-	}
 	// guest -> host
 	natFromGuest = map[string]string{
 		hostNatIP4: "127.0.0.1",
@@ -94,10 +86,6 @@ type Network struct {
 	hostForwards map[string]HostForward
 	file0        *os.File
 	fd1          int
-}
-
-func str(port int) string {
-	return strconv.Itoa(port)
 }
 
 type NetOptions struct {
