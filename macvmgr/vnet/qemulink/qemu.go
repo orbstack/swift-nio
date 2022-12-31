@@ -7,16 +7,17 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink/rawfile"
 	"golang.org/x/sys/unix"
+	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 type endpoint struct {
-	file     *os.File
-	wg       sync.WaitGroup
-	attached bool
-	macAddr  tcpip.LinkAddress
+	file       *os.File
+	wg         sync.WaitGroup
+	dispatcher stack.NetworkDispatcher
+	macAddr    tcpip.LinkAddress
 }
 
 func New(file *os.File, macAddr tcpip.LinkAddress) (stack.LinkEndpoint, error) {
@@ -32,20 +33,20 @@ func New(file *os.File, macAddr tcpip.LinkAddress) (stack.LinkEndpoint, error) {
 }
 
 func (e *endpoint) Attach(dispatcher stack.NetworkDispatcher) {
-	if e.attached {
+	if e.dispatcher != nil || dispatcher == nil {
 		return
 	}
 	e.wg.Add(1)
-	e.attached = true
+	e.dispatcher = dispatcher
 	go func() { // S/R-SAFE: See above.
 		e.dispatchLoop()
-		e.attached = false
+		e.dispatcher = nil
 		e.wg.Done()
 	}()
 }
 
 func (e *endpoint) IsAttached() bool {
-	return e.attached
+	return e.dispatcher != nil
 }
 
 func (e *endpoint) MTU() uint32 {
@@ -69,12 +70,7 @@ func (e *endpoint) Wait() {
 }
 
 func (e *endpoint) AddHeader(pkt stack.PacketBufferPtr) {
-	eth := header.Ethernet(pkt.LinkHeader().Push(header.EthernetMinimumSize))
-	eth.Encode(&header.EthernetFields{
-		SrcAddr: pkt.EgressRoute.LocalLinkAddress,
-		DstAddr: pkt.EgressRoute.RemoteLinkAddress,
-		Type:    pkt.NetworkProtocolNumber,
-	})
+
 }
 
 func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
@@ -131,6 +127,22 @@ func (e *endpoint) dispatchLoop() tcpip.Error {
 		if err != nil {
 			return translateError(err)
 		}
+
+		if n != pktLen {
+			return &tcpip.ErrInvalidEndpointState{}
+		}
+
+		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+			Payload: bufferv2.MakeWithData(pktBuf),
+		})
+		defer pkt.DecRef()
+
+		hdr, ok := pkt.LinkHeader().Consume(header.EthernetMinimumSize)
+		if !ok {
+			return &tcpip.ErrInvalidEndpointState{}
+		}
+		proto := header.Ethernet(hdr).Type()
+		e.dispatcher.DeliverNetworkPacket(proto, pkt)
 	}
 }
 
