@@ -100,9 +100,9 @@ copy_file() {
 
 copy_file rootfs.img rootfs.img
 if [[ "$ARCH" == "arm64" ]]; then
-	copy_file ~/code/android/kvm/linux/arch/arm64/boot/Image kernel
+	copy_file ~/code/android/kvm/linux/out/arch/arm64/boot/Image kernel
 else
-	copy_file ~/code/c/linux/arch/x86_64/boot/bzImage kernel
+	copy_file ~/code/android/kvm/linux/out86/arch/x86/boot/bzImage kernel
 fi
 copy_file data.img.tar data.img.tar
 copy_file swap.img.tar swap.img.tar
