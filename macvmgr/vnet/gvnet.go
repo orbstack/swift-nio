@@ -17,6 +17,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/qemulink"
 	dnssrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/dns"
 	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
 	ntpsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/ntp"
@@ -142,6 +143,26 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	network.file0 = file0
 	network.fd1 = fd1
 	return network, file0, nil
+}
+
+func StartQemuFd(opts NetOptions, fd int) (*Network, error) {
+	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
+	if err != nil {
+		return nil, err
+	}
+
+	nicEp, err := qemulink.New(fd, macAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	network, err := startNet(opts, nicEp)
+	if err != nil {
+		return nil, err
+	}
+
+	network.fd1 = fd
+	return network, nil
 }
 
 func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
