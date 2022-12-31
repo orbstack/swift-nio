@@ -15,6 +15,7 @@ import (
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -144,7 +145,9 @@ func main() {
 	vnetwork, vm := CreateVm(config)
 
 	// VM control server client
-	vc := vnetwork.VClient
+
+	// vcontrol client
+	vc := vclient.NewWithNetwork(vnetwork)
 	err := vc.StartBackground()
 	check(err)
 

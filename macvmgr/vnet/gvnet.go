@@ -2,22 +2,17 @@ package vnet
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"math"
 	"net"
-	"net/http"
 	"os"
 	"strconv"
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/qemulink"
 	dnssrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/dns"
 	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
 	ntpsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/ntp"
@@ -91,10 +86,11 @@ type HostForward interface {
 type Network struct {
 	Stack        *stack.Stack
 	NIC          tcpip.NICID
-	VClient      *vclient.VClient
 	VsockDialer  func(uint32) (net.Conn, error)
 	ICMP         *icmpfwd.IcmpFwd
 	NatTable     map[tcpip.Address]tcpip.Address
+	GuestAddr4   tcpip.Address
+	GuestAddr6   tcpip.Address
 	hostForwards map[string]HostForward
 	file0        *os.File
 	fd1          int
@@ -145,25 +141,25 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	return network, file0, nil
 }
 
-func StartQemuFd(opts NetOptions, fd int) (*Network, error) {
-	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
-	if err != nil {
-		return nil, err
-	}
+// func StartQemuFd(opts NetOptions, fd int) (*Network, error) {
+// 	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	nicEp, err := qemulink.New(fd, macAddr)
-	if err != nil {
-		return nil, err
-	}
+// 	nicEp, err := qemulink.New(fd, macAddr)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	network, err := startNet(opts, nicEp)
-	if err != nil {
-		return nil, err
-	}
+// 	network, err := startNet(opts, nicEp)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	network.fd1 = fd
-	return network, nil
-}
+// 	network.fd1 = fd
+// 	return network, nil
+// }
 
 func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	s := stack.New(stack.Options{
@@ -305,28 +301,17 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	udpForwarder := udpfwd.NewUdpForwarder(s, natTable, &natLock, icmpFwd)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
-	// vcontrol client
-	tr := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return gonet.DialContextTCP(ctx, s, tcpip.FullAddress{
-				Addr: guestAddr4,
-				Port: conf.GuestPortVcontrol,
-			}, ipv4.ProtocolNumber)
-		},
-		MaxIdleConns: 3,
-	}
-	vc := vclient.NewClient(tr)
-
 	// Silence gvisor logs
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
 	network := &Network{
 		Stack:       s,
 		NIC:         nicId,
-		VClient:     vc,
 		VsockDialer: nil,
 		ICMP:        icmpFwd,
 		NatTable:    natTable,
+		GuestAddr4:  guestAddr4,
+		GuestAddr6:  guestAddr6,
 		file0:       nil,
 		fd1:         -1,
 	}
@@ -374,7 +359,6 @@ func (n *Network) startNetServices() {
 }
 
 func (n *Network) Close() error {
-	n.VClient.Close()
 	n.Stack.Destroy()
 	if n.file0 != nil {
 		n.file0.Close()

@@ -2,16 +2,22 @@ package vclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
 
 var (
@@ -38,13 +44,26 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func NewClient(tr *http.Transport) *VClient {
+func newWithTransport(tr *http.Transport) *VClient {
 	httpClient := &http.Client{Transport: tr}
 	return &VClient{
 		client:  httpClient,
 		dataDir: conf.DataDir(),
 		dataImg: conf.DataImage(),
 	}
+}
+
+func NewWithNetwork(n *vnet.Network) *VClient {
+	tr := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
+				Addr: n.GuestAddr4,
+				Port: conf.GuestPortVcontrol,
+			}, ipv4.ProtocolNumber)
+		},
+		MaxIdleConns: 3,
+	}
+	return newWithTransport(tr)
 }
 
 func (vc *VClient) Get(endpoint string) (*http.Response, error) {
