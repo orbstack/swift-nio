@@ -70,7 +70,12 @@ func (e *endpoint) Wait() {
 }
 
 func (e *endpoint) AddHeader(pkt stack.PacketBufferPtr) {
-
+	eth := header.Ethernet(pkt.LinkHeader().Push(header.EthernetMinimumSize))
+	eth.Encode(&header.EthernetFields{
+		SrcAddr: pkt.EgressRoute.LocalLinkAddress,
+		DstAddr: pkt.EgressRoute.RemoteLinkAddress,
+		Type:    pkt.NetworkProtocolNumber,
+	})
 }
 
 func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
