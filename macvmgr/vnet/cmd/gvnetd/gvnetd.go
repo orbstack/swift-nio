@@ -1,9 +1,11 @@
 package main
 
 import (
+	"os"
 	"runtime"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
+	"github.com/sirupsen/logrus"
 )
 
 func check(err error) {
@@ -13,12 +15,17 @@ func check(err error) {
 }
 
 func main() {
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "01-02 15:04:05",
+	})
+
 	opts := vnet.NetOptions{
-		MTU: 65520,
+		MTU: vnet.PreferredMtu,
 	}
 
-	fd := 0 // stdin
-	_, err := vnet.StartQemuFd(opts, fd)
+	_, err := vnet.StartQemuFd(opts, os.Stdin)
 	check(err)
 
 	// block forever

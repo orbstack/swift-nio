@@ -14,6 +14,13 @@ require (
 )
 
 require (
+	github.com/mdlayher/socket v0.4.0 // indirect
+	github.com/mdlayher/vsock v1.2.0 // indirect
+	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
+	golang.org/x/sync v0.1.0 // indirect
+)
+
+require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/miekg/dns v1.1.50
 	github.com/pkg/sftp v1.13.5

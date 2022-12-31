@@ -2,6 +2,7 @@ package qemulink
 
 import (
 	"encoding/binary"
+	"os"
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink/rawfile"
@@ -12,26 +13,18 @@ import (
 )
 
 type endpoint struct {
-	pfd      poll.FD
+	file     *os.File
 	wg       sync.WaitGroup
 	attached bool
 	macAddr  tcpip.LinkAddress
 }
 
-func New(fd int, macAddr tcpip.LinkAddress) (stack.LinkEndpoint, error) {
+func New(file *os.File, macAddr tcpip.LinkAddress) (stack.LinkEndpoint, error) {
 	e := &endpoint{
-		pfd: poll.FD{
-			Sysfd:         fd,
-			IsStream:      true,
-			ZeroReadIsEOF: true,
-		},
+		file:    file,
 		macAddr: macAddr,
 	}
-	err := unix.SetNonblock(fd, true)
-	if err != nil {
-		return nil, err
-	}
-	err = e.pfd.Init("tcp", true)
+	err := unix.SetNonblock(int(file.Fd()), true)
 	if err != nil {
 		return nil, err
 	}
@@ -85,15 +78,16 @@ func (e *endpoint) AddHeader(pkt stack.PacketBufferPtr) {
 }
 
 func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
-	var lenBuf [2]byte
-	binary.LittleEndian.PutUint16(lenBuf[:], uint16(pkt.Size()))
+	var fullBuf [65536]byte
+	binary.LittleEndian.PutUint16(fullBuf[:2], uint16(pkt.Size()))
+	slices := pkt.AsSlices()
+	pos := 2
+	for _, slice := range slices {
+		copy(fullBuf[pos:], slice)
+		pos += len(slice)
+	}
 
-	var bufsArr [8][]byte
-	bufsArr[0] = lenBuf[:]
-	bufs := bufsArr[:1]
-	bufs = append(bufs, pkt.AsSlices()...)
-
-	_, err := e.pfd.Writev(&bufs)
+	_, err := e.file.Write(fullBuf[:pos])
 	if err == nil {
 		return nil
 	}
@@ -126,14 +120,14 @@ func (e *endpoint) dispatchLoop() tcpip.Error {
 	lenBuf := make([]byte, 2)
 	buf := make([]byte, 65536)
 	for {
-		n, err := e.pfd.Read(lenBuf)
+		n, err := e.file.Read(lenBuf)
 		if err != nil || n != 2 {
 			return translateError(err)
 		}
 
 		pktLen := int(binary.LittleEndian.Uint16(lenBuf))
 		pktBuf := buf[:pktLen]
-		n, err = e.pfd.Read(pktBuf)
+		n, err = e.file.Read(pktBuf)
 		if err != nil {
 			return translateError(err)
 		}
@@ -153,5 +147,5 @@ func (e *endpoint) ARPHardwareType() header.ARPHardwareType {
 }
 
 func (e *endpoint) Close() error {
-	return e.pfd.Close()
+	return e.file.Close()
 }

@@ -11,10 +11,10 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/qemulink"
 	dnssrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/dns"
 	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
 	ntpsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/ntp"
-	sftpsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/sftp"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd"
 	"github.com/sirupsen/logrus"
@@ -34,7 +34,7 @@ import (
 const (
 	PreferredMtu = 65520
 	capturePcap  = false
-	nicId        = 1
+	nicID        = 1
 
 	subnet4     = "172.30.30"
 	gatewayIP4  = subnet4 + ".1"
@@ -49,10 +49,10 @@ const (
 
 	gatewayMac = "24:d2:f4:58:34:d7"
 
-	runDns      = true
-	runNtp      = true
+	runDNS      = true
+	runNTP      = true
 	runHcontrol = true
-	runSftp     = false // Android
+	runSFTP     = false // Android
 )
 
 var (
@@ -129,25 +129,25 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	return network, file0, nil
 }
 
-// func StartQemuFd(opts NetOptions, fd int) (*Network, error) {
-// 	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func StartQemuFd(opts NetOptions, file *os.File) (*Network, error) {
+	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
+	if err != nil {
+		return nil, err
+	}
 
-// 	nicEp, err := qemulink.New(fd, macAddr)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	nicEp, err := qemulink.New(file, macAddr)
+	if err != nil {
+		return nil, err
+	}
 
-// 	network, err := startNet(opts, nicEp)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	network, err := startNet(opts, nicEp)
+	if err != nil {
+		return nil, err
+	}
 
-// 	network.fd1 = fd
-// 	return network, nil
-// }
+	network.file0 = file
+	return network, nil
+}
 
 func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	s := stack.New(stack.Options{
@@ -175,28 +175,28 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		nicEp, err = sniffer.NewWithWriter(nicEp, f, math.MaxUint32)
 	}
 
-	if err := s.CreateNIC(nicId, nicEp); err != nil {
+	if err := s.CreateNIC(nicID, nicEp); err != nil {
 		return nil, errors.New(err.String())
 	}
 
-	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
+	if err := s.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
 		AddressWithPrefix: netutil.ParseTcpipAddress(gatewayIP4).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
-	if err := s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
+	if err := s.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
 		Protocol:          ipv6.ProtocolNumber,
 		AddressWithPrefix: netutil.ParseTcpipAddress(gatewayIP6).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
 
-	if err := s.SetSpoofing(nicId, true); err != nil {
+	if err := s.SetSpoofing(nicID, true); err != nil {
 		return nil, errors.New(err.String())
 	}
 	// Accept all packets so we can forward them
-	if err := s.SetPromiscuousMode(nicId, true); err != nil {
+	if err := s.SetPromiscuousMode(nicID, true); err != nil {
 		return nil, errors.New(err.String())
 	}
 
@@ -219,8 +219,8 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	}
 
 	s.SetRouteTable([]tcpip.Route{
-		{Destination: subnet4, NIC: nicId},
-		{Destination: subnet6, NIC: nicId},
+		{Destination: subnet4, NIC: nicID},
+		{Destination: subnet6, NIC: nicID},
 	})
 
 	// Performance. Not actually causing NFS panics
@@ -268,7 +268,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	guestAddr6 := netutil.ParseTcpipAddress(guestIP6)
 	gatewayAddr4 := netutil.ParseTcpipAddress(gatewayIP4)
 	gatewayAddr6 := netutil.ParseTcpipAddress(gatewayIP6)
-	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicId, guestAddr4, guestAddr6, gatewayAddr4, gatewayAddr6)
+	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicID, guestAddr4, guestAddr6, gatewayAddr4, gatewayAddr6)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 
 	network := &Network{
 		Stack:       s,
-		NIC:         nicId,
+		NIC:         nicID,
 		VsockDialer: nil,
 		ICMP:        icmpFwd,
 		NatTable:    natTable,
@@ -314,7 +314,7 @@ func (n *Network) startNetServices() {
 	addr := netutil.ParseTcpipAddress(servicesIP4)
 
 	// DNS (53): using system resolver
-	if runDns {
+	if runDNS {
 		err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts)
 		if err != nil {
 			logrus.Error("Failed to start DNS server", err)
@@ -322,7 +322,7 @@ func (n *Network) startNetServices() {
 	}
 
 	// NTP (123): using system time
-	if runNtp {
+	if runNTP {
 		err := ntpsrv.ListenNTP(n.Stack, addr)
 		if err != nil {
 			logrus.Error("Failed to start NTP server", err)
@@ -338,12 +338,14 @@ func (n *Network) startNetServices() {
 	}
 
 	// SFTP (22323): Android file sharing
-	if runSftp {
-		err := sftpsrv.ListenSFTP(n.Stack, addr)
-		if err != nil {
-			logrus.Error("Failed to start SFTP server", err)
+	/*
+		if runSFTP {
+			err := sftpsrv.ListenSFTP(n.Stack, addr)
+			if err != nil {
+				logrus.Error("Failed to start SFTP server", err)
+			}
 		}
-	}
+	*/
 }
 
 func (n *Network) Close() error {
