@@ -2,7 +2,6 @@ package qemulink
 
 import (
 	"encoding/binary"
-	"internal/poll"
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink/rawfile"

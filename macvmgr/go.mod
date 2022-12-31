@@ -2,10 +2,10 @@ module github.com/kdrag0n/macvirt/macvmgr
 
 go 1.19
 
-replace github.com/Code-Hex/vz/v3 => /Users/dragon/code/vm/vz
+replace github.com/Code-Hex/vz/v3 => ../../../vm/vz
 
 // go branch
-replace gvisor.dev/gvisor => /Users/dragon/code/vm/gvisor
+replace gvisor.dev/gvisor => ../../../vm/gvisor
 
 require (
 	github.com/Code-Hex/vz/v3 v3.0.0
