@@ -81,7 +81,7 @@ func query(name string, rtype uint16) ([]QueryAnswer, error) {
 		ret := C.DNSServiceProcessResult(sdRef)
 		if ret != C.kDNSServiceErr_NoError {
 			logrus.Error("DNSServiceProcessResult err", mapError(int(ret)))
-			return nil, mapError(int(ret))
+			return query.answers, mapError(int(ret))
 		}
 	}
 
@@ -93,10 +93,10 @@ func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
 	allAnswers := []QueryAnswer{}
 	for {
 		newAnswers, err := query(name, rtype)
-		if err != nil {
-			return nil, err
-		}
 		allAnswers = append(allAnswers, newAnswers...)
+		if err != nil {
+			return allAnswers, err
+		}
 
 		// Recurse if we only got CNAMEs for a non-CNAME query
 		// Happens when macOS doesn't have A/AAAA cached

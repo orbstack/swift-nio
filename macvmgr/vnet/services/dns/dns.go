@@ -80,16 +80,17 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		// First error handling round: try to fix it
 		if err != nil {
 			logrus.Error("dnssd.QueryRecursive() =", err)
+			isNxdomain := (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName)
 
-			// No network? macOS returns NXDOMAIN but let's return timeout
-			if (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName) && netutil.GetDefaultAddress4() == nil {
+			// No network? macOS returns NXDOMAIN, we return timeout
+			if isNxdomain && netutil.GetDefaultAddress4() == nil && netutil.GetDefaultAddress6() == nil {
 				return
 			}
 
 			// For domains with A but no AAAA (github.com), macOS returns "no such record".
 			// musl resolver turns that into a NXDOMAIN response: https://github.com/docker/for-mac/issues/5020
 			// Fix: query SOA. if we get a SOA, return it with status=NOERROR. otherwise, return NXDOMAIN if SOA is missing.
-			if (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName) && len(answers) == 0 {
+			if isNxdomain && len(answers) == 0 && q.Qtype != dns.TypeSOA {
 				soa, err2 := dnssd.QueryRecursive(q.Name, dns.TypeSOA)
 				if err2 == nil {
 					// Got SOA. Return it in the *authority* section, not answer section.
@@ -103,6 +104,12 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 					}
 					err = nil
 				}
+			}
+
+			// If we got "no such record" while resolving CNAME but actually got CNAME records, return them.
+			if isNxdomain && len(answers) > 0 {
+				// Clear the error.
+				err = nil
 			}
 		}
 
