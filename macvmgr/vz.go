@@ -44,6 +44,16 @@ func findBestMtu() int {
 	}
 }
 
+func clamp[T uint | uint64](n, min, max T) T {
+	if n < min {
+		return min
+	}
+	if n > max {
+		return max
+	}
+	return n
+}
+
 func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	cmdline := []string{
 		// boot
@@ -80,8 +90,8 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 
 	config, err := vz.NewVirtualMachineConfiguration(
 		bootloader,
-		uint(c.Cpus),
-		c.Memory*1024*1024,
+		clamp(uint(c.Cpus), vz.VirtualMachineConfigurationMinimumAllowedCPUCount(), vz.VirtualMachineConfigurationMaximumAllowedCPUCount()),
+		clamp(c.Memory*1024*1024, vz.VirtualMachineConfigurationMinimumAllowedMemorySize(), vz.VirtualMachineConfigurationMaximumAllowedMemorySize()),
 	)
 	check(err)
 
