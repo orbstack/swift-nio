@@ -58,7 +58,8 @@ EOF
 trap 'qemu-nbd -d /dev/nbd0' EXIT
 # fast commit, 1% reserved blocks
 #mkfs.ext4 -O fast_commit -m 1 -L user-data-fs /dev/nbd0p1
-mkfs.xfs -L user-data-fs /dev/nbd0p1
+#mkfs.xfs -L user-data-fs /dev/nbd0p1
+mkfs.f2fs -l user-data-fs -O extra_attr,inode_checksum,sb_checksum,project_quota /dev/nbd0p1
 
 # copy preseed data
 mount /dev/nbd0p1 /mnt/tmp
