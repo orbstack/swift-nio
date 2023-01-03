@@ -25,7 +25,7 @@ sed -i '/getty/d' /etc/inittab
 
 if ! $IS_RELEASE; then
     echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
-    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind docker e2fsprogs btrfs-progs f2fs-tools fish
+    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind docker e2fsprogs-extra btrfs-progs-extra f2fs-tools fish
     rc-update add sshd default
     sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
 
@@ -129,10 +129,10 @@ echo 'RESOLV_CONF="no"' >> /etc/udhcpc/udhcpc.conf
 
 # fstab
 echo '/dev/vda / erofs rw,noatime 0 0' > /etc/fstab
-# echo '/dev/vdb1 /data ext4 rw,noatime,discard 0 1' >> /etc/fstab
+echo '/dev/vdb1 /data ext4 rw,noatime,discard,prjquota 0 0' >> /etc/fstab
 #echo '/dev/vdb1 /data xfs rw,noatime,discard 0 0' >> /etc/fstab
 #echo '/dev/vdb1 /data xfs rw,noatime,discard,pquota 0 0' >> /etc/fstab
-echo '/dev/vdb1 /data f2fs rw,noatime,discard,prjquota,atgc,gc_merge 0 1' >> /etc/fstab
+#echo '/dev/vdb1 /data f2fs rw,noatime,discard,prjquota,atgc,gc_merge 0 1' >> /etc/fstab
 # for LXD image import
 echo 'tmpfs /tmp tmpfs rw,noatime 0 0' >> /etc/fstab
 

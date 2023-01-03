@@ -48,7 +48,9 @@ if [[ -n "$data_size" ]]; then
     fi
 fi
 
-resize.f2fs /dev/vdb1
+#resize.f2fs /dev/vdb1
+fsck.ext4 -y /dev/vdb1
+resize2fs /dev/vdb1
 
 # virtiofs share
 mount -t virtiofs shared /mnt/mac
