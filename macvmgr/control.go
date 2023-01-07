@@ -6,7 +6,6 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"time"
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -17,46 +16,18 @@ import (
 )
 
 const (
-	runPprof           = false
-	memoryRampStep     = 200 * 1024 * 1024 // 200 MB
-	memoryRampInterval = 1 * time.Second
+	runPprof = false
 )
 
 type HostControlServer struct {
-	balloon        *vz.VirtioMemoryBalloonDevice
-	netPair2       *os.File
-	routerVm       *vz.VirtualMachine
-	vc             *vclient.VClient
-	lastMemorySize int64
+	balloon  *vz.VirtioMemoryBalloonDevice
+	netPair2 *os.File
+	routerVm *vz.VirtualMachine
+	vc       *vclient.VClient
 }
 
 type SetBalloonRequest struct {
-	Target int64 `json:"target"`
-}
-
-func min[T int64 | uint64](a, b T) T {
-	if a < b {
-		return a
-	}
-	return b
-}
-func max[T int64 | uint64](a, b T) T {
-	if a > b {
-		return a
-	}
-	return b
-}
-func abs[T int64 | uint64](a T) T {
-	if a < 0 {
-		return -a
-	}
-	return a
-}
-func sign[T int64](a T) T {
-	if a < 0 {
-		return -1
-	}
-	return 1
+	Target uint64 `json:"target"`
 }
 
 func (s *HostControlServer) Serve() (*http.Server, error) {
@@ -71,17 +42,8 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 			return
 		}
 
-		// ramp balloon
-		targetSize := req.Target * 1024 * 1024
-		for s.lastMemorySize != targetSize {
-			targetDelta := targetSize - s.lastMemorySize
-			delta := min(memoryRampStep, abs(targetDelta)) * sign(targetDelta)
-
-			s.lastMemorySize += delta
-			logrus.Debug("Set memory: ", s.lastMemorySize/1024/1024, " MiB  - delta: ", delta/1024/1024, " MiB")
-			s.balloon.SetTargetVirtualMachineMemorySize(uint64(s.lastMemorySize))
-			time.Sleep(memoryRampInterval)
-		}
+		// set balloon
+		s.balloon.SetTargetVirtualMachineMemorySize(req.Target * 1024 * 1024)
 		w.WriteHeader(http.StatusOK)
 	})
 

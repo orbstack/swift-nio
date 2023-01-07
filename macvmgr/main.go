@@ -200,11 +200,10 @@ func main() {
 
 	// Start host control server for Swift
 	controlServer := HostControlServer{
-		balloon:        vm.MemoryBalloonDevices()[0],
-		routerVm:       routerVm,
-		netPair2:       netPair2,
-		vc:             vc,
-		lastMemorySize: int64(config.Memory * 1024 * 1024),
+		balloon:  vm.MemoryBalloonDevices()[0],
+		routerVm: routerVm,
+		netPair2: netPair2,
+		vc:       vc,
 	}
 	httpServer, err := controlServer.Serve()
 	check(err)
