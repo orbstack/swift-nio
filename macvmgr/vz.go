@@ -57,6 +57,7 @@ func clamp[T uint | uint64](n, min, max T) T {
 func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	cmdline := []string{
 		// boot
+		"console=hvc0",
 		"init=/opt/vc/preinit",
 		// userspace
 		"vc.data_size=" + strconv.FormatUint(conf.DiskSize(), 10),
