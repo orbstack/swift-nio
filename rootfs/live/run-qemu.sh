@@ -25,7 +25,7 @@ qemu-system-x86_64 \
   -cpu host \
   -nographic \
   -monitor none \
-  -m 4096M \
+  -m 6144M \
   -object iothread,id=iothread0 \
   -object iothread,id=iothread1 \
   -object iothread,id=iothread2 \
