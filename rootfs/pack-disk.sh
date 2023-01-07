@@ -31,6 +31,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 cd "$(dirname "$0")"
+pushd out
 rm -f rootfs.img
 # 64 for ext4
 # dd if=/dev/zero of=rootfs.img bs=4M count=64
@@ -94,8 +95,8 @@ bsdtar -cf swap.img.tar swap.img
 rm -f data.img swap.img
 
 copy_file() {
-	mkdir -p ../assets/$BTYPE/$ARCH
-	cp "$1" ../assets/$BTYPE/$ARCH/$2
+	mkdir -p ../../assets/$BTYPE/$ARCH
+	cp "$1" ../../assets/$BTYPE/$ARCH/$2
 }
 
 copy_file rootfs.img rootfs.img
@@ -106,3 +107,5 @@ else
 fi
 copy_file data.img.tar data.img.tar
 copy_file swap.img.tar swap.img.tar
+
+sudo chown -R dragon:dragon .

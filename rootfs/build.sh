@@ -66,7 +66,7 @@ rm -r packages
 
 # init and other scripts
 OPT=opt/vc
-cp -r ../vc $OPT
+cp -r ../utils/vc $OPT
 # legal
 cp ../../LICENSE .
 
@@ -89,11 +89,16 @@ fi
 
 
 # TODO generate
-cp ../ssh_host_keys/* etc/ssh/
+cp ../config/ssh_host_keys/* etc/ssh/
 chmod -R 0600 etc/ssh/*key*
 
 # data volume
 popd
+
+rm -fr out/rd
+mv rd out/
+
+pushd out
 rm -fr data
 mkdir data
 mv rd/data/* data
@@ -102,7 +107,7 @@ mv rd/data/* data
 mkdir -p data/var/lib/lxd
 mkdir -p data/var/cache/lxd
 mkdir -p data/var/log/lxd
-cp -raf lxd-preseed/var/lib/lxd/. data/var/lib/lxd/
+cp -raf ../lxd-preseed/var/lib/lxd/. data/var/lib/lxd/
 chown -R root:root data/var/lib/lxd
 
-./pack-disk.sh "$@"
+../pack-disk.sh "$@"
