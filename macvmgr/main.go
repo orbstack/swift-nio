@@ -16,6 +16,7 @@ import (
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/sirupsen/logrus"
@@ -29,6 +30,8 @@ const (
 
 	nfsMountTries = 10
 	nfsMountDelay = 500 * time.Millisecond
+
+	defaultMemoryLimit = 10 * 1024 * 1024 * 1024 // 10 GiB
 )
 
 var (
@@ -107,6 +110,14 @@ func tryStop(vm *vz.VirtualMachine) (err error) {
 	return
 }
 
+func calcMemory() uint64 {
+	hostMem := mem.PhysicalMemory()
+	if hostMem > defaultMemoryLimit {
+		return defaultMemoryLimit
+	}
+	return hostMem / 3
+}
+
 func main() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -136,8 +147,9 @@ func main() {
 	}
 
 	config := &VmConfig{
-		Cpus:   runtime.NumCPU(),
-		Memory: 6144,
+		Cpus: runtime.NumCPU(),
+		// default memory algo = 1/3 of host memory, max 10 GB
+		Memory: calcMemory(),
 		Kernel: conf.GetAssetFile("kernel"),
 		// this one uses gvproxy ssh
 		Console:          useConsole,
