@@ -128,8 +128,8 @@ echo 'dns="1.0.0.1 1.1.1.1"' > /etc/udhcpc/udhcpc.conf
 echo 'RESOLV_CONF="no"' >> /etc/udhcpc/udhcpc.conf
 
 # fstab
-echo '/dev/vda / erofs rw,noatime 0 0' > /etc/fstab
-echo '/dev/vdb1 /data ext4 rw,noatime,discard,prjquota 0 0' >> /etc/fstab
+echo '/dev/sda / erofs rw,noatime 0 0' > /etc/fstab
+echo '/dev/sdb1 /data ext4 rw,noatime,discard,prjquota 0 0' >> /etc/fstab
 #echo '/dev/vdb1 /data xfs rw,noatime,discard 0 0' >> /etc/fstab
 #echo '/dev/vdb1 /data xfs rw,noatime,discard,pquota 0 0' >> /etc/fstab
 #echo '/dev/vdb1 /data f2fs rw,noatime,discard,prjquota,atgc,gc_merge 0 1' >> /etc/fstab

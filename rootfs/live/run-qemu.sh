@@ -39,13 +39,12 @@ qemu-system-x86_64 \
   -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
   -device virtio-rng-pci \
   -device virtio-balloon-pci,iothread=iothread4 \
-  -append "console=hvc0 init=/opt/vc/preinit vc.data_size=2000000 vc.vcontrol_token=test vc.hcontrol_token=test vc.timezone=America/Los_Angeles workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket root=/dev/vda rootfstype=erofs ro" \
-  -device virtio-blk-pci,drive=drive0,id=virtblk0,num-queues=$CPUS,iothread=iothread1 \
+  -append "console=hvc0 init=/opt/vc/preinit vc.data_size=2000000 vc.vcontrol_token=test vc.hcontrol_token=test vc.timezone=America/Los_Angeles workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket root=/dev/sda rootfstype=erofs ro" \
+  -device virtio-scsi-pci,id=scsi0,num_queues=$CPUS,iothread=iothread1 \
+  -device scsi-hd,drive=drive0 \
   -drive file=$ASSETS/rootfs.img,if=none,id=drive0,format=raw,discard=on,aio=threads,cache=none,cache.direct=on,readonly=on \
-  -device virtio-blk-pci,drive=drive1,id=virtblk1,num-queues=$CPUS,iothread=iothread2 \
+  -device scsi-hd,drive=drive1 \
   -drive file=data.img,if=none,id=drive1,format=raw,discard=on,aio=threads,cache=none,cache.direct=on \
-  -device virtio-blk-pci,drive=drive2,id=virtblk2,num-queues=$CPUS,iothread=iothread3 \
-  -drive file=swap.img,if=none,id=drive2,format=raw,discard=on,aio=threads,cache=none,cache.direct=on \
   -kernel $KERNEL \
   -virtfs local,mount_tag=shared,path=$HOME/code/projects/macvirt,security_model=none
 

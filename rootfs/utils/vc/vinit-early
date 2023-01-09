@@ -35,12 +35,12 @@ echo none > /sys/block/vdc/queue/scheduler
 data_size=$(cat /proc/cmdline | sed 's/ /\n/g' | grep vc.data_size= | sed 's/vc.data_size=//g') || true
 if [[ -n "$data_size" ]]; then
     # get existing size
-    old_size_bytes=$(blockdev --getsize64 /dev/vdb1)
+    old_size_bytes=$(blockdev --getsize64 /dev/sdb1)
     old_size=$((old_size_bytes / 1024 / 1024))
     # for safety, only allow increasing size
     if [[ "$old_size" -lt "$data_size" ]]; then
         echo "resize data to $data_size"
-        echo ",${data_size}M" | sfdisk --force /dev/vdb
+        echo ",${data_size}M" | sfdisk --force /dev/sdb
         # FS must be resized in vinit-late
         # XFS can only be resized online
     elif [[ "$old_size" -gt "$data_size" ]]; then
@@ -48,9 +48,9 @@ if [[ -n "$data_size" ]]; then
     fi
 fi
 
-#resize.f2fs /dev/vdb1
-fsck.ext4 -y /dev/vdb1
-resize2fs /dev/vdb1
+#resize.f2fs /dev/sdb1
+fsck.ext4 -y /dev/sdb1
+resize2fs /dev/sdb1
 
 # virtiofs share
 mount -t virtiofs shared /mnt/mac
