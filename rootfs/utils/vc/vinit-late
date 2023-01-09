@@ -19,7 +19,7 @@ sysctl -qp /etc/sysctl.conf
 (
     # zram = 2x ram
     zram_mib=$(( $(cat /proc/meminfo | grep MemTotal | awk '{print $2}') / 1024 * 2 ))
-    echo /dev/sdc1 > /sys/block/zram0/backing_dev
+    echo /dev/vdc1 > /sys/block/zram0/backing_dev
     echo "${zram_mib}M" > /sys/block/zram0/disksize
     echo huge_idle > /sys/block/zram0/writeback
     mkswap /dev/zram0
@@ -27,7 +27,7 @@ sysctl -qp /etc/sysctl.conf
     sysctl vm.swappiness=100 vm.page-cluster=1
   
     # 1 gib emergency disk swap
-    swapon -d -p 1 /dev/sdc2
+    swapon -d -p 1 /dev/vdc2
 ) &
 # 2 mib page reporting
 echo 9 > /sys/module/page_reporting/parameters/page_reporting_order
