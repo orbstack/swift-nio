@@ -29,6 +29,8 @@ sysctl -qp /etc/sysctl.conf
     # 1 gib emergency disk swap
     swapon -d -p 1 /dev/vdc2
 ) &
+# 2 mib page reporting
+echo 9 > /sys/module/page_reporting/parameters/page_reporting_order
 
 # resize fs
 xfs_growfs /dev/vdb1
