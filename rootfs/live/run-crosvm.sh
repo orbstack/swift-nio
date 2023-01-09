@@ -18,6 +18,7 @@ bsdtar -xf $ASSETS/swap.img.tar
   # --host_ip 10.2.2.1 \
   # --netmask 255.255.255.0 \
   # --mac 01:01:01:02:02:02 \
+rm -f crosvm.sock
 crosvm \
   run \
   --disable-sandbox \
