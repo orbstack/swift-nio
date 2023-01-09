@@ -31,7 +31,7 @@ const (
 	nfsMountTries = 10
 	nfsMountDelay = 500 * time.Millisecond
 
-	defaultMemoryLimit = 10 * 1024 * 1024 * 1024 // 10 GiB
+	defaultMemoryLimit = 8 * 1024 * 1024 * 1024 // 8 GiB
 )
 
 var (
@@ -149,7 +149,7 @@ func main() {
 	config := &VmConfig{
 		Cpus: runtime.NumCPU(),
 		// default memory algo = 1/3 of host memory, max 10 GB
-		Memory: calcMemory(),
+		Memory: calcMemory() / 1024 / 1024,
 		Kernel: conf.GetAssetFile("kernel"),
 		// this one uses gvproxy ssh
 		Console:          useConsole,
