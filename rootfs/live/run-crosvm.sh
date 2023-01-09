@@ -25,7 +25,6 @@ crosvm \
   --mem 2000 \
   --cpus $CPUS \
   --socket crosvm.sock \
-  --serial type=stdout,hardware=serial,earlycon=true \
   --serial type=stdout,hardware=virtio-console,console=true,stdin=true \
   --disk $ASSETS/rootfs.img,o_direct=true \
   --rwdisk data.img,o_direct=true \
