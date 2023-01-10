@@ -58,7 +58,7 @@ cp ../build-inside.sh .
 cp ../packages/*.pub etc/apk/keys/
 cp -r ../packages .
 #arch-chroot . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
-systemd-nspawn -D . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
+systemd-nspawn --link-journal=no -D . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
 
 
 rm build-inside.sh
