@@ -49,6 +49,7 @@ func newIcmpPacketConn4() (*goipv4.PacketConn, error) {
 	if err != nil {
 		return nil, err
 	}
+	unix.CloseOnExec(s)
 
 	// all zero = any
 	sa := &unix.SockaddrInet4{}
@@ -67,6 +68,7 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 	if err != nil {
 		return nil, err
 	}
+	unix.CloseOnExec(s)
 
 	// all zero = any
 	sa := &unix.SockaddrInet6{}

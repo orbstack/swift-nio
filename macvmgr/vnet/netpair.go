@@ -31,6 +31,10 @@ func NewUnixgramPair() (file0 *os.File, fd1 int, err error) {
 		return
 	}
 
+	// cloexec
+	unix.CloseOnExec(fds[0])
+	unix.CloseOnExec(fds[1])
+
 	file0 = os.NewFile(uintptr(fds[0]), "socketpair0")
 	fd1 = fds[1]
 

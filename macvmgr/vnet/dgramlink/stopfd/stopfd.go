@@ -36,6 +36,8 @@ func New() (StopFD, error) {
 	}
 	unix.SetNonblock(fds[0], true)
 	unix.SetNonblock(fds[1], true)
+	unix.CloseOnExec(fds[0])
+	unix.CloseOnExec(fds[1])
 	return StopFD{EFD: fds[0], writeFD: fds[1]}, nil
 }
 
