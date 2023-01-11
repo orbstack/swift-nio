@@ -90,7 +90,9 @@ func handleSshConn(s ssh.Session) error {
 		}
 	}
 
-	// don't wait for fds to close. we close them.
+	// don't wait for fds to close, we close them
+	// read-side pipes will be closed after start
+	// write-side pipes will be closed on EOF
 	ps, err := cmd.Process.Wait()
 	if err != nil {
 		return err
