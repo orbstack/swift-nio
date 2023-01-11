@@ -3,10 +3,10 @@ package hcsrv
 import (
 	"crypto/rand"
 	"encoding/base32"
-	"net/http"
+	"net/rpc"
 
+	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
-	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -20,8 +20,25 @@ var (
 	instanceToken = genToken()
 )
 
-type HostForwarder interface {
+type HcontrolServer struct {
+	n *vnet.Network
+}
 
+func (h *HcontrolServer) Ping(args *None, reply *None) error {
+	return nil
+}
+
+// func (h *HcontrolServer) StartForward() error {
+
+// }
+
+// func (h *HcontrolServer) StopForward() error {
+
+// }
+
+type None struct{}
+
+type HostForwarder interface {
 }
 
 func genToken() string {
@@ -40,29 +57,22 @@ func GetCurrentToken() string {
 	return instanceToken
 }
 
-func ListenHcontrol(stack *stack.Stack, address tcpip.Address) error {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+func ListenHcontrol(stack *stack.Stack, address tcpip.Address) (*HcontrolServer, error) {
+	server := &HcontrolServer{}
+	rpcServer := rpc.NewServer()
+	rpcServer.RegisterName("hc", server)
 
 	listener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
 		Addr: address,
 		Port: HcontrolPort,
 	}, ipv4.ProtocolNumber)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	server := &http.Server{
-		Handler: mux,
-	}
 	go func() {
-		err := server.Serve(listener)
-		if err != nil {
-			logrus.Error("hcontrol: Serve() =", err)
-		}
+		rpcServer.Accept(listener)
 	}()
 
-	return nil
+	return server, nil
 }

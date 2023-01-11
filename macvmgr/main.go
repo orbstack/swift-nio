@@ -19,6 +19,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -170,9 +171,10 @@ func main() {
 
 	vnetwork, vm := CreateVm(config)
 
-	// VM control server client
+	// Services
+	services.StartNetServices(vnetwork)
 
-	// vcontrol client
+	// VM control server client
 	vc, err := vclient.NewWithNetwork(vnetwork)
 	check(err)
 	err = vc.StartBackground()
