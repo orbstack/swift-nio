@@ -10,10 +10,13 @@ replace gvisor.dev/gvisor => ../../../vm/gvisor
 require (
 	github.com/Code-Hex/vz/v3 v3.0.0
 	github.com/pkg/term v1.1.0
-	golang.org/x/sys v0.3.0
+	golang.org/x/sys v0.4.0
 )
 
 require (
+	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
+	github.com/creack/pty v1.1.18 // indirect
+	github.com/gliderlabs/ssh v0.3.5 // indirect
 	github.com/mdlayher/socket v0.4.0 // indirect
 	github.com/mdlayher/vsock v1.2.0 // indirect
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
@@ -25,7 +28,7 @@ require (
 	github.com/miekg/dns v1.1.50
 	github.com/pkg/sftp v1.13.5
 	github.com/stretchr/testify v1.8.1 // indirect
-	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 )
 
@@ -33,7 +36,7 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.9.0
 	golang.org/x/mod v0.7.0 // indirect
-	golang.org/x/net v0.2.0
+	golang.org/x/net v0.5.0
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	gvisor.dev/gvisor v0.0.0-20221220191351-8ea7ab01ea4e
 )

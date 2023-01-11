@@ -14,6 +14,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/qemulink"
 	dnssrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/dns"
 	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
+	sshsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh"
 	ntpsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/ntp"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd"
@@ -52,6 +53,7 @@ const (
 	runDNS      = true
 	runNTP      = true
 	runHcontrol = true
+	runHostSSH  = true
 	runSFTP     = false // Android
 )
 
@@ -326,6 +328,14 @@ func (n *Network) startNetServices() {
 		err := ntpsrv.ListenNTP(n.Stack, addr)
 		if err != nil {
 			logrus.Error("Failed to start NTP server", err)
+		}
+	}
+
+	// SSH (22): for commands
+	if runHostSSH {
+		err := sshsrv.ListenHostSSH(n.Stack, addr)
+		if err != nil {
+			logrus.Error("Failed to start SSH server", err)
 		}
 	}
 
