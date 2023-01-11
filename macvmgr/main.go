@@ -173,8 +173,9 @@ func main() {
 	// VM control server client
 
 	// vcontrol client
-	vc := vclient.NewWithNetwork(vnetwork)
-	err := vc.StartBackground()
+	vc, err := vclient.NewWithNetwork(vnetwork)
+	check(err)
+	err = vc.StartBackground()
 	check(err)
 
 	if useConsole {

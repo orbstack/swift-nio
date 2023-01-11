@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -34,8 +35,7 @@ type VClient struct {
 	ready     bool
 	dataReady bool
 	lastStats diskReportStats
-	dataDir   string
-	dataImg   string
+	dataFile  *os.File
 }
 
 type diskReportStats struct {
@@ -44,16 +44,20 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport) *VClient {
+func newWithTransport(tr *http.Transport) (*VClient, error) {
 	httpClient := &http.Client{Transport: tr}
-	return &VClient{
-		client:  httpClient,
-		dataDir: conf.DataDir(),
-		dataImg: conf.DataImage(),
+	dataFile, err := os.OpenFile(conf.DataImage(), os.O_RDONLY, 0)
+	if err != nil {
+		return nil, err
 	}
+
+	return &VClient{
+		client:   httpClient,
+		dataFile: dataFile,
+	}, nil
 }
 
-func NewWithNetwork(n *vnet.Network) *VClient {
+func NewWithNetwork(n *vnet.Network) (*VClient, error) {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
@@ -191,14 +195,14 @@ func (vc *VClient) StartBackground() error {
 
 func (vc *VClient) reportDiskStats() {
 	var statFs unix.Statfs_t
-	err := unix.Statfs(vc.dataDir, &statFs)
+	err := unix.Fstatfs(int(vc.dataFile.Fd()), &statFs)
 	if err != nil {
 		logrus.Error("statfs err", err)
 		return
 	}
 
 	var imgStat unix.Stat_t
-	err = unix.Stat(vc.dataImg, &imgStat)
+	err = unix.Fstat(int(vc.dataFile.Fd()), &imgStat)
 	if err != nil {
 		logrus.Error("stat err", err)
 		return
@@ -227,5 +231,6 @@ func (vc *VClient) reportDiskStats() {
 
 func (vc *VClient) Close() error {
 	vc.client.CloseIdleConnections()
+	vc.dataFile.Close()
 	return nil
 }
