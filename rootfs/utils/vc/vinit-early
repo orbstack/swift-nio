@@ -25,6 +25,11 @@ ip route add default via 172.30.30.1 dev eth0
 ip addr add fc00:96dc:7096:1d21::2/64 dev eth0
 ip route add default via fc00:96dc:7096:1d21::1 dev eth0
 
+# early disk perf
+echo none > /sys/block/vda/queue/scheduler
+echo none > /sys/block/vdb/queue/scheduler
+echo none > /sys/block/vdc/queue/scheduler
+
 # prepare mounts for 9p
 # /mnt/android *will* be 9p
 # /mnt/sdcard *will* be bound to 9p
