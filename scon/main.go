@@ -45,6 +45,8 @@ func check(err error) {
 
 func runSSHServer(containers map[string]*lxc.Container) {
 	ssh.Handle(func(s ssh.Session) {
+		defer s.Close()
+
 		fmt.Println("ssh session")
 		ptyReq, winCh, isPty := s.Pty()
 
@@ -185,6 +187,8 @@ func runSSHServer(containers map[string]*lxc.Container) {
 		_, err := unix.Wait4(int(childPid), &status, 0, nil)
 		check(err)
 		fmt.Println("wait done", status.ExitStatus())
+		err = s.Exit(status.ExitStatus())
+		check(err)
 	})
 
 	log.Fatal(ssh.ListenAndServe(":2222", nil, ssh.HostKeyFile("host_keys/ssh_host_rsa_key")))
