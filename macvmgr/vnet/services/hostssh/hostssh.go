@@ -17,6 +17,14 @@ import (
 
 const (
 	HostSSHPort = 22
+	// we don't use ssh for security, so hard-code for fast startup
+	hostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oAAAAKDLA5G2ywOR
+tgAAAAtzc2gtZWQyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oA
+AAAEAdZQRbxMDW6DaGP2YY8yxby24cwECktHygG1dGxHmuFiAQkPegrt11dCS0Oy6nL3Wa
+TzmdsUzXZjqytDS6OrigAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
+-----END OPENSSH PRIVATE KEY-----`
 )
 
 func handleSshConn(s ssh.Session) error {
@@ -132,7 +140,7 @@ func ListenHostSSH(stack *stack.Stack, address tcpip.Address) error {
 	}
 
 	go func() {
-		err = ssh.Serve(listener, handler)
+		err = ssh.Serve(listener, handler, ssh.HostKeyPEM([]byte(hostKeyEd25519)))
 		if err != nil {
 			logrus.Error("hostssh: Serve() =", err)
 		}
