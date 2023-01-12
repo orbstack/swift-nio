@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/Code-Hex/vz/v3"
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/sirupsen/logrus"
 
@@ -60,7 +60,7 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 	})
 
 	server := &http.Server{
-		Addr:    "127.0.0.1:" + strconv.Itoa(conf.HostPortHcontrol),
+		Addr:    "127.0.0.1:" + strconv.Itoa(ports.HostHcontrol),
 		Handler: mux,
 	}
 

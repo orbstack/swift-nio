@@ -17,6 +17,7 @@ import (
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
@@ -38,9 +39,9 @@ const (
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]string{
-		"tcp:127.0.0.1:" + str(conf.HostPortSSH): "tcp:" + str(conf.GuestPortSSH),
-		"tcp:127.0.0.1:" + str(conf.HostPortNFS): "vsock:" + str(conf.GuestPortNFS),
-		"unix:" + conf.DockerSocket():            "tcp:" + str(conf.GuestPortDocker),
+		"tcp:127.0.0.1:" + str(ports.HostSSH): "tcp:" + str(ports.GuestSSH),
+		"tcp:127.0.0.1:" + str(ports.HostNFS): "vsock:" + str(ports.GuestNFS),
+		"unix:" + conf.DockerSocket():         "tcp:" + str(ports.GuestDocker),
 	}
 )
 

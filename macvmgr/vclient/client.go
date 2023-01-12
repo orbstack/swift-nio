@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
@@ -22,7 +23,7 @@ import (
 )
 
 var (
-	baseUrl = "http://172.30.30.2:" + strconv.Itoa(conf.GuestPortVcontrol)
+	baseUrl = "http://172.30.30.2:" + strconv.Itoa(ports.GuestVcontrol)
 )
 
 const (
@@ -62,7 +63,7 @@ func NewWithNetwork(n *vnet.Network) (*VClient, error) {
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
 				Addr: n.GuestAddr4,
-				Port: conf.GuestPortVcontrol,
+				Port: ports.GuestVcontrol,
 			}, ipv4.ProtocolNumber)
 		},
 		MaxIdleConns: 3,

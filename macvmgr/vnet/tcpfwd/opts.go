@@ -3,7 +3,7 @@ package tcpfwd
 import (
 	"net"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 )
 
 var (
@@ -15,11 +15,11 @@ var (
 		25565: {}, // Minecraft
 
 		// internal use
-		conf.GuestPortDocker:   {}, // Docker
-		conf.GuestPortNFS:      {}, // NFS
-		conf.GuestPortVcontrol: {}, // vcontrol
-		conf.HostPortHcontrol:  {}, // hcontrol
-		conf.HostPortNFS:       {}, // NFS
+		ports.GuestDocker:   {}, // Docker
+		ports.GuestNFS:      {}, // NFS
+		ports.GuestVcontrol: {}, // vcontrol
+		ports.HostHcontrol:  {}, // hcontrol
+		ports.HostNFS:       {}, // NFS
 	}
 )
 

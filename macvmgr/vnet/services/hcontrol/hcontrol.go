@@ -5,15 +5,12 @@ import (
 	"encoding/base32"
 	"net/rpc"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
-)
-
-const (
-	HcontrolPort = 8300
 )
 
 var (
@@ -61,7 +58,7 @@ func ListenHcontrol(stack *stack.Stack, address tcpip.Address) (*HcontrolServer,
 
 	listener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
 		Addr: address,
-		Port: HcontrolPort,
+		Port: ports.ServiceHcontrol,
 	}, ipv4.ProtocolNumber)
 	if err != nil {
 		return nil, err

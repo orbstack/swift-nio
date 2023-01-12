@@ -8,6 +8,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -16,7 +17,6 @@ import (
 )
 
 const (
-	HostSSHPort = 22
 	// we don't use ssh for security, so hard-code for fast startup
 	hostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
@@ -133,7 +133,7 @@ func ListenHostSSH(stack *stack.Stack, address tcpip.Address) error {
 
 	listener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
 		Addr: address,
-		Port: HostSSHPort,
+		Port: ports.ServiceHostSSH,
 	}, ipv4.ProtocolNumber)
 	if err != nil {
 		return err

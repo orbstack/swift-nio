@@ -1,6 +1,7 @@
 package ntpsrv
 
 import (
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	ntpserver "github.com/kdrag0n/macvirt/macvmgr/vnet/services/ntp/internal"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -8,14 +9,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-const (
-	NTPPort = 123
-)
-
 func ListenNTP(s *stack.Stack, address tcpip.Address) error {
 	conn, err := gonet.DialUDP(s, &tcpip.FullAddress{
 		Addr: address,
-		Port: NTPPort,
+		Port: ports.ServiceNTP,
 	}, nil, ipv4.ProtocolNumber)
 	if err != nil {
 		return err

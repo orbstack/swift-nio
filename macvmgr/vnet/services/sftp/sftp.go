@@ -1,6 +1,7 @@
 package sftpsrv
 
 import (
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/pkg/sftp"
 	"github.com/sirupsen/logrus"
@@ -9,14 +10,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-const (
-	SFTPPort = 22323
-)
-
 func ListenSFTP(stack *stack.Stack, address tcpip.Address) error {
 	listener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
 		Addr: address,
-		Port: SFTPPort,
+		Port: ports.ServiceSFTP,
 	}, ipv4.ProtocolNumber)
 	if err != nil {
 		return err

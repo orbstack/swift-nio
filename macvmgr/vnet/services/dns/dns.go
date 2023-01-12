@@ -3,6 +3,7 @@ package dnssrv
 import (
 	"fmt"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/dns/dnssd"
@@ -11,10 +12,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
-)
-
-const (
-	DNSPort = 53
 )
 
 type StaticHost struct {
@@ -148,7 +145,7 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string]StaticHost) error {
 	udpConn, err := gonet.DialUDP(stack, &tcpip.FullAddress{
 		Addr: address,
-		Port: DNSPort,
+		Port: ports.ServiceDNS,
 	}, nil, ipv4.ProtocolNumber)
 	if err != nil {
 		return err
@@ -156,7 +153,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 
 	tcpListener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
 		Addr: address,
-		Port: DNSPort,
+		Port: ports.ServiceDNS,
 	}, ipv4.ProtocolNumber)
 	if err != nil {
 		return err
