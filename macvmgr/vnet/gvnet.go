@@ -54,18 +54,15 @@ var (
 	}
 )
 
-type HostForward interface {
-	Close() error
-}
-
 type Network struct {
-	Stack        *stack.Stack
-	NIC          tcpip.NICID
-	VsockDialer  func(uint32) (net.Conn, error)
-	ICMP         *icmpfwd.IcmpFwd
-	NatTable     map[tcpip.Address]tcpip.Address
-	GuestAddr4   tcpip.Address
-	GuestAddr6   tcpip.Address
+	Stack       *stack.Stack
+	NIC         tcpip.NICID
+	VsockDialer func(uint32) (net.Conn, error)
+	ICMP        *icmpfwd.IcmpFwd
+	NatTable    map[tcpip.Address]tcpip.Address
+	GuestAddr4  tcpip.Address
+	GuestAddr6  tcpip.Address
+	// mapped by host side. guest side can be duplicated
 	hostForwards map[string]HostForward
 	file0        *os.File
 	fd1          int
@@ -276,15 +273,16 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
 	network := &Network{
-		Stack:       s,
-		NIC:         nicID,
-		VsockDialer: nil,
-		ICMP:        icmpFwd,
-		NatTable:    natTable,
-		GuestAddr4:  guestAddr4,
-		GuestAddr6:  guestAddr6,
-		file0:       nil,
-		fd1:         -1,
+		Stack:        s,
+		NIC:          nicID,
+		VsockDialer:  nil,
+		ICMP:         icmpFwd,
+		NatTable:     natTable,
+		GuestAddr4:   guestAddr4,
+		GuestAddr6:   guestAddr6,
+		hostForwards: make(map[string]HostForward),
+		file0:        nil,
+		fd1:          -1,
 	}
 
 	return network, nil

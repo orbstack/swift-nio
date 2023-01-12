@@ -39,15 +39,15 @@ func ListenUDP(addr string) (*net.UDPConn, bool, error) {
 	return l, false, err
 }
 
-func StartUDPHostForward(s *stack.Stack, listenAddr, connectAddr4, connectAddr6 string) error {
+func StartUDPHostForward(s *stack.Stack, listenAddr, connectAddr4, connectAddr6 string) (*UDPProxy, error) {
 	listener, requireLoopback, err := ListenUDP(listenAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	connectUdpAddr4, err := net.ResolveUDPAddr("udp", connectAddr4)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	connectFullAddr4 := tcpip.FullAddress{
@@ -57,7 +57,7 @@ func StartUDPHostForward(s *stack.Stack, listenAddr, connectAddr4, connectAddr6 
 
 	connectUdpAddr6, err := net.ResolveUDPAddr("udp", connectAddr6)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	connectFullAddr6 := tcpip.FullAddress{
@@ -82,9 +82,9 @@ func StartUDPHostForward(s *stack.Stack, listenAddr, connectAddr4, connectAddr6 
 	}
 	proxy, err := NewUDPProxy(listener, dialer, false)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	go proxy.Run(false)
-	return nil
+	return proxy, nil
 }

@@ -7,29 +7,29 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type TcpVsockHostForwarder struct {
+type TcpVsockHostForward struct {
 	listener        net.Listener
 	dialer          func() (net.Conn, error)
 	requireLoopback bool
 }
 
-func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)) error {
+func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)) (*TcpVsockHostForward, error) {
 	listener, requireLoopback, err := ListenTCP(listenAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	f := &TcpVsockHostForwarder{
+	f := &TcpVsockHostForward{
 		listener:        listener,
 		dialer:          dialer,
 		requireLoopback: requireLoopback,
 	}
 
 	go f.listen()
-	return nil
+	return f, nil
 }
 
-func (f *TcpVsockHostForwarder) listen() {
+func (f *TcpVsockHostForward) listen() {
 	for {
 		conn, err := f.listener.Accept()
 		if err != nil {
@@ -40,7 +40,7 @@ func (f *TcpVsockHostForwarder) listen() {
 	}
 }
 
-func (f *TcpVsockHostForwarder) handleConn(conn net.Conn) {
+func (f *TcpVsockHostForward) handleConn(conn net.Conn) {
 	defer conn.Close()
 
 	// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
@@ -89,6 +89,6 @@ func (f *TcpVsockHostForwarder) handleConn(conn net.Conn) {
 	pump2(conn.(*net.TCPConn), virtConn.(*net.UnixConn))
 }
 
-func (f *TcpVsockHostForwarder) Stop() {
-	f.listener.Close()
+func (f *TcpVsockHostForward) Close() error {
+	return f.listener.Close()
 }

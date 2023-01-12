@@ -16,7 +16,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-type TcpHostForwarder struct {
+type TcpHostForward struct {
 	listener        net.Listener
 	requireLoopback bool
 	connectAddr4    tcpip.FullAddress
@@ -51,23 +51,23 @@ func ListenTCP(addr string) (net.Listener, bool, error) {
 	return l, false, err
 }
 
-func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewayAddr6, listenAddr, connectAddr4, connectAddr6 string, isInternal bool) error {
+func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewayAddr6, listenAddr, connectAddr4, connectAddr6 string, isInternal bool) (*TcpHostForward, error) {
 	listener, requireLoopback, err := ListenTCP(listenAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	connectAddrPort4, err := netip.ParseAddrPort(connectAddr4)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	connectAddrPort6, err := netip.ParseAddrPort(connectAddr6)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	f := &TcpHostForwarder{
+	f := &TcpHostForward{
 		listener:        listener,
 		requireLoopback: requireLoopback,
 		connectAddr4: tcpip.FullAddress{
@@ -88,10 +88,10 @@ func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, gatewayAddr4, gatewa
 	}
 
 	go f.listen()
-	return nil
+	return f, nil
 }
 
-func (f *TcpHostForwarder) listen() {
+func (f *TcpHostForward) listen() {
 	for {
 		conn, err := f.listener.Accept()
 		if err != nil {
@@ -102,7 +102,7 @@ func (f *TcpHostForwarder) listen() {
 	}
 }
 
-func (f *TcpHostForwarder) handleConn(conn net.Conn) {
+func (f *TcpHostForward) handleConn(conn net.Conn) {
 	defer conn.Close()
 
 	// Detect IPv4 or IPv6
@@ -165,6 +165,6 @@ func (f *TcpHostForwarder) handleConn(conn net.Conn) {
 	pump2(conn.(*net.TCPConn), virtConn)
 }
 
-func (f *TcpHostForwarder) Stop() {
-	f.listener.Close()
+func (f *TcpHostForward) Close() error {
+	return f.listener.Close()
 }

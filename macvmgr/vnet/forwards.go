@@ -2,6 +2,7 @@ package vnet
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -11,25 +12,40 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd"
 )
 
-func (n *Network) StartForward(fromSpec, toSpec string) error {
-	fromProto, fromAddr, ok := strings.Cut(fromSpec, ":")
-	if !ok {
-		return fmt.Errorf("invalid fromSpec: %s", fromSpec)
+type HostForward interface {
+	io.Closer
+}
+
+type ForwardSpec struct {
+	Guest string
+	Host  string
+}
+
+func (n *Network) StartForward(spec ForwardSpec) error {
+	if _, ok := n.hostForwards[spec.Host]; ok {
+		return fmt.Errorf("forward already exists: %s", spec.Host)
 	}
 
-	toProto, toPort, ok := strings.Cut(toSpec, ":")
+	fromProto, fromAddr, ok := strings.Cut(spec.Guest, ":")
 	if !ok {
-		return fmt.Errorf("invalid toSpec: %s", toSpec)
+		return fmt.Errorf("invalid spec.From: %s", spec.Guest)
+	}
+
+	toProto, toPort, ok := strings.Cut(spec.Host, ":")
+	if !ok {
+		return fmt.Errorf("invalid spec.To: %s", spec.Host)
 	}
 
 	isInternal := true
+	var fwd HostForward
+	var err error
 	switch fromProto {
 	case "tcp":
 		switch toProto {
 		case "tcp":
 			connectAddr4 := GuestIP4 + ":" + toPort
 			connectAddr6 := "[" + GuestIP6 + "]:" + toPort
-			err := tcpfwd.StartTcpHostForward(n.Stack, n.NIC, GatewayIP4, GatewayIP6, fromAddr, connectAddr4, connectAddr6, isInternal)
+			fwd, err = tcpfwd.StartTcpHostForward(n.Stack, n.NIC, GatewayIP4, GatewayIP6, fromAddr, connectAddr4, connectAddr6, isInternal)
 			if err != nil {
 				return err
 			}
@@ -41,7 +57,7 @@ func (n *Network) StartForward(fromSpec, toSpec string) error {
 			dialer := func() (net.Conn, error) {
 				return n.VsockDialer(uint32(vsockPort))
 			}
-			err = tcpfwd.StartTcpVsockHostForward(fromAddr, dialer)
+			fwd, err = tcpfwd.StartTcpVsockHostForward(fromAddr, dialer)
 			if err != nil {
 				return err
 			}
@@ -53,7 +69,7 @@ func (n *Network) StartForward(fromSpec, toSpec string) error {
 		case "udp":
 			connectAddr4 := GuestIP4 + ":" + toPort
 			connectAddr6 := "[" + GuestIP6 + "]:" + toPort
-			err := udpfwd.StartUDPHostForward(n.Stack, fromAddr, connectAddr4, connectAddr6)
+			fwd, err = udpfwd.StartUDPHostForward(n.Stack, fromAddr, connectAddr4, connectAddr6)
 			if err != nil {
 				return err
 			}
@@ -66,7 +82,7 @@ func (n *Network) StartForward(fromSpec, toSpec string) error {
 		switch toProto {
 		case "tcp":
 			connectAddr4 := GuestIP4 + ":" + toPort
-			err := tcpfwd.StartUnixTcpHostForward(n.Stack, n.NIC, fromAddr, connectAddr4)
+			fwd, err = tcpfwd.StartUnixTcpHostForward(n.Stack, n.NIC, fromAddr, connectAddr4)
 			if err != nil {
 				return err
 			}
@@ -76,6 +92,23 @@ func (n *Network) StartForward(fromSpec, toSpec string) error {
 	default:
 		return fmt.Errorf("unsupported protocol: %s", fromProto)
 	}
+
+	n.hostForwards[spec.Host] = fwd
+	return nil
+}
+
+func (n *Network) StopForward(spec ForwardSpec) error {
+	fwd, ok := n.hostForwards[spec.Host]
+	if !ok {
+		return fmt.Errorf("forward not found: %s", spec.Host)
+	}
+
+	err := fwd.Close()
+	if err != nil {
+		return err
+	}
+
+	delete(n.hostForwards, spec.Host)
 
 	return nil
 }

@@ -235,7 +235,8 @@ func main() {
 		return conn.RawConn(), nil
 	}
 	for fromSpec, toSpec := range hostForwardsToGuest {
-		err := vnetwork.StartForward(fromSpec, toSpec)
+		spec := vnet.ForwardSpec{Guest: fromSpec, Host: toSpec}
+		err := vnetwork.StartForward(spec)
 		if err != nil {
 			logrus.Error("host forward failed", err)
 		}

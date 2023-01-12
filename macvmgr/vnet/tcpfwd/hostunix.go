@@ -13,25 +13,25 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-type UnixTcpHostForwarder struct {
+type UnixTcpHostForward struct {
 	listener    net.Listener
 	connectAddr tcpip.FullAddress
 	stack       *stack.Stack
 	nicID       tcpip.NICID
 }
 
-func StartUnixTcpHostForward(s *stack.Stack, nicID tcpip.NICID, listenAddr, connectAddr string) error {
+func StartUnixTcpHostForward(s *stack.Stack, nicID tcpip.NICID, listenAddr, connectAddr string) (*UnixTcpHostForward, error) {
 	listener, err := net.Listen("unix", listenAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	connectAddrPort, err := netip.ParseAddrPort(connectAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	f := &UnixTcpHostForwarder{
+	f := &UnixTcpHostForward{
 		listener: listener,
 		connectAddr: tcpip.FullAddress{
 			NIC:  nicID,
@@ -43,10 +43,10 @@ func StartUnixTcpHostForward(s *stack.Stack, nicID tcpip.NICID, listenAddr, conn
 	}
 
 	go f.listen()
-	return nil
+	return f, nil
 }
 
-func (f *UnixTcpHostForwarder) listen() {
+func (f *UnixTcpHostForward) listen() {
 	for {
 		conn, err := f.listener.Accept()
 		if err != nil {
@@ -57,7 +57,7 @@ func (f *UnixTcpHostForwarder) listen() {
 	}
 }
 
-func (f *UnixTcpHostForwarder) handleConn(conn net.Conn) {
+func (f *UnixTcpHostForward) handleConn(conn net.Conn) {
 	defer conn.Close()
 
 	proto := ipv4.ProtocolNumber
@@ -76,6 +76,6 @@ func (f *UnixTcpHostForwarder) handleConn(conn net.Conn) {
 	pump2(conn.(*net.UnixConn), virtConn)
 }
 
-func (f *UnixTcpHostForwarder) Stop() {
-	f.listener.Close()
+func (f *UnixTcpHostForward) Close() error {
+	return f.listener.Close()
 }
