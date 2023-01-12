@@ -39,11 +39,16 @@ const (
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]string{
-		"tcp:127.0.0.1:" + str(ports.HostSSH): "tcp:" + str(ports.GuestSSH),
 		"tcp:127.0.0.1:" + str(ports.HostNFS): "vsock:" + str(ports.GuestNFS),
 		"unix:" + conf.DockerSocket():         "tcp:" + str(ports.GuestDocker),
 	}
 )
+
+func init() {
+	if conf.Debug() {
+		hostForwardsToGuest["tcp:127.0.0.1:"+str(ports.HostSSH)] = "tcp:" + str(ports.GuestSSH)
+	}
+}
 
 func str(port int) string {
 	return strconv.Itoa(port)

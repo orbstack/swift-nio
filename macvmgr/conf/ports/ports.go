@@ -2,12 +2,12 @@ package ports
 
 const (
 	// host
-	HostSSH      = 2222
-	HostHcontrol = 3333
+	HostSSH      = 2222 // debug
+	HostHcontrol = 62420
 	HostNFS      = 62429
 
 	// guest
-	GuestSSH      = 22
+	GuestSSH      = 22 // debug
 	GuestVcontrol = 103
 	GuestNFS      = 2049
 	GuestDocker   = 62375
