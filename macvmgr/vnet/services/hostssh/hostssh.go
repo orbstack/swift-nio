@@ -54,7 +54,24 @@ var (
 		"SHELL",
 		"TMPDIR",
 	}
+	inheritHostEnvValues = []string{}
 )
+
+func init() {
+	for _, kv := range os.Environ() {
+		key, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+
+		for _, cand := range inheritHostEnvs {
+			if key == cand {
+				inheritHostEnvValues = append(inheritHostEnvValues, kv)
+				break
+			}
+		}
+	}
+}
 
 func handleSshConn(s ssh.Session) error {
 	ptyReq, winCh, isPty := s.Pty()
@@ -90,12 +107,7 @@ func handleSshConn(s ssh.Session) error {
 	}
 
 	// override with some env inherited from host
-	for _, key := range inheritHostEnvs {
-		value, ok := os.LookupEnv(key)
-		if ok {
-			env = append(env, key+"="+value)
-		}
-	}
+	env = append(env, inheritHostEnvValues...)
 
 	// pwd
 	var err error
