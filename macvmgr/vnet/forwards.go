@@ -22,6 +22,9 @@ type ForwardSpec struct {
 }
 
 func (n *Network) StartForward(spec ForwardSpec) error {
+	n.hostForwardMu.Lock()
+	defer n.hostForwardMu.Unlock()
+
 	if _, ok := n.hostForwards[spec.Host]; ok {
 		return fmt.Errorf("forward already exists: %s", spec.Host)
 	}
@@ -98,6 +101,9 @@ func (n *Network) StartForward(spec ForwardSpec) error {
 }
 
 func (n *Network) StopForward(spec ForwardSpec) error {
+	n.hostForwardMu.Lock()
+	defer n.hostForwardMu.Unlock()
+
 	fwd, ok := n.hostForwards[spec.Host]
 	if !ok {
 		return fmt.Errorf("forward not found: %s", spec.Host)

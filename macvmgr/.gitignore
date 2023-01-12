@@ -1,3 +1,4 @@
 /macvmgr
 vnet/cmd/gvnetd/gvnetd
 vnet/cmd/gvnetclient/gvnetclient
+/macctl

@@ -1,6 +1,7 @@
 package sshsrv
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -10,7 +11,9 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -27,6 +30,32 @@ TzmdsUzXZjqytDS6OrigAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
 -----END OPENSSH PRIVATE KEY-----`
 )
 
+var (
+	sshSigMap = map[ssh.Signal]os.Signal{
+		ssh.SIGABRT: unix.SIGABRT,
+		ssh.SIGALRM: unix.SIGALRM,
+		ssh.SIGFPE:  unix.SIGFPE,
+		ssh.SIGHUP:  unix.SIGHUP,
+		ssh.SIGILL:  unix.SIGILL,
+		ssh.SIGINT:  unix.SIGINT,
+		ssh.SIGPIPE: unix.SIGPIPE,
+		ssh.SIGQUIT: unix.SIGQUIT,
+		ssh.SIGSEGV: unix.SIGSEGV,
+		ssh.SIGTERM: unix.SIGTERM,
+		ssh.SIGUSR1: unix.SIGUSR1,
+		ssh.SIGUSR2: unix.SIGUSR2,
+	}
+	// matches macOS ssh vars
+	inheritHostEnvs = [...]string{
+		"USER",
+		"LOGNAME",
+		"HOME",
+		"PATH",
+		"SHELL",
+		"TMPDIR",
+	}
+)
+
 func handleSshConn(s ssh.Session) error {
 	ptyReq, winCh, isPty := s.Pty()
 
@@ -34,36 +63,78 @@ func handleSshConn(s ssh.Session) error {
 		"pty":  isPty,
 		"user": s.User(),
 		"cmd":  s.RawCommand(),
-	}).Info("SSH connection")
+	}).Debug("SSH connection")
 
-	// extract __MV_PWD from env
-	env := s.Environ()
-	newEnv := make([]string, 0, len(env))
-	var pwd string
+	// new env
+	env := make([]string, 0)
+
+	// add all from mac
+	env = append(env, os.Environ()...)
+
+	// ssh env: extract __MV_META metadata, inherit the rest
+	var metaStr string
+	var meta sshtypes.SshMeta
 	for _, kv := range s.Environ() {
-		if strings.HasPrefix(kv, "__MV_PWD=") {
-			pwd = kv[10:]
+		if strings.HasPrefix(kv, "__MV_META=") {
+			metaStr = kv[10:]
 		} else {
-			newEnv = append(newEnv, kv)
+			// TODO translate paths
+			env = append(env, kv)
 		}
 	}
+	if metaStr != "" {
+		err := json.Unmarshal([]byte(metaStr), &meta)
+		if err != nil {
+			return err
+		}
+	}
+
+	// override with some env inherited from host
+	for _, key := range inheritHostEnvs {
+		value, ok := os.LookupEnv(key)
+		if ok {
+			env = append(env, key+"="+value)
+		}
+	}
+
+	// pwd
 	var err error
+	pwd := meta.Pwd
 	if pwd == "" {
 		pwd, err = os.UserHomeDir()
 		if err != nil {
 			return err
 		}
 	}
-	newEnv = append(newEnv, "TERM="+ptyReq.Term)
-
-	// TODO no shell for speed
-	var cmdArgs []string
-	if s.RawCommand() != "" {
-		cmdArgs = append(cmdArgs, "-c", s.RawCommand())
+	// make sure pwd is valid, or exec will fail
+	if err := unix.Access(pwd, unix.X_OK); err != nil {
+		// reset to / if not
+		pwd = "/"
 	}
-	shell := os.Getenv("SHELL")
-	cmd := exec.Command(shell, cmdArgs...)
-	cmd.Env = newEnv
+
+	// env: set TERM and PWD
+	if isPty {
+		env = append(env, "TERM="+ptyReq.Term)
+	}
+	// TODO need to translate pwd path
+	env = append(env, "PWD="+pwd)
+
+	var combinedArgs []string
+	if meta.RawCommand {
+		// raw command (JSON)
+		err = json.Unmarshal([]byte(s.RawCommand()), &combinedArgs)
+		if err != nil {
+			return err
+		}
+	} else {
+		// TODO look up at runtime
+		combinedArgs = []string{os.Getenv("SHELL")}
+		if s.RawCommand() != "" {
+			combinedArgs = append(combinedArgs, "-c", s.RawCommand())
+		}
+	}
+	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
+	cmd.Env = env
 	cmd.Dir = pwd
 
 	if isPty {
@@ -98,6 +169,24 @@ func handleSshConn(s ssh.Session) error {
 		}
 	}
 
+	// forward signals
+	fwdSigChan := make(chan ssh.Signal, 1)
+	defer close(fwdSigChan)
+	s.Signals(fwdSigChan)
+	go func() {
+		for {
+			sig, ok := <-fwdSigChan
+			if !ok {
+				return
+			}
+
+			err := cmd.Process.Signal(sshSigMap[sig])
+			if err != nil {
+				logrus.Error("SSH signal forward failed: ", err)
+			}
+		}
+	}()
+
 	// don't wait for fds to close, we close them
 	// read-side pipes will be closed after start
 	// write-side pipes will be closed on EOF
@@ -118,12 +207,12 @@ func ListenHostSSH(stack *stack.Stack, address tcpip.Address) error {
 
 		err := handleSshConn(s)
 		if err != nil {
-			if exitErr := err.(*exec.ExitError); exitErr != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
 				// all ok, just exit
 				s.Exit(exitErr.ExitCode())
 			} else {
 				logrus.Error("SSH error: ", err)
-				s.Write([]byte("SSH error: " + err.Error() + "\r\n"))
+				s.Stderr().Write([]byte("SSH error: " + err.Error() + "\r\n"))
 				s.Exit(1)
 			}
 		}
@@ -139,8 +228,11 @@ func ListenHostSSH(stack *stack.Stack, address tcpip.Address) error {
 		return err
 	}
 
+	// passwordHandler := func(ctx ssh.Context, password string) bool {
+	// 	return password == "test"
+	// }
 	go func() {
-		err = ssh.Serve(listener, handler, ssh.HostKeyPEM([]byte(hostKeyEd25519)))
+		err = ssh.Serve(listener, handler, ssh.HostKeyPEM([]byte(hostKeyEd25519))) //, ssh.PasswordAuth(passwordHandler))
 		if err != nil {
 			logrus.Error("hostssh: Serve() =", err)
 		}

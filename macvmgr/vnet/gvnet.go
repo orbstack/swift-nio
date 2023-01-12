@@ -63,9 +63,10 @@ type Network struct {
 	GuestAddr4  tcpip.Address
 	GuestAddr6  tcpip.Address
 	// mapped by host side. guest side can be duplicated
-	hostForwards map[string]HostForward
-	file0        *os.File
-	fd1          int
+	hostForwards  map[string]HostForward
+	hostForwardMu sync.Mutex
+	file0         *os.File
+	fd1           int
 }
 
 type NetOptions struct {
