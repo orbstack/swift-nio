@@ -74,6 +74,10 @@ func DockerSocket() string {
 	return ConfigDir() + "/docker.sock"
 }
 
+func HostSSHAgentSocket() string {
+	return os.Getenv("SSH_AUTH_SOCK")
+}
+
 func Arch() string {
 	switch runtime.GOARCH {
 	case "amd64":

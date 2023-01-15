@@ -30,6 +30,11 @@ func setExtNodelay(conn *net.TCPConn, otherPort int) error {
 		return err
 	}
 
+	err = conn.SetNoDelay(false)
+	if err != nil {
+		return err
+	}
+
 	extPort := conn.RemoteAddr().(*net.TCPAddr).Port
 	if _, ok := nodelayPorts[extPort]; ok {
 		return conn.SetNoDelay(true)
