@@ -26,6 +26,8 @@ const (
 	// TODO last used
 	defaultContainer = "alpine"
 	defaultUser      = "root"
+
+	ifBridge = "sconbr0"
 )
 
 var (
@@ -88,6 +90,11 @@ func runSSHServer(containers map[string]*lxc.Container) {
 		}
 
 		fmt.Println("container", container.Name())
+		if !container.Running() {
+			fmt.Println("starting container")
+			err := container.Start()
+			check(err)
+		}
 
 		env := s.Environ()
 		env = append(env, "TERM="+ptyReq.Term)
@@ -196,7 +203,7 @@ func runSSHServer(containers map[string]*lxc.Container) {
 
 func newBridge() (*netlink.Bridge, error) {
 	la := netlink.NewLinkAttrs()
-	la.Name = "conbr0"
+	la.Name = ifBridge
 	la.MTU = 1500
 	la.TxQLen = 10000
 	bridge := &netlink.Bridge{LinkAttrs: la}
@@ -272,8 +279,14 @@ func setupNat() (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// TODO interface?
 	err = ipt.AppendUnique("nat", "POSTROUTING", "-s", "172.30.31.0/24", "!", "-d", "172.30.31.0/24", "-j", "MASQUERADE")
+	if err != nil {
+		return nil, err
+	}
+
+	err = ipt.AppendUnique("filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", "172.30.30.200", "-j", "REJECT", "--reject-with", "tcp-reset")
 	if err != nil {
 		return nil, err
 	}
@@ -283,6 +296,12 @@ func setupNat() (func() error, error) {
 		if err != nil {
 			return err
 		}
+
+		err = ipt.DeleteIfExists("filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", "172.30.30.200", "-j", "REJECT", "--reject-with", "tcp-reset")
+		if err != nil {
+			return err
+		}
+
 		return nil
 	}, nil
 }

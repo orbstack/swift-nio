@@ -53,7 +53,7 @@ qemu-nbd -c /dev/nbd0 data.qcow2
 # create gpt partition table; create 1G partition
 sfdisk /dev/nbd0 <<EOF
 label: gpt
-,1G,L
+size=1G, type=L, uuid=37d45f5c-49d5-47b4-9a75-fdb70418baf6
 EOF
 trap 'qemu-nbd -d /dev/nbd0' EXIT
 # fast commit, 1% reserved blocks
@@ -74,8 +74,8 @@ qemu-nbd -c /dev/nbd0 swap.qcow2
 # create gpt partition table; create two 1G partitions
 sfdisk /dev/nbd0 <<EOF
 label: gpt
-,1G,L
-,1G,L
+size=1G, type=L, uuid=e071c0ef-c282-439a-a621-8fbd329367dc
+size=1G, type=L, uuid=95c2fe16-bb32-478c-adda-16f43d22cffd
 EOF
 trap 'qemu-nbd -d /dev/nbd0' EXIT
 # p1 = zram writeback 1
