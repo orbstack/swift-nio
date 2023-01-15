@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
@@ -152,33 +153,69 @@ func handleSshConn(s ssh.Session) error {
 	cmd.Dir = pwd
 
 	if isPty {
-		ptyF, err := pty.StartWithSize(cmd, &pty.Winsize{
+		ptyF, ttyF, err := pty.Open()
+		if err != nil {
+			return err
+		}
+		defer ttyF.Close()
+		defer ptyF.Close()
+
+		// setup size
+		err = pty.Setsize(ptyF, &pty.Winsize{
 			Rows: uint16(ptyReq.Window.Height),
 			Cols: uint16(ptyReq.Window.Width),
 		})
 		if err != nil {
 			return err
 		}
-		defer ptyF.Close()
-
-		//fmt.Println("set termios", meta.Termios)
-		var tflags unix.Termios
-		termios.Tcgetattr(ptyF.Fd(), &tflags)
-		sshtypes.ApplySSHToTermios(ptyReq.TerminalModes, &tflags)
-		fmt.Println("set termios", tflags)
-		err = termios.Tcsetattr(ptyF.Fd(), termios.TCSANOW, &tflags)
+		err = pty.InheritSize(ptyF, ttyF)
 		if err != nil {
 			return err
 		}
-
 		go func() {
 			for win := range winCh {
 				pty.Setsize(ptyF, &pty.Winsize{
 					Rows: uint16(win.Height),
 					Cols: uint16(win.Width),
 				})
+				pty.InheritSize(ptyF, ttyF)
 			}
 		}()
+
+		//fmt.Println("set termios", meta.Termios)
+		var tflags unix.Termios
+		termios.Tcgetattr(ptyF.Fd(), &tflags)
+		tflags.Cflag |= unix.IMAXBEL
+		tflags.Cflag |= unix.IUTF8
+		tflags.Cflag |= unix.BRKINT
+		tflags.Cflag |= unix.IXANY
+		tflags.Cflag |= unix.HUPCL
+		fmt.Println("set termios", tflags)
+		err = termios.Tcsetattr(ptyF.Fd(), termios.TCSANOW, &tflags)
+		if err != nil {
+			return err
+		}
+		termios.Tcgetattr(ttyF.Fd(), &tflags)
+		tflags.Cflag |= unix.IMAXBEL
+		tflags.Cflag |= unix.IUTF8
+		tflags.Cflag |= unix.BRKINT
+		tflags.Cflag |= unix.IXANY
+		tflags.Cflag |= unix.HUPCL
+		sshtypes.ApplySSHToTermios(ptyReq.TerminalModes, &tflags)
+		fmt.Println("set termios", tflags)
+		err = termios.Tcsetattr(ttyF.Fd(), termios.TCSANOW, &tflags)
+		if err != nil {
+			return err
+		}
+
+		cmd.Stdin = ttyF
+		cmd.Stdout = ttyF
+		cmd.Stderr = ttyF
+
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:  true,
+			Setctty: true,
+		}
 
 		go io.Copy(ptyF, s)
 		go io.Copy(s, ptyF)
@@ -186,11 +223,11 @@ func handleSshConn(s ssh.Session) error {
 		cmd.Stdin = s
 		cmd.Stdout = s
 		cmd.Stderr = s.Stderr()
+	}
 
-		err := cmd.Start()
-		if err != nil {
-			return err
-		}
+	err = cmd.Start()
+	if err != nil {
+		return err
 	}
 
 	// forward signals
