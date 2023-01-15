@@ -2,14 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"path"
 	"strconv"
 	"strings"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sys/unix"
@@ -64,8 +67,25 @@ func translatePath(p string) string {
 	// canonicalize first
 	p = path.Clean(p)
 
-	// TODO translate for user, also stat?
-	return p
+	// if path is under mac virtiofs mount, remove the mount prefix
+	if p == mounts.VirtiofsMountpoint {
+		return "/"
+	} else if strings.HasPrefix(p, mounts.VirtiofsMountpoint+"/") {
+		return strings.TrimPrefix(p, mounts.VirtiofsMountpoint)
+	}
+
+	// nothing to do for linked paths
+	for _, linkPrefix := range mounts.LinkedPaths {
+		if p == linkPrefix || strings.HasPrefix(p, linkPrefix+"/") {
+			return p
+		}
+	}
+
+	// otherwise, translate to linux
+	// TODO *for this container*
+	// TODO probably have to move to mac side
+	nfsMountpoint := "/Users/dragon/Linux/Root"
+	return nfsMountpoint + p
 }
 
 func runCommandStub(cmd string) (int, error) {
@@ -95,13 +115,24 @@ func connectSSH(combinedArgs []string) (int, error) {
 	}
 	defer session.Close()
 
-	ptyFd := 0 // based on stdin, like openssh
+	meta := sshtypes.SshMeta{
+		RawCommand: true,
+	}
+
+	ptyFd := 1 // based on stdout
 	if terminal.IsTerminal(ptyFd) {
 		term := os.Getenv("TERM")
 		w, h, err := terminal.GetSize(ptyFd)
 		if err != nil {
 			return 0, err
 		}
+
+		// snapshot the flags
+		flags, err := termios.GetTermios(uintptr(ptyFd))
+		if err != nil {
+			return 0, err
+		}
+		modes := termios.TermiosToSSH(flags)
 
 		// raw mode
 		state, err := terminal.MakeRaw(ptyFd)
@@ -110,10 +141,7 @@ func connectSSH(combinedArgs []string) (int, error) {
 		}
 		defer terminal.Restore(ptyFd, state)
 
-		// TODO - server ignores modes
-		modes := ssh.TerminalModes{
-			ssh.ECHO: 0,
-		}
+		// request pty
 		err = session.RequestPty(term, h, w, modes)
 		if err != nil {
 			return 0, err
@@ -126,9 +154,6 @@ func connectSSH(combinedArgs []string) (int, error) {
 
 	// forward and translate cwd path
 	cwd, err := os.Getwd()
-	meta := sshtypes.SshMeta{
-		RawCommand: true,
-	}
 	if err == nil {
 		meta.Pwd = translatePath(cwd)
 	}
@@ -161,15 +186,23 @@ func connectSSH(combinedArgs []string) (int, error) {
 	}
 	session.Setenv("__MV_META", string(metaBytes))
 
-	// run $0
-	// TODO find and translate paths
-	combinedArgsBytes, err := json.Marshal(&combinedArgs)
-	if err != nil {
-		return 0, err
-	}
-	err = session.Start(string(combinedArgsBytes))
-	if err != nil {
-		return 0, err
+	if len(combinedArgs) > 0 {
+		// run $0
+		// TODO find and translate paths
+		combinedArgsBytes, err := json.Marshal(&combinedArgs)
+		if err != nil {
+			return 0, err
+		}
+		err = session.Start(string(combinedArgsBytes))
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		// no args = shell
+		err = session.Shell()
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	// wait for done

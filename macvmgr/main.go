@@ -22,6 +22,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sys/unix"
 )
 
@@ -187,8 +188,10 @@ func main() {
 	check(err)
 
 	if useConsole {
-		oldAttr := setRawMode(os.Stdin)
-		defer revertRawMode(os.Stdin, oldAttr)
+		fd := int(os.Stdin.Fd())
+		state, err := terminal.MakeRaw(fd)
+		check(err)
+		defer terminal.Restore(fd, state)
 	}
 
 	err = vm.Start()
