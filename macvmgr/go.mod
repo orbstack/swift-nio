@@ -6,6 +6,7 @@ replace github.com/Code-Hex/vz/v3 => ../../../vm/vz
 
 // go branch
 replace gvisor.dev/gvisor => ../../../vm/gvisor
+replace github.com/gliderlabs/ssh => ../../../vm/glider-ssh
 
 require (
 	github.com/Code-Hex/vz/v3 v3.0.0

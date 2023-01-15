@@ -2,6 +2,7 @@ package sshsrv
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
+	"github.com/pkg/term/termios"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -158,6 +160,16 @@ func handleSshConn(s ssh.Session) error {
 			return err
 		}
 		defer ptyF.Close()
+
+		//fmt.Println("set termios", meta.Termios)
+		var tflags unix.Termios
+		termios.Tcgetattr(ptyF.Fd(), &tflags)
+		sshtypes.ApplySSHToTermios(ptyReq.TerminalModes, &tflags)
+		fmt.Println("set termios", tflags)
+		err = termios.Tcsetattr(ptyF.Fd(), termios.TCSANOW, &tflags)
+		if err != nil {
+			return err
+		}
 
 		go func() {
 			for win := range winCh {

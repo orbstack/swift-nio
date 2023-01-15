@@ -2,7 +2,8 @@ package mounts
 
 var (
 	// linked paths don't need translation
-	LinkedPaths = [...]string{"/Applications", "/Library", "/System", "/Users", "/Volumes", "/cores", "/opt/homebrew", "/private"}
+	// excluded: /cores
+	LinkedPaths = [...]string{"/Applications", "/Library", "/System", "/Users", "/Volumes", "/opt/homebrew", "/private"}
 )
 
 const (
