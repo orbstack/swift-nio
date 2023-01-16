@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"net/rpc"
+	"reflect"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
@@ -16,6 +17,9 @@ import (
 var (
 	instanceToken = genToken()
 )
+
+// Never obfuscate the HcontrolServer type (garble)
+var _ = reflect.TypeOf(HcontrolServer{})
 
 type HcontrolServer struct {
 	n *vnet.Network
