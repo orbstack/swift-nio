@@ -32,6 +32,9 @@ sysctl -qp /etc/sysctl.conf
 # 2 mib page reporting
 echo 9 > /sys/module/page_reporting/parameters/page_reporting_order
 
+# guest tools data
+mount --bind /data/guest-state /opt/macvirt-guest/data
+
 # resize fs
 xfs_growfs /dev/vdb1
 
@@ -138,10 +141,15 @@ devices:
     path: /
     pool: default
     type: disk
-  shared-sdcard:
-    path: /sdcard
-    source: /mnt/sdcard
+  shared-mac:
+    path: /mnt/mac
+    source: /mnt/mac
     type: disk
+  guest-tools:
+    path: /opt/macvirt-guest
+    source: /mnt/guest-tools
+    type: disk
+    recursive: "true"
   # fake for k8s
   proc-sysctl-panic:
     path: /proc/sys/kernel/panic

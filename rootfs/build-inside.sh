@@ -145,6 +145,7 @@ echo 'cmdport 0' >> /etc/chrony/chrony.conf
 echo 'rc_need="localmount"' >> /etc/conf.d/docker
 echo 'DOCKER_OPTS="-H tcp://172.30.30.2:62375 -H unix:///var/run/docker.sock"' >> /etc/conf.d/docker
 # enable buildkit
+mkdir -p /etc/docker
 cat > /etc/docker/daemon.json <<EOF
 {
   "features": {
@@ -172,8 +173,20 @@ mkdir /usbip
 ln -s /opt/vc/usbip /usbip/prefix
 
 # mounts
-mkdir /mnt/android
-mkdir /mnt/sdcard # for bind mount
+mkdir /mnt/mac
+mkdir /mnt/rosetta
+mkdir /mnt/guest-tools
+
+# guest tools
+mkdir -p /opt/macvirt-guest/bin /opt/macvirt-guest/bin-hiprio /opt/macvirt-guest/run /opt/macvirt-guest/data
+ln -s /opt/macvirt-guest/bin/macctl /opt/macvirt-guest/bin/mac
+# default cmd links
+for cmd in open; do
+    ln -s /opt/macvirt-guest/bin/macctl /opt/macvirt-guest/bin-hiprio/$cmd
+done
+for cmd in osascript code; do
+    ln -s /opt/macvirt-guest/bin/macctl /opt/macvirt-guest/bin/$cmd
+done
 
 # prep for data volume
 mkdir /data
@@ -186,6 +199,8 @@ ln -s /data/root/.config /root/.config
 mkdir /data/etc
 mv /etc/resolv.conf /data/etc
 ln -s /data/etc/resolv.conf /etc/resolv.conf
+
+mkdir -p /data/guest-state/bin/cmdlinks
 
 # mkdir /data/etc/ssh
 # if ! $IS_RELEASE; then

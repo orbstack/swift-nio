@@ -33,13 +33,23 @@ HOME=/home/dragon
 
 cd "$(dirname "$0")"
 
-# build vcontrol first
+# build vcontrol
 pushd vcontrol
 if [[ "$ARCH" == "arm64" ]]; then
     cargo build --release --target aarch64-unknown-linux-musl
 else
     cargo build --release --target x86_64-unknown-linux-musl
 fi
+popd
+
+# build macctl
+pushd ../macvmgr
+if [[ "$ARCH" == "arm64" ]]; then
+    export GOARCH=arm64
+else
+    export GOARCH=amd64
+fi
+go build -trimpath -ldflags="-s -w" github.com/kdrag0n/macvirt/macvmgr/cmd/macctl
 popd
 
 rm -fr rd
@@ -66,6 +76,7 @@ rm -r packages
 
 # init and other scripts
 OPT=opt/vc
+GUEST_OPT=opt/macvirt-guest
 cp -r ../utils/vc $OPT
 # legal
 cp ../../LICENSE .
@@ -78,6 +89,8 @@ if [[ "$ARCH" == "arm64" ]]; then
     cp ../rd-compile/add-nfsd-vsock $OPT
     # vcontrol server
     cp ../vcontrol/target/aarch64-unknown-linux-musl/release/vcontrol $OPT
+    # macctl
+    cp ../../macvmgr/macctl $GUEST_OPT/bin
 else
     # preinit
     cp ../rd-compile86/switch_overlay_root $OPT
@@ -85,6 +98,8 @@ else
     cp ../rd-compile86/add-nfsd-vsock $OPT
     # vcontrol server
     cp ../vcontrol/target/x86_64-unknown-linux-musl/release/vcontrol $OPT
+    # macctl
+    cp ../../macvmgr/macctl $GUEST_OPT/bin
 fi
 
 
