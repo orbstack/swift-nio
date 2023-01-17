@@ -43,6 +43,20 @@ type CommandOpts struct {
 	ExtraEnv     map[string]string
 }
 
+func NfsDataRoot() string {
+	user := Meta().User
+	if user == "" {
+		user = os.Getenv("USER")
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+
+	return "/Users/" + user + "/Linux/Containers/" + hostname
+}
+
 func TranslatePath(p string) string {
 	// canonicalize first
 	p = path.Clean(p)
@@ -62,10 +76,7 @@ func TranslatePath(p string) string {
 	}
 
 	// otherwise, translate to linux
-	// TODO *for this container*
-	// TODO probably have to move to mac side
-	nfsMountpoint := "/Users/dragon/Linux/Root"
-	return nfsMountpoint + p
+	return NfsDataRoot() + "/" + p
 }
 
 func IsPathArg(arg string) bool {

@@ -15,3 +15,8 @@ var rootCmd = &cobra.Command{
 func Execute() error {
 	return rootCmd.Execute()
 }
+
+func HasCommand(args []string) bool {
+	_, _, err := rootCmd.Find(args)
+	return err == nil
+}

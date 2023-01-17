@@ -78,12 +78,6 @@ func init() {
 func handleSshConn(s ssh.Session) error {
 	ptyReq, winCh, isPty := s.Pty()
 
-	logrus.WithFields(logrus.Fields{
-		"pty":  isPty,
-		"user": s.User(),
-		"cmd":  s.RawCommand(),
-	}).Debug("SSH connection")
-
 	// new env
 	env := make([]string, 0)
 
@@ -107,6 +101,13 @@ func handleSshConn(s ssh.Session) error {
 			return err
 		}
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"pty":  isPty,
+		"user": s.User(),
+		"cmd":  s.RawCommand(),
+		"meta": meta,
+	}).Debug("SSH connection")
 
 	// override with some env inherited from host
 	env = append(env, inheritHostEnvValues...)
