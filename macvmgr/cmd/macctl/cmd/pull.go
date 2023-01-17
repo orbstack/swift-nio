@@ -1,0 +1,52 @@
+package cmd
+
+import (
+	"os"
+	"os/exec"
+
+	"github.com/spf13/cobra"
+)
+
+func init() {
+	rootCmd.AddCommand(pullCmd)
+}
+
+var pullCmd = &cobra.Command{
+	Use:   "pull Linux-source... macOS-dest",
+	Short: "Copy files from macOS",
+	Long: `Copy files from macOS to Linux.
+
+Source paths are relative to the macOS user's home directory.`,
+	Example: "  macctl pull Desktop/example.txt .",
+	Args:    cobra.MatchAll(cobra.MinimumNArgs(2), cobra.OnlyValidArgs),
+	RunE: func(_ *cobra.Command, args []string) error {
+		// last = dest
+		dest := args[len(args)-1]
+		// rest = sources
+		sources := args[:len(args)-1]
+
+		for i, source := range sources {
+			sources[i] = translateMacPath(source)
+		}
+
+		cmdArgs := []string{"-rf"}
+		cmdArgs = append(cmdArgs, sources...)
+		cmdArgs = append(cmdArgs, dest)
+
+		// TODO: do this ourselves
+		cmd := exec.Command("cp", cmdArgs...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				os.Exit(exitErr.ExitCode())
+			} else {
+				return err
+			}
+		}
+
+		return nil
+	},
+}

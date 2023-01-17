@@ -54,6 +54,7 @@ var (
 		"PATH",
 		"SHELL",
 		"TMPDIR",
+		"SSH_AUTH_SOCK",
 	}
 	inheritHostEnvValues = []string{}
 )
@@ -236,7 +237,7 @@ func ListenHostSSH(stack *stack.Stack, address tcpip.Address) error {
 				s.Exit(exitErr.ExitCode())
 			} else {
 				logrus.Error("SSH error: ", err)
-				s.Stderr().Write([]byte("SSH error: " + err.Error() + "\r\n"))
+				s.Stderr().Write([]byte(err.Error() + "\r\n"))
 				s.Exit(1)
 			}
 		}

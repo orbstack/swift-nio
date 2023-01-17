@@ -6,6 +6,7 @@ replace github.com/Code-Hex/vz/v3 => ../../../vm/vz
 
 // go branch
 replace gvisor.dev/gvisor => ../../../vm/gvisor
+
 replace github.com/gliderlabs/ssh => ../../../vm/glider-ssh
 
 require (
@@ -19,8 +20,12 @@ require (
 )
 
 require (
+	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mdlayher/socket v0.4.0 // indirect
+	github.com/spf13/cobra v1.6.1 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/term v0.4.0 // indirect
 )
