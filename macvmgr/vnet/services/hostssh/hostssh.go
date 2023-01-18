@@ -2,7 +2,6 @@ package sshsrv
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -239,9 +238,6 @@ func handleSshConn(s ssh.Session) error {
 			Setctty: true,
 			Ctty:    cttyFd, // must always be tty
 		}
-		fmt.Println("mask: stdin=", meta.PtyStdin, " stdout=", meta.PtyStdout, " stderr=", meta.PtyStderr)
-		fmt.Println("ctty", cttyFd)
-		fmt.Println("cmds: stdin=", cmd.Stdin, " stdout=", cmd.Stdout, " stderr=", cmd.Stderr)
 	} else {
 		cmd.Stdin = s
 		cmd.Stdout = s
