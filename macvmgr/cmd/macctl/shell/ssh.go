@@ -140,37 +140,50 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 		RawCommand: !opts.UseShell && len(opts.CombinedArgs) > 0,
 	}
 
+	// individual ptys
+	// tell the host which ones should be pipes and which ones should be ptys
+	ptyFd := -1
+	if terminal.IsTerminal(fdStdin) {
+		meta.PtyStdin = true
+		ptyFd = fdStdin
+	}
 	if terminal.IsTerminal(fdStdout) {
+		meta.PtyStdout = true
+		ptyFd = fdStdout
+	}
+	if terminal.IsTerminal(fdStderr) {
+		meta.PtyStderr = true
+		ptyFd = fdStderr
+	}
+	// need a pty?
+	if meta.PtyStdin || meta.PtyStdout || meta.PtyStderr {
 		term := os.Getenv("TERM")
-		w, h, err := terminal.GetSize(fdStdout)
+		w, h, err := terminal.GetSize(ptyFd)
 		if err != nil {
 			return 0, err
 		}
 
 		// snapshot the flags
-		flags, err := termios.GetTermios(uintptr(fdStdout))
+		flags, err := termios.GetTermios(uintptr(ptyFd))
 		if err != nil {
 			return 0, err
 		}
 		modes := termios.TermiosToSSH(flags)
 
-		// raw mode
-		state, err := terminal.MakeRaw(fdStdout)
-		if err != nil {
-			return 0, err
+		// raw mode if both outputs are ptys
+		if meta.PtyStdout && meta.PtyStderr {
+			state, err := terminal.MakeRaw(ptyFd)
+			if err != nil {
+				return 0, err
+			}
+			defer terminal.Restore(ptyFd, state)
 		}
-		defer terminal.Restore(fdStdout, state)
 
 		// request pty
 		err = session.RequestPty(term, h, w, modes)
 		if err != nil {
 			return 0, err
 		}
-	}
-
-	// if stdout is a pty but stdin isn't, tell the host
-	if terminal.IsTerminal(fdStdout) && !terminal.IsTerminal(fdStdin) {
-		meta.DisableStdinPty = true
 	}
 
 	session.Stdin = os.Stdin
@@ -251,7 +264,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 		case sig := <-fwdSigChan:
 			err = session.Signal(sshSigMap[sig])
 		case <-winchChan:
-			w, h, err := terminal.GetSize(fdStdout)
+			w, h, err := terminal.GetSize(ptyFd)
 			if err != nil {
 				continue
 			}

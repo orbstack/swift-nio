@@ -2,6 +2,7 @@ package sshsrv
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -49,8 +50,10 @@ var (
 	}
 
 	defaultMeta = sshtypes.SshMeta{
-		RawCommand:      false,
-		DisableStdinPty: false,
+		RawCommand: false,
+		PtyStdin:   true,
+		PtyStdout:  true,
+		PtyStderr:  true,
 	}
 
 	// matches macOS ssh vars
@@ -64,6 +67,12 @@ var (
 		"SSH_AUTH_SOCK",
 	}
 	inheritHostEnvValues = []string{}
+)
+
+const (
+	fdStdin  = 0
+	fdStdout = 1
+	fdStderr = 2
 )
 
 func init() {
@@ -198,24 +207,41 @@ func handleSshConn(s ssh.Session) error {
 			}
 		}()
 
-		// hook up pty, controlling tty, and session
+		// which ones are pipes and which ones are ptys?
+		cttyFd := -1
+		if meta.PtyStdin {
+			cmd.Stdin = ttyF
+			go io.Copy(ptyF, s)
+			cttyFd = fdStdin
+		} else {
+			cmd.Stdin = s
+		}
+
+		if meta.PtyStdout {
+			cmd.Stdout = ttyF
+			cttyFd = fdStdout
+		} else {
+			cmd.Stdout = s
+		}
+		if meta.PtyStderr {
+			cmd.Stderr = ttyF
+			cttyFd = fdStderr
+		} else {
+			cmd.Stderr = s.Stderr()
+		}
+		if meta.PtyStdout || meta.PtyStderr {
+			go io.Copy(s, ptyF)
+		}
+
+		// hook up controlling tty and session
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid:  true,
 			Setctty: true,
-			Ctty:    1, // stdout in child, is always pty
+			Ctty:    cttyFd, // must always be tty
 		}
-		// do we want stdin to be pty as well?
-		if meta.DisableStdinPty {
-			// pipe stdin
-			cmd.Stdin = s
-		} else {
-			cmd.Stdin = ttyF
-			go io.Copy(ptyF, s)
-		}
-		// always hook up stdout and stderr to pty
-		cmd.Stdout = ttyF
-		cmd.Stderr = ttyF
-		go io.Copy(s, ptyF)
+		fmt.Println("mask: stdin=", meta.PtyStdin, " stdout=", meta.PtyStdout, " stderr=", meta.PtyStderr)
+		fmt.Println("ctty", cttyFd)
+		fmt.Println("cmds: stdin=", cmd.Stdin, " stdout=", cmd.Stdout, " stderr=", cmd.Stderr)
 	} else {
 		cmd.Stdin = s
 		cmd.Stdout = s
