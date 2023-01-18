@@ -6,4 +6,4 @@ denylist
 #init_module errno 38
 #finit_module errno 38
 #delete_module errno 38
-#bind notify
+bind notify
