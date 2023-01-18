@@ -67,7 +67,7 @@ ln -sf /mnt/mac /mac
 mount --rbind -o ro /opt/macvirt-guest /mnt/guest-tools
 
 # host service proxies
-socat UNIX-LISTEN:/opt/macvirt-guest/run/hostssh.sock,fork,reuseaddr TCP:172.30.30.200:22,nodelay &
-socat UNIX-LISTEN:/opt/macvirt-guest/run/hcontrol.sock,fork,reuseaddr TCP:172.30.30.200:8300,nodelay &
+socat UNIX-LISTEN:/opt/macvirt-guest/run/hostssh.sock,fork,reuseaddr,mode=777 TCP:172.30.30.200:22,nodelay &
+socat UNIX-LISTEN:/opt/macvirt-guest/run/hcontrol.sock,fork,reuseaddr,mode=777 TCP:172.30.30.200:8300,nodelay &
 
 echo "[END] vinit-early"
