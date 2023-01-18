@@ -2,7 +2,6 @@ package sshsrv
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -214,10 +213,6 @@ func handleSshConn(s ssh.Session) error {
 		cmd.Stderr = s.Stderr()
 	}
 
-	fmt.Println("at fork")
-	fmt.Println("stdin=", cmd.Stdin)
-	fmt.Println("stdout=", cmd.Stdout)
-	fmt.Println("stderr=", cmd.Stderr)
 	err = cmd.Start()
 	if err != nil {
 		return err
