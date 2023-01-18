@@ -2,10 +2,12 @@ package sshsrv
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
@@ -153,14 +155,21 @@ func handleSshConn(s ssh.Session) error {
 	cmd.Dir = pwd
 
 	if isPty {
-		ptyF, err := pty.StartWithSize(cmd, &pty.Winsize{
+		ptyF, ttyF, err := pty.Open()
+		if err != nil {
+			return err
+		}
+		defer ptyF.Close()
+		defer ttyF.Close()
+
+		// set size
+		err = pty.Setsize(ptyF, &pty.Winsize{
 			Rows: uint16(ptyReq.Window.Height),
 			Cols: uint16(ptyReq.Window.Width),
 		})
 		if err != nil {
 			return err
 		}
-		defer ptyF.Close()
 
 		// set term modes
 		tflags, err := termios.GetTermios(ptyF.Fd())
@@ -182,17 +191,36 @@ func handleSshConn(s ssh.Session) error {
 			}
 		}()
 
-		go io.Copy(ptyF, s)
+		// hook up pty, controlling tty, and session
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:  true,
+			Setctty: true,
+			Ctty:    1, // stdout in child, is always pty
+		}
+		// do we want stdin to be pty as well?
+		if meta.DisableStdinPty {
+			cmd.Stdin = s
+		} else {
+			cmd.Stdin = ttyF
+			go io.Copy(ptyF, s)
+		}
+		// always hook up stdout and stderr to pty
+		cmd.Stdout = ttyF
+		cmd.Stderr = ttyF
 		go io.Copy(s, ptyF)
 	} else {
 		cmd.Stdin = s
 		cmd.Stdout = s
 		cmd.Stderr = s.Stderr()
+	}
 
-		err := cmd.Start()
-		if err != nil {
-			return err
-		}
+	fmt.Println("at fork")
+	fmt.Println("stdin=", cmd.Stdin)
+	fmt.Println("stdout=", cmd.Stdout)
+	fmt.Println("stderr=", cmd.Stderr)
+	err = cmd.Start()
+	if err != nil {
+		return err
 	}
 
 	// forward signals

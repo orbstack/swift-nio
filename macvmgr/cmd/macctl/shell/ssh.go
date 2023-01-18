@@ -2,6 +2,8 @@ package shell
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"os/signal"
 	"path"
@@ -16,11 +18,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var (
-	pathArgRegexp = regexp.MustCompile(`^([a-zA-Z0-9_\-]+)?=/(.+)$`)
+const (
+	fdStdin  = 0
+	fdStdout = 1
+	fdStderr = 2
 )
 
 var (
+	pathArgRegexp = regexp.MustCompile(`^([a-zA-Z0-9_\-]+)?=/(.+)$`)
+
 	sshSigMap = map[os.Signal]ssh.Signal{
 		unix.SIGABRT: ssh.SIGABRT,
 		unix.SIGALRM: ssh.SIGALRM,
@@ -134,33 +140,37 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 		RawCommand: !opts.UseShell && len(opts.CombinedArgs) > 0,
 	}
 
-	ptyFd := 1 // based on stdout
-	if terminal.IsTerminal(ptyFd) {
+	if terminal.IsTerminal(fdStdout) {
 		term := os.Getenv("TERM")
-		w, h, err := terminal.GetSize(ptyFd)
+		w, h, err := terminal.GetSize(fdStdout)
 		if err != nil {
 			return 0, err
 		}
 
 		// snapshot the flags
-		flags, err := termios.GetTermios(uintptr(ptyFd))
+		flags, err := termios.GetTermios(uintptr(fdStdout))
 		if err != nil {
 			return 0, err
 		}
 		modes := termios.TermiosToSSH(flags)
 
 		// raw mode
-		state, err := terminal.MakeRaw(ptyFd)
+		state, err := terminal.MakeRaw(fdStdout)
 		if err != nil {
 			return 0, err
 		}
-		defer terminal.Restore(ptyFd, state)
+		defer terminal.Restore(fdStdout, state)
 
 		// request pty
 		err = session.RequestPty(term, h, w, modes)
 		if err != nil {
 			return 0, err
 		}
+	}
+
+	// if stdout is a pty but stdin isn't, tell the host
+	if terminal.IsTerminal(fdStdout) && !terminal.IsTerminal(fdStdin) {
+		meta.DisableStdinPty = true
 	}
 
 	session.Stdin = os.Stdin
@@ -241,7 +251,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 		case sig := <-fwdSigChan:
 			err = session.Signal(sshSigMap[sig])
 		case <-winchChan:
-			w, h, err := terminal.GetSize(ptyFd)
+			w, h, err := terminal.GetSize(fdStdout)
 			if err != nil {
 				continue
 			}
@@ -251,6 +261,9 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 			if err != nil {
 				if exitErr, ok := err.(*ssh.ExitError); ok {
 					return exitErr.ExitStatus(), nil
+				} else if errors.Is(err, io.EOF) {
+					// TODO correct exit status
+					return 0, nil
 				} else {
 					return 0, err
 				}
