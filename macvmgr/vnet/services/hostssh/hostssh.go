@@ -47,6 +47,12 @@ var (
 		ssh.SIGUSR1: unix.SIGUSR1,
 		ssh.SIGUSR2: unix.SIGUSR2,
 	}
+
+	defaultMeta = sshtypes.SshMeta{
+		RawCommand:      false,
+		DisableStdinPty: false,
+	}
+
 	// matches macOS ssh vars
 	inheritHostEnvs = [...]string{
 		"USER",
@@ -101,6 +107,8 @@ func handleSshConn(s ssh.Session) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		meta = defaultMeta
 	}
 
 	logrus.WithFields(logrus.Fields{
@@ -198,6 +206,7 @@ func handleSshConn(s ssh.Session) error {
 		}
 		// do we want stdin to be pty as well?
 		if meta.DisableStdinPty {
+			// pipe stdin
 			cmd.Stdin = s
 		} else {
 			cmd.Stdin = ttyF
