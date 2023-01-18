@@ -2,44 +2,20 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
 
 	"github.com/lxc/go-lxc"
-	seccomp "github.com/seccomp/libseccomp-golang"
 	"golang.org/x/sys/unix"
 )
+
+const cNotifRespFlagContinue = 1
 
 func rescanListeners(c *lxc.Container) error {
 	// TODO
 	return nil
-}
-
-func monitorSeccompNotifier(c *lxc.Container, sfd seccomp.ScmpFd) error {
-	for {
-		req, err := seccomp.NotifReceive(sfd)
-		if err != nil {
-			return err
-		}
-		fmt.Println("RRRR req", req)
-
-		resp := seccomp.ScmpNotifResp{
-			ID:    req.ID,
-			Error: 0,
-			Val:   0,
-			Flags: seccomp.NotifRespFlagContinue,
-		}
-		err = seccomp.NotifRespond(sfd, &resp)
-		if err != nil {
-			return err
-		}
-
-		go rescanListeners(c)
-	}
 }
 
 type scmpNotifSizes struct {
@@ -95,9 +71,6 @@ func readSeccompProxyMsg(conn *net.UnixConn) (*scmpNotifyProxyMsg, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("n in", n)
-	fmt.Println("b64 in", base64.StdEncoding.EncodeToString(buf[:n]))
-	fmt.Println("hex in", hex.Dump(buf[:n]))
 
 	cmsgs, err := unix.ParseSocketControlMessage(oob[:oobn])
 	if err != nil {
@@ -167,7 +140,7 @@ func runSeccompServer() error {
 					ID:    msg.Req.ID,
 					Error: 0,
 					Val:   0,
-					Flags: seccomp.NotifRespFlagContinue,
+					Flags: cNotifRespFlagContinue,
 				}
 
 				var buf bytes.Buffer
@@ -176,16 +149,14 @@ func runSeccompServer() error {
 					fmt.Println("write err", err)
 					return
 				}
-				fmt.Println("n out", buf.Len())
-				fmt.Println("b64 out", base64.StdEncoding.EncodeToString(buf.Bytes()))
-				fmt.Println("hex out", hex.Dump(buf.Bytes()))
 
 				_, err = conn.Write(buf.Bytes())
 				if err != nil {
 					fmt.Println("write err", err)
 					return
 				}
-				fmt.Println("responded")
+
+				go rescanListeners(nil)
 			}
 		}(conn.(*net.UnixConn))
 	}
