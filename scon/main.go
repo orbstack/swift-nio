@@ -98,14 +98,6 @@ func runSSHServer(containers map[string]*lxc.Container) {
 
 		env := s.Environ()
 		env = append(env, "TERM="+ptyReq.Term)
-		if ssh.AgentRequested(s) {
-			// TODO path in container
-			l, err := ssh.NewAgentListener()
-			check(err)
-			defer l.Close()
-			go ssh.ForwardAgentConnections(l, s)
-			env = append(env, "SSH_AUTH_SOCK="+l.Addr().String())
-		}
 
 		var childPid int
 		attachOptions := lxc.AttachOptions{
