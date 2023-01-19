@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
+	"runtime"
+	"sync"
 	"time"
 
 	_ "net/http/pprof"
@@ -17,29 +20,201 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var (
-	lxcConfigs = map[string]string{
-		"lxc.seccomp.allow_nesting": "1",
-		"lxc.seccomp.notify.proxy":  "unix:/tmp/seccomp.sock",
-		"lxc.net":                   "",
-		//"lxc.net.0.type":            "none",
-	}
+const (
+	seccompProxySock        = "/tmp/scon-seccomp.sock"
+	gracefulShutdownTimeout = 2 * time.Second
+	startTimeout            = 10 * time.Second
 )
 
 type ConManager struct {
-	containers map[string]*Container
+	containers        map[string]*Container
+	dataDir           string
+	seccompPolicyPath string
 }
 
-func (m *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
-	c, err := lxc.NewContainer(name, "/tmp")
+func NewConManager(dataDir string) (*ConManager, error) {
+	// extract seccomp policy
+	f, err := os.CreateTemp("", "scon-seccomp.policy")
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+	_, err = f.WriteString(seccompPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ConManager{
+		containers:        make(map[string]*Container),
+		dataDir:           dataDir,
+		seccompPolicyPath: f.Name(),
+	}, nil
+}
+
+func (m *ConManager) Close() error {
+	os.Remove(m.seccompPolicyPath)
+	return nil
+}
+
+func (m *ConManager) subdir(dir string) string {
+	path := path.Join(m.dataDir, dir)
+	if err := os.MkdirAll(path, 0755); err != nil {
+		panic(err)
+	}
+	return path
+}
+
+func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath string) (err error) {
+	defer func() {
+		if err := recover(); err != nil {
+			err = fmt.Errorf("failed to set LXC config: %w", err)
+		}
+	}()
+
+	set := func(key, value string) {
+		if err := c.SetConfigItem(key, value); err != nil {
+			panic(err)
+		}
+	}
+
+	// from common default
+	set("lxc.tty.dir", "lxc")
+	set("lxc.pty.max", "1024")
+	set("lxc.tty.max", "4")
+	set("lxc.cap.drop", "mac_admin mac_override sys_time sys_module sys_rawio")
+	set("lxc.cgroup2.devices.deny", "a")
+	// Allow any mknod (but not reading/writing the node)
+	set("lxc.cgroup2.devices.allow", "c *:* m")
+	set("lxc.cgroup2.devices.allow", "b *:* m")
+	// Allow specific devices
+	// /dev/null
+	set("lxc.cgroup2.devices.allow", "c 1:3 rwm")
+	// /dev/zero
+	set("lxc.cgroup2.devices.allow", "c 1:5 rwm")
+	// /dev/full
+	set("lxc.cgroup2.devices.allow", "c 1:7 rwm")
+	// /dev/tty
+	set("lxc.cgroup2.devices.allow", "c 5:0 rwm")
+	// /dev/console
+	set("lxc.cgroup2.devices.allow", "c 5:1 rwm")
+	// /dev/ptmx
+	set("lxc.cgroup2.devices.allow", "c 5:2 rwm")
+	// /dev/random
+	set("lxc.cgroup2.devices.allow", "c 1:8 rwm")
+	// /dev/urandom
+	set("lxc.cgroup2.devices.allow", "c 1:9 rwm")
+	// /dev/pts/*
+	set("lxc.cgroup2.devices.allow", "c 136:* rwm")
+	// fuse
+	set("lxc.cgroup2.devices.allow", "c 10:229 rwm")
+	// Default mounts
+	set("lxc.mount.auto", "proc:mixed sys:mixed")
+	set("lxc.mount.entry", "/sys/fs/fuse/connections sys/fs/fuse/connections none bind)optional 0 0")
+
+	// from nesting
+	set("lxc.mount.entry", "proc dev/.lxc/proc proc create=dir,optional 0 0")
+	set("lxc.mount.entry", "sys dev/.lxc/sys sysfs create=dir,optional 0 0")
+
+	// other sourced
+	set("lxc.arch", "linux64")
+
+	// seccomp
+	set("lxc.seccomp.allow_nesting", "1")
+	set("lxc.seccomp.notify.proxy", "unix:"+seccompProxySock)
+	set("lxc.seccomp.profile", m.seccompPolicyPath)
+
+	// network
+	set("lxc.net", "")
+	set("lxc.net.0.type", "veth")
+	// TODO try router
+	set("lxc.net.0.veth.mode", "bridge")
+	set("lxc.net.0.link", ifBridge)
+
+	// log
+	set("lxc.log.file", logPath)
+	if conf.Debug() {
+		set("lxc.log.level", "TRACE")
+	} else {
+		set("lxc.log.level", "INFO")
+	}
+
+	// container
+	set("lxc.rootfs.path", "dir:"+path.Join(m.subdir("containers"), name, "rootfs"))
+	set("lxc.uts.name", name)
+
+	return nil
+}
+
+func (m *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
+	c, err := lxc.NewContainer(name, m.subdir("containers"))
+	if err != nil {
+		return nil, err
+	}
+	runtime.SetFinalizer(c, func(c *lxc.Container) {
+		c.Release()
+	})
+
+	// logging
+	logPath := path.Join(m.subdir("logs"), name+".log")
+	c.ClearConfig()
+	c.SetLogFile(logPath)
+	if conf.Debug() {
+		c.SetVerbosity(lxc.Verbose)
+		c.SetLogLevel(lxc.TRACE)
+	} else {
+		c.SetVerbosity(lxc.Quiet)
+		c.SetLogLevel(lxc.INFO)
+	}
+
+	// configs
+	err = m.setLxcConfigs(c, name, logPath)
+	if err != nil {
+		return nil, err
+	}
+
 	return c, nil
 }
 
-func (m *ConManager) Create() {
+func (m *ConManager) newContainer(name string) (*Container, error) {
+	c, err := m.newLxcContainer(name)
+	if err != nil {
+		return nil, err
+	}
 
+	return &Container{
+		name:        name,
+		c:           c,
+		defaultUser: "root", // TODO
+		manager:     m,
+	}, nil
+}
+
+func (m *ConManager) LoadExisting(name string) error {
+	c, err := m.newContainer(name)
+	if err != nil {
+		return err
+	}
+
+	m.containers[name] = c
+	return nil
+}
+
+func (m *ConManager) Create() {
+	// TODO
+
+	// options := lxc.TemplateOptions{
+	// 	Template: "download",
+	// 	Backend:  lxc.Directory,
+	// 	Distro:   "alpine",
+	// 	Release:  "edge",
+	// 	Arch:     "amd64", // TODO
+	// 	Variant:  "default",
+	// 	//FlushCache: true,
+	// }
+
+	// fmt.Println("create")
+	// err = c.Create(options)
+	// check(err)
 }
 
 func (m *ConManager) Get(name string) (*Container, bool) {
@@ -47,30 +222,145 @@ func (m *ConManager) Get(name string) (*Container, bool) {
 	return c, bool
 }
 
+func (m *ConManager) removeContainer(c *Container) error {
+	delete(m.containers, c.name)
+	runtime.SetFinalizer(c, nil)
+	c.c.Release()
+	return nil
+}
+
 type Container struct {
 	name        string
 	c           *lxc.Container
 	defaultUser string
+
+	agentProcess *os.Process
+	manager      *ConManager
+	mu           sync.RWMutex
 }
 
 func (c *Container) Start() error {
-	return c.c.Start()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	err := c.c.Start()
+	if err != nil {
+		return err
+	}
+
+	if !c.c.Wait(lxc.RUNNING, startTimeout) {
+		return fmt.Errorf("container did not start: %s - %v", c.name, c.c.State())
+	}
+
+	err = c.startAgent()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Container) Stop() error {
-	return c.c.Stop()
+	fmt.Println("lock..")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	fmt.Println("running?")
+	if !c.Running() {
+		fmt.Println("not running")
+		return nil
+	}
+
+	fmt.Println("kil agent")
+	if c.agentProcess != nil {
+		err := c.agentProcess.Kill()
+		if err != nil {
+			return err
+		}
+		c.agentProcess = nil
+	}
+
+	// ignore failure
+	// fmt.Println("graceful shutdown")
+	// err := c.c.Shutdown(gracefulShutdownTimeout)
+	// if err != nil {
+	// 	logrus.Warn("graceful shutdown failed: ", err)
+	// }
+
+	fmt.Println("force stop")
+	err := c.c.Stop()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Container) Delete() error {
-	return c.c.Destroy()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.c.Running() {
+		err := c.Stop()
+		if err != nil {
+			return err
+		}
+	}
+
+	err := c.c.Destroy()
+	if err != nil {
+		return err
+	}
+
+	return c.manager.removeContainer(c)
 }
 
 func (c *Container) Exec(cmd []string, opts lxc.AttachOptions) (int, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	return c.c.RunCommandNoWait(cmd, opts)
 }
 
 func (c *Container) Running() bool {
 	return c.c.Running()
+}
+
+func (c *Container) startAgent() error {
+	// open /dev/null
+	devNull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	defer devNull.Close()
+
+	opts := lxc.AttachOptions{
+		Namespaces:         -1,
+		Arch:               -1,
+		Cwd:                "/",
+		UID:                0,
+		GID:                0,
+		Groups:             nil,
+		ClearEnv:           true,
+		Env:                nil,
+		EnvToKeep:          nil,
+		StdinFd:            devNull.Fd(),
+		StdoutFd:           devNull.Fd(),
+		StderrFd:           devNull.Fd(),
+		RemountSysProc:     false,
+		ElevatedPrivileges: false,
+	}
+	svcPid, err := c.c.RunCommandNoWait([]string{"/bin/su", "-l", "-c", "sleep inf"}, opts)
+	if err != nil {
+		return err
+	}
+
+	c.agentProcess, err = os.FindProcess(svcPid)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func check(err error) {
@@ -92,112 +382,49 @@ func main() {
 		})
 	}
 
-	// get cwd
+	// data dir
 	cwd, err := os.Getwd()
 	check(err)
 
-	go runSconServer()
-	go runPprof()
+	mgr, err := NewConManager(cwd + "/data")
+	check(err)
+	defer mgr.Close()
+
+	// setup seccomp
 	go runSeccompServer()
-
-	storageDir := cwd + "/data"
-	logPath := cwd + "/data/alpine.log"
-	c, err := lxc.NewContainer("alpine", storageDir)
-	check(err)
-	defer c.Release()
-
-	fmt.Println(c.Name())
-	c.SetVerbosity(lxc.Verbose)
-	c.SetLogFile(logPath)
-	c.SetLogLevel(lxc.TRACE)
-
-	// options := lxc.TemplateOptions{
-	// 	Template: "download",
-	// 	Backend:  lxc.Directory,
-	// 	Distro:   "alpine",
-	// 	Release:  "edge",
-	// 	Arch:     "amd64", // TODO
-	// 	Variant:  "default",
-	// 	//FlushCache: true,
-	// }
-
-	// fmt.Println("create")
-	// err = c.Create(options)
-	// check(err)
-
-	err = c.SetConfigItem("lxc.seccomp.profile", cwd+"/policy.seccomp")
-	check(err)
-	for k, v := range lxcConfigs {
-		err = c.SetConfigItem(k, v)
-		check(err)
-	}
-
-	fmt.Println("start")
-	err = c.Start()
-	check(err)
-
-	// seccompFd, err := c.SeccompNotifyFdActive()
-	// check(err)
-	// go monitorSeccompNotifier(c, seccomp.ScmpFd(seccompFd.Fd()))
-	// defer seccompFd.Close()
-
-	fmt.Println("wait running")
-	if c.Wait(lxc.RUNNING, 5*time.Second) {
-		fmt.Println("running")
-	} else {
-		fmt.Println("not running")
-	}
-
+	// setup network
 	bridge, err := newBridge()
 	check(err)
 	defer netlink.LinkDel(bridge)
-
-	veth, err := newVethPair(bridge)
-	check(err)
-	defer netlink.LinkDel(veth)
 
 	cleanupNat, err := setupNat()
 	check(err)
 	defer cleanupNat()
 
-	// TODO attach at boot
-	err = c.AttachInterface("veth0b", "eth0")
-	check(err)
-
-	fmt.Println("run agent")
-	svcPid, err := c.RunCommandNoWait([]string{"/bin/su", "-l", "-c", "sleep inf"}, lxc.DefaultAttachOptions)
-	fmt.Println("agent pid", svcPid, err)
-	check(err)
-
-	// fmt.Println("wait net")
-	// ips, err := c.WaitIPAddresses(5 * time.Second)
-	// if err == nil {
-	// 	fmt.Println("net", ips)
-	// } else {
-	// 	fmt.Println("no net")
-	// }
-
-	mgr := &ConManager{
-		containers: map[string]*Container{
-			"alpine": {
-				name:        "alpine",
-				c:           c,
-				defaultUser: "root",
-			},
-		},
-	}
+	// services
 	go mgr.ListenSSH("127.0.0.1:2222")
+	go runSconServer(mgr)
+	go runPprof()
+
+	err = mgr.LoadExisting("alpine")
+	check(err)
+	container, ok := mgr.Get("alpine")
+	if !ok {
+		panic("container not found")
+	}
+
+	fmt.Println("start")
+	err = container.Start()
+	check(err)
 
 	fmt.Println("wait sig")
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, unix.SIGTERM)
+	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM)
 	<-sigChan
 
-	fmt.Println("shutdown")
-	err = c.Shutdown(1 * time.Second)
+	fmt.Println("stop")
+	err = container.Stop()
 	check(err)
 
-	fmt.Println("stop")
-	err = c.Stop()
-	check(err)
+	fmt.Println("all done")
 }

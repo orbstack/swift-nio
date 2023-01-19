@@ -54,37 +54,6 @@ func newBridge() (*netlink.Bridge, error) {
 	return bridge, nil
 }
 
-func newVethPair(bridge *netlink.Bridge) (*netlink.Veth, error) {
-	veth := &netlink.Veth{
-		LinkAttrs: netlink.LinkAttrs{
-			Name:   "veth0a",
-			MTU:    bridge.MTU,
-			TxQLen: bridge.TxQLen,
-		},
-		PeerName: "veth0b",
-	}
-	err := netlink.LinkAdd(veth)
-	if err != nil {
-		if errors.Is(err, unix.EEXIST) {
-			err = netlink.LinkDel(veth)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return nil, err
-	}
-	err = netlink.LinkSetMaster(veth, bridge)
-	if err != nil {
-		return nil, err
-	}
-	// set up
-	err = netlink.LinkSetUp(veth)
-	if err != nil {
-		return nil, err
-	}
-	return veth, nil
-}
-
 func setupNat() (func() error, error) {
 	ipt, err := iptables.New(iptables.IPFamily(iptables.ProtocolIPv4), iptables.Timeout(5))
 	if err != nil {

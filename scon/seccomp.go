@@ -13,6 +13,11 @@ import (
 
 const cNotifRespFlagContinue = 1
 
+const seccompPolicy = `2
+denylist
+bind notify
+`
+
 func rescanListeners(c *lxc.Container) error {
 	// TODO
 	return nil
@@ -109,8 +114,8 @@ func readSeccompProxyMsg(conn *net.UnixConn) (*scmpNotifyProxyMsg, error) {
 }
 
 func runSeccompServer() error {
-	_ = os.Remove("/tmp/seccomp.sock")
-	listener, err := net.Listen("unixpacket", "/tmp/seccomp.sock")
+	_ = os.Remove(seccompProxySock)
+	listener, err := net.Listen("unixpacket", seccompProxySock)
 	if err != nil {
 		fmt.Println("listen err", err)
 		return err
