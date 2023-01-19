@@ -330,6 +330,7 @@ func (c *Container) startAgent() error {
 	if err != nil {
 		return err
 	}
+	// fd is used directly, no pipe
 	defer devNull.Close()
 
 	cmd := &LxcCommand{
@@ -346,6 +347,7 @@ func (c *Container) startAgent() error {
 	}
 
 	c.agentProcess = cmd.Process
+	// Stop() hangs without this
 	go cmd.Process.Wait()
 
 	return nil
