@@ -32,11 +32,12 @@ const (
 	capturePcap  = false
 	nicID        = 1
 
-	subnet4     = "172.30.30"
-	GatewayIP4  = subnet4 + ".1"
-	GuestIP4    = subnet4 + ".2"
-	ServicesIP4 = subnet4 + ".200"
-	HostNatIP4  = subnet4 + ".254"
+	subnet4      = "172.30.30"
+	GatewayIP4   = subnet4 + ".1"
+	GuestIP4     = subnet4 + ".2"
+	ServicesIP4  = subnet4 + ".200"
+	SecureSvcIP4 = subnet4 + ".201"
+	HostNatIP4   = subnet4 + ".254"
 
 	subnet6    = "fc00:96dc:7096:1d21:"
 	GatewayIP6 = subnet6 + ":1"

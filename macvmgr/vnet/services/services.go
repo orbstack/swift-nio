@@ -31,6 +31,7 @@ var (
 
 func StartNetServices(n *vnet.Network) {
 	addr := netutil.ParseTcpipAddress(vnet.ServicesIP4)
+	secureAddr := netutil.ParseTcpipAddress(vnet.SecureSvcIP4)
 
 	// DNS (53): using system resolver
 	if runDNS {
@@ -50,7 +51,7 @@ func StartNetServices(n *vnet.Network) {
 
 	// SSH (22): for commands
 	if runHostSSH {
-		err := sshsrv.ListenHostSSH(n.Stack, addr)
+		err := sshsrv.ListenHostSSH(n.Stack, secureAddr)
 		if err != nil {
 			logrus.Error("Failed to start SSH server", err)
 		}
@@ -58,7 +59,7 @@ func StartNetServices(n *vnet.Network) {
 
 	// Host control (8300): HTTP API
 	if runHcontrol {
-		_, err := hcsrv.ListenHcontrol(n.Stack, addr)
+		_, err := hcsrv.ListenHcontrol(n.Stack, secureAddr)
 		if err != nil {
 			logrus.Error("Failed to start host control server", err)
 		}
@@ -67,7 +68,7 @@ func StartNetServices(n *vnet.Network) {
 	// SFTP (22323): Android file sharing
 	/*
 		if runSFTP {
-			err := sftpsrv.ListenSFTP(n.Stack, addr)
+			err := sftpsrv.ListenSFTP(n.Stack, secureAddr)
 			if err != nil {
 				logrus.Error("Failed to start SFTP server", err)
 			}
