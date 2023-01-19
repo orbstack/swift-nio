@@ -394,7 +394,9 @@ func main() {
 	// services
 	go mgr.ListenSSH("127.0.0.1:2222")
 	go runSconServer(mgr)
-	go runPprof()
+	if conf.Debug() {
+		go runPprof()
+	}
 
 	err = mgr.LoadExisting("alpine")
 	check(err)
