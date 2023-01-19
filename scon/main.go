@@ -330,7 +330,7 @@ func (c *Container) startAgent() error {
 	if err != nil {
 		return err
 	}
-	//defer devNull.Close()
+	defer devNull.Close()
 
 	cmd := &LxcCommand{
 		CombinedArgs: []string{"/bin/su", "-l", "-c", "sleep inf"},
