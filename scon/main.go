@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -274,7 +275,7 @@ func (c *Container) Stop() error {
 	fmt.Println("kil agent")
 	if c.agentProcess != nil {
 		err := c.agentProcess.Kill()
-		if err != nil {
+		if err != nil && !errors.Is(err, os.ErrProcessDone) {
 			return err
 		}
 		c.agentProcess = nil
@@ -316,9 +317,6 @@ func (c *Container) Delete() error {
 }
 
 func (c *Container) Exec(cmd []string, opts lxc.AttachOptions) (int, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	return c.c.RunCommandNoWait(cmd, opts)
 }
 
@@ -332,33 +330,23 @@ func (c *Container) startAgent() error {
 	if err != nil {
 		return err
 	}
-	defer devNull.Close()
+	//defer devNull.Close()
 
-	opts := lxc.AttachOptions{
-		Namespaces:         -1,
-		Arch:               -1,
-		Cwd:                "/",
-		UID:                0,
-		GID:                0,
-		Groups:             nil,
-		ClearEnv:           true,
-		Env:                nil,
-		EnvToKeep:          nil,
-		StdinFd:            devNull.Fd(),
-		StdoutFd:           devNull.Fd(),
-		StderrFd:           devNull.Fd(),
-		RemountSysProc:     false,
-		ElevatedPrivileges: false,
+	cmd := &LxcCommand{
+		CombinedArgs: []string{"/bin/su", "-l", "-c", "sleep inf"},
+		Dir:          "/",
+		Env:          []string{},
+		Stdin:        devNull,
+		Stdout:       devNull,
+		Stderr:       devNull,
 	}
-	svcPid, err := c.c.RunCommandNoWait([]string{"/bin/su", "-l", "-c", "sleep inf"}, opts)
+	err = cmd.Start(c)
 	if err != nil {
 		return err
 	}
 
-	c.agentProcess, err = os.FindProcess(svcPid)
-	if err != nil {
-		return err
-	}
+	c.agentProcess = cmd.Process
+	go cmd.Process.Wait()
 
 	return nil
 }
