@@ -87,9 +87,9 @@ func ApplySSHToTermios(m ssh.TerminalModes, t *unix.Termios) {
 		switch op {
 		// speed
 		case ssh.TTY_OP_ISPEED:
-			t.Ispeed = uint64(val)
+			t.Ispeed = uint32(val)
 		case ssh.TTY_OP_OSPEED:
-			t.Ospeed = uint64(val)
+			t.Ospeed = uint32(val)
 
 		// cc
 		case ssh.VINTR:
