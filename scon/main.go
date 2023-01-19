@@ -23,7 +23,7 @@ import (
 
 const (
 	seccompProxySock        = "/tmp/scon-seccomp.sock"
-	gracefulShutdownTimeout = 1 * time.Second
+	gracefulShutdownTimeout = 100 * time.Millisecond
 	startTimeout            = 10 * time.Second
 )
 
