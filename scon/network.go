@@ -97,7 +97,7 @@ func setupNat() (func() error, error) {
 		return nil, err
 	}
 
-	err = ipt.AppendUnique("filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", "172.30.30.200", "-j", "REJECT", "--reject-with", "tcp-reset")
+	err = ipt.AppendUnique("filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", "172.30.30.201", "-j", "REJECT", "--reject-with", "tcp-reset")
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func setupNat() (func() error, error) {
 			return err
 		}
 
-		err = ipt.DeleteIfExists("filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", "172.30.30.200", "-j", "REJECT", "--reject-with", "tcp-reset")
+		err = ipt.DeleteIfExists("filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", "172.30.30.201", "-j", "REJECT", "--reject-with", "tcp-reset")
 		if err != nil {
 			return err
 		}

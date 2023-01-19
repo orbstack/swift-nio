@@ -13,12 +13,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	// TODO last used
-	defaultContainer = "alpine"
-	defaultUser      = "root"
-)
-
 func runSSHServer(containers map[string]*lxc.Container) {
 	ssh.Handle(func(s ssh.Session) {
 		defer s.Close()
