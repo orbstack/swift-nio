@@ -125,7 +125,6 @@ func runSeccompServer() error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("accept err", err)
 			return err
 		}
 
@@ -135,7 +134,6 @@ func runSeccompServer() error {
 			for {
 				msg, err := readSeccompProxyMsg(conn)
 				if err != nil {
-					fmt.Println("read err", err)
 					return
 				}
 

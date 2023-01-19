@@ -23,7 +23,7 @@ import (
 
 const (
 	seccompProxySock        = "/tmp/scon-seccomp.sock"
-	gracefulShutdownTimeout = 2 * time.Second
+	gracefulShutdownTimeout = 1 * time.Second
 	startTimeout            = 10 * time.Second
 )
 
@@ -282,14 +282,16 @@ func (c *Container) Stop() error {
 	}
 
 	// ignore failure
-	// fmt.Println("graceful shutdown")
-	// err := c.c.Shutdown(gracefulShutdownTimeout)
-	// if err != nil {
-	// 	logrus.Warn("graceful shutdown failed: ", err)
-	// }
+	fmt.Println("graceful shutdown")
+	err := c.c.Shutdown(gracefulShutdownTimeout)
+	if err != nil {
+		logrus.Warn("graceful shutdown failed: ", err)
+	} else {
+		return nil
+	}
 
 	fmt.Println("force stop")
-	err := c.c.Stop()
+	err = c.c.Stop()
 	if err != nil {
 		return err
 	}
