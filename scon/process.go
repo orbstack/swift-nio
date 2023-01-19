@@ -1,0 +1,105 @@
+package main
+
+import (
+	"io"
+	"os"
+
+	"github.com/lxc/go-lxc"
+)
+
+type LxcCommand struct {
+	CombinedArgs []string
+	Dir          string
+	Env          []string
+	Stdin        io.Reader
+	Stdout       io.Writer
+	Stderr       io.Writer
+
+	Process *os.Process
+}
+
+func (c *LxcCommand) Start(container *Container) error {
+	lxcOpts := lxc.AttachOptions{
+		Namespaces: -1,
+		Arch:       -1,
+		Cwd:        c.Dir,
+		UID:        0,
+		GID:        0,
+		Groups:     nil,
+		ClearEnv:   true,
+		Env:        c.Env,
+		EnvToKeep:  nil,
+		// filled in below
+		StdinFd:            0,
+		StdoutFd:           0,
+		StderrFd:           0,
+		RemountSysProc:     false,
+		ElevatedPrivileges: false,
+	}
+
+	if file, ok := c.Stdin.(*os.File); ok {
+		lxcOpts.StdinFd = uintptr(file.Fd())
+	} else {
+		// make pipe
+		r, w, err := os.Pipe()
+		if err != nil {
+			return err
+		}
+		lxcOpts.StdinFd = uintptr(r.Fd())
+		defer r.Close()
+
+		// copy stdin to pipe
+		go func() {
+			io.Copy(w, c.Stdin)
+			w.Close()
+		}()
+	}
+
+	if file, ok := c.Stdout.(*os.File); ok {
+		lxcOpts.StdoutFd = uintptr(file.Fd())
+	} else {
+		// make pipe
+		r, w, err := os.Pipe()
+		if err != nil {
+			return err
+		}
+		lxcOpts.StdoutFd = uintptr(w.Fd())
+		defer w.Close()
+
+		// copy pipe to stdout
+		go func() {
+			io.Copy(c.Stdout, r)
+			r.Close()
+		}()
+	}
+
+	if file, ok := c.Stderr.(*os.File); ok {
+		lxcOpts.StderrFd = uintptr(file.Fd())
+	} else {
+		// make pipe
+		r, w, err := os.Pipe()
+		if err != nil {
+			return err
+		}
+		lxcOpts.StderrFd = uintptr(w.Fd())
+		defer w.Close()
+
+		// copy pipe to stderr
+		go func() {
+			io.Copy(c.Stderr, r)
+			r.Close()
+		}()
+	}
+
+	childPid, err := container.Exec(c.CombinedArgs, lxcOpts)
+	if err != nil {
+		return err
+	}
+
+	c.Process, err = os.FindProcess(childPid)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

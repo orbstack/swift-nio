@@ -18,6 +18,7 @@ require (
 )
 
 require (
+	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
 	golang.org/x/crypto v0.5.0 // indirect

@@ -5,11 +5,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"time"
 
 	_ "net/http/pprof"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/lxc/go-lxc"
+	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -27,7 +30,7 @@ type ConManager struct {
 	containers map[string]*Container
 }
 
-func (cm *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
+func (m *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
 	c, err := lxc.NewContainer(name, "/tmp")
 	if err != nil {
 		return nil, err
@@ -35,12 +38,13 @@ func (cm *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
 	return c, nil
 }
 
-func (cm *ConManager) Create() {
+func (m *ConManager) Create() {
 
 }
 
-func (cm *ConManager) Get() {
-
+func (m *ConManager) Get(name string) (*Container, bool) {
+	c, bool := m.containers[name]
+	return c, bool
 }
 
 type Container struct {
@@ -61,6 +65,14 @@ func (c *Container) Delete() error {
 	return c.c.Destroy()
 }
 
+func (c *Container) Exec(cmd []string, opts lxc.AttachOptions) (int, error) {
+	return c.c.RunCommandNoWait(cmd, opts)
+}
+
+func (c *Container) Running() bool {
+	return c.c.Running()
+}
+
 func check(err error) {
 	if err != nil {
 		panic(err)
@@ -72,6 +84,14 @@ func runPprof() {
 }
 
 func main() {
+	if conf.Debug() {
+		logrus.SetLevel(logrus.DebugLevel)
+		logrus.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: "01-02 15:04:05",
+		})
+	}
+
 	// get cwd
 	cwd, err := os.Getwd()
 	check(err)
@@ -157,17 +177,21 @@ func main() {
 	// 	fmt.Println("no net")
 	// }
 
-	containerMap := map[string]*lxc.Container{
-		"alpine": c,
+	mgr := &ConManager{
+		containers: map[string]*Container{
+			"alpine": {
+				name:        "alpine",
+				c:           c,
+				defaultUser: "root",
+			},
+		},
 	}
-	go runSSHServer(containerMap)
+	go mgr.ListenSSH("127.0.0.1:2222")
 
-	fmt.Println("shell")
-	shellPid, err := c.RunCommandNoWait([]string{"/bin/su", "-l"}, lxc.DefaultAttachOptions)
-	fmt.Println("shell status", shellPid, err)
-	check(err)
-
-	unix.Wait4(shellPid, nil, 0, nil)
+	fmt.Println("wait sig")
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, unix.SIGTERM)
+	<-sigChan
 
 	fmt.Println("shutdown")
 	err = c.Shutdown(1 * time.Second)
