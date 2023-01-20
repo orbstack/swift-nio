@@ -131,7 +131,7 @@ func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
 	return nil
 }
 
-func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string, mtu int) (err error) {
+func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string, mtu int, image ImageSpec) (err error) {
 	defer func() {
 		if err := recover(); err != nil {
 			err = fmt.Errorf("failed to set LXC config: %w", err)
@@ -212,6 +212,11 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	set("lxc.apparmor.profile", "unconfined")
 	set("lxc.arch", "linux64")
 
+	// void linux shutdown workaround
+	if image.Distro == ImageVoid {
+		set("lxc.signal.halt", "SIGCONT")
+	}
+
 	/*
 	 * custom
 	 */
@@ -248,7 +253,7 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	return nil
 }
 
-func (m *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
+func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Container, error) {
 	c, err := lxc.NewContainer(name, m.subdir("containers"))
 	if err != nil {
 		return nil, err
@@ -279,7 +284,7 @@ func (m *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = m.setLxcConfigs(c, name, logPath, rootfs, mtu)
+	err = m.setLxcConfigs(c, name, logPath, rootfs, mtu, image)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +293,14 @@ func (m *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
 }
 
 func (m *ConManager) newContainer(name string) (*Container, error) {
-	c, err := m.newLxcContainer(name)
+	// TODO
+	image := ImageSpec{
+		Distro:  ImageAlpine,
+		Version: "edge",
+		Arch:    "amd64",
+		Variant: "default",
+	}
+	c, err := m.newLxcContainer(name, image)
 	if err != nil {
 		return nil, err
 	}
