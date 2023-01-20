@@ -104,8 +104,10 @@ fi
 
 
 # TODO generate
-cp ../config/ssh_host_keys/* etc/ssh/
-chmod -R 0600 etc/ssh/*key*
+if ! $IS_RELEASE; then
+    cp ../config/ssh_host_keys/* etc/ssh/
+    chmod -R 0600 etc/ssh/*key*
+fi
 
 # data volume
 popd
