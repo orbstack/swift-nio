@@ -13,7 +13,7 @@ func (c *Container) OpenPty() (pty, tty *os.File, err error) {
 		return
 	}
 
-	ptyFd, err := unix.Openat(int(ptsDir.Fd()), "ptmx", unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOCTTY, 0)
+	ptyFd, err := unix.Openat(int(ptsDir.Fd()), "ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return
 	}
@@ -29,7 +29,7 @@ func (c *Container) OpenPty() (pty, tty *os.File, err error) {
 	}
 
 	// open tty peer
-	ttyFd, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(pty.Fd()), unix.TIOCGPTPEER, uintptr(unix.O_NOCTTY|unix.O_CLOEXEC|os.O_RDWR))
+	ttyFd, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(pty.Fd()), unix.TIOCGPTPEER, uintptr(os.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC))
 	if errno != 0 {
 		err = errno
 		pty.Close()

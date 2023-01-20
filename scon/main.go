@@ -31,6 +31,10 @@ type ConManager struct {
 	containers        map[string]*Container
 	dataDir           string
 	seccompPolicyPath string
+
+	// refcounts
+	forwards   map[HostForwardSpec]int
+	forwardsMu sync.Mutex
 }
 
 func NewConManager(dataDir string) (*ConManager, error) {
