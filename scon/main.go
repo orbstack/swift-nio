@@ -78,54 +78,61 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath string) (err 
 		}
 	}
 
-	// from common default
-	set("lxc.tty.dir", "lxc")
+	/*
+	 * from LXD
+	 */
 	set("lxc.pty.max", "1024")
-	set("lxc.tty.max", "4")
-	set("lxc.cap.drop", "mac_admin mac_override sys_time sys_module sys_rawio")
-	set("lxc.cgroup2.devices.deny", "a")
-	// Allow any mknod (but not reading/writing the node)
-	set("lxc.cgroup2.devices.allow", "c *:* m")
-	set("lxc.cgroup2.devices.allow", "b *:* m")
-	// Allow specific devices
-	// /dev/null
-	set("lxc.cgroup2.devices.allow", "c 1:3 rwm")
-	// /dev/zero
-	set("lxc.cgroup2.devices.allow", "c 1:5 rwm")
-	// /dev/full
-	set("lxc.cgroup2.devices.allow", "c 1:7 rwm")
-	// /dev/tty
-	set("lxc.cgroup2.devices.allow", "c 5:0 rwm")
-	// /dev/console
-	set("lxc.cgroup2.devices.allow", "c 5:1 rwm")
-	// /dev/ptmx
-	set("lxc.cgroup2.devices.allow", "c 5:2 rwm")
-	// /dev/random
-	set("lxc.cgroup2.devices.allow", "c 1:8 rwm")
-	// /dev/urandom
-	set("lxc.cgroup2.devices.allow", "c 1:9 rwm")
-	// /dev/pts/*
-	set("lxc.cgroup2.devices.allow", "c 136:* rwm")
-	// fuse
-	set("lxc.cgroup2.devices.allow", "c 10:229 rwm")
-	// Default mounts
-	set("lxc.mount.auto", "proc:mixed sys:mixed")
-	set("lxc.mount.entry", "/sys/fs/fuse/connections sys/fs/fuse/connections none bind)optional 0 0")
+	set("lxc.tty.max", "0")
+	//set("lxc.cap.drop", "sys_time sys_module sys_rawio mac_admin mac_override")
+	set("lxc.cap.drop", "sys_time")
+	set("lxc.autodev", "1") // populate /dev
 
-	// from nesting
+	// console
+	//set("lxc.console.logfile", logPath + ".console.log")
+	//set("lxc.console.buffer.size", "auto")
+	//set("lxc.console.size", "auto")
+
+	set("lxc.cgroup2.devices.deny", "a")
+	set("lxc.cgroup2.devices.allow", "b *:* m")      // mknod block
+	set("lxc.cgroup2.devices.allow", "c *:* m")      // mknod char
+	set("lxc.cgroup2.devices.allow", "c 136:* rwm")  // dev/pts/*
+	set("lxc.cgroup2.devices.allow", "c 1:3 rwm")    // dev/null
+	set("lxc.cgroup2.devices.allow", "c 1:5 rwm")    // dev/zero
+	set("lxc.cgroup2.devices.allow", "c 1:7 rwm")    // dev/full
+	set("lxc.cgroup2.devices.allow", "c 1:8 rwm")    // dev/random
+	set("lxc.cgroup2.devices.allow", "c 1:9 rwm")    // dev/urandom
+	set("lxc.cgroup2.devices.allow", "c 5:0 rwm")    // dev/tty
+	set("lxc.cgroup2.devices.allow", "c 5:1 rwm")    // dev/console
+	set("lxc.cgroup2.devices.allow", "c 5:2 rwm")    // dev/ptmx
+	set("lxc.cgroup2.devices.allow", "c 10:229 rwm") // dev/fuse
+	set("lxc.cgroup2.devices.allow", "c 10:200 rwm") // dev/net/tun
+
+	// Default mounts
+	set("lxc.mount.auto", "proc:mixed sys:mixed cgroup:rw:force")
+	set("lxc.mount.entry", "mqueue dev/mqueue mqueue rw,relatime,create=dir,optional 0 0")
+	set("lxc.mount.entry", "/dev/fuse dev/fuse none bind,create=file,optional 0 0")
+	set("lxc.mount.entry", "/dev/net/tun dev/net/tun none bind,create=file,optional 0 0")
+	set("lxc.mount.entry", "/proc/sys/fs/binfmt_misc proc/sys/fs/binfmt_misc none rbind,create=dir,optional 0 0")
+	set("lxc.mount.entry", "/sys/fs/fuse/connections sys/fs/fuse/connections none rbind,create=dir,optional 0 0")
+	set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
+
+	// nesting
 	set("lxc.mount.entry", "proc dev/.lxc/proc proc create=dir,optional 0 0")
 	set("lxc.mount.entry", "sys dev/.lxc/sys sysfs create=dir,optional 0 0")
 
-	// other sourced
+	// other
+	set("lxc.apparmor.profile", "unconfined")
 	set("lxc.arch", "linux64")
 
+	/*
+	 * custom
+	 */
 	// seccomp
 	set("lxc.seccomp.allow_nesting", "1")
 	set("lxc.seccomp.notify.proxy", "unix:"+seccompProxySock)
 	set("lxc.seccomp.profile", m.seccompPolicyPath)
 
 	// network
-	set("lxc.net", "")
 	set("lxc.net.0.type", "veth")
 	// TODO try router
 	set("lxc.net.0.veth.mode", "bridge")
@@ -134,9 +141,9 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath string) (err 
 	// log
 	set("lxc.log.file", logPath)
 	if conf.Debug() {
-		set("lxc.log.level", "TRACE")
+		set("lxc.log.level", "trace")
 	} else {
-		set("lxc.log.level", "INFO")
+		set("lxc.log.level", "warn")
 	}
 
 	// container
