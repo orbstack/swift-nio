@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -130,7 +131,7 @@ func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
 	return nil
 }
 
-func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string) (err error) {
+func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string, mtu int) (err error) {
 	defer func() {
 		if err := recover(); err != nil {
 			err = fmt.Errorf("failed to set LXC config: %w", err)
@@ -224,6 +225,7 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	// TODO try router
 	set("lxc.net.0.veth.mode", "bridge")
 	set("lxc.net.0.link", ifBridge)
+	set("lxc.net.0.mtu", strconv.Itoa(mtu))
 
 	// bind mounts
 	config := conf.C()
@@ -273,7 +275,11 @@ func (m *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = m.setLxcConfigs(c, name, logPath, rootfs)
+	mtu, err := getDefaultMTU()
+	if err != nil {
+		return nil, err
+	}
+	err = m.setLxcConfigs(c, name, logPath, rootfs, mtu)
 	if err != nil {
 		return nil, err
 	}

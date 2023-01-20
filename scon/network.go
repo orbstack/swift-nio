@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net"
 
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/vishvananda/netlink"
@@ -84,4 +85,38 @@ func setupNat() (func() error, error) {
 
 		return nil
 	}, nil
+}
+
+func getDefaultAddress4() net.IP {
+	conn, err := net.Dial("udp", "1.0.0.1:33000")
+	if err != nil {
+		return nil
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.To4()
+}
+
+func getDefaultMTU() (int, error) {
+	// get default interface index
+	routes, err := netlink.RouteList(nil, netlink.FAMILY_V4)
+	if err != nil {
+		return 0, err
+	}
+	var defaultRoute *netlink.Route
+	for _, r := range routes {
+		if r.Dst == nil {
+			defaultRoute = &r
+			break
+		}
+	}
+	if defaultRoute == nil {
+		return 0, errors.New("no default route")
+	}
+
+	// get default interface
+	link, err := netlink.LinkByIndex(defaultRoute.LinkIndex)
+	if err != nil {
+		return 0, err
+	}
+	return link.Attrs().MTU, nil
 }
