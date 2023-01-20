@@ -8,13 +8,15 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	_ "net/http/pprof"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -69,7 +71,66 @@ func (m *ConManager) subdir(dir string) string {
 	return path
 }
 
-func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath string) (err error) {
+// TODO lxc.hook.autodev or c.AddDeviceNode
+func addInitDevice(c *lxc.Container, src string) error {
+	// stat
+	var stat unix.Stat_t
+	err := unix.Stat(src, &stat)
+	if err != nil {
+		return err
+	}
+
+	var dtype string
+	if stat.Mode&unix.S_IFMT == unix.S_IFBLK {
+		// block device
+		dtype = "b"
+	} else {
+		// char device
+		dtype = "c"
+	}
+
+	// add to cgroups
+	err = c.SetConfigItem("lxc.cgroup2.devices.allow", fmt.Sprintf("%s %d:%d rwm", dtype, unix.Major(stat.Rdev), unix.Minor(stat.Rdev)))
+	if err != nil {
+		return err
+	}
+
+	// add mount
+	err = c.SetConfigItem("lxc.mount.entry", fmt.Sprintf("%s %s none bind,create=file,optional 0 0", src, strings.TrimPrefix(src, "/")))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
+	extraOpts := ""
+	if opts != "" {
+		extraOpts = "," + opts
+	}
+
+	stat, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	createType := "file"
+	bindType := "bind"
+	if stat.IsDir() {
+		createType = "dir"
+		bindType = "rbind"
+	}
+
+	err = c.SetConfigItem("lxc.mount.entry", fmt.Sprintf("%s %s none %s,create=%s,optional%s 0 0", src, strings.TrimPrefix(dst, "/"), bindType, createType, extraOpts))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string) (err error) {
 	defer func() {
 		if err := recover(); err != nil {
 			err = fmt.Errorf("failed to set LXC config: %w", err)
@@ -78,6 +139,22 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath string) (err 
 
 	set := func(key, value string) {
 		if err := c.SetConfigItem(key, value); err != nil {
+			panic(err)
+		}
+	}
+
+	addDev := func(node string) {
+		if err := addInitDevice(c, node); err != nil {
+			panic(err)
+		}
+	}
+	bind := func(src, dst, opts string) {
+		extraOpts := ""
+		if opts != "" {
+			extraOpts = "," + opts
+		}
+
+		if err := c.SetConfigItem("lxc.mount.entry", fmt.Sprintf("%s %s none rbind,create=dir,optional%s 0 0", src, strings.TrimPrefix(dst, "/"), extraOpts)); err != nil {
 			panic(err)
 		}
 	}
@@ -97,25 +174,31 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath string) (err 
 	//set("lxc.console.size", "auto")
 
 	set("lxc.cgroup2.devices.deny", "a")
-	set("lxc.cgroup2.devices.allow", "b *:* m")      // mknod block
-	set("lxc.cgroup2.devices.allow", "c *:* m")      // mknod char
-	set("lxc.cgroup2.devices.allow", "c 136:* rwm")  // dev/pts/*
-	set("lxc.cgroup2.devices.allow", "c 1:3 rwm")    // dev/null
-	set("lxc.cgroup2.devices.allow", "c 1:5 rwm")    // dev/zero
-	set("lxc.cgroup2.devices.allow", "c 1:7 rwm")    // dev/full
-	set("lxc.cgroup2.devices.allow", "c 1:8 rwm")    // dev/random
-	set("lxc.cgroup2.devices.allow", "c 1:9 rwm")    // dev/urandom
-	set("lxc.cgroup2.devices.allow", "c 5:0 rwm")    // dev/tty
-	set("lxc.cgroup2.devices.allow", "c 5:1 rwm")    // dev/console
-	set("lxc.cgroup2.devices.allow", "c 5:2 rwm")    // dev/ptmx
-	set("lxc.cgroup2.devices.allow", "c 10:229 rwm") // dev/fuse
-	set("lxc.cgroup2.devices.allow", "c 10:200 rwm") // dev/net/tun
+	set("lxc.cgroup2.devices.allow", "b *:* m")     // mknod block
+	set("lxc.cgroup2.devices.allow", "c *:* m")     // mknod char
+	set("lxc.cgroup2.devices.allow", "c 136:* rwm") // dev/pts/*
+	set("lxc.cgroup2.devices.allow", "c 1:3 rwm")   // dev/null
+	set("lxc.cgroup2.devices.allow", "c 1:5 rwm")   // dev/zero
+	set("lxc.cgroup2.devices.allow", "c 1:7 rwm")   // dev/full
+	set("lxc.cgroup2.devices.allow", "c 1:8 rwm")   // dev/random
+	set("lxc.cgroup2.devices.allow", "c 1:9 rwm")   // dev/urandom
+	set("lxc.cgroup2.devices.allow", "c 5:0 rwm")   // dev/tty
+	set("lxc.cgroup2.devices.allow", "c 5:1 rwm")   // dev/console
+	set("lxc.cgroup2.devices.allow", "c 5:2 rwm")   // dev/ptmx
+	set("lxc.cgroup2.devices.allow", "c 7:* rwm")   // dev/loop*
+
+	// Devices
+	addDev("/dev/fuse")
+	addDev("/dev/net/tun")
+	addDev("/dev/ppp")
+	addDev("/dev/kmsg")
+	addDev("/dev/loop-control")
+	addDev("/dev/autofs") // TODO security
+	addDev("/dev/userfaultfd")
 
 	// Default mounts
 	set("lxc.mount.auto", "proc:mixed sys:mixed cgroup:rw:force")
 	set("lxc.mount.entry", "mqueue dev/mqueue mqueue rw,relatime,create=dir,optional 0 0")
-	set("lxc.mount.entry", "/dev/fuse dev/fuse none bind,create=file,optional 0 0")
-	set("lxc.mount.entry", "/dev/net/tun dev/net/tun none bind,create=file,optional 0 0")
 	set("lxc.mount.entry", "/proc/sys/fs/binfmt_misc proc/sys/fs/binfmt_misc none rbind,create=dir,optional 0 0")
 	set("lxc.mount.entry", "/sys/fs/fuse/connections sys/fs/fuse/connections none rbind,create=dir,optional 0 0")
 	set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
@@ -142,6 +225,12 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath string) (err 
 	set("lxc.net.0.veth.mode", "bridge")
 	set("lxc.net.0.link", ifBridge)
 
+	// bind mounts
+	config := conf.C()
+	bind(config.GuestMountSrc, "/opt/macvirt-guest", "ro")
+	bind(config.HostMountSrc, "/mnt/mac", "")
+	bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
+
 	// log
 	set("lxc.log.file", logPath)
 	if conf.Debug() {
@@ -151,7 +240,7 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath string) (err 
 	}
 
 	// container
-	set("lxc.rootfs.path", "dir:"+path.Join(m.subdir("containers"), name, "rootfs"))
+	set("lxc.rootfs.path", "dir:"+rootfs)
 	set("lxc.uts.name", name)
 
 	return nil
@@ -179,7 +268,12 @@ func (m *ConManager) newLxcContainer(name string) (*lxc.Container, error) {
 	}
 
 	// configs
-	err = m.setLxcConfigs(c, name, logPath)
+	rootfs := path.Join(m.subdir("containers"), name, "rootfs")
+	rootfs, err = filepath.EvalSymlinks(rootfs)
+	if err != nil {
+		return nil, err
+	}
+	err = m.setLxcConfigs(c, name, logPath, rootfs)
 	if err != nil {
 		return nil, err
 	}

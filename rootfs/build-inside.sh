@@ -168,6 +168,9 @@ echo 'OPTS_RPC_NFSD="32"' >> /etc/conf.d/nfs
 # fix fd hang
 echo 'OPTS_NFSD="nfsv4leasetime=30 nfsv4gracetime=1"' >> /etc/conf.d/nfs
 
+# hostname
+echo vchost > /etc/hostname
+
 # HACK: fix usbip ld lib path
 mkdir /usbip
 ln -s /opt/vc/usbip /usbip/prefix

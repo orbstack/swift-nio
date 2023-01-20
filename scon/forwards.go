@@ -8,7 +8,13 @@ func (m *ConManager) addForward(spec HostForwardSpec) {
 	m.forwardsMu.Lock()
 	defer m.forwardsMu.Unlock()
 
-	newCount := m.forwards[spec]++
-	if newCount == 1 {
+	m.forwards[spec]++
+	if m.forwards[spec] == 1 {
+		// new
+
+		// report to host
 		
+
+		// TODO: start proxy
+	}
 }
