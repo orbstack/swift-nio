@@ -231,7 +231,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	fmt.Println("execd:", combinedArgs)
 
 	if isPty {
-		ptyF, ttyF, err := pty.Open()
+		ptyF, ttyF, err := container.OpenPty()
 		if err != nil {
 			return err
 		}

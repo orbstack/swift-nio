@@ -1,0 +1,50 @@
+package main
+
+import (
+	"os"
+	"unsafe"
+
+	"golang.org/x/sys/unix"
+)
+
+func (c *Container) OpenPty() (pty, tty *os.File, err error) {
+	ptsDir, err := c.c.DevptsFd()
+	if err != nil {
+		return
+	}
+
+	ptyFd, err := unix.Openat(int(ptsDir.Fd()), "ptmx", unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOCTTY, 0)
+	if err != nil {
+		return
+	}
+	pty = os.NewFile(uintptr(ptyFd), "/dev/ptmx")
+
+	// unlock
+	val := 0
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(ptyFd), unix.TIOCSPTLCK, uintptr(unsafe.Pointer(&val)))
+	if errno != 0 {
+		err = errno
+		pty.Close()
+		return
+	}
+
+	// open tty peer
+	ttyFd, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(pty.Fd()), unix.TIOCGPTPEER, uintptr(unix.O_NOCTTY|unix.O_CLOEXEC|os.O_RDWR))
+	if errno != 0 {
+		err = errno
+		pty.Close()
+		return
+	}
+	tty = os.NewFile(ttyFd, "/dev/pts/tty")
+
+	// fix ownership
+	// TODO to login user
+	err = unix.Fchown(int(pty.Fd()), 0, 0)
+	if err != nil {
+		pty.Close()
+		tty.Close()
+		return
+	}
+
+	return
+}
