@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -23,10 +24,5 @@ func MountNfs() error {
 }
 
 func UnmountNfs() error {
-	err := exec.Command("umount", "-f", NfsMountpoint()).Run()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return unix.Unmount(NfsMountpoint(), unix.MNT_FORCE)
 }
