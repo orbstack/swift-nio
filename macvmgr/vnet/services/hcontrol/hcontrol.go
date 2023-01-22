@@ -25,15 +25,15 @@ type HcontrolServer struct {
 	n *vnet.Network
 }
 
-func (h *HcontrolServer) Ping(args *None, reply *None) error {
+func (h *HcontrolServer) Ping(_ *None, _ *None) error {
 	return nil
 }
 
-func (h *HcontrolServer) StartForward(spec vnet.ForwardSpec, reply *None) error {
+func (h *HcontrolServer) StartForward(spec vnet.ForwardSpec, _ *None) error {
 	return h.n.StartForward(spec)
 }
 
-func (h *HcontrolServer) StopForward(spec vnet.ForwardSpec, reply *None) error {
+func (h *HcontrolServer) StopForward(spec vnet.ForwardSpec, _ *None) error {
 	return h.n.StopForward(spec)
 }
 

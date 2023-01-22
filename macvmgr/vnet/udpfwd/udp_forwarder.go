@@ -5,7 +5,6 @@ package udpfwd
 
 import (
 	"errors"
-	"io"
 	"net"
 	"net/netip"
 	"sync"
@@ -43,18 +42,11 @@ func newConnTrackKey(addr *net.UDPAddr) *connTrackKey {
 
 type connTrackMap map[connTrackKey]net.Conn
 
-type udpConn interface {
-	ReadFrom(b []byte) (int, net.Addr, error)
-	WriteTo(b []byte, addr net.Addr) (int, error)
-	SetReadDeadline(t time.Time) error
-	io.Closer
-}
-
 // UDPProxy is proxy for which handles UDP datagrams. It implements the Proxy
 // interface to handle UDP traffic forwarding between the frontend and backend
 // addresses.
 type UDPProxy struct {
-	listener       udpConn
+	listener       net.PacketConn
 	dialer         func(*net.UDPAddr) (net.Conn, error)
 	connTrackTable connTrackMap
 	connTrackLock  sync.Mutex
@@ -72,7 +64,7 @@ func LookupExternalConn(localAddr *net.UDPAddr) *net.UDPAddr {
 }
 
 // NewUDPProxy creates a new UDPProxy.
-func NewUDPProxy(listener udpConn, dialer func(*net.UDPAddr) (net.Conn, error), trackExtConn bool) (*UDPProxy, error) {
+func NewUDPProxy(listener net.PacketConn, dialer func(*net.UDPAddr) (net.Conn, error), trackExtConn bool) (*UDPProxy, error) {
 	return &UDPProxy{
 		listener:       listener,
 		connTrackTable: make(connTrackMap),
@@ -173,7 +165,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 		if useTtl {
 			connWrapper, ok := proxy.listener.(*autoStoppingListener)
 			if ok {
-				newTtl := connWrapper.underlying.LastTTL
+				newTtl := connWrapper.UDPConn.LastTTL
 				if newTtl != lastTtl {
 					rawConn, err := extConn.(*net.UDPConn).SyscallConn()
 					if err != nil {
@@ -223,23 +215,15 @@ func (proxy *UDPProxy) Close() error {
 }
 
 type autoStoppingListener struct {
-	underlying *gonet.UDPConn
+	*gonet.UDPConn
 }
 
 func (l *autoStoppingListener) ReadFrom(b []byte) (int, net.Addr, error) {
-	_ = l.underlying.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
-	return l.underlying.ReadFrom(b)
+	_ = l.UDPConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
+	return l.UDPConn.ReadFrom(b)
 }
 
 func (l *autoStoppingListener) WriteTo(b []byte, addr net.Addr) (int, error) {
-	_ = l.underlying.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
-	return l.underlying.WriteTo(b, addr)
-}
-
-func (l *autoStoppingListener) SetReadDeadline(t time.Time) error {
-	return l.underlying.SetReadDeadline(t)
-}
-
-func (l *autoStoppingListener) Close() error {
-	return l.underlying.Close()
+	_ = l.UDPConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
+	return l.UDPConn.WriteTo(b, addr)
 }

@@ -17,26 +17,26 @@ type HostForward interface {
 }
 
 type ForwardSpec struct {
-	Guest string
 	Host  string
+	Guest string
 }
 
 func (n *Network) StartForward(spec ForwardSpec) error {
 	n.hostForwardMu.Lock()
 	defer n.hostForwardMu.Unlock()
 
-	if _, ok := n.hostForwards[spec.Host]; ok {
-		return fmt.Errorf("forward already exists: %s", spec.Host)
+	if _, ok := n.hostForwards[spec.Guest]; ok {
+		return fmt.Errorf("forward already exists: %s", spec.Guest)
 	}
 
-	fromProto, fromAddr, ok := strings.Cut(spec.Guest, ":")
+	fromProto, fromAddr, ok := strings.Cut(spec.Host, ":")
 	if !ok {
-		return fmt.Errorf("invalid spec.From: %s", spec.Guest)
+		return fmt.Errorf("invalid spec.From: %s", spec.Host)
 	}
 
-	toProto, toPort, ok := strings.Cut(spec.Host, ":")
+	toProto, toPort, ok := strings.Cut(spec.Guest, ":")
 	if !ok {
-		return fmt.Errorf("invalid spec.To: %s", spec.Host)
+		return fmt.Errorf("invalid spec.To: %s", spec.Guest)
 	}
 
 	isInternal := true
@@ -96,7 +96,7 @@ func (n *Network) StartForward(spec ForwardSpec) error {
 		return fmt.Errorf("unsupported protocol: %s", fromProto)
 	}
 
-	n.hostForwards[spec.Host] = fwd
+	n.hostForwards[spec.Guest] = fwd
 	return nil
 }
 
@@ -104,9 +104,9 @@ func (n *Network) StopForward(spec ForwardSpec) error {
 	n.hostForwardMu.Lock()
 	defer n.hostForwardMu.Unlock()
 
-	fwd, ok := n.hostForwards[spec.Host]
+	fwd, ok := n.hostForwards[spec.Guest]
 	if !ok {
-		return fmt.Errorf("forward not found: %s", spec.Host)
+		return fmt.Errorf("forward not found: %s", spec.Guest)
 	}
 
 	err := fwd.Close()
@@ -114,7 +114,7 @@ func (n *Network) StopForward(spec ForwardSpec) error {
 		return err
 	}
 
-	delete(n.hostForwards, spec.Host)
+	delete(n.hostForwards, spec.Guest)
 
 	return nil
 }
