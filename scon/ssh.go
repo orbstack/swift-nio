@@ -143,7 +143,10 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	}
 
 	if !container.Running() {
-		fmt.Println("starting container")
+		logrus.WithFields(logrus.Fields{
+			"container": containerName,
+		}).Info("starting container for ssh")
+
 		err := container.Start()
 		if err != nil {
 			return err
@@ -228,7 +231,6 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 		Env:          env,
 		Dir:          pwd,
 	}
-	fmt.Println("execd:", combinedArgs)
 
 	if isPty {
 		ptyF, ttyF, err := container.OpenPty()
@@ -320,17 +322,14 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	// don't wait for fds to close, we close them
 	// read-side pipes will be closed after start
 	// write-side pipes will be closed on EOF
-	fmt.Println("wait")
 	ps, err := cmd.Process.Wait()
 	if err != nil {
-		fmt.Println("wait err:", err)
+		logrus.Error("wait err: ", err)
 		return err
 	}
 	if !ps.Success() {
-		fmt.Println("wait errc:", ps.ExitCode())
 		return &exec.ExitError{ProcessState: ps}
 	}
-	fmt.Println("wait ok")
 
 	return nil
 }

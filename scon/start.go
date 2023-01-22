@@ -12,8 +12,11 @@ import (
 
 	_ "net/http/pprof"
 
+	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/lxc/go-lxc"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -80,10 +83,10 @@ func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
 	return nil
 }
 
-func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string, mtu int, image ImageSpec) (err error) {
+func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string, mtu int, image ImageSpec, cookie string) (err error) {
 	defer func() {
-		if err := recover(); err != nil {
-			err = fmt.Errorf("failed to set LXC config: %w", err)
+		if err2 := recover(); err2 != nil {
+			err = fmt.Errorf("failed to set LXC config: %w", err2)
 		}
 	}()
 
@@ -173,6 +176,7 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	set("lxc.seccomp.allow_nesting", "1")
 	set("lxc.seccomp.notify.proxy", "unix:"+seccompProxySock)
 	set("lxc.seccomp.profile", m.seccompPolicyPath)
+	set("lxc.seccomp.notify.cookie", cookie)
 
 	// network
 	set("lxc.net.0.type", "veth")
@@ -202,10 +206,10 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	return nil
 }
 
-func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Container, error) {
+func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Container, uint64, error) {
 	c, err := lxc.NewContainer(name, m.subdir("containers"))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	runtime.SetFinalizer(c, func(c *lxc.Container) {
 		c.Release()
@@ -227,18 +231,19 @@ func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Contain
 	rootfs := path.Join(m.subdir("containers"), name, "rootfs")
 	rootfs, err = filepath.EvalSymlinks(rootfs)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	mtu, err := getDefaultMTU()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	err = m.setLxcConfigs(c, name, logPath, rootfs, mtu, image)
+	cookieStr, cookieU64 := makeSeccompCookie()
+	err = m.setLxcConfigs(c, name, logPath, rootfs, mtu, image, cookieStr)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return c, nil
+	return c, cookieU64, nil
 }
 
 func (m *ConManager) newContainer(name string) (*Container, error) {
@@ -249,17 +254,28 @@ func (m *ConManager) newContainer(name string) (*Container, error) {
 		Arch:    "amd64",
 		Variant: "default",
 	}
-	c, err := m.newLxcContainer(name, image)
+	c, cookie, err := m.newLxcContainer(name, image)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Container{
-		name:        name,
-		c:           c,
-		defaultUser: "root", // TODO
-		manager:     m,
-	}, nil
+	container := &Container{
+		name:          name,
+		c:             c,
+		defaultUser:   "root", // TODO
+		manager:       m,
+		seccompCookie: cookie,
+		agent:         syncx.NewCondValue[*agent.Client](nil, nil),
+	}
+	container.listenerUpdateDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
+		err := container.updateListenersDirect()
+		if err != nil {
+			logrus.WithError(err).WithField("container", name).Error("failed to update listeners")
+		}
+	})
+	m.seccompCookies[cookie] = container
+
+	return container, nil
 }
 
 func (m *ConManager) LoadExisting(name string) error {
@@ -273,9 +289,6 @@ func (m *ConManager) LoadExisting(name string) error {
 }
 
 func (c *Container) Start() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	err := c.c.Start()
 	if err != nil {
 		return err
@@ -285,39 +298,60 @@ func (c *Container) Start() error {
 		return fmt.Errorf("container did not start: %s - %v", c.name, c.c.State())
 	}
 
-	err = c.startAgent()
-	if err != nil {
-		return err
-	}
+	go func() {
+		err := c.startAgent()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.name).Error("failed to start agent")
+		}
+	}()
 
 	return nil
 }
 
 func (c *Container) startAgent() error {
-	// open /dev/null
-	devNull, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// make agent fds
+	rpcFile, fdxFile, rpcConn, fdxConn, err := agent.MakeAgentFds()
 	if err != nil {
 		return err
 	}
-	// fd is used directly, no pipe
-	defer devNull.Close()
+	// close our side of the file fds after start
+	defer rpcFile.Close()
+	defer fdxFile.Close()
 
+	procExe, err := os.Executable()
+	if err != nil {
+		return err
+	}
 	cmd := &LxcCommand{
-		CombinedArgs: []string{"/bin/su", "-l", "-c", "sleep inf"},
-		Dir:          "/",
-		Env:          []string{},
-		Stdin:        devNull,
-		Stdout:       devNull,
-		Stderr:       devNull,
+		CombinedArgs:       []string{procExe, "agent"},
+		Dir:                "/",
+		Env:                []string{},
+		Stdin:              rpcFile,
+		Stdout:             fdxFile,
+		Stderr:             os.Stderr,
+		restrictNamespaces: unix.CLONE_NEWNET,
 	}
 	err = cmd.Start(c)
 	if err != nil {
 		return err
 	}
 
-	c.agentProcess = cmd.Process
 	// Stop() hangs without this
 	go cmd.Process.Wait()
+
+	// agent client
+	client := agent.NewClient(cmd.Process, rpcConn, fdxConn)
+	c.agent.Set(client)
+
+	// inet diag
+	nlFile, err := client.OpenDiagNetlink()
+	if err != nil {
+		return err
+	}
+	go monitorInetDiag(c, nlFile)
 
 	return nil
 }

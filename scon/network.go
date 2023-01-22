@@ -96,6 +96,15 @@ func getDefaultAddress4() net.IP {
 	return conn.LocalAddr().(*net.UDPAddr).IP.To4()
 }
 
+func getDefaultAddress6() net.IP {
+	conn, err := net.Dial("udp", "[2606:4700:4700::1001]:33000")
+	if err != nil {
+		return nil
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.To16()
+}
+
 func getDefaultMTU() (int, error) {
 	// get default interface index
 	routes, err := netlink.RouteList(nil, netlink.FAMILY_V4)

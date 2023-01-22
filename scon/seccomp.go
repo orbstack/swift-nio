@@ -2,26 +2,27 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
+	"time"
 
-	"github.com/lxc/go-lxc"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
-const cNotifRespFlagContinue = 1
+const (
+	cNotifRespFlagContinue = 1
+
+	autoForwardDebounce = 200 * time.Millisecond
+)
 
 const seccompPolicy = `2
 denylist
 bind notify
 `
-
-func rescanListeners(c *lxc.Container) error {
-	// TODO
-	return nil
-}
 
 type scmpNotifSizes struct {
 	ScmpNotif     uint16
@@ -67,11 +68,36 @@ type scmpNotifyProxyMsg struct {
 
 	Req  scmpNotifReq
 	Resp scmpNotifResp
+
+	// plus our cookie
+	Cookie uint64
+}
+
+func makeSeccompCookie() (string, uint64) {
+	cookieBytes := make([]byte, 8)
+
+	// fill with random bytes, but not 0
+	n, err := rand.Read(cookieBytes)
+	if err != nil {
+		panic(err)
+	}
+	if n != 8 {
+		panic("short read")
+	}
+
+	// make sure we don't have a 0 byte
+	for i := 0; i < 8; i++ {
+		cookieBytes[i] = cookieBytes[i] | 1
+	}
+
+	cookie := string(cookieBytes)
+	cookieInt := binary.LittleEndian.Uint64(cookieBytes)
+	return cookie, cookieInt
 }
 
 func readSeccompProxyMsg(conn *net.UnixConn) (*scmpNotifyProxyMsg, error) {
-	buf := make([]byte, 1024)
-	oob := make([]byte, 1024)
+	buf := make([]byte, 256)
+	oob := make([]byte, 256)
 	n, oobn, _, _, err := conn.ReadMsgUnix(buf, oob)
 	if err != nil {
 		return nil, err
@@ -113,11 +139,24 @@ func readSeccompProxyMsg(conn *net.UnixConn) (*scmpNotifyProxyMsg, error) {
 	return msg, nil
 }
 
-func runSeccompServer() error {
-	_ = os.Remove(seccompProxySock)
+func (m *ConManager) handleSeccompMsg(msg *scmpNotifyProxyMsg) {
+	logrus.Debug("seccomp msg: ", msg)
+
+	cookie := msg.Cookie
+	container, ok := m.seccompCookies[msg.Cookie]
+	if !ok {
+		logrus.Error("seccomp cookie not found: ", cookie)
+		return
+	}
+
+	container.triggerListenersUpdate()
+}
+
+func (m *ConManager) serveSeccomp() error {
+	os.Remove(seccompProxySock)
 	listener, err := net.Listen("unixpacket", seccompProxySock)
 	if err != nil {
-		fmt.Println("listen err", err)
+		logrus.Error("seccomp listen: ", err)
 		return err
 	}
 	defer listener.Close()
@@ -137,29 +176,24 @@ func runSeccompServer() error {
 					return
 				}
 
-				fmt.Println("msg", msg)
-
-				msg.Resp = scmpNotifResp{
-					ID:    msg.Req.ID,
-					Error: 0,
-					Val:   0,
-					Flags: cNotifRespFlagContinue,
-				}
+				msg.Resp.Flags = cNotifRespFlagContinue
 
 				var buf bytes.Buffer
 				err = binary.Write(&buf, binary.LittleEndian, msg)
 				if err != nil {
-					fmt.Println("write err", err)
+					logrus.Error("seccomp write: ", err)
 					return
 				}
+				// strip cookie in reply
+				reply := buf.Bytes()[:buf.Len()-8]
 
-				_, err = conn.Write(buf.Bytes())
+				_, err = conn.Write(reply)
 				if err != nil {
-					fmt.Println("write err", err)
+					logrus.Error("seccomp write: ", err)
 					return
 				}
 
-				go rescanListeners(nil)
+				go m.handleSeccompMsg(msg)
 			}
 		}(conn.(*net.UnixConn))
 	}

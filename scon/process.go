@@ -8,19 +8,25 @@ import (
 )
 
 type LxcCommand struct {
-	CombinedArgs []string
-	Dir          string
-	Env          []string
-	Stdin        io.Reader
-	Stdout       io.Writer
-	Stderr       io.Writer
+	CombinedArgs       []string
+	Dir                string
+	Env                []string
+	Stdin              io.Reader
+	Stdout             io.Writer
+	Stderr             io.Writer
+	restrictNamespaces int
 
 	Process *os.Process
 }
 
 func (c *LxcCommand) Start(container *Container) error {
+	namespaces := -1
+	if c.restrictNamespaces != 0 {
+		namespaces = c.restrictNamespaces
+	}
+
 	lxcOpts := lxc.AttachOptions{
-		Namespaces: -1,
+		Namespaces: namespaces,
 		Arch:       -1,
 		Cwd:        c.Dir,
 		UID:        0,

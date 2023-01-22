@@ -1,20 +1,25 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
 	_ "net/http/pprof"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/hclient"
+	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -22,21 +27,26 @@ import (
 )
 
 const (
-	seccompProxySock        = "/tmp/scon-seccomp.sock"
-	gracefulShutdownTimeout = 100 * time.Millisecond
+	seccompProxySock               = "/tmp/scon-seccomp.sock"
+	gracefulShutdownTimeoutRelease = 3 * time.Second
+	gracefulShutdownTimeoutDebug   = 100 * time.Millisecond
+
+	cmdContainerManager = "container-manager"
+	cmdAgent            = "agent"
 )
 
 type ConManager struct {
 	containers        map[string]*Container
 	dataDir           string
 	seccompPolicyPath string
+	seccompCookies    map[uint64]*Container
 
-	// refcounts
-	forwards   map[HostForwardSpec]int
+	host       *hclient.Client
+	forwards   map[agent.ProcListener]ForwardState
 	forwardsMu sync.Mutex
 }
 
-func NewConManager(dataDir string) (*ConManager, error) {
+func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 	// extract seccomp policy
 	f, err := os.CreateTemp("", "scon-seccomp.policy")
 	if err != nil {
@@ -52,10 +62,15 @@ func NewConManager(dataDir string) (*ConManager, error) {
 		containers:        make(map[string]*Container),
 		dataDir:           dataDir,
 		seccompPolicyPath: f.Name(),
+		seccompCookies:    make(map[uint64]*Container),
+
+		host:     hc,
+		forwards: make(map[agent.ProcListener]ForwardState),
 	}, nil
 }
 
 func (m *ConManager) Close() error {
+	m.host.Close()
 	os.Remove(m.seccompPolicyPath)
 	return nil
 }
@@ -81,7 +96,6 @@ func (m *ConManager) Create() {
 	// 	//FlushCache: true,
 	// }
 
-	// fmt.Println("create")
 	// err = c.Create(options)
 	// check(err)
 }
@@ -93,6 +107,7 @@ func (m *ConManager) Get(name string) (*Container, bool) {
 
 func (m *ConManager) removeContainer(c *Container) error {
 	delete(m.containers, c.name)
+	delete(c.manager.seccompCookies, c.seccompCookie)
 	runtime.SetFinalizer(c, nil)
 	c.c.Release()
 	return nil
@@ -103,41 +118,50 @@ type Container struct {
 	c           *lxc.Container
 	defaultUser string
 
-	agentProcess *os.Process
-	manager      *ConManager
-	mu           sync.RWMutex
+	agent   syncx.CondValue[*agent.Client]
+	manager *ConManager
+	mu      sync.RWMutex
+
+	seccompCookie          uint64
+	lastListeners          []agent.ProcListener
+	listenerUpdateDebounce syncx.FuncDebounce
+}
+
+func (c *Container) Agent() *agent.Client {
+	return c.agent.Wait()
 }
 
 func (c *Container) Stop() error {
-	fmt.Println("lock..")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	fmt.Println("running?")
 	if !c.Running() {
-		fmt.Println("not running")
 		return nil
 	}
 
-	fmt.Println("kil agent")
-	if c.agentProcess != nil {
-		err := c.agentProcess.Kill()
-		if err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return err
-		}
-		c.agentProcess = nil
+	// stop forwards
+	for _, listener := range c.lastListeners {
+		c.manager.removeForward(c, listener)
+	}
+
+	// stop agent (after listeners removed)
+	if c.agent.Get() != nil {
+		c.Agent().Close()
+		c.agent.Set(nil)
 	}
 
 	// ignore failure
-	fmt.Println("graceful shutdown")
-	err := c.c.Shutdown(gracefulShutdownTimeout)
+	timeout := gracefulShutdownTimeoutRelease
+	if conf.Debug() {
+		timeout = gracefulShutdownTimeoutDebug
+	}
+	err := c.c.Shutdown(timeout)
 	if err != nil {
 		logrus.Warn("graceful shutdown failed: ", err)
 	} else {
 		return nil
 	}
 
-	fmt.Println("force stop")
 	err = c.c.Stop()
 	if err != nil {
 		return err
@@ -183,7 +207,7 @@ func runPprof() {
 	log.Println(http.ListenAndServe("localhost:6060", nil))
 }
 
-func main() {
+func runContainerManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
 		logrus.SetFormatter(&logrus.TextFormatter{
@@ -196,12 +220,22 @@ func main() {
 	cwd, err := os.Getwd()
 	check(err)
 
-	mgr, err := NewConManager(cwd + "/data")
+	// connect to hcontrol (ownership taken by cmgr)
+	if conf.C().DummyHcontrol {
+		err = hclient.StartDummyServer()
+		check(err)
+	}
+	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.HostHcontrol))
+	check(err)
+	hc, err := hclient.New(hcontrolConn)
+	check(err)
+
+	mgr, err := NewConManager(cwd+"/data", hc)
 	check(err)
 	defer mgr.Close()
 
 	// setup seccomp
-	go runSeccompServer()
+	go mgr.serveSeccomp()
 	// setup network
 	bridge, err := newBridge()
 	check(err)
@@ -239,4 +273,20 @@ func main() {
 	check(err)
 
 	fmt.Println("all done")
+}
+
+func main() {
+	cmd := cmdContainerManager
+	if len(os.Args) > 1 {
+		cmd = os.Args[1]
+	}
+
+	switch cmd {
+	case cmdContainerManager:
+		runContainerManager()
+	case cmdAgent:
+		agent.Main()
+	default:
+		panic("unknown command: " + cmd)
+	}
 }

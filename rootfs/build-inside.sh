@@ -25,8 +25,9 @@ sed -i '/getty/d' /etc/inittab
 
 if ! $IS_RELEASE; then
     echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
-    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind docker
+    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind docker fish
     rc-update add sshd default
+    sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
 
     mkdir /root/.ssh
 echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKE7Zy5HlH2BhRzz23wfmoO0LsSoxOfX0saf6HiL5c/c

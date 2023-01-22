@@ -19,6 +19,7 @@ type Config struct {
 	HostMountSrc  string
 	FakeSrc       string
 	HcontrolIP    string
+	DummyHcontrol bool
 }
 
 var configVM = Config{
@@ -27,18 +28,15 @@ var configVM = Config{
 	HostMountSrc:  "/mnt/mac",
 	FakeSrc:       "/fake",
 	HcontrolIP:    "172.30.30.201",
+	DummyHcontrol: false,
 }
 
 var configTest = Config{
 	GuestMountSrc: "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/macvirt-guest",
 	HostMountSrc:  "/ssdstore",
 	FakeSrc:       "/home/dragon/code/projects/macvirt/rootfs/out/rd/fake",
-	HcontrolIP:    "",
-}
-
-// TODO
-func Debug() bool {
-	return true
+	HcontrolIP:    "127.0.0.1",
+	DummyHcontrol: true,
 }
 
 func VM() bool {
