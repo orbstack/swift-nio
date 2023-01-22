@@ -4,10 +4,16 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	autoForwardGCInterval  = 2 * time.Minute
+	autoForwardGCThreshold = 1 * time.Minute
 )
 
 type ForwardState struct {
@@ -235,10 +241,38 @@ func (c *Container) updateListenersDirect() error {
 	}
 
 	c.lastListeners = listeners
-
+	c.lastAutofwdUpdate = time.Now()
 	return nil
 }
 
 func (c *Container) triggerListenersUpdate() {
 	c.listenerUpdateDebounce.Call()
+}
+
+func (m *ConManager) runAutoForwardGC() error {
+	ticker := time.NewTicker(autoForwardGCInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			for _, c := range m.containers {
+				go func(c *Container) {
+					c.mu.Lock()
+
+					if time.Since(c.lastAutofwdUpdate) > autoForwardGCThreshold {
+						c.mu.Unlock()
+						err := c.updateListenersDirect()
+						if err != nil {
+							logrus.WithError(err).Error("failed to GC listeners")
+						}
+					} else {
+						c.mu.Unlock()
+					}
+				}(c)
+			}
+		case <-m.stopChan:
+			return nil
+		}
+	}
 }

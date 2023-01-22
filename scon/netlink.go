@@ -2,14 +2,14 @@ package main
 
 import (
 	"encoding/binary"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"syscall"
 	"unsafe"
 
+	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -52,7 +52,6 @@ func deserializeDiagSocket(s *netlink.Socket, b []byte) error {
 		return fmt.Errorf("socket data short read (%d); want %d", len(b), sizeofSocket)
 	}
 	rb := readBuffer{Bytes: b}
-	fmt.Println(hex.Dump(b))
 	s.Family = rb.Read()
 	s.State = rb.Read()
 	s.Timer = rb.Read()
@@ -147,52 +146,48 @@ func monitorInetDiag(c *Container, nlFile *os.File) error {
 
 		// handle async to avoid blocking netlink
 		go func() {
-			msgs, err := syscall.ParseNetlinkMessage(buf[:n])
-			if err != nil {
-				logrus.Errorf("failed to parse netlink message: %v", err)
-				return
-			}
-			msg := msgs[0]
-
 			sock := &netlink.Socket{}
-			err = deserializeDiagSocket(sock, msg.Data)
+			err = deserializeDiagSocket(sock, buf[:n][unix.NLMSG_HDRLEN:])
 			if err != nil {
 				logrus.Errorf("failed to deserialize socket: %v", err)
 				return
 			}
 
-			// attrs
-			attrs, err := parseNetlinkRouteAttr(&msg)
-			if err != nil {
-				logrus.Errorf("failed to parse netlink route attr: %v", err)
-				return
-			}
-
 			logrus.Debug("socket closed: ", sock)
-			sjson, _ := json.Marshal(sock)
-			logrus.Debug("socket json: ", string(sjson))
-			logrus.Debug("attrs: ", attrs)
 
 			// src port != 0
 			// remote ip and port = 0
-			/*
-				if sock.State == cSsClose && (sock.Family == unix.AF_INET || sock.Family == unix.AF_INET6) && sock.ID.SourcePort != 0 {
-					// forward exists?
-					localNetip, ok := netip.AddrFromSlice(sock.ID.Source)
-					if !ok {
-						logrus.Errorf("failed to convert net.IP to netip.Addr: %v", sock.ID.Source)
-						continue
-					}
+			if sock.ID.SourcePort != 0 && sock.ID.DestinationPort == 0 && sock.ID.Destination.IsUnspecified() {
+				// strip 4-in-6 mapped ipv4 addresses
+				ip4 := sock.ID.Source.To4()
+				if ip4 != nil {
+					sock.ID.Source = ip4
+				}
 
-					proto := agent.ProtoTCP
-					agentSpec := agent.ProcListener{
-						Addr: localNetip,
-						Port: uint16(sock.ID.SourcePort),
-					}
-					if c.manager.checkForward(c, agentSpec) {
-						c.triggerListenersUpdate()
-					}
-				}*/
+				localNetip, ok := netip.AddrFromSlice(sock.ID.Source)
+				if !ok {
+					logrus.Errorf("failed to convert net.IP to netip.Addr: %v", sock.ID.Source)
+					return
+				}
+
+				// tcp forward exists?
+				// TODO read nlattr/rtattr INET_DIAG_PROTOCOL
+				// https://github.com/shemminger/iproute2/blob/d7f81def84013202f27cf84ee455f644ff685443/misc/ss.c#L3391
+				agentSpec := agent.ProcListener{
+					Addr:  localNetip,
+					Port:  uint16(sock.ID.SourcePort),
+					Proto: agent.ProtoTCP,
+				}
+				if c.manager.checkForward(c, agentSpec) {
+					c.triggerListenersUpdate()
+				}
+
+				// udp forward exists?
+				agentSpec.Proto = agent.ProtoUDP
+				if c.manager.checkForward(c, agentSpec) {
+					c.triggerListenersUpdate()
+				}
+			}
 		}()
 	}
 }

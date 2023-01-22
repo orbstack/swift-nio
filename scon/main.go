@@ -44,6 +44,10 @@ type ConManager struct {
 	host       *hclient.Client
 	forwards   map[agent.ProcListener]ForwardState
 	forwardsMu sync.Mutex
+
+	stopChan   chan struct{}
+	netBridge  *netlink.Bridge
+	cleanupNat func() error
 }
 
 func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
@@ -66,12 +70,46 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 
 		host:     hc,
 		forwards: make(map[agent.ProcListener]ForwardState),
+
+		stopChan: make(chan struct{}),
 	}, nil
+}
+
+func (m *ConManager) Start() error {
+	// network
+	bridge, err := newBridge()
+	if err != nil {
+		return err
+	}
+	m.netBridge = bridge
+
+	cleanupNat, err := setupNat()
+	if err != nil {
+		return err
+	}
+	m.cleanupNat = cleanupNat
+
+	// services
+	go m.serveSeccomp()
+	go runSconServer(m)
+	go m.ListenSSH("127.0.0.1:2222")
+
+	// periodic tasks
+	go m.runAutoForwardGC()
+
+	return err
 }
 
 func (m *ConManager) Close() error {
 	m.host.Close()
 	os.Remove(m.seccompPolicyPath)
+	if m.netBridge != nil {
+		netlink.LinkDel(m.netBridge)
+	}
+	if m.cleanupNat != nil {
+		m.cleanupNat()
+	}
+	m.stopChan <- struct{}{}
 	return nil
 }
 
@@ -125,6 +163,7 @@ type Container struct {
 	seccompCookie          uint64
 	lastListeners          []agent.ProcListener
 	listenerUpdateDebounce syncx.FuncDebounce
+	lastAutofwdUpdate      time.Time
 }
 
 func (c *Container) Agent() *agent.Client {
@@ -233,21 +272,10 @@ func runContainerManager() {
 	mgr, err := NewConManager(cwd+"/data", hc)
 	check(err)
 	defer mgr.Close()
-
-	// setup seccomp
-	go mgr.serveSeccomp()
-	// setup network
-	bridge, err := newBridge()
+	mgr.Start()
 	check(err)
-	defer netlink.LinkDel(bridge)
-
-	cleanupNat, err := setupNat()
-	check(err)
-	defer cleanupNat()
 
 	// services
-	go mgr.ListenSSH("127.0.0.1:2222")
-	go runSconServer(mgr)
 	if conf.Debug() {
 		go runPprof()
 	}
