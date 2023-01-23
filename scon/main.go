@@ -22,7 +22,6 @@ import (
 	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
-	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -36,18 +35,22 @@ const (
 )
 
 type ConManager struct {
+	// state
 	containers        map[string]*Container
 	dataDir           string
 	seccompPolicyPath string
 	seccompCookies    map[uint64]*Container
 
+	// auto forward
 	host       *hclient.Client
 	forwards   map[agent.ProcListener]ForwardState
 	forwardsMu sync.Mutex
 
-	stopChan   chan struct{}
-	netBridge  *netlink.Bridge
-	cleanupNat func() error
+	// stop
+	stopChan chan struct{}
+
+	// network
+	net *Network
 }
 
 func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
@@ -62,7 +65,7 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		return nil, err
 	}
 
-	return &ConManager{
+	mgr := &ConManager{
 		containers:        make(map[string]*Container),
 		dataDir:           dataDir,
 		seccompPolicyPath: f.Name(),
@@ -72,22 +75,18 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		forwards: make(map[agent.ProcListener]ForwardState),
 
 		stopChan: make(chan struct{}),
-	}, nil
+	}
+	mgr.net = NewNetwork(mgr.subdir("network"))
+
+	return mgr, nil
 }
 
 func (m *ConManager) Start() error {
 	// network
-	bridge, err := newBridge()
+	err := m.net.Start()
 	if err != nil {
 		return err
 	}
-	m.netBridge = bridge
-
-	cleanupNat, err := setupNat()
-	if err != nil {
-		return err
-	}
-	m.cleanupNat = cleanupNat
 
 	// services
 	go m.serveSeccomp()
@@ -103,12 +102,7 @@ func (m *ConManager) Start() error {
 func (m *ConManager) Close() error {
 	m.host.Close()
 	os.Remove(m.seccompPolicyPath)
-	if m.netBridge != nil {
-		netlink.LinkDel(m.netBridge)
-	}
-	if m.cleanupNat != nil {
-		m.cleanupNat()
-	}
+	m.net.Close()
 	m.stopChan <- struct{}{}
 	return nil
 }

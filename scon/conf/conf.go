@@ -20,6 +20,7 @@ type Config struct {
 	FakeSrc       string
 	HcontrolIP    string
 	DummyHcontrol bool
+	DNSServer     string
 }
 
 var configVM = Config{
@@ -29,6 +30,7 @@ var configVM = Config{
 	FakeSrc:       "/fake",
 	HcontrolIP:    "172.30.30.201",
 	DummyHcontrol: false,
+	DNSServer:     "172.30.30.200",
 }
 
 var configTest = Config{
@@ -37,6 +39,7 @@ var configTest = Config{
 	FakeSrc:       "/home/dragon/code/projects/macvirt/rootfs/out/rd/fake",
 	HcontrolIP:    "127.0.0.1",
 	DummyHcontrol: true,
+	DNSServer:     "1.1.1.1",
 }
 
 func VM() bool {

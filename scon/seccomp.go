@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -15,8 +14,6 @@ import (
 
 const (
 	cNotifRespFlagContinue = 1
-
-	autoForwardDebounce = 200 * time.Millisecond
 )
 
 const seccompPolicy = `2

@@ -233,12 +233,8 @@ func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Contain
 	if err != nil {
 		return nil, 0, err
 	}
-	mtu, err := getDefaultMTU()
-	if err != nil {
-		return nil, 0, err
-	}
 	cookieStr, cookieU64 := makeSeccompCookie()
-	err = m.setLxcConfigs(c, name, logPath, rootfs, mtu, image, cookieStr)
+	err = m.setLxcConfigs(c, name, logPath, rootfs, m.net.mtu, image, cookieStr)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -14,6 +14,8 @@ import (
 const (
 	autoForwardGCInterval  = 2 * time.Minute
 	autoForwardGCThreshold = 1 * time.Minute
+
+	autoForwardDebounce = 250 * time.Millisecond
 )
 
 type ForwardState struct {
