@@ -41,7 +41,6 @@ func (p *ProcListener) HostListenIP() string {
 	}
 
 	// IPv6
-
 	if p.Addr.IsLoopback() {
 		return "::1"
 	}
@@ -59,9 +58,10 @@ func parseHexAddr(addr string) (net.IP, uint16, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	// byte swap endian
-	for i := 0; i < len(addrBytes)/2; i++ {
-		addrBytes[i], addrBytes[len(addrBytes)-1-i] = addrBytes[len(addrBytes)-1-i], addrBytes[i]
+	// byte swap chunks of 4
+	for i := 0; i < len(addrBytes); i += 4 {
+		addrBytes[i], addrBytes[i+3] = addrBytes[i+3], addrBytes[i]
+		addrBytes[i+1], addrBytes[i+2] = addrBytes[i+2], addrBytes[i+1]
 	}
 
 	port, err := strconv.ParseUint(fields[1], 16, 16)
@@ -100,7 +100,7 @@ func parseProcNet(data string, proto string) ([]ProcListener, error) {
 
 		// remote addr must be unbound
 		remoteAddrPort := fields[2]
-		if remoteAddrPort != "00000000:0000" {
+		if remoteAddrPort != "00000000:0000" && remoteAddrPort != "00000000000000000000000000000000:0000" {
 			continue
 		}
 
@@ -130,7 +130,7 @@ func parseProcNet(data string, proto string) ([]ProcListener, error) {
 }
 
 func readAllProcNet() ([]ProcListener, error) {
-	listeners := make([]ProcListener, 0)
+	var listeners []ProcListener
 
 	for _, proto := range allProtos {
 		data, err := ioutil.ReadFile("/proc/net/" + proto)
