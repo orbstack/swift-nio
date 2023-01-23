@@ -215,13 +215,11 @@ func diffListeners(old, new []agent.ProcListener) (added, removed []agent.ProcLi
 
 // triggered on seccomp notify or inet diag
 func (c *Container) updateListenersDirect() error {
-	logrus.Debug("update listeners")
-
 	listeners, err := c.Agent().GetListeners()
 	if err != nil {
 		return err
 	}
-	logrus.WithField("listeners", listeners).Debug("got listeners")
+	logrus.WithField("listeners", listeners).Debug("update listeners")
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
