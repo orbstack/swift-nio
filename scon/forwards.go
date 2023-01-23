@@ -130,6 +130,7 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 	logrus.WithFields(logrus.Fields{
 		"spec":         spec,
 		"internalPort": internalPort,
+		"internalAddr": internalListenIP,
 		"host":         hostForwardSpec,
 	}).Debug("forward added")
 	return nil
@@ -257,6 +258,10 @@ func (m *ConManager) runAutoForwardGC() error {
 		select {
 		case <-ticker.C:
 			for _, c := range m.containers {
+				if !c.Running() {
+					continue
+				}
+
 				go func(c *Container) {
 					c.mu.Lock()
 
