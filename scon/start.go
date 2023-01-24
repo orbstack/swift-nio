@@ -377,6 +377,14 @@ func (c *Container) onStart() error {
 	return nil
 }
 
+func findAgentExe() (string, error) {
+	curExe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return path.Join(path.Dir(curExe), "scon-agent"), nil
+}
+
 func (c *Container) startAgent() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -392,24 +400,30 @@ func (c *Container) startAgent() error {
 	defer rpcFile.Close()
 	defer fdxFile.Close()
 
-	procExe, err := os.Executable()
+	agentExe, err := findAgentExe()
 	if err != nil {
 		return err
 	}
+	exeFd, err := unix.Open(agentExe, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(exeFd)
 
 	// add some more fds
 	cmd := &LxcCommand{
-		CombinedArgs: []string{procExe, "agent"},
+		CombinedArgs: []string{"/proc/self/fd/" + strconv.Itoa(exeFd)},
 		Dir:          "/",
 		Env:          []string{},
 		Stdin:        rpcFile,
 		Stdout:       fdxFile,
 		Stderr:       os.Stderr,
+
 		// all except
 		//   pid - to hide agent
 		//   user - because we don't use it
-		//   mount - we'll attach it ourselves
-		restrictNamespaces: unix.CLONE_NEWUTS | unix.CLONE_NEWNS | unix.CLONE_NEWIPC | unix.CLONE_NEWNET | unix.CLONE_NEWCGROUP | unix.CLONE_NEWTIME,
+		restrictNamespaces: ^0,
+		extraFd:            exeFd,
 	}
 	err = cmd.Start(c)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"unsafe"
 
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
 	"github.com/kdrag0n/macvirt/scon/agent/udpfwd"
@@ -128,10 +129,32 @@ func (a *AgentServer) StopProxyUDP(args ProxySpec, _ *None) error {
 	return nil
 }
 
+// TODO fix zeroing: https://source.chromium.org/chromium/chromium/src/+/main:content/common/set_process_title_linux.cc
+func setProcessName(name string) error {
+	argv0str := (*reflect.StringHeader)(unsafe.Pointer(&os.Args[0]))
+	argv0 := (*[1 << 30]byte)(unsafe.Pointer(argv0str.Data))[:argv0str.Len]
+
+	n := copy(argv0, name)
+	if n < len(argv0) {
+		// zero out the rest
+		for i := n; i < len(argv0); i++ {
+			argv0[i] = 0
+		}
+	}
+
+	return nil
+}
+
 func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// our only unused fd
 	os.Stdin = os.Stderr
 	os.Stdout = os.Stderr
+
+	// set process name
+	err := setProcessName("scon-agent")
+	if err != nil {
+		return err
+	}
 
 	rpcConn, err := net.FileConn(rpcFile)
 	if err != nil {

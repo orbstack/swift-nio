@@ -15,6 +15,7 @@ type LxcCommand struct {
 	Stdout             io.Writer
 	Stderr             io.Writer
 	restrictNamespaces int
+	extraFd            int
 
 	Process *os.Process
 }
@@ -97,7 +98,7 @@ func (c *LxcCommand) Start(container *Container) error {
 		}()
 	}
 
-	childPid, err := container.Exec(c.CombinedArgs, lxcOpts)
+	childPid, err := container.Exec(c.CombinedArgs, lxcOpts, c.extraFd)
 	if err != nil {
 		return err
 	}

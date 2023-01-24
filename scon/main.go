@@ -31,7 +31,6 @@ const (
 	AppName = "scon"
 
 	cmdContainerManager = "container-manager"
-	cmdAgent            = "agent"
 )
 
 type ConManager struct {
@@ -259,7 +258,14 @@ func (c *Container) Agent() *agent.Client {
 	return c.agent.Wait()
 }
 
-func (c *Container) Exec(cmd []string, opts lxc.AttachOptions) (int, error) {
+func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int, error) {
+	// TODO cloexec safety
+	// critical section
+	if extraFd != 0 {
+		// clear cloexec
+		unix.FcntlInt(uintptr(extraFd), unix.F_SETFD, 0)
+		defer unix.CloseOnExec(extraFd)
+	}
 	return c.c.RunCommandNoWait(cmd, opts)
 }
 
@@ -381,8 +387,6 @@ func main() {
 	switch cmd {
 	case cmdContainerManager:
 		runContainerManager()
-	case cmdAgent:
-		agent.Main()
 	default:
 		panic("unknown command: " + cmd)
 	}
