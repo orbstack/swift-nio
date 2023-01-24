@@ -148,8 +148,8 @@ func (c *Client) SpawnProcess(args SpawnProcessArgs, stdin, stdout, stderr *os.F
 		return nil, err
 	}
 
-	var none None
-	err = c.rpc.Call("a.SpawnProcess", args, &none)
+	var pid int
+	err = c.rpc.Call("a.SpawnProcess", args, &pid)
 	if err != nil {
 		return nil, err
 	}
@@ -160,5 +160,15 @@ func (c *Client) SpawnProcess(args SpawnProcessArgs, stdin, stdout, stderr *os.F
 		return nil, err
 	}
 
-	return wrapPidfdProcess(pidF), nil
+	return wrapPidfdProcess(pidF, pid, c), nil
+}
+
+func (c *Client) WaitPid(pid int) (int, error) {
+	var status int
+	err := c.rpc.Call("a.WaitPid", pid, &status)
+	if err != nil {
+		return 0, err
+	}
+
+	return status, nil
 }

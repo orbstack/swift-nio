@@ -23,7 +23,7 @@ type SpawnProcessArgs struct {
 	CttyFd       int
 }
 
-func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *None) error {
+func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *int) error {
 	// receive fds
 	stdin, err := a.fdx.RecvFile()
 	if err != nil {
@@ -73,6 +73,23 @@ func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *None) error {
 		return err
 	}
 
+	*reply = proc.Pid
+	return nil
+}
+
+func (a *AgentServer) WaitPid(pid int, reply *int) error {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+
+	// wait for process to exit
+	ps, err := proc.Wait()
+	if err != nil {
+		return err
+	}
+
+	*reply = ps.ExitCode()
 	return nil
 }
 
@@ -166,11 +183,17 @@ func (c *AgentCommand) Start(agent *Client) error {
 }
 
 type PidfdProcess struct {
-	f *os.File
+	f   *os.File
+	pid int
+	a   *Client
 }
 
-func wrapPidfdProcess(f *os.File) *PidfdProcess {
-	return &PidfdProcess{f: f}
+func wrapPidfdProcess(f *os.File, pid int, a *Client) *PidfdProcess {
+	return &PidfdProcess{
+		f:   f,
+		pid: pid,
+		a:   a,
+	}
 }
 
 func (p *PidfdProcess) Release() error {
@@ -189,12 +212,11 @@ func (p *PidfdProcess) Signal(sig os.Signal) error {
 	return unix.PidfdSendSignal(int(p.f.Fd()), sig.(unix.Signal), nil, 0)
 }
 
-func (p *PidfdProcess) Wait() (*os.ProcessState, error) {
-	var info unix.Siginfo
-	err := unix.Waitid(unix.P_PIDFD, int(p.f.Fd()), &info, unix.WEXITED, nil)
+func (p *PidfdProcess) Wait() (int, error) {
+	status, err := p.a.WaitPid(p.pid)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return &os.ProcessState{}, nil
+	return status, nil
 }

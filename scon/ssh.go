@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/alessio/shellescape"
@@ -104,6 +103,18 @@ outer:
 	}
 
 	return filtered
+}
+
+type ExitError struct {
+	status int
+}
+
+func (e *ExitError) ExitCode() int {
+	return e.status
+}
+
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("exit status %d", e.status)
 }
 
 func (m *ConManager) getDefaultContainerName() (string, error) {
@@ -369,13 +380,13 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	// don't wait for fds to close, we close them
 	// read-side pipes will be closed after start
 	// write-side pipes will be closed on EOF
-	ps, err := cmd.Process.Wait()
+	status, err := cmd.Process.Wait()
 	if err != nil {
 		logrus.Error("wait err: ", err)
 		return err
 	}
-	if !ps.Success() {
-		return &exec.ExitError{ProcessState: ps}
+	if status != 0 {
+		return &ExitError{status: status}
 	}
 
 	return nil
@@ -387,7 +398,7 @@ func (m *ConManager) ListenSSH(address string) error {
 
 		err := m.handleSSHConn(s)
 		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr, ok := err.(*ExitError); ok {
 				// all ok, just exit
 				s.Exit(exitErr.ExitCode())
 			} else {
