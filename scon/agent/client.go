@@ -132,3 +132,33 @@ func (c *Client) InitialSetup(args InitialSetupArgs) error {
 
 	return nil
 }
+
+func (c *Client) SpawnProcess(args SpawnProcessArgs, stdin, stdout, stderr *os.File) (*PidfdProcess, error) {
+	// send 3 fds
+	err := c.fdx.SendFile(stdin)
+	if err != nil {
+		return nil, err
+	}
+	err = c.fdx.SendFile(stdout)
+	if err != nil {
+		return nil, err
+	}
+	err = c.fdx.SendFile(stderr)
+	if err != nil {
+		return nil, err
+	}
+
+	var none None
+	err = c.rpc.Call("a.SpawnProcess", args, &none)
+	if err != nil {
+		return nil, err
+	}
+
+	// recv 1 fd
+	pidF, err := c.fdx.RecvFile()
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapPidfdProcess(pidF), nil
+}

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/lxc/go-lxc"
+	"golang.org/x/sys/unix"
 )
 
 type LxcCommand struct {
@@ -40,7 +41,7 @@ func (c *LxcCommand) Start(container *Container) error {
 		StdinFd:            0,
 		StdoutFd:           0,
 		StderrFd:           0,
-		RemountSysProc:     false,
+		RemountSysProc:     ((namespaces & unix.CLONE_NEWNS) != 0) != ((namespaces & unix.CLONE_NEWPID) != 0),
 		ElevatedPrivileges: false,
 	}
 
