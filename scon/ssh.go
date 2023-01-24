@@ -144,25 +144,26 @@ func (m *ConManager) getDefaultContainerName() (string, error) {
 	return c.Name, nil
 }
 
-func (m *ConManager) handleSSHConn(s ssh.Session) error {
-	ptyReq, winCh, isPty := s.Pty()
+func (m *ConManager) handleSSHConn(s ssh.Session) (isPty bool, err error) {
+	ptyReq, winCh, isPty2 := s.Pty()
+	isPty = isPty2
 
 	// user and container
 	userReq := s.User()
 	userParts := strings.Split(userReq, "@")
 	var user, containerName string
 	if len(userParts) > 2 {
-		return fmt.Errorf("invalid user: %s", userReq)
+		err = fmt.Errorf("invalid user: %s", userReq)
+		return
 	}
 	if len(userParts) == 2 {
 		user = userParts[0]
 		containerName = userParts[1]
 	} else {
 		// default user = host user
-		var err error
 		user, err = m.DefaultUser()
 		if err != nil {
-			return err
+			return
 		}
 		containerName = userParts[0]
 	}
@@ -170,7 +171,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	// default container?
 	defaultContainer, err := m.getDefaultContainerName()
 	if err != nil {
-		return err
+		return
 	}
 	if containerName == "default" {
 		containerName = defaultContainer
@@ -186,7 +187,8 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 		}
 	}
 	if !ok {
-		return fmt.Errorf("container not found: %s", containerName)
+		err = fmt.Errorf("container not found: %s", containerName)
+		return
 	}
 
 	// set as last container
@@ -197,9 +199,9 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 			"container": containerName,
 		}).Info("starting container for ssh")
 
-		err := container.Start()
+		err = container.Start()
 		if err != nil {
-			return err
+			return
 		}
 	}
 
@@ -218,9 +220,9 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 		}
 	}
 	if metaStr != "" {
-		err := json.Unmarshal([]byte(metaStr), &meta)
+		err = json.Unmarshal([]byte(metaStr), &meta)
 		if err != nil {
-			return err
+			return
 		}
 	} else {
 		meta = defaultMeta
@@ -241,7 +243,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	if pwd == "" {
 		pwd, err = os.UserHomeDir()
 		if err != nil {
-			return err
+			return
 		}
 	}
 	// make sure pwd is valid, or exec will fail
@@ -263,7 +265,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 		var rawArgs []string
 		err = json.Unmarshal([]byte(s.RawCommand()), &rawArgs)
 		if err != nil {
-			return err
+			return
 		}
 		suCmd = envToShell(env) + " exec " + shellescape.QuoteCommand(rawArgs)
 	} else {
@@ -282,9 +284,10 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	}
 
 	if isPty {
-		ptyF, ttyF, err := container.OpenPty()
+		ptyF, ttyF, err2 := container.OpenPty()
+		err = err2
 		if err != nil {
-			return err
+			return
 		}
 		defer ptyF.Close()
 		defer ttyF.Close()
@@ -295,18 +298,19 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 			Cols: uint16(ptyReq.Window.Width),
 		})
 		if err != nil {
-			return err
+			return
 		}
 
 		// set term modes
-		tflags, err := termios.GetTermios(ptyF.Fd())
+		tflags, err2 := termios.GetTermios(ptyF.Fd())
+		err = err2
 		if err != nil {
-			return err
+			return
 		}
 		termios.ApplySSHToTermios(ptyReq.TerminalModes, tflags)
 		err = termios.SetTermiosNow(ptyF.Fd(), tflags)
 		if err != nil {
-			return err
+			return
 		}
 
 		go func() {
@@ -356,7 +360,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 
 	err = cmd.Start(container.Agent())
 	if err != nil {
-		return err
+		return
 	}
 
 	// forward signals
@@ -381,29 +385,33 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	// read-side pipes will be closed after start
 	// write-side pipes will be closed on EOF
 	status, err := cmd.Process.Wait()
-	if err != nil {
+	if err != nil && !errors.Is(err, net.ErrClosed) {
 		logrus.Error("wait err: ", err)
-		return err
+		return
 	}
 	if status != 0 {
-		return &ExitError{status: status}
+		err = &ExitError{status: status}
+		return
 	}
 
-	return nil
+	err = nil
+	return
 }
 
 func (m *ConManager) ListenSSH(address string) error {
 	handler := func(s ssh.Session) {
 		defer s.Close()
 
-		err := m.handleSSHConn(s)
+		isPty, err := m.handleSSHConn(s)
 		if err != nil {
 			if exitErr, ok := err.(*ExitError); ok {
 				// all ok, just exit
 				s.Exit(exitErr.ExitCode())
 			} else {
 				logrus.Error("SSH error: ", err)
-				s.Stderr().Write([]byte(err.Error() + "\r\n"))
+				if isPty {
+					s.Stderr().Write([]byte(err.Error() + "\r\n"))
+				}
 				s.Exit(1)
 			}
 		}

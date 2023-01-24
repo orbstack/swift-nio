@@ -8,12 +8,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	fdStdin  = 0
-	fdStdout = 1
-	fdStderr = 2
-)
-
 type SpawnProcessArgs struct {
 	CombinedArgs []string
 	Dir          string
@@ -218,5 +212,6 @@ func (p *PidfdProcess) Wait() (int, error) {
 		return 0, err
 	}
 
+	p.Release()
 	return status, nil
 }
