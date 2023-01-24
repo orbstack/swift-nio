@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -26,23 +28,31 @@ import (
 )
 
 const (
-	seccompProxySock               = "/tmp/scon-seccomp.sock"
-	gracefulShutdownTimeoutRelease = 3 * time.Second
-	gracefulShutdownTimeoutDebug   = 100 * time.Millisecond
+	AppName = "scon"
 
 	cmdContainerManager = "container-manager"
 	cmdAgent            = "agent"
 )
 
 type ConManager struct {
-	// state
-	containers        map[string]*Container
+	// config
 	dataDir           string
+	tmpDir            string
+	lxcDir            string
 	seccompPolicyPath string
-	seccompCookies    map[uint64]*Container
+	seccompProxySock  string
+
+	// state
+	containersByID   map[string]*Container
+	containersByName map[string]*Container
+	containersMu     sync.RWMutex
+	seccompCookies   map[uint64]*Container
+
+	// services
+	db   *Database
+	host *hclient.Client
 
 	// auto forward
-	host       *hclient.Client
 	forwards   map[agent.ProcListener]ForwardState
 	forwardsMu sync.Mutex
 
@@ -54,24 +64,51 @@ type ConManager struct {
 }
 
 func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
-	// extract seccomp policy
-	f, err := os.CreateTemp("", "scon-seccomp.policy")
+	// tmp dir
+	tmpDir, err := os.MkdirTemp("", AppName)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	_, err = f.WriteString(seccompPolicy)
+
+	// extract seccomp policy
+	seccompPolicyPath := path.Join(tmpDir, "seccomp.policy")
+	seccompProxySock := path.Join(tmpDir, "seccomp.sock")
+	err = os.WriteFile(seccompPolicyPath, []byte(seccompPolicy), 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	lxcDir := path.Join(tmpDir, "lxc")
+	err = os.Mkdir(lxcDir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	// data
+	err = os.MkdirAll(dataDir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := OpenDatabase(path.Join(dataDir, "store.db"))
 	if err != nil {
 		return nil, err
 	}
 
 	mgr := &ConManager{
-		containers:        make(map[string]*Container),
 		dataDir:           dataDir,
-		seccompPolicyPath: f.Name(),
-		seccompCookies:    make(map[uint64]*Container),
+		tmpDir:            tmpDir,
+		lxcDir:            lxcDir,
+		seccompPolicyPath: seccompPolicyPath,
+		seccompProxySock:  seccompProxySock,
 
-		host:     hc,
+		containersByID:   make(map[string]*Container),
+		containersByName: make(map[string]*Container),
+		seccompCookies:   make(map[uint64]*Container),
+
+		db:   db,
+		host: hc,
+
 		forwards: make(map[agent.ProcListener]ForwardState),
 
 		stopChan: make(chan struct{}),
@@ -88,8 +125,13 @@ func (m *ConManager) Start() error {
 		return err
 	}
 
-	// services
+	// essential services for starting containers
 	go m.serveSeccomp()
+
+	// restore and start!
+	m.restoreContainers()
+
+	// services
 	go runSconServer(m)
 	go m.ListenSSH("127.0.0.1:2222")
 
@@ -100,126 +142,112 @@ func (m *ConManager) Start() error {
 }
 
 func (m *ConManager) Close() error {
+	m.stopAll()
 	m.host.Close()
-	os.Remove(m.seccompPolicyPath)
 	m.net.Close()
 	m.stopChan <- struct{}{}
+	os.RemoveAll(m.tmpDir) // seecomp and lxc
 	return nil
 }
 
-func (m *ConManager) subdir(dir string) string {
-	path := path.Join(m.dataDir, dir)
+func (m *ConManager) stopAll() {
+	m.containersMu.Lock()
+	defer m.containersMu.Unlock()
+
+	logrus.Info("stopping all containers")
+	for _, c := range m.containersByID {
+		err := c.Stop()
+		if err != nil {
+			logrus.WithError(err).Error("failed to stop container for manager shutdown")
+		}
+	}
+}
+
+func (m *ConManager) subdir(dirs ...string) string {
+	path := path.Join(append([]string{m.dataDir}, dirs...)...)
 	if err := os.MkdirAll(path, 0755); err != nil {
 		panic(err)
 	}
 	return path
 }
 
-func (m *ConManager) Create() {
-	// TODO
+func (m *ConManager) GetByName(name string) (*Container, bool) {
+	m.containersMu.RLock()
+	defer m.containersMu.RUnlock()
 
-	// options := lxc.TemplateOptions{
-	// 	Template: "download",
-	// 	Backend:  lxc.Directory,
-	// 	Distro:   "alpine",
-	// 	Release:  "edge",
-	// 	Arch:     "amd64", // TODO
-	// 	Variant:  "default",
-	// 	//FlushCache: true,
-	// }
-
-	// err = c.Create(options)
-	// check(err)
-}
-
-func (m *ConManager) Get(name string) (*Container, bool) {
-	c, bool := m.containers[name]
+	c, bool := m.containersByName[name]
 	return c, bool
 }
 
+func (m *ConManager) GetByID(id string) (*Container, bool) {
+	m.containersMu.RLock()
+	defer m.containersMu.RUnlock()
+
+	c, bool := m.containersByID[id]
+	return c, bool
+}
+
+func (m *ConManager) ListContainers() []*Container {
+	m.containersMu.RLock()
+	defer m.containersMu.RUnlock()
+
+	containers := make([]*Container, 0, len(m.containersByID))
+	for _, c := range m.containersByID {
+		containers = append(containers, c)
+	}
+	return containers
+}
+
 func (m *ConManager) removeContainer(c *Container) error {
-	delete(m.containers, c.name)
+	m.containersMu.Lock()
+	defer m.containersMu.Unlock()
+
+	delete(m.containersByID, c.ID)
+	delete(m.containersByName, c.Name)
+
 	delete(c.manager.seccompCookies, c.seccompCookie)
 	runtime.SetFinalizer(c, nil)
 	c.c.Release()
+
+	err := c.manager.db.DeleteContainer(c.ID)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
+func (m *ConManager) DefaultUser() string {
+	hostUser, err := m.host.GetUser()
+	if err != nil {
+		panic(err)
+	}
+	return hostUser.Name
+}
+
 type Container struct {
-	name        string
-	c           *lxc.Container
-	defaultUser string
+	ID    string
+	Name  string
+	Image ImageSpec
+	dir   string
+
+	// state
+	deleting bool
+
+	c *lxc.Container
 
 	agent   syncx.CondValue[*agent.Client]
 	manager *ConManager
 	mu      sync.RWMutex
 
-	seccompCookie          uint64
-	lastListeners          []agent.ProcListener
-	listenerUpdateDebounce syncx.FuncDebounce
-	lastAutofwdUpdate      time.Time
+	seccompCookie     uint64
+	lastListeners     []agent.ProcListener
+	autofwdDebounce   syncx.FuncDebounce
+	lastAutofwdUpdate time.Time
 }
 
 func (c *Container) Agent() *agent.Client {
 	return c.agent.Wait()
-}
-
-func (c *Container) Stop() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if !c.Running() {
-		return nil
-	}
-
-	// stop forwards
-	for _, listener := range c.lastListeners {
-		c.manager.removeForward(c, listener)
-	}
-
-	// stop agent (after listeners removed)
-	if c.agent.Get() != nil {
-		c.Agent().Close()
-		c.agent.Set(nil)
-	}
-
-	// ignore failure
-	timeout := gracefulShutdownTimeoutRelease
-	if conf.Debug() {
-		timeout = gracefulShutdownTimeoutDebug
-	}
-	err := c.c.Shutdown(timeout)
-	if err != nil {
-		logrus.Warn("graceful shutdown failed: ", err)
-	} else {
-		return nil
-	}
-
-	err = c.c.Stop()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Container) Delete() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.c.Running() {
-		err := c.Stop()
-		if err != nil {
-			return err
-		}
-	}
-
-	err := c.c.Destroy()
-	if err != nil {
-		return err
-	}
-
-	return c.manager.removeContainer(c)
 }
 
 func (c *Container) Exec(cmd []string, opts lxc.AttachOptions) (int, error) {
@@ -228,6 +256,29 @@ func (c *Container) Exec(cmd []string, opts lxc.AttachOptions) (int, error) {
 
 func (c *Container) Running() bool {
 	return c.c.Running()
+}
+
+func (c *Container) persist() error {
+	record := &ContainerRecord{
+		ID:    c.ID,
+		Name:  c.Name,
+		Image: c.Image,
+
+		Running:  c.Running(),
+		Deleting: c.deleting,
+	}
+	return c.manager.db.SetContainer(c.ID, record)
+}
+
+func deriveMacAddress(cid string) string {
+	// hash of id
+	h := sha256.Sum256([]byte(cid))
+	// mark as locally administered
+	h[0] |= 0x02
+	// mark as unicast
+	h[0] &= 0xfe
+	// format
+	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", h[0], h[1], h[2], h[3], h[4], h[5])
 }
 
 func check(err error) {
@@ -248,6 +299,9 @@ func runContainerManager() {
 			TimestampFormat: "01-02 15:04:05",
 		})
 	}
+
+	// rand seed
+	rand.Seed(time.Now().UnixNano())
 
 	// data dir
 	cwd, err := os.Getwd()
@@ -274,11 +328,20 @@ func runContainerManager() {
 		go runPprof()
 	}
 
-	err = mgr.LoadExisting("alpine")
-	check(err)
-	container, ok := mgr.Get("alpine")
+	container, ok := mgr.GetByName("alpine")
 	if !ok {
-		panic("container not found")
+		// create
+		fmt.Println("create")
+		container, err = mgr.Create(CreateParams{
+			Name: "alpine",
+			User: "dragon",
+			Image: ImageSpec{
+				Distro:  "alpine",
+				Version: "edge",
+			},
+			UserPassword: "test",
+		})
+		check(err)
 	}
 
 	fmt.Println("start")

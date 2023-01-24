@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,10 +20,6 @@ import (
 )
 
 const (
-	// TODO last used
-	defaultContainer = "alpine"
-	defaultUser      = "root"
-
 	// we don't use ssh for security, so hard-code for fast startup
 	hostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
@@ -67,12 +64,6 @@ var (
 	}
 )
 
-const (
-	fdStdin  = 0
-	fdStdout = 1
-	fdStderr = 2
-)
-
 func envToShell(env []string) string {
 	shenv := make([]string, 0, len(env))
 	for _, kv := range env {
@@ -108,6 +99,33 @@ outer:
 	return filtered
 }
 
+func (m *ConManager) getDefaultContainerName() (string, error) {
+	id, err := m.db.GetLastContainerID()
+	if err != nil {
+		// pick first container
+		for _, c := range m.ListContainers() {
+			id = c.ID
+			break
+		}
+	}
+
+	c, ok := m.GetByID(id)
+	if !ok && id != "" {
+		// pick first container
+		for _, c := range m.ListContainers() {
+			id = c.ID
+			break
+		}
+
+		c, ok = m.GetByID(id)
+	}
+	if !ok {
+		return "", errors.New("no containers")
+	}
+
+	return c.Name, nil
+}
+
 func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	ptyReq, winCh, isPty := s.Pty()
 
@@ -122,17 +140,24 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 		user = userParts[0]
 		containerName = userParts[1]
 	} else {
-		user = defaultUser
+		// default user = host user
+		user = m.DefaultUser()
 		containerName = userParts[0]
+	}
+
+	// default container?
+	defaultContainer, err := m.getDefaultContainerName()
+	if err != nil {
+		return err
 	}
 	if containerName == "default" {
 		containerName = defaultContainer
 	}
 
-	container, ok := m.Get(containerName)
+	container, ok := m.GetByName(containerName)
 	// try default container
 	if !ok && len(userParts) == 1 {
-		container, ok = m.Get(defaultContainer)
+		container, ok = m.GetByName(defaultContainer)
 		if ok {
 			containerName = defaultContainer
 			user = userParts[0]
@@ -141,6 +166,9 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	if !ok {
 		return fmt.Errorf("container not found: %s", containerName)
 	}
+
+	// set as last container
+	go m.db.SetLastContainerID(container.ID)
 
 	if !container.Running() {
 		logrus.WithFields(logrus.Fields{
@@ -187,7 +215,6 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	env = filterEnv(env, dropEnvs)
 
 	// pwd
-	var err error
 	pwd := meta.Pwd
 	if pwd == "" {
 		pwd, err = os.UserHomeDir()

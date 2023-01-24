@@ -137,10 +137,10 @@ func readSeccompProxyMsg(conn *net.UnixConn) (*scmpNotifyProxyMsg, error) {
 }
 
 func (m *ConManager) handleSeccompMsg(msg *scmpNotifyProxyMsg) {
-	logrus.Debug("seccomp msg: ", msg)
-
 	cookie := msg.Cookie
+	m.containersMu.RLock()
 	container, ok := m.seccompCookies[msg.Cookie]
+	m.containersMu.RUnlock()
 	if !ok {
 		logrus.Error("seccomp cookie not found: ", cookie)
 		return
@@ -150,8 +150,7 @@ func (m *ConManager) handleSeccompMsg(msg *scmpNotifyProxyMsg) {
 }
 
 func (m *ConManager) serveSeccomp() error {
-	os.Remove(seccompProxySock)
-	listener, err := net.Listen("unixpacket", seccompProxySock)
+	listener, err := net.Listen("unixpacket", m.seccompProxySock)
 	if err != nil {
 		logrus.Error("seccomp listen: ", err)
 		return err

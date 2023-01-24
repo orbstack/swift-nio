@@ -122,3 +122,13 @@ func (c *Client) StopProxyUDP(spec ProxySpec) error {
 
 	return nil
 }
+
+func (c *Client) InitialSetup(args InitialSetupArgs) error {
+	var none None
+	err := c.rpc.Call("a.InitialSetup", args, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -6,8 +6,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"syscall"
-	"unsafe"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/sirupsen/logrus"
@@ -20,8 +18,6 @@ const (
 	sknlgrpInetUDPDestroy  = 2
 	sknlgrpInet6TCPDestroy = 3
 	sknlgrpInet6UDPDestroy = 4
-
-	cSsClose = 7
 
 	sizeofSocketID      = 0x30
 	sizeofSocketRequest = sizeofSocketID + 0x8
@@ -78,42 +74,6 @@ func deserializeDiagSocket(s *netlink.Socket, b []byte) error {
 	return nil
 }
 
-const (
-	sizeofRtAttr = 0x4
-)
-
-type netlinkAttr struct {
-	Attr  unix.NlAttr
-	Value []byte
-}
-
-func rtaAlignOf(attrlen int) int {
-	return (attrlen + unix.RTA_ALIGNTO - 1) & ^(unix.RTA_ALIGNTO - 1)
-}
-
-func netlinkRouteAttrAndValue(b []byte) (*unix.NlAttr, []byte, int, error) {
-	a := (*unix.NlAttr)(unsafe.Pointer(&b[0]))
-	if int(a.Len) < sizeofRtAttr || int(a.Len) > len(b) {
-		return nil, nil, 0, unix.EINVAL
-	}
-	return a, b[sizeofRtAttr:], rtaAlignOf(int(a.Len)), nil
-}
-
-func parseNetlinkRouteAttr(m *syscall.NetlinkMessage) ([]netlinkAttr, error) {
-	b := m.Data[sizeofSocket:]
-	var attrs []netlinkAttr
-	for len(b) >= sizeofRtAttr {
-		a, vbuf, alen, err := netlinkRouteAttrAndValue(b)
-		if err != nil {
-			return nil, err
-		}
-		ra := netlinkAttr{Attr: *a, Value: vbuf[:int(a.Len)-sizeofRtAttr]}
-		attrs = append(attrs, ra)
-		b = b[alen:]
-	}
-	return attrs, nil
-}
-
 func monitorInetDiag(c *Container, nlFile *os.File) error {
 	defer nlFile.Close()
 
@@ -152,8 +112,6 @@ func monitorInetDiag(c *Container, nlFile *os.File) error {
 				logrus.Errorf("failed to deserialize socket: %v", err)
 				return
 			}
-
-			logrus.Debug("socket closed: ", sock)
 
 			// src port != 0
 			// remote ip and port = 0

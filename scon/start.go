@@ -83,10 +83,10 @@ func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
 	return nil
 }
 
-func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string, mtu int, image ImageSpec, cookie string) (err error) {
+func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string, mtu int, image ImageSpec, cookie string, mac string) (err error) {
 	defer func() {
 		if err2 := recover(); err2 != nil {
-			err = fmt.Errorf("failed to set LXC config: %w", err2)
+			err = fmt.Errorf("failed to set LXC config: %v", err2)
 		}
 	}()
 
@@ -102,12 +102,7 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 		}
 	}
 	bind := func(src, dst, opts string) {
-		extraOpts := ""
-		if opts != "" {
-			extraOpts = "," + opts
-		}
-
-		if err := c.SetConfigItem("lxc.mount.entry", fmt.Sprintf("%s %s none rbind,create=dir,optional%s 0 0", src, strings.TrimPrefix(dst, "/"), extraOpts)); err != nil {
+		if err := addInitBindMount(c, src, dst, opts); err != nil {
 			panic(err)
 		}
 	}
@@ -174,7 +169,7 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	 */
 	// seccomp
 	set("lxc.seccomp.allow_nesting", "1")
-	set("lxc.seccomp.notify.proxy", "unix:"+seccompProxySock)
+	set("lxc.seccomp.notify.proxy", "unix:"+m.seccompProxySock)
 	set("lxc.seccomp.profile", m.seccompPolicyPath)
 	set("lxc.seccomp.notify.cookie", cookie)
 
@@ -184,6 +179,7 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	set("lxc.net.0.veth.mode", "bridge")
 	set("lxc.net.0.link", ifBridge)
 	set("lxc.net.0.mtu", strconv.Itoa(mtu))
+	set("lxc.net.0.hwaddr", mac)
 
 	// bind mounts
 	config := conf.C()
@@ -203,11 +199,14 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	set("lxc.rootfs.path", "dir:"+rootfs)
 	set("lxc.uts.name", name)
 
+	// hooks
+	set("lxc.hook.version", "1")
+
 	return nil
 }
 
-func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Container, uint64, error) {
-	c, err := lxc.NewContainer(name, m.subdir("containers"))
+func (m *ConManager) newLxcContainer(id string, name string, image ImageSpec, mac, dir string) (*lxc.Container, uint64, error) {
+	c, err := lxc.NewContainer(name, m.lxcDir)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -216,7 +215,7 @@ func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Contain
 	})
 
 	// logging
-	logPath := path.Join(m.subdir("logs"), name+".log")
+	logPath := path.Join(dir, "log")
 	c.ClearConfig()
 	c.SetLogFile(logPath)
 	if conf.Debug() {
@@ -228,13 +227,17 @@ func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Contain
 	}
 
 	// configs
-	rootfs := path.Join(m.subdir("containers"), name, "rootfs")
+	rootfs := path.Join(dir, "rootfs")
+	err = os.MkdirAll(rootfs, 0755)
+	if err != nil {
+		return nil, 0, err
+	}
 	rootfs, err = filepath.EvalSymlinks(rootfs)
 	if err != nil {
 		return nil, 0, err
 	}
 	cookieStr, cookieU64 := makeSeccompCookie()
-	err = m.setLxcConfigs(c, name, logPath, rootfs, m.net.mtu, image, cookieStr)
+	err = m.setLxcConfigs(c, name, logPath, rootfs, m.net.mtu, image, cookieStr, mac)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -242,64 +245,131 @@ func (m *ConManager) newLxcContainer(name string, image ImageSpec) (*lxc.Contain
 	return c, cookieU64, nil
 }
 
-func (m *ConManager) newContainer(name string) (*Container, error) {
-	// TODO
-	image := ImageSpec{
-		Distro:  ImageAlpine,
-		Version: "edge",
-		Arch:    "amd64",
-		Variant: "default",
-	}
-	c, cookie, err := m.newLxcContainer(name, image)
+func (m *ConManager) newContainer(id string, name string, image ImageSpec) (*Container, error) {
+	mac := deriveMacAddress(id)
+	dir := m.subdir("containers", id)
+	c, cookie, err := m.newLxcContainer(id, name, image, mac, dir)
 	if err != nil {
 		return nil, err
 	}
 
 	container := &Container{
-		name:          name,
+		ID:            id,
+		Name:          name,
+		Image:         image,
+		dir:           dir,
 		c:             c,
-		defaultUser:   "root", // TODO
 		manager:       m,
 		seccompCookie: cookie,
 		agent:         syncx.NewCondValue[*agent.Client](nil, nil),
 	}
-	container.listenerUpdateDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
+	container.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
 		err := container.updateListenersDirect()
 		if err != nil {
 			logrus.WithError(err).WithField("container", name).Error("failed to update listeners")
 		}
 	})
+	m.containersMu.Lock()
 	m.seccompCookies[cookie] = container
+	m.containersMu.Unlock()
 
 	return container, nil
 }
 
-func (m *ConManager) LoadExisting(name string) error {
-	c, err := m.newContainer(name)
+func (m *ConManager) restoreContainers() error {
+	records, err := m.db.GetContainers()
 	if err != nil {
 		return err
 	}
 
-	m.containers[name] = c
+	for _, record := range records {
+		c, err := m.restoreOne(record)
+		if err != nil {
+			logrus.WithError(err).WithField("container", record.Name).Error("failed to restore container")
+			continue
+		}
+
+		logrus.WithField("container", c.Name).Debug("restored container")
+	}
+
 	return nil
 }
 
+func (m *ConManager) insertContainer(c *Container) {
+	m.containersMu.Lock()
+	defer m.containersMu.Unlock()
+
+	m.containersByID[c.ID] = c
+	m.containersByName[c.Name] = c
+}
+
+func (m *ConManager) restoreOne(record *ContainerRecord) (*Container, error) {
+	c, err := m.newContainer(record.ID, record.Name, record.Image)
+	if err != nil {
+		return nil, err
+	}
+
+	m.insertContainer(c)
+
+	if record.Deleting {
+		go func() {
+			err := c.Delete()
+			if err != nil {
+				logrus.WithError(err).WithField("container", c.Name).Error("failed to delete container")
+			}
+		}()
+	} else if record.Running {
+		go func() {
+			err := c.Start()
+			if err != nil {
+				logrus.WithError(err).WithField("container", c.Name).Error("failed to start container")
+			}
+		}()
+	}
+
+	return c, nil
+}
+
 func (c *Container) Start() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.c.Running() {
+		return nil
+	}
+
+	logrus.WithField("container", c.Name).Info("starting container")
+
 	err := c.c.Start()
 	if err != nil {
 		return err
 	}
 
 	if !c.c.Wait(lxc.RUNNING, startTimeout) {
-		return fmt.Errorf("container did not start: %s - %v", c.name, c.c.State())
+		return fmt.Errorf("container did not start: %s - %v", c.Name, c.c.State())
 	}
 
 	go func() {
 		err := c.startAgent()
 		if err != nil {
-			logrus.WithError(err).WithField("container", c.name).Error("failed to start agent")
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to start agent")
 		}
 	}()
+
+	err = c.onStart()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Container) onStart() error {
+	// update & persist state
+	err := c.persist()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -307,6 +377,8 @@ func (c *Container) Start() error {
 func (c *Container) startAgent() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	logrus.WithField("container", c.Name).Debug("starting agent")
 
 	// make agent fds
 	rpcFile, fdxFile, rpcConn, fdxConn, err := agent.MakeAgentFds()
@@ -321,14 +393,18 @@ func (c *Container) startAgent() error {
 	if err != nil {
 		return err
 	}
+
 	cmd := &LxcCommand{
-		CombinedArgs:       []string{procExe, "agent"},
-		Dir:                "/",
-		Env:                []string{},
-		Stdin:              rpcFile,
-		Stdout:             fdxFile,
-		Stderr:             os.Stderr,
-		restrictNamespaces: unix.CLONE_NEWNET,
+		CombinedArgs: []string{procExe, "agent"},
+		Dir:          "/",
+		Env:          []string{},
+		Stdin:        rpcFile,
+		Stdout:       fdxFile,
+		Stderr:       os.Stderr,
+		// all except
+		//   pid - to hide agent
+		//   user - because we don't use it
+		restrictNamespaces: unix.CLONE_NEWUTS | unix.CLONE_NEWNS | unix.CLONE_NEWIPC | unix.CLONE_NEWNET | unix.CLONE_NEWCGROUP | unix.CLONE_NEWTIME,
 	}
 	err = cmd.Start(c)
 	if err != nil {
@@ -342,12 +418,18 @@ func (c *Container) startAgent() error {
 	client := agent.NewClient(cmd.Process, rpcConn, fdxConn)
 	c.agent.Set(client)
 
-	// inet diag
-	nlFile, err := client.OpenDiagNetlink()
-	if err != nil {
-		return err
-	}
-	go monitorInetDiag(c, nlFile)
+	// async tasks, so we can release the lock
+	// will block if agent is broken
+	// also, we'll close our side of the remote fd so RPC will return ECONNRESET
+	go func() {
+		// inet diag
+		nlFile, err := client.OpenDiagNetlink()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to open netlink")
+			return
+		}
+		go monitorInetDiag(c, nlFile)
+	}()
 
 	return nil
 }

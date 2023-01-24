@@ -3,9 +3,9 @@ package agent
 import (
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
 	"net"
 	"net/netip"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -133,7 +133,7 @@ func readAllProcNet() ([]ProcListener, error) {
 	var listeners []ProcListener
 
 	for _, proto := range allProtos {
-		data, err := ioutil.ReadFile("/proc/net/" + proto)
+		data, err := os.ReadFile("/proc/net/" + proto)
 		if err != nil {
 			return nil, err
 		}

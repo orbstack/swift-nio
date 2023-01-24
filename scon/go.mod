@@ -18,6 +18,11 @@ require (
 )
 
 require (
+	github.com/oklog/ulid/v2 v2.1.0
+	go.etcd.io/bbolt v1.3.6
+)
+
+require (
 	github.com/alessio/shellescape v1.4.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect

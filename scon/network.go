@@ -54,6 +54,7 @@ func (n *Network) Start() error {
 	}
 	n.mtu = mtu
 
+	logrus.Debug("creating bridge")
 	bridge, err := newBridge(mtu)
 	if err != nil {
 		return err
@@ -61,6 +62,7 @@ func (n *Network) Start() error {
 	n.bridge = bridge
 
 	// start dnsmasq
+	logrus.Debug("starting dnsmasq")
 	proc, err := n.spawnDnsmasq()
 	if err != nil {
 		return err
@@ -155,13 +157,15 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 	la.TxQLen = txQueueLen
 	bridge := &netlink.Bridge{LinkAttrs: la}
 	err := netlink.LinkAdd(bridge)
-	if err != nil {
-		if errors.Is(err, unix.EEXIST) {
-			err = netlink.LinkDel(bridge)
-			if err != nil {
-				return nil, err
-			}
+	if err != nil && errors.Is(err, unix.EEXIST) {
+		logrus.Debug("bridge already exists, recreating")
+		err = netlink.LinkDel(bridge)
+		if err != nil {
+			return nil, err
 		}
+		err = netlink.LinkAdd(bridge)
+	}
+	if err != nil {
 		return nil, err
 	}
 

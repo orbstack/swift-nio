@@ -3,6 +3,7 @@ package hclient
 import (
 	"net"
 	"net/rpc"
+	"os/user"
 	"reflect"
 	"strconv"
 
@@ -27,6 +28,16 @@ func (h *HcontrolServer) StartForward(spec ForwardSpec, _ *None) error {
 
 func (h *HcontrolServer) StopForward(spec ForwardSpec, _ *None) error {
 	logrus.Infof("hcontrol: stop forward: g %s -> h %s", spec.Guest, spec.Host)
+	return nil
+}
+
+func (h *HcontrolServer) GetUser(_ *None, reply *user.User) error {
+	u, err := user.Current()
+	if err != nil {
+		return err
+	}
+
+	*reply = *u
 	return nil
 }
 

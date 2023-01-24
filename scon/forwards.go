@@ -168,6 +168,7 @@ func (m *ConManager) removeForward(c *Container, spec agent.ProcListener) error 
 		err = state.Owner.Agent().StopProxyUDP(agentSpec)
 	}
 	if err != nil {
+		// TODO err on stop w/ forwards
 		return err
 	}
 
@@ -247,7 +248,7 @@ func (c *Container) updateListenersDirect() error {
 }
 
 func (c *Container) triggerListenersUpdate() {
-	c.listenerUpdateDebounce.Call()
+	c.autofwdDebounce.Call()
 }
 
 func (m *ConManager) runAutoForwardGC() error {
@@ -257,7 +258,8 @@ func (m *ConManager) runAutoForwardGC() error {
 	for {
 		select {
 		case <-ticker.C:
-			for _, c := range m.containers {
+			m.containersMu.RLock()
+			for _, c := range m.containersByID {
 				if !c.Running() {
 					continue
 				}
@@ -276,6 +278,7 @@ func (m *ConManager) runAutoForwardGC() error {
 					}
 				}(c)
 			}
+			m.containersMu.RUnlock()
 		case <-m.stopChan:
 			return nil
 		}

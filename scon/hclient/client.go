@@ -3,10 +3,12 @@ package hclient
 import (
 	"net"
 	"net/rpc"
+	"os/user"
 )
 
 type Client struct {
-	rpc *rpc.Client
+	rpc  *rpc.Client
+	user *user.User
 }
 
 func (c *Client) Ping() error {
@@ -22,6 +24,21 @@ func (c *Client) StartForward(spec ForwardSpec) error {
 func (c *Client) StopForward(spec ForwardSpec) error {
 	var none None
 	return c.rpc.Call("hc.StopForward", spec, &none)
+}
+
+func (c *Client) GetUser() (*user.User, error) {
+	if c.user != nil {
+		return c.user, nil
+	}
+
+	var u user.User
+	err := c.rpc.Call("hc.GetUser", None{}, &u)
+	if err != nil {
+		return &user.User{}, err
+	}
+
+	c.user = &u
+	return &u, nil
 }
 
 func (c *Client) Close() error {
