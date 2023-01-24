@@ -292,7 +292,7 @@ func (m *ConManager) restoreContainers() error {
 			continue
 		}
 
-		logrus.WithField("container", c.Name).Debug("restored container")
+		logrus.WithField("container", c.Name).WithField("record", record).Debug("restored container")
 	}
 
 	return nil

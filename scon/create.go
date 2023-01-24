@@ -128,7 +128,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		Deleting: false,
 	}
 
-	c, err = m.newContainer(record.ID, record.Name, record.Image)
+	c, err = m.restoreOne(&record)
 	if err != nil {
 		return
 	}

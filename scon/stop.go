@@ -85,10 +85,12 @@ func (c *Container) onStop() error {
 		c.agent.Set(nil)
 	}
 
-	// update & persist state
-	err := c.persist()
-	if err != nil {
-		return err
+	// update & persist state IF manager isn't shutting down
+	if !c.manager.stopping {
+		err := c.persist()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -47,6 +47,7 @@ type ConManager struct {
 	containersByName map[string]*Container
 	containersMu     sync.RWMutex
 	seccompCookies   map[uint64]*Container
+	stopping         bool
 
 	// services
 	db   *Database
@@ -143,7 +144,9 @@ func (m *ConManager) Start() error {
 }
 
 func (m *ConManager) Close() error {
+	m.stopping = true
 	m.stopAll()
+
 	logrus.Debug("finish cleanup")
 	m.host.Close()
 	m.net.Close()
@@ -287,6 +290,7 @@ func (c *Container) persist() error {
 		Running:  c.Running(),
 		Deleting: c.deleting,
 	}
+	logrus.WithField("record", record).Debug("persisting container")
 	return c.manager.db.SetContainer(c.ID, record)
 }
 
