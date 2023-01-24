@@ -448,6 +448,9 @@ func (c *Container) startAgent() error {
 			return
 		}
 		go monitorInetDiag(c, nlFile)
+
+		// update listeners in case we missed any before agent start
+		c.triggerListenersUpdate()
 	}()
 
 	return nil

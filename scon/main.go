@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	_ "net/http/pprof"
@@ -259,6 +260,10 @@ func (c *Container) Agent() *agent.Client {
 }
 
 func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int, error) {
+	// no new fds in between
+	syscall.ForkLock.Lock()
+	defer syscall.ForkLock.Unlock()
+
 	// TODO cloexec safety
 	// critical section
 	if extraFd != 0 {

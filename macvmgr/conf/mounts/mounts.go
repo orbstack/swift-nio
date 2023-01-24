@@ -19,10 +19,6 @@ const (
 	ProfileEarly = Etc + "/profile-early"
 	ProfileLate  = Etc + "/profile-late"
 
-	Internal    = Opt + "/internal"
-	InternalBin = Internal + "/bin"
-	Trampoline  = InternalBin + "/trampoline"
-
 	BinHiprio             = Opt + "/bin-hiprio"
 	DefualtHiprioCmdLinks = BinHiprio
 
