@@ -167,8 +167,7 @@ func (m *ConManager) removeForward(c *Container, spec agent.ProcListener) error 
 	case agent.ProtoUDP:
 		err = state.Owner.Agent().StopProxyUDP(agentSpec)
 	}
-	if err != nil {
-		// TODO err on stop w/ forwards
+	if err != nil && !errors.Is(err, net.ErrClosed) {
 		return err
 	}
 
