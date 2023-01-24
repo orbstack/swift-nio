@@ -6,6 +6,8 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strconv"
+	"strings"
 	"unsafe"
 
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
@@ -150,8 +152,15 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	os.Stdin = os.Stderr
 	os.Stdout = os.Stderr
 
+	// close executable fd now that we're running
+	exeFd, err := strconv.Atoi(strings.Split(os.Args[0], "/")[4])
+	if err != nil {
+		return err
+	}
+	unix.Close(exeFd)
+
 	// set process name
-	err := setProcessName("scon-agent")
+	err = setProcessName("scon-agent")
 	if err != nil {
 		return err
 	}
