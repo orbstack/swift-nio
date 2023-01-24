@@ -15,8 +15,15 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
+	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+)
+
+const (
+	fdStdin  = 0
+	fdStdout = 1
+	fdStderr = 2
 )
 
 const (
@@ -257,7 +264,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 	}
 	combinedArgs := []string{"/bin/su", "-l", user, "-c", suCmd}
 
-	cmd := &LxcCommand{
+	cmd := &agent.AgentCommand{
 		CombinedArgs: combinedArgs,
 		Env:          env,
 		Dir:          pwd,
@@ -301,33 +308,42 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 		}()
 
 		// which ones are pipes and which ones are ptys?
+		cttyFd := -1
 		if meta.PtyStdin {
 			cmd.Stdin = ttyF
 			go io.Copy(ptyF, s)
+			cttyFd = fdStdin
 		} else {
 			cmd.Stdin = s
 		}
 
 		if meta.PtyStdout {
 			cmd.Stdout = ttyF
+			cttyFd = fdStdout
 		} else {
 			cmd.Stdout = s
 		}
 		if meta.PtyStderr {
 			cmd.Stderr = ttyF
+			cttyFd = fdStderr
 		} else {
 			cmd.Stderr = s.Stderr()
 		}
 		if meta.PtyStdout || meta.PtyStderr {
 			go io.Copy(s, ptyF)
 		}
+
+		// hook up controlling tty and session
+		cmd.Setsid = true
+		cmd.Setctty = true
+		cmd.CttyFd = cttyFd
 	} else {
 		cmd.Stdin = s
 		cmd.Stdout = s
 		cmd.Stderr = s.Stderr()
 	}
 
-	err = cmd.Start(container)
+	err = cmd.Start(container.Agent())
 	if err != nil {
 		return err
 	}
