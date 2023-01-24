@@ -14,7 +14,10 @@ const (
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"
 	DefaultCmdLinks = Bin
-	Profile         = Opt + "/profile"
+
+	Etc          = Opt + "/etc"
+	ProfileEarly = Etc + "/profile-early"
+	ProfileLate  = Etc + "/profile-late"
 
 	BinHiprio             = Opt + "/bin-hiprio"
 	DefualtHiprioCmdLinks = BinHiprio

@@ -133,7 +133,7 @@ func (m *ConManager) Start() error {
 
 	// services
 	go runSconServer(m)
-	go m.ListenSSH("127.0.0.1:2222")
+	go m.ListenSSH(conf.C().SSHListen)
 
 	// periodic tasks
 	go m.runAutoForwardGC()
@@ -217,12 +217,12 @@ func (m *ConManager) removeContainer(c *Container) error {
 	return nil
 }
 
-func (m *ConManager) DefaultUser() string {
+func (m *ConManager) DefaultUser() (string, error) {
 	hostUser, err := m.host.GetUser()
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return hostUser.Name
+	return hostUser.Name, nil
 }
 
 type Container struct {
@@ -317,6 +317,7 @@ func runContainerManager() {
 	hc, err := hclient.New(hcontrolConn)
 	check(err)
 
+	// start container manager
 	mgr, err := NewConManager(cwd+"/data", hc)
 	check(err)
 	defer mgr.Close()
@@ -327,6 +328,19 @@ func runContainerManager() {
 	if conf.Debug() {
 		go runPprof()
 	}
+
+	go runCliTest(mgr)
+
+	// listen for signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM)
+	<-sigChan
+
+	logrus.Info("shutting down")
+}
+
+func runCliTest(mgr *ConManager) {
+	var err error
 
 	container, ok := mgr.GetByName("alpine")
 	if !ok {
@@ -347,17 +361,6 @@ func runContainerManager() {
 	fmt.Println("start")
 	err = container.Start()
 	check(err)
-
-	fmt.Println("wait sig")
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM)
-	<-sigChan
-
-	fmt.Println("stop")
-	err = container.Stop()
-	check(err)
-
-	fmt.Println("all done")
 }
 
 func main() {

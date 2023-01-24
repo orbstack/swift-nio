@@ -141,7 +141,11 @@ func (m *ConManager) handleSSHConn(s ssh.Session) error {
 		containerName = userParts[1]
 	} else {
 		// default user = host user
-		user = m.DefaultUser()
+		var err error
+		user, err = m.DefaultUser()
+		if err != nil {
+			return err
+		}
 		containerName = userParts[0]
 	}
 

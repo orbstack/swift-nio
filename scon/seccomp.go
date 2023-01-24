@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -70,16 +71,16 @@ type scmpNotifyProxyMsg struct {
 	Cookie uint64
 }
 
-func makeSeccompCookie() (string, uint64) {
+func makeSeccompCookie() (string, uint64, error) {
 	cookieBytes := make([]byte, 8)
 
 	// fill with random bytes, but not 0
 	n, err := rand.Read(cookieBytes)
 	if err != nil {
-		panic(err)
+		return "", 0, err
 	}
 	if n != 8 {
-		panic("short read")
+		return "", 0, errors.New("short read")
 	}
 
 	// make sure we don't have a 0 byte
@@ -89,7 +90,7 @@ func makeSeccompCookie() (string, uint64) {
 
 	cookie := string(cookieBytes)
 	cookieInt := binary.LittleEndian.Uint64(cookieBytes)
-	return cookie, cookieInt
+	return cookie, cookieInt, nil
 }
 
 func readSeccompProxyMsg(conn *net.UnixConn) (*scmpNotifyProxyMsg, error) {

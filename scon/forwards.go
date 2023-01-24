@@ -271,7 +271,7 @@ func (m *ConManager) runAutoForwardGC() error {
 						c.mu.Unlock()
 						err := c.updateListenersDirect()
 						if err != nil {
-							logrus.WithError(err).Error("failed to GC listeners")
+							logrus.WithField("container", c.Name).WithError(err).Error("failed to GC listeners")
 						}
 					} else {
 						c.mu.Unlock()

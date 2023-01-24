@@ -1,6 +1,11 @@
 package conf
 
-import "os"
+import (
+	"os"
+	"strconv"
+
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+)
 
 var (
 	hostname string
@@ -21,6 +26,7 @@ type Config struct {
 	HcontrolIP    string
 	DummyHcontrol bool
 	DNSServer     string
+	SSHListen     string
 }
 
 var configVM = Config{
@@ -31,6 +37,7 @@ var configVM = Config{
 	HcontrolIP:    "172.30.30.201",
 	DummyHcontrol: false,
 	DNSServer:     "172.30.30.200",
+	SSHListen:     "172.30.30.2:" + strconv.Itoa(ports.GuestSconSSH),
 }
 
 var configTest = Config{
@@ -40,6 +47,7 @@ var configTest = Config{
 	HcontrolIP:    "127.0.0.1",
 	DummyHcontrol: true,
 	DNSServer:     "1.1.1.1",
+	SSHListen:     "127.0.0.1:2222",
 }
 
 func VM() bool {

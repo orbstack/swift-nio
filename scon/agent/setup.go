@@ -157,7 +157,11 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	}
 
 	// symlink /opt/macvirt-guest/profile
-	err = os.Symlink(mounts.Profile, "/etc/profile.d/"+vmconf.AppName()+".sh")
+	err = os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+vmconf.AppName()+".sh")
+	if err != nil {
+		return err
+	}
+	err = os.Symlink(mounts.ProfileLate, "/etc/profile.d/999-"+vmconf.AppName()+".sh")
 	if err != nil {
 		return err
 	}

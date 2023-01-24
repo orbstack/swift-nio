@@ -236,7 +236,10 @@ func (m *ConManager) newLxcContainer(id string, name string, image ImageSpec, ma
 	if err != nil {
 		return nil, 0, err
 	}
-	cookieStr, cookieU64 := makeSeccompCookie()
+	cookieStr, cookieU64, err := makeSeccompCookie()
+	if err != nil {
+		return nil, 0, err
+	}
 	err = m.setLxcConfigs(c, name, logPath, rootfs, m.net.mtu, image, cookieStr, mac)
 	if err != nil {
 		return nil, 0, err
@@ -404,6 +407,7 @@ func (c *Container) startAgent() error {
 		// all except
 		//   pid - to hide agent
 		//   user - because we don't use it
+		//   mount - we'll attach it ourselves
 		restrictNamespaces: unix.CLONE_NEWUTS | unix.CLONE_NEWNS | unix.CLONE_NEWIPC | unix.CLONE_NEWNET | unix.CLONE_NEWCGROUP | unix.CLONE_NEWTIME,
 	}
 	err = cmd.Start(c)
