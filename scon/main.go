@@ -138,11 +138,13 @@ func (m *ConManager) Start() error {
 	// periodic tasks
 	go m.runAutoForwardGC()
 
+	logrus.Info("started")
 	return err
 }
 
 func (m *ConManager) Close() error {
 	m.stopAll()
+	logrus.Debug("finish cleanup")
 	m.host.Close()
 	m.net.Close()
 	m.stopChan <- struct{}{}
@@ -155,12 +157,19 @@ func (m *ConManager) stopAll() {
 	defer m.containersMu.Unlock()
 
 	logrus.Info("stopping all containers")
+	var wg sync.WaitGroup
 	for _, c := range m.containersByID {
-		err := c.Stop()
-		if err != nil {
-			logrus.WithError(err).Error("failed to stop container for manager shutdown")
-		}
+		wg.Add(1)
+		go func(c *Container) {
+			defer wg.Done()
+
+			err := c.Stop()
+			if err != nil {
+				logrus.WithError(err).Error("failed to stop container for manager shutdown")
+			}
+		}(c)
 	}
+	wg.Wait()
 }
 
 func (m *ConManager) subdir(dirs ...string) string {

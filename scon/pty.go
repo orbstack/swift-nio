@@ -13,6 +13,7 @@ func (c *Container) OpenPty() (pty, tty *os.File, err error) {
 		return
 	}
 
+	// cloexec safe: O_CLOEXEC
 	ptyFd, err := unix.Openat(int(ptsDir.Fd()), "ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return

@@ -53,6 +53,7 @@ func (f *Fdx) RecvFdInt() (int, error) {
 	if len(scms) != 1 {
 		return -1, errors.New("unexpected number of socket control messages")
 	}
+	// cloexec safe: Go sets MSG_CMSG_CLOEXEC
 	fds, err := unix.ParseUnixRights(&scms[0])
 	if err != nil {
 		return -1, err

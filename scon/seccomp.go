@@ -110,6 +110,7 @@ func readSeccompProxyMsg(conn *net.UnixConn) (*scmpNotifyProxyMsg, error) {
 		return nil, fmt.Errorf("expected 1 cmsg, got %d", len(cmsgs))
 	}
 
+	// cloexec safe: Go sets MSG_CMSG_CLOEXEC
 	fds, err := unix.ParseUnixRights(&cmsgs[0])
 	if err != nil {
 		return nil, err

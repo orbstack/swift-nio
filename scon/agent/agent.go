@@ -46,7 +46,8 @@ func (a *AgentServer) GetListeners(_ None, reply *[]ProcListener) error {
 
 func (a *AgentServer) OpenDiagNetlink(_ None, _ *None) error {
 	// open netlink socket
-	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW, unix.NETLINK_INET_DIAG)
+	// cloexec safe
+	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_INET_DIAG)
 	if err != nil {
 		return err
 	}

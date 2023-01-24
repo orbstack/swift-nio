@@ -397,6 +397,7 @@ func (c *Container) startAgent() error {
 		return err
 	}
 
+	// add some more fds
 	cmd := &LxcCommand{
 		CombinedArgs: []string{procExe, "agent"},
 		Dir:          "/",
