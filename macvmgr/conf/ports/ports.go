@@ -7,7 +7,8 @@ const (
 	HostNFS      = 62429
 
 	// guest
-	GuestSSH      = 22 // debug
+	GuestDebugSSH = 22 // debug
+	GuestSconSSH  = 2222
 	GuestVcontrol = 103
 	GuestNFS      = 2049
 	GuestDocker   = 62375

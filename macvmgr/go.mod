@@ -14,17 +14,16 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/gliderlabs/ssh v0.3.5
 	github.com/mdlayher/vsock v1.2.0
-	github.com/pkg/term v1.1.0
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	golang.org/x/sys v0.4.0
 )
 
 require (
-	github.com/alessio/shellescape v1.4.1 // indirect
+	github.com/alessio/shellescape v1.4.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mdlayher/socket v0.4.0 // indirect
-	github.com/spf13/cobra v1.6.1 // indirect
+	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/term v0.4.0 // indirect

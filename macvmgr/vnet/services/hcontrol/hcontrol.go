@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"net/rpc"
+	"os/user"
 	"reflect"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
@@ -35,6 +36,16 @@ func (h *HcontrolServer) StartForward(spec vnet.ForwardSpec, _ *None) error {
 
 func (h *HcontrolServer) StopForward(spec vnet.ForwardSpec, _ *None) error {
 	return h.n.StopForward(spec)
+}
+
+func (h *HcontrolServer) GetUser(_ *None, reply *user.User) error {
+	u, err := user.Current()
+	if err != nil {
+		return err
+	}
+
+	*reply = *u
+	return nil
 }
 
 type None struct{}

@@ -48,6 +48,7 @@ func translatePath(p string) string {
 }
 
 func runCommandStub() error {
+	return nil
 }
 
 func runCtl(fallbackToShell bool) error {

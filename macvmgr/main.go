@@ -47,7 +47,7 @@ var (
 
 func init() {
 	if conf.Debug() {
-		hostForwardsToGuest["tcp:127.0.0.1:"+str(ports.HostSSH)] = "tcp:" + str(ports.GuestSSH)
+		hostForwardsToGuest["tcp:127.0.0.1:"+str(ports.HostSSH)] = "tcp:" + str(ports.GuestDebugSSH)
 	}
 }
 

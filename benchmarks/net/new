@@ -1,0 +1,41 @@
+localhost:~# iperf3 -c host
+Connecting to host host, port 5201
+[  5] local 172.30.30.2 port 59932 connected to 172.30.30.254 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  4.02 GBytes  34.6 Gbits/sec    0   2.00 MBytes
+[  5]   1.00-2.00   sec  4.04 GBytes  34.7 Gbits/sec    0   2.00 MBytes
+[  5]   2.00-3.00   sec  4.16 GBytes  35.7 Gbits/sec    0   2.00 MBytes
+[  5]   3.00-4.00   sec  4.10 GBytes  35.2 Gbits/sec    0   2.00 MBytes
+[  5]   4.00-5.00   sec  4.14 GBytes  35.6 Gbits/sec    0   2.00 MBytes
+[  5]   5.00-6.00   sec  4.13 GBytes  35.5 Gbits/sec    0   2.00 MBytes
+[  5]   6.00-7.00   sec  4.11 GBytes  35.3 Gbits/sec    0   2.00 MBytes
+[  5]   7.00-8.00   sec  4.15 GBytes  35.6 Gbits/sec    0   2.00 MBytes
+[  5]   8.00-9.00   sec  4.13 GBytes  35.5 Gbits/sec    0   2.00 MBytes
+[  5]   9.00-10.00  sec  4.06 GBytes  34.8 Gbits/sec    0   2.00 MBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-10.00  sec  41.0 GBytes  35.2 Gbits/sec    0             sender
+[  5]   0.00-10.00  sec  41.0 GBytes  35.3 Gbits/sec                  receiver
+
+iperf Done.
+localhost:~# iperf3 -c host -R
+Connecting to host host, port 5201
+Reverse mode, remote host host is sending
+[  5] local 172.30.30.2 port 40240 connected to 172.30.30.254 port 5201
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  3.33 GBytes  28.6 Gbits/sec
+[  5]   1.00-2.00   sec  3.33 GBytes  28.6 Gbits/sec
+[  5]   2.00-3.00   sec  3.29 GBytes  28.2 Gbits/sec
+[  5]   3.00-4.00   sec  3.32 GBytes  28.5 Gbits/sec
+[  5]   4.00-5.00   sec  3.38 GBytes  29.1 Gbits/sec
+[  5]   5.00-6.00   sec  3.41 GBytes  29.3 Gbits/sec
+[  5]   6.00-7.00   sec  3.21 GBytes  27.6 Gbits/sec
+[  5]   7.00-8.00   sec  3.24 GBytes  27.8 Gbits/sec
+[  5]   8.00-9.00   sec  3.18 GBytes  27.3 Gbits/sec
+[  5]   9.00-10.00  sec  3.31 GBytes  28.4 Gbits/sec
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec  33.0 GBytes  28.4 Gbits/sec                  sender
+[  5]   0.00-10.00  sec  33.0 GBytes  28.4 Gbits/sec                  receiver
+
+iperf Done.
