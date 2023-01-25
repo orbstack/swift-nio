@@ -295,7 +295,6 @@ func (p *PidfdProcess) Wait() (int, error) {
 	// call wait to get the status
 	// it'll stay a zombie until we do
 	status, err := p.a.WaitPid(p.pid)
-	fmt.Println("waitpid", status, err)
 	if err != nil {
 		return 0, err
 	}
