@@ -10,11 +10,16 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
 	"github.com/kdrag0n/macvirt/scon/agent/udpfwd"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+)
+
+const (
+	ProcessName = appid.AppName + "-helper"
 )
 
 type AgentServer struct {
@@ -132,7 +137,7 @@ func (a *AgentServer) StopProxyUDP(args ProxySpec, _ *None) error {
 }
 
 // TODO fix zeroing: https://source.chromium.org/chromium/chromium/src/+/main:content/common/set_process_title_linux.cc
-func setProcessName(name string) error {
+func setProcessCmdline(name string) error {
 	argv0str := (*reflect.StringHeader)(unsafe.Pointer(&os.Args[0]))
 	argv0 := (*[1 << 30]byte)(unsafe.Pointer(argv0str.Data))[:argv0str.Len]
 
@@ -153,14 +158,15 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	os.Stdout = os.Stderr
 
 	// close executable fd now that we're running
-	exeFd, err := strconv.Atoi(strings.Split(os.Args[0], "/")[4])
+	parts := strings.Split(os.Args[0], "/")
+	exeFd, err := strconv.Atoi(parts[len(parts)-1])
 	if err != nil {
 		return err
 	}
 	unix.Close(exeFd)
 
 	// set process name
-	err = setProcessName("scon-agent")
+	err = setProcessCmdline(ProcessName)
 	if err != nil {
 		return err
 	}

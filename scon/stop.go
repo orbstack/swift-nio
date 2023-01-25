@@ -41,6 +41,7 @@ func (c *Container) Stop() error {
 
 	// stop agent (after listeners removed)
 	if c.agent.Get() != nil {
+		logrus.WithField("container", c.Name).Debug("stopping agent")
 		c.Agent().Close()
 		c.agent.Set(nil)
 	}

@@ -385,6 +385,16 @@ func findAgentExe() (string, error) {
 	return path.Join(path.Dir(curExe), "scon-agent"), nil
 }
 
+func padAgentCmd(cmd string) string {
+	// target len = at least len(agent.ProcessName)
+	targetLen := len(agent.ProcessName)
+	if len(cmd) < targetLen {
+		// prepend slashes
+		cmd = strings.Repeat("/", targetLen-len(cmd)) + cmd
+	}
+	return cmd
+}
+
 func (c *Container) startAgent() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -412,7 +422,7 @@ func (c *Container) startAgent() error {
 
 	// add some more fds
 	cmd := &LxcCommand{
-		CombinedArgs: []string{"/proc/self/fd/" + strconv.Itoa(exeFd)},
+		CombinedArgs: []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd))},
 		Dir:          "/",
 		Env:          []string{},
 		Stdin:        rpcFile,
