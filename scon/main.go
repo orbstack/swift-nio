@@ -234,7 +234,7 @@ func (m *ConManager) DefaultUser() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return hostUser.Name, nil
+	return hostUser.Username, nil
 }
 
 type Container struct {

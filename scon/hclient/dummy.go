@@ -32,12 +32,18 @@ func (h *HcontrolServer) StopForward(spec ForwardSpec, _ *None) error {
 }
 
 func (h *HcontrolServer) GetUser(_ *None, reply *user.User) error {
-	u, err := user.Current()
+	_, err := user.Current()
 	if err != nil {
 		return err
 	}
 
-	*reply = *u
+	*reply = user.User{
+		Uid:      "1000",
+		Gid:      "1000",
+		Username: "dragon",
+		Name:     "Dragon",
+		HomeDir:  "/home/dragon",
+	}
 	return nil
 }
 

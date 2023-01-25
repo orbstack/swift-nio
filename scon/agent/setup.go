@@ -11,10 +11,12 @@ import (
 
 	vmconf "github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/sirupsen/logrus"
 )
 
 var (
-	adminGroups = []string{"wheel", "staff", "admin", "sudo"}
+	adminGroups  = []string{"adm", "wheel", "staff", "admin", "sudo", "video"}
+	defaultUsers = []string{"ubuntu", "archlinux", "opensuse"}
 )
 
 type InitialSetupArgs struct {
@@ -24,6 +26,7 @@ type InitialSetupArgs struct {
 }
 
 func run(combinedArgs ...string) error {
+	logrus.Debugf("run: %v", combinedArgs)
 	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -90,8 +93,8 @@ func contains[T comparable](slice []T, item T) bool {
 	return false
 }
 
-func addUserToGroups(username string, addGroups []string) error {
-	groupsData, err := os.ReadFile("/etc/group")
+func addUserToGroupsFile(file string, username string, addGroups []string) error {
+	groupsData, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -113,9 +116,40 @@ func addUserToGroups(username string, addGroups []string) error {
 		}
 	}
 
-	err = os.WriteFile("/etc/group", []byte(strings.Join(lines, "\n")), 0644)
+	err = os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func addUserToGroups(username string, addGroups []string) error {
+	err := addUserToGroupsFile("/etc/group", username, addGroups)
+	if err != nil {
+		return err
+	}
+
+	err = addUserToGroupsFile("/etc/gshadow", username, addGroups)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func deleteDefaultUsers() error {
+	for _, username := range defaultUsers {
+		if _, err := user.Lookup(username); err != nil {
+			continue
+		}
+
+		logrus.WithField("user", username).Debug("Deleting default user")
+		// Only on GNU distros, so we have userdel
+		err := run("userdel", "-r", username)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -128,19 +162,31 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
+	// delete default users to avoid conflict
+	err = deleteDefaultUsers()
+	if err != nil {
+		return err
+	}
+
 	// create user
 	// uid = host, gid = 1000+
+	logrus.WithField("user", args.Username).WithField("uid", args.Uid).Debug("Creating user")
 	err = run("useradd", "-u", strconv.Itoa(args.Uid), "-m", "-s", shell, args.Username)
-	if err != nil && errors.Is(err, exec.ErrNotFound) {
+	if err != nil {
 		// Busybox: add user + user group
-		err = run("adduser", "-u", strconv.Itoa(args.Uid), "-D", "-s", shell, args.Username)
-		if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			err = run("adduser", "-u", strconv.Itoa(args.Uid), "-D", "-s", shell, args.Username)
+			if err != nil {
+				return err
+			}
+		} else {
 			return err
 		}
 	}
 
 	// set password
 	if args.Password != "" {
+		logrus.Debug("Setting password")
 		pwdEntry := args.Username + ":" + args.Password
 		err = runWithInput(pwdEntry, "chpasswd")
 		if err != nil {
@@ -151,12 +197,14 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// add user to admin groups
 	// Alpine has no usermod, so we have to do this manually
 	groups := selectAdminGroups()
+	logrus.WithField("groups", groups).Debug("Adding user to groups")
 	err = addUserToGroups(args.Username, groups)
 	if err != nil {
 		return err
 	}
 
 	// symlink /opt/macvirt-guest/profile
+	logrus.Debug("linking profile")
 	err = os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+vmconf.AppName()+".sh")
 	if err != nil {
 		return err

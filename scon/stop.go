@@ -115,14 +115,8 @@ func (c *Container) Delete() error {
 	c.deleting = true
 	c.persist()
 
-	// delete lxc
-	err := c.c.Destroy()
-	if err != nil {
-		return err
-	}
-
 	// delete the entire directory
-	err = os.RemoveAll(c.dir)
+	err := os.RemoveAll(c.dir)
 	if err != nil {
 		return err
 	}

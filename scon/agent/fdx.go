@@ -22,7 +22,6 @@ func (f *Fdx) Close() error {
 	return f.conn.Close()
 }
 
-// SendFd sends a file descriptor over the unix socket using the SCM_RIGHTS.
 func (f *Fdx) SendFdInt(fd int) error {
 	oob := unix.UnixRights(fd)
 	_, oobn, err := f.conn.WriteMsgUnix(nil, unix.UnixRights(fd), nil)
@@ -35,7 +34,6 @@ func (f *Fdx) SendFdInt(fd int) error {
 	return nil
 }
 
-// RecvFd receives a file descriptor over the unix socket using the SCM_RIGHTS.
 func (f *Fdx) RecvFdInt() (int, error) {
 	oob := make([]byte, unix.CmsgSpace(4))
 	// use f.conn.ReadMsgUnix

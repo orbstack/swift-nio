@@ -38,14 +38,6 @@ func (c *Container) OpenPty() (pty, tty *os.File, err error) {
 	}
 	tty = os.NewFile(ttyFd, "/dev/pts/tty")
 
-	// fix ownership
-	// TODO to login user
-	err = unix.Fchown(int(pty.Fd()), 0, 0)
-	if err != nil {
-		pty.Close()
-		tty.Close()
-		return
-	}
-
+	// caller fixes ownership
 	return
 }
