@@ -12,6 +12,7 @@ import (
 	vmconf "github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -30,7 +31,7 @@ func run(combinedArgs ...string) error {
 	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s; output: %s", err, string(output))
+		return fmt.Errorf("%w; output: %s", err, string(output))
 	}
 
 	return nil
@@ -41,7 +42,7 @@ func runWithInput(input string, combinedArgs ...string) error {
 	cmd.Stdin = strings.NewReader(input)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s; output: %s", err, string(output))
+		return fmt.Errorf("%w; output: %s", err, string(output))
 	}
 
 	return nil
@@ -130,9 +131,11 @@ func addUserToGroups(username string, addGroups []string) error {
 		return err
 	}
 
-	err = addUserToGroupsFile("/etc/gshadow", username, addGroups)
-	if err != nil {
-		return err
+	if err := unix.Access("/etc/gshadow", unix.W_OK); err == nil {
+		err = addUserToGroupsFile("/etc/gshadow", username, addGroups)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
