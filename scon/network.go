@@ -20,11 +20,13 @@ import (
 const (
 	ifBridge = "conbr0"
 
-	subnet4    = "172.30.31"
-	gatewayIP4 = subnet4 + ".1"
+	subnet4     = "172.30.31"
+	subnet4cidr = subnet4 + ".0/24"
+	gatewayIP4  = subnet4 + ".1"
 
-	subnet6    = "fc00:30:31:"
-	gatewayIP6 = subnet6 + ":1"
+	subnet6     = "fc00:30:31:"
+	subnet6cidr = subnet6 + ":/64"
+	gatewayIP6  = subnet6 + ":1"
 
 	txQueueLen = 5000
 
@@ -198,12 +200,12 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 }
 
 func setupAllNat() (func() error, error) {
-	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, subnet4+".0/24", "")
+	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, subnet4cidr, "")
 	if err != nil {
 		return nil, err
 	}
 
-	cleanup6, err := setupOneNat(iptables.ProtocolIPv6, subnet6+":/64", "")
+	cleanup6, err := setupOneNat(iptables.ProtocolIPv6, subnet6cidr, "")
 	if err != nil {
 		_ = cleanup4()
 		return nil, err

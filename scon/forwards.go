@@ -24,6 +24,9 @@ const (
 var (
 	netipIPv4Loopback = netip.AddrFrom4([4]byte{127, 0, 0, 1})
 	netipIPv6Loopback = netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+
+	netipSubnet4 = netip.MustParsePrefix(subnet4cidr)
+	netipSubnet6 = netip.MustParsePrefix(subnet6cidr)
 )
 
 type ForwardState struct {
@@ -39,21 +42,36 @@ func procToAgentSpec(p agent.ProcListener) agent.ProxySpec {
 	}
 }
 
+func filterListener(l agent.ProcListener) bool {
+	// remove DHCP client
+	if l.Proto == agent.ProtoUDP && l.Port == portDHCPClient {
+		return false
+	}
+
+	// for systemd-resolved: loopback only if it's 127.0.0.1 / ::1
+	if l.Addr == netipIPv4Loopback || l.Addr == netipIPv6Loopback {
+		return true
+	}
+
+	// 0.0.0.0 / :: is also ok
+	if l.Addr.IsUnspecified() {
+		return true
+	}
+
+	// otherwise, require that it matches our subnet
+	if l.Addr.Is4() {
+		return netipSubnet4.Contains(l.Addr)
+	} else {
+		return netipSubnet6.Contains(l.Addr)
+	}
+}
+
 func filterListeners(listeners []agent.ProcListener) []agent.ProcListener {
 	var filtered []agent.ProcListener
 	for _, l := range listeners {
-		// remove DHCP client
-		if l.Proto == agent.ProtoUDP && l.Port == portDHCPClient {
-			continue
+		if filterListener(l) {
+			filtered = append(filtered, l)
 		}
-
-		// special case for systemd-resolved:
-		// remove loopback that isn't 127.0.0.1
-		if l.Addr.IsLoopback() && (l.Addr != netipIPv4Loopback && l.Addr != netipIPv6Loopback) {
-			continue
-		}
-
-		filtered = append(filtered, l)
 	}
 	return filtered
 }
