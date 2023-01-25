@@ -286,12 +286,13 @@ func (p *PidfdProcess) Wait() (int, error) {
 		return 0, err
 	}
 
-	var info unix.Siginfo
-	err = unix.Waitid(unix.P_PIDFD, int(p.f.Fd()), &info, unix.WEXITED|unix.WNOHANG, nil)
+	// call wait to get the status
+	// it'll stay a zombie until we do
+	status, err := p.a.WaitPid(p.pid)
 	if err != nil {
 		return 0, err
 	}
 
 	p.Release()
-	return int(info.Code), nil
+	return status, nil
 }
