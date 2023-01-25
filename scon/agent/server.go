@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"os/signal"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -170,6 +171,14 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if err != nil {
 		return err
 	}
+
+	// catch and ignore signals, so children exit first
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT)
+	go func() {
+		for range sigCh {
+		}
+	}()
 
 	rpcConn, err := net.FileConn(rpcFile)
 	if err != nil {

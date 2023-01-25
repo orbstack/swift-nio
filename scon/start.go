@@ -159,9 +159,13 @@ func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs strin
 	set("lxc.apparmor.profile", "unconfined")
 	set("lxc.arch", "linux64")
 
-	// void linux shutdown workaround
+	// shutdown fixes
 	if image.Distro == ImageVoid {
+		// void: runit - SIGCONT
 		set("lxc.signal.halt", "SIGCONT")
+	} else if image.Distro == ImageAlpine {
+		// alpine: busybox/OpenRC - SIGUSR1
+		set("lxc.signal.halt", "SIGUSR1")
 	}
 
 	/*

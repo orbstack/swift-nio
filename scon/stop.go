@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	gracefulShutdownTimeoutRelease = 3 * time.Second
+	gracefulShutdownTimeoutRelease = 4 * time.Second
 	gracefulShutdownTimeoutDebug   = 100 * time.Millisecond
 
 	stopTimeout = 10 * time.Second
@@ -56,9 +56,11 @@ func (c *Container) Stop() error {
 		logrus.Warn("graceful shutdown failed: ", err)
 	}
 
-	err = c.c.Stop()
-	if err != nil {
-		return err
+	if c.c.Running() {
+		err = c.c.Stop()
+		if err != nil {
+			return err
+		}
 	}
 
 	if !c.c.Wait(lxc.STOPPED, stopTimeout) {
@@ -70,6 +72,7 @@ func (c *Container) Stop() error {
 		return err
 	}
 
+	logrus.WithField("container", c.Name).Info("stopped container")
 	return nil
 }
 
