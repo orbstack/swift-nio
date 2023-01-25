@@ -191,6 +191,17 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (isPty bool, err error) {
 		return
 	}
 
+	// hack for debug testing
+	if conf.Debug() {
+		if user == "stop" {
+			err = container.Stop()
+			return
+		} else if user == "delete" {
+			err = container.Delete()
+			return
+		}
+	}
+
 	// set as last container
 	go m.db.SetLastContainerID(container.ID)
 
