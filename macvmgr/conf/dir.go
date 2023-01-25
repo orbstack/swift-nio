@@ -73,6 +73,10 @@ func DockerSocket() string {
 	return ConfigDir() + "/docker.sock"
 }
 
+func SconSSHSocket() string {
+	return ConfigDir() + "/sconssh.sock"
+}
+
 func HostSSHAgentSocket() string {
 	return os.Getenv("SSH_AUTH_SOCK")
 }

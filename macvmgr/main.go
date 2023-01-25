@@ -43,6 +43,7 @@ var (
 	hostForwardsToGuest = map[string]string{
 		"tcp:127.0.0.1:" + str(ports.HostNFS): "vsock:" + str(ports.GuestNFS),
 		"unix:" + conf.DockerSocket():         "tcp:" + str(ports.GuestDocker),
+		"unix:" + conf.SconSSHSocket():        "tcp:" + str(ports.GuestSconSSH),
 	}
 )
 
