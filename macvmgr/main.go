@@ -16,6 +16,7 @@ import (
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
@@ -71,7 +72,7 @@ func extractSparse(tarPath string) {
 
 func createDockerContext() {
 	var errBuf bytes.Buffer
-	createCmd := exec.Command("docker", "context", "create", conf.AppName(), "--description", conf.AppNameUser(), "--docker", "host=unix://"+conf.DockerSocket())
+	createCmd := exec.Command("docker", "context", "create", appid.AppName, "--description", appid.UserAppName, "--docker", "host=unix://"+conf.DockerSocket())
 	createCmd.Stderr = &errBuf
 	err := createCmd.Run()
 	if err != nil {
@@ -85,7 +86,7 @@ func createDockerContext() {
 func setDockerContext() {
 	createDockerContext()
 
-	err := exec.Command("docker", "context", "use", conf.AppName()).Run()
+	err := exec.Command("docker", "context", "use", appid.AppName).Run()
 	if err != nil {
 		logrus.Error("Failed to set Docker context:", err)
 	}

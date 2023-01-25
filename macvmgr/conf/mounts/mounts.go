@@ -1,5 +1,7 @@
 package mounts
 
+import "github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+
 var (
 	// linked paths don't need translation
 	// excluded: /cores
@@ -9,7 +11,7 @@ var (
 const (
 	VirtiofsMountpoint = "/mnt/mac"
 
-	Opt             = "/opt/macvirt-guest"
+	Opt             = "/opt/" + appid.Codename + "-guest"
 	Bin             = Opt + "/bin"
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"

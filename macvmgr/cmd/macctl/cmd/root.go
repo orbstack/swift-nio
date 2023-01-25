@@ -1,14 +1,14 @@
 package cmd
 
 import (
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "macctl",
-	Short: "macOS integration utilities for " + conf.AppNameUser(),
-	Long:  `Control and interact with macOS from ` + conf.AppNameUser() + ` Linux distros.`,
+	Short: "macOS integration utilities for " + appid.UserAppName,
+	Long:  `Control and interact with macOS from ` + appid.UserAppName + ` Linux distros.`,
 }
 
 // Execute executes the root command.

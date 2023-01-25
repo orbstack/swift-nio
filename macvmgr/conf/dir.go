@@ -4,13 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 )
 
 const (
-	// TODO
-	appName     = "macvirt"
-	appNameUser = "MacVirt"
-	nfsDirName  = "Linux"
+	nfsDirName = "Linux"
 )
 
 func HomeDir() string {
@@ -19,7 +18,7 @@ func HomeDir() string {
 }
 
 func ConfigDir() string {
-	dir := HomeDir() + "/." + appName
+	dir := HomeDir() + "/." + appid.AppName
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		panic(err)
@@ -87,12 +86,4 @@ func Arch() string {
 	default:
 		panic("unsupported architecture " + runtime.GOARCH)
 	}
-}
-
-func AppName() string {
-	return appName
-}
-
-func AppNameUser() string {
-	return appNameUser
 }

@@ -1,0 +1,7 @@
+package appid
+
+const (
+	Codename    = "macvirt"
+	AppName     = "macvirt"
+	UserAppName = "MacVirt"
+)
