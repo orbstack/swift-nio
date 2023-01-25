@@ -293,6 +293,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (isPty bool, err error) {
 		CombinedArgs: combinedArgs,
 		Env:          env,
 		Dir:          pwd,
+		User:         user,
 	}
 
 	if isPty {

@@ -1,8 +1,11 @@
 package agent
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"os/user"
+	"strconv"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -12,6 +15,7 @@ type SpawnProcessArgs struct {
 	CombinedArgs []string
 	Dir          string
 	Env          []string
+	User         string
 	Setsid       bool
 	Setctty      bool
 	CttyFd       int
@@ -37,17 +41,79 @@ func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *int) error {
 	}
 	defer stderr.Close()
 
+	// resolve the pty, if any
+	var ptyF *os.File
+	if args.Setctty {
+		switch args.CttyFd {
+		case 0:
+			ptyF = stdin
+		case 1:
+			ptyF = stdout
+		case 2:
+			ptyF = stderr
+		default:
+			return fmt.Errorf("invalid ctty fd: %d", args.CttyFd)
+		}
+	}
+
+	// create attrs
+	attrs := &syscall.SysProcAttr{
+		Setsid:  args.Setsid,
+		Setctty: args.Setctty,
+		Ctty:    args.CttyFd,
+	}
+	if args.User != "" {
+		// get user info
+		u, err := user.Lookup(args.User)
+		if err != nil {
+			return err
+		}
+		uid, err := strconv.Atoi(u.Uid)
+		if err != nil {
+			return err
+		}
+		gid, err := strconv.Atoi(u.Gid)
+		if err != nil {
+			return err
+		}
+		groupStrs, err := u.GroupIds()
+		if err != nil {
+			return err
+		}
+		groups := make([]uint32, len(groupStrs))
+		for i, groupStr := range groupStrs {
+			group, err := strconv.Atoi(groupStr)
+			if err != nil {
+				return err
+			}
+			groups[i] = uint32(group)
+		}
+
+		// if we have a pty (ctty), fix its ownership
+		if args.Setctty {
+			err = unix.Fchown(int(ptyF.Fd()), uid, gid)
+			if err != nil {
+				return err
+			}
+		}
+
+		// doesn't work: permission denied
+		/*
+			attrs.Credential = &syscall.Credential{
+				Uid:    uint32(uid),
+				Gid:    uint32(gid),
+				Groups: groups,
+			}
+		*/
+	}
+
 	// create process
 	path := args.CombinedArgs[0]
 	proc, err := os.StartProcess(path, args.CombinedArgs, &os.ProcAttr{
 		Dir:   args.Dir,
 		Files: []*os.File{stdin, stdout, stderr},
 		Env:   args.Env,
-		Sys: &syscall.SysProcAttr{
-			Setsid:  args.Setsid,
-			Setctty: args.Setctty,
-			Ctty:    args.CttyFd,
-		},
+		Sys:   attrs,
 	})
 	if err != nil {
 		return err
@@ -94,6 +160,7 @@ type AgentCommand struct {
 	Stdin        io.Reader
 	Stdout       io.Writer
 	Stderr       io.Writer
+	User         string
 
 	Setsid  bool
 	Setctty bool
@@ -165,6 +232,7 @@ func (c *AgentCommand) Start(agent *Client) error {
 		CombinedArgs: c.CombinedArgs,
 		Dir:          c.Dir,
 		Env:          c.Env,
+		User:         c.User,
 		Setsid:       c.Setsid,
 		Setctty:      c.Setctty,
 		CttyFd:       c.CttyFd,
