@@ -15,6 +15,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/kdrag0n/macvirt/scon/agent"
+	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
