@@ -287,7 +287,15 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (isPty bool, err error) {
 		}
 		suCmd = envToShell(env) + " exec $SHELL -l " + shellescape.QuoteCommand(shellArgs)
 	}
-	combinedArgs := []string{"/bin/su", "-l", user, "-c", suCmd}
+	// this fixes job control. with -c, util-linux su calls setsid(), causing ctty to get lost
+	// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L1269
+	commandArg := "--session-command"
+	// Busybox su doesn't support --session-command, so use -c instead
+	// TODO better way
+	if container.Image.Distro == DistroAlpine {
+		commandArg = "-c"
+	}
+	combinedArgs := []string{"/bin/su", "-l", user, commandArg, suCmd}
 
 	cmd := &agent.AgentCommand{
 		CombinedArgs: combinedArgs,
