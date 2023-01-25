@@ -409,7 +409,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	// read-side pipes will be closed after start
 	// write-side pipes will be closed on EOF
 	status, err := cmd.Process.Wait()
-	if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrUnexpectedEOF) {
+	if err != nil {
 		logrus.Error("wait err: ", err)
 		return
 	}

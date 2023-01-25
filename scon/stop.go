@@ -39,13 +39,6 @@ func (c *Container) Stop() error {
 	}
 	c.lastListeners = nil
 
-	// stop agent (after listeners removed)
-	if c.agent.Get() != nil {
-		logrus.WithField("container", c.Name).Debug("stopping agent")
-		c.Agent().Close()
-		c.agent.Set(nil)
-	}
-
 	// ignore failure
 	timeout := gracefulShutdownTimeoutRelease
 	if conf.Debug() {
@@ -70,6 +63,13 @@ func (c *Container) Stop() error {
 	err = c.onStop()
 	if err != nil {
 		return err
+	}
+
+	// stop agent (after listeners removed and processes reaped)
+	if c.agent.Get() != nil {
+		logrus.WithField("container", c.Name).Debug("stopping agent")
+		c.Agent().Close()
+		c.agent.Set(nil)
 	}
 
 	logrus.WithField("container", c.Name).Info("stopped container")

@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"errors"
 	"net"
 	"net/rpc"
 	"os"
@@ -25,11 +24,8 @@ func (c *Client) Close() error {
 	c.rpc.Close()
 	c.fdx.Close()
 
-	err := c.process.Kill()
-	if err != nil && !errors.Is(err, os.ErrProcessDone) {
-		return err
-	}
-
+	// err doesn't matter, should already be dead from container stop
+	_ = c.process.Kill()
 	return nil
 }
 
