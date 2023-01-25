@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"io"
 	"net"
 	"net/netip"
 	"strconv"
@@ -212,7 +213,7 @@ func (m *ConManager) removeForward(c *Container, spec agent.ProcListener) error 
 	case agent.ProtoUDP:
 		err = state.Owner.Agent().StopProxyUDP(agentSpec)
 	}
-	if err != nil && !errors.Is(err, net.ErrClosed) {
+	if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return err
 	}
 

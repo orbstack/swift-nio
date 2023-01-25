@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	vmconf "github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -206,13 +206,25 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
-	// symlink /opt/macvirt-guest/profile
-	logrus.Debug("linking profile")
-	err = os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+vmconf.AppName()+".sh")
+	// add sudoers.d file
+	logrus.Debug("Adding sudoers.d file")
+	sudoersLine := args.Username + " ALL=(ALL) NOPASSWD:ALL"
+	err = os.MkdirAll("/etc/sudoers.d", 0750)
 	if err != nil {
 		return err
 	}
-	err = os.Symlink(mounts.ProfileLate, "/etc/profile.d/999-"+vmconf.AppName()+".sh")
+	err = os.WriteFile("/etc/sudoers.d/"+args.Username, []byte(sudoersLine), 0440)
+	if err != nil {
+		return err
+	}
+
+	// symlink /opt/macvirt-guest/profile
+	logrus.Debug("linking profile")
+	err = os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+appid.AppName+".sh")
+	if err != nil {
+		return err
+	}
+	err = os.Symlink(mounts.ProfileLate, "/etc/profile.d/999-"+appid.AppName+".sh")
 	if err != nil {
 		return err
 	}
