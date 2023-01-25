@@ -275,11 +275,23 @@ func (p *PidfdProcess) Signal(sig os.Signal) error {
 }
 
 func (p *PidfdProcess) Wait() (int, error) {
-	status, err := p.a.WaitPid(p.pid)
+	// poll first, only call RPC when necessary
+	_, err := unix.Poll([]unix.PollFd{
+		{
+			Fd:     int32(p.f.Fd()),
+			Events: unix.POLLIN,
+		},
+	}, -1)
+	if err != nil {
+		return 0, err
+	}
+
+	var info unix.Siginfo
+	err = unix.Waitid(unix.P_PIDFD, int(p.f.Fd()), &info, unix.WEXITED|unix.WNOHANG, nil)
 	if err != nil {
 		return 0, err
 	}
 
 	p.Release()
-	return status, nil
+	return int(info.Code), nil
 }
