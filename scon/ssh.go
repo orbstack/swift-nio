@@ -145,9 +145,9 @@ func (m *ConManager) getDefaultContainerName() (string, error) {
 	return c.Name, nil
 }
 
-func (m *ConManager) handleSSHConn(s ssh.Session) (isPty bool, err error) {
-	ptyReq, winCh, isPty2 := s.Pty()
-	isPty = isPty2
+func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
+	ptyReq, winCh, isPty := s.Pty()
+	printErr = isPty
 
 	// user and container
 	userReq := s.User()
@@ -384,6 +384,9 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (isPty bool, err error) {
 		return
 	}
 
+	// now that the command has been started, don't print errors to pty
+	printErr = false
+
 	// forward signals
 	fwdSigChan := make(chan ssh.Signal, 1)
 	defer close(fwdSigChan)
@@ -423,14 +426,14 @@ func (m *ConManager) ListenSSH(address string) error {
 	handler := func(s ssh.Session) {
 		defer s.Close()
 
-		isPty, err := m.handleSSHConn(s)
+		printErr, err := m.handleSSHConn(s)
 		if err != nil {
 			if exitErr, ok := err.(*ExitError); ok {
 				// all ok, just exit
 				s.Exit(exitErr.ExitCode())
 			} else {
 				logrus.Error("SSH error: ", err)
-				if isPty {
+				if printErr {
 					s.Stderr().Write([]byte(err.Error() + "\r\n"))
 				}
 				s.Exit(1)
