@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -14,8 +15,15 @@ import (
 const (
 	autoForwardGCInterval  = 2 * time.Minute
 	autoForwardGCThreshold = 1 * time.Minute
+	autoForwardDebounce    = 250 * time.Millisecond
 
-	autoForwardDebounce = 250 * time.Millisecond
+	// special case for systemd-network DHCP client
+	portDHCPClient = 68
+)
+
+var (
+	netipIPv4Loopback = netip.AddrFrom4([4]byte{127, 0, 0, 1})
+	netipIPv6Loopback = netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
 )
 
 type ForwardState struct {
@@ -29,6 +37,25 @@ func procToAgentSpec(p agent.ProcListener) agent.ProxySpec {
 		IsIPv6: p.Addr.Is6(),
 		Port:   p.Port,
 	}
+}
+
+func filterListeners(listeners []agent.ProcListener) []agent.ProcListener {
+	var filtered []agent.ProcListener
+	for _, l := range listeners {
+		// remove DHCP client
+		if l.Proto == agent.ProtoUDP && l.Port == portDHCPClient {
+			continue
+		}
+
+		// special case for systemd-resolved:
+		// remove loopback that isn't 127.0.0.1
+		if l.Addr.IsLoopback() && (l.Addr != netipIPv4Loopback && l.Addr != netipIPv6Loopback) {
+			continue
+		}
+
+		filtered = append(filtered, l)
+	}
+	return filtered
 }
 
 func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
@@ -221,29 +248,44 @@ func (c *Container) updateListenersDirect() error {
 	if err != nil {
 		return err
 	}
+	listeners = filterListeners(listeners)
 	logrus.WithField("listeners", listeners).Debug("update listeners")
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	added, removed := diffListeners(c.lastListeners, listeners)
 
+	var lastErr error
+	var notAdded []agent.ProcListener
+	var notRemoved []agent.ProcListener
 	for _, listener := range added {
 		err := c.manager.addForward(c, listener)
 		if err != nil {
-			return err
+			lastErr = err
+			notAdded = append(notAdded, listener)
+			continue
 		}
 	}
 
 	for _, listener := range removed {
 		err := c.manager.removeForward(c, listener)
 		if err != nil {
-			return err
+			lastErr = err
+			notRemoved = append(notRemoved, listener)
+			continue
 		}
+	}
+
+	if len(notAdded) > 0 || len(notRemoved) > 0 {
+		logrus.WithFields(logrus.Fields{
+			"notAdded":   notAdded,
+			"notRemoved": notRemoved,
+		}).Warn("failed to apply listener changes")
 	}
 
 	c.lastListeners = listeners
 	c.lastAutofwdUpdate = time.Now()
-	return nil
+	return lastErr
 }
 
 func (c *Container) triggerListenersUpdate() {

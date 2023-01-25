@@ -1,6 +1,7 @@
 package hclient
 
 import (
+	"errors"
 	"net"
 	"net/rpc"
 	"os/user"
@@ -15,6 +16,7 @@ import (
 var _ = reflect.TypeOf(HcontrolServer{})
 
 type HcontrolServer struct {
+	activeHostsForwards map[string]struct{}
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -23,11 +25,19 @@ func (h *HcontrolServer) Ping(_ *None, _ *None) error {
 
 func (h *HcontrolServer) StartForward(spec ForwardSpec, _ *None) error {
 	logrus.Infof("hcontrol: start forward: g %s -> h %s", spec.Guest, spec.Host)
+	if _, ok := h.activeHostsForwards[spec.Host]; ok {
+		return errors.New("forward already exists")
+	}
+	h.activeHostsForwards[spec.Host] = struct{}{}
 	return nil
 }
 
 func (h *HcontrolServer) StopForward(spec ForwardSpec, _ *None) error {
 	logrus.Infof("hcontrol: stop forward: g %s -> h %s", spec.Guest, spec.Host)
+	if _, ok := h.activeHostsForwards[spec.Host]; !ok {
+		return errors.New("forward doesn't exist")
+	}
+	delete(h.activeHostsForwards, spec.Host)
 	return nil
 }
 
@@ -48,7 +58,9 @@ func (h *HcontrolServer) GetUser(_ *None, reply *user.User) error {
 }
 
 func StartDummyServer() error {
-	server := &HcontrolServer{}
+	server := &HcontrolServer{
+		activeHostsForwards: make(map[string]struct{}),
+	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)
 
