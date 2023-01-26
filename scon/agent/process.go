@@ -287,16 +287,17 @@ func (p *PidfdProcess) Signal(sig os.Signal) error {
 func (p *PidfdProcess) Wait() (int, error) {
 	// poll first, only call RPC when necessary
 	for {
-		_, err := unix.Poll([]unix.PollFd{
+		fds := [1]unix.PollFd{
 			{
 				Fd:     int32(p.f.Fd()),
 				Events: unix.POLLIN,
 			},
-		}, 0)
+		}
+		_, err := unix.Poll(fds[:], 0)
 		if err == nil {
 			break
 		}
-		if err == unix.EINTR {
+		if err == unix.EINTR || fds[0].Revents == 0 {
 			continue
 		}
 		return 0, err
