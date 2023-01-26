@@ -37,7 +37,6 @@ type Fdx struct {
 	pendingReads  map[uint64]*pendingFdx
 	pendingQueued map[uint64]queuedFdx
 	mu            sync.Mutex
-	stopped       bool
 	err           error
 	stopChan      chan struct{}
 }
@@ -86,7 +85,6 @@ func (f *Fdx) closeWithErr(err error) error {
 		closeAll(queued.fds)
 		delete(f.pendingQueued, seq)
 	}
-	f.stopped = true
 	f.err = err
 	f.stopChan <- struct{}{}
 
@@ -224,7 +222,7 @@ func (f *Fdx) RecvFdsInt(seq uint64) ([]int, error) {
 		delete(f.pendingQueued, seq)
 		return queued.fds, nil
 	}
-	if f.stopped {
+	if f.err != nil {
 		return nil, f.err
 	}
 	pending := pendingFdx{
