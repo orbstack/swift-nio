@@ -297,7 +297,7 @@ func (p *PidfdProcess) Wait() (int, error) {
 		if err == nil {
 			break
 		}
-		if err == unix.EINTR || fds[0].Revents == 0 {
+		if err == unix.EINTR {
 			continue
 		}
 		return 0, err
