@@ -34,6 +34,11 @@ type ProxySpec struct {
 	Port   uint16
 }
 
+type StartProxyArgs struct {
+	ProxySpec
+	FdxSeq uint64
+}
+
 // Never obfuscate the AgentServer type (garble)
 var _ = reflect.TypeOf(AgentServer{})
 
@@ -53,7 +58,7 @@ func (a *AgentServer) GetListeners(_ None, reply *[]ProcListener) error {
 	return nil
 }
 
-func (a *AgentServer) OpenDiagNetlink(_ None, _ *None) error {
+func (a *AgentServer) OpenDiagNetlink(_ None, reply *uint64) error {
 	// open netlink socket
 	// cloexec safe
 	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_INET_DIAG)
@@ -62,7 +67,7 @@ func (a *AgentServer) OpenDiagNetlink(_ None, _ *None) error {
 	}
 
 	// send over fdx
-	err = a.fdx.SendFdInt(fd)
+	seq, err := a.fdx.SendFdInt(fd)
 	if err != nil {
 		return err
 	}
@@ -70,11 +75,13 @@ func (a *AgentServer) OpenDiagNetlink(_ None, _ *None) error {
 	// close original fd
 	unix.Close(fd)
 
+	*reply = seq
 	return nil
 }
 
-func (a *AgentServer) StartProxyTCP(spec ProxySpec, _ *None) error {
-	listenerFd, err := a.fdx.RecvFile()
+func (a *AgentServer) StartProxyTCP(args StartProxyArgs, _ *None) error {
+	spec := args.ProxySpec
+	listenerFd, err := a.fdx.RecvFile(args.FdxSeq)
 	if err != nil {
 		return err
 	}
@@ -92,8 +99,9 @@ func (a *AgentServer) StartProxyTCP(spec ProxySpec, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) StartProxyUDP(spec ProxySpec, _ *None) error {
-	listenerFd, err := a.fdx.RecvFile()
+func (a *AgentServer) StartProxyUDP(args StartProxyArgs, _ *None) error {
+	spec := args.ProxySpec
+	listenerFd, err := a.fdx.RecvFile(args.FdxSeq)
 	if err != nil {
 		return err
 	}

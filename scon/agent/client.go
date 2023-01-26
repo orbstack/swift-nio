@@ -46,13 +46,13 @@ func (c *Client) GetListeners() ([]ProcListener, error) {
 }
 
 func (c *Client) OpenDiagNetlink() (*os.File, error) {
-	var none None
-	err := c.rpc.Call("a.OpenDiagNetlink", none, &none)
+	var seq uint64
+	err := c.rpc.Call("a.OpenDiagNetlink", None{}, &seq)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.fdx.RecvFile()
+	return c.fdx.RecvFile(seq)
 }
 
 func (c *Client) StartProxyTCP(spec ProxySpec, listener net.Listener) error {
@@ -63,13 +63,16 @@ func (c *Client) StartProxyTCP(spec ProxySpec, listener net.Listener) error {
 	}
 	defer file.Close() // this is a dup
 
-	err = c.fdx.SendFile(file)
+	seq, err := c.fdx.SendFile(file)
 	if err != nil {
 		return err
 	}
 
 	var none None
-	err = c.rpc.Call("a.StartProxyTCP", spec, &none)
+	err = c.rpc.Call("a.StartProxyTCP", StartProxyArgs{
+		ProxySpec: spec,
+		FdxSeq:    seq,
+	}, &none)
 	if err != nil {
 		return err
 	}
@@ -85,13 +88,16 @@ func (c *Client) StartProxyUDP(spec ProxySpec, listener net.Conn) error {
 	}
 	defer file.Close() // this is a dup
 
-	err = c.fdx.SendFile(file)
+	seq, err := c.fdx.SendFile(file)
 	if err != nil {
 		return err
 	}
 
 	var none None
-	err = c.rpc.Call("a.StartProxyUDP", spec, &none)
+	err = c.rpc.Call("a.StartProxyUDP", StartProxyArgs{
+		ProxySpec: spec,
+		FdxSeq:    seq,
+	}, &none)
 	if err != nil {
 		return err
 	}
@@ -131,32 +137,25 @@ func (c *Client) InitialSetup(args InitialSetupArgs) error {
 
 func (c *Client) SpawnProcess(args SpawnProcessArgs, stdin, stdout, stderr *os.File) (*PidfdProcess, error) {
 	// send 3 fds
-	err := c.fdx.SendFile(stdin)
+	seq, err := c.fdx.SendFiles(stdin, stdout, stderr)
 	if err != nil {
 		return nil, err
 	}
-	err = c.fdx.SendFile(stdout)
-	if err != nil {
-		return nil, err
-	}
-	err = c.fdx.SendFile(stderr)
-	if err != nil {
-		return nil, err
-	}
+	args.FdxSeq = seq
 
-	var pid int
-	err = c.rpc.Call("a.SpawnProcess", args, &pid)
+	var reply SpawnProcessReply
+	err = c.rpc.Call("a.SpawnProcess", args, &reply)
 	if err != nil {
 		return nil, err
 	}
 
 	// recv 1 fd
-	pidF, err := c.fdx.RecvFile()
+	pidF, err := c.fdx.RecvFile(reply.FdxSeq)
 	if err != nil {
 		return nil, err
 	}
 
-	return wrapPidfdProcess(pidF, pid, c), nil
+	return wrapPidfdProcess(pidF, reply.Pid, c), nil
 }
 
 func (c *Client) WaitPid(pid int) (int, error) {

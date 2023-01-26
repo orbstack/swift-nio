@@ -1,14 +1,22 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/user"
 	"strconv"
 	"syscall"
 
 	"golang.org/x/sys/unix"
+)
+
+const (
+	fdStdin  = 0
+	fdStdout = 1
+	fdStderr = 2
 )
 
 type SpawnProcessArgs struct {
@@ -19,37 +27,36 @@ type SpawnProcessArgs struct {
 	Setsid       bool
 	Setctty      bool
 	CttyFd       int
+	FdxSeq       uint64
 }
 
-func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *int) error {
+type SpawnProcessReply struct {
+	Pid    int
+	FdxSeq uint64
+}
+
+func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *SpawnProcessReply) error {
 	// receive fds
-	stdin, err := a.fdx.RecvFile()
+	stdios, err := a.fdx.RecvFiles(args.FdxSeq)
 	if err != nil {
 		return err
 	}
+	stdin := stdios[0]
+	stdout := stdios[1]
+	stderr := stdios[2]
 	defer stdin.Close()
-
-	stdout, err := a.fdx.RecvFile()
-	if err != nil {
-		return err
-	}
 	defer stdout.Close()
-
-	stderr, err := a.fdx.RecvFile()
-	if err != nil {
-		return err
-	}
 	defer stderr.Close()
 
 	// resolve the pty, if any
 	var ptyF *os.File
 	if args.Setctty {
 		switch args.CttyFd {
-		case 0:
+		case fdStdin:
 			ptyF = stdin
-		case 1:
+		case fdStdout:
 			ptyF = stdout
-		case 2:
+		case fdStderr:
 			ptyF = stderr
 		default:
 			return fmt.Errorf("invalid ctty fd: %d", args.CttyFd)
@@ -128,12 +135,15 @@ func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *int) error {
 	defer unix.Close(pidfd)
 
 	// send pidfd
-	err = a.fdx.SendFdInt(pidfd)
+	seq, err := a.fdx.SendFdInt(pidfd)
 	if err != nil {
 		return err
 	}
 
-	*reply = proc.Pid
+	*reply = SpawnProcessReply{
+		Pid:    proc.Pid,
+		FdxSeq: seq,
+	}
 	return nil
 }
 
@@ -296,6 +306,10 @@ func (p *PidfdProcess) Wait() (int, error) {
 	// it'll stay a zombie until we do
 	status, err := p.a.WaitPid(p.pid)
 	if err != nil {
+		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrUnexpectedEOF) {
+			// connection closed, assume process exited with signal
+			return -1, nil
+		}
 		return 0, err
 	}
 
