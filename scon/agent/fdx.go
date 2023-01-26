@@ -3,10 +3,10 @@ package agent
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -33,7 +33,7 @@ type queuedFdx struct {
 
 type Fdx struct {
 	conn          *net.UnixConn
-	seq           uint64
+	seq           atomic.Uint64
 	pendingReads  map[uint64]*pendingFdx
 	pendingQueued map[uint64]queuedFdx
 	mu            sync.Mutex
@@ -45,7 +45,6 @@ type Fdx struct {
 func NewFdx(conn net.Conn) *Fdx {
 	fdx := &Fdx{
 		conn:          conn.(*net.UnixConn),
-		seq:           1,
 		pendingReads:  make(map[uint64]*pendingFdx),
 		pendingQueued: make(map[uint64]queuedFdx),
 		stopChan:      make(chan struct{}),
@@ -72,14 +71,20 @@ func (f *Fdx) closeWithErr(err error) error {
 	// close pending
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	for _, pending := range f.pendingReads {
+	for seq, pending := range f.pendingReads {
+		// should be received
+		if pending.fds != nil {
+			continue
+		}
+
 		pending.err = err
 		pending.ch <- struct{}{}
 		close(pending.ch)
+		delete(f.pendingReads, seq)
 	}
-	for _, queued := range f.pendingQueued {
+	for seq, queued := range f.pendingQueued {
 		closeAll(queued.fds)
-		delete(f.pendingQueued, f.seq)
+		delete(f.pendingQueued, seq)
 	}
 	f.stopped = true
 	f.err = err
@@ -93,12 +98,7 @@ func (f *Fdx) Close() error {
 }
 
 func (f *Fdx) nextSeq() uint64 {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	seq := f.seq
-	f.seq++
-	fmt.Println("nextSeq", seq)
-	return seq
+	return f.seq.Add(1)
 }
 
 func closeAll(fds []int) {
