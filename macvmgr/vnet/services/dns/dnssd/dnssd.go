@@ -95,7 +95,7 @@ func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
 	// Keep CNAME at the top even if we're not looking for it
 	allAnswers := []QueryAnswer{}
 	for {
-		logrus.Trace("dns recurse", name)
+		logrus.Trace("dns recurse ", name)
 		newAnswers, err := query(name, rtype)
 		allAnswers = append(allAnswers, newAnswers...)
 		if err != nil {

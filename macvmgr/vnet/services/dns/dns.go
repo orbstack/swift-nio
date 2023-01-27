@@ -59,6 +59,19 @@ func mapToRR(a dnssd.QueryAnswer) (dns.RR, error) {
 	return rr, nil
 }
 
+func mapFallbackQtype(qtype uint16) uint16 {
+	switch qtype {
+	case dns.TypeAAAA:
+		return dns.TypeA
+	case dns.TypeA:
+		return dns.TypeAAAA
+	case dns.TypeCNAME:
+		return 0 // not needed. macOS returns CNAME
+	default:
+		return dns.TypeA // most common
+	}
+}
+
 func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool) {
 	msg := new(dns.Msg)
 	msg.SetReply(req)
@@ -84,18 +97,11 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 			// For domains with A but no AAAA (github.com), macOS returns "no such record".
 			// musl resolver turns that into a NXDOMAIN response: https://github.com/docker/for-mac/issues/5020
 			// Fix: query SOA. if we get a SOA, return it with status=NOERROR. otherwise, return NXDOMAIN if SOA is missing.
-			if isNxdomain && len(answers) == 0 && q.Qtype != dns.TypeSOA {
-				soa, err2 := dnssd.QueryRecursive(q.Name, dns.TypeSOA)
+			fallbackQtype := mapFallbackQtype(q.Qtype)
+			if isNxdomain && len(answers) == 0 && fallbackQtype != 0 {
+				_, err2 := dnssd.QueryRecursive(q.Name, fallbackQtype)
 				if err2 == nil {
-					// Got SOA. Return it in the *authority* section, not answer section.
-					for _, a := range soa {
-						rr, err := mapToRR(a)
-						if err != nil {
-							logrus.Error("mapToRR() =", err)
-							continue
-						}
-						msg.Ns = append(msg.Ns, rr)
-					}
+					// we got something, so it's not NXDOMAIN
 					err = nil
 				}
 			}
