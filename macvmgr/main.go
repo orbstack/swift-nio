@@ -28,9 +28,9 @@ import (
 )
 
 const (
-	useRouterPair = false
-	useConsole    = false
-	useNat        = false
+	useRouterPair   = false
+	useStdioConsole = false
+	useNat          = false
 
 	nfsMountTries = 10
 	nfsMountDelay = 500 * time.Millisecond
@@ -156,13 +156,17 @@ func main() {
 		extractSparse(conf.GetAssetFile("swap.img.tar"))
 	}
 
+	consoleMode := ConsoleLog
+	if useStdioConsole {
+		consoleMode = ConsoleStdio
+	}
 	config := &VmConfig{
 		Cpus: runtime.NumCPU(),
 		// default memory algo = 1/3 of host memory, max 10 GB
 		Memory: calcMemory() / 1024 / 1024,
 		Kernel: conf.GetAssetFile("kernel"),
 		// this one uses gvproxy ssh
-		Console:          useConsole,
+		Console:          consoleMode,
 		DiskRootfs:       conf.GetAssetFile("rootfs.img"),
 		DiskData:         conf.DataImage(),
 		DiskSwap:         conf.SwapImage(),
@@ -189,7 +193,7 @@ func main() {
 	err = vc.StartBackground()
 	check(err)
 
-	if useConsole {
+	if useStdioConsole {
 		fd := int(os.Stdin.Fd())
 		state, err := terminal.MakeRaw(fd)
 		check(err)

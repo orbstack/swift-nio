@@ -16,11 +16,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type ConsoleMode int
+
+const (
+	ConsoleNone ConsoleMode = iota
+	ConsoleStdio
+	ConsoleLog
+)
+
 type VmConfig struct {
 	Cpus             int
 	Memory           uint64
 	Kernel           string
-	Console          bool
+	Console          ConsoleMode
 	DiskRootfs       string
 	DiskData         string
 	DiskSwap         string
@@ -77,7 +85,7 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	if c.DiskRootfs != "" {
 		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
 	}
-	if c.Console {
+	if c.Console != ConsoleNone {
 		cmdline = append(cmdline, "console=hvc0")
 	}
 	logrus.Debug("cmdline", cmdline)
@@ -96,8 +104,20 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	check(err)
 
 	// Console
-	if c.Console {
-		serialConsoleFds, err := vz.NewFileHandleSerialPortAttachment(os.Stdin, os.Stdout)
+	if c.Console != ConsoleNone {
+		var read, write *os.File
+		switch c.Console {
+		case ConsoleStdio:
+			read = os.Stdin
+			write = os.Stdout
+		case ConsoleLog:
+			read, err = os.Open("/dev/null")
+			check(err)
+			write, err = os.Create(conf.ConsoleLog())
+			check(err)
+		}
+
+		serialConsoleFds, err := vz.NewFileHandleSerialPortAttachment(read, write)
 		check(err)
 		serialConsole, err := vz.NewVirtioConsoleDeviceSerialPortConfiguration(serialConsoleFds)
 		check(err)

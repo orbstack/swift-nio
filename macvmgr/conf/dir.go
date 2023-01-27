@@ -81,6 +81,10 @@ func HostSSHAgentSocket() string {
 	return os.Getenv("SSH_AUTH_SOCK")
 }
 
+func ConsoleLog() string {
+	return ConfigDir() + "/console.log"
+}
+
 func Arch() string {
 	switch runtime.GOARCH {
 	case "amd64":

@@ -12,7 +12,7 @@ func StartRouterVm(netPair2 *os.File) *vz.VirtualMachine {
 		Cpus:             runtime.NumCPU(),
 		Memory:           800,
 		Kernel:           "../assets_router/kernel",
-		Console:          true,
+		Console:          ConsoleNone,
 		DiskRootfs:       "../assets_router/rootfs.img",
 		DiskData:         "../assets_router/data.img",
 		NetworkNat:       true,
