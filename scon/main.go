@@ -155,6 +155,10 @@ func (m *ConManager) Start() error {
 }
 
 func (m *ConManager) Close() error {
+	if m.stopping {
+		return nil
+	}
+
 	m.stopping = true
 	m.stopAll()
 
@@ -373,7 +377,13 @@ func runContainerManager() {
 		go runPprof()
 	}
 
-	go runCliTest(mgr)
+	go func() {
+		err := runCliTest(mgr)
+		if err != nil {
+			logrus.WithError(err).Error("cli test failed")
+			mgr.Close()
+		}
+	}()
 
 	// listen for signals
 	sigChan := make(chan os.Signal, 1)
@@ -386,13 +396,8 @@ func runContainerManager() {
 	logrus.Info("shutting down")
 }
 
-func runCliTest(mgr *ConManager) {
+func runCliTest(mgr *ConManager) error {
 	var err error
-	defer func() {
-		if err != nil {
-			mgr.Close()
-		}
-	}()
 
 	container, ok := mgr.GetByName("alpine")
 	if !ok {
@@ -407,12 +412,18 @@ func runCliTest(mgr *ConManager) {
 			},
 			UserPassword: "test",
 		})
-		check(err)
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Println("start")
 	err = container.Start()
-	check(err)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
