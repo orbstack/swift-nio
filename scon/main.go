@@ -41,6 +41,7 @@ type ConManager struct {
 	lxcDir            string
 	seccompPolicyPath string
 	seccompProxySock  string
+	agentExe          *os.File
 
 	// state
 	containersByID   map[string]*Container
@@ -96,12 +97,22 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		return nil, err
 	}
 
+	agentExePath, err := findAgentExe()
+	if err != nil {
+		return nil, err
+	}
+	agentExe, err := os.Open(agentExePath)
+	if err != nil {
+		return nil, err
+	}
+
 	mgr := &ConManager{
 		dataDir:           dataDir,
 		tmpDir:            tmpDir,
 		lxcDir:            lxcDir,
 		seccompPolicyPath: seccompPolicyPath,
 		seccompProxySock:  seccompProxySock,
+		agentExe:          agentExe,
 
 		containersByID:   make(map[string]*Container),
 		containersByName: make(map[string]*Container),
@@ -148,6 +159,7 @@ func (m *ConManager) Close() error {
 	m.stopAll()
 
 	logrus.Debug("finish cleanup")
+	m.agentExe.Close()
 	m.host.Close()
 	m.net.Close()
 	m.stopChan <- struct{}{}

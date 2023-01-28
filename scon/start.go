@@ -453,17 +453,8 @@ func (c *Container) startAgent() error {
 	defer rpcFile.Close()
 	defer fdxFile.Close()
 
-	agentExe, err := findAgentExe()
-	if err != nil {
-		return err
-	}
-	exeFd, err := unix.Open(agentExe, unix.O_RDONLY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return err
-	}
-	defer unix.Close(exeFd)
-
 	// add some more fds
+	exeFd := int(c.manager.agentExe.Fd())
 	cmd := &LxcCommand{
 		CombinedArgs: []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd))},
 		Dir:          "/",
