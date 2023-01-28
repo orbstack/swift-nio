@@ -24,6 +24,22 @@ const (
 	startTimeout = 10 * time.Second
 )
 
+var (
+	dockerContainerRecord = ContainerRecord{
+		ID:   "01GQQVF6C6VC46KND9TRVFWC1Q",
+		Name: "docker",
+		Image: ImageSpec{
+			Distro:  ImageDocker,
+			Version: "latest",
+			Arch:    getDefaultLxcArch(),
+			Variant: "default",
+		},
+		Builtin:  true,
+		Running:  true,
+		Deleting: false,
+	}
+)
+
 // TODO lxc.hook.autodev or c.AddDeviceNode
 func addInitDevice(c *lxc.Container, src string) error {
 	// stat
@@ -83,204 +99,223 @@ func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
 	return nil
 }
 
-func (m *ConManager) setLxcConfigs(c *lxc.Container, name, logPath, rootfs string, mtu int, image ImageSpec, cookie string, mac string) (err error) {
-	defer func() {
-		if err2 := recover(); err2 != nil {
-			err = fmt.Errorf("failed to set LXC config: %v", err2)
-		}
-	}()
-
-	set := func(key, value string) {
-		if err := c.SetConfigItem(key, value); err != nil {
-			panic(err)
-		}
-	}
-
-	addDev := func(node string) {
-		if err := addInitDevice(c, node); err != nil {
-			panic(err)
-		}
-	}
-	bind := func(src, dst, opts string) {
-		if err := addInitBindMount(c, src, dst, opts); err != nil {
-			panic(err)
-		}
-	}
-
-	/*
-	 * from LXD
-	 */
-	set("lxc.pty.max", "1024")
-	set("lxc.tty.max", "0")
-	//set("lxc.cap.drop", "sys_time sys_module sys_rawio mac_admin mac_override")
-	set("lxc.cap.drop", "sys_time")
-	set("lxc.autodev", "1") // populate /dev
-
-	// console
-	//set("lxc.console.logfile", logPath + ".console.log")
-	//set("lxc.console.buffer.size", "auto")
-	//set("lxc.console.size", "auto")
-
-	set("lxc.cgroup2.devices.deny", "a")
-	set("lxc.cgroup2.devices.allow", "b *:* m")     // mknod block
-	set("lxc.cgroup2.devices.allow", "c *:* m")     // mknod char
-	set("lxc.cgroup2.devices.allow", "c 136:* rwm") // dev/pts/*
-	set("lxc.cgroup2.devices.allow", "c 1:3 rwm")   // dev/null
-	set("lxc.cgroup2.devices.allow", "c 1:5 rwm")   // dev/zero
-	set("lxc.cgroup2.devices.allow", "c 1:7 rwm")   // dev/full
-	set("lxc.cgroup2.devices.allow", "c 1:8 rwm")   // dev/random
-	set("lxc.cgroup2.devices.allow", "c 1:9 rwm")   // dev/urandom
-	set("lxc.cgroup2.devices.allow", "c 5:0 rwm")   // dev/tty
-	set("lxc.cgroup2.devices.allow", "c 5:1 rwm")   // dev/console
-	set("lxc.cgroup2.devices.allow", "c 5:2 rwm")   // dev/ptmx
-	set("lxc.cgroup2.devices.allow", "c 7:* rwm")   // dev/loop*
-
-	// Devices
-	addDev("/dev/fuse")
-	addDev("/dev/net/tun")
-	addDev("/dev/ppp")
-	addDev("/dev/kmsg")
-	addDev("/dev/loop-control")
-	addDev("/dev/autofs") // TODO security
-	addDev("/dev/userfaultfd")
-
-	// Default mounts
-	set("lxc.mount.auto", "proc:mixed sys:mixed cgroup:rw:force")
-	set("lxc.mount.entry", "mqueue dev/mqueue mqueue rw,relatime,create=dir,optional 0 0")
-	set("lxc.mount.entry", "/proc/sys/fs/binfmt_misc proc/sys/fs/binfmt_misc none rbind,create=dir,optional 0 0")
-	set("lxc.mount.entry", "/sys/fs/fuse/connections sys/fs/fuse/connections none rbind,create=dir,optional 0 0")
-	set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
-
-	// nesting
-	set("lxc.mount.entry", "proc dev/.lxc/proc proc create=dir,optional 0 0")
-	set("lxc.mount.entry", "sys dev/.lxc/sys sysfs create=dir,optional 0 0")
-
-	// other
-	set("lxc.apparmor.profile", "unconfined")
-	set("lxc.arch", "linux64")
-
-	// shutdown fixes
-	if image.Distro == ImageVoid {
-		// void: runit - SIGCONT
-		set("lxc.signal.halt", "SIGCONT")
-	} else if image.Distro == ImageAlpine {
-		// alpine: busybox/OpenRC - SIGUSR1
-		set("lxc.signal.halt", "SIGUSR1")
-	}
-
-	/*
-	 * custom
-	 */
-	// seccomp
-	set("lxc.seccomp.allow_nesting", "1")
-	set("lxc.seccomp.notify.proxy", "unix:"+m.seccompProxySock)
-	set("lxc.seccomp.profile", m.seccompPolicyPath)
-	set("lxc.seccomp.notify.cookie", cookie)
-
-	// network
-	set("lxc.net.0.type", "veth")
-	// TODO try router
-	set("lxc.net.0.veth.mode", "bridge")
-	set("lxc.net.0.link", ifBridge)
-	set("lxc.net.0.mtu", strconv.Itoa(mtu))
-	set("lxc.net.0.hwaddr", mac)
-
-	// bind mounts
-	config := conf.C()
-	bind(config.GuestMountSrc, "/opt/macvirt-guest", "ro")
-	bind(config.HostMountSrc, "/mnt/mac", "")
-	bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
-
-	// log
-	set("lxc.log.file", logPath)
-	if conf.Debug() {
-		set("lxc.log.level", "trace")
-	} else {
-		set("lxc.log.level", "warn")
-	}
-
-	// container
-	set("lxc.rootfs.path", "dir:"+rootfs)
-	set("lxc.uts.name", name)
-
-	// hooks
-	set("lxc.hook.version", "1")
-
-	return nil
-}
-
-func (m *ConManager) newLxcContainer(id string, name string, image ImageSpec, mac, dir string) (*lxc.Container, uint64, error) {
-	c, err := lxc.NewContainer(name, m.lxcDir)
+func (c *Container) initLxc() error {
+	m := c.manager
+	lc, err := lxc.NewContainer(c.Name, m.lxcDir)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
-	runtime.SetFinalizer(c, func(c *lxc.Container) {
-		c.Release()
+	runtime.SetFinalizer(lc, func(lc *lxc.Container) {
+		lc.Release()
 	})
 
 	// logging
-	logPath := path.Join(dir, "log")
-	c.ClearConfig()
-	c.SetLogFile(logPath)
+	logPath := m.subdir("logs") + "/" + c.ID + ".log"
+	lc.ClearConfig()
+	lc.SetLogFile(logPath)
 	if conf.Debug() {
-		c.SetVerbosity(lxc.Verbose)
-		c.SetLogLevel(lxc.TRACE)
+		lc.SetVerbosity(lxc.Verbose)
+		lc.SetLogLevel(lxc.TRACE)
 	} else {
-		c.SetVerbosity(lxc.Quiet)
-		c.SetLogLevel(lxc.INFO)
+		lc.SetVerbosity(lxc.Quiet)
+		lc.SetLogLevel(lxc.INFO)
 	}
 
 	// configs
-	rootfs := path.Join(dir, "rootfs")
+	rootfs := path.Join(c.dir, "rootfs")
 	err = os.MkdirAll(rootfs, 0755)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
 	rootfs, err = filepath.EvalSymlinks(rootfs)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
 	cookieStr, cookieU64, err := makeSeccompCookie()
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
-	err = m.setLxcConfigs(c, name, logPath, rootfs, m.net.mtu, image, cookieStr, mac)
+	mac := deriveMacAddress(c.ID)
+
+	// set configs!
+	err = func() error {
+		defer func() {
+			if err2 := recover(); err2 != nil {
+				err = fmt.Errorf("failed to set LXC config: %v", err2)
+			}
+		}()
+
+		set := func(key, value string) {
+			if err := lc.SetConfigItem(key, value); err != nil {
+				panic(err)
+			}
+		}
+
+		addDev := func(node string) {
+			if err := addInitDevice(lc, node); err != nil {
+				panic(err)
+			}
+		}
+		bind := func(src, dst, opts string) {
+			if err := addInitBindMount(lc, src, dst, opts); err != nil {
+				panic(err)
+			}
+		}
+
+		/*
+		* from LXD
+		 */
+		set("lxc.pty.max", "1024")
+		set("lxc.tty.max", "0")
+		//set("lxc.cap.drop", "sys_time sys_module sys_rawio mac_admin mac_override")
+		set("lxc.cap.drop", "sys_time")
+		set("lxc.autodev", "1") // populate /dev
+
+		// console
+		set("lxc.console.logfile", logPath+"-console")
+		set("lxc.console.buffer.size", "auto")
+		set("lxc.console.size", "auto")
+
+		set("lxc.cgroup2.devices.deny", "a")
+		set("lxc.cgroup2.devices.allow", "b *:* m")     // mknod block
+		set("lxc.cgroup2.devices.allow", "c *:* m")     // mknod char
+		set("lxc.cgroup2.devices.allow", "c 136:* rwm") // dev/pts/*
+		set("lxc.cgroup2.devices.allow", "c 1:3 rwm")   // dev/null
+		set("lxc.cgroup2.devices.allow", "c 1:5 rwm")   // dev/zero
+		set("lxc.cgroup2.devices.allow", "c 1:7 rwm")   // dev/full
+		set("lxc.cgroup2.devices.allow", "c 1:8 rwm")   // dev/random
+		set("lxc.cgroup2.devices.allow", "c 1:9 rwm")   // dev/urandom
+		set("lxc.cgroup2.devices.allow", "c 5:0 rwm")   // dev/tty
+		set("lxc.cgroup2.devices.allow", "c 5:1 rwm")   // dev/console
+		set("lxc.cgroup2.devices.allow", "c 5:2 rwm")   // dev/ptmx
+		set("lxc.cgroup2.devices.allow", "c 7:* rwm")   // dev/loop*
+
+		// Devices
+		addDev("/dev/fuse")
+		addDev("/dev/net/tun")
+		addDev("/dev/ppp")
+		addDev("/dev/kmsg")
+		addDev("/dev/loop-control")
+		addDev("/dev/autofs") // TODO security
+		addDev("/dev/userfaultfd")
+
+		// Default mounts
+		set("lxc.mount.auto", "proc:mixed sys:mixed cgroup:rw:force")
+		set("lxc.mount.entry", "mqueue dev/mqueue mqueue rw,relatime,create=dir,optional 0 0")
+		set("lxc.mount.entry", "/proc/sys/fs/binfmt_misc proc/sys/fs/binfmt_misc none rbind,create=dir,optional 0 0")
+		set("lxc.mount.entry", "/sys/fs/fuse/connections sys/fs/fuse/connections none rbind,create=dir,optional 0 0")
+		set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
+
+		// nesting
+		set("lxc.mount.entry", "proc dev/.lxc/proc proc create=dir,optional 0 0")
+		set("lxc.mount.entry", "sys dev/.lxc/sys sysfs create=dir,optional 0 0")
+
+		// other
+		set("lxc.apparmor.profile", "unconfined")
+		set("lxc.arch", "linux64")
+
+		// shutdown fixes
+		if c.Image.Distro == ImageVoid {
+			// void: runit - SIGCONT
+			set("lxc.signal.halt", "SIGCONT")
+		} else if c.Image.Distro == ImageAlpine {
+			// alpine: busybox/OpenRC - SIGUSR1
+			set("lxc.signal.halt", "SIGUSR1")
+		}
+
+		/*
+		* custom
+		 */
+		// seccomp
+		set("lxc.seccomp.allow_nesting", "1")
+		set("lxc.seccomp.notify.proxy", "unix:"+m.seccompProxySock)
+		set("lxc.seccomp.profile", m.seccompPolicyPath)
+		set("lxc.seccomp.notify.cookie", cookieStr)
+
+		// network
+		set("lxc.net.0.type", "veth")
+		// TODO try router
+		set("lxc.net.0.veth.mode", "bridge")
+		set("lxc.net.0.link", ifBridge)
+		set("lxc.net.0.mtu", strconv.Itoa(m.net.mtu))
+		set("lxc.net.0.hwaddr", mac)
+
+		// bind mounts
+		config := conf.C()
+		bind(config.GuestMountSrc, "/opt/macvirt-guest", "ro")
+		bind(config.HostMountSrc, "/mnt/mac", "")
+		bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
+
+		// log
+		set("lxc.log.file", logPath)
+		if conf.Debug() {
+			set("lxc.log.level", "trace")
+		} else {
+			set("lxc.log.level", "warn")
+		}
+
+		// docker
+		if c.builtin && c.Image.Distro == ImageDocker {
+			set("lxc.init.cmd", "/usr/bin/docker-init -- dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375")
+			rootfs = conf.C().DockerRootfs
+		}
+
+		// container
+		set("lxc.rootfs.path", "dir:"+rootfs)
+		set("lxc.uts.name", c.Name)
+
+		// hooks
+		set("lxc.hook.version", "1")
+
+		return nil
+	}()
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
 
-	return c, cookieU64, nil
+	lc.SaveConfigFile("/tmp/lxc.conf")
+
+	c.c = lc
+	c.seccompCookie = cookieU64
+	return nil
 }
 
-func (m *ConManager) newContainer(id string, name string, image ImageSpec) (*Container, error) {
-	mac := deriveMacAddress(id)
+func (c *Container) logPath() string {
+	return c.manager.subdir("logs") + "/" + c.ID + ".log"
+}
+
+func (m *ConManager) newContainer(record *ContainerRecord) (*Container, error) {
+	id := record.ID
 	dir := m.subdir("containers", id)
-	c, cookie, err := m.newLxcContainer(id, name, image, mac, dir)
+
+	c := &Container{
+		ID:      record.ID,
+		Name:    record.Name,
+		Image:   record.Image,
+		builtin: record.Builtin,
+		dir:     dir,
+		manager: m,
+		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
+	}
+
+	// create lxc
+	// fills in c and seccomp cookie
+	err := c.initLxc()
 	if err != nil {
 		return nil, err
 	}
 
-	container := &Container{
-		ID:            id,
-		Name:          name,
-		Image:         image,
-		dir:           dir,
-		c:             c,
-		manager:       m,
-		seccompCookie: cookie,
-		agent:         syncx.NewCondValue[*agent.Client](nil, nil),
-	}
-	container.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
-		err := container.updateListenersDirect()
+	c.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
+		err := c.updateListenersDirect()
 		if err != nil {
-			logrus.WithError(err).WithField("container", name).Error("failed to update listeners")
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
 		}
 	})
 	m.containersMu.Lock()
-	m.seccompCookies[cookie] = container
+	m.seccompCookies[c.seccompCookie] = c
 	m.containersMu.Unlock()
 
-	return container, nil
+	return c, nil
 }
 
 func (m *ConManager) restoreContainers() error {
@@ -288,6 +323,10 @@ func (m *ConManager) restoreContainers() error {
 	if err != nil {
 		return err
 	}
+
+	// inject builtin
+	copy := dockerContainerRecord
+	records = append(records, &copy)
 
 	for _, record := range records {
 		c, err := m.restoreOne(record)
@@ -311,7 +350,7 @@ func (m *ConManager) insertContainer(c *Container) {
 }
 
 func (m *ConManager) restoreOne(record *ContainerRecord) (*Container, error) {
-	c, err := m.newContainer(record.ID, record.Name, record.Image)
+	c, err := m.newContainer(record)
 	if err != nil {
 		return nil, err
 	}

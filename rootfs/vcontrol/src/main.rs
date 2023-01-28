@@ -11,7 +11,7 @@ use nix::{fcntl::{fallocate, OFlag, self, FallocateFlags}, sys::{stat::Mode, sta
 use serde::{Deserialize, Serialize};
 use tokio::{process::Command, sync::Mutex};
 use tower::ServiceBuilder;
-use tracing::{info, error};
+use tracing::{info, error, debug};
 use std::{net::SocketAddr, sync::{Arc}, path::Path};
 
 mod error;
@@ -316,7 +316,7 @@ async fn disk_report_stats(
     Extension(disk_manager): Extension<Arc<Mutex<DiskManager>>>,
     Json(payload): Json<DiskReportStats>,
 ) -> AppResult<impl IntoResponse> {
-    info!("disk_report_stats: {:?}", payload);
+    debug!("disk_report_stats: {:?}", payload);
     let DiskReportStats { host_fs_free, data_img_size, .. } = payload;
     let mut disk_manager = disk_manager.lock().await;
 
@@ -359,7 +359,7 @@ async fn disk_report_stats(
 
 // sync time
 async fn time_sync() -> AppResult<impl IntoResponse> {
-    info!("time_sync");
+    debug!("time_sync");
 
     Command::new("chronyc").arg("offline")
         .output()

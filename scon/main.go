@@ -151,6 +151,7 @@ func (m *ConManager) Close() error {
 	m.host.Close()
 	m.net.Close()
 	m.stopChan <- struct{}{}
+	close(m.stopChan)
 	os.RemoveAll(m.tmpDir) // seecomp and lxc
 	return nil
 }
@@ -243,7 +244,9 @@ type Container struct {
 	Image ImageSpec
 	dir   string
 
+	builtin bool
 	// state
+	creating bool
 	deleting bool
 
 	c *lxc.Container
@@ -282,6 +285,10 @@ func (c *Container) Running() bool {
 }
 
 func (c *Container) persist() error {
+	if c.builtin {
+		return nil
+	}
+
 	record := &ContainerRecord{
 		ID:    c.ID,
 		Name:  c.Name,
@@ -336,7 +343,8 @@ func runContainerManager() {
 		err = hclient.StartDummyServer()
 		check(err)
 	}
-	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.HostHcontrol))
+	logrus.Debug("connecting to hcontrol")
+	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.ServiceHcontrol))
 	check(err)
 	hc, err := hclient.New(hcontrolConn)
 	check(err)
@@ -358,13 +366,21 @@ func runContainerManager() {
 	// listen for signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM)
-	<-sigChan
+	select {
+	case <-sigChan:
+	case <-mgr.stopChan:
+	}
 
 	logrus.Info("shutting down")
 }
 
 func runCliTest(mgr *ConManager) {
 	var err error
+	defer func() {
+		if err != nil {
+			mgr.Close()
+		}
+	}()
 
 	container, ok := mgr.GetByName("alpine")
 	if !ok {

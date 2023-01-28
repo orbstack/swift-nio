@@ -27,6 +27,7 @@ type Config struct {
 	DummyHcontrol bool
 	DNSServer     string
 	SSHListen     string
+	DockerRootfs  string
 }
 
 var configVM = Config{
@@ -38,6 +39,7 @@ var configVM = Config{
 	DummyHcontrol: false,
 	DNSServer:     "172.30.30.200",
 	SSHListen:     "172.30.30.2:" + strconv.Itoa(ports.GuestSconSSH),
+	DockerRootfs:  "/opt/docker-rootfs",
 }
 
 var configTest = Config{
@@ -48,6 +50,7 @@ var configTest = Config{
 	DummyHcontrol: true,
 	DNSServer:     "1.1.1.1",
 	SSHListen:     "127.0.0.1:2222",
+	DockerRootfs:  "/home/dragon/code/projects/macvirt/rootfs/out/rd",
 }
 
 func VM() bool {

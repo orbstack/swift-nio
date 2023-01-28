@@ -113,6 +113,10 @@ func (c *Container) Delete() error {
 		}
 	}
 
+	if c.builtin {
+		return errors.New("cannot delete builtin container")
+	}
+
 	logrus.WithField("container", c.Name).Info("deleting container")
 
 	// set deleting in case of failure
@@ -123,6 +127,15 @@ func (c *Container) Delete() error {
 	err := os.RemoveAll(c.dir)
 	if err != nil {
 		return err
+	}
+
+	// delete log if not creating
+	// leave it for debugging if creating
+	if !c.creating {
+		err = os.Remove(c.logPath())
+		if err != nil {
+			return err
+		}
 	}
 
 	return c.manager.removeContainer(c)

@@ -51,6 +51,8 @@ const (
 	ImageApertis = "apertis"
 	ImageOracle  = "oracle"
 	ImageRocky   = "rockylinux"
+
+	ImageDocker = "docker"
 )
 
 type ImageSpec struct {
@@ -65,6 +67,7 @@ type ContainerRecord struct {
 	Name  string
 	Image ImageSpec
 
+	Builtin  bool
 	Running  bool
 	Deleting bool
 }
@@ -77,18 +80,18 @@ type CreateParams struct {
 	UserPassword string
 }
 
-func getDefaultLxcArch() (string, error) {
+func getDefaultLxcArch() string {
 	switch runtime.GOARCH {
 	case "i386":
-		return "i686", nil
+		return "i686"
 	case "amd64":
-		return "amd64", nil
+		return "amd64"
 	case "arm64":
-		return "arm64", nil
+		return "arm64"
 	case "arm":
-		return "armhf", nil
+		return "armhf"
 	default:
-		return "", errors.New("unsupported architecture")
+		panic("unsupported architecture")
 	}
 }
 
@@ -108,10 +111,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		image.Variant = "default"
 	}
 	if image.Arch == "" {
-		image.Arch, err = getDefaultLxcArch()
-		if err != nil {
-			return
-		}
+		image.Arch = getDefaultLxcArch()
 	}
 
 	id := ulid.Make().String()
@@ -132,6 +132,8 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	if err != nil {
 		return
 	}
+	c.creating = true
+
 	defer func() {
 		if err != nil {
 			err2 := c.Delete()
@@ -139,6 +141,8 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 				logrus.WithError(err2).Error("failed to clean up failed container creation")
 			}
 		}
+
+		c.creating = false
 	}()
 
 	// TODO select repo and mirror

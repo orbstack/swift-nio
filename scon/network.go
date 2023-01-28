@@ -142,12 +142,15 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 func (n *Network) Close() error {
 	if n.bridge != nil {
 		netlink.LinkDel(n.bridge)
+		n.bridge = nil
 	}
 	if n.cleanupNAT != nil {
 		n.cleanupNAT()
+		n.cleanupNAT = nil
 	}
 	if n.dnsmasqProcess != nil {
 		n.dnsmasqProcess.Kill()
+		n.dnsmasqProcess = nil
 	}
 	return nil
 }
