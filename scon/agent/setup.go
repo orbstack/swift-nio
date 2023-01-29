@@ -24,6 +24,7 @@ type InitialSetupArgs struct {
 	Username string
 	Uid      int
 	Password string
+	Distro   string
 }
 
 func run(combinedArgs ...string) error {
@@ -227,6 +228,15 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	err = os.Symlink(mounts.ProfileLate, "/etc/profile.d/999-"+appid.AppName+".sh")
 	if err != nil {
 		return err
+	}
+
+	// Alpine: install sudo - we have no root password
+	if args.Distro == "alpine" {
+		logrus.Debug("Installing sudo")
+		err = run("apk", "add", "sudo")
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

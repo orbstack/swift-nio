@@ -197,6 +197,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		Username: hostUser.Username,
 		Uid:      uid,
 		Password: args.UserPassword,
+		Distro:   image.Distro,
 	})
 	if err != nil {
 		return
