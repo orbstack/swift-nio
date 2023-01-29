@@ -1,16 +1,16 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
-
-	_ "net/http/pprof"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
@@ -113,12 +113,21 @@ func (c *Container) initLxc() error {
 	logPath := m.subdir("logs") + "/" + c.ID + ".log"
 	lc.ClearConfig()
 	lc.SetLogFile(logPath)
+	c.lxcParams = LxcForkParams{
+		Name:    c.Name,
+		LxcDir:  m.lxcDir,
+		LogFile: logPath,
+	}
 	if conf.Debug() {
 		lc.SetVerbosity(lxc.Verbose)
 		lc.SetLogLevel(lxc.TRACE)
+		c.lxcParams.Verbosity = lxc.Verbose
+		c.lxcParams.LogLevel = lxc.TRACE
 	} else {
 		lc.SetVerbosity(lxc.Quiet)
 		lc.SetLogLevel(lxc.INFO)
+		c.lxcParams.Verbosity = lxc.Quiet
+		c.lxcParams.LogLevel = lxc.INFO
 	}
 
 	// configs
@@ -149,6 +158,7 @@ func (c *Container) initLxc() error {
 			if err := lc.SetConfigItem(key, value); err != nil {
 				panic(err)
 			}
+			c.lxcParams.Configs = append(c.lxcParams.Configs, KeyValue[string]{key, value})
 		}
 
 		addDev := func(node string) {
@@ -251,7 +261,7 @@ func (c *Container) initLxc() error {
 		if conf.Debug() {
 			set("lxc.log.level", "trace")
 		} else {
-			set("lxc.log.level", "warn")
+			set("lxc.log.level", "info")
 		}
 
 		// docker
@@ -272,8 +282,6 @@ func (c *Container) initLxc() error {
 	if err != nil {
 		return err
 	}
-
-	lc.SaveConfigFile("/tmp/lxc.conf")
 
 	c.c = lc
 	c.seccompCookie = cookieU64
@@ -376,6 +384,28 @@ func (m *ConManager) restoreOne(record *ContainerRecord) (*Container, error) {
 	return c, nil
 }
 
+func (c *Container) forkStart() error {
+	paramsData, err := gobEncode(&c.lxcParams)
+	if err != nil {
+		return err
+	}
+
+	// base64
+	paramsB64 := base64.StdEncoding.EncodeToString(paramsData)
+
+	// fork
+	cmd := exec.Command("/proc/self/exe", cmdForkStart, paramsB64)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Container) Start() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -386,7 +416,7 @@ func (c *Container) Start() error {
 
 	logrus.WithField("container", c.Name).Info("starting container")
 
-	err := c.c.Start()
+	err := c.forkStart()
 	if err != nil {
 		return err
 	}

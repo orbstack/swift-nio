@@ -5,8 +5,6 @@ import (
 	"os"
 	"time"
 
-	_ "net/http/pprof"
-
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"

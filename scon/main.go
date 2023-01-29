@@ -32,6 +32,7 @@ const (
 	AppName = "scon"
 
 	cmdContainerManager = "container-manager"
+	cmdForkStart        = "fork-start"
 )
 
 type ConManager struct {
@@ -265,7 +266,8 @@ type Container struct {
 	creating bool
 	deleting bool
 
-	c *lxc.Container
+	c         *lxc.Container
+	lxcParams LxcForkParams
 
 	agent   syncx.CondValue[*agent.Client]
 	manager *ConManager
@@ -435,6 +437,8 @@ func main() {
 	switch cmd {
 	case cmdContainerManager:
 		runContainerManager()
+	case cmdForkStart:
+		runForkStart()
 	default:
 		panic("unknown command: " + cmd)
 	}
