@@ -2,65 +2,13 @@ package main
 
 import (
 	"errors"
-	"os"
-	"path"
 	"runtime"
 	"strconv"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
-	"github.com/lxc/go-lxc"
 	"github.com/oklog/ulid/v2"
 	"github.com/sirupsen/logrus"
 )
-
-const (
-	DistroAlpine   = "alpine"
-	DistroArch     = "arch"
-	DistroCentos   = "centos"
-	DistroDebian   = "debian"
-	DistroFedora   = "fedora"
-	DistroGentoo   = "gentoo"
-	DistroKali     = "kali"
-	DistroOpensuse = "opensuse"
-	DistroUbuntu   = "ubuntu"
-	DistroVoid     = "void"
-	DistroNixos    = "nixos"
-
-	DistroDevuan  = "devuan"
-	DistroAlma    = "alma"
-	DistroAmazon  = "amazon"
-	DistroApertis = "apertis"
-	DistroOracle  = "oracle"
-	DistroRocky   = "rocky"
-
-	ImageAlpine   = "alpine"
-	ImageArch     = "archlinux"
-	ImageCentos   = "centos"
-	ImageDebian   = "debian"
-	ImageFedora   = "fedora"
-	ImageGentoo   = "gentoo"
-	ImageKali     = "kali"
-	ImageOpensuse = "opensuse"
-	ImageUbuntu   = "ubuntu"
-	ImageVoid     = "voidlinux"
-	ImageNixos    = "nixos"
-
-	ImageDevuan  = "devuan"
-	ImageAlma    = "almalinux"
-	ImageAmazon  = "amazonlinux"
-	ImageApertis = "apertis"
-	ImageOracle  = "oracle"
-	ImageRocky   = "rockylinux"
-
-	ImageDocker = "docker"
-)
-
-type ImageSpec struct {
-	Distro  string
-	Version string
-	Arch    string
-	Variant string
-}
 
 type ContainerRecord struct {
 	ID    string
@@ -145,29 +93,13 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		c.creating = false
 	}()
 
-	// TODO select repo and mirror
-	options := lxc.TemplateOptions{
-		Template: "download",
-		Backend:  lxc.Directory,
-		Distro:   image.Distro,
-		Release:  image.Version,
-		Arch:     image.Arch,
-		Variant:  image.Variant,
-	}
-
-	err = c.c.Create(options)
+	err = m.makeRootfsWithImage(image, c.Name, c.rootfsDir)
 	if err != nil {
 		return
 	}
 
 	// persist
 	err = c.persist()
-	if err != nil {
-		return
-	}
-
-	// delete the config file
-	err = os.RemoveAll(path.Join(m.lxcDir, c.Name))
 	if err != nil {
 		return
 	}

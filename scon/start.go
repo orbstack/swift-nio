@@ -285,6 +285,7 @@ func (c *Container) initLxc() error {
 
 	c.c = lc
 	c.seccompCookie = cookieU64
+	c.rootfsDir = rootfs
 	return nil
 }
 
@@ -297,13 +298,13 @@ func (m *ConManager) newContainer(record *ContainerRecord) (*Container, error) {
 	dir := m.subdir("containers", id)
 
 	c := &Container{
-		ID:      record.ID,
-		Name:    record.Name,
-		Image:   record.Image,
-		builtin: record.Builtin,
-		dir:     dir,
-		manager: m,
-		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
+		ID:        record.ID,
+		Name:      record.Name,
+		Image:     record.Image,
+		builtin:   record.Builtin,
+		dir:       dir,
+		manager:   m,
+		agent:     syncx.NewCondValue[*agent.Client](nil, nil),
 	}
 
 	// create lxc
@@ -395,7 +396,6 @@ func (c *Container) forkStart() error {
 
 	// fork
 	cmd := exec.Command("/proc/self/exe", cmdForkStart, paramsB64)
-	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()

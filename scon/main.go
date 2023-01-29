@@ -132,6 +132,10 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 }
 
 func (m *ConManager) Start() error {
+	// delete leftover image cache
+	// TODO actually cache images
+	os.RemoveAll(m.subdir("images"))
+
 	// network
 	err := m.net.Start()
 	if err != nil {
@@ -256,10 +260,11 @@ func (m *ConManager) DefaultUser() (string, error) {
 }
 
 type Container struct {
-	ID    string
-	Name  string
-	Image ImageSpec
-	dir   string
+	ID        string
+	Name      string
+	Image     ImageSpec
+	dir       string
+	rootfsDir string
 
 	builtin bool
 	// state

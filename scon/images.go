@@ -1,0 +1,439 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
+)
+
+const (
+	ImageAlpine   = "alpine"
+	ImageArch     = "archlinux"
+	ImageCentos   = "centos"
+	ImageDebian   = "debian"
+	ImageFedora   = "fedora"
+	ImageGentoo   = "gentoo"
+	ImageKali     = "kali"
+	ImageOpensuse = "opensuse"
+	ImageUbuntu   = "ubuntu"
+	ImageVoid     = "voidlinux"
+
+	ImageDevuan  = "devuan"
+	ImageAlma    = "almalinux"
+	ImageAmazon  = "amazonlinux"
+	ImageApertis = "apertis"
+	ImageOracle  = "oracle"
+	ImageRocky   = "rockylinux"
+
+	// extra
+	ImageNixos  = "nixos"
+	ImageDocker = "docker"
+
+	RepoLxd = "https://images.linuxcontainers.org"
+
+	maxSquashfsCpus      = 4
+	imageDownloadTimeout = 15 * time.Minute
+)
+
+var (
+	nixosImages = map[ImageSpec]RawImage{
+		{ImageNixos, "22.11", "amd64", "default"}: {
+			MetadataURL:    "https://hydra.nixos.org/build/207105621/download/1/nixos-system-x86_64-linux.tar.xz",
+			MetadataSha256: "ebc704814c838bf27ff1435fd42c2a0bb9f9085ef0d5842615d4bb4145dd492e",
+			RootfsFormat:   ImageFormatTarXz,
+			RootfsURL:      "https://hydra.nixos.org/build/207105719/download/1/nixos-system-x86_64-linux.tar.xz",
+			RootfsSha256:   "d0b3889b9346d0d15a5637978fd99747f2cf99fb1ed281fd1ac737c1b8c13028",
+			Size:           147405568,
+			Revision:       "207105719",
+		},
+		{ImageNixos, "22.11", "arm64", "default"}: {
+			MetadataURL:    "https://hydra.nixos.org/build/207105557/download/1/nixos-system-aarch64-linux.tar.xz",
+			MetadataSha256: "cd5ab2b7f9d05cec44b62a5f3ac3a732a5e56e18f6ed6eed75d0e4cf9525f89a",
+			RootfsFormat:   ImageFormatTarXz,
+			RootfsURL:      "https://hydra.nixos.org/build/207105468/download/1/nixos-system-aarch64-linux.tar.xz",
+			RootfsSha256:   "8a013a597b2f7144229deb2a33e22ea9f44dd760f338b06ad88877bdf633e780",
+			Size:           143552368,
+			Revision:       "207105468",
+		},
+	}
+)
+
+type ImageFormat int
+
+const (
+	ImageFormatTarXz ImageFormat = iota
+	ImageFormatSquashfs
+)
+
+type ImageSpec struct {
+	Distro  string
+	Version string
+	Arch    string
+	Variant string
+}
+
+type StreamsImage struct {
+	Ftype  string `json:"ftype"`
+	Sha256 string `json:"sha256"`
+	Size   int64  `json:"size"`
+	Path   string `json:"path"`
+	// combined ones for lxd.tar.xz
+}
+
+type StreamsImages struct {
+	Products map[string]struct {
+		Versions map[string]struct {
+			Items map[string]StreamsImage `json:"items"`
+		} `json:"versions"`
+	} `json:"products"`
+}
+
+type RawImage struct {
+	MetadataURL    string
+	MetadataSha256 string
+	RootfsFormat   ImageFormat
+	RootfsURL      string
+	RootfsSha256   string
+	Size           int64
+	Revision       string
+}
+
+type ImageMetadata struct {
+	Templates map[string]ImageTemplate `yaml:"templates"`
+}
+
+type ImageTemplate struct {
+	When       []string          `yaml:"when"`
+	CreateOnly bool              `yaml:"create_only"`
+	Properties map[string]string `yaml:"properties"`
+	Template   string            `yaml:"template"`
+}
+
+var imagesHttpClient = &http.Client{
+	Transport: &http.Transport{
+		MaxIdleConns:          5,
+		IdleConnTimeout:       1 * time.Minute,
+		ResponseHeaderTimeout: 15 * time.Second,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ExpectContinueTimeout: 15 * time.Second,
+		ReadBufferSize:        32768,
+	},
+}
+
+func findItem(items map[string]StreamsImage, ftype string) (*StreamsImage, bool) {
+	for _, item := range items {
+		if item.Ftype == ftype {
+			return &item, true
+		}
+	}
+
+	return nil, false
+}
+
+func fetchStreamsImages() (map[ImageSpec]RawImage, error) {
+	resp, err := imagesHttpClient.Get(RepoLxd + "/streams/v1/images.json")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var images StreamsImages
+	if err := json.NewDecoder(resp.Body).Decode(&images); err != nil {
+		return nil, err
+	}
+
+	imagesMap := make(map[ImageSpec]RawImage)
+	for imageKey, product := range images.Products {
+		// sort and pick latest version
+		var versions []string
+		for version := range product.Versions {
+			versions = append(versions, version)
+		}
+		sort.Strings(versions)
+		version := versions[len(versions)-1]
+
+		items := product.Versions[version].Items
+		img := RawImage{
+			Revision: version,
+		}
+
+		// lxd.tar.xz
+		if item, ok := findItem(items, "lxd.tar.xz"); ok {
+			img.MetadataURL = RepoLxd + "/" + item.Path
+			img.MetadataSha256 = item.Sha256
+		}
+
+		// take squashfs if available
+		if item, ok := findItem(items, "squashfs"); ok {
+			img.RootfsFormat = ImageFormatSquashfs
+			img.RootfsURL = RepoLxd + "/" + item.Path
+			img.RootfsSha256 = item.Sha256
+			img.Size = item.Size
+		}
+
+		// otherwise, take tar.xz
+		if item, ok := findItem(items, "root.tar.xz"); ok {
+			img.RootfsFormat = ImageFormatTarXz
+			img.RootfsURL = RepoLxd + "/" + item.Path
+			img.RootfsSha256 = item.Sha256
+			img.Size = item.Size
+		}
+
+		// make sure we got everything
+		if img.RootfsURL == "" {
+			// ubuntu:jammy:amd64:desktop only has VM disk image
+			continue
+		}
+		if img.MetadataURL == "" || img.RootfsURL == "" || img.Size == 0 || img.Revision == "" || img.RootfsSha256 == "" || img.MetadataSha256 == "" {
+			return nil, errors.New("missing metadata, rootfs, or size for " + imageKey)
+		}
+
+		// split the key
+		parts := strings.Split(imageKey, ":")
+		if len(parts) != 4 {
+			return nil, errors.New("invalid image key: " + imageKey)
+		}
+		spec := ImageSpec{
+			Distro:  parts[0],
+			Version: parts[1],
+			Arch:    parts[2],
+			Variant: parts[3],
+		}
+		imagesMap[spec] = img
+	}
+
+	return imagesMap, nil
+}
+
+func isDistroInLxdRepo(distro string) bool {
+	switch distro {
+	case ImageAlpine:
+		fallthrough
+	case ImageArch:
+		fallthrough
+	case ImageCentos:
+		fallthrough
+	case ImageDebian:
+		fallthrough
+	case ImageFedora:
+		fallthrough
+	case ImageGentoo:
+		fallthrough
+	case ImageKali:
+		fallthrough
+	case ImageOpensuse:
+		fallthrough
+	case ImageUbuntu:
+		fallthrough
+	case ImageVoid:
+		fallthrough
+	case ImageDevuan:
+		fallthrough
+	case ImageAlma:
+		fallthrough
+	case ImageAmazon:
+		fallthrough
+	case ImageApertis:
+		fallthrough
+	case ImageOracle:
+		fallthrough
+	case ImageRocky:
+		return true
+	}
+
+	return false
+}
+
+func downloadFile(url string, outPath string, expectSha256 string) error {
+	// create temp file
+	tmpPath := outPath + ".tmp"
+	out, err := os.Create(tmpPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// download
+	ctx, cancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
+	defer cancel()
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	req = req.WithContext(ctx)
+	resp, err := imagesHttpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// check status code
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("bad status code: " + resp.Status)
+	}
+
+	// check sha256
+	hash := sha256.New()
+	tee := io.TeeReader(resp.Body, hash)
+
+	// write to file
+	_, err = io.Copy(out, tee)
+	if err != nil {
+		return err
+	}
+
+	// check sha256
+	if hex.EncodeToString(hash.Sum(nil)) != expectSha256 {
+		return errors.New("sha256 mismatch for " + url)
+	}
+
+	// rename
+	return os.Rename(tmpPath, outPath)
+}
+
+func (m *ConManager) makeRootfsWithImage(spec ImageSpec, containerName string, rootfsDir string) error {
+	// create temp in subdir
+	downloadDir, err := os.MkdirTemp(m.subdir("images"), "download")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(downloadDir)
+
+	// fetch index
+	logrus.Info("fetching image index")
+	var img RawImage
+	switch {
+	case isDistroInLxdRepo(spec.Distro):
+		images, err := fetchStreamsImages()
+		if err != nil {
+			return err
+		}
+		img = images[spec]
+	case spec.Distro == ImageNixos:
+		img = nixosImages[spec]
+	default:
+		return errors.New("unsupported distro: " + spec.Distro)
+	}
+
+	// download metadata and rootfs in parallel
+	logrus.Info("downloading images")
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var metadataErr, rootfsErr error
+	rootfsFile := downloadDir + "/rootfs"
+	metaFile := downloadDir + "/meta"
+	go func() {
+		defer wg.Done()
+		metadataErr = downloadFile(img.MetadataURL, metaFile, img.MetadataSha256)
+	}()
+	go func() {
+		defer wg.Done()
+		rootfsErr = downloadFile(img.RootfsURL, rootfsFile, img.RootfsSha256)
+	}()
+	wg.Wait()
+
+	// check errors
+	if metadataErr != nil {
+		return metadataErr
+	}
+	if rootfsErr != nil {
+		return rootfsErr
+	}
+
+	// extract rootfs
+	logrus.Info("extracting rootfs")
+	var cmd *exec.Cmd
+	switch img.RootfsFormat {
+	case ImageFormatTarXz:
+		cmd = exec.Command("tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs-include=*")
+	case ImageFormatSquashfs:
+		// limit parallelism
+		procs := runtime.NumCPU()
+		if procs > maxSquashfsCpus {
+			procs = maxSquashfsCpus
+		}
+		cmd = exec.Command("unsquashfs", "-n", "-f", "-p", strconv.Itoa(procs), "-d", rootfsDir, rootfsFile)
+	default:
+		return fmt.Errorf("unsupported rootfs format: %v", img.RootfsFormat)
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("extracting rootfs failed: %w\n%s", err, output)
+	}
+
+	// make temp dir for metadata
+	metadataDir, err := os.MkdirTemp(m.tmpDir, "metadata")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(metadataDir)
+
+	// extract metadata
+	cmd = exec.Command("tar", "-xf", metaFile, "-C", metadataDir)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("extracting metadata failed: %w\n%s", err, output)
+	}
+
+	// load metadata
+	metadataPath := metadataDir + "/metadata.yaml"
+	metadataBytes, err := os.ReadFile(metadataPath)
+	if err != nil {
+		return err
+	}
+	var meta ImageMetadata
+	err = yaml.Unmarshal(metadataBytes, &meta)
+	if err != nil {
+		return err
+	}
+	logrus.WithField("metadata", meta).Debug("loaded metadata")
+
+	// apply templates
+	logrus.Info("applying templates")
+	for relPath, templateSpec := range meta.Templates {
+		logrus.WithField("path", relPath).Debug("applying template")
+		if strings.ContainsRune(templateSpec.Template, '/') {
+			return errors.New("template path must not contain '/': " + templateSpec.Template)
+		}
+
+		tmplBytes, err := os.ReadFile(path.Join(metadataDir, "templates", templateSpec.Template))
+		if err != nil {
+			return err
+		}
+		tmpl := string(tmplBytes)
+
+		// terrible...
+		// TODO proper templating
+		tmpl = strings.ReplaceAll(tmpl, "{{ container.name }}", containerName)
+
+		writePath, err := securejoin.SecureJoin(rootfsDir, strings.TrimPrefix(relPath, "/"))
+		if err != nil {
+			return err
+		}
+		err = os.WriteFile(writePath, []byte(tmpl), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

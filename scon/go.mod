@@ -23,6 +23,11 @@ require (
 )
 
 require (
+	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
+
+require (
 	github.com/alessio/shellescape v1.4.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
