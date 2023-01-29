@@ -12,6 +12,7 @@ import (
 	"github.com/alessio/shellescape"
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshenv"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/kdrag0n/macvirt/scon/agent"
@@ -58,16 +59,6 @@ var (
 		PtyStdin:   true,
 		PtyStdout:  true,
 		PtyStderr:  true,
-	}
-
-	// matches macOS ssh vars
-	dropEnvs = []string{
-		"USER",
-		"LOGNAME",
-		"HOME",
-		"PATH",
-		"SHELL",
-		"TMPDIR",
 	}
 )
 
@@ -248,7 +239,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	}).Debug("SSH connection")
 
 	// remove envs inherited from container
-	env = filterEnv(env, dropEnvs)
+	env = filterEnv(env, sshenv.NoInheritEnvs)
 
 	// pwd
 	pwd := meta.Pwd
