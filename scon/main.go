@@ -12,6 +12,7 @@ import (
 	"path"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -143,20 +144,76 @@ func (m *ConManager) Start() error {
 	}
 
 	// essential services for starting containers
-	go m.serveSeccomp()
+	go func() {
+		err := m.serveSeccomp()
+		if err != nil {
+			logrus.WithError(err).Error("failed to start seccomp server")
+		}
+	}()
 
 	// restore and start!
-	m.restoreContainers()
+	err = m.restoreContainers()
+	if err != nil {
+		return err
+	}
+
+	// clean up leftover logs and rootfs
+	go func() {
+		err := m.cleanupCaches()
+		if err != nil {
+			logrus.WithError(err).Error("failed to clean up caches")
+		}
+	}()
 
 	// services
-	go runSconServer(m)
-	go m.ListenSSH(conf.C().SSHListen)
+	go func() {
+		err := runSconServer(m)
+		if err != nil {
+			logrus.WithError(err).Error("failed to start scon server")
+		}
+	}()
+	go func() {
+		err := m.ListenSSH(conf.C().SSHListen)
+		if err != nil {
+			logrus.WithError(err).Error("failed to start SSH server")
+		}
+	}()
 
 	// periodic tasks
 	go m.runAutoForwardGC()
 
 	logrus.Info("started")
 	return err
+}
+
+func (m *ConManager) cleanupCaches() error {
+	// clean up logs
+	logDir := m.subdir("logs")
+	files, err := os.ReadDir(logDir)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		parts := strings.Split(f.Name(), ".")
+		id := parts[0]
+		if _, ok := m.containersByID[id]; !ok {
+			os.Remove(path.Join(logDir, f.Name()))
+		}
+	}
+
+	// clean up rootfs
+	containersDir := m.subdir("containers")
+	files, err = os.ReadDir(containersDir)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if _, ok := m.containersByID[f.Name()]; !ok {
+			os.RemoveAll(path.Join(containersDir, f.Name()))
+		}
+	}
+
+	return nil
 }
 
 func (m *ConManager) Close() error {

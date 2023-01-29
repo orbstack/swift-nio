@@ -311,7 +311,7 @@ func (c *Container) triggerListenersUpdate() {
 	c.autofwdDebounce.Call()
 }
 
-func (m *ConManager) runAutoForwardGC() error {
+func (m *ConManager) runAutoForwardGC() {
 	ticker := time.NewTicker(autoForwardGCInterval)
 	defer ticker.Stop()
 
@@ -340,7 +340,7 @@ func (m *ConManager) runAutoForwardGC() error {
 			}
 			m.containersMu.RUnlock()
 		case <-m.stopChan:
-			return nil
+			return
 		}
 	}
 }
