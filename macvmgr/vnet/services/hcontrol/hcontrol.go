@@ -12,7 +12,6 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
-	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 var (
@@ -66,12 +65,14 @@ func GetCurrentToken() string {
 	return instanceToken
 }
 
-func ListenHcontrol(stack *stack.Stack, address tcpip.Address) (*HcontrolServer, error) {
-	server := &HcontrolServer{}
+func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, error) {
+	server := &HcontrolServer{
+		n: n,
+	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)
 
-	listener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
+	listener, err := gonet.ListenTCP(n.Stack, tcpip.FullAddress{
 		Addr: address,
 		Port: ports.ServiceHcontrol,
 	}, ipv4.ProtocolNumber)

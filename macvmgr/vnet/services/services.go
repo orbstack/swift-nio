@@ -20,6 +20,8 @@ const (
 
 var (
 	staticDnsHosts = map[string]dnssrv.StaticHost{
+		"vm":                {IP4: vnet.GuestIP4, IP6: vnet.GuestIP6},
+		"vm.internal":       {IP4: vnet.GuestIP4, IP6: vnet.GuestIP6},
 		"host":              {IP4: vnet.HostNatIP4, IP6: vnet.HostNatIP6},
 		"host.internal":     {IP4: vnet.HostNatIP4, IP6: vnet.HostNatIP6},
 		"services":          {IP4: vnet.ServicesIP4},
@@ -59,7 +61,7 @@ func StartNetServices(n *vnet.Network) {
 
 	// Host control (8300): HTTP API
 	if runHcontrol {
-		_, err := hcsrv.ListenHcontrol(n.Stack, secureAddr)
+		_, err := hcsrv.ListenHcontrol(n, secureAddr)
 		if err != nil {
 			logrus.Error("Failed to start host control server", err)
 		}
