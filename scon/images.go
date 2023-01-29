@@ -319,10 +319,10 @@ func (m *ConManager) makeRootfsWithImage(spec ImageSpec, containerName string, r
 	defer os.RemoveAll(downloadDir)
 
 	// fetch index
-	logrus.Info("fetching image index")
 	var img RawImage
 	switch {
 	case isDistroInLxdRepo(spec.Distro):
+		logrus.Info("fetching image index")
 		images, err := fetchStreamsImages()
 		if err != nil {
 			return err
@@ -335,7 +335,7 @@ func (m *ConManager) makeRootfsWithImage(spec ImageSpec, containerName string, r
 	}
 
 	// download metadata and rootfs in parallel
-	logrus.Info("downloading images")
+	logrus.WithField("spec", spec).Info("downloading images")
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var metadataErr, rootfsErr error
@@ -426,6 +426,11 @@ func (m *ConManager) makeRootfsWithImage(spec ImageSpec, containerName string, r
 		tmpl = strings.ReplaceAll(tmpl, "{{ container.name }}", containerName)
 
 		writePath, err := securejoin.SecureJoin(rootfsDir, strings.TrimPrefix(relPath, "/"))
+		if err != nil {
+			return err
+		}
+		// make dirs
+		err = os.MkdirAll(path.Dir(writePath), 0755)
 		if err != nil {
 			return err
 		}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"os/user"
 	"strconv"
 	"syscall"
@@ -115,8 +116,11 @@ func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *SpawnProcessRe
 	}
 
 	// create process
-	path := args.CombinedArgs[0]
-	proc, err := os.StartProcess(path, args.CombinedArgs, &os.ProcAttr{
+	exePath, err := exec.LookPath(args.CombinedArgs[0])
+	if err != nil {
+		return err
+	}
+	proc, err := os.StartProcess(exePath, args.CombinedArgs, &os.ProcAttr{
 		Dir:   args.Dir,
 		Files: []*os.File{stdin, stdout, stderr},
 		Env:   args.Env,

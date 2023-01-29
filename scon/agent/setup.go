@@ -160,6 +160,7 @@ func deleteDefaultUsers() error {
 }
 
 func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
+	return nil
 	// find a shell
 	shell, err := selectShell()
 	if err != nil {
