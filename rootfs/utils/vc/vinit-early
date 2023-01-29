@@ -51,7 +51,7 @@ fi
 #resize.f2fs /dev/vdb1
 #fsck.ext4 -y /dev/vdb1
 #resize2fs /dev/vdb1
-btrfs filesystem resize max /dev/vdb1
+#btrfs filesystem resize max /data
 
 # virtiofs share
 mount -t virtiofs shared /mnt/mac
@@ -67,9 +67,6 @@ for d in Applications Library System Users Volumes opt/homebrew private; do
     ln -sf /mnt/mac/$d /$d
 done
 ln -sf /mnt/mac /mac
-
-# guest tools
-mount --rbind -o ro /opt/macvirt-guest /mnt/guest-tools
 
 # host service proxies
 socat UNIX-LISTEN:/opt/macvirt-guest/run/hostssh.sock,fork,reuseaddr,mode=777 TCP:172.30.30.201:22,nodelay &

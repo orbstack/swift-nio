@@ -3,15 +3,17 @@ set -eo pipefail
 #IS_RELEASE=false
 
 echo nameserver 1.1.1.1 > /etc/resolv.conf
-apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra sshfs eudev nfs-utils docker-engine
+# pigz to speed up docker image extract
+## TODO keep btrfs?
+apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra sshfs eudev nfs-utils docker-engine pigz shadow-uidmap btrfs-progs tar squashfs-tools
 
 # new lxd 5.8 builds, patched to disable xfs quota
-# dqlite patched to stop 500 ms heartbeat
+# dqlite patched to stop 500 ms heartbeat (needs rebuild; libraft updated)
 # TODO (TEMP): use prebuilts for x86
 if [ "$(uname -m)" == "x86_64" ]; then
     apk add lxd lxd-client lxd-openrc dqlite
 else
-    apk add /packages/dqlite-1* /packages/lxd-5* /packages/lxd-client-5* /packages/lxd-openrc-5*
+    apk add dqlite /packages/lxd-5* /packages/lxd-client-5* /packages/lxd-openrc-5*
 fi
 
 # only keep xfs_growfs from extra, remove python3
@@ -156,6 +158,11 @@ cat > /etc/docker/daemon.json <<EOF
   }
 }
 EOF
+# set up subuid/subgid so that "--userns-remap=default" works out-of-the-box
+addgroup -S dockremap
+adduser -S -G dockremap dockremap
+echo 'dockremap:165536:65536' >> /etc/subuid
+echo 'dockremap:165536:65536' >> /etc/subgid
 
 # missing group without full "docker" package, but fails if "docker" is installed
 addgroup -S docker || :
@@ -170,9 +177,11 @@ echo '/Linux 127.0.0.8/32(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtre
 echo 'OPTS_RPC_NFSD="32"' >> /etc/conf.d/nfs
 # fix fd hang
 echo 'OPTS_NFSD="nfsv4leasetime=30 nfsv4gracetime=1"' >> /etc/conf.d/nfs
+mkdir /Linux
 
 # hostname
 echo vchost > /etc/hostname
+echo '127.0.1.1 vchost' >> /etc/hosts
 
 # HACK: fix usbip ld lib path
 mkdir /usbip
@@ -198,9 +207,6 @@ done
 mkdir /data
 mv /var /data
 ln -s /data/var /var
-
-mkdir -p /data/root/.config
-ln -s /data/root/.config /root/.config
 
 mkdir /data/etc
 mv /etc/resolv.conf /data/etc

@@ -35,6 +35,41 @@ echo 9 > /sys/module/page_reporting/parameters/page_reporting_order
 # guest tools data
 mount --bind /data/guest-state /opt/macvirt-guest/data
 
+# guest tools
+mount --rbind -o ro /opt/macvirt-guest /mnt/guest-tools
+
+# setup docker rootfs
+#
+
+mkdir /opt/docker-rootfs
+mkdir -p /tmp/overlay-docker/{root,upper,work}
+mount --bind / /tmp/overlay-docker/root
+mount -t overlay -o lowerdir=/tmp/overlay-docker/root,upperdir=/tmp/overlay-docker/upper,workdir=/tmp/overlay-docker/work overlay /opt/docker-rootfs
+
+pushd /opt/docker-rootfs
+
+# remove private files
+rm -fr {opt,fake,usbip}
+rm -fr etc/{init.d,conf.d}
+
+# fixup docker data
+rm var
+mkdir -p var/lib/docker
+mkdir -p /data/var/lib/docker
+mount --bind /data/var/lib/docker var/lib/docker
+
+# binds
+for bind in mnt/mac; do
+    mount --bind /$bind $bind
+done
+mkdir -p opt/macvirt-guest
+mount --rbind /mnt/guest-tools opt/macvirt-guest
+
+popd
+
+#
+#
+
 # resize fs
 #xfs_growfs /dev/vdb1
 btrfs filesystem resize max /data
@@ -56,108 +91,17 @@ mkdir -p /tmp/flags
 touch /tmp/flags/data_resized
 sync -f /data
 
-# lxc needs home for .config
-export HOME=/root
-function wait_for_lxc() {
-    while true; do
-        if lxc list -c n -f csv > /dev/null 2>&1; then
-            break
-        fi
-        sleep 0.2
-    done
-}
-
-echo "[VINIT-LATE] wait for lxc"
-wait_for_lxc
-
 # late nfs start because we need bind mount
-mkdir /Linux
 mount -t tmpfs tmpfs -o noatime /Linux
 # try to reduce nfs cpu usage
 touch /Linux/.metadata_never_index /Linux/.metadata-never-index /Linux/.metadata_never_index_unless_rootfs
-mkdir /Linux/Data
-mount --bind /data /Linux/Data
-mkdir /Linux/DockerVolumes
-mount --bind /data/var/lib/docker/volumes /Linux/DockerVolumes
-mkdir /Linux/Containers
-mkdir -p /data/var/lib/lxd/storage-pools/default/containers # first boot
-mount --bind /data/var/lib/lxd/storage-pools/default/containers /Linux/Containers
+#TODO debug onlu
+mkdir /Linux/data
+mount --bind /data /Linux/data
 # lock
 mount -o remount,ro /Linux
 rc-service nfs start
 # vsock
 /opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist
-
-# late lxd tuning
-# TODO: do this for nic too
-ip link set lxdbr0 txqueuelen 10000
-
-# always update profile
-# profile update may fail:
-# Error: The following instances failed to update (profile change still saved):
-# - Project: default, Instance: alpine: Failed to create instance update operation: Instance is busy running a "start" operation
-# /dev/kmsg to fix empty dmesg in some distros (e.g. nixos) if they write to it
-# global kmsg isn't ideal, but it's ok for us
-set +e
-lxc config edit <<EOF
-config:
-  core.https_address:
-  core.trust_password:
-  images.auto_update_interval: "0"
-EOF
-eth_mtu="$(ip link show eth0 | head -n1 | cut -d' ' -f5)"
-lxc network edit lxdbr0 <<EOF
-config:
-  ipv4.address: 172.30.31.1/24
-  ipv4.nat: "true"
-  ipv6.address: fc00:30:31::1/64
-  ipv6.nat: "true"
-  ipv4.dhcp.expiry: 720h
-  ipv6.dhcp.expiry: 720h
-  bridge.mtu: $eth_mtu
-description: ""
-EOF
-lxc profile edit default <<EOF
-config:
-  security.nesting: "true"
-  security.privileged: "true"
-  security.devlxd: "false"
-  boot.host_shutdown_timeout: "2"
-description: vchost profile
-devices:
-  dev-ppp:
-    source: /dev/ppp
-    type: unix-char
-  dev-kmsg:
-    source: /dev/kmsg
-    type: unix-char
-  dev-loopcontrol:
-    source: /dev/loop-control
-    type: unix-char
-  eth0:
-    name: eth0
-    network: lxdbr0
-    type: nic
-  root:
-    path: /
-    pool: default
-    type: disk
-  shared-mac:
-    path: /mnt/mac
-    source: /mnt/mac
-    type: disk
-  guest-tools:
-    path: /opt/macvirt-guest
-    source: /mnt/guest-tools
-    type: disk
-    recursive: "true"
-  # fake for k8s
-  proc-sysctl-panic:
-    path: /proc/sys/kernel/panic
-    source: /fake/sysctl/kernel.panic
-    type: disk
-name: default
-EOF
-set -e
 
 echo "[END] vinit-late"
