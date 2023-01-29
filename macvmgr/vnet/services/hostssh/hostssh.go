@@ -11,6 +11,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshenv"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
@@ -56,15 +57,6 @@ var (
 	}
 
 	// matches macOS ssh vars
-	inheritHostEnvs = [...]string{
-		"USER",
-		"LOGNAME",
-		"HOME",
-		"PATH",
-		"SHELL",
-		"TMPDIR",
-		"SSH_AUTH_SOCK",
-	}
 	inheritHostEnvValues = []string{}
 )
 
@@ -81,7 +73,7 @@ func init() {
 			continue
 		}
 
-		for _, cand := range inheritHostEnvs {
+		for _, cand := range sshenv.NoInheritEnvs {
 			if key == cand {
 				inheritHostEnvValues = append(inheritHostEnvValues, kv)
 				break
