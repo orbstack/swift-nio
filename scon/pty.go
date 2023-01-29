@@ -8,7 +8,7 @@ import (
 )
 
 func (c *Container) OpenPty() (pty, tty *os.File, err error) {
-	ptsDir, err := c.c.DevptsFd()
+	ptsDir, err := c.lxc.DevptsFd()
 	if err != nil {
 		return
 	}

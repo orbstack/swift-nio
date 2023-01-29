@@ -99,6 +99,16 @@ func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
 	return nil
 }
 
+func (c *Container) setLxcConfig(key, value string) error {
+	err := c.lxc.SetConfigItem(key, value)
+	if err != nil {
+		return err
+	}
+
+	c.lxcParams.Configs = append(c.lxcParams.Configs, KeyValue[string]{key, value})
+	return nil
+}
+
 func (c *Container) initLxc() error {
 	m := c.manager
 	lc, err := lxc.NewContainer(c.Name, m.lxcDir)
@@ -108,6 +118,7 @@ func (c *Container) initLxc() error {
 	runtime.SetFinalizer(lc, func(lc *lxc.Container) {
 		lc.Release()
 	})
+	c.lxc = lc
 
 	// logging
 	logPath := m.subdir("logs") + "/" + c.ID + ".log"
@@ -155,10 +166,9 @@ func (c *Container) initLxc() error {
 		}()
 
 		set := func(key, value string) {
-			if err := lc.SetConfigItem(key, value); err != nil {
+			if err := c.setLxcConfig(key, value); err != nil {
 				panic(err)
 			}
-			c.lxcParams.Configs = append(c.lxcParams.Configs, KeyValue[string]{key, value})
 		}
 
 		addDev := func(node string) {
@@ -283,7 +293,6 @@ func (c *Container) initLxc() error {
 		return err
 	}
 
-	c.c = lc
 	c.seccompCookie = cookieU64
 	c.rootfsDir = rootfs
 	return nil
@@ -298,13 +307,13 @@ func (m *ConManager) newContainer(record *ContainerRecord) (*Container, error) {
 	dir := m.subdir("containers", id)
 
 	c := &Container{
-		ID:        record.ID,
-		Name:      record.Name,
-		Image:     record.Image,
-		builtin:   record.Builtin,
-		dir:       dir,
-		manager:   m,
-		agent:     syncx.NewCondValue[*agent.Client](nil, nil),
+		ID:      record.ID,
+		Name:    record.Name,
+		Image:   record.Image,
+		builtin: record.Builtin,
+		dir:     dir,
+		manager: m,
+		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
 	}
 
 	// create lxc
@@ -406,23 +415,59 @@ func (c *Container) forkStart() error {
 	return nil
 }
 
+func (c *Container) updateTimeOffsets() error {
+	var tsMono unix.Timespec
+	err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &tsMono)
+	if err != nil {
+		return err
+	}
+
+	var tsBoot unix.Timespec
+	err = unix.ClockGettime(unix.CLOCK_BOOTTIME, &tsBoot)
+	if err != nil {
+		return err
+	}
+
+	nsMono := uint64(tsMono.Sec)*1000000000 + uint64(tsMono.Nsec)
+	nsBoot := uint64(tsBoot.Sec)*1000000000 + uint64(tsBoot.Nsec)
+	err = c.setLxcConfig("lxc.time.offset.monotonic", strconv.FormatUint(nsMono, 10)+"ns")
+	if err != nil {
+		return err
+	}
+
+	err = c.setLxcConfig("lxc.time.offset.boot", strconv.FormatUint(nsBoot, 10)+"ns")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Container) Start() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.c.Running() {
+	if c.lxc.Running() {
 		return nil
 	}
 
 	logrus.WithField("container", c.Name).Info("starting container")
+
+	// update time offsets
+	/*
+		err := c.updateTimeOffsets()
+		if err != nil {
+			return err
+		}
+	*/
 
 	err := c.forkStart()
 	if err != nil {
 		return err
 	}
 
-	if !c.c.Wait(lxc.RUNNING, startTimeout) {
-		return fmt.Errorf("container did not start: %s - %v", c.Name, c.c.State())
+	if !c.lxc.Wait(lxc.RUNNING, startTimeout) {
+		return fmt.Errorf("container did not start: %s - %v", c.Name, c.lxc.State())
 	}
 
 	go func() {

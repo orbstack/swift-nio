@@ -42,19 +42,19 @@ func (c *Container) Stop() error {
 	if conf.Debug() {
 		timeout = gracefulShutdownTimeoutDebug
 	}
-	err := c.c.Shutdown(timeout)
+	err := c.lxc.Shutdown(timeout)
 	if err != nil {
 		logrus.Warn("graceful shutdown failed: ", err)
 	}
 
-	if c.c.Running() {
-		err = c.c.Stop()
+	if c.lxc.Running() {
+		err = c.lxc.Stop()
 		if err != nil {
 			return err
 		}
 	}
 
-	if !c.c.Wait(lxc.STOPPED, stopTimeout) {
+	if !c.lxc.Wait(lxc.STOPPED, stopTimeout) {
 		return ErrTimeout
 	}
 
@@ -102,7 +102,7 @@ func (c *Container) Delete() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.c.Running() {
+	if c.lxc.Running() {
 		c.mu.Unlock()
 		err := c.Stop()
 		c.mu.Lock()

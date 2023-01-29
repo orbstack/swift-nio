@@ -241,7 +241,7 @@ func (m *ConManager) removeContainer(c *Container) error {
 
 	delete(c.manager.seccompCookies, c.seccompCookie)
 	runtime.SetFinalizer(c, nil)
-	c.c.Release()
+	c.lxc.Release()
 
 	err := c.manager.db.DeleteContainer(c.ID)
 	if err != nil {
@@ -271,7 +271,7 @@ type Container struct {
 	creating bool
 	deleting bool
 
-	c         *lxc.Container
+	lxc       *lxc.Container
 	lxcParams LxcForkParams
 
 	agent   syncx.CondValue[*agent.Client]
@@ -300,11 +300,11 @@ func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int
 		unix.FcntlInt(uintptr(extraFd), unix.F_SETFD, 0)
 		defer unix.CloseOnExec(extraFd)
 	}
-	return c.c.RunCommandNoWait(cmd, opts)
+	return c.lxc.RunCommandNoWait(cmd, opts)
 }
 
 func (c *Container) Running() bool {
-	return c.c.Running()
+	return c.lxc.Running()
 }
 
 func (c *Container) persist() error {
