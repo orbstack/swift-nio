@@ -47,7 +47,12 @@ func ListenTCP(addr string) (net.Listener, bool, error) {
 		return l, true, err
 	}
 
-	l, err := net.Listen("tcp", addr)
+	// disable tcp46 for IPv4-only. we only do 4-6 for v6 listeners
+	network := "tcp4"
+	if addrPort.Addr().Is6() {
+		network = "tcp"
+	}
+	l, err := net.Listen(network, addr)
 	return l, false, err
 }
 
@@ -109,7 +114,9 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 	remoteAddr := conn.RemoteAddr().(*net.TCPAddr)
 	proto := ipv4.ProtocolNumber
 	connectAddr := f.connectAddr4
-	if remoteAddr.IP.To4() == nil {
+	// 4-in-6 means the listener is v6, so the other side must be v6
+	is4in6 := remoteAddr.IP.To4() != nil && remoteAddr.IP.To16() != nil
+	if is4in6 || remoteAddr.IP.To4() == nil {
 		proto = ipv6.ProtocolNumber
 		connectAddr = f.connectAddr6
 	}
@@ -147,7 +154,12 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 		Port: uint16(remoteAddr.Port),
 	}
 
-	logrus.Trace("dial from", virtSrcAddr, "to", connectAddr, "with proto", proto, "and timeout", tcpConnectTimeout)
+	logrus.WithFields(logrus.Fields{
+		"src":     virtSrcAddr,
+		"dst":     connectAddr,
+		"proto":   proto,
+		"timeout": tcpConnectTimeout,
+	}).Trace("dial")
 	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(tcpConnectTimeout))
 	defer cancel()
 	virtConn, err := gonet.DialTCPWithBind(ctx, f.stack, virtSrcAddr, connectAddr, proto)
