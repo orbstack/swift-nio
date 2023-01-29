@@ -36,22 +36,26 @@ func ListenTCP(addr string) (net.Listener, bool, error) {
 		return nil, false, err
 	}
 
-	if addrPort.Addr().IsLoopback() && addrPort.Port() < 1024 {
-		// Bypass privileged ports by listening on 0.0.0.0
-		addr := net.IPv4zero
-		if addrPort.Addr().Is6() {
-			addr = net.IPv6zero
-		}
-
-		l, err := net.Listen("tcp", net.JoinHostPort(addr.String(), strconv.Itoa(int(addrPort.Port()))))
-		return l, true, err
-	}
-
 	// disable tcp46 for IPv4-only. we only do 4-6 for v6 listeners
 	network := "tcp4"
 	if addrPort.Addr().Is6() {
 		network = "tcp"
 	}
+
+	if addrPort.Addr().IsLoopback() && addrPort.Port() < 1024 {
+		// Bypass privileged ports by listening on 0.0.0.0
+		addr := net.IPv4zero
+		if addrPort.Addr().Is6() {
+			addr = net.IPv6zero
+			// disable 4-in-6. if we intended to bind to localhost, then we only want v6.
+			// there's no 4-in-6 for non-0000 addresses.
+			network = "tcp6"
+		}
+
+		l, err := net.Listen(network, net.JoinHostPort(addr.String(), strconv.Itoa(int(addrPort.Port()))))
+		return l, true, err
+	}
+
 	l, err := net.Listen(network, addr)
 	return l, false, err
 }
@@ -115,7 +119,7 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 	proto := ipv4.ProtocolNumber
 	connectAddr := f.connectAddr4
 	// 4-in-6 means the listener is v6, so the other side must be v6
-	is4in6 := remoteAddr.IP.To4() != nil && remoteAddr.IP.To16() != nil
+	is4in6 := remoteAddr.AddrPort().Addr().Is4In6()
 	if is4in6 || remoteAddr.IP.To4() == nil {
 		proto = ipv6.ProtocolNumber
 		connectAddr = f.connectAddr6
@@ -129,7 +133,8 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 
 	// Spoof source address
 	var srcAddr tcpip.Address
-	if remoteAddr.IP.IsLoopback() {
+	//TODO fix source addr
+	if true {
 		// We can't spoof loopback. Look up the host's default address.
 		if proto == ipv4.ProtocolNumber {
 			srcAddr = tcpip.Address(netutil.GetDefaultAddress4())
