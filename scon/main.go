@@ -406,16 +406,16 @@ func runContainerManager() {
 func runCliTest(mgr *ConManager) error {
 	var err error
 
-	container, ok := mgr.GetByName("alpine")
+	container, ok := mgr.GetByName("nixos")
 	if !ok {
 		// create
 		fmt.Println("create")
 		container, err = mgr.Create(CreateParams{
-			Name: "alpine",
+			Name: "nixos",
 			User: "dragon",
 			Image: ImageSpec{
-				Distro:  "alpine",
-				Version: "edge",
+				Distro:  "nixos",
+				Version: "22.11",
 			},
 			UserPassword: "test",
 		})

@@ -50,12 +50,12 @@ func runWithInput(input string, combinedArgs ...string) error {
 }
 
 func selectShell() (string, error) {
-	shell := "/bin/bash"
+	shell := "bash"
 	if _, err := exec.LookPath(shell); err == nil {
 		return shell, nil
 	}
 
-	shell = "/bin/sh"
+	shell = "sh"
 	if _, err := exec.LookPath(shell); err == nil {
 		return shell, nil
 	}
@@ -160,7 +160,6 @@ func deleteDefaultUsers() error {
 }
 
 func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
-	return nil
 	// find a shell
 	shell, err := selectShell()
 	if err != nil {
