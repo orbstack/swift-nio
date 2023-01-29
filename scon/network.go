@@ -303,3 +303,14 @@ func getDefaultMTU() (int, error) {
 	}
 	return link.Attrs().MTU, nil
 }
+
+func deriveMacAddress(cid string) string {
+	// hash of id
+	h := sha256.Sum256([]byte(cid))
+	// mark as locally administered
+	h[0] |= 0x02
+	// mark as unicast
+	h[0] &= 0xfe
+	// format
+	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", h[0], h[1], h[2], h[3], h[4], h[5])
+}
