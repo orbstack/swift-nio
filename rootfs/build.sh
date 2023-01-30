@@ -54,24 +54,31 @@ popd
 
 rm -fr rd
 mkdir rd
-pushd rd
 
 # Alpine rootfs
 if [[ "$ARCH" == "arm64" ]]; then
-    tar xf $HOME/Downloads/alpine-minirootfs-20221110-aarch64.tar.gz 
+    rootfs_tar=$HOME/Downloads/alpine-minirootfs-20221110-aarch64.tar.gz 
 else
-    tar xf $HOME/Downloads/alpine-minirootfs-20221110-x86_64.tar.gz
+    rootfs_tar=$HOME/Downloads/alpine-minirootfs-20221110-x86_64.tar.gz
 fi
+tar -C rd --numeric-owner -xf $rootfs_tar
+# again for docker rootfs
+mkdir -p rd/opt/docker-rootfs
+tar -C rd/opt/docker-rootfs --numeric-owner -xf $rootfs_tar
 
+pushd rd
 cp ../build-inside.sh .
+cp ../build-inside-docker.sh opt/docker-rootfs/
 # for custom lxd builds
 cp ../packages/*.pub etc/apk/keys/
 cp -r ../packages .
 #arch-chroot . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
-systemd-nspawn --link-journal=no -D . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
+systemd-nspawn --link-journal=no -D . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh" && \
+    systemd-nspawn --link-journal=no -D opt/docker-rootfs /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside-docker.sh"
 
 
 rm build-inside.sh
+rm opt/docker-rootfs/build-inside-docker.sh
 rm -r packages
 
 # init and other scripts

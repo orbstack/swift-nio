@@ -283,7 +283,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	commandArg := "--session-command"
 	// Busybox su doesn't support --session-command, so use -c instead
 	// TODO better way
-	if container.Image.Distro == ImageAlpine || container.Image.Distro == ImageNixos {
+	if container.Image.Distro == ImageAlpine || container.Image.Distro == ImageNixos || container.Image.Distro == ImageDocker {
 		commandArg = "-c"
 	}
 	combinedArgs := []string{"su", "-l", user, commandArg, suCmd}

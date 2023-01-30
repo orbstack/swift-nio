@@ -3,9 +3,8 @@ set -eo pipefail
 #IS_RELEASE=false
 
 echo nameserver 1.1.1.1 > /etc/resolv.conf
-# pigz to speed up docker image extract
 ## TODO keep btrfs?
-apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra sshfs eudev nfs-utils docker-engine pigz shadow-uidmap btrfs-progs tar squashfs-tools
+apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra eudev nfs-utils btrfs-progs tar squashfs-tools
 
 # new lxd 5.8 builds, patched to disable xfs quota
 # dqlite patched to stop 500 ms heartbeat (needs rebuild; libraft updated)
@@ -27,7 +26,7 @@ sed -i '/getty/d' /etc/inittab
 
 if ! $IS_RELEASE; then
     echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
-    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind docker e2fsprogs-extra btrfs-progs-extra f2fs-tools fish
+    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind e2fsprogs-extra btrfs-progs-extra f2fs-tools fish
     rc-update add sshd default
     sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
 
@@ -49,7 +48,6 @@ rc-update add networking default
 rc-update add udev default
 rc-update add lxd default
 rc-update add chronyd default
-rc-update add docker default
 touch /etc/network/interfaces
 
 # spped up boot
@@ -146,27 +144,6 @@ echo 'server 172.30.30.200 iburst minpoll 7' > /etc/chrony/chrony.conf
 echo 'makestep 3.0 2147483647' >> /etc/chrony/chrony.conf
 echo 'cmdport 0' >> /etc/chrony/chrony.conf
 
-# Docker
-echo 'rc_need="localmount"' >> /etc/conf.d/docker
-echo 'DOCKER_OPTS="-H tcp://172.30.30.2:62375 -H unix:///var/run/docker.sock"' >> /etc/conf.d/docker
-# enable buildkit
-mkdir -p /etc/docker
-cat > /etc/docker/daemon.json <<EOF
-{
-  "features": {
-    "buildkit" : true
-  }
-}
-EOF
-# set up subuid/subgid so that "--userns-remap=default" works out-of-the-box
-addgroup -S dockremap
-adduser -S -G dockremap dockremap
-echo 'dockremap:165536:65536' >> /etc/subuid
-echo 'dockremap:165536:65536' >> /etc/subgid
-
-# missing group without full "docker" package, but fails if "docker" is installed
-addgroup -S docker || :
-
 # prod config
 echo nameserver 172.30.30.200 > /etc/resolv.conf
 rm -f /etc/motd
@@ -208,10 +185,6 @@ mkdir /data
 mv /var /data
 ln -s /data/var /var
 
-mkdir /data/etc
-mv /etc/resolv.conf /data/etc
-ln -s /data/etc/resolv.conf /etc/resolv.conf
-
 mkdir -p /data/guest-state/bin/cmdlinks
 
 # mkdir /data/etc/ssh
@@ -223,8 +196,4 @@ mkdir -p /data/guest-state/bin/cmdlinks
 # fi
 
 # v1: initial
-# v2: changed shared-sdcard mount source
-# v3: moved security.nesting=true, security.privileged=true, device shared-sdcard to default profile; added devnode-ppp device
-# v4: fixed each container storage having a separate project quota id (modded lxd), enable quota at upgrade
-# TODO: update lxd-preseed with v3 profile
-echo 4 > /data/version
+echo 1 > /data/version

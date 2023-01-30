@@ -12,6 +12,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+type ContainerHooks interface {
+	Config(*Container, func(string, string)) (string, error)
+	PreStart(*Container) error
+}
+
 type Container struct {
 	ID        string
 	Name      string
@@ -23,6 +28,8 @@ type Container struct {
 	// state
 	creating bool
 	deleting bool
+
+	hooks ContainerHooks
 
 	lxc       *lxc.Container
 	lxcParams LxcForkParams

@@ -30,13 +30,11 @@ type InitialSetupArgs struct {
 }
 
 func selectShell() (string, error) {
-	shell := "bash"
-	if _, err := exec.LookPath(shell); err == nil {
+	if shell, err := exec.LookPath("bash"); err == nil {
 		return shell, nil
 	}
 
-	shell = "sh"
-	if _, err := exec.LookPath(shell); err == nil {
+	if shell, err := exec.LookPath("sh"); err == nil {
 		return shell, nil
 	}
 
@@ -46,7 +44,7 @@ func selectShell() (string, error) {
 		return "", err
 	}
 
-	shell = strings.Split(string(shells), "\n")[0]
+	shell := strings.Split(string(shells), "\n")[0]
 	return shell, nil
 }
 

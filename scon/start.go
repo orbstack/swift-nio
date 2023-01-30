@@ -24,22 +24,6 @@ const (
 	startTimeout = 10 * time.Second
 )
 
-var (
-	dockerContainerRecord = ContainerRecord{
-		ID:   "01GQQVF6C6VC46KND9TRVFWC1Q",
-		Name: "docker",
-		Image: ImageSpec{
-			Distro:  ImageDocker,
-			Version: "latest",
-			Arch:    getDefaultLxcArch(),
-			Variant: "default",
-		},
-		Builtin:  true,
-		Running:  true,
-		Deleting: false,
-	}
-)
-
 // TODO lxc.hook.autodev or c.AddDeviceNode
 func addInitDevice(c *lxc.Container, src string) error {
 	// stat
@@ -222,7 +206,8 @@ func (c *Container) initLxc() error {
 		// Default mounts
 		set("lxc.mount.auto", "proc:mixed sys:mixed cgroup:rw:force")
 		set("lxc.mount.entry", "mqueue dev/mqueue mqueue rw,relatime,create=dir,optional 0 0")
-		set("lxc.mount.entry", "/proc/sys/fs/binfmt_misc proc/sys/fs/binfmt_misc none rbind,create=dir,optional 0 0")
+		// don't let people mess with binfmt_misc
+		//set("lxc.mount.entry", "/proc/sys/fs/binfmt_misc proc/sys/fs/binfmt_misc none rbind,create=dir,optional 0 0")
 		set("lxc.mount.entry", "/sys/fs/fuse/connections sys/fs/fuse/connections none rbind,create=dir,optional 0 0")
 		set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
 
@@ -274,10 +259,15 @@ func (c *Container) initLxc() error {
 			set("lxc.log.level", "info")
 		}
 
-		// docker
-		if c.builtin && c.Image.Distro == ImageDocker {
-			set("lxc.init.cmd", "/usr/bin/docker-init -- dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375")
-			rootfs = conf.C().DockerRootfs
+		// container hooks, before rootfs is et
+		if c.hooks != nil {
+			newRootfs, err := c.hooks.Config(c, set)
+			if err != nil {
+				panic(err)
+			}
+			if newRootfs != "" {
+				rootfs = newRootfs
+			}
 		}
 
 		// container
@@ -316,6 +306,11 @@ func (m *ConManager) newContainer(record *ContainerRecord) (*Container, error) {
 		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
 	}
 
+	// special-case hooks for docker
+	if c.builtin && c.Image.Distro == ImageDocker {
+		c.hooks = &DockerHooks{}
+	}
+
 	// create lxc
 	// fills in c and seccomp cookie
 	err := c.initLxc()
@@ -344,7 +339,8 @@ func (m *ConManager) restoreContainers() error {
 
 	// inject builtin
 	copy := dockerContainerRecord
-	records = append(records, &copy)
+	// prepend
+	records = append([]*ContainerRecord{&copy}, records...)
 
 	for _, record := range records {
 		c, err := m.restoreOne(record)
@@ -460,6 +456,17 @@ func (c *Container) Start() error {
 			return err
 		}
 	*/
+
+	// clean console
+	_ = os.Remove(c.logPath() + "-console")
+
+	// hook
+	if c.hooks != nil {
+		err := c.hooks.PreStart(c)
+		if err != nil {
+			return err
+		}
+	}
 
 	err := c.forkStart()
 	if err != nil {

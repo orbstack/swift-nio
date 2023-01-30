@@ -41,28 +41,24 @@ mount --rbind -o ro /opt/macvirt-guest /mnt/guest-tools
 # setup docker rootfs
 #
 
-mkdir /opt/docker-rootfs
-mkdir -p /tmp/overlay-docker/{root,upper,work}
-mount --bind / /tmp/overlay-docker/root
-mount -t overlay -o lowerdir=/tmp/overlay-docker/root,upperdir=/tmp/overlay-docker/upper,workdir=/tmp/overlay-docker/work overlay /opt/docker-rootfs
+mkdir /run/docker-rootfs
+mount --bind -o ro /opt/docker-rootfs /run/docker-rootfs
+mkdir -p /data/var/lib/docker
 
 pushd /opt/docker-rootfs
 
-# remove private files
-rm -fr {opt,fake,usbip}
-rm -fr etc/{init.d,conf.d}
-
-# fixup docker data
-rm var
-mkdir -p var/lib/docker
-mkdir -p /data/var/lib/docker
+# binds
 mount --bind /data/var/lib/docker var/lib/docker
+mount --bind /mnt/mac mnt/mac
+mount --rbind /mnt/guest-tools opt/macvirt-guest
+
+popd
+
+pushd /run/docker-rootfs
 
 # binds
-for bind in mnt/mac; do
-    mount --bind /$bind $bind
-done
-mkdir -p opt/macvirt-guest
+mount --bind /data/var/lib/docker var/lib/docker
+mount --bind /mnt/mac mnt/mac
 mount --rbind /mnt/guest-tools opt/macvirt-guest
 
 popd

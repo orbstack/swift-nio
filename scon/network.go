@@ -24,7 +24,8 @@ const (
 	subnet4      = "172.30.31"
 	subnet4cidr  = subnet4 + ".0/24"
 	gatewayIP4   = subnet4 + ".1"
-	secureSvcIP4 = subnet4 + ".201"
+	dockerIP4    = subnet4 + ".2"
+	secureSvcIP4 = "172.30.30.201"
 
 	subnet6     = "fc00:30:31:"
 	subnet6cidr = subnet6 + ":/64"
