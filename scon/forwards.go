@@ -237,12 +237,12 @@ func (m *ConManager) checkForward(c *Container, spec agent.ProcListener) bool {
 	return true
 }
 
-func diffListeners(old, new []agent.ProcListener) (added, removed []agent.ProcListener) {
-	oldMap := make(map[agent.ProcListener]struct{})
+func diffSlices[T comparable](old, new []T) (added, removed []T) {
+	oldMap := make(map[T]struct{})
 	for _, listener := range old {
 		oldMap[listener] = struct{}{}
 	}
-	newMap := make(map[agent.ProcListener]struct{})
+	newMap := make(map[T]struct{})
 	for _, listener := range new {
 		newMap[listener] = struct{}{}
 	}
@@ -261,6 +261,26 @@ func diffListeners(old, new []agent.ProcListener) (added, removed []agent.ProcLi
 	return
 }
 
+func filterSlice[T comparable](s []T, f func(T) bool) []T {
+	var out []T
+	for _, v := range s {
+		if f(v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
+	var out []N
+	for _, v := range s {
+		if nv, ok := f(v); ok {
+			out = append(out, nv)
+		}
+	}
+	return out
+}
+
 // triggered on seccomp notify or inet diag
 func (c *Container) updateListenersDirect() error {
 	listeners, err := c.Agent().GetListeners()
@@ -275,7 +295,7 @@ func (c *Container) updateListenersDirect() error {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	added, removed := diffListeners(c.lastListeners, listeners)
+	added, removed := diffSlices(c.lastListeners, listeners)
 
 	var lastErr error
 	var notAdded []agent.ProcListener

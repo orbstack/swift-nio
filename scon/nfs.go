@@ -30,38 +30,77 @@ func isMountpoint(path string) (bool, error) {
 	return false, nil
 }
 
+func mountOneNfs(dataSrc string, nfsSubDst string) error {
+	nfsRootRO := conf.C().NfsRootRO
+	nfsRootRW := conf.C().NfsRootRW
+	backingPath := nfsRootRW + "/" + nfsSubDst
+	mountPath := nfsRootRO + "/" + nfsSubDst
+
+	logrus.WithFields(logrus.Fields{
+		"src": dataSrc,
+		"dst": mountPath,
+	}).Debug("mounting nfs")
+	err := os.Mkdir(backingPath, 0755)
+	if err != nil && !errors.Is(err, os.ErrExist) {
+		return err
+	}
+
+	// is it already mounted?
+	isMounted, err := isMountpoint(mountPath)
+	if err != nil {
+		return err
+	}
+	if isMounted {
+		// unmount first
+		err = unix.Unmount(mountPath, unix.MNT_DETACH)
+		if err != nil {
+			return err
+		}
+	}
+
+	// bind mount
+	err = unix.Mount(dataSrc, mountPath, "", unix.MS_BIND, "")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func unmountOneNfs(nfsSubDst string) error {
+	nfsRootRO := conf.C().NfsRootRO
+	nfsRootRW := conf.C().NfsRootRW
+	backingPath := nfsRootRW + "/" + nfsSubDst
+	mountPath := nfsRootRO + "/" + nfsSubDst
+
+	logrus.WithField("dst", mountPath).Debug("unmounting nfs")
+	// unmount
+	err := unix.Unmount(mountPath, unix.MNT_DETACH)
+	if err != nil {
+		return err
+	}
+
+	// remove directory
+	err = os.Remove(backingPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *ConManager) onRestoreContainer(c *Container) error {
 	// nfs bind mount
 	err := func() error {
 		m.nfsMu.Lock()
 		defer m.nfsMu.Unlock()
 
-		nfsRootRO := conf.C().NfsRootRO
-		nfsRootRW := conf.C().NfsRootRW
-		backingPath := nfsRootRW + "/" + c.Name
-		mountPath := nfsRootRO + "/" + c.Name
-
-		logrus.WithField("path", mountPath).Debug("creating nfs mount")
-		err := os.Mkdir(backingPath, 0755)
-		if err != nil && !errors.Is(err, os.ErrExist) {
-			return err
+		// docker is special
+		if c.Name == ContainerDocker {
+			return nil
 		}
 
-		// is it already mounted?
-		isMounted, err := isMountpoint(mountPath)
-		if err != nil {
-			return err
-		}
-		if isMounted {
-			// unmount first
-			err = unix.Unmount(mountPath, unix.MNT_DETACH)
-			if err != nil {
-				return err
-			}
-		}
-
-		// bind mount
-		err = unix.Mount(c.rootfsDir, mountPath, "", unix.MS_BIND, "")
+		err := mountOneNfs(c.rootfsDir, c.Name)
 		if err != nil {
 			return err
 		}
@@ -81,20 +120,12 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 		m.nfsMu.Lock()
 		defer m.nfsMu.Unlock()
 
-		nfsRootRO := conf.C().NfsRootRO
-		nfsRootRW := conf.C().NfsRootRW
-		backingPath := nfsRootRW + "/" + c.Name
-		mountPath := nfsRootRO + "/" + c.Name
-
-		logrus.WithField("path", mountPath).Debug("removing nfs mount")
-		// unmount
-		err := unix.Unmount(mountPath, unix.MNT_DETACH)
-		if err != nil {
-			return err
+		// docker is special
+		if c.Name == ContainerDocker {
+			return nil
 		}
 
-		// remove directory
-		err = os.Remove(backingPath)
+		err := unmountOneNfs(c.Name)
 		if err != nil {
 			return err
 		}

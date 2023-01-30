@@ -113,6 +113,13 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 	return mgr, nil
 }
 
+func runOne(what string, fn func() error) {
+	err := fn()
+	if err != nil {
+		logrus.WithError(err).Error(what + " failed")
+	}
+}
+
 func (m *ConManager) Start() error {
 	// delete leftover image cache
 	// TODO actually cache images
@@ -125,12 +132,7 @@ func (m *ConManager) Start() error {
 	}
 
 	// essential services for starting containers
-	go func() {
-		err := m.serveSeccomp()
-		if err != nil {
-			logrus.WithError(err).Error("failed to start seccomp server")
-		}
-	}()
+	go runOne("seccomp server", m.serveSeccomp)
 
 	// restore and start!
 	err = m.restoreContainers()
@@ -138,35 +140,18 @@ func (m *ConManager) Start() error {
 		return err
 	}
 
-	// Docker proxy
-	go func() {
-		err := m.runDockerProxy()
-		if err != nil {
-			logrus.WithError(err).Error("failed to start Docker proxy")
-		}
-	}()
-
 	// clean up leftover logs and rootfs
-	go func() {
-		err := m.cleanupCaches()
-		if err != nil {
-			logrus.WithError(err).Error("failed to clean up caches")
-		}
-	}()
+	go runOne("cache cleanup", m.cleanupCaches)
 
 	// services
-	go func() {
-		err := runSconServer(m)
-		if err != nil {
-			logrus.WithError(err).Error("failed to start scon server")
-		}
-	}()
-	go func() {
-		err := m.listenSSH(conf.C().SSHListen)
-		if err != nil {
-			logrus.WithError(err).Error("failed to start SSH server")
-		}
-	}()
+	go runOne("RPC server", func() error {
+		return runSconServer(m)
+	})
+	go runOne("SSH server", func() error {
+		return m.listenSSH(conf.C().SSHListen)
+	})
+	go runOne("Docker proxy", m.runDockerProxy)
+	go runOne("Docker NFS manager", m.runDockerNFS)
 
 	// periodic tasks
 	go m.runAutoForwardGC()

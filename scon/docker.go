@@ -3,12 +3,14 @@ package main
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/syncx"
@@ -17,15 +19,19 @@ import (
 )
 
 const (
+	ContainerDocker = "docker"
+
 	// takes ~3 ms to unfreeze
 	dockerFreezeDelay = 2 * time.Second
 	dockerStartPoll   = 500 * time.Millisecond
+
+	dockerNfsDebounce = 250 * time.Millisecond
 )
 
 var (
 	dockerContainerRecord = ContainerRecord{
 		ID:   "01GQQVF6C60000000000DOCKER",
-		Name: "docker",
+		Name: ContainerDocker,
 		Image: ImageSpec{
 			Distro:  ImageDocker,
 			Version: "latest",
@@ -89,7 +95,7 @@ func (m *ConManager) runDockerProxy() error {
 		return err
 	}
 
-	c, ok := m.GetByName("docker")
+	c, ok := m.GetByName(ContainerDocker)
 	if !ok {
 		return errors.New("docker container not found")
 	}
@@ -250,4 +256,95 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 
 func (p *DockerProxy) Close() error {
 	return p.l.Close()
+}
+
+func (m *ConManager) runDockerNFS() error {
+	dockerVolDir := conf.C().DockerDataDir + "/volumes"
+	err := os.MkdirAll(dockerVolDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	nfsSubdir := "docker/volumes"
+	err = os.MkdirAll(conf.C().NfsRootRW+"/"+nfsSubdir, 0755)
+	if err != nil {
+		return err
+	}
+
+	lastVols := []string{}
+	updateMountsFunc := func() error {
+		// get all volumes
+		volEntries, err := os.ReadDir(dockerVolDir)
+		if err != nil {
+			return err
+		}
+		vols := filterMapSlice(volEntries, func(entry fs.DirEntry) (string, bool) {
+			if entry.IsDir() {
+				// make sure it has _data
+				_, err := os.Stat(dockerVolDir + "/" + entry.Name() + "/_data")
+				if err != nil {
+					return "", false
+				}
+
+				return entry.Name(), true
+			} else {
+				return "", false
+			}
+		})
+
+		added, removed := diffSlices(lastVols, vols)
+		lastVols = vols
+
+		// add new volumes
+		for _, vol := range added {
+			dataSrc := dockerVolDir + "/" + vol + "/_data"
+			nfsSubDst := "docker/volumes/" + vol
+			err := mountOneNfs(dataSrc, nfsSubDst)
+			if err != nil {
+				return err
+			}
+		}
+
+		// remove old volumes
+		for _, vol := range removed {
+			nfsSubDst := "docker/volumes/" + vol
+			err := unmountOneNfs(nfsSubDst)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+	debounce := syncx.NewFuncDebounce(dockerNfsDebounce, func() {
+		err := updateMountsFunc()
+		if err != nil {
+			logrus.WithError(err).Error("failed to update docker volume mounts")
+		}
+	})
+	debounce.Call()
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+	defer watcher.Close()
+
+	err = watcher.Add(dockerVolDir)
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events:
+			if event.Op&fsnotify.Create != 0 {
+				debounce.Call()
+			} else if event.Op&fsnotify.Remove != 0 {
+				debounce.Call()
+			}
+		case err := <-watcher.Errors:
+			logrus.WithError(err).Error("docker volume watcher error")
+		}
+	}
 }
