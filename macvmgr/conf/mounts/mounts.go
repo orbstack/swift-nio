@@ -4,8 +4,8 @@ import "github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 
 var (
 	// linked paths don't need translation
-	// excluded: /cores
-	LinkedPaths = [...]string{"/Applications", "/Library", "/System", "/Users", "/Volumes", "/opt/homebrew", "/private"}
+	// excluded: /cores /opt/homebrew
+	LinkedPaths = [...]string{"/Applications", "/Library", "/System", "/Users", "/Volumes", "/private"}
 )
 
 const (

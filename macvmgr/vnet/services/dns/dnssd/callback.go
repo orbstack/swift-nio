@@ -40,7 +40,6 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 	}
 
 	if errorCode != 0 {
-		logrus.Debugf("dnssd error %d", errorCode)
 		query.err = mapError(int(errorCode))
 		query.done = true
 		C.DNSServiceRefDeallocate(query.ref)
