@@ -171,8 +171,8 @@ func (c *Container) initLxc() error {
 		 */
 		set("lxc.pty.max", "1024")
 		set("lxc.tty.max", "0")
+		// limiting caps breaks privileged nested docker containers
 		//set("lxc.cap.drop", "sys_time sys_module sys_rawio mac_admin mac_override")
-		set("lxc.cap.drop", "sys_time")
 		set("lxc.autodev", "1") // populate /dev
 
 		// console
