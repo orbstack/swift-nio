@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -40,6 +41,7 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 		backingPath := nfsRootRW + "/" + c.Name
 		mountPath := nfsRootRO + "/" + c.Name
 
+		logrus.WithField("path", mountPath).Debug("creating nfs mount")
 		err := os.Mkdir(backingPath, 0755)
 		if err != nil && !errors.Is(err, os.ErrExist) {
 			return err
@@ -84,6 +86,7 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 		backingPath := nfsRootRW + "/" + c.Name
 		mountPath := nfsRootRO + "/" + c.Name
 
+		logrus.WithField("path", mountPath).Debug("removing nfs mount")
 		// unmount
 		err := unix.Unmount(mountPath, unix.MNT_DETACH)
 		if err != nil {
