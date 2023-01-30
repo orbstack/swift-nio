@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package scon;
+option go_package = "github.com/kdrag0n/macvirt/scon/sconrpc";
+
+message ImageSpec {
+    string distro = 1;
+    string version = 2;
+    string arch = 3;
+    string variant = 4;
+}
+
+message Container {
+    string id = 1;
+    string name = 2;
+    ImageSpec image = 3;
+}
+
+message CreateRequest {
+    string name = 1;
+    ImageSpec image = 2;
+    optional string user_password = 3;
+}
+
+message CreateResponse {
+    Container container = 1;
+}
+
+message ListContainersRequest {
+}
+
+message ListContainersResponse {
+    repeated Container containers = 1;
+}
+
+message GetByIDRequest {
+    string id = 1;
+}
+
+message GetByIDResponse {
+    Container container = 1;
+}
+
+message GetByNameRequest {
+    string name = 1;
+}
+
+message GetByNameResponse {
+    Container container = 1;
+}
+
+/* Containers */
+message ContainerStartRequest {
+    Container container = 1;
+}
+
+message ContainerStartResponse {
+}
+
+message ContainerStopRequest {
+    Container container = 1;
+}
+
+message ContainerStopResponse {
+}
+
+message ContainerDeleteRequest {
+    Container container = 1;
+}
+
+message ContainerDeleteResponse {
+}
+
+message ContainerFreezeRequest {
+    Container container = 1;
+}
+
+message ContainerFreezeResponse {
+}
+
+message ContainerUnfreezeRequest {
+    Container container = 1;
+}
+
+message ContainerUnfreezeResponse {
+}
+
+message ContainerIsRunningRequest {
+    Container container = 1;
+}
+
+message ContainerIsRunningResponse {
+    bool running = 1;
+}
+
+service Service {
+    rpc Create(CreateRequest) returns (CreateResponse);
+    rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
+    rpc GetByID(GetByIDRequest) returns (GetByIDResponse);
+    rpc GetByName(GetByNameRequest) returns (GetByNameResponse);
+
+    rpc ContainerStart(ContainerStartRequest) returns (ContainerStartResponse);
+    rpc ContainerStop(ContainerStopRequest) returns (ContainerStopResponse);
+    rpc ContainerDelete(ContainerDeleteRequest) returns (ContainerDeleteResponse);
+    rpc ContainerFreeze(ContainerFreezeRequest) returns (ContainerFreezeResponse);
+    rpc ContainerUnfreeze(ContainerUnfreezeRequest) returns (ContainerUnfreezeResponse);
+    rpc ContainerIsRunning(ContainerIsRunningRequest) returns (ContainerIsRunningResponse);
+}

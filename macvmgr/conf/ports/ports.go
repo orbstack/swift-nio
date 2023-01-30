@@ -8,6 +8,7 @@ const (
 
 	// guest
 	GuestDebugSSH = 22 // debug
+	GuestScon     = 8000
 	GuestSconSSH  = 2222
 	GuestVcontrol = 103
 	GuestNFS      = 2049
