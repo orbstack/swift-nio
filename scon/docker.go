@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 const (
 	// takes ~3 ms to unfreeze
 	dockerFreezeDelay = 2 * time.Second
+	dockerStartPoll   = 500 * time.Millisecond
 )
 
 var (
@@ -105,12 +107,45 @@ func (m *ConManager) runDockerProxy() error {
 	})
 	m.dockerProxy = proxy
 
-	// trigger an initial freeze
-	// assume that Docker has started by the time debounce is over
-	// if not, it can finish starting next time
-	proxy.freezeDebounce.Call()
+	// trigger an initial freeze once docker starts
+	go func() {
+		logrus.Debug("waiting for docker start")
+		err := proxy.waitForStart()
+		if err != nil {
+			logrus.WithError(err).Error("failed to wait for docker start")
+			return
+		}
+
+		logrus.Debug("docker started, freezing")
+		proxy.freezeDebounce.Call()
+	}()
 
 	return proxy.Run()
+}
+
+func (p *DockerProxy) waitForStart() error {
+	// wait for docker to start if container is running
+	if !p.container.Running() {
+		return nil
+	}
+
+	for {
+		p.mu.Lock()
+		frozen := p.container.IsFrozen()
+		p.mu.Unlock()
+
+		if frozen {
+			return nil
+		}
+
+		// check
+		_, err := p.container.Agent().CheckDockerIdle()
+		if err == nil {
+			return nil
+		}
+
+		time.Sleep(dockerStartPoll)
+	}
 }
 
 func (p *DockerProxy) tryFreeze() error {
@@ -205,7 +240,7 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 	// tell agent to handle this conn
 	p.mu.Unlock()
 	err = p.container.Agent().HandleDockerConn(conn)
-	if err != nil {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return err
 	}
 	// after the RPC call returns, we know the conn is closed

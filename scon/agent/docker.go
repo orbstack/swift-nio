@@ -6,7 +6,6 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
-	"github.com/sirupsen/logrus"
 )
 
 func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
@@ -16,7 +15,6 @@ func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
 		return err
 	}
 
-	logrus.WithField("containers", containers).Trace("current docker containers")
 	*reply = len(containers) == 0
 	return nil
 }

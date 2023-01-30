@@ -187,10 +187,8 @@ func fetchStreamsImages() (map[ImageSpec]RawImage, error) {
 			img.RootfsURL = RepoLxd + "/" + item.Path
 			img.RootfsSha256 = item.Sha256
 			img.Size = item.Size
-		}
-
-		// otherwise, take tar.xz
-		if item, ok := findItem(items, "root.tar.xz"); ok {
+		} else if item, ok := findItem(items, "root.tar.xz"); ok {
+			// otherwise, take tar.xz
 			img.RootfsFormat = ImageFormatTarXz
 			img.RootfsURL = RepoLxd + "/" + item.Path
 			img.RootfsSha256 = item.Sha256
@@ -275,6 +273,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
 	defer cancel()
 
+	logrus.WithField("url", url).Debug("downloading file")
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
