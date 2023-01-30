@@ -28,6 +28,7 @@ type ConManager struct {
 	containersMu     sync.RWMutex
 	seccompCookies   map[uint64]*Container
 	stopping         bool
+	dockerProxy      *DockerProxy
 
 	// services
 	db   *Database
@@ -134,6 +135,14 @@ func (m *ConManager) Start() error {
 		return err
 	}
 
+	// Docker proxy
+	go func() {
+		err := m.runDockerProxy()
+		if err != nil {
+			logrus.WithError(err).Error("failed to start Docker proxy")
+		}
+	}()
+
 	// clean up leftover logs and rootfs
 	go func() {
 		err := m.cleanupCaches()
@@ -206,6 +215,10 @@ func (m *ConManager) Close() error {
 
 	m.stopping = true
 	m.stopAll()
+	if m.dockerProxy != nil {
+		m.dockerProxy.Close()
+		m.dockerProxy = nil
+	}
 
 	logrus.Debug("finish cleanup")
 	m.agentExe.Close()

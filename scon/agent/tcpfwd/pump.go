@@ -32,7 +32,7 @@ func pump1(errc chan<- error, src, dst FullDuplexConn) {
 	errc <- err
 }
 
-func pump2(c1, c2 FullDuplexConn) {
+func Pump2(c1, c2 FullDuplexConn) {
 	errChan := make(chan error, 2)
 	go pump1(errChan, c1, c2)
 	go pump1(errChan, c2, c1)

@@ -196,10 +196,10 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 			err = container.Start()
 			return
 		case "freeze":
-			err = container.lxc.Freeze()
+			err = container.Freeze()
 			return
 		case "unfreeze":
-			err = container.lxc.Unfreeze()
+			err = container.Unfreeze()
 			return
 		}
 	}

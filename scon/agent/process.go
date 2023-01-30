@@ -42,7 +42,6 @@ type ResolveSSHDirArgs struct {
 }
 
 func (a *AgentServer) ResolveSSHDir(args ResolveSSHDirArgs, reply *string) (err error) {
-	fmt.Println("resolve ssh dir", args)
 	cwd := args.Dir
 	if cwd == "" {
 		u, err := user.Lookup(args.User)
@@ -58,7 +57,6 @@ func (a *AgentServer) ResolveSSHDir(args ResolveSSHDirArgs, reply *string) (err 
 		cwd = "/"
 	}
 
-	fmt.Println("resolved ssh dir", cwd)
 	*reply = cwd
 	return nil
 }

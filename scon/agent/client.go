@@ -177,3 +177,24 @@ func (c *Client) WaitPid(pid int) (int, error) {
 
 	return status, nil
 }
+
+func (c *Client) HandleDockerConn(conn net.Conn) error {
+	file, err := conn.(*net.TCPConn).File()
+	if err != nil {
+		return err
+	}
+
+	seq, err := c.fdx.SendFile(file)
+	file.Close()
+	if err != nil {
+		return err
+	}
+
+	var none None
+	err = c.rpc.Call("a.HandleDockerConn", seq, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

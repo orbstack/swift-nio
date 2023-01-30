@@ -145,6 +145,20 @@ func (a *AgentServer) StopProxyUDP(args ProxySpec, _ *None) error {
 	return nil
 }
 
+func (a *AgentServer) HandleDockerConn(fdxSeq uint64, _ *None) error {
+	// receive fd
+	fd, err := a.fdx.RecvFile(fdxSeq)
+	if err != nil {
+		return err
+	}
+
+	// close original fd
+	fd.Close()
+
+	// TODO handle docker connection
+	return nil
+}
+
 // TODO fix zeroing: https://source.chromium.org/chromium/chromium/src/+/main:content/common/set_process_title_linux.cc
 func setProcessCmdline(name string) error {
 	argv0str := (*reflect.StringHeader)(unsafe.Pointer(&os.Args[0]))
