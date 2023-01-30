@@ -81,8 +81,8 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 
 		nfsRootRO := conf.C().NfsRootRO
 		nfsRootRW := conf.C().NfsRootRW
-		backingPath := nfsRootRO + "/" + c.Name
-		mountPath := nfsRootRW + "/" + c.Name
+		backingPath := nfsRootRW + "/" + c.Name
+		mountPath := nfsRootRO + "/" + c.Name
 
 		// unmount
 		err := unix.Unmount(mountPath, unix.MNT_DETACH)
