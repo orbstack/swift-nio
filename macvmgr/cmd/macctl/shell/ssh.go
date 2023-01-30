@@ -55,12 +55,13 @@ func NfsDataRoot() string {
 		user = os.Getenv("USER")
 	}
 
+	// in scon, hostname = container name
 	hostname, err := os.Hostname()
 	if err != nil {
 		panic(err)
 	}
 
-	return "/Users/" + user + "/Linux/Containers/" + hostname
+	return "/Users/" + user + "/Linux/" + hostname
 }
 
 func TranslatePath(p string) string {
