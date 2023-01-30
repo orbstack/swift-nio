@@ -294,7 +294,7 @@ func ListenHostSSH(stack *stack.Stack, address tcpip.Address) error {
 
 	listener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
 		Addr: address,
-		Port: ports.ServiceHostSSH,
+		Port: ports.SecureSvcHostSSH,
 	}, ipv4.ProtocolNumber)
 	if err != nil {
 		return err

@@ -74,7 +74,7 @@ func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, er
 
 	listener, err := gonet.ListenTCP(n.Stack, tcpip.FullAddress{
 		Addr: address,
-		Port: ports.ServiceHcontrol,
+		Port: ports.SecureSvcHcontrol,
 	}, ipv4.ProtocolNumber)
 	if err != nil {
 		return nil, err

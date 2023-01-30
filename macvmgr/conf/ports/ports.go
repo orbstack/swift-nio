@@ -11,12 +11,15 @@ const (
 	GuestSconSSH  = 2222
 	GuestVcontrol = 103
 	GuestNFS      = 2049
-	GuestDocker   = 62375
+	// outside of ephemeral range
+	GuestDocker = 2375
 
 	// host services for guest
-	ServiceHostSSH  = 22 // danger
-	ServiceDNS      = 53
-	ServiceNTP      = 123
-	ServiceHcontrol = 8300 // danger
-	ServiceSFTP     = 22323
+	ServiceDNS  = 53
+	ServiceNTP  = 123
+	ServiceSFTP = 22323
+
+	// secure services for guest
+	SecureSvcHostSSH  = 22   // danger
+	SecureSvcHcontrol = 8300 // danger
 )
