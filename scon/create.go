@@ -12,13 +12,13 @@ import (
 )
 
 type ContainerRecord struct {
-	ID    string
-	Name  string
-	Image ImageSpec
+	ID    string    `json:"id"`
+	Name  string    `json:"name"`
+	Image ImageSpec `json:"image"`
 
-	Builtin  bool
-	Running  bool
-	Deleting bool
+	Builtin  bool `json:"builtin"`
+	Running  bool `json:"running"`
+	Deleting bool `json:"deleting"`
 }
 
 type CreateParams struct {

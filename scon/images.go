@@ -84,10 +84,10 @@ const (
 )
 
 type ImageSpec struct {
-	Distro  string
-	Version string
-	Arch    string
-	Variant string
+	Distro  string `json:"distro"`
+	Version string `json:"version"`
+	Arch    string `json:"arch"`
+	Variant string `json:"variant"`
 }
 
 type StreamsImage struct {

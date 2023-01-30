@@ -14,9 +14,9 @@ type SconServer struct {
 }
 
 type CreateRequest struct {
-	Name         string
-	Image        ImageSpec
-	UserPassword *string
+	Name         string    `json:"name"`
+	Image        ImageSpec `json:"image"`
+	UserPassword *string   `json:"user_password"`
 }
 
 func (s *SconServer) Create(req CreateRequest) (*ContainerRecord, error) {
