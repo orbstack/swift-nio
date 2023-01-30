@@ -6,7 +6,8 @@ echo nameserver 1.1.1.1 > /etc/resolv.conf
 # 1. basic
 # 2. disk
 # 3. scon deps
-apk add socat openrc bash libstdc++ dash chrony eudev \
+apk add --no-cache \
+    socat openrc bash libstdc++ dash chrony eudev \
     sfdisk xfsprogs xfsprogs-extra nfs-utils btrfs-progs \
     lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz
 

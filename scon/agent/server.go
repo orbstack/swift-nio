@@ -17,6 +17,8 @@ import (
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+
+	dclient "github.com/docker/docker/client"
 )
 
 const (
@@ -24,9 +26,10 @@ const (
 )
 
 type AgentServer struct {
-	fdx        *Fdx
-	tcpProxies map[ProxySpec]*tcpfwd.TCPProxy
-	udpProxies map[ProxySpec]*udpfwd.UDPProxy
+	fdx          *Fdx
+	tcpProxies   map[ProxySpec]*tcpfwd.TCPProxy
+	udpProxies   map[ProxySpec]*udpfwd.UDPProxy
+	dockerClient *dclient.Client
 }
 
 type ProxySpec struct {
@@ -145,20 +148,6 @@ func (a *AgentServer) StopProxyUDP(args ProxySpec, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) HandleDockerConn(fdxSeq uint64, _ *None) error {
-	// receive fd
-	fd, err := a.fdx.RecvFile(fdxSeq)
-	if err != nil {
-		return err
-	}
-
-	// close original fd
-	fd.Close()
-
-	// TODO handle docker connection
-	return nil
-}
-
 // TODO fix zeroing: https://source.chromium.org/chromium/chromium/src/+/main:content/common/set_process_title_linux.cc
 func setProcessCmdline(name string) error {
 	argv0str := (*reflect.StringHeader)(unsafe.Pointer(&os.Args[0]))
@@ -225,11 +214,26 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		})
 	}
 
+	// make docker client if we're the docker container
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+	var dockerClient *dclient.Client
+	if hostname == "docker" {
+		// use default unix socket
+		dockerClient, err = dclient.NewClientWithOpts()
+		if err != nil {
+			return err
+		}
+	}
+
 	fdx := NewFdx(fdxConn)
 	server := &AgentServer{
-		fdx:        fdx,
-		tcpProxies: make(map[ProxySpec]*tcpfwd.TCPProxy),
-		udpProxies: make(map[ProxySpec]*udpfwd.UDPProxy),
+		fdx:          fdx,
+		tcpProxies:   make(map[ProxySpec]*tcpfwd.TCPProxy),
+		udpProxies:   make(map[ProxySpec]*udpfwd.UDPProxy),
+		dockerClient: dockerClient,
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("a", server)

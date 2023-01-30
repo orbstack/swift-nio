@@ -81,8 +81,6 @@ mount --bind /data /Linux/data
 # lock
 mount -o remount,ro /Linux
 rc-service nfs start
-# not needed
-killall rpc.statd rpc.mountd rpcbind sm-notify
 # vsock
 /opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist
 

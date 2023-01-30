@@ -1,5 +1,14 @@
 package main
 
+import "github.com/lxc/go-lxc"
+
+func (c *Container) IsFrozen() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.lxc.State() == lxc.FROZEN
+}
+
 func (c *Container) Freeze() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

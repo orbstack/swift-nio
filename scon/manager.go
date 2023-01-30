@@ -215,10 +215,6 @@ func (m *ConManager) Close() error {
 
 	m.stopping = true
 	m.stopAll()
-	if m.dockerProxy != nil {
-		m.dockerProxy.Close()
-		m.dockerProxy = nil
-	}
 
 	logrus.Debug("finish cleanup")
 	m.agentExe.Close()

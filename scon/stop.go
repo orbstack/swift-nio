@@ -30,6 +30,12 @@ func (c *Container) Stop() error {
 
 	logrus.WithField("container", c.Name).Info("stopping container")
 
+	// must unfreeze so agent responds
+	err := c.lxc.Unfreeze()
+	if err != nil && err != lxc.ErrNotFrozen {
+		return err
+	}
+
 	// stop forwards
 	for _, listener := range c.lastListeners {
 		c.manager.removeForward(c, listener)
@@ -41,7 +47,7 @@ func (c *Container) Stop() error {
 	if conf.Debug() {
 		timeout = gracefulShutdownTimeoutDebug
 	}
-	err := c.lxc.Shutdown(timeout)
+	err = c.lxc.Shutdown(timeout)
 	if err != nil {
 		logrus.Warn("graceful shutdown failed: ", err)
 	}

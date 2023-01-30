@@ -7,9 +7,9 @@ import (
 )
 
 type Client struct {
-	process *os.Process
-	rpc     *rpc.Client
-	fdx     *Fdx
+	process      *os.Process
+	rpc          *rpc.Client
+	fdx          *Fdx
 }
 
 func NewClient(process *os.Process, rpcConn net.Conn, fdxConn net.Conn) *Client {
@@ -197,4 +197,14 @@ func (c *Client) HandleDockerConn(conn net.Conn) error {
 	}
 
 	return nil
+}
+
+func (c *Client) CheckDockerIdle() (bool, error) {
+	var idle bool
+	err := c.rpc.Call("a.CheckDockerIdle", None{}, &idle)
+	if err != nil {
+		return false, err
+	}
+
+	return idle, nil
 }
