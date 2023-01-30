@@ -10,10 +10,14 @@ message ImageSpec {
     string variant = 4;
 }
 
-message Container {
+message ContainerRecord {
     string id = 1;
     string name = 2;
     ImageSpec image = 3;
+
+    bool builtin = 4;
+    bool running = 5;
+    bool deleting = 6;
 }
 
 message CreateRequest {
@@ -23,14 +27,14 @@ message CreateRequest {
 }
 
 message CreateResponse {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 message ListContainersRequest {
 }
 
 message ListContainersResponse {
-    repeated Container containers = 1;
+    repeated ContainerRecord containers = 1;
 }
 
 message GetByIDRequest {
@@ -38,7 +42,7 @@ message GetByIDRequest {
 }
 
 message GetByIDResponse {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 message GetByNameRequest {
@@ -46,47 +50,47 @@ message GetByNameRequest {
 }
 
 message GetByNameResponse {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 /* Containers */
 message ContainerStartRequest {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 message ContainerStartResponse {
 }
 
 message ContainerStopRequest {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 message ContainerStopResponse {
 }
 
 message ContainerDeleteRequest {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 message ContainerDeleteResponse {
 }
 
 message ContainerFreezeRequest {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 message ContainerFreezeResponse {
 }
 
 message ContainerUnfreezeRequest {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 message ContainerUnfreezeResponse {
 }
 
 message ContainerIsRunningRequest {
-    Container container = 1;
+    ContainerRecord container = 1;
 }
 
 message ContainerIsRunningResponse {

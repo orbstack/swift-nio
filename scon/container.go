@@ -67,19 +67,24 @@ func (c *Container) Running() bool {
 	return c.lxc.Running()
 }
 
+func (c *Container) toRecord() *ContainerRecord {
+	return &ContainerRecord{
+		ID:    c.ID,
+		Name:  c.Name,
+		Image: c.Image,
+
+		Builtin:  c.builtin,
+		Running:  c.Running(),
+		Deleting: c.deleting,
+	}
+}
+
 func (c *Container) persist() error {
 	if c.builtin {
 		return nil
 	}
 
-	record := &ContainerRecord{
-		ID:    c.ID,
-		Name:  c.Name,
-		Image: c.Image,
-
-		Running:  c.Running(),
-		Deleting: c.deleting,
-	}
+	record := c.toRecord()
 	logrus.WithField("record", record).Debug("persisting container")
 	return c.manager.db.SetContainer(c.ID, record)
 }
