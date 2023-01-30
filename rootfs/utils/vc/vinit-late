@@ -75,11 +75,13 @@ sync -f /data
 mount -t tmpfs tmpfs -o noatime /nfsroot-rw
 # try to reduce nfs cpu usage
 touch /nfsroot-rw/.metadata_never_index /nfsroot-rw/.metadata-never-index /nfsroot-rw/.metadata_never_index_unless_rootfs
-#TODO debug onlu
-mkdir /nfsroot-rw/data
 # bind ro
 mount --bind -o ro /nfsroot-rw /nfsroot-ro
-mount --bind /data /nfsroot-ro/data
+# debug only
+if [[ -f /opt/macvirt/is_debug ]]; then
+  mkdir /nfsroot-rw/data
+  mount --bind /data /nfsroot-ro/data
+fi
 rc-service nfs start
 # vsock
 /opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist

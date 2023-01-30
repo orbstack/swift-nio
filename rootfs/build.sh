@@ -107,6 +107,8 @@ fi
 
 # TODO generate
 if ! $IS_RELEASE; then
+    touch $OPT/is_debug
+
     cp ../config/ssh_host_keys/* etc/ssh/
     chmod -R 0600 etc/ssh/*key*
 fi
