@@ -41,6 +41,16 @@ func (c *Client) GetUser() (*user.User, error) {
 	return &u, nil
 }
 
+func (c *Client) GetSSHPublicKey() (string, error) {
+	var key string
+	err := c.rpc.Call("hc.GetSSHPublicKey", None{}, &key)
+	if err != nil {
+		return "", err
+	}
+
+	return key, nil
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }

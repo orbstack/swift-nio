@@ -19,7 +19,7 @@ type HcontrolServer struct {
 	activeHostsForwards map[string]struct{}
 }
 
-func (h *HcontrolServer) Ping(_ *None, _ *None) error {
+func (h *HcontrolServer) Ping(_ None, _ *None) error {
 	return nil
 }
 
@@ -41,7 +41,7 @@ func (h *HcontrolServer) StopForward(spec ForwardSpec, _ *None) error {
 	return nil
 }
 
-func (h *HcontrolServer) GetUser(_ *None, reply *user.User) error {
+func (h *HcontrolServer) GetUser(_ None, reply *user.User) error {
 	_, err := user.Current()
 	if err != nil {
 		return err
@@ -54,6 +54,11 @@ func (h *HcontrolServer) GetUser(_ *None, reply *user.User) error {
 		Name:     "Dragon",
 		HomeDir:  "/home/dragon",
 	}
+	return nil
+}
+
+func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
+	*reply = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ/wCg/nWi0s+OYvjdW6JdxYaXpoO/fZvzwu0RRszPir"
 	return nil
 }
 
