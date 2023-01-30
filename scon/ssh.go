@@ -185,11 +185,21 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 
 	// hack for debug testing
 	if conf.Debug() {
-		if user == "stop" {
+		switch user {
+		case "stop":
 			err = container.Stop()
 			return
-		} else if user == "delete" {
+		case "delete":
 			err = container.Delete()
+			return
+		case "start":
+			err = container.Start()
+			return
+		case "freeze":
+			err = container.lxc.Freeze()
+			return
+		case "unfreeze":
+			err = container.lxc.Unfreeze()
 			return
 		}
 	}

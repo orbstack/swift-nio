@@ -41,26 +41,10 @@ mount --rbind -o ro /opt/macvirt-guest /mnt/guest-tools
 # setup docker rootfs
 #
 
-mkdir /run/docker-rootfs
-mount --bind -o ro /opt/docker-rootfs /run/docker-rootfs
-mkdir -p /data/var/lib/docker
-
 pushd /opt/docker-rootfs
-
 # binds
-mount --bind /data/var/lib/docker var/lib/docker
-mount --bind /mnt/mac mnt/mac
-mount --rbind /mnt/guest-tools opt/macvirt-guest
-
-popd
-
-pushd /run/docker-rootfs
-
-# binds
-mount --bind /data/var/lib/docker var/lib/docker
-mount --bind /mnt/mac mnt/mac
-mount --rbind /mnt/guest-tools opt/macvirt-guest
-
+mkdir -p /data/docker
+mount --bind /data/docker var/lib/docker
 popd
 
 #
@@ -97,6 +81,8 @@ mount --bind /data /Linux/data
 # lock
 mount -o remount,ro /Linux
 rc-service nfs start
+# not needed
+killall rpc.statd rpc.mountd rpcbind sm-notify
 # vsock
 /opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist
 

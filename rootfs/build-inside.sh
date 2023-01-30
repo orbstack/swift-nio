@@ -3,17 +3,12 @@ set -eo pipefail
 #IS_RELEASE=false
 
 echo nameserver 1.1.1.1 > /etc/resolv.conf
-## TODO keep btrfs?
-apk add socat openrc bash libstdc++ dash chrony sfdisk xfsprogs xfsprogs-extra eudev nfs-utils btrfs-progs tar squashfs-tools
-
-# new lxd 5.8 builds, patched to disable xfs quota
-# dqlite patched to stop 500 ms heartbeat (needs rebuild; libraft updated)
-# TODO (TEMP): use prebuilts for x86
-if [ "$(uname -m)" == "x86_64" ]; then
-    apk add lxd lxd-client lxd-openrc dqlite
-else
-    apk add dqlite /packages/lxd-5* /packages/lxd-client-5* /packages/lxd-openrc-5*
-fi
+# 1. basic
+# 2. disk
+# 3. scon deps
+apk add socat openrc bash libstdc++ dash chrony eudev \
+    sfdisk xfsprogs xfsprogs-extra nfs-utils btrfs-progs \
+    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz
 
 # only keep xfs_growfs from extra, remove python3
 cp -a /usr/sbin/xfs_growfs /usr/sbin/xfs_quota /
@@ -44,9 +39,9 @@ echo '::wait:/opt/vc/vinit-late' >> /etc/inittab
 # services
 rc-update add devfs
 rc-update add sysfs
+rc-update add cgroups default
 rc-update add networking default
 rc-update add udev default
-rc-update add lxd default
 rc-update add chronyd default
 touch /etc/network/interfaces
 
@@ -57,18 +52,10 @@ rm -f /bin/sh
 # dash is slightly faster
 ln -s /usr/bin/dash /bin/sh
 
-# lxd tuning
+# LXD / scon container tuning
+# must exist for liblxc startup
+mkdir -p /usr/lib/lxc/rootfs
 echo 'rc_cgroup_mode="unified"' >> /etc/rc.conf
-echo 'rc_need="localmount"' >> /etc/conf.d/lxd
-# systemd cgroup is no longer needed. mounting it causes lxc to not detect cgroup v2
-sed -i 's/systemd_ctr mount/:/' /etc/init.d/lxd
-sed -i 's/systemd_ctr unmount/:/' /etc/init.d/lxd
-echo '
-* soft nofile 1048576
-* hard nofile 1048576
-* soft memlock unlimited
-* hard memlock unlimited
-' >> /etc/security/limits.conf
 echo '
 #
 # Copyright 2022-2023 Danny Lin <danny@kdrag0n.dev>. All rights reserved.
@@ -182,9 +169,6 @@ done
 
 # prep for data volume
 mkdir /data
-mv /var /data
-ln -s /data/var /var
-
 mkdir -p /data/guest-state/bin/cmdlinks
 
 # mkdir /data/etc/ssh

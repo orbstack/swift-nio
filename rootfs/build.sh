@@ -69,17 +69,12 @@ tar -C rd/opt/docker-rootfs --numeric-owner -xf $rootfs_tar
 pushd rd
 cp ../build-inside.sh .
 cp ../build-inside-docker.sh opt/docker-rootfs/
-# for custom lxd builds
-cp ../packages/*.pub etc/apk/keys/
-cp -r ../packages .
-#arch-chroot . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh"
 systemd-nspawn --link-journal=no -D . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh" && \
     systemd-nspawn --link-journal=no -D opt/docker-rootfs /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside-docker.sh"
 
 
 rm build-inside.sh
 rm opt/docker-rootfs/build-inside-docker.sh
-rm -r packages
 
 # init and other scripts
 OPT=opt/vc
@@ -126,12 +121,5 @@ pushd out
 rm -fr data
 mkdir data
 mv rd/data/* data
-
-# lxd preseed (not for void)
-mkdir -p data/var/lib/lxd
-mkdir -p data/var/cache/lxd
-mkdir -p data/var/log/lxd
-cp -raf ../lxd-preseed/var/lib/lxd/. data/var/lib/lxd/
-chown -R root:root data/var/lib/lxd
 
 ../pack-disk.sh "$@"

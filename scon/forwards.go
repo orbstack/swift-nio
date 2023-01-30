@@ -268,7 +268,10 @@ func (c *Container) updateListenersDirect() error {
 		return err
 	}
 	listeners = filterListeners(listeners)
-	logrus.WithField("listeners", listeners).Debug("update listeners")
+	logrus.WithFields(logrus.Fields{
+		"container": c.Name,
+		"listeners": listeners,
+	}).Debug("update listeners")
 
 	c.mu.Lock()
 	defer c.mu.Unlock()

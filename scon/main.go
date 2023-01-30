@@ -51,13 +51,9 @@ func runContainerManager() {
 	// rand seed
 	rand.Seed(time.Now().UnixNano())
 
-	// data dir
-	cwd, err := os.Getwd()
-	check(err)
-
 	// connect to hcontrol (ownership taken by cmgr)
 	if conf.C().DummyHcontrol {
-		err = hclient.StartDummyServer()
+		err := hclient.StartDummyServer()
 		check(err)
 	}
 	logrus.Debug("connecting to hcontrol")
@@ -67,7 +63,7 @@ func runContainerManager() {
 	check(err)
 
 	// start container manager
-	mgr, err := NewConManager(cwd+"/data", hc)
+	mgr, err := NewConManager(conf.C().SconDataDir, hc)
 	check(err)
 	defer mgr.Close()
 	mgr.Start()

@@ -25,7 +25,7 @@ const (
 )
 
 // TODO lxc.hook.autodev or c.AddDeviceNode
-func addInitDevice(c *lxc.Container, src string) error {
+func addInitDevice(c *Container, src string) error {
 	// stat
 	var stat unix.Stat_t
 	err := unix.Stat(src, &stat)
@@ -43,13 +43,13 @@ func addInitDevice(c *lxc.Container, src string) error {
 	}
 
 	// add to cgroups
-	err = c.SetConfigItem("lxc.cgroup2.devices.allow", fmt.Sprintf("%s %d:%d rwm", dtype, unix.Major(stat.Rdev), unix.Minor(stat.Rdev)))
+	err = c.setLxcConfig("lxc.cgroup2.devices.allow", fmt.Sprintf("%s %d:%d rwm", dtype, unix.Major(stat.Rdev), unix.Minor(stat.Rdev)))
 	if err != nil {
 		return err
 	}
 
 	// add mount
-	err = c.SetConfigItem("lxc.mount.entry", fmt.Sprintf("%s %s none bind,create=file,optional 0 0", src, strings.TrimPrefix(src, "/")))
+	err = c.setLxcConfig("lxc.mount.entry", fmt.Sprintf("%s %s none bind,create=file,optional 0 0", src, strings.TrimPrefix(src, "/")))
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func addInitDevice(c *lxc.Container, src string) error {
 	return nil
 }
 
-func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
+func addInitBindMount(c *Container, src, dst, opts string) error {
 	extraOpts := ""
 	if opts != "" {
 		extraOpts = "," + opts
@@ -75,7 +75,7 @@ func addInitBindMount(c *lxc.Container, src, dst, opts string) error {
 		bindType = "rbind"
 	}
 
-	err = c.SetConfigItem("lxc.mount.entry", fmt.Sprintf("%s %s none %s,create=%s,optional%s 0 0", src, strings.TrimPrefix(dst, "/"), bindType, createType, extraOpts))
+	err = c.setLxcConfig("lxc.mount.entry", fmt.Sprintf("%s %s none %s,create=%s,optional%s 0 0", src, strings.TrimPrefix(dst, "/"), bindType, createType, extraOpts))
 	if err != nil {
 		return err
 	}
@@ -156,12 +156,12 @@ func (c *Container) initLxc() error {
 		}
 
 		addDev := func(node string) {
-			if err := addInitDevice(lc, node); err != nil {
+			if err := addInitDevice(c, node); err != nil {
 				panic(err)
 			}
 		}
 		bind := func(src, dst, opts string) {
-			if err := addInitBindMount(lc, src, dst, opts); err != nil {
+			if err := addInitBindMount(c, src, dst, opts); err != nil {
 				panic(err)
 			}
 		}
@@ -229,7 +229,7 @@ func (c *Container) initLxc() error {
 		}
 
 		/*
-		* custom
+		 * custom
 		 */
 		// seccomp
 		set("lxc.seccomp.allow_nesting", "1")

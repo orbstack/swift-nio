@@ -20,6 +20,7 @@ func init() {
 }
 
 type Config struct {
+	SconDataDir   string
 	GuestMountSrc string
 	HostMountSrc  string
 	FakeSrc       string
@@ -31,6 +32,7 @@ type Config struct {
 }
 
 var configVM = Config{
+	SconDataDir: "/data/scon",
 	// /mnt/guest-tools?
 	GuestMountSrc: "/opt/macvirt-guest",
 	HostMountSrc:  "/mnt/mac",
@@ -43,6 +45,7 @@ var configVM = Config{
 }
 
 var configTest = Config{
+	SconDataDir:   "/home/dragon/code/projects/macvirt/scdata",
 	GuestMountSrc: "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/macvirt-guest",
 	HostMountSrc:  "/ssdstore",
 	FakeSrc:       "/home/dragon/code/projects/macvirt/rootfs/out/rd/fake",
