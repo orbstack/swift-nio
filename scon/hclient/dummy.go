@@ -69,7 +69,7 @@ func StartDummyServer() error {
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)
 
-	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(ports.ServiceHcontrol))
+	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(ports.SecureSvcHcontrol))
 	if err != nil {
 		return err
 	}

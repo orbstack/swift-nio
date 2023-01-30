@@ -57,7 +57,7 @@ func runContainerManager() {
 		check(err)
 	}
 	logrus.Debug("connecting to hcontrol")
-	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.ServiceHcontrol))
+	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.SecureSvcHcontrol))
 	check(err)
 	hc, err := hclient.New(hcontrolConn)
 	check(err)
