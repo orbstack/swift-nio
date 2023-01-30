@@ -58,8 +58,14 @@ func (c *Container) Delete() error {
 	c.deleting = true
 	c.persist()
 
+	// unmount from nfs
+	err := c.manager.onPreDeleteContainer(c)
+	if err != nil {
+		logrus.WithError(err).WithField("container", c.Name).Error("container pre-delete hook failed")
+	}
+
 	// delete the entire directory
-	err := deleteRootfs(c.dir)
+	err = deleteRootfs(c.dir)
 	if err != nil {
 		return err
 	}

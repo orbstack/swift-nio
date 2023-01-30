@@ -29,6 +29,7 @@ type Config struct {
 	DNSServer     string
 	SSHListen     string
 	DockerRootfs  string
+	NfsRoot       string
 }
 
 var configVM = Config{
@@ -42,6 +43,7 @@ var configVM = Config{
 	DNSServer:     "172.30.30.200",
 	SSHListen:     "172.30.30.2:" + strconv.Itoa(ports.GuestSconSSH),
 	DockerRootfs:  "/opt/docker-rootfs",
+	NfsRoot:       "/data/nfsroot",
 }
 
 var configTest = Config{
@@ -53,7 +55,8 @@ var configTest = Config{
 	DummyHcontrol: true,
 	DNSServer:     "1.1.1.1",
 	SSHListen:     "127.0.0.1:2222",
-	DockerRootfs:  "/home/dragon/code/projects/macvirt/rootfs/out/rd",
+	DockerRootfs:  "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/docker-rootfs",
+	NfsRoot:       "/tmp/scon-nfs",
 }
 
 func VM() bool {

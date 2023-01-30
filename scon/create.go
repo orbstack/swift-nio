@@ -4,6 +4,7 @@ import (
 	"errors"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/oklog/ulid/v2"
@@ -48,6 +49,9 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	name := args.Name
 	image := args.Image
 	if name == "default" {
+		return nil, errors.New("invalid container name")
+	}
+	if strings.ContainsRune(name, '/') {
 		return nil, errors.New("invalid container name")
 	}
 	if _, ok := m.GetByName(name); ok {

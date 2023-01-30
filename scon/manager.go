@@ -38,6 +38,9 @@ type ConManager struct {
 	forwards   map[agent.ProcListener]ForwardState
 	forwardsMu sync.Mutex
 
+	// nfs
+	nfsMu sync.Mutex
+
 	// stop
 	stopChan chan struct{}
 
@@ -220,8 +223,7 @@ func (m *ConManager) Close() error {
 	m.agentExe.Close()
 	m.host.Close()
 	m.net.Close()
-	m.stopChan <- struct{}{}
-	close(m.stopChan)
+	close(m.stopChan)      // this acts as broadcast
 	os.RemoveAll(m.tmpDir) // seccomp and lxc
 	return nil
 }

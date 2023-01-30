@@ -318,6 +318,12 @@ func (m *ConManager) newContainer(record *ContainerRecord) (*Container, error) {
 		return nil, err
 	}
 
+	// ensure rootfs exists. we'll need it eventually: nfs, create, and start.
+	err = os.MkdirAll(c.rootfsDir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
 	c.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
 		err := c.updateListenersDirect()
 		if err != nil {
@@ -386,6 +392,13 @@ func (m *ConManager) restoreOne(record *ContainerRecord) (*Container, error) {
 			}
 		}()
 	}
+
+	go func() {
+		err := m.onRestoreContainer(c)
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("container restore hook failed")
+		}
+	}()
 
 	return c, nil
 }
