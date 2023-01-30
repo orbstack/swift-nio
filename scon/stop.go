@@ -92,6 +92,8 @@ func (c *Container) onStop() error {
 		c.agent.Set(nil)
 	}
 
+	c.state = ContainerStateStopped
+
 	// update & persist state IF manager isn't shutting down
 	if !c.manager.stopping {
 		err := c.persist()

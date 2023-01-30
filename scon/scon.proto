@@ -89,12 +89,11 @@ message ContainerUnfreezeRequest {
 message ContainerUnfreezeResponse {
 }
 
-message ContainerIsRunningRequest {
-    ContainerRecord container = 1;
+message InternalReportStoppedRequest {
+    string name = 1;
 }
 
-message ContainerIsRunningResponse {
-    bool running = 1;
+message InternalReportStoppedResponse {
 }
 
 service Service {
@@ -108,5 +107,6 @@ service Service {
     rpc ContainerDelete(ContainerDeleteRequest) returns (ContainerDeleteResponse);
     rpc ContainerFreeze(ContainerFreezeRequest) returns (ContainerFreezeResponse);
     rpc ContainerUnfreeze(ContainerUnfreezeRequest) returns (ContainerUnfreezeResponse);
-    rpc ContainerIsRunning(ContainerIsRunningRequest) returns (ContainerIsRunningResponse);
+
+    rpc InternalReportStopped(InternalReportStoppedRequest) returns (InternalReportStoppedResponse);
 }

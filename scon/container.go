@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"sync"
 	"syscall"
 	"time"
@@ -10,6 +11,13 @@ import (
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+)
+
+type ContainerState int
+
+const (
+	ContainerStateStopped ContainerState = iota
+	ContainerStateRunning
 )
 
 type ContainerHooks interface {
@@ -26,6 +34,7 @@ type Container struct {
 
 	builtin bool
 	// state
+	state    ContainerState
 	creating bool
 	deleting bool
 
@@ -42,6 +51,52 @@ type Container struct {
 	lastListeners     []agent.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
+}
+
+func (m *ConManager) newContainer(record *ContainerRecord) (*Container, error) {
+	id := record.ID
+	dir := m.subdir("containers", id)
+
+	c := &Container{
+		ID:      record.ID,
+		Name:    record.Name,
+		Image:   record.Image,
+		builtin: record.Builtin,
+		state:   ContainerStateStopped,
+		dir:     dir,
+		manager: m,
+		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
+	}
+
+	// special-case hooks for docker
+	if c.builtin && c.Image.Distro == ImageDocker {
+		c.hooks = &DockerHooks{}
+	}
+
+	// create lxc
+	// fills in c and seccomp cookie
+	err := c.initLxc()
+	if err != nil {
+		return nil, err
+	}
+
+	// ensure rootfs exists. we'll need it eventually: nfs, create, and start.
+	err = os.MkdirAll(c.rootfsDir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	c.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
+		err := c.updateListenersDirect()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
+		}
+	})
+	m.containersMu.Lock()
+	m.seccompCookies[c.seccompCookie] = c
+	m.containersMu.Unlock()
+
+	return c, nil
 }
 
 func (c *Container) Agent() *agent.Client {
@@ -87,4 +142,27 @@ func (c *Container) persist() error {
 	record := c.toRecord()
 	logrus.WithField("record", record).Debug("persisting container")
 	return c.manager.db.SetContainer(c.ID, record)
+}
+
+func (c *Container) refreshState() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	stateRunning := c.state == ContainerStateRunning
+	lxcRunning := c.Running()
+	if lxcRunning != stateRunning {
+		if lxcRunning {
+			err := c.onStart()
+			if err != nil {
+				return err
+			}
+		} else {
+			err := c.onStop()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

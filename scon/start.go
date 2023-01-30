@@ -14,7 +14,6 @@ import (
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
-	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -292,51 +291,6 @@ func (c *Container) logPath() string {
 	return c.manager.subdir("logs") + "/" + c.ID + ".log"
 }
 
-func (m *ConManager) newContainer(record *ContainerRecord) (*Container, error) {
-	id := record.ID
-	dir := m.subdir("containers", id)
-
-	c := &Container{
-		ID:      record.ID,
-		Name:    record.Name,
-		Image:   record.Image,
-		builtin: record.Builtin,
-		dir:     dir,
-		manager: m,
-		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
-	}
-
-	// special-case hooks for docker
-	if c.builtin && c.Image.Distro == ImageDocker {
-		c.hooks = &DockerHooks{}
-	}
-
-	// create lxc
-	// fills in c and seccomp cookie
-	err := c.initLxc()
-	if err != nil {
-		return nil, err
-	}
-
-	// ensure rootfs exists. we'll need it eventually: nfs, create, and start.
-	err = os.MkdirAll(c.rootfsDir, 0755)
-	if err != nil {
-		return nil, err
-	}
-
-	c.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
-		err := c.updateListenersDirect()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
-		}
-	})
-	m.containersMu.Lock()
-	m.seccompCookies[c.seccompCookie] = c
-	m.containersMu.Unlock()
-
-	return c, nil
-}
-
 func (m *ConManager) restoreContainers() error {
 	records, err := m.db.GetContainers()
 	if err != nil {
@@ -506,6 +460,8 @@ func (c *Container) Start() error {
 }
 
 func (c *Container) onStart() error {
+	c.state = ContainerStateRunning
+
 	// update & persist state
 	err := c.persist()
 	if err != nil {

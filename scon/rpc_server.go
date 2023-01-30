@@ -107,13 +107,13 @@ func (s *SconServer) ContainerUnfreeze(record ContainerRecord) error {
 	return c.Unfreeze()
 }
 
-func (s *SconServer) ContainerIsRunning(record ContainerRecord) (bool, error) {
-	c, ok := s.m.GetByID(record.ID)
+func (s *SconServer) InternalReportStopped(name string) error {
+	c, ok := s.m.GetByName(name)
 	if !ok {
-		return false, errors.New("container not found")
+		return errors.New("container not found")
 	}
 
-	return c.Running(), nil
+	return c.refreshState()
 }
 
 func (s *SconServer) Serve() error {
