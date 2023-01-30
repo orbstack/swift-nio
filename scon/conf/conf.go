@@ -43,7 +43,7 @@ var configVM = Config{
 	DNSServer:     "172.30.30.200",
 	SSHListen:     "172.30.30.2:" + strconv.Itoa(ports.GuestSconSSH),
 	DockerRootfs:  "/opt/docker-rootfs",
-	NfsRoot:       "/data/nfsroot",
+	NfsRoot:       "/Linux",
 }
 
 var configTest = Config{
