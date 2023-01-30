@@ -4,8 +4,36 @@ import (
 	"errors"
 	"os"
 
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
+
+func deleteRootfs(rootfs string) error {
+	logrus.WithField("rootfs", rootfs).Debug("deleting rootfs")
+
+	// delete the entire directory
+	err := os.RemoveAll(rootfs)
+	if err != nil {
+		if errors.Is(err, unix.EPERM) {
+			// remove immutable and append-only flags
+			err = util.Run("chattr", "-R", "-ai", rootfs)
+			if err != nil {
+				return err
+			}
+
+			// try again
+			err = os.RemoveAll(rootfs)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	return nil
+}
 
 func (c *Container) Delete() error {
 	c.mu.Lock()
@@ -31,7 +59,7 @@ func (c *Container) Delete() error {
 	c.persist()
 
 	// delete the entire directory
-	err := os.RemoveAll(c.dir)
+	err := deleteRootfs(c.dir)
 	if err != nil {
 		return err
 	}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -21,32 +22,11 @@ var (
 )
 
 type InitialSetupArgs struct {
-	Username string
-	Uid      int
-	Password string
-	Distro   string
-}
-
-func run(combinedArgs ...string) error {
-	logrus.Debugf("run: %v", combinedArgs)
-	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%w; output: %s", err, string(output))
-	}
-
-	return nil
-}
-
-func runWithInput(input string, combinedArgs ...string) error {
-	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
-	cmd.Stdin = strings.NewReader(input)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%w; output: %s", err, string(output))
-	}
-
-	return nil
+	Username          string
+	Uid               int
+	Password          string
+	Distro            string
+	SSHAuthorizedKeys []string
 }
 
 func selectShell() (string, error) {
@@ -150,7 +130,7 @@ func deleteDefaultUsers() error {
 
 		logrus.WithField("user", username).Debug("Deleting default user")
 		// Only on GNU distros, so we have userdel
-		err := run("userdel", "-r", username)
+		err := util.Run("userdel", "-r", username)
 		if err != nil {
 			return err
 		}
@@ -175,11 +155,11 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// create user
 	// uid = host, gid = 1000+
 	logrus.WithField("user", args.Username).WithField("uid", args.Uid).Debug("Creating user")
-	err = run("useradd", "-u", strconv.Itoa(args.Uid), "-m", "-s", shell, args.Username)
+	err = util.Run("useradd", "-u", strconv.Itoa(args.Uid), "-m", "-s", shell, args.Username)
 	if err != nil {
 		// Busybox: add user + user group
 		if errors.Is(err, exec.ErrNotFound) {
-			err = run("adduser", "-u", strconv.Itoa(args.Uid), "-D", "-s", shell, args.Username)
+			err = util.Run("adduser", "-u", strconv.Itoa(args.Uid), "-D", "-s", shell, args.Username)
 			if err != nil {
 				return err
 			}
@@ -192,7 +172,21 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	if args.Password != "" {
 		logrus.Debug("Setting password")
 		pwdEntry := args.Username + ":" + args.Password
-		err = runWithInput(pwdEntry, "chpasswd")
+		err = util.RunWithInput(pwdEntry, "chpasswd")
+		if err != nil {
+			return err
+		}
+	}
+
+	// write ssh authorized keys
+	if len(args.SSHAuthorizedKeys) > 0 {
+		logrus.Debug("Writing ssh authorized keys")
+		home := "/home/" + args.Username
+		err = os.MkdirAll(home+"/.ssh", 0700)
+		if err != nil {
+			return err
+		}
+		err = os.WriteFile(home+"/.ssh/authorized_keys", []byte(strings.Join(args.SSHAuthorizedKeys, "\n")), 0600)
 		if err != nil {
 			return err
 		}
@@ -233,7 +227,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// Alpine: install sudo - we have no root password
 	if args.Distro == "alpine" {
 		logrus.Debug("Installing sudo")
-		err = run("apk", "add", "sudo")
+		err = util.Run("apk", "add", "sudo")
 		if err != nil {
 			return err
 		}

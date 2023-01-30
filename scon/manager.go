@@ -174,7 +174,10 @@ func (m *ConManager) cleanupCaches() error {
 		parts := strings.Split(f.Name(), ".")
 		id := parts[0]
 		if _, ok := m.containersByID[id]; !ok {
-			os.Remove(path.Join(logDir, f.Name()))
+			err = os.Remove(path.Join(logDir, f.Name()))
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -186,7 +189,10 @@ func (m *ConManager) cleanupCaches() error {
 	}
 	for _, f := range files {
 		if _, ok := m.containersByID[f.Name()]; !ok {
-			os.RemoveAll(path.Join(containersDir, f.Name()))
+			err = deleteRootfs(path.Join(containersDir, f.Name()))
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -207,7 +213,7 @@ func (m *ConManager) Close() error {
 	m.net.Close()
 	m.stopChan <- struct{}{}
 	close(m.stopChan)
-	os.RemoveAll(m.tmpDir) // seecomp and lxc
+	os.RemoveAll(m.tmpDir) // seccomp and lxc
 	return nil
 }
 

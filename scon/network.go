@@ -33,6 +33,9 @@ const (
 	txQueueLen = 5000
 
 	dhcpLeaseTime4 = "48h"
+	// leave room for static assignments like docker
+	dhcpLeaseStart = 10
+	dhcpLeaseEnd   = 254
 	raInterval     = 2 * time.Hour
 	raLifetime     = 30 * 24 * time.Hour
 )
@@ -101,7 +104,7 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 		"--dhcp-authoritative",
 		"--dhcp-no-override",
 		"--dhcp-leasefile=" + path.Join(n.dataDir, "dnsmasq.leases"),
-		fmt.Sprintf("--dhcp-range=%s.2,%s.254,%s", subnet4, subnet4, dhcpLeaseTime4),
+		fmt.Sprintf("--dhcp-range=%s.%d,%s.%d,%s", subnet4, dhcpLeaseStart, subnet4, dhcpLeaseEnd, dhcpLeaseTime4),
 		"--dhcp-option=option:dns-server," + conf.C().DNSServer, // DNS
 		"--dhcp-option-force=26," + strconv.Itoa(n.mtu),         // MTU
 
