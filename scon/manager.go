@@ -162,7 +162,7 @@ func (m *ConManager) Start() error {
 		}
 	}()
 	go func() {
-		err := m.ListenSSH(conf.C().SSHListen)
+		err := m.listenSSH(conf.C().SSHListen)
 		if err != nil {
 			logrus.WithError(err).Error("failed to start SSH server")
 		}
@@ -302,7 +302,7 @@ func (m *ConManager) removeContainer(c *Container) error {
 	return nil
 }
 
-func (m *ConManager) DefaultUser() (string, error) {
+func (m *ConManager) defaultUser() (string, error) {
 	hostUser, err := m.host.GetUser()
 	if err != nil {
 		return "", err

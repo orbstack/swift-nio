@@ -23,7 +23,6 @@ type ContainerRecord struct {
 
 type CreateParams struct {
 	Name  string
-	User  string
 	Image ImageSpec
 
 	UserPassword string

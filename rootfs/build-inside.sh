@@ -141,12 +141,12 @@ echo nameserver 172.30.30.200 > /etc/resolv.conf
 rm -f /etc/motd
 
 # NFS
-echo '/Linux 127.0.0.8/32(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)' > /etc/exports
+echo '/nfsroot-ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)' > /etc/exports
 # 32 threads for perf
 echo 'OPTS_RPC_NFSD="32"' >> /etc/conf.d/nfs
 # fix fd hang
 echo 'OPTS_NFSD="nfsv4leasetime=30 nfsv4gracetime=1"' >> /etc/conf.d/nfs
-mkdir /Linux
+mkdir /nfsroot-ro /nfsroot-rw
 
 # hostname
 echo vchost > /etc/hostname

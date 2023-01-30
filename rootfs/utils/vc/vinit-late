@@ -72,14 +72,14 @@ touch /tmp/flags/data_resized
 sync -f /data
 
 # late nfs start because we need bind mount
-mount -t tmpfs tmpfs -o noatime /Linux
+mount -t tmpfs tmpfs -o noatime /nfsroot-rw
 # try to reduce nfs cpu usage
-touch /Linux/.metadata_never_index /Linux/.metadata-never-index /Linux/.metadata_never_index_unless_rootfs
+touch /nfsroot-rw/.metadata_never_index /nfsroot-rw/.metadata-never-index /nfsroot-rw/.metadata_never_index_unless_rootfs
 #TODO debug onlu
-mkdir /Linux/data
-mount --bind /data /Linux/data
-# lock
-mount -o remount,ro /Linux
+mkdir /nfsroot-rw/data
+# bind ro
+mount --bind -o ro /nfsroot-rw /nfsroot-ro
+mount --bind /data /nfsroot-ro/data
 rc-service nfs start
 # vsock
 /opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist

@@ -153,7 +153,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 		containerName = userParts[1]
 	} else {
 		// default user = host user
-		user, err = m.DefaultUser()
+		user, err = m.defaultUser()
 		if err != nil {
 			return
 		}
@@ -418,7 +418,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	return
 }
 
-func (m *ConManager) ListenSSH(address string) error {
+func (m *ConManager) listenSSH(address string) error {
 	handler := func(s ssh.Session) {
 		defer s.Close()
 

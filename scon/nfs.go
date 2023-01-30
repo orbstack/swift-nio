@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"os"
-	"path"
 	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/conf"
@@ -36,28 +35,31 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 		m.nfsMu.Lock()
 		defer m.nfsMu.Unlock()
 
-		nfsRoot := conf.C().NfsRoot
-		path := path.Join(nfsRoot, c.Name)
-		err := os.Mkdir(path, 0755)
+		nfsRootRO := conf.C().NfsRootRO
+		nfsRootRW := conf.C().NfsRootRW
+		backingPath := nfsRootRW + "/" + c.Name
+		mountPath := nfsRootRO + "/" + c.Name
+
+		err := os.Mkdir(backingPath, 0755)
 		if err != nil && !errors.Is(err, os.ErrExist) {
 			return err
 		}
 
 		// is it already mounted?
-		isMounted, err := isMountpoint(path)
+		isMounted, err := isMountpoint(mountPath)
 		if err != nil {
 			return err
 		}
 		if isMounted {
 			// unmount first
-			err = unix.Unmount(path, unix.MNT_DETACH)
+			err = unix.Unmount(mountPath, unix.MNT_DETACH)
 			if err != nil {
 				return err
 			}
 		}
 
 		// bind mount
-		err = unix.Mount(c.rootfsDir, path, "", unix.MS_BIND, "")
+		err = unix.Mount(c.rootfsDir, mountPath, "", unix.MS_BIND, "")
 		if err != nil {
 			return err
 		}
@@ -77,17 +79,19 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 		m.nfsMu.Lock()
 		defer m.nfsMu.Unlock()
 
-		nfsRoot := conf.C().NfsRoot
-		path := path.Join(nfsRoot, c.Name)
+		nfsRootRO := conf.C().NfsRootRO
+		nfsRootRW := conf.C().NfsRootRW
+		backingPath := nfsRootRO + "/" + c.Name
+		mountPath := nfsRootRW + "/" + c.Name
 
 		// unmount
-		err := unix.Unmount(path, unix.MNT_DETACH)
+		err := unix.Unmount(mountPath, unix.MNT_DETACH)
 		if err != nil {
 			return err
 		}
 
 		// remove directory
-		err = os.Remove(path)
+		err = os.Remove(backingPath)
 		if err != nil {
 			return err
 		}

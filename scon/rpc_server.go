@@ -4,7 +4,7 @@ import (
 	"net/http"
 )
 
-type SconServer struct {
+type SconRpcServer struct {
 	m *ConManager
 }
 
