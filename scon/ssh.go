@@ -252,27 +252,22 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	env = filterEnv(env, sshenv.NoInheritEnvs)
 
 	// pwd
-	pwd := meta.Pwd
-	if pwd == "" {
-		pwd, err = os.UserHomeDir()
-		if err != nil {
-			return
-		}
-	}
-	// make sure pwd is valid, or exec will fail
-	if err := unix.Access(pwd, unix.X_OK); err != nil {
-		// reset to / if not
-		pwd = "/"
+	cwd, err := container.Agent().ResolveSSHDir(agent.ResolveSSHDirArgs{
+		User: user,
+		Dir:  meta.Pwd,
+	})
+	if err != nil {
+		return
 	}
 
 	// env: set TERM and PWD
 	if isPty {
 		env = append(env, "TERM="+ptyReq.Term)
 	}
-	// TODO need to translate pwd path
-	env = append(env, "PWD="+pwd)
+	env = append(env, "PWD="+cwd)
 
 	var suCmd string
+	prelude := envToShell(env) + " cd " + shellescape.Quote(cwd) + "; "
 	if meta.RawCommand {
 		// raw command (JSON)
 		var rawArgs []string
@@ -280,13 +275,13 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 		if err != nil {
 			return
 		}
-		suCmd = envToShell(env) + " exec " + shellescape.QuoteCommand(rawArgs)
+		suCmd = prelude + " exec " + shellescape.QuoteCommand(rawArgs)
 	} else {
 		var shellArgs []string
 		if s.RawCommand() != "" {
 			shellArgs = append(shellArgs, "-c", s.RawCommand())
 		}
-		suCmd = envToShell(env) + " exec $SHELL -l " + shellescape.QuoteCommand(shellArgs)
+		suCmd = prelude + " exec $SHELL -l " + shellescape.QuoteCommand(shellArgs)
 	}
 	// this fixes job control. with -c, util-linux su calls setsid(), causing ctty to get lost
 	// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L1269
@@ -301,7 +296,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	cmd := &agent.AgentCommand{
 		CombinedArgs: combinedArgs,
 		Env:          env,
-		Dir:          pwd,
+		Dir:          cwd,
 		User:         user,
 	}
 

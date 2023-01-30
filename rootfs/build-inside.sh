@@ -103,6 +103,10 @@ net.core.somaxconn=10000
 
 # unpriv ping
 net.ipv4.ping_group_range=0 2147483647
+
+# scon net
+net.ipv4.ip_forward=1
+net.ipv6.conf.all.forwarding=1
 ' >> /etc/sysctl.conf
 
 # fake sysctls

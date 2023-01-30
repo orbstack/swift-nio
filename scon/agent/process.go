@@ -36,7 +36,34 @@ type SpawnProcessReply struct {
 	FdxSeq uint64
 }
 
-func (a *AgentServer) SpawnProcess(args *SpawnProcessArgs, reply *SpawnProcessReply) error {
+type ResolveSSHDirArgs struct {
+	User string
+	Dir  string
+}
+
+func (a *AgentServer) ResolveSSHDir(args ResolveSSHDirArgs, reply *string) (err error) {
+	fmt.Println("resolve ssh dir", args)
+	cwd := args.Dir
+	if cwd == "" {
+		u, err := user.Lookup(args.User)
+		if err != nil {
+			return err
+		}
+		cwd = u.HomeDir
+	}
+
+	// make sure cwd is valid, or exec will fail
+	if err := unix.Access(cwd, unix.X_OK); err != nil {
+		// reset to / if not
+		cwd = "/"
+	}
+
+	fmt.Println("resolved ssh dir", cwd)
+	*reply = cwd
+	return nil
+}
+
+func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessReply) error {
 	// receive fds
 	stdios, err := a.fdx.RecvFiles(args.FdxSeq)
 	if err != nil {

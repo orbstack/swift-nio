@@ -135,6 +135,16 @@ func (c *Client) InitialSetup(args InitialSetupArgs) error {
 	return nil
 }
 
+func (c *Client) ResolveSSHDir(args ResolveSSHDirArgs) (string, error) {
+	var dir string
+	err := c.rpc.Call("a.ResolveSSHDir", args, &dir)
+	if err != nil {
+		return "", err
+	}
+
+	return dir, nil
+}
+
 func (c *Client) SpawnProcess(args SpawnProcessArgs, stdin, stdout, stderr *os.File) (*PidfdProcess, error) {
 	// send 3 fds
 	seq, err := c.fdx.SendFiles(stdin, stdout, stderr)
