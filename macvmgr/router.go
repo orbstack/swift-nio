@@ -8,7 +8,7 @@ import (
 )
 
 func StartRouterVm(netPair2 *os.File) *vz.VirtualMachine {
-	config := &VmConfig{
+	config := &VmParams{
 		Cpus:             runtime.NumCPU(),
 		Memory:           800,
 		Kernel:           "../assets_router/kernel",

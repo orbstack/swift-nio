@@ -24,7 +24,7 @@ const (
 	ConsoleLog
 )
 
-type VmConfig struct {
+type VmParams struct {
 	Cpus             int
 	Memory           uint64
 	Kernel           string
@@ -62,7 +62,7 @@ func clamp[T uint | uint64](n, min, max T) T {
 	return n
 }
 
-func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
+func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 	cmdline := []string{
 		// boot
 		"init=/opt/vc/preinit",

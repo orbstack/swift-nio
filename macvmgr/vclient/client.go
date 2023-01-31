@@ -230,6 +230,11 @@ func (vc *VClient) reportDiskStats() {
 	vc.lastStats = stats
 }
 
+func (vc *VClient) Shutdown() error {
+	_, err := vc.Post("sys/shutdown", nil)
+	return err
+}
+
 func (vc *VClient) Close() error {
 	vc.client.CloseIdleConnections()
 	vc.dataFile.Close()

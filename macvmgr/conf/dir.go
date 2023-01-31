@@ -35,6 +35,15 @@ func RunDir() string {
 	return dir
 }
 
+func LogDir() string {
+	dir := ConfigDir() + "/log"
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		panic(err)
+	}
+	return dir
+}
+
 func NfsMountpoint() string {
 	dir := HomeDir() + "/" + nfsDirName
 	err := os.MkdirAll(dir, 0755)
@@ -99,15 +108,19 @@ func HostSSHAgentSocket() string {
 }
 
 func ConsoleLog() string {
-	return ConfigDir() + "/console.log"
+	return LogDir() + "/console.log"
 }
 
 func VmManagerLog() string {
-	return ConfigDir() + "/vmgr.log"
+	return LogDir() + "/vmgr.log"
 }
 
 func VmgrPidFile() string {
 	return RunDir() + "/vmgr.pid"
+}
+
+func VmConfigFile() string {
+	return ConfigDir() + "/vmconfig.json"
 }
 
 func Arch() string {

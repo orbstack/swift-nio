@@ -87,6 +87,6 @@ type VmClient struct {
 	rpc *jrpc2.Client
 }
 
-func Client() {
+func Client() *VmClient {
 
 }

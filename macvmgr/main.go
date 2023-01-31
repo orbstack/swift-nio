@@ -15,25 +15,30 @@ import (
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
+	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
+	"github.com/kdrag0n/macvirt/scon/sclient"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	useRouterPair   = false
 	useStdioConsole = false
 	useNat          = false
 
 	nfsMountTries = 10
 	nfsMountDelay = 500 * time.Millisecond
+)
 
-	defaultMemoryLimit = 8 * 1024 * 1024 * 1024 // 8 GiB
+type StopType int
+
+const (
+	StopForce StopType = iota
+	StopGraceful
 )
 
 var (
@@ -111,10 +116,10 @@ func isMountpoint(path string) bool {
 	return stat.Dev != parentStat.Dev
 }
 
-func tryStop(vm *vz.VirtualMachine) (err error) {
+func tryForceStop(vm *vz.VirtualMachine) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("stop panic: %v", r)
+			err = fmt.Errorf("force stop panic: %v", r)
 		}
 	}()
 
@@ -122,12 +127,47 @@ func tryStop(vm *vz.VirtualMachine) (err error) {
 	return
 }
 
-func calcMemory() uint64 {
-	hostMem := mem.PhysicalMemory()
-	if hostMem > defaultMemoryLimit {
-		return defaultMemoryLimit
+func tryGracefulStop(vm *vz.VirtualMachine, vc *vclient.VClient) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("graceful stop panic: %v", r)
+		}
+	}()
+
+	// 1. try scon
+	logrus.Debug("trying to stop VM via scon")
+	sclient, err := sclient.New("unix", conf.SconRPCSocket())
+	if err == nil {
+		defer sclient.Close()
+
+		err = sclient.StopServerVM()
+		if err == nil {
+			return
+		}
 	}
-	return hostMem / 3
+
+	// 2. try vcontrol
+	logrus.Debug("trying to stop VM via vcontrol")
+	err = vc.Shutdown()
+	if err == nil {
+		return
+	}
+
+	// 3. try vz
+	logrus.Debug("trying to stop VM via vz")
+	stopped, err := vm.RequestStop()
+	if stopped && err == nil {
+		return
+	}
+
+	// 4. try force
+	logrus.Debug("trying to stop VM via force vz")
+	err = tryForceStop(vm)
+	if err == nil {
+		return
+	}
+
+	return
 }
 
 func writePidFile() {
@@ -159,13 +199,8 @@ func runVmManager() {
 	writePidFile()
 	defer os.Remove(conf.VmgrPidFile())
 
-	var netPair1, netPair2 *os.File
-	if useRouterPair {
-		file1, fd2, err := vnet.NewUnixgramPair()
-		check(err)
-		netPair1 = file1
-		netPair2 = os.NewFile(uintptr(fd2), "socketpair1")
-	}
+	doneCh := make(chan struct{})
+	defer close(doneCh)
 
 	if _, err := os.Stat(conf.DataImage()); os.IsNotExist(err) {
 		extractSparse(conf.GetAssetFile("data.img.tar"))
@@ -178,10 +213,10 @@ func runVmManager() {
 	if useStdioConsole {
 		consoleMode = ConsoleStdio
 	}
-	config := &VmConfig{
+	params := &VmParams{
 		Cpus: runtime.NumCPU(),
 		// default memory algo = 1/3 of host memory, max 10 GB
-		Memory: calcMemory() / 1024 / 1024,
+		Memory: vmconfig.Get().MemoryMiB,
 		Kernel: conf.GetAssetFile("kernel"),
 		// this one uses gvproxy ssh
 		Console:          consoleMode,
@@ -189,8 +224,7 @@ func runVmManager() {
 		DiskData:         conf.DataImage(),
 		DiskSwap:         conf.SwapImage(),
 		NetworkGvnet:     true,
-		NetworkNat:       useNat && !useRouterPair,
-		NetworkPairFd:    netPair1,
+		NetworkNat:       useNat,
 		MacAddressPrefix: "86:6c:f1:2e:9e",
 		Balloon:          true,
 		Rng:              true,
@@ -200,7 +234,7 @@ func runVmManager() {
 		Sound:            false,
 	}
 
-	vnetwork, vm := CreateVm(config)
+	vnetwork, vm := CreateVm(params)
 
 	// Services
 	services.StartNetServices(vnetwork)
@@ -208,6 +242,7 @@ func runVmManager() {
 	// VM control server client
 	vc, err := vclient.NewWithNetwork(vnetwork)
 	check(err)
+	defer vc.Close()
 	err = vc.StartBackground()
 	check(err)
 
@@ -220,11 +255,6 @@ func runVmManager() {
 
 	err = vm.Start()
 	check(err)
-
-	var routerVm *vz.VirtualMachine
-	if useRouterPair {
-		routerVm = StartRouterVm(netPair2)
-	}
 
 	// Monitor state changes even if observer panics
 	stateChan := make(chan vz.VirtualMachineState)
@@ -241,17 +271,22 @@ func runVmManager() {
 	}()
 
 	// Listen for signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
+	stopCh := make(chan StopType, 1)
+	go func() {
+		signalCh := make(chan os.Signal, 1)
+		signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
+
+		<-signalCh
+		logrus.Info("Received signal, requesting stop")
+		stopCh <- StopForce
+	}()
 
 	errCh := make(chan error, 1)
 
 	// Start VM control server for Swift
 	controlServer := VmControlServer{
-		balloon:  vm.MemoryBalloonDevices()[0],
-		routerVm: routerVm,
-		netPair2: netPair2,
-		vc:       vc,
+		balloon: vm.MemoryBalloonDevices()[0],
+		vc:      vc,
 	}
 	unixListener, err := controlServer.Serve()
 	check(err)
@@ -299,7 +334,7 @@ func runVmManager() {
 					return
 				}
 
-				logrus.Error("NFS mount error: ", err)
+				logrus.WithError(err).Error("NFS mount failed")
 				time.Sleep(nfsMountDelay)
 				continue
 			}
@@ -314,7 +349,7 @@ func runVmManager() {
 			logrus.Info("Unmounting NFS...")
 			err := conf.UnmountNfs()
 			if err != nil {
-				logrus.Error("NFS unmount error:", err)
+				logrus.WithError(err).Error("NFS unmount failed")
 			}
 			logrus.Info("NFS unmounted")
 			nfsMounted = false
@@ -324,29 +359,44 @@ func runVmManager() {
 
 	for {
 		select {
-		case <-signalCh:
-			logrus.Info("stop (signal)")
+		case stopReq := <-stopCh:
+			logrus.Info("stop requested")
 			// unmount nfs first
 			unmountNfs()
-			err := tryStop(vm)
-			if err != nil {
-				logrus.Info("VM stop error:", err)
-				return
+
+			switch stopReq {
+			case StopForce:
+				err := tryForceStop(vm)
+				if err != nil {
+					logrus.WithError(err).Error("VM force stop failed")
+					return
+				}
+			case StopGraceful:
+				err := tryGracefulStop(vm, vc)
+				if err != nil {
+					logrus.WithError(err).Error("VM graceful stop failed")
+					return
+				}
 			}
+
 		case newState := <-stateChan:
 			if newState == vz.VirtualMachineStateRunning {
 				logrus.Info("VM started")
 			}
 			if newState == vz.VirtualMachineStateStopped {
 				logrus.Info("VM stopped")
-				return
+				err = controlServer.OnStop()
+				if err != nil {
+					logrus.WithError(err).Error("vmcontrol stop hook failed")
+					return
+				}
 			}
 			if newState == vz.VirtualMachineStateError {
 				logrus.Error("VM error")
 				return
 			}
 		case err := <-errCh:
-			logrus.Error("VM start error:", err)
+			logrus.WithError(err).Error("VM error")
 			return
 		}
 	}
