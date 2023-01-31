@@ -25,8 +25,8 @@ func (n *Network) StartForward(spec ForwardSpec) error {
 	n.hostForwardMu.Lock()
 	defer n.hostForwardMu.Unlock()
 
-	if _, ok := n.hostForwards[spec.Guest]; ok {
-		return fmt.Errorf("forward already exists: %s", spec.Guest)
+	if _, ok := n.hostForwards[spec.Host]; ok {
+		return fmt.Errorf("forward already exists: %s", spec.Host)
 	}
 
 	fromProto, fromAddr, ok := strings.Cut(spec.Host, ":")
@@ -96,7 +96,7 @@ func (n *Network) StartForward(spec ForwardSpec) error {
 		return fmt.Errorf("unsupported protocol: %s", fromProto)
 	}
 
-	n.hostForwards[spec.Guest] = fwd
+	n.hostForwards[spec.Host] = fwd
 	return nil
 }
 
@@ -104,9 +104,9 @@ func (n *Network) StopForward(spec ForwardSpec) error {
 	n.hostForwardMu.Lock()
 	defer n.hostForwardMu.Unlock()
 
-	fwd, ok := n.hostForwards[spec.Guest]
+	fwd, ok := n.hostForwards[spec.Host]
 	if !ok {
-		return fmt.Errorf("forward not found: %s", spec.Guest)
+		return fmt.Errorf("forward not found: %s", spec.Host)
 	}
 
 	err := fwd.Close()
@@ -114,7 +114,7 @@ func (n *Network) StopForward(spec ForwardSpec) error {
 		return err
 	}
 
-	delete(n.hostForwards, spec.Guest)
+	delete(n.hostForwards, spec.Host)
 
 	return nil
 }

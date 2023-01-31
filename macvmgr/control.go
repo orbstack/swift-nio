@@ -1,13 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
-	"strconv"
 
 	"github.com/Code-Hex/vz/v3"
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/sirupsen/logrus"
@@ -19,50 +19,25 @@ const (
 	runPprof = false
 )
 
-type HostControlServer struct {
+type VmControlServer struct {
 	balloon  *vz.VirtioMemoryBalloonDevice
 	netPair2 *os.File
 	routerVm *vz.VirtualMachine
 	vc       *vclient.VClient
 }
 
-type SetBalloonRequest struct {
-	Target uint64 `json:"target"`
+func listenAndServeUnix(addr string, handler http.Handler) (net.Listener, error) {
+	listener, err := net.Listen("unix", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	go http.Serve(listener, handler)
+	return listener, nil
 }
 
-func (s *HostControlServer) Serve() (*http.Server, error) {
+func (s *VmControlServer) Serve() (net.Listener, error) {
 	mux := http.NewServeMux()
-
-	mux.HandleFunc("/balloon", func(w http.ResponseWriter, r *http.Request) {
-		// parse json
-		var req SetBalloonRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// set balloon
-		s.balloon.SetTargetVirtualMachineMemorySize(req.Target * 1024 * 1024)
-		w.WriteHeader(http.StatusOK)
-	})
-
-	mux.HandleFunc("/reboot_router", func(w http.ResponseWriter, r *http.Request) {
-		println("stop")
-		err := s.routerVm.Stop()
-		if err != nil {
-			logrus.Error("router vm stop", err)
-		}
-
-		println("start")
-		s.routerVm = StartRouterVm(s.netPair2)
-		w.WriteHeader(http.StatusOK)
-	})
-
-	server := &http.Server{
-		Addr:    "127.0.0.1:" + strconv.Itoa(ports.HostHcontrol),
-		Handler: mux,
-	}
 
 	if runPprof {
 		go func() {
@@ -75,6 +50,11 @@ func (s *HostControlServer) Serve() (*http.Server, error) {
 		}()
 	}
 
-	go server.ListenAndServe()
-	return server, nil
+	go http.ListenAndServe("127.0.0.1"+str(ports.HostVmControl), mux)
+	listener, err := listenAndServeUnix(conf.VmControlSocket(), mux)
+	if err != nil {
+		return nil, err
+	}
+
+	return listener, nil
 }

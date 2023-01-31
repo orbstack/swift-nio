@@ -26,6 +26,15 @@ func ConfigDir() string {
 	return dir
 }
 
+func RunDir() string {
+	dir := ConfigDir() + "/run"
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		panic(err)
+	}
+	return dir
+}
+
 func NfsMountpoint() string {
 	dir := HomeDir() + "/" + nfsDirName
 	err := os.MkdirAll(dir, 0755)
@@ -70,15 +79,19 @@ func GetAssetFile(name string) string {
 }
 
 func DockerSocket() string {
-	return ConfigDir() + "/docker.sock"
+	return RunDir() + "/docker.sock"
 }
 
 func SconSSHSocket() string {
-	return ConfigDir() + "/sconssh.sock"
+	return RunDir() + "/sconssh.sock"
 }
 
 func SconRPCSocket() string {
-	return ConfigDir() + "/sconrpc.sock"
+	return RunDir() + "/sconrpc.sock"
+}
+
+func VmControlSocket() string {
+	return RunDir() + "/vmcontrol.sock"
 }
 
 func HostSSHAgentSocket() string {
@@ -87,6 +100,14 @@ func HostSSHAgentSocket() string {
 
 func ConsoleLog() string {
 	return ConfigDir() + "/console.log"
+}
+
+func VmManagerLog() string {
+	return ConfigDir() + "/vmgr.log"
+}
+
+func VmgrPidFile() string {
+	return RunDir() + "/vmgr.pid"
 }
 
 func Arch() string {

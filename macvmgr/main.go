@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"net"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/Code-Hex/vz/v3"
@@ -42,10 +40,12 @@ var (
 	// host -> guest
 	hostForwardsToGuest = map[string]string{
 		// "tcp:127.0.0.1:" + str(ports.HostNFS): "tcp:" + str(ports.GuestNFS),
-		"tcp:127.0.0.1:" + str(ports.HostNFS): "vsock:" + str(ports.GuestNFS),
-		"unix:" + conf.DockerSocket():         "tcp:" + str(ports.GuestDocker),
-		"unix:" + conf.SconSSHSocket():        "tcp:" + str(ports.GuestSconSSH),
-		"unix:" + conf.SconRPCSocket():        "tcp:" + str(ports.GuestScon),
+		"tcp:127.0.0.1:" + str(ports.HostNFS):           "vsock:" + str(ports.GuestNFS),
+		"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
+		"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
+		"unix:" + conf.DockerSocket():                   "tcp:" + str(ports.GuestDocker),
+		"unix:" + conf.SconSSHSocket():                  "tcp:" + str(ports.GuestSconSSH),
+		"unix:" + conf.SconRPCSocket():                  "tcp:" + str(ports.GuestScon),
 	}
 )
 
@@ -130,7 +130,16 @@ func calcMemory() uint64 {
 	return hostMem / 3
 }
 
-func main() {
+func writePidFile() {
+	pidFile, err := os.Create(conf.VmgrPidFile())
+	check(err)
+	defer pidFile.Close()
+
+	_, err = pidFile.WriteString(strconv.Itoa(os.Getpid()))
+	check(err)
+}
+
+func runVmManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
 		logrus.SetFormatter(&logrus.TextFormatter{
@@ -142,6 +151,13 @@ func main() {
 	if err := vz.MacOSAvailable(12.6); err != nil {
 		logrus.Fatal("macOS too old", err)
 	}
+
+	// start over with the sockets
+	os.RemoveAll(conf.RunDir())
+
+	// write PID file
+	writePidFile()
+	defer os.Remove(conf.VmgrPidFile())
 
 	var netPair1, netPair2 *os.File
 	if useRouterPair {
@@ -226,20 +242,20 @@ func main() {
 
 	// Listen for signals
 	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 
 	errCh := make(chan error, 1)
 
-	// Start host control server for Swift
-	controlServer := HostControlServer{
+	// Start VM control server for Swift
+	controlServer := VmControlServer{
 		balloon:  vm.MemoryBalloonDevices()[0],
 		routerVm: routerVm,
 		netPair2: netPair2,
 		vc:       vc,
 	}
-	httpServer, err := controlServer.Serve()
+	unixListener, err := controlServer.Serve()
 	check(err)
-	defer httpServer.Shutdown(context.TODO())
+	defer unixListener.Close()
 
 	// Host forwards (setup vsock)
 	vsock := vm.SocketDevices()[0]
@@ -255,7 +271,7 @@ func main() {
 		spec := vnet.ForwardSpec{Host: fromSpec, Guest: toSpec}
 		err := vnetwork.StartForward(spec)
 		if err != nil {
-			logrus.Error("host forward failed", err)
+			logrus.WithError(err).WithField("spec", spec).Fatal("host forward failed")
 		}
 	}
 	defer os.Remove(conf.DockerSocket())
@@ -333,5 +349,21 @@ func main() {
 			logrus.Error("VM start error:", err)
 			return
 		}
+	}
+}
+
+func main() {
+	cmd := ""
+	if len(os.Args) > 1 {
+		cmd = os.Args[1]
+	}
+
+	switch cmd {
+	case "spawn-daemon":
+		runSpawnDaemon()
+	case "":
+		runVmManager()
+	default:
+		panic("unknown command: " + cmd)
 	}
 }

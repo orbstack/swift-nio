@@ -2,16 +2,18 @@ package ports
 
 const (
 	// host
-	HostSSH      = 2222 // debug
-	HostHcontrol = 62420
-	HostNFS      = 62429
+	HostSSH           = 2222 // debug
+	HostVmControl     = 62420
+	HostSconSSHPublic = 62421
+	HostNFS           = 62429
 
 	// guest
-	GuestDebugSSH = 22 // debug
-	GuestScon     = 8000
-	GuestSconSSH  = 2222
-	GuestVcontrol = 103
-	GuestNFS      = 2049
+	GuestDebugSSH      = 22 // debug
+	GuestScon          = 8000
+	GuestSconSSH       = 2222
+	GuestSconSSHPublic = 2223
+	GuestVcontrol      = 103
+	GuestNFS           = 2049
 	// outside of ephemeral range
 	GuestDocker = 2375
 
