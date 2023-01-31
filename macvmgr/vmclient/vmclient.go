@@ -65,8 +65,22 @@ func EnsureSconVM() error {
 		return err
 	}
 
+	client, err := sclient.New("unix", conf.SconRPCSocket())
+	if err != nil {
+		return err
+	}
+
 	// wait for sconrpc to start
-	sclient.New("")
+	for {
+		err = client.Ping()
+		if err == nil {
+			break
+		}
+
+		time.Sleep(startPollInterval)
+	}
+
+	return nil
 }
 
 type VmClient struct {
