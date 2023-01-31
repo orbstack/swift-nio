@@ -75,6 +75,16 @@ func (c *VmClient) ResetData() error {
 	return c.rpc.CallResult(context.TODO(), "ResetData", nil, &noResult)
 }
 
+func (c *VmClient) GetConfig() (*vmconfig.VmConfig, error) {
+	var config vmconfig.VmConfig
+	err := c.rpc.CallResult(context.TODO(), "GetConfig", nil, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
 func (c *VmClient) PatchConfig(patch *vmconfig.VmConfig) error {
 	return c.rpc.CallResult(context.TODO(), "PatchConfig", patch, &noResult)
 }

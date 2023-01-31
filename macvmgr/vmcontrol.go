@@ -66,6 +66,10 @@ func (s *VmControlServer) ResetData(ctx context.Context) error {
 	return s.ForceStop(ctx)
 }
 
+func (s *VmControlServer) GetConfig(ctx context.Context) (*vmconfig.VmConfig, error) {
+	return vmconfig.Get(), nil
+}
+
 func (s *VmControlServer) PatchConfig(ctx context.Context, patch *vmconfig.VmConfig) error {
 	return vmconfig.Update(func(c *vmconfig.VmConfig) {
 		if patch.MemoryMiB != 0 {
@@ -100,7 +104,9 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 	bridge := jhttp.NewBridge(handler.Map{
 		"Ping":        handler.New(s.Ping),
 		"Stop":        handler.New(s.Stop),
+		"ForceStop":   handler.New(s.ForceStop),
 		"ResetData":   handler.New(s.ResetData),
+		"GetConfig":   handler.New(s.GetConfig),
 		"PatchConfig": handler.New(s.PatchConfig),
 	}, nil)
 
