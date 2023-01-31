@@ -18,7 +18,7 @@ func init() {
 func translateMacPath(p string) string {
 	// clean path
 	p = path.Clean(p)
-	user := shell.Meta().User
+	user := shell.HostUser()
 	if user == "" {
 		user = os.Getenv("USER")
 	}

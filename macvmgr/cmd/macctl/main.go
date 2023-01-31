@@ -6,25 +6,6 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/cmd"
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/shell"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
-)
-
-var (
-	sshSigMap = map[os.Signal]ssh.Signal{
-		unix.SIGABRT: ssh.SIGABRT,
-		unix.SIGALRM: ssh.SIGALRM,
-		unix.SIGFPE:  ssh.SIGFPE,
-		unix.SIGHUP:  ssh.SIGHUP,
-		unix.SIGILL:  ssh.SIGILL,
-		unix.SIGINT:  ssh.SIGINT,
-		unix.SIGPIPE: ssh.SIGPIPE,
-		unix.SIGQUIT: ssh.SIGQUIT,
-		unix.SIGSEGV: ssh.SIGSEGV,
-		unix.SIGTERM: ssh.SIGTERM,
-		unix.SIGUSR1: ssh.SIGUSR1,
-		unix.SIGUSR2: ssh.SIGUSR2,
-	}
 )
 
 func main() {

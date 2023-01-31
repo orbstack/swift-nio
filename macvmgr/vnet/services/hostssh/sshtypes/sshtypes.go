@@ -7,7 +7,3 @@ type SshMeta struct {
 	PtyStdout  bool   `json:"pty_stdout"`
 	PtyStderr  bool   `json:"pty_stderr"`
 }
-
-type MacMeta struct {
-	User string `json:"user"`
-}

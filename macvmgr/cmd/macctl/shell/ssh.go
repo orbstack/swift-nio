@@ -50,7 +50,7 @@ type CommandOpts struct {
 }
 
 func NfsDataRoot() string {
-	user := Meta().User
+	user := HostUser()
 	if user == "" {
 		user = os.Getenv("USER")
 	}
