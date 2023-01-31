@@ -42,7 +42,8 @@ type ConManager struct {
 	nfsMu sync.Mutex
 
 	// stop
-	stopChan chan struct{}
+	stopChan          chan struct{}
+	pendingVMShutdown bool
 
 	// network
 	net *Network

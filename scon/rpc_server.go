@@ -137,6 +137,11 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 	return nil
 }
 
+func (s *SconServer) StopServerVM(ctx context.Context) error {
+	s.m.pendingVMShutdown = true
+	return s.m.Close()
+}
+
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
 		"Ping":                  handler.New(s.Ping),
@@ -151,6 +156,7 @@ func (s *SconServer) Serve() error {
 		"ContainerFreeze":       handler.New(s.ContainerFreeze),
 		"ContainerUnfreeze":     handler.New(s.ContainerUnfreeze),
 		"InternalReportStopped": handler.New(s.InternalReportStopped),
+		"StopServerVM":          handler.New(s.StopServerVM),
 	}, nil)
 	defer bridge.Close()
 

@@ -251,12 +251,6 @@ async fn sys_sync() -> AppResult<impl IntoResponse> {
 async fn sys_shutdown() -> AppResult<impl IntoResponse> {
     info!("sys_shutdown");
 
-    // stop containers gracefully, kill after 2s
-    Command::new("lxd").arg("shutdown").arg("-f").arg("-t").arg("8").output().await?;
-
-    // sync
-    Command::new("sync").output().await?;
-
     tokio::spawn(async {
         // don't cut off connection
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;

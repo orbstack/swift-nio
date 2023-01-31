@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
 	"time"
@@ -67,6 +68,15 @@ func runContainerManager() {
 	// start container manager
 	mgr, err := NewConManager(conf.C().SconDataDir, hc)
 	check(err)
+	defer func() {
+		if mgr.pendingVMShutdown {
+			cmd := exec.Command("poweroff")
+			err := cmd.Start()
+			if err != nil {
+				logrus.WithError(err).Error("failed to run poweroff")
+			}
+		}
+	}()
 	defer mgr.Close()
 	mgr.Start()
 	check(err)
