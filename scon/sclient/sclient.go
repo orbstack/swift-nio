@@ -122,3 +122,7 @@ func (c *SconClient) InternalReportStopped(id string) error {
 		ID: id,
 	}, nil)
 }
+
+func (c *SconClient) StopServerVM() error {
+	return c.rpc.CallResult(context.TODO(), "StopServerVM", nil, nil)
+}
