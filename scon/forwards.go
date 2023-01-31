@@ -350,7 +350,8 @@ func (m *ConManager) runAutoForwardGC() {
 				go func(c *Container) {
 					c.mu.Lock()
 
-					if time.Since(c.lastAutofwdUpdate) > autoForwardGCThreshold {
+					// for Docker, don't GC if frozen, otherwise it'll hang forever
+					if time.Since(c.lastAutofwdUpdate) > autoForwardGCThreshold && !c.isFrozenLocked() {
 						c.mu.Unlock()
 						err := c.updateListenersDirect()
 						if err != nil {

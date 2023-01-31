@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 
+	"github.com/kdrag0n/macvirt/scon/types"
 	"go.etcd.io/bbolt"
 )
 
@@ -189,11 +190,11 @@ func (db *Database) SetLastContainerID(id string) error {
 	return db.setSimpleStr(bktState, ksLastContainerID, id)
 }
 
-func (db *Database) GetContainer(id string) (*ContainerRecord, error) {
-	return getSimpleGob[*ContainerRecord](db, bktContainers, id)
+func (db *Database) GetContainer(id string) (*types.ContainerRecord, error) {
+	return getSimpleGob[*types.ContainerRecord](db, bktContainers, id)
 }
 
-func (db *Database) SetContainer(id string, container *ContainerRecord) error {
+func (db *Database) SetContainer(id string, container *types.ContainerRecord) error {
 	return setSimpleGob(db, bktContainers, id, container)
 }
 
@@ -201,15 +202,15 @@ func (db *Database) DeleteContainer(id string) error {
 	return db.deleteSimple(bktContainers, id)
 }
 
-func (db *Database) GetContainers() ([]*ContainerRecord, error) {
-	var containers []*ContainerRecord
+func (db *Database) GetContainers() ([]*types.ContainerRecord, error) {
+	var containers []*types.ContainerRecord
 	err := db.db.View(func(tx *bbolt.Tx) error {
 		bkt := tx.Bucket([]byte(bktContainers))
 		if bkt == nil {
 			return bbolt.ErrBucketNotFound
 		}
 		return bkt.ForEach(func(k, v []byte) error {
-			var container ContainerRecord
+			var container types.ContainerRecord
 			err := gobDecode(v, &container)
 			if err != nil {
 				return err

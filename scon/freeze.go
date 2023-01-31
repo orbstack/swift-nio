@@ -2,11 +2,15 @@ package main
 
 import "github.com/lxc/go-lxc"
 
+func (c *Container) isFrozenLocked() bool {
+	return c.lxc.State() == lxc.FROZEN
+}
+
 func (c *Container) IsFrozen() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.lxc.State() == lxc.FROZEN
+	return c.isFrozenLocked()
 }
 
 func (c *Container) Freeze() error {

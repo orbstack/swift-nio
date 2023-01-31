@@ -15,6 +15,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -24,6 +25,7 @@ const (
 
 	cmdContainerManager = "container-manager"
 	cmdForkStart        = "fork-start"
+	cmdLxcHook		  = "lxc-hook"
 )
 
 func check(err error) {
@@ -102,7 +104,7 @@ func runCliTest(mgr *ConManager) error {
 		fmt.Println("create")
 		container, err = mgr.Create(CreateParams{
 			Name: "ubuntu-x86",
-			Image: ImageSpec{
+			Image: types.ImageSpec{
 				Distro:  "ubuntu",
 				Version: "kinetic",
 				Arch:    "amd64",
@@ -134,6 +136,8 @@ func main() {
 		runContainerManager()
 	case cmdForkStart:
 		runForkStart()
+	case cmdLxcHook:
+		runLxcHook()
 	default:
 		panic("unknown command: " + cmd)
 	}

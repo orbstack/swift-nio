@@ -8,6 +8,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/syncx"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -28,7 +29,7 @@ type ContainerHooks interface {
 type Container struct {
 	ID        string
 	Name      string
-	Image     ImageSpec
+	Image     types.ImageSpec
 	dir       string
 	rootfsDir string
 
@@ -53,7 +54,7 @@ type Container struct {
 	lastAutofwdUpdate time.Time
 }
 
-func (m *ConManager) newContainer(record *ContainerRecord) (*Container, error) {
+func (m *ConManager) newContainer(record *types.ContainerRecord) (*Container, error) {
 	id := record.ID
 	dir := m.subdir("containers", id)
 
@@ -122,8 +123,8 @@ func (c *Container) Running() bool {
 	return c.lxc.Running()
 }
 
-func (c *Container) toRecord() *ContainerRecord {
-	return &ContainerRecord{
+func (c *Container) toRecord() *types.ContainerRecord {
+	return &types.ContainerRecord{
 		ID:    c.ID,
 		Name:  c.Name,
 		Image: c.Image,
@@ -148,6 +149,7 @@ func (c *Container) refreshState() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	logrus.WithField("container", c.Name).Debug("refreshing container state")
 	stateRunning := c.state == ContainerStateRunning
 	lxcRunning := c.Running()
 	if lxcRunning != stateRunning {

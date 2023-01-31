@@ -90,7 +90,7 @@ message ContainerUnfreezeResponse {
 }
 
 message InternalReportStoppedRequest {
-    string name = 1;
+    string id = 1;
 }
 
 message InternalReportStoppedResponse {

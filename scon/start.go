@@ -14,6 +14,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -140,6 +141,11 @@ func (c *Container) initLxc() error {
 	}
 	mac := deriveMacAddress(c.ID)
 
+	exePath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
 	// set configs!
 	err = func() error {
 		defer func() {
@@ -170,7 +176,7 @@ func (c *Container) initLxc() error {
 		 */
 		set("lxc.pty.max", "1024")
 		set("lxc.tty.max", "0")
-		// limiting caps breaks privileged nested docker containers
+		// limiting caps breaks privileged nested docker containers, even if only sys_time
 		//set("lxc.cap.drop", "sys_time sys_module sys_rawio mac_admin mac_override")
 		set("lxc.autodev", "1") // populate /dev
 
@@ -275,6 +281,7 @@ func (c *Container) initLxc() error {
 
 		// hooks
 		set("lxc.hook.version", "1")
+		set("lxc.hook.post-stop", fmt.Sprintf("%s %s %s %s", exePath, cmdLxcHook, lxcHookPostStop, c.ID))
 
 		return nil
 	}()
@@ -300,7 +307,7 @@ func (m *ConManager) restoreContainers() error {
 	// inject builtin
 	copy := dockerContainerRecord
 	// prepend
-	records = append([]*ContainerRecord{&copy}, records...)
+	records = append([]*types.ContainerRecord{&copy}, records...)
 
 	for _, record := range records {
 		c, err := m.restoreOne(record)
@@ -323,7 +330,7 @@ func (m *ConManager) insertContainer(c *Container) {
 	m.containersByName[c.Name] = c
 }
 
-func (m *ConManager) restoreOne(record *ContainerRecord) (*Container, error) {
+func (m *ConManager) restoreOne(record *types.ContainerRecord) (*Container, error) {
 	c, err := m.newContainer(record)
 	if err != nil {
 		return nil, err

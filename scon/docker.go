@@ -14,6 +14,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/syncx"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 )
@@ -29,10 +30,10 @@ const (
 )
 
 var (
-	dockerContainerRecord = ContainerRecord{
+	dockerContainerRecord = types.ContainerRecord{
 		ID:   "01GQQVF6C60000000000DOCKER",
 		Name: ContainerDocker,
-		Image: ImageSpec{
+		Image: types.ImageSpec{
 			Distro:  ImageDocker,
 			Version: "latest",
 			Arch:    getDefaultLxcArch(),

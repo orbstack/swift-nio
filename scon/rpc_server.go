@@ -1,25 +1,23 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
 	"strconv"
 
+	"github.com/creachadair/jrpc2/handler"
+	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/scon/types"
 )
 
 type SconServer struct {
 	m *ConManager
 }
 
-type CreateRequest struct {
-	Name         string    `json:"name"`
-	Image        ImageSpec `json:"image"`
-	UserPassword *string   `json:"user_password"`
-}
-
-func (s *SconServer) Create(req CreateRequest) (*ContainerRecord, error) {
+func (s *SconServer) Create(ctx context.Context, req types.CreateRequest) (*types.ContainerRecord, error) {
 	pwd := ""
 	if req.UserPassword != nil {
 		pwd = *req.UserPassword
@@ -36,15 +34,15 @@ func (s *SconServer) Create(req CreateRequest) (*ContainerRecord, error) {
 	return c.toRecord(), nil
 }
 
-func (s *SconServer) ListContainers() ([]ContainerRecord, error) {
-	var records []ContainerRecord
+func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerRecord, error) {
+	var records []types.ContainerRecord
 	for _, c := range s.m.ListContainers() {
 		records = append(records, *c.toRecord())
 	}
 
 	return records, nil
 }
-func (s *SconServer) GetByID(id string) (*ContainerRecord, error) {
+func (s *SconServer) GetByID(ctx context.Context, id string) (*types.ContainerRecord, error) {
 	c, ok := s.m.GetByID(id)
 	if !ok {
 		return nil, errors.New("container not found")
@@ -53,7 +51,7 @@ func (s *SconServer) GetByID(id string) (*ContainerRecord, error) {
 	return c.toRecord(), nil
 }
 
-func (s *SconServer) GetByName(name string) (*ContainerRecord, error) {
+func (s *SconServer) GetByName(ctx context.Context, name string) (*types.ContainerRecord, error) {
 	c, ok := s.m.GetByName(name)
 	if !ok {
 		return nil, errors.New("container not found")
@@ -62,7 +60,7 @@ func (s *SconServer) GetByName(name string) (*ContainerRecord, error) {
 	return c.toRecord(), nil
 }
 
-func (s *SconServer) ContainerStart(record ContainerRecord) error {
+func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
 		return errors.New("container not found")
@@ -71,7 +69,7 @@ func (s *SconServer) ContainerStart(record ContainerRecord) error {
 	return c.Start()
 }
 
-func (s *SconServer) ContainerStop(record ContainerRecord) error {
+func (s *SconServer) ContainerStop(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
 		return errors.New("container not found")
@@ -80,7 +78,7 @@ func (s *SconServer) ContainerStop(record ContainerRecord) error {
 	return c.Stop()
 }
 
-func (s *SconServer) ContainerDelete(record ContainerRecord) error {
+func (s *SconServer) ContainerDelete(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
 		return errors.New("container not found")
@@ -89,7 +87,7 @@ func (s *SconServer) ContainerDelete(record ContainerRecord) error {
 	return c.Delete()
 }
 
-func (s *SconServer) ContainerFreeze(record ContainerRecord) error {
+func (s *SconServer) ContainerFreeze(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
 		return errors.New("container not found")
@@ -98,7 +96,7 @@ func (s *SconServer) ContainerFreeze(record ContainerRecord) error {
 	return c.Freeze()
 }
 
-func (s *SconServer) ContainerUnfreeze(record ContainerRecord) error {
+func (s *SconServer) ContainerUnfreeze(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
 		return errors.New("container not found")
@@ -107,8 +105,8 @@ func (s *SconServer) ContainerUnfreeze(record ContainerRecord) error {
 	return c.Unfreeze()
 }
 
-func (s *SconServer) InternalReportStopped(name string) error {
-	c, ok := s.m.GetByName(name)
+func (s *SconServer) InternalReportStopped(ctx context.Context, id string) error {
+	c, ok := s.m.GetByID(id)
 	if !ok {
 		return errors.New("container not found")
 	}
@@ -117,7 +115,22 @@ func (s *SconServer) InternalReportStopped(name string) error {
 }
 
 func (s *SconServer) Serve() error {
+	bridge := jhttp.NewBridge(handler.Map{
+		"Create":                handler.New(s.Create),
+		"ListContainers":        handler.New(s.ListContainers),
+		"GetByID":               handler.New(s.GetByID),
+		"GetByName":             handler.New(s.GetByName),
+		"ContainerStart":        handler.New(s.ContainerStart),
+		"ContainerStop":         handler.New(s.ContainerStop),
+		"ContainerDelete":       handler.New(s.ContainerDelete),
+		"ContainerFreeze":       handler.New(s.ContainerFreeze),
+		"ContainerUnfreeze":     handler.New(s.ContainerUnfreeze),
+		"InternalReportStopped": handler.New(s.InternalReportStopped),
+	}, nil)
+	defer bridge.Close()
+
 	mux := http.NewServeMux()
+	mux.Handle("/", bridge)
 
 	listenIP := getDefaultAddress4()
 	listenAddrPort := net.JoinHostPort(listenIP.String(), strconv.Itoa(ports.GuestScon))

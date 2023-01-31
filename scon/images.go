@@ -20,6 +20,7 @@ import (
 	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
@@ -54,7 +55,7 @@ const (
 )
 
 var (
-	nixosImages = map[ImageSpec]RawImage{
+	nixosImages = map[types.ImageSpec]RawImage{
 		{ImageNixos, "22.11", "amd64", "default"}: {
 			MetadataURL:    "https://hydra.nixos.org/build/207105621/download/1/nixos-system-x86_64-linux.tar.xz",
 			MetadataSha256: "ebc704814c838bf27ff1435fd42c2a0bb9f9085ef0d5842615d4bb4145dd492e",
@@ -82,13 +83,6 @@ const (
 	ImageFormatTarXz ImageFormat = iota
 	ImageFormatSquashfs
 )
-
-type ImageSpec struct {
-	Distro  string `json:"distro"`
-	Version string `json:"version"`
-	Arch    string `json:"arch"`
-	Variant string `json:"variant"`
-}
 
 type StreamsImage struct {
 	Ftype  string `json:"ftype"`
@@ -148,7 +142,7 @@ func findItem(items map[string]StreamsImage, ftype string) (*StreamsImage, bool)
 	return nil, false
 }
 
-func fetchStreamsImages() (map[ImageSpec]RawImage, error) {
+func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 	resp, err := imagesHttpClient.Get(RepoLxd + "/streams/v1/images.json")
 	if err != nil {
 		return nil, err
@@ -160,7 +154,7 @@ func fetchStreamsImages() (map[ImageSpec]RawImage, error) {
 		return nil, err
 	}
 
-	imagesMap := make(map[ImageSpec]RawImage)
+	imagesMap := make(map[types.ImageSpec]RawImage)
 	for imageKey, product := range images.Products {
 		// sort and pick latest version
 		var versions []string
@@ -209,7 +203,7 @@ func fetchStreamsImages() (map[ImageSpec]RawImage, error) {
 		if len(parts) != 4 {
 			return nil, errors.New("invalid image key: " + imageKey)
 		}
-		spec := ImageSpec{
+		spec := types.ImageSpec{
 			Distro:  parts[0],
 			Version: parts[1],
 			Arch:    parts[2],
@@ -309,7 +303,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	return os.Rename(tmpPath, outPath)
 }
 
-func (m *ConManager) makeRootfsWithImage(spec ImageSpec, containerName string, rootfsDir string) error {
+func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string) error {
 	// create temp in subdir
 	downloadDir, err := os.MkdirTemp(m.subdir("images"), "download")
 	if err != nil {

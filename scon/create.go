@@ -7,23 +7,14 @@ import (
 	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/oklog/ulid/v2"
 	"github.com/sirupsen/logrus"
 )
 
-type ContainerRecord struct {
-	ID    string    `json:"id"`
-	Name  string    `json:"name"`
-	Image ImageSpec `json:"image"`
-
-	Builtin  bool `json:"builtin"`
-	Running  bool `json:"running"`
-	Deleting bool `json:"deleting"`
-}
-
 type CreateParams struct {
 	Name  string
-	Image ImageSpec
+	Image types.ImageSpec
 
 	UserPassword string
 }
@@ -70,7 +61,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		"id":   id,
 		"name": name,
 	}).Info("creating container")
-	record := ContainerRecord{
+	record := types.ContainerRecord{
 		ID:    id,
 		Name:  name,
 		Image: image,
