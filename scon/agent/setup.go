@@ -242,7 +242,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		logrus.WithField("timezone", args.Timezone).Debug("Setting timezone")
 		err = util.Run("timedatectl", "set-timezone", args.Timezone)
 		if err != nil {
-			// fallback to symlink
+			// fallback to sπymlink
 			os.Remove("/etc/localtime")
 			err = os.Symlink("/usr/share/zoneinfo/"+args.Timezone, "/etc/localtime")
 			if err != nil {

@@ -192,6 +192,11 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 		return
 	}
 
+	if !conf.Debug() && container.builtin {
+		err = fmt.Errorf("cannot enter builtin container: %s", containerName)
+		return
+	}
+
 	// hack for debug testing
 	if conf.Debug() {
 		switch user {

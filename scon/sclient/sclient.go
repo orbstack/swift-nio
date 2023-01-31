@@ -26,6 +26,10 @@ func (c *SconClient) Close() error {
 	return c.rpc.Close()
 }
 
+func (c *SconClient) Ping() error {
+	return c.rpc.CallResult(context.TODO(), "Ping", nil, &noResult)
+}
+
 func (c *SconClient) Create(req types.CreateRequest) (*types.ContainerRecord, error) {
 	var rec types.ContainerRecord
 	err := c.rpc.CallResult(context.TODO(), "Create", req, &rec)

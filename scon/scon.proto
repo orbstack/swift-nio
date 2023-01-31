@@ -21,6 +21,12 @@ message ContainerRecord {
     bool deleting = 7;
 }
 
+message PingRequest {
+}
+
+message PingResponse {
+}
+
 message CreateRequest {
     string name = 1;
     ImageSpec image = 2;
@@ -98,6 +104,8 @@ message InternalReportStoppedResponse {
 }
 
 service Service {
+    rpc Ping(PingRequest) returns (PingResponse);
+
     rpc Create(CreateRequest) returns (CreateResponse);
     rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
     rpc GetByID(GetByIDRequest) returns (GetByIDResponse);

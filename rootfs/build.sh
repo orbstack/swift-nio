@@ -49,7 +49,7 @@ if [[ "$ARCH" == "arm64" ]]; then
 else
     export GOARCH=amd64
 fi
-garble build -trimpath -ldflags="-s -w" github.com/kdrag0n/macvirt/macvmgr/cmd/macctl
+garble build -trimpath -ldflags="-s -w" ./cmd/macctl
 popd
 
 rm -fr rd

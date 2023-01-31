@@ -19,6 +19,10 @@ type SconServer struct {
 	m *ConManager
 }
 
+func (s *SconServer) Ping(ctx context.Context) error {
+	return nil
+}
+
 func (s *SconServer) Create(ctx context.Context, req types.CreateRequest) (*types.ContainerRecord, error) {
 	pwd := ""
 	if req.UserPassword != nil {
@@ -135,6 +139,7 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
+		"Ping":                  handler.New(s.Ping),
 		"Create":                handler.New(s.Create),
 		"ListContainers":        handler.New(s.ListContainers),
 		"GetByID":               handler.New(s.GetByID),

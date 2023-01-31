@@ -86,7 +86,7 @@ func runContainerManager() {
 
 	// listen for signals
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM)
+	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT)
 	select {
 	case <-sigChan:
 	case <-mgr.stopChan:
