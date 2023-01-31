@@ -71,6 +71,12 @@ func (f *Fdx) closeWithErr(err error) error {
 	// close pending
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	// stopChan is unbuffered and will hang if already stopped
+	if f.err != nil {
+		return nil
+	}
+
 	for seq, pending := range f.pendingReads {
 		// should be received
 		if pending.fds != nil {
@@ -87,7 +93,7 @@ func (f *Fdx) closeWithErr(err error) error {
 		delete(f.pendingQueued, seq)
 	}
 	f.err = err
-	f.stopChan <- struct{}{}
+	close(f.stopChan) // broadcast
 
 	return f.conn.Close()
 }
