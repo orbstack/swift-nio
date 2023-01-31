@@ -109,7 +109,7 @@ func (e *ExitError) Error() string {
 	return fmt.Sprintf("exit status %d", e.status)
 }
 
-func (m *ConManager) getDefaultContainerName() (string, error) {
+func (m *ConManager) GetDefaultContainer() (*Container, error) {
 	id, err := m.db.GetLastContainerID()
 	if err != nil {
 		// pick first container
@@ -130,10 +130,10 @@ func (m *ConManager) getDefaultContainerName() (string, error) {
 		c, ok = m.GetByID(id)
 	}
 	if !ok {
-		return "", errors.New("no containers")
+		return nil, errors.New("no containers")
 	}
 
-	return c.Name, nil
+	return c, nil
 }
 
 func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
@@ -161,10 +161,11 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	}
 
 	// default container?
-	defaultContainer, err := m.getDefaultContainerName()
+	defaultContainerObj, err := m.GetDefaultContainer()
 	if err != nil {
 		return
 	}
+	defaultContainer := defaultContainerObj.Name
 	if containerName == "default" {
 		containerName = defaultContainer
 	}

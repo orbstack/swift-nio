@@ -19,8 +19,9 @@ const (
 	autoForwardGCThreshold = 1 * time.Minute
 	autoForwardDebounce    = 250 * time.Millisecond
 
-	// special case for systemd-network DHCP client
+	// special case for systemd-network DHCP client, and Debian's LLMNR
 	portDHCPClient = 68
+	portLLMNR      = 5355
 )
 
 var (
@@ -45,8 +46,8 @@ func procToAgentSpec(p agent.ProcListener) agent.ProxySpec {
 }
 
 func filterListener(l agent.ProcListener) bool {
-	// remove DHCP client
-	if l.Proto == agent.ProtoUDP && l.Port == portDHCPClient {
+	// remove DHCP client and LLMNR
+	if l.Proto == agent.ProtoUDP && (l.Port == portDHCPClient || l.Port == portLLMNR) {
 		return false
 	}
 

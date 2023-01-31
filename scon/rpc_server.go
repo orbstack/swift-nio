@@ -63,6 +63,15 @@ func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) 
 	return c.toRecord(), nil
 }
 
+func (s *SconServer) GetDefaultContainer(ctx context.Context) (*types.ContainerRecord, error) {
+	c, err := s.m.GetDefaultContainer()
+	if err != nil {
+		return nil, err
+	}
+
+	return c.toRecord(), nil
+}
+
 func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
@@ -130,6 +139,7 @@ func (s *SconServer) Serve() error {
 		"ListContainers":        handler.New(s.ListContainers),
 		"GetByID":               handler.New(s.GetByID),
 		"GetByName":             handler.New(s.GetByName),
+		"GetDefaultContainer":   handler.New(s.GetDefaultContainer),
 		"ContainerStart":        handler.New(s.ContainerStart),
 		"ContainerStop":         handler.New(s.ContainerStop),
 		"ContainerDelete":       handler.New(s.ContainerDelete),

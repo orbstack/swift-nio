@@ -16,9 +16,8 @@ func init() {
 }
 
 var deleteCmd = &cobra.Command{
-	Use:     "delete [ID/NAME]",
-	Aliases: []string{"rm"},
-	Short:   "Delete a Linux container",
+	Use:   "delete [ID/NAME]",
+	Short: "Delete a Linux container",
 	Long: `Delete the specified Linux container, by ID or name.
 
 The container will be stopped if it is running.

@@ -41,6 +41,16 @@ func (c *Client) GetUser() (*user.User, error) {
 	return &u, nil
 }
 
+func (c *Client) GetTimezone() (string, error) {
+	var tz string
+	err := c.rpc.Call("hc.GetTimezone", None{}, &tz)
+	if err != nil {
+		return "", err
+	}
+
+	return tz, nil
+}
+
 func (c *Client) GetSSHPublicKey() (string, error) {
 	var key string
 	err := c.rpc.Call("hc.GetSSHPublicKey", None{}, &key)

@@ -99,6 +99,12 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		return
 	}
 
+	// get host timezone
+	hostTimezone, err := m.host.GetTimezone()
+	if err != nil {
+		return
+	}
+
 	// tell agent to run setup
 	logrus.WithFields(logrus.Fields{
 		"uid":      uid,
@@ -109,10 +115,14 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		Uid:      uid,
 		Password: args.UserPassword,
 		Distro:   image.Distro,
+		Timezone: hostTimezone,
 	})
 	if err != nil {
 		return
 	}
+
+	// set as last container
+	go m.db.SetLastContainerID(c.ID)
 
 	return
 }

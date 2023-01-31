@@ -80,6 +80,7 @@ rm opt/docker-rootfs/build-inside-docker.sh
 OPT=opt/vc
 GUEST_OPT=opt/macvirt-guest
 cp -r ../utils/vc $OPT
+cp -r ../utils/guest/* $GUEST_OPT
 # legal
 cp ../../LICENSE .
 

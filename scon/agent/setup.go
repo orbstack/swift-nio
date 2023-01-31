@@ -27,6 +27,7 @@ type InitialSetupArgs struct {
 	Password          string
 	Distro            string
 	SSHAuthorizedKeys []string
+	Timezone          string
 }
 
 func selectShell() (string, error) {
@@ -233,6 +234,21 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	err = os.Symlink(mounts.VirtiofsMountpoint, "/mac")
 	if err != nil {
 		return err
+	}
+
+	// set timezone
+	// try systemd timedatectl first
+	if args.Timezone != "" {
+		logrus.WithField("timezone", args.Timezone).Debug("Setting timezone")
+		err = util.Run("timedatectl", "set-timezone", args.Timezone)
+		if err != nil {
+			// fallback to symlink
+			os.Remove("/etc/localtime")
+			err = os.Symlink("/usr/share/zoneinfo/"+args.Timezone, "/etc/localtime")
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// Alpine: install sudo - we have no root password

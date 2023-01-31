@@ -57,6 +57,11 @@ func (h *HcontrolServer) GetUser(_ None, reply *user.User) error {
 	return nil
 }
 
+func (h *HcontrolServer) GetTimezone(_ *None, reply *string) error {
+	*reply = "America/Los_Angeles"
+	return nil
+}
+
 func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
 	*reply = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ/wCg/nWi0s+OYvjdW6JdxYaXpoO/fZvzwu0RRszPir"
 	return nil

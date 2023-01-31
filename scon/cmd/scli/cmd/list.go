@@ -15,7 +15,6 @@ func init() {
 
 var listCmd = &cobra.Command{
 	Use:     "list",
-	Aliases: []string{"ls"},
 	Short:   "List all Linux containers",
 	Long: `List all Linux containers and statuses.
 `,
