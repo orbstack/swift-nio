@@ -2,11 +2,9 @@ package vmconfig
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"sync"
 
-	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
 )
@@ -25,11 +23,11 @@ type VmConfig struct {
 }
 
 func (c *VmConfig) Validate() error {
-	min := vz.VirtualMachineConfigurationMinimumAllowedMemorySize() / 1024 / 1024
-	max := vz.VirtualMachineConfigurationMaximumAllowedMemorySize() / 1024 / 1024
-	if c.MemoryMiB < min || c.MemoryMiB > max {
-		return fmt.Errorf("memory_mib must be between %d and %d", min, max)
+	err := c.validatePlatform()
+	if err != nil {
+		return err
 	}
+
 	return nil
 }
 
