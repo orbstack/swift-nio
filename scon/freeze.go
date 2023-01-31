@@ -7,8 +7,8 @@ func (c *Container) isFrozenLocked() bool {
 }
 
 func (c *Container) IsFrozen() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return c.isFrozenLocked()
 }

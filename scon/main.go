@@ -25,7 +25,7 @@ const (
 
 	cmdContainerManager = "container-manager"
 	cmdForkStart        = "fork-start"
-	cmdLxcHook		  = "lxc-hook"
+	cmdLxcHook          = "lxc-hook"
 )
 
 func check(err error) {

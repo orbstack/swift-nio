@@ -11,6 +11,7 @@ import (
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/sirupsen/logrus"
 )
 
 type SconServer struct {
@@ -112,7 +113,14 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 		return errors.New("container not found")
 	}
 
-	return c.refreshState()
+	// lxc.Stop() blocks until hook exits, so this breaks the deadlock
+	go func() {
+		err := c.refreshState()
+		if err != nil {
+			logrus.WithError(err).Error("failed to refresh container state")
+		}
+	}()
+	return nil
 }
 
 func (s *SconServer) Serve() error {

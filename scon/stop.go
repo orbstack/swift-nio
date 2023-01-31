@@ -53,7 +53,10 @@ func (c *Container) Stop() error {
 	}
 
 	if c.lxc.Running() {
+		// release the lock. lxc.Stop() blocks until hook exits
+		c.mu.Unlock()
 		err = c.lxc.Stop()
+		c.mu.Lock()
 		if err != nil {
 			return err
 		}
