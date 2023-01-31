@@ -263,7 +263,7 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 	// virtiofs (shared)
 	fsDevices := []vz.DirectorySharingDeviceConfiguration{}
 	if c.Virtiofs {
-		virtiofs, err := vz.NewVirtioFileSystemDeviceConfiguration("shared")
+		virtiofs, err := vz.NewVirtioFileSystemDeviceConfiguration("mac")
 		check(err)
 		hostDir, err := vz.NewSharedDirectory("/", false)
 		check(err)
@@ -289,6 +289,7 @@ func CreateVm(c *VmConfig) (*vnet.Network, *vz.VirtualMachine) {
 		sound, err := vz.NewVirtioSoundDeviceConfiguration()
 		check(err)
 		soundOutput, err := vz.NewVirtioSoundDeviceHostOutputStreamConfiguration()
+		check(err)
 		sound.SetStreams(soundOutput)
 		config.SetAudioDevicesVirtualMachineConfiguration([]vz.AudioDeviceConfiguration{
 			sound,

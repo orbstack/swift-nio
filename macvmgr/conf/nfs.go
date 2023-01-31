@@ -1,6 +1,7 @@
 package conf
 
 import (
+	"fmt"
 	"os/exec"
 	"strconv"
 
@@ -15,9 +16,9 @@ var (
 )
 
 func MountNfs() error {
-	err := exec.Command("mount", "-t", "nfs", "-o", nfsMountOptions, "127.0.0.1:", NfsMountpoint()).Run()
+	output, err := exec.Command("mount", "-t", "nfs", "-o", nfsMountOptions, "127.0.0.1:", NfsMountpoint()).CombinedOutput()
 	if err != nil {
-		return err
+		return fmt.Errorf("mount nfs: %w\n%s", err, output)
 	}
 
 	return nil

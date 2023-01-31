@@ -77,6 +77,10 @@ func SconSSHSocket() string {
 	return ConfigDir() + "/sconssh.sock"
 }
 
+func SconRPCSocket() string {
+	return ConfigDir() + "/sconrpc.sock"
+}
+
 func HostSSHAgentSocket() string {
 	return os.Getenv("SSH_AUTH_SOCK")
 }

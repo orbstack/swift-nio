@@ -13,6 +13,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sys/unix"
@@ -233,6 +234,9 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	if len(opts.CombinedArgs) > 0 {
 		if opts.UseShell {
 			err = session.Start(strings.Join(opts.CombinedArgs, " "))
+			if err != nil {
+				return 0, err
+			}
 		} else {
 			// run $0
 			// TODO find and translate paths
@@ -264,6 +268,9 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 		select {
 		case sig := <-fwdSigChan:
 			err = session.Signal(sshSigMap[sig])
+			if err != nil {
+				logrus.WithError(err).Warn("failed to forward signal")
+			}
 		case <-winchChan:
 			w, h, err := terminal.GetSize(ptyFd)
 			if err != nil {
@@ -271,6 +278,9 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 			}
 
 			err = session.WindowChange(h, w)
+			if err != nil {
+				logrus.WithError(err).Warn("failed to forward window change")
+			}
 		case err := <-doneChan:
 			if err != nil {
 				if exitErr, ok := err.(*ssh.ExitError); ok {

@@ -12,11 +12,17 @@ func init() {
 }
 
 var pullCmd = &cobra.Command{
-	Use:   "pull Linux-source... macOS-dest",
+	Use:   "pull macOS-source... Linux-dest",
 	Short: "Copy files from macOS",
 	Long: `Copy files from macOS to Linux.
 
-Source paths are relative to the macOS user's home directory.`,
+Source paths are relative to the macOS user's home directory.
+
+This is provided for convenience, but we recommend using shared folders for simplicity. For example:
+	macctl pull Downloads/example.txt .
+is equivalent to:
+	cp /Users/$USER/Downloads/example.txt .
+`,
 	Example: "  macctl pull Desktop/example.txt .",
 	Args:    cobra.MatchAll(cobra.MinimumNArgs(2), cobra.OnlyValidArgs),
 	RunE: func(_ *cobra.Command, args []string) error {

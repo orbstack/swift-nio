@@ -20,12 +20,17 @@ func init() {
 }
 
 var runCmd = &cobra.Command{
-	Use:     "run [COMMAND] [ARGS]...",
+	Use:     "run [OPTIONS] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"exec", "shell"},
 	Short:   "Run command on macOS",
 	Long: `Run a command on macOS.
 
-If no arguments are provided, an interactive shell is started.`,
+If no arguments are provided, an interactive shell is started.
+
+You can also prefix commands with "mac" to run them on macOS. For example:
+    mac uname -a
+will run "uname -a" on macOS, and is equivalent to: macctl run uname -a
+`,
 	Example: "  macctl run ls",
 	Args:    cobra.MatchAll(cobra.ArbitraryArgs, cobra.OnlyValidArgs),
 	RunE: func(cmd *cobra.Command, args []string) error {

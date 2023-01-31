@@ -41,9 +41,11 @@ const (
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]string{
+		// "tcp:127.0.0.1:" + str(ports.HostNFS): "tcp:" + str(ports.GuestNFS),
 		"tcp:127.0.0.1:" + str(ports.HostNFS): "vsock:" + str(ports.GuestNFS),
 		"unix:" + conf.DockerSocket():         "tcp:" + str(ports.GuestDocker),
 		"unix:" + conf.SconSSHSocket():        "tcp:" + str(ports.GuestSconSSH),
+		"unix:" + conf.SconRPCSocket():        "tcp:" + str(ports.GuestScon),
 	}
 )
 
@@ -256,10 +258,12 @@ func main() {
 			logrus.Error("host forward failed", err)
 		}
 	}
+	defer os.Remove(conf.DockerSocket())
+	defer os.Remove(conf.SconRPCSocket())
+	defer os.Remove(conf.SconSSHSocket())
 
 	// Docker context
 	go setDockerContext()
-	defer os.Remove(conf.DockerSocket())
 
 	// Mount NFS
 	nfsMounted := false
@@ -279,7 +283,7 @@ func main() {
 					return
 				}
 
-				logrus.Error("NFS mount error:", err)
+				logrus.Error("NFS mount error: ", err)
 				time.Sleep(nfsMountDelay)
 				continue
 			}

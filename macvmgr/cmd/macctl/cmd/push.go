@@ -33,7 +33,6 @@ func translateMacPath(p string) string {
 			}
 			p = mounts.VirtiofsMountpoint + p
 		} else {
-			// TODO work with other users
 			p = mounts.VirtiofsMountpoint + "/Users/" + user + "/" + p
 		}
 	}
@@ -46,7 +45,13 @@ var pushCmd = &cobra.Command{
 	Short: "Copy files to macOS",
 	Long: `Copy files from Linux to macOS.
 
-Destination path is relative to the macOS user's home directory.`,
+Destination path is relative to the macOS user's home directory.
+
+This is provided for convenience, but we recommend using shared folders for simplicity. For example:
+	macctl push example.txt Downloads/
+is equivalent to:
+	cp example.txt /Users/$USER/Downloads/
+`,
 	Example: "  macctl push example.txt Desktop/",
 	Args:    cobra.MatchAll(cobra.MinimumNArgs(2), cobra.OnlyValidArgs),
 	RunE: func(_ *cobra.Command, args []string) error {

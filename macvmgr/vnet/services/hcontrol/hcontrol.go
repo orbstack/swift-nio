@@ -4,8 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"net/rpc"
+	"os"
 	"os/user"
 	"reflect"
+	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
@@ -44,6 +46,17 @@ func (h *HcontrolServer) GetUser(_ *None, reply *user.User) error {
 	}
 
 	*reply = *u
+	return nil
+}
+
+func (h *HcontrolServer) GetTimezone(_ *None, reply *string) error {
+	linkDest, err := os.Readlink("/etc/localtime")
+	if err != nil {
+		return err
+	}
+
+	// take the part after /var/db/timezone/zoneinfo/
+	*reply = strings.TrimPrefix(linkDest, "/var/db/timezone/zoneinfo/")
 	return nil
 }
 
