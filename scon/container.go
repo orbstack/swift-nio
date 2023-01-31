@@ -24,6 +24,7 @@ const (
 type ContainerHooks interface {
 	Config(*Container, func(string, string)) (string, error)
 	PreStart(*Container) error
+	PostStart(*Container) error
 }
 
 type Container struct {

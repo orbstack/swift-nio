@@ -134,8 +134,8 @@ func (m *ConManager) Start() error {
 	// essential services for starting containers
 	go runOne("seccomp server", m.serveSeccomp)
 
-	// restore and start!
-	err = m.restoreContainers()
+	// restore first
+	pendingStarts, err := m.restoreContainers()
 	if err != nil {
 		return err
 	}
@@ -150,11 +150,25 @@ func (m *ConManager) Start() error {
 	go runOne("SSH server", func() error {
 		return m.listenSSH(conf.C().SSHListen)
 	})
-	go runOne("Docker proxy", m.runDockerProxy)
+	// this one must be synchronous since post-start hook calls it
+	err = m.startDockerProxy()
+	if err != nil {
+		return err
+	}
 	go runOne("Docker NFS manager", m.runDockerNFS)
 
 	// periodic tasks
 	go m.runAutoForwardGC()
+
+	// start all pending containers
+	for _, c := range pendingStarts {
+		go func(c *Container) {
+			err := c.Start()
+			if err != nil {
+				logrus.WithError(err).WithField("container", c.Name).Error("failed to start restored container")
+			}
+		}(c)
+	}
 
 	logrus.Info("started")
 	return err

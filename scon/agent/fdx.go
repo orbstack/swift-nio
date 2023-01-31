@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -257,13 +258,13 @@ func (f *Fdx) RecvFdInt(seq uint64) (int, error) {
 func (f *Fdx) SendFiles(files ...*os.File) (uint64, error) {
 	fds := make([]int, len(files))
 	for i, file := range files {
-		fds[i] = int(file.Fd())
+		fds[i] = int(util.GetFd(file))
 	}
 	return f.SendFdsInt(fds...)
 }
 
 func (f *Fdx) SendFile(file *os.File) (uint64, error) {
-	return f.SendFdInt(int(file.Fd()))
+	return f.SendFdInt(int(util.GetFd(file)))
 }
 
 func (f *Fdx) RecvFile(seq uint64) (*os.File, error) {
@@ -281,7 +282,7 @@ func (f *Fdx) RecvFiles(seq uint64) ([]*os.File, error) {
 	}
 	files := make([]*os.File, len(fds))
 	for i, fd := range fds {
-		files[i] = os.NewFile(uintptr(fd), "fdx")
+		files[i] = os.NewFile(uintptr(fd), "fdx fd")
 	}
 	return files, nil
 }

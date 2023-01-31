@@ -284,6 +284,7 @@ func (c *AgentCommand) Start(agent *Client) error {
 }
 
 type PidfdProcess struct {
+	// not nonblock
 	f   *os.File
 	pid int
 	a   *Client

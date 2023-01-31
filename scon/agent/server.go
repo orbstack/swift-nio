@@ -69,6 +69,12 @@ func (a *AgentServer) OpenDiagNetlink(_ None, reply *uint64) error {
 		return err
 	}
 
+	// set nonblock (persists over SCM_RIGHTS transfer)
+	err = unix.SetNonblock(fd, true)
+	if err != nil {
+		return err
+	}
+
 	// send over fdx
 	seq, err := a.fdx.SendFdInt(fd)
 	if err != nil {

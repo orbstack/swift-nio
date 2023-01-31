@@ -70,7 +70,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		Deleting: false,
 	}
 
-	c, err = m.restoreOne(&record)
+	c, _, err = m.restoreOne(&record)
 	if err != nil {
 		return
 	}

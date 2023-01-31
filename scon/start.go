@@ -298,10 +298,10 @@ func (c *Container) logPath() string {
 	return c.manager.subdir("logs") + "/" + c.ID + ".log"
 }
 
-func (m *ConManager) restoreContainers() error {
+func (m *ConManager) restoreContainers() ([]*Container, error) {
 	records, err := m.db.GetContainers()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// inject builtin
@@ -309,17 +309,21 @@ func (m *ConManager) restoreContainers() error {
 	// prepend
 	records = append([]*types.ContainerRecord{&copy}, records...)
 
+	var pendingStarts []*Container
 	for _, record := range records {
-		c, err := m.restoreOne(record)
+		c, shouldStart, err := m.restoreOne(record)
 		if err != nil {
 			logrus.WithError(err).WithField("container", record.Name).Error("failed to restore container")
 			continue
 		}
 
 		logrus.WithField("container", c.Name).WithField("record", record).Debug("restored container")
+		if shouldStart {
+			pendingStarts = append(pendingStarts, c)
+		}
 	}
 
-	return nil
+	return pendingStarts, nil
 }
 
 func (m *ConManager) insertContainer(c *Container) {
@@ -330,26 +334,20 @@ func (m *ConManager) insertContainer(c *Container) {
 	m.containersByName[c.Name] = c
 }
 
-func (m *ConManager) restoreOne(record *types.ContainerRecord) (*Container, error) {
+func (m *ConManager) restoreOne(record *types.ContainerRecord) (*Container, bool, error) {
 	c, err := m.newContainer(record)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	m.insertContainer(c)
 
+	shouldStart := record.Running && !record.Deleting
 	if record.Deleting {
 		go func() {
 			err := c.Delete()
 			if err != nil {
 				logrus.WithError(err).WithField("container", c.Name).Error("failed to delete container")
-			}
-		}()
-	} else if record.Running {
-		go func() {
-			err := c.Start()
-			if err != nil {
-				logrus.WithError(err).WithField("container", c.Name).Error("failed to start container")
 			}
 		}()
 	}
@@ -361,7 +359,7 @@ func (m *ConManager) restoreOne(record *types.ContainerRecord) (*Container, erro
 		}
 	}()
 
-	return c, nil
+	return c, shouldStart, nil
 }
 
 func (c *Container) forkStart() error {
@@ -475,6 +473,14 @@ func (c *Container) onStart() error {
 		return err
 	}
 
+	// hook
+	if c.hooks != nil {
+		err := c.hooks.PostStart(c)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -549,7 +555,10 @@ func (c *Container) startAgent() error {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to open netlink")
 			return
 		}
-		go monitorInetDiag(c, nlFile)
+
+		go runOne("netlink monitor for "+c.Name, func() error {
+			return monitorInetDiag(c, nlFile)
+		})
 
 		// update listeners in case we missed any before agent start
 		c.triggerListenersUpdate()

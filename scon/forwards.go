@@ -348,17 +348,17 @@ func (m *ConManager) runAutoForwardGC() {
 				}
 
 				go func(c *Container) {
-					c.mu.Lock()
+					c.mu.RLock()
 
 					// for Docker, don't GC if frozen, otherwise it'll hang forever
-					if time.Since(c.lastAutofwdUpdate) > autoForwardGCThreshold && !c.isFrozenLocked() {
-						c.mu.Unlock()
+					if time.Since(c.lastAutofwdUpdate) > autoForwardGCThreshold && !c.IsFrozen() {
+						c.mu.RUnlock()
 						err := c.updateListenersDirect()
 						if err != nil {
 							logrus.WithField("container", c.Name).WithError(err).Error("failed to GC listeners")
 						}
 					} else {
-						c.mu.Unlock()
+						c.mu.RUnlock()
 					}
 				}(c)
 			}

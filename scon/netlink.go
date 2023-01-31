@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -78,27 +79,40 @@ func monitorInetDiag(c *Container, nlFile *os.File) error {
 	defer nlFile.Close()
 
 	// subscribe to group
-	fd := nlFile.Fd()
-	var groups uint32
-	groups |= 1 << (sknlgrpInetTCPDestroy - 1)
-	groups |= 1 << (sknlgrpInetUDPDestroy - 1)
-	groups |= 1 << (sknlgrpInet6TCPDestroy - 1)
-	groups |= 1 << (sknlgrpInet6UDPDestroy - 1)
-	sa := unix.SockaddrNetlink{
-		Family: unix.AF_NETLINK,
-		Groups: groups,
-	}
-	if err := unix.Bind(int(fd), &sa); err != nil {
+	rawConn, err := nlFile.SyscallConn()
+	if err != nil {
 		return err
+	}
+	var err2 error
+	err = rawConn.Control(func(fd uintptr) {
+		var groups uint32
+		groups |= 1 << (sknlgrpInetTCPDestroy - 1)
+		groups |= 1 << (sknlgrpInetUDPDestroy - 1)
+		groups |= 1 << (sknlgrpInet6TCPDestroy - 1)
+		groups |= 1 << (sknlgrpInet6UDPDestroy - 1)
+		sa := unix.SockaddrNetlink{
+			Family: unix.AF_NETLINK,
+			Groups: groups,
+		}
+		err2 = unix.Bind(int(fd), &sa)
+	})
+	if err != nil {
+		return err
+	}
+	if err2 != nil {
+		return err2
 	}
 
 	// receive messages
 	buf := make([]byte, 32768)
 	for {
-		// TODO will this hang forever?
-		n, _, err := unix.Recvfrom(int(fd), buf, 0)
+		n, err := nlFile.Read(buf)
 		if err != nil {
-			return err
+			if errors.Is(err, os.ErrClosed) {
+				return nil
+			} else {
+				return err
+			}
 		}
 		if n < unix.NLMSG_HDRLEN {
 			continue

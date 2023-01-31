@@ -10,6 +10,7 @@ type Client struct {
 	process      *os.Process
 	rpc          *rpc.Client
 	fdx          *Fdx
+	inetDiagFile *os.File
 }
 
 func NewClient(process *os.Process, rpcConn net.Conn, fdxConn net.Conn) *Client {
@@ -23,6 +24,10 @@ func NewClient(process *os.Process, rpcConn net.Conn, fdxConn net.Conn) *Client 
 func (c *Client) Close() error {
 	c.rpc.Close()
 	c.fdx.Close()
+	if c.inetDiagFile != nil {
+		c.inetDiagFile.Close()
+		c.inetDiagFile = nil
+	}
 
 	// err doesn't matter, should already be dead from container stop
 	_ = c.process.Kill()
@@ -52,7 +57,13 @@ func (c *Client) OpenDiagNetlink() (*os.File, error) {
 		return nil, err
 	}
 
-	return c.fdx.RecvFile(seq)
+	file, err := c.fdx.RecvFile(seq)
+	if err != nil {
+		return nil, err
+	}
+
+	c.inetDiagFile = file
+	return file, nil
 }
 
 func (c *Client) StartProxyTCP(spec ProxySpec, listener net.Listener) error {

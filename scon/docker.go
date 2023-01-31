@@ -77,6 +77,13 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	return nil
 }
 
+func (h *DockerHooks) PostStart(c *Container) error {
+	// trigger an initial freeze once docker starts
+	go c.manager.dockerProxy.kickStart()
+
+	return nil
+}
+
 type DockerProxy struct {
 	mu             sync.Mutex
 	container      *Container
@@ -86,7 +93,7 @@ type DockerProxy struct {
 	numConns       int
 }
 
-func (m *ConManager) runDockerProxy() error {
+func (m *ConManager) startDockerProxy() error {
 	l, err := net.ListenTCP("tcp4", &net.TCPAddr{
 		// NIC interface, port 62375
 		IP:   getDefaultAddress4(),
@@ -114,20 +121,20 @@ func (m *ConManager) runDockerProxy() error {
 	})
 	m.dockerProxy = proxy
 
-	// trigger an initial freeze once docker starts
-	go func() {
-		logrus.Debug("waiting for docker start")
-		err := proxy.waitForStart()
-		if err != nil {
-			logrus.WithError(err).Error("failed to wait for docker start")
-			return
-		}
+	go runOne("Docker proxy", proxy.Run)
+	return nil
+}
 
-		logrus.Debug("docker started, freezing")
-		proxy.freezeDebounce.Call()
-	}()
+func (p *DockerProxy) kickStart() {
+	logrus.Debug("waiting for docker start")
+	err := p.waitForStart()
+	if err != nil {
+		logrus.WithError(err).Error("failed to wait for docker start")
+		return
+	}
 
-	return proxy.Run()
+	logrus.Debug("docker started, freezing")
+	p.freezeDebounce.Call()
 }
 
 func (p *DockerProxy) waitForStart() error {
@@ -163,6 +170,11 @@ func (p *DockerProxy) tryFreeze() error {
 
 	// if new connections came in, don't freeze
 	if p.numConns > 0 {
+		return nil
+	}
+
+	// if container was stopped, don't freeze
+	if !p.container.Running() {
 		return nil
 	}
 
