@@ -215,7 +215,6 @@ func (m *ConManager) Close() error {
 
 func (m *ConManager) stopAll() {
 	m.containersMu.Lock()
-	defer m.containersMu.Unlock()
 
 	logrus.Info("stopping all containers")
 	var wg sync.WaitGroup
@@ -230,6 +229,7 @@ func (m *ConManager) stopAll() {
 			}
 		}(c)
 	}
+	m.containersMu.Unlock()
 	wg.Wait()
 }
 
