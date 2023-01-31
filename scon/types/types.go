@@ -23,3 +23,15 @@ type CreateRequest struct {
 	Image        ImageSpec `json:"image"`
 	UserPassword *string   `json:"user_password"`
 }
+
+type GetByIDRequest struct {
+	ID string `json:"id"`
+}
+
+type GetByNameRequest struct {
+	Name string `json:"name"`
+}
+
+type InternalReportStoppedRequest struct {
+	ID string `json:"id"`
+}

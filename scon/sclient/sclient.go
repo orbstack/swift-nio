@@ -46,7 +46,9 @@ func (c *SconClient) ListContainers() ([]types.ContainerRecord, error) {
 
 func (c *SconClient) GetByID(id string) (*types.ContainerRecord, error) {
 	var rec types.ContainerRecord
-	err := c.rpc.CallResult(context.TODO(), "GetByID", id, &rec)
+	err := c.rpc.CallResult(context.TODO(), "GetByID", types.GetByIDRequest{
+		ID: id,
+	}, &rec)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +58,9 @@ func (c *SconClient) GetByID(id string) (*types.ContainerRecord, error) {
 
 func (c *SconClient) GetByName(name string) (*types.ContainerRecord, error) {
 	var rec types.ContainerRecord
-	err := c.rpc.CallResult(context.TODO(), "GetByName", name, &rec)
+	err := c.rpc.CallResult(context.TODO(), "GetByName", types.GetByNameRequest{
+		Name: name,
+	}, &rec)
 	if err != nil {
 		return nil, err
 	}
@@ -85,5 +89,7 @@ func (c *SconClient) ContainerUnfreeze(record types.ContainerRecord) error {
 }
 
 func (c *SconClient) InternalReportStopped(id string) error {
-	return c.rpc.CallResult(context.TODO(), "InternalReportStopped", id, nil)
+	return c.rpc.CallResult(context.TODO(), "InternalReportStopped", types.InternalReportStoppedRequest{
+		ID: id,
+	}, nil)
 }

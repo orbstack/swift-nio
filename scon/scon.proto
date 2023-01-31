@@ -15,9 +15,10 @@ message ContainerRecord {
     string name = 2;
     ImageSpec image = 3;
 
-    bool builtin = 4;
-    bool running = 5;
-    bool deleting = 6;
+    bool isolated = 4;
+    bool builtin = 5;
+    bool running = 6;
+    bool deleting = 7;
 }
 
 message CreateRequest {

@@ -43,8 +43,8 @@ func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerRecor
 	return records, nil
 }
 
-func (s *SconServer) GetByID(ctx context.Context, id string) (*types.ContainerRecord, error) {
-	c, ok := s.m.GetByID(id)
+func (s *SconServer) GetByID(ctx context.Context, req types.GetByIDRequest) (*types.ContainerRecord, error) {
+	c, ok := s.m.GetByID(req.ID)
 	if !ok {
 		return nil, errors.New("container not found")
 	}
@@ -52,8 +52,8 @@ func (s *SconServer) GetByID(ctx context.Context, id string) (*types.ContainerRe
 	return c.toRecord(), nil
 }
 
-func (s *SconServer) GetByName(ctx context.Context, name string) (*types.ContainerRecord, error) {
-	c, ok := s.m.GetByName(name)
+func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) (*types.ContainerRecord, error) {
+	c, ok := s.m.GetByName(req.Name)
 	if !ok {
 		return nil, errors.New("container not found")
 	}
@@ -106,8 +106,8 @@ func (s *SconServer) ContainerUnfreeze(ctx context.Context, record types.Contain
 	return c.Unfreeze()
 }
 
-func (s *SconServer) InternalReportStopped(ctx context.Context, id string) error {
-	c, ok := s.m.GetByID(id)
+func (s *SconServer) InternalReportStopped(ctx context.Context, req types.InternalReportStoppedRequest) error {
+	c, ok := s.m.GetByID(req.ID)
 	if !ok {
 		return errors.New("container not found")
 	}
