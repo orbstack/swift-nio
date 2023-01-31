@@ -6,4 +6,5 @@ const (
 	UserAppName = "MacVirt"
 
 	ShortCmd = "moon"
+	ShortCtl = "moonctl"
 )

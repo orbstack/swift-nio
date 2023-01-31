@@ -11,6 +11,7 @@ import (
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -141,7 +142,7 @@ func (s *SconServer) Serve() error {
 	mux := http.NewServeMux()
 	mux.Handle("/", bridge)
 
-	listenIP := getDefaultAddress4()
+	listenIP := util.DefaultAddress4()
 	listenAddrPort := net.JoinHostPort(listenIP.String(), strconv.Itoa(ports.GuestScon))
 	return http.ListenAndServe(listenAddrPort, mux)
 }

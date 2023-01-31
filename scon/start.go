@@ -254,7 +254,8 @@ func (c *Container) initLxc() error {
 		config := conf.C()
 		bind(config.GuestMountSrc, "/opt/macvirt-guest", "ro")
 		bind(config.HostMountSrc, "/mnt/mac", "")
-		bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
+		// we're doing this in kernel now, to avoid showing up in `df`
+		//bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
 
 		// log
 		set("lxc.log.file", logPath)

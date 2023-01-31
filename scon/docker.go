@@ -13,8 +13,10 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 )
@@ -36,7 +38,7 @@ var (
 		Image: types.ImageSpec{
 			Distro:  ImageDocker,
 			Version: "latest",
-			Arch:    getDefaultLxcArch(),
+			Arch:    images.NativeArch(),
 			Variant: "default",
 		},
 		Builtin:  true,
@@ -96,7 +98,7 @@ type DockerProxy struct {
 func (m *ConManager) startDockerProxy() error {
 	l, err := net.ListenTCP("tcp4", &net.TCPAddr{
 		// NIC interface, port 62375
-		IP:   getDefaultAddress4(),
+		IP:   util.DefaultAddress4(),
 		Port: ports.GuestDocker,
 	})
 	if err != nil {

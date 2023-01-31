@@ -18,33 +18,44 @@ require (
 )
 
 require (
+	github.com/creachadair/jrpc2 v0.43.0
+	github.com/cyphar/filepath-securejoin v0.2.3
+	github.com/docker/docker v20.10.23+incompatible
+	github.com/fsnotify/fsnotify v1.6.0
 	github.com/oklog/ulid/v2 v2.1.0
+	github.com/spf13/cobra v1.6.1
 	go.etcd.io/bbolt v1.3.6
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	github.com/Microsoft/go-winio v0.6.0 // indirect
-	github.com/creachadair/jrpc2 v0.43.0 // indirect
-	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
+	github.com/briandowns/spinner v1.20.0 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v20.10.23+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/fatih/color v1.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/mattn/go-colorable v0.1.2 // indirect
+	github.com/mattn/go-isatty v0.0.8 // indirect
+	github.com/moby/term v0.0.0-20221205130635-1aeaba878587 // indirect
+	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
+	golang.org/x/term v0.4.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gotest.tools/v3 v3.4.0 // indirect
 )
 
 require (
 	github.com/alessio/shellescape v1.4.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
-	golang.org/x/crypto v0.5.0 // indirect
+	golang.org/x/crypto v0.5.0
 )

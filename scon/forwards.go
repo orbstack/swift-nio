@@ -10,6 +10,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/hclient"
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -92,9 +93,9 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 	agentSpec := procToAgentSpec(spec)
 	var internalListenIP net.IP
 	if spec.Addr.Is4() {
-		internalListenIP = getDefaultAddress4()
+		internalListenIP = util.DefaultAddress4()
 	} else {
-		internalListenIP = getDefaultAddress6()
+		internalListenIP = util.DefaultAddress6()
 	}
 	hostListenIP := spec.HostListenIP()
 

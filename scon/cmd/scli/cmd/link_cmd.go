@@ -1,0 +1,39 @@
+package cmd
+
+import (
+	"os"
+
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
+	"github.com/spf13/cobra"
+)
+
+func init() {
+	// currently disabled
+	//rootCmd.AddCommand(linkCmd)
+}
+
+var linkCmd = &cobra.Command{
+	Use:     "link MESSAGE",
+	Aliases: []string{"add-cmd"},
+	Short:   "Link a command to macOS",
+	Long: `Create a link to a command that runs on macOS.
+
+This makes a specific macOS command available to run directly from Linux, without prefixing it with ` + appid.ShortCtl + ` or ` + appid.ShortCmd + `.
+To remove a linked command, use "` + appid.ShortCtl + ` unlink".
+
+No commands are linked by default.
+`,
+	Example: "  " + appid.ShortCtl + " link-cmd code; code .",
+	Args:    cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		err := shell.LinkCmd(args[0])
+		if err != nil {
+			// print to stderr
+			cmd.PrintErrln(err)
+			os.Exit(1)
+		}
+
+		return nil
+	},
+}

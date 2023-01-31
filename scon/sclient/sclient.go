@@ -12,6 +12,8 @@ type SconClient struct {
 	rpc *jrpc2.Client
 }
 
+var noResult interface{}
+
 func New(url string) (*SconClient, error) {
 	ch := jhttp.NewChannel(url, nil)
 	rpcClient := jrpc2.NewClient(ch, nil)
@@ -68,24 +70,34 @@ func (c *SconClient) GetByName(name string) (*types.ContainerRecord, error) {
 	return &rec, nil
 }
 
-func (c *SconClient) ContainerStart(record types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerStart", record, nil)
+func (c *SconClient) GetDefaultContainer() (*types.ContainerRecord, error) {
+	var rec types.ContainerRecord
+	err := c.rpc.CallResult(context.TODO(), "GetDefaultContainer", nil, &rec)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rec, nil
 }
 
-func (c *SconClient) ContainerStop(record types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerStop", record, nil)
+func (c *SconClient) ContainerStart(record *types.ContainerRecord) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerStart", record, &noResult)
 }
 
-func (c *SconClient) ContainerDelete(record types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerDelete", record, nil)
+func (c *SconClient) ContainerStop(record *types.ContainerRecord) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerStop", record, &noResult)
 }
 
-func (c *SconClient) ContainerFreeze(record types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerFreeze", record, nil)
+func (c *SconClient) ContainerDelete(record *types.ContainerRecord) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerDelete", record, &noResult)
 }
 
-func (c *SconClient) ContainerUnfreeze(record types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerUnfreeze", record, nil)
+func (c *SconClient) ContainerFreeze(record *types.ContainerRecord) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerFreeze", record, &noResult)
+}
+
+func (c *SconClient) ContainerUnfreeze(record *types.ContainerRecord) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerUnfreeze", record, &noResult)
 }
 
 func (c *SconClient) InternalReportStopped(id string) error {

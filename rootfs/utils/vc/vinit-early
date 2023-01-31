@@ -54,7 +54,7 @@ fi
 #btrfs filesystem resize max /data
 
 # virtiofs share
-mount -t virtiofs shared /mnt/mac
+mount -t virtiofs mac /mnt/mac
 
 # rosetta
 mount -t virtiofs rosetta /mnt/rosetta

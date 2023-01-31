@@ -6,6 +6,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/sclient"
+	"github.com/kdrag0n/macvirt/scon/util"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 )
 
 func runLxcPostStop(cid string) {
-	url := "http://" + getDefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon)
+	url := "http://" + util.DefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon)
 	client, err := sclient.New(url)
 	check(err)
 	defer client.Close()

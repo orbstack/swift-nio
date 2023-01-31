@@ -169,6 +169,14 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 		containerName = defaultContainer
 	}
 
+	// default user?
+	if user == "[default]" {
+		user, err = m.defaultUser()
+		if err != nil {
+			return
+		}
+	}
+
 	container, ok := m.GetByName(containerName)
 	// try default container
 	if !ok && len(userParts) == 1 {

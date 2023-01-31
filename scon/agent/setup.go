@@ -169,8 +169,8 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// set password
 	if args.Password != "" {
 		logrus.Debug("Setting password")
-		pwdEntry := args.Username + ":" + args.Password
-		err = util.RunWithInput(pwdEntry, "chpasswd")
+		pwdEntries := args.Username + ":" + args.Password + "\nroot:" + args.Password + "\n"
+		err = util.RunWithInput(pwdEntries, "chpasswd")
 		if err != nil {
 			return err
 		}

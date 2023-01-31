@@ -45,10 +45,12 @@ const (
 	ImageRocky   = "rockylinux"
 
 	// extra
-	ImageNixos  = "nixos"
-	ImageDocker = "docker"
+	ImageNixos      = "nixos"
+	ImageDocker     = "docker"
+	ImageUbuntuFull = "ubuntu-full"
 
-	RepoLxd = "https://images.linuxcontainers.org"
+	RepoLxd    = "https://images.linuxcontainers.org"
+	RepoUbuntu = "https://cloud-images.ubuntu.com/releases"
 
 	maxSquashfsCpus      = 4
 	imageDownloadTimeout = 15 * time.Minute
@@ -56,7 +58,7 @@ const (
 
 var (
 	nixosImages = map[types.ImageSpec]RawImage{
-		{ImageNixos, "22.11", "amd64", "default"}: {
+		{Distro: ImageNixos, Version: "22.11", Arch: "amd64", Variant: "default"}: {
 			MetadataURL:    "https://hydra.nixos.org/build/207105621/download/1/nixos-system-x86_64-linux.tar.xz",
 			MetadataSha256: "ebc704814c838bf27ff1435fd42c2a0bb9f9085ef0d5842615d4bb4145dd492e",
 			RootfsFormat:   ImageFormatTarXz,
@@ -65,7 +67,7 @@ var (
 			Size:           147405568,
 			Revision:       "207105719",
 		},
-		{ImageNixos, "22.11", "arm64", "default"}: {
+		{Distro: ImageNixos, Version: "22.11", Arch: "arm64", Variant: "default"}: {
 			MetadataURL:    "https://hydra.nixos.org/build/207105557/download/1/nixos-system-aarch64-linux.tar.xz",
 			MetadataSha256: "cd5ab2b7f9d05cec44b62a5f3ac3a732a5e56e18f6ed6eed75d0e4cf9525f89a",
 			RootfsFormat:   ImageFormatTarXz,
@@ -89,7 +91,6 @@ type StreamsImage struct {
 	Sha256 string `json:"sha256"`
 	Size   int64  `json:"size"`
 	Path   string `json:"path"`
-	// combined ones for lxd.tar.xz
 }
 
 type StreamsImages struct {
@@ -313,6 +314,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 
 	// fetch index
 	var img RawImage
+	var ok bool
 	switch {
 	case isDistroInLxdRepo(spec.Distro):
 		logrus.Info("fetching image index")
@@ -320,11 +322,14 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 		if err != nil {
 			return err
 		}
-		img = images[spec]
+		img, ok = images[spec]
 	case spec.Distro == ImageNixos:
-		img = nixosImages[spec]
+		img, ok = nixosImages[spec]
 	default:
 		return errors.New("unsupported distro: " + spec.Distro)
+	}
+	if !ok {
+		return fmt.Errorf("image not found: %v", spec)
 	}
 
 	// download metadata and rootfs in parallel

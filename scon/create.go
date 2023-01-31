@@ -2,11 +2,11 @@ package main
 
 import (
 	"errors"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
+	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/oklog/ulid/v2"
 	"github.com/sirupsen/logrus"
@@ -17,21 +17,6 @@ type CreateParams struct {
 	Image types.ImageSpec
 
 	UserPassword string
-}
-
-func getDefaultLxcArch() string {
-	switch runtime.GOARCH {
-	case "i386":
-		return "i686"
-	case "amd64":
-		return "amd64"
-	case "arm64":
-		return "arm64"
-	case "arm":
-		return "armhf"
-	default:
-		panic("unsupported architecture")
-	}
 }
 
 func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
@@ -53,7 +38,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		image.Variant = "default"
 	}
 	if image.Arch == "" {
-		image.Arch = getDefaultLxcArch()
+		image.Arch = images.NativeArch()
 	}
 
 	id := ulid.Make().String()
