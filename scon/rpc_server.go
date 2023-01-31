@@ -42,6 +42,7 @@ func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerRecor
 
 	return records, nil
 }
+
 func (s *SconServer) GetByID(ctx context.Context, id string) (*types.ContainerRecord, error) {
 	c, ok := s.m.GetByID(id)
 	if !ok {
