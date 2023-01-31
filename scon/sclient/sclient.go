@@ -2,6 +2,8 @@ package sclient
 
 import (
 	"context"
+	"net"
+	"net/http"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
@@ -14,8 +16,19 @@ type SconClient struct {
 
 var noResult interface{}
 
-func New(url string) (*SconClient, error) {
-	ch := jhttp.NewChannel(url, nil)
+func New(network, addr string) (*SconClient, error) {
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns: 5,
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial(network, addr)
+			},
+		},
+	}
+
+	ch := jhttp.NewChannel("http://sconrpc", &jhttp.ChannelOptions{
+		Client: httpClient,
+	})
 	rpcClient := jrpc2.NewClient(ch, nil)
 	return &SconClient{
 		rpc: rpcClient,

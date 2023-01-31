@@ -10,25 +10,28 @@ import (
 )
 
 type Config struct {
-	RpcURL    string
-	SshNet    string
-	SshAddr   string
-	ControlVM bool
+	RpcNetwork string
+	RpcAddr    string
+	SshNet     string
+	SshAddr    string
+	ControlVM  bool
 }
 
 var (
 	configLinux = Config{
-		RpcURL:    "http://" + util.DefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon),
-		SshNet:    "tcp",
-		SshAddr:   "172.30.30.2:2222",
-		ControlVM: false,
+		RpcNetwork: "tcp",
+		RpcAddr:    util.DefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon),
+		SshNet:     "tcp",
+		SshAddr:    "172.30.30.2:2222",
+		ControlVM:  false,
 	}
 
 	configDarwin = Config{
-		RpcURL:    "http://",
-		SshNet:    "unix",
-		SshAddr:   conf.SconSSHSocket(),
-		ControlVM: true,
+		RpcNetwork: "unix",
+		RpcAddr:    conf.SconRPCSocket(),
+		SshNet:     "unix",
+		SshAddr:    conf.SconSSHSocket(),
+		ControlVM:  true,
 	}
 )
 

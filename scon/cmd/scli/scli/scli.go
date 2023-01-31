@@ -19,13 +19,11 @@ func Client() *sclient.SconClient {
 		return cachedClient
 	}
 
-	url := Conf().RpcURL
-
 	if Conf().ControlVM {
 		//TODO start vm
 	}
 
-	client, err := sclient.New(url)
+	client, err := sclient.New(Conf().RpcNetwork, Conf().RpcAddr)
 	check(err)
 
 	cachedClient = client

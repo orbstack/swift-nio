@@ -14,8 +14,8 @@ const (
 )
 
 func runLxcPostStop(cid string) {
-	url := "http://" + util.DefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon)
-	client, err := sclient.New(url)
+	addr := util.DefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon)
+	client, err := sclient.New("tcp", addr)
 	check(err)
 	defer client.Close()
 
