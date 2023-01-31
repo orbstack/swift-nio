@@ -74,7 +74,7 @@ func (s *VmControlServer) PatchConfig(ctx context.Context, patch *vmconfig.VmCon
 	})
 }
 
-func (s *VmControlServer) OnStop(ctx context.Context) error {
+func (s *VmControlServer) onStop() error {
 	if s.pendingResetData {
 		logrus.Info("Deleting all data...")
 		err := os.RemoveAll(conf.DataDir())

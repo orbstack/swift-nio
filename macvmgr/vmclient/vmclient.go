@@ -1,92 +1,80 @@
 package vmclient
 
 import (
+	"context"
 	"net"
-	"os"
-	"os/exec"
-	"path"
-	"time"
+	"net/http"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/scon/sclient"
+	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 )
 
-const (
-	startPollInterval = 100 * time.Millisecond
+var (
+	cachedClient *VmClient
+	noResult     interface{}
 )
-
-func IsRunning() bool {
-	// try dialing
-	conn, err := net.Dial("unix", conf.VmControlSocket())
-	if err != nil {
-		return false
-	}
-	defer conn.Close()
-
-	return true
-}
-
-func EnsureVM() error {
-	if !IsRunning() {
-		// start it. assume executable is next to ours, unless this is debug
-		var vmgrExe string
-		if conf.Debug() {
-			vmgrExe = "/Users/dragon/code/projects/macvirt/macvmgr/macvmgr"
-		} else {
-			selfExe, err := os.Executable()
-			if err != nil {
-				return err
-			}
-
-			vmgrExe = path.Join(path.Dir(selfExe), "macvmgr")
-		}
-
-		// exec self with spawn-daemon
-		cmd := exec.Command(vmgrExe, "spawn-daemon")
-		err := cmd.Start()
-		if err != nil {
-			return err
-		}
-
-		// wait for VM to start
-		for !IsRunning() {
-			time.Sleep(startPollInterval)
-		}
-	}
-
-	return nil
-}
-
-func EnsureSconVM() error {
-	// ensure VM first
-	err := EnsureVM()
-	if err != nil {
-		return err
-	}
-
-	client, err := sclient.New("unix", conf.SconRPCSocket())
-	if err != nil {
-		return err
-	}
-
-	// wait for sconrpc to start
-	for {
-		err = client.Ping()
-		if err == nil {
-			break
-		}
-
-		time.Sleep(startPollInterval)
-	}
-
-	return nil
-}
 
 type VmClient struct {
 	rpc *jrpc2.Client
 }
 
 func Client() *VmClient {
+	if cachedClient != nil {
+		return cachedClient
+	}
 
+	EnsureVM()
+
+	client, err := newClient()
+	if err != nil {
+		panic(err)
+	}
+
+	cachedClient = client
+	return client
+}
+
+func newClient() (*VmClient, error) {
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns: 5,
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", conf.VmControlSocket())
+			},
+		},
+	}
+
+	ch := jhttp.NewChannel("http://vmrpc", &jhttp.ChannelOptions{
+		Client: httpClient,
+	})
+	rpcClient := jrpc2.NewClient(ch, nil)
+	return &VmClient{
+		rpc: rpcClient,
+	}, nil
+}
+
+func (c *VmClient) Close() error {
+	return c.rpc.Close()
+}
+
+func (c *VmClient) Ping() error {
+	return c.rpc.CallResult(context.TODO(), "Ping", nil, &noResult)
+}
+
+func (c *VmClient) Stop() error {
+	return c.rpc.CallResult(context.TODO(), "Stop", nil, &noResult)
+}
+
+func (c *VmClient) ForceStop() error {
+	return c.rpc.CallResult(context.TODO(), "ForceStop", nil, &noResult)
+}
+
+func (c *VmClient) ResetData() error {
+	return c.rpc.CallResult(context.TODO(), "ResetData", nil, &noResult)
+}
+
+func (c *VmClient) PatchConfig(patch *vmconfig.VmConfig) error {
+	return c.rpc.CallResult(context.TODO(), "PatchConfig", patch, &noResult)
 }

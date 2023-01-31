@@ -278,7 +278,7 @@ func runVmManager() {
 
 		<-signalCh
 		logrus.Info("Received signal, requesting stop")
-		stopCh <- StopForce
+		stopCh <- StopGraceful
 	}()
 
 	errCh := make(chan error, 1)
@@ -385,7 +385,7 @@ func runVmManager() {
 			}
 			if newState == vz.VirtualMachineStateStopped {
 				logrus.Info("VM stopped")
-				err = controlServer.OnStop()
+				err = controlServer.onStop()
 				if err != nil {
 					logrus.WithError(err).Error("vmcontrol stop hook failed")
 					return

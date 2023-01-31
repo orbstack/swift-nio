@@ -1,0 +1,84 @@
+package vmclient
+
+import (
+	"net"
+	"os"
+	"os/exec"
+	"path"
+	"time"
+
+	"github.com/creachadair/jrpc2"
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/scon/sclient"
+)
+
+const (
+	startPollInterval = 100 * time.Millisecond
+)
+
+func IsRunning() bool {
+	// try dialing
+	conn, err := net.Dial("unix", conf.VmControlSocket())
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+
+	return true
+}
+
+func EnsureVM() error {
+	if !IsRunning() {
+		// start it. assume executable is next to ours, unless this is debug
+		var vmgrExe string
+		if conf.Debug() {
+			vmgrExe = "/Users/dragon/code/projects/macvirt/macvmgr/macvmgr"
+		} else {
+			selfExe, err := os.Executable()
+			if err != nil {
+				return err
+			}
+
+			vmgrExe = path.Join(path.Dir(selfExe), "macvmgr")
+		}
+
+		// exec self with spawn-daemon
+		cmd := exec.Command(vmgrExe, "spawn-daemon")
+		err := cmd.Start()
+		if err != nil {
+			return err
+		}
+
+		// wait for VM to start
+		for !IsRunning() {
+			time.Sleep(startPollInterval)
+		}
+	}
+
+	return nil
+}
+
+func EnsureSconVM() error {
+	// ensure VM first
+	err := EnsureVM()
+	if err != nil {
+		return err
+	}
+
+	client, err := sclient.New("unix", conf.SconRPCSocket())
+	if err != nil {
+		return err
+	}
+
+	// wait for sconrpc to start
+	for {
+		err = client.Ping()
+		if err == nil {
+			break
+		}
+
+		time.Sleep(startPollInterval)
+	}
+
+	return nil
+}
