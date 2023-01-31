@@ -4,4 +4,6 @@ const (
 	Codename    = "macvirt"
 	AppName     = "macvirt"
 	UserAppName = "MacVirt"
+
+	ShortCmd = "moon"
 )
