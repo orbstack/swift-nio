@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -38,10 +39,7 @@ func (s *VmControlServer) Ping(ctx context.Context) error {
 
 func (s *VmControlServer) Stop(ctx context.Context) error {
 	// signal stop
-	err := tryGracefulStop(s.vm, s.vc)
-	if err != nil {
-		return err
-	}
+	s.stopCh <- StopGraceful
 
 	// wait for main loop to exit
 	<-s.doneCh
@@ -50,10 +48,7 @@ func (s *VmControlServer) Stop(ctx context.Context) error {
 
 func (s *VmControlServer) ForceStop(ctx context.Context) error {
 	// signal stop
-	err := tryForceStop(s.vm)
-	if err != nil {
-		return err
-	}
+	s.stopCh <- StopForce
 
 	// wait for main loop to exit
 	<-s.doneCh
@@ -75,6 +70,7 @@ func (s *VmControlServer) PatchConfig(ctx context.Context, patch *vmconfig.VmCon
 		if patch.MemoryMiB != 0 {
 			c.MemoryMiB = patch.MemoryMiB
 		}
+		fmt.Printf("patch: %v\n", patch)
 	})
 }
 

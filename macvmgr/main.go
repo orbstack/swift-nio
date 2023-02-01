@@ -344,7 +344,10 @@ func runVmManager() {
 	// Start VM control server for Swift
 	controlServer := VmControlServer{
 		balloon: vm.MemoryBalloonDevices()[0],
+		vm:      vm,
 		vc:      vc,
+		doneCh:  doneCh,
+		stopCh:  stopCh,
 	}
 	unixListener, err := controlServer.Serve()
 	check(err)
