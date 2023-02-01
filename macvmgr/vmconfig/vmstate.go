@@ -67,18 +67,18 @@ func GetState() *VmgrState {
 	return globalState
 }
 
-func UpdateState(func(*VmgrState)) error {
+func UpdateState(cb func(*VmgrState)) error {
 	state := GetState()
 
 	globalStateMu.Lock()
 	defer globalStateMu.Unlock()
 
-	func(state *VmgrState) {
-		err := state.Validate()
-		if err != nil {
-			panic(err)
-		}
-	}(state)
+	cb(state)
+
+	err := state.Validate()
+	if err != nil {
+		return err
+	}
 
 	data, err := json.MarshalIndent(state, "", "\t")
 	if err != nil {

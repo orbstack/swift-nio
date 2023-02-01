@@ -64,18 +64,18 @@ func Get() *VmConfig {
 	return globalConfig
 }
 
-func Update(func(*VmConfig)) error {
+func Update(cb func(*VmConfig)) error {
 	config := Get()
 
 	globalConfigMu.Lock()
 	defer globalConfigMu.Unlock()
 
-	func(config *VmConfig) {
-		err := config.Validate()
-		if err != nil {
-			panic(err)
-		}
-	}(config)
+	cb(config)
+
+	err := config.Validate()
+	if err != nil {
+		return err
+	}
 
 	data, err := json.MarshalIndent(config, "", "\t")
 	if err != nil {
