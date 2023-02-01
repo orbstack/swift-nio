@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -57,10 +58,13 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 		var password *string
 		if flagSetPassword {
 			// prompt for password
+			fmt.Print("Password for Linux user: ")
 			pwdData, err := term.ReadPassword(int(os.Stdin.Fd()))
 			check(err)
 			str := string(pwdData)
 			password = &str
+
+			fmt.Println()
 		}
 
 		// split distro
