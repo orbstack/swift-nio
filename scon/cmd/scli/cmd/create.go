@@ -29,7 +29,7 @@ func init() {
 }
 
 var createCmd = &cobra.Command{
-	Use:     "create [OPTIONS] DISTRO[:VERSION] [CONTAINER_NAME]",
+	Use:     "create [flags] DISTRO[:VERSION] [CONTAINER_NAME]",
 	Aliases: []string{"add", "new"},
 	Short:   "Create a new Linux container",
 	Long: `Create a new Linux container with the specified distribution.

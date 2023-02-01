@@ -25,7 +25,7 @@ func init() {
 }
 
 var runCmd = &cobra.Command{
-	Use:     "run [OPTIONS] -- [COMMAND] [ARGS]...",
+	Use:     "run [flags] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"exec", "shell"},
 	Short:   "Run command on Linux",
 	Long: `Run a command on Linux.

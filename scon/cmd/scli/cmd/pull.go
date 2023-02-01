@@ -15,7 +15,7 @@ func init() {
 }
 
 var pullCmd = &cobra.Command{
-	Use:   "pull [OPTIONS] macOS-source... Linux-dest",
+	Use:   "pull [flags] macOS-source... Linux-dest",
 	Short: "Copy files from Linux",
 	Long: `Copy files from Linux to macOS.
 

@@ -49,7 +49,7 @@ func translateLinuxPath(container, p string) string {
 }
 
 var pushCmd = &cobra.Command{
-	Use:   "push [OPTIONS] macOS-source... Linux-dest",
+	Use:   "push [flags] macOS-source... Linux-dest",
 	Short: "Copy files to Linux",
 	Long: `Copy files from macOS to Linux.
 
