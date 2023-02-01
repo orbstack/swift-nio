@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	useStdioConsole = true
+	useStdioConsole = false
 	useNat          = false
 
 	nfsMountTries = 10
