@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	pathArgRegexp = regexp.MustCompile(`^([a-zA-Z0-9_\-]+)?=/(.+)$`)
+	pathArgRegexp = regexp.MustCompile(`^([a-zA-Z0-9_\-]+)?=(/.+)$`)
 
 	sshSigMap = map[os.Signal]ssh.Signal{
 		unix.SIGABRT: ssh.SIGABRT,
