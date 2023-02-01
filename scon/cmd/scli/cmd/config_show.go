@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
@@ -34,7 +35,7 @@ var configShowCmd = &cobra.Command{
 
 		// print keys
 		for key, value := range configMap {
-			cmd.Println(key + ": " + value.(string))
+			fmt.Printf("%s: %v\n", key, value)
 		}
 
 		return nil
