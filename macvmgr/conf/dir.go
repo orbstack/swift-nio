@@ -124,12 +124,6 @@ func ExtraSshDir() string {
 }
 
 func Arch() string {
-	switch runtime.GOARCH {
-	case "amd64":
-		return "x86_64"
-	case "arm64":
-		return "arm64"
-	default:
-		panic("unsupported architecture " + runtime.GOARCH)
-	}
+	// amd64, arm64
+	return runtime.GOARCH
 }

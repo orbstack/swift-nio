@@ -9,23 +9,23 @@
 /* Begin PBXBuildFile section */
 		D88042962989037C00EA7C97 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D88042952989037C00EA7C97 /* SwiftJSONRPC */; };
 		D89C8A3B2989057600DA61A0 /* RPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89C8A3A2989057600DA61A0 /* RPC.swift */; };
-		D89C8A3D2989076600DA61A0 /* HTTPXRequestExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89C8A3C2989076600DA61A0 /* HTTPXRequestExecutor.swift */; };
 		D89C8A402989080400DA61A0 /* Connect in Frameworks */ = {isa = PBXBuildFile; productRef = D89C8A3F2989080400DA61A0 /* Connect */; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
 		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
+		D8CBDA23298A29FF0026F44A /* Daemon.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CBDA22298A29FF0026F44A /* Daemon.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		D89C8A3A2989057600DA61A0 /* RPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPC.swift; sourceTree = "<group>"; };
-		D89C8A3C2989076600DA61A0 /* HTTPXRequestExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPXRequestExecutor.swift; sourceTree = "<group>"; };
 		D8A32B8E296F839100E56EEF /* MacVirt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacVirt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8A32B91296F839100E56EEF /* MacVirtApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacVirtApp.swift; sourceTree = "<group>"; };
 		D8A32B93296F839100E56EEF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D8A32B95296F839100E56EEF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D8A32B98296F839100E56EEF /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		D8A32B9A296F839100E56EEF /* MacVirt.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacVirt.entitlements; sourceTree = "<group>"; };
+		D8CBDA22298A29FF0026F44A /* Daemon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daemon.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,7 +66,7 @@
 				D8A32B9A296F839100E56EEF /* MacVirt.entitlements */,
 				D8A32B97296F839100E56EEF /* Preview Content */,
 				D89C8A3A2989057600DA61A0 /* RPC.swift */,
-				D89C8A3C2989076600DA61A0 /* HTTPXRequestExecutor.swift */,
+				D8CBDA22298A29FF0026F44A /* Daemon.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -158,9 +158,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				D8A32B94296F839100E56EEF /* ContentView.swift in Sources */,
-				D89C8A3D2989076600DA61A0 /* HTTPXRequestExecutor.swift in Sources */,
 				D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */,
 				D89C8A3B2989057600DA61A0 /* RPC.swift in Sources */,
+				D8CBDA23298A29FF0026F44A /* Daemon.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -286,6 +286,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MacVirt/MacVirt.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -302,6 +303,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -313,6 +315,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MacVirt/MacVirt.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -329,6 +332,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};

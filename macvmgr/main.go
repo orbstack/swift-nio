@@ -334,9 +334,24 @@ func runVmManager() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
 
-		<-signalCh
-		logrus.Info("Received signal, requesting stop")
-		stopCh <- StopGraceful
+		sigints := 0
+		for {
+			sig := <-signalCh
+			if sig == unix.SIGINT {
+				sigints++
+			} else {
+				sigints = 0
+			}
+
+			if sigints >= 2 {
+				// two SIGINT = force stop
+				logrus.Info("Received SIGINT twice, forcing stop")
+				stopCh <- StopForce
+			} else {
+				logrus.Info("Received signal, requesting stop")
+				stopCh <- StopGraceful
+			}
+		}
 	}()
 
 	errCh := make(chan error, 1)

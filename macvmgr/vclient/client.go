@@ -221,7 +221,7 @@ func (vc *VClient) reportDiskStats() {
 		logrus.Debug("report stats:", stats)
 		_, err := vc.Post("disk/report_stats", stats)
 		if err != nil {
-			logrus.Error("report err", err)
+			logrus.WithError(err).Error("report stats err")
 		}
 	} else {
 		logrus.Debug("stats unchanged, not reporting")
