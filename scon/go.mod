@@ -31,7 +31,6 @@ require (
 )
 
 require (
-	github.com/Code-Hex/vz/v3 v3.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect

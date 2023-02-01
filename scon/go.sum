@@ -1,6 +1,4 @@
 github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 h1:UQHMgLO+TxOElx5B5HZ4hJQsoJ/PvUvKRhJHDQXO8P8=
-github.com/Code-Hex/vz/v3 v3.0.0 h1:UuYAZz8NF8n+R4MLfn/lpUlepgzZ8BlhKtioQ+q9LXk=
-github.com/Code-Hex/vz/v3 v3.0.0/go.mod h1:+xPQOXVzNaZ4OeIIhlJFumtbFhsvRfqKwX7wuZS4dFA=
 github.com/Microsoft/go-winio v0.6.0 h1:slsWYD/zyx7lCXoZVlvQrj0hPTM1HI4+v1sIda2yDvg=
 github.com/Microsoft/go-winio v0.6.0/go.mod h1:cTAf44im0RAYeL23bpB+fzCyDH2MJiz2BO69KH/soAE=
 github.com/alessio/shellescape v1.4.1 h1:V7yhSDDn8LP4lc4jS8pFkt0zCnzVJlG5JXy9BVKJUX0=
@@ -41,8 +39,6 @@ github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
 github.com/inconshreveable/mousetrap v1.0.1/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/kdrag0n/glider-ssh-macvirt v0.0.0-20230115082436-75adbbbba209 h1:HOZp+EulxIqK76bJNLlXBmEUq0S8TZpiGnc6DxE314Q=
-github.com/kdrag0n/glider-ssh-macvirt v0.0.0-20230115082436-75adbbbba209/go.mod h1:8XB4KraRrX39qHhT6yxPsHedjA08I/uBVwj4xC+/+z4=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/lxc/go-lxc v0.0.0-20220627182551-ad3d9f7cb822 h1:AYlgPPJzpZFA7zNWOzjUTpXZODB+j8T1M/k7K9E/WwQ=

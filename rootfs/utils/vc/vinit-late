@@ -50,6 +50,21 @@ popd
 #
 #
 
+# nfs root setup
+mount -t tmpfs tmpfs -o noatime /nfsroot-rw
+# try to reduce nfs cpu usage
+touch /nfsroot-rw/.metadata_never_index /nfsroot-rw/.metadata-never-index /nfsroot-rw/.metadata_never_index_unless_rootfs
+# bind ro
+mount --bind -o ro /nfsroot-rw /nfsroot-ro
+# debug only
+if [[ -f /opt/vc/is_debug ]]; then
+  mkdir /nfsroot-rw/data
+  mount --bind /data /nfsroot-ro/data
+fi
+
+# scon!
+/opt/vc/scon &
+
 # resize fs
 #xfs_growfs /dev/vdb1
 btrfs filesystem resize max /data
@@ -71,17 +86,7 @@ mkdir -p /tmp/flags
 touch /tmp/flags/data_resized
 sync -f /data
 
-# late nfs start because we need bind mount
-mount -t tmpfs tmpfs -o noatime /nfsroot-rw
-# try to reduce nfs cpu usage
-touch /nfsroot-rw/.metadata_never_index /nfsroot-rw/.metadata-never-index /nfsroot-rw/.metadata_never_index_unless_rootfs
-# bind ro
-mount --bind -o ro /nfsroot-rw /nfsroot-ro
-# debug only
-if [[ -f /opt/vc/is_debug ]]; then
-  mkdir /nfsroot-rw/data
-  mount --bind /data /nfsroot-ro/data
-fi
+# late nfs start
 rc-service nfs start
 # vsock
 /opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist

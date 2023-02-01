@@ -49,8 +49,25 @@ if [[ "$ARCH" == "arm64" ]]; then
 else
     export GOARCH=amd64
 fi
-garble build -trimpath -ldflags="-s -w" ./cmd/macctl
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" ./cmd/macctl
 popd
+
+# build scon (requires cgo)
+if [[ "$ARCH" == "arm64" ]]; then
+    compile_rd=rd-compile
+else
+    compile_rd=rd-compile86
+fi
+# private-users to fix git ownership for -buildvcs stamping
+host_uid=$(id -u dragon)
+host_gid=$(id -g dragon)
+chown -R $host_uid:$host_gid $compile_rd/out || :
+systemd-nspawn \
+    --link-journal=no \
+    -D $compile_rd \
+    --private-users=$host_uid:65536 \
+    --bind-ro="$PWD/..:/macvirt-src" \
+    /bin/sh -l -c "set -eux; mkdir -p /out && cd /macvirt-src/scon && ./build-release.sh /out"
 
 rm -fr rd
 mkdir rd
@@ -85,24 +102,20 @@ cp -r ../utils/guest/* $GUEST_OPT
 cp ../../LICENSE .
 
 # ARCH DEPENDENT
+# preinit
+cp ../$compile_rd/switch_overlay_root $OPT
+# nfs vsock
+cp ../$compile_rd/add-nfsd-vsock $OPT
+# scon
+cp ../$compile_rd/out/{scon,scon-agent} $OPT
+# macctl
+cp ../../macvmgr/macctl $GUEST_OPT/bin
 if [[ "$ARCH" == "arm64" ]]; then
-    # preinit
-    cp ../rd-compile/switch_overlay_root $OPT
-    # nfs vsock
-    cp ../rd-compile/add-nfsd-vsock $OPT
     # vcontrol server
     cp ../vcontrol/target/aarch64-unknown-linux-musl/release/vcontrol $OPT
-    # macctl
-    cp ../../macvmgr/macctl $GUEST_OPT/bin
 else
-    # preinit
-    cp ../rd-compile86/switch_overlay_root $OPT
-    # nfs vsock
-    cp ../rd-compile86/add-nfsd-vsock $OPT
     # vcontrol server
     cp ../vcontrol/target/x86_64-unknown-linux-musl/release/vcontrol $OPT
-    # macctl
-    cp ../../macvmgr/macctl $GUEST_OPT/bin
 fi
 
 
