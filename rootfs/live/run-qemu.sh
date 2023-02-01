@@ -4,8 +4,8 @@ cd "$(dirname "$0")"
 set -euo pipefail
 
 CPUS=8
-ASSETS=$PWD/../../assets/debug/x86_64
-KERNEL=$HOME/code/android/kvm/linux/out86/arch/x86_64/boot/bzImage
+ASSETS=$PWD/../../assets/debug/amd64
+KERNEL=$HOME/code/android/kvm/linux/out86/arch/amd64/boot/bzImage
 
 [[ ! -f data.img ]] && bsdtar -xf $ASSETS/data.img.tar
 rm -f swap.img

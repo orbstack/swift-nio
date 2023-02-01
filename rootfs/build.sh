@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-# arm64, x86_64
+# arm64, amd64
 ARCH="$1"
 BTYPE="$2"
 if [ -z "$ARCH" ] || [ -z "$BTYPE" ]; then
@@ -18,7 +18,7 @@ elif [[ "$BTYPE" != "debug" ]]; then
     exit 1
 fi
 
-if [[ "$ARCH" != "arm64" ]] && [[ "$ARCH" != "x86_64" ]]; then
+if [[ "$ARCH" != "arm64" ]] && [[ "$ARCH" != "amd64" ]]; then
     echo "Unknown architecture: $ARCH"
     exit 1
 fi

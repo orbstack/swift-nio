@@ -4,25 +4,19 @@ set -eo pipefail
 
 echo nameserver 1.1.1.1 > /etc/resolv.conf
 # 1. basic
-# 2. disk
+# 2. disk - util-linux to fix "/dev/vda: Can't open blockdev" for btrfs mount
 # 3. scon deps
 apk add --no-cache \
     socat openrc bash libstdc++ dash chrony eudev \
-    sfdisk xfsprogs xfsprogs-extra nfs-utils btrfs-progs \
+    sfdisk nfs-utils btrfs-progs util-linux \
     lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz
-
-# only keep xfs_growfs from extra, remove python3
-cp -a /usr/sbin/xfs_growfs /usr/sbin/xfs_quota /
-apk del xfsprogs-extra
-mv /xfs_growfs /usr/sbin/xfs_growfs
-mv /xfs_quota /usr/sbin/xfs_quota
 
 # remove useless getty instances
 sed -i '/getty/d' /etc/inittab
 
 if ! $IS_RELEASE; then
     echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
-    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat xfsprogs-extra quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind e2fsprogs-extra btrfs-progs-extra f2fs-tools fish
+    apk add neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind e2fsprogs-extra btrfs-progs-extra f2fs-tools fish
     rc-update add sshd default
     sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
 
@@ -175,14 +169,6 @@ done
 # prep for data volume
 mkdir /data
 mkdir -p /data/guest-state/bin/cmdlinks
-
-# mkdir /data/etc/ssh
-# if ! $IS_RELEASE; then
-#     for f in ssh_host_dsa_key ssh_host_dsa_key.pub ssh_host_ecdsa_key ssh_host_ecdsa_key.pub ssh_host_ed25519_key ssh_host_ed25519_key.pub ssh_host_rsa_key ssh_host_rsa_key.pub
-#     do
-#         ln -s /data/etc/ssh/$f /etc/ssh/$f
-#     done
-# fi
 
 # v1: initial
 echo 1 > /data/version
