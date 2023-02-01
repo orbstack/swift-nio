@@ -18,6 +18,7 @@ require (
 )
 
 require (
+	github.com/briandowns/spinner v1.20.0
 	github.com/creachadair/jrpc2 v0.43.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/docker/docker v20.10.23+incompatible
@@ -25,12 +26,13 @@ require (
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/spf13/cobra v1.6.1
 	go.etcd.io/bbolt v1.3.6
+	golang.org/x/term v0.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
+	github.com/Code-Hex/vz/v3 v3.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
-	github.com/briandowns/spinner v1.20.0 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -48,7 +50,6 @@ require (
 	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/term v0.4.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	gotest.tools/v3 v3.4.0 // indirect
 )

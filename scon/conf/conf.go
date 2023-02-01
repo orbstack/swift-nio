@@ -2,9 +2,6 @@ package conf
 
 import (
 	"os"
-	"strconv"
-
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 )
 
 var (
@@ -27,7 +24,7 @@ type Config struct {
 	HcontrolIP    string
 	DummyHcontrol bool
 	DNSServer     string
-	SSHListen     string
+	SSHListenIP   string
 	DockerRootfs  string
 	DockerDataDir string
 	NfsRootRO     string
@@ -43,7 +40,7 @@ var configVM = Config{
 	HcontrolIP:    "172.30.30.201",
 	DummyHcontrol: false,
 	DNSServer:     "172.30.30.200",
-	SSHListen:     "172.30.30.2:" + strconv.Itoa(ports.GuestSconSSH),
+	SSHListenIP:   "172.30.30.2",
 	DockerRootfs:  "/opt/docker-rootfs",
 	DockerDataDir: "/data/docker",
 	NfsRootRO:     "/nfsroot-ro",
@@ -58,7 +55,7 @@ var configTest = Config{
 	HcontrolIP:    "127.0.0.1",
 	DummyHcontrol: true,
 	DNSServer:     "1.1.1.1",
-	SSHListen:     "127.0.0.1:2222",
+	SSHListenIP:   "127.0.0.1",
 	DockerRootfs:  "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/docker-rootfs",
 	DockerDataDir: "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/docker-rootfs/var/lib/docker",
 	NfsRootRO:     "/tmp/scon-nfs",

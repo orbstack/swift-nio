@@ -3,7 +3,7 @@ package util
 import "net"
 
 func DefaultAddress4() net.IP {
-	conn, err := net.Dial("udp", "1.0.0.1:33000")
+	conn, err := net.Dial("udp", "8.8.4.4:33000")
 	if err != nil {
 		return nil
 	}

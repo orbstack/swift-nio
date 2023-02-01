@@ -2,16 +2,17 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/alessio/shellescape"
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/sshenv"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
@@ -109,31 +110,7 @@ func (e *ExitError) Error() string {
 	return fmt.Sprintf("exit status %d", e.status)
 }
 
-func (m *ConManager) GetDefaultContainer() (*Container, error) {
-	id, err := m.db.GetLastContainerID()
-	if err != nil {
-		// pick first container
-		for _, c := range m.ListContainers() {
-			id = c.ID
-			break
-		}
-	}
-
-	c, ok := m.GetByID(id)
-	if !ok && id != "" {
-		// pick first container
-		for _, c := range m.ListContainers() {
-			id = c.ID
-			break
-		}
-
-		c, ok = m.GetByID(id)
-	}
-	if !ok {
-		return nil, errors.New("no containers")
-	}
-
-	return c, nil
+type SshServer struct {
 }
 
 func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
@@ -432,7 +409,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	return
 }
 
-func (m *ConManager) listenSSH(address string) error {
+func (m *ConManager) runSSHServer(listenIP string) error {
 	handler := func(s ssh.Session) {
 		defer s.Close()
 
@@ -453,20 +430,36 @@ func (m *ConManager) listenSSH(address string) error {
 		s.Exit(0)
 	}
 
-	listener, err := net.Listen("tcp", address)
+	listenerInternal, err := net.Listen("tcp", net.JoinHostPort(listenIP, strconv.Itoa(ports.GuestSconSSH)))
 	if err != nil {
 		return err
 	}
 
-	// passwordHandler := func(ctx ssh.Context, password string) bool {
-	// 	return password == "test"
-	// }
-	go func() {
-		err = ssh.Serve(listener, handler, ssh.HostKeyPEM([]byte(hostKeyEd25519))) //, ssh.PasswordAuth(passwordHandler))
-		if err != nil {
-			logrus.Error("hostssh: Serve() =", err)
-		}
-	}()
+	listenerPublic, err := net.Listen("tcp", net.JoinHostPort(listenIP, strconv.Itoa(ports.GuestSconSSHPublic)))
+	if err != nil {
+		return err
+	}
+
+	hostKeyOpt := ssh.HostKeyPEM([]byte(hostKeyEd25519))
+	go runOne("internal SSH server", func() error {
+		return ssh.Serve(listenerInternal, handler, hostKeyOpt)
+	})
+
+	pubKeyStr, err := m.host.GetSSHPublicKey()
+	if err != nil {
+		return err
+	}
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pubKeyStr))
+	if err != nil {
+		return err
+	}
+
+	pubKeyOpt := ssh.PublicKeyAuth(func(ctx ssh.Context, key ssh.PublicKey) bool {
+		return ssh.KeysEqual(key, pubKey)
+	})
+	go runOne("public SSH server", func() error {
+		return ssh.Serve(listenerPublic, handler, hostKeyOpt, pubKeyOpt)
+	})
 
 	return nil
 }

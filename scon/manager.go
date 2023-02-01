@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path"
 	"runtime"
@@ -149,7 +150,7 @@ func (m *ConManager) Start() error {
 		return runSconServer(m)
 	})
 	go runOne("SSH server", func() error {
-		return m.listenSSH(conf.C().SSHListen)
+		return m.runSSHServer(conf.C().SSHListenIP)
 	})
 	// this one must be synchronous since post-start hook calls it
 	err = m.startDockerProxy()
@@ -308,4 +309,31 @@ func (m *ConManager) defaultUser() (string, error) {
 		return "", err
 	}
 	return hostUser.Username, nil
+}
+
+func (m *ConManager) GetDefaultContainer() (*Container, error) {
+	id, err := m.db.GetLastContainerID()
+	if err != nil {
+		// pick first container
+		for _, c := range m.ListContainers() {
+			id = c.ID
+			break
+		}
+	}
+
+	c, ok := m.GetByID(id)
+	if !ok && id != "" {
+		// pick first container
+		for _, c := range m.ListContainers() {
+			id = c.ID
+			break
+		}
+
+		c, ok = m.GetByID(id)
+	}
+	if !ok {
+		return nil, errors.New("no containers")
+	}
+
+	return c, nil
 }
