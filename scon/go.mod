@@ -4,7 +4,7 @@ go 1.19
 
 replace github.com/kdrag0n/macvirt/macvmgr => ../macvmgr
 
-replace github.com/gliderlabs/ssh => github.com/kdrag0n/glider-ssh-macvirt v0.0.0-20230115082436-75adbbbba209
+replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
 require (
 	github.com/coreos/go-iptables v0.6.0
