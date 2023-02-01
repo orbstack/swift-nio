@@ -47,7 +47,8 @@ func runCommandStub(cmd string) (int, error) {
 }
 
 func runCtl(fallbackToShell bool) error {
-	if len(os.Args) >= 1 && !cmd.HasCommand(os.Args[1:]) && fallbackToShell {
+	emptyCmd := len(os.Args) == 1
+	if len(os.Args) >= 1 && (emptyCmd || !cmd.HasCommand(os.Args[1:])) && fallbackToShell {
 		exitCode, err := shell.ConnectSSH(shell.CommandOpts{
 			CombinedArgs: os.Args[1:],
 		})
