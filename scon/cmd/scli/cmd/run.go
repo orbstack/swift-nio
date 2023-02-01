@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -29,7 +30,7 @@ func init() {
 
 func parseRunFlags(args []string) ([]string, error) {
 	inFlag := false
-	var lastI int
+	lastI := -1 // deal with empty case
 	var lastStringFlag *string
 	var arg string
 	for lastI, arg = range args {
@@ -123,10 +124,12 @@ will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run u
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// parse flags
 		var err error
+		fmt.Println("before", args)
 		args, err = parseRunFlags(args)
 		if err != nil {
 			return err
 		}
+		fmt.Println("after", args)
 		if flagWantHelp {
 			cmd.Help()
 			return nil

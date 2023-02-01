@@ -72,7 +72,11 @@ func TestParseArgs(t *testing.T) {
 
 	for args, test := range tests {
 		t.Logf("Testing: %s", args)
-		rem, err := parseRunFlags(strings.Split(args, " "))
+		var parsedArgs []string
+		if args != "" {
+			parsedArgs = strings.Split(args, " ")
+		}
+		rem, err := parseRunFlags(parsedArgs)
 		assert.Equal(t, test.err, err != nil, "err")
 		if !test.err {
 			assert.Equal(t, test.help, flagWantHelp, "help")
