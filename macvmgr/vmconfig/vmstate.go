@@ -48,7 +48,7 @@ func GetState() *VmgrState {
 		return globalState
 	}
 
-	data, err := os.ReadFile(conf.VmConfigFile())
+	data, err := os.ReadFile(conf.VmStateFile())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return defaultState()
@@ -86,7 +86,7 @@ func UpdateState(func(*VmgrState)) error {
 	}
 
 	// apfs doesn't need to be synced
-	err = os.WriteFile(conf.VmConfigFile(), data, 0644)
+	err = os.WriteFile(conf.VmStateFile(), data, 0644)
 	if err != nil {
 		return err
 	}

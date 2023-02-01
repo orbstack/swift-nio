@@ -111,6 +111,10 @@ func VmConfigFile() string {
 	return ConfigDir() + "/vmconfig.json"
 }
 
+func VmStateFile() string {
+	return ConfigDir() + "/vmstate.json"
+}
+
 func UserSshDir() string {
 	return ensureDir(HomeDir() + "/.ssh")
 }
