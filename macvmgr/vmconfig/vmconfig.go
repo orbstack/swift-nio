@@ -14,8 +14,8 @@ const (
 )
 
 var (
-	cachedConfig *VmConfig
-	globalMu     sync.RWMutex
+	globalConfig   *VmConfig
+	globalConfigMu sync.RWMutex
 )
 
 type VmConfig struct {
@@ -38,15 +38,20 @@ func check(err error) {
 }
 
 func Get() *VmConfig {
-	globalMu.RLock()
-	defer globalMu.RUnlock()
+	globalConfigMu.RLock()
+	defer globalConfigMu.RUnlock()
 
-	if cachedConfig != nil {
-		return cachedConfig
+	if globalConfig != nil {
+		return globalConfig
 	}
 
 	data, err := os.ReadFile(conf.VmConfigFile())
-	check(err)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Defaults()
+		}
+		panic(err)
+	}
 
 	config := Defaults()
 	err = json.Unmarshal(data, &config)
@@ -55,15 +60,15 @@ func Get() *VmConfig {
 	err = config.Validate()
 	check(err)
 
-	cachedConfig = config
-	return cachedConfig
+	globalConfig = config
+	return globalConfig
 }
 
 func Update(func(*VmConfig)) error {
-	globalMu.Lock()
-	defer globalMu.Unlock()
-
 	config := Get()
+
+	globalConfigMu.Lock()
+	defer globalConfigMu.Unlock()
 
 	func(config *VmConfig) {
 		err := config.Validate()
@@ -83,7 +88,7 @@ func Update(func(*VmConfig)) error {
 		return err
 	}
 
-	cachedConfig = config
+	globalConfig = config
 	return nil
 }
 

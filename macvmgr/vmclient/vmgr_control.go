@@ -7,7 +7,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/creachadair/jrpc2"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/scon/sclient"
 )

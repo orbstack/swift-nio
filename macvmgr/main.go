@@ -17,6 +17,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
@@ -32,6 +33,8 @@ const (
 
 	nfsMountTries = 10
 	nfsMountDelay = 500 * time.Millisecond
+
+	gracefulStopTimeout = 15 * time.Second
 )
 
 type StopType int
@@ -48,6 +51,8 @@ var (
 		"tcp:127.0.0.1:" + str(ports.HostNFS):           "vsock:" + str(ports.GuestNFS),
 		"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
 		"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
+		"tcp:127.0.0.1:" + str(ports.HostSconRPC):       "tcp:" + str(ports.GuestScon),
+		"tcp:[::1]:" + str(ports.HostSconRPC):           "tcp:" + str(ports.GuestScon),
 		"unix:" + conf.DockerSocket():                   "tcp:" + str(ports.GuestDocker),
 		"unix:" + conf.SconSSHSocket():                  "tcp:" + str(ports.GuestSconSSH),
 		"unix:" + conf.SconRPCSocket():                  "tcp:" + str(ports.GuestScon),
@@ -56,7 +61,7 @@ var (
 
 func init() {
 	if conf.Debug() {
-		hostForwardsToGuest["tcp:127.0.0.1:"+str(ports.HostSSH)] = "tcp:" + str(ports.GuestDebugSSH)
+		hostForwardsToGuest["tcp:127.0.0.1:"+str(ports.HostDebugSSH)] = "tcp:" + str(ports.GuestDebugSSH)
 	}
 }
 
@@ -134,6 +139,18 @@ func tryGracefulStop(vm *vz.VirtualMachine, vc *vclient.VClient) (err error) {
 		}
 	}()
 
+	go func() {
+		time.Sleep(gracefulStopTimeout)
+		logrus.Error("graceful stop timed out, forcing")
+
+		// assume that main goroutine would've exited by now, so program would've exited
+		// safe because onStop hook will never be set for graceful stop
+		err := tryForceStop(vm)
+		if err != nil {
+			logrus.WithError(err).Error("failed to force stop VM after graceful stop timeout")
+		}
+	}()
+
 	// 1. try scon
 	logrus.Debug("trying to stop VM via scon")
 	sclient, err := sclient.New("unix", conf.SconRPCSocket())
@@ -143,7 +160,11 @@ func tryGracefulStop(vm *vz.VirtualMachine, vc *vclient.VClient) (err error) {
 		err = sclient.StopServerVM()
 		if err == nil {
 			return
+		} else {
+			logrus.WithError(err).Error("failed to stop via scon")
 		}
+	} else {
+		logrus.WithError(err).Error("failed to stop via scon")
 	}
 
 	// 2. try vcontrol
@@ -151,20 +172,27 @@ func tryGracefulStop(vm *vz.VirtualMachine, vc *vclient.VClient) (err error) {
 	err = vc.Shutdown()
 	if err == nil {
 		return
+	} else {
+		logrus.WithError(err).Error("failed to stop via vcontrol")
 	}
 
 	// 3. try vz
-	logrus.Debug("trying to stop VM via vz")
-	stopped, err := vm.RequestStop()
-	if stopped && err == nil {
-		return
-	}
+	/*
+		logrus.Debug("trying to stop VM via vz")
+		stopped, err := vm.RequestStop()
+		if stopped && err == nil {
+			return
+		} else {
+			logrus.WithError(err).Error("failed to stop via vz")
+		}*/
 
 	// 4. try force
 	logrus.Debug("trying to stop VM via force vz")
 	err = tryForceStop(vm)
 	if err == nil {
 		return
+	} else {
+		logrus.WithError(err).Error("failed to stop via force vz")
 	}
 
 	return
@@ -177,6 +205,27 @@ func writePidFile() {
 
 	_, err = pidFile.WriteString(strconv.Itoa(os.Getpid()))
 	check(err)
+}
+
+func migrateState() error {
+	old := vmconfig.GetState()
+	logrus.Debug("old state: ", old)
+
+	err := vmconfig.UpdateState(func(state *vmconfig.VmgrState) {
+		state.Version = vmconfig.CurrentVersion
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func runOne(what string, fn func() error) {
+	err := fn()
+	if err != nil {
+		logrus.WithError(err).Error(what + " failed")
+	}
 }
 
 func runVmManager() {
@@ -192,12 +241,21 @@ func runVmManager() {
 		logrus.Fatal("macOS too old", err)
 	}
 
-	// start over with the sockets
+	// ensure it's not running
+	if vmclient.IsRunning() {
+		logrus.Fatal("vmgr is already running")
+	}
+
+	// start over with the sockets and pid file
 	os.RemoveAll(conf.RunDir())
 
 	// write PID file
 	writePidFile()
 	defer os.Remove(conf.VmgrPidFile())
+
+	// state migration
+	err := migrateState()
+	check(err)
 
 	doneCh := make(chan struct{})
 	defer close(doneCh)
@@ -316,6 +374,9 @@ func runVmManager() {
 	// Docker context
 	go setDockerContext()
 
+	// SSH key and config
+	go runOne("public SSH setup", setupPublicSSH)
+
 	// Mount NFS
 	nfsMounted := false
 	go func() {
@@ -390,6 +451,7 @@ func runVmManager() {
 					logrus.WithError(err).Error("vmcontrol stop hook failed")
 					return
 				}
+				return
 			}
 			if newState == vz.VirtualMachineStateError {
 				logrus.Error("VM error")

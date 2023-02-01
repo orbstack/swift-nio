@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
@@ -57,6 +58,16 @@ func (h *HcontrolServer) GetTimezone(_ *None, reply *string) error {
 
 	// take the part after /var/db/timezone/zoneinfo/
 	*reply = strings.TrimPrefix(linkDest, "/var/db/timezone/zoneinfo/")
+	return nil
+}
+
+func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
+	data, err := os.ReadFile(conf.ExtraSshDir() + "/id_ed25519.pub")
+	if err != nil {
+		return err
+	}
+
+	*reply = strings.TrimSpace(string(data))
 	return nil
 }
 

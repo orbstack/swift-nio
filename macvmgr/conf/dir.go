@@ -12,54 +12,42 @@ const (
 	nfsDirName = "Linux"
 )
 
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func HomeDir() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	check(err)
 	return home
 }
 
-func ConfigDir() string {
-	dir := HomeDir() + "/." + appid.AppName
+func ensureDir(dir string) string {
 	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	return dir
+}
+
+func ConfigDir() string {
+	return ensureDir(HomeDir() + "/." + appid.AppName)
 }
 
 func RunDir() string {
-	dir := ConfigDir() + "/run"
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(err)
-	}
-	return dir
+	return ensureDir(ConfigDir() + "/run")
 }
 
 func LogDir() string {
-	dir := ConfigDir() + "/log"
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(err)
-	}
-	return dir
+	return ensureDir(ConfigDir() + "/log")
 }
 
 func NfsMountpoint() string {
-	dir := HomeDir() + "/" + nfsDirName
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(err)
-	}
-	return dir
+	return ensureDir(HomeDir() + "/" + nfsDirName)
 }
 
 func DataDir() string {
-	dir := ConfigDir() + "/data"
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(err)
-	}
-	return dir
+	return ensureDir(ConfigDir() + "/data")
 }
 
 func GetDataFile(name string) string {
@@ -121,6 +109,14 @@ func VmgrPidFile() string {
 
 func VmConfigFile() string {
 	return ConfigDir() + "/vmconfig.json"
+}
+
+func UserSshDir() string {
+	return ensureDir(HomeDir() + "/.ssh")
+}
+
+func ExtraSshDir() string {
+	return ensureDir(ConfigDir() + "/ssh")
 }
 
 func Arch() string {

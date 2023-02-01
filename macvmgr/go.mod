@@ -14,35 +14,16 @@ replace github.com/gliderlabs/ssh => ../../../vm/glider-ssh
 
 require (
 	github.com/Code-Hex/vz/v3 v3.0.0
+	github.com/creachadair/jrpc2 v0.43.0
 	github.com/creack/pty v1.1.18
 	github.com/gliderlabs/ssh v0.3.5
+	github.com/kdrag0n/macvirt/scon v0.0.0-00010101000000-000000000000
 	github.com/mdlayher/vsock v1.2.0
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	golang.org/x/sys v0.4.0
 )
 
-require (
-	github.com/Microsoft/go-winio v0.6.0 // indirect
-	github.com/coreos/go-iptables v0.6.0 // indirect
-	github.com/creachadair/jrpc2 v0.43.0 // indirect
-	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
-	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v20.10.23+incompatible // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
-	github.com/docker/go-units v0.5.0 // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/kdrag0n/macvirt/scon v0.0.0-00010101000000-000000000000 // indirect
-	github.com/lxc/go-lxc v0.0.0-20220627182551-ad3d9f7cb822 // indirect
-	github.com/oklog/ulid/v2 v2.1.0 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.0.2 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
-	github.com/vishvananda/netlink v1.1.0 // indirect
-	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
-	go.etcd.io/bbolt v1.3.6 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
+require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a // indirect
 
 require (
 	github.com/alessio/shellescape v1.4.1
