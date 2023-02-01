@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
@@ -112,6 +113,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	}
 
 	cfg := scli.Conf()
+	vmclient.EnsureSconVM()
 	client, err := ssh.Dial(cfg.SshNet, cfg.SshAddr, config)
 	if err != nil {
 		return 0, err

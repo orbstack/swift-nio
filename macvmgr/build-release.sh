@@ -29,3 +29,22 @@ ln -sf moonctl lnx
 popd
 
 cp -rc ../assets/release/$ARCH $OUT/assets/release
+
+
+# get it notarized
+pushd $OUT
+zip -r notary.zip bin
+xcrun notarytool submit notary.zip --keychain-profile main --wait
+rm -f notary.zip
+popd
+
+# zip it
+pushd $OUT
+rm -f ../macvirt-$ARCH-dist.zip
+zip -r ../macvirt-$ARCH-dist.zip *
+popd
+
+# // Staple the package.
+# xcrun stapler staple niimath.pkg
+# // Optionally make a zip for the package.
+# ditto -c -k --sequesterRsrc niimath.pkg niimath.zip 

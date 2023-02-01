@@ -64,14 +64,15 @@ func EnsureSconVM() error {
 		return err
 	}
 
-	client, err := sclient.New("unix", conf.SconRPCSocket())
-	if err != nil {
-		return err
-	}
-
 	// wait for sconrpc to start
 	for {
+		client, err := sclient.New("unix", conf.SconRPCSocket())
+		if err != nil {
+			return err
+		}
+
 		err = client.Ping()
+		client.Close()
 		if err == nil {
 			break
 		}

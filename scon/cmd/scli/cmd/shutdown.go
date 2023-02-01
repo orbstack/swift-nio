@@ -47,12 +47,11 @@ In the future, this will be done automatically if the VM is idle and unused.
 			err = vmclient.Client().Stop()
 		}
 		spin.Stop()
-		checkCLI(err)
 
 		// EOF is ok, it means we got disconnected
 		// TODO fix
 		if err != nil && err.Error() != `[-32603] Post "http://vmrpc": EOF` {
-			panic(err)
+			checkCLI(err)
 		}
 
 		return nil

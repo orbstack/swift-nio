@@ -29,7 +29,6 @@ func runSpawnDaemon() {
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid: true,
-		Noctty: true,
 	}
 	err = cmd.Start()
 	check(err)
