@@ -12,13 +12,13 @@ import (
 var (
 	useShell      bool
 	usePath       bool
-	flagContainer string
+	flagMachine string
 	flagUser      string
 )
 
 func init() {
 	rootCmd.AddCommand(runCmd)
-	runCmd.Flags().StringVarP(&flagContainer, "container", "c", "", "Use a specific container")
+	runCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Use a specific machine")
 	runCmd.Flags().StringVarP(&flagUser, "user", "u", "", "Run as a specific user")
 	runCmd.Flags().BoolVarP(&useShell, "shell", "s", false, "Use the login shell instead of running command directly")
 	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate absolute macOS paths to Linux paths (experimental)")
@@ -31,7 +31,7 @@ var runCmd = &cobra.Command{
 	Long: `Run a command on Linux.
 
 If no arguments are provided, an interactive shell is started.
-If container is not specified, the last-used container is used.
+If machine is not specified, the last-used machine is used.
 If user is not specified, the default user (matching your macOS username) is used.
 
 You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux. For example:
@@ -51,7 +51,7 @@ will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run u
 		exitCode, err := shell.ConnectSSH(shell.CommandOpts{
 			CombinedArgs:  args,
 			UseShell:      useShell,
-			ContainerName: flagContainer,
+			ContainerName: flagMachine,
 			User:          flagUser,
 		})
 		if err != nil {

@@ -11,7 +11,7 @@ import (
 
 func init() {
 	rootCmd.AddCommand(pullCmd)
-	pullCmd.Flags().StringVarP(&flagContainer, "container", "c", "", "Copy to a specific container")
+	pullCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Copy to a specific machine")
 }
 
 var pullCmd = &cobra.Command{
@@ -33,7 +33,7 @@ is equivalent to:
 		// rest = sources
 		sources := args[:len(args)-1]
 
-		containerName := flagContainer
+		containerName := flagMachine
 		if containerName == "" {
 			c, err := scli.Client().GetDefaultContainer()
 			checkCLI(err)

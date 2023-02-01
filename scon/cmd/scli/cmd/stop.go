@@ -16,8 +16,8 @@ func init() {
 
 var stopCmd = &cobra.Command{
 	Use:   "stop [ID/NAME]",
-	Short: "Stop a Linux container",
-	Long: `Stop the specified Linux container, by ID or name.
+	Short: "Stop a Linux machine",
+	Long: `Stop the specified Linux machine, by ID or name.
 `,
 	Example: "  " + appid.ShortCtl + " stop ubuntu",
 	Args:    cobra.ExactArgs(1),
@@ -31,7 +31,7 @@ var stopCmd = &cobra.Command{
 		checkCLI(err)
 
 		if !c.Running {
-			cmd.PrintErrln("Container is not running")
+			cmd.PrintErrln("Machine is not running")
 			os.Exit(1)
 		}
 

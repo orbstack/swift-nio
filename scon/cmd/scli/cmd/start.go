@@ -16,8 +16,8 @@ func init() {
 
 var startCmd = &cobra.Command{
 	Use:   "start [ID/NAME]",
-	Short: "Start a Linux container",
-	Long: `Start the specified Linux container, by ID or name.
+	Short: "Start a Linux machine",
+	Long: `Start the specified Linux machine, by ID or name.
 `,
 	Example: "  " + appid.ShortCtl + " start ubuntu",
 	Args:    cobra.ExactArgs(1),
@@ -31,7 +31,7 @@ var startCmd = &cobra.Command{
 		checkCLI(err)
 
 		if c.Running {
-			cmd.PrintErrln("Container is already running")
+			cmd.PrintErrln("Machine is already running")
 			os.Exit(1)
 		}
 

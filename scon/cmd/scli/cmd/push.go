@@ -15,7 +15,7 @@ import (
 
 func init() {
 	rootCmd.AddCommand(pushCmd)
-	pushCmd.Flags().StringVarP(&flagContainer, "container", "c", "", "Copy to a specific container")
+	pushCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Copy to a specific machine")
 }
 
 func translateLinuxPath(container, p string) string {
@@ -62,7 +62,7 @@ Destination path is relative to the Linux user's home directory.`,
 		// rest = sources
 		sources := args[:len(args)-1]
 
-		containerName := flagContainer
+		containerName := flagMachine
 		if containerName == "" {
 			c, err := scli.Client().GetDefaultContainer()
 			checkCLI(err)

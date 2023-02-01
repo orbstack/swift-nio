@@ -22,7 +22,7 @@ func init() {
 var shutdownCmd = &cobra.Command{
 	Use:   "shutdown",
 	Short: "Stop the lightweight Linux virtual machine",
-	Long: `Stop the lightweight Linux virtual machine. This will stop Docker and all Linux containers.
+	Long: `Stop the lightweight Linux virtual machine. This will stop Docker and all Linux machines.
 
 In the future, this will be done automatically if the VM is idle and unused.
 `,
@@ -37,7 +37,7 @@ In the future, this will be done automatically if the VM is idle and unused.
 		// spinner
 		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 		spin.Color("red")
-		spin.Suffix = " Stopping VM and containers"
+		spin.Suffix = " Stopping VM and machines"
 		spin.Start()
 
 		var err error

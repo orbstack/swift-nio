@@ -29,13 +29,13 @@ func init() {
 }
 
 var createCmd = &cobra.Command{
-	Use:     "create [flags] DISTRO[:VERSION] [CONTAINER_NAME]",
+	Use:     "create [flags] DISTRO[:VERSION] [MACHINE_NAME]",
 	Aliases: []string{"add", "new"},
-	Short:   "Create a new Linux container",
-	Long: `Create a new Linux container with the specified distribution.
+	Short:   "Create a new Linux machine",
+	Long: `Create a new Linux machine with the specified distribution.
 
 Version is optional; the latest stable version will be used if not specified.
-To remove a container, use "` + appid.ShortCtl + ` delete".
+To remove a machine, use "` + appid.ShortCtl + ` delete".
 
 A matching Linux user will be created for your macOS user. Pass "--set-password" to set a password for this Linux user, as well as the root user.
 

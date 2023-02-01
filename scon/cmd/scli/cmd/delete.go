@@ -15,11 +15,11 @@ func init() {
 
 var deleteCmd = &cobra.Command{
 	Use:   "delete [ID/NAME]",
-	Short: "Delete a Linux container",
-	Long: `Delete the specified Linux container, by ID or name.
+	Short: "Delete a Linux machine",
+	Long: `Delete the specified Linux machine, by ID or name.
 
-The container will be stopped if it is running.
-All files stored in the container will be PERMANENTLY LOST without warning!
+The machine will be stopped if it is running.
+All files stored in the machine will be PERMANENTLY LOST without warning!
 `,
 	Example: "  " + appid.ShortCtl + " delete ubuntu",
 	Args:    cobra.ExactArgs(1),

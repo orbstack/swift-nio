@@ -24,10 +24,10 @@ func init() {
 var resetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "Delete all Linux and Docker data",
-	Long: `Delete all Linux and Docker data in the VM. All data will be permanently lost!
+	Long: `Delete all Linux machines and Docker data. All data will be permanently lost!
 
-This resets the virtual machine to its initial state, but configuration is preserved.
-All containers will be stopped immediately.
+This resets the lightweight VM to its initial state, but configuration is preserved.
+All machines will be stopped immediately.
 `,
 	Example: "  " + appid.ShortCtl + " reset",
 	Args:    cobra.NoArgs,

@@ -15,8 +15,8 @@ func init() {
 var infoCmd = &cobra.Command{
 	Use:     "info [ID/NAME]",
 	Aliases: []string{"i"},
-	Short:   "Get information about a Linux container",
-	Long: `Get information about the specified Linux container, by ID or name.
+	Short:   "Get information about a Linux machine",
+	Long: `Get information about the specified Linux machine, by ID or name.
 `,
 	Example: "  " + appid.ShortCtl + " list",
 	Args:    cobra.ExactArgs(1),
@@ -42,11 +42,11 @@ var infoCmd = &cobra.Command{
 		fmt.Printf("Status: %s\n", status)
 
 		if c.Builtin {
-			fmt.Printf("\nContainer is built-in.\n")
+			fmt.Printf("\nMachine is built-in.\n")
 		}
 
 		if c.Deleting {
-			fmt.Printf("\nContainer is being deleted.\n")
+			fmt.Printf("\nMachine is being deleted.\n")
 		}
 
 		return nil
