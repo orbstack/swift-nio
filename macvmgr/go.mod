@@ -23,7 +23,7 @@ require (
 	golang.org/x/sys v0.4.0
 )
 
-require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a // indirect
+require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 
 require (
 	github.com/alessio/shellescape v1.4.1
