@@ -82,14 +82,10 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 		}
 
 		// spinner
-		isPty := term.IsTerminal(int(os.Stdout.Fd()))
-		var spin *spinner.Spinner
-		if isPty {
-			spin = spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-			spin.Color("blue")
-			spin.Suffix = " Creating " + name
-			spin.Start()
-		}
+		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+		spin.Color("blue")
+		spin.Suffix = " Creating " + name
+		spin.Start()
 
 		_, err := scli.Client().Create(types.CreateRequest{
 			Name: name,
@@ -100,9 +96,7 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 			},
 			UserPassword: password,
 		})
-		if isPty {
-			spin.Stop()
-		}
+		spin.Stop()
 		if err != nil {
 			// print to stderr
 			cmd.PrintErrln(err)

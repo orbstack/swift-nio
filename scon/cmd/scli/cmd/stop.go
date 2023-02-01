@@ -8,7 +8,6 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 func init() {
@@ -33,23 +32,17 @@ var stopCmd = &cobra.Command{
 
 		if !c.Running {
 			cmd.PrintErrln("Container is not running")
-			return nil
+			os.Exit(1)
 		}
 
 		// spinner
-		isPty := term.IsTerminal(int(os.Stdout.Fd()))
-		var spin *spinner.Spinner
-		if isPty {
-			spin = spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-			spin.Color("red")
-			spin.Suffix = " Stopping " + c.Name
-			spin.Start()
-		}
+		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+		spin.Color("red")
+		spin.Suffix = " Stopping " + c.Name
+		spin.Start()
 
 		err = scli.Client().ContainerStop(c)
-		if isPty {
-			spin.Stop()
-		}
+		spin.Stop()
 		check(err)
 
 		return nil

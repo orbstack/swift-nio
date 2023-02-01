@@ -1,6 +1,7 @@
 package scli
 
 import (
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/scon/sclient"
 )
 
@@ -20,7 +21,7 @@ func Client() *sclient.SconClient {
 	}
 
 	if Conf().ControlVM {
-		//TODO start vm
+		vmclient.EnsureSconVM()
 	}
 
 	client, err := sclient.New(Conf().RpcNetwork, Conf().RpcAddr)

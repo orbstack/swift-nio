@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"os"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 func init() {
@@ -35,19 +33,13 @@ All files stored in the container will be PERMANENTLY LOST without warning!
 		check(err)
 
 		// spinner
-		isPty := term.IsTerminal(int(os.Stdout.Fd()))
-		var spin *spinner.Spinner
-		if isPty {
-			spin = spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-			spin.Color("red")
-			spin.Suffix = " Deleting " + c.Name
-			spin.Start()
-		}
+		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+		spin.Color("red")
+		spin.Suffix = " Deleting " + c.Name
+		spin.Start()
 
 		err = scli.Client().ContainerDelete(c)
-		if isPty {
-			spin.Stop()
-		}
+		spin.Stop()
 		check(err)
 
 		return nil
