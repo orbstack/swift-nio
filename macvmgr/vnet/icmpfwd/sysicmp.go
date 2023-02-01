@@ -223,9 +223,7 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 	case header.ICMPv4EchoReply:
 		// do nothing special
 	// Types with nested payloads: need to fix nested packet
-	case header.ICMPv4DstUnreachable:
-		fallthrough
-	case header.ICMPv4TimeExceeded:
+	case header.ICMPv4DstUnreachable, header.ICMPv4TimeExceeded:
 		origMsg := icmpHdr.Payload()
 		// Discard too-small packets
 		if len(origMsg) < header.IPv4MinimumSize+header.UDPMinimumSize {
@@ -342,9 +340,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 	case header.ICMPv6EchoReply:
 		// do nothing special
 	// Types with nested payloads: need to fix nested packet
-	case header.ICMPv6DstUnreachable:
-		fallthrough
-	case header.ICMPv6TimeExceeded:
+	case header.ICMPv6DstUnreachable, header.ICMPv6TimeExceeded:
 		origMsg := icmpHdr.Payload()
 		// Discard too-small packets
 		if len(origMsg) < header.IPv6MinimumSize+header.UDPMinimumSize {

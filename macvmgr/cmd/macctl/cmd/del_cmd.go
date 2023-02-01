@@ -21,7 +21,7 @@ The following commands are linked by default and cannot be unlinked:
   - code
 `,
 	Example: "  macctl unlink-cmd code",
-	Args:    cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := shell.UnlinkCmd(args[0])
 		if err != nil {

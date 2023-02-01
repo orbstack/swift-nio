@@ -24,7 +24,7 @@ is equivalent to:
 	cp /Users/$USER/Downloads/example.txt .
 `,
 	Example: "  macctl pull Desktop/example.txt .",
-	Args:    cobra.MatchAll(cobra.MinimumNArgs(2), cobra.OnlyValidArgs),
+	Args:    cobra.MinimumNArgs(2),
 	RunE: func(_ *cobra.Command, args []string) error {
 		// last = dest
 		dest := args[len(args)-1]

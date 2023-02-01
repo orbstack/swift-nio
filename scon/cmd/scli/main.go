@@ -15,16 +15,10 @@ func main() {
 	exitCode := 0
 	switch cmd {
 	// control-only command mode
-	case "lnxctl":
-		fallthrough
-	case "scli": // for Linux testing
-		fallthrough
-	case appid.ShortCmd + "ctl":
+	case appid.ShortCtl, "lnxctl", "scli":
 		err = runCtl(false)
 	// control or shell, depending on args
-	case "lnx":
-		fallthrough
-	case appid.ShortCmd:
+	case appid.ShortCmd, "lnx":
 		err = runCtl(true)
 	// command stub mode
 	default:
@@ -49,14 +43,8 @@ func runCommandStub(cmd string) (int, error) {
 func runCtl(fallbackToShell bool) error {
 	emptyCmd := len(os.Args) == 1
 	if len(os.Args) >= 1 && (emptyCmd || !cmd.HasCommand(os.Args[1:])) && fallbackToShell {
-		exitCode, err := shell.ConnectSSH(shell.CommandOpts{
-			CombinedArgs: os.Args[1:],
-		})
-		if err != nil {
-			return err
-		}
-
-		os.Exit(exitCode)
+		// alias to run - so we borrow its arg parsing logic
+		os.Args = append([]string{os.Args[0], "run"}, os.Args[1:]...)
 	}
 
 	cmd.Execute()

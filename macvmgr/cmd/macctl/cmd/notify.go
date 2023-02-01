@@ -27,7 +27,7 @@ var notifyCmd = &cobra.Command{
 If multiple arguments are provided, they will be joined into a single message with spaces.
 Use --title to set a title.`,
 	Example: `  macctl notify "Command finished!"`,
-	Args:    cobra.MatchAll(cobra.MinimumNArgs(1), cobra.OnlyValidArgs),
+	Args:    cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		exitCode, err := shell.ConnectSSH(shell.CommandOpts{
 			CombinedArgs: []string{"osascript", "-e", script},

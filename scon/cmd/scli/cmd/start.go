@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"os"
+	"errors"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -10,40 +10,63 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	flagAll bool
+)
+
 func init() {
 	rootCmd.AddCommand(startCmd)
+	startCmd.Flags().BoolVarP(&flagAll, "all", "a", false, "Start all machines")
 }
 
 var startCmd = &cobra.Command{
-	Use:   "start [ID/NAME]",
+	Use:   "start [flags] [ID/NAME]...",
 	Short: "Start a Linux machine",
-	Long: `Start the specified Linux machine, by ID or name.
+	Long: `Start the specified Linux machine(s), by ID or name.
 `,
 	Example: "  " + appid.ShortCtl + " start ubuntu",
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// try ID first
-		c, err := scli.Client().GetByID(args[0])
-		if err != nil {
-			// try name
-			c, err = scli.Client().GetByName(args[0])
+		var containerNames []string
+		if flagAll {
+			containers, err := scli.Client().ListContainers()
+			checkCLI(err)
+
+			for _, c := range containers {
+				containerNames = append(containerNames, c.Name)
+			}
+		} else {
+			if len(args) == 0 {
+				return errors.New("no machines specified")
+			}
+
+			containerNames = args
 		}
-		checkCLI(err)
 
-		if c.Running {
-			cmd.PrintErrln("Machine is already running")
-			os.Exit(1)
+		for _, containerName := range containerNames {
+			// try ID first
+			c, err := scli.Client().GetByID(containerName)
+			if err != nil {
+				// try name
+				c, err = scli.Client().GetByName(containerName)
+			}
+			checkCLI(err)
+
+			if c.Running {
+				cmd.PrintErrln(containerName + ": already running")
+				continue
+			}
+
+			// spinner
+			spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+			spin.Color("green")
+			spin.Suffix = " Starting " + c.Name
+			spin.Start()
+
+			err = scli.Client().ContainerStart(c)
+			spin.Stop()
+			checkCLI(err)
 		}
-
-		// spinner
-		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		spin.Color("green")
-		spin.Suffix = " Starting " + c.Name
-		spin.Start()
-
-		err = scli.Client().ContainerStart(c)
-		spin.Stop()
-		checkCLI(err)
 
 		return nil
 	},

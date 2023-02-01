@@ -218,37 +218,7 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 
 func isDistroInLxdRepo(distro string) bool {
 	switch distro {
-	case ImageAlpine:
-		fallthrough
-	case ImageArch:
-		fallthrough
-	case ImageCentos:
-		fallthrough
-	case ImageDebian:
-		fallthrough
-	case ImageFedora:
-		fallthrough
-	case ImageGentoo:
-		fallthrough
-	case ImageKali:
-		fallthrough
-	case ImageOpensuse:
-		fallthrough
-	case ImageUbuntu:
-		fallthrough
-	case ImageVoid:
-		fallthrough
-	case ImageDevuan:
-		fallthrough
-	case ImageAlma:
-		fallthrough
-	case ImageAmazon:
-		fallthrough
-	case ImageApertis:
-		fallthrough
-	case ImageOracle:
-		fallthrough
-	case ImageRocky:
+	case ImageAlpine, ImageArch, ImageCentos, ImageDebian, ImageFedora, ImageGentoo, ImageKali, ImageOpensuse, ImageUbuntu, ImageVoid, ImageDevuan, ImageAlma, ImageAmazon, ImageApertis, ImageOracle, ImageRocky:
 		return true
 	}
 
