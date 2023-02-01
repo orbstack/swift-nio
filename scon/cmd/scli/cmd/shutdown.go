@@ -47,7 +47,7 @@ In the future, this will be done automatically if the VM is idle and unused.
 			err = vmclient.Client().Stop()
 		}
 		spin.Stop()
-		check(err)
+		checkCLI(err)
 
 		return nil
 	},

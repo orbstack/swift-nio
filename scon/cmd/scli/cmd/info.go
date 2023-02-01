@@ -27,7 +27,7 @@ var infoCmd = &cobra.Command{
 			// try name
 			c, err = scli.Client().GetByName(args[0])
 		}
-		check(err)
+		checkCLI(err)
 
 		status := "stopped"
 		if c.Running {

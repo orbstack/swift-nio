@@ -60,7 +60,7 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 			// prompt for password
 			fmt.Print("Password for Linux user: ")
 			pwdData, err := term.ReadPassword(int(os.Stdin.Fd()))
-			check(err)
+			checkCLI(err)
 			str := string(pwdData)
 			password = &str
 

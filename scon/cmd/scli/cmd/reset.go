@@ -41,7 +41,7 @@ All containers will be stopped immediately.
 			cmd.PrintErr("Are you sure you want to continue [y/N]? ")
 			var resp string
 			_, err := fmt.Scanln(&resp)
-			check(err)
+			checkCLI(err)
 			lower := strings.ToLower(resp)
 			if lower != "y" && lower != "yes" {
 				cmd.PrintErrln("Aborted")
@@ -57,7 +57,7 @@ All containers will be stopped immediately.
 
 		err := vmclient.Client().ResetData()
 		spin.Stop()
-		check(err)
+		checkCLI(err)
 
 		return nil
 	},

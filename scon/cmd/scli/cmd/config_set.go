@@ -29,17 +29,23 @@ Supported options: memory_mib
 		key := args[0]
 		value := args[1]
 		var err error
+		rebootRequired := false
 		switch key {
 		case "memory_mib":
 			config.MemoryMiB, err = strconv.ParseUint(value, 10, 64)
+			rebootRequired = true
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)
 		}
-		check(err)
+		checkCLI(err)
 
 		err = vmclient.Client().PatchConfig(&config)
-		check(err)
+		checkCLI(err)
+
+		if rebootRequired {
+			cmd.Println("Restart the VM with '" + appid.ShortCtl + " shutdown' to apply changes.")
+		}
 
 		return nil
 	},

@@ -36,7 +36,7 @@ is equivalent to:
 		containerName := flagContainer
 		if containerName == "" {
 			c, err := scli.Client().GetDefaultContainer()
-			check(err)
+			checkCLI(err)
 			containerName = c.Name
 		}
 

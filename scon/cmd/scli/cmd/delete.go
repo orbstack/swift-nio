@@ -30,7 +30,7 @@ All files stored in the container will be PERMANENTLY LOST without warning!
 			// try name
 			c, err = scli.Client().GetByName(args[0])
 		}
-		check(err)
+		checkCLI(err)
 
 		// spinner
 		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
@@ -40,7 +40,7 @@ All files stored in the container will be PERMANENTLY LOST without warning!
 
 		err = scli.Client().ContainerDelete(c)
 		spin.Stop()
-		check(err)
+		checkCLI(err)
 
 		return nil
 	},

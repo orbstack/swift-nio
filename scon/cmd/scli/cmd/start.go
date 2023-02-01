@@ -28,7 +28,7 @@ var startCmd = &cobra.Command{
 			// try name
 			c, err = scli.Client().GetByName(args[0])
 		}
-		check(err)
+		checkCLI(err)
 
 		if c.Running {
 			cmd.PrintErrln("Container is already running")
@@ -43,7 +43,7 @@ var startCmd = &cobra.Command{
 
 		err = scli.Client().ContainerStart(c)
 		spin.Stop()
-		check(err)
+		checkCLI(err)
 
 		return nil
 	},

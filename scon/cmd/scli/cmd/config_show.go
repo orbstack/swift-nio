@@ -22,16 +22,16 @@ var configShowCmd = &cobra.Command{
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		config, err := vmclient.Client().GetConfig()
-		check(err)
+		checkCLI(err)
 
 		// serialize to json
 		jsonData, err := json.MarshalIndent(config, "", "  ")
-		check(err)
+		checkCLI(err)
 
 		// deserialize to map
 		var configMap map[string]any
 		err = json.Unmarshal(jsonData, &configMap)
-		check(err)
+		checkCLI(err)
 
 		// print keys
 		for key, value := range configMap {

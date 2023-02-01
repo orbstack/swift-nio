@@ -28,7 +28,7 @@ var stopCmd = &cobra.Command{
 			// try name
 			c, err = scli.Client().GetByName(args[0])
 		}
-		check(err)
+		checkCLI(err)
 
 		if !c.Running {
 			cmd.PrintErrln("Container is not running")
@@ -43,7 +43,7 @@ var stopCmd = &cobra.Command{
 
 		err = scli.Client().ContainerStop(c)
 		spin.Stop()
-		check(err)
+		checkCLI(err)
 
 		return nil
 	},

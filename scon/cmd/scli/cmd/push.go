@@ -65,7 +65,7 @@ Destination path is relative to the Linux user's home directory.`,
 		containerName := flagContainer
 		if containerName == "" {
 			c, err := scli.Client().GetDefaultContainer()
-			check(err)
+			checkCLI(err)
 			containerName = c.Name
 		}
 

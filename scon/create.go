@@ -2,14 +2,18 @@ package main
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/oklog/ulid/v2"
 	"github.com/sirupsen/logrus"
+)
+
+var (
+	containerNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 )
 
 type CreateParams struct {
@@ -26,7 +30,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	if name == "default" {
 		return nil, errors.New("invalid container name")
 	}
-	if strings.ContainsRune(name, '/') {
+	if !containerNamePattern.MatchString(name) {
 		return nil, errors.New("invalid container name")
 	}
 	if _, ok := m.GetByName(name); ok {

@@ -22,7 +22,7 @@ var listCmd = &cobra.Command{
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		containers, err := scli.Client().ListContainers()
-		check(err)
+		checkCLI(err)
 
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 		defer w.Flush()
