@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -124,12 +123,10 @@ will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run u
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// parse flags
 		var err error
-		fmt.Println("before", args)
 		args, err = parseRunFlags(args)
 		if err != nil {
 			return err
 		}
-		fmt.Println("after", args)
 		if flagWantHelp {
 			cmd.Help()
 			return nil
