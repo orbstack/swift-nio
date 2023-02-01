@@ -86,13 +86,15 @@ func runContainerManager() {
 		go runPprof()
 	}
 
-	go func() {
-		err := runCliTest(mgr)
-		if err != nil {
-			logrus.WithError(err).Error("cli test failed")
-			mgr.Close()
-		}
-	}()
+	if conf.Debug() {
+		go func() {
+			err := runCliTest(mgr)
+			if err != nil {
+				logrus.WithError(err).Error("cli test failed")
+				mgr.Close()
+			}
+		}()
+	}
 
 	// listen for signals
 	sigChan := make(chan os.Signal, 1)
@@ -108,16 +110,15 @@ func runContainerManager() {
 func runCliTest(mgr *ConManager) error {
 	var err error
 
-	container, ok := mgr.GetByName("ubuntu-x86")
+	container, ok := mgr.GetByName("ubuntu")
 	if !ok {
 		// create
 		fmt.Println("create")
 		container, err = mgr.Create(CreateParams{
-			Name: "ubuntu-x86",
+			Name: "ubuntu",
 			Image: types.ImageSpec{
 				Distro:  "ubuntu",
 				Version: "kinetic",
-				Arch:    "amd64",
 			},
 			UserPassword: "test",
 		})
