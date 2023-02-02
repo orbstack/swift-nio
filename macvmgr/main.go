@@ -258,6 +258,9 @@ func runVmManager() {
 	}
 	defer lockFile.Unlock()
 
+	// remove everything in run, sockets and pid
+	os.RemoveAll(conf.RunDir())
+
 	// write PID file
 	writePidFile()
 	defer os.Remove(conf.VmgrPidFile())
@@ -500,6 +503,8 @@ func main() {
 	switch cmd {
 	case "spawn-daemon":
 		runSpawnDaemon()
+	case "ssh-proxy-fdpass":
+		runSshProxyFdpass()
 	case "":
 		runVmManager()
 	default:

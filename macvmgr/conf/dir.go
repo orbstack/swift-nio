@@ -107,8 +107,9 @@ func VmgrPidFile() string {
 	return RunDir() + "/vmgr.pid"
 }
 
+// not in run to avoid being removed
 func VmgrLockFile() string {
-	return RunDir() + "/vmgr.lock"
+	return ConfigDir() + "/vmgr.lock"
 }
 
 func VmConfigFile() string {

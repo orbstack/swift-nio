@@ -16,6 +16,7 @@ import (
 )
 
 var (
+	// ssh-proxy-fdpass is to ensure VM starts
 	sshConfigSegment = fmt.Sprintf(`Host %s
   Hostname 127.0.0.1
   Port %d
@@ -27,13 +28,21 @@ var (
   #   root@fedora@%s: container "fedora", user "root"
   User default
   IdentityFile %s/id_ed25519
-`, appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, makeHomeRelative(conf.ExtraSshDir()))
+  ProxyCommand %s ssh-proxy-fdpass
+  ProxyUseFdpass yes
+`, appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, makeHomeRelative(conf.ExtraSshDir()), getExePath())
 
 	sshConfigIncludeLine = fmt.Sprintf("Include %s/config", makeHomeRelative(conf.ExtraSshDir()))
 )
 
 func makeHomeRelative(path string) string {
 	return strings.Replace(path, conf.HomeDir(), "~", 1)
+}
+
+func getExePath() string {
+	exe, err := os.Executable()
+	check(err)
+	return exe
 }
 
 func generatePublicSSHKey() error {

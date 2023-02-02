@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"errors"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
@@ -21,8 +21,10 @@ func init() {
 
 var startCmd = &cobra.Command{
 	Use:   "start [flags] [ID/NAME]...",
-	Short: "Start a Linux machine",
+	Short: "Start Linux machines",
 	Long: `Start the specified Linux machine(s), by ID or name.
+
+If no machines are specified, the command will start all machines that were running when it was last stopped.
 `,
 	Example: "  " + appid.ShortCtl + " start ubuntu",
 	Args:    cobra.ArbitraryArgs,
@@ -37,7 +39,19 @@ var startCmd = &cobra.Command{
 			}
 		} else {
 			if len(args) == 0 {
-				return errors.New("no machines specified")
+				// start VM instead
+				if vmclient.IsRunning() {
+					cmd.PrintErrln("Some machines are already running. Use --all to start all machines.")
+					return nil
+				}
+
+				spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+				spin.Color("green")
+				spin.Suffix = " Starting machines"
+				spin.Start()
+				err := vmclient.EnsureSconVM()
+				spin.Stop()
+				checkCLI(err)
 			}
 
 			containerNames = args
