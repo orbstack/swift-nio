@@ -31,6 +31,7 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 		checkCLI(err)
 
 		// spinner
+		scli.EnsureSconVMWithSpinner()
 		spinner := spinutil.Start("red", "Deleting "+c.Name)
 		err = scli.Client().ContainerDelete(c)
 		spinner.Stop()

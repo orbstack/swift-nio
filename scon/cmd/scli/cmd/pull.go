@@ -28,6 +28,8 @@ is equivalent to:
 	Example: "  " + appid.ShortCtl + " pull code/example.txt .",
 	Args:    cobra.MinimumNArgs(2),
 	RunE: func(_ *cobra.Command, args []string) error {
+		scli.EnsureSconVMWithSpinner()
+
 		// last = dest
 		dest := args[len(args)-1]
 		// rest = sources

@@ -7,6 +7,7 @@ import (
 
 	"github.com/alessio/shellescape"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
 	"github.com/spf13/cobra"
 )
@@ -138,6 +139,8 @@ will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run u
 		if useShell {
 			args = []string{shellescape.QuoteCommand(args)}
 		}
+
+		scli.EnsureSconVMWithSpinner()
 
 		exitCode, err := shell.ConnectSSH(shell.CommandOpts{
 			CombinedArgs:  args,

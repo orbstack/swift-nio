@@ -21,6 +21,8 @@ var listCmd = &cobra.Command{
 	Example: "  " + appid.ShortCtl + " list",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		scli.EnsureSconVMWithSpinner()
+
 		containers, err := scli.Client().ListContainers()
 		checkCLI(err)
 

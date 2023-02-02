@@ -6,6 +6,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +22,7 @@ var configShowCmd = &cobra.Command{
 	Example: "  " + appid.ShortCtl + " show",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		scli.EnsureVMWithSpinner()
 		config, err := vmclient.Client().GetConfig()
 		checkCLI(err)
 

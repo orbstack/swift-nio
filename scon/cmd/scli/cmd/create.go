@@ -85,6 +85,7 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 		}
 
 		// spinner
+		scli.EnsureSconVMWithSpinner()
 		spinner := spinutil.Start("blue", "Creating "+name)
 		_, err := scli.Client().Create(types.CreateRequest{
 			Name: name,

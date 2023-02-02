@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
@@ -22,6 +23,11 @@ var stopCmd = &cobra.Command{
 	Example: "  " + appid.ShortCtl + " stop ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if !vmclient.IsRunning() {
+			cmd.PrintErrln("No machines are running.")
+			return nil
+		}
+
 		var containerNames []string
 		if flagAll {
 			containers, err := scli.Client().ListContainers()

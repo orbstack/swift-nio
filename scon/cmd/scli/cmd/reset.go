@@ -7,6 +7,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
 )
@@ -49,6 +50,7 @@ All machines will be stopped immediately.
 		}
 
 		// spinner
+		scli.EnsureVMWithSpinner()
 		spinner := spinutil.Start("red", "Resetting data")
 		err := vmclient.Client().ResetData()
 		spinner.Stop()

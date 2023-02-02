@@ -21,6 +21,8 @@ var infoCmd = &cobra.Command{
 	Example: "  " + appid.ShortCtl + " list",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		scli.EnsureSconVMWithSpinner()
+
 		// try ID first
 		c, err := scli.Client().GetByID(args[0])
 		if err != nil {

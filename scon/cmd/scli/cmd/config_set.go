@@ -7,6 +7,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
 
@@ -40,6 +41,7 @@ Supported options: memory_mib
 		}
 		checkCLI(err)
 
+		scli.EnsureVMWithSpinner()
 		err = vmclient.Client().PatchConfig(&config)
 		checkCLI(err)
 
