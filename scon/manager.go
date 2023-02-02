@@ -314,8 +314,12 @@ func (m *ConManager) defaultUser() (string, error) {
 func (m *ConManager) GetDefaultContainer() (*Container, error) {
 	id, err := m.db.GetLastContainerID()
 	if err != nil {
-		// pick first container
+		// pick first non-builtin container
 		for _, c := range m.ListContainers() {
+			if c.builtin {
+				continue
+			}
+
 			id = c.ID
 			break
 		}
@@ -323,8 +327,12 @@ func (m *ConManager) GetDefaultContainer() (*Container, error) {
 
 	c, ok := m.GetByID(id)
 	if !ok && id != "" {
-		// pick first container
+		// pick first non-builtin container
 		for _, c := range m.ListContainers() {
+			if c.builtin {
+				continue
+			}
+
 			id = c.ID
 			break
 		}
@@ -332,7 +340,7 @@ func (m *ConManager) GetDefaultContainer() (*Container, error) {
 		c, ok = m.GetByID(id)
 	}
 	if !ok {
-		return nil, errors.New("no containers")
+		return nil, errors.New("no machines found")
 	}
 
 	return c, nil

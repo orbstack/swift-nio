@@ -1,6 +1,10 @@
 package images
 
-import "runtime"
+import (
+	"runtime"
+
+	"golang.org/x/exp/slices"
+)
 
 const (
 	ImageAlpine   = "alpine"
@@ -102,6 +106,7 @@ func Distros() []string {
 	for distro := range DistroToImage {
 		distros = append(distros, distro)
 	}
+	slices.Sort(distros)
 	return distros
 }
 

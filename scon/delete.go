@@ -49,7 +49,7 @@ func (c *Container) Delete() error {
 	}
 
 	if c.builtin {
-		return errors.New("cannot delete builtin container")
+		return errors.New("cannot delete builtin machine")
 	}
 
 	logrus.WithField("container", c.Name).Info("deleting container")

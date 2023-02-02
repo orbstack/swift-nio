@@ -32,11 +32,19 @@ var listCmd = &cobra.Command{
 		fmt.Fprintf(w, "NAME\tSTATUS\tDISTRO\tVERSION\tARCH\n")
 		fmt.Fprintf(w, "----\t------\t------\t-------\t----\n")
 		for _, c := range containers {
+			if c.Builtin {
+				continue
+			}
+
 			status := "stopped"
 			if c.Running {
 				status = "running"
 			}
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Name, status, c.Image.Distro, c.Image.Version, c.Image.Arch)
+		}
+
+		if len(containers) == 0 {
+			fmt.Println(`\nUse "` + appid.ShortCtl + `" create to create a machine.`)
 		}
 
 		return nil

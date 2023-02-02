@@ -28,13 +28,13 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	name := args.Name
 	image := args.Image
 	if name == "default" {
-		return nil, errors.New("invalid container name")
+		return nil, errors.New("invalid machine name")
 	}
 	if !containerNamePattern.MatchString(name) {
-		return nil, errors.New("invalid container name")
+		return nil, errors.New("invalid machine name")
 	}
 	if _, ok := m.GetByName(name); ok {
-		return nil, errors.New("container already exists")
+		return nil, errors.New("machine already exists")
 	}
 
 	// image defaults

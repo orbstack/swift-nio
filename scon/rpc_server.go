@@ -56,7 +56,7 @@ func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerRecor
 func (s *SconServer) GetByID(ctx context.Context, req types.GetByIDRequest) (*types.ContainerRecord, error) {
 	c, ok := s.m.GetByID(req.ID)
 	if !ok {
-		return nil, errors.New("container not found")
+		return nil, errors.New("machine not found")
 	}
 
 	return c.toRecord(), nil
@@ -65,7 +65,7 @@ func (s *SconServer) GetByID(ctx context.Context, req types.GetByIDRequest) (*ty
 func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) (*types.ContainerRecord, error) {
 	c, ok := s.m.GetByName(req.Name)
 	if !ok {
-		return nil, errors.New("container not found")
+		return nil, errors.New("machine not found")
 	}
 
 	return c.toRecord(), nil
@@ -83,7 +83,7 @@ func (s *SconServer) GetDefaultContainer(ctx context.Context) (*types.ContainerR
 func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
-		return errors.New("container not found")
+		return errors.New("machine not found")
 	}
 
 	return c.Start()
@@ -92,7 +92,7 @@ func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerR
 func (s *SconServer) ContainerStop(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
-		return errors.New("container not found")
+		return errors.New("machine not found")
 	}
 
 	return c.Stop()
@@ -101,7 +101,7 @@ func (s *SconServer) ContainerStop(ctx context.Context, record types.ContainerRe
 func (s *SconServer) ContainerDelete(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
-		return errors.New("container not found")
+		return errors.New("machine not found")
 	}
 
 	return c.Delete()
@@ -110,7 +110,7 @@ func (s *SconServer) ContainerDelete(ctx context.Context, record types.Container
 func (s *SconServer) ContainerFreeze(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
-		return errors.New("container not found")
+		return errors.New("machine not found")
 	}
 
 	return c.Freeze()
@@ -119,7 +119,7 @@ func (s *SconServer) ContainerFreeze(ctx context.Context, record types.Container
 func (s *SconServer) ContainerUnfreeze(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
-		return errors.New("container not found")
+		return errors.New("machine not found")
 	}
 
 	return c.Unfreeze()
