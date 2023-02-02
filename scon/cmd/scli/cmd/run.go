@@ -109,7 +109,7 @@ var runCmd = &cobra.Command{
 
 If no arguments are provided, an interactive shell is started.
 If machine is not specified, the last-used machine is used.
-If user is not specified, the default user (matching your macOS username) is used.
+If user is not specified, the default user is used.
 
 You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux. For example:
     ` + appid.ShortCmd + ` uname -a

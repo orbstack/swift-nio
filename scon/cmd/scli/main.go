@@ -1,50 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path"
 
+	"github.com/fatih/color"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/cmd"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
 )
 
-const (
-	shortCmdHelp = `Control and interact with MacVirt Linux distros from macOS.
-
-The listed commands can be used with either "moonctl" or "moon".
-
-You can also prefix commands with "moon" to run them on Linux. For example:
-	moon uname -a
-will run "uname -a" on macOS, and is equivalent to:
-	moonctl run uname -a
-
-In this mode, the default user (matching your macOS username) and last-used distro will be used.
-
-Usage:
-	moonctl [command]
-
-Available Commands:
-  completion  Generate the autocompletion script for the specified shell
-  config      Configure the Linux virtual machine
-  create      Create a new Linux machine
-  delete      Delete a Linux machine
-  help        Help about any command
-  info        Get information about a Linux machine
-  list        List all Linux machines
-  pull        Copy files from Linux
-  push        Copy files to Linux
-  reset       Delete all Linux and Docker data
-  run         Run command on Linux
-  shutdown    Stop the lightweight Linux virtual machine
-  start       Start a Linux machine
-  stop        Stop a Linux machine
-
-Flags:
-	-h, --help   help for moonctl
-
-Use "moonctl [command] --help" for more information about a command.`
-)
 func main() {
 	cmd := path.Base(os.Args[0])
 	var err error
@@ -76,6 +42,33 @@ func runCommandStub(cmd string) (int, error) {
 	})
 }
 
+func printShortHelp() {
+	bold := color.New(color.Bold, color.FgHiBlue).SprintFunc()
+	fmt.Printf(`MacVirt's short "moon" command has 3 usages:
+
+%s
+   Just run "moon" with no arguments.
+   Usage: moon
+
+%s
+   Prefix any command with "moon" to run it on Linux.
+   Usage: moon [flags] <command> [args...]
+   Example: moon uname -a
+
+   The default user and last-used distro will be used, unless specified with flags.
+   For example, to log in to "ubuntu" as root: moon -m ubuntu -u root uname -a
+
+   Use "moonctl run --help" for a list of flags.
+
+%s
+   For convenience, you can use moonctl subcommands with this command.
+   Usage: moon <subcommand> [args...]
+
+   Use "moonctl --help" for a list of subcommands.
+`, bold("1. Start a Linux shell."), bold(`2. Run commands on Linux, like "moonctl run".`), bold(`3. Control Linux machines, like "moonctl".`))
+	os.Exit(0)
+}
+
 func shouldCallRunCtl(args []string) bool {
 	// handled by ctl
 	if cmd.HasCommand(args) {
@@ -91,7 +84,8 @@ func shouldCallRunCtl(args []string) bool {
 
 	// is this help command or -h/--help flag? if so, let root cmd handle it
 	if cmd.FlagWantHelp || (len(remArgs) > 0 && remArgs[0] == "help") {
-		return false
+		// print our help instead
+		printShortHelp()
 	}
 
 	return true

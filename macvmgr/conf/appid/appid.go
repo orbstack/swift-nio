@@ -3,7 +3,7 @@ package appid
 const (
 	Codename    = "macvirt"
 	AppName     = "macvirt"
-	UserAppName = "MacVirt"
+	UserAppName = "MoonStack"
 
 	ShortCmd = "moon"
 	ShortCtl = "moonctl"
