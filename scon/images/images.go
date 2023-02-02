@@ -95,6 +95,12 @@ var (
 
 		DistroNixos: "22.11",
 	}
+
+	// everything else is "default"
+	DistroToDefaultVariant = map[string]string{
+		// default and recommended over systemd
+		DistroGentoo: "openrc",
+	}
 )
 
 func Distros() []string {

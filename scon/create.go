@@ -39,7 +39,11 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 
 	// image defaults
 	if image.Variant == "" {
-		image.Variant = "default"
+		var ok bool
+		image.Variant, ok = images.DistroToDefaultVariant[image.Distro]
+		if !ok {
+			image.Variant = "default"
+		}
 	}
 	if image.Arch == "" {
 		image.Arch = images.NativeArch()
