@@ -76,10 +76,10 @@ func TestParseArgs(t *testing.T) {
 		if args != "" {
 			parsedArgs = strings.Split(args, " ")
 		}
-		rem, err := parseRunFlags(parsedArgs)
+		rem, err := ParseRunFlags(parsedArgs)
 		assert.Equal(t, test.err, err != nil, "err")
 		if !test.err {
-			assert.Equal(t, test.help, flagWantHelp, "help")
+			assert.Equal(t, test.help, FlagWantHelp, "help")
 			assert.Equal(t, test.shell, useShell, "shell")
 			assert.Equal(t, test.path, usePath, "path")
 			assert.Equal(t, test.machine, flagMachine, "machine")
@@ -88,7 +88,7 @@ func TestParseArgs(t *testing.T) {
 		}
 
 		// reset flags
-		flagWantHelp = false
+		FlagWantHelp = false
 		useShell = false
 		usePath = false
 		flagMachine = ""

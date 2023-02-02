@@ -40,9 +40,29 @@ func runCommandStub(cmd string) (int, error) {
 	})
 }
 
+func shouldCallRunCtl(args []string) bool {
+	// handled by ctl
+	if cmd.HasCommand(args) {
+		return false
+	}
+
+	// special cases: help, --help, -h
+	// use run's arg parsing logic
+	remArgs, parseErr := cmd.ParseRunFlags(args)
+	if parseErr != nil {
+		return false
+	}
+
+	// is this help command or -h/--help flag? if so, let root cmd handle it
+	if cmd.FlagWantHelp || (len(remArgs) > 0 && remArgs[0] == "help") {
+		return false
+	}
+
+	return true
+}
+
 func runCtl(fallbackToShell bool) error {
-	emptyCmd := len(os.Args) == 1
-	if len(os.Args) >= 1 && (emptyCmd || !cmd.HasCommand(os.Args[1:])) && fallbackToShell {
+	if fallbackToShell && shouldCallRunCtl(os.Args[1:]) {
 		// alias to run - so we borrow its arg parsing logic
 		os.Args = append([]string{os.Args[0], "run"}, os.Args[1:]...)
 	}

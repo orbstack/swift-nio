@@ -26,6 +26,10 @@ func Execute() error {
 }
 
 func HasCommand(args []string) bool {
-	_, _, err := rootCmd.Find(args)
-	return err == nil
+	targetCmd, _, err := rootCmd.Find(args)
+	if err != nil {
+		return false
+	}
+
+	return targetCmd != rootCmd
 }

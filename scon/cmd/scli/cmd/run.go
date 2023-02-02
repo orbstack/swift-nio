@@ -16,7 +16,7 @@ var (
 	usePath      bool
 	flagMachine  string
 	flagUser     string
-	flagWantHelp bool
+	FlagWantHelp bool
 )
 
 func init() {
@@ -27,7 +27,7 @@ func init() {
 	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate absolute macOS paths to Linux paths (experimental)")
 }
 
-func parseRunFlags(args []string) ([]string, error) {
+func ParseRunFlags(args []string) ([]string, error) {
 	inFlag := false
 	lastI := -1 // deal with empty case
 	var lastStringFlag *string
@@ -50,7 +50,7 @@ func parseRunFlags(args []string) ([]string, error) {
 				usePath = true
 				continue
 			case "-h", "--help", "-help":
-				flagWantHelp = true
+				FlagWantHelp = true
 				continue
 			}
 
@@ -123,11 +123,11 @@ will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run u
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// parse flags
 		var err error
-		args, err = parseRunFlags(args)
+		args, err = ParseRunFlags(args)
 		if err != nil {
 			return err
 		}
-		if flagWantHelp {
+		if FlagWantHelp {
 			cmd.Help()
 			return nil
 		}
