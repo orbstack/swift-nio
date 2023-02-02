@@ -27,3 +27,4 @@
 *.img
 *.qcow2
 *.img.tar
+*.lck
