@@ -25,7 +25,7 @@ require (
 
 require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 
-require github.com/gofrs/flock v0.8.1 // indirect
+require github.com/gofrs/flock v0.8.1
 
 require (
 	github.com/alessio/shellescape v1.4.1
@@ -42,9 +42,8 @@ require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/miekg/dns v1.1.50
 	github.com/pkg/sftp v1.13.5
-	github.com/stretchr/testify v1.8.1 // indirect
 	golang.org/x/crypto v0.5.0
-	golang.org/x/tools v0.1.12 // indirect
+	golang.org/x/tools v0.2.0 // indirect
 )
 
 require (
