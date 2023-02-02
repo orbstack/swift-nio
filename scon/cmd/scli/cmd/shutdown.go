@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"os"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
 )
 
@@ -35,18 +34,14 @@ In the future, this will be done automatically if the VM is idle and unused.
 		}
 
 		// spinner
-		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		spin.Color("red")
-		spin.Suffix = " Stopping VM and machines"
-		spin.Start()
-
+		spinner := spinutil.Start("red", "Stopping VM and machines")
 		var err error
 		if flagForce {
 			err = vmclient.Client().ForceStop()
 		} else {
 			err = vmclient.Client().Stop()
 		}
-		spin.Stop()
+		spinner.Stop()
 
 		// EOF is ok, it means we got disconnected
 		// TODO fix

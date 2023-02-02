@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"errors"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
 )
 
@@ -54,13 +53,9 @@ var stopCmd = &cobra.Command{
 			}
 
 			// spinner
-			spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-			spin.Color("red")
-			spin.Suffix = " Stopping " + c.Name
-			spin.Start()
-
+			spinner := spinutil.Start("red", "Stopping "+c.Name)
 			err = scli.Client().ContainerStop(c)
-			spin.Stop()
+			spinner.Stop()
 			checkCLI(err)
 		}
 

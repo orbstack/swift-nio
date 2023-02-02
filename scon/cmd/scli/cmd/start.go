@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"time"
-
-	"github.com/briandowns/spinner"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
 )
 
@@ -45,12 +43,9 @@ If no machines are specified, the command will start all machines that were runn
 					return nil
 				}
 
-				spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-				spin.Color("green")
-				spin.Suffix = " Starting machines"
-				spin.Start()
+				spinner := spinutil.Start("green", "Starting machines")
 				err := vmclient.EnsureSconVM()
-				spin.Stop()
+				spinner.Stop()
 				checkCLI(err)
 			}
 
@@ -72,13 +67,9 @@ If no machines are specified, the command will start all machines that were runn
 			}
 
 			// spinner
-			spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-			spin.Color("green")
-			spin.Suffix = " Starting " + c.Name
-			spin.Start()
-
+			spinner := spinutil.Start("green", "Starting "+c.Name)
 			err = scli.Client().ContainerStart(c)
-			spin.Stop()
+			spinner.Stop()
 			checkCLI(err)
 		}
 

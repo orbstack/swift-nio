@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"time"
-
-	"github.com/briandowns/spinner"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
 )
 
@@ -33,13 +31,9 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 		checkCLI(err)
 
 		// spinner
-		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		spin.Color("red")
-		spin.Suffix = " Deleting " + c.Name
-		spin.Start()
-
+		spinner := spinutil.Start("red", "Deleting "+c.Name)
 		err = scli.Client().ContainerDelete(c)
-		spin.Stop()
+		spinner.Stop()
 		checkCLI(err)
 
 		return nil

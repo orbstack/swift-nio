@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
 )
 
@@ -50,13 +49,9 @@ All machines will be stopped immediately.
 		}
 
 		// spinner
-		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		spin.Color("red")
-		spin.Suffix = " Resetting data"
-		spin.Start()
-
+		spinner := spinutil.Start("red", "Resetting data")
 		err := vmclient.Client().ResetData()
-		spin.Stop()
+		spinner.Stop()
 		checkCLI(err)
 
 		return nil

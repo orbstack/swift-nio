@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/kdrag0n/macvirt/scon/util"
@@ -86,11 +85,7 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 		}
 
 		// spinner
-		spin := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		spin.Color("blue")
-		spin.Suffix = " Creating " + name
-		spin.Start()
-
+		spinner := spinutil.Start("blue", "Creating "+name)
 		_, err := scli.Client().Create(types.CreateRequest{
 			Name: name,
 			Image: types.ImageSpec{
@@ -100,7 +95,7 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 			},
 			UserPassword: password,
 		})
-		spin.Stop()
+		spinner.Stop()
 		if err != nil {
 			// print to stderr
 			cmd.PrintErrln(err)

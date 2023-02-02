@@ -44,7 +44,7 @@ Supported options: memory_mib
 		checkCLI(err)
 
 		if rebootRequired {
-			cmd.Println("Restart the VM with '" + appid.ShortCtl + " shutdown' to apply changes.")
+			cmd.Println(`Restart the VM with "` + appid.ShortCtl + ` shutdown" to apply changes.`)
 		}
 
 		return nil
