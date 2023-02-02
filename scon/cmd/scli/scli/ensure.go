@@ -20,7 +20,7 @@ func EnsureVMWithSpinner() {
 		return
 	}
 
-	spinner := spinutil.Start("green", "Starting virtual machine")
+	spinner := spinutil.Start("green", "Starting machine")
 	err := vmclient.EnsureVM()
 	spinner.Stop()
 	checkCLI(err)
@@ -32,7 +32,7 @@ func EnsureSconVMWithSpinner() {
 		return
 	}
 
-	spinner := spinutil.Start("green", "Starting virtual machine")
+	spinner := spinutil.Start("green", "Starting machine")
 	err := vmclient.EnsureSconVM()
 	spinner.Stop()
 	checkCLI(err)
