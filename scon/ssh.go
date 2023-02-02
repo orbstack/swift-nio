@@ -196,7 +196,9 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	}
 
 	// set as last container
-	go m.db.SetLastContainerID(container.ID)
+	if !container.builtin {
+		go m.db.SetLastContainerID(container.ID)
+	}
 
 	if !container.Running() {
 		logrus.WithFields(logrus.Fields{
