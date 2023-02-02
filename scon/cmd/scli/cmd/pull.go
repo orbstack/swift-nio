@@ -15,25 +15,34 @@ func init() {
 }
 
 var pullCmd = &cobra.Command{
-	Use:   "pull [flags] macOS-source... Linux-dest",
+	Use:   "pull [flags] macOS-source... [Linux-dest]",
 	Short: "Copy files from Linux",
 	Long: `Copy files from Linux to macOS.
 
 Source paths are relative to the Linux user's home directory.
+If destination is not specified, the current directory is used.
 
 This is provided for convenience, but we recommend using shared folders for simplicity. For example:
     ` + appid.ShortCtl + ` pull code/example.txt .
 is equivalent to:
 	cp ~/Linux/ubuntu/home/$USER/code/example.txt .`,
 	Example: "  " + appid.ShortCtl + " pull code/example.txt .",
-	Args:    cobra.MinimumNArgs(2),
+	Args:    cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
-		// last = dest
-		dest := args[len(args)-1]
-		// rest = sources
-		sources := args[:len(args)-1]
+		var dest string
+		var sources []string
+		if len(args) == 1 {
+			// assume dest is cwd
+			dest = "."
+			sources = args
+		} else {
+			// last = dest
+			dest = args[len(args)-1]
+			// rest = sources
+			sources = args[:len(args)-1]
+		}
 
 		containerName := flagMachine
 		if containerName == "" {

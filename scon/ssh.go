@@ -258,7 +258,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	env = append(env, "PWD="+cwd)
 
 	var suCmd string
-	prelude := envToShell(env) + " cd " + shellescape.Quote(cwd) + "; "
+	prelude := "cd " + shellescape.Quote(cwd) + "; " + envToShell(env)
 	if meta.RawCommand {
 		// raw command (JSON)
 		var rawArgs []string

@@ -49,25 +49,34 @@ func translateLinuxPath(container, p string) string {
 }
 
 var pushCmd = &cobra.Command{
-	Use:   "push [flags] macOS-source... Linux-dest",
+	Use:   "push [flags] macOS-source... [Linux-dest]",
 	Short: "Copy files to Linux",
 	Long: `Copy files from macOS to Linux.
 
 Destination path is relative to the Linux user's home directory.
+If destination is not specified, the home directory is used.
 
 This is provided for convenience, but we recommend using shared folders for simplicity. For example:
     ` + appid.ShortCtl + ` push example.txt code/
 is equivalent to:
 	cp example.txt ~/Linux/ubuntu/home/$USER/code/`,
 	Example: "  " + appid.ShortCtl + " push example.txt Desktop/",
-	Args:    cobra.MinimumNArgs(2),
+	Args:    cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
-		// last = dest
-		dest := args[len(args)-1]
-		// rest = sources
-		sources := args[:len(args)-1]
+		var dest string
+		var sources []string
+		if len(args) == 1 {
+			// assume dest is home
+			dest = ""
+			sources = args
+		} else {
+			// last = dest
+			dest = args[len(args)-1]
+			// rest = sources
+			sources = args[:len(args)-1]
+		}
 
 		containerName := flagMachine
 		if containerName == "" {
