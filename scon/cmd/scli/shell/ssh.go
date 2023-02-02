@@ -112,8 +112,12 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
+	err := vmclient.EnsureSconVM()
+	if err != nil {
+		return 0, err
+	}
+
 	cfg := scli.Conf()
-	vmclient.EnsureSconVM()
 	client, err := ssh.Dial(cfg.SshNet, cfg.SshAddr, config)
 	if err != nil {
 		return 0, err

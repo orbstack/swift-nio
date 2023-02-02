@@ -25,7 +25,10 @@ func Client() *VmClient {
 		return cachedClient
 	}
 
-	EnsureVM()
+	err := EnsureVM()
+	if err != nil {
+		panic(err)
+	}
 
 	client, err := newClient()
 	if err != nil {

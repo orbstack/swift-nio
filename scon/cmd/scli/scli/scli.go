@@ -21,7 +21,8 @@ func Client() *sclient.SconClient {
 	}
 
 	if Conf().ControlVM {
-		vmclient.EnsureSconVM()
+		err := vmclient.EnsureSconVM()
+		check(err)
 	}
 
 	client, err := sclient.New(Conf().RpcNetwork, Conf().RpcAddr)
