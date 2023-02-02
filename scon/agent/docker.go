@@ -2,7 +2,6 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
@@ -23,7 +22,6 @@ func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("CTRS", containers)
 
 	*reply = len(containers) == 0
 	return nil
