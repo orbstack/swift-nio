@@ -18,12 +18,11 @@ const (
 	ImageUbuntu   = "ubuntu"
 	ImageVoid     = "voidlinux"
 
-	ImageDevuan  = "devuan"
-	ImageAlma    = "almalinux"
-	ImageAmazon  = "amazonlinux"
-	ImageApertis = "apertis"
-	ImageOracle  = "oracle"
-	ImageRocky   = "rockylinux"
+	ImageDevuan = "devuan"
+	ImageAlma   = "almalinux"
+	ImageAmazon = "amazonlinux"
+	ImageOracle = "oracle"
+	ImageRocky  = "rockylinux"
 
 	// extra
 	ImageNixos      = "nixos"
@@ -43,12 +42,11 @@ const (
 	DistroUbuntu   = "ubuntu"
 	DistroVoid     = "void"
 
-	DistroDevuan  = "devuan"
-	DistroAlma    = "alma"
-	DistroAmazon  = "amazon"
-	DistroApertis = "apertis"
-	DistroOracle  = "oracle"
-	DistroRocky   = "rocky"
+	DistroDevuan = "devuan"
+	DistroAlma   = "alma"
+	DistroAmazon = "amazon"
+	DistroOracle = "oracle"
+	DistroRocky  = "rocky"
 
 	// extra
 	DistroNixos = "nixos"
@@ -67,12 +65,11 @@ var (
 		DistroUbuntu:   ImageUbuntu,
 		DistroVoid:     ImageVoid,
 
-		DistroDevuan:  ImageDevuan,
-		DistroAlma:    ImageAlma,
-		DistroAmazon:  ImageAmazon,
-		DistroApertis: ImageApertis,
-		DistroOracle:  ImageOracle,
-		DistroRocky:   ImageRocky,
+		DistroDevuan: ImageDevuan,
+		DistroAlma:   ImageAlma,
+		DistroAmazon: ImageAmazon,
+		DistroOracle: ImageOracle,
+		DistroRocky:  ImageRocky,
 
 		// extra
 		DistroNixos: ImageNixos,
@@ -90,12 +87,11 @@ var (
 		DistroUbuntu:   "kinetic",
 		DistroVoid:     "current",
 
-		DistroDevuan:  "chimaera",
-		DistroAlma:    "9",
-		DistroAmazon:  "current",
-		DistroApertis: "v2021",
-		DistroOracle:  "9",
-		DistroRocky:   "9",
+		DistroDevuan: "chimaera",
+		DistroAlma:   "9",
+		DistroAmazon: "current",
+		DistroOracle: "9",
+		DistroRocky:  "9",
 
 		DistroNixos: "22.11",
 	}

@@ -40,7 +40,6 @@ const (
 	ImageDevuan  = "devuan"
 	ImageAlma    = "almalinux"
 	ImageAmazon  = "amazonlinux"
-	ImageApertis = "apertis"
 	ImageOracle  = "oracle"
 	ImageRocky   = "rockylinux"
 
@@ -218,7 +217,7 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 
 func isDistroInLxdRepo(distro string) bool {
 	switch distro {
-	case ImageAlpine, ImageArch, ImageCentos, ImageDebian, ImageFedora, ImageGentoo, ImageKali, ImageOpensuse, ImageUbuntu, ImageVoid, ImageDevuan, ImageAlma, ImageAmazon, ImageApertis, ImageOracle, ImageRocky:
+	case ImageAlpine, ImageArch, ImageCentos, ImageDebian, ImageFedora, ImageGentoo, ImageKali, ImageOpensuse, ImageUbuntu, ImageVoid, ImageDevuan, ImageAlma, ImageAmazon, ImageOracle, ImageRocky:
 		return true
 	}
 
