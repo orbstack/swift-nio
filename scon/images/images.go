@@ -72,7 +72,8 @@ var (
 		DistroRocky:  ImageRocky,
 
 		// extra
-		DistroNixos: ImageNixos,
+		// TODO support nixos
+		//DistroNixos: ImageNixos,
 	}
 
 	DistroToLatestVersion = map[string]string{
@@ -93,7 +94,8 @@ var (
 		DistroOracle: "9",
 		DistroRocky:  "9",
 
-		DistroNixos: "22.11",
+		// TODO support nixos
+		//DistroNixos: "22.11",
 	}
 
 	// everything else is "default"

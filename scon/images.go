@@ -37,11 +37,11 @@ const (
 	ImageUbuntu   = "ubuntu"
 	ImageVoid     = "voidlinux"
 
-	ImageDevuan  = "devuan"
-	ImageAlma    = "almalinux"
-	ImageAmazon  = "amazonlinux"
-	ImageOracle  = "oracle"
-	ImageRocky   = "rockylinux"
+	ImageDevuan = "devuan"
+	ImageAlma   = "almalinux"
+	ImageAmazon = "amazonlinux"
+	ImageOracle = "oracle"
+	ImageRocky  = "rockylinux"
 
 	// extra
 	ImageNixos      = "nixos"
@@ -292,8 +292,11 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 			return err
 		}
 		img, ok = images[spec]
-	case spec.Distro == ImageNixos:
-		img, ok = nixosImages[spec]
+	//TODO support nixos
+	/*
+		case spec.Distro == ImageNixos:
+			img, ok = nixosImages[spec]
+	*/
 	default:
 		return errors.New("unsupported distro: " + spec.Distro)
 	}
