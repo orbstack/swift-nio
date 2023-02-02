@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+set -euxo pipefail
+
 # must be static
-CGO_ENABLED=0 go build github.com/kdrag0n/macvirt/scon/cmd/scon-agent
+CGO_ENABLED=0 go build ./cmd/scon-agent
+CGO_ENABLED=0 go build ./cmd/scon-forksftp
+cp -f scon-forksftp /opt/macvirt-guest/ || :
+
 go build
+

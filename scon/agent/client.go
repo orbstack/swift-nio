@@ -219,3 +219,21 @@ func (c *Client) CheckDockerIdle() (bool, error) {
 
 	return idle, nil
 }
+
+func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
+	seq, err := c.fdx.SendFile(socket)
+	if err != nil {
+		return 0, err
+	}
+
+	var exitCode int
+	err = c.rpc.Call("a.ServeSftp", ServeSftpArgs{
+		User:   user,
+		FdxSeq: seq,
+	}, &exitCode)
+	if err != nil {
+		return 0, err
+	}
+
+	return exitCode, nil
+}

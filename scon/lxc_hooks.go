@@ -14,13 +14,15 @@ const (
 )
 
 func runLxcPostStop(cid string) {
+	// don't bother to close it, we're exiting anyway
 	addr := util.DefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon)
 	client, err := sclient.New("tcp", addr)
 	check(err)
-	defer client.Close()
 
 	err = client.InternalReportStopped(cid)
 	check(err)
+
+	os.Exit(0)
 }
 
 func runLxcHook() {

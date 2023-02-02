@@ -111,10 +111,32 @@ func (e *ExitError) Error() string {
 }
 
 type SshServer struct {
+	*ssh.Server
+	m *ConManager
 }
 
-func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
-	ptyReq, winCh, isPty := s.Pty()
+func (sv *SshServer) handleConn(s ssh.Session) {
+	defer s.Close()
+
+	printErr, err := sv.handleSubsystem(s)
+	if err != nil {
+		if exitErr, ok := err.(*ExitError); ok {
+			// all ok, just exit
+			s.Exit(exitErr.ExitCode())
+		} else {
+			logrus.Error("SSH error: ", err)
+			if printErr {
+				s.Stderr().Write([]byte(err.Error() + "\r\n"))
+			}
+			s.Exit(1)
+		}
+	}
+
+	s.Exit(0)
+}
+
+func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
+	_, _, isPty := s.Pty()
 	printErr = isPty
 
 	// user and container
@@ -130,7 +152,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 		containerName = userParts[1]
 	} else {
 		// default user = host user
-		user, err = m.defaultUser()
+		user, err = sv.m.defaultUser()
 		if err != nil {
 			return
 		}
@@ -138,7 +160,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	}
 
 	// default container?
-	defaultContainerObj, err := m.GetDefaultContainer()
+	defaultContainerObj, err := sv.m.GetDefaultContainer()
 	if err != nil {
 		return
 	}
@@ -149,16 +171,16 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 
 	// default user?
 	if user == "[default]" {
-		user, err = m.defaultUser()
+		user, err = sv.m.defaultUser()
 		if err != nil {
 			return
 		}
 	}
 
-	container, ok := m.GetByName(containerName)
+	container, ok := sv.m.GetByName(containerName)
 	// try default container
 	if !ok && len(userParts) == 1 {
-		container, ok = m.GetByName(defaultContainer)
+		container, ok = sv.m.GetByName(defaultContainer)
 		if ok {
 			containerName = defaultContainer
 			user = userParts[0]
@@ -197,7 +219,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 
 	// set as last container
 	if !container.builtin {
-		go m.db.SetLastContainerID(container.ID)
+		go sv.m.db.SetLastContainerID(container.ID)
 	}
 
 	if !container.Running() {
@@ -210,6 +232,22 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 			return
 		}
 	}
+
+	// ok, container is up, now handle the request
+	switch s.Subsystem() {
+	case "session", "":
+		return sv.handleCommandSession(s, container, user)
+	case "sftp":
+		return false, sv.handleSftp(s, container, user)
+	default:
+		err = fmt.Errorf("unknown subsystem: %s", s.Subsystem())
+		return
+	}
+}
+
+func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string) (printErr bool, err error) {
+	ptyReq, winCh, isPty := s.Pty()
+	printErr = isPty
 
 	// new env
 	env := make([]string, 0)
@@ -239,7 +277,7 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 		"user": s.User(),
 		"cmd":  s.RawCommand(),
 		"meta": meta,
-	}).Debug("SSH connection")
+	}).Debug("SSH connection - command session")
 
 	// remove envs inherited from container
 	env = filterEnv(env, sshenv.NoInheritEnvs)
@@ -411,27 +449,52 @@ func (m *ConManager) handleSSHConn(s ssh.Session) (printErr bool, err error) {
 	return
 }
 
-func (m *ConManager) runSSHServer(listenIP string) error {
-	handler := func(s ssh.Session) {
-		defer s.Close()
-
-		printErr, err := m.handleSSHConn(s)
-		if err != nil {
-			if exitErr, ok := err.(*ExitError); ok {
-				// all ok, just exit
-				s.Exit(exitErr.ExitCode())
-			} else {
-				logrus.Error("SSH error: ", err)
-				if printErr {
-					s.Stderr().Write([]byte(err.Error() + "\r\n"))
-				}
-				s.Exit(1)
-			}
-		}
-
-		s.Exit(0)
+func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string) error {
+	// make socketpair
+	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		return err
 	}
 
+	// make socketpair nonblocking
+	unix.SetNonblock(socketFds[0], true)
+	unix.SetNonblock(socketFds[1], true)
+
+	// wrap them in files
+	socketF0 := os.NewFile(uintptr(socketFds[0]), "sftp-socket0")
+	socketF1 := os.NewFile(uintptr(socketFds[1]), "sftp-socket1")
+	defer socketF1.Close()
+	conn0, err := net.FileConn(socketF0)
+	socketF0.Close() // otherwise fd will keep conn alive after EOF
+	if err != nil {
+		return err
+	}
+	defer conn0.Close()
+
+	// will cause sftp server to exit
+	go func() {
+		io.Copy(s, conn0)
+		s.Close()
+		conn0.Close()
+	}()
+	go func() {
+		io.Copy(conn0, s)
+		s.Close()
+		conn0.Close()
+	}()
+
+	exitCode, err := container.Agent().ServeSftp(user, socketF1)
+	if err != nil {
+		return err
+	}
+	if exitCode != 0 {
+		return &ExitError{status: exitCode}
+	}
+
+	return nil
+}
+
+func (m *ConManager) runSSHServer(listenIP string) error {
 	listenerInternal, err := net.Listen("tcp", net.JoinHostPort(listenIP, strconv.Itoa(ports.GuestSconSSH)))
 	if err != nil {
 		return err
@@ -442,9 +505,25 @@ func (m *ConManager) runSSHServer(listenIP string) error {
 		return err
 	}
 
-	hostKeyOpt := ssh.HostKeyPEM([]byte(hostKeyEd25519))
+	sshServerInt := &SshServer{
+		m:      m,
+		Server: &ssh.Server{},
+	}
+	sshServerInt.Handler = sshServerInt.handleConn
+	sshServerInt.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
+
+	sshServerPub := &SshServer{
+		m: m,
+		Server: &ssh.Server{
+			SubsystemHandlers: make(map[string]ssh.SubsystemHandler),
+		},
+	}
+	sshServerPub.Handler = sshServerPub.handleConn
+	sshServerPub.SubsystemHandlers["sftp"] = sshServerPub.handleConn
+	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
+
 	go runOne("internal SSH server", func() error {
-		return ssh.Serve(listenerInternal, handler, hostKeyOpt)
+		return sshServerInt.Serve(listenerInternal)
 	})
 
 	pubKeyStr, err := m.host.GetSSHPublicKey()
@@ -459,8 +538,9 @@ func (m *ConManager) runSSHServer(listenIP string) error {
 	pubKeyOpt := ssh.PublicKeyAuth(func(ctx ssh.Context, key ssh.PublicKey) bool {
 		return ssh.KeysEqual(key, pubKey)
 	})
+	sshServerPub.SetOption(pubKeyOpt)
 	go runOne("public SSH server", func() error {
-		return ssh.Serve(listenerPublic, handler, hostKeyOpt, pubKeyOpt)
+		return sshServerPub.Serve(listenerPublic)
 	})
 
 	return nil

@@ -8,6 +8,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	//TODO
+	bufferSize = 256 * 1024
+)
+
 type FullDuplexConn interface {
 	net.Conn
 	CloseRead() error
@@ -22,7 +27,7 @@ func pump1(errc chan<- error, src, dst FullDuplexConn) {
 		}
 	}()
 
-	buf := make([]byte, 512*1024)
+	buf := make([]byte, bufferSize)
 	_, err := io.CopyBuffer(dst, src, buf)
 
 	// half-close to allow graceful shutdown

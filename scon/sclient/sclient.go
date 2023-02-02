@@ -120,7 +120,7 @@ func (c *SconClient) ContainerUnfreeze(record *types.ContainerRecord) error {
 func (c *SconClient) InternalReportStopped(id string) error {
 	return c.rpc.CallResult(context.TODO(), "InternalReportStopped", types.InternalReportStoppedRequest{
 		ID: id,
-	}, nil)
+	}, &noResult)
 }
 
 func (c *SconClient) StopServerVM() error {

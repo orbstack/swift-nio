@@ -117,7 +117,7 @@ func Distros() []string {
 func Archs() []string {
 	switch runtime.GOARCH {
 	case "amd64":
-		return []string{"amd64"}
+		return []string{"amd64", "i386"}
 	case "arm64":
 		return []string{"arm64", "amd64"}
 	default:
@@ -128,7 +128,7 @@ func Archs() []string {
 func NativeArch() string {
 	switch runtime.GOARCH {
 	case "i386":
-		return "i686"
+		return "i386"
 	case "amd64":
 		return "amd64"
 	case "arm64":
