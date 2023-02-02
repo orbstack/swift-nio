@@ -1,6 +1,7 @@
 package vmclient
 
 import (
+	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -13,6 +14,8 @@ import (
 
 const (
 	startPollInterval = 100 * time.Millisecond
+	// for VM and scon each
+	startTimeout = 15 * time.Second
 )
 
 func IsRunning() bool {
@@ -49,7 +52,12 @@ func EnsureVM() error {
 		}
 
 		// wait for VM to start
+		before := time.Now()
 		for !IsRunning() {
+			if time.Since(before) > startTimeout {
+				return errors.New("timed out waiting for VM to start")
+			}
+
 			time.Sleep(startPollInterval)
 		}
 	}
@@ -65,7 +73,12 @@ func EnsureSconVM() error {
 	}
 
 	// wait for sconrpc to start
+	before := time.Now()
 	for {
+		if time.Since(before) > startTimeout {
+			return errors.New("timed out waiting for machine manager to start")
+		}
+
 		client, err := sclient.New("unix", conf.SconRPCSocket())
 		if err != nil {
 			return err

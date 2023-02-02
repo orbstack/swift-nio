@@ -11,7 +11,8 @@ import (
 
 // this is in here instead of moonctl because we're the one writing ssh config
 func runSshProxyFdpass() {
-	vmclient.EnsureSconVM()
+	err := vmclient.EnsureSconVM()
+	check(err)
 
 	// don't bother to close anything, we're going to exit anyway
 
