@@ -112,7 +112,7 @@ If machine is not specified, the last-used machine is used.
 If user is not specified, the default user (matching your macOS username) is used.
 
 You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux. For example:
-	` + appid.ShortCmd + ` uname -a
+    ` + appid.ShortCmd + ` uname -a
 will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run uname -a
 `,
 	Example: "  " + appid.ShortCtl + " run ls",

@@ -25,6 +25,8 @@ require (
 
 require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 
+require github.com/gofrs/flock v0.8.1 // indirect
+
 require (
 	github.com/alessio/shellescape v1.4.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect

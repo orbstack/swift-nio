@@ -53,7 +53,12 @@ var pushCmd = &cobra.Command{
 	Short: "Copy files to Linux",
 	Long: `Copy files from macOS to Linux.
 
-Destination path is relative to the Linux user's home directory.`,
+Destination path is relative to the Linux user's home directory.
+
+This is provided for convenience, but we recommend using shared folders for simplicity. For example:
+    ` + appid.ShortCtl + ` push example.txt code/
+is equivalent to:
+	cp example.txt ~/Linux/ubuntu/home/$USER/code/`,
 	Example: "  " + appid.ShortCtl + " push example.txt Desktop/",
 	Args:    cobra.MinimumNArgs(2),
 	RunE: func(_ *cobra.Command, args []string) error {

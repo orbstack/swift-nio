@@ -22,7 +22,7 @@ var pullCmd = &cobra.Command{
 Source paths are relative to the Linux user's home directory.
 
 This is provided for convenience, but we recommend using shared folders for simplicity. For example:
-	` + appid.ShortCtl + ` pull code/example.txt .
+    ` + appid.ShortCtl + ` pull code/example.txt .
 is equivalent to:
 	cp ~/Linux/ubuntu/home/$USER/code/example.txt .`,
 	Example: "  " + appid.ShortCtl + " pull code/example.txt .",

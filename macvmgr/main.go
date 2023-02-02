@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Code-Hex/vz/v3"
+	"github.com/gofrs/flock"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
@@ -243,18 +244,26 @@ func runVmManager() {
 
 	// ensure it's not running
 	if vmclient.IsRunning() {
-		logrus.Fatal("vmgr is already running")
+		logrus.Fatal("vmgr is already running (socket)")
 	}
 
-	// start over with the sockets and pid file
-	os.RemoveAll(conf.RunDir())
+	// take the lock
+	lockFile := flock.New(conf.VmgrLockFile())
+	locked, err := lockFile.TryLock()
+	if err != nil {
+		logrus.Fatal("failed to take lock:", err)
+	}
+	if !locked {
+		logrus.Fatal("vmgr is already running (lock)")
+	}
+	defer lockFile.Unlock()
 
 	// write PID file
 	writePidFile()
 	defer os.Remove(conf.VmgrPidFile())
 
 	// state migration
-	err := migrateState()
+	err = migrateState()
 	check(err)
 
 	doneCh := make(chan struct{})

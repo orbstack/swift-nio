@@ -19,9 +19,9 @@ var pullCmd = &cobra.Command{
 Source paths are relative to the macOS user's home directory.
 
 This is provided for convenience, but we recommend using shared folders for simplicity. For example:
-	macctl pull Downloads/example.txt .
+    macctl pull Downloads/example.txt .
 is equivalent to:
-	cp /Users/$USER/Downloads/example.txt .
+    cp /Users/$USER/Downloads/example.txt .
 `,
 	Example: "  macctl pull Desktop/example.txt .",
 	Args:    cobra.MinimumNArgs(2),

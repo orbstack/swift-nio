@@ -48,9 +48,9 @@ var pushCmd = &cobra.Command{
 Destination path is relative to the macOS user's home directory.
 
 This is provided for convenience, but we recommend using shared folders for simplicity. For example:
-	macctl push example.txt Downloads/
+    macctl push example.txt Downloads/
 is equivalent to:
-	cp example.txt /Users/$USER/Downloads/
+    cp example.txt /Users/$USER/Downloads/
 `,
 	Example: "  macctl push example.txt Desktop/",
 	Args:    cobra.MinimumNArgs(2),

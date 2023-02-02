@@ -15,7 +15,7 @@ The listed commands can be used with either "macctl" or "mac".
 You can also prefix commands with "mac" to run them on macOS. For example:
     mac uname -a
 will run "uname -a" on macOS, and is equivalent to:
-	macctl run uname -a
+    macctl run uname -a
 `,
 }
 

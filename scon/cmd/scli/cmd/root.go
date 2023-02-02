@@ -13,9 +13,9 @@ var rootCmd = &cobra.Command{
 The listed commands can be used with either "` + appid.ShortCtl + `" or "` + appid.ShortCmd + `".
 
 You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux. For example:
-	` + appid.ShortCmd + ` uname -a
+    ` + appid.ShortCmd + ` uname -a
 will run "uname -a" on macOS, and is equivalent to:
-	` + appid.ShortCtl + ` run uname -a
+    ` + appid.ShortCtl + ` run uname -a
 
 In this mode, the default user (matching your macOS username) and last-used distro will be used.`,
 }

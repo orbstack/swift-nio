@@ -107,6 +107,10 @@ func VmgrPidFile() string {
 	return RunDir() + "/vmgr.pid"
 }
 
+func VmgrLockFile() string {
+	return RunDir() + "/vmgr.lock"
+}
+
 func VmConfigFile() string {
 	return ConfigDir() + "/vmconfig.json"
 }
