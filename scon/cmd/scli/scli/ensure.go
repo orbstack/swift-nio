@@ -27,6 +27,11 @@ func EnsureVMWithSpinner() {
 }
 
 func EnsureSconVMWithSpinner() {
+	// good enough. delay is short and this is much faster
+	if vmclient.IsRunning() {
+		return
+	}
+
 	spinner := spinutil.Start("green", "Starting virtual machine")
 	err := vmclient.EnsureSconVM()
 	spinner.Stop()
