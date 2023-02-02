@@ -24,7 +24,7 @@ func init() {
 
 func parseRunFlags(args []string) ([]string, error) {
 	inFlag := false
-	var lastI int
+	lastI := -1 // deal with empty case
 	var lastStringFlag *string
 	var arg string
 	for lastI, arg = range args {
