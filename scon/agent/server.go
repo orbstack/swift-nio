@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"net"
+	"net/http"
 	"net/rpc"
 	"os"
 	"os/signal"
@@ -17,8 +19,6 @@ import (
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
-
-	dclient "github.com/docker/docker/client"
 )
 
 const (
@@ -29,7 +29,7 @@ type AgentServer struct {
 	fdx          *Fdx
 	tcpProxies   map[ProxySpec]*tcpfwd.TCPProxy
 	udpProxies   map[ProxySpec]*udpfwd.UDPProxy
-	dockerClient *dclient.Client
+	dockerClient *http.Client
 }
 
 type ProxySpec struct {
@@ -225,13 +225,17 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if err != nil {
 		return err
 	}
-	var dockerClient *dclient.Client
+	var dockerClient *http.Client
 	if hostname == "docker" {
 		// use default unix socket
-		dockerClient, err = dclient.NewClientWithOpts()
-		if err != nil {
-			return err
-		}
+		dockerClient, err = &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", "/var/run/docker.sock")
+				},
+				MaxIdleConns: 2,
+			},
+		}, nil
 	}
 
 	fdx := NewFdx(fdxConn)

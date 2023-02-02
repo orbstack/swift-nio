@@ -19,7 +19,7 @@ var noResult interface{}
 func New(network, addr string) (*SconClient, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			MaxIdleConns: 5,
+			MaxIdleConns: 2,
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial(network, addr)
 			},

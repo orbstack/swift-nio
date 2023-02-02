@@ -123,7 +123,7 @@ type ImageTemplate struct {
 
 var imagesHttpClient = &http.Client{
 	Transport: &http.Transport{
-		MaxIdleConns:          5,
+		MaxIdleConns:          2,
 		IdleConnTimeout:       1 * time.Minute,
 		ResponseHeaderTimeout: 15 * time.Second,
 		TLSHandshakeTimeout:   15 * time.Second,

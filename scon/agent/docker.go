@@ -1,19 +1,29 @@
 package agent
 
 import (
-	"context"
+	"encoding/json"
+	"fmt"
 	"net"
 
-	"github.com/docker/docker/api/types"
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
 )
 
 func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
 	// only includes running
-	containers, err := a.dockerClient.ContainerList(context.TODO(), types.ContainerListOptions{})
+	resp, err := a.dockerClient.Get("http://docker/containers/json")
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
+	var containers []struct {
+		ID string `json:"Id"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&containers)
+	if err != nil {
+		return err
+	}
+	fmt.Println("CTRS", containers)
 
 	*reply = len(containers) == 0
 	return nil
