@@ -148,7 +148,7 @@ will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run u
 			ContainerName: flagMachine,
 			User:          flagUser,
 		})
-		check(err)
+		checkCLI(err)
 
 		os.Exit(exitCode)
 		return nil
