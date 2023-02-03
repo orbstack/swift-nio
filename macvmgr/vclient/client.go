@@ -66,7 +66,7 @@ func NewWithNetwork(n *vnet.Network) (*VClient, error) {
 				Port: ports.GuestVcontrol,
 			}, ipv4.ProtocolNumber)
 		},
-		MaxIdleConns: 3,
+		MaxIdleConns: 2,
 	}
 	return newWithTransport(tr)
 }

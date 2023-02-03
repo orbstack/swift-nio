@@ -42,7 +42,7 @@ func Client() *VmClient {
 func newClient() (*VmClient, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			MaxIdleConns: 5,
+			MaxIdleConns: 2,
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial("unix", conf.VmControlSocket())
 			},
