@@ -20,34 +20,13 @@ import (
 	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	ImageAlpine   = "alpine"
-	ImageArch     = "archlinux"
-	ImageCentos   = "centos"
-	ImageDebian   = "debian"
-	ImageFedora   = "fedora"
-	ImageGentoo   = "gentoo"
-	ImageKali     = "kali"
-	ImageOpensuse = "opensuse"
-	ImageUbuntu   = "ubuntu"
-	ImageVoid     = "voidlinux"
-
-	ImageDevuan = "devuan"
-	ImageAlma   = "almalinux"
-	ImageAmazon = "amazonlinux"
-	ImageOracle = "oracle"
-	ImageRocky  = "rockylinux"
-
-	// extra
-	ImageNixos      = "nixos"
-	ImageDocker     = "docker"
-	ImageUbuntuFull = "ubuntu-full"
-
 	RepoLxd    = "https://images.linuxcontainers.org"
 	RepoUbuntu = "https://cloud-images.ubuntu.com/releases"
 
@@ -57,7 +36,7 @@ const (
 
 var (
 	nixosImages = map[types.ImageSpec]RawImage{
-		{Distro: ImageNixos, Version: "22.11", Arch: "amd64", Variant: "default"}: {
+		{Distro: images.ImageNixos, Version: "22.11", Arch: "amd64", Variant: "default"}: {
 			MetadataURL:    "https://hydra.nixos.org/build/207105621/download/1/nixos-system-x86_64-linux.tar.xz",
 			MetadataSha256: "ebc704814c838bf27ff1435fd42c2a0bb9f9085ef0d5842615d4bb4145dd492e",
 			RootfsFormat:   ImageFormatTarXz,
@@ -66,7 +45,7 @@ var (
 			Size:           147405568,
 			Revision:       "207105719",
 		},
-		{Distro: ImageNixos, Version: "22.11", Arch: "arm64", Variant: "default"}: {
+		{Distro: images.ImageNixos, Version: "22.11", Arch: "arm64", Variant: "default"}: {
 			MetadataURL:    "https://hydra.nixos.org/build/207105557/download/1/nixos-system-aarch64-linux.tar.xz",
 			MetadataSha256: "cd5ab2b7f9d05cec44b62a5f3ac3a732a5e56e18f6ed6eed75d0e4cf9525f89a",
 			RootfsFormat:   ImageFormatTarXz,
@@ -217,7 +196,7 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 
 func isDistroInLxdRepo(distro string) bool {
 	switch distro {
-	case ImageAlpine, ImageArch, ImageCentos, ImageDebian, ImageFedora, ImageGentoo, ImageKali, ImageOpensuse, ImageUbuntu, ImageVoid, ImageDevuan, ImageAlma, ImageAmazon, ImageOracle, ImageRocky:
+	case images.ImageAlpine, images.ImageArch, images.ImageCentos, images.ImageDebian, images.ImageFedora, images.ImageGentoo, images.ImageKali, images.ImageOpensuse, images.ImageUbuntu, images.ImageVoid, images.ImageDevuan, images.ImageAlma, images.ImageOracle, images.ImageRocky:
 		return true
 	}
 

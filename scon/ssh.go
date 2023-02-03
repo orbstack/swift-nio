@@ -19,6 +19,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/sirupsen/logrus"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
@@ -338,7 +339,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	commandArg := "--session-command"
 	// Busybox su doesn't support --session-command, so use -c instead
 	// TODO better way
-	if container.Image.Distro == ImageAlpine || container.Image.Distro == ImageNixos || container.Image.Distro == ImageDocker {
+	if container.Image.Distro == images.ImageAlpine || container.Image.Distro == images.ImageNixos || container.Image.Distro == images.ImageDocker {
 		commandArg = "-c"
 	}
 	combinedArgs := []string{"su", "-l", user, commandArg, suCmd}

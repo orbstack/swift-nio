@@ -20,14 +20,14 @@ const (
 
 	ImageDevuan = "devuan"
 	ImageAlma   = "almalinux"
-	ImageAmazon = "amazonlinux"
+	//ImageAmazon = "amazonlinux"
 	ImageOracle = "oracle"
 	ImageRocky  = "rockylinux"
 
 	// extra
-	ImageNixos      = "nixos"
-	ImageDocker     = "docker"      // can't be created
-	ImageUbuntuFull = "ubuntu-full" // not yet supported
+	ImageNixos  = "nixos"
+	ImageDocker = "docker" // can't be created
+	//ImageUbuntuFull = "ubuntu-full" // not yet supported
 )
 
 const (
@@ -44,12 +44,12 @@ const (
 
 	DistroDevuan = "devuan"
 	DistroAlma   = "alma"
-	DistroAmazon = "amazon"
+	//DistroAmazon = "amazon"
 	DistroOracle = "oracle"
 	DistroRocky  = "rocky"
 
 	// extra
-	DistroNixos = "nixos"
+	//DistroNixos = "nixos"
 )
 
 var (
@@ -67,7 +67,8 @@ var (
 
 		DistroDevuan: ImageDevuan,
 		DistroAlma:   ImageAlma,
-		DistroAmazon: ImageAmazon,
+		// broken. requires cgroup v1, and network is broken
+		//DistroAmazon: ImageAmazon,
 		DistroOracle: ImageOracle,
 		DistroRocky:  ImageRocky,
 
@@ -90,7 +91,7 @@ var (
 
 		DistroDevuan: "chimaera",
 		DistroAlma:   "9",
-		DistroAmazon: "current",
+		//DistroAmazon: "current",
 		DistroOracle: "9",
 		DistroRocky:  "9",
 

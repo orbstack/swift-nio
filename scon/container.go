@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
+	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/lxc/go-lxc"
@@ -71,7 +72,7 @@ func (m *ConManager) newContainer(record *types.ContainerRecord) (*Container, er
 	}
 
 	// special-case hooks for docker
-	if c.builtin && c.Image.Distro == ImageDocker {
+	if c.builtin && c.Image.Distro == images.ImageDocker {
 		c.hooks = &DockerHooks{}
 	}
 

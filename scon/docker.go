@@ -36,7 +36,7 @@ var (
 		ID:   "01GQQVF6C60000000000DOCKER",
 		Name: ContainerDocker,
 		Image: types.ImageSpec{
-			Distro:  ImageDocker,
+			Distro:  images.ImageDocker,
 			Version: "latest",
 			Arch:    images.NativeArch(),
 			Variant: "default",

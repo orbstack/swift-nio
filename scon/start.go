@@ -15,6 +15,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
@@ -226,10 +227,10 @@ func (c *Container) initLxc() error {
 		set("lxc.arch", "linux64")
 
 		// shutdown fixes
-		if c.Image.Distro == ImageVoid {
+		if c.Image.Distro == images.ImageVoid {
 			// void: runit - SIGCONT
 			set("lxc.signal.halt", "SIGCONT")
-		} else if c.Image.Distro == ImageAlpine {
+		} else if c.Image.Distro == images.ImageAlpine {
 			// alpine: busybox/OpenRC - SIGUSR1
 			set("lxc.signal.halt", "SIGUSR1")
 		}

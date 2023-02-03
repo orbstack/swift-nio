@@ -21,15 +21,25 @@ var (
 	adminGroups  = []string{"adm", "wheel", "staff", "admin", "sudo", "video"}
 	defaultUsers = []string{"ubuntu", "archlinux", "opensuse"}
 
-	packagesToInstall = map[string]PackageInstallSpec{
-		images.ImageAlpine: {"apk", []string{"sudo", "curl", "bash", "openssh"}},
+	// generally: curl, scp
+	packageInstallCommands = map[string][]string{
+		images.ImageAlpine:   {"apk add sudo curl dropbear-scp"},
+		images.ImageArch:     {"pacman -Sy dropbear-scp"},
+		images.ImageCentos:   nil, // no need
+		images.ImageDebian:   {"apt-get update", "apt-get install -y curl"},
+		images.ImageFedora:   nil, // no need
+		images.ImageGentoo:   nil, // no need
+		images.ImageOpensuse: {"zypper install -y openssh-clients"},
+		images.ImageUbuntu:   {"apt-get update", "apt-get install -y curl"},
+		images.ImageVoid:     {"xbps-install -Sy curl"},
+
+		images.ImageDevuan: nil, // no need
+		images.ImageAlma:   nil, // no need
+		//images.ImageAmazon: {"yum install -y curl"},
+		images.ImageOracle: nil, // no need
+		images.ImageRocky:  nil, // no need
 	}
 )
-
-type PackageInstallSpec struct {
-	Manager  string
-	Packages []string
-}
 
 type InitialSetupArgs struct {
 	Username          string
@@ -303,11 +313,15 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	}
 
 	// install packages
-	if args.Distro == "alpine" {
-		logrus.Debug("Installing sudo")
-		err = util.Run("apk", "add", "sudo")
-		if err != nil {
-			return err
+	pkgCommands, ok := packageInstallCommands[args.Distro]
+	if ok && len(pkgCommands) > 0 {
+		for _, cmd := range pkgCommands {
+			args := strings.Split(cmd, " ")
+			logrus.WithField("args", args).Debug("Running package install command")
+			err = util.Run(args...)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
