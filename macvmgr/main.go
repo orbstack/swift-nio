@@ -265,6 +265,17 @@ func runVmManager() {
 	writePidFile()
 	defer os.Remove(conf.VmgrPidFile())
 
+	// write build ID
+	var buildID string
+	if len(os.Args) > 2 {
+		buildID = os.Args[2]
+	} else {
+		buildID, err = calcBuildID()
+		check(err)
+	}
+	err = os.WriteFile(conf.VmgrVersionFile(), []byte(buildID), 0644)
+	check(err)
+
 	// state migration
 	err = migrateState()
 	check(err)
@@ -505,7 +516,7 @@ func main() {
 		runSpawnDaemon()
 	case "ssh-proxy-fdpass":
 		runSshProxyFdpass()
-	case "":
+	case "vmgr", "":
 		runVmManager()
 	default:
 		panic("unknown command: " + cmd)

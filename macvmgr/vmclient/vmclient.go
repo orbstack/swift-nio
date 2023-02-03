@@ -67,11 +67,25 @@ func (c *VmClient) Ping() error {
 }
 
 func (c *VmClient) Stop() error {
-	return c.rpc.CallResult(context.TODO(), "Stop", nil, &noResult)
+	err := c.rpc.CallResult(context.TODO(), "Stop", nil, &noResult)
+	// EOF is ok, it means we got disconnected
+	// TODO fix
+	if err != nil && err.Error() != `[-32603] Post "http://vmrpc": EOF` {
+		return err
+	}
+
+	return nil
 }
 
 func (c *VmClient) ForceStop() error {
-	return c.rpc.CallResult(context.TODO(), "ForceStop", nil, &noResult)
+	err := c.rpc.CallResult(context.TODO(), "ForceStop", nil, &noResult)
+	// EOF is ok, it means we got disconnected
+	// TODO fix
+	if err != nil && err.Error() != `[-32603] Post "http://vmrpc": EOF` {
+		return err
+	}
+
+	return nil
 }
 
 func (c *VmClient) ResetData() error {
