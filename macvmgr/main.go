@@ -14,6 +14,7 @@ import (
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/gofrs/flock"
+	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
@@ -270,7 +271,7 @@ func runVmManager() {
 	if len(os.Args) > 2 {
 		buildID = os.Args[2]
 	} else {
-		buildID, err = calcBuildID()
+		buildID, err = buildid.CalculateCurrent()
 		check(err)
 	}
 	err = os.WriteFile(conf.VmgrVersionFile(), []byte(buildID), 0644)

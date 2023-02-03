@@ -29,24 +29,43 @@ func IsRunning() bool {
 	return true
 }
 
-func EnsureVM() error {
-	if !IsRunning() {
-		// start it. assume executable is next to ours, unless this is debug
-		var vmgrExe string
-		if conf.Debug() {
-			vmgrExe = "/Users/dragon/code/projects/macvirt/macvmgr/macvmgr"
-		} else {
-			selfExe, err := os.Executable()
-			if err != nil {
-				return err
-			}
-
-			vmgrExe = path.Join(path.Dir(selfExe), "macvmgr")
+func FindVmgrExe() (string, error) {
+	if conf.Debug() {
+		return conf.HomeDir() + "/code/projects/macvirt/macvmgr/macvmgr", nil
+	} else {
+		selfExe, err := os.Executable()
+		if err != nil {
+			return "", err
 		}
 
-		// exec self with spawn-daemon
-		cmd := exec.Command(vmgrExe, "spawn-daemon")
-		err := cmd.Start()
+		return path.Join(path.Dir(selfExe), "macvmgr"), nil
+	}
+}
+
+func SpawnDaemon(newBuildID string) error {
+	// start it. assume executable is next to ours, unless this is debug
+	vmgrExe, err := FindVmgrExe()
+	if err != nil {
+		return err
+	}
+
+	// exec self with spawn-daemon
+	args := []string{"spawn-daemon"}
+	if newBuildID != "" {
+		args = append(args, newBuildID)
+	}
+	cmd := exec.Command(vmgrExe, args...)
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func EnsureVM() error {
+	if !IsRunning() {
+		err := SpawnDaemon("")
 		if err != nil {
 			return err
 		}

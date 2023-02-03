@@ -6,9 +6,19 @@ import (
 	"os/exec"
 	"syscall"
 
+	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 )
+
+func getSpawnBuildID() (string, error) {
+	// reuse calculation if available as arg
+	if len(os.Args) > 2 {
+		return os.Args[2], nil
+	}
+
+	return buildid.CalculateCurrent()
+}
 
 func runSpawnDaemon() {
 	// exec self without spawn-daemon
@@ -19,7 +29,7 @@ func runSpawnDaemon() {
 	var buildID string
 	if vmclient.IsRunning() {
 		// check version, replace if changed
-		buildID, err = calcBuildID()
+		buildID, err = getSpawnBuildID()
 		check(err)
 
 		runningBuildID, err := os.ReadFile(conf.VmgrVersionFile())
@@ -38,7 +48,7 @@ func runSpawnDaemon() {
 	}
 
 	if buildID == "" {
-		buildID, err = calcBuildID()
+		buildID, err = getSpawnBuildID()
 		check(err)
 	}
 
