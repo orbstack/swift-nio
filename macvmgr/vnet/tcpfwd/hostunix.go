@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
@@ -69,6 +70,7 @@ func (f *UnixTcpHostForward) handleConn(conn net.Conn) {
 	defer cancel()
 	virtConn, err := gonet.DialContextTCP(ctx, f.stack, f.connectAddr, proto)
 	if err != nil {
+		logrus.WithError(err).WithField("addr", f.connectAddr).Error("host-unix forward: dial failed")
 		return
 	}
 	defer virtConn.Close()

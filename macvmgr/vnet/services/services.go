@@ -7,6 +7,7 @@ import (
 	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
 	sshsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh"
 	ntpsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/ntp"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/sshagent"
 	"github.com/sirupsen/logrus"
 )
 
@@ -15,6 +16,7 @@ const (
 	runNTP      = true
 	runHcontrol = true
 	runHostSSH  = true
+	runSSHAgent = true
 	runSFTP     = false // Android
 )
 
@@ -64,6 +66,14 @@ func StartNetServices(n *vnet.Network) {
 		_, err := hcsrv.ListenHcontrol(n, secureAddr)
 		if err != nil {
 			logrus.Error("Failed to start host control server", err)
+		}
+	}
+
+	// SSH agent (23): for SSH keys
+	if runSSHAgent {
+		err := sshagent.ListenHostSSHAgent(n.Stack, secureAddr)
+		if err != nil {
+			logrus.Error("Failed to start SSH agent server", err)
 		}
 	}
 

@@ -23,7 +23,8 @@ const (
 	ServiceNTP  = 123
 	ServiceSFTP = 22323
 
-	// secure services for guest
-	SecureSvcHostSSH  = 22   // danger
-	SecureSvcHcontrol = 8300 // danger
+	// secure services for guest (danger)
+	SecureSvcHostSSH      = 22
+	SecureSvcHostSSHAgent = 23
+	SecureSvcHcontrol     = 8300
 )

@@ -52,6 +52,7 @@ func (f *TcpVsockHostForward) handleConn(conn net.Conn) {
 
 	virtConn, err := f.dialer()
 	if err != nil {
+		logrus.WithError(err).Error("host-vsock forward: dial failed")
 		return
 	}
 	defer virtConn.Close()

@@ -13,6 +13,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/sshagent"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
@@ -68,6 +69,11 @@ func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
 	}
 
 	*reply = strings.TrimSpace(string(data))
+	return nil
+}
+
+func (h *HcontrolServer) GetSSHAgentSocket(_ None, reply *string) error {
+	*reply = sshagent.GetAgentSocket()
 	return nil
 }
 

@@ -169,6 +169,7 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 	defer cancel()
 	virtConn, err := gonet.DialTCPWithBind(ctx, f.stack, virtSrcAddr, connectAddr, proto)
 	if err != nil {
+		logrus.WithError(err).WithField("addr", connectAddr).Error("host-tcp forward: dial failed")
 		return
 	}
 	defer virtConn.Close()
