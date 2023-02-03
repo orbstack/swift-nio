@@ -59,6 +59,7 @@ func printShortHelp() {
    For example, to log in to "ubuntu" as root: moon -m ubuntu -u root uname -a
 
    Use "moonctl run --help" for a list of flags.
+   If you prefer SSH, use "moonctl ssh" for details.
 
 %s
    For convenience, you can use moonctl subcommands with this command.

@@ -115,6 +115,8 @@ If user is not specified, the default user is used.
 You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux. For example:
     ` + appid.ShortCmd + ` uname -a
 will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run uname -a
+
+If you prefer SSH, use "` + appid.ShortCtl + ` ssh" for details.
 `,
 	Example: "  " + appid.ShortCtl + " run ls",
 	Args:    cobra.ArbitraryArgs,
