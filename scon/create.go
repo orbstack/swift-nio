@@ -24,6 +24,10 @@ type CreateParams struct {
 }
 
 func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
+	if m.stopping {
+		return nil, errors.New("machine manager is stopping")
+	}
+
 	// checks
 	name := args.Name
 	image := args.Image

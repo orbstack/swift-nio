@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -413,6 +414,10 @@ func (c *Container) updateTimeOffsets() error {
 }
 
 func (c *Container) Start() error {
+	if c.manager.stopping {
+		return errors.New("machine manager is stopping")
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

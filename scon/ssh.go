@@ -255,7 +255,6 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 }
 
 func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string) (printErr bool, err error) {
-	fmt.Println("session for user", user, "s", s)
 	ptyReq, winCh, isPty := s.Pty()
 	printErr = isPty
 
@@ -479,16 +478,13 @@ func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string
 	if err != nil {
 		return err
 	}
-	defer conn0.Close()
 
 	// will cause sftp server to exit
 	go func() {
-		defer s.Close()
 		defer conn0.Close()
 		io.Copy(s, conn0)
 	}()
 	go func() {
-		defer s.Close()
 		defer conn0.Close()
 		io.Copy(conn0, s)
 	}()
