@@ -167,14 +167,27 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
+	// create user group
+	logrus.Debug("Creating group")
+	uidStr := strconv.Itoa(args.Uid)
+	err = util.Run("groupadd", "--gid", uidStr, args.Username)
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			// Busybox: this is ok, do nothing.
+			// Busybox adduser already creates user group with matching GID.
+		} else {
+			return err
+		}
+	}
+
 	// create user
 	// uid = host, gid = 1000+
 	logrus.WithField("user", args.Username).WithField("uid", args.Uid).Debug("Creating user")
-	err = util.Run("useradd", "-u", strconv.Itoa(args.Uid), "-m", "-s", shell, args.Username)
+	err = util.Run("useradd", "--uid", uidStr, "--gid", uidStr, "--no-user-group", "--create-home", "--shell", shell, args.Username)
 	if err != nil {
 		// Busybox: add user + user group
 		if errors.Is(err, exec.ErrNotFound) {
-			err = util.Run("adduser", "-u", strconv.Itoa(args.Uid), "-D", "-s", shell, args.Username)
+			err = util.Run("adduser", "-u", uidStr, "-D", "-s", shell, args.Username)
 			if err != nil {
 				return err
 			}
