@@ -24,7 +24,8 @@ type Config struct {
 	HcontrolIP    string
 	DummyHcontrol bool
 	DNSServer     string
-	SSHListenIP   string
+	SSHListenIP4  string
+	SSHListenIP6  string
 	DockerRootfs  string
 	DockerDataDir string
 	NfsRootRO     string
@@ -40,7 +41,8 @@ var configVM = Config{
 	HcontrolIP:    "172.30.30.201",
 	DummyHcontrol: false,
 	DNSServer:     "172.30.30.200",
-	SSHListenIP:   "172.30.30.2",
+	SSHListenIP4:  "172.30.30.2",
+	SSHListenIP6:  "fc00:96dc:7096:1d21::2",
 	DockerRootfs:  "/opt/docker-rootfs",
 	DockerDataDir: "/data/docker",
 	NfsRootRO:     "/nfsroot-ro",
@@ -55,7 +57,8 @@ var configTest = Config{
 	HcontrolIP:    "127.0.0.1",
 	DummyHcontrol: true,
 	DNSServer:     "1.1.1.1",
-	SSHListenIP:   "127.0.0.1",
+	SSHListenIP4:  "127.0.0.1",
+	SSHListenIP6:  "::1",
 	DockerRootfs:  "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/docker-rootfs",
 	DockerDataDir: "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/docker-rootfs/var/lib/docker",
 	NfsRootRO:     "/tmp/scon-nfs",

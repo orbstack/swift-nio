@@ -560,13 +560,18 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 	}()
 }
 
-func (m *ConManager) runSSHServer(listenIP string) error {
-	listenerInternal, err := net.Listen("tcp", net.JoinHostPort(listenIP, strconv.Itoa(ports.GuestSconSSH)))
+func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) error {
+	listenerInternal, err := net.Listen("tcp", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSH)))
 	if err != nil {
 		return err
 	}
 
-	listenerPublic, err := net.Listen("tcp", net.JoinHostPort(listenIP, strconv.Itoa(ports.GuestSconSSHPublic)))
+	listenerPublic4, err := net.Listen("tcp4", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSHPublic)))
+	if err != nil {
+		return err
+	}
+
+	listenerPublic6, err := net.Listen("tcp6", net.JoinHostPort(listenIP6, strconv.Itoa(ports.GuestSconSSHPublic)))
 	if err != nil {
 		return err
 	}
@@ -611,8 +616,11 @@ func (m *ConManager) runSSHServer(listenIP string) error {
 		return ssh.KeysEqual(key, pubKey)
 	})
 	sshServerPub.SetOption(pubKeyOpt)
-	go runOne("public SSH server", func() error {
-		return sshServerPub.Serve(listenerPublic)
+	go runOne("public SSH server v4", func() error {
+		return sshServerPub.Serve(listenerPublic4)
+	})
+	go runOne("public SSH server v6", func() error {
+		return sshServerPub.Serve(listenerPublic6)
 	})
 
 	return nil

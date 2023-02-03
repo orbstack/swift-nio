@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
@@ -23,22 +24,22 @@ Useful for remote editing (e.g. Visual Studio Code) or for connecting from anoth
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
-		fmt.Printf(`SSH command:
-    ssh macvirt
+		fmt.Print(strings.Replace(`SSH command:
+    ssh <HOST>
 For more advanced usage:
-	Connect to a specific machine: ssh MACHINE@macvirt
-	Log in as a specific user: ssh USER@MACHINE@macvirt
+    Connect to a specific machine: ssh MACHINE@<HOST>
+    Log in as a specific user: ssh USER@MACHINE@<HOST>
 
-Most apps (including Visual Studio Code and JetBrains Fleet) will work with the simple commands above. You can find "macvirt" in the VS Code's Remote Explorer sidebar.
+Most apps (including Visual Studio Code and JetBrains Fleet) will work with the simple commands above. You can find "<HOST>" in the VS Code's Remote Explorer sidebar.
 
 Applications that don't use OpenSSH (e.g. IntelliJ IDEA) will need the following settings:
-	Host: localhost
-	Port: 62222
-	User: default
-	Private key: ~/.macvirt/ssh/id_ed25519
+    Host: localhost
+    Port: 62222
+    User: default
+    Private key: ~/.<HOST>/ssh/id_ed25519
 For example:
-	ssh -p 62222 -i ~/.macvirt/ssh/id_ed25519 default@localhost
-`)
+    ssh -p 62222 -i ~/.<HOST>/ssh/id_ed25519 default@localhost
+`, "<HOST>", appid.AppName, -1))
 
 		return nil
 	},

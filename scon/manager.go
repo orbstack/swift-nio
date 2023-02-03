@@ -150,7 +150,7 @@ func (m *ConManager) Start() error {
 		return runSconServer(m)
 	})
 	go runOne("SSH server", func() error {
-		return m.runSSHServer(conf.C().SSHListenIP)
+		return m.runSSHServer(conf.C().SSHListenIP4, conf.C().SSHListenIP6)
 	})
 	// this one must be synchronous since post-start hook calls it
 	err = m.startDockerProxy()
