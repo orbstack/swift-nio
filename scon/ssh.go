@@ -19,6 +19,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
+	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
 )
 
@@ -135,18 +136,14 @@ func (sv *SshServer) handleConn(s ssh.Session) {
 	s.Exit(0)
 }
 
-func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
-	_, _, isPty := s.Pty()
-	printErr = isPty
-
+func (sv *SshServer) resolveUser(userReq string) (container *Container, user string, err error) {
 	// user and container
-	userReq := s.User()
 	userParts := strings.Split(userReq, "@")
-	var user, containerName string
 	if len(userParts) > 2 {
 		err = fmt.Errorf("invalid user: %s", userReq)
 		return
 	}
+	var containerName string
 	if len(userParts) == 2 {
 		user = userParts[0]
 		containerName = userParts[1]
@@ -192,7 +189,30 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 
 	if !conf.Debug() && container.builtin {
-		err = fmt.Errorf("cannot enter builtin container: %s", containerName)
+		err = fmt.Errorf("cannot connect to builtin container: %s", containerName)
+		return
+	}
+
+	if !container.Running() {
+		logrus.WithFields(logrus.Fields{
+			"container": containerName,
+		}).Info("starting container for ssh")
+
+		err = container.Start()
+		if err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
+	_, _, isPty := s.Pty()
+	printErr = isPty
+
+	container, user, err := sv.resolveUser(s.User())
+	if err != nil {
 		return
 	}
 
@@ -222,17 +242,6 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 		go sv.m.db.SetLastContainerID(container.ID)
 	}
 
-	if !container.Running() {
-		logrus.WithFields(logrus.Fields{
-			"container": containerName,
-		}).Info("starting container for ssh")
-
-		err = container.Start()
-		if err != nil {
-			return
-		}
-	}
-
 	// ok, container is up, now handle the request
 	switch s.Subsystem() {
 	case "session", "":
@@ -246,6 +255,7 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 }
 
 func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string) (printErr bool, err error) {
+	fmt.Println("session for user", user, "s", s)
 	ptyReq, winCh, isPty := s.Pty()
 	printErr = isPty
 
@@ -473,14 +483,14 @@ func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string
 
 	// will cause sftp server to exit
 	go func() {
+		defer s.Close()
+		defer conn0.Close()
 		io.Copy(s, conn0)
-		s.Close()
-		conn0.Close()
 	}()
 	go func() {
+		defer s.Close()
+		defer conn0.Close()
 		io.Copy(conn0, s)
-		s.Close()
-		conn0.Close()
 	}()
 
 	exitCode, err := container.Agent().ServeSftp(user, socketF1)
@@ -492,6 +502,55 @@ func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string
 	}
 
 	return nil
+}
+
+// direct-tcpip data struct as specified in RFC4254, Section 7.2
+type localForwardChannelData struct {
+	DestAddr string
+	DestPort uint32
+
+	OriginAddr string
+	OriginPort uint32
+}
+
+func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+	d := localForwardChannelData{}
+	if err := gossh.Unmarshal(newChan.ExtraData(), &d); err != nil {
+		newChan.Reject(gossh.ConnectionFailed, "parse forward data: "+err.Error())
+		return
+	}
+
+	dest := net.JoinHostPort(d.DestAddr, strconv.FormatInt(int64(d.DestPort), 10))
+
+	container, _, err := sv.resolveUser(ctx.User())
+	if err != nil {
+		newChan.Reject(gossh.ConnectionFailed, err.Error())
+		return
+	}
+
+	dstConn, err := container.Agent().DialTCPContext(dest)
+	if err != nil {
+		newChan.Reject(gossh.ConnectionFailed, err.Error())
+		return
+	}
+
+	sshCh, reqs, err := newChan.Accept()
+	if err != nil {
+		dstConn.Close()
+		return
+	}
+	go gossh.DiscardRequests(reqs)
+
+	go func() {
+		defer sshCh.Close()
+		defer dstConn.Close()
+		io.Copy(sshCh, dstConn)
+	}()
+	go func() {
+		defer sshCh.Close()
+		defer dstConn.Close()
+		io.Copy(dstConn, sshCh)
+	}()
 }
 
 func (m *ConManager) runSSHServer(listenIP string) error {
@@ -512,14 +571,20 @@ func (m *ConManager) runSSHServer(listenIP string) error {
 	sshServerInt.Handler = sshServerInt.handleConn
 	sshServerInt.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
 
+	// public supports SFTP, local forward
 	sshServerPub := &SshServer{
 		m: m,
 		Server: &ssh.Server{
+			ChannelHandlers: map[string]ssh.ChannelHandler{
+				"session": ssh.DefaultSessionHandler,
+			},
 			SubsystemHandlers: make(map[string]ssh.SubsystemHandler),
+			RequestHandlers:   make(map[string]ssh.RequestHandler),
 		},
 	}
 	sshServerPub.Handler = sshServerPub.handleConn
 	sshServerPub.SubsystemHandlers["sftp"] = sshServerPub.handleConn
+	sshServerPub.ChannelHandlers["direct-tcpip"] = sshServerPub.handleLocalForward
 	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
 
 	go runOne("internal SSH server", func() error {

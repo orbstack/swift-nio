@@ -237,3 +237,25 @@ func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
 
 	return exitCode, nil
 }
+
+func (c *Client) DialTCPContext(addrPort string) (*net.TCPConn, error) {
+	var seq uint64
+	err := c.rpc.Call("a.DialTCPContext", DialTCPContextArgs{
+		AddrPort: addrPort,
+	}, &seq)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := c.fdx.RecvFile(seq)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.FileConn(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn.(*net.TCPConn), nil
+}

@@ -1,11 +1,18 @@
 package agent
 
 import (
+	"context"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
 	"strconv"
 	"syscall"
+	"time"
+)
+
+const (
+	dialTimeout = 15 * time.Second
 )
 
 type ServeSftpArgs struct {
@@ -70,5 +77,38 @@ func (a *AgentServer) ServeSftp(args *ServeSftpArgs, reply *int) error {
 	}
 
 	*reply = cmd.ProcessState.ExitCode()
+	return nil
+}
+
+type DialTCPContextArgs struct {
+	AddrPort string
+	//TODO signal fd
+	//SignalFd int
+}
+
+func (a *AgentServer) DialTCPContext(args *DialTCPContextArgs, reply *uint64) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
+	defer cancel()
+
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "tcp", args.AddrPort)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	file, err := conn.(*net.TCPConn).File()
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// send fd
+	fdxSeq, err := a.fdx.SendFile(file)
+	if err != nil {
+		return err
+	}
+
+	*reply = fdxSeq
 	return nil
 }
