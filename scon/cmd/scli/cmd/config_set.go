@@ -21,6 +21,8 @@ var configSetCmd = &cobra.Command{
 	Long: `Set a single configuration option for the Linux virtual machine.
 
 Supported options: memory_mib
+
+Some options will only take effect after restarting the virtual machine.
 `,
 	Example: "  " + appid.ShortCtl + " set memory_mib 4096",
 	Args:    cobra.ExactArgs(2),

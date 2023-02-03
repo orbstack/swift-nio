@@ -2,6 +2,7 @@ package sshagent
 
 import (
 	"os"
+	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kevinburke/ssh_config"
@@ -15,7 +16,20 @@ func GetAgentSocket() string {
 	agentSock, err := ssh_config.GetStrict("*", "IdentityAgent")
 	if agentSock == "" || err != nil {
 		agentSock = os.Getenv("SSH_AUTH_SOCK")
+	} else {
+		// the parser sucks... fix quotes and ~/ for 1password
+		// TODO parse it ourselves
+		agentSock = strings.Trim(agentSock, "\"")
+		if strings.HasPrefix(agentSock, "~/") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				panic(err)
+			}
+
+			agentSock = home + agentSock[1:]
+		}
 	}
+
 	return agentSock
 }
 

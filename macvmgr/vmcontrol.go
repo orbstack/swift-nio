@@ -74,6 +74,10 @@ func (s *VmControlServer) PatchConfig(ctx context.Context, patch *vmconfig.VmCon
 	})
 }
 
+func (s *VmControlServer) ResetConfig(ctx context.Context) error {
+	return vmconfig.Reset()
+}
+
 func (s *VmControlServer) onStop() error {
 	if s.pendingResetData {
 		logrus.Info("Deleting all data...")
@@ -104,6 +108,7 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 		"ResetData":   handler.New(s.ResetData),
 		"GetConfig":   handler.New(s.GetConfig),
 		"PatchConfig": handler.New(s.PatchConfig),
+		"ResetConfig": handler.New(s.ResetConfig),
 	}, nil)
 
 	mux := http.NewServeMux()

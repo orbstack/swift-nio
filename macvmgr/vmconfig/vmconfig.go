@@ -105,3 +105,9 @@ func Defaults() *VmConfig {
 		MemoryMiB: calcMemory() / 1024 / 1024,
 	}
 }
+
+func Reset() error {
+	return Update(func(c *VmConfig) {
+		*c = *Defaults()
+	})
+}
