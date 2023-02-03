@@ -108,6 +108,7 @@ cp ../$compile_rd/switch_overlay_root $OPT
 cp ../$compile_rd/add-nfsd-vsock $OPT
 # scon
 cp ../$compile_rd/out/{scon,scon-agent} $OPT
+cp ../$compile_rd/out/scon-forksftp $GUEST_OPT
 # macctl
 cp ../../macvmgr/macctl $GUEST_OPT/bin
 if [[ "$ARCH" == "arm64" ]]; then
