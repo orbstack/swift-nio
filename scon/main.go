@@ -13,6 +13,7 @@ import (
 
 	_ "net/http/pprof"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
@@ -42,6 +43,36 @@ func runPprof() {
 	}
 }
 
+func doSystemInitTasks(host *hclient.Client) error {
+	// get user
+	u, err := host.GetUser()
+	if err != nil {
+		return err
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return err
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return err
+	}
+
+	// chown secure sockets
+	for _, sock := range []string{
+		mounts.SshAgentSocket,
+		mounts.HostSSHSocket,
+		mounts.HcontrolSocket,
+	} {
+		err = os.Chown(sock, uid, gid)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func runContainerManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -63,6 +94,10 @@ func runContainerManager() {
 	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.SecureSvcHcontrol))
 	check(err)
 	hc, err := hclient.New(hcontrolConn)
+	check(err)
+
+	// system init tasks
+	err = doSystemInitTasks(hc)
 	check(err)
 
 	// start container manager

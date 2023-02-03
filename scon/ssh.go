@@ -12,6 +12,7 @@ import (
 	"github.com/alessio/shellescape"
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/sshenv"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
@@ -305,6 +306,15 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		env = append(env, "TERM="+ptyReq.Term)
 	}
 	env = append(env, "PWD="+cwd)
+
+	// forward ssh agent
+	sshAgentSock, err := sv.m.host.GetSSHAgentSocket()
+	if err != nil {
+		return
+	}
+	if sshAgentSock != "" {
+		env = append(env, "SSH_AUTH_SOCK="+mounts.SshAgentSocket)
+	}
 
 	var suCmd string
 	prelude := "cd " + shellescape.Quote(cwd) + "; " + envToShell(env)

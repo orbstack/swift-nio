@@ -5,15 +5,11 @@ import (
 	"net"
 	"net/rpc"
 	"os/user"
-	"reflect"
 	"strconv"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/sirupsen/logrus"
 )
-
-// Never obfuscate the HcontrolServer type (garble)
-var _ = reflect.TypeOf(HcontrolServer{})
 
 type HcontrolServer struct {
 	activeHostsForwards map[string]struct{}
@@ -64,6 +60,11 @@ func (h *HcontrolServer) GetTimezone(_ *None, reply *string) error {
 
 func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
 	*reply = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ/wCg/nWi0s+OYvjdW6JdxYaXpoO/fZvzwu0RRszPir"
+	return nil
+}
+
+func (h *HcontrolServer) GetSSHAgentSocket(_ None, reply *string) error {
+	*reply = ""
 	return nil
 }
 

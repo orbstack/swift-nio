@@ -11,6 +11,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -19,7 +20,16 @@ import (
 var (
 	adminGroups  = []string{"adm", "wheel", "staff", "admin", "sudo", "video"}
 	defaultUsers = []string{"ubuntu", "archlinux", "opensuse"}
+
+	packagesToInstall = map[string]PackageInstallSpec{
+		images.ImageAlpine: {"apk", []string{"sudo", "curl", "bash", "openssh"}},
+	}
 )
+
+type PackageInstallSpec struct {
+	Manager  string
+	Packages []string
+}
 
 type InitialSetupArgs struct {
 	Username          string

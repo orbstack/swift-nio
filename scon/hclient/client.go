@@ -7,8 +7,9 @@ import (
 )
 
 type Client struct {
-	rpc  *rpc.Client
-	user *user.User
+	rpc            *rpc.Client
+	user           *user.User
+	sshAgentSocket *string
 }
 
 func (c *Client) Ping() error {
@@ -59,6 +60,21 @@ func (c *Client) GetSSHPublicKey() (string, error) {
 	}
 
 	return key, nil
+}
+
+func (c *Client) GetSSHAgentSocket() (string, error) {
+	if c.sshAgentSocket != nil {
+		return *c.sshAgentSocket, nil
+	}
+
+	var sock string
+	err := c.rpc.Call("hc.GetSSHAgentSocket", None{}, &sock)
+	if err != nil {
+		return "", err
+	}
+
+	c.sshAgentSocket = &sock
+	return sock, nil
 }
 
 func (c *Client) Close() error {

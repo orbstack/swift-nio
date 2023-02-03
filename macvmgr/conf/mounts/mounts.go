@@ -25,7 +25,7 @@ const (
 	DefualtHiprioCmdLinks = BinHiprio
 
 	Run            = Opt + "/run"
-	SshAgentSocket = Run + "/ssh-agent.sock"
+	SshAgentSocket = Run + "/host-ssh-agent.sock"
 	HostSSHSocket  = Run + "/hostssh.sock"
 	HcontrolSocket = Run + "/hcontrol.sock"
 )
