@@ -58,7 +58,6 @@ func EnsureVMWithSpinner() {
 		}
 	}
 
-	fmt.Println("ensure")
 	spinner := spinutil.Start("green", "Starting machine")
 	err := vmclient.EnsureVM()
 	spinner.Stop()
@@ -73,7 +72,6 @@ func EnsureSconVMWithSpinner() {
 		}
 	}
 
-	fmt.Println("ensure")
 	spinner := spinutil.Start("green", "Starting machine")
 	err := vmclient.EnsureSconVM()
 	spinner.Stop()

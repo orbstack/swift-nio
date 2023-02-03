@@ -1,10 +1,10 @@
 package buildid
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"io"
 	"os"
+	"strconv"
+
+	"golang.org/x/sys/unix"
 )
 
 func CalculateCurrent() (string, error) {
@@ -16,18 +16,12 @@ func CalculateCurrent() (string, error) {
 }
 
 func CalculatePath(path string) (string, error) {
-	// read it and hash it
-	exe, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer exe.Close()
-
-	hash := sha256.New()
-	_, err = io.Copy(hash, exe)
+	var stat unix.Stat_t
+	err := unix.Stat(path, &stat)
 	if err != nil {
 		return "", err
 	}
 
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	// ctime can't be changed. faster than hashing
+	return strconv.FormatInt(stat.Ctim.Nano(), 10), nil
 }
