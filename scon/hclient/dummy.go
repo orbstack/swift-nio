@@ -4,10 +4,13 @@ import (
 	"errors"
 	"net"
 	"net/rpc"
+	"os"
 	"os/user"
 	"strconv"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/muja/goconfig"
 	"github.com/sirupsen/logrus"
 )
 
@@ -65,6 +68,21 @@ func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
 
 func (h *HcontrolServer) GetSSHAgentSocket(_ None, reply *string) error {
 	*reply = ""
+	return nil
+}
+
+func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
+	data, err := os.ReadFile(conf.HomeDir() + "/.gitconfig")
+	if err != nil {
+		return err
+	}
+
+	config, _, err := goconfig.Parse(data)
+	if err != nil {
+		return err
+	}
+
+	*reply = config
 	return nil
 }
 

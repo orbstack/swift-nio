@@ -77,6 +77,16 @@ func (c *Client) GetSSHAgentSocket() (string, error) {
 	return sock, nil
 }
 
+func (c *Client) GetGitConfig() (map[string]string, error) {
+	var config map[string]string
+	err := c.rpc.Call("hc.GetGitConfig", None{}, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }

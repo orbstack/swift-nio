@@ -117,17 +117,28 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		return
 	}
 
+	// get git configs
+	var gitConfigs agent.BasicGitConfigs
+	hostGitConfigs, err := m.host.GetGitConfig()
+	if err != nil {
+		logrus.WithError(err).Warn("failed to get host git configs")
+	} else {
+		gitConfigs.Name = hostGitConfigs["user.name"]
+		gitConfigs.Email = hostGitConfigs["user.email"]
+	}
+
 	// tell agent to run setup
 	logrus.WithFields(logrus.Fields{
 		"uid":      uid,
 		"username": hostUser.Username,
 	}).Info("running initial setup")
 	err = c.Agent().InitialSetup(agent.InitialSetupArgs{
-		Username: hostUser.Username,
-		Uid:      uid,
-		Password: args.UserPassword,
-		Distro:   image.Distro,
-		Timezone: hostTimezone,
+		Username:        hostUser.Username,
+		Uid:             uid,
+		Password:        args.UserPassword,
+		Distro:          image.Distro,
+		Timezone:        hostTimezone,
+		BasicGitConfigs: gitConfigs,
 	})
 	if err != nil {
 		return
