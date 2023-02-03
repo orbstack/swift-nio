@@ -27,7 +27,10 @@ require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 
 require github.com/gofrs/flock v0.8.1
 
-require github.com/kevinburke/ssh_config v1.2.0 // indirect
+require (
+	github.com/kevinburke/ssh_config v1.2.0 // indirect
+	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc // indirect
+)
 
 require (
 	github.com/alessio/shellescape v1.4.1

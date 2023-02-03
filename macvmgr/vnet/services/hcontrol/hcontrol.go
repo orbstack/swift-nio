@@ -14,6 +14,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/sshagent"
+	"github.com/muja/goconfig"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
@@ -74,6 +75,21 @@ func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
 
 func (h *HcontrolServer) GetSSHAgentSocket(_ None, reply *string) error {
 	*reply = sshagent.GetAgentSocket()
+	return nil
+}
+
+func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
+	data, err := os.ReadFile(conf.HomeDir() + "/.gitconfig")
+	if err != nil {
+		return err
+	}
+
+	config, _, err := goconfig.Parse(data)
+	if err != nil {
+		return err
+	}
+
+	*reply = config
 	return nil
 }
 
