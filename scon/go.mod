@@ -23,6 +23,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/fatih/color v1.14.1
 	github.com/fsnotify/fsnotify v1.6.0
+	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/pkg/sftp v1.13.5
 	github.com/spf13/cobra v1.6.1
@@ -39,7 +40,6 @@ require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
-	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/sync v0.1.0 // indirect
