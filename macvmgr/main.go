@@ -233,11 +233,11 @@ func runOne(what string, fn func() error) {
 func runVmManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
-		logrus.SetFormatter(&logrus.TextFormatter{
-			FullTimestamp:   true,
-			TimestampFormat: "01-02 15:04:05",
-		})
 	}
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "01-02 15:04:05",
+	})
 
 	if err := vz.MacOSAvailable(12.6); err != nil {
 		logrus.Fatal("macOS too old", err)

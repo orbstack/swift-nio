@@ -73,11 +73,11 @@ func doSystemInitTasks(host *hclient.Client) error {
 func runContainerManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
-		logrus.SetFormatter(&logrus.TextFormatter{
-			FullTimestamp:   true,
-			TimestampFormat: "01-02 15:04:05",
-		})
 	}
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "01-02 15:04:05",
+	})
 
 	// rand seed
 	rand.Seed(time.Now().UnixNano())
