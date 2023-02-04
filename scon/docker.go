@@ -225,9 +225,19 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 	p.freezeDebounce.Cancel()
 
 	// start docker container if not running
-	err := p.container.Start()
-	if err != nil {
-		return err
+	if !p.container.Running() {
+		err := p.container.Start()
+		if err != nil {
+			return err
+		}
+
+		// wait for start to avoid EOF
+		p.mu.Unlock()
+		err = p.waitForStart()
+		p.mu.Lock()
+		if err != nil {
+			return err
+		}
 	}
 
 	// increment while locked
@@ -249,7 +259,7 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 	}()
 
 	// unfreeze if it's frozen
-	err = p.container.Unfreeze()
+	err := p.container.Unfreeze()
 	if err != nil {
 		if !errors.Is(err, lxc.ErrNotFrozen) {
 			return err
