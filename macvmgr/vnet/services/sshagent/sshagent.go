@@ -2,8 +2,10 @@ package sshagent
 
 import (
 	"os"
+	"path"
 	"strings"
 
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kevinburke/ssh_config"
 	"github.com/sirupsen/logrus"
@@ -11,30 +13,47 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
-func GetAgentSocket() string {
-	// prefer IdentityAgent for 1Password agent
-	agentSock, err := ssh_config.GetStrict("*", "IdentityAgent")
-	if agentSock == "" || err != nil {
-		agentSock = os.Getenv("SSH_AUTH_SOCK")
-	} else {
+func GetAgentSockets() htypes.SSHAgentSockets {
+	var socks htypes.SSHAgentSockets
+
+	// get env
+	socks.Env = os.Getenv("SSH_AUTH_SOCK")
+	// is it relative?
+	if !path.IsAbs(socks.Env) {
+		// won't work.
+		socks.Env = ""
+	}
+
+	// get config
+	configSock, err := ssh_config.GetStrict("*", "IdentityAgent")
+	if err == nil {
 		// the parser sucks... fix quotes and ~/ for 1password
 		// TODO parse it ourselves
-		agentSock = strings.Trim(agentSock, "\"")
-		if strings.HasPrefix(agentSock, "~/") {
+		configSock = strings.Trim(configSock, "\"")
+		if strings.HasPrefix(configSock, "~/") {
 			home, err := os.UserHomeDir()
 			if err != nil {
 				panic(err)
 			}
 
-			agentSock = home + agentSock[1:]
+			configSock = home + configSock[1:]
 		}
+
+		socks.SshConfig = configSock
 	}
 
-	return agentSock
+	// prefer IdentityAgent for 1Password agent
+	if socks.SshConfig != "" {
+		socks.Preferred = socks.SshConfig
+	} else {
+		socks.Preferred = socks.Env
+	}
+
+	return socks
 }
 
 func ListenHostSSHAgent(stack *stack.Stack, address tcpip.Address) error {
-	agentSock := GetAgentSocket()
+	agentSock := GetAgentSockets().Preferred
 	logrus.WithField("sock", agentSock).Info("forwarding SSH agent")
 
 	_, err := tcpfwd.ListenUnixNATForward(stack, address, agentSock)

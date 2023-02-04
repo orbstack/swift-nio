@@ -309,11 +309,11 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	env = append(env, "PWD="+cwd)
 
 	// forward ssh agent
-	sshAgentSock, err := sv.m.host.GetSSHAgentSocket()
+	sshAgentSocks, err := sv.m.host.GetSSHAgentSockets()
 	if err != nil {
 		return
 	}
-	if sshAgentSock != "" {
+	if sshAgentSocks.Preferred != "" {
 		env = append(env, "SSH_AUTH_SOCK="+mounts.SshAgentSocket)
 	}
 

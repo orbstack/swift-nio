@@ -4,12 +4,14 @@ import (
 	"net"
 	"net/rpc"
 	"os/user"
+
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 )
 
 type Client struct {
-	rpc            *rpc.Client
-	user           *user.User
-	sshAgentSocket *string
+	rpc             *rpc.Client
+	user            *user.User
+	sshAgentSockets *htypes.SSHAgentSockets
 }
 
 func (c *Client) Ping() error {
@@ -62,19 +64,19 @@ func (c *Client) GetSSHPublicKey() (string, error) {
 	return key, nil
 }
 
-func (c *Client) GetSSHAgentSocket() (string, error) {
-	if c.sshAgentSocket != nil {
-		return *c.sshAgentSocket, nil
+func (c *Client) GetSSHAgentSockets() (*htypes.SSHAgentSockets, error) {
+	if c.sshAgentSockets != nil {
+		return c.sshAgentSockets, nil
 	}
 
-	var sock string
-	err := c.rpc.Call("hc.GetSSHAgentSocket", None{}, &sock)
+	var socks htypes.SSHAgentSockets
+	err := c.rpc.Call("hc.GetSSHAgentSockets", None{}, &socks)
 	if err != nil {
-		return "", err
+		return &htypes.SSHAgentSockets{}, err
 	}
 
-	c.sshAgentSocket = &sock
-	return sock, nil
+	c.sshAgentSockets = &socks
+	return &socks, nil
 }
 
 func (c *Client) GetGitConfig() (map[string]string, error) {

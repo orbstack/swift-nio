@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path"
@@ -100,7 +101,8 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 	}
 
 	// read its environment
-	env, err := readProcEnv("/proc/" + strconv.FormatInt(int64(cred.Pid), 10) + "/environ")
+	procPid := "/proc/" + strconv.FormatInt(int64(cred.Pid), 10)
+	env, err := readProcEnv(procPid + "/environ")
 	if err != nil {
 		return err
 	}
@@ -116,6 +118,74 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 	if strings.HasPrefix(path.Base(sockPath), "vscode-ssh-auth-sock-") {
 		// fix it
 		sockPath = mounts.SshAgentSocket
+	}
+
+	// resolve socket path relative to process cwd
+	if !path.IsAbs(sockPath) {
+		cwd, err := os.Readlink(procPid + "/cwd")
+		if err != nil {
+			return err
+		}
+
+		sockPath = path.Join(cwd, sockPath)
+	}
+
+	// check permissions
+	if cred.Uid != 0 {
+		var stat unix.Stat_t
+		err = unix.Stat(sockPath, &stat)
+		if err != nil {
+			return err
+		}
+		fmt.Println("check f perm", sockPath, cred.Uid, cred.Gid, stat.Uid, stat.Gid, stat.Mode)
+
+		isOwner := stat.Uid == cred.Uid
+		isGroupMember := stat.Gid == cred.Gid
+		isOther := !isOwner && !isGroupMember
+
+		// require both read and write
+		allowsOwner := stat.Mode&unix.S_IRUSR != 0 && stat.Mode&unix.S_IWUSR != 0
+		allowsGroup := stat.Mode&unix.S_IRGRP != 0 && stat.Mode&unix.S_IWGRP != 0
+		allowsOther := stat.Mode&unix.S_IROTH != 0 && stat.Mode&unix.S_IWOTH != 0
+
+		switch {
+		case isOwner && !allowsOwner:
+			return unix.EPERM
+		case isGroupMember && !allowsGroup:
+			return unix.EPERM
+		case isOther && !allowsOther:
+			return unix.EPERM
+		}
+
+		// walk up the directory tree
+		dir := path.Dir(sockPath)
+		for dir != "/" {
+			err = unix.Stat(dir, &stat)
+			if err != nil {
+				return err
+			}
+			fmt.Println("check dir perm", dir, cred.Uid, cred.Gid, stat.Uid, stat.Gid, stat.Mode)
+
+			isOwner = stat.Uid == cred.Uid
+			isGroupMember = stat.Gid == cred.Gid
+			isOther = !isOwner && !isGroupMember
+
+			// require execute permission
+			allowsOwner := stat.Mode&unix.S_IXUSR != 0
+			allowsGroup := stat.Mode&unix.S_IXGRP != 0
+			allowsOther := stat.Mode&unix.S_IXOTH != 0
+
+			switch {
+			case isOwner && !allowsOwner:
+				return unix.EPERM
+			case isGroupMember && !allowsGroup:
+				return unix.EPERM
+			case isOther && !allowsOther:
+				return unix.EPERM
+			}
+
+			dir = path.Dir(dir)
+		}
 	}
 
 	// connect to the real ssh agent

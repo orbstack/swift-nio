@@ -149,6 +149,11 @@ func (c *Container) initLxc() error {
 		return err
 	}
 
+	sshAgentSocks, err := c.manager.host.GetSSHAgentSockets()
+	if err != nil {
+		return err
+	}
+
 	// set configs!
 	err = func() error {
 		defer func() {
@@ -269,6 +274,13 @@ func (c *Container) initLxc() error {
 			bind("/mnt/mac"+p, p, "")
 		}
 		bind("/mnt/mac", "/mac", "")
+
+		// binds for ssh agent sockets (fixes docker $SSH_AUTH_SOCK forward)
+		// anything operation (mount, stat, access) on the /private socket through virtiofs returns EOPNOTSUPP
+		// so we bind the dir to a tmpfs
+		if sshAgentSocks.Env != "" && strings.HasPrefix(sshAgentSocks.Env, "/private/tmp/com.apple.launchd.") {
+			bind(mounts.LaunchdSshAgentListeners, path.Dir(sshAgentSocks.Env), "ro")
+		}
 
 		// log
 		set("lxc.log.file", logPath)
@@ -567,39 +579,45 @@ func (c *Container) startAgent() error {
 	// will block if agent is broken
 	// also, we'll close our side of the remote fd so RPC will return ECONNRESET
 	go func() {
-		// inet diag
-		nlFile, err := client.OpenDiagNetlink()
+		err := c.initAgent()
 		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to open netlink")
-			return
-		}
-
-		go runOne("netlink monitor for "+c.Name, func() error {
-			return monitorInetDiag(c, nlFile)
-		})
-
-		// update listeners in case we missed any before agent start
-		c.triggerListenersUpdate()
-
-		// ssh agent proxy
-		u, err := c.manager.host.GetUser()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to get user")
-			return
-		}
-		uid, err := strconv.Atoi(u.Uid)
-		if err != nil {
-			return
-		}
-		err = client.StartSshAgentProxy(agent.SshAgentProxyArgs{
-			Uid: uid,
-			Gid: uid,
-		})
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to start ssh agent proxy")
-			return
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to init agent")
 		}
 	}()
+
+	return nil
+}
+
+func (c *Container) initAgent() error {
+	// inet diag
+	nlFile, err := c.Agent().OpenDiagNetlink()
+	if err != nil {
+		return err
+	}
+
+	go runOne("netlink monitor for "+c.Name, func() error {
+		return monitorInetDiag(c, nlFile)
+	})
+
+	// update listeners in case we missed any before agent start
+	c.triggerListenersUpdate()
+
+	// ssh agent proxy (vscode workaround)
+	u, err := c.manager.host.GetUser()
+	if err != nil {
+		return err
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return err
+	}
+	err = c.Agent().StartSshAgentProxy(agent.SshAgentProxyArgs{
+		Uid: uid,
+		Gid: uid,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

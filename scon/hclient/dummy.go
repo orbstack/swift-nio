@@ -10,6 +10,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/muja/goconfig"
 	"github.com/sirupsen/logrus"
 )
@@ -66,8 +67,8 @@ func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
 	return nil
 }
 
-func (h *HcontrolServer) GetSSHAgentSocket(_ None, reply *string) error {
-	*reply = ""
+func (h *HcontrolServer) GetSSHAgentSockets(_ None, reply *htypes.SSHAgentSockets) error {
+	*reply = htypes.SSHAgentSockets{}
 	return nil
 }
 
