@@ -65,7 +65,8 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		return nil, err
 	}
 
-	lxcDir := path.Join(tmpDir, "lxc")
+	// must stay same or we get duplicate containers across restarts
+	lxcDir := "/tmp/scon-lxc"
 	err = os.Mkdir(lxcDir, 0755)
 	if err != nil {
 		return nil, err
