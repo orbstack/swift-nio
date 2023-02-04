@@ -45,9 +45,3 @@ echo '127.0.1.1 docker' >> /etc/hosts
 mkdir /mnt/mac
 mkdir /opt/macvirt-guest
 mkdir /var/lib/docker
-
-# mac symlinks for docker volumes
-for d in Applications Library System Users Volumes private cores opt/homebrew; do
-    ln -sf /mnt/mac/$d /$d
-done
-ln -sf /mnt/mac /mac
