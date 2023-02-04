@@ -580,6 +580,25 @@ func (c *Container) startAgent() error {
 
 		// update listeners in case we missed any before agent start
 		c.triggerListenersUpdate()
+
+		// ssh agent proxy
+		u, err := c.manager.host.GetUser()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to get user")
+			return
+		}
+		uid, err := strconv.Atoi(u.Uid)
+		if err != nil {
+			return
+		}
+		err = client.StartSshAgentProxy(agent.SshAgentProxyArgs{
+			Uid: uid,
+			Gid: uid,
+		})
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to start ssh agent proxy")
+			return
+		}
 	}()
 
 	return nil

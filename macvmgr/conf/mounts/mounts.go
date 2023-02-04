@@ -28,4 +28,6 @@ const (
 	SshAgentSocket = Run + "/host-ssh-agent.sock"
 	HostSSHSocket  = Run + "/hostssh.sock"
 	HcontrolSocket = Run + "/hcontrol.sock"
+
+	TmpSshAgentProxySocket = "/dev/.lxc/.macvirt-ssh-agent-proxy.sock"
 )
