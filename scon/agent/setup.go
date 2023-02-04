@@ -24,7 +24,7 @@ var (
 	// generally: curl, scp
 	PackageInstallCommands = map[string][]string{
 		images.ImageAlpine:   {"apk add sudo curl dropbear-scp"},
-		images.ImageArch:     {"pacman -Sy dropbear-scp"},
+		images.ImageArch:     {"pacman --noconfirm -Sy dropbear-scp"},
 		images.ImageCentos:   nil, // no need
 		images.ImageDebian:   {"apt-get update", "apt-get install -y curl"},
 		images.ImageFedora:   nil, // no need
