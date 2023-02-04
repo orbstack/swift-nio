@@ -23,5 +23,5 @@ func CalculatePath(path string) (string, error) {
 	}
 
 	// ctime can't be changed. faster than hashing
-	return strconv.FormatInt(stat.Ctim.Nano(), 10), nil
+	return strconv.FormatInt(stat.Mtim.Nano(), 10), nil
 }
