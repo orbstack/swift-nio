@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/images"
@@ -258,6 +259,13 @@ func (c *Container) initLxc() error {
 		bind(config.HostMountSrc, "/mnt/mac", "")
 		// we're doing this in kernel now, to avoid showing up in `df`
 		//bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
+
+		// binds for mac linked paths
+		// symlinks cause problems with vs code, git, etc. so we bind them
+		for _, p := range mounts.LinkedPaths {
+			bind("/mnt/mac"+p, p, "")
+		}
+		bind("/mnt/mac", "/mac", "")
 
 		// log
 		set("lxc.log.file", logPath)

@@ -284,19 +284,6 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
-	// create mac symlinks
-	logrus.Debug("Creating mac symlinks")
-	for _, path := range mounts.LinkedPaths {
-		err = os.Symlink(mounts.VirtiofsMountpoint+path, path)
-		if err != nil {
-			return err
-		}
-	}
-	err = os.Symlink(mounts.VirtiofsMountpoint, "/mac")
-	if err != nil {
-		return err
-	}
-
 	// set timezone
 	// try systemd timedatectl first
 	if args.Timezone != "" {
