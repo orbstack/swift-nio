@@ -223,6 +223,9 @@ func (c *Container) initLxc() error {
 		set("lxc.mount.entry", "proc dev/.lxc/proc proc create=dir,optional 0 0")
 		set("lxc.mount.entry", "sys dev/.lxc/sys sysfs create=dir,optional 0 0")
 
+		// tmpfs
+		set("lxc.mount.entry", "tmpfs tmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional 0 0")
+
 		// other
 		set("lxc.apparmor.profile", "unconfined")
 		set("lxc.arch", "linux64")
