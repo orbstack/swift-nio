@@ -140,7 +140,7 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 		fmt.Println("check f perm", sockPath, cred.Uid, cred.Gid, stat.Uid, stat.Gid, stat.Mode)
 
 		isOwner := stat.Uid == cred.Uid
-		isGroupMember := stat.Gid == cred.Gid
+		isGroupMember := (stat.Gid == cred.Gid) && !isOwner
 		isOther := !isOwner && !isGroupMember
 
 		// require both read and write
@@ -150,11 +150,11 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 
 		switch {
 		case isOwner && !allowsOwner:
-			return unix.EPERM
+			return unix.EACCES
 		case isGroupMember && !allowsGroup:
-			return unix.EPERM
+			return unix.EACCES
 		case isOther && !allowsOther:
-			return unix.EPERM
+			return unix.EACCES
 		}
 
 		// walk up the directory tree
@@ -167,7 +167,7 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 			fmt.Println("check dir perm", dir, cred.Uid, cred.Gid, stat.Uid, stat.Gid, stat.Mode)
 
 			isOwner = stat.Uid == cred.Uid
-			isGroupMember = stat.Gid == cred.Gid
+			isGroupMember = (stat.Gid == cred.Gid) && !isOwner
 			isOther = !isOwner && !isGroupMember
 
 			// require execute permission
@@ -177,11 +177,11 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 
 			switch {
 			case isOwner && !allowsOwner:
-				return unix.EPERM
+				return unix.EACCES
 			case isGroupMember && !allowsGroup:
-				return unix.EPERM
+				return unix.EACCES
 			case isOther && !allowsOther:
-				return unix.EPERM
+				return unix.EACCES
 			}
 
 			dir = path.Dir(dir)
