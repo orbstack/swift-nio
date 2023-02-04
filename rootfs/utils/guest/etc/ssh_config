@@ -1,0 +1,3 @@
+# Workaround for a VS Code bug
+Host *
+	IdentityAgent /dev/.lxc/.macvirt-ssh-agent-proxy.sock
