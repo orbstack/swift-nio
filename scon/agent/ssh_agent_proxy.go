@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"path"
@@ -137,7 +136,6 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("check f perm", sockPath, cred.Uid, cred.Gid, stat.Uid, stat.Gid, stat.Mode)
 
 		isOwner := stat.Uid == cred.Uid
 		isGroupMember := (stat.Gid == cred.Gid) && !isOwner
@@ -164,7 +162,6 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 			if err != nil {
 				return err
 			}
-			fmt.Println("check dir perm", dir, cred.Uid, cred.Gid, stat.Uid, stat.Gid, stat.Mode)
 
 			isOwner = stat.Uid == cred.Uid
 			isGroupMember = (stat.Gid == cred.Gid) && !isOwner
