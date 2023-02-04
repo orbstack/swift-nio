@@ -20,6 +20,7 @@ const (
 	Etc          = Opt + "/etc"
 	ProfileEarly = Etc + "/profile-early"
 	ProfileLate  = Etc + "/profile-late"
+	SshConfig    = Etc + "/ssh_config"
 
 	BinHiprio             = Opt + "/bin-hiprio"
 	DefualtHiprioCmdLinks = BinHiprio

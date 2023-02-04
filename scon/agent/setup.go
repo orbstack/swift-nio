@@ -284,6 +284,13 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
+	// symlink /etc/ssh/ssh_config.d/10-macvirt
+	logrus.Debug("linking ssh config")
+	err = os.Symlink(mounts.SshConfig, "/etc/ssh/ssh_config.d/10-"+appid.AppName+".conf")
+	if err != nil {
+		return err
+	}
+
 	// set timezone
 	// try systemd timedatectl first
 	if args.Timezone != "" {
