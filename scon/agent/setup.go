@@ -288,7 +288,9 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	logrus.Debug("linking ssh config")
 	err = os.Symlink(mounts.SshConfig, "/etc/ssh/ssh_config.d/10-"+appid.AppName+".conf")
 	if err != nil {
-		return err
+		// error ok, not all distros have ssh_config.d
+		// this isn't *that* important
+		logrus.WithError(err).Warn("Failed to symlink ssh config")
 	}
 
 	// set timezone
