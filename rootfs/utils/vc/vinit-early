@@ -50,8 +50,8 @@ if [[ -n "$data_size" ]]; then
 fi
 
 #resize.f2fs /dev/vdb1
-#fsck.ext4 -y /dev/vdb1
-#resize2fs /dev/vdb1
+fsck.ext4 -y /dev/vdb1
+resize2fs /dev/vdb1
 #btrfs filesystem resize max /data
 
 # virtiofs share

@@ -67,7 +67,7 @@ fi
 
 # resize fs
 #xfs_growfs /dev/vdb1
-btrfs filesystem resize max /data
+#btrfs filesystem resize max /data
 
 # upgrade data: v3 -> v4
 if [[ "$(cat /data/version)" -lt 4 ]]; then
