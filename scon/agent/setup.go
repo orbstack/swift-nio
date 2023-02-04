@@ -22,7 +22,7 @@ var (
 	defaultUsers = []string{"ubuntu", "archlinux", "opensuse"}
 
 	// generally: curl, scp
-	packageInstallCommands = map[string][]string{
+	PackageInstallCommands = map[string][]string{
 		images.ImageAlpine:   {"apk add sudo curl dropbear-scp"},
 		images.ImageArch:     {"pacman -Sy dropbear-scp"},
 		images.ImageCentos:   nil, // no need
@@ -300,7 +300,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	}
 
 	// install packages
-	pkgCommands, ok := packageInstallCommands[args.Distro]
+	pkgCommands, ok := PackageInstallCommands[args.Distro]
 	if ok && len(pkgCommands) > 0 {
 		for _, cmd := range pkgCommands {
 			args := strings.Split(cmd, " ")

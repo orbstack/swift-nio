@@ -127,6 +127,12 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		gitConfigs.Email = hostGitConfigs["user.email"]
 	}
 
+	// wait for network if this distro needs package installation
+	if _, ok := agent.PackageInstallCommands[image.Distro]; ok {
+		logrus.WithField("container", c.Name).Info("waiting for network before setup")
+		c.lxc.WaitIPAddresses(startTimeout)
+	}
+
 	// tell agent to run setup
 	logrus.WithFields(logrus.Fields{
 		"uid":      uid,
