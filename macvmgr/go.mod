@@ -25,11 +25,10 @@ require (
 
 require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 
-require github.com/gofrs/flock v0.8.1
-
 require (
-	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc // indirect
+	github.com/gofrs/flock v0.8.1
+	github.com/kevinburke/ssh_config v1.2.0
+	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
 )
 
 require (
@@ -40,7 +39,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/term v0.4.0 // indirect
+	golang.org/x/term v0.4.0
 )
 
 require (

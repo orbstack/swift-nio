@@ -25,8 +25,8 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
 	"github.com/kdrag0n/macvirt/scon/sclient"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 const (
@@ -330,9 +330,9 @@ func runVmManager() {
 
 	if useStdioConsole {
 		fd := int(os.Stdin.Fd())
-		state, err := terminal.MakeRaw(fd)
+		state, err := term.MakeRaw(fd)
 		check(err)
-		defer terminal.Restore(fd, state)
+		defer term.Restore(fd, state)
 	}
 
 	err = vm.Start()
