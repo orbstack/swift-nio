@@ -155,6 +155,9 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 			return nil, err
 		}
 		nicEp, err = sniffer.NewWithWriter(nicEp, f, math.MaxUint32)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.CreateNIC(nicID, nicEp); err != nil {
