@@ -233,7 +233,7 @@ func runOne(what string, fn func() error) {
 
 func runVmManager() {
 	if conf.Debug() {
-		logrus.SetLevel(logrus.TraceLevel)
+		logrus.SetLevel(logrus.DebugLevel)
 	}
 	logrus.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
