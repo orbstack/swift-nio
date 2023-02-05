@@ -29,7 +29,7 @@ import (
 
 const (
 	PreferredMtu = 65520
-	capturePcap  = true
+	capturePcap  = false
 	nicID        = 1
 
 	subnet4      = "172.30.30"
