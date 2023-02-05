@@ -17,19 +17,21 @@ import (
 func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C.uint32_t,
 	errorCode C.DNSServiceErrorType, fullname *C.char, rrtype C.uint16_t,
 	rrclass C.uint16_t, rdlen C.uint16_t, rdata unsafe.Pointer, ttl C.uint32_t) {
-	logrus.WithFields(logrus.Fields{
-		"context":        context,
-		"flags":          flags,
-		"interfaceIndex": interfaceIndex,
-		"errorCode":      errorCode,
-		"fullname":       C.GoString(fullname),
-		"rrtype":         rrtype,
-		"rrclass":        rrclass,
-		"rdlen":          rdlen,
-		"rdata":          C.GoBytes(rdata, C.int(rdlen)),
-		"ttl":            ttl,
-		"MoreComing":     flags&C.kDNSServiceFlagsMoreComing != 0,
-	}).Trace("dnssd callback")
+	if verboseTrace {
+		logrus.WithFields(logrus.Fields{
+			"context":        context,
+			"flags":          flags,
+			"interfaceIndex": interfaceIndex,
+			"errorCode":      errorCode,
+			"fullname":       C.GoString(fullname),
+			"rrtype":         rrtype,
+			"rrclass":        rrclass,
+			"rdlen":          rdlen,
+			"rdata":          C.GoBytes(rdata, C.int(rdlen)),
+			"ttl":            ttl,
+			"MoreComing":     flags&C.kDNSServiceFlagsMoreComing != 0,
+		}).Trace("dnssd callback")
+	}
 
 	queryMapMu.RLock()
 	query, ok := queryMap[context]

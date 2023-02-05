@@ -3,6 +3,7 @@ package dnssrv
 import (
 	"fmt"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
@@ -12,6 +13,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+)
+
+var (
+	verboseTrace = conf.Debug()
 )
 
 type StaticHost struct {
@@ -83,7 +88,21 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 			continue
 		}
 
+		if verboseTrace {
+			logrus.WithFields(logrus.Fields{
+				"name": q.Name,
+				"type": dns.TypeToString[q.Qtype],
+			}).Trace("start handling DNS query")
+		}
 		answers, err := dnssd.QueryRecursive(q.Name, q.Qtype)
+		if verboseTrace {
+			logrus.WithFields(logrus.Fields{
+				"name": q.Name,
+				"type": dns.TypeToString[q.Qtype],
+				"ans":  answers,
+				"err":  err,
+			}).Trace("got first answer from QueryRecursive()")
+		}
 		// First error handling round: try to fix it
 		if err != nil {
 			logrus.WithError(err).Error("QueryRecursive() failed")
@@ -91,6 +110,12 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 
 			// No network? macOS returns NXDOMAIN, we return timeout
 			if isNxdomain && netutil.GetDefaultAddress4() == nil && netutil.GetDefaultAddress6() == nil {
+				if verboseTrace {
+					logrus.WithFields(logrus.Fields{
+						"name": q.Name,
+						"type": dns.TypeToString[q.Qtype],
+					}).Trace("no network, returning timeout")
+				}
 				return
 			}
 
@@ -99,7 +124,22 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 			// Fix: query SOA. if we get a SOA, return it with status=NOERROR. otherwise, return NXDOMAIN if SOA is missing.
 			fallbackQtype := mapFallbackQtype(q.Qtype)
 			if isNxdomain && len(answers) == 0 && fallbackQtype != 0 {
+				if verboseTrace {
+					logrus.WithFields(logrus.Fields{
+						"name":     q.Name,
+						"type":     dns.TypeToString[q.Qtype],
+						"fallback": dns.TypeToString[fallbackQtype],
+					}).Trace("trying fallback query")
+				}
 				_, err2 := dnssd.QueryRecursive(q.Name, fallbackQtype)
+				if verboseTrace {
+					logrus.WithFields(logrus.Fields{
+						"name":     q.Name,
+						"type":     dns.TypeToString[q.Qtype],
+						"fallback": dns.TypeToString[fallbackQtype],
+						"err":      err2,
+					}).Trace("got fallback answer")
+				}
 				if err2 == nil {
 					// we got something, so it's not NXDOMAIN
 					err = nil
@@ -113,8 +153,16 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 			}
 		}
 
-		// Error handling after SOA logic
+		// Error handling after fallback logic
 		if err != nil {
+			if verboseTrace {
+				logrus.WithFields(logrus.Fields{
+					"name": q.Name,
+					"type": dns.TypeToString[q.Qtype],
+					"err":  err,
+				}).Trace("got error after fallback logic")
+			}
+
 			// Default error handling
 			switch err {
 			// simulate timeout
@@ -136,6 +184,13 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		}
 
 		for _, a := range answers {
+			if verboseTrace {
+				logrus.WithFields(logrus.Fields{
+					"name": q.Name,
+					"type": dns.TypeToString[q.Qtype],
+					"ans":  a,
+				}).Trace("returning answer")
+			}
 			rr, err := mapToRR(a)
 			if err != nil {
 				logrus.Error("mapToRR() =", err)

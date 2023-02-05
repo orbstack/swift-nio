@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
@@ -39,6 +40,8 @@ var (
 	nextSeq atomic.Uint64
 )
 
+var verboseTrace = conf.Debug()
+
 type queryState struct {
 	ref     C.DNSServiceRef
 	answers []QueryAnswer
@@ -46,7 +49,7 @@ type queryState struct {
 	done    bool
 }
 
-func query(name string, rtype uint16) ([]QueryAnswer, error) {
+func queryOne(name string, rtype uint16) ([]QueryAnswer, error) {
 	rclass := C.kDNSServiceClass_IN
 
 	nameC := C.CString(name)
@@ -55,6 +58,11 @@ func query(name string, rtype uint16) ([]QueryAnswer, error) {
 	var sdRef C.DNSServiceRef
 	ret := C.start_query_record(&sdRef, C.kDNSServiceFlagsTimeout|C.kDNSServiceFlagsReturnIntermediates, 0, nameC, C.ushort(rtype), C.ushort(rclass), C.uint64_t(queryId))
 	if ret != C.kDNSServiceErr_NoError {
+		if verboseTrace {
+			logrus.WithFields(logrus.Fields{
+				"ret": ret,
+			}).Trace("DNSServiceQueryRecord returned error")
+		}
 		return nil, mapError(int(ret))
 	}
 
@@ -82,6 +90,11 @@ func query(name string, rtype uint16) ([]QueryAnswer, error) {
 		}
 
 		ret := C.DNSServiceProcessResult(sdRef)
+		if verboseTrace {
+			logrus.WithFields(logrus.Fields{
+				"ret": ret,
+			}).Trace("DNSServiceProcessResult returned")
+		}
 		if ret != C.kDNSServiceErr_NoError {
 			logrus.Error("DNSServiceProcessResult err", mapError(int(ret)))
 			return query.answers, mapError(int(ret))
@@ -95,8 +108,21 @@ func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
 	// Keep CNAME at the top even if we're not looking for it
 	allAnswers := []QueryAnswer{}
 	for {
-		logrus.Trace("dns recurse ", name)
-		newAnswers, err := query(name, rtype)
+		if verboseTrace {
+			logrus.WithFields(logrus.Fields{
+				"name": name,
+				"type": dns.TypeToString[rtype],
+			}).Trace("QueryOne")
+		}
+		newAnswers, err := queryOne(name, rtype)
+		if verboseTrace {
+			logrus.WithFields(logrus.Fields{
+				"name": name,
+				"type": dns.TypeToString[rtype],
+				"ans":  newAnswers,
+				"err":  err,
+			}).Trace("QueryOne result")
+		}
 		allAnswers = append(allAnswers, newAnswers...)
 		if err != nil {
 			return allAnswers, err

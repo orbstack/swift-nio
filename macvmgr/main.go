@@ -467,20 +467,22 @@ func runVmManager() {
 			// unmount nfs first
 			unmountNfs()
 
-			switch stopReq {
-			case StopForce:
-				err := tryForceStop(vm)
-				if err != nil {
-					logrus.WithError(err).Error("VM force stop failed")
-					return
+			go func() {
+				switch stopReq {
+				case StopForce:
+					err := tryForceStop(vm)
+					if err != nil {
+						logrus.WithError(err).Error("VM force stop failed")
+						return
+					}
+				case StopGraceful:
+					err := tryGracefulStop(vm, vc)
+					if err != nil {
+						logrus.WithError(err).Error("VM graceful stop failed")
+						return
+					}
 				}
-			case StopGraceful:
-				err := tryGracefulStop(vm, vc)
-				if err != nil {
-					logrus.WithError(err).Error("VM graceful stop failed")
-					return
-				}
-			}
+			}()
 
 		case newState := <-stateChan:
 			if newState == vz.VirtualMachineStateRunning {
