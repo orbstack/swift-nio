@@ -32,9 +32,15 @@ import (
 
 var (
 	shouldRun = false
+	sleepChan = make(chan time.Time)
 	wakeChan  = make(chan time.Time)
 	rootPort  C.io_connect_t
 )
+
+type SleepWakeMonitor struct {
+	SleepChan chan time.Time
+	WakeChan  chan time.Time
+}
 
 func runLoop() {
 	for shouldRun {
@@ -42,7 +48,7 @@ func runLoop() {
 	}
 }
 
-func MonitorSleepWake() (chan time.Time, error) {
+func MonitorSleepWake() (*SleepWakeMonitor, error) {
 	if shouldRun {
 		return nil, errors.New("already started")
 	}
@@ -64,5 +70,8 @@ func MonitorSleepWake() (chan time.Time, error) {
 		runLoop()
 	}()
 
-	return wakeChan, nil
+	return &SleepWakeMonitor{
+		SleepChan: sleepChan,
+		WakeChan:  wakeChan,
+	}, nil
 }

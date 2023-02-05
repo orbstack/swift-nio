@@ -151,14 +151,14 @@ func (vc *VClient) WaitForDataReady() {
 
 func (vc *VClient) StartBackground() error {
 	// Sync time on wake
-	wakeChan, err := iokit.MonitorSleepWake()
+	mon, err := iokit.MonitorSleepWake()
 	if err != nil {
 		return err
 	}
 
 	go func() {
 		for {
-			<-wakeChan
+			<-mon.WakeChan
 			logrus.Info("sync time")
 			go func() {
 				// For some reason, we have to sync *twice* in order for chrony to step the clock after suspend.
