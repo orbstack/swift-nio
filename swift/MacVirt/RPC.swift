@@ -7,3 +7,12 @@
 
 import Foundation
 import SwiftJSONRPC
+
+
+class SconService: RPCService {
+    func ping() async throws {
+        try await invoke("Ping")
+    }
+    
+    func create()
+}

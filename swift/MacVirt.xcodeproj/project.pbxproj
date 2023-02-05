@@ -15,6 +15,7 @@
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
 		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
 		D8CBDA23298A29FF0026F44A /* Daemon.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CBDA22298A29FF0026F44A /* Daemon.swift */; };
+		D8CBDA25298F791F0026F44A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CBDA24298F791F0026F44A /* AppConfig.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +27,7 @@
 		D8A32B98296F839100E56EEF /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		D8A32B9A296F839100E56EEF /* MacVirt.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacVirt.entitlements; sourceTree = "<group>"; };
 		D8CBDA22298A29FF0026F44A /* Daemon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daemon.swift; sourceTree = "<group>"; };
+		D8CBDA24298F791F0026F44A /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +69,7 @@
 				D8A32B97296F839100E56EEF /* Preview Content */,
 				D89C8A3A2989057600DA61A0 /* RPC.swift */,
 				D8CBDA22298A29FF0026F44A /* Daemon.swift */,
+				D8CBDA24298F791F0026F44A /* AppConfig.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -158,6 +161,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D8A32B94296F839100E56EEF /* ContentView.swift in Sources */,
+				D8CBDA25298F791F0026F44A /* AppConfig.swift in Sources */,
 				D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */,
 				D89C8A3B2989057600DA61A0 /* RPC.swift in Sources */,
 				D8CBDA23298A29FF0026F44A /* Daemon.swift in Sources */,
