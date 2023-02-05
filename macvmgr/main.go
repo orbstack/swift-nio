@@ -142,6 +142,7 @@ func tryGracefulStop(vm *vz.VirtualMachine, vc *vclient.VClient) (err error) {
 	}()
 
 	go func() {
+		//TODO signal via channel close and select on TimeAfter
 		time.Sleep(gracefulStopTimeout)
 		logrus.Error("graceful stop timed out, forcing")
 
@@ -232,7 +233,7 @@ func runOne(what string, fn func() error) {
 
 func runVmManager() {
 	if conf.Debug() {
-		logrus.SetLevel(logrus.DebugLevel)
+		logrus.SetLevel(logrus.TraceLevel)
 	}
 	logrus.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
