@@ -39,13 +39,37 @@ struct ContentView: View {
                 })
             case .running:
                 if let containers = model.containers {
-                    List(containers, id: \.id, selection: $selection) { container in
-                        if !container.builtin {
-                            ContainerItem(record: container)
+                    List(selection: $selection) {
+                        Section(header: Text("Features")) {
+                            ForEach(containers) { container in
+                                if container.builtin {
+                                    BuiltinContainerItem(record: container)
+                                }
+                            }
                         }
-                    }.refreshable {
+                        Section(header: Text("Machines")) {
+                            ForEach(containers) { container in
+                                if !container.builtin {
+                                    ContainerItem(record: container)
+                                }
+                            }
+                        }
+                    }
+                    .refreshable {
                         await model.tryRefreshList()
                     }
+                    .overlay(alignment: .bottom, content: {
+                        HStack {
+                            Text("Creating...")
+                                    .opacity(isCreating ? 1 : 0)
+                                    .animation(.easeInOut)
+                            Spacer()
+                            ProgressView()
+                                    .opacity(isCreating ? 1 : 0)
+                                    .animation(.easeInOut)
+                        }
+                        .background()
+                    })
                 } else {
                     ProgressView(label: {
                         Text("Loading")
@@ -88,7 +112,7 @@ struct ContentView: View {
                 Label("New Machine", systemImage: "plus")
             }
             .popover(isPresented: $presentCreate) {
-                CreateContainerView(isPresented: $presentCreate)
+                CreateContainerView(isPresented: $presentCreate, isCreating: $isCreating)
             }
         }
         .onAppear {

@@ -12,6 +12,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 type ConManager struct {
@@ -282,6 +283,9 @@ func (m *ConManager) ListContainers() []*Container {
 	for _, c := range m.containersByID {
 		containers = append(containers, c)
 	}
+	slices.SortFunc(containers, func(a, b *Container) bool {
+		return a.Name < b.Name
+	})
 	return containers
 }
 

@@ -17,6 +17,7 @@ struct ContainerItem: View {
         HStack {
             Image("distro_\(record.image.distro)")
                     .resizable()
+                    .aspectRatio(contentMode: .fit)
                     .frame(width: 32, height: 32)
                     .padding(.trailing, 8)
             VStack(alignment: .leading) {

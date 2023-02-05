@@ -118,8 +118,14 @@ class VmViewModel: ObservableObject {
     @MainActor
     func refreshList() async throws {
         try await waitForScon()
-        containers = try await scon.listContainers()
-        print("Refreshed list: \(containers!)")
+        let allContainers = try await scon.listContainers()
+        // filter into running and stopped
+        let runningContainers = allContainers.filter { $0.running }
+        let stoppedContainers = allContainers.filter { !$0.running }
+        // sort alphabetically by name within each group
+        containers = runningContainers.sorted { $0.name < $1.name } +
+                stoppedContainers.sorted { $0.name < $1.name }
+        print("Refreshed list: \(allContainers)")
     }
 
     func tryRefreshList() async {
