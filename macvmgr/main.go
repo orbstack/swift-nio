@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -285,10 +286,15 @@ func runVmManager() {
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 
-	if _, err := os.Stat(conf.DataImage()); os.IsNotExist(err) {
+	if _, err := os.Stat(conf.DataImage()); errors.Is(err, os.ErrNotExist) {
+		// check for apfs
+		err := verifyAPFS()
+		if err != nil {
+			logrus.Fatal("APFS is required")
+		}
 		extractSparse(conf.GetAssetFile("data.img.tar"))
 	}
-	if _, err := os.Stat(conf.SwapImage()); os.IsNotExist(err) {
+	if _, err := os.Stat(conf.SwapImage()); errors.Is(err, os.ErrNotExist) {
 		extractSparse(conf.GetAssetFile("swap.img.tar"))
 	}
 
