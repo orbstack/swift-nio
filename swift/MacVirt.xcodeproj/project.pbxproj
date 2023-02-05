@@ -7,8 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B118B1847379D830C007E7E7 /* CreateContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB4D521563F31AB550C7 /* CreateContainerView.swift */; };
+		B118B28D8DE73D4F324E58FB /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B220DEF9F1239BEA3C95 /* Utils.swift */; };
+		B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF7EB971BAC66F27805D /* RPCExecutor.swift */; };
+		B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E62611F603F60BF666 /* VmViewModel.swift */; };
+		B118BC31190DB3854C66B353 /* ContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* ContainerItem.swift */; };
+		B118BF4BE4D185C5A88B7A7D /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BAB379B8843568503FAA /* Images.swift */; };
+		B118BFD7C7DDDF02D8639C5D /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */; };
+		B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDE072F572BA61600007 /* AppSettings.swift */; };
+		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
+		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
 		D88042962989037C00EA7C97 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D88042952989037C00EA7C97 /* SwiftJSONRPC */; };
-		D89C8A3B2989057600DA61A0 /* RPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89C8A3A2989057600DA61A0 /* RPC.swift */; };
 		D89C8A402989080400DA61A0 /* Connect in Frameworks */ = {isa = PBXBuildFile; productRef = D89C8A3F2989080400DA61A0 /* Connect */; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
@@ -19,7 +28,16 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		D89C8A3A2989057600DA61A0 /* RPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPC.swift; sourceTree = "<group>"; };
+		B118B220DEF9F1239BEA3C95 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
+		B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		B118B7E62611F603F60BF666 /* VmViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VmViewModel.swift; sourceTree = "<group>"; };
+		B118B970D1735BC66857A549 /* ContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContainerItem.swift; sourceTree = "<group>"; };
+		B118BAB379B8843568503FAA /* Images.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
+		B118BB4D521563F31AB550C7 /* CreateContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateContainerView.swift; sourceTree = "<group>"; };
+		B118BDE072F572BA61600007 /* AppSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		B118BF7EB971BAC66F27805D /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
+		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
+		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D8A32B8E296F839100E56EEF /* MacVirt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacVirt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8A32B91296F839100E56EEF /* MacVirtApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacVirtApp.swift; sourceTree = "<group>"; };
 		D8A32B93296F839100E56EEF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -67,9 +85,18 @@
 				D8A32B95296F839100E56EEF /* Assets.xcassets */,
 				D8A32B9A296F839100E56EEF /* MacVirt.entitlements */,
 				D8A32B97296F839100E56EEF /* Preview Content */,
-				D89C8A3A2989057600DA61A0 /* RPC.swift */,
 				D8CBDA22298A29FF0026F44A /* Daemon.swift */,
 				D8CBDA24298F791F0026F44A /* AppConfig.swift */,
+				D8694A30298F9C9D0046B6B6 /* SconRPC.swift */,
+				D8694A32298F9EF00046B6B6 /* VmRPC.swift */,
+				B118BDE072F572BA61600007 /* AppSettings.swift */,
+				B118B7E62611F603F60BF666 /* VmViewModel.swift */,
+				B118B220DEF9F1239BEA3C95 /* Utils.swift */,
+				B118BF7EB971BAC66F27805D /* RPCExecutor.swift */,
+				B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */,
+				B118B970D1735BC66857A549 /* ContainerItem.swift */,
+				B118BAB379B8843568503FAA /* Images.swift */,
+				B118BB4D521563F31AB550C7 /* CreateContainerView.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -163,8 +190,17 @@
 				D8A32B94296F839100E56EEF /* ContentView.swift in Sources */,
 				D8CBDA25298F791F0026F44A /* AppConfig.swift in Sources */,
 				D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */,
-				D89C8A3B2989057600DA61A0 /* RPC.swift in Sources */,
+				D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */,
+				D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */,
 				D8CBDA23298A29FF0026F44A /* Daemon.swift in Sources */,
+				B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */,
+				B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */,
+				B118B28D8DE73D4F324E58FB /* Utils.swift in Sources */,
+				B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */,
+				B118BFD7C7DDDF02D8639C5D /* GeneralSettingsView.swift in Sources */,
+				B118BC31190DB3854C66B353 /* ContainerItem.swift in Sources */,
+				B118BF4BE4D185C5A88B7A7D /* Images.swift in Sources */,
+				B118B1847379D830C007E7E7 /* CreateContainerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

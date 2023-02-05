@@ -10,26 +10,23 @@ import Connect
 
 @main
 struct MacVirtApp: App {
-    init() {
-        // spawn daemon
-        let task = Process()
-        task.launchPath = "/usr/local/bin/connectd"
-        task.arguments = ["--config", "/Users/dannylin/.connect/config.yaml"]
-        task.launch()
-    }
+    @StateObject var model = VmViewModel()
 
-    @State private var client = ProtocolClient(
-        httpClient: URLSessionHTTPClient(),
-        config: ProtocolClientConfig(
-            host: "https://demo.connect.build",
-            networkProtocol: .connect, // Or .grpcWeb
-            codec: ProtoCodec() // Or JSONCodec()
-        )
-    )
+    init() {
+        model.earlyInit()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                    .environmentObject(model)
+        }.commands {
+            CommandGroup(replacing: .newItem) {
+            }
+        }
+
+        Settings {
+            AppSettings()
         }
     }
 }

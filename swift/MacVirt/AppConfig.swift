@@ -11,7 +11,7 @@ class AppConfig {
 #if DEBUG
     static let c = AppConfig(
         debug: true,
-        vmgrExePath: "/home/dragon/code/projects/macvirt/macvmgr/macvmgr"
+        vmgrExePath: "/Users/dragon/code/projects/macvirt/macvmgr/macvmgr"
     )
 #else
     static let c = AppConfig(
