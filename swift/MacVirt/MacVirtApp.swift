@@ -21,8 +21,7 @@ struct MacVirtApp: App {
             ContentView()
                     .environmentObject(model)
         }.commands {
-            CommandGroup(replacing: .newItem) {
-            }
+            CommandGroup(replacing: .newItem) {}
         }
 
         Settings {

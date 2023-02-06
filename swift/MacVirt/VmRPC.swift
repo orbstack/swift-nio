@@ -34,7 +34,7 @@ class VmService: RPCService {
     }
 
     func getConfig() async throws -> VmConfig {
-        return try await invoke("GetConfig")
+        try await invoke("GetConfig")
     }
 
     func patchConfig(_ config: VmConfig) async throws {

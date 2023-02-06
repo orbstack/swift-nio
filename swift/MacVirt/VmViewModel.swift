@@ -16,14 +16,79 @@ enum VmState {
 
 private let startTimeout = 15 * 1000 * 1000 * 1000
 
-enum VmError: Error {
+enum VmError: LocalizedError {
+    // VM
+    case spawnError(error: Error)
     case spawnExit(status: Int32, output: String)
     case wrongArch
-    case startTimeout
+    case startTimeout(lastError: Error?)
+    case stopError(error: Error)
+
+    // scon
+    case startError(error: Error)
+    case listRefresh(error: Error)
+    case containerStopError(error: Error)
+    case containerStartError(error: Error)
+    case containerDeleteError(error: Error)
+    case containerCreateError(error: Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .spawnError(let error):
+            return "Failed to start VM: \(error.localizedDescription)"
+        case .spawnExit(let status, let output):
+            return "VM crashed with status \(status): \(output)"
+        case .wrongArch:
+            return "Wrong CPU type"
+        case .startTimeout(let lastError):
+            return "VM did not start: \(lastError?.localizedDescription ?? "timeout")"
+        case .stopError(let error):
+            return "Failed to stop VM: \(fmtRpc(error))"
+
+        case .startError(let error):
+            return "Failed to start machine manager: \(fmtRpc(error))"
+        case .listRefresh(let error):
+            return "Failed to get machines: \(fmtRpc(error))"
+        case .containerStopError(let error):
+            return "Failed to stop machine: \(fmtRpc(error))"
+        case .containerStartError(let error):
+            return "Failed to start machine: \(fmtRpc(error))"
+        case .containerDeleteError(let error):
+            return "Failed to delete machine: \(fmtRpc(error))"
+        case .containerCreateError(let error):
+            return "Failed to create machine: \(fmtRpc(error))"
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .spawnError:
+            return "Check the log for more details."
+        case .spawnExit:
+            return "Check the log for more details."
+        case .wrongArch:
+            return "Please download the Apple Silicon version of this app."
+        case .startTimeout:
+            return "Check the log for more details."
+        case .stopError:
+            return "Check the log for more details."
+
+        case .startError:
+            return "Check the log for more details."
+
+        default:
+            return nil
+        }
+    }
 }
 
-enum SconError: Error {
-    case startTimeout
+private func fmtRpc(_ error: Error) -> String {
+    switch error {
+    case InvocationError.rpcError(let rpcError):
+        return rpcError.message
+    default:
+        return error.localizedDescription
+    }
 }
 
 class VmViewModel: ObservableObject {
@@ -31,24 +96,24 @@ class VmViewModel: ObservableObject {
     private let scon = SconService(client: newRPCClient("http://127.0.0.1:62421"))
     private let daemon = DaemonManager()
 
-    @Published var state = VmState.stopped
-    @Published var containers: [ContainerRecord]?
-    @Published var error: Error?
+    @Published private(set) var state = VmState.stopped
+    @Published private(set) var containers: [ContainerRecord]?
+    @Published var error: VmError?
 
     func earlyInit() {
         do {
             try spawnDaemon()
         } catch {
-            print("Failed to spawn daemon (early): \(error)")
+            self.error = VmError.spawnError(error: error)
         }
     }
 
     private func spawnDaemon() throws {
-        if state != .stopped {
+        guard state == .stopped else {
             return
         }
 
-        if processIsTranslated() {
+        guard !processIsTranslated() else {
             throw VmError.wrongArch
         }
 
@@ -65,7 +130,6 @@ class VmViewModel: ObservableObject {
         task.arguments = ["spawn-daemon"]
         task.terminationHandler = { process in
             if process.terminationStatus != 0 {
-                print("Daemon exited with status \(process.terminationStatus)")
                 let output = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)!
                 DispatchQueue.main.async {
                     self.state = .stopped
@@ -77,22 +141,23 @@ class VmViewModel: ObservableObject {
                 }
             }
         }
-        state = .spawning
         try task.run()
+        state = .spawning
     }
 
     private func waitForVM() async throws {
         let deadline = DispatchTime.now() + .nanoseconds(startTimeout)
+        var lastError: Error?
         while true {
             do {
                 try await vmgr.ping()
                 break
             } catch {
-                print("Failed to ping VM: \(error)")
+                lastError = error
             }
             try await Task.sleep(nanoseconds: 100 * 1000 * 1000)
             if (DispatchTime.now() > deadline) {
-                throw VmError.startTimeout
+                throw VmError.startTimeout(lastError: lastError)
             }
         }
     }
@@ -101,16 +166,17 @@ class VmViewModel: ObservableObject {
         try await waitForVM()
 
         let deadline = DispatchTime.now() + .nanoseconds(startTimeout)
+        var lastError: Error?
         while true {
             do {
                 try await scon.ping()
                 break
             } catch {
-                print("Failed to ping Scon: \(error)")
+                lastError = error
             }
             try await Task.sleep(nanoseconds: 100 * 1000 * 1000)
             if (DispatchTime.now() > deadline) {
-                throw SconError.startTimeout
+                throw VmError.startTimeout(lastError: lastError)
             }
         }
     }
@@ -125,14 +191,13 @@ class VmViewModel: ObservableObject {
         // sort alphabetically by name within each group
         containers = runningContainers.sorted { $0.name < $1.name } +
                 stoppedContainers.sorted { $0.name < $1.name }
-        print("Refreshed list: \(allContainers)")
     }
 
     func tryRefreshList() async {
         do {
             try await refreshList()
         } catch {
-            print("Failed to refresh list: \(error)")
+            self.error = VmError.listRefresh(error: error)
         }
     }
 
@@ -144,21 +209,18 @@ class VmViewModel: ObservableObject {
         do {
             try spawnDaemon()
         } catch {
-            print("Failed to init launch: \(error)")
+            self.error = VmError.spawnError(error: error)
+            return
         }
 
         do {
             try await waitForScon()
         } catch {
-            print("Failed to wait for Scon: \(error)")
+            self.error = VmError.startError(error: error)
+            return
         }
 
-        do {
-            try await refreshList()
-        } catch {
-            print("Failed to refresh list: \(error)")
-        }
-
+        await tryRefreshList()
         state = .running
     }
 
@@ -168,7 +230,7 @@ class VmViewModel: ObservableObject {
         do {
             try await vmgr.stop()
         } catch {
-            print("Failed to stop daemon: \(error)")
+            self.error = VmError.stopError(error: error)
         }
         state = .stopped
     }
@@ -178,14 +240,38 @@ class VmViewModel: ObservableObject {
         try await refreshList()
     }
 
+    func tryStopContainer(_ record: ContainerRecord) async {
+        do {
+            try await stopContainer(record)
+        } catch {
+            self.error = VmError.containerStopError(error: error)
+        }
+    }
+
     func startContainer(_ record: ContainerRecord) async throws {
         try await scon.containerStart(record)
         try await refreshList()
     }
 
+    func tryStartContainer(_ record: ContainerRecord) async {
+        do {
+            try await startContainer(record)
+        } catch {
+            self.error = VmError.containerStartError(error: error)
+        }
+    }
+
     func deleteContainer(_ record: ContainerRecord) async throws {
         try await scon.containerDelete(record)
         try await refreshList()
+    }
+
+    func tryDeleteContainer(_ record: ContainerRecord) async {
+        do {
+            try await deleteContainer(record)
+        } catch {
+            self.error = VmError.containerDeleteError(error: error)
+        }
     }
 
     func createContainer(name: String, distro: Distro, arch: String) async throws {
@@ -196,5 +282,13 @@ class VmViewModel: ObservableObject {
             variant: ""
         ), userPassword: nil)
         try await refreshList()
+    }
+
+    func tryCreateContainer(name: String, distro: Distro, arch: String) async {
+        do {
+            try await createContainer(name: name, distro: distro, arch: arch)
+        } catch {
+            self.error = VmError.containerCreateError(error: error)
+        }
     }
 }

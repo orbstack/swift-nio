@@ -29,11 +29,7 @@ struct ContainerItem: View {
                 Button(action: {
                     Task {
                         actionInProgress = true
-                        do {
-                            try await self.vmModel.stopContainer(record)
-                        } catch {
-                            print("stop err", error)
-                        }
+                        await vmModel.tryStopContainer(record)
                         actionInProgress = false
                     }
                 }) {
@@ -43,17 +39,13 @@ struct ContainerItem: View {
                         Label("Stop", systemImage: "stop.fill")
                     }
                 }
-                        .buttonStyle(BorderlessButtonStyle())
-                        .disabled(actionInProgress)
+                .buttonStyle(BorderlessButtonStyle())
+                .disabled(actionInProgress)
             } else {
                 Button(action: {
                     Task {
                         actionInProgress = true
-                        do {
-                            try await self.vmModel.startContainer(record)
-                        } catch {
-                            print("start err", error)
-                        }
+                        await vmModel.tryStartContainer(record)
                         actionInProgress = false
                     }
                 }) {
@@ -63,8 +55,8 @@ struct ContainerItem: View {
                         Label("Start", systemImage: "play.fill")
                     }
                 }
-                        .buttonStyle(BorderlessButtonStyle())
-                        .disabled(actionInProgress)
+                .buttonStyle(BorderlessButtonStyle())
+                .disabled(actionInProgress)
             }
         }
         .padding(.vertical, 4)
@@ -82,11 +74,7 @@ struct ContainerItem: View {
             Button("Delete", role: .destructive) {
                 Task {
                     actionInProgress = true
-                    do {
-                        try await self.vmModel.deleteContainer(record)
-                    } catch {
-                        print("delete err", error)
-                    }
+                    await vmModel.tryDeleteContainer(record)
                     actionInProgress = false
                 }
             }

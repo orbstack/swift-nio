@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject var model: VmViewModel
+    @EnvironmentObject private var model: VmViewModel
 
     @State private var selection: String?
     @State private var startStopInProgress = false
@@ -16,11 +16,20 @@ struct ContentView: View {
     @State private var isCreating = false
 
     var body: some View {
+        let errorPresented = Binding<Bool>(get: {
+            model.error != nil
+        }, set: {
+            if !$0 {
+                model.error = nil
+            }
+        })
+
         Group {
             switch model.state {
             case .stopped:
                 VStack {
-                    Text("Stopped")
+                    Text("Not running")
+                            .font(.largeTitle)
                     Button(action: {
                         Task {
                             await model.start()
@@ -28,6 +37,7 @@ struct ContentView: View {
                     }) {
                         Text("Start")
                     }
+                    .buttonStyle(.borderedProminent)
                 }
             case .spawning:
                 ProgressView(label: {
@@ -47,10 +57,29 @@ struct ContentView: View {
                                 }
                             }
                         }
+
                         Section(header: Text("Machines")) {
                             ForEach(containers) { container in
                                 if !container.builtin {
                                     ContainerItem(record: container)
+                                }
+                            }
+
+                            if containers.isEmpty {
+                                HStack {
+                                    Spacer()
+                                    VStack {
+                                        Text("No Linux machines")
+                                                .font(.largeTitle)
+                                                .foregroundColor(.secondary)
+                                        Button(action: {
+                                            presentCreate = true
+                                        }) {
+                                            Text("New Machine")
+                                        }
+                                    }
+                                    .padding(.top, 32)
+                                    Spacer()
                                 }
                             }
                         }
@@ -59,14 +88,19 @@ struct ContentView: View {
                         await model.tryRefreshList()
                     }
                     .overlay(alignment: .bottom, content: {
-                        HStack {
-                            Text("Creating...")
-                                    .opacity(isCreating ? 1 : 0)
-                                    .animation(.easeInOut)
-                            Spacer()
+                        VStack {
                             ProgressView()
+                                    .progressViewStyle(.linear)
+                                    .frame(height: 1, alignment: .center)
                                     .opacity(isCreating ? 1 : 0)
                                     .animation(.easeInOut)
+
+                            HStack {
+                                Text("Creating...")
+                                        .opacity(isCreating ? 1 : 0)
+                                        .animation(.easeInOut)
+                                Spacer()
+                            }
                         }
                         .background()
                     })
@@ -95,7 +129,7 @@ struct ContentView: View {
             }) {
                 Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
             }
-            .disabled(startStopInProgress)
+                    .disabled(startStopInProgress)
 
             Button(action: {
                 if #available(macOS 13, *) {
@@ -111,16 +145,29 @@ struct ContentView: View {
             }) {
                 Label("New Machine", systemImage: "plus")
             }
-            .popover(isPresented: $presentCreate) {
-                CreateContainerView(isPresented: $presentCreate, isCreating: $isCreating)
-            }
+                    .popover(isPresented: $presentCreate) {
+                        CreateContainerView(isPresented: $presentCreate, isCreating: $isCreating)
+                    }
         }
         .onAppear {
-            print("ContentView appeared")
             NSWindow.allowsAutomaticWindowTabbing = false
         }
         .task {
             await model.initLaunch()
+        }
+        .alert(isPresented: errorPresented, error: model.error) { _ in
+            Button("OK") {
+                model.error = nil
+
+                // quit if the error is fatal
+                if model.state == .stopped {
+                    NSApp.terminate(nil)
+                }
+            }
+        } message: { error in
+            if let msg = error.recoverySuggestion {
+                Text(msg)
+            }
         }
     }
 }

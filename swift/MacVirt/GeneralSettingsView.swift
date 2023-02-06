@@ -16,8 +16,8 @@ struct GeneralSettingsView: View {
                 Text("Memory (\(memoryMib, specifier: "%.0f") MiB)")
             }
         }
-                .padding(20)
-                .frame(width: 350, height: 100)
-                .navigationTitle("Settings")
+        .padding(20)
+        .frame(width: 350, height: 100)
+        .navigationTitle("Settings")
     }
 }

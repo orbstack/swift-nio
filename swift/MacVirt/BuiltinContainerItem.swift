@@ -34,14 +34,10 @@ struct BuiltinContainerItem: View {
                 set: { newValue in
                     Task {
                         actionInProgress = true
-                        do {
-                            if newValue {
-                                try await self.vmModel.startContainer(record)
-                            } else {
-                                try await self.vmModel.stopContainer(record)
-                            }
-                        } catch {
-                            print("start err", error)
+                        if newValue {
+                            await vmModel.tryStartContainer(record)
+                        } else {
+                            await vmModel.tryStopContainer(record)
                         }
                         actionInProgress = false
                     }

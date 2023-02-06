@@ -49,11 +49,7 @@ struct CreateContainerView: View {
                 Button(action: {
                     Task {
                         isCreating = true
-                        do {
-                            try await self.vmModel.createContainer(name: name, distro: distro, arch: arch)
-                        } catch {
-                            print("create err", error)
-                        }
+                        await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
                         isCreating = false
                     }
                     isPresented = false
