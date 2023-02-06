@@ -12,6 +12,7 @@
 		B118B249BBD0B364D80B8CCD /* MachinesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */; };
 		B118B28D8DE73D4F324E58FB /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B220DEF9F1239BEA3C95 /* Utils.swift */; };
 		B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF7EB971BAC66F27805D /* RPCExecutor.swift */; };
+		B118B7A041A184E2575844C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */; };
 		B118BAD426D7BA4054B6E689 /* DockerRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD91CF1D1F80CDCBFB9F /* DockerRootView.swift */; };
 		B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E62611F603F60BF666 /* VmViewModel.swift */; };
 		B118BC31190DB3854C66B353 /* ContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* ContainerItem.swift */; };
@@ -31,6 +32,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DoubleClick.swift; sourceTree = "<group>"; };
 		B118B220DEF9F1239BEA3C95 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
 		B118B242268639C9B875CBC3 /* StateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StateWrapperView.swift; sourceTree = "<group>"; };
 		B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
@@ -107,6 +109,7 @@
 				B118BD91CF1D1F80CDCBFB9F /* DockerRootView.swift */,
 				B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */,
 				B118B242268639C9B875CBC3 /* StateWrapperView.swift */,
+				B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -213,6 +216,7 @@
 				B118BAD426D7BA4054B6E689 /* DockerRootView.swift in Sources */,
 				B118B249BBD0B364D80B8CCD /* MachinesRootView.swift in Sources */,
 				B118B06B0208CC9D8306684D /* StateWrapperView.swift in Sources */,
+				B118B7A041A184E2575844C5 /* DoubleClick.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

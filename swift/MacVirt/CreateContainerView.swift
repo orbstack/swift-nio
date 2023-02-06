@@ -18,7 +18,7 @@ struct CreateContainerView: View {
     @State private var distro = Distro.ubuntu
 
     @Binding var isPresented: Bool
-    @Binding var isCreating: Bool
+    @Binding var creatingCount: Int
 
     var body: some View {
         Form {
@@ -48,9 +48,9 @@ struct CreateContainerView: View {
 
                 Button(action: {
                     Task {
-                        isCreating = true
+                        creatingCount += 1
                         await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
-                        isCreating = false
+                        creatingCount -= 1
                     }
                     isPresented = false
                 }) {

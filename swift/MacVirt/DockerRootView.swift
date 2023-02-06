@@ -34,6 +34,7 @@ struct DockerRootView: View {
             ProgressView(label: {
                 Text("Loading")
             })
+            .navigationTitle("Docker")
         }
     }
 }

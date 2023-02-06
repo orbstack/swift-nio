@@ -20,6 +20,7 @@ struct MacVirtApp: App {
         WindowGroup {
             ContentView()
                     .environmentObject(model)
+                    .frame(minWidth: 500, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
         }.commands {
             CommandGroup(replacing: .newItem) {}
             SidebarCommands()

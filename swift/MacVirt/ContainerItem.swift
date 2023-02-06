@@ -11,6 +11,7 @@ struct ContainerItem: View {
     var record: ContainerRecord
 
     @State private var actionInProgress = false
+    @State private var progressOpacity = 0.0
     @State private var isPresentingConfirm = false
 
     var body: some View {
@@ -22,7 +23,7 @@ struct ContainerItem: View {
                     .padding(.trailing, 8)
             VStack(alignment: .leading) {
                 Text(record.name)
-                        .font(.headline)
+                        .font(.title3)
             }
             Spacer()
             if record.running {
@@ -33,14 +34,18 @@ struct ContainerItem: View {
                         actionInProgress = false
                     }
                 }) {
-                    if actionInProgress {
+                    ZStack {
+                        Image(systemName: "stop")
+                                .opacity(1 - progressOpacity)
+
                         ProgressView()
-                    } else {
-                        Label("Stop", systemImage: "stop.fill")
+                                .scaleEffect(x: 0.75, y: 0.75)
+                                .opacity(progressOpacity)
                     }
                 }
-                .buttonStyle(BorderlessButtonStyle())
-                .disabled(actionInProgress)
+                        .buttonStyle(BorderlessButtonStyle())
+                        .disabled(actionInProgress)
+                        .help("Stop \(record.name)")
             } else {
                 Button(action: {
                     Task {
@@ -49,14 +54,18 @@ struct ContainerItem: View {
                         actionInProgress = false
                     }
                 }) {
-                    if actionInProgress {
+                    ZStack {
+                        Image(systemName: "play")
+                                .opacity(1 - progressOpacity)
+
                         ProgressView()
-                    } else {
-                        Label("Start", systemImage: "play.fill")
+                                .scaleEffect(x: 0.75, y: 0.75)
+                                .opacity(progressOpacity)
                     }
                 }
-                .buttonStyle(BorderlessButtonStyle())
-                .disabled(actionInProgress)
+                        .buttonStyle(BorderlessButtonStyle())
+                        .disabled(actionInProgress)
+                        .help("Start \(record.name)")
             }
         }
         .padding(.vertical, 4)
@@ -67,7 +76,7 @@ struct ContainerItem: View {
             }) {
                 Label("Delete", systemImage: "trash")
             }
-            .disabled(actionInProgress)
+                    .disabled(actionInProgress)
         }
         .confirmationDialog("Delete \(record.name)?",
                 isPresented: $isPresentingConfirm) {
@@ -80,6 +89,20 @@ struct ContainerItem: View {
             }
         } message: {
             Text("Data will be permanently lost.")
+        }
+        .onDoubleClick {
+            Task {
+                do {
+                    try await openTerminal("moon", ["-m", record.name])
+                } catch {
+                    print(error)
+                }
+            }
+        }
+        .onChange(of: actionInProgress) { newValue in
+            withAnimation(.spring()) {
+                progressOpacity = newValue ? 1 : 0
+            }
         }
     }
 }

@@ -10,7 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var model: VmViewModel
 
-    @SceneStorage("root.selectedTab") private var selection: String?
+    @SceneStorage("root.selectedTab") private var selection: String = "machines"
     @State private var startStopInProgress = false
 
     var body: some View {
@@ -23,21 +23,32 @@ struct ContentView: View {
         })
 
         NavigationView {
-            List(selection: $selection) {
+            let selBinding = Binding<String?>(get: {
+                selection
+            }, set: {
+                selection = $0 ?? "machines"
+            })
+            List(selection: selBinding) {
                 NavigationLink(destination: DockerRootView()) {
                     Label("Docker", systemImage: "shippingbox")
                 }.tag("docker")
+
                 NavigationLink(destination: MachinesRootView()) {
                     Label("Machines", systemImage: "desktopcomputer")
                 }.tag("machines")
+
+                NavigationLink(destination: MachinesRootView()) {
+                    Label("Commands", systemImage: "terminal")
+                }.tag("terminal")
             }
-            .listStyle(.sidebar)
+                    .listStyle(.sidebar)
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button(action: toggleSidebar, label: {
                     Image(systemName: "sidebar.leading")
                 })
+                        .help("Toggle sidebar")
             }
 
             ToolbarItem(placement: .automatic) {
@@ -55,6 +66,7 @@ struct ContentView: View {
                     Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
                 }
                 .disabled(startStopInProgress)
+                .help(model.state == .running ? "Stop everything" : "Start everything")
             }
 
             ToolbarItem(placement: .automatic) {
@@ -67,6 +79,7 @@ struct ContentView: View {
                 }) {
                     Label("Settings", systemImage: "gearshape")
                 }
+                .help("Settings")
             }
         }
         .onAppear {
