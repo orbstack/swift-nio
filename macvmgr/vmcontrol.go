@@ -125,7 +125,7 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 		}()
 	}
 
-	go http.ListenAndServe("127.0.0.1"+str(ports.HostVmControl), mux)
+	go http.ListenAndServe("127.0.0.1:"+str(ports.HostVmControl), mux)
 	listener, err := listenAndServeUnix(conf.VmControlSocket(), mux)
 	if err != nil {
 		return nil, err

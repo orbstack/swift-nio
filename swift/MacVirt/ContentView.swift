@@ -10,10 +10,8 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var model: VmViewModel
 
-    @State private var selection: String?
+    @SceneStorage("root.selectedTab") private var selection: String?
     @State private var startStopInProgress = false
-    @State private var presentCreate = false
-    @State private var isCreating = false
 
     var body: some View {
         let errorPresented = Binding<Bool>(get: {
@@ -24,130 +22,52 @@ struct ContentView: View {
             }
         })
 
-        Group {
-            switch model.state {
-            case .stopped:
-                VStack {
-                    Text("Not running")
-                            .font(.largeTitle)
-                    Button(action: {
-                        Task {
-                            await model.start()
-                        }
-                    }) {
-                        Text("Start")
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            case .spawning:
-                ProgressView(label: {
-                    Text("Updating")
-                })
-            case .starting:
-                ProgressView(label: {
-                    Text("Starting")
-                })
-            case .running:
-                if let containers = model.containers {
-                    List(selection: $selection) {
-                        Section(header: Text("Features")) {
-                            ForEach(containers) { container in
-                                if container.builtin {
-                                    BuiltinContainerItem(record: container)
-                                }
-                            }
-                        }
-
-                        Section(header: Text("Machines")) {
-                            ForEach(containers) { container in
-                                if !container.builtin {
-                                    ContainerItem(record: container)
-                                }
-                            }
-
-                            if containers.isEmpty {
-                                HStack {
-                                    Spacer()
-                                    VStack {
-                                        Text("No Linux machines")
-                                                .font(.largeTitle)
-                                                .foregroundColor(.secondary)
-                                        Button(action: {
-                                            presentCreate = true
-                                        }) {
-                                            Text("New Machine")
-                                        }
-                                    }
-                                    .padding(.top, 32)
-                                    Spacer()
-                                }
-                            }
-                        }
-                    }
-                    .refreshable {
-                        await model.tryRefreshList()
-                    }
-                    .overlay(alignment: .bottom, content: {
-                        VStack {
-                            ProgressView()
-                                    .progressViewStyle(.linear)
-                                    .frame(height: 1, alignment: .center)
-                                    .opacity(isCreating ? 1 : 0)
-                                    .animation(.easeInOut)
-
-                            HStack {
-                                Text("Creating...")
-                                        .opacity(isCreating ? 1 : 0)
-                                        .animation(.easeInOut)
-                                Spacer()
-                            }
-                        }
-                        .background()
-                    })
-                } else {
-                    ProgressView(label: {
-                        Text("Loading")
-                    })
-                }
-            case .stopping:
-                ProgressView(label: {
-                    Text("Stopping")
-                })
+        NavigationView {
+            List(selection: $selection) {
+                NavigationLink(destination: DockerRootView()) {
+                    Label("Docker", systemImage: "shippingbox")
+                }.tag("docker")
+                NavigationLink(destination: MachinesRootView()) {
+                    Label("Machines", systemImage: "desktopcomputer")
+                }.tag("machines")
             }
+            .listStyle(.sidebar)
         }
         .toolbar {
-            Button(action: {
-                Task {
-                    self.startStopInProgress = true
-                    if model.state == .running {
-                        await model.stop()
-                    } else {
-                        await model.start()
-                    }
-                    self.startStopInProgress = false
-                }
-            }) {
-                Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
+            ToolbarItem(placement: .navigation) {
+                Button(action: toggleSidebar, label: {
+                    Image(systemName: "sidebar.leading")
+                })
             }
-                    .disabled(startStopInProgress)
 
-            Button(action: {
-                if #available(macOS 13, *) {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                } else {
-                    NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                }
-            }) {
-                Label("Settings", systemImage: "gearshape")
-            }
-            Button(action: {
-                presentCreate = true
-            }) {
-                Label("New Machine", systemImage: "plus")
-            }
-                    .popover(isPresented: $presentCreate) {
-                        CreateContainerView(isPresented: $presentCreate, isCreating: $isCreating)
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    Task {
+                        self.startStopInProgress = true
+                        if model.state == .running {
+                            await model.stop()
+                        } else {
+                            await model.start()
+                        }
+                        self.startStopInProgress = false
                     }
+                }) {
+                    Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
+                }
+                .disabled(startStopInProgress)
+            }
+
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    if #available(macOS 13, *) {
+                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    } else {
+                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    }
+                }) {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            }
         }
         .onAppear {
             NSWindow.allowsAutomaticWindowTabbing = false
@@ -169,6 +89,10 @@ struct ContentView: View {
                 Text(msg)
             }
         }
+    }
+
+    private func toggleSidebar() {
+        NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
     }
 }
 

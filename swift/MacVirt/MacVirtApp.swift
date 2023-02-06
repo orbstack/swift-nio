@@ -22,6 +22,8 @@ struct MacVirtApp: App {
                     .environmentObject(model)
         }.commands {
             CommandGroup(replacing: .newItem) {}
+            SidebarCommands()
+            //TODO command to create container
         }
 
         Settings {

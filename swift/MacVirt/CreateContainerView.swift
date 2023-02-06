@@ -58,7 +58,6 @@ struct CreateContainerView: View {
                 }
             }
         }
-        .navigationTitle("New Machine")
         .padding(16)
         .onChange(of: distro) {
             if !nameChanged {

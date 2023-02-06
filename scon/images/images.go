@@ -77,32 +77,32 @@ var (
 		//DistroNixos: ImageNixos,
 	}
 
-	DistroToLatestVersion = map[string]string{
-		DistroAlpine:   "3.17",
-		DistroArch:     "current",
-		DistroCentos:   "9-Stream",
-		DistroDebian:   "bullseye",
-		DistroFedora:   "37",
-		DistroGentoo:   "current",
-		DistroKali:     "current",
-		DistroOpensuse: "15.4",
-		DistroUbuntu:   "kinetic",
-		DistroVoid:     "current",
+	ImageToLatestVersion = map[string]string{
+		ImageAlpine:   "3.17",
+		ImageArch:     "current",
+		ImageCentos:   "9-Stream",
+		ImageDebian:   "bullseye",
+		ImageFedora:   "37",
+		ImageGentoo:   "current",
+		ImageKali:     "current",
+		ImageOpensuse: "15.4",
+		ImageUbuntu:   "kinetic",
+		ImageVoid:     "current",
 
-		DistroDevuan: "chimaera",
-		DistroAlma:   "9",
-		//DistroAmazon: "current",
-		DistroOracle: "9",
-		DistroRocky:  "9",
+		ImageDevuan: "chimaera",
+		ImageAlma:   "9",
+		//ImageAmazon: "current",
+		ImageOracle: "9",
+		ImageRocky:  "9",
 
 		// TODO support nixos
-		//DistroNixos: "22.11",
+		//ImageNixos: "22.11",
 	}
 
 	// everything else is "default"
-	DistroToDefaultVariant = map[string]string{
+	ImageToDefaultVariant = map[string]string{
 		// default and recommended over systemd
-		DistroGentoo: "openrc",
+		ImageGentoo: "openrc",
 	}
 )
 

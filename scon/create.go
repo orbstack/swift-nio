@@ -42,9 +42,12 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	}
 
 	// image defaults
+	if image.Version == "" {
+		image.Version = images.ImageToLatestVersion[image.Distro]
+	}
 	if image.Variant == "" {
 		var ok bool
-		image.Variant, ok = images.DistroToDefaultVariant[image.Distro]
+		image.Variant, ok = images.ImageToDefaultVariant[image.Distro]
 		if !ok {
 			image.Variant = "default"
 		}

@@ -73,7 +73,7 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 		if !ok {
 			return errors.New("invalid distro: " + distro)
 		}
-		version := images.DistroToLatestVersion[distro]
+		version := images.ImageToLatestVersion[image]
 		if len(parts) > 1 {
 			version = parts[1]
 		}

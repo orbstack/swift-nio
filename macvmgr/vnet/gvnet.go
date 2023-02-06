@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
@@ -149,8 +150,9 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	})
 
 	if capturePcap {
-		_ = os.Remove("gv.pcap")
-		f, err := os.Create("gv.pcap")
+		pcapPath := conf.HomeDir() + "/code/projects/macvirt/macvmgr/gv.pcap"
+		_ = os.Remove(pcapPath)
+		f, err := os.Create(pcapPath)
 		if err != nil {
 			return nil, err
 		}

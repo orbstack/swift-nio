@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -24,5 +25,14 @@ func verifyAPFS() error {
 	}
 	defer os.Remove(testPath2)
 
+	return nil
+}
+
+func verifyRosetta() error {
+	// must not be running under rosetta
+	val, err := unix.SysctlUint32("sysctl.proc_translated")
+	if err == nil && val == 1 {
+		return errors.New("must not be running under Rosetta")
+	}
 	return nil
 }

@@ -279,6 +279,10 @@ func runVmManager() {
 	err = os.WriteFile(conf.VmgrVersionFile(), []byte(buildID), 0644)
 	check(err)
 
+	// Rosetta check
+	err = verifyRosetta()
+	check(err)
+
 	// state migration
 	err = migrateState()
 	check(err)
