@@ -3,10 +3,10 @@
     {
       "identity" : "swiftjsonrpc",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kolyasev/SwiftJSONRPC.git",
+      "location" : "https://github.com/kdrag0n/SwiftJSONRPC.git",
       "state" : {
-        "revision" : "431c0844875209eac3fdb10a7ce8efd7a750ac60",
-        "version" : "0.9.0"
+        "branch" : "master",
+        "revision" : "8eb995a4756f737e77245133fbc13f8a92087f3c"
       }
     }
   ],

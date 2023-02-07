@@ -25,7 +25,7 @@
 		B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDE072F572BA61600007 /* AppSettings.swift */; };
 		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
-		D88042962989037C00EA7C97 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D88042952989037C00EA7C97 /* SwiftJSONRPC */; };
+		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
@@ -68,7 +68,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D88042962989037C00EA7C97 /* SwiftJSONRPC in Frameworks */,
+				D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -148,7 +148,7 @@
 			);
 			name = MacVirt;
 			packageProductDependencies = (
-				D88042952989037C00EA7C97 /* SwiftJSONRPC */,
+				D8694A352991D8160046B6B6 /* SwiftJSONRPC */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* MacVirt.app */;
@@ -179,7 +179,7 @@
 			);
 			mainGroup = D8A32B85296F839100E56EEF;
 			packageReferences = (
-				D88042942989037C00EA7C97 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */,
+				D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -434,20 +434,20 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		D88042942989037C00EA7C97 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */ = {
+		D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kolyasev/SwiftJSONRPC.git";
+			repositoryURL = "https://github.com/kdrag0n/SwiftJSONRPC.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.9.0;
+				branch = master;
+				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		D88042952989037C00EA7C97 /* SwiftJSONRPC */ = {
+		D8694A352991D8160046B6B6 /* SwiftJSONRPC */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = D88042942989037C00EA7C97 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */;
+			package = D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */;
 			productName = SwiftJSONRPC;
 		};
 /* End XCSwiftPackageProductDependency section */
