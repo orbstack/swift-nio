@@ -4,20 +4,61 @@
 
 import Foundation
 import SwiftUI
+import LaunchAtLogin
+import Combine
 
 struct GeneralSettingsView: View {
-    @AppStorage("startOnLogin") private var startOnLogin = true
-    @AppStorage("memoryMib") private var memoryMib = 12.0
+    @EnvironmentObject private var vmModel: VmViewModel
+    @State private var memoryMib = 0.0
 
     var body: some View {
         Form {
-            Toggle("Start on Login", isOn: $startOnLogin)
-            Slider(value: $memoryMib, in: 1024...(48*1024)) {
-                Text("Memory (\(memoryMib, specifier: "%.0f") MiB)")
+            LaunchAtLogin.Toggle {
+                Text("Start at login")
+            }
+
+            Group {
+                if vmModel.state == .running {
+                    let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
+                    Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
+                        VStack {
+                            Text("Memory")
+                            Text("\(memoryMib / 1024, specifier: "%.0f") GiB")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(.secondary)
+                        }
+                    } minimumValueLabel: {
+                        Text("1 GiB")
+                    } maximumValueLabel: {
+                        Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
+                    }
+                            .onChange(of: memoryMib) { newValue in
+                                Task {
+                                    if var config = vmModel.config {
+                                        config.memoryMib = UInt64(newValue)
+                                        await vmModel.tryPatchConfig(config)
+                                    }
+                                }
+                            }
+                    Text("Takes effect after VM restart.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                } else {
+                    ProgressView()
+                }
+            }
+            .onChange(of: vmModel.config) { newValue in
+                if let newValue {
+                    memoryMib = Double(newValue.memoryMib)
+                }
+            }
+            .onAppear {
+                if let config = vmModel.config {
+                    memoryMib = Double(config.memoryMib)
+                }
             }
         }
         .padding(20)
-        .frame(width: 350, height: 100)
         .navigationTitle("Settings")
     }
 }

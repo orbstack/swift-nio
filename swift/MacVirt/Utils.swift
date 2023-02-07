@@ -95,16 +95,21 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
     }
 }
 
-func runAsAdmin(_ command: String, _ args: [String]) async throws {
-    let script = NSAppleScript(source: "do shell script \"\(command) \(args.joined(separator: " "))\" with administrator privileges")
+func runAsAdmin(_ command: String, _ args: [String], prompt: String = "") async throws {
+    let script = NSAppleScript(source: "do shell script \"\(command) \(args.joined(separator: " "))\" with administrator privileges with prompt \"\(prompt)\"")
     guard script != nil else {
-        throw AppleScriptError(output: "failed to create apple script")
+        throw AppleScriptError(output: "failed to create script")
     }
 
     var error: NSDictionary?
     script?.executeAndReturnError(&error)
-    print("error", error ?? "nil")
     if error != nil {
         throw AppleScriptError(output: error?[NSAppleScript.errorMessage] as? String ?? "unknown error")
     }
+}
+
+private func getAdminCommands() async throws -> [String] {
+    return [
+        "ln -sf "
+    ]
 }

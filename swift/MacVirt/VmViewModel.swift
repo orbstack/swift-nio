@@ -31,6 +31,8 @@ enum VmError: LocalizedError, Equatable {
     // scon
     case startError(error: Error)
     case listRefresh(error: Error)
+    case configRefresh(error: Error)
+    case configPatchError(error: Error)
     case containerStopError(error: Error)
     case containerStartError(error: Error)
     case containerDeleteError(error: Error)
@@ -53,6 +55,10 @@ enum VmError: LocalizedError, Equatable {
             return "Failed to start machine manager: \(fmtRpc(error))"
         case .listRefresh(let error):
             return "Failed to get machines: \(fmtRpc(error))"
+        case .configRefresh(let error):
+            return "Failed to get settings: \(fmtRpc(error))"
+        case .configPatchError(let error):
+            return "Failed to update settings: \(fmtRpc(error))"
         case .containerStopError(let error):
             return "Failed to stop machine: \(fmtRpc(error))"
         case .containerStartError(let error):
@@ -94,6 +100,8 @@ private func fmtRpc(_ error: Error) -> String {
     switch error {
     case InvocationError.rpcError(let rpcError):
         return rpcError.message
+    case InvocationError.applicationError(let cause):
+        return cause.localizedDescription
     default:
         return error.localizedDescription
     }
@@ -108,6 +116,7 @@ class VmViewModel: ObservableObject {
     @Published private(set) var containers: [ContainerRecord]?
     @Published var error: VmError?
     @Published var creatingCount = 0
+    @Published private(set) var config: VmConfig?
 
     func earlyInit() {
         do {
@@ -130,7 +139,7 @@ class VmViewModel: ObservableObject {
         if let path = AppConfig.c.vmgrExePath {
             exePath = path
         } else {
-            exePath = Bundle.main.path(forResource: "bin/macvmgr", ofType: nil)!
+            exePath = Bundle.main.path(forAuxiliaryExecutable: "macvmgr")!
         }
 
         Task {
@@ -222,6 +231,21 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    @MainActor
+    func refreshConfig() async throws {
+        try await waitForVM()
+        config = try await vmgr.getConfig()
+    }
+
+    @MainActor
+    func tryRefreshConfig() async {
+        do {
+            try await refreshConfig()
+        } catch {
+            self.error = VmError.configRefresh(error: error)
+        }
+    }
+
     func initLaunch() async {
         await start()
     }
@@ -237,6 +261,7 @@ class VmViewModel: ObservableObject {
 
         // this includes wait
         await tryRefreshList()
+        await tryRefreshConfig()
         state = .running
     }
 
@@ -309,6 +334,20 @@ class VmViewModel: ObservableObject {
             try await createContainer(name: name, distro: distro, arch: arch)
         } catch {
             self.error = VmError.containerCreateError(error: error)
+        }
+    }
+
+    func patchConfig(_ patch: VmConfig) async throws {
+        try await vmgr.patchConfig(patch)
+        try await refreshConfig()
+    }
+
+    @MainActor
+    func tryPatchConfig(_ patch: VmConfig) async {
+        do {
+            try await patchConfig(patch)
+        } catch {
+            self.error = VmError.configPatchError(error: error)
         }
     }
 }

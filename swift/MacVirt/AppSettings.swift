@@ -11,15 +11,9 @@ struct AppSettings: View {
     }
 
     var body: some View {
-        TabView {
-            GeneralSettingsView()
-                    .tabItem {
-                        Label("General", systemImage: "gear")
-                    }
-                    .tag(Tabs.general)
-        }
-        .padding(20)
-        .frame(width: 375, height: 150)
-        .navigationTitle("Settings")
+        GeneralSettingsView()
+            .padding(20)
+            .frame(width: 450, height: 200)
+            .navigationTitle("Settings")
     }
 }

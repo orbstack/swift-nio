@@ -35,7 +35,7 @@ struct ContainerItem: View {
                     }
                 }) {
                     ZStack {
-                        Image(systemName: "stop")
+                        Image(systemName: "stop.fill")
                                 .opacity(1 - progressOpacity)
 
                         ProgressView()
@@ -55,7 +55,7 @@ struct ContainerItem: View {
                     }
                 }) {
                     ZStack {
-                        Image(systemName: "play")
+                        Image(systemName: "play.fill")
                                 .opacity(1 - progressOpacity)
 
                         ProgressView()

@@ -11,7 +11,6 @@
 		B118B1847379D830C007E7E7 /* CreateContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB4D521563F31AB550C7 /* CreateContainerView.swift */; };
 		B118B1C2435DAF0D619BB2BD /* OnboardingRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */; };
 		B118B249BBD0B364D80B8CCD /* MachinesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */; };
-		B118B28D8DE73D4F324E58FB /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B220DEF9F1239BEA3C95 /* Utils.swift */; };
 		B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF7EB971BAC66F27805D /* RPCExecutor.swift */; };
 		B118B7A041A184E2575844C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */; };
 		B118B99876CACE427270E9DA /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */; };
@@ -20,12 +19,17 @@
 		B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E62611F603F60BF666 /* VmViewModel.swift */; };
 		B118BC31190DB3854C66B353 /* ContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* ContainerItem.swift */; };
 		B118BD02365D5248F5ACF9C6 /* BuiltinContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */; };
+		B118BE5AA8CB9E882A781303 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BA3B69AC5B72E9824803 /* Utils.swift */; };
 		B118BF4BE4D185C5A88B7A7D /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BAB379B8843568503FAA /* Images.swift */; };
+		B118BFB7E48980394ADE79DE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */; };
 		B118BFD7C7DDDF02D8639C5D /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */; };
 		B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDE072F572BA61600007 /* AppSettings.swift */; };
 		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
+		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
+		D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A412992247F0046B6B6 /* macvmgr */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D8694A44299224990046B6B6 /* scli in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
@@ -34,16 +38,42 @@
 		D8CBDA25298F791F0026F44A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CBDA24298F791F0026F44A /* AppConfig.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		D8694A3E2991F8C70046B6B6 /* Copy Go executables */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				D8694A44299224990046B6B6 /* scli in Copy Go executables */,
+				D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables */,
+			);
+			name = "Copy Go executables";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = xbin;
+			dstSubfolderSpec = 6;
+			files = (
+			);
+			name = "Copy Docker xbin executables";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
 		B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DoubleClick.swift; sourceTree = "<group>"; };
-		B118B220DEF9F1239BEA3C95 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
 		B118B242268639C9B875CBC3 /* StateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StateWrapperView.swift; sourceTree = "<group>"; };
+		B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		B118B7E62611F603F60BF666 /* VmViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VmViewModel.swift; sourceTree = "<group>"; };
 		B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
 		B118B970D1735BC66857A549 /* ContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContainerItem.swift; sourceTree = "<group>"; };
+		B118BA3B69AC5B72E9824803 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Utils.swift; path = MacVirt/Utils.swift; sourceTree = "<group>"; };
 		B118BAB379B8843568503FAA /* Images.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
 		B118BB4D521563F31AB550C7 /* CreateContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateContainerView.swift; sourceTree = "<group>"; };
 		B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuiltinContainerItem.swift; sourceTree = "<group>"; };
@@ -53,6 +83,9 @@
 		B118BF7EB971BAC66F27805D /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
+		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		D8694A412992247F0046B6B6 /* macvmgr */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = macvmgr; path = ../macvmgr/macvmgr; sourceTree = "<group>"; };
+		D8694A43299224990046B6B6 /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../scon/scli; sourceTree = "<group>"; };
 		D8A32B8E296F839100E56EEF /* MacVirt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacVirt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8A32B91296F839100E56EEF /* MacVirtApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacVirtApp.swift; sourceTree = "<group>"; };
 		D8A32B93296F839100E56EEF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -68,6 +101,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
 				D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -78,6 +112,8 @@
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
+				D8694A43299224990046B6B6 /* scli */,
+				D8694A412992247F0046B6B6 /* macvmgr */,
 				D8A32B90296F839100E56EEF /* MacVirt */,
 				D8A32B8F296F839100E56EEF /* Products */,
 			);
@@ -87,6 +123,7 @@
 			isa = PBXGroup;
 			children = (
 				D8A32B8E296F839100E56EEF /* MacVirt.app */,
+				B118BA3B69AC5B72E9824803 /* Utils.swift */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -94,6 +131,7 @@
 		D8A32B90296F839100E56EEF /* MacVirt */ = {
 			isa = PBXGroup;
 			children = (
+				D8694A372991EC5A0046B6B6 /* Info.plist */,
 				D8A32B91296F839100E56EEF /* MacVirtApp.swift */,
 				D8A32B93296F839100E56EEF /* ContentView.swift */,
 				D8A32B95296F839100E56EEF /* Assets.xcassets */,
@@ -105,7 +143,6 @@
 				D8694A32298F9EF00046B6B6 /* VmRPC.swift */,
 				B118BDE072F572BA61600007 /* AppSettings.swift */,
 				B118B7E62611F603F60BF666 /* VmViewModel.swift */,
-				B118B220DEF9F1239BEA3C95 /* Utils.swift */,
 				B118BF7EB971BAC66F27805D /* RPCExecutor.swift */,
 				B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */,
 				B118B970D1735BC66857A549 /* ContainerItem.swift */,
@@ -119,6 +156,7 @@
 				B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */,
 				B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */,
 				B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */,
+				B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -141,6 +179,10 @@
 				D8A32B8A296F839100E56EEF /* Sources */,
 				D8A32B8B296F839100E56EEF /* Frameworks */,
 				D8A32B8C296F839100E56EEF /* Resources */,
+				D8694A3B2991F3F80046B6B6 /* Copy “Launch at Login Helper” */,
+				D8694A3E2991F8C70046B6B6 /* Copy Go executables */,
+				D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */,
+				D8694A46299224F10046B6B6 /* Create symlinks */,
 			);
 			buildRules = (
 			);
@@ -149,6 +191,7 @@
 			name = MacVirt;
 			packageProductDependencies = (
 				D8694A352991D8160046B6B6 /* SwiftJSONRPC */,
+				D8694A392991F3C10046B6B6 /* LaunchAtLogin */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* MacVirt.app */;
@@ -180,6 +223,7 @@
 			mainGroup = D8A32B85296F839100E56EEF;
 			packageReferences = (
 				D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */,
+				D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -202,6 +246,47 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		D8694A3B2991F3F80046B6B6 /* Copy “Launch at Login Helper” */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy “Launch at Login Helper”";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${BUILT_PRODUCTS_DIR}/LaunchAtLogin_LaunchAtLogin.bundle/Contents/Resources/copy-helper-swiftpm.sh\"\n";
+		};
+		D8694A46299224F10046B6B6 /* Create symlinks */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Create symlinks";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "mkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/moonctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/moon\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnxctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnx\"\nln -sf Resources/assets \"$EXECUTABLE_FOLDER_PATH/../assets\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		D8A32B8A296F839100E56EEF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -215,7 +300,6 @@
 				D8CBDA23298A29FF0026F44A /* Daemon.swift in Sources */,
 				B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */,
 				B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */,
-				B118B28D8DE73D4F324E58FB /* Utils.swift in Sources */,
 				B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */,
 				B118BFD7C7DDDF02D8639C5D /* GeneralSettingsView.swift in Sources */,
 				B118BC31190DB3854C66B353 /* ContainerItem.swift in Sources */,
@@ -229,6 +313,8 @@
 				B118B1C2435DAF0D619BB2BD /* OnboardingRootView.swift in Sources */,
 				B118BB2A35AC6730018691D2 /* OnboardingWelcomeView.swift in Sources */,
 				B118B99876CACE427270E9DA /* OnboardingViewModel.swift in Sources */,
+				B118BFB7E48980394ADE79DE /* AppDelegate.swift in Sources */,
+				B118BE5AA8CB9E882A781303 /* Utils.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -363,6 +449,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MacVirt/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -386,14 +473,17 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MacVirt/MacVirt.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MacVirt/Preview Content\"";
-				DEVELOPMENT_TEAM = HUAQ24HBR6;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = HUAQ24HBR6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MacVirt/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -442,6 +532,14 @@
 				kind = branch;
 			};
 		};
+		D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -449,6 +547,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */;
 			productName = SwiftJSONRPC;
+		};
+		D8694A392991F3C10046B6B6 /* LaunchAtLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */;
+			productName = LaunchAtLogin;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -8,7 +8,7 @@
 import Foundation
 import SwiftJSONRPC
 
-struct VmConfig: Codable {
+struct VmConfig: Codable, Equatable {
     var memoryMib: UInt64
 }
 

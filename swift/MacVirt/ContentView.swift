@@ -8,9 +8,11 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.controlActiveState) var controlActiveState
     @EnvironmentObject private var model: VmViewModel
 
     @SceneStorage("root.selectedTab") private var selection: String = "machines"
+    @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @State private var startStopInProgress = false
 
     var body: some View {
@@ -39,7 +41,7 @@ struct ContentView: View {
 
                 NavigationLink(destination: MachinesRootView()) {
                     Label("Commands", systemImage: "terminal")
-                }.tag("terminal")
+                }.tag("cli")
             }
                     .listStyle(.sidebar)
         }
@@ -65,8 +67,8 @@ struct ContentView: View {
                 }) {
                     Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
                 }
-                .disabled(startStopInProgress)
-                .help(model.state == .running ? "Stop everything" : "Start everything")
+                        .disabled(startStopInProgress)
+                        .help(model.state == .running ? "Stop everything" : "Start everything")
             }
 
             ToolbarItem(placement: .automatic) {
@@ -79,14 +81,25 @@ struct ContentView: View {
                 }) {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .help("Settings")
+                        .help("Settings")
             }
         }
         .onAppear {
             NSWindow.allowsAutomaticWindowTabbing = false
+            if !onboardingCompleted {
+                NSApplication.shared.keyWindow?.close()
+                NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
+            }
         }
         .task {
             await model.initLaunch()
+        }
+        .onChange(of: controlActiveState) { state in
+            if state == .key {
+                Task {
+                    await model.tryRefreshList()
+                }
+            }
         }
         .alert(isPresented: errorPresented, error: model.error) { _ in
             Button("OK") {

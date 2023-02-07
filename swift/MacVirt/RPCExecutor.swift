@@ -20,5 +20,13 @@ func newRPCClient(_ url: String) -> RPCClient {
     ))
     executor.requestAdapter = GoRequestAdapter()
     let client = RPCClient(requestExecutor: executor)
+    let encoder = JSONEncoder()
+    encoder.keyEncodingStrategy = .convertToSnakeCase
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    client.coder = Coder(
+        paramsEncoder: encoder,
+        resultDecoder: decoder
+    )
     return client
 }
