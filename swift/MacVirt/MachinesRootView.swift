@@ -10,6 +10,7 @@ struct MachinesRootView: View {
 
     @State private var selection: String?
     @State private var presentCreate = false
+    @State private var creatingOpacity = 0.0
 
     var body: some View {
         StateWrapperView {
@@ -42,17 +43,17 @@ struct MachinesRootView: View {
                         .refreshable {
                             await vmModel.tryRefreshList()
                         }
-                        .overlay(alignment: .bottom, content: {
-                            VStack {
+                        .overlay(alignment: .bottomTrailing, content: {
+                            HStack {
+                                Text("Creating")
                                 ProgressView()
-                                        .progressViewStyle(.linear)
-                                Text("Creating...")
+                                        .scaleEffect(0.5)
+                                        .frame(width: 16, height: 16)
                             }
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal, 32)
-                                    .background(.thinMaterial)
-                                    .opacity(vmModel.creatingCount > 0 ? 1 : 0)
-                                    .animation(.spring())
+                            .padding(8)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            .opacity(creatingOpacity)
+                            .padding(16)
                         })
                         .toolbar {
                             Button(action: {
@@ -65,6 +66,17 @@ struct MachinesRootView: View {
                                     .help("New machine")
                         }
                         .navigationTitle("Machines")
+                        .onChange(of: vmModel.creatingCount) { newValue in
+                            if newValue > 0 {
+                                withAnimation {
+                                    creatingOpacity = 1
+                                }
+                            } else {
+                                withAnimation {
+                                    creatingOpacity = 0
+                                }
+                            }
+                        }
             } else {
                 ProgressView(label: {
                     Text("Loading")

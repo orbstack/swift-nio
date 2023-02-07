@@ -39,7 +39,7 @@ struct ContainerItem: View {
                                 .opacity(1 - progressOpacity)
 
                         ProgressView()
-                                .scaleEffect(x: 0.75, y: 0.75)
+                                .scaleEffect(0.75)
                                 .opacity(progressOpacity)
                     }
                 }
@@ -59,7 +59,7 @@ struct ContainerItem: View {
                                 .opacity(1 - progressOpacity)
 
                         ProgressView()
-                                .scaleEffect(x: 0.75, y: 0.75)
+                                .scaleEffect(0.75)
                                 .opacity(progressOpacity)
                     }
                 }

@@ -27,6 +27,14 @@ struct MacVirtApp: App {
             //TODO command to create container
         }
 
+        WindowGroup("Setup") {
+            OnboardingRootView()
+                    .environmentObject(model)
+                    .frame(minWidth: 500, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+        }.commands {
+            CommandGroup(replacing: .newItem) {}
+        }.handlesExternalEvents(matching: Set(arrayLiteral: "onboarding"))
+
         Settings {
             AppSettings()
         }

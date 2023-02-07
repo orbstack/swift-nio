@@ -8,6 +8,7 @@ var (
 	LinkedPaths = [...]string{"/Applications", "/Library", "/System", "/Users", "/Volumes", "/private"}
 )
 
+// linux
 const (
 	VirtiofsMountpoint = "/mnt/mac"
 
@@ -32,4 +33,9 @@ const (
 
 	TmpSshAgentProxySocket   = "/dev/.lxc/.macvirt-ssh-agent-proxy.sock"
 	LaunchdSshAgentListeners = "/tmp/launchd-ssh-agent-listeners"
+)
+
+// mac
+const (
+	NfsDirName = "Linux"
 )

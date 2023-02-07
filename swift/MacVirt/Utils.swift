@@ -93,15 +93,6 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
         // try terminal
         try await runProcessChecked("/usr/bin/open", ["-a", "Terminal", tmpFileURL.path])
     }
-
-    // get our PATH
-    // read environment variables
-    let env = ProcessInfo.processInfo.environment
-    print("env",env)
-
-    // write it to the tmp file
-    let txt=env.map { "\($0.key)=\($0.value)" }.joined(separator: "\n")
-    try txt.write(to: tmpFileURL, atomically: true, encoding: .utf8)
 }
 
 func runAsAdmin(_ command: String, _ args: [String]) async throws {

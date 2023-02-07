@@ -6,10 +6,7 @@ import (
 	"runtime"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-)
-
-const (
-	nfsDirName = "Linux"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 )
 
 func check(err error) {
@@ -43,7 +40,7 @@ func LogDir() string {
 }
 
 func NfsMountpoint() string {
-	return ensureDir(HomeDir() + "/" + nfsDirName)
+	return ensureDir(HomeDir() + "/" + mounts.NfsDirName)
 }
 
 func DataDir() string {

@@ -14,7 +14,14 @@ private class GoRequestAdapter: HTTPRequestAdapter {
 }
 
 func newRPCClient(_ url: String) -> RPCClient {
-    let executor = HTTPRequestExecutor(url: URL(string: url)!)
+    // TODO change client
+    URLSession.shared.configuration.timeoutIntervalForRequest = 15 * 60
+    URLSession.shared.configuration.timeoutIntervalForResource = 15 * 60
+
+    let executor = HTTPRequestExecutor(config: HTTPRequestExecutorConfig(
+        baseURL: URL(string: url)!,
+        throttle: .disabled
+    ))
     executor.requestAdapter = GoRequestAdapter()
     let client = RPCClient(requestExecutor: executor)
     return client

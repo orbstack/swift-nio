@@ -154,6 +154,11 @@ func (c *Container) initLxc() error {
 		return err
 	}
 
+	hostUser, err := c.manager.host.GetUser()
+	if err != nil {
+		return err
+	}
+
 	// set configs!
 	err = func() error {
 		defer func() {
@@ -290,7 +295,7 @@ func (c *Container) initLxc() error {
 			set("lxc.log.level", "info")
 		}
 
-		// container hooks, before rootfs is et
+		// container hooks, before rootfs is set
 		if c.hooks != nil {
 			newRootfs, err := c.hooks.Config(c, set)
 			if err != nil {
@@ -299,6 +304,9 @@ func (c *Container) initLxc() error {
 			if newRootfs != "" {
 				rootfs = newRootfs
 			}
+
+			// bind for docker (TODO move into hook)
+			bind(config.NfsRootRO, hostUser.HomeDir+"/"+mounts.NfsDirName, "ro,rshared")
 		}
 
 		// container
