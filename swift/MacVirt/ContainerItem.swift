@@ -23,7 +23,7 @@ struct ContainerItem: View {
                     .padding(.trailing, 8)
             VStack(alignment: .leading) {
                 Text(record.name)
-                        .font(.title3)
+                        .font(.body)
             }
             Spacer()
             if record.running {

@@ -7,6 +7,10 @@
 
 import Foundation
 
+struct Constants {
+    static let userAppName = "MacVirt"
+}
+
 class AppConfig {
 #if DEBUG
     static let c = AppConfig(

@@ -12,6 +12,17 @@ struct VmConfig: Codable, Equatable {
     var memoryMib: UInt64
 }
 
+struct SetupInfo: Codable {
+    var adminShellCommand: String?
+    var adminMessage: String?
+    var alertProfileChanged: String?
+    var alertRequestAddPaths: [String]?
+}
+
+struct DockerContainer: Codable {
+    var id: String
+}
+
 class VmService: RPCService {
     static let shared = SconService(client: RPCClient(url: URL(string: "http://127.0.0.1:62420")!))
 
@@ -43,5 +54,17 @@ class VmService: RPCService {
 
     func resetConfig() async throws {
         try await invoke("ResetConfig")
+    }
+
+    func startSetup() async throws -> SetupInfo {
+        try await invoke("StartSetup")
+    }
+
+    func finishSetup() async throws {
+        try await invoke("FinishSetup")
+    }
+
+    func listDockerContainers() async throws -> [DockerContainer] {
+        try await invoke("ListDockerContainers")
     }
 }

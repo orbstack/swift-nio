@@ -1,0 +1,429 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"os/user"
+	"path/filepath"
+	"strings"
+
+	"github.com/alessio/shellescape"
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/util"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+)
+
+type SetupInfo struct {
+	AdminShellCommand    *string  `json:"admin_shell_command,omitempty"`
+	AdminMessage         *string  `json:"admin_message,omitempty"`
+	AlertProfileChanged  *string  `json:"alert_profile_changed"`
+	AlertRequestAddPaths []string `json:"alert_request_add_paths"`
+}
+
+type UserDetails struct {
+	IsAdmin bool
+	Shell   string
+	Path    string
+	Home    string
+}
+
+type PathInfo struct {
+	Dir          string
+	RequiresRoot bool
+}
+
+var (
+	binCommands  = []string{"moonctl", "moon", "lnxctl", "lnx"}
+	xbinCommands = []string{"docker", "docker-compose", "docker-credential-osxkeychain"}
+	// consider: docker-buildx hub-tool docker-index
+)
+
+func getUserDetails() (*UserDetails, error) {
+	u, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+	gids, err := u.GroupIds()
+	if err != nil {
+		return nil, err
+	}
+	// check if admin
+	isAdmin := false
+	for _, gid := range gids {
+		group, err := user.LookupGroupId(gid)
+		if err != nil {
+			return nil, err
+		}
+		if group.Name == "admin" {
+			isAdmin = true
+			break
+		}
+	}
+
+	// look up the user's shell
+	out, err := util.Run("dscl", ".", "-read", u.HomeDir, "UserShell")
+	if err != nil {
+		return nil, err
+	}
+	shell := strings.TrimSpace(strings.TrimPrefix(out, "UserShell: "))
+
+	// look up the user's PATH
+	// run login shell first to get profile
+	// then run sh in case of fish
+	out, err = util.Run(shell, "-lc", "sh -c \"echo $PATH\"")
+	if err != nil {
+		return nil, err
+	}
+	path := strings.TrimSpace(out)
+
+	return &UserDetails{
+		IsAdmin: isAdmin,
+		Shell:   shell,
+		Path:    path,
+		Home:    u.HomeDir,
+	}, nil
+}
+
+// we're started under launchd with only this PATH: /usr/bin:/bin:/usr/sbin:/sbin
+func setupPath() error {
+	details, err := getUserDetails()
+	if err != nil {
+		return err
+	}
+
+	os.Setenv("PATH", details.Path)
+	return nil
+}
+
+/*
+1. ~/bin IF exists AND in path (or ~/.local/bin)
+2. /usr/local/bin IF root
+3. ZDOTDIR/zprofile or profile IF is default shell + set AlertProfileChanged
+4. ask user + set AlertRequestAddPath
+*/
+func findTargetCmdPath(details *UserDetails, pathItems []string) (*PathInfo, error) {
+	home := details.Home
+
+	// prefer ~/bin because user probably created it explicitly
+	_, err := os.Stat(home + "/bin")
+	if err == nil {
+		// is it in path?
+		if slices.Contains(pathItems, home+"/bin") {
+			return &PathInfo{
+				Dir:          home + "/bin",
+				RequiresRoot: false,
+			}, nil
+		}
+	}
+
+	// ~/.local/bin is a common alternative
+	_, err = os.Stat(home + "/.local/bin")
+	if err == nil {
+		// is it in path?
+		if slices.Contains(pathItems, home+"/.local/bin") {
+			return &PathInfo{
+				Dir:          home + "/.local/bin",
+				RequiresRoot: false,
+			}, nil
+		}
+	}
+
+	// check if root
+	if details.IsAdmin {
+		return &PathInfo{
+			Dir:          "/usr/local/bin",
+			RequiresRoot: true,
+		}, nil
+	}
+
+	// fall back to our path
+	return nil, nil
+}
+
+func fixDockerCredsStore() error {
+	dockerConfigPath := conf.HomeDir() + "/.docker/config.json"
+	if _, err := os.Stat(dockerConfigPath); err == nil {
+		// read the file
+		data, err := os.ReadFile(dockerConfigPath)
+		if err != nil {
+			return err
+		}
+
+		// parse it
+		var config map[string]interface{}
+		err = json.Unmarshal(data, &config)
+		if err != nil {
+			return err
+		}
+
+		// check if it's set to desktop
+		if config["credsStore"] == "desktop" {
+			// does it exist? if so, keep it
+			if _, err := exec.LookPath("docker-credential-desktop"); err == nil {
+				logrus.Debug("docker-credential-desktop exists, keeping credsStore=desktop")
+			} else {
+				// otherwise, change it
+				logrus.Debug("docker-credential-desktop doesn't exist, changing credsStore to osxkeychain")
+				// change it to osxkeychain
+				config["credsStore"] = "osxkeychain"
+
+				// write it back
+				data, err := json.MarshalIndent(config, "", "  ")
+				if err != nil {
+					return err
+				}
+				err = os.WriteFile(dockerConfigPath, data, 0644)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+/*
+for commands:
+1. ~/bin IF exists AND in path (or ~/.local/bin)
+2. /usr/local/bin IF root
+3. ZDOTDIR/zprofile or profile IF is default shell + set AlertProfileChanged
+4. ask user + set AlertRequestAddPath
+
+for docker sock:
+/var/run/docker.sock IF root
+*/
+func doMacSetup() (*SetupInfo, error) {
+	details, err := getUserDetails()
+	if err != nil {
+		return nil, err
+	}
+	logrus.WithFields(logrus.Fields{
+		"admin": details.IsAdmin,
+		"shell": details.Shell,
+		"path":  details.Path,
+		"home":  details.Home,
+	}).Debug("user details")
+	// split path
+	pathItems := strings.Split(details.Path, ":")
+
+	// link docker sock?
+	var adminCommands []string
+	adminLinkDocker := false
+	adminLinkCommands := false
+	if details.IsAdmin {
+		sockDest, err := os.Readlink("/var/run/docker.sock")
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		wantDest := conf.DockerSocket()
+		if sockDest != wantDest {
+			logrus.Debug("[request admin] link docker socket")
+			adminCommands = append(adminCommands, "ln -sf "+wantDest+" /var/run/docker.sock")
+			adminLinkDocker = true
+		}
+	}
+
+	// figure out where we want to put commands
+	targetCmdPath, err := findTargetCmdPath(details, pathItems)
+	if err != nil {
+		return nil, err
+	}
+	if targetCmdPath == nil {
+		logrus.Debug("target command path is nil")
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"dir":          targetCmdPath.Dir,
+			"requiresRoot": targetCmdPath.RequiresRoot,
+		}).Debug("target command path")
+	}
+
+	// do we need to add to $PATH?
+	var askAddPath bool
+	var alertProfileChangedCmd *string
+	if targetCmdPath == nil {
+		// if so, we don't need to do any linking
+		// just add to profile and ask user to add to PATH
+
+		// is the PATH already there?
+		if !slices.Contains(pathItems, conf.CliBinDir()) && !slices.Contains(pathItems, conf.CliXbinDir()) {
+			// do we recognize this shell?
+			shellBase := filepath.Base(details.Shell)
+			var profilePath string
+			switch shellBase {
+			case "zsh":
+				// what's the ZDOTDIR?
+				out, err := util.Run(details.Shell, "-lc", "echo $ZDOTDIR")
+				if err != nil {
+					return nil, err
+				}
+				zdotdir := strings.TrimSpace(out)
+				if zdotdir == "" {
+					zdotdir = details.Home
+				}
+				profilePath = zdotdir + "/.zprofile"
+				fallthrough
+			case "bash":
+				if profilePath == "" {
+					profilePath = details.Home + "/.profile"
+				}
+
+				// common logic for bash and zsh
+				profileData, err := os.ReadFile(profilePath)
+				if err != nil {
+					if errors.Is(err, os.ErrNotExist) {
+						// we'll create it
+						profileData = []byte{}
+					} else {
+						return nil, err
+					}
+				}
+				profileScript := string(profileData)
+
+				// is it already there?
+				line := fmt.Sprintf("export PATH=%s:\"$PATH\":%s", shellescape.Quote(conf.CliBinDir()), shellescape.Quote(conf.CliXbinDir()))
+				logrus.WithFields(logrus.Fields{
+					"shell": shellBase,
+					"file":  profilePath,
+					"line":  line,
+				}).Debug("checking for line in profile")
+				if !strings.Contains(profileScript, line) {
+					// if not, add it
+					profileScript += fmt.Sprintf("\n# Added by %s: command-line tools\n%s\n", appid.UserAppName, line)
+					err = os.WriteFile(profilePath, []byte(profileScript), 0644)
+					if err != nil {
+						return nil, err
+					}
+					alertProfileChangedCmd = &line
+					logrus.Debug("modified profile")
+				}
+			default:
+				// we don't know how to deal with this.
+				// just ask the user to add it to their path
+				logrus.Debug("unknown shell, asking user to add to path")
+				askAddPath = true
+			}
+		}
+	} else {
+		doLinkCommand := func(src string) error {
+			dest := targetCmdPath.Dir + "/" + filepath.Base(src)
+
+			// if root isn't required, just link it
+			if !targetCmdPath.RequiresRoot {
+				// is it already linked?
+				existingDest, err := os.Readlink(dest)
+				if err == nil && existingDest == src {
+					return nil
+				}
+
+				logrus.WithFields(logrus.Fields{
+					"src": src,
+					"dst": dest,
+				}).Debug("linking command (don't need root)")
+				err = os.Symlink(src, dest)
+				if err != nil {
+					return err
+				}
+				return nil
+			}
+
+			// otherwise, we need to add it to adminCommands and set the flag
+			logrus.WithFields(logrus.Fields{
+				"src": src,
+				"dst": dest,
+			}).Debug("[request admin] linking command (need root)")
+			adminCommands = append(adminCommands, shellescape.QuoteCommand([]string{"ln", "-sf", src, dest}))
+			adminLinkCommands = true
+			return nil
+		}
+
+		// check each bin command
+		for _, cmd := range binCommands {
+			_, err := exec.LookPath(cmd)
+			cmdSrc := conf.CliBinDir() + "/" + cmd
+			logrus.WithFields(logrus.Fields{
+				"cmd": cmd,
+				"src": cmdSrc,
+			}).Debug("checking bin command")
+			// keep existing one if it exists
+			if err != nil {
+				// link it
+				err := doLinkCommand(cmdSrc)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		// check each xbin command
+		for _, cmd := range xbinCommands {
+			_, err := exec.LookPath(cmd)
+			cmdSrc := conf.CliXbinDir() + "/" + cmd
+			logrus.WithFields(logrus.Fields{
+				"cmd": cmd,
+				"src": cmdSrc,
+			}).Debug("checking xbin command")
+			// keep existing one if it exists
+			if err != nil {
+				// link it
+				err := doLinkCommand(cmdSrc)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	// need to fix docker creds store?
+	// in case user uninstalled Docker Desktop, we need to change it
+	// we don't consider this critical, so ignore errors
+	err = fixDockerCredsStore()
+	if err != nil {
+		logrus.WithError(err).Debug("failed to fix docker creds store")
+	}
+
+	info := &SetupInfo{}
+	if len(adminCommands) > 0 {
+		// join and escape commands
+		cmd := "set -e; " + strings.Join(adminCommands, "; ")
+		info.AdminShellCommand = &cmd
+
+		var adminReasons []string
+		if adminLinkCommands {
+			adminReasons = append(adminReasons, "install command-line tools")
+		}
+		if adminLinkDocker {
+			adminReasons = append(adminReasons, "improve Docker socket compatibility")
+		}
+		msg := strings.Join(adminReasons, " and ")
+		info.AdminMessage = &msg
+	}
+	if askAddPath {
+		info.AlertRequestAddPaths = []string{
+			conf.CliBinDir(),
+			conf.CliXbinDir(),
+		}
+	}
+	if alertProfileChangedCmd != nil {
+		info.AlertProfileChanged = alertProfileChangedCmd
+	}
+	logrus.WithFields(logrus.Fields{
+		"adminShellCommand": strp(info.AdminShellCommand),
+		"adminMessage":      strp(info.AdminMessage),
+		"alertAddPaths":     info.AlertRequestAddPaths,
+		"alertProfile":      info.AlertProfileChanged,
+	}).Debug("prepare setup info done")
+	return info, nil
+}
+
+func strp(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return *s
+}

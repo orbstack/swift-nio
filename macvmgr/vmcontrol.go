@@ -78,6 +78,21 @@ func (s *VmControlServer) ResetConfig(ctx context.Context) error {
 	return vmconfig.Reset()
 }
 
+func (s *VmControlServer) StartSetup(ctx context.Context) (*SetupInfo, error) {
+	return doMacSetup()
+}
+
+func (s *VmControlServer) FinishSetup(ctx context.Context) error {
+	// our docker context setup always works now,
+	// so no need to wait for user to do setup
+	return nil
+}
+
+func (s *VmControlServer) ListDockerContainers(ctx context.Context) ([]string, error) {
+	//TODO
+	return nil, nil
+}
+
 func (s *VmControlServer) onStop() error {
 	if s.pendingResetData {
 		logrus.Info("Deleting all data...")
@@ -102,13 +117,16 @@ func listenAndServeUnix(addr string, handler http.Handler) (net.Listener, error)
 
 func (s *VmControlServer) Serve() (net.Listener, error) {
 	bridge := jhttp.NewBridge(handler.Map{
-		"Ping":        handler.New(s.Ping),
-		"Stop":        handler.New(s.Stop),
-		"ForceStop":   handler.New(s.ForceStop),
-		"ResetData":   handler.New(s.ResetData),
-		"GetConfig":   handler.New(s.GetConfig),
-		"PatchConfig": handler.New(s.PatchConfig),
-		"ResetConfig": handler.New(s.ResetConfig),
+		"Ping":                 handler.New(s.Ping),
+		"Stop":                 handler.New(s.Stop),
+		"ForceStop":            handler.New(s.ForceStop),
+		"ResetData":            handler.New(s.ResetData),
+		"GetConfig":            handler.New(s.GetConfig),
+		"PatchConfig":          handler.New(s.PatchConfig),
+		"ResetConfig":          handler.New(s.ResetConfig),
+		"StartSetup":           handler.New(s.StartSetup),
+		"FinishSetup":          handler.New(s.FinishSetup),
+		"ListDockerContainers": handler.New(s.ListDockerContainers),
 	}, nil)
 
 	mux := http.NewServeMux()

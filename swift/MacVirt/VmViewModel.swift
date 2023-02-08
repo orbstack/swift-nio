@@ -27,6 +27,7 @@ enum VmError: LocalizedError, Equatable {
     case wrongArch
     case startTimeout(lastError: Error?)
     case stopError(error: Error)
+    case setupError(error: Error)
 
     // scon
     case startError(error: Error)
@@ -50,6 +51,8 @@ enum VmError: LocalizedError, Equatable {
             return "VM did not start: \(lastError?.localizedDescription ?? "timeout")"
         case .stopError(let error):
             return "Failed to stop VM: \(fmtRpc(error))"
+        case .setupError(let error):
+            return "Failed to set up app: \(fmtRpc(error))"
 
         case .startError(let error):
             return "Failed to start machine manager: \(fmtRpc(error))"
@@ -107,6 +110,14 @@ private func fmtRpc(_ error: Error) -> String {
     }
 }
 
+struct ProfileChangedAlert {
+    let exportCommand: String
+}
+
+struct AddPathsAlert {
+    let paths: [String]
+}
+
 class VmViewModel: ObservableObject {
     private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:62420"))
     private let scon = SconService(client: newRPCClient("http://127.0.0.1:62421"))
@@ -117,6 +128,9 @@ class VmViewModel: ObservableObject {
     @Published var error: VmError?
     @Published var creatingCount = 0
     @Published private(set) var config: VmConfig?
+
+    @Published var presentProfileChanged: ProfileChangedAlert?
+    @Published var presentAddPaths: AddPathsAlert?
 
     func earlyInit() {
         do {
@@ -246,8 +260,61 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    @MainActor
+    func doSetup() async throws {
+        let info = try await vmgr.startSetup()
+
+        var waitTasks = [Task<Void, Error>]()
+
+        if let pathCmd = info.alertProfileChanged {
+            presentProfileChanged = ProfileChangedAlert(exportCommand: pathCmd)
+            waitTasks.append(Task {
+                for await _ in $presentProfileChanged.first(where: { $0 == nil }).values {
+                    break
+                }
+            })
+        }
+
+        if let paths = info.alertRequestAddPaths {
+            presentAddPaths = AddPathsAlert(paths: paths)
+            waitTasks.append(Task {
+                for await _ in $presentAddPaths.first(where: { $0 == nil }).values {
+                    break
+                }
+            })
+        }
+
+        // need to do anything?
+        if let cmd = info.adminShellCommand {
+            let reason = info.adminMessage ?? "make changes"
+            let prompt = "\(Constants.userAppName) wants to \(reason)."
+            waitTasks.append(Task.detached {
+                do {
+                    try runAsAdmin(script: cmd, prompt: prompt)
+                } catch {
+                    print("setup admin error: \(error)")
+                }
+            })
+        }
+
+        // wait for all tasks
+        for task in waitTasks {
+            try await task.value
+        }
+
+        // ok we're done
+        try await vmgr.finishSetup()
+    }
+
     func initLaunch() async {
         await start()
+
+        // do setup
+        do {
+            try await doSetup()
+        } catch {
+            self.error = VmError.setupError(error: error)
+        }
     }
 
     @MainActor

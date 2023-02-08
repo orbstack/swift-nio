@@ -59,13 +59,16 @@ func SwapImage() string {
 	return GetDataFile("swap.img")
 }
 
-func AssetsDir() string {
+func ExecutableDir() string {
 	ex, err := os.Executable()
 	if err != nil {
 		panic(err)
 	}
-	exPath := filepath.Dir(ex)
-	return exPath + "/../assets/" + buildVariant + "/" + Arch()
+	return filepath.Dir(ex)
+}
+
+func AssetsDir() string {
+	return ExecutableDir() + "/../assets/" + buildVariant + "/" + Arch()
 }
 
 func GetAssetFile(name string) string {
@@ -127,6 +130,14 @@ func UserSshDir() string {
 
 func ExtraSshDir() string {
 	return ensureDir(ConfigDir() + "/ssh")
+}
+
+func CliBinDir() string {
+	return ExecutableDir() + "/bin"
+}
+
+func CliXbinDir() string {
+	return ExecutableDir() + "/xbin"
 }
 
 func Arch() string {

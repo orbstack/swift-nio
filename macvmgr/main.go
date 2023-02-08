@@ -81,31 +81,35 @@ func check(err error) {
 func extractSparse(tarPath string) {
 	target := conf.DataDir()
 	// Go archive/tar doesn't fully support sparse. bsdtar does.
-	cmd := exec.Command("/usr/bin/bsdtar", "-xf", tarPath, "-C", target)
+	cmd := exec.Command("bsdtar", "-xf", tarPath, "-C", target)
 	err := cmd.Run()
 	check(err)
 }
 
-func createDockerContext() {
+func setupDockerContext() error {
+	// use our builtin docker client so it always works
+	dockerBin := conf.CliXbinDir() + "/docker"
+
+	// create context
 	var errBuf bytes.Buffer
-	createCmd := exec.Command("docker", "context", "create", appid.AppName, "--description", appid.UserAppName, "--docker", "host=unix://"+conf.DockerSocket())
+	createCmd := exec.Command(dockerBin, "context", "create", appid.AppName, "--description", appid.UserAppName, "--docker", "host=unix://"+conf.DockerSocket())
 	createCmd.Stderr = &errBuf
 	err := createCmd.Run()
 	if err != nil {
 		if strings.Contains(errBuf.String(), "already exists") {
-			return
+			return nil
+		} else {
+			return err
 		}
-		logrus.Error("Failed to create Docker context:", err)
 	}
-}
 
-func setDockerContext() {
-	createDockerContext()
-
-	err := exec.Command("docker", "context", "use", appid.AppName).Run()
+	// use context
+	err = exec.Command(dockerBin, "context", "use", appid.AppName).Run()
 	if err != nil {
-		logrus.Error("Failed to set Docker context:", err)
+		return err
 	}
+
+	return nil
 }
 
 func isMountpoint(path string) bool {
@@ -425,7 +429,16 @@ func runVmManager() {
 	defer os.Remove(conf.SconSSHSocket())
 
 	// Docker context
-	go setDockerContext()
+	go func() {
+		// PATH for hostssh
+		// blocking here because docker depends on it
+		runOne("PATH setup", setupPath)
+
+		err := setupDockerContext()
+		if err != nil {
+			logrus.WithError(err).Error("failed to set Docker context")
+		}
+	}()
 
 	// SSH key and config
 	go runOne("public SSH setup", setupPublicSSH)

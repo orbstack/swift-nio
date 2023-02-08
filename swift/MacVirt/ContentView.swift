@@ -7,6 +7,16 @@
 
 import SwiftUI
 
+func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
+    Binding<Bool>(get: {
+        binding.wrappedValue != nil
+    }, set: {
+        if !$0 {
+            binding.wrappedValue = nil
+        }
+    })
+}
+
 struct ContentView: View {
     @Environment(\.controlActiveState) var controlActiveState
     @EnvironmentObject private var model: VmViewModel
@@ -16,14 +26,6 @@ struct ContentView: View {
     @State private var startStopInProgress = false
 
     var body: some View {
-        let errorPresented = Binding<Bool>(get: {
-            model.error != nil
-        }, set: {
-            if !$0 {
-                model.error = nil
-            }
-        })
-
         NavigationView {
             let selBinding = Binding<String?>(get: {
                 selection
@@ -101,7 +103,8 @@ struct ContentView: View {
                 }
             }
         }
-        .alert(isPresented: errorPresented, error: model.error) { _ in
+        // error dialog
+        .alert(isPresented: bindOptionalBool($model.error), error: model.error) { _ in
             Button("OK") {
                 model.error = nil
 
@@ -113,6 +116,28 @@ struct ContentView: View {
         } message: { error in
             if let msg = error.recoverySuggestion {
                 Text(msg)
+            }
+        }
+        .alert("Shell profile changed", isPresented: bindOptionalBool($model.presentProfileChanged)) {
+        } message: {
+            if let info = model.presentProfileChanged {
+                Text("""
+                    Your shell profile has been modified to add \(Constants.userAppName)’s command-line tools to your PATH.
+                    To use them in existing shells, run the following command:
+
+                    \(info.exportCommand)
+                    """)
+            }
+        }
+        .alert("Add tools to PATH", isPresented: bindOptionalBool($model.presentAddPaths)) {
+        } message: {
+            if let info = model.presentAddPaths {
+                let list = "    \u{2022} " + info.paths.joined(separator: "\n    \u{2022} ")
+                Text("""
+                     To use \(Constants.userAppName)’s command-line tools, add the following directories to your PATH:
+
+                     \(list)
+                     """)
             }
         }
     }

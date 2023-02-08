@@ -430,8 +430,8 @@ func (c *Container) updateTimeOffsets() error {
 		return err
 	}
 
-	nsMono := uint64(tsMono.Sec)*1000000000 + uint64(tsMono.Nsec)
-	nsBoot := uint64(tsBoot.Sec)*1000000000 + uint64(tsBoot.Nsec)
+	nsMono := uint64(tsMono.Sec)*1e9 + uint64(tsMono.Nsec)
+	nsBoot := uint64(tsBoot.Sec)*1e9 + uint64(tsBoot.Nsec)
 	err = c.setLxcConfig("lxc.time.offset.monotonic", strconv.FormatUint(nsMono, 10)+"ns")
 	if err != nil {
 		return err

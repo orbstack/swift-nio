@@ -31,6 +31,8 @@ require (
 	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
 )
 
+require golang.org/x/exp v0.0.0-20230206171751-46f607a40771 // indirect
+
 require (
 	github.com/alessio/shellescape v1.4.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
