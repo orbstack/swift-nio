@@ -28,6 +28,7 @@ enum VmError: LocalizedError, Equatable {
     case startTimeout(lastError: Error?)
     case stopError(error: Error)
     case setupError(error: Error)
+    case dockerError(error: Error)
 
     // scon
     case startError(error: Error)
@@ -53,6 +54,8 @@ enum VmError: LocalizedError, Equatable {
             return "Failed to stop VM: \(fmtRpc(error))"
         case .setupError(let error):
             return "Failed to set up app: \(fmtRpc(error))"
+        case .dockerError(let error):
+            return "Failed to check Docker: \(fmtRpc(error))"
 
         case .startError(let error):
             return "Failed to start machine manager: \(fmtRpc(error))"
@@ -132,6 +135,9 @@ class VmViewModel: ObservableObject {
     @Published var presentProfileChanged: ProfileChangedAlert?
     @Published var presentAddPaths: AddPathsAlert?
 
+    // Docker
+    @Published private(set) var dockerContainers: [DockerContainer]?
+
     func earlyInit() {
         do {
             try spawnDaemon()
@@ -149,16 +155,9 @@ class VmViewModel: ObservableObject {
             throw VmError.wrongArch
         }
 
-        let exePath: String
-        if let path = AppConfig.c.vmgrExePath {
-            exePath = path
-        } else {
-            exePath = Bundle.main.path(forAuxiliaryExecutable: "macvmgr")!
-        }
-
         Task {
             do {
-                try await runProcessChecked(exePath, ["spawn-daemon"])
+                try await runProcessChecked(AppConfig.c.vmgrExe, ["spawn-daemon"])
                 DispatchQueue.main.async {
                     self.state = .starting
                 }
@@ -245,6 +244,23 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    func refreshDockerList() async throws {
+        // it's vmgr but need to wait for scon
+        try await waitForScon()
+        print("try f")
+        dockerContainers = try await vmgr.listDockerContainers()
+        print("fetch r", dockerContainers)
+    }
+
+    @MainActor
+    func tryRefreshDockerList() async {
+        do {
+            try await refreshDockerList()
+        } catch {
+            self.error = VmError.dockerError(error: error)
+        }
+    }
+
     @MainActor
     func refreshConfig() async throws {
         try await waitForVM()
@@ -306,6 +322,7 @@ class VmViewModel: ObservableObject {
         try await vmgr.finishSetup()
     }
 
+    @MainActor
     func initLaunch() async {
         await start()
 

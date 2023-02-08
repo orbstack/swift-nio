@@ -5,7 +5,7 @@
 import Foundation
 import SwiftUI
 
-struct ContainerItem: View {
+struct MachineContainerItem: View {
     @EnvironmentObject var vmModel: VmViewModel
 
     var record: ContainerRecord
@@ -24,6 +24,9 @@ struct ContainerItem: View {
             VStack(alignment: .leading) {
                 Text(record.name)
                         .font(.body)
+                Text("\(record.image.version), \(record.image.arch)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
             }
             Spacer()
             if record.running {
@@ -76,7 +79,7 @@ struct ContainerItem: View {
             }) {
                 Label("Delete", systemImage: "trash")
             }
-                    .disabled(actionInProgress)
+            .disabled(actionInProgress)
         }
         .confirmationDialog("Delete \(record.name)?",
                 isPresented: $isPresentingConfirm) {
@@ -93,7 +96,7 @@ struct ContainerItem: View {
         .onDoubleClick {
             Task {
                 do {
-                    try await openTerminal("moon", ["-m", record.name])
+                    try await openTerminal(AppConfig.c.shellExe, ["-m", record.name])
                 } catch {
                     print(error)
                 }

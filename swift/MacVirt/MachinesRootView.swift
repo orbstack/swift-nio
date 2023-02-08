@@ -18,7 +18,7 @@ struct MachinesRootView: View {
                 List(selection: $selection) {
                     ForEach(containers) { container in
                         if !container.builtin {
-                            ContainerItem(record: container)
+                            MachineContainerItem(record: container)
                         }
                     }
 

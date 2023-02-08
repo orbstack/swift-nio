@@ -11,25 +11,26 @@ struct Constants {
     static let userAppName = "MacVirt"
 }
 
-class AppConfig {
+struct AppConfig {
 #if DEBUG
     static let c = AppConfig(
         debug: true,
-        vmgrExePath: "/Users/dragon/code/projects/macvirt/macvmgr/macvmgr"
+        vmgrExe: "/Users/dragon/code/projects/macvirt/macvmgr/macvmgr",
+        shellExe: "/Users/dragon/code/projects/macvirt/macvmgr/bin/moon",
+        dockerExe: "/Users/dragon/code/projects/macvirt/macvmgr/xbin/docker"
     )
 #else
     static let c = AppConfig(
         debug: false,
-        vmgrExePath: nil
+        vmgrExe: Bundle.main.path(forAuxiliaryExecutable: "macvmgr")!,
+        shellExe: Bundle.main.path(forAuxiliaryExecutable: "bin/moon")!,
+        dockerExe: Bundle.main.path(forAuxiliaryExecutable: "xbin/docker")!
     )
 #endif
     
     let debug: Bool
-    let vmgrExePath: String?
-    
-    init(debug: Bool, vmgrExePath: String?) {
-        self.debug = debug
-        self.vmgrExePath = vmgrExePath
-    }
+    let vmgrExe: String
+    let shellExe: String
+    let dockerExe: String
 }
 

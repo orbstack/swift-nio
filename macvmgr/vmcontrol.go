@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/sirupsen/logrus"
@@ -31,6 +33,7 @@ type VmControlServer struct {
 	doneCh           chan struct{}
 	stopCh           chan StopType
 	pendingResetData bool
+	dockerClient     *http.Client
 }
 
 func (s *VmControlServer) Ping(ctx context.Context) error {
@@ -88,9 +91,21 @@ func (s *VmControlServer) FinishSetup(ctx context.Context) error {
 	return nil
 }
 
-func (s *VmControlServer) ListDockerContainers(ctx context.Context) ([]string, error) {
-	//TODO
-	return nil, nil
+func (s *VmControlServer) ListDockerContainers(ctx context.Context) ([]dockertypes.Container, error) {
+	// only includes running
+	resp, err := s.dockerClient.Get("http://docker/containers/json")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var containers []dockertypes.Container
+	err = json.NewDecoder(resp.Body).Decode(&containers)
+	if err != nil {
+		return nil, err
+	}
+
+	return containers, nil
 }
 
 func (s *VmControlServer) onStop() error {
@@ -113,6 +128,17 @@ func listenAndServeUnix(addr string, handler http.Handler) (net.Listener, error)
 
 	go http.Serve(listener, handler)
 	return listener, nil
+}
+
+func makeDockerClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", conf.DockerSocket())
+			},
+			MaxIdleConns: 2,
+		},
+	}
 }
 
 func (s *VmControlServer) Serve() (net.Listener, error) {

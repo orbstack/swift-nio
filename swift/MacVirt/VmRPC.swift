@@ -19,8 +19,40 @@ struct SetupInfo: Codable {
     var alertRequestAddPaths: [String]?
 }
 
-struct DockerContainer: Codable {
+struct DockerContainer: Codable, Identifiable {
     var id: String
+    var names: [String]
+    var image: String
+    var imageID: String
+    var command: String
+    var created: Int64
+    //var ports: [Ports]
+    var sizeRw: Int64?
+    var sizeRootFs: Int64?
+    var labels: [String: String]
+    var state: String
+    var status: String
+    //var hostConfig: HostConfig
+    //var networkSettings: SummaryNetworkSettings
+    //var mounts: [MountPoint]
+
+    enum CodingKeys: String, CodingKey {
+        case id = "Id"
+        case names = "Names"
+        case image = "Image"
+        case imageID = "ImageID"
+        case command = "Command"
+        case created = "Created"
+        //case ports = "Ports"
+        case sizeRw = "SizeRw"
+        case sizeRootFs = "SizeRootFs"
+        case labels = "Labels"
+        case state = "State"
+        case status = "Status"
+        //case hostConfig = "HostConfig"
+        //case networkSettings = "NetworkSettings"
+        //case mounts = "Mounts"
+    }
 }
 
 class VmService: RPCService {
