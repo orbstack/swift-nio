@@ -27,7 +27,7 @@ struct MachinesRootView: View {
                             Spacer()
                             VStack {
                                 Text("No Linux machines")
-                                        .font(.largeTitle)
+                                        .font(.title)
                                         .foregroundColor(.secondary)
                                 Button(action: {
                                     presentCreate = true
@@ -65,7 +65,6 @@ struct MachinesRootView: View {
                                     }
                                     .help("New machine")
                         }
-                        .navigationTitle("Machines")
                         .onChange(of: vmModel.creatingCount) { newValue in
                             if newValue > 0 {
                                 withAnimation {
@@ -81,8 +80,8 @@ struct MachinesRootView: View {
                 ProgressView(label: {
                     Text("Loading")
                 })
-                        .navigationTitle("Machines")
             }
         }
+        .navigationTitle("Machines")
     }
 }

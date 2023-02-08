@@ -244,12 +244,11 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    @MainActor
     func refreshDockerList() async throws {
         // it's vmgr but need to wait for scon
         try await waitForScon()
-        print("try f")
         dockerContainers = try await vmgr.listDockerContainers()
-        print("fetch r", dockerContainers)
     }
 
     @MainActor

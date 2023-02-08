@@ -24,6 +24,7 @@ struct ContentView: View {
     @SceneStorage("root.selectedTab") private var selection: String = "machines"
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @State private var startStopInProgress = false
+    @State private var window: NSWindow?
 
     var body: some View {
         NavigationView {
@@ -41,7 +42,7 @@ struct ContentView: View {
                     Label("Machines", systemImage: "desktopcomputer")
                 }.tag("machines")
 
-                NavigationLink(destination: MachinesRootView()) {
+                NavigationLink(destination: CommandsRootView()) {
                     Label("Commands", systemImage: "terminal")
                 }.tag("cli")
             }
@@ -86,11 +87,16 @@ struct ContentView: View {
                         .help("Settings")
             }
         }
+        .background(WindowAccessor(window: $window))
         .onAppear {
-            NSWindow.allowsAutomaticWindowTabbing = false
             if !onboardingCompleted {
-                NSApplication.shared.keyWindow?.close()
+                window?.close()
                 NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
+            }
+        }
+        .onChange(of: window) {
+            if !onboardingCompleted {
+                $0?.close()
             }
         }
         .task {

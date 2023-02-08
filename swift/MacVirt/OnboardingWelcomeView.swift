@@ -8,6 +8,9 @@ import SwiftUI
 struct OnboardingWelcomeView: View {
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
 
+    @AppStorage("onboardingCompleted") var onboardingCompleted = false
+    @State private var window: NSWindow?
+
     var body: some View {
         VStack {
             Text("Welcome to MacVirt!")
@@ -38,9 +41,13 @@ struct OnboardingWelcomeView: View {
             Spacer()
 
             Button(action: {
+                onboardingCompleted = true
+                window?.close()
+                NSWorkspace.shared.open(URL(string: "macvirt://main")!)
             }) {
                 Text("Next")
             }
         }
+        .background(WindowAccessor(window: $window))
     }
 }

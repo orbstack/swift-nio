@@ -8,10 +8,10 @@ import SwiftUI
 struct StateWrapperView<Content: View>: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    let content: Content
+    let content: () -> Content
 
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
     }
 
     var body: some View {
@@ -19,7 +19,7 @@ struct StateWrapperView<Content: View>: View {
         case .stopped:
             VStack {
                 Text("Not running")
-                        .font(.largeTitle)
+                        .font(.title)
                 Button(action: {
                     Task {
                         await vmModel.start()
@@ -38,7 +38,7 @@ struct StateWrapperView<Content: View>: View {
                 Text("Starting")
             })
         case .running:
-            content
+            content()
         case .stopping:
             ProgressView(label: {
                 Text("Stopping")

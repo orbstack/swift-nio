@@ -27,18 +27,29 @@ struct DockerRootView: View {
                         ForEach(containers) { container in
                             DockerContainerItem(container: container)
                         }
+
+                        if containers.isEmpty {
+                            HStack {
+                                Spacer()
+                                VStack {
+                                    Text("No Docker containers")
+                                            .font(.title)
+                                            .foregroundColor(.secondary)
+                                }
+                                        .padding(.top, 32)
+                                Spacer()
+                            }
+                        }
                     }
                 }
                         .refreshable {
                             await vmModel.tryRefreshList()
                             await vmModel.tryRefreshDockerList()
                         }
-                        .navigationTitle("Docker")
             } else {
                 ProgressView(label: {
                     Text("Loading")
                 })
-                        .navigationTitle("Docker")
             }
         }
         .onAppear {
@@ -55,5 +66,6 @@ struct DockerRootView: View {
                 }
             }
         }
+        .navigationTitle("Docker")
     }
 }

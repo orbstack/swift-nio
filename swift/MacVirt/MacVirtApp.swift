@@ -13,10 +13,6 @@ struct MacVirtApp: App {
     @StateObject var model = VmViewModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
-    init() {
-        model.earlyInit()
-    }
-
     var body: some Scene {
         WindowGroup {
             ContentView()

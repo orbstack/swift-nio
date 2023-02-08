@@ -16,6 +16,7 @@ struct BuiltinContainerItem: View {
         HStack {
             Image("distro_\(record.image.distro)")
                     .resizable()
+                    .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 32, height: 32)
                     .padding(.trailing, 8)
