@@ -111,7 +111,7 @@ private func fmtRpc(_ error: Error) -> String {
 }
 
 struct ProfileChangedAlert {
-    let exportCommand: String
+    let profileRelPath: String
 }
 
 struct AddPathsAlert {
@@ -267,7 +267,7 @@ class VmViewModel: ObservableObject {
         var waitTasks = [Task<Void, Error>]()
 
         if let pathCmd = info.alertProfileChanged {
-            presentProfileChanged = ProfileChangedAlert(exportCommand: pathCmd)
+            presentProfileChanged = ProfileChangedAlert(profileRelPath: pathCmd)
             waitTasks.append(Task {
                 for await _ in $presentProfileChanged.first(where: { $0 == nil }).values {
                     break

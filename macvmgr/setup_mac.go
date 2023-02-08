@@ -245,7 +245,7 @@ func doMacSetup() (*SetupInfo, error) {
 
 	// do we need to add to $PATH?
 	var askAddPath bool
-	var alertProfileChangedCmd *string
+	var alertProfileChangedPath *string
 	if targetCmdPath == nil {
 		// if so, we don't need to do any linking
 		// just add to profile and ask user to add to PATH
@@ -299,7 +299,8 @@ func doMacSetup() (*SetupInfo, error) {
 					if err != nil {
 						return nil, err
 					}
-					alertProfileChangedCmd = &line
+					relProfilePath := makeHomeRelative(profilePath)
+					alertProfileChangedPath = &relProfilePath
 					logrus.Debug("modified profile")
 				}
 			default:
@@ -409,8 +410,8 @@ func doMacSetup() (*SetupInfo, error) {
 			conf.CliXbinDir(),
 		}
 	}
-	if alertProfileChangedCmd != nil {
-		info.AlertProfileChanged = alertProfileChangedCmd
+	if alertProfileChangedPath != nil {
+		info.AlertProfileChanged = alertProfileChangedPath
 	}
 	logrus.WithFields(logrus.Fields{
 		"adminShellCommand": strp(info.AdminShellCommand),

@@ -125,14 +125,14 @@ struct ContentView: View {
                     Your shell profile has been modified to add \(Constants.userAppName)’s command-line tools to your PATH.
                     To use them in existing shells, run the following command:
 
-                    \(info.exportCommand)
+                    source \(info.profileRelPath)
                     """)
             }
         }
         .alert("Add tools to PATH", isPresented: bindOptionalBool($model.presentAddPaths)) {
         } message: {
             if let info = model.presentAddPaths {
-                let list = "    \u{2022} " + info.paths.joined(separator: "\n    \u{2022} ")
+                let list = info.paths.joined(separator: "\n")
                 Text("""
                      To use \(Constants.userAppName)’s command-line tools, add the following directories to your PATH:
 
