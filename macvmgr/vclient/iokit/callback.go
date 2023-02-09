@@ -31,9 +31,11 @@ func go_iokit_sleepwake_callback(refcon unsafe.Pointer, service C.io_service_t, 
 		go func() {
 			sleepChan <- time.Now()
 		}()
+		isAsleep = true
 		C.IOAllowPowerChange(rootPort, C.long(uintptr(messageArgument)))
 	case C.kIOMessageSystemWillPowerOn:
 		logrus.Debug("power on - sync time")
+		isAsleep = false
 		// Never block
 		go func() {
 			wakeChan <- time.Now()

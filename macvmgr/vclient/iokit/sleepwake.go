@@ -35,6 +35,7 @@ var (
 	sleepChan = make(chan time.Time)
 	wakeChan  = make(chan time.Time)
 	rootPort  C.io_connect_t
+	isAsleep  = false
 )
 
 type SleepWakeMonitor struct {
@@ -74,4 +75,8 @@ func MonitorSleepWake() (*SleepWakeMonitor, error) {
 		SleepChan: sleepChan,
 		WakeChan:  wakeChan,
 	}, nil
+}
+
+func IsAsleep() bool {
+	return isAsleep
 }

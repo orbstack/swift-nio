@@ -10,3 +10,7 @@ type SleepWakeMonitor struct {
 func MonitorSleepWake() (*SleepWakeMonitor, error) {
 	return nil, errors.New("not implemented")
 }
+
+func IsAsleep() bool {
+	return false
+}
