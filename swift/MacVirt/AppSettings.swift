@@ -4,16 +4,19 @@
 
 import Foundation
 import SwiftUI
+import Sparkle
 
 struct AppSettings: View {
+    let updaterController: SPUStandardUpdaterController
+
     private enum Tabs: Hashable {
         case general
     }
 
     var body: some View {
-        GeneralSettingsView()
-            .padding(20)
-            .frame(width: 450, height: 200)
+        GeneralSettingsView(updaterController: updaterController)
+            .padding()
+            .frame(width: 450)
             .navigationTitle("Settings")
     }
 }

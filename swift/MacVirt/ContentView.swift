@@ -21,7 +21,8 @@ struct ContentView: View {
     @Environment(\.controlActiveState) var controlActiveState
     @EnvironmentObject private var model: VmViewModel
 
-    @SceneStorage("root.selectedTab") private var selection: String = "machines"
+    // SceneStorage inits too late
+    @AppStorage("root.selectedTab") private var selection = "machines"
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @State private var startStopInProgress = false
     @State private var window: NSWindow?
@@ -31,7 +32,9 @@ struct ContentView: View {
             let selBinding = Binding<String?>(get: {
                 selection
             }, set: {
-                selection = $0 ?? "machines"
+                if let sel = $0 {
+                    selection = sel
+                }
             })
             List(selection: selBinding) {
                 NavigationLink(destination: DockerRootView()) {
@@ -46,7 +49,7 @@ struct ContentView: View {
                     Label("Commands", systemImage: "terminal")
                 }.tag("cli")
             }
-                    .listStyle(.sidebar)
+            .listStyle(.sidebar)
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -84,11 +87,12 @@ struct ContentView: View {
                 }) {
                     Label("Settings", systemImage: "gearshape")
                 }
-                        .help("Settings")
+                .help("Settings")
             }
         }
         .background(WindowAccessor(window: $window))
         .onAppear {
+            print("onappear")
             if !onboardingCompleted {
                 window?.close()
                 NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)

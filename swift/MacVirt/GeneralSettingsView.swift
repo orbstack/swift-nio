@@ -6,16 +6,21 @@ import Foundation
 import SwiftUI
 import LaunchAtLogin
 import Combine
+import Sparkle
 
 struct GeneralSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @State private var memoryMib = 0.0
+
+    let updaterController: SPUStandardUpdaterController
 
     var body: some View {
         Form {
             LaunchAtLogin.Toggle {
                 Text("Start at login")
             }
+
+            UpdaterSettingsView(updater: updaterController.updater)
 
             Group {
                 if vmModel.state == .running {
@@ -58,7 +63,7 @@ struct GeneralSettingsView: View {
                 }
             }
         }
-        .padding(20)
+        .padding()
         .navigationTitle("Settings")
     }
 }

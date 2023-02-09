@@ -103,11 +103,12 @@ enum VmError: LocalizedError, Equatable {
 }
 
 private func fmtRpc(_ error: Error) -> String {
+    print(error)
     switch error {
     case InvocationError.rpcError(let rpcError):
         return rpcError.message
     case InvocationError.applicationError(let cause):
-        return cause.localizedDescription
+        return "\(cause)"
     default:
         return error.localizedDescription
     }

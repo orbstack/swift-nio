@@ -20,7 +20,7 @@ fileprivate struct CommandSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(alignment: .center) {
                 if let systemImage {
                     Image(systemName: systemImage)
                 }
@@ -39,7 +39,7 @@ fileprivate struct CommandSection<Content: View>: View {
 
             content()
         }.frame(maxWidth: .infinity)
-                .padding(8)
+        .padding(8)
     }
 }
 
@@ -80,13 +80,13 @@ struct CommandsRootView: View {
                     CommandSection(systemImage: "info.circle", title: "Get started") {
                         CommandBox(
                             title: "Control machines: moonctl",
-                            desc: "Create, start, stop, delete, and more",
+                            desc: "Create, start, stop, delete, and more.",
                             command: "moonctl help"
                         )
 
                         CommandBox(
                             title: "Short command: moon",
-                            desc: "This can be used to start a shell, run commands, or control machines.",
+                            desc: "Start a shell, run commands, or control machines.",
                             command: "moon help"
                         )
                     }
@@ -94,18 +94,30 @@ struct CommandsRootView: View {
                     CommandSection(systemImage: "terminal", title: "Command line") {
                         CommandBox(
                             title: "Start a shell",
-                            desc: "By default, the last-used machine is used.",
+                            desc: "Log in as the default user in the machine you used most recently.",
                             command: "moon"
                         )
 
                         CommandBox(
-                            title: "Start a shell in a specific machine",
-                            desc: "By default, the last-used machine is used.",
-                            command: "moon -m ubuntu"
+                            title: "Start a shell as a specific user and machine",
+                            desc: "Use the same flags as “moonctl shell”.",
+                            command: "moon -m ubuntu -u root"
+                        )
+
+                        CommandBox(
+                            title: "Run a command",
+                            desc: "Prefix any command with “moon” to run it in a Linux machine.",
+                            command: "moon uname -a"
+                        )
+
+                        CommandBox(
+                            title: "Run a command as a specific user and machine",
+                            desc: "The same flags can be used when prefixing a command with “moon”.",
+                            command: "moon -m ubuntu -u root uname -a"
                         )
                     }
 
-                    CommandSection(systemImage: "network", title: "SSH", desc: "SSH access is also available. You can use this with apps like Visual Studio Code and JetBrains IDEs.") {
+                    CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code and JetBrains IDEs.") {
                         CommandBox(
                             title: "Log in",
                             desc: "Run a command or log in to the last-used machine.",
@@ -114,7 +126,7 @@ struct CommandsRootView: View {
 
                         CommandBox(
                             title: "Specify machine and user",
-                            desc: "Run a command or log in to a specific machine, as a specific user.",
+                            desc: "Run a command or log in as a specific user and machine.",
                             command: "ssh root@ubuntu@macvirt"
                         )
 

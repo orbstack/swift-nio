@@ -52,11 +52,9 @@ struct DockerRootView: View {
                 })
             }
         }
-        .onAppear {
-            Task {
-                await vmModel.tryRefreshList()
-                await vmModel.tryRefreshDockerList()
-            }
+        .task {
+            await vmModel.tryRefreshList()
+            await vmModel.tryRefreshDockerList()
         }
         .onChange(of: controlActiveState) { state in
             if state == .key {

@@ -14,6 +14,7 @@
 		B118B1E9E738BBBA50489D2D /* Docker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9081627997CD114FA20 /* Docker.swift */; };
 		B118B249BBD0B364D80B8CCD /* MachinesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */; };
 		B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF7EB971BAC66F27805D /* RPCExecutor.swift */; };
+		B118B5CADCA44C8A25695EFF /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE4D3578D923BDAE7C2C /* Updater.swift */; };
 		B118B7A041A184E2575844C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */; };
 		B118B99876CACE427270E9DA /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */; };
 		B118BAD426D7BA4054B6E689 /* DockerRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD91CF1D1F80CDCBFB9F /* DockerRootView.swift */; };
@@ -36,6 +37,7 @@
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A412992247F0046B6B6 /* macvmgr */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8694A44299224990046B6B6 /* scli in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
@@ -91,6 +93,7 @@
 		B118BD91CF1D1F80CDCBFB9F /* DockerRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerRootView.swift; sourceTree = "<group>"; };
 		B118BDB1897ACFEB7A47E00A /* Operators.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Operators.swift; sourceTree = "<group>"; };
 		B118BDE072F572BA61600007 /* AppSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		B118BE4D3578D923BDAE7C2C /* Updater.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
 		B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerContainerItem.swift; sourceTree = "<group>"; };
 		B118BF7EB971BAC66F27805D /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
@@ -113,6 +116,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
 				D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */,
 			);
@@ -175,6 +179,7 @@
 				B118BDB1897ACFEB7A47E00A /* Operators.swift */,
 				B118B4CBF28E57766F454C98 /* CommandsRootView.swift */,
 				B118B34EBC61512D1B66D855 /* SwiftUIUtils.swift */,
+				B118BE4D3578D923BDAE7C2C /* Updater.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -210,6 +215,7 @@
 			packageProductDependencies = (
 				D8694A352991D8160046B6B6 /* SwiftJSONRPC */,
 				D8694A392991F3C10046B6B6 /* LaunchAtLogin */,
+				D8694A48299464810046B6B6 /* Sparkle */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* MacVirt.app */;
@@ -242,6 +248,7 @@
 			packageReferences = (
 				D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */,
 				D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
+				D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -339,6 +346,7 @@
 				B118BD090D290FC5365B0FD9 /* Operators.swift in Sources */,
 				B118B12B23701E40AC5C8997 /* CommandsRootView.swift in Sources */,
 				B118BCFEE4ABA072F6B87014 /* SwiftUIUtils.swift in Sources */,
+				B118B5CADCA44C8A25695EFF /* Updater.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -564,6 +572,14 @@
 				kind = branch;
 			};
 		};
+		D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -576,6 +592,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */;
 			productName = LaunchAtLogin;
+		};
+		D8694A48299464810046B6B6 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

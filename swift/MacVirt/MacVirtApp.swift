@@ -6,12 +6,13 @@
 //
 
 import SwiftUI
-import Connect
+import Sparkle
 
 @main
 struct MacVirtApp: App {
     @StateObject var model = VmViewModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     var body: some Scene {
         WindowGroup {
@@ -21,6 +22,9 @@ struct MacVirtApp: App {
         }.commands {
             CommandGroup(replacing: .newItem) {}
             SidebarCommands()
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updater: updaterController.updater)
+            }
             //TODO command to create container
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
 
@@ -33,7 +37,7 @@ struct MacVirtApp: App {
         .windowStyle(.hiddenTitleBar)
 
         Settings {
-            AppSettings()
+            AppSettings(updaterController: updaterController)
                     .environmentObject(model)
         }
     }
