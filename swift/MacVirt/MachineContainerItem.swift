@@ -46,7 +46,7 @@ struct MachineContainerItem: View {
                                 .opacity(progressOpacity)
                     }
                 }
-                        .buttonStyle(BorderlessButtonStyle())
+                        .buttonStyle(.borderless)
                         .disabled(actionInProgress)
                         .help("Stop \(record.name)")
             } else {
@@ -66,9 +66,9 @@ struct MachineContainerItem: View {
                                 .opacity(progressOpacity)
                     }
                 }
-                        .buttonStyle(BorderlessButtonStyle())
-                        .disabled(actionInProgress)
-                        .help("Start \(record.name)")
+                .buttonStyle(.borderless)
+                .disabled(actionInProgress)
+                .help("Start \(record.name)")
             }
         }
         .padding(.vertical, 4)

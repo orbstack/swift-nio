@@ -45,6 +45,7 @@ struct CreateContainerView: View {
                     Text("32-bit").tag("i386")
                     #endif
                 }
+                .pickerStyle(.segmented)
 
                 Button(action: {
                     Task {
@@ -55,7 +56,7 @@ struct CreateContainerView: View {
                     isPresented = false
                 }) {
                     Text("Create")
-                }
+                }.keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)

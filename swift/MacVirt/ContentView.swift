@@ -92,7 +92,6 @@ struct ContentView: View {
         }
         .background(WindowAccessor(window: $window))
         .onAppear {
-            print("onappear")
             if !onboardingCompleted {
                 window?.close()
                 NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
@@ -116,6 +115,7 @@ struct ContentView: View {
         // error dialog
         .alert(isPresented: bindOptionalBool($model.error), error: model.error) { _ in
             Button("OK") {
+                print("setting")
                 model.error = nil
 
                 // quit if the error is fatal

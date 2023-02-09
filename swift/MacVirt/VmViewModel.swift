@@ -125,7 +125,6 @@ struct AddPathsAlert {
 class VmViewModel: ObservableObject {
     private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:62420"))
     private let scon = SconService(client: newRPCClient("http://127.0.0.1:62421"))
-    private let daemon = DaemonManager()
 
     @Published private(set) var state = VmState.stopped
     @Published private(set) var containers: [ContainerRecord]?
@@ -414,6 +413,7 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     func tryCreateContainer(name: String, distro: Distro, arch: String) async {
+        print("try create one \(name) \(distro) \(arch)")
         do {
             try await createContainer(name: name, distro: distro, arch: arch)
         } catch {

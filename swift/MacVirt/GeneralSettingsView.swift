@@ -39,14 +39,14 @@ struct GeneralSettingsView: View {
                     } maximumValueLabel: {
                         Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
                     }
-                            .onChange(of: memoryMib) { newValue in
-                                Task {
-                                    if var config = vmModel.config {
-                                        config.memoryMib = UInt64(newValue)
-                                        await vmModel.tryPatchConfig(config)
-                                    }
-                                }
+                    .onChange(of: memoryMib) { newValue in
+                        Task {
+                            if var config = vmModel.config {
+                                config.memoryMib = UInt64(newValue)
+                                await vmModel.tryPatchConfig(config)
                             }
+                        }
+                    }
                     Text("Takes effect after VM restart.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)

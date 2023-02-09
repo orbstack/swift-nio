@@ -23,11 +23,14 @@
 		B118BC2FFF41ABFFF0CA5BF3 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC445161ECC2F67ABFEF /* Utils.swift */; };
 		B118BC31190DB3854C66B353 /* MachineContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* MachineContainerItem.swift */; };
 		B118BC98D011CF698552D55A /* DockerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B95F44262A37E5CA5660 /* DockerViewModel.swift */; };
+		B118BCBE5B1FDC9451990A90 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B967D5C4B61A7671FD0E /* Preferences.swift */; };
 		B118BCFEE4ABA072F6B87014 /* SwiftUIUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B34EBC61512D1B66D855 /* SwiftUIUtils.swift */; };
 		B118BD02365D5248F5ACF9C6 /* BuiltinContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */; };
 		B118BD090D290FC5365B0FD9 /* Operators.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDB1897ACFEB7A47E00A /* Operators.swift */; };
 		B118BD34325C70523001BE10 /* DockerContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */; };
+		B118BF2634CFC22342E565CF /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B39D053F0586CEFDE474 /* OnboardingCreateView.swift */; };
 		B118BF4BE4D185C5A88B7A7D /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BAB379B8843568503FAA /* Images.swift */; };
+		B118BF852FE2E4976050D4B2 /* OnboardingModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB5624616EC1041FA0C3 /* OnboardingModeView.swift */; };
 		B118BFB7E48980394ADE79DE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */; };
 		B118BFD7C7DDDF02D8639C5D /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */; };
 		B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDE072F572BA61600007 /* AppSettings.swift */; };
@@ -38,11 +41,11 @@
 		D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A412992247F0046B6B6 /* macvmgr */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8694A44299224990046B6B6 /* scli in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
+		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
 		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
-		D8CBDA23298A29FF0026F44A /* Daemon.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CBDA22298A29FF0026F44A /* Daemon.swift */; };
 		D8CBDA25298F791F0026F44A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CBDA24298F791F0026F44A /* AppConfig.swift */; };
 /* End PBXBuildFile section */
 
@@ -77,6 +80,7 @@
 		B118B242268639C9B875CBC3 /* StateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StateWrapperView.swift; sourceTree = "<group>"; };
 		B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B118B34EBC61512D1B66D855 /* SwiftUIUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUIUtils.swift; sourceTree = "<group>"; };
+		B118B39D053F0586CEFDE474 /* OnboardingCreateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingCreateView.swift; sourceTree = "<group>"; };
 		B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		B118B4CBF28E57766F454C98 /* CommandsRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CommandsRootView.swift; sourceTree = "<group>"; };
 		B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
@@ -84,9 +88,11 @@
 		B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
 		B118B9081627997CD114FA20 /* Docker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Docker.swift; sourceTree = "<group>"; };
 		B118B95F44262A37E5CA5660 /* DockerViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerViewModel.swift; sourceTree = "<group>"; };
+		B118B967D5C4B61A7671FD0E /* Preferences.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		B118B970D1735BC66857A549 /* MachineContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineContainerItem.swift; sourceTree = "<group>"; };
 		B118BAB379B8843568503FAA /* Images.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
 		B118BB4D521563F31AB550C7 /* CreateContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateContainerView.swift; sourceTree = "<group>"; };
+		B118BB5624616EC1041FA0C3 /* OnboardingModeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingModeView.swift; sourceTree = "<group>"; };
 		B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuiltinContainerItem.swift; sourceTree = "<group>"; };
 		B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachinesRootView.swift; sourceTree = "<group>"; };
 		B118BC445161ECC2F67ABFEF /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
@@ -107,7 +113,6 @@
 		D8A32B95296F839100E56EEF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D8A32B98296F839100E56EEF /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		D8A32B9A296F839100E56EEF /* MacVirt.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacVirt.entitlements; sourceTree = "<group>"; };
-		D8CBDA22298A29FF0026F44A /* Daemon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daemon.swift; sourceTree = "<group>"; };
 		D8CBDA24298F791F0026F44A /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -116,6 +121,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
 				D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */,
@@ -152,7 +158,6 @@
 				D8A32B95296F839100E56EEF /* Assets.xcassets */,
 				D8A32B9A296F839100E56EEF /* MacVirt.entitlements */,
 				D8A32B97296F839100E56EEF /* Preview Content */,
-				D8CBDA22298A29FF0026F44A /* Daemon.swift */,
 				D8CBDA24298F791F0026F44A /* AppConfig.swift */,
 				D8694A30298F9C9D0046B6B6 /* SconRPC.swift */,
 				D8694A32298F9EF00046B6B6 /* VmRPC.swift */,
@@ -180,6 +185,9 @@
 				B118B4CBF28E57766F454C98 /* CommandsRootView.swift */,
 				B118B34EBC61512D1B66D855 /* SwiftUIUtils.swift */,
 				B118BE4D3578D923BDAE7C2C /* Updater.swift */,
+				B118BB5624616EC1041FA0C3 /* OnboardingModeView.swift */,
+				B118B967D5C4B61A7671FD0E /* Preferences.swift */,
+				B118B39D053F0586CEFDE474 /* OnboardingCreateView.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -216,6 +224,7 @@
 				D8694A352991D8160046B6B6 /* SwiftJSONRPC */,
 				D8694A392991F3C10046B6B6 /* LaunchAtLogin */,
 				D8694A48299464810046B6B6 /* Sparkle */,
+				D8694A4B2994D4FA0046B6B6 /* Defaults */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* MacVirt.app */;
@@ -249,6 +258,7 @@
 				D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */,
 				D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
 				D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -322,7 +332,6 @@
 				D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */,
 				D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */,
 				D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */,
-				D8CBDA23298A29FF0026F44A /* Daemon.swift in Sources */,
 				B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */,
 				B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */,
 				B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */,
@@ -347,6 +356,9 @@
 				B118B12B23701E40AC5C8997 /* CommandsRootView.swift in Sources */,
 				B118BCFEE4ABA072F6B87014 /* SwiftUIUtils.swift in Sources */,
 				B118B5CADCA44C8A25695EFF /* Updater.swift in Sources */,
+				B118BF852FE2E4976050D4B2 /* OnboardingModeView.swift in Sources */,
+				B118BCBE5B1FDC9451990A90 /* Preferences.swift in Sources */,
+				B118BF2634CFC22342E565CF /* OnboardingCreateView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -580,6 +592,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/defaults";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -597,6 +617,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		D8694A4B2994D4FA0046B6B6 /* Defaults */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */;
+			productName = Defaults;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

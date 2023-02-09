@@ -28,6 +28,7 @@ struct StateWrapperView<Content: View>: View {
                     Text("Start")
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
             }
         case .spawning:
             ProgressView(label: {

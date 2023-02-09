@@ -5,6 +5,27 @@
 import Foundation
 import SwiftUI
 
-class OnboardingViewModel: ObservableObject {
+enum OnboardingStep {
+    case welcome
+    case mode
+    case create
+}
 
+class OnboardingViewModel: ObservableObject {
+    @Published private(set) var step: OnboardingStep = .welcome
+
+    func advance(to target: OnboardingStep) {
+        step = target
+    }
+
+    func back() {
+        switch step {
+        case .welcome:
+            break
+        case .mode:
+            step = .welcome
+        case .create:
+            step = .mode
+        }
+    }
 }
