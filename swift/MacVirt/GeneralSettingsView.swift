@@ -12,6 +12,8 @@ struct GeneralSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @State private var memoryMib = 0.0
 
+    @AppStorage("onboardingCompleted") private var onboardingCompleted = false
+
     let updaterController: SPUStandardUpdaterController
 
     var body: some View {
@@ -62,6 +64,14 @@ struct GeneralSettingsView: View {
                     memoryMib = Double(config.memoryMib)
                 }
             }
+
+            #if DEBUG
+            Button(action: {
+                onboardingCompleted = false
+            }) {
+                Text("reset onboarding")
+            }
+            #endif
         }
         .padding()
         .navigationTitle("Settings")
