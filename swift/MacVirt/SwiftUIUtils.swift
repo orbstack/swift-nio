@@ -22,6 +22,7 @@ struct WindowAccessor: NSViewRepresentable {
 
     func makeCoordinator() -> WindowMonitor {
         WindowMonitor {
+            print("set window \($0)")
             holder.window = $0
         }
     }

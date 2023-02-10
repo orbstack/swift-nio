@@ -45,7 +45,7 @@ struct OnboardingRootView: View, OnboardingController {
                         OnboardingCreateView(onboardingController: self)
                     }
                 }
-                        .environmentObject(onboardingModel)
+                .environmentObject(onboardingModel)
                 Spacer()
             }.padding()
             Spacer()
@@ -58,6 +58,6 @@ struct OnboardingRootView: View, OnboardingController {
     func finish() {
         onboardingCompleted = true
         windowHolder.window?.close()
-        NSWorkspace.shared.open(URL(string: "macvirt://main")!)
+        //NSWorkspace.shared.open(URL(string: "macvirt://main")!)
     }
 }

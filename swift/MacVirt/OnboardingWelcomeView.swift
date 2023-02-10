@@ -5,7 +5,7 @@
 import Foundation
 import SwiftUI
 
-struct CtaButton: ButtonStyle {
+fileprivate struct CtaButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
                 .padding(.vertical, 8)
@@ -16,6 +16,83 @@ struct CtaButton: ButtonStyle {
     }
 }
 
+struct CtaButton: View {
+    private static let radius = 8.0
+    
+    let label: String
+    let action: () -> Void
+    
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
+    @Environment(\.controlActiveState) private var controlActiveState: ControlActiveState
+    @State private var hoverOpacity = 0.0
+    @State private var activeOpacity = 0.0
+    
+    init(label: String, action: @escaping () -> Void) {
+        self.label = label
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack {
+                Text(label)
+                        .font(.title3)
+                        .fontWeight(.medium)
+                        .foregroundColor(colorScheme == .light && controlActiveState == .key ? .white : .primary)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Self.radius))
+            .background(Color.accentColor.opacity(0.9 + hoverOpacity * 0.1), in: RoundedRectangle(cornerRadius: Self.radius))
+            .cornerRadius(Self.radius)
+            .overlay(
+                RoundedRectangle(cornerRadius: Self.radius)
+                    .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(.defaultAction)
+        .onHover {
+            if $0 {
+                withAnimation(.spring().speed(2)) {
+                    hoverOpacity = 1
+                }
+            } else {
+                withAnimation(.spring().speed(2)) {
+                    hoverOpacity = 0
+                }
+            }
+        }
+    }
+}
+
+fileprivate struct WelcomePoint: View {
+    let systemImage: String
+    let color: Color
+    let title: String
+    let desc: String
+
+    var body: some View {
+        HStack {
+            HStack {
+                Image(systemName: systemImage)
+                    .resizable()
+                    .frame(width: 32, height: 32)
+                    .foregroundColor(color)
+                Text(title)
+                    .font(.headline)
+                Spacer()
+            }.frame(width: 100)
+            Text(desc)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal)
+        .frame(maxWidth: .infinity)
+    }
+}
+
 struct OnboardingWelcomeView: View {
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
     let onboardingController: OnboardingController
@@ -23,76 +100,70 @@ struct OnboardingWelcomeView: View {
     var body: some View {
         VStack {
             Text(Constants.userAppName)
-                    .font(.largeTitle)
-                    .padding(.bottom, 16)
+                    .font(.largeTitle.weight(.medium))
+                    .padding(.bottom, 8)
                     .padding(.top, 16)
             Text("Fast, light, simple Linux machines and containers")
-                    .font(.body.weight(.medium))
+                    .font(.body)
                     .foregroundColor(.secondary)
                     .padding(.bottom, 8)
 
             Spacer()
 
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Image(systemName: "bolt.fill")
-                        .resizable()
-                        .frame(width: 32, height: 32)
-                        .foregroundColor(.orange)
-                    Text("Fast.")
-                        .font(.headline)
-                    Text("Fast network and disk performance, starts fast")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    Spacer()
-                }.padding(.horizontal)
-                .frame(maxWidth: .infinity)
-                HStack {
-                    Image(systemName: "wind.circle.fill")
-                        .resizable()
-                        .frame(width: 32, height: 32)
-                        .foregroundColor(.blue)
-                    Text("Light.")
-                            .font(.headline)
-                    Text("Native app, low CPU usage,")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    Spacer()
-                }.padding(.horizontal)
-                .frame(maxWidth: .infinity)
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .resizable()
-                        .frame(width: 32, height: 32)
-                        .foregroundColor(.green)
-                    Text("Simple.")
-                            .font(.headline)
-                    Text("Easy to use, no configuration required")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    Spacer()
-                }.padding(.horizontal)
-                .frame(maxWidth: .infinity)
-            }.fixedSize()
+                WelcomePoint(
+                    systemImage: "bolt.fill",
+                    color: .orange,
+                    title: "Fast.",
+                    desc: "Starts fast, optimized networking and disk, fast x86 with Rosetta"
+                )
+                WelcomePoint(
+                    systemImage: "wind.circle.fill",
+                    color: .blue,
+                    title: "Light.",
+                    desc: "Low CPU and disk usage, works with less memory, native app"
+                )
+                WelcomePoint(
+                    systemImage: "checkmark.circle.fill",
+                    color: .green,
+                    title: "Simple.",
+                    desc: "Minimal setup, seamless Docker, bidirectional CLI integration, file access from macOS and Linux, starts automatically"
+                )
+            }
 
             Spacer()
 
-            HStack(alignment: .center) {
-                Button(action: {
-                    onboardingController.finish()
-                }) {
-                    Text("Skip")
-                }.buttonStyle(.borderless)
-                Spacer()
-                Button(action: {
-                    onboardingModel.advance(to: .mode)
-                }) {
-                    Text("Continue")
+            HStack(alignment: .bottom) {
+                HStack {
+                    Button(action: {
+                        onboardingController.finish()
+                    }) {
+                        Text("Skip")
+                    }.buttonStyle(.borderless)
+                    Spacer()
                 }
-                .buttonStyle(CtaButton())
-                .keyboardShortcut(.defaultAction)
-                Spacer()
+                .frame(maxWidth: .infinity)
+                VStack(alignment: .center) {
+                    CtaButton(label: "Next", action: {
+                        onboardingModel.advance(to: .mode)
+                    })
+                }
+                .frame(maxWidth: .infinity)
+                VStack {
+                    Spacer()
+                }.frame(maxWidth: .infinity, maxHeight: 1)
             }
         }
+    }
+}
+
+struct PreviewOnboardingController: OnboardingController {
+    func finish() {}
+}
+
+struct OnboardingWelcomeView_Previews: PreviewProvider {
+    static var previews: some View {
+        OnboardingWelcomeView(onboardingController: PreviewOnboardingController())
+            .environmentObject(OnboardingViewModel())
     }
 }

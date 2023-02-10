@@ -10,21 +10,22 @@ private enum OnboardingMode {
     case linux
 }
 
-fileprivate struct ModeButtonStyle: ButtonStyle {
+fileprivate struct DummyButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-                .padding()
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                .cornerRadius(6.0)
-                .padding()
     }
 }
 
 fileprivate struct ModeButton: View {
+    private static let radius = 8.0
+
     let image: String
     let title: String
     let desc: String
     let action: () -> Void
+    
+    @State private var hoverOpacity = 0.0
+    @State private var activeOpacity = 0.0
 
     init(image: String, title: String, desc: String, action: @escaping () -> Void) {
         self.image = image
@@ -40,16 +41,40 @@ fileprivate struct ModeButton: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 48, height: 48)
+                        .padding(.bottom, 8)
                 Text(title)
                         .font(.title3)
-                        .bold()
-                        .padding(.bottom, 8)
+                        .fontWeight(.medium)
+                        .multilineTextAlignment(.center)
+                        .padding(.bottom, 2)
                 Text(desc)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                        .padding(.bottom, 8)
-            }.padding()
-        }.buttonStyle(ModeButtonStyle())
+                        .multilineTextAlignment(.center)
+            }
+            .padding(16)
+            .frame(width: 175, height: 175)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Self.radius))
+            .background(Color.primary.opacity(hoverOpacity * 0.1), in: RoundedRectangle(cornerRadius: Self.radius))
+            .cornerRadius(Self.radius)
+            .overlay(
+                RoundedRectangle(cornerRadius: Self.radius)
+                    .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover {
+            if $0 {
+                withAnimation(.spring().speed(2)) {
+                    hoverOpacity = 1
+                }
+            } else {
+                withAnimation(.spring().speed(2)) {
+                    hoverOpacity = 0
+                }
+            }
+        }
+        .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -62,13 +87,15 @@ struct OnboardingModeView: View {
     var body: some View {
         VStack {
             Text("What do you want to run?")
-                    .font(.largeTitle)
-                    .padding(.bottom, 16)
+                    .font(.largeTitle.weight(.medium))
+                    .padding(.bottom, 8)
                     .padding(.top, 16)
-            Text("Let’s get you up and running. Don’t worry, you can always change this later and run both Linux and Docker.")
-                    .font(.body.weight(.medium))
+            Text("Don’t worry, you can always change this later and run both Linux and Docker.")
+                    .multilineTextAlignment(.center)
+                    .font(.body)
                     .foregroundColor(.secondary)
                     .padding(.bottom, 8)
+                    .frame(maxWidth: 450)
 
             Spacer()
 
@@ -86,7 +113,7 @@ struct OnboardingModeView: View {
                 ModeButton(
                     image: "distro_ubuntu",
                     title: "Linux",
-                    desc: "Run full Linux systems",
+                    desc: "Run full Linux systems\n ",
                     action: {
                         rootSelectedTab = "machines"
                         continueWith(.linux)
@@ -115,5 +142,12 @@ struct OnboardingModeView: View {
         case .linux:
             onboardingModel.advance(to: .create)
         }
+    }
+}
+
+struct OnboardingModeView_Previews: PreviewProvider {
+    static var previews: some View {
+        OnboardingModeView(onboardingController: PreviewOnboardingController())
+            .environmentObject(OnboardingViewModel())
     }
 }

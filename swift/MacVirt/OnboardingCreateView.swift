@@ -22,13 +22,15 @@ struct OnboardingCreateView: View {
     var body: some View {
         VStack {
             Text("Create a Linux machine")
-                    .font(.largeTitle)
-                    .padding(.bottom, 16)
-                    .padding(.top, 16)
-            Text("This is a full Linux machine that you can use like a VM, including running services with systemd or OpenRC.")
-                    .font(.body.weight(.medium))
-                    .foregroundColor(.secondary)
+                    .font(.largeTitle.weight(.medium))
                     .padding(.bottom, 8)
+                    .padding(.top, 16)
+            Text("This is a full Linux machine that works like a VM, including running services with systemd or OpenRC.")
+                .multilineTextAlignment(.center)
+                .font(.body)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 8)
+                .frame(maxWidth: 450)
 
             Spacer()
 
@@ -42,27 +44,29 @@ struct OnboardingCreateView: View {
                         self.name = $0
                     })
 
-                    TextField("Name", text: nameBinding)
-                    Picker("Distribution", selection: $distro) {
-                        ForEach(Distro.allCases, id: \.self) { distro in
-                            Text(distro.friendlyName).tag(distro)
-                        }
-                    }
-                            .onChange(of: distro) {
-                                if !nameChanged {
-                                    name = $0.rawValue
-                                }
+                    Form {
+                        TextField("Name", text: nameBinding)
+                        Picker("Distribution", selection: $distro) {
+                            ForEach(Distro.allCases, id: \.self) { distro in
+                                Text(distro.friendlyName).tag(distro)
                             }
-                    Picker("CPU type", selection: $arch) {
-                        #if arch(arm64)
-                        Text("Apple").tag("arm64")
-                        Text("Intel").tag("amd64")
-                        #else
-                        Text("64-bit").tag("amd64")
-                        Text("32-bit").tag("i386")
-                        #endif
-                    }
-                    .pickerStyle(.segmented)
+                        }
+                        .onChange(of: distro) {
+                            if !nameChanged {
+                                name = $0.rawValue
+                            }
+                        }
+                        Picker("CPU type", selection: $arch) {
+#if arch(arm64)
+                            Text("Apple").tag("arm64")
+                            Text("Intel").tag("amd64")
+#else
+                            Text("64-bit").tag("amd64")
+                            Text("32-bit").tag("i386")
+#endif
+                        }
+                        .pickerStyle(.segmented)
+                    }.frame(minWidth: 200)
                 }.fixedSize()
                 Spacer()
             }
@@ -77,18 +81,14 @@ struct OnboardingCreateView: View {
                 }
                 .buttonStyle(.borderless)
                 Spacer()
-                Button(action: {
+                CtaButton(label: "Create", action: {
                     Task {
                         vmModel.creatingCount += 1
                         await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
                         vmModel.creatingCount -= 1
                     }
                     onboardingController.finish()
-                }) {
-                    Text("Create")
-                }
-                .buttonStyle(CtaButton())
-                .keyboardShortcut(.defaultAction)
+                })
                 Spacer()
             }
         }
