@@ -131,7 +131,7 @@ echo 'tmpfs /tmp tmpfs rw,noatime 0 0' >> /etc/fstab
 # sync every 128 sec after init/suspendresume
 echo 'server 172.30.30.200 iburst minpoll 7' > /etc/chrony/chrony.conf
 # always step clock if needed
-echo 'makestep 3.0 2147483647' >> /etc/chrony/chrony.conf
+echo 'makestep 3.0 -1' >> /etc/chrony/chrony.conf
 echo 'cmdport 0' >> /etc/chrony/chrony.conf
 
 # prod config
