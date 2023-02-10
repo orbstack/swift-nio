@@ -26,6 +26,7 @@ struct ContentView: View {
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @State private var startStopInProgress = false
     @State private var window: NSWindow?
+    @State private var presentError = false
 
     var body: some View {
         NavigationView {
@@ -93,6 +94,7 @@ struct ContentView: View {
         .background(WindowAccessor(window: $window))
         .onAppear {
             if !onboardingCompleted {
+                // workaround: handlesExternalEvents causes duplicate windows
                 window?.close()
                 NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
             }
@@ -113,9 +115,8 @@ struct ContentView: View {
             }
         }
         // error dialog
-        .alert(isPresented: bindOptionalBool($model.error), error: model.error) { _ in
+        .alert(isPresented: $presentError, error: model.error) { _ in
             Button("OK") {
-                print("setting")
                 model.error = nil
 
                 // quit if the error is fatal
@@ -126,6 +127,14 @@ struct ContentView: View {
         } message: { error in
             if let msg = error.recoverySuggestion {
                 Text(msg)
+            }
+        }
+        .onReceive(model.$error, perform: {
+            presentError = $0 != nil
+        })
+        .onChange(of: presentError) {
+            if !$0 {
+                model.error = nil
             }
         }
         .alert("Shell profile changed", isPresented: bindOptionalBool($model.presentProfileChanged)) {

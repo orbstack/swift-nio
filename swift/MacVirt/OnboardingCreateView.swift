@@ -69,7 +69,7 @@ struct OnboardingCreateView: View {
 
             Spacer()
 
-            HStack {
+            HStack(alignment: .bottom) {
                 Button(action: {
                     onboardingModel.back()
                 }) {
