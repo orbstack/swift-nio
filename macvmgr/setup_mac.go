@@ -75,7 +75,8 @@ func getUserDetails() (*UserDetails, error) {
 	// look up the user's PATH
 	// run login shell first to get profile
 	// then run sh in case of fish
-	out, err = util.Run(shell, "-lc", "sh -c \"echo $PATH\"")
+	// force -i (interactive) in case user put PATH in .zshrc/.bashrc
+	out, err = util.Run(shell, "-lic", `sh -c "echo $PATH"`)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +259,8 @@ func doMacSetup() (*SetupInfo, error) {
 			switch shellBase {
 			case "zsh":
 				// what's the ZDOTDIR?
-				out, err := util.Run(details.Shell, "-lc", "echo $ZDOTDIR")
+				// no need for -i (interactive), ZDOTDIR must be in .zshenv
+				out, err := util.Run(details.Shell, "-lc", `echo "$ZDOTDIR"`)
 				if err != nil {
 					return nil, err
 				}
