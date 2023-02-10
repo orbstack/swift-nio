@@ -28,7 +28,7 @@ struct OnboardingRootView: View, OnboardingController {
     @EnvironmentObject private var vmModel: VmViewModel
     @StateObject var onboardingModel = OnboardingViewModel()
     @AppStorage("onboardingCompleted") var onboardingCompleted = false
-    @State private var window: NSWindow?
+    @StateObject private var windowHolder = WindowHolder()
 
     var body: some View {
         HStack {
@@ -52,12 +52,12 @@ struct OnboardingRootView: View, OnboardingController {
         }
         .frame(width: 650, height: 450)
         .background(VisualEffectView().ignoresSafeArea())
-        .background(WindowAccessor(window: $window))
+        .background(WindowAccessor(holder: windowHolder))
     }
 
     func finish() {
         onboardingCompleted = true
-        window?.close()
+        windowHolder.window?.close()
         NSWorkspace.shared.open(URL(string: "macvirt://main")!)
     }
 }

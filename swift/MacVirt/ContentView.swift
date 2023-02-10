@@ -25,7 +25,7 @@ struct ContentView: View {
     @AppStorage("root.selectedTab") private var selection = "machines"
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @State private var startStopInProgress = false
-    @State private var window: NSWindow?
+    @StateObject private var windowHolder = WindowHolder()
     @State private var presentError = false
 
     var body: some View {
@@ -91,15 +91,14 @@ struct ContentView: View {
                 .help("Settings")
             }
         }
-        .background(WindowAccessor(window: $window))
+        .background(WindowAccessor(holder: windowHolder))
         .onAppear {
             if !onboardingCompleted {
-                // workaround: handlesExternalEvents causes duplicate windows
-                window?.close()
+                windowHolder.window?.close()
                 NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
             }
         }
-        .onChange(of: window) {
+        .onChange(of: windowHolder.window) {
             if !onboardingCompleted {
                 $0?.close()
             }
