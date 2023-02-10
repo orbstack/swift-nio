@@ -72,6 +72,14 @@ class SconService: RPCService {
         return try await invoke("GetDefaultContainer")
     }
 
+    func setDefaultContainer(_ record: ContainerRecord) async throws {
+        try await invoke("SetDefaultContainer", params: record)
+    }
+
+    func clearDefaultContainer() async throws {
+        try await invoke("ClearDefaultContainer")
+    }
+
     func containerStart(_ record: ContainerRecord) async throws {
         try await invoke("ContainerStart", params: record)
     }

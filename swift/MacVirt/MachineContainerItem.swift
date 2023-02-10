@@ -74,6 +74,25 @@ struct MachineContainerItem: View {
         .padding(.vertical, 4)
         .opacity(record.running ? 1 : 0.5)
         .contextMenu {
+            Button(action: {
+                Task {
+                    do {
+                        try await openTerminal(AppConfig.c.shellExe, ["-m", record.name])
+                    } catch {
+                        print(error)
+                    }
+                }
+            }) {
+                Label("Open Terminal", systemImage: "terminal")
+            }
+            Button(action: {
+                Task {
+                    await vmModel.trySetDefaultContainer(record)
+                }
+            }) {
+                Label("Make Default", systemImage: "star")
+            }
+            Divider()
             Button(role: .destructive, action: {
                 self.isPresentingConfirm = true
             }) {

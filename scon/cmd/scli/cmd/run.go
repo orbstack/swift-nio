@@ -109,8 +109,7 @@ var runCmd = &cobra.Command{
 	Long: `Run a command on Linux.
 
 If no arguments are provided, an interactive shell is started.
-If machine is not specified, the last-used machine is used.
-If user is not specified, the default user is used.
+The default machine and/or user are used if not specified.
 
 You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux. For example:
     ` + appid.ShortCmd + ` uname -a

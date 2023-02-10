@@ -80,7 +80,7 @@ struct CommandsRootView: View {
                     CommandSection(systemImage: "info.circle", title: "Get started") {
                         CommandBox(
                             title: "Control machines: moonctl",
-                            desc: "Create, start, stop, delete, and more.",
+                            desc: "Create, start, stop, delete, change default, and more. Explore the help for more commands.",
                             command: "moonctl help"
                         )
 
@@ -120,7 +120,7 @@ struct CommandsRootView: View {
                     CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code and JetBrains IDEs.") {
                         CommandBox(
                             title: "Log in",
-                            desc: "Run a command or log in to the last-used machine.",
+                            desc: "Run a command or log in to the default machine.",
                             command: "ssh macvirt"
                         )
 

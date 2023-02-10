@@ -29,12 +29,13 @@ enum VmError: LocalizedError, Equatable {
     case stopError(error: Error)
     case setupError(error: Error)
     case dockerError(error: Error)
+    case configRefresh(error: Error)
+    case configPatchError(error: Error)
 
     // scon
     case startError(error: Error)
     case listRefresh(error: Error)
-    case configRefresh(error: Error)
-    case configPatchError(error: Error)
+    case defaultError(error: Error)
     case containerStopError(error: Error)
     case containerStartError(error: Error)
     case containerDeleteError(error: Error)
@@ -56,15 +57,17 @@ enum VmError: LocalizedError, Equatable {
             return "Failed to set up app: \(fmtRpc(error))"
         case .dockerError(let error):
             return "Failed to check Docker: \(fmtRpc(error))"
+        case .configRefresh(let error):
+            return "Failed to get settings: \(fmtRpc(error))"
+        case .configPatchError(let error):
+            return "Failed to update settings: \(fmtRpc(error))"
 
         case .startError(let error):
             return "Failed to start machine manager: \(fmtRpc(error))"
         case .listRefresh(let error):
             return "Failed to get machines: \(fmtRpc(error))"
-        case .configRefresh(let error):
-            return "Failed to get settings: \(fmtRpc(error))"
-        case .configPatchError(let error):
-            return "Failed to update settings: \(fmtRpc(error))"
+        case .defaultError(let error):
+            return "Failed to set default machine: \(fmtRpc(error))"
         case .containerStopError(let error):
             return "Failed to stop machine: \(fmtRpc(error))"
         case .containerStartError(let error):
@@ -432,6 +435,15 @@ class VmViewModel: ObservableObject {
             try await patchConfig(patch)
         } catch {
             self.error = VmError.configPatchError(error: error)
+        }
+    }
+
+    @MainActor
+    func trySetDefaultContainer(_ record: ContainerRecord) async {
+        do {
+            try await scon.setDefaultContainer(record)
+        } catch {
+            self.error = VmError.defaultError(error: error)
         }
     }
 }

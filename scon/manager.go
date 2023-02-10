@@ -317,16 +317,21 @@ func (m *ConManager) defaultUser() (string, error) {
 }
 
 func (m *ConManager) GetDefaultContainer() (*Container, error) {
-	id, err := m.db.GetLastContainerID()
-	if err != nil {
-		// pick first non-builtin container
-		for _, c := range m.ListContainers() {
-			if c.builtin {
-				continue
-			}
+	id, err := m.db.GetDefaultContainerID()
+	defaultID := id
+	if err != nil || id == "" || id == containerIDLastUsed {
+		// fallback to last-used, or if explicitly set
+		id, err = m.db.GetLastContainerID()
+		if err != nil {
+			// pick first non-builtin container
+			for _, c := range m.ListContainers() {
+				if c.builtin {
+					continue
+				}
 
-			id = c.ID
-			break
+				id = c.ID
+				break
+			}
 		}
 	}
 
@@ -347,6 +352,31 @@ func (m *ConManager) GetDefaultContainer() (*Container, error) {
 	if !ok {
 		return nil, errors.New("no machines found")
 	}
+	// if we had a non-last-used default ID, and it no longer exists, make this the new default
+	if defaultID != "" && defaultID != containerIDLastUsed {
+		err = m.db.SetDefaultContainerID(id)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return c, nil
+}
+
+func (m *ConManager) SetDefaultContainer(c *Container) error {
+	if c == nil {
+		// nil = last-used
+		return m.db.SetDefaultContainerID(containerIDLastUsed)
+	}
+
+	return m.db.SetDefaultContainerID(c.ID)
+}
+
+func (m *ConManager) HasExplicitDefaultContainer() (bool, error) {
+	id, err := m.db.GetDefaultContainerID()
+	if err != nil {
+		return false, err
+	}
+
+	return id != containerIDLastUsed, nil
 }

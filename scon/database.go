@@ -18,7 +18,10 @@ const (
 
 	kmVersion = "version"
 
-	ksLastContainerID = "lastContainerID"
+	ksLastContainerID    = "lastContainerID"
+	ksDefaultContainerID = "defaultContainerID"
+
+	containerIDLastUsed = "01GRWR24S00000000LAST0USED"
 )
 
 var (
@@ -188,6 +191,14 @@ func (db *Database) GetLastContainerID() (string, error) {
 
 func (db *Database) SetLastContainerID(id string) error {
 	return db.setSimpleStr(bktState, ksLastContainerID, id)
+}
+
+func (db *Database) GetDefaultContainerID() (string, error) {
+	return db.getSimpleStr(bktState, ksDefaultContainerID)
+}
+
+func (db *Database) SetDefaultContainerID(id string) error {
+	return db.setSimpleStr(bktState, ksDefaultContainerID, id)
 }
 
 func (db *Database) GetContainer(id string) (*types.ContainerRecord, error) {

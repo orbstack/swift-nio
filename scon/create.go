@@ -37,10 +37,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	// checks
 	name := args.Name
 	image := args.Image
-	if name == "default" {
-		return nil, errors.New("invalid machine name")
-	}
-	if !containerNamePattern.MatchString(name) {
+	if name == "default" || name == "host" || !containerNamePattern.MatchString(name) {
 		return nil, errors.New("invalid machine name")
 	}
 	if _, ok := m.GetByName(name); ok {
@@ -165,7 +162,18 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	}
 
 	// set as last container
-	go m.db.SetLastContainerID(c.ID)
+	err = m.db.SetLastContainerID(c.ID)
+	if err != nil {
+		return
+	}
+
+	// also set as default if this is the first container
+	if len(m.ListContainers()) == 1 {
+		err = m.db.SetDefaultContainerID(c.ID)
+		if err != nil {
+			return
+		}
+	}
 
 	return
 }

@@ -80,6 +80,23 @@ func (s *SconServer) GetDefaultContainer(ctx context.Context) (*types.ContainerR
 	return c.toRecord(), nil
 }
 
+func (s *SconServer) SetDefaultContainer(ctx context.Context, record types.ContainerRecord) error {
+	c, ok := s.m.GetByID(record.ID)
+	if !ok {
+		return errors.New("machine not found")
+	}
+
+	return s.m.SetDefaultContainer(c)
+}
+
+func (s *SconServer) ClearDefaultContainer(ctx context.Context) error {
+	return s.m.SetDefaultContainer(nil)
+}
+
+func (s *SconServer) HasExplicitDefaultContainer(ctx context.Context) (bool, error) {
+	return s.m.HasExplicitDefaultContainer()
+}
+
 func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
@@ -148,19 +165,22 @@ func (s *SconServer) StopServerVM(ctx context.Context) error {
 
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
-		"Ping":                  handler.New(s.Ping),
-		"Create":                handler.New(s.Create),
-		"ListContainers":        handler.New(s.ListContainers),
-		"GetByID":               handler.New(s.GetByID),
-		"GetByName":             handler.New(s.GetByName),
-		"GetDefaultContainer":   handler.New(s.GetDefaultContainer),
-		"ContainerStart":        handler.New(s.ContainerStart),
-		"ContainerStop":         handler.New(s.ContainerStop),
-		"ContainerDelete":       handler.New(s.ContainerDelete),
-		"ContainerFreeze":       handler.New(s.ContainerFreeze),
-		"ContainerUnfreeze":     handler.New(s.ContainerUnfreeze),
-		"InternalReportStopped": handler.New(s.InternalReportStopped),
-		"StopServerVM":          handler.New(s.StopServerVM),
+		"Ping":                        handler.New(s.Ping),
+		"Create":                      handler.New(s.Create),
+		"ListContainers":              handler.New(s.ListContainers),
+		"GetByID":                     handler.New(s.GetByID),
+		"GetByName":                   handler.New(s.GetByName),
+		"GetDefaultContainer":         handler.New(s.GetDefaultContainer),
+		"SetDefaultContainer":         handler.New(s.SetDefaultContainer),
+		"ClearDefaultContainer":       handler.New(s.ClearDefaultContainer),
+		"HasExplicitDefaultContainer": handler.New(s.HasExplicitDefaultContainer),
+		"ContainerStart":              handler.New(s.ContainerStart),
+		"ContainerStop":               handler.New(s.ContainerStop),
+		"ContainerDelete":             handler.New(s.ContainerDelete),
+		"ContainerFreeze":             handler.New(s.ContainerFreeze),
+		"ContainerUnfreeze":           handler.New(s.ContainerUnfreeze),
+		"InternalReportStopped":       handler.New(s.InternalReportStopped),
+		"StopServerVM":                handler.New(s.StopServerVM),
 	}, nil)
 	defer bridge.Close()
 

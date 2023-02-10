@@ -17,7 +17,7 @@ You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux.
 will run "uname -a" on macOS, and is equivalent to:
     ` + appid.ShortCtl + ` run uname -a
 
-In this mode, the default user and last-used machine will be used.`,
+In this mode, the default user and machine will be used.`,
 }
 
 // Execute executes the root command.

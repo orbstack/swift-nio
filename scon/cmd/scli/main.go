@@ -55,7 +55,7 @@ func printShortHelp() {
    Usage: moon [flags] <command> [args...]
    Example: moon uname -a
 
-   The default user and last-used distro will be used, unless specified with flags.
+   The default user and machine will be used, unless specified with flags.
    For example, to log in to "ubuntu" as root: moon -m ubuntu -u root uname -a
 
    Use "moonctl run --help" for a list of flags.
