@@ -287,6 +287,11 @@ func (c *Container) initLxc() error {
 			bind(mounts.LaunchdSshAgentListeners, path.Dir(sshAgentSocks.Env), "ro")
 		}
 
+		// bind NFS root at /mnt/machines for access
+		bind(config.NfsRootRO, "/mnt/machines", "ro,rshared")
+		// also bind it to ~/Linux so paths work correctly
+		bind(config.NfsRootRO, hostUser.HomeDir+"/"+mounts.NfsDirName, "ro,rshared")
+
 		// log
 		set("lxc.log.file", logPath)
 		if conf.Debug() {
@@ -304,9 +309,6 @@ func (c *Container) initLxc() error {
 			if newRootfs != "" {
 				rootfs = newRootfs
 			}
-
-			// bind for docker (TODO move into hook)
-			bind(config.NfsRootRO, hostUser.HomeDir+"/"+mounts.NfsDirName, "ro,rshared")
 		}
 
 		// container

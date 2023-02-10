@@ -127,7 +127,7 @@ struct OnboardingWelcomeView: View {
                     systemImage: "checkmark.circle.fill",
                     color: .green,
                     title: "Simple.",
-                    desc: "Minimal setup, seamless Docker, bidirectional CLI integration, file access from macOS and Linux, starts automatically"
+                    desc: "Minimal setup, seamless Docker, bidirectional CLI integration, file access from macOS and Linux, works with VPNs"
                 )
             }
 

@@ -140,6 +140,14 @@ func CliXbinDir() string {
 	return ExecutableDir() + "/xbin"
 }
 
+func UserAppBinDir() string {
+	return ensureDir(ConfigDir() + "/bin")
+}
+
+func ShellInitDir() string {
+	return ensureDir(ConfigDir() + "/shell")
+}
+
 func Arch() string {
 	// amd64, arm64
 	return runtime.GOARCH

@@ -111,7 +111,19 @@ private func fmtRpc(_ error: Error) -> String {
     case InvocationError.rpcError(let rpcError):
         return rpcError.message
     case InvocationError.applicationError(let cause):
-        return "\(cause)"
+        switch cause {
+        case let httpError as HTTPRequestExecutorError:
+            switch httpError.reason {
+            case .httpClientError(let clientError):
+                return clientError.localizedDescription
+            case .httpRequestError(let requestError):
+                return requestError.localizedDescription
+            case .httpResponseError(let responseError):
+                return responseError.localizedDescription
+            }
+        default:
+            return "Unknown error: \(cause)"
+        }
     default:
         return error.localizedDescription
     }

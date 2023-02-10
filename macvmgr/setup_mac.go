@@ -189,6 +189,60 @@ func fixDockerCredsStore() error {
 	return nil
 }
 
+func lookPath(cmd string) (string, error) {
+	path, err := exec.LookPath(cmd)
+	if err != nil {
+		return "", err
+	}
+	// force relink if links to a dmg
+	if strings.HasPrefix(path, "/Volumes/") {
+		return "", fmt.Errorf("command %s is a link to a dmg", cmd)
+	}
+	return path, nil
+}
+
+func linkToAppBin(src string) error {
+	dest := conf.UserAppBinDir() + "/" + filepath.Base(src)
+	currentSrc, err := os.Readlink(dest)
+	if err == nil && currentSrc == src {
+		// already linked
+		return nil
+	}
+
+	// link it
+	err = os.Symlink(src, dest)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeShellProfileSnippets() error {
+	shells := conf.ShellInitDir()
+	bin := conf.UserAppBinDir()
+
+	bashSnippet := fmt.Sprintf(`export PATH=%s:"$PATH"` + "\n", shellescape.Quote(bin))
+	err := os.WriteFile(shells+"/init.bash", []byte(bashSnippet), 0644)
+	if err != nil {
+		return err
+	}
+
+	zshSnippet := bashSnippet
+	err = os.WriteFile(shells+"/init.zsh", []byte(zshSnippet), 0644)
+	if err != nil {
+		return err
+	}
+
+	fishSnippet := fmt.Sprintf(`set -gxp PATH %s` + "\n", shellescape.Quote(bin))
+	err = os.WriteFile(shells+"/init.fish", []byte(fishSnippet), 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 /*
 for commands:
 1. ~/bin IF exists AND in path (or ~/.local/bin)
@@ -244,75 +298,110 @@ func doMacSetup() (*SetupInfo, error) {
 		}).Debug("target command path")
 	}
 
-	// do we need to add to $PATH?
+	// first, always put them in ~/.macvirt/bin
+	// check each bin command
+	for _, cmd := range binCommands {
+		cmdSrc := conf.CliBinDir() + "/" + cmd
+		err = linkToAppBin(cmdSrc)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// check each xbin command
+	for _, cmd := range xbinCommands {
+		cmdSrc := conf.CliXbinDir() + "/" + cmd
+		err = linkToAppBin(cmdSrc)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// write all the shell profile snippets
+	err = writeShellProfileSnippets()
+	if err != nil {
+		return nil, err
+	}
+
+	// always try to add to profile and/or ask user to add to $PATH
 	var askAddPath bool
 	var alertProfileChangedPath *string
-	if targetCmdPath == nil {
-		// if so, we don't need to do any linking
-		// just add to profile and ask user to add to PATH
+	// if there's no existing (home/system) path to link to, we *require* a shell $PATH
+	shellPathRequired := targetCmdPath == nil
+	// is the PATH already there?
+	if !slices.Contains(pathItems, conf.CliBinDir()) && !slices.Contains(pathItems, conf.CliXbinDir()) {
+		// do we recognize this shell?
+		shellBase := filepath.Base(details.Shell)
+		var profilePath string
+		var initSnippetPath string
+		switch shellBase {
+		case "zsh":
+			// what's the ZDOTDIR?
+			// no need for -i (interactive), ZDOTDIR must be in .zshenv
+			out, err := util.Run(details.Shell, "-lc", `echo "$ZDOTDIR"`)
+			if err != nil {
+				return nil, err
+			}
+			zdotdir := strings.TrimSpace(out)
+			if zdotdir == "" {
+				zdotdir = details.Home
+			}
+			profilePath = zdotdir + "/.zprofile"
+			initSnippetPath = conf.ShellInitDir() + "/init.zsh"
+			fallthrough
+		case "bash":
+			if profilePath == "" {
+				profilePath = details.Home + "/.profile"
+				initSnippetPath = conf.ShellInitDir() + "/init.bash"
+			}
 
-		// is the PATH already there?
-		if !slices.Contains(pathItems, conf.CliBinDir()) && !slices.Contains(pathItems, conf.CliXbinDir()) {
-			// do we recognize this shell?
-			shellBase := filepath.Base(details.Shell)
-			var profilePath string
-			switch shellBase {
-			case "zsh":
-				// what's the ZDOTDIR?
-				// no need for -i (interactive), ZDOTDIR must be in .zshenv
-				out, err := util.Run(details.Shell, "-lc", `echo "$ZDOTDIR"`)
+			// common logic for bash and zsh
+			profileData, err := os.ReadFile(profilePath)
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					// we'll create it
+					profileData = []byte{}
+				} else {
+					return nil, err
+				}
+			}
+			profileScript := string(profileData)
+
+			// is it already there?
+			// no quote: need ~/ to stay intact
+			line := fmt.Sprintf(`source %s || :`, makeHomeRelative(initSnippetPath))
+			logrus.WithFields(logrus.Fields{
+				"shell": shellBase,
+				"file":  profilePath,
+				"line":  line,
+			}).Debug("checking for line in profile")
+			if !strings.Contains(profileScript, line) {
+				// if not, add it
+				profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n%s\n", appid.UserAppName, line)
+				err = os.WriteFile(profilePath, []byte(profileScript), 0644)
 				if err != nil {
 					return nil, err
 				}
-				zdotdir := strings.TrimSpace(out)
-				if zdotdir == "" {
-					zdotdir = details.Home
-				}
-				profilePath = zdotdir + "/.zprofile"
-				fallthrough
-			case "bash":
-				if profilePath == "" {
-					profilePath = details.Home + "/.profile"
-				}
-
-				// common logic for bash and zsh
-				profileData, err := os.ReadFile(profilePath)
-				if err != nil {
-					if errors.Is(err, os.ErrNotExist) {
-						// we'll create it
-						profileData = []byte{}
-					} else {
-						return nil, err
-					}
-				}
-				profileScript := string(profileData)
-
-				// is it already there?
-				line := fmt.Sprintf("export PATH=%s:\"$PATH\":%s", shellescape.Quote(conf.CliBinDir()), shellescape.Quote(conf.CliXbinDir()))
-				logrus.WithFields(logrus.Fields{
-					"shell": shellBase,
-					"file":  profilePath,
-					"line":  line,
-				}).Debug("checking for line in profile")
-				if !strings.Contains(profileScript, line) {
-					// if not, add it
-					profileScript += fmt.Sprintf("\n# Added by %s: command-line tools\n%s\n", appid.UserAppName, line)
-					err = os.WriteFile(profilePath, []byte(profileScript), 0644)
-					if err != nil {
-						return nil, err
-					}
-					relProfilePath := makeHomeRelative(profilePath)
+				relProfilePath := makeHomeRelative(profilePath)
+				// not important enough to nag user if we can link to an existing path
+				if shellPathRequired {
 					alertProfileChangedPath = &relProfilePath
-					logrus.Debug("modified profile")
 				}
-			default:
-				// we don't know how to deal with this.
-				// just ask the user to add it to their path
+				logrus.Debug("modified profile")
+			}
+		default:
+			// we don't know how to deal with this.
+			// just ask the user to add it to their path
+			if shellPathRequired {
 				logrus.Debug("unknown shell, asking user to add to path")
 				askAddPath = true
 			}
+			// if shell path isn't required, it's ok, let it slide. not important
 		}
-	} else {
+	}
+
+	// do we need to add to $PATH?
+	if targetCmdPath != nil {
 		doLinkCommand := func(src string) error {
 			dest := targetCmdPath.Dir + "/" + filepath.Base(src)
 
@@ -347,12 +436,13 @@ func doMacSetup() (*SetupInfo, error) {
 
 		// check each bin command
 		for _, cmd := range binCommands {
-			_, err := exec.LookPath(cmd)
+			_, err := lookPath(cmd)
 			cmdSrc := conf.CliBinDir() + "/" + cmd
 			logrus.WithFields(logrus.Fields{
 				"cmd": cmd,
 				"src": cmdSrc,
 			}).Debug("checking bin command")
+
 			// keep existing one if it exists
 			if err != nil {
 				// link it
@@ -365,12 +455,13 @@ func doMacSetup() (*SetupInfo, error) {
 
 		// check each xbin command
 		for _, cmd := range xbinCommands {
-			_, err := exec.LookPath(cmd)
+			_, err := lookPath(cmd)
 			cmdSrc := conf.CliXbinDir() + "/" + cmd
 			logrus.WithFields(logrus.Fields{
 				"cmd": cmd,
 				"src": cmdSrc,
 			}).Debug("checking xbin command")
+
 			// keep existing one if it exists
 			if err != nil {
 				// link it
