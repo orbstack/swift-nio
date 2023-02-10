@@ -181,7 +181,6 @@ func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
 		if err != nil {
 			continue
 		}
-		logrus.WithField("ips", ips).Debug("got IPs")
 
 		// we want both IPv4 and IPv6 to prevent setup failures
 		has4 := false
