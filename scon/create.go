@@ -2,14 +2,20 @@ package main
 
 import (
 	"errors"
+	"net/netip"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/oklog/ulid/v2"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	ipPollInterval = 100 * time.Millisecond
 )
 
 var (
@@ -133,9 +139,10 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	// wait for network if this distro needs package installation
 	if _, ok := agent.PackageInstallCommands[image.Distro]; ok {
 		logrus.WithField("container", c.Name).Info("waiting for network before setup")
-		ips, err := c.lxc.WaitIPAddresses(startTimeout)
+		var ips []string
+		ips, err = c.waitIPAddrs(startTimeout)
 		if err != nil {
-			return nil, err
+			return
 		}
 		logrus.WithField("container", c.Name).WithField("ips", ips).Info("network is up")
 	}
@@ -161,4 +168,41 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	go m.db.SetLastContainerID(c.ID)
 
 	return
+}
+
+func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
+	start := time.Now()
+	for {
+		if time.Since(start) > timeout {
+			return nil, errors.New("timed out waiting for network")
+		}
+
+		ips, err := c.lxc.IPAddresses()
+		if err != nil {
+			continue
+		}
+		logrus.WithField("ips", ips).Debug("got IPs")
+
+		// we want both IPv4 and IPv6 to prevent setup failures
+		has4 := false
+		has6 := false
+		for _, ip := range ips {
+			addr, err := netip.ParseAddr(ip)
+			if err != nil {
+				return nil, err
+			}
+			addr = addr.Unmap()
+
+			if addr.Is4() {
+				has4 = true
+			} else {
+				has6 = true
+			}
+		}
+		if has4 && has6 {
+			return ips, nil
+		}
+
+		time.Sleep(ipPollInterval)
+	}
 }
