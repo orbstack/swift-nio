@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path"
 
+	"github.com/fatih/color"
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/cmd"
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/shell"
 )
@@ -39,17 +41,56 @@ func runCommandStub(cmd string) (int, error) {
 	})
 }
 
-func runCtl(fallbackToShell bool) error {
-	emptyCmd := len(os.Args) == 1
-	if len(os.Args) >= 1 && (emptyCmd || !cmd.HasCommand(os.Args[1:])) && fallbackToShell {
-		exitCode, err := shell.ConnectSSH(shell.CommandOpts{
-			CombinedArgs: os.Args[1:],
-		})
-		if err != nil {
-			return err
-		}
+func printShortHelp() {
+	bold := color.New(color.Bold, color.FgHiBlue).SprintFunc()
+	fmt.Printf(`MoonStack's short "mac" command has 3 usages:
 
-		os.Exit(exitCode)
+%s
+   Just run "mac" with no arguments.
+   Usage: mac
+
+%s
+   Prefix any command with "mac" to run it on Mac.
+   Usage: mac [flags] <command> [args...]
+   Example: mac uname -a
+
+   Use "macctl run --help" for a list of flags.
+
+%s
+   For convenience, you can use macctl subcommands with this command.
+   Usage: mac <subcommand> [args...]
+
+   Use "macctl --help" for a list of subcommands.
+`, bold("1. Start a Mac shell."), bold(`2. Run commands on Mac, like "macctl run".`), bold(`3. Interact with Mac, like "macctl".`))
+	os.Exit(0)
+}
+
+func shouldCallRunCtl(args []string) bool {
+	// handled by ctl
+	if cmd.HasCommand(args) {
+		return false
+	}
+
+	// special cases: help, --help, -h
+	// use run's arg parsing logic
+	remArgs, parseErr := cmd.ParseRunFlags(args)
+	if parseErr != nil {
+		return false
+	}
+
+	// is this help command or -h/--help flag? if so, let root cmd handle it
+	if cmd.FlagWantHelp || (len(remArgs) > 0 && remArgs[0] == "help") {
+		// print our help instead
+		printShortHelp()
+	}
+
+	return true
+}
+
+func runCtl(fallbackToShell bool) error {
+	if fallbackToShell && shouldCallRunCtl(os.Args[1:]) {
+		// alias to run - so we borrow its arg parsing logic
+		os.Args = append([]string{os.Args[0], "run"}, os.Args[1:]...)
 	}
 
 	cmd.Execute()

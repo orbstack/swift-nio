@@ -1,5 +1,7 @@
 package htypes
 
+import "reflect"
+
 type SSHAgentSockets struct {
 	SshConfig string
 	Env       string
@@ -7,9 +9,13 @@ type SSHAgentSockets struct {
 }
 
 type User struct {
-	Uid int
-	Gid int
+	Uid      int
+	Gid      int
 	Username string
-	Name string
-	HomeDir string
+	Name     string
+	HomeDir  string
 }
+
+// garble
+var _ = reflect.TypeOf(SSHAgentSockets{})
+var _ = reflect.TypeOf(User{})

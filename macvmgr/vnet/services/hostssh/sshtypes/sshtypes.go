@@ -1,5 +1,6 @@
 package sshtypes
 
+// tags for garble
 type SshMeta struct {
 	Pwd        string `json:"pwd"`
 	RawCommand bool   `json:"raw_command"`

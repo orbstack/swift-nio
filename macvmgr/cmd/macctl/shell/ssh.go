@@ -84,7 +84,7 @@ func TranslatePath(p string) string {
 	}
 
 	// otherwise, translate to linux
-	return NfsDataRoot() + "/" + p
+	return NfsDataRoot() + p
 }
 
 func IsPathArg(arg string) bool {
