@@ -8,7 +8,7 @@
 import Foundation
 
 struct Constants {
-    static let userAppName = "MoonStack"
+    static let userAppName = "OrbStack"
 }
 
 struct AppConfig {

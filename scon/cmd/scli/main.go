@@ -44,7 +44,7 @@ func runCommandStub(cmd string) (int, error) {
 
 func printShortHelp() {
 	bold := color.New(color.Bold, color.FgHiBlue).SprintFunc()
-	fmt.Printf(`MoonStack's short "moon" command has 3 usages:
+	fmt.Printf(`OrbStack's short "moon" command has 3 usages:
 
 %s
    Just run "moon" with no arguments.
