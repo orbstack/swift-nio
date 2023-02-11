@@ -4,8 +4,7 @@ package iokit
 
 /*
 #cgo LDFLAGS: -framework CoreFoundation -framework IOKit
-//TODO remove
-#include <stdio.h>
+
 #include <mach/mach_port.h>
 #include <mach/mach_interface.h>
 #include <mach/mach_init.h>

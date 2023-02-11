@@ -42,6 +42,9 @@
 		D8694A44299224990046B6B6 /* scli in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
+		D86F35452997A57E00DADC6F /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35422997A57E00DADC6F /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D86F35462997A57E00DADC6F /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35432997A57E00DADC6F /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D86F35472997A57E00DADC6F /* docker-credential-osxkeychain in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
@@ -68,6 +71,9 @@
 			dstPath = xbin;
 			dstSubfolderSpec = 6;
 			files = (
+				D86F35452997A57E00DADC6F /* docker in Copy Docker xbin executables */,
+				D86F35462997A57E00DADC6F /* docker-compose in Copy Docker xbin executables */,
+				D86F35472997A57E00DADC6F /* docker-credential-osxkeychain in Copy Docker xbin executables */,
 			);
 			name = "Copy Docker xbin executables";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -107,7 +113,10 @@
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D8694A412992247F0046B6B6 /* macvmgr */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = macvmgr; path = ../macvmgr/macvmgr; sourceTree = "<group>"; };
 		D8694A43299224990046B6B6 /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../scon/scli; sourceTree = "<group>"; };
-		D8A32B8E296F839100E56EEF /* MacVirt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacVirt.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../macvmgr/xbin/docker; sourceTree = "<group>"; };
+		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../macvmgr/xbin/docker-compose"; sourceTree = "<group>"; };
+		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../macvmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
+		D8A32B8E296F839100E56EEF /* MoonStack.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MoonStack.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8A32B91296F839100E56EEF /* MacVirtApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacVirtApp.swift; sourceTree = "<group>"; };
 		D8A32B93296F839100E56EEF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D8A32B95296F839100E56EEF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -134,6 +143,9 @@
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
+				D86F35422997A57E00DADC6F /* docker */,
+				D86F35432997A57E00DADC6F /* docker-compose */,
+				D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */,
 				D8694A43299224990046B6B6 /* scli */,
 				D8694A412992247F0046B6B6 /* macvmgr */,
 				D8A32B90296F839100E56EEF /* MacVirt */,
@@ -144,7 +156,7 @@
 		D8A32B8F296F839100E56EEF /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				D8A32B8E296F839100E56EEF /* MacVirt.app */,
+				D8A32B8E296F839100E56EEF /* MoonStack.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -214,6 +226,7 @@
 				D8694A3E2991F8C70046B6B6 /* Copy Go executables */,
 				D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */,
 				D8694A46299224F10046B6B6 /* Create symlinks */,
+				D86F35482997A5B700DADC6F /* Set version from Git */,
 			);
 			buildRules = (
 			);
@@ -227,7 +240,7 @@
 				D8694A4B2994D4FA0046B6B6 /* Defaults */,
 			);
 			productName = MacVirt;
-			productReference = D8A32B8E296F839100E56EEF /* MacVirt.app */;
+			productReference = D8A32B8E296F839100E56EEF /* MoonStack.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -319,6 +332,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
 			shellScript = "mkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/moonctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/moon\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnxctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnx\"\nln -sf Resources/assets \"$EXECUTABLE_FOLDER_PATH/../assets\"\n";
+		};
+		D86F35482997A5B700DADC6F /* Set version from Git */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Set version from Git";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "GIT_RELEASE_VERSION=$(git describe --tags --always --dirty)\nCOMMITS=$(git rev-list HEAD | wc -l)\nCOMMITS=$(($COMMITS))\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleShortVersionString\" \"${GIT_RELEASE_VERSION#*v}\"\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleVersion\" \"${COMMITS}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -487,7 +518,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 1000000;
 				DEVELOPMENT_ASSET_PATHS = "\"MacVirt/Preview Content\"";
 				DEVELOPMENT_TEAM = HUAQ24HBR6;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -495,15 +526,15 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MacVirt/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2022–2023 Danny Lin";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = MoonStack;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -520,7 +551,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 1000000;
 				DEVELOPMENT_ASSET_PATHS = "\"MacVirt/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = HUAQ24HBR6;
@@ -529,15 +560,15 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MacVirt/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2022–2023 Danny Lin";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = MoonStack;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

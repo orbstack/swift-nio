@@ -31,7 +31,10 @@ require (
 	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
 )
 
-require golang.org/x/exp v0.0.0-20230206171751-46f607a40771 // indirect
+require (
+	github.com/google/uuid v1.3.0 // indirect
+	golang.org/x/exp v0.0.0-20230206171751-46f607a40771 // indirect
+)
 
 require (
 	github.com/alessio/shellescape v1.4.1

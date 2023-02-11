@@ -18,6 +18,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -107,6 +108,14 @@ func runContainerManager() {
 			if err != nil {
 				logrus.WithError(err).Error("failed to run poweroff")
 			}
+
+			go func() {
+				time.Sleep(2 * time.Minute)
+				err := util.Run("poweroff", "-f")
+				if err != nil {
+					logrus.WithError(err).Error("failed to force poweroff (fallback)")
+				}
+			}()
 		}
 	}()
 	defer mgr.Close()

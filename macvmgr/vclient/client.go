@@ -185,8 +185,7 @@ func (vc *VClient) StartBackground() error {
 		vc.reportDiskStats()
 
 		ticker := time.NewTicker(diskStatsInterval)
-		for {
-			<-ticker.C
+		for range ticker.C {
 			vc.reportDiskStats()
 		}
 	}()

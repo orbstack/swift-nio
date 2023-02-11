@@ -152,6 +152,10 @@ func DockerCliPluginsDir() string {
 	return ensureDir(HomeDir() + "/.docker/cli-plugins")
 }
 
+func InstallIDFile() string {
+	return ConfigDir() + "/.installid"
+}
+
 func Arch() string {
 	// amd64, arm64
 	return runtime.GOARCH

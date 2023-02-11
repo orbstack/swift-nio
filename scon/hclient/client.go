@@ -5,6 +5,7 @@ import (
 	"net/rpc"
 	"os/user"
 
+	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 )
 
@@ -87,6 +88,16 @@ func (c *Client) GetGitConfig() (map[string]string, error) {
 	}
 
 	return config, nil
+}
+
+func (c *Client) GetLastDrmResult() (*drmtypes.Result, error) {
+	var result drmtypes.Result
+	err := c.rpc.Call("hc.GetLastDrmResult", None{}, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
 func (c *Client) Close() error {

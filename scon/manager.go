@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
@@ -173,6 +175,15 @@ func (m *ConManager) Start() error {
 			}
 		}(c)
 	}
+
+	// drm monitor
+	drmMonitor := &DrmMonitor{
+		conManager: m,
+		//TODO identifiers
+		//TODO version
+		verifier: sjwt.NewVerifier(nil, drmtypes.AppVersion{}),
+	}
+	go runOne("DRM monitor", drmMonitor.Run)
 
 	logrus.Info("started")
 	return err

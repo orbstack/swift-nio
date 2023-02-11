@@ -19,6 +19,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
@@ -333,6 +334,29 @@ func runVmManager() {
 
 	vnetwork, vm := CreateVm(params)
 
+	// Start DRM
+	drmClient := drm.Client()
+	stopCh := make(chan StopType, 1)
+	go func() {
+		ch := drmClient.FailChan()
+		for {
+			select {
+			case <-ch:
+				logrus.Error("fail - shutdown")
+				stopCh <- StopForce
+
+				go func() {
+					time.Sleep(drm.FailStopTimeout)
+					logrus.Error("fail - force shutdown")
+					os.Exit(1)
+				}()
+				return
+			case <-doneCh:
+				return
+			}
+		}
+	}()
+
 	// Services
 	services.StartNetServices(vnetwork)
 
@@ -368,7 +392,6 @@ func runVmManager() {
 	}()
 
 	// Listen for signals
-	stopCh := make(chan StopType, 1)
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
@@ -397,11 +420,11 @@ func runVmManager() {
 
 	// Start VM control server for Swift
 	controlServer := VmControlServer{
-		balloon: vm.MemoryBalloonDevices()[0],
-		vm:      vm,
-		vc:      vc,
-		doneCh:  doneCh,
-		stopCh:  stopCh,
+		balloon:      vm.MemoryBalloonDevices()[0],
+		vm:           vm,
+		vc:           vc,
+		doneCh:       doneCh,
+		stopCh:       stopCh,
 		dockerClient: makeDockerClient(),
 	}
 	unixListener, err := controlServer.Serve()

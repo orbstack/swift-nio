@@ -9,12 +9,13 @@ const (
 	HostNFS           = 62429
 
 	// guest
-	GuestDebugSSH      = 22 // debug
-	GuestScon          = 8000
-	GuestSconSSH       = 2222
-	GuestSconSSHPublic = 2223
-	GuestVcontrol      = 103
-	GuestNFS           = 2049
+	GuestDebugSSH        = 22 // debug
+	GuestScon            = 8000
+	GuestSconRPCInternal = 8001
+	GuestSconSSH         = 2222
+	GuestSconSSHPublic   = 2223
+	GuestVcontrol        = 103
+	GuestNFS             = 2049
 	// outside of ephemeral range
 	GuestDocker = 2375
 

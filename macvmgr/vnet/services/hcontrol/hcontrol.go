@@ -3,6 +3,7 @@ package hcsrv
 import (
 	"crypto/rand"
 	"encoding/base32"
+	"errors"
 	"net/rpc"
 	"os"
 	"os/user"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/drm"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
@@ -28,7 +31,8 @@ var (
 var _ = reflect.TypeOf(HcontrolServer{})
 
 type HcontrolServer struct {
-	n *vnet.Network
+	n         *vnet.Network
+	drmClient *drm.DrmClient
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -94,6 +98,16 @@ func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
 	return nil
 }
 
+func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error {
+	result := h.drmClient.LastResult()
+	if result == nil {
+		return errors.New("no result available")
+	}
+
+	*reply = *result
+	return nil
+}
+
 type None struct{}
 
 func genToken() string {
@@ -114,7 +128,8 @@ func GetCurrentToken() string {
 
 func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, error) {
 	server := &HcontrolServer{
-		n: n,
+		n:         n,
+		drmClient: drm.Client(),
 	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)
