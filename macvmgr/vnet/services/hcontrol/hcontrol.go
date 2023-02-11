@@ -99,8 +99,8 @@ func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
 }
 
 func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error {
-	result := h.drmClient.LastResult()
-	if result == nil {
+	result, err := h.drmClient.UpdateResult()
+	if err != nil || result == nil {
 		return errors.New("no result available")
 	}
 
