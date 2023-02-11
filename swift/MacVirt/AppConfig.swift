@@ -16,14 +16,14 @@ struct AppConfig {
     static let c = AppConfig(
         debug: true,
         vmgrExe: "/Users/dragon/code/projects/macvirt/macvmgr/macvmgr",
-        shellExe: "/Users/dragon/code/projects/macvirt/macvmgr/bin/moon",
+        shellExe: "/Users/dragon/code/projects/macvirt/macvmgr/bin/orb",
         dockerExe: "/Users/dragon/code/projects/macvirt/macvmgr/xbin/docker"
     )
 #else
     static let c = AppConfig(
         debug: false,
         vmgrExe: Bundle.main.path(forAuxiliaryExecutable: "macvmgr")!,
-        shellExe: Bundle.main.path(forAuxiliaryExecutable: "bin/moon")!,
+        shellExe: Bundle.main.path(forAuxiliaryExecutable: "bin/orb")!,
         dockerExe: Bundle.main.path(forAuxiliaryExecutable: "xbin/docker")!
     )
 #endif

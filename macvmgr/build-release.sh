@@ -18,14 +18,14 @@ go build -tags release -trimpath -ldflags="-s -w" -o $OUT/bin/macvmgr
 codesign --timestamp --options=runtime --entitlements vmm.entitlements -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/bin/macvmgr
 
 pushd ../scon
-go build -tags release -trimpath -ldflags="-s -w" -o $OUT/bin/moonctl ./cmd/scli
-codesign --timestamp --options=runtime -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/bin/moonctl
+go build -tags release -trimpath -ldflags="-s -w" -o $OUT/bin/orbctl ./cmd/scli
+codesign --timestamp --options=runtime -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/bin/orbctl
 popd
 
 pushd $OUT/bin
-ln -sf moonctl moon
-ln -sf moonctl lnxctl
-ln -sf moonctl lnx
+ln -sf orbctl orb
+ln -sf orbctl lnxctl
+ln -sf orbctl lnx
 popd
 
 cp -rc ../assets/release/$ARCH $OUT/assets/release

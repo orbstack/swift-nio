@@ -44,29 +44,29 @@ func runCommandStub(cmd string) (int, error) {
 
 func printShortHelp() {
 	bold := color.New(color.Bold, color.FgHiBlue).SprintFunc()
-	fmt.Printf(`OrbStack's short "moon" command has 3 usages:
+	fmt.Printf(`OrbStack's short "orb" command has 3 usages:
 
 %s
-   Just run "moon" with no arguments.
-   Usage: moon
+   Just run "orb" with no arguments.
+   Usage: orb
 
 %s
-   Prefix any command with "moon" to run it on Linux.
-   Usage: moon [flags] <command> [args...]
-   Example: moon uname -a
+   Prefix any command with "orb" to run it on Linux.
+   Usage: orb [flags] <command> [args...]
+   Example: orb uname -a
 
    The default user and machine will be used, unless specified with flags.
-   For example, to log in to "ubuntu" as root: moon -m ubuntu -u root uname -a
+   For example, to log in to "ubuntu" as root: orb -m ubuntu -u root uname -a
 
-   Use "moonctl run --help" for a list of flags.
-   If you prefer SSH, use "moonctl ssh" for details.
+   Use "orbctl run --help" for a list of flags.
+   If you prefer SSH, use "orbctl ssh" for details.
 
 %s
-   For convenience, you can use moonctl subcommands with this command.
-   Usage: moon <subcommand> [args...]
+   For convenience, you can use orbctl subcommands with this command.
+   Usage: orb <subcommand> [args...]
 
-   Use "moonctl --help" for a list of subcommands.
-`, bold("1. Start a Linux shell."), bold(`2. Run commands on Linux, like "moonctl run".`), bold(`3. Control Linux machines, like "moonctl".`))
+   Use "orbctl --help" for a list of subcommands.
+`, bold("1. Start a Linux shell."), bold(`2. Run commands on Linux, like "orbctl run".`), bold(`3. Control Linux machines, like "orbctl".`))
 	os.Exit(0)
 }
 

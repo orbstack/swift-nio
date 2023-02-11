@@ -79,15 +79,15 @@ struct CommandsRootView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     CommandSection(systemImage: "info.circle", title: "Get started") {
                         CommandBox(
-                            title: "Control machines: moonctl",
+                            title: "Control machines: orbrctl",
                             desc: "Create, start, stop, delete, change default, and more. Explore the help for more commands.",
-                            command: "moonctl help"
+                            command: "orbrctl help"
                         )
 
                         CommandBox(
-                            title: "Short command: moon",
+                            title: "Short command: orb",
                             desc: "Start a shell, run commands, or control machines.",
-                            command: "moon help"
+                            command: "orb help"
                         )
                     }
 
@@ -95,25 +95,25 @@ struct CommandsRootView: View {
                         CommandBox(
                             title: "Start a shell",
                             desc: "Log in as the default user in the machine you used most recently.",
-                            command: "moon"
+                            command: "orb"
                         )
 
                         CommandBox(
                             title: "Start a shell as a specific user and machine",
-                            desc: "Use the same flags as “moonctl shell”.",
-                            command: "moon -m ubuntu -u root"
+                            desc: "Use the same flags as “orbctl shell”.",
+                            command: "orb -m ubuntu -u root"
                         )
 
                         CommandBox(
                             title: "Run a command",
-                            desc: "Prefix any command with “moon” to run it in a Linux machine.",
-                            command: "moon uname -a"
+                            desc: "Prefix any command with “orb” to run it in a Linux machine.",
+                            command: "orb uname -a"
                         )
 
                         CommandBox(
                             title: "Run a command as a specific user and machine",
-                            desc: "The same flags can be used when prefixing a command with “moon”.",
-                            command: "moon -m ubuntu -u root uname -a"
+                            desc: "The same flags can be used when prefixing a command with “orb”.",
+                            command: "orb -m ubuntu -u root uname -a"
                         )
                     }
 

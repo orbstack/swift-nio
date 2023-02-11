@@ -331,7 +331,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "mkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/moonctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/moon\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnxctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnx\"\nln -sf Resources/assets \"$EXECUTABLE_FOLDER_PATH/../assets\"\n";
+			shellScript = "mkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnxctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnx\"\nln -sf Resources/assets \"$EXECUTABLE_FOLDER_PATH/../assets\"\n";
 		};
 		D86F35482997A5B700DADC6F /* Set version from Git */ = {
 			isa = PBXShellScriptBuildPhase;

@@ -254,7 +254,7 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		return nil, err
 	}
 
-	resp, err := c.http.Post("https://api-license.moonstack.dev/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
+	resp, err := c.http.Post("https://api-license.orbstack.dev/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
 	if err != nil {
 		return nil, err
 	}

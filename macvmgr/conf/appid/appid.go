@@ -5,6 +5,6 @@ const (
 	AppName     = "macvirt"
 	UserAppName = "OrbStack"
 
-	ShortCmd = "moon"
-	ShortCtl = "moonctl"
+	ShortCmd = "orb"
+	ShortCtl = "orbctl"
 )

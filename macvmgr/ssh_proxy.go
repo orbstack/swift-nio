@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// this is in here instead of moonctl because we're the one writing ssh config
+// this is in here instead of orbctl because we're the one writing ssh config
 func runSshProxyFdpass() {
 	err := vmclient.EnsureSconVM()
 	check(err)
