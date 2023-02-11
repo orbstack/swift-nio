@@ -3,6 +3,7 @@ package drm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
+	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
 )
 
 const (
@@ -140,6 +142,10 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 	lastResult := c.LastResult()
 	if lastResult != nil && lastResult.State == drmtypes.StateValid && time.Since(lastResult.CheckedAt) < checkinLifetime && time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 		return lastResult, nil
+	}
+
+	if iokit.IsAsleep() {
+		return nil, errors.New("asleep")
 	}
 
 	result, err := c.doCheckinLockedRetry()
