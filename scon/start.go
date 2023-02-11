@@ -617,13 +617,9 @@ func (c *Container) initAgent() error {
 	if err != nil {
 		return err
 	}
-	uid, err := strconv.Atoi(u.Uid)
-	if err != nil {
-		return err
-	}
 	err = c.Agent().StartSshAgentProxy(agent.SshAgentProxyArgs{
-		Uid: uid,
-		Gid: uid,
+		Uid: u.Uid,
+		Gid: u.Uid,
 	})
 	if err != nil {
 		return err

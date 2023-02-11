@@ -5,3 +5,11 @@ type SSHAgentSockets struct {
 	Env       string
 	Preferred string
 }
+
+type User struct {
+	Uid int
+	Gid int
+	Username string
+	Name string
+	HomeDir string
+}

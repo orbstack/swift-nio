@@ -50,10 +50,6 @@ func doSystemInitTasks(host *hclient.Client) error {
 	if err != nil {
 		return err
 	}
-	uid, err := strconv.Atoi(u.Uid)
-	if err != nil {
-		return err
-	}
 
 	// chown secure sockets
 	for _, sock := range []string{
@@ -62,7 +58,7 @@ func doSystemInitTasks(host *hclient.Client) error {
 		mounts.HcontrolSocket,
 	} {
 		// use user group
-		err = os.Chown(sock, uid, uid)
+		err = os.Chown(sock, u.Uid, u.Uid)
 		if err != nil {
 			return err
 		}

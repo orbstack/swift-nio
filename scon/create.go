@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/netip"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/kdrag0n/macvirt/scon/agent"
@@ -112,10 +111,6 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	if err != nil {
 		return
 	}
-	uid, err := strconv.Atoi(hostUser.Uid)
-	if err != nil {
-		return
-	}
 
 	// get host timezone
 	hostTimezone, err := m.host.GetTimezone()
@@ -146,12 +141,12 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 
 	// tell agent to run setup
 	logrus.WithFields(logrus.Fields{
-		"uid":      uid,
+		"uid":      hostUser.Uid,
 		"username": hostUser.Username,
 	}).Info("running initial setup")
 	err = c.Agent().InitialSetup(agent.InitialSetupArgs{
 		Username:        hostUser.Username,
-		Uid:             uid,
+		Uid:             hostUser.Uid,
 		Password:        args.UserPassword,
 		Distro:          image.Distro,
 		Timezone:        hostTimezone,

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -47,13 +48,30 @@ func (h *HcontrolServer) StopForward(spec vnet.ForwardSpec, _ *None) error {
 	return h.n.StopForward(spec)
 }
 
-func (h *HcontrolServer) GetUser(_ *None, reply *user.User) error {
+func (h *HcontrolServer) GetUser(_ *None, reply *htypes.User) error {
 	u, err := user.Current()
 	if err != nil {
 		return err
 	}
 
-	*reply = *u
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return err
+	}
+
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return err
+	}
+
+	*reply = htypes.User{
+		Uid:      uid,
+		Gid:      gid,
+		Username: u.Username,
+		Name:     u.Name,
+		HomeDir:  u.HomeDir,
+	}
+
 	return nil
 }
 

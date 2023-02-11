@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/rpc"
 	"os"
-	"os/user"
 	"strconv"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -41,15 +40,10 @@ func (h *HcontrolServer) StopForward(spec ForwardSpec, _ *None) error {
 	return nil
 }
 
-func (h *HcontrolServer) GetUser(_ None, reply *user.User) error {
-	_, err := user.Current()
-	if err != nil {
-		return err
-	}
-
-	*reply = user.User{
-		Uid:      "1000",
-		Gid:      "1000",
+func (h *HcontrolServer) GetUser(_ None, reply *htypes.User) error {
+	*reply = htypes.User{
+		Uid:      1000,
+		Gid:      1000,
 		Username: "dragon",
 		Name:     "Dragon",
 		HomeDir:  "/home/dragon",

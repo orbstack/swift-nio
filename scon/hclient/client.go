@@ -3,7 +3,6 @@ package hclient
 import (
 	"net"
 	"net/rpc"
-	"os/user"
 
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
@@ -11,7 +10,7 @@ import (
 
 type Client struct {
 	rpc             *rpc.Client
-	user            *user.User
+	user            *htypes.User
 	sshAgentSockets *htypes.SSHAgentSockets
 }
 
@@ -30,15 +29,15 @@ func (c *Client) StopForward(spec ForwardSpec) error {
 	return c.rpc.Call("hc.StopForward", spec, &none)
 }
 
-func (c *Client) GetUser() (*user.User, error) {
+func (c *Client) GetUser() (*htypes.User, error) {
 	if c.user != nil {
 		return c.user, nil
 	}
 
-	var u user.User
+	var u htypes.User
 	err := c.rpc.Call("hc.GetUser", None{}, &u)
 	if err != nil {
-		return &user.User{}, err
+		return nil, err
 	}
 
 	c.user = &u
