@@ -148,6 +148,10 @@ func ShellInitDir() string {
 	return ensureDir(ConfigDir() + "/shell")
 }
 
+func DockerCliPluginsDir() string {
+	return ensureDir(HomeDir() + "/.docker/cli-plugins")
+}
+
 func Arch() string {
 	// amd64, arm64
 	return runtime.GOARCH

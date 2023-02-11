@@ -54,7 +54,7 @@ enum VmError: LocalizedError, Equatable {
         case .stopError(let error):
             return "Failed to stop VM: \(fmtRpc(error))"
         case .setupError(let error):
-            return "Failed to set up app: \(fmtRpc(error))"
+            return "Failed to do setup: \(fmtRpc(error))"
         case .dockerError(let error):
             return "Failed to check Docker: \(fmtRpc(error))"
         case .configRefresh(let error):
@@ -106,7 +106,6 @@ enum VmError: LocalizedError, Equatable {
 }
 
 private func fmtRpc(_ error: Error) -> String {
-    print(error)
     switch error {
     case InvocationError.rpcError(let rpcError):
         return rpcError.message

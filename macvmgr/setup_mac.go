@@ -38,8 +38,9 @@ type PathInfo struct {
 }
 
 var (
-	binCommands  = []string{"moonctl", "moon", "lnxctl", "lnx"}
-	xbinCommands = []string{"docker", "docker-compose", "docker-credential-osxkeychain"}
+	binCommands   = []string{"moonctl", "moon", "lnxctl", "lnx"}
+	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain"}
+	dockerPlugins = []string{"docker-compose"}
 	// consider: docker-buildx hub-tool docker-index
 )
 
@@ -201,8 +202,7 @@ func lookPath(cmd string) (string, error) {
 	return path, nil
 }
 
-func linkToAppBin(src string) error {
-	dest := conf.UserAppBinDir() + "/" + filepath.Base(src)
+func symlinkIfNotExists(src, dest string) error {
 	currentSrc, err := os.Readlink(dest)
 	if err == nil && currentSrc == src {
 		// already linked
@@ -210,6 +210,7 @@ func linkToAppBin(src string) error {
 	}
 
 	// link it
+	os.Remove(dest)
 	err = os.Symlink(src, dest)
 	if err != nil {
 		return err
@@ -218,11 +219,16 @@ func linkToAppBin(src string) error {
 	return nil
 }
 
+func linkToAppBin(src string) error {
+	dest := conf.UserAppBinDir() + "/" + filepath.Base(src)
+	return symlinkIfNotExists(src, dest)
+}
+
 func writeShellProfileSnippets() error {
 	shells := conf.ShellInitDir()
 	bin := conf.UserAppBinDir()
 
-	bashSnippet := fmt.Sprintf(`export PATH=%s:"$PATH"` + "\n", shellescape.Quote(bin))
+	bashSnippet := fmt.Sprintf(`export PATH=%s:"$PATH"`+"\n", shellescape.Quote(bin))
 	err := os.WriteFile(shells+"/init.bash", []byte(bashSnippet), 0644)
 	if err != nil {
 		return err
@@ -234,7 +240,7 @@ func writeShellProfileSnippets() error {
 		return err
 	}
 
-	fishSnippet := fmt.Sprintf(`set -gxp PATH %s` + "\n", shellescape.Quote(bin))
+	fishSnippet := fmt.Sprintf(`set -gxp PATH %s`+"\n", shellescape.Quote(bin))
 	err = os.WriteFile(shells+"/init.fish", []byte(fishSnippet), 0644)
 	if err != nil {
 		return err
@@ -407,17 +413,11 @@ func doMacSetup() (*SetupInfo, error) {
 
 			// if root isn't required, just link it
 			if !targetCmdPath.RequiresRoot {
-				// is it already linked?
-				existingDest, err := os.Readlink(dest)
-				if err == nil && existingDest == src {
-					return nil
-				}
-
 				logrus.WithFields(logrus.Fields{
 					"src": src,
 					"dst": dest,
 				}).Debug("linking command (don't need root)")
-				err = os.Symlink(src, dest)
+				err = symlinkIfNotExists(src, dest)
 				if err != nil {
 					return err
 				}
@@ -470,6 +470,21 @@ func doMacSetup() (*SetupInfo, error) {
 					return nil, err
 				}
 			}
+		}
+	}
+
+	// link docker CLI plugins
+	dockerPluginsDir := conf.DockerCliPluginsDir()
+	for _, plugin := range dockerPlugins {
+		pluginSrc := conf.CliXbinDir() + "/" + plugin
+		pluginDest := dockerPluginsDir + "/" + plugin
+		logrus.WithFields(logrus.Fields{
+			"src": pluginSrc,
+			"dst": pluginDest,
+		}).Debug("linking docker CLI plugin")
+		err = symlinkIfNotExists(pluginSrc, pluginDest)
+		if err != nil {
+			return nil, err
 		}
 	}
 
