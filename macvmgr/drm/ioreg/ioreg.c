@@ -91,7 +91,7 @@ static kern_return_t FindEthernetInterfaces(io_iterator_t *matchingServices)
     // but en0: isn't necessarily the primary interface, especially on systems with multiple Ethernet ports.
         
     if (NULL == matchingDict) {
-        printf("IOServiceMatching returned a NULL dictionary.\n");
+        //printf("IOServiceMatching returned a NULL dictionary.\n");
     }
     else {
         // Each IONetworkInterface object has a Boolean property with the key kIOPrimaryInterface. Only the
@@ -120,7 +120,7 @@ static kern_return_t FindEthernetInterfaces(io_iterator_t *matchingServices)
                                                       &kCFTypeDictionaryValueCallBacks);
     
         if (NULL == propertyMatchDict) {
-            printf("CFDictionaryCreateMutable returned a NULL dictionary.\n");
+            //printf("CFDictionaryCreateMutable returned a NULL dictionary.\n");
         }
         else {
             // Set the value in the dictionary of the property with the given key, or add the key 
@@ -140,7 +140,7 @@ static kern_return_t FindEthernetInterfaces(io_iterator_t *matchingServices)
     // the dictionary explicitly.
     kernResult = IOServiceGetMatchingServices(kIOMainPortDefault, matchingDict, matchingServices);    
     if (KERN_SUCCESS != kernResult) {
-        printf("IOServiceGetMatchingServices returned 0x%08x\n", kernResult);
+        //printf("IOServiceGetMatchingServices returned 0x%08x\n", kernResult);
     }
         
     return kernResult;
@@ -179,7 +179,7 @@ static kern_return_t GetMACAddress(io_iterator_t intfIterator, UInt8 *MACAddress
                                                    &controllerService);
         
         if (KERN_SUCCESS != kernResult) {
-            printf("IORegistryEntryGetParentEntry returned 0x%08x\n", kernResult);
+            //printf("IORegistryEntryGetParentEntry returned 0x%08x\n", kernResult);
         }
         else {
             // Retrieve the MAC address property from the I/O Registry in the form of a CFData
