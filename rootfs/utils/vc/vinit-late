@@ -72,18 +72,6 @@ fi
 #xfs_growfs /dev/vdb1
 #btrfs filesystem resize max /data
 
-# upgrade data: v3 -> v4
-if [[ "$(cat /data/version)" -lt 4 ]]; then
-    echo "[DATA pre-UPGRADE] v3 -> v4: start"
-
-    set +e
-    xfs_quota -x -c 'project -s -p /data/ 1' /data
-    set -e
-
-    sync
-    echo "[DATA pre-UPGRADE] v3 -> v4: done"
-fi
-
 # ok to update quota/balloon now
 mkdir -p /tmp/flags
 touch /tmp/flags/data_resized
