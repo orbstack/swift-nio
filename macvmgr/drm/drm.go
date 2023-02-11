@@ -19,6 +19,10 @@ const (
 	startGracePeriod = 15 * time.Minute
 	FailStopTimeout  = 3 * time.Minute
 
+	retryDelay1 = 5 * time.Second
+	retryDelay2 = 30 * time.Second
+	retryDelay3 = 5 * time.Minute
+
 	previewRefreshToken = "1181201e-23f8-41f6-9660-b7110f4bfedb"
 )
 
@@ -114,9 +118,15 @@ func (c *DrmClient) LastResult() *drmtypes.Result {
 	return c.lastResult
 }
 
+func (c *DrmClient) UpdateResult() (*drmtypes.Result, error) {
+	return c.KickCheck()
+}
+
 func (c *DrmClient) Run() {
 	ticker := time.NewTicker(checkinInterval)
 	defer ticker.Stop()
+
+	go c.KickCheck()
 
 	for range ticker.C {
 		_, _ = c.KickCheck()
@@ -128,11 +138,11 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 	defer c.checkMu.Unlock()
 
 	lastResult := c.LastResult()
-	if lastResult != nil && lastResult.State == drmtypes.StateValid && time.Since(lastResult.CheckedAt) < checkinLifetime {
+	if lastResult != nil && lastResult.State == drmtypes.StateValid && time.Since(lastResult.CheckedAt) < checkinLifetime && time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 		return lastResult, nil
 	}
 
-	result, err := c.doCheckinLocked()
+	result, err := c.doCheckinLockedRetry()
 	if err != nil {
 		// new check failed. are we in grace period for old token expiry?
 		if lastResult != nil && time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
@@ -157,6 +167,33 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 	}
 
 	return result, nil
+}
+
+func (c *DrmClient) doCheckinLockedRetry() (*drmtypes.Result, error) {
+	result, err := c.doCheckinLocked()
+	if err == nil {
+		return result, nil
+	}
+
+	time.Sleep(retryDelay1)
+	result, err = c.doCheckinLocked()
+	if err == nil {
+		return result, nil
+	}
+
+	time.Sleep(retryDelay2)
+	result, err = c.doCheckinLocked()
+	if err == nil {
+		return result, nil
+	}
+
+	time.Sleep(retryDelay3)
+	result, err = c.doCheckinLocked()
+	if err == nil {
+		return result, nil
+	}
+
+	return nil, err
 }
 
 func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
