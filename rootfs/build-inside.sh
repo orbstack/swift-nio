@@ -160,14 +160,14 @@ mkdir /mnt/rosetta
 mkdir /mnt/guest-tools
 
 # guest tools
-mkdir -p /opt/macvirt-guest/bin /opt/macvirt-guest/bin-hiprio /opt/macvirt-guest/run /opt/macvirt-guest/data
-ln -s /opt/macvirt-guest/bin/macctl /opt/macvirt-guest/bin/mac
+mkdir -p /opt/orbstack-guest/bin /opt/orbstack-guest/bin-hiprio /opt/orbstack-guest/run /opt/orbstack-guest/data
+ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/mac
 # default cmd links
 for cmd in open; do
-    ln -s /opt/macvirt-guest/bin/macctl /opt/macvirt-guest/bin-hiprio/$cmd
+    ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin-hiprio/$cmd
 done
 for cmd in osascript code; do
-    ln -s /opt/macvirt-guest/bin/macctl /opt/macvirt-guest/bin/$cmd
+    ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/$cmd
 done
 
 # prep for data volume

@@ -43,5 +43,5 @@ echo '127.0.1.1 docker' >> /etc/hosts
 
 # mounts
 mkdir /mnt/mac
-mkdir /opt/macvirt-guest
+mkdir /opt/orbstack-guest
 mkdir /var/lib/docker

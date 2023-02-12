@@ -1,12 +1,12 @@
 __path_set=0
 case "$PATH" in
-*"/opt/macvirt-guest/bin"*)
+*"/opt/orbstack-guest/bin"*)
 __path_set=1
 ;;
 esac
 
 if [ $__path_set = 0 ]; then
-    export PATH="/opt/macvirt-guest/bin-hiprio:$PATH:/opt/macvirt-guest/bin"
+    export PATH="/opt/orbstack-guest/bin-hiprio:$PATH:/opt/orbstack-guest/bin"
 fi
 
 unset __path_set

@@ -95,7 +95,7 @@ rm opt/docker-rootfs/build-inside-docker.sh
 
 # init and other scripts
 OPT=opt/vc
-GUEST_OPT=opt/macvirt-guest
+GUEST_OPT=opt/orbstack-guest
 cp -r ../utils/vc $OPT
 cp -r ../utils/guest/* $GUEST_OPT
 # legal
