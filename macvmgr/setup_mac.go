@@ -44,6 +44,14 @@ var (
 	// consider: docker-buildx hub-tool docker-index
 )
 
+func parseShellLine(output string) string {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(lines[len(lines)-1])
+}
+
 func getUserDetails() (*UserDetails, error) {
 	u, err := user.Current()
 	if err != nil {
@@ -81,7 +89,7 @@ func getUserDetails() (*UserDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	path := strings.TrimSpace(out)
+	path := parseShellLine(out)
 
 	return &UserDetails{
 		IsAdmin: isAdmin,
@@ -348,7 +356,7 @@ func doMacSetup() (*SetupInfo, error) {
 			if err != nil {
 				return nil, err
 			}
-			zdotdir := strings.TrimSpace(out)
+			zdotdir := parseShellLine(out)
 			if zdotdir == "" {
 				zdotdir = details.Home
 			}

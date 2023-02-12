@@ -16,7 +16,8 @@ import (
 
 const (
 	drmCheckInterval = 15 * time.Minute
-	drmCheckTimeout  = 3 * time.Minute
+	// long enough to include all retries and 30s timeouts in vmgr
+	drmCheckTimeout = 8 * time.Minute
 )
 
 type DrmMonitor struct {
@@ -71,7 +72,7 @@ func (m *DrmMonitor) Run() error {
 			return m.conManager.host.GetLastDrmResult()
 		}, drmCheckTimeout)
 		if err != nil {
-			logrus.WithError(err).Error("failed to get new last result")
+			logrus.WithError(err).Error("failed to get new result")
 		}
 
 		if result != nil {

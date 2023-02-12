@@ -10,10 +10,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = false
 
-        SentrySDK.start { options in
-            options.dsn = "https://e97d84d2f3ad48dbac3c491be1ad4c52@o120089.ingest.sentry.io/4504665519554560"
-            options.debug = true
-            options.tracesSampleRate = 0.0
+        if !AppConfig.c.debug {
+            SentrySDK.start { options in
+                options.dsn = "https://e97d84d2f3ad48dbac3c491be1ad4c52@o120089.ingest.sentry.io/4504665519554560"
+                options.tracesSampleRate = 0.0
+            }
         }
     }
 

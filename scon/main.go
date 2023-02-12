@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math/rand"
 	"net"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
-	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"

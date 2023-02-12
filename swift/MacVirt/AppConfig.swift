@@ -33,4 +33,3 @@ struct AppConfig {
     let shellExe: String
     let dockerExe: String
 }
-

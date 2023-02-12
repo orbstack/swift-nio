@@ -135,6 +135,11 @@ struct OnboardingWelcomeView: View {
 
             Spacer()
 
+            Text("By continuing, you agree to our [Terms](https://orbstack.dev/terms) and [Privacy Policy](https://orbstack.dev/privacy-policy).")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 16)
+
             HStack(alignment: .bottom) {
                 HStack {
                     Button(action: {
