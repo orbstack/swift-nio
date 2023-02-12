@@ -12,7 +12,7 @@ var (
 const (
 	VirtiofsMountpoint = "/mnt/mac"
 
-	Opt             = "/opt/" + appid.Codename + "-guest"
+	Opt             = "/opt/" + appid.AppName + "-guest"
 	Bin             = Opt + "/bin"
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"
