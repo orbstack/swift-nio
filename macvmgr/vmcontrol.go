@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -73,7 +72,6 @@ func (s *VmControlServer) PatchConfig(ctx context.Context, patch *vmconfig.VmCon
 		if patch.MemoryMiB != 0 {
 			c.MemoryMiB = patch.MemoryMiB
 		}
-		fmt.Printf("patch: %v\n", patch)
 	})
 }
 

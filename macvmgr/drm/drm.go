@@ -247,7 +247,7 @@ func (c *DrmClient) dispatchResult(result *drmtypes.Result) {
 func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error) {
 	req := &drmtypes.EntitlementRequest{
 		RefreshToken: c.refreshToken,
-		Identifiers:  c.identifiers,
+		Identifiers:  *c.identifiers,
 		AppVersion:   c.appVersion,
 	}
 
@@ -256,6 +256,7 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		return nil, err
 	}
 
+	//TODO
 	resp, err := c.http.Post("https://localhost:8400/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
 	if err != nil {
 		return nil, err

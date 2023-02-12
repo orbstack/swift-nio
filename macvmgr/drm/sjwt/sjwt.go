@@ -32,44 +32,9 @@ type jwtHeader struct {
 	KeyID     string `json:"kid"`
 }
 
-type jwtClaims struct {
-	// user
-	UserID          string `json:"sub"`
-	EntitlementTier int    `json:"ent"`
-	EntitlementType int    `json:"etp"`
-
-	// app
-	AppName    string              `json:"aud"`
-	AppVersion drmtypes.AppVersion `json:"ver"`
-
-	// device
-	// per-machine, portable across installs and users
-	DeviceID string `json:"did"`
-	// per-install, portable across machines
-	InstallID string `json:"iid"`
-	// per-user, portable across installs
-	ClientID string `json:"cid"`
-
-	// server
-	Issuer string `json:"iss"`
-
-	// security
-	IssuedAt int64 `json:"iat"`
-	// license end + grace period. this is when the app stops working
-	ExpiresAt  int64 `json:"exp"`
-	NotBefore  int64 `json:"nbf"`
-	DrmVersion uint8 `json:"dvr"`
-
-	// UX
-	// license end - warn period. this is when the app starts showing a warning
-	WarnAt int64 `json:"war"`
-	// license end. this is when the app says it expires and gets more aggressive, but still works until grace period is over (expiresAt)
-	LicenseEndsAt int64 `json:"lxp"`
-}
-
 type jwtData struct {
 	Header     *jwtHeader
-	Claims     *jwtClaims
+	Claims     *drmtypes.JwtClaims
 	Sig        []byte
 	SigPayload []byte
 }
@@ -178,7 +143,7 @@ func parse(token string) (*jwtData, error) {
 		return nil, err
 	}
 
-	var claims jwtClaims
+	var claims drmtypes.JwtClaims
 	err = json.Unmarshal(claimsData, &claims)
 	if err != nil {
 		return nil, err
@@ -192,7 +157,7 @@ func parse(token string) (*jwtData, error) {
 	}, nil
 }
 
-func decode(token string, pk ed25519.PublicKey) (*jwtClaims, error) {
+func decode(token string, pk ed25519.PublicKey) (*drmtypes.JwtClaims, error) {
 	data, err := parse(token)
 	if err != nil {
 		return nil, err
