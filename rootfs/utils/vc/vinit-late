@@ -70,7 +70,7 @@ fi
 
 # resize fs
 #xfs_growfs /dev/vdb1
-#btrfs filesystem resize max /data
+btrfs filesystem resize max /data
 
 # ok to update quota/balloon now
 mkdir -p /tmp/flags

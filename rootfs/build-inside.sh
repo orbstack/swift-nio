@@ -119,11 +119,11 @@ echo 'RESOLV_CONF="no"' >> /etc/udhcpc/udhcpc.conf
 
 # fstab
 echo '/dev/vda / erofs rw,noatime 0 0' > /etc/fstab
-echo '/dev/vdb1 /data ext4 rw,noatime,discard,prjquota 0 0' >> /etc/fstab
+#echo '/dev/vdb1 /data ext4 rw,noatime,discard,prjquota 0 0' >> /etc/fstab
 #echo '/dev/vdb1 /data xfs rw,noatime,discard 0 0' >> /etc/fstab
 #echo '/dev/vdb1 /data xfs rw,noatime,discard,pquota 0 0' >> /etc/fstab
 #echo '/dev/vdb1 /data f2fs rw,noatime,discard,prjquota,atgc,gc_merge 0 1' >> /etc/fstab
-# echo '/dev/vdb1 /data btrfs rw,noatime,discard=async,space_cache=v2,ssd,nodatacow,nodatasum' >> /etc/fstab
+echo '/dev/vdb1 /data btrfs rw,noatime,discard=async,space_cache=v2,ssd,nodatacow,nodatasum' >> /etc/fstab
 # for LXD image import
 echo 'tmpfs /tmp tmpfs rw,noatime 0 0' >> /etc/fstab
 
