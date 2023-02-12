@@ -22,12 +22,12 @@ struct OnboardingCreateView: View {
     var body: some View {
         VStack {
             Text("Create a Linux machine")
-                    .font(.largeTitle.weight(.medium))
-                    .padding(.bottom, 8)
-                    .padding(.top, 16)
+                .font(.largeTitle.weight(.semibold))
+                .padding(.bottom, 4)
+                .padding(.top, 16)
             Text("This is a full Linux machine that works like a VM, including running services with systemd or OpenRC.")
                 .multilineTextAlignment(.center)
-                .font(.body)
+                .font(.title3)
                 .foregroundColor(.secondary)
                 .padding(.bottom, 8)
                 .frame(maxWidth: 450)

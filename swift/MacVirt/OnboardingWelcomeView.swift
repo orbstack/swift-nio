@@ -100,13 +100,15 @@ struct OnboardingWelcomeView: View {
     var body: some View {
         VStack {
             Text(Constants.userAppName)
-                    .font(.largeTitle.weight(.semibold))
-                    .padding(.bottom, 4)
-                    .padding(.top, 16)
+                .font(.largeTitle.weight(.semibold))
+                .padding(.bottom, 4)
+                .padding(.top, 16)
             Text("Fast, light, simple Linux machines and containers")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .padding(.bottom, 8)
+                .multilineTextAlignment(.center)
+                .font(.title3)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 8)
+                .frame(maxWidth: 450)
 
             Spacer()
 

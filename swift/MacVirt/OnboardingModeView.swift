@@ -48,7 +48,7 @@ fileprivate struct ModeButton: View {
                         .multilineTextAlignment(.center)
                         .padding(.bottom, 2)
                 Text(desc)
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
             }
@@ -87,15 +87,15 @@ struct OnboardingModeView: View {
     var body: some View {
         VStack {
             Text("What do you want to run?")
-                    .font(.largeTitle.weight(.medium))
-                    .padding(.bottom, 8)
-                    .padding(.top, 16)
+                .font(.largeTitle.weight(.semibold))
+                .padding(.bottom, 4)
+                .padding(.top, 16)
             Text("Don’t worry, you can always change this later and run both Linux and Docker.")
-                    .multilineTextAlignment(.center)
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .padding(.bottom, 8)
-                    .frame(maxWidth: 450)
+                .multilineTextAlignment(.center)
+                .font(.title3)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 8)
+                .frame(maxWidth: 450)
 
             Spacer()
 
