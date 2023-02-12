@@ -94,14 +94,12 @@ struct ContentView: View {
         .background(WindowAccessor(holder: windowHolder))
         .onAppear {
             if !onboardingCompleted {
-                print("close w appear: \(windowHolder.window)")
                 windowHolder.window?.close()
                 NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
             }
         }
         .onChange(of: windowHolder.window) {
             if !onboardingCompleted {
-                print("close w change: \($0)")
                 $0?.close()
             }
         }

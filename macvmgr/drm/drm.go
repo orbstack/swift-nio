@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
@@ -60,9 +61,13 @@ func newDrmClient() *DrmClient {
 		panic(err)
 	}
 
-	//TODO
+	ver, err := appver.GitCommit()
+	if err != nil {
+		panic(err)
+	}
+
 	appVersion := drmtypes.AppVersion{
-		Raw: "1",
+		Git: ver,
 	}
 
 	httpClient := &http.Client{
@@ -254,7 +259,7 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		return nil, err
 	}
 
-	resp, err := c.http.Post("https://api-license.orbstack.dev/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
+	resp, err := c.http.Post("https://localhost:8400/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
 	if err != nil {
 		return nil, err
 	}

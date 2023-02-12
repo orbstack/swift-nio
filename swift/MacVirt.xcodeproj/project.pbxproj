@@ -39,13 +39,14 @@
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
-		D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A412992247F0046B6B6 /* macvmgr */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D8694A44299224990046B6B6 /* scli in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A412992247F0046B6B6 /* macvmgr */; };
+		D8694A44299224990046B6B6 /* scli in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
-		D86F35452997A57E00DADC6F /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35422997A57E00DADC6F /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D86F35462997A57E00DADC6F /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35432997A57E00DADC6F /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D86F35472997A57E00DADC6F /* docker-credential-osxkeychain in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D86F35452997A57E00DADC6F /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35422997A57E00DADC6F /* docker */; };
+		D86F35462997A57E00DADC6F /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35432997A57E00DADC6F /* docker-compose */; };
+		D86F35472997A57E00DADC6F /* docker-credential-osxkeychain in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */; };
+		D88F4EB92998D81A00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
@@ -77,6 +78,17 @@
 				D86F35472997A57E00DADC6F /* docker-credential-osxkeychain in Copy Docker xbin executables */,
 			);
 			name = "Copy Docker xbin executables";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D88F4EB72998D61B00419B5C /* Copy assets */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 12;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+				D88F4EB92998D81A00419B5C /* assets in Copy assets */,
+			);
+			name = "Copy assets";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -117,6 +129,7 @@
 		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../macvmgr/xbin/docker; sourceTree = "<group>"; };
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../macvmgr/xbin/docker-compose"; sourceTree = "<group>"; };
 		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../macvmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
+		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
 		D8A32B8E296F839100E56EEF /* OrbStack.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OrbStack.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8A32B91296F839100E56EEF /* MacVirtApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacVirtApp.swift; sourceTree = "<group>"; };
 		D8A32B93296F839100E56EEF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -145,6 +158,7 @@
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
+				D88F4EB82998D81A00419B5C /* assets */,
 				D86F35422997A57E00DADC6F /* docker */,
 				D86F35432997A57E00DADC6F /* docker-compose */,
 				D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */,
@@ -227,6 +241,7 @@
 				D8694A3B2991F3F80046B6B6 /* Copy “Launch at Login Helper” */,
 				D8694A3E2991F8C70046B6B6 /* Copy Go executables */,
 				D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */,
+				D88F4EB72998D61B00419B5C /* Copy assets */,
 				D8694A46299224F10046B6B6 /* Create symlinks */,
 				D86F35482997A5B700DADC6F /* Set version from Git */,
 			);
@@ -335,10 +350,11 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "mkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnxctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnx\"\nln -sf Resources/assets \"$EXECUTABLE_FOLDER_PATH/../assets\"\n";
+			shellScript = "cd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnxctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/lnx\"\nln -sf Resources/assets \"$EXECUTABLE_FOLDER_PATH/../assets\"\n";
 		};
 		D86F35482997A5B700DADC6F /* Set version from Git */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -353,7 +369,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "GIT_RELEASE_VERSION=$(git describe --tags --always --dirty)\nCOMMITS=$(git rev-list HEAD | wc -l)\nCOMMITS=$(($COMMITS))\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleShortVersionString\" \"${GIT_RELEASE_VERSION#*v}\"\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleVersion\" \"${COMMITS}\"\n";
+			shellScript = "LONG_VER=$(git describe --tags --always --dirty)\nCOMMITS=$(git rev-list --count HEAD)\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleShortVersionString\" \"${GIT_RELEASE_VERSION#*v}\"\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleVersion\" \"${COMMITS}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -433,6 +449,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -493,6 +510,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -523,6 +541,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1000001;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"MacVirt/Preview Content\"";
 				DEVELOPMENT_TEAM = HUAQ24HBR6;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -556,6 +575,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1000001;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"MacVirt/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = HUAQ24HBR6;

@@ -5,4 +5,4 @@ xcuserdata/
 *.xcscmblueprint
 *.xccheckout
 
-/OrbStack.app/
+/build/

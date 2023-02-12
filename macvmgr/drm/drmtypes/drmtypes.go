@@ -52,7 +52,7 @@ type Result struct {
 }
 
 type AppVersion struct {
-	Raw string `json:"raw"`
+	Git string `json:"git"`
 }
 
 type EntitlementRequest struct {
