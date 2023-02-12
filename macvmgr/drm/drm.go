@@ -151,9 +151,7 @@ func (c *DrmClient) Run() {
 	ticker := time.NewTicker(checkinInterval)
 	defer ticker.Stop()
 
-	go c.KickCheck()
-
-	for range ticker.C {
+	for ; true; <-ticker.C {
 		dlog("periodic check")
 		_, _ = c.KickCheck()
 	}

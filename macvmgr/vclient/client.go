@@ -182,10 +182,9 @@ func (vc *VClient) StartBackground() error {
 	go func() {
 		// don't want to miss the first report, or we'll have to wait
 		vc.WaitForDataReady()
-		vc.reportDiskStats()
 
 		ticker := time.NewTicker(diskStatsInterval)
-		for range ticker.C {
+		for ; true; <-ticker.C {
 			vc.reportDiskStats()
 		}
 	}()
