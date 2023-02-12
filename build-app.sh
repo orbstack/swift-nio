@@ -68,7 +68,7 @@ function package_one() {
     create-dmg --overwrite $arch/OrbStack.app dmg/$arch
 
     # notarize
-    #xcrun notarytool submit dmg/$arch/*.dmg --keychain-profile main --wait
+    xcrun notarytool submit dmg/$arch/*.dmg --keychain-profile main --wait
 
     # staple
     xcrun stapler staple dmg/$arch/*.dmg
