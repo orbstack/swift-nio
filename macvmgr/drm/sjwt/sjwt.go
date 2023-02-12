@@ -122,17 +122,17 @@ func parse(token string) (*jwtData, error) {
 		return nil, ErrInvalidToken
 	}
 
-	headerData, err := base64.StdEncoding.DecodeString(parts[0])
+	headerData, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
 		return nil, err
 	}
 
-	claimsData, err := base64.StdEncoding.DecodeString(parts[1])
+	claimsData, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, err
 	}
 
-	signature, err := base64.StdEncoding.DecodeString(parts[2])
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
 		return nil, err
 	}

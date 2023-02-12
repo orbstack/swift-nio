@@ -14,6 +14,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -27,6 +28,9 @@ const (
 	retryDelay3 = 5 * time.Minute
 
 	previewRefreshToken = "1181201e-23f8-41f6-9660-b7110f4bfedb"
+
+	apiBaseUrlProd = "https://api-license.orbstack.dev"
+	apiBaseUrlDev  = "http://localhost:8400"
 )
 
 var (
@@ -36,13 +40,16 @@ var (
 var (
 	cachedClient   *DrmClient
 	cachedClientMu sync.Mutex
+
+	ErrVerify = errors.New("verification failed")
 )
 
 type DrmClient struct {
-	mu       sync.Mutex
-	checkMu  sync.Mutex
-	verifier *sjwt.Verifier
-	http     *http.Client
+	mu         sync.Mutex
+	checkMu    sync.Mutex
+	verifier   *sjwt.Verifier
+	http       *http.Client
+	apiBaseURL string
 
 	state      drmtypes.State
 	lastResult *drmtypes.Result
@@ -75,10 +82,17 @@ func newDrmClient() *DrmClient {
 		},
 	}
 
+	baseURL := apiBaseUrlProd
+	if conf.Debug() {
+		baseURL = apiBaseUrlDev
+	}
+
 	return &DrmClient{
-		state:    drmtypes.StateInvalid,
-		verifier: sjwt.NewVerifier(ids, appVersion),
-		http:     httpClient,
+		// start in permissive valid state
+		state:      drmtypes.StateValid,
+		verifier:   sjwt.NewVerifier(ids, appVersion),
+		http:       httpClient,
+		apiBaseURL: baseURL,
 
 		lastResult: nil,
 
@@ -109,8 +123,9 @@ func (c *DrmClient) FailChan() <-chan struct{} {
 
 func (c *DrmClient) setState(state drmtypes.State) {
 	c.state = state
+	dlog("set state: ", state)
 	if state == drmtypes.StateInvalid {
-		c.failChan <- struct{}{}
+		dlog("invalid state, dispatching fail event")
 		close(c.failChan)
 	}
 }
@@ -133,34 +148,48 @@ func (c *DrmClient) Run() {
 	go c.KickCheck()
 
 	for range ticker.C {
+		dlog("periodic check")
 		_, _ = c.KickCheck()
 	}
 }
 
 func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
+	dlog("kick check")
+
 	c.checkMu.Lock()
 	defer c.checkMu.Unlock()
 
 	lastResult := c.LastResult()
 	if lastResult != nil && lastResult.State == drmtypes.StateValid && time.Since(lastResult.CheckedAt) < checkinLifetime && time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
+		dlog("skipping checkin due to valid result")
 		return lastResult, nil
 	}
 
 	if iokit.IsAsleep() {
+		dlog("skipping checkin due to sleep")
 		return nil, errors.New("asleep")
+	}
+
+	if !c.Valid() {
+		dlog("skipping checkin due to invalid state")
+		return nil, errors.New("invalid state")
 	}
 
 	result, err := c.doCheckinLockedRetry()
 	if err != nil {
+		isVerifyFail := errors.Is(err, ErrVerify)
+
 		// new check failed. are we in grace period for old token expiry?
-		if lastResult != nil && time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
+		if !isVerifyFail && lastResult != nil && time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 			// still in grace period, so keep the old result
+			dlog("failed checkin, but still in last token grace period")
 			return lastResult, nil
-		} else if lastResult == nil && time.Since(c.startTime) < startGracePeriod {
+		} else if !isVerifyFail && lastResult == nil && time.Since(c.startTime) < startGracePeriod {
 			// still in grace period, so keep the old result
+			dlog("failed checkin, but still in start grace period")
 			return nil, err
 		} else {
-			// no grace period, so invalidate the result
+			// no grace period (or verify failed), so invalidate the result
 			result = &drmtypes.Result{
 				State:            drmtypes.StateInvalid,
 				EntitlementToken: "",
@@ -168,6 +197,7 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 				ClaimInfo:        nil,
 				CheckedAt:        time.Now(),
 			}
+			dlog("failed checkin and no grace period, invalidating result")
 
 			c.dispatchResult(result)
 			return result, err
@@ -178,45 +208,68 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 }
 
 func (c *DrmClient) doCheckinLockedRetry() (*drmtypes.Result, error) {
+	dlog("doCheckinLockedRetry 1")
 	result, err := c.doCheckinLocked()
 	if err == nil {
 		return result, nil
 	}
+	if errors.Is(err, ErrVerify) {
+		return nil, err
+	}
+	dlog("1 error ", err)
 
 	time.Sleep(retryDelay1)
+	dlog("doCheckinLockedRetry 2")
 	result, err = c.doCheckinLocked()
 	if err == nil {
 		return result, nil
 	}
+	if errors.Is(err, ErrVerify) {
+		return nil, err
+	}
+	dlog("2 error ", err)
 
 	time.Sleep(retryDelay2)
+	dlog("doCheckinLockedRetry 3")
 	result, err = c.doCheckinLocked()
 	if err == nil {
 		return result, nil
 	}
+	if errors.Is(err, ErrVerify) {
+		return nil, err
+	}
+	dlog("3 error ", err)
 
 	time.Sleep(retryDelay3)
+	dlog("doCheckinLockedRetry 4")
 	result, err = c.doCheckinLocked()
 	if err == nil {
 		return result, nil
 	}
+	if errors.Is(err, ErrVerify) {
+		return nil, err
+	}
+	dlog("4 error ", err)
 
 	return nil, err
 }
 
 func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
+	dlog("doCheckinLocked")
 	resp, err := c.fetchNewEntitlement()
 	if err != nil {
 		return nil, err
 	}
 
 	// require strict version checking after the first checkin
+	dlog("verify token")
 	isFirstCheckin := c.LastResult() == nil
 	claimInfo, err := c.verifier.Verify(resp.EntitlementToken, sjwt.TokenVerifyParams{
 		StrictVersion: !isFirstCheckin,
 	})
 	if err != nil {
-		return nil, err
+		dlog("verify failed: ", err)
+		return nil, errors.Join(ErrVerify, err)
 	}
 
 	result := &drmtypes.Result{
@@ -226,6 +279,7 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 		ClaimInfo:        claimInfo,
 		CheckedAt:        time.Now(),
 	}
+	dlog("dispatch good result")
 
 	c.dispatchResult(result)
 
@@ -240,6 +294,7 @@ func (c *DrmClient) dispatchResult(result *drmtypes.Result) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	dlog("dispatchResult: ", result)
 	c.lastResult = result
 	c.setState(result.State)
 }
@@ -249,15 +304,16 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		RefreshToken: c.refreshToken,
 		Identifiers:  *c.identifiers,
 		AppVersion:   c.appVersion,
+		ClientTime:   time.Now().UTC(),
 	}
+	dlog("POST req: ", req)
 
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	//TODO
-	resp, err := c.http.Post("https://localhost:8400/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
+	resp, err := c.http.Post(c.apiBaseURL+"/api/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -272,6 +328,7 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		return nil, err
 	}
 
+	dlog("response: ", response)
 	return &response, nil
 }
 
@@ -287,4 +344,10 @@ func Client() *DrmClient {
 	go cachedClient.Run()
 
 	return cachedClient
+}
+
+func dlog(msg string, args ...interface{}) {
+	if verboseDebug {
+		logrus.Debug(append([]interface{}{"[drm] " + msg}, args...)...)
+	}
 }
