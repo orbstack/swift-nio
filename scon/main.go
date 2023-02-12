@@ -123,16 +123,6 @@ func runContainerManager() {
 		go runPprof()
 	}
 
-	if conf.Debug() {
-		go func() {
-			err := runCliTest(mgr)
-			if err != nil {
-				logrus.WithError(err).Error("cli test failed")
-				mgr.Close()
-			}
-		}()
-	}
-
 	// listen for signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT)
@@ -142,35 +132,6 @@ func runContainerManager() {
 	}
 
 	logrus.Info("shutting down")
-}
-
-func runCliTest(mgr *ConManager) error {
-	var err error
-
-	container, ok := mgr.GetByName("ubuntu")
-	if !ok {
-		// create
-		fmt.Println("create")
-		container, err = mgr.Create(CreateParams{
-			Name: "ubuntu",
-			Image: types.ImageSpec{
-				Distro:  "ubuntu",
-				Version: "kinetic",
-			},
-			UserPassword: "test",
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	fmt.Println("start")
-	err = container.Start()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func main() {

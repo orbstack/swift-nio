@@ -116,6 +116,8 @@ You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux.
 will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run uname -a
 
 If you prefer SSH, use "` + appid.ShortCtl + ` ssh" for details.
+
+To run a command on macOS from Linux, use "macctl run" instead.
 `,
 	Example: "  " + appid.ShortCtl + " run ls",
 	Args:    cobra.ArbitraryArgs,

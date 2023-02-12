@@ -22,7 +22,7 @@ struct MachinesRootView: View {
                         }
                     }
 
-                    if containers.isEmpty {
+                    if !containers.contains(where: { !$0.builtin }) {
                         HStack {
                             Spacer()
                             VStack {

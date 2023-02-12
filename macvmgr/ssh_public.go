@@ -30,7 +30,21 @@ var (
   IdentityFile %s/id_ed25519
   ProxyCommand %s ssh-proxy-fdpass
   ProxyUseFdpass yes
-`, appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, makeHomeRelative(conf.ExtraSshDir()), getExePath())
+
+Host %s
+  Hostname 127.0.0.1
+  Port %d
+  # SSH user syntax:
+  #   <container>@%s to connect to <container> as the default user (matching your macOS user)
+  #   <user>@<container>@%s to connect to <container> as <user>
+  # Examples:
+  #   ubuntu@%s: container "ubuntu", user matching your macOS user
+  #   root@fedora@%s: container "fedora", user "root"
+  User default
+  IdentityFile %s/id_ed25519
+  ProxyCommand %s ssh-proxy-fdpass
+  ProxyUseFdpass yes
+`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, makeHomeRelative(conf.ExtraSshDir()), getExePath(), appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, makeHomeRelative(conf.ExtraSshDir()), getExePath())
 
 	sshConfigIncludeLine = fmt.Sprintf("Include %s/config", makeHomeRelative(conf.ExtraSshDir()))
 )

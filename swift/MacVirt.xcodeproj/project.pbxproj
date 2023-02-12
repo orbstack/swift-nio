@@ -34,6 +34,7 @@
 		B118BFB7E48980394ADE79DE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */; };
 		B118BFD7C7DDDF02D8639C5D /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */; };
 		B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDE072F572BA61600007 /* AppSettings.swift */; };
+		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
@@ -130,6 +131,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
 				D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
@@ -238,6 +240,7 @@
 				D8694A392991F3C10046B6B6 /* LaunchAtLogin */,
 				D8694A48299464810046B6B6 /* Sparkle */,
 				D8694A4B2994D4FA0046B6B6 /* Defaults */,
+				D855F1EF2998B6A700B62588 /* Sentry */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -272,6 +275,7 @@
 				D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
 				D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */,
+				D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -599,6 +603,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 		D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kdrag0n/SwiftJSONRPC.git";
@@ -634,6 +646,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		D855F1EF2998B6A700B62588 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
 		D8694A352991D8160046B6B6 /* SwiftJSONRPC */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */;

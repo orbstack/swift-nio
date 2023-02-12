@@ -33,7 +33,10 @@ func withTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) 
 	var err error
 	go func() {
 		result, err = fn()
-		done <- struct{}{}
+		select {
+		case done <- struct{}{}:
+		default:
+		}
 	}()
 
 	select {

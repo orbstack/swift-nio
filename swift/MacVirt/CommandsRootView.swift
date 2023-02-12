@@ -77,11 +77,11 @@ struct CommandsRootView: View {
         ScrollView {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 12) {
-                    CommandSection(systemImage: "info.circle", title: "Get started") {
+                    CommandSection(systemImage: "info.circle.fill", title: "Get started") {
                         CommandBox(
-                            title: "Control machines: orbrctl",
+                            title: "Control machines: orbctl",
                             desc: "Create, start, stop, delete, change default, and more. Explore the help for more commands.",
-                            command: "orbrctl help"
+                            command: "orbctl help"
                         )
 
                         CommandBox(
@@ -91,7 +91,7 @@ struct CommandsRootView: View {
                         )
                     }
 
-                    CommandSection(systemImage: "terminal", title: "Command line") {
+                    CommandSection(systemImage: "terminal.fill", title: "Command line") {
                         CommandBox(
                             title: "Start a shell",
                             desc: "Log in as the default user in the machine you used most recently.",
@@ -121,13 +121,13 @@ struct CommandsRootView: View {
                         CommandBox(
                             title: "Log in",
                             desc: "Run a command or log in to the default machine.",
-                            command: "ssh orbstack"
+                            command: "ssh orb"
                         )
 
                         CommandBox(
                             title: "Specify machine and user",
                             desc: "Run a command or log in as a specific user and machine.",
-                            command: "ssh root@ubuntu@orbstack"
+                            command: "ssh root@ubuntu@orb"
                         )
 
                         CommandBox(
@@ -139,6 +139,34 @@ struct CommandsRootView: View {
                                      User: default (or root@ubuntu)
                                      Private key: ~/.orbstack/ssh/id_ed25519
                                      """
+                        )
+                    }
+                    
+                    CommandSection(systemImage: "macwindow", title: "macOS from Linux") {
+                        CommandBox(
+                            title: "Start a Mac shell",
+                            desc: "Start a shell on macOS from within Linux.",
+                            command: "mac"
+                        )
+
+                        CommandBox(
+                            title: "Run a Mac command",
+                            desc: "Run a command on macOS from within Linux.",
+                            command: "mac uname -a"
+                        )
+                    }
+                    
+                    CommandSection(systemImage: "folder.fill", title: "File transfer", desc: "We recommend transferring files via the /Users and ~/Linux shared folders, but commands are also available.") {
+                        CommandBox(
+                            title: "Copy files from Mac to Linux",
+                            desc: "Push from Mac to the default Linux machine's home folder.",
+                            command: "orb push example.txt"
+                        )
+
+                        CommandBox(
+                            title: "Copy files from Linux to Mac",
+                            desc: "Pull from the default Linux machine's home folder to Mac.",
+                            command: "orb pull example.txt"
                         )
                     }
 
