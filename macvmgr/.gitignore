@@ -5,3 +5,5 @@ vnet/cmd/gvnetclient/gvnetclient
 /xbin
 
 /conf/appver/version.txt
+
+/drm/killswitch/ksconst_

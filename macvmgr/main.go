@@ -20,6 +20,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/killswitch"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
@@ -282,6 +283,10 @@ func runVmManager() {
 		check(err)
 	}
 	err = os.WriteFile(conf.VmgrVersionFile(), []byte(buildID), 0644)
+	check(err)
+
+	// killswitch
+	err = killswitch.Monitor()
 	check(err)
 
 	// Rosetta check
