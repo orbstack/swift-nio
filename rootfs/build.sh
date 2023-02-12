@@ -66,8 +66,8 @@ systemd-nspawn \
     --link-journal=no \
     -D $compile_rd \
     --private-users=$host_uid:65536 \
-    --bind-ro="$PWD/..:/macvirt-src" \
-    /bin/sh -l -c "set -eux; mkdir -p /out && cd /macvirt-src/scon && ./build-release.sh /out"
+    --bind-ro="$PWD/..:/src" \
+    /bin/sh -l -c "set -eux; mkdir -p /out && cd /src/scon && ./build-release.sh /out"
 
 rm -fr rd
 mkdir rd
