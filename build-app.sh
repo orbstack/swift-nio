@@ -15,6 +15,7 @@ function build_one() {
     OUT=./
 
     pushd macvmgr
+    go generate ./conf/appver
     go build -tags release -trimpath -ldflags="-s -w" -o $OUT/macvmgr
     codesign -f --timestamp --options=runtime --entitlements vmm.entitlements -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/macvmgr
     popd

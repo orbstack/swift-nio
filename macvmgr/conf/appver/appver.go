@@ -1,33 +1,77 @@
 package appver
 
 import (
-	"errors"
-	"fmt"
-	"runtime/debug"
+	_ "embed"
+	"strconv"
+	"strings"
 )
+
+//go:generate ./gen_version.sh
 
 var (
-	cachedGitCommit string
+	//go:embed version.txt
+	versionData string
 )
 
-func GitCommit() (string, error) {
-	if cachedGitCommit != "" {
-		return cachedGitCommit, nil
+type Version struct {
+	Short       string
+	Code        int
+	GitDescribe string
+	GitCommit   string
+}
+
+var (
+	cachedVersion *Version
+)
+
+func Get() *Version {
+	if cachedVersion != nil {
+		return cachedVersion
 	}
 
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "", errors.New("no build info available")
-	}
-
-	fmt.Println("build info:", info)
-	for _, setting := range info.Settings {
-		fmt.Println("setting:", setting)
-		if setting.Key == "vcs.revision" {
-			cachedGitCommit = setting.Value
-			return cachedGitCommit, nil
+	lines := strings.Split(versionData, "\n")
+	describe := lines[0]
+	var short string
+	dashParts := strings.Split(describe, "-")
+	dashParts[0] = strings.TrimPrefix(dashParts[0], "v")
+	var betaNum int
+	if strings.Contains(describe, "-beta") {
+		short = dashParts[0] + "-" + dashParts[1]
+		var err error
+		betaNum, err = strconv.Atoi(strings.TrimPrefix(dashParts[1], "beta"))
+		if err != nil {
+			panic(err)
 		}
+	} else {
+		// simple case
+		short = dashParts[0]
 	}
 
-	return "", errors.New("no git commit found")
+	// Leave 100 least significant: 50 for hotfix, 50 for next test
+	segs := strings.Split(strings.Split(short, "-")[0], ".")
+	major, err := strconv.Atoi(segs[0])
+	if err != nil {
+		panic(err)
+	}
+	minor, err := strconv.Atoi(segs[1])
+	if err != nil {
+		panic(err)
+	}
+	patch, err := strconv.Atoi(segs[2])
+	if err != nil {
+		panic(err)
+	}
+	code := major*100*100*100 + minor*100*100 + patch*100
+	if betaNum > 0 {
+		code = code - 50 + betaNum
+	}
+
+	cachedVersion = &Version{
+		Short:       short,
+		Code:        code,
+		GitDescribe: describe,
+		GitCommit:   lines[1],
+	}
+
+	return cachedVersion
 }

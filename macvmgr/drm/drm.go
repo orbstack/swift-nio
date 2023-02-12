@@ -61,13 +61,10 @@ func newDrmClient() *DrmClient {
 		panic(err)
 	}
 
-	ver, err := appver.GitCommit()
-	if err != nil {
-		panic(err)
-	}
-
+	ver := appver.Get()
 	appVersion := drmtypes.AppVersion{
-		Git: ver,
+		Code: ver.Code,
+		Git:  ver.GitCommit,
 	}
 
 	httpClient := &http.Client{
