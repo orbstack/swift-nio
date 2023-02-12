@@ -15,9 +15,10 @@ import (
 )
 
 const (
+	// matches vmgr's start grace period: make sure we would've shut down by now if missed
 	drmCheckInterval = 15 * time.Minute
 	// long enough to include all retries and 30s timeouts in vmgr
-	drmCheckTimeout = 8 * time.Minute
+	drmCheckTimeout = 6 * time.Minute
 )
 
 type DrmMonitor struct {
