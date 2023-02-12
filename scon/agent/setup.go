@@ -273,7 +273,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
-	// symlink /opt/macvirt-guest/profile
+	// symlink /opt/orbstack-guest/profile
 	logrus.Debug("linking profile")
 	err = os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+appid.AppName+".sh")
 	if err != nil {
@@ -284,7 +284,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
-	// symlink /etc/ssh/ssh_config.d/10-macvirt
+	// symlink /etc/ssh/ssh_config.d/10-orbstack
 	logrus.Debug("linking ssh config")
 	err = os.Symlink(mounts.SshConfig, "/etc/ssh/ssh_config.d/10-"+appid.AppName+".conf")
 	if err != nil {

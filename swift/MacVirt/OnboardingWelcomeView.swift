@@ -100,8 +100,8 @@ struct OnboardingWelcomeView: View {
     var body: some View {
         VStack {
             Text(Constants.userAppName)
-                    .font(.largeTitle.weight(.medium))
-                    .padding(.bottom, 8)
+                    .font(.largeTitle.weight(.semibold))
+                    .padding(.bottom, 4)
                     .padding(.top, 16)
             Text("Fast, light, simple Linux machines and containers")
                     .font(.body)
@@ -127,9 +127,9 @@ struct OnboardingWelcomeView: View {
                     systemImage: "checkmark.circle.fill",
                     color: .green,
                     title: "Simple.",
-                    desc: "Minimal setup, seamless Docker, bidirectional CLI integration, file access from macOS and Linux, works with VPNs"
+                    desc: "Minimal setup, seamless Docker, 2-way CLI integration, file access from macOS and Linux, works with VPNs"
                 )
-            }
+            }.padding(.horizontal)
 
             Spacer()
 

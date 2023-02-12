@@ -304,7 +304,7 @@ func doMacSetup() (*SetupInfo, error) {
 		}).Debug("target command path")
 	}
 
-	// first, always put them in ~/.macvirt/bin
+	// first, always put them in ~/.orbstack/bin
 	// check each bin command
 	for _, cmd := range binCommands {
 		cmdSrc := conf.CliBinDir() + "/" + cmd

@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "Frame 3 16.png",
+      "filename" : "16.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "16x16"
@@ -55,7 +55,6 @@
       "size" : "512x512"
     },
     {
-      "filename" : "1024.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"

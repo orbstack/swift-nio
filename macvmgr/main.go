@@ -343,7 +343,7 @@ func runVmManager() {
 			select {
 			case <-ch:
 				logrus.Error("fail - shutdown")
-				stopCh <- StopForce
+				stopCh <- StopGraceful
 
 				go func() {
 					time.Sleep(drm.FailStopTimeout)

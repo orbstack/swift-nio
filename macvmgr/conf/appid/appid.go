@@ -2,7 +2,7 @@ package appid
 
 const (
 	Codename    = "macvirt"
-	AppName     = "macvirt"
+	AppName     = "orbstack"
 	UserAppName = "OrbStack"
 
 	ShortCmd = "orb"

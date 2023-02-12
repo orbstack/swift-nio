@@ -40,8 +40,8 @@ popd
 
 # zip it
 pushd $OUT
-rm -f ../macvirt-$ARCH-dist.zip
-zip -r ../macvirt-$ARCH-dist.zip *
+rm -f ../orbstack-$ARCH-dist.zip
+zip -r ../orbstack-$ARCH-dist.zip *
 popd
 
 # // Staple the package.
