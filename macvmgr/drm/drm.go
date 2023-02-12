@@ -19,18 +19,18 @@ import (
 
 const (
 	// check the local DRM state this often
-	checkinInterval = 20 * time.Second
+	checkinInterval  = 15 * time.Minute
 	// wait at least this long before sending another server checkin request
-	checkinLifetime = 10 * time.Minute
+	checkinLifetime  = 24 * time.Hour
 	// allow non-explicit (i.e. network error) failures up to this long after startup
-	startGracePeriod = 1 * time.Minute
+	startGracePeriod = 15 * time.Minute
 	// wait this long for VM to stop if DRM failed
-	FailStopTimeout = 30 * time.Second
+	FailStopTimeout  = 3 * time.Minute
 
 	// retry delays for DRM checkin requests
 	retryDelay1 = 5 * time.Second
-	retryDelay2 = 5 * time.Second
-	retryDelay3 = 5 * time.Second
+	retryDelay2 = 30 * time.Second
+	retryDelay3 = 5 * time.Minute
 
 	// temporary preview refresh token
 	previewRefreshToken = "1181201e-23f8-41f6-9660-b7110f4bfedb"
