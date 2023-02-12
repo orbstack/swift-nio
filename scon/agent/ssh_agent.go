@@ -27,7 +27,7 @@ func (a *AgentServer) ServeSftp(args *ServeSftpArgs, reply *int) error {
 	}
 	defer socketFile.Close()
 
-	cmd := exec.Command("/opt/macvirt-guest/scon-forksftp")
+	cmd := exec.Command("/opt/orbstack-guest/scon-forksftp")
 	cmd.Stdin = socketFile
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

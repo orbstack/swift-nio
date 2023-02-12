@@ -121,13 +121,13 @@ struct CommandsRootView: View {
                         CommandBox(
                             title: "Log in",
                             desc: "Run a command or log in to the default machine.",
-                            command: "ssh macvirt"
+                            command: "ssh orbstack"
                         )
 
                         CommandBox(
                             title: "Specify machine and user",
                             desc: "Run a command or log in as a specific user and machine.",
-                            command: "ssh root@ubuntu@macvirt"
+                            command: "ssh root@ubuntu@orbstack"
                         )
 
                         CommandBox(
@@ -137,7 +137,7 @@ struct CommandsRootView: View {
                                      Host: localhost
                                      Port: 62222
                                      User: default (or root@ubuntu)
-                                     Private key: ~/.macvirt/ssh/id_ed25519
+                                     Private key: ~/.orbstack/ssh/id_ed25519
                                      """
                         )
                     }

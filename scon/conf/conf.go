@@ -35,7 +35,7 @@ type Config struct {
 var configVM = Config{
 	SconDataDir: "/data/scon",
 	// /mnt/guest-tools?
-	GuestMountSrc: "/opt/macvirt-guest",
+	GuestMountSrc: "/opt/orbstack-guest",
 	HostMountSrc:  "/mnt/mac",
 	FakeSrc:       "/fake",
 	HcontrolIP:    "172.30.30.201",
@@ -51,7 +51,7 @@ var configVM = Config{
 
 var configTest = Config{
 	SconDataDir:   "/home/dragon/code/projects/macvirt/scdata",
-	GuestMountSrc: "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/macvirt-guest",
+	GuestMountSrc: "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/orbstack-guest",
 	HostMountSrc:  "/ssdstore",
 	FakeSrc:       "/home/dragon/code/projects/macvirt/rootfs/out/rd/fake",
 	HcontrolIP:    "127.0.0.1",
