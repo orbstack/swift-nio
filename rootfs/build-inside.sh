@@ -157,7 +157,6 @@ ln -s /opt/vc/usbip /usbip/prefix
 # mounts
 mkdir /mnt/mac
 mkdir /mnt/rosetta
-mkdir /mnt/guest-tools
 
 # guest tools
 mkdir -p /opt/orbstack-guest/bin /opt/orbstack-guest/bin-hiprio /opt/orbstack-guest/run /opt/orbstack-guest/data

@@ -6,7 +6,7 @@ __path_set=1
 esac
 
 if [ $__path_set = 0 ]; then
-    export PATH="/opt/orbstack-guest/bin-hiprio:$PATH:/opt/orbstack-guest/bin"
+    export PATH="/opt/orbstack-guest/bin-hiprio:$PATH:/opt/orbstack-guest/bin:/opt/orbstack-guest/data/bin/cmdlinks"
 fi
 
 unset __path_set

@@ -36,8 +36,7 @@ echo 9 > /sys/module/page_reporting/parameters/page_reporting_order
 mkdir -p /data/guest-state/bin/cmdlinks
 chmod 777 /data/guest-state/bin/cmdlinks
 mount --bind /data/guest-state /opt/orbstack-guest/data
-mount --rbind -o ro /opt/orbstack-guest /mnt/guest-tools
-mount -t overlay cmds -o lowerdir=/opt/orbstack-guest/data/bin/cmdlinks:/opt/orbstack-guest/bin /mnt/guest-tools/bin
+#mount -t overlay cmds -o lowerdir=/opt/orbstack-guest/data/bin/cmdlinks:/opt/orbstack-guest/bin /opt/orbstack-guest/bin
 
 # Listeners for ssh-agent socket
 mkdir -p /tmp/launchd-ssh-agent-listeners
