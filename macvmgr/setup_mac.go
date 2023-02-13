@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"os/user"
@@ -16,6 +17,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sys/unix"
 )
 
 type SetupInfo struct {
@@ -198,8 +200,69 @@ func fixDockerCredsStore() error {
 	return nil
 }
 
-func lookPath(cmd string) (string, error) {
-	path, err := exec.LookPath(cmd)
+func filterSlice[T comparable](s []T, f func(T) bool) []T {
+	var out []T
+	for _, v := range s {
+		if f(v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func findExecutable(file string) error {
+	d, err := os.Stat(file)
+	if err != nil {
+		return err
+	}
+	m := d.Mode()
+	if m.IsDir() {
+		return unix.EISDIR
+	}
+	err = unix.ENOSYS
+	// ENOSYS means Eaccess is not available or not implemented.
+	// EPERM can be returned by Linux containers employing seccomp.
+	// In both cases, fall back to checking the permission bits.
+	if err == nil || (err != unix.ENOSYS && err != unix.EPERM) {
+		return err
+	}
+	if m&0111 != 0 {
+		return nil
+	}
+	return fs.ErrPermission
+}
+
+// takes custom PATH
+func execLookPath(path string, file string) (string, error) {
+	// NOTE(rsc): I wish we could use the Plan 9 behavior here
+	// (only bypass the path if file begins with / or ./ or ../)
+	// but that would not match all the Unix shells.
+
+	if strings.Contains(file, "/") {
+		err := findExecutable(file)
+		if err == nil {
+			return file, nil
+		}
+		return "", fmt.Errorf("find %s: %w", file, err)
+	}
+	for _, dir := range filepath.SplitList(path) {
+		if dir == "" {
+			// Unix shell semantics: path element "" means "."
+			dir = "."
+		}
+		path := filepath.Join(dir, file)
+		if err := findExecutable(path); err == nil {
+			if !filepath.IsAbs(path) {
+				return path, fmt.Errorf("ErrDot: %s", path)
+			}
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("ErrNotFound: %s", file)
+}
+
+func lookPath(pathEnv string, cmd string) (string, error) {
+	path, err := execLookPath(pathEnv, cmd)
 	if err != nil {
 		return "", err
 	}
@@ -443,8 +506,13 @@ func doMacSetup() (*SetupInfo, error) {
 		}
 
 		// check each bin command
+		// to avoid a feedback loop, we ignore our own ~/.orbstack/bin when checking this
+		otherPathItems := filterSlice(pathItems, func(item string) bool {
+			return item != conf.UserAppBinDir()
+		})
+		otherPathEnv := strings.Join(otherPathItems, ":")
 		for _, cmd := range binCommands {
-			_, err := lookPath(cmd)
+			_, err := lookPath(otherPathEnv, cmd)
 			cmdSrc := conf.CliBinDir() + "/" + cmd
 			logrus.WithFields(logrus.Fields{
 				"cmd": cmd,
@@ -463,7 +531,7 @@ func doMacSetup() (*SetupInfo, error) {
 
 		// check each xbin command
 		for _, cmd := range xbinCommands {
-			_, err := lookPath(cmd)
+			_, err := lookPath(otherPathEnv, cmd)
 			cmdSrc := conf.CliXbinDir() + "/" + cmd
 			logrus.WithFields(logrus.Fields{
 				"cmd": cmd,
