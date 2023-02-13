@@ -36,6 +36,7 @@ func main() {
 func runCommandStub(cmd string) (int, error) {
 	args := []string{cmd}
 	args = append(args, os.Args[1:]...)
+	args = shell.TranslateArgPathsRelaxed(args)
 	return shell.ConnectSSH(shell.CommandOpts{
 		CombinedArgs: args,
 	})
