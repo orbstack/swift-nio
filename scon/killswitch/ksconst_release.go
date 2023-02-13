@@ -2,4 +2,4 @@
 
 package killswitch
 
-const killswitchTimestamp = 1678017080
+const killswitchTimestamp = 1678080320

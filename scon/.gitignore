@@ -5,3 +5,5 @@
 /scon-agent
 /scli
 /scon-forksftp
+
+/killswitch/ksconst_release.go

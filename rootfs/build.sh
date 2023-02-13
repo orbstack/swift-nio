@@ -58,6 +58,10 @@ if [[ "$ARCH" == "arm64" ]]; then
 else
     compile_rd=rd-compile86
 fi
+# update killswitch
+pushd ../scon
+go generate ./killswitch
+popd
 # private-users to fix git ownership for -buildvcs stamping
 host_uid=$(id -u dragon)
 host_gid=$(id -g dragon)
