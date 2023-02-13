@@ -19,7 +19,7 @@ var (
 func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().BoolVarP(&useShell, "shell", "s", false, "Use the login shell instead of running command directly")
-	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate absolute Linux paths to macOS paths (experimental)")
+	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate all absolute Linux paths to macOS paths (experimental)")
 }
 
 func ParseRunFlags(args []string) ([]string, error) {
@@ -119,6 +119,8 @@ will run "uname -a" on macOS, and is equivalent to: macctl run uname -a
 
 		if usePath {
 			args = shell.TranslateArgPaths(args)
+		} else {
+			args = shell.TranslateArgPathsRelaxed(args)
 		}
 		if useShell {
 			args = []string{shellescape.QuoteCommand(args)}

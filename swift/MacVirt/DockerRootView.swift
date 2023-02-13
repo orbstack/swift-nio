@@ -16,10 +16,21 @@ struct DockerRootView: View {
             Group {
                 if let machines = vmModel.containers, let containers = vmModel.dockerContainers {
                     List(selection: $selection) {
-                        Section(header: Text("Features")) {
-                            ForEach(machines) { record in
-                                if record.builtin {
-                                    BuiltinContainerItem(record: record)
+                        if #available(macOS 13.0, *) {
+                            Section {
+                                ForEach(machines) { record in
+                                    if record.builtin {
+                                        BuiltinContainerItem(record: record)
+                                    }
+                                }
+                            }
+                        } else {
+
+                            Section(header: Text("Features")) {
+                                ForEach(machines) { record in
+                                    if record.builtin {
+                                        BuiltinContainerItem(record: record)
+                                    }
                                 }
                             }
                         }

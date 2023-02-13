@@ -87,6 +87,25 @@ func TranslatePath(p string) string {
 	return NfsDataRoot() + p
 }
 
+func TranslatePathRelaxed(p string) string {
+	// canonicalize first
+	p = path.Clean(p)
+
+	// ONLY translate home
+	linuxHome, err := os.UserHomeDir()
+	if err != nil {
+		// do nothing
+		return p
+	}
+
+	// ONLY translate home
+	if p == linuxHome || strings.HasPrefix(p, linuxHome+"/") {
+		return NfsDataRoot() + p
+	}
+
+	return p
+}
+
 func IsPathArg(arg string) bool {
 	// 1. starts with slash
 	if strings.HasPrefix(arg, "/") {
@@ -110,6 +129,23 @@ func TranslateArgPaths(args []string) []string {
 				args[i] = matches[1] + "=" + TranslatePath(matches[2])
 			} else {
 				args[i] = TranslatePath(arg)
+			}
+		}
+	}
+
+	return args
+}
+
+// only translates /home/<user>
+func TranslateArgPathsRelaxed(args []string) []string {
+	for i, arg := range args {
+		if IsPathArg(arg) {
+			if pathArgRegexp.Match([]byte(arg)) {
+				// -option=/value, --option=/value, or option=/value
+				matches := pathArgRegexp.FindStringSubmatch(arg)
+				args[i] = matches[1] + "=" + TranslatePathRelaxed(matches[2])
+			} else {
+				args[i] = TranslatePathRelaxed(arg)
 			}
 		}
 	}
