@@ -317,7 +317,7 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		return nil, err
 	}
 
-	resp, err := c.http.Post(c.apiBaseURL+"/api/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
+	resp, err := c.http.Post(c.apiBaseURL+"/api/v0/drm/preview/entitlement", "application/json", bytes.NewReader(reqBytes))
 	if err != nil {
 		return nil, err
 	}
