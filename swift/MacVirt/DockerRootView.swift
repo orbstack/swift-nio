@@ -12,7 +12,7 @@ struct DockerRootView: View {
     @State private var selection: String?
 
     var body: some View {
-        Group {
+        StateWrapperView {
             if let machines = vmModel.containers, let containers = vmModel.dockerContainers {
                 List(selection: $selection) {
                     Section {

@@ -66,6 +66,7 @@ fileprivate struct CommandBox: View {
                 .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
+                .foregroundColor(.primary)
         }
     }
 }
