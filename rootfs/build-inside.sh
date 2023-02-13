@@ -172,7 +172,6 @@ done
 
 # prep for data volume
 mkdir /data
-mkdir -p /data/guest-state/bin/cmdlinks
 
 # v1: initial
 echo 1 > /data/version
