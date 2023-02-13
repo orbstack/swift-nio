@@ -27,6 +27,7 @@ struct ContentView: View {
     @State private var startStopInProgress = false
     @StateObject private var windowHolder = WindowHolder()
     @State private var presentError = false
+    @State private var pendingClose = false
 
     var body: some View {
         NavigationView {
@@ -107,12 +108,14 @@ struct ContentView: View {
         .background(WindowAccessor(holder: windowHolder))
         .onAppear {
             if !onboardingCompleted {
+                print("open and set pending; window=\(windowHolder.window)")
                 windowHolder.window?.close()
+                pendingClose = true
                 NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
             }
         }
         .onChange(of: windowHolder.window) {
-            if !onboardingCompleted {
+            if pendingClose || !onboardingCompleted {
                 $0?.close()
             }
         }

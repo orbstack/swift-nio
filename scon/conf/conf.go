@@ -34,7 +34,6 @@ type Config struct {
 
 var configVM = Config{
 	SconDataDir: "/data/scon",
-	// /mnt/guest-tools?
 	GuestMountSrc: "/opt/orbstack-guest",
 	HostMountSrc:  "/mnt/mac",
 	FakeSrc:       "/fake",

@@ -268,7 +268,7 @@ func (c *Container) initLxc() error {
 
 		// bind mounts
 		config := conf.C()
-		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro")
+		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro,rshared")
 		bind(config.HostMountSrc, "/mnt/mac", "")
 		// we're doing this in kernel now, to avoid showing up in `df`
 		//bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")

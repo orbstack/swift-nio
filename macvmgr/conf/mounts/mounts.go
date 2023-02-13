@@ -24,7 +24,7 @@ const (
 	SshConfig    = Etc + "/ssh_config"
 
 	BinHiprio             = Opt + "/bin-hiprio"
-	DefualtHiprioCmdLinks = BinHiprio
+	DefaultHiprioCmdLinks = BinHiprio
 
 	Run            = Opt + "/run"
 	SshAgentSocket = Run + "/host-ssh-agent.sock"

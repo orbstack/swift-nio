@@ -18,7 +18,7 @@ func LinkCmd(name string) error {
 	if _, err := os.Stat(mounts.DefaultCmdLinks + "/" + name); err == nil {
 		return fmt.Errorf("already linked by default: %s", name)
 	}
-	if _, err := os.Stat(mounts.DefualtHiprioCmdLinks + "/" + name); err == nil {
+	if _, err := os.Stat(mounts.DefaultHiprioCmdLinks + "/" + name); err == nil {
 		return fmt.Errorf("already linked by default: %s", name)
 	}
 
@@ -45,7 +45,7 @@ func UnlinkCmd(name string) error {
 	if _, err := os.Stat(mounts.DefaultCmdLinks + "/" + name); err == nil {
 		return fmt.Errorf("can't remove default link: %s", name)
 	}
-	if _, err := os.Stat(mounts.DefualtHiprioCmdLinks + "/" + name); err == nil {
+	if _, err := os.Stat(mounts.DefaultHiprioCmdLinks + "/" + name); err == nil {
 		return fmt.Errorf("can't remove default link: %s", name)
 	}
 

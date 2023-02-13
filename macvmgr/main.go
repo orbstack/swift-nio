@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -80,12 +82,34 @@ func check(err error) {
 	}
 }
 
-func extractSparse(tarPath string) {
+func extractSparse(file io.Reader) {
 	target := conf.DataDir()
 	// Go archive/tar doesn't fully support sparse. bsdtar does.
-	cmd := exec.Command("bsdtar", "-xf", tarPath, "-C", target)
+	cmd := exec.Command("bsdtar", "-xf", "-", "-C", target)
+	cmd.Stdin = file
 	err := cmd.Run()
 	check(err)
+}
+
+func streamObfAssetFile(name string) io.Reader {
+	path := conf.GetAssetFile(name)
+	file, err := os.Open(path)
+	if err == nil {
+		// just plain file
+		defer file.Close()
+		return file
+	} else {
+		// try obfuscated file
+		b64, err := os.ReadFile(path + ".b64")
+		check(err)
+
+		// decode base64
+		decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(b64)))
+		check(err)
+
+		// return reader
+		return bytes.NewReader(decoded)
+	}
 }
 
 func setupDockerContext() error {
@@ -306,10 +330,10 @@ func runVmManager() {
 		if err != nil {
 			logrus.Fatal("APFS is required")
 		}
-		extractSparse(conf.GetAssetFile("data.img.tar"))
+		extractSparse(streamObfAssetFile("data.img.tar"))
 	}
 	if _, err := os.Stat(conf.SwapImage()); errors.Is(err, os.ErrNotExist) {
-		extractSparse(conf.GetAssetFile("swap.img.tar"))
+		extractSparse(streamObfAssetFile("swap.img.tar"))
 	}
 
 	consoleMode := ConsoleLog

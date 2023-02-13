@@ -26,17 +26,17 @@ require (
 require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 
 require (
+	github.com/fatih/color v1.14.1
 	github.com/gofrs/flock v0.8.1
+	github.com/google/uuid v1.3.0
 	github.com/kevinburke/ssh_config v1.2.0
 	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
+	golang.org/x/exp v0.0.0-20230206171751-46f607a40771
 )
 
 require (
-	github.com/fatih/color v1.14.1 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
-	golang.org/x/exp v0.0.0-20230206171751-46f607a40771 // indirect
 )
 
 require (
