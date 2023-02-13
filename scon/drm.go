@@ -10,6 +10,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
+	"github.com/kdrag0n/macvirt/scon/killswitch"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
@@ -50,6 +51,13 @@ func withTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) 
 }
 
 func (m *DrmMonitor) Run() error {
+	// killswitch
+	killswitch.Watch(func(err error) {
+		logrus.WithError(err).Error("build expired")
+		m.conManager.pendingVMShutdown = true
+		m.conManager.Close()
+	})
+
 	ticker := time.NewTicker(drmCheckInterval)
 	defer ticker.Stop()
 

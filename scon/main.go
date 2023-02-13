@@ -16,6 +16,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
+	"github.com/kdrag0n/macvirt/scon/killswitch"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -76,6 +77,10 @@ func runContainerManager() {
 
 	// rand seed
 	rand.Seed(time.Now().UnixNano())
+
+	// killswitch
+	err := killswitch.Check()
+	check(err)
 
 	// connect to hcontrol (ownership taken by cmgr)
 	if conf.C().DummyHcontrol {

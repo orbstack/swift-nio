@@ -7,13 +7,19 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/killswitch"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/cmd"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
 )
 
 func main() {
+	// scli uses vmgr's killswitch because it's built on mac
+	err := killswitch.MonitorAndExit()
+	if err != nil {
+		panic(err)
+	}
+
 	cmd := path.Base(os.Args[0])
-	var err error
 	exitCode := 0
 	switch cmd {
 	// control-only command mode

@@ -310,8 +310,18 @@ func runVmManager() {
 	check(err)
 
 	// killswitch
-	err = killswitch.Monitor()
+	err = killswitch.Check()
 	check(err)
+	stopCh := make(chan StopType, 1)
+	killswitch.Watch(func(err error) {
+		logrus.WithError(err).Error("build expired")
+		stopCh <- StopGraceful
+
+		go func() {
+			time.Sleep(drm.FailStopTimeout)
+			os.Exit(1)
+		}()
+	})
 
 	// Rosetta check
 	err = verifyRosetta()
@@ -365,7 +375,6 @@ func runVmManager() {
 
 	// Start DRM
 	drmClient := drm.Client()
-	stopCh := make(chan StopType, 1)
 	go func() {
 		ch := drmClient.FailChan()
 		for {
