@@ -145,18 +145,19 @@ class VmViewModel: ObservableObject {
     @Published var error: VmError?
     @Published var creatingCount = 0
     @Published private(set) var config: VmConfig?
+    private(set) var reachedRunning = false
 
     @Published var presentProfileChanged: ProfileChangedAlert?
     @Published var presentAddPaths: AddPathsAlert?
+    @Published var presentCreate = false
 
     // Docker
     @Published private(set) var dockerContainers: [DockerContainer]?
 
-    func earlyInit() {
-        do {
-            try spawnDaemon()
-        } catch {
-            self.error = VmError.spawnError(error: error)
+    private func updateState(_ state: VmState) {
+        self.state = state
+        if state == .running {
+            reachedRunning = true
         }
     }
 
@@ -173,21 +174,21 @@ class VmViewModel: ObservableObject {
             do {
                 try await runProcessChecked(AppConfig.c.vmgrExe, ["spawn-daemon"])
                 DispatchQueue.main.async {
-                    self.state = .starting
+                    self.updateState(.starting)
                 }
             } catch let processError as ProcessError {
                 DispatchQueue.main.async {
-                    self.state = .stopped
+                    self.updateState(.stopped)
                     self.error = VmError.spawnExit(status: processError.status, output: processError.output)
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self.state = .stopped
+                    self.updateState(.stopped)
                     self.error = VmError.spawnError(error: error)
                 }
             }
         }
-        state = .spawning
+        updateState(.spawning)
     }
 
     private func waitForVM() async throws {
@@ -363,18 +364,18 @@ class VmViewModel: ObservableObject {
         // this includes wait
         await tryRefreshList()
         await tryRefreshConfig()
-        state = .running
+        updateState(.running)
     }
 
     @MainActor
     func stop() async {
-        state = .stopping
+        updateState(.stopping)
         do {
             try await vmgr.stop()
         } catch {
             self.error = VmError.stopError(error: error)
         }
-        state = .stopped
+        updateState(.stopped)
     }
 
     func stopContainer(_ record: ContainerRecord) async throws {

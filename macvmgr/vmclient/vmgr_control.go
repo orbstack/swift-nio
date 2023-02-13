@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -30,16 +31,18 @@ func IsRunning() bool {
 }
 
 func FindVmgrExe() (string, error) {
-	if conf.Debug() {
-		return conf.HomeDir() + "/code/projects/macvirt/macvmgr/macvmgr", nil
-	} else {
-		selfExe, err := os.Executable()
-		if err != nil {
-			return "", err
-		}
-
-		return path.Join(path.Dir(selfExe), "macvmgr"), nil
+	selfExe, err := os.Executable()
+	if err != nil {
+		return "", err
 	}
+
+	// resolve symlinks
+	selfExe, err = filepath.EvalSymlinks(selfExe)
+	if err != nil {
+		return "", err
+	}
+
+	return path.Join(path.Dir(selfExe), "macvmgr"), nil
 }
 
 func SpawnDaemon(newBuildID string) error {

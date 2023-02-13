@@ -21,12 +21,9 @@ func getSpawnBuildID() (string, error) {
 }
 
 func runSpawnDaemon() {
-	// exec self without spawn-daemon
-	exe, err := os.Executable()
-	check(err)
-
 	// try dialing vmcontrol
 	var buildID string
+	var err error
 	if vmclient.IsRunning() {
 		// check version, replace if changed
 		buildID, err = getSpawnBuildID()
@@ -51,6 +48,10 @@ func runSpawnDaemon() {
 		buildID, err = getSpawnBuildID()
 		check(err)
 	}
+
+	// exec self without spawn-daemon
+	exe, err := os.Executable()
+	check(err)
 
 	fmt.Println("spawning daemon")
 	logFile, err := os.Create(conf.VmManagerLog())

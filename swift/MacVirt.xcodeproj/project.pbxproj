@@ -45,6 +45,7 @@
 		D88F4EBA2999C4BB00419B5C /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35422997A57E00DADC6F /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EBB2999C4BB00419B5C /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35432997A57E00DADC6F /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EBC2999C4BB00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
@@ -84,6 +85,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 7;
 			files = (
+				D88F4EBD2999C98F00419B5C /* assets in Copy assets */,
 			);
 			name = "Copy assets";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -176,41 +178,41 @@
 		D8A32B90296F839100E56EEF /* MacVirt */ = {
 			isa = PBXGroup;
 			children = (
-				D8694A372991EC5A0046B6B6 /* Info.plist */,
-				D8A32B91296F839100E56EEF /* MacVirtApp.swift */,
-				D8A32B93296F839100E56EEF /* ContentView.swift */,
-				D8A32B95296F839100E56EEF /* Assets.xcassets */,
-				D8A32B9A296F839100E56EEF /* MacVirt.entitlements */,
-				D8A32B97296F839100E56EEF /* Preview Content */,
 				D8CBDA24298F791F0026F44A /* AppConfig.swift */,
-				D8694A30298F9C9D0046B6B6 /* SconRPC.swift */,
-				D8694A32298F9EF00046B6B6 /* VmRPC.swift */,
-				B118BDE072F572BA61600007 /* AppSettings.swift */,
-				B118B7E62611F603F60BF666 /* VmViewModel.swift */,
-				B118BF7EB971BAC66F27805D /* RPCExecutor.swift */,
-				B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */,
-				B118B970D1735BC66857A549 /* MachineContainerItem.swift */,
-				B118BAB379B8843568503FAA /* Images.swift */,
-				B118BB4D521563F31AB550C7 /* CreateContainerView.swift */,
-				B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */,
-				B118BD91CF1D1F80CDCBFB9F /* DockerRootView.swift */,
-				B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */,
-				B118B242268639C9B875CBC3 /* StateWrapperView.swift */,
-				B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */,
-				B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */,
-				B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */,
-				B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */,
 				B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */,
-				B118BC445161ECC2F67ABFEF /* Utils.swift */,
-				B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */,
-				B118B95F44262A37E5CA5660 /* DockerViewModel.swift */,
-				B118BDB1897ACFEB7A47E00A /* Operators.swift */,
+				B118BDE072F572BA61600007 /* AppSettings.swift */,
+				D8A32B95296F839100E56EEF /* Assets.xcassets */,
+				B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */,
 				B118B4CBF28E57766F454C98 /* CommandsRootView.swift */,
+				D8A32B93296F839100E56EEF /* ContentView.swift */,
+				B118BB4D521563F31AB550C7 /* CreateContainerView.swift */,
+				B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */,
+				B118BD91CF1D1F80CDCBFB9F /* DockerRootView.swift */,
+				B118B95F44262A37E5CA5660 /* DockerViewModel.swift */,
+				B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */,
+				B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */,
+				B118BAB379B8843568503FAA /* Images.swift */,
+				D8694A372991EC5A0046B6B6 /* Info.plist */,
+				B118B970D1735BC66857A549 /* MachineContainerItem.swift */,
+				B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */,
+				D8A32B9A296F839100E56EEF /* MacVirt.entitlements */,
+				D8A32B91296F839100E56EEF /* MacVirtApp.swift */,
+				B118B39D053F0586CEFDE474 /* OnboardingCreateView.swift */,
+				B118BB5624616EC1041FA0C3 /* OnboardingModeView.swift */,
+				B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */,
+				B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */,
+				B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */,
+				B118BDB1897ACFEB7A47E00A /* Operators.swift */,
+				B118B967D5C4B61A7671FD0E /* Preferences.swift */,
+				D8A32B97296F839100E56EEF /* Preview Content */,
+				B118BF7EB971BAC66F27805D /* RPCExecutor.swift */,
+				D8694A30298F9C9D0046B6B6 /* SconRPC.swift */,
+				B118B242268639C9B875CBC3 /* StateWrapperView.swift */,
 				B118B34EBC61512D1B66D855 /* SwiftUIUtils.swift */,
 				B118BE4D3578D923BDAE7C2C /* Updater.swift */,
-				B118BB5624616EC1041FA0C3 /* OnboardingModeView.swift */,
-				B118B967D5C4B61A7671FD0E /* Preferences.swift */,
-				B118B39D053F0586CEFDE474 /* OnboardingCreateView.swift */,
+				B118BC445161ECC2F67ABFEF /* Utils.swift */,
+				D8694A32298F9EF00046B6B6 /* VmRPC.swift */,
+				B118B7E62611F603F60BF666 /* VmViewModel.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";

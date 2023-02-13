@@ -9,7 +9,6 @@ struct MachinesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var selection: String?
-    @State private var presentCreate = false
     @State private var creatingOpacity = 0.0
 
     var body: some View {
@@ -30,7 +29,7 @@ struct MachinesRootView: View {
                                         .font(.title)
                                         .foregroundColor(.secondary)
                                 Button(action: {
-                                    presentCreate = true
+                                    vmModel.presentCreate = true
                                 }) {
                                     Text("New Machine")
                                 }
@@ -55,16 +54,6 @@ struct MachinesRootView: View {
                             .opacity(creatingOpacity)
                             .padding(16)
                         })
-                        .toolbar {
-                            Button(action: {
-                                presentCreate = true
-                            }) {
-                                Label("New Machine", systemImage: "plus")
-                            }.popover(isPresented: $presentCreate) {
-                                        CreateContainerView(isPresented: $presentCreate, creatingCount: $vmModel.creatingCount)
-                                    }
-                                    .help("New machine")
-                        }
                         .onChange(of: vmModel.creatingCount) { newValue in
                             if newValue > 0 {
                                 withAnimation {

@@ -15,7 +15,7 @@ struct DockerRootView: View {
         StateWrapperView {
             if let machines = vmModel.containers, let containers = vmModel.dockerContainers {
                 List(selection: $selection) {
-                    Section {
+                    Section(header: Text("Features")) {
                         ForEach(machines) { record in
                             if record.builtin {
                                 BuiltinContainerItem(record: record)
@@ -59,7 +59,6 @@ struct DockerRootView: View {
         .onChange(of: controlActiveState) { state in
             if state == .key {
                 Task {
-                    await vmModel.tryRefreshList()
                     await vmModel.tryRefreshDockerList()
                 }
             }

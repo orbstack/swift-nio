@@ -90,6 +90,19 @@ struct ContentView: View {
                 }
                 .help("Settings")
             }
+            
+            ToolbarItem(placement: .automatic) {
+                if model.state == .running && selection == "machines" {
+                    Button(action: {
+                        model.presentCreate = true
+                    }) {
+                        Label("New Machine", systemImage: "plus")
+                    }.popover(isPresented: $model.presentCreate) {
+                        CreateContainerView(isPresented: $model.presentCreate, creatingCount: $model.creatingCount)
+                    }
+                    .help("New machine")
+                }
+            }
         }
         .background(WindowAccessor(holder: windowHolder))
         .onAppear {
@@ -119,7 +132,7 @@ struct ContentView: View {
                 model.error = nil
 
                 // quit if the error is fatal
-                if model.state == .stopped {
+                if model.state == .stopped && !model.reachedRunning {
                     NSApp.terminate(nil)
                 }
             }
