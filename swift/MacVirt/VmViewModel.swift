@@ -362,6 +362,7 @@ class VmViewModel: ObservableObject {
         }
 
         // this includes wait
+        print("try refresh: start")
         await tryRefreshList()
         await tryRefreshConfig()
         updateState(.running)

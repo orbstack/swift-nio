@@ -13,53 +13,57 @@ struct DockerRootView: View {
 
     var body: some View {
         StateWrapperView {
-            if let machines = vmModel.containers, let containers = vmModel.dockerContainers {
-                List(selection: $selection) {
-                    Section(header: Text("Features")) {
-                        ForEach(machines) { record in
-                            if record.builtin {
-                                BuiltinContainerItem(record: record)
-                            }
-                        }
-                    }
-
-                    Section(header: Text("Containers")) {
-                        ForEach(containers) { container in
-                            DockerContainerItem(container: container)
-                        }
-
-                        if containers.isEmpty {
-                            HStack {
-                                Spacer()
-                                VStack {
-                                    Text("No Docker containers")
-                                            .font(.title)
-                                            .foregroundColor(.secondary)
+            Group {
+                if let machines = vmModel.containers, let containers = vmModel.dockerContainers {
+                    List(selection: $selection) {
+                        Section(header: Text("Features")) {
+                            ForEach(machines) { record in
+                                if record.builtin {
+                                    BuiltinContainerItem(record: record)
                                 }
-                                        .padding(.top, 32)
-                                Spacer()
+                            }
+                        }
+
+                        Section(header: Text("Containers")) {
+                            ForEach(containers) { container in
+                                DockerContainerItem(container: container)
+                            }
+
+                            if containers.isEmpty {
+                                HStack {
+                                    Spacer()
+                                    VStack {
+                                        Text("No Docker containers")
+                                                .font(.title)
+                                                .foregroundColor(.secondary)
+                                    }
+                                            .padding(.top, 32)
+                                    Spacer()
+                                }
                             }
                         }
                     }
+                            .refreshable {
+                                print("try refresh: docker refreshable")
+                                await vmModel.tryRefreshList()
+                                await vmModel.tryRefreshDockerList()
+                            }
+                } else {
+                    ProgressView(label: {
+                        Text("Loading")
+                    })
                 }
-                        .refreshable {
-                            await vmModel.tryRefreshList()
-                            await vmModel.tryRefreshDockerList()
-                        }
-            } else {
-                ProgressView(label: {
-                    Text("Loading")
-                })
             }
-        }
-        .task {
-            await vmModel.tryRefreshList()
-            await vmModel.tryRefreshDockerList()
-        }
-        .onChange(of: controlActiveState) { state in
-            if state == .key {
-                Task {
-                    await vmModel.tryRefreshDockerList()
+            .task {
+                print("try refresh: docker task")
+                await vmModel.tryRefreshList()
+                await vmModel.tryRefreshDockerList()
+            }
+            .onChange(of: controlActiveState) { state in
+                if state == .key {
+                    Task {
+                        await vmModel.tryRefreshDockerList()
+                    }
                 }
             }
         }

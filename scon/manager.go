@@ -150,9 +150,6 @@ func (m *ConManager) Start() error {
 	go runOne("cache cleanup", m.cleanupCaches)
 
 	// services
-	go runOne("RPC server", func() error {
-		return runSconServer(m)
-	})
 	go runOne("SSH server", func() error {
 		return m.runSSHServer(conf.C().SSHListenIP4, conf.C().SSHListenIP6)
 	})
@@ -162,6 +159,10 @@ func (m *ConManager) Start() error {
 		return err
 	}
 	go runOne("Docker NFS manager", m.runDockerNFS)
+	// RPC only once other services are up
+	go runOne("RPC server", func() error {
+		return runSconServer(m)
+	})
 
 	// periodic tasks
 	go m.runAutoForwardGC()

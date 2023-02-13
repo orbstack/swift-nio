@@ -122,6 +122,7 @@ struct ContentView: View {
         .onChange(of: controlActiveState) { state in
             if state == .key {
                 Task {
+                    print("try refresh: root view - key")
                     await model.tryRefreshList()
                 }
             }

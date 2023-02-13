@@ -40,6 +40,7 @@ struct MachinesRootView: View {
                     }
                 }
                         .refreshable {
+                            print("try refresh: machines refreshable")
                             await vmModel.tryRefreshList()
                         }
                         .overlay(alignment: .bottomTrailing, content: {
