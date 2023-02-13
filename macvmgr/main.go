@@ -123,7 +123,7 @@ func setupDockerContext() error {
 	err := createCmd.Run()
 	if err != nil {
 		if strings.Contains(errBuf.String(), "already exists") {
-			return nil
+			// ignore and continue to set use
 		} else {
 			return err
 		}
