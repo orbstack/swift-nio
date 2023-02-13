@@ -44,6 +44,13 @@ struct MacVirtApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
+            CommandGroup(after: .appSettings) {
+                Button("Show Logs") {
+                    // get home folder
+                    let home = FileManager.default.homeDirectoryForCurrentUser.path
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: home + "/.orbstack/log")
+                }
+            }
             //TODO command to create container
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
 

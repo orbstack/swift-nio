@@ -2,7 +2,6 @@
 vnet/cmd/gvnetd/gvnetd
 vnet/cmd/gvnetclient/gvnetclient
 /macctl
-/xbin
 
 /conf/appver/version.txt
 

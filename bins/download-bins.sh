@@ -2,17 +2,17 @@
 
 set -euxo pipefail
 
-DOCKER_ARCH=aarch64
-GO_ARCH=arm64
+GO_ARCH="${1:-arm64}"
+DOCKER_ARCH="${2:-aarch64}"
 
 DOCKER_VERSION=23.0.1
 BUILDX_VERSION=0.10.2
 COMPOSE_VERSION=2.16.0
 CREDENTIAL_VERSION=0.7.0
 
-rm -fr xbin
-mkdir -p xbin
-pushd xbin
+rm -fr $GO_ARCH
+mkdir -p $GO_ARCH
+pushd $GO_ARCH
 
 # docker
 curl -LO https://download.docker.com/mac/static/stable/$DOCKER_ARCH/docker-$DOCKER_VERSION.tgz

@@ -56,16 +56,13 @@ struct OnboardingCreateView: View {
                                 name = $0.rawValue
                             }
                         }
+                        #if arch(arm64)
                         Picker("CPU type", selection: $arch) {
-#if arch(arm64)
                             Text("Apple").tag("arm64")
                             Text("Intel").tag("amd64")
-#else
-                            Text("64-bit").tag("amd64")
-                            Text("32-bit").tag("i386")
-#endif
                         }
                         .pickerStyle(.segmented)
+                        #endif
                     }.frame(minWidth: 200)
                 }.fixedSize()
                 Spacer()

@@ -41,6 +41,9 @@ function build_one() {
     rm -f data.img.tar swap.img.tar
     popd
 
+    # copy bins
+    cp -rc ../bins/$arch_go build/bins
+
     xcodebuild archive \
         -scheme MacVirt \
         -arch $arch_mac \
@@ -64,8 +67,8 @@ function build_one() {
 rm -fr swift/build
 
 # builds can't be parallel
-build_one arm64 arm64
-#build_one amd64 x86_64
+#build_one arm64 arm64
+build_one amd64 x86_64
 
 function package_one() {
     local arch="$1"
@@ -75,10 +78,10 @@ function package_one() {
     create-dmg --overwrite $arch/OrbStack.app dmg/$arch
 
     # notarize
-    xcrun notarytool submit dmg/$arch/*.dmg --keychain-profile main --wait
+    #xcrun notarytool submit dmg/$arch/*.dmg --keychain-profile main --wait
 
     # staple
-    xcrun stapler staple dmg/$arch/*.dmg
+    #xcrun stapler staple dmg/$arch/*.dmg
 
     name="$(basename dmg/$arch/*.dmg .dmg)"
     mv dmg/$arch/*.dmg "dmg/$name $arch.dmg"
@@ -87,8 +90,8 @@ function package_one() {
 
 pushd swift/build
 
-package_one arm64 &
-#package_one amd64 &
+#package_one arm64 &
+package_one amd64 &
 wait
 
 popd

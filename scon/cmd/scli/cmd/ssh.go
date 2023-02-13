@@ -20,7 +20,7 @@ var sshCmd = &cobra.Command{
 Useful for remote editing (e.g. Visual Studio Code) or for connecting from another device.
 `,
 	Example: "  " + appid.ShortCtl + " ssh",
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 

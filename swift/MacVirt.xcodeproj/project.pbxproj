@@ -42,10 +42,10 @@
 		D8694A44299224990046B6B6 /* scli in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
-		D88F4EBA2999C4BB00419B5C /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35422997A57E00DADC6F /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D88F4EBB2999C4BB00419B5C /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35432997A57E00DADC6F /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D88F4EBC2999C4BB00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
+		D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D88F4EDD299A131B00419B5C /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8A32B92296F839100E56EEF /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B91296F839100E56EEF /* MacVirtApp.swift */; };
 		D8A32B94296F839100E56EEF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A32B93296F839100E56EEF /* ContentView.swift */; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
@@ -72,9 +72,9 @@
 			dstPath = xbin;
 			dstSubfolderSpec = 6;
 			files = (
-				D88F4EBA2999C4BB00419B5C /* docker in Copy Docker xbin executables */,
-				D88F4EBB2999C4BB00419B5C /* docker-compose in Copy Docker xbin executables */,
-				D88F4EBC2999C4BB00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */,
+				D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */,
+				D88F4EDD299A131B00419B5C /* docker-compose in Copy Docker xbin executables */,
+				D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */,
 			);
 			name = "Copy Docker xbin executables";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -128,6 +128,9 @@
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../macvmgr/xbin/docker-compose"; sourceTree = "<group>"; };
 		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../macvmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
 		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
+		D88F4ED9299A131B00419B5C /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = build/bins/docker; sourceTree = "<group>"; };
+		D88F4EDA299A131B00419B5C /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "build/bins/docker-compose"; sourceTree = "<group>"; };
+		D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "build/bins/docker-credential-osxkeychain"; sourceTree = "<group>"; };
 		D8A32B8E296F839100E56EEF /* OrbStack.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OrbStack.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8A32B91296F839100E56EEF /* MacVirtApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacVirtApp.swift; sourceTree = "<group>"; };
 		D8A32B93296F839100E56EEF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -156,6 +159,9 @@
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
+				D88F4ED9299A131B00419B5C /* docker */,
+				D88F4EDA299A131B00419B5C /* docker-compose */,
+				D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */,
 				D88F4EB82998D81A00419B5C /* assets */,
 				D86F35422997A57E00DADC6F /* docker */,
 				D86F35432997A57E00DADC6F /* docker-compose */,
