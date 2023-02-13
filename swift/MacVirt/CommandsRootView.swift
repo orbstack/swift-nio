@@ -63,10 +63,10 @@ fileprivate struct CommandBox: View {
             Text(command)
                 .font(.body.monospaced())
                 .padding(4)
-                .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                // causes wrong selection color
+//                .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
-                .foregroundColor(.primary)
         }
     }
 }
