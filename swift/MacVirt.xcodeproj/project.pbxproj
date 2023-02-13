@@ -372,7 +372,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "LONG_VER=$(git describe --tags --always --dirty)\nCOMMITS=$(git rev-list --count HEAD)\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleShortVersionString\" \"${GIT_RELEASE_VERSION#*v}\"\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleVersion\" \"${COMMITS}\"\n";
+			shellScript = "LONG_VER=$(git describe --tags --always --dirty)\nCOMMITS=$(git rev-list --count HEAD)\n#defaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleShortVersionString\" \"${GIT_RELEASE_VERSION#*v}\"\ndefaults write \"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH%.*}\" \"CFBundleVersion\" \"${COMMITS}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -557,7 +557,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = OrbStack;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -592,7 +592,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = OrbStack;
 				PROVISIONING_PROFILE_SPECIFIER = "";

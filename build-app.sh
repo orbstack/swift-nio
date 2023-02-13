@@ -42,7 +42,7 @@ function build_one() {
     popd
 
     # copy bins
-    cp -rc ../bins/$arch_go build/bins
+    cp -rc ../bins/out/$arch_go build/bins
 
     xcodebuild archive \
         -scheme MacVirt \

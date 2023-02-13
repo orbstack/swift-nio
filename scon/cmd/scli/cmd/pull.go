@@ -55,7 +55,8 @@ is equivalent to:
 			sources[i] = translateLinuxPath(containerName, source)
 		}
 
-		cmdArgs := []string{"-rf"}
+		// ignore xattr - nfs can't handle it
+		cmdArgs := []string{"-rfX"}
 		cmdArgs = append(cmdArgs, sources...)
 		cmdArgs = append(cmdArgs, dest)
 
