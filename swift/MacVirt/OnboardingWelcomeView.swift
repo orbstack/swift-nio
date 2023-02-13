@@ -119,12 +119,21 @@ struct OnboardingWelcomeView: View {
                     title: "Fast.",
                     desc: "Starts fast, optimized networking and disk, fast x86 with Rosetta"
                 )
-                WelcomePoint(
-                    systemImage: "wind.circle.fill",
-                    color: .blue,
-                    title: "Light.",
-                    desc: "Low CPU and disk usage, works with less memory, native app"
-                )
+                if #available(macOS 13.0, *) {
+                    WelcomePoint(
+                        systemImage: "wind.circle.fill",
+                        color: .blue,
+                        title: "Light.",
+                        desc: "Low CPU and disk usage, works with less memory, native app"
+                    )
+                } else {
+                    WelcomePoint(
+                        systemImage: "wind",
+                        color: .blue,
+                        title: "Light.",
+                        desc: "Low CPU and disk usage, works with less memory, native app"
+                    )
+                }
                 WelcomePoint(
                     systemImage: "checkmark.circle.fill",
                     color: .green,
