@@ -108,15 +108,8 @@ struct ContentView: View {
         .background(WindowAccessor(holder: windowHolder))
         .onAppear {
             if !onboardingCompleted {
-                print("open and set pending; window=\(windowHolder.window)")
-                windowHolder.window?.close()
                 pendingClose = true
                 NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
-            }
-        }
-        .onChange(of: windowHolder.window) {
-            if pendingClose || !onboardingCompleted {
-                $0?.close()
             }
         }
         .task {
