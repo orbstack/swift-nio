@@ -77,6 +77,11 @@ func printShortHelp() {
 }
 
 func shouldCallRunCtl(args []string) bool {
+	// empty = shell
+	if len(args) == 0 {
+		return true
+	}
+
 	// handled by ctl
 	if cmd.HasCommand(args) {
 		return false
@@ -86,7 +91,8 @@ func shouldCallRunCtl(args []string) bool {
 	// use run's arg parsing logic
 	remArgs, parseErr := cmd.ParseRunFlags(args)
 	if parseErr != nil {
-		return false
+		// let run handle the help
+		return true
 	}
 
 	// is this help command or -h/--help flag? if so, let root cmd handle it

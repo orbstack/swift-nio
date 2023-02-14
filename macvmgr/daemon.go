@@ -29,7 +29,7 @@ func runSpawnDaemon() {
 		buildID, err = getSpawnBuildID()
 		check(err)
 
-		runningBuildID, err := os.ReadFile(conf.VmgrVersionFile())
+		runningBuildID, err := os.ReadFile(conf.VmgrTimestampFile())
 		if err == nil && buildID == string(runningBuildID) {
 			fmt.Println("already running")
 			return

@@ -306,7 +306,7 @@ func runVmManager() {
 		buildID, err = buildid.CalculateCurrent()
 		check(err)
 	}
-	err = os.WriteFile(conf.VmgrVersionFile(), []byte(buildID), 0644)
+	err = os.WriteFile(conf.VmgrTimestampFile(), []byte(buildID), 0644)
 	check(err)
 
 	// killswitch

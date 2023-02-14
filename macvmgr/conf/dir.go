@@ -107,7 +107,7 @@ func VmgrPidFile() string {
 	return RunDir() + "/vmgr.pid"
 }
 
-func VmgrVersionFile() string {
+func VmgrTimestampFile() string {
 	return RunDir() + "/vmgr.version"
 }
 

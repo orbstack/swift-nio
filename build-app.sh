@@ -67,8 +67,8 @@ function build_one() {
 rm -fr swift/build
 
 # builds can't be parallel
-#build_one arm64 arm64
-build_one amd64 x86_64
+build_one arm64 arm64
+#build_one amd64 x86_64
 
 function package_one() {
     local arch="$1"
@@ -90,8 +90,8 @@ function package_one() {
 
 pushd swift/build
 
-#package_one arm64 &
-package_one amd64 &
+package_one arm64 &
+#package_one amd64 &
 wait
 
 popd

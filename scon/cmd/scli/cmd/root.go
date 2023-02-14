@@ -26,7 +26,9 @@ func Execute() error {
 }
 
 func HasCommand(args []string) bool {
-	targetCmd, _, err := rootCmd.Find(args)
+	// search only by first argument
+	// if it's a flag (e.g. -p) we want to keep it as a flag to "run"
+	targetCmd, _, err := rootCmd.Find(args[:1])
 	if err != nil {
 		return false
 	}
