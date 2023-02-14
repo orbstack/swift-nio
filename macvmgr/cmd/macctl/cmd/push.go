@@ -29,7 +29,7 @@ func translateMacPath(p string) string {
 		if path.IsAbs(p) {
 			// /home is likely a mistake
 			if strings.HasPrefix(p, "/home/") {
-				p = path.Join("/Users", p[6:])
+				p = path.Join("/Users", strings.TrimPrefix(p, "/home/"))
 			}
 			p = mounts.VirtiofsMountpoint + p
 		} else {
@@ -53,12 +53,20 @@ is equivalent to:
     cp example.txt /Users/$USER/Downloads/
 `,
 	Example: "  macctl push example.txt Desktop/",
-	Args:    cobra.MinimumNArgs(2),
+	Args:    cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
-		// last = dest
-		dest := args[len(args)-1]
-		// rest = sources
-		sources := args[:len(args)-1]
+		var dest string
+		var sources []string
+		if len(args) == 1 {
+			// assume dest is home
+			dest = "."
+			sources = args
+		} else {
+			// last = dest
+			dest = args[len(args)-1]
+			// rest = sources
+			sources = args[:len(args)-1]
+		}
 
 		dest = translateMacPath(dest)
 

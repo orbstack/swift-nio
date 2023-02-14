@@ -24,12 +24,20 @@ is equivalent to:
     cp /Users/$USER/Downloads/example.txt .
 `,
 	Example: "  macctl pull Desktop/example.txt .",
-	Args:    cobra.MinimumNArgs(2),
+	Args:    cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
-		// last = dest
-		dest := args[len(args)-1]
-		// rest = sources
-		sources := args[:len(args)-1]
+		var dest string
+		var sources []string
+		if len(args) == 1 {
+			// assume dest is cwd
+			dest = "."
+			sources = args
+		} else {
+			// last = dest
+			dest = args[len(args)-1]
+			// rest = sources
+			sources = args[:len(args)-1]
+		}
 
 		for i, source := range sources {
 			sources[i] = translateMacPath(source)
