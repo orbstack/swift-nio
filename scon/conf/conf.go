@@ -30,10 +30,12 @@ type Config struct {
 	DockerDataDir string
 	NfsRootRO     string
 	NfsRootRW     string
+	EtcExports    string
+	StartNfs      bool
 }
 
 var configVM = Config{
-	SconDataDir: "/data/scon",
+	SconDataDir:   "/data/scon",
 	GuestMountSrc: "/opt/orbstack-guest",
 	HostMountSrc:  "/mnt/mac",
 	FakeSrc:       "/fake",
@@ -46,6 +48,8 @@ var configVM = Config{
 	DockerDataDir: "/data/docker",
 	NfsRootRO:     "/nfsroot-ro",
 	NfsRootRW:     "/nfsroot-rw",
+	EtcExports:    "/etc/exports",
+	StartNfs:      true,
 }
 
 var configTest = Config{
@@ -62,6 +66,8 @@ var configTest = Config{
 	DockerDataDir: "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/docker-rootfs/var/lib/docker",
 	NfsRootRO:     "/tmp/scon-nfs",
 	NfsRootRW:     "/tmp/scon-nfs",
+	EtcExports:    "/tmp/scon-nfs/exports",
+	StartNfs:      false,
 }
 
 func VM() bool {

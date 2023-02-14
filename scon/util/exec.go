@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -28,4 +29,12 @@ func RunWithInput(input string, combinedArgs ...string) error {
 	}
 
 	return nil
+}
+
+func RunInheritOut(combinedArgs ...string) error {
+	logrus.Debugf("run: %v", combinedArgs)
+	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
