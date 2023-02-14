@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+#
+# Copyright 2022-2023 Danny Lin <danny@kdrag0n.dev>. All rights reserved.
+# 
+# Unauthorized copying of this software and associated documentation files (the "Software"), via any medium, is strictly prohibited. Confidential and proprietary.
+# 
+# The above copyright notice shall be included in all copies or substantial portions of the Software.
+#
+
+set -euo pipefail
+
+rc-service nfs start
+/opt/vc/add-nfsd-vsock > /proc/fs/nfsd/portlist
