@@ -13,7 +13,9 @@ fi
 IS_RELEASE=false
 if [[ "$BTYPE" == "release" ]]; then
     IS_RELEASE=true
-elif [[ "$BTYPE" != "debug" ]]; then
+elif [[ "$BTYPE" == "debug" ]]; then
+    :
+else
     echo "Unknown build type: $BTYPE"
     exit 1
 fi
@@ -71,7 +73,7 @@ systemd-nspawn \
     -D $compile_rd \
     --private-users=$host_uid:65536 \
     --bind-ro="$PWD/..:/src" \
-    /bin/sh -l -c "set -eux; mkdir -p /out && cd /src/scon && ./build-release.sh /out"
+    /bin/sh -l -c "set -eux; mkdir -p /out && cd /src/scon && ./build-release.sh /out $BTYPE"
 
 rm -fr rd
 mkdir rd
