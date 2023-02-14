@@ -19,25 +19,26 @@ fileprivate struct CommandSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading) {
             HStack(alignment: .center) {
                 if let systemImage {
                     Image(systemName: systemImage)
                 }
 
                 if let title {
-                Text(title)
-                    .font(.title2)
-                    .bold()
+                    Text(title)
+                        .font(.title2)
+                        .bold()
                 }
             }
             if let desc {
                 Text(desc)
-                    .font(.body)
+                    .font(.title3)
                     .foregroundColor(.secondary)
             }
 
             content()
+                .padding(.top, 4)
         }.frame(maxWidth: .infinity)
         .padding(8)
     }
@@ -92,7 +93,7 @@ struct CommandsRootView: View {
                         )
                     }
 
-                    CommandSection(systemImage: "terminal.fill", title: "Command line") {
+                    CommandSection(systemImage: "terminal.fill", title: "Command line", desc: "Environment variables and SSH agent are forwarded by default.") {
                         CommandBox(
                             title: "Start a shell",
                             desc: "Log in as the default user in the machine you used most recently.",
