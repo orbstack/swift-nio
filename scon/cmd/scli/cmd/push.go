@@ -2,50 +2,17 @@ package cmd
 
 import (
 	"os"
-	"os/exec"
-	"os/user"
-	"path"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
+	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
 	"github.com/spf13/cobra"
 )
 
 func init() {
 	rootCmd.AddCommand(pushCmd)
 	pushCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Copy to a specific machine")
-}
-
-func translateLinuxPath(container, p string) string {
-	// clean path
-	p = path.Clean(p)
-	nfsDir := conf.NfsMountpoint() + "/" + container
-
-	// assume user on linux side. for other users, we expect the user to use absolute path
-	u, err := user.Current()
-	if err != nil {
-		panic(err)
-	}
-	user := u.Username
-	userHome := "/home/" + user // TODO ask scon agent
-
-	// translate p if user didn't already prefix it
-	if !strings.HasPrefix(p, nfsDir) {
-		// assume home if not absolute
-		if path.IsAbs(p) {
-			// /Users is likely a mistake
-			if strings.HasPrefix(p, "/Users/") {
-				p = path.Join("/home", p[6:])
-			}
-			p = nfsDir + p
-		} else {
-			p = nfsDir + userHome + "/" + p
-		}
-	}
-
-	return p
 }
 
 var pushCmd = &cobra.Command{
@@ -56,7 +23,7 @@ var pushCmd = &cobra.Command{
 Destination path is relative to the Linux user's home directory.
 If destination is not specified, the home directory is used.
 
-This is provided for convenience, but we recommend using shared folders for simplicity. For example:
+This is provided for convenience, but you can also use shared folders. For example:
     ` + appid.ShortCtl + ` push example.txt code/
 is equivalent to:
 	cp example.txt ~/Linux/ubuntu/home/$USER/code/`,
@@ -69,7 +36,7 @@ is equivalent to:
 		var sources []string
 		if len(args) == 1 {
 			// assume dest is home
-			dest = ""
+			dest = "."
 			sources = args
 		} else {
 			// last = dest
@@ -85,26 +52,23 @@ is equivalent to:
 			containerName = c.Name
 		}
 
-		dest = translateLinuxPath(containerName, dest)
-
-		// ignore xattr - nfs can't handle it
-		cmdArgs := []string{"-rfX"}
-		cmdArgs = append(cmdArgs, sources...)
-		cmdArgs = append(cmdArgs, dest)
-
-		// TODO: do this ourselves
-		cmd := exec.Command("cp", cmdArgs...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				os.Exit(exitErr.ExitCode())
-			} else {
-				return err
-			}
+		// /mnt/mac
+		for i, src := range sources {
+			sources[i] = shell.TranslatePath(src)
 		}
+
+		// special case of translation: ~/ in dest -> relative to Linux home
+		macHome, err := os.UserHomeDir()
+		checkCLI(err)
+		if dest == macHome {
+			dest = "."
+		} else if strings.HasPrefix(dest, macHome+"/") {
+			dest = "." + strings.TrimPrefix(dest, macHome)
+		}
+
+		ret, err := shell.CopyFiles(containerName, sources, dest)
+		checkCLI(err)
+		os.Exit(ret)
 
 		return nil
 	},

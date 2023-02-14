@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/Code-Hex/vz/v3"
 	"github.com/creachadair/jrpc2/handler"
@@ -134,7 +135,9 @@ func makeDockerClient() *http.Client {
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial("unix", conf.DockerSocket())
 			},
-			MaxIdleConns: 2,
+			// don't keep idle conns - it prevents freezing
+			MaxIdleConns:    1,
+			IdleConnTimeout: 1 * time.Second,
 		},
 	}
 }

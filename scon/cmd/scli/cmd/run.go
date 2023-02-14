@@ -18,6 +18,7 @@ var (
 	flagMachine  string
 	flagUser     string
 	FlagWantHelp bool
+	flagNoEnv    bool
 )
 
 func init() {
@@ -26,6 +27,7 @@ func init() {
 	runCmd.Flags().StringVarP(&flagUser, "user", "u", "", "Run as a specific user")
 	runCmd.Flags().BoolVarP(&useShell, "shell", "s", false, "Use the login shell instead of running command directly")
 	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate absolute macOS paths to Linux paths (experimental)")
+	runCmd.Flags().BoolVarP(&flagNoEnv, "no-env", "E", false, "Don't pass environment variables")
 }
 
 func ParseRunFlags(args []string) ([]string, error) {
@@ -50,6 +52,9 @@ func ParseRunFlags(args []string) ([]string, error) {
 			case "-p", "--path", "-path":
 				usePath = true
 				continue
+			case "-E", "--no-env", "-no-env":
+				flagNoEnv = true
+				continue
 			case "-h", "--help", "-help":
 				FlagWantHelp = true
 				continue
@@ -69,6 +74,8 @@ func ParseRunFlags(args []string) ([]string, error) {
 					useShell = valuePart == "true"
 				case "-p", "--path", "-path":
 					usePath = valuePart == "true"
+				case "-E", "--no-env", "-no-env":
+					flagNoEnv = valuePart == "true"
 				}
 				continue
 			}
@@ -111,6 +118,8 @@ var runCmd = &cobra.Command{
 If no arguments are provided, an interactive shell is started.
 The default machine and/or user are used if not specified.
 
+Environment variables are passed to the command by default.
+
 You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux. For example:
     ` + appid.ShortCmd + ` uname -a
 will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run uname -a
@@ -145,11 +154,12 @@ To run a command on macOS from Linux, use "macctl run" instead.
 
 		scli.EnsureSconVMWithSpinner()
 
-		exitCode, err := shell.ConnectSSH(shell.CommandOpts{
+		exitCode, err := shell.RunSSH(shell.CommandOpts{
 			CombinedArgs:  args,
 			UseShell:      useShell,
 			ContainerName: flagMachine,
 			User:          flagUser,
+			OmitEnv:       flagNoEnv,
 		})
 		checkCLI(err)
 

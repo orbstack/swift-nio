@@ -43,7 +43,7 @@ func main() {
 func runCommandStub(cmd string) (int, error) {
 	args := []string{cmd}
 	args = append(args, os.Args[1:]...)
-	return shell.ConnectSSH(shell.CommandOpts{
+	return shell.RunSSH(shell.CommandOpts{
 		CombinedArgs: args,
 	})
 }

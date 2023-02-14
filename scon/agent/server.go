@@ -234,6 +234,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", "/var/run/docker.sock")
 				},
+				// idle conns are ok here because we get frozen along with docker
 				MaxIdleConns: 2,
 			},
 		}, nil

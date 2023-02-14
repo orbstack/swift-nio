@@ -131,57 +131,9 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 
 	// check permissions
 	if cred.Uid != 0 {
-		var stat unix.Stat_t
-		err = unix.Stat(sockPath, &stat)
+		err := util.CheckPermsRW(sockPath, int(cred.Uid), int(cred.Gid))
 		if err != nil {
 			return err
-		}
-
-		isOwner := stat.Uid == cred.Uid
-		isGroupMember := (stat.Gid == cred.Gid) && !isOwner
-		isOther := !isOwner && !isGroupMember
-
-		// require both read and write
-		allowsOwner := stat.Mode&unix.S_IRUSR != 0 && stat.Mode&unix.S_IWUSR != 0
-		allowsGroup := stat.Mode&unix.S_IRGRP != 0 && stat.Mode&unix.S_IWGRP != 0
-		allowsOther := stat.Mode&unix.S_IROTH != 0 && stat.Mode&unix.S_IWOTH != 0
-
-		switch {
-		case isOwner && !allowsOwner:
-			return unix.EACCES
-		case isGroupMember && !allowsGroup:
-			return unix.EACCES
-		case isOther && !allowsOther:
-			return unix.EACCES
-		}
-
-		// walk up the directory tree
-		dir := path.Dir(sockPath)
-		for dir != "/" {
-			err = unix.Stat(dir, &stat)
-			if err != nil {
-				return err
-			}
-
-			isOwner = stat.Uid == cred.Uid
-			isGroupMember = (stat.Gid == cred.Gid) && !isOwner
-			isOther = !isOwner && !isGroupMember
-
-			// require execute permission
-			allowsOwner := stat.Mode&unix.S_IXUSR != 0
-			allowsGroup := stat.Mode&unix.S_IXGRP != 0
-			allowsOther := stat.Mode&unix.S_IXOTH != 0
-
-			switch {
-			case isOwner && !allowsOwner:
-				return unix.EACCES
-			case isGroupMember && !allowsGroup:
-				return unix.EACCES
-			case isOther && !allowsOther:
-				return unix.EACCES
-			}
-
-			dir = path.Dir(dir)
 		}
 	}
 

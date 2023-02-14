@@ -301,6 +301,19 @@ func (m *ConManager) ListContainers() []*Container {
 	return containers
 }
 
+func (m *ConManager) CountNonBuiltinContainers() int {
+	m.containersMu.RLock()
+	defer m.containersMu.RUnlock()
+
+	count := 0
+	for _, c := range m.containersByID {
+		if !c.builtin {
+			count++
+		}
+	}
+	return count
+}
+
 func (m *ConManager) removeContainer(c *Container) error {
 	m.containersMu.Lock()
 	defer m.containersMu.Unlock()

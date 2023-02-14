@@ -82,8 +82,7 @@ func (a *AgentServer) ServeSftp(args *ServeSftpArgs, reply *int) error {
 
 type DialTCPContextArgs struct {
 	AddrPort string
-	//TODO signal fd
-	//SignalFd int
+	//TODO signal rpc
 }
 
 func (a *AgentServer) DialTCPContext(args *DialTCPContextArgs, reply *uint64) error {

@@ -50,13 +50,25 @@ type CommandOpts struct {
 	CombinedArgs  []string
 	UseShell      bool
 	ExtraEnv      map[string]string
+	OmitEnv       bool
 	User          string
+	Dir           *string
 	ContainerName string
 }
 
 func TranslatePath(p string) string {
 	// canonicalize first
 	p = path.Clean(p)
+
+	// is it relative? if so, translate it to absolute
+	if !path.IsAbs(p) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+
+		p = path.Join(cwd, p)
+	}
 
 	// common case: is it linked?
 	for _, linkPrefix := range mounts.LinkedPaths {
@@ -99,7 +111,7 @@ func TranslateArgPaths(args []string) []string {
 	return args
 }
 
-func ConnectSSH(opts CommandOpts) (int, error) {
+func RunSSH(opts CommandOpts) (int, error) {
 	if opts.ContainerName == "" {
 		opts.ContainerName = "default"
 	}
@@ -185,10 +197,17 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	session.Stderr = os.Stderr
 
 	// forward and translate cwd path
-	cwd, err := os.Getwd()
-	if err == nil {
-		meta.Pwd = TranslatePath(cwd)
+	var cwd string
+	if opts.Dir == nil {
+		cwd, err = os.Getwd()
+		if err == nil {
+			cwd = TranslatePath(cwd)
+		}
+	} else {
+		// no translation
+		cwd = *opts.Dir
 	}
+	meta.Pwd = cwd
 
 	// forward signals
 	fwdSigChan := make(chan os.Signal, 1)
@@ -203,12 +222,14 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	signal.Notify(winchChan, unix.SIGWINCH)
 
 	// send environment (server chooses what to accept)
-	for _, kv := range os.Environ() {
-		key, value, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
+	if !opts.OmitEnv {
+		for _, kv := range os.Environ() {
+			key, value, ok := strings.Cut(kv, "=")
+			if !ok {
+				continue
+			}
+			session.Setenv(key, value)
 		}
-		session.Setenv(key, value)
 	}
 
 	// extra env

@@ -163,7 +163,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	}
 
 	// also set as default if this is the first container
-	if len(m.ListContainers()) == 1 {
+	if m.CountNonBuiltinContainers() <= 1 {
 		err = m.db.SetDefaultContainerID(c.ID)
 		if err != nil {
 			return
