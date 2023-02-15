@@ -10,6 +10,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
+	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/killswitch"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
@@ -20,7 +21,16 @@ const (
 	drmCheckInterval = 15 * time.Minute
 	// long enough to include all retries and 30s timeouts in vmgr
 	drmCheckTimeout = 6 * time.Minute
+
+var (
+	verboseDebug = conf.Debug()
 )
+
+func dlog(msg string, args ...interface{}) {
+	if verboseDebug {
+		logrus.Debug(append([]interface{}{"[drm] " + msg}, args...)...)
+	}
+}
 
 type DrmMonitor struct {
 	conManager *ConManager
@@ -29,8 +39,8 @@ type DrmMonitor struct {
 }
 
 func withTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) {
+	// wil be GC'd once both are done
 	done := make(chan struct{})
-	defer close(done)
 
 	var result T
 	var err error
@@ -51,11 +61,13 @@ func withTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) 
 }
 
 // scon (VM side) drm:
-//  complex logic is all on the host side
-//  every 15 min, we get the last result from vmgr and verify the token+time
+//
+//	complex logic is all on the host side
+//	every 15 min, we get the last result from vmgr and verify the token+time
 func (m *DrmMonitor) Run() error {
 	// killswitch
 	killswitch.Watch(func(err error) {
+		dlog("killswitch triggered", err)
 		logrus.WithError(err).Error("build expired")
 		m.conManager.pendingVMShutdown = true
 		m.conManager.Close()
@@ -65,14 +77,17 @@ func (m *DrmMonitor) Run() error {
 	defer ticker.Stop()
 
 	go func() {
+		dlog("fetch initial result")
 		result, err := withTimeout(func() (*drmtypes.Result, error) {
 			return m.conManager.host.GetLastDrmResult()
 		}, drmCheckTimeout)
+		dlog("initial result:", result, err)
 		if err != nil {
 			logrus.WithError(err).Error("failed to get initial last result")
 		}
 
 		if result != nil {
+			dlog("got initial result, dispatching")
 			m.lastResult = result
 			m.dispatchResult(m.lastResult)
 		}
@@ -80,16 +95,20 @@ func (m *DrmMonitor) Run() error {
 
 	for range ticker.C {
 		// timeout prevents malicious server from blocking and bypassing DRM
+		dlog("fetch periodic result")
 		result, err := withTimeout(func() (*drmtypes.Result, error) {
 			return m.conManager.host.GetLastDrmResult()
 		}, drmCheckTimeout)
+		dlog("periodic result:", result, err)
 		if err != nil {
 			logrus.WithError(err).Error("failed to get new result")
 		}
 
 		if result != nil {
+			dlog("got new result, setting last")
 			m.lastResult = result
 		}
+		dlog("dispatch last")
 		m.dispatchResult(m.lastResult)
 	}
 
@@ -97,6 +116,7 @@ func (m *DrmMonitor) Run() error {
 }
 
 func (m *DrmMonitor) dispatchResult(result *drmtypes.Result) {
+	dlog("dispatching result:", result)
 	if !m.verifyResult(result) {
 		logrus.Error("dispatch result: power off")
 		m.conManager.pendingVMShutdown = true
@@ -106,10 +126,12 @@ func (m *DrmMonitor) dispatchResult(result *drmtypes.Result) {
 
 func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 	if result == nil {
+		dlog("fail: result = nil")
 		return false
 	}
 
 	if result.State != drmtypes.StateValid {
+		dlog("fail: state != valid")
 		return false
 	}
 
@@ -118,19 +140,17 @@ func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 		StrictVersion: false,
 	})
 	if err != nil {
+		dlog("fail: verify token:", err)
 		return false
 	}
 
 	if *result.ClaimInfo != *claimInfo {
+		dlog("fail: claim info mismatch")
 		return false
 	}
 
-	m.lastResult = &drmtypes.Result{
-		State:            drmtypes.StateValid,
-		EntitlementToken: result.EntitlementToken,
-		RefreshToken:     result.RefreshToken,
-		ClaimInfo:        claimInfo,
-	}
+	m.lastResult = result
+	dlog("dispatch: ok", m.lastResult)
 	return true
 }
 

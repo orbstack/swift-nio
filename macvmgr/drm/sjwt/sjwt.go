@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -25,6 +27,16 @@ const (
 var (
 	ErrInvalidToken = errors.New("invalid token")
 )
+
+var (
+	verboseDebug = conf.Debug()
+)
+
+func dlog(msg string, args ...interface{}) {
+	if verboseDebug {
+		logrus.Debug(append([]interface{}{"[sjwt] " + msg}, args...)...)
+	}
+}
 
 type jwtHeader struct {
 	Type      string `json:"typ"`
@@ -53,8 +65,10 @@ func NewVerifier(expectIdentifiers *drmtypes.Identifiers, expectVersion drmtypes
 	}
 
 	return &Verifier{
-		clock: currentClock(),
-		pk:    pk,
+		clock:             currentClock(),
+		pk:                pk,
+		expectIdentifiers: expectIdentifiers,
+		expectVersion:     expectVersion,
 	}
 }
 
@@ -67,37 +81,46 @@ func (v *Verifier) Verify(token string, params TokenVerifyParams) (*drmtypes.Cla
 	if err != nil {
 		return nil, err
 	}
+	dlog("decoded claims:", claims)
 
 	// validate
 	if claims.DrmVersion != drmVersion {
+		dlog("invalid because version", claims.DrmVersion, "!=", drmVersion)
 		return nil, ErrInvalidToken
 	}
 	if claims.AppName != appName {
+		dlog("invalid because app name", claims.AppName, "!=", appName)
 		return nil, ErrInvalidToken
 	}
 	if shouldVerifyIdentifiers {
 		if claims.DeviceID != v.expectIdentifiers.DeviceID {
+			dlog("invalid because device ID", claims.DeviceID, "!=", v.expectIdentifiers.DeviceID)
 			return nil, ErrInvalidToken
 		}
 		if claims.InstallID != v.expectIdentifiers.InstallID {
+			dlog("invalid because install ID", claims.InstallID, "!=", v.expectIdentifiers.InstallID)
 			return nil, ErrInvalidToken
 		}
 		if claims.ClientID != v.expectIdentifiers.ClientID {
+			dlog("invalid because client ID", claims.ClientID, "!=", v.expectIdentifiers.ClientID)
 			return nil, ErrInvalidToken
 		}
 	}
 	if params.StrictVersion {
 		if claims.AppVersion != v.expectVersion {
 			// Version code is optional for startup / app upgrade
+			dlog("invalid because app version", claims.AppVersion, "!=", v.expectVersion)
 			return nil, ErrInvalidToken
 		}
 	}
 
 	now := v.clock.Now()
 	if /*wall*/ claims.NotBefore > now.Add(NotBeforeLeeway).Unix() {
+		dlog("invalid because not before", claims.NotBefore, ">", now.Add(NotBeforeLeeway).Unix())
 		return nil, ErrInvalidToken
 	}
 	if /*wall*/ claims.ExpiresAt < now.Add(-NotAfterLeeway).Unix() {
+		dlog("invalid because expires at", claims.ExpiresAt, "<", now.Add(-NotAfterLeeway).Unix())
 		return nil, ErrInvalidToken
 	}
 	// Don't check issuedAt. notBefore is good enough of a constraint in case anything changes
@@ -165,12 +188,15 @@ func decode(token string, pk ed25519.PublicKey) (*drmtypes.JwtClaims, error) {
 
 	// header
 	if data.Header.Type != "JWT" {
+		dlog("invalid because type", data.Header.Type, "!=", "JWT")
 		return nil, ErrInvalidToken
 	}
 	if data.Header.Algorithm != "EdDSA" {
+		dlog("invalid because algorithm", data.Header.Algorithm, "!=", "EdDSA")
 		return nil, ErrInvalidToken
 	}
 	if data.Header.KeyID != "1" {
+		dlog("invalid because key ID", data.Header.KeyID, "!=", "1")
 		return nil, ErrInvalidToken
 	}
 
