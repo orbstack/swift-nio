@@ -1,6 +1,10 @@
 package drmtypes
 
-import "time"
+import (
+	"time"
+
+	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
+)
 
 const (
 	CurrentVersion = 1
@@ -92,7 +96,7 @@ type Result struct {
 	EntitlementToken string
 	RefreshToken     string
 	ClaimInfo        *ClaimInfo
-	CheckedAt        time.Time
+	CheckedAt        timex.MonoSleepTime
 }
 
 type AppVersion struct {

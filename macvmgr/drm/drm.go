@@ -13,15 +13,19 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	// check the local DRM state this often
-	checkinInterval = 15 * time.Minute
+	// evaluate the local DRM state this often
+	evaluateInterval = 15 * time.Minute
 	// wait at least this long before sending another server checkin request
-	checkinLifetime = 24 * time.Hour
+	// it should be 24h (1 day) but we use a shorter interval to allow for
+	// faster recovery in case of network errors. it's 24h-30m (2*interval)
+	checkinLifetime = 24*time.Hour - 2*evaluateInterval
+
 	// allow non-explicit (i.e. network error) failures up to this long after startup
 	startGracePeriod = 15 * time.Minute
 	// wait this long for VM to stop if DRM failed
@@ -63,7 +67,7 @@ type DrmClient struct {
 	refreshToken string
 	identifiers  *drmtypes.Identifiers
 	appVersion   drmtypes.AppVersion
-	startTime    time.Time
+	startTime    timex.MonoSleepTime
 
 	failChan chan struct{}
 }
@@ -106,7 +110,7 @@ func newDrmClient() *DrmClient {
 		refreshToken: previewRefreshToken,
 		identifiers:  ids,
 		appVersion:   appVersion,
-		startTime:/*wall*/ time.Now().Truncate(-1),
+		startTime:/*mono*/ timex.NowMonoSleep(),
 
 		failChan: make(chan struct{}),
 	}
@@ -148,7 +152,7 @@ func (c *DrmClient) UpdateResult() (*drmtypes.Result, error) {
 }
 
 func (c *DrmClient) Run() {
-	ticker := time.NewTicker(checkinInterval)
+	ticker := time.NewTicker(evaluateInterval)
 	defer ticker.Stop()
 
 	for ; true; <-ticker.C {
@@ -164,7 +168,8 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 	defer c.checkMu.Unlock()
 
 	lastResult := c.LastResult()
-	if lastResult != nil && lastResult.State == drmtypes.StateValid && /*wall*/ time.Since(lastResult.CheckedAt) < checkinLifetime && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
+	dlog("last result: ", lastResult)
+	if lastResult != nil && lastResult.State == drmtypes.StateValid && /*mono*/ timex.SinceMonoSleep(lastResult.CheckedAt) < checkinLifetime && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 		dlog("skipping checkin due to valid result")
 		return lastResult, nil
 	}
@@ -188,7 +193,7 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in last token grace period")
 			return lastResult, nil
-		} else if !isVerifyFail && lastResult == nil && /*wall*/ time.Since(c.startTime) < startGracePeriod {
+		} else if !isVerifyFail && lastResult == nil && /*mono*/ timex.SinceMonoSleep(c.startTime) < startGracePeriod {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in start grace period")
 			return nil, err
@@ -199,7 +204,7 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 				EntitlementToken: "",
 				RefreshToken:     c.refreshToken,
 				ClaimInfo:        nil,
-				CheckedAt:        time.Now(),
+				CheckedAt:        timex.NowMonoSleep(),
 			}
 			dlog("failed checkin and no grace period, invalidating result")
 
@@ -281,7 +286,7 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 		EntitlementToken: resp.EntitlementToken,
 		RefreshToken:     resp.RefreshToken,
 		ClaimInfo:        claimInfo,
-		CheckedAt:/*wall*/ time.Now().Truncate(-1),
+		CheckedAt:/*wall*/ timex.NowMonoSleep(),
 	}
 	dlog("dispatch good result")
 

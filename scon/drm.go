@@ -50,6 +50,9 @@ func withTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) 
 	}
 }
 
+// scon (VM side) drm:
+//  complex logic is all on the host side
+//  every 15 min, we get the last result from vmgr and verify the token+time
 func (m *DrmMonitor) Run() error {
 	// killswitch
 	killswitch.Watch(func(err error) {
