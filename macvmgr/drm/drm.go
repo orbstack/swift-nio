@@ -187,6 +187,7 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 	result, err := c.doCheckinLockedRetry()
 	if err != nil {
 		isVerifyFail := errors.Is(err, ErrVerify)
+		wakeTime := iokit.LastWakeTime
 
 		// new check failed. are we in grace period for old token expiry?
 		if !isVerifyFail && lastResult != nil && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
@@ -196,6 +197,10 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 		} else if !isVerifyFail && lastResult == nil && /*mono*/ timex.SinceMonoSleep(c.startTime) < startGracePeriod {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in start grace period")
+			return nil, err
+		} else if !isVerifyFail && lastResult == nil && wakeTime != nil && /*mono*/ timex.SinceMonoSleep(*wakeTime) < startGracePeriod {
+			// still in grace period, so keep the old result
+			dlog("failed checkin, but still in wake grace period")
 			return nil, err
 		} else {
 			// no grace period (or verify failed), so invalidate the result
