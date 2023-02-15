@@ -118,7 +118,10 @@ func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
 
 func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error {
 	result, err := h.drmClient.UpdateResult()
-	if err != nil || result == nil {
+	if err != nil {
+		return err
+	}
+	if result == nil {
 		return errors.New("no result available")
 	}
 
