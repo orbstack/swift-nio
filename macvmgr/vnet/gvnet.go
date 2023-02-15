@@ -40,10 +40,12 @@ const (
 	SecureSvcIP4 = subnet4 + ".201"
 	HostNatIP4   = subnet4 + ".254"
 
-	subnet6    = "fc00:96dc:7096:1d21:"
+	subnet6 = "fc00:96dc:7096:1d21:"
+	// hack: because we don't implement NDP, we need to use a different subnet for anything that's not guest or gateway
+	subnetExt6 = "fc00:96dc:7096:1d22:"
 	GatewayIP6 = subnet6 + ":1"
 	GuestIP6   = subnet6 + ":2"
-	HostNatIP6 = subnet6 + ":254"
+	HostNatIP6 = subnetExt6 + ":254"
 
 	gatewayMac = "24:d2:f4:58:34:d7"
 )

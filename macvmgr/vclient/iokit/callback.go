@@ -15,6 +15,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
 	"github.com/sirupsen/logrus"
 )
 
@@ -36,6 +37,8 @@ func go_iokit_sleepwake_callback(refcon unsafe.Pointer, service C.io_service_t, 
 	case C.kIOMessageSystemWillPowerOn:
 		logrus.Debug("power on - sync time")
 		isAsleep = false
+		now := timex.NowMonoSleep()
+		LastWakeTime = &now
 		// Never block
 		go func() {
 			wakeChan <- time.Now()

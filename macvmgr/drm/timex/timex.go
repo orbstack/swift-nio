@@ -22,7 +22,8 @@ func nowNs() int64 {
 func NowMonoSleep() MonoSleepTime {
 	return MonoSleepTime{
 		mono: nowNs(),
-		Wall: time.Now().Truncate(-1),
+		// this includes a non-sleep mono reading too
+		Wall: time.Now(),
 	}
 }
 

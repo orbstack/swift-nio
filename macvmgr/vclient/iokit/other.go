@@ -2,6 +2,8 @@
 
 package iokit
 
+var LastWakeTime *timex.MonoSleepTime
+
 type SleepWakeMonitor struct {
 	SleepChan chan time.Time
 	WakeChan  chan time.Time

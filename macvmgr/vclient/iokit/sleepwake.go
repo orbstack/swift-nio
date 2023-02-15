@@ -27,6 +27,8 @@ import (
 	"runtime"
 	"time"
 	"unsafe"
+
+	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
 )
 
 var (
@@ -35,6 +37,8 @@ var (
 	wakeChan  = make(chan time.Time)
 	rootPort  C.io_connect_t
 	isAsleep  = false
+
+	LastWakeTime *timex.MonoSleepTime
 )
 
 type SleepWakeMonitor struct {
