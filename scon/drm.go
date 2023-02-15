@@ -10,6 +10,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
+	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/killswitch"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
@@ -23,12 +24,12 @@ const (
 )
 
 var (
-	verboseDebug = true
+	verboseDebug = conf.Debug()
 )
 
 func dlog(msg string, args ...interface{}) {
 	if verboseDebug {
-		logrus.Info(append([]interface{}{"[drm] " + msg}, args...)...)
+		logrus.Debug(append([]interface{}{"[drm] " + msg}, args...)...)
 	}
 }
 

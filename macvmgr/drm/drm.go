@@ -24,7 +24,7 @@ const (
 	// wait at least this long before sending another server checkin request
 	// it should be 24h (1 day) but we use a shorter interval to allow for
 	// faster recovery in case of network errors. it's 24h-30m (2*interval)
-	checkinLifetime = 25 * time.Minute
+	checkinLifetime = 24*time.Hour - 2*evaluateInterval
 
 	// allow non-explicit (i.e. network error) failures up to this long after startup
 	startGracePeriod = 15 * time.Minute
@@ -44,7 +44,7 @@ const (
 )
 
 var (
-	verboseDebug = true
+	verboseDebug = conf.Debug()
 )
 
 var (
@@ -357,6 +357,6 @@ func Client() *DrmClient {
 
 func dlog(msg string, args ...interface{}) {
 	if verboseDebug {
-		logrus.Info(append([]interface{}{"[drm] " + msg}, args...)...)
+		logrus.Debug(append([]interface{}{"[drm] " + msg}, args...)...)
 	}
 }
