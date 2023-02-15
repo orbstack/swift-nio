@@ -281,7 +281,10 @@ func runVmManager() {
 	var isRetry bool
 	flag.StringVar(&buildID, "build-id", "", "build ID")
 	flag.BoolVar(&isRetry, "retry", false, "retry")
-	flag.CommandLine.Parse(os.Args[2:])
+	if len(os.Args) > 2 {
+		err := flag.CommandLine.Parse(os.Args[2:])
+		check(err)
+	}
 
 	// ensure it's not running
 	if vmclient.IsRunning() {
@@ -463,7 +466,6 @@ func runVmManager() {
 
 	// Start VM control server for Swift
 	controlServer := VmControlServer{
-		balloon:      vm.MemoryBalloonDevices()[0],
 		vm:           vm,
 		vc:           vc,
 		doneCh:       doneCh,

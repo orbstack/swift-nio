@@ -8,7 +8,7 @@ import (
 
 type MonoSleepTime struct {
 	mono int64
-	wall time.Time
+	Wall time.Time
 }
 
 func nowNs() int64 {
@@ -22,7 +22,7 @@ func nowNs() int64 {
 func NowMonoSleep() MonoSleepTime {
 	return MonoSleepTime{
 		mono: nowNs(),
-		wall: time.Now(),
+		Wall: time.Now(),
 	}
 }
 

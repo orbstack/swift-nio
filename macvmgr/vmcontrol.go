@@ -27,7 +27,6 @@ const (
 )
 
 type VmControlServer struct {
-	balloon          *vz.VirtioMemoryBalloonDevice
 	vm               *vz.VirtualMachine
 	vc               *vclient.VClient
 	doneCh           chan struct{}
