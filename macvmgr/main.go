@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -275,6 +276,13 @@ func runVmManager() {
 		logrus.Fatal("macOS too old", err)
 	}
 
+	// parse args
+	var buildID string
+	var isRetry bool
+	flag.StringVar(&buildID, "build-id", "", "build ID")
+	flag.BoolVar(&isRetry, "retry", false, "retry")
+	flag.CommandLine.Parse(os.Args[2:])
+
 	// ensure it's not running
 	if vmclient.IsRunning() {
 		logrus.Fatal("vmgr is already running (socket)")
@@ -299,10 +307,7 @@ func runVmManager() {
 	defer os.Remove(conf.VmgrPidFile())
 
 	// write build ID
-	var buildID string
-	if len(os.Args) > 2 {
-		buildID = os.Args[2]
-	} else {
+	if buildID == "" {
 		buildID, err = buildid.CalculateCurrent()
 		check(err)
 	}
@@ -412,9 +417,6 @@ func runVmManager() {
 		defer term.Restore(fd, state)
 	}
 
-	err = vm.Start()
-	check(err)
-
 	// Monitor state changes even if observer panics
 	stateChan := make(chan vz.VirtualMachineState)
 	go func() {
@@ -428,6 +430,9 @@ func runVmManager() {
 			}
 		}
 	}()
+
+	err = vm.Start()
+	check(err)
 
 	// Listen for signals
 	go func() {

@@ -57,7 +57,7 @@ func runSpawnDaemon() {
 	logFile, err := os.Create(conf.VmManagerLog())
 	check(err)
 
-	cmd := exec.Command(exe, "vmgr", buildID)
+	cmd := exec.Command(exe, "vmgr", "-build-id", buildID)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{
