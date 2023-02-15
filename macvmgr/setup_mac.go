@@ -266,6 +266,11 @@ func lookPath(pathEnv string, cmd string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// resolve link dest
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", err
+	}
 	// force relink if links to a dmg
 	if strings.HasPrefix(path, "/Volumes/") {
 		return "", fmt.Errorf("command %s is a link to a dmg", cmd)
