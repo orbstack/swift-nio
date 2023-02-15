@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	NotBeforeLeeway = 24 * time.Hour
-	NotAfterLeeway  = 12 * time.Hour
+	NotBeforeLeeway = 12 * time.Hour
+	NotAfterLeeway  = 6 * time.Hour
 
 	drmVersion = 1
 	appName    = appid.Codename
