@@ -9,6 +9,7 @@ var (
 		"SHELL",
 		"TMPDIR",
 		"SSH_AUTH_SOCK",
+		"ZDOTDIR",
 
 		"XDG_SESSION_ID",
 		"XDG_RUNTIME_DIR",
