@@ -8,9 +8,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
+	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
@@ -29,6 +31,10 @@ var (
 const (
 	diskStatsInterval = 90 * time.Second
 	readyPollInterval = 200 * time.Millisecond
+
+	// arm: arch timer doesn't advance in sleep, so not needed
+	// x86: tsc advances in sleep; pausing and resuming prevents that, so monotonic clock and timeouts work as expected, and we don't get stalls
+	needsPauseResume = runtime.GOARCH != "arm64"
 )
 
 type VClient struct {
@@ -37,6 +43,7 @@ type VClient struct {
 	dataReady bool
 	lastStats diskReportStats
 	dataFile  *os.File
+	vm        *vz.VirtualMachine
 }
 
 type diskReportStats struct {
@@ -45,7 +52,7 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport) (*VClient, error) {
+func newWithTransport(tr *http.Transport, vm *vz.VirtualMachine) (*VClient, error) {
 	httpClient := &http.Client{Transport: tr}
 	dataFile, err := os.OpenFile(conf.DataImage(), os.O_RDONLY, 0)
 	if err != nil {
@@ -55,10 +62,11 @@ func newWithTransport(tr *http.Transport) (*VClient, error) {
 	return &VClient{
 		client:   httpClient,
 		dataFile: dataFile,
+		vm:       vm,
 	}, nil
 }
 
-func NewWithNetwork(n *vnet.Network) (*VClient, error) {
+func NewWithNetwork(n *vnet.Network, vm *vz.VirtualMachine) (*VClient, error) {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
@@ -68,7 +76,7 @@ func NewWithNetwork(n *vnet.Network) (*VClient, error) {
 		},
 		MaxIdleConns: 2,
 	}
-	return newWithTransport(tr)
+	return newWithTransport(tr, vm)
 }
 
 func (vc *VClient) Get(endpoint string) (*http.Response, error) {
@@ -157,9 +165,15 @@ func (vc *VClient) StartBackground() error {
 	}
 
 	go func() {
-		for {
-			<-mon.WakeChan
-			logrus.Info("sync time")
+		for range mon.WakeChan {
+			logrus.Info("wake")
+			// arm doesn't need pause/resume
+			if needsPauseResume {
+				err := vc.vm.Resume()
+				if err != nil {
+					logrus.Error("resume err", err)
+				}
+			}
 			go func() {
 				// For some reason, we have to sync *twice* in order for chrony to step the clock after suspend.
 				// Running it twice back-to-back doesn't work, and neither does "chronyc makestep"
@@ -175,6 +189,19 @@ func (vc *VClient) StartBackground() error {
 					logrus.Error("sync err", err)
 				}
 			}()
+		}
+	}()
+
+	go func() {
+		for range mon.SleepChan {
+			logrus.Info("sleep")
+			// arm doesn't need pause/resume
+			if needsPauseResume {
+				err := vc.vm.Pause()
+				if err != nil {
+					logrus.Error("pause err", err)
+				}
+			}
 		}
 	}()
 
