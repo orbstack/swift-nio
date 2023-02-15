@@ -150,7 +150,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	})
 
 	if capturePcap {
-		pcapPath := conf.HomeDir() + "/code/projects/macvirt/macvmgr/gv.pcap"
+		pcapPath := conf.ExecutableDir() + "/gv.pcap"
 		_ = os.Remove(pcapPath)
 		f, err := os.Create(pcapPath)
 		if err != nil {
