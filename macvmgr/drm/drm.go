@@ -29,7 +29,7 @@ const (
 	// allow non-explicit (i.e. network error) failures up to this long after startup
 	startGracePeriod = 15 * time.Minute
 	// wait this long for VM to stop if DRM failed
-	FailStopTimeout = 3 * time.Minute
+	FailStopTimeout = 2 * time.Minute
 
 	// retry delays for DRM checkin requests
 	retryDelay1 = 5 * time.Second
