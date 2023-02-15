@@ -21,6 +21,7 @@ const (
 	drmCheckInterval = 15 * time.Minute
 	// long enough to include all retries and 30s timeouts in vmgr
 	drmCheckTimeout = 6 * time.Minute
+)
 
 var (
 	verboseDebug = conf.Debug()
