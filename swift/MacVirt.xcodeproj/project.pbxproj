@@ -33,13 +33,15 @@
 		B118BFB7E48980394ADE79DE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */; };
 		B118BFD7C7DDDF02D8639C5D /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */; };
 		B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDE072F572BA61600007 /* AppSettings.swift */; };
+		D81E7850299CC4F200A1D8AC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E784F299CC4F200A1D8AC /* main.swift */; };
+		D81E7857299CC56800A1D8AC /* guihelper in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* guihelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
-		D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A412992247F0046B6B6 /* macvmgr */; };
-		D8694A44299224990046B6B6 /* scli in Copy Go executables */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; };
+		D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8694A412992247F0046B6B6 /* macvmgr */; };
+		D8694A44299224990046B6B6 /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
@@ -53,17 +55,37 @@
 		D8CBDA25298F791F0026F44A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CBDA24298F791F0026F44A /* AppConfig.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		D81E7854299CC53400A1D8AC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D8A32B86296F839100E56EEF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D81E784C299CC4F200A1D8AC;
+			remoteInfo = guihelper;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
-		D8694A3E2991F8C70046B6B6 /* Copy Go executables */ = {
+		D81E784B299CC4F200A1D8AC /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		D8694A3E2991F8C70046B6B6 /* Copy Go executables and Swift GUI helper */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
-				D8694A44299224990046B6B6 /* scli in Copy Go executables */,
-				D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables */,
+				D81E7857299CC56800A1D8AC /* guihelper in Copy Go executables and Swift GUI helper */,
+				D8694A44299224990046B6B6 /* scli in Copy Go executables and Swift GUI helper */,
+				D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables and Swift GUI helper */,
 			);
-			name = "Copy Go executables";
+			name = "Copy Go executables and Swift GUI helper";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */ = {
@@ -119,6 +141,8 @@
 		B118BE4D3578D923BDAE7C2C /* Updater.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
 		B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerContainerItem.swift; sourceTree = "<group>"; };
 		B118BF7EB971BAC66F27805D /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
+		D81E784D299CC4F200A1D8AC /* guihelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = guihelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		D81E784F299CC4F200A1D8AC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -141,6 +165,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		D81E784A299CC4F200A1D8AC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D8A32B8B296F839100E56EEF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -156,6 +187,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D81E784E299CC4F200A1D8AC /* guihelper */ = {
+			isa = PBXGroup;
+			children = (
+				D81E784F299CC4F200A1D8AC /* main.swift */,
+			);
+			path = guihelper;
+			sourceTree = "<group>";
+		};
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
@@ -169,6 +208,7 @@
 				D8694A43299224990046B6B6 /* scli */,
 				D8694A412992247F0046B6B6 /* macvmgr */,
 				D8A32B90296F839100E56EEF /* MacVirt */,
+				D81E784E299CC4F200A1D8AC /* guihelper */,
 				D8A32B8F296F839100E56EEF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -177,6 +217,7 @@
 			isa = PBXGroup;
 			children = (
 				D8A32B8E296F839100E56EEF /* OrbStack.app */,
+				D81E784D299CC4F200A1D8AC /* guihelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -234,6 +275,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		D81E784C299CC4F200A1D8AC /* guihelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D81E7853299CC4F200A1D8AC /* Build configuration list for PBXNativeTarget "guihelper" */;
+			buildPhases = (
+				D81E7849299CC4F200A1D8AC /* Sources */,
+				D81E784A299CC4F200A1D8AC /* Frameworks */,
+				D81E784B299CC4F200A1D8AC /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = guihelper;
+			productName = guihelper;
+			productReference = D81E784D299CC4F200A1D8AC /* guihelper */;
+			productType = "com.apple.product-type.tool";
+		};
 		D8A32B8D296F839100E56EEF /* MacVirt */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D8A32B9D296F839100E56EEF /* Build configuration list for PBXNativeTarget "MacVirt" */;
@@ -242,7 +300,7 @@
 				D8A32B8B296F839100E56EEF /* Frameworks */,
 				D8A32B8C296F839100E56EEF /* Resources */,
 				D8694A3B2991F3F80046B6B6 /* Copy “Launch at Login Helper” */,
-				D8694A3E2991F8C70046B6B6 /* Copy Go executables */,
+				D8694A3E2991F8C70046B6B6 /* Copy Go executables and Swift GUI helper */,
 				D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */,
 				D88F4EB72998D61B00419B5C /* Copy assets */,
 				D8694A46299224F10046B6B6 /* Create symlinks */,
@@ -251,6 +309,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				D81E7855299CC53400A1D8AC /* PBXTargetDependency */,
 			);
 			name = MacVirt;
 			packageProductDependencies = (
@@ -274,6 +333,9 @@
 				LastSwiftUpdateCheck = 1420;
 				LastUpgradeCheck = 1420;
 				TargetAttributes = {
+					D81E784C299CC4F200A1D8AC = {
+						CreatedOnToolsVersion = 14.2;
+					};
 					D8A32B8D296F839100E56EEF = {
 						CreatedOnToolsVersion = 14.2;
 					};
@@ -300,6 +362,7 @@
 			projectRoot = "";
 			targets = (
 				D8A32B8D296F839100E56EEF /* MacVirt */,
+				D81E784C299CC4F200A1D8AC /* guihelper */,
 			);
 		};
 /* End PBXProject section */
@@ -377,6 +440,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		D81E7849299CC4F200A1D8AC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D81E7850299CC4F200A1D8AC /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D8A32B8A296F839100E56EEF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -417,7 +488,37 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		D81E7855299CC53400A1D8AC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D81E784C299CC4F200A1D8AC /* guihelper */;
+			targetProxy = D81E7854299CC53400A1D8AC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		D81E7851299CC4F200A1D8AC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = HUAQ24HBR6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D81E7852299CC4F200A1D8AC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = HUAQ24HBR6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		D8A32B9B296F839100E56EEF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -604,6 +705,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		D81E7853299CC4F200A1D8AC /* Build configuration list for PBXNativeTarget "guihelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D81E7851299CC4F200A1D8AC /* Debug */,
+				D81E7852299CC4F200A1D8AC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		D8A32B89296F839100E56EEF /* Build configuration list for PBXProject "MacVirt" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
