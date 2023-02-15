@@ -106,7 +106,7 @@ func newDrmClient() *DrmClient {
 		refreshToken: previewRefreshToken,
 		identifiers:  ids,
 		appVersion:   appVersion,
-		startTime:    time.Now(),
+		startTime:/*wall*/ time.Now().Truncate(-1),
 
 		failChan: make(chan struct{}),
 	}
@@ -164,7 +164,7 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 	defer c.checkMu.Unlock()
 
 	lastResult := c.LastResult()
-	if lastResult != nil && lastResult.State == drmtypes.StateValid && time.Since(lastResult.CheckedAt) < checkinLifetime && time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
+	if lastResult != nil && lastResult.State == drmtypes.StateValid && /*wall*/ time.Since(lastResult.CheckedAt) < checkinLifetime && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 		dlog("skipping checkin due to valid result")
 		return lastResult, nil
 	}
@@ -184,11 +184,11 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 		isVerifyFail := errors.Is(err, ErrVerify)
 
 		// new check failed. are we in grace period for old token expiry?
-		if !isVerifyFail && lastResult != nil && time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
+		if !isVerifyFail && lastResult != nil && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in last token grace period")
 			return lastResult, nil
-		} else if !isVerifyFail && lastResult == nil && time.Since(c.startTime) < startGracePeriod {
+		} else if !isVerifyFail && lastResult == nil && /*wall*/ time.Since(c.startTime) < startGracePeriod {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in start grace period")
 			return nil, err
@@ -281,7 +281,7 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 		EntitlementToken: resp.EntitlementToken,
 		RefreshToken:     resp.RefreshToken,
 		ClaimInfo:        claimInfo,
-		CheckedAt:        time.Now(),
+		CheckedAt:/*wall*/ time.Now().Truncate(-1),
 	}
 	dlog("dispatch good result")
 

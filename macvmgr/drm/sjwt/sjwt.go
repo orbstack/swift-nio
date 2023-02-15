@@ -94,10 +94,10 @@ func (v *Verifier) Verify(token string, params TokenVerifyParams) (*drmtypes.Cla
 	}
 
 	now := v.clock.Now()
-	if claims.NotBefore > now.Add(NotBeforeLeeway).Unix() {
+	if /*wall*/ claims.NotBefore > now.Add(NotBeforeLeeway).Unix() {
 		return nil, ErrInvalidToken
 	}
-	if claims.ExpiresAt < now.Add(-NotAfterLeeway).Unix() {
+	if /*wall*/ claims.ExpiresAt < now.Add(-NotAfterLeeway).Unix() {
 		return nil, ErrInvalidToken
 	}
 	// Don't check issuedAt. notBefore is good enough of a constraint in case anything changes

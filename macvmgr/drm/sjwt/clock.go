@@ -43,6 +43,7 @@ type HybridClock struct {
 }
 
 func (h *HybridClock) Now() time.Time {
+	// TODO: offset must use timex monotonic if we do NTP sync in the future
 	if h.sys.Now().Sub(h.lastSyncedAt) > clockSyncInterval {
 		h.Sync()
 	}
