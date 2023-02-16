@@ -30,6 +30,9 @@ function build_one() {
     # build swift
     pushd swift
 
+    rm -fr build
+    xcodebuild clean
+
     # copy assets
     mkdir -p build/assets/release
     cp -rc ../assets/release/$arch_go build/assets/release/
