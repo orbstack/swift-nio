@@ -600,7 +600,11 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
 
 	go runOne("internal SSH server", func() error {
-		return sshServerInt.Serve(listenerInternal)
+		err := sshServerInt.Serve(listenerInternal)
+		if err != nil && !errors.Is(err, ssh.ErrServerClosed) {
+			return err
+		}
+		return nil
 	})
 
 	pubKeyStr, err := m.host.GetSSHPublicKey()
@@ -617,17 +621,24 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 	})
 	sshServerPub.SetOption(pubKeyOpt)
 	go runOne("public SSH server v4", func() error {
-		return sshServerPub.Serve(listenerPublic4)
+		err := sshServerPub.Serve(listenerPublic4)
+		if err != nil && !errors.Is(err, ssh.ErrServerClosed) {
+			return err
+		}
+		return nil
 	})
 	go runOne("public SSH server v6", func() error {
-		return sshServerPub.Serve(listenerPublic6)
+		err := sshServerPub.Serve(listenerPublic6)
+		if err != nil && !errors.Is(err, ssh.ErrServerClosed) {
+			return err
+		}
+		return nil
 	})
 
 	// cleanup func
 	return func() error {
-		listenerInternal.Close()
-		listenerPublic4.Close()
-		listenerPublic6.Close()
+		sshServerInt.Close()
+		sshServerPub.Close()
 		return nil
 	}, nil
 }
