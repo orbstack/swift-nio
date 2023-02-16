@@ -27,6 +27,22 @@ const (
 	startTimeout = 10 * time.Second
 )
 
+func listDevLoop() ([]string, error) {
+	entries, err := os.ReadDir("/dev")
+	if err != nil {
+		return nil, err
+	}
+
+	devSrcs := make([]string, 0)
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "loop") && entry.Name() != "loop-control" {
+			devSrcs = append(devSrcs, path.Join("/dev", entry.Name()))
+		}
+	}
+
+	return devSrcs, nil
+}
+
 // TODO lxc.hook.autodev or c.AddDeviceNode
 func addInitDevice(c *Container, src string) error {
 	// stat
@@ -107,6 +123,13 @@ func (c *Container) initLxc() error {
 	})
 	c.lxc = lc
 
+	return c.configureLxc()
+}
+
+func (c *Container) configureLxc() error {
+	m := c.manager
+	lc := c.lxc
+
 	// logging
 	logPath := m.subdir("logs") + "/" + c.ID + ".log"
 	lc.ClearConfig()
@@ -130,7 +153,7 @@ func (c *Container) initLxc() error {
 
 	// configs
 	rootfs := path.Join(c.dir, "rootfs")
-	err = os.MkdirAll(rootfs, 0755)
+	err := os.MkdirAll(rootfs, 0755)
 	if err != nil {
 		return err
 	}
@@ -200,6 +223,7 @@ func (c *Container) initLxc() error {
 
 		set("lxc.cgroup2.devices.deny", "a")
 		set("lxc.cgroup2.devices.allow", "b *:* m")     // mknod block
+		set("lxc.cgroup2.devices.allow", "b 7:* rwm")   // dev/loop*
 		set("lxc.cgroup2.devices.allow", "c *:* m")     // mknod char
 		set("lxc.cgroup2.devices.allow", "c 136:* rwm") // dev/pts/*
 		set("lxc.cgroup2.devices.allow", "c 1:3 rwm")   // dev/null
@@ -210,7 +234,6 @@ func (c *Container) initLxc() error {
 		set("lxc.cgroup2.devices.allow", "c 5:0 rwm")   // dev/tty
 		set("lxc.cgroup2.devices.allow", "c 5:1 rwm")   // dev/console
 		set("lxc.cgroup2.devices.allow", "c 5:2 rwm")   // dev/ptmx
-		set("lxc.cgroup2.devices.allow", "c 7:* rwm")   // dev/loop*
 
 		// Devices
 		addDev("/dev/fuse")
@@ -495,6 +518,18 @@ func (c *Container) Start() error {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to start agent")
 		}
 	}()
+
+	// attach loop devices
+	loopSrcs, err := listDevLoop()
+	if err != nil {
+		return err
+	}
+	for _, src := range loopSrcs {
+		err := c.addDeviceNodeLocked(src, src)
+		if err != nil {
+			return err
+		}
+	}
 
 	err = c.onStart()
 	if err != nil {

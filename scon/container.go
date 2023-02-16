@@ -170,3 +170,31 @@ func (c *Container) refreshState() error {
 
 	return nil
 }
+
+func (c *Container) addDeviceNodeLocked(src string, dst string) error {
+	err := c.lxc.AddDeviceNode(src, dst)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Container) addDeviceNode(src string, dst string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.addDeviceNodeLocked(src, dst)
+}
+
+func (c *Container) removeDeviceNode(src string, dst string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	err := c.lxc.RemoveDeviceNode(src, dst)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

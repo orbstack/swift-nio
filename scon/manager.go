@@ -168,6 +168,7 @@ func (m *ConManager) Start() error {
 		return err
 	}
 	go runOne("Docker NFS manager", m.runDockerNFS)
+	go runOne("device monitor", m.runDeviceMonitor)
 	// RPC only once other services are up
 	go runOne("RPC server", func() error {
 		return runSconServer(m)
