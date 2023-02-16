@@ -72,7 +72,7 @@ function build_one() {
 
 rm -fr swift/{build,out}
 
-# builds can't be parallel
+# # builds can't be parallel
 build_one amd64 x86_64
 build_one arm64 arm64
 
@@ -114,9 +114,9 @@ $SPARKLE_BIN/generate_appcast --download-url-prefix https://cdn-updates.orbstack
 pushd updates/beta
 
 for dmg in "${built_dmgs[@]}"; do
-    wrangler r2 object put beta/"$dmg" -f "$dmg"
+    wrangler r2 object put orbstack-updates/beta/"$dmg" -f "$dmg"
 done
-wrangler r2 object put beta/arm64/appcast.xml -f arm64/appcast.xml
-wrangler r2 object put beta/amd64/appcast.xml -f amd64/appcast.xml
+wrangler r2 object put orbstack-updates/beta/arm64/appcast.xml -f arm64/appcast.xml
+wrangler r2 object put orbstack-updates/beta/amd64/appcast.xml -f amd64/appcast.xml
 
 popd
