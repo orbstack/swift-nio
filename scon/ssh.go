@@ -560,20 +560,20 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 	}()
 }
 
-func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) error {
+func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, error) {
 	listenerInternal, err := net.Listen("tcp", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSH)))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	listenerPublic4, err := net.Listen("tcp4", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSHPublic)))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	listenerPublic6, err := net.Listen("tcp6", net.JoinHostPort(listenIP6, strconv.Itoa(ports.GuestSconSSHPublic)))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	sshServerInt := &SshServer{
@@ -605,11 +605,11 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) error {
 
 	pubKeyStr, err := m.host.GetSSHPublicKey()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pubKeyStr))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	pubKeyOpt := ssh.PublicKeyAuth(func(ctx ssh.Context, key ssh.PublicKey) bool {
@@ -623,5 +623,11 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) error {
 		return sshServerPub.Serve(listenerPublic6)
 	})
 
-	return nil
+	// cleanup func
+	return func() error {
+		listenerInternal.Close()
+		listenerPublic4.Close()
+		listenerPublic6.Close()
+		return nil
+	}, nil
 }

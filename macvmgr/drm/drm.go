@@ -11,10 +11,13 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet"
+	"github.com/kdrag0n/macvirt/scon/isclient"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,6 +33,11 @@ const (
 	startGracePeriod = 15 * time.Minute
 	// wait this long for VM to stop if DRM failed
 	FailStopTimeout = 2 * time.Minute
+
+	// after VM wakes up from sleep, wait this long for time/clock sync before reporting
+	// this ensures host and VM clock are synced again
+	// this is 4 burst reqs * 2 secs interval * 2x syncs + margin = 30 secs
+	sleepSyncPeriod = 30 * time.Second
 
 	// retry delays for DRM checkin requests
 	retryDelay1 = 5 * time.Second
@@ -68,6 +76,10 @@ type DrmClient struct {
 	identifiers  *drmtypes.Identifiers
 	appVersion   drmtypes.AppVersion
 	startTime    timex.MonoSleepTime
+
+	// late init
+	vnet         *vnet.Network
+	sconInternal *isclient.Client
 
 	failChan chan struct{}
 }
@@ -155,10 +167,82 @@ func (c *DrmClient) Run() {
 	ticker := time.NewTicker(evaluateInterval)
 	defer ticker.Stop()
 
-	for ; true; <-ticker.C {
-		dlog("periodic check")
-		_, _ = c.KickCheck()
+	dlog("init check")
+	_, err := c.KickCheck()
+	if err != nil {
+		dlog("init check failed: ", err)
 	}
+
+	for range ticker.C {
+		dlog("periodic check")
+		result, err := c.KickCheck()
+		if err != nil {
+			dlog("periodic check failed: ", err)
+			continue
+		}
+
+		dlog("periodic check result: ", result)
+		// report every period, to make sure scon stays alive
+		go func() {
+			err := c.reportToScon(result)
+			if err != nil {
+				logrus.WithError(err).Error("failed to report to scon")
+			}
+		}()
+	}
+}
+
+func (c *DrmClient) SetVnet(n *vnet.Network) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.vnet = n
+}
+
+func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
+	if c.vnet == nil {
+		dlog("missing vnet, skip report")
+		return errors.New("missing vnet")
+	}
+
+	// if we just woke up from sleep, give the VM time to sync clock
+	// (if we got here, we must be awake and must have a valid result)
+	wakeTime := iokit.LastWakeTime
+	if wakeTime != nil && /*mono*/ timex.SinceMonoSleep(*wakeTime) < sleepSyncPeriod {
+		diff := sleepSyncPeriod - /*mono*/ timex.SinceMonoSleep(*wakeTime)
+		dlog("waiting for sleep-wake time sync", diff)
+		time.Sleep(diff)
+	}
+
+	// report to scon internal
+	if c.sconInternal == nil || c.sconInternal.Ping() != nil {
+		if c.sconInternal != nil {
+			logrus.Info("reconnecting to scon internal rpc")
+			c.sconInternal.Close()
+		}
+
+		// connect
+		dlog("dial scon internal rpc")
+		conn, err := c.vnet.DialGuestTCP(ports.GuestSconRPCInternal)
+		if err != nil {
+			return err
+		}
+		sconInternal, err := isclient.New(conn)
+		if err != nil {
+			return err
+		}
+		c.sconInternal = sconInternal
+	}
+
+	// report
+	dlog("report to scon internal")
+	err := c.sconInternal.OnDrmResult(result)
+	if err != nil {
+		logrus.WithError(err).Error("failed to report to scon internal")
+		return err
+	}
+
+	return nil
 }
 
 func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
@@ -301,7 +385,7 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 	defer c.mu.Unlock()
 	c.refreshToken = resp.RefreshToken
 
-	return nil, nil
+	return result, nil
 }
 
 func (c *DrmClient) dispatchResult(result *drmtypes.Result) {

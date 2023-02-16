@@ -10,6 +10,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/qemulink"
@@ -307,4 +308,12 @@ func (n *Network) Close() error {
 		file1.Close()
 	}
 	return nil
+}
+
+func (n *Network) DialGuestTCP(port uint16) (net.Conn, error) {
+	return gonet.DialTCP(n.Stack, tcpip.FullAddress{
+		NIC:  n.NIC,
+		Addr: n.GuestAddr4,
+		Port: port,
+	}, ipv4.ProtocolNumber)
 }

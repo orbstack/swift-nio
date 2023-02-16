@@ -383,6 +383,8 @@ func runVmManager() {
 
 	// Start DRM
 	drmClient := drm.Client()
+	// set network
+	drmClient.SetVnet(vnetwork)
 	go func() {
 		ch := drmClient.FailChan()
 		for {

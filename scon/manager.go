@@ -47,6 +47,7 @@ type ConManager struct {
 
 	// stop
 	stopChan          chan struct{}
+	earlyStopChan     chan struct{}
 	pendingVMShutdown bool
 
 	// network
@@ -112,7 +113,8 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 
 		forwards: make(map[agent.ProcListener]ForwardState),
 
-		stopChan: make(chan struct{}),
+		stopChan:      make(chan struct{}),
+		earlyStopChan: make(chan struct{}),
 	}
 	mgr.net = NewNetwork(mgr.subdir("network"))
 
@@ -151,7 +153,14 @@ func (m *ConManager) Start() error {
 
 	// services
 	go runOne("SSH server", func() error {
-		return m.runSSHServer(conf.C().SSHListenIP4, conf.C().SSHListenIP6)
+		cleanup, err := m.runSSHServer(conf.C().SSHListenIP4, conf.C().SSHListenIP6)
+		if err != nil {
+			return err
+		}
+		// stop early to avoid returning "machine manager is stopping"
+		defer cleanup()
+		<-m.earlyStopChan
+		return nil
 	})
 	// this one must be synchronous since post-start hook calls it
 	err = m.startDockerProxy()
@@ -184,7 +193,11 @@ func (m *ConManager) Start() error {
 		//TODO version
 		verifier: sjwt.NewVerifier(nil, drmtypes.AppVersion{}),
 	}
-	go runOne("DRM monitor", drmMonitor.Run)
+	go runOne("DRM monitor", drmMonitor.Start)
+	go runOne("internal RPC server", func() error {
+		_, err := ListenSconInternal(drmMonitor)
+		return err
+	})
 
 	logrus.Info("started")
 	return err
@@ -227,11 +240,13 @@ func (m *ConManager) cleanupCaches() error {
 }
 
 func (m *ConManager) Close() error {
+	// TODO need to lock here
 	if m.stopping {
 		return nil
 	}
 
 	m.stopping = true
+	close(m.earlyStopChan) // this acts as broadcast
 	m.stopAll()
 
 	logrus.Debug("finish cleanup")

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"net"
 	"net/rpc"
 	"strconv"
@@ -17,10 +16,10 @@ import (
 )
 
 const (
-	// matches vmgr's start grace period: make sure we would've shut down by now if missed
-	drmCheckInterval = 15 * time.Minute
-	// long enough to include all retries and 30s timeouts in vmgr
-	drmCheckTimeout = 6 * time.Minute
+	// 2x vmgr's start/wake grace period.
+	// time cannot advance in vm faster than host. 2x gives a safe margin and can be reduced later.
+	// this ensures that vmgr will check at least once (every 15 min) before our deadline is reached in terms of VM monotonic time.
+	drmEventDeadline = 30 * time.Minute
 )
 
 var (
@@ -34,38 +33,17 @@ func dlog(msg string, args ...interface{}) {
 }
 
 type DrmMonitor struct {
-	conManager *ConManager
-	lastResult *drmtypes.Result
-	verifier   *sjwt.Verifier
-}
-
-func withTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) {
-	// wil be GC'd once both are done
-	done := make(chan struct{})
-
-	var result T
-	var err error
-	go func() {
-		result, err = fn()
-		select {
-		case done <- struct{}{}:
-		default:
-		}
-	}()
-
-	select {
-	case <-done:
-		return result, err
-	case <-time.After(timeout):
-		return result, errors.New("timeout")
-	}
+	conManager    *ConManager
+	lastResult    *drmtypes.Result
+	verifier      *sjwt.Verifier
+	deadlineTimer *time.Timer
 }
 
 // scon (VM side) drm:
 //
 //	complex logic is all on the host side
 //	every 15 min, we get the last result from vmgr and verify the token+time
-func (m *DrmMonitor) Run() error {
+func (m *DrmMonitor) Start() error {
 	// killswitch
 	killswitch.Watch(func(err error) {
 		dlog("killswitch triggered", err)
@@ -74,44 +52,8 @@ func (m *DrmMonitor) Run() error {
 		m.conManager.Close()
 	})
 
-	ticker := time.NewTicker(drmCheckInterval)
-	defer ticker.Stop()
-
-	go func() {
-		dlog("fetch initial result")
-		result, err := withTimeout(func() (*drmtypes.Result, error) {
-			return m.conManager.host.GetLastDrmResult()
-		}, drmCheckTimeout)
-		dlog("initial result:", result, err)
-		if err != nil {
-			logrus.WithError(err).Error("failed to get initial last result")
-		}
-
-		if result != nil {
-			dlog("got initial result, dispatching")
-			m.lastResult = result
-			m.dispatchResult(m.lastResult)
-		}
-	}()
-
-	for range ticker.C {
-		// timeout prevents malicious server from blocking and bypassing DRM
-		dlog("fetch periodic result")
-		result, err := withTimeout(func() (*drmtypes.Result, error) {
-			return m.conManager.host.GetLastDrmResult()
-		}, drmCheckTimeout)
-		dlog("periodic result:", result, err)
-		if err != nil {
-			logrus.WithError(err).Error("failed to get new result")
-		}
-
-		if result != nil {
-			dlog("got new result, setting last")
-			m.lastResult = result
-		}
-		dlog("dispatch last")
-		m.dispatchResult(m.lastResult)
-	}
+	// set deadline
+	m.deadlineTimer = time.AfterFunc(drmEventDeadline, m.onDeadlineReached)
 
 	return nil
 }
@@ -119,10 +61,24 @@ func (m *DrmMonitor) Run() error {
 func (m *DrmMonitor) dispatchResult(result *drmtypes.Result) {
 	dlog("dispatching result:", result)
 	if !m.verifyResult(result) {
-		logrus.Error("dispatch result: power off")
+		logrus.Error("dispatch result - power off")
 		m.conManager.pendingVMShutdown = true
 		m.conManager.Close()
+		return
 	}
+
+	// reset deadline timer
+	if m.deadlineTimer != nil {
+		m.deadlineTimer.Stop()
+	}
+	m.deadlineTimer = time.AfterFunc(drmEventDeadline, m.onDeadlineReached)
+}
+
+func (m *DrmMonitor) onDeadlineReached() {
+	dlog("deadline reached")
+	logrus.Error("deadline reached - power off")
+	m.conManager.pendingVMShutdown = true
+	m.conManager.Close()
 }
 
 func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
@@ -155,10 +111,6 @@ func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 	return true
 }
 
-func (m *DrmMonitor) LastResult() *drmtypes.Result {
-	return m.lastResult
-}
-
 type None struct{}
 
 type SconInternalServer struct {
@@ -170,6 +122,7 @@ func (s *SconInternalServer) Ping(_ None, _ *None) error {
 }
 
 func (s *SconInternalServer) OnDrmResult(result drmtypes.Result, _ *None) error {
+	dlog("on drm result reported")
 	s.drmMonitor.dispatchResult(&result)
 	return nil
 }
