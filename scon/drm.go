@@ -68,10 +68,15 @@ func (m *DrmMonitor) dispatchResult(result *drmtypes.Result) {
 	}
 
 	// reset deadline timer
+	// for now we only require one valid result on start, then never need it again
+	// periodic is ok on ARM because monotonic VM time doesn't advance during sleep
+	// but on x86 it does, and pausing causes nfs timeouts with both vsock and tcp
+	// so no choice here. architecture-dependent drm is bad idea
+	// TODO: more strict? require periodic?
 	if m.deadlineTimer != nil {
 		m.deadlineTimer.Stop()
+		m.deadlineTimer = nil
 	}
-	m.deadlineTimer = time.AfterFunc(drmEventDeadline, m.onDeadlineReached)
 }
 
 func (m *DrmMonitor) onDeadlineReached() {

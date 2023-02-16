@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"strconv"
 	"time"
 
@@ -34,7 +33,10 @@ const (
 
 	// arm: arch timer doesn't advance in sleep, so not needed
 	// x86: tsc advances in sleep; pausing and resuming prevents that, so monotonic clock and timeouts work as expected, and we don't get stalls
-	needsPauseResume = runtime.GOARCH != "arm64"
+	// but x86 pause/resume is too unstable. it fixes clock, but even on arm64 pausing causes
+	// nfs timeouts during sleep (in ~2 min with vsock and hours with tcp)
+	// TODO figure out how to make pausing work
+	needsPauseResume = false
 )
 
 type VClient struct {

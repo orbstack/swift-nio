@@ -25,8 +25,9 @@ const (
 	// evaluate the local DRM state this often
 	evaluateInterval = 15 * time.Minute
 	// wait at least this long before sending another server checkin request
-	// it should be 24h (1 day) but we use a shorter interval to allow for
-	// faster recovery in case of network errors. it's 24h-30m (2*interval)
+	// it should be 24h (1 day) but since ppl don't wake up at the same time every day,
+	// we use a shorter interval to allow for faster recovery in case of network errors.
+	// it's 24h-30m (2*interval)
 	checkinLifetime = 24*time.Hour - 2*evaluateInterval
 
 	// allow non-explicit (i.e. network error) failures up to this long after startup
