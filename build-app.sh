@@ -64,37 +64,59 @@ function build_one() {
 
     rm -fr build/app.xcarchive
 
+    mkdir -p out/$arch_go
+    mv build/$arch_go/OrbStack.app out/$arch_go/
+
     popd
 }
 
-rm -fr swift/build
+rm -fr swift/{build,out}
 
 # builds can't be parallel
-#build_one arm64 arm64
+build_one arm64 arm64
 build_one amd64 x86_64
 
 function package_one() {
     local arch="$1"
 
     # dmg
-    mkdir -p dmg/$arch
-    create-dmg --overwrite $arch/OrbStack.app dmg/$arch
+    create-dmg --overwrite $arch/OrbStack.app $arch
 
     # notarize
-    #xcrun notarytool submit dmg/$arch/*.dmg --keychain-profile main --wait
+    #xcrun notarytool submit $arch/*.dmg --keychain-profile main --wait
 
     # staple
-    #xcrun stapler staple dmg/$arch/*.dmg
+    #xcrun stapler staple $arch/*.dmg
 
-    name="$(basename dmg/$arch/*.dmg .dmg)"
-    mv dmg/$arch/*.dmg "dmg/$name $arch.dmg"
-    rm -fr dmg/$arch
+    name="$(basename $arch/*.dmg .dmg)"
+    mv $arch/*.dmg "$arch/$name $arch.dmg"
 }
 
-pushd swift/build
+pushd swift/out
 
-#package_one arm64 &
+package_one arm64 &
 package_one amd64 &
 wait
+
+built_dmgs=(*/*.dmg)
+
+popd
+
+# updates
+SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/bin
+mkdir -p updates/beta/{arm64,amd64}
+cp swift/out/arm64/*.dmg updates/beta/arm64/ || :
+cp swift/out/amd64/*.dmg updates/beta/amd64/ || :
+$SPARKLE_BIN/generate_appcast --download-url-prefix https://cdn-updates.orbstack.dev/beta/arm64/ --critical-update-version '' --auto-prune-update-files updates/beta/arm64
+$SPARKLE_BIN/generate_appcast --download-url-prefix https://cdn-updates.orbstack.dev/beta/amd64/ --critical-update-version '' --auto-prune-update-files updates/beta/amd64
+
+# upload to cloudflare
+pushd updates/beta
+
+for dmg in "${built_dmgs[@]}"; do
+    wrangler r2 object put beta/"$dmg" -f "$dmg"
+done
+wrangler r2 object put beta/arm64/appcast.xml -f arm64/appcast.xml
+wrangler r2 object put beta/amd64/appcast.xml -f amd64/appcast.xml
 
 popd
