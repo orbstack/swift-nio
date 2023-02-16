@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -161,7 +162,10 @@ To run a command on macOS from Linux, use "macctl run" instead.
 			User:          flagUser,
 			OmitEnv:       flagNoEnv,
 		})
-		checkCLI(err)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\n%v\n", err)
+			os.Exit(1)
+		}
 
 		os.Exit(exitCode)
 		return nil
