@@ -308,6 +308,8 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		env = append(env, "TERM="+ptyReq.Term)
 	}
 	env = append(env, "PWD="+cwd)
+	// set prompt ssh
+	env = append(env, "SSH_CONNECTION=::1 0 ::1 22")
 
 	// forward ssh agent
 	sshAgentSocks, err := sv.m.host.GetSSHAgentSockets()

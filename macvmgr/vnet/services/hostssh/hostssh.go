@@ -142,6 +142,8 @@ func handleSshConn(s ssh.Session) error {
 	}
 	// TODO need to translate pwd path
 	env = append(env, "PWD="+pwd)
+	// set prompt ssh
+	env = append(env, "SSH_CONNECTION=::1 0 ::1 22")
 
 	var combinedArgs []string
 	if meta.RawCommand {
