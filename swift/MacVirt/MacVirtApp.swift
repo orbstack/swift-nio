@@ -26,11 +26,21 @@ extension Scene {
     }
 }
 
+class UpdateDelegate: NSObject, SPUUpdaterDelegate {
+    func feedURLString(for updater: SPUUpdater) -> String? {
+        #if arch(arm64)
+        "https://api-updates.orbstack.dev/updates/beta/arm64/appcast.xml"
+        #else
+        "https://api-updates.orbstack.dev/updates/beta/amd64/appcast.xml"
+        #endif
+    }
+}
+
 @main
 struct MacVirtApp: App {
     @StateObject var model = VmViewModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: UpdateDelegate(), userDriverDelegate: nil)
 
     var body: some Scene {
         WindowGroup {
