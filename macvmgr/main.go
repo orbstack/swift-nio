@@ -55,8 +55,8 @@ const (
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]string{
-		// "tcp:127.0.0.1:" + str(ports.HostNFS): "tcp:" + str(ports.GuestNFS),
-		"tcp:127.0.0.1:" + str(ports.HostNFS):           "vsock:" + str(ports.GuestNFS),
+		"tcp:127.0.0.1:" + str(ports.HostNFS): "tcp:" + str(ports.GuestNFS),
+		//"tcp:127.0.0.1:" + str(ports.HostNFS):           "vsock:" + str(ports.GuestNFS),
 		"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
 		"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
 		"tcp:127.0.0.1:" + str(ports.HostSconRPC):       "tcp:" + str(ports.GuestScon),
