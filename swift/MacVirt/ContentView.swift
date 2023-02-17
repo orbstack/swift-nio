@@ -22,7 +22,7 @@ struct ContentView: View {
     @EnvironmentObject private var model: VmViewModel
 
     // SceneStorage inits too late
-    @AppStorage("root.selectedTab") private var selection = "machines"
+    @AppStorage("root.selectedTab") private var selection = "docker"
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @State private var startStopInProgress = false
     @StateObject private var windowHolder = WindowHolder()

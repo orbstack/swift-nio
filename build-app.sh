@@ -15,7 +15,7 @@ function build_one() {
     OUT=./
 
     pushd macvmgr
-    go generate ./conf/appver
+    go generate ./conf/appver ./drm/killswitch
     go build -tags release -trimpath -ldflags="-s -w" -o $OUT/macvmgr
     codesign -f --timestamp --options=runtime --entitlements vmm.entitlements -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/macvmgr
     popd
@@ -73,7 +73,7 @@ function build_one() {
 rm -fr swift/{build,out}
 
 # # builds can't be parallel
-build_one amd64 x86_64
+#build_one amd64 x86_64
 build_one arm64 arm64
 
 function package_one() {
@@ -94,7 +94,7 @@ function package_one() {
 
 pushd swift/out
 
-package_one amd64 &
+#package_one amd64 &
 package_one arm64 &
 wait
 
@@ -116,6 +116,7 @@ pushd updates
 for dmg in "${built_dmgs[@]}"; do
     wrangler r2 object put orbstack-updates/"$dmg" -f "$dmg"
 done
+#TODO rclone for deltas
 wrangler r2 object put orbstack-updates/arm64/appcast.xml -f arm64/appcast.xml
 wrangler r2 object put orbstack-updates/amd64/appcast.xml -f amd64/appcast.xml
 

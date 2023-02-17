@@ -5,4 +5,4 @@ vnet/cmd/gvnetclient/gvnetclient
 
 /conf/appver/version.txt
 
-/drm/killswitch/ksconst_
+/drm/killswitch/ksconst_release.go

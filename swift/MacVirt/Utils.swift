@@ -105,7 +105,7 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
     let command = """
     #!/bin/sh -e
     rm -f "\(tmpFileURL.path)"
-    \(command) \(args.joined(separator: " "))
+    "\(command)" \(args.joined(separator: " "))
     """
     try command.write(to: tmpFileURL, atomically: true, encoding: .utf8)
 

@@ -82,7 +82,7 @@ fileprivate struct ModeButton: View {
 struct OnboardingModeView: View {
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
     let onboardingController: OnboardingController
-    @AppStorage("root.selectedTab") private var rootSelectedTab = "machines"
+    @AppStorage("root.selectedTab") private var rootSelectedTab = "docker"
 
     var body: some View {
         VStack {
