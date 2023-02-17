@@ -113,12 +113,12 @@ impl DiskManager {
 
     async fn update_quota(&mut self, new_size: u64) -> AppResult<()> {
         // wait for data ready and clear balloon
-        self.update_balloon_size(0)?;
+        // we've never had balloon on here
+        //self.update_balloon_size(0)?;
 
-        let output = Command::new("xfs_quota")
-            .arg("-x")
-            .arg("-c")
-            .arg(format!("limit -p bhard={} 1", new_size))
+        let output = Command::new("btrfs")
+            .arg("qgroup").arg("limit")
+            .arg(format!("{}", new_size))
             .arg("/data")
             .output().await?;
         if !output.status.success() {
@@ -157,13 +157,11 @@ async fn main() {
     let app = Router::new()
         .route("/ping", get(ping))
         .route("/flag/data_resized", get(flag_data_resized))
-        .route("/net/start_port_forward", post(net_start_port_forward))
         .route("/usb/attach_device", post(usb_attach_device))
         .route("/usb/detach_device", post(usb_detach_device))
         .route("/sys/sync", post(sys_sync))
         .route("/sys/shutdown", post(sys_shutdown))
         .route("/sys/emergency_shutdown", post(sys_emergency_shutdown))
-        .route("/sys/run_command", post(sys_run_command))
         .route("/disk/report_stats", post(disk_report_stats))
         .route("/time/sync", post(time_sync))
         .layer(
@@ -173,7 +171,7 @@ async fn main() {
                 .layer(middleware::from_fn(auth))
         );
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 103));
+    let addr = SocketAddr::from(([172, 30, 30, 2], 103));
     info!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
@@ -183,19 +181,6 @@ async fn main() {
 
 async fn ping() -> impl IntoResponse {
     "pong"
-}
-
-// start socat for tcp and udp localhost port <-> vsock
-async fn net_start_port_forward(
-    Json(payload): Json<NetStartPortForward>,
-) -> AppResult<impl IntoResponse> {
-    info!("net_start_port_forward: {:?}", payload);
-    Command::new("socat")
-        .arg(format!("VSOCK-LISTEN:{},fork,reuseaddr", 100000 + payload.port))
-        .arg(format!("TCP:localhost:{}", payload.port))
-        .spawn()?;
-
-    Ok(())
 }
 
 // attach usb device to usbip
@@ -274,34 +259,7 @@ async fn sys_emergency_shutdown() -> AppResult<impl IntoResponse> {
     Ok(())
 }
 
-// run command
-async fn sys_run_command(
-    Json(payload): Json<SysRunCommand>,
-) -> AppResult<impl IntoResponse> {
-    info!("sys_run_command: {:?}", payload);
-    let SysRunCommand { command, args } = payload;
-
-    let output = Command::new(command)
-        .env("HOME", "/root")
-        .args(args)
-        .output()
-        .await?;
-
-    let exit_code = output.status.code().unwrap_or(-1);
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    let stderr = String::from_utf8(output.stderr).unwrap();
-
-    info!("sys_run_command: exit_code: {}", exit_code);
-    info!("sys_run_command: stdout: {}", stdout);
-    error!("sys_run_command: stderr: {}", stderr);
-
-    Ok(Json(SysRunCommandResponse {
-        exit_code,
-        stdout,
-        stderr,
-    }))
-}
-
+// btrfs doesn't really have this much overhead
 const BASE_FS_OVERHEAD: u64 = 100 * 1024 * 1024; // 100MiB
 const USE_QUOTA: bool = true;
 
