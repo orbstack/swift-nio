@@ -14,6 +14,32 @@ func processIsTranslated() -> Bool {
     return ret == 1
 }
 
+func readKillswitchTime() throws -> NSDate {
+    let infoPath = Bundle.main.bundlePath.appending("/Contents/Info.plist")
+    if let infoAttr = try? FileManager.default.attributesOfItem(atPath: infoPath),
+       let infoDate = infoAttr[FileAttributeKey.creationDate] as? NSDate
+    {
+        return infoDate
+    }
+
+    throw NSError(domain: "MacVirt", code: 1, userInfo: [
+        NSLocalizedDescriptionKey: "Failed to read killswitch time"
+    ])
+}
+
+// not important for security, just UX
+func killswitchExpired() -> Bool {
+    do {
+        let killswitchTime = try readKillswitchTime()
+        let now = NSDate()
+        let diff = now.timeIntervalSince(killswitchTime as Date)
+        // 21 days
+        return diff > 1
+    } catch {
+        return false
+    }
+}
+
 struct ProcessResult {
     let output: String
     let status: Int32

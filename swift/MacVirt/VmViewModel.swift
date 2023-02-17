@@ -25,6 +25,7 @@ enum VmError: LocalizedError, Equatable {
     case spawnError(error: Error)
     case spawnExit(status: Int32, output: String)
     case wrongArch
+    case killswitchExpired
     case startTimeout(lastError: Error?)
     case stopError(error: Error)
     case setupError(error: Error)
@@ -49,6 +50,8 @@ enum VmError: LocalizedError, Equatable {
             return "VM crashed with status \(status): \(output)"
         case .wrongArch:
             return "Wrong CPU type"
+        case .killswitchExpired:
+            return "Build expired"
         case .startTimeout(let lastError):
             return "VM did not start: \(lastError?.localizedDescription ?? "timeout")"
         case .stopError(let error):
@@ -86,7 +89,9 @@ enum VmError: LocalizedError, Equatable {
         case .spawnExit:
             return "Check the log for more details."
         case .wrongArch:
-            return "Please download the Apple Silicon version of this app."
+            return "Please download the Apple Silicon version of OrbStack."
+        case .killswitchExpired:
+            return "Please download the latest version of OrbStack."
         case .startTimeout:
             return "Check the log for more details."
         case .stopError:
@@ -168,6 +173,10 @@ class VmViewModel: ObservableObject {
 
         guard !processIsTranslated() else {
             throw VmError.wrongArch
+        }
+
+        guard !killswitchExpired() else {
+            throw VmError.killswitchExpired
         }
 
         Task {
@@ -356,6 +365,10 @@ class VmViewModel: ObservableObject {
     func start() async {
         do {
             try spawnDaemon()
+        } catch VmError.wrongArch {
+            self.error = VmError.wrongArch
+        } catch VmError.killswitchExpired {
+            self.error = VmError.killswitchExpired
         } catch {
             self.error = VmError.spawnError(error: error)
             return
