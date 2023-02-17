@@ -15,7 +15,8 @@ set -eu
 mount -t tmpfs tmpfs -o noatime /tmp
 mkdir -p /tmp/overlay/root /tmp/overlay/upper /tmp/overlay/work /tmp/overlay/overlay
 mount --bind / /tmp/overlay/root
-mount -t overlay rootfs -o lowerdir=/tmp/overlay/root,upperdir=/tmp/overlay/upper,workdir=/tmp/overlay/work /tmp/overlay/overlay
+# vanity name for df
+mount -t overlay orbstack -o lowerdir=/tmp/overlay/root,upperdir=/tmp/overlay/upper,workdir=/tmp/overlay/work /tmp/overlay/overlay
 
 # make original fs available
 mkdir -p /tmp/overlay/overlay/orig/tmp /tmp/overlay/overlay/orig/root
