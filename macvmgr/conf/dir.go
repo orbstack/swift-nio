@@ -160,3 +160,7 @@ func Arch() string {
 	// amd64, arm64
 	return runtime.GOARCH
 }
+
+func UpdatePendingFlag() string {
+	return RunDir() + "/.update-pending"
+}

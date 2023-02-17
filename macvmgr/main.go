@@ -484,6 +484,7 @@ func runVmManager() {
 		doneCh:       doneCh,
 		stopCh:       stopCh,
 		dockerClient: makeDockerClient(),
+		drm:          drm.Client(),
 	}
 	unixListener, err := controlServer.Serve()
 	check(err)

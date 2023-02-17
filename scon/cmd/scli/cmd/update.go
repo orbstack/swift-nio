@@ -1,41 +1,16 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
-	"runtime"
-	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/updates"
 	"github.com/spf13/cobra"
 )
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
-}
-
-func findSparkleExe() (string, error) {
-	selfExe, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-
-	// resolve symlinks
-	selfExe, err = filepath.EvalSymlinks(selfExe)
-	if err != nil {
-		return "", err
-	}
-
-	if conf.Debug() {
-		return "/Users/dragon/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/sparkle.app/Contents/MacOS/sparkle", nil
-	}
-
-	return path.Join(path.Dir(selfExe), "sparkle-cli"), nil
 }
 
 var updateCmd = &cobra.Command{
@@ -53,19 +28,29 @@ This includes the Linux kernel, Docker, the CLI, GUI app, and other components.
 `,
 	Example: "  " + appid.ShortCtl + " update",
 	Args:    cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		sparkleExe, err := findSparkleExe()
+	RunE: func(_ *cobra.Command, args []string) error {
+		// grab our called exe path before updating
+		exe, err := os.Executable()
 		checkCLI(err)
 
-		feedURL := fmt.Sprintf("https://api-updates.orbstack.dev/%s/appcast.xml", runtime.GOARCH)
-		ver := appver.Get()
-		userAgent := fmt.Sprintf("sparkle-cli vmgr/%s/%d/%s/%s", ver.Short, ver.Code, ver.GitDescribe, ver.GitCommit)
-		bundlePath := strings.TrimSuffix(path.Dir(sparkleExe), "/Contents/MacOS")
+		cmd, err := updates.NewSparkleCommand("--check-immediately", "--verbose", "--interactive")
+		checkCLI(err)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				os.Exit(exitErr.ExitCode())
+			} else {
+				checkCLI(err)
+			}
+		}
 
-		sparkleCmd := exec.Command(sparkleExe, "--check-immediately", "--user-agent-name", userAgent, "--feed-url", feedURL, "--send-profile", "--grant-automatic-checks", "--interactive", "--channels", "beta", "--allow-major-upgrades", bundlePath)
-		sparkleCmd.Stdout = os.Stdout
-		sparkleCmd.Stderr = os.Stderr
-		err = sparkleCmd.Run()
+		// respawn - this triggers update/start check and nothing else
+		cmd = exec.Command(exe, "ping")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
 		if err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				os.Exit(exitErr.ExitCode())

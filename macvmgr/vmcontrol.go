@@ -15,6 +15,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
+	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,7 @@ type VmControlServer struct {
 	stopCh           chan StopType
 	pendingResetData bool
 	dockerClient     *http.Client
+	drm              *drm.DrmClient
 }
 
 func (s *VmControlServer) Ping(ctx context.Context) error {

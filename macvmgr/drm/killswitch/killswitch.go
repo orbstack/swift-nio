@@ -14,6 +14,7 @@ const (
 
 var (
 	ErrKillswitch = errors.New("build expired")
+	ExpiryTime    = time.Unix(killswitchTimestamp, 0)
 )
 
 func Check() error {

@@ -3,12 +3,31 @@ package scli
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
+	"time"
 
+	"github.com/fatih/color"
 	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/killswitch"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
+	"golang.org/x/term"
+)
+
+const (
+	refMsg = `
+    ╭───────────────────────────────────────────────────────╮
+    │                                                       │
+    │              OrbStack update available!               │
+    │              Run "orb update" to update.              │
+    │                                                       │
+	│  Updates include improvements, features, fixes, etc.  │
+	│            This version expires in %2d days.           │
+    │                                                       │
+    ╰───────────────────────────────────────────────────────╯
+`
 )
 
 func checkCLI(err error) {
@@ -37,9 +56,47 @@ func shouldUpdateVmgr() (string, bool) {
 	return newVersion, string(oldVersion) != newVersion
 }
 
+func tryPrintUpdateWarning() {
+	needsUpdate, err := vmclient.IsUpdatePending()
+	if err != nil {
+		return
+	}
+
+	if needsUpdate && term.IsTerminal(int(os.Stderr.Fd())) {
+		yellow := color.New(color.FgYellow)
+		purple := color.New(color.FgMagenta)
+		bold := color.New(color.Bold, color.FgHiBlue)
+		yellow.Fprint(os.Stderr, `
+    ╭───────────────────────────────────────────────────────╮
+    │                                                       │
+    │`)
+		bold.Fprint(os.Stderr, `              OrbStack update available!               `)
+		yellow.Fprint(os.Stderr, `│
+    │`)
+		fmt.Fprint(os.Stderr, `              Run "`)
+		purple.Fprint(os.Stderr, `orb update`)
+		fmt.Fprint(os.Stderr, `" to update.              `)
+		yellow.Fprint(os.Stderr, `│
+    │                                                       │
+    │`)
+		fmt.Fprint(os.Stderr, `  Updates include improvements, features, fixes, etc.  `)
+		yellow.Fprint(os.Stderr, `│
+    │`)
+		fmt.Fprint(os.Stderr, `            This version expires in `)
+		purple.Fprintf(os.Stderr, `%2d`, int(math.Round(time.Until(killswitch.ExpiryTime).Hours()/24)))
+		fmt.Fprint(os.Stderr, ` days.           `)
+		yellow.Fprint(os.Stderr, `│
+    │                                                       │
+    ╰───────────────────────────────────────────────────────╯
+
+`)
+	}
+}
+
 func updateVmgr() bool {
 	newBuildID, shouldUpdate := shouldUpdateVmgr()
 	if !shouldUpdate {
+		tryPrintUpdateWarning()
 		return false
 	}
 

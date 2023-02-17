@@ -15,6 +15,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/updates"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/scon/isclient"
@@ -82,6 +83,8 @@ type DrmClient struct {
 	vnet         *vnet.Network
 	sconInternal *isclient.Client
 
+	updater *updates.Updater
+
 	failChan chan struct{}
 }
 
@@ -124,6 +127,8 @@ func newDrmClient() *DrmClient {
 		identifiers:  ids,
 		appVersion:   appVersion,
 		startTime:/*mono*/ timex.NowMonoSleep(),
+
+		updater: updates.NewUpdater(),
 
 		failChan: make(chan struct{}),
 	}
@@ -417,6 +422,14 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	// was not a network error, so this is a good time to check update too
+	go func() {
+		err := c.updater.CheckNow()
+		if err != nil {
+			logrus.WithError(err).Error("failed to check update")
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status code %d", resp.StatusCode)

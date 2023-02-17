@@ -117,3 +117,17 @@ func EnsureSconVM() error {
 
 	return nil
 }
+
+func IsUpdatePending() (bool, error) {
+	// check for update file
+	_, err := os.Stat(conf.UpdatePendingFlag())
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+
+	return true, nil
+}
