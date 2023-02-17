@@ -65,6 +65,18 @@ struct MacVirtApp: App {
                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: home + "/.orbstack/log")
                 }
             }
+            CommandGroup(before: .systemServices) {
+                Button("Website") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
+                }
+                Button("Issues") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
+                }
+                Button("Documentation") {
+                    NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
+                }
+                Divider()
+            }
             //TODO command to create container
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
 

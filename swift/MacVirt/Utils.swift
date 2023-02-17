@@ -33,8 +33,8 @@ func killswitchExpired() -> Bool {
         let killswitchTime = try readKillswitchTime()
         let now = NSDate()
         let diff = now.timeIntervalSince(killswitchTime as Date)
-        // 21 days
-        return diff > 1
+        // 21 days, in seconds
+        return diff > 60 * 60 * 24 * 21
     } catch {
         return false
     }
