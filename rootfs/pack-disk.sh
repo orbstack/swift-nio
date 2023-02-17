@@ -57,10 +57,10 @@ size=1G, type=L, uuid=37d45f5c-49d5-47b4-9a75-fdb70418baf6
 EOF
 trap 'qemu-nbd -d /dev/nbd0' EXIT
 # fast commit, 1% reserved blocks
-mkfs.ext4 -O project -E quotatype=prjquota -m 1 -L user-data-fs /dev/nbd0p1
+#mkfs.ext4 -O fast_commit,project -E quotatype=prjquota -m 1 -L user-data-fs /dev/nbd0p1
 #mkfs.xfs -L user-data-fs /dev/nbd0p1
 #mkfs.f2fs -l user-data-fs -O extra_attr,inode_checksum,sb_checksum,project_quota /dev/nbd0p1
-# mkfs.btrfs -L user-data-fs -m single -R free-space-tree /dev/nbd0p1
+mkfs.btrfs -L user-data-fs -m single -R free-space-tree /dev/nbd0p1
 
 # copy preseed data
 mount /dev/nbd0p1 /mnt/tmp
