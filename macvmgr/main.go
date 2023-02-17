@@ -84,21 +84,31 @@ func check(err error) {
 	}
 }
 
-func extractSparse(file io.Reader) {
+func extractSparse(file io.ReadCloser) {
+	defer file.Close()
+
 	target := conf.DataDir()
 	// Go archive/tar doesn't fully support sparse. bsdtar does.
 	cmd := exec.Command("bsdtar", "-xf", "-", "-C", target)
 	cmd.Stdin = file
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	check(err)
 }
 
-func streamObfAssetFile(name string) io.Reader {
+type BytesReadCloser struct {
+	*bytes.Reader
+}
+
+func (r *BytesReadCloser) Close() error {
+	return nil
+}
+
+func streamObfAssetFile(name string) io.ReadCloser {
 	path := conf.GetAssetFile(name)
 	file, err := os.Open(path)
 	if err == nil {
-		// just plain file
-		defer file.Close()
 		return file
 	} else {
 		// try obfuscated file
@@ -110,7 +120,7 @@ func streamObfAssetFile(name string) io.Reader {
 		check(err)
 
 		// return reader
-		return bytes.NewReader(decoded)
+		return &BytesReadCloser{bytes.NewReader(decoded)}
 	}
 }
 
