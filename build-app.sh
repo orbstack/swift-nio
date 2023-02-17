@@ -73,7 +73,7 @@ function build_one() {
 rm -fr swift/{build,out}
 
 # # builds can't be parallel
-#build_one amd64 x86_64
+build_one amd64 x86_64
 build_one arm64 arm64
 
 function package_one() {
@@ -83,10 +83,10 @@ function package_one() {
     create-dmg --overwrite $arch/OrbStack.app $arch
 
     # notarize
-    #xcrun notarytool submit $arch/*.dmg --keychain-profile main --wait
+    xcrun notarytool submit $arch/*.dmg --keychain-profile main --wait
 
     # staple
-    #xcrun stapler staple $arch/*.dmg
+    xcrun stapler staple $arch/*.dmg
 
     name="$(basename $arch/*.dmg .dmg)"
     mv $arch/*.dmg "$arch/$name $arch.dmg"
@@ -94,7 +94,7 @@ function package_one() {
 
 pushd swift/out
 
-#package_one amd64 &
+package_one amd64 &
 package_one arm64 &
 wait
 
@@ -108,7 +108,7 @@ mkdir -p updates/{arm64,amd64}
 cp swift/out/arm64/*.dmg updates/arm64/ || :
 cp swift/out/amd64/*.dmg updates/amd64/ || :
 $SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ --critical-update-version '' --auto-prune-update-files updates/arm64
-#$SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ --critical-update-version '' --auto-prune-update-files updates/amd64
+$SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ --critical-update-version '' --auto-prune-update-files updates/amd64
 
 # upload to cloudflare
 pushd updates
