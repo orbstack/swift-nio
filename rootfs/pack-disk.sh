@@ -58,8 +58,6 @@ EOF
 trap 'qemu-nbd -d /dev/nbd0' EXIT
 # fast commit, 1% reserved blocks
 mkfs.ext4 -O project -E quotatype=prjquota -m 1 -L user-data-fs /dev/nbd0p1
-tune2fs -O quota /dev/nbd0p1
-tune2fs -O project -Q prjquota /dev/nbd0p1
 #mkfs.xfs -L user-data-fs /dev/nbd0p1
 #mkfs.f2fs -l user-data-fs -O extra_attr,inode_checksum,sb_checksum,project_quota /dev/nbd0p1
 # mkfs.btrfs -L user-data-fs -m single -R free-space-tree /dev/nbd0p1
