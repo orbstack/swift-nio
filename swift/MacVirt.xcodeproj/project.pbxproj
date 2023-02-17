@@ -35,6 +35,7 @@
 		B118BFFF5813563EF72E1C36 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDE072F572BA61600007 /* AppSettings.swift */; };
 		D81E7850299CC4F200A1D8AC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E784F299CC4F200A1D8AC /* main.swift */; };
 		D81E7857299CC56800A1D8AC /* guihelper in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* guihelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
@@ -81,6 +82,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
+				D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */,
 				D81E7857299CC56800A1D8AC /* guihelper in Copy Go executables and Swift GUI helper */,
 				D8694A44299224990046B6B6 /* scli in Copy Go executables and Swift GUI helper */,
 				D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables and Swift GUI helper */,
@@ -143,6 +145,7 @@
 		B118BF7EB971BAC66F27805D /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
 		D81E784D299CC4F200A1D8AC /* guihelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = guihelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		D81E784F299CC4F200A1D8AC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -198,6 +201,7 @@
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
+				D81E7859299F059700A1D8AC /* sparkle-cli */,
 				D88F4ED9299A131B00419B5C /* docker */,
 				D88F4EDA299A131B00419B5C /* docker-compose */,
 				D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */,

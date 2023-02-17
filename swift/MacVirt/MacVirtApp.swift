@@ -29,10 +29,14 @@ extension Scene {
 class UpdateDelegate: NSObject, SPUUpdaterDelegate {
     func feedURLString(for updater: SPUUpdater) -> String? {
         #if arch(arm64)
-        "https://api-updates.orbstack.dev/updates/beta/arm64/appcast.xml"
+        "https://api-updates.orbstack.dev/arm64/appcast.xml"
         #else
-        "https://api-updates.orbstack.dev/updates/beta/amd64/appcast.xml"
+        "https://api-updates.orbstack.dev/amd64/appcast.xml"
         #endif
+    }
+
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        Set(["beta"])
     }
 }
 

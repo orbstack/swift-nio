@@ -104,19 +104,19 @@ popd
 
 # updates
 SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/bin
-mkdir -p updates/beta/{arm64,amd64}
-cp swift/out/arm64/*.dmg updates/beta/arm64/ || :
-cp swift/out/amd64/*.dmg updates/beta/amd64/ || :
-$SPARKLE_BIN/generate_appcast --download-url-prefix https://cdn-updates.orbstack.dev/beta/arm64/ --critical-update-version '' --auto-prune-update-files updates/beta/arm64
-$SPARKLE_BIN/generate_appcast --download-url-prefix https://cdn-updates.orbstack.dev/beta/amd64/ --critical-update-version '' --auto-prune-update-files updates/beta/amd64
+mkdir -p updates/{arm64,amd64}
+cp swift/out/arm64/*.dmg updates/arm64/ || :
+cp swift/out/amd64/*.dmg updates/amd64/ || :
+$SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ --critical-update-version '' --auto-prune-update-files updates/arm64
+$SPARKLE_BIN/generate_appcast --channel --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ --critical-update-version '' --auto-prune-update-files updates/amd64
 
 # upload to cloudflare
-pushd updates/beta
+pushd updates
 
 for dmg in "${built_dmgs[@]}"; do
-    wrangler r2 object put orbstack-updates/beta/"$dmg" -f "$dmg"
+    wrangler r2 object put orbstack-updates/"$dmg" -f "$dmg"
 done
-wrangler r2 object put orbstack-updates/beta/arm64/appcast.xml -f arm64/appcast.xml
-wrangler r2 object put orbstack-updates/beta/amd64/appcast.xml -f amd64/appcast.xml
+wrangler r2 object put orbstack-updates/arm64/appcast.xml -f arm64/appcast.xml
+wrangler r2 object put orbstack-updates/amd64/appcast.xml -f amd64/appcast.xml
 
 popd
