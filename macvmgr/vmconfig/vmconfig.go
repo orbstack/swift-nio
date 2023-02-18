@@ -19,7 +19,8 @@ var (
 )
 
 type VmConfig struct {
-	MemoryMiB uint64 `json:"memory_mib"`
+	MemoryMiB     uint64 `json:"memory_mib"`
+	EnableRosetta bool   `json:"enable_rosetta"`
 }
 
 func (c *VmConfig) Validate() error {
@@ -102,7 +103,8 @@ func calcMemory() uint64 {
 
 func Defaults() *VmConfig {
 	return &VmConfig{
-		MemoryMiB: calcMemory() / 1024 / 1024,
+		MemoryMiB:     calcMemory() / 1024 / 1024,
+		EnableRosetta: true,
 	}
 }
 

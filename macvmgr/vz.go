@@ -11,6 +11,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/arch"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
+	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
 	"github.com/sirupsen/logrus"
@@ -274,11 +275,18 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 	}
 
 	// Rosetta (virtiofs)
-	if c.Rosetta {
-		virtiofsRosetta, err := arch.CreateRosettaDevice()
+	if c.Rosetta && vmconfig.Get().EnableRosetta {
+		result, err := arch.CreateRosettaDevice()
 		check(err)
-		if virtiofsRosetta != nil {
-			fsDevices = append(fsDevices, *virtiofsRosetta)
+		if result != nil && result.FsDevice != nil {
+			fsDevices = append(fsDevices, *result.FsDevice)
+		}
+		if result != nil && result.InstallCanceled {
+			logrus.Info("user canceled Rosetta install, saving preference")
+			err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+				c.EnableRosetta = false
+			})
+			check(err)
 		}
 	}
 
