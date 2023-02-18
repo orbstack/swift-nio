@@ -10,6 +10,7 @@ import SwiftJSONRPC
 
 struct VmConfig: Codable, Equatable {
     var memoryMib: UInt64
+    var enableRosetta: Bool
 }
 
 struct SetupInfo: Codable {

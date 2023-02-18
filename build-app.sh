@@ -3,8 +3,11 @@
 set -euxo pipefail
 
 #ARCHS=(amd64 arm64)
-ARCHS=(arm64)
+#NOTARIZE=true
 #PUBLISH_UPDATE=true
+
+ARCHS=(arm64)
+NOTARIZE=true
 PUBLISH_UPDATE=false
 
 LONG_VER=$(git describe --tags --always --dirty)
@@ -80,13 +83,14 @@ function build_one() {
 
     rm -fr build/app.xcarchive
 
+    rm -fr out/$arch_go
     mkdir -p out/$arch_go
     mv build/$arch_go/OrbStack.app out/$arch_go/
 
     popd
 }
 
-rm -fr swift/{build,out}
+rm -fr swift/build
 
 # builds can't be parallel
 for arch in "${ARCHS[@]}"; do
@@ -99,11 +103,13 @@ function package_one() {
     # dmg
     create-dmg --overwrite $arch/OrbStack.app $arch
 
-    # notarize
-    xcrun notarytool submit $arch/*.dmg --keychain-profile main --wait
+    if $NOTARIZE; then
+        # notarize
+        xcrun notarytool submit $arch/*.dmg --keychain-profile main --wait
 
-    # staple
-    xcrun stapler staple $arch/*.dmg
+        # staple
+        xcrun stapler staple $arch/*.dmg
+    fi
 
     name="$(basename $arch/*.dmg .dmg)"
     mv $arch/*.dmg "$arch/OrbStack_${LONG_VER}_${COMMITS}_$arch.dmg"
@@ -121,24 +127,5 @@ built_dmgs=(*/*.dmg)
 popd
 
 if $PUBLISH_UPDATE; then
-    # updates
-    SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/bin
-    mkdir -p updates/{arm64,amd64}
-    cp swift/out/arm64/*.dmg updates/arm64/ || :
-    cp swift/out/amd64/*.dmg updates/amd64/ || :
-    $SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ --critical-update-version '' --auto-prune-update-files updates/arm64
-    $SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ --critical-update-version '' --auto-prune-update-files updates/amd64
-
-    # upload to cloudflare
-    pushd updates
-
-    for dmg in "${built_dmgs[@]}"; do
-        wrangler r2 object put orbstack-updates/"$dmg" -f "$dmg"
-    done
-    #TODO rclone for deltas
-    wrangler r2 object put orbstack-updates/arm64/appcast.xml -f arm64/appcast.xml
-    wrangler r2 object put orbstack-updates/amd64/appcast.xml -f amd64/appcast.xml
-
-    popd
-
+    ./publish-update.sh "${built_dmgs[@]}"
 fi

@@ -37,11 +37,13 @@ struct CreateContainerView: View {
                     }
                 }
                 #if arch(arm64)
-                Picker("CPU type", selection: $arch) {
-                    Text("Apple").tag("arm64")
-                    Text("Intel").tag("amd64")
+                if vmModel.config?.enableRosetta ?? true {
+                    Picker("CPU type", selection: $arch) {
+                        Text("Apple").tag("arm64")
+                        Text("Intel").tag("amd64")
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
                 #endif
 
                 Button(action: {

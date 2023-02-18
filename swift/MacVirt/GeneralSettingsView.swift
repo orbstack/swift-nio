@@ -11,6 +11,7 @@ import Sparkle
 struct GeneralSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @State private var memoryMib = 0.0
+    @State private var enableRosetta = true
 
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
 
@@ -26,6 +27,16 @@ struct GeneralSettingsView: View {
 
             Group {
                 if vmModel.state == .running {
+                    Toggle("Use Rosetta to run x86 code", isOn: $enableRosetta)
+                    .onChange(of: enableRosetta) { newValue in
+                        Task {
+                            if var config = vmModel.config {
+                                config.enableRosetta = newValue
+                                await vmModel.tryPatchConfig(config)
+                            }
+                        }
+                    }
+
                     let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
                     Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
                         VStack {
@@ -54,9 +65,10 @@ struct GeneralSettingsView: View {
                     ProgressView()
                 }
             }
-            .onChange(of: vmModel.config) { newValue in
-                if let newValue {
-                    memoryMib = Double(newValue.memoryMib)
+            .onChange(of: vmModel.config) { config in
+                if let config {
+                    memoryMib = Double(config.memoryMib)
+                    enableRosetta = config.enableRosetta
                 }
             }
             .onAppear {
