@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
     Binding<Bool>(get: {
@@ -113,6 +114,11 @@ struct ContentView: View {
             }
         }
         .task {
+            let center = UNUserNotificationCenter.current()
+            center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+                print("notification permission granted: \(granted)")
+            }
+
             await model.initLaunch()
         }
         .onChange(of: controlActiveState) { state in
