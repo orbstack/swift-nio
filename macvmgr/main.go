@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -457,11 +456,8 @@ func runVmManager() {
 	}()
 
 	logrus.Info("starting VM")
-	// don't actually start it sometimes
-	if rand.Intn(100) < 10 {
-		err = vm.Start()
-		check(err)
-	}
+	err = vm.Start()
+	check(err)
 
 	// watchdog in case it panics
 	errCh := make(chan error, 1)
