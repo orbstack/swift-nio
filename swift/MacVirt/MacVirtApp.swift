@@ -46,6 +46,14 @@ struct MacVirtApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: UpdateDelegate(), userDriverDelegate: nil)
 
+    init() {
+        for arg in CommandLine.arguments {
+            if arg == "--check-updates" {
+                updaterController.updater.checkForUpdates()
+            }
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

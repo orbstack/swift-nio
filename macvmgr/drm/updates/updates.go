@@ -35,6 +35,16 @@ func getFeedURL() string {
 	return fmt.Sprintf("https://api-updates.orbstack.dev/%s/appcast.xml", runtime.GOARCH)
 }
 
+func FindBundle() (string, error) {
+	sparkleExe, err := conf.FindSparkleExe()
+	if err != nil {
+		return "", err
+	}
+
+	bundlePath := strings.TrimSuffix(path.Dir(sparkleExe), "/Contents/MacOS")
+	return bundlePath, nil
+}
+
 func NewSparkleCommand(args ...string) (*exec.Cmd, error) {
 	sparkleExe, err := conf.FindSparkleExe()
 	if err != nil {
