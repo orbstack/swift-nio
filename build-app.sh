@@ -6,7 +6,7 @@ set -euxo pipefail
 #NOTARIZE=true
 #PUBLISH_UPDATE=true
 
-ARCHS=(arm64)
+ARCHS=(amd64 arm64)
 NOTARIZE=true
 PUBLISH_UPDATE=false
 
