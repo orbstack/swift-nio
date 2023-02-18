@@ -146,6 +146,7 @@
 		D81E784D299CC4F200A1D8AC /* guihelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = guihelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		D81E784F299CC4F200A1D8AC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
+		D81E7858299CD27F00A1D8AC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -194,6 +195,7 @@
 			isa = PBXGroup;
 			children = (
 				D81E784F299CC4F200A1D8AC /* main.swift */,
+				D81E7858299CD27F00A1D8AC /* Info.plist */,
 			);
 			path = guihelper;
 			sourceTree = "<group>";
@@ -505,9 +507,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				DEVELOPMENT_TEAM = HUAQ24HBR6;
 				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "$(SRCROOT)/guihelper/Info.plist";
 				INSTALL_PATH = "";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 			};
@@ -517,9 +522,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				DEVELOPMENT_TEAM = HUAQ24HBR6;
 				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "$(SRCROOT)/guihelper/Info.plist";
 				INSTALL_PATH = "";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 			};
