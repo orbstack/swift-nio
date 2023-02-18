@@ -145,8 +145,8 @@
 		B118BF7EB971BAC66F27805D /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
 		D81E784D299CC4F200A1D8AC /* guihelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = guihelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		D81E784F299CC4F200A1D8AC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
 		D81E7858299CD27F00A1D8AC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };

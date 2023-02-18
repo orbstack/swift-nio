@@ -44,9 +44,14 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
 struct MacVirtApp: App {
     @StateObject var model = VmViewModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: UpdateDelegate(), userDriverDelegate: nil)
+
+    private let delegate: UpdateDelegate
+    private let updaterController: SPUStandardUpdaterController
 
     init() {
+        delegate = UpdateDelegate()
+        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
+
         for arg in CommandLine.arguments {
             if arg == "--check-updates" {
                 updaterController.updater.checkForUpdates()

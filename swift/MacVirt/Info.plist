@@ -10,8 +10,6 @@
 	<integer>43200</integer>
 	<key>SUEnableSystemProfiling</key>
 	<true/>
-	<key>SUFeedURL</key>
-	<string>https://api-updates.orbstack.dev/arm64/appcast.xml</string>
 	<key>SUEnableJavaScript</key>
 	<true/>
 	<key>CFBundleURLTypes</key>
