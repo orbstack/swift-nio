@@ -37,7 +37,7 @@ struct CreateContainerView: View {
                     }
                 }
                 #if arch(arm64)
-                if vmModel.config?.enableRosetta ?? true {
+                if vmModel.config?.rosetta ?? true {
                     Picker("CPU type", selection: $arch) {
                         Text("Apple").tag("arm64")
                         Text("Intel").tag("amd64")

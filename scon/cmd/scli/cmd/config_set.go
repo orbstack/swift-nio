@@ -27,7 +27,7 @@ Some options will only take effect after restarting the virtual machine.
 	Example: "  " + appid.ShortCtl + " set memory_mib 4096",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var config vmconfig.VmConfig
+		var patch vmconfig.VmConfigPatch
 
 		key := args[0]
 		value := args[1]
@@ -35,16 +35,21 @@ Some options will only take effect after restarting the virtual machine.
 		rebootRequired := false
 		switch key {
 		case "memory_mib":
-			config.MemoryMiB, err = strconv.ParseUint(value, 10, 64)
+			val, err := strconv.ParseUint(value, 10, 64)
+			checkCLI(err)
+			patch.MemoryMiB = &val
+			rebootRequired = true
+		case "rosetta":
+			val, err := strconv.ParseBool(value)
+			checkCLI(err)
+			patch.Rosetta = &val
 			rebootRequired = true
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)
 		}
-		checkCLI(err)
-
 		scli.EnsureVMWithSpinner()
-		err = vmclient.Client().PatchConfig(&config)
+		err = vmclient.Client().PatchConfig(&patch)
 		checkCLI(err)
 
 		if rebootRequired {

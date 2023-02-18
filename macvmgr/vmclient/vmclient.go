@@ -102,7 +102,7 @@ func (c *VmClient) GetConfig() (*vmconfig.VmConfig, error) {
 	return &config, nil
 }
 
-func (c *VmClient) PatchConfig(patch *vmconfig.VmConfig) error {
+func (c *VmClient) PatchConfig(patch *vmconfig.VmConfigPatch) error {
 	return c.rpc.CallResult(context.TODO(), "PatchConfig", patch, &noResult)
 }
 

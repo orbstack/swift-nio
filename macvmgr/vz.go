@@ -275,7 +275,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 	}
 
 	// Rosetta (virtiofs)
-	if c.Rosetta && vmconfig.Get().EnableRosetta {
+	if c.Rosetta && vmconfig.Get().Rosetta {
 		result, err := arch.CreateRosettaDevice()
 		check(err)
 		if result != nil && result.FsDevice != nil {
@@ -284,7 +284,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 		if result != nil && result.InstallCanceled {
 			logrus.Info("user canceled Rosetta install, saving preference")
 			err := vmconfig.Update(func(c *vmconfig.VmConfig) {
-				c.EnableRosetta = false
+				c.Rosetta = false
 			})
 			check(err)
 		}

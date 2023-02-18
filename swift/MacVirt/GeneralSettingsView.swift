@@ -31,7 +31,7 @@ struct GeneralSettingsView: View {
                     .onChange(of: enableRosetta) { newValue in
                         Task {
                             if var config = vmModel.config {
-                                config.enableRosetta = newValue
+                                config.rosetta = newValue
                                 await vmModel.tryPatchConfig(config)
                             }
                         }
@@ -68,7 +68,7 @@ struct GeneralSettingsView: View {
             .onChange(of: vmModel.config) { config in
                 if let config {
                     memoryMib = Double(config.memoryMib)
-                    enableRosetta = config.enableRosetta
+                    enableRosetta = config.rosetta
                 }
             }
             .onAppear {
