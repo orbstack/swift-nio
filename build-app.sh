@@ -2,11 +2,27 @@
 
 set -euxo pipefail
 
+#ARCHS=(amd64 arm64)
+ARCHS=(arm64)
+#PUBLISH_UPDATE=true
+PUBLISH_UPDATE=false
+
+LONG_VER=$(git describe --tags --always --dirty)
+COMMITS=$(git rev-list --count HEAD)
+
 cd "$(dirname "$0")"
 
 function build_one() {
     local arch_go="$1"
-    local arch_mac="$2"
+    local arch_mac=""
+    if [[ "$arch_go" == "amd64" ]]; then
+        arch_mac="x86_64"
+    elif [[ "$arch_go" == "arm64" ]]; then
+        arch_mac="arm64"
+    else
+        echo "unknown arch: $arch_go"
+        exit 1
+    fi
 
     # build go (vmgr and scon)
     export GOARCH=$arch_go
@@ -72,9 +88,10 @@ function build_one() {
 
 rm -fr swift/{build,out}
 
-# # builds can't be parallel
-build_one amd64 x86_64
-build_one arm64 arm64
+# builds can't be parallel
+for arch in "${ARCHS[@]}"; do
+    build_one $arch
+done
 
 function package_one() {
     local arch="$1"
@@ -89,35 +106,39 @@ function package_one() {
     xcrun stapler staple $arch/*.dmg
 
     name="$(basename $arch/*.dmg .dmg)"
-    mv $arch/*.dmg "$arch/$name $arch.dmg"
+    mv $arch/*.dmg "$arch/OrbStack_${LONG_VER}-${COMMITS}_$arch.dmg"
 }
 
 pushd swift/out
 
-package_one amd64 &
-package_one arm64 &
+for arch in "${ARCHS[@]}"; do
+    package_one $arch &
+done
 wait
 
 built_dmgs=(*/*.dmg)
 
 popd
 
-# updates
-SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/bin
-mkdir -p updates/{arm64,amd64}
-cp swift/out/arm64/*.dmg updates/arm64/ || :
-cp swift/out/amd64/*.dmg updates/amd64/ || :
-$SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ --critical-update-version '' --auto-prune-update-files updates/arm64
-$SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ --critical-update-version '' --auto-prune-update-files updates/amd64
+if $PUBLISH_UPDATE; then
+    # updates
+    SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/bin
+    mkdir -p updates/{arm64,amd64}
+    cp swift/out/arm64/*.dmg updates/arm64/ || :
+    cp swift/out/amd64/*.dmg updates/amd64/ || :
+    $SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ --critical-update-version '' --auto-prune-update-files updates/arm64
+    $SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ --critical-update-version '' --auto-prune-update-files updates/amd64
 
-# upload to cloudflare
-pushd updates
+    # upload to cloudflare
+    pushd updates
 
-for dmg in "${built_dmgs[@]}"; do
-    wrangler r2 object put orbstack-updates/"$dmg" -f "$dmg"
-done
-#TODO rclone for deltas
-wrangler r2 object put orbstack-updates/arm64/appcast.xml -f arm64/appcast.xml
-wrangler r2 object put orbstack-updates/amd64/appcast.xml -f amd64/appcast.xml
+    for dmg in "${built_dmgs[@]}"; do
+        wrangler r2 object put orbstack-updates/"$dmg" -f "$dmg"
+    done
+    #TODO rclone for deltas
+    wrangler r2 object put orbstack-updates/arm64/appcast.xml -f arm64/appcast.xml
+    wrangler r2 object put orbstack-updates/amd64/appcast.xml -f amd64/appcast.xml
 
-popd
+    popd
+
+fi
