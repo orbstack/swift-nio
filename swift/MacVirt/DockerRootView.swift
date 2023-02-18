@@ -56,8 +56,7 @@ struct DockerRootView: View {
                     }
                             .refreshable {
                                 print("try refresh: docker refreshable")
-                                await vmModel.tryRefreshList()
-                                await vmModel.tryRefreshDockerList()
+                                await refresh()
                             }
                 } else {
                     ProgressView(label: {
@@ -67,17 +66,30 @@ struct DockerRootView: View {
             }
             .task {
                 print("try refresh: docker task")
-                await vmModel.tryRefreshList()
-                await vmModel.tryRefreshDockerList()
+                await refresh()
             }
             .onChange(of: controlActiveState) { state in
                 if state == .key {
                     Task {
-                        await vmModel.tryRefreshDockerList()
+                        await refresh()
                     }
                 }
             }
         }
         .navigationTitle("Docker")
+    }
+
+    private func refresh() async {
+        await vmModel.tryRefreshList()
+
+        // will cause feedback loop if docker is stopped
+        // querying this will start it
+        if let containers = vmModel.containers,
+            let dockerContainer = containers.first(where: { $0.name == "docker" }),
+            dockerContainer.running {
+            await vmModel.tryRefreshDockerList()
+        } else {
+            vmModel.dockerContainers = []
+        }
     }
 }

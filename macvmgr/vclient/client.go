@@ -28,7 +28,7 @@ var (
 )
 
 const (
-	diskStatsInterval = 90 * time.Second
+	diskStatsInterval = 2 * time.Minute
 	readyPollInterval = 200 * time.Millisecond
 
 	// arm: arch timer doesn't advance in sleep, so not needed

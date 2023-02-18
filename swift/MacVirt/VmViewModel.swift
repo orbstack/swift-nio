@@ -157,7 +157,7 @@ class VmViewModel: ObservableObject {
     @Published var presentCreate = false
 
     // Docker
-    @Published private(set) var dockerContainers: [DockerContainer]?
+    @Published var dockerContainers: [DockerContainer]?
 
     private func updateState(_ state: VmState) {
         self.state = state
