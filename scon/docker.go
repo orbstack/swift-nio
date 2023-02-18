@@ -12,6 +12,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/syncx"
@@ -25,8 +26,9 @@ const (
 	ContainerDocker = "docker"
 
 	// takes ~3 ms to unfreeze
-	dockerFreezeDelay = 2 * time.Second
-	dockerStartPoll   = 500 * time.Millisecond
+	dockerFreezeDelay  = 2 * time.Second
+	dockerStartPoll    = 500 * time.Millisecond
+	dockerStartTimeout = 10 * time.Second
 
 	dockerNfsDebounce = 250 * time.Millisecond
 )
@@ -116,6 +118,7 @@ func (m *ConManager) startDockerProxy() error {
 		l:         l,
 	}
 	proxy.freezeDebounce = syncx.NewFuncDebounce(dockerFreezeDelay, func() {
+		logrus.Debug("docker idle, freezing")
 		err := proxy.tryFreeze()
 		if err != nil {
 			logrus.WithError(err).Error("failed to freeze docker")
@@ -155,11 +158,18 @@ func (p *DockerProxy) waitForStart() error {
 		}
 
 		// check
-		_, err := p.container.Agent().CheckDockerIdle()
+		agent, err := util.WithTimeout(func() (*agent.Client, error) {
+			return p.container.Agent(), nil
+		}, dockerStartTimeout)
+		if err != nil {
+			return err
+		}
+		_, err = agent.CheckDockerIdle()
 		if err == nil {
 			return nil
 		}
 
+		logrus.Debug("waiting for docker start")
 		time.Sleep(dockerStartPoll)
 	}
 }
@@ -226,6 +236,7 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 
 	// start docker container if not running
 	if !p.container.Running() {
+		logrus.Debug("docker not running, starting")
 		err := p.container.Start()
 		if err != nil {
 			return err
@@ -238,6 +249,7 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 		if err != nil {
 			return err
 		}
+		p.mu.Lock()
 	}
 
 	// increment while locked
@@ -262,6 +274,7 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 	err := p.container.Unfreeze()
 	if err != nil {
 		if !errors.Is(err, lxc.ErrNotFrozen) {
+			p.mu.Unlock()
 			return err
 		}
 	} else {
