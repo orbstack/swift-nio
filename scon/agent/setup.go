@@ -294,17 +294,14 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	}
 
 	// set timezone
-	// try systemd timedatectl first
 	if args.Timezone != "" {
+		// don't use systemd timedatectl. it can change the system clock sometimes (+8h for pst)
 		logrus.WithField("timezone", args.Timezone).Debug("Setting timezone")
-		err = util.Run("timedatectl", "set-timezone", args.Timezone)
+
+		os.Remove("/etc/localtime")
+		err = os.Symlink("/usr/share/zoneinfo/"+args.Timezone, "/etc/localtime")
 		if err != nil {
-			// fallback to sπymlink
-			os.Remove("/etc/localtime")
-			err = os.Symlink("/usr/share/zoneinfo/"+args.Timezone, "/etc/localtime")
-			if err != nil {
-				return err
-			}
+			return err
 		}
 	}
 

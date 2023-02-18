@@ -80,8 +80,9 @@ type DrmClient struct {
 	startTime    timex.MonoSleepTime
 
 	// late init
-	vnet         *vnet.Network
-	sconInternal *isclient.Client
+	vnet            *vnet.Network
+	sconInternal    *isclient.Client
+	sconHasReported bool
 
 	updater *updates.Updater
 
@@ -220,6 +221,15 @@ func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
 		time.Sleep(diff)
 	}
 
+	// after initial report, only report if state change (invalid), because
+	// scon only requires initial valid report now on start
+	// in debug, don't do this because I restart scon in dev
+	// TODO remove if we do perpetual periodic checks again
+	if !conf.Debug() && c.sconHasReported && result.State == drmtypes.StateValid {
+		dlog("already reported to scon, skip")
+		return nil
+	}
+
 	// report to scon internal
 	if c.sconInternal == nil || c.sconInternal.Ping() != nil {
 		if c.sconInternal != nil {
@@ -247,6 +257,7 @@ func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
 		logrus.WithError(err).Error("failed to report to scon internal")
 		return err
 	}
+	c.sconHasReported = true
 
 	return nil
 }
