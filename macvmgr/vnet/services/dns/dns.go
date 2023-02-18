@@ -109,7 +109,7 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 				"name":  q.Name,
 				"type":  dns.TypeToString[q.Qtype],
 				"error": err,
-			}).Error("QueryRecursive() failed")
+			}).Error("DNS query failed")
 			isNxdomain := (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName)
 
 			// No network? macOS returns NXDOMAIN, we return timeout
