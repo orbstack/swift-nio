@@ -106,7 +106,7 @@ function package_one() {
     xcrun stapler staple $arch/*.dmg
 
     name="$(basename $arch/*.dmg .dmg)"
-    mv $arch/*.dmg "$arch/OrbStack_${LONG_VER}-${COMMITS}_$arch.dmg"
+    mv $arch/*.dmg "$arch/OrbStack_${LONG_VER}_${COMMITS}_$arch.dmg"
 }
 
 pushd swift/out
