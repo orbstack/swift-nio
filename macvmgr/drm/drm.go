@@ -425,7 +425,7 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 
 	// was not a network error, so this is a good time to check update too
 	go func() {
-		err := c.updater.CheckNow()
+		err := c.updater.MaybeCheck()
 		if err != nil {
 			logrus.WithError(err).Error("failed to check update")
 		}

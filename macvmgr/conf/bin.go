@@ -8,7 +8,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/conf"
 )
 
-func FindSparkleExe() (string, error) {
+func findSiblingExe(name string) (string, error) {
 	selfExe, err := os.Executable()
 	if err != nil {
 		return "", err
@@ -21,8 +21,16 @@ func FindSparkleExe() (string, error) {
 	}
 
 	if conf.Debug() {
-		return "/Users/dragon/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/sparkle.app/Contents/MacOS/sparkle", nil
+		return "/Users/dragon/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app/Contents/MacOS/" + name, nil
 	}
 
-	return path.Join(path.Dir(selfExe), "sparkle-cli"), nil
+	return path.Join(path.Dir(selfExe), name), nil
+}
+
+func FindSparkleExe() (string, error) {
+	return findSiblingExe("sparkle-cli")
+}
+
+func FindGuihelperExe() (string, error) {
+	return findSiblingExe("guihelper")
 }

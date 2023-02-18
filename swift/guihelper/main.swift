@@ -13,11 +13,11 @@ func mainNotify(_ args: [String]) -> Int32 {
     notification.title = args[0]
     notification.informativeText = args[1]
 
-    if args[2] == "--sound" {
-        notification.soundName = NSUserNotificationDefaultSoundName
+    if args[2] != "" {
+        notification.subtitle = args[2]
     }
-    if args[3] != "" {
-        notification.subtitle = args[3]
+    if args[3] == "--sound" {
+        notification.soundName = NSUserNotificationDefaultSoundName
     }
 
     NSUserNotificationCenter.default.scheduleNotification(notification)

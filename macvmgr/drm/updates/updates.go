@@ -13,11 +13,21 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
+	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	updateCheckInterval = 12 * time.Hour
+	notifyInterval      = 24 * time.Hour
+)
+
 type Updater struct {
-	client *http.Client
+	client         *http.Client
+	lastCheckTime  *timex.MonoSleepTime
+	lastNotifyTime *timex.MonoSleepTime
+	lastInfo       *UpdateInfo
 }
 
 func NewUpdater() *Updater {
@@ -148,7 +158,51 @@ func (u *Updater) CheckNow() error {
 			}
 			f.Close()
 		}
+
+		u.lastInfo = info
+
+		err = u.MaybeNotify()
+		if err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func (u *Updater) MaybeNotify() error {
+	if u.lastNotifyTime != nil && timex.SinceMonoSleep(*u.lastNotifyTime) < notifyInterval {
+		return nil
+	}
+
+	if u.lastInfo == nil || !u.lastInfo.Available {
+		return nil
+	}
+
+	err := guihelper.Notify(guihelper.Notification{
+		Title:   "OrbStack Update Ready",
+		Message: "A new version of OrbStack is available. Open the app to install it.",
+	})
+	if err != nil {
+		return err
+	}
+
+	now := timex.NowMonoSleep()
+	u.lastNotifyTime = &now
+	return nil
+}
+
+func (u *Updater) MaybeCheck() error {
+	if u.lastCheckTime != nil && timex.SinceMonoSleep(*u.lastCheckTime) < updateCheckInterval {
+		return nil
+	}
+
+	err := u.CheckNow()
+	if err != nil {
+		return err
+	}
+
+	now := timex.NowMonoSleep()
+	u.lastCheckTime = &now
 	return nil
 }
