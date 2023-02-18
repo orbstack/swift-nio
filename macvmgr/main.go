@@ -667,6 +667,9 @@ func main() {
 	cmd := ""
 	if len(os.Args) > 1 {
 		cmd = os.Args[1]
+	} else {
+		fmt.Fprintln(os.Stderr, "usage: "+os.Args[0]+" <command>")
+		os.Exit(1)
 	}
 
 	switch cmd {
@@ -674,7 +677,7 @@ func main() {
 		runSpawnDaemon()
 	case "ssh-proxy-fdpass":
 		runSshProxyFdpass()
-	case "vmgr", "":
+	case "vmgr":
 		runVmManager()
 	default:
 		panic("unknown command: " + cmd)
