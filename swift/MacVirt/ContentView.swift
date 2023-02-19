@@ -132,7 +132,7 @@ struct ContentView: View {
         // error dialog
         .alert(isPresented: $presentError, error: model.error) { _ in
             Button("OK") {
-                model.error = nil
+                model.dismissError()
 
                 // quit if the error is fatal
                 if model.state == .stopped && !model.reachedRunning {
@@ -149,7 +149,7 @@ struct ContentView: View {
         })
         .onChange(of: presentError) {
             if !$0 {
-                model.error = nil
+                model.dismissError()
             }
         }
         .alert("Shell profile changed", isPresented: bindOptionalBool($model.presentProfileChanged)) {

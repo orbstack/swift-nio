@@ -147,7 +147,7 @@ class VmViewModel: ObservableObject {
 
     @Published private(set) var state = VmState.stopped
     @Published private(set) var containers: [ContainerRecord]?
-    @Published var error: VmError?
+    @Published private(set) var error: VmError?
     @Published var creatingCount = 0
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false
@@ -474,6 +474,17 @@ class VmViewModel: ObservableObject {
             try await scon.setDefaultContainer(record)
         } catch {
             self.error = VmError.defaultError(error: error)
+        }
+    }
+
+    func dismissError() {
+        error = nil
+
+        // refresh in case e.g. container was deleted after create failed
+        Task {
+            do {
+                try await refreshList()
+            } catch {}
         }
     }
 }
