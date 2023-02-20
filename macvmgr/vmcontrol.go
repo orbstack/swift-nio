@@ -140,6 +140,9 @@ func (s *VmControlServer) onStart() error {
 				logrus.WithError(err).Error("Failed to complete CLI-only setup")
 				return
 			}
+
+			logrus.Info("CLI setup complete")
+			s.setupDone = true
 		}
 	}()
 
