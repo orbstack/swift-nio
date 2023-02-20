@@ -25,11 +25,25 @@ func mainNotify(_ args: [String]) -> Int32 {
     return 0
 }
 
+func mainRunAdmin(_ args: [String]) -> Int32 {
+    let script = args[0]
+    let prompt = args[1]
+    do {
+        try runAsAdmin(script: script, prompt: prompt)
+    } catch {
+        print("Failed to run as admin: \(error)")
+        return 1
+    }
+    return 0
+}
+
 let targetCmd = CommandLine.arguments[1]
 let args = CommandLine.arguments.dropFirst(2).map { String($0) }
 switch targetCmd {
 case "notify":
     exit(mainNotify(args))
+case "run-admin":
+    exit(mainRunAdmin(args))
 default:
     print("Unknown command")
     exit(1)

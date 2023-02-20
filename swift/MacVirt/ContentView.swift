@@ -160,7 +160,7 @@ struct ContentView: View {
         } message: {
             if let info = model.presentProfileChanged {
                 Text("""
-                    Your shell profile has been modified to add \(Constants.userAppName)’s command-line tools to your PATH.
+                    \(Constants.userAppName)’s command-line tools have been added to your PATH.
                     To use them in existing shells, run the following command:
 
                     source \(info.profileRelPath)

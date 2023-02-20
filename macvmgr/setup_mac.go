@@ -14,6 +14,7 @@ import (
 	"github.com/alessio/shellescape"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
 	"github.com/kdrag0n/macvirt/macvmgr/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -595,8 +596,7 @@ func doMacSetup() (*SetupInfo, error) {
 	}
 	if askAddPath {
 		info.AlertRequestAddPaths = []string{
-			conf.CliBinDir(),
-			conf.CliXbinDir(),
+			conf.UserAppBinDir(),
 		}
 	}
 	if alertProfileChangedPath != nil {
@@ -609,6 +609,51 @@ func doMacSetup() (*SetupInfo, error) {
 		"alertProfile":      info.AlertProfileChanged,
 	}).Debug("prepare setup info done")
 	return info, nil
+}
+
+// for CLI-only, this completes the setup without GUI
+func completeSetupCli(info *SetupInfo) error {
+	// notify profile changed
+	if info.AlertProfileChanged != nil {
+		logrus.WithField("profile", *info.AlertProfileChanged).Info("notifying profile changed")
+		profileRelPath := *info.AlertProfileChanged
+		err := guihelper.Notify(guihelper.Notification{
+			Title:   "Shell Profile Changed",
+			Message: "Command-line tools added to PATH. To use them, run: source " + profileRelPath,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// notify add paths
+	if info.AlertRequestAddPaths != nil {
+		logrus.WithField("paths", info.AlertRequestAddPaths).Info("notifying add paths")
+		paths := strings.Join(info.AlertRequestAddPaths, " and ")
+		err := guihelper.Notify(guihelper.Notification{
+			Title:   "Add Tools to PATH",
+			Message: "To use command-line tools, add " + paths + " to your PATH.",
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// request run as admin
+	if info.AdminShellCommand != nil {
+		logrus.WithField("cmd", *info.AdminShellCommand).Debug("requesting run as admin")
+		prompt := ""
+		if info.AdminMessage != nil {
+			prompt = *info.AdminMessage
+		}
+
+		err := guihelper.RunAsAdmin(*info.AdminShellCommand, "OrbStack wants to "+prompt+".")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func strp(s *string) string {

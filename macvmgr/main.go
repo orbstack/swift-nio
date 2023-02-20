@@ -637,6 +637,12 @@ func runVmManager() {
 				logrus.Info("[VM] stopping")
 			case vz.VirtualMachineStateRunning:
 				logrus.Info("[VM] started")
+				if !vmHasStarted {
+					err := controlServer.onStart()
+					if err != nil {
+						logrus.WithError(err).Error("vmcontrol start hook failed")
+					}
+				}
 				vmHasStarted = true
 			case vz.VirtualMachineStateStopped:
 				logrus.Info("[VM] stopped")

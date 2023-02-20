@@ -24,7 +24,8 @@ import (
 )
 
 const (
-	runPprof = false
+	runPprof         = false
+	initSetupTimeout = 10 * time.Second
 )
 
 type VmControlServer struct {
@@ -35,6 +36,7 @@ type VmControlServer struct {
 	pendingResetData bool
 	dockerClient     *http.Client
 	drm              *drm.DrmClient
+	setupDone        bool
 }
 
 func (s *VmControlServer) Ping(ctx context.Context) error {
@@ -85,7 +87,13 @@ func (s *VmControlServer) ResetConfig(ctx context.Context) error {
 }
 
 func (s *VmControlServer) StartSetup(ctx context.Context) (*SetupInfo, error) {
-	return doMacSetup()
+	info, err := doMacSetup()
+	if err != nil {
+		return nil, err
+	}
+
+	s.setupDone = true
+	return info, nil
 }
 
 func (s *VmControlServer) FinishSetup(ctx context.Context) error {
@@ -109,6 +117,33 @@ func (s *VmControlServer) ListDockerContainers(ctx context.Context) ([]dockertyp
 	}
 
 	return containers, nil
+}
+
+// func (s *VmControlServer) doPureGoSetup
+func (s *VmControlServer) onStart() error {
+	// if setup isn't done in 10 sec, it means we don't have a GUI (or it's broken)
+	// for example, when it's CLI only
+	// in such cases, run setup ourselves
+	go func() {
+		time.Sleep(initSetupTimeout)
+		if !s.setupDone {
+			logrus.Info("Setup not done in time, running setup...")
+			info, err := s.StartSetup(context.Background())
+			if err != nil {
+				logrus.WithError(err).Error("Failed to run setup")
+				return
+			}
+
+			// complete setup on cli
+			err = completeSetupCli(info)
+			if err != nil {
+				logrus.WithError(err).Error("Failed to complete CLI-only setup")
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (s *VmControlServer) onStop() error {

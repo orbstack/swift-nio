@@ -39,3 +39,8 @@ func Notify(n Notification) error {
 	_, err := run("notify", n.Title, n.Message, n.Subtitle, soundArg)
 	return err
 }
+
+func RunAsAdmin(script, prompt string) error {
+	_, err := run("run-admin", script, prompt)
+	return err
+}
