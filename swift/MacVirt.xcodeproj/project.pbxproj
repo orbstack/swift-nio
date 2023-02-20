@@ -15,6 +15,7 @@
 		B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF7EB971BAC66F27805D /* RPCExecutor.swift */; };
 		B118B5CADCA44C8A25695EFF /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE4D3578D923BDAE7C2C /* Updater.swift */; };
 		B118B7A041A184E2575844C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */; };
+		B118B96A6A028887CFCE7574 /* FilesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB1AD712EA08896F1900 /* FilesRootView.swift */; };
 		B118B99876CACE427270E9DA /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */; };
 		B118BAD426D7BA4054B6E689 /* DockerRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD91CF1D1F80CDCBFB9F /* DockerRootView.swift */; };
 		B118BB2A35AC6730018691D2 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */; };
@@ -27,6 +28,7 @@
 		B118BD02365D5248F5ACF9C6 /* BuiltinContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */; };
 		B118BD090D290FC5365B0FD9 /* Operators.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDB1897ACFEB7A47E00A /* Operators.swift */; };
 		B118BD34325C70523001BE10 /* DockerContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */; };
+		B118BE19740FC7363C335980 /* FileContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E4875DB989A26F46BA /* FileContainerItem.swift */; };
 		B118BF2634CFC22342E565CF /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B39D053F0586CEFDE474 /* OnboardingCreateView.swift */; };
 		B118BF4BE4D185C5A88B7A7D /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BAB379B8843568503FAA /* Images.swift */; };
 		B118BF852FE2E4976050D4B2 /* OnboardingModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB5624616EC1041FA0C3 /* OnboardingModeView.swift */; };
@@ -126,12 +128,14 @@
 		B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		B118B4CBF28E57766F454C98 /* CommandsRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CommandsRootView.swift; sourceTree = "<group>"; };
 		B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		B118B7E4875DB989A26F46BA /* FileContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileContainerItem.swift; sourceTree = "<group>"; };
 		B118B7E62611F603F60BF666 /* VmViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VmViewModel.swift; sourceTree = "<group>"; };
 		B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
 		B118B95F44262A37E5CA5660 /* DockerViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerViewModel.swift; sourceTree = "<group>"; };
 		B118B967D5C4B61A7671FD0E /* Preferences.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		B118B970D1735BC66857A549 /* MachineContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineContainerItem.swift; sourceTree = "<group>"; };
 		B118BAB379B8843568503FAA /* Images.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
+		B118BB1AD712EA08896F1900 /* FilesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FilesRootView.swift; sourceTree = "<group>"; };
 		B118BB4D521563F31AB550C7 /* CreateContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateContainerView.swift; sourceTree = "<group>"; };
 		B118BB5624616EC1041FA0C3 /* OnboardingModeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingModeView.swift; sourceTree = "<group>"; };
 		B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuiltinContainerItem.swift; sourceTree = "<group>"; };
@@ -266,6 +270,8 @@
 				B118BC445161ECC2F67ABFEF /* Utils.swift */,
 				D8694A32298F9EF00046B6B6 /* VmRPC.swift */,
 				B118B7E62611F603F60BF666 /* VmViewModel.swift */,
+				B118BB1AD712EA08896F1900 /* FilesRootView.swift */,
+				B118B7E4875DB989A26F46BA /* FileContainerItem.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -489,6 +495,8 @@
 				B118BF852FE2E4976050D4B2 /* OnboardingModeView.swift in Sources */,
 				B118BCBE5B1FDC9451990A90 /* Preferences.swift in Sources */,
 				B118BF2634CFC22342E565CF /* OnboardingCreateView.swift in Sources */,
+				B118B96A6A028887CFCE7574 /* FilesRootView.swift in Sources */,
+				B118BE19740FC7363C335980 /* FileContainerItem.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

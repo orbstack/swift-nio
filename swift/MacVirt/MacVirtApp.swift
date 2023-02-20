@@ -91,6 +91,19 @@ struct MacVirtApp: App {
                 Divider()
             }
             //TODO command to create container
+
+            CommandGroup(after: .help) {
+                Divider()
+                Button("Website") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
+                }
+                Button("Issues") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
+                }
+                Button("Documentation") {
+                    NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
+                }
+            }
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
 
         WindowGroup("Setup", id: "onboarding") {

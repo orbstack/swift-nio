@@ -61,5 +61,18 @@ struct DockerContainerItem: View {
                 }
             }
         }
+        .contextMenu {
+            Button(action: {
+                Task {
+                    do {
+                        try await openTerminal(AppConfig.c.dockerExe, ["exec", "-it", container.id, "sh"])
+                    } catch {
+                        print(error)
+                    }
+                }
+            }) {
+                Label("Open Terminal", systemImage: "terminal")
+            }
+        }
     }
 }

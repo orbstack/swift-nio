@@ -51,6 +51,10 @@ struct ContentView: View {
                 NavigationLink(destination: CommandsRootView()) {
                     Label("Commands", systemImage: "terminal")
                 }.tag("cli")
+
+                NavigationLink(destination: FilesRootView()) {
+                    Label("Files", systemImage: "folder")
+                }.tag("files")
             }
             .listStyle(.sidebar)
         }

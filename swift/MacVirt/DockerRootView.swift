@@ -44,9 +44,9 @@ struct DockerRootView: View {
                                 HStack {
                                     Spacer()
                                     VStack {
-                                        Text("No Docker containers")
-                                                .font(.title)
-                                                .foregroundColor(.secondary)
+                                        Text("No containers")
+                                            .font(.title)
+                                            .foregroundColor(.secondary)
                                     }
                                             .padding(.top, 32)
                                     Spacer()
