@@ -27,7 +27,7 @@ struct GeneralSettingsView: View {
 
             Group {
                 if vmModel.state == .running {
-                    Toggle("Use Rosetta to run x86 code", isOn: $enableRosetta)
+                    Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
                     .onChange(of: enableRosetta) { newValue in
                         Task {
                             if var config = vmModel.config {
