@@ -120,17 +120,24 @@ func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6, g
 func (i *IcmpFwd) ProxyRequests() {
 	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		i.lastSourceAddr4 = pkt.Network().SourceAddress()
-		return i.sendPkt(pkt)
+		return i.sendPacket(pkt)
 	})
 
 	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber6, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		i.lastSourceAddr6 = pkt.Network().SourceAddress()
-		return i.sendPkt(pkt)
+		return i.sendPacket(pkt)
 	})
 }
 
 // handleICMPMessage parses ICMP packets and proxies them if possible.
-func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
+func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic: %v", r)
+			logrus.WithError(err).Error("failed to send outgoing ICMP packet")
+		}
+	}()
+
 	ipHdr := pkt.Network()
 	icmpMsg := extractPacketPayload(pkt)
 	dstAddr := &net.UDPAddr{
