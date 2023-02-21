@@ -22,13 +22,4 @@ $SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-u
 $SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ --critical-update-version '' --auto-prune-update-files updates/amd64
 
 # upload to cloudflare
-pushd updates
-
-for dmg in "${built_dmgs[@]}"; do
-    wrangler r2 object put orbstack-updates/"$dmg" -f "$dmg"
-done
-#TODO rclone for deltas
-wrangler r2 object put orbstack-updates/arm64/appcast.xml -f arm64/appcast.xml
-wrangler r2 object put orbstack-updates/amd64/appcast.xml -f amd64/appcast.xml
-
-popd
+rclone sync updates r2:orbstack-updates
