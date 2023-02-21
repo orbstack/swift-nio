@@ -35,6 +35,7 @@ require (
 )
 
 require (
+	github.com/google/gopacket v1.1.19
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 )
@@ -55,7 +56,7 @@ require (
 	github.com/miekg/dns v1.1.50
 	github.com/pkg/sftp v1.13.5
 	golang.org/x/crypto v0.5.0
-	golang.org/x/tools v0.2.0 // indirect
+	golang.org/x/tools v0.5.0 // indirect
 )
 
 require (
@@ -63,6 +64,6 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/net v0.5.0
-	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
+	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	gvisor.dev/gvisor v0.0.0-20221220191351-8ea7ab01ea4e
 )

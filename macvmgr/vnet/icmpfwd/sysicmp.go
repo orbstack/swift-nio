@@ -129,12 +129,14 @@ func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
 	// But no one uses them, so don't bother
 	if pkt.NetworkProtocolNumber == ipv4.ProtocolNumber {
 		if len(icmpMsg) < header.ICMPv4MinimumSize {
+			logrus.Trace("discarding ICMPv4 packet: too short")
 			return false
 		}
 
 		// Check type
 		icmpHdr := header.ICMPv4(icmpMsg)
 		if icmpHdr.Type() != header.ICMPv4Echo {
+			logrus.Trace("discarding ICMPv4 packet: not echo")
 			return false
 		}
 
@@ -152,12 +154,14 @@ func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
 		return true
 	} else if pkt.NetworkProtocolNumber == ipv6.ProtocolNumber {
 		if len(icmpMsg) < header.ICMPv6MinimumSize {
+			logrus.Trace("discarding ICMPv6 packet: too short")
 			return false
 		}
 
 		// Check type
 		icmpHdr := header.ICMPv6(icmpMsg)
 		if icmpHdr.Type() != header.ICMPv6EchoRequest {
+			logrus.Trace("discarding ICMPv6 packet: not echo")
 			return false
 		}
 

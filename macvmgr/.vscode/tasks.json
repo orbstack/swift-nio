@@ -1,0 +1,12 @@
+{
+    "tasks": [
+        {
+            "label": "go: build (debug)",
+            "type": "shell",
+            "command": "./build.sh -gcflags=all='-N -l'",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+        }
+    ]
+}
