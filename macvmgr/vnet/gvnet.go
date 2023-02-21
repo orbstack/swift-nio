@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
@@ -89,7 +89,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 		return nil, nil, err
 	}
 
-	nicEp, err := dgramlink.New(&dgramlink.Options{
+	nicEp, err := dglink.New(&dglink.Options{
 		FDs:            []int{fd1},
 		MTU:            opts.MTU,
 		EthernetHeader: true,
@@ -97,7 +97,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 		// no need for GSO when our MTU is so high. 16 -> 17 Gbps
 		// GSOMaxSize:         opts.MTU,
 		GvisorGSOEnabled:   false,
-		PacketDispatchMode: dgramlink.Readv,
+		PacketDispatchMode: dglink.Readv,
 		TXChecksumOffload:  true,
 		RXChecksumOffload:  true,
 	})

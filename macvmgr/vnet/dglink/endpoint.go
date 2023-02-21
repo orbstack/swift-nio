@@ -35,12 +35,12 @@
 // only use the first FD to write outbound packets. Once 5 tuple hashes for
 // all outbound packets are available we will make use of all underlying FD's to
 // write outbound packets.
-package dgramlink
+package dglink
 
 import (
 	"fmt"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink/rawfile"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink/rawfile"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/atomicbitops"
 	"gvisor.dev/gvisor/pkg/bufferv2"

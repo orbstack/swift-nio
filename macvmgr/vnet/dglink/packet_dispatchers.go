@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dgramlink
+package dglink
 
 import (
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink/rawfile"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/dgramlink/stopfd"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink/rawfile"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink/stopfd"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
