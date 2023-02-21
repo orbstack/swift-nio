@@ -6,21 +6,28 @@
 //
 
 import Foundation
-import AppKit
+import UserNotifications
 
 func mainNotify(_ args: [String]) -> Int32 {
-    let notification = NSUserNotification()
-    notification.title = args[0]
-    notification.informativeText = args[1]
+    let content = UNMutableNotificationContent()
+    content.title = args[0]
+    content.body = args[1]
 
     if args[2] != "" {
-        notification.subtitle = args[2]
+        content.subtitle = args[2]
     }
     if args[3] == "--sound" {
-        notification.soundName = NSUserNotificationDefaultSoundName
+        content.sound = UNNotificationSound.default
     }
 
-    NSUserNotificationCenter.default.scheduleNotification(notification)
+    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.001, repeats: false)
+    let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+    let center = UNUserNotificationCenter.current()
+    center.add(request) { (error) in
+        if let error = error {
+            print("Failed to post notification: \(error)")
+        }
+    }
     RunLoop.current.run(until: Date.init(timeIntervalSinceNow: 0.1))
     return 0
 }

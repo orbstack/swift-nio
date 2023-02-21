@@ -15,6 +15,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
@@ -127,6 +128,10 @@ func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error 
 
 	*reply = *result
 	return nil
+}
+
+func (h *HcontrolServer) Notify(n guihelper.Notification, _ *None) error {
+	return guihelper.Notify(n)
 }
 
 type None struct{}

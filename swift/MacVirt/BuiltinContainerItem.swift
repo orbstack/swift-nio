@@ -46,7 +46,7 @@ struct BuiltinContainerItem: View {
             )
             Toggle(isOn: binding) {
             }
-            .toggleStyle(SwitchToggleStyle(tint: .blue))
+            .toggleStyle(SwitchToggleStyle(tint: .accentColor))
             .disabled(actionInProgress)
         }
         .padding(.vertical, 4)

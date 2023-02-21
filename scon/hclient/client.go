@@ -5,6 +5,7 @@ import (
 	"net/rpc"
 
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 )
 
@@ -97,6 +98,11 @@ func (c *Client) GetLastDrmResult() (*drmtypes.Result, error) {
 	}
 
 	return &result, nil
+}
+
+func (c *Client) Notify(n guihelper.Notification) error {
+	var none None
+	return c.rpc.Call("hc.Notify", n, &none)
 }
 
 func (c *Client) Close() error {
