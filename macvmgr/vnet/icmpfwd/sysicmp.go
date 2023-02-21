@@ -43,6 +43,14 @@ func newFlowLabel(s *stack.Stack) uint32 {
 	return uint32(s.Rand().Int31n(0xfffff))
 }
 
+func extractPacketPayload(pkt stack.PacketBufferPtr) []byte {
+	// ToView().AsSlice() includes Ethernet header
+	// HeaderSize() includes ALL headers: Ethernet + IP + ICMP
+	// We want to strip Ethernet+IP and leave ICMP (or whatever the transport is)
+	icmpHdrSize := len(pkt.TransportHeader().Slice())
+	return pkt.ToView().AsSlice()[pkt.HeaderSize()-icmpHdrSize:]
+}
+
 // don't set STRIPHDR - we want the IP header
 func newIcmpPacketConn4() (*goipv4.PacketConn, error) {
 	s, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, unix.IPPROTO_ICMP)
@@ -59,6 +67,9 @@ func newIcmpPacketConn4() (*goipv4.PacketConn, error) {
 
 	f := os.NewFile(uintptr(s), "icmp4")
 	c, err := net.FilePacketConn(f)
+	if err != nil {
+		return nil, err
+	}
 	return goipv4.NewPacketConn(c), nil
 }
 
@@ -78,6 +89,9 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 
 	f := os.NewFile(uintptr(s), "icmp6")
 	c, err := net.FilePacketConn(f)
+	if err != nil {
+		return nil, err
+	}
 	return goipv6.NewPacketConn(c), nil
 }
 
@@ -405,10 +419,12 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 	return i.sendReply(ipv6.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), replyMsg)
 }
 
+// for now, only ipv6 because we really need it in case there's no IPv6 on host
+// TODO: ipv4
 func (i *IcmpFwd) InjectDestUnreachable6(pkt stack.PacketBufferPtr, code header.ICMPv6Code) error {
 	// Make a new IP header
 	// TODO do this better
-	payload := append(pkt.NetworkHeader().View().ToSlice(), pkt.Network().Payload()...)
+	payload := append(pkt.NetworkHeader().View().ToSlice(), extractPacketPayload(pkt)...)
 	totalLen := header.IPv6MinimumSize + header.ICMPv6MinimumSize + len(payload)
 	if totalLen > maxIcmp6PktSize {
 		totalLen = maxIcmp6PktSize
