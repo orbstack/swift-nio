@@ -153,6 +153,9 @@
 		D81E7858299CD27F00A1D8AC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
 		D81E785B29A39BF300A1D8AC /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
+		D81E785E29A4CEEF00A1D8AC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
+		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -207,6 +210,16 @@
 			path = guihelper;
 			sourceTree = "<group>";
 		};
+		D81E785D29A4CEEF00A1D8AC /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D81E786229A4CF0E00A1D8AC /* Cocoa.framework */,
+				D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */,
+				D81E785E29A4CEEF00A1D8AC /* Foundation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
@@ -223,6 +236,7 @@
 				D8A32B90296F839100E56EEF /* MacVirt */,
 				D81E784E299CC4F200A1D8AC /* guihelper */,
 				D8A32B8F296F839100E56EEF /* Products */,
+				D81E785D29A4CEEF00A1D8AC /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -524,6 +538,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/guihelper/Info.plist";
 				INSTALL_PATH = "";
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -539,6 +554,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/guihelper/Info.plist";
 				INSTALL_PATH = "";
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;

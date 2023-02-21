@@ -28,7 +28,7 @@ func mainNotify(_ args: [String]) -> Int32 {
             print("Failed to post notification: \(error)")
         }
     }
-    RunLoop.current.run(until: Date.init(timeIntervalSinceNow: 0.1))
+    RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
     return 0
 }
 
