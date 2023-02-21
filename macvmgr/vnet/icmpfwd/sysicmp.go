@@ -132,7 +132,7 @@ func (i *IcmpFwd) ProxyRequests() {
 // handleICMPMessage parses ICMP packets and proxies them if possible.
 func (i *IcmpFwd) sendPkt(pkt stack.PacketBufferPtr) bool {
 	ipHdr := pkt.Network()
-	icmpMsg := ipHdr.Payload()
+	icmpMsg := extractPacketPayload(pkt)
 	dstAddr := &net.UDPAddr{
 		IP: net.IP(ipHdr.DestinationAddress()),
 	}
