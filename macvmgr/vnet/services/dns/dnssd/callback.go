@@ -33,9 +33,9 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 		}).Trace("dnssd callback")
 	}
 
-	queryMapMu.RLock()
+	queryMapMu.Lock()
 	query, ok := queryMap[context]
-	queryMapMu.RUnlock()
+	queryMapMu.Unlock()
 	if !ok {
 		logrus.Error("no dns query for context", context)
 		return

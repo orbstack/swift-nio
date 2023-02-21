@@ -55,11 +55,11 @@ type UDPProxy struct {
 
 // External connection source addr -> local (virtual) source addr
 var localExtConns = make(map[connTrackKey]*net.UDPAddr)
-var localExtConnsLock sync.RWMutex
+var localExtConnsLock sync.Mutex
 
 func LookupExternalConn(localAddr *net.UDPAddr) *net.UDPAddr {
-	localExtConnsLock.RLock()
-	defer localExtConnsLock.RUnlock()
+	localExtConnsLock.Lock()
+	defer localExtConnsLock.Unlock()
 	return localExtConns[*newConnTrackKey(localAddr)]
 }
 

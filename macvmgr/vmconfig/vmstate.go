@@ -16,7 +16,7 @@ const (
 
 var (
 	globalState   *VmgrState
-	globalStateMu sync.RWMutex
+	globalStateMu sync.Mutex
 )
 
 type VmgrState struct {
@@ -41,8 +41,8 @@ func (c *VmgrState) Validate() error {
 }
 
 func GetState() *VmgrState {
-	globalStateMu.RLock()
-	defer globalStateMu.RUnlock()
+	globalStateMu.Lock()
+	defer globalStateMu.Unlock()
 
 	if globalState != nil {
 		return globalState

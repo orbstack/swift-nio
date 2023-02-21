@@ -34,7 +34,7 @@ import (
 
 var (
 	queryMap   = map[uint64]*queryState{}
-	queryMapMu = sync.RWMutex{}
+	queryMapMu = sync.Mutex{}
 
 	// guarantees no overlap
 	nextSeq atomic.Uint64

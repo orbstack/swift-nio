@@ -266,7 +266,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	icmpFwd.MonitorReplies()
 
 	// Build NAT table
-	var natLock sync.RWMutex
+	var natLock sync.Mutex
 	natTable := make(map[tcpip.Address]tcpip.Address)
 	for virtIp, hostIp := range natFromGuest {
 		natTable[netutil.ParseTcpipAddress(virtIp)] = netutil.ParseTcpipAddress(hostIp)

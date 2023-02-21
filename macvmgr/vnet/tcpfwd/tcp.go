@@ -57,7 +57,7 @@ func tryBestCleanup(conn *gonet.TCPConn) error {
 	return tryAbort(conn)
 }
 
-func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex, i *icmpfwd.IcmpFwd) *tcp.Forwarder {
+func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.Mutex, i *icmpfwd.IcmpFwd) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
 		// Workaround for NFS panic
 		// defer func() {
@@ -78,11 +78,11 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			return
 		}
 
-		natLock.RLock()
+		natLock.Lock()
 		if replaced, ok := natTable[localAddress]; ok {
 			localAddress = replaced
 		}
-		natLock.RUnlock()
+		natLock.Unlock()
 		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
 
 		extConn, err := net.DialTimeout("tcp", extAddr, tcpConnectTimeout)

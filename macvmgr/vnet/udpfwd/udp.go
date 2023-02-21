@@ -19,7 +19,7 @@ type icmpSender interface {
 	InjectDestUnreachable6(stack.PacketBufferPtr, header.ICMPv6Code) error
 }
 
-func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.RWMutex, i icmpSender) *udp.Forwarder {
+func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.Mutex, i icmpSender) *udp.Forwarder {
 	// can't move to goroutine - packet ref issue: PullUp failed; see udp-goroutine-panic.log
 	// happens with DNS packets (to 192.168.66.1 nameserver)
 	return udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
@@ -28,11 +28,11 @@ func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			return
 		}
 
-		natLock.RLock()
+		natLock.Lock()
 		if replaced, ok := natTable[localAddress]; ok {
 			localAddress = replaced
 		}
-		natLock.RUnlock()
+		natLock.Unlock()
 
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)

@@ -15,7 +15,7 @@ const (
 
 var (
 	globalConfig   *VmConfig
-	globalConfigMu sync.RWMutex
+	globalConfigMu sync.Mutex
 )
 
 type VmConfig struct {
@@ -44,8 +44,8 @@ func check(err error) {
 }
 
 func Get() *VmConfig {
-	globalConfigMu.RLock()
-	defer globalConfigMu.RUnlock()
+	globalConfigMu.Lock()
+	defer globalConfigMu.Unlock()
 
 	if globalConfig != nil {
 		return globalConfig
