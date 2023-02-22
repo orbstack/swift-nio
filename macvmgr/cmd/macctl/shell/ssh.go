@@ -70,10 +70,10 @@ func TranslatePath(p string) string {
 	p = path.Clean(p)
 
 	// if path is under mac virtiofs mount, remove the mount prefix
-	if p == mounts.VirtiofsMountpoint {
+	if p == mounts.Virtiofs {
 		return "/"
-	} else if strings.HasPrefix(p, mounts.VirtiofsMountpoint+"/") {
-		return strings.TrimPrefix(p, mounts.VirtiofsMountpoint)
+	} else if strings.HasPrefix(p, mounts.Virtiofs+"/") {
+		return strings.TrimPrefix(p, mounts.Virtiofs)
 	}
 
 	// nothing to do for linked paths

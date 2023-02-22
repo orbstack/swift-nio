@@ -24,16 +24,16 @@ func translateMacPath(p string) string {
 	}
 
 	// translate p if user didn't already prefix it
-	if !strings.HasPrefix(p, mounts.VirtiofsMountpoint) {
+	if !strings.HasPrefix(p, mounts.Virtiofs) {
 		// assume home if not absolute
 		if path.IsAbs(p) {
 			// /home is likely a mistake
 			if strings.HasPrefix(p, "/home/") {
 				p = path.Join("/Users", strings.TrimPrefix(p, "/home/"))
 			}
-			p = mounts.VirtiofsMountpoint + p
+			p = mounts.Virtiofs + p
 		} else {
-			p = mounts.VirtiofsMountpoint + "/Users/" + user + "/" + p
+			p = mounts.Virtiofs + "/Users/" + user + "/" + p
 		}
 	}
 
