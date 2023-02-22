@@ -1,12 +1,12 @@
-__path_set=0
+__orb_path_set=0
 case "$PATH" in
 *"/opt/orbstack-guest/bin"*)
-__path_set=1
+__orb_path_set=1
 ;;
 esac
 
-if [ $__path_set = 0 ]; then
+if [ $__orb_path_set = 0 ]; then
     export PATH="/opt/orbstack-guest/bin-hiprio:$PATH:/opt/orbstack-guest/bin:/opt/orbstack-guest/data/bin/cmdlinks"
 fi
 
-unset __path_set
+unset __orb_path_set
