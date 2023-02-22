@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Base image versions
-FROM alpine:20221110 AS base
+FROM alpine:20230208 AS base
 FROM debian:sid-slim AS debian
 
 

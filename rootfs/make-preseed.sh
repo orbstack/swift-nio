@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eux
 
-cd /out
+cd /tmp
 
 # data volume
 qemu-img create -f qcow2 data.qcow2 8T
@@ -50,3 +50,7 @@ rm -f data.img.tar swap.img.tar
 bsdtar -cf data.img.tar data.img
 bsdtar -cf swap.img.tar swap.img
 rm -f data.img swap.img
+
+# do the build in linux fs and copy out to virtiofs.
+# if we do it on virtofs, resulting tars work but are larger (6.5 m / 69k vs. 265k / 19k)
+cp -f data.img.tar swap.img.tar /out
