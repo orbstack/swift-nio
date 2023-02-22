@@ -73,7 +73,7 @@ func doSystemInitTasks(host *hclient.Client) error {
 			return err
 		}
 		go func() {
-			err := util.RunInheritOut("/opt/vc/vinit-nfs")
+			err := util.RunInheritOut("/opt/orb/vinit-nfs")
 			if err != nil {
 				logrus.WithError(err).Error("failed to start nfs")
 			}

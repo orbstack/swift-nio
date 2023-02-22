@@ -10,7 +10,7 @@ import Sparkle
 
 extension Scene {
     func windowResizabilityContentSize() -> some Scene {
-        if #available(macOS 13.0, *) {
+        if #available(macOS 13, *) {
             return windowResizability(.contentSize)
         } else {
             return self
@@ -18,7 +18,7 @@ extension Scene {
     }
 
     func windowDefaultSize(width: CGFloat, height: CGFloat) -> some Scene {
-        if #available(macOS 13.0, *) {
+        if #available(macOS 13, *) {
             return defaultSize(CGSize(width: width, height: height))
         } else {
             return self

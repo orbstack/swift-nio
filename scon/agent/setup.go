@@ -250,6 +250,12 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		if err != nil {
 			return err
 		}
+
+		// chown
+		err = os.Chown(home+"/.gitconfig", args.Uid, args.Uid)
+		if err != nil {
+			return err
+		}
 	}
 
 	// add user to admin groups

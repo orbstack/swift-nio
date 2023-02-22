@@ -1,8 +1,6 @@
 package hcsrv
 
 import (
-	"crypto/rand"
-	"encoding/base32"
 	"errors"
 	"net/rpc"
 	"os"
@@ -23,10 +21,6 @@ import (
 	"github.com/muja/goconfig"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
-)
-
-var (
-	instanceToken = genToken()
 )
 
 // Never obfuscate the HcontrolServer type (garble)
@@ -135,22 +129,6 @@ func (h *HcontrolServer) Notify(n guihelper.Notification, _ *None) error {
 }
 
 type None struct{}
-
-func genToken() string {
-	buf := make([]byte, 32)
-	_, err := rand.Read(buf)
-	if err != nil {
-		panic(err)
-	}
-
-	// to base32
-	b32str := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf)
-	return b32str
-}
-
-func GetCurrentToken() string {
-	return instanceToken
-}
 
 func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, error) {
 	server := &HcontrolServer{

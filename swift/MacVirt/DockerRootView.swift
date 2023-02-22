@@ -16,7 +16,7 @@ struct DockerRootView: View {
             Group {
                 if let machines = vmModel.containers, let containers = vmModel.dockerContainers {
                     List(selection: $selection) {
-                        if #available(macOS 13.0, *) {
+                        if #available(macOS 13, *) {
                             Section {
                                 ForEach(machines) { record in
                                     if record.builtin {

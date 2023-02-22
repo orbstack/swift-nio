@@ -87,7 +87,6 @@ func (vc *VClient) Get(endpoint string) (*http.Response, error) {
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", GetCurrentToken())
 	resp, err := vc.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -113,7 +112,6 @@ func (vc *VClient) Post(endpoint string, body any) (*http.Response, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", GetCurrentToken())
 	resp, err := vc.client.Do(req)
 	if err != nil {
 		return nil, err

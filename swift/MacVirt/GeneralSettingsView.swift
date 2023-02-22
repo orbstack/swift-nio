@@ -27,15 +27,19 @@ struct GeneralSettingsView: View {
 
             Group {
                 if vmModel.state == .running {
-                    Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
-                    .onChange(of: enableRosetta) { newValue in
-                        Task {
-                            if var config = vmModel.config {
-                                config.rosetta = newValue
-                                await vmModel.tryPatchConfig(config)
+                    #if arch(arm64)
+                    if #available(macOS 13, *) {
+                        Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
+                        .onChange(of: enableRosetta) { newValue in
+                            Task {
+                                if var config = vmModel.config {
+                                    config.rosetta = newValue
+                                    await vmModel.tryPatchConfig(config)
+                                }
                             }
                         }
                     }
+                    #endif
 
                     let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
                     Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {

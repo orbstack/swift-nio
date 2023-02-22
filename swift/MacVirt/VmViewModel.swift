@@ -219,6 +219,7 @@ class VmViewModel: ObservableObject {
             }
             try await Task.sleep(nanoseconds: 100 * 1000 * 1000)
             if (DispatchTime.now() > deadline) {
+                state = .stopped
                 throw VmError.startTimeout(lastError: lastError)
             }
         }
@@ -242,6 +243,7 @@ class VmViewModel: ObservableObject {
             }
             try await Task.sleep(nanoseconds: 100 * 1000 * 1000)
             if (DispatchTime.now() > deadline) {
+                state = .stopped
                 throw VmError.startTimeout(lastError: lastError)
             }
         }

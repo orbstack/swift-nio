@@ -10,10 +10,8 @@ import (
 	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/arch"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
-	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
 	"github.com/sirupsen/logrus"
 )
 
@@ -66,12 +64,9 @@ func clamp[T uint | uint64](n, min, max T) T {
 func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 	cmdline := []string{
 		// boot
-		"init=/opt/vc/preinit",
+		"init=/opt/orb/preinit",
 		// userspace
-		"vc.data_size=" + strconv.FormatUint(conf.DiskSize(), 10),
-		"vc.vcontrol_token=" + vclient.GetCurrentToken(),
-		"vc.hcontrol_token=" + hcsrv.GetCurrentToken(),
-		"vc.timezone=America/Los_Angeles",
+		"orb.data_size=" + strconv.FormatUint(conf.DiskSize(), 10),
 		// Kernel tuning
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
