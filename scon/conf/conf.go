@@ -2,6 +2,8 @@ package conf
 
 import (
 	"os"
+
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
 )
 
 var (
@@ -39,10 +41,10 @@ var configVM = Config{
 	GuestMountSrc: "/opt/orbstack-guest",
 	HostMountSrc:  "/mnt/mac",
 	FakeSrc:       "/fake",
-	HcontrolIP:    "172.30.30.201",
+	HcontrolIP:    netconf.SecureSvcIP4,
 	DummyHcontrol: false,
-	DNSServer:     "172.30.30.200",
-	SSHListenIP4:  "172.30.30.2",
+	DNSServer:     netconf.ServicesIP4,
+	SSHListenIP4:  netconf.GuestIP4,
 	SSHListenIP6:  "fc00:96dc:7096:1d21::2",
 	DockerRootfs:  "/opt/docker-rootfs",
 	DockerDataDir: "/data/docker",

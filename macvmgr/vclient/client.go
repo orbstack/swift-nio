@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/Code-Hex/vz/v3"
@@ -24,7 +23,7 @@ import (
 )
 
 var (
-	baseUrl = "http://172.30.30.2:" + strconv.Itoa(ports.GuestVcontrol)
+	baseUrl = "http://vcontrol"
 )
 
 const (

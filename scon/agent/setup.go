@@ -44,6 +44,8 @@ var (
 type InitialSetupArgs struct {
 	Username          string
 	Uid               int
+	HostHomeDir       string
+	
 	Password          string
 	Distro            string
 	SSHAuthorizedKeys []string

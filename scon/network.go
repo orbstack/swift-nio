@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-iptables/iptables"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -24,7 +25,6 @@ const (
 	subnet4cidr  = subnet4 + ".0/24"
 	gatewayIP4   = subnet4 + ".1"
 	dockerIP4    = subnet4 + ".2"
-	secureSvcIP4 = "172.30.30.201"
 
 	subnet6     = "fc00:30:31:"
 	subnet6cidr = subnet6 + ":/64"
@@ -208,7 +208,7 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 }
 
 func setupAllNat() (func() error, error) {
-	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, subnet4cidr, secureSvcIP4)
+	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, subnet4cidr, netconf.SecureSvcIP4)
 	if err != nil {
 		return nil, err
 	}

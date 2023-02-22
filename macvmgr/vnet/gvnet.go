@@ -12,6 +12,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/qemulink"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
@@ -34,28 +35,14 @@ const (
 	capturePcap  = false
 	nicID        = 1
 
-	subnet4      = "172.30.30"
-	GatewayIP4   = subnet4 + ".1"
-	GuestIP4     = subnet4 + ".2"
-	ServicesIP4  = subnet4 + ".200"
-	SecureSvcIP4 = subnet4 + ".201"
-	HostNatIP4   = subnet4 + ".254"
-
-	subnet6 = "fc00:96dc:7096:1d21:"
-	// hack: because we don't implement NDP, we need to use a different subnet for anything that's not guest or gateway
-	subnetExt6 = "fc00:96dc:7096:1d22:"
-	GatewayIP6 = subnet6 + ":1"
-	GuestIP6   = subnet6 + ":2"
-	HostNatIP6 = subnetExt6 + ":254"
-
 	gatewayMac = "24:d2:f4:58:34:d7"
 )
 
 var (
 	// guest -> host
 	natFromGuest = map[string]string{
-		HostNatIP4: "127.0.0.1",
-		HostNatIP6: "::1",
+		netconf.HostNatIP4: "127.0.0.1",
+		netconf.HostNatIP6: "::1",
 	}
 )
 
@@ -171,13 +158,13 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 
 	if err := s.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
-		AddressWithPrefix: netutil.ParseTcpipAddress(GatewayIP4).WithPrefix(),
+		AddressWithPrefix: netutil.ParseTcpipAddress(netconf.GatewayIP4).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
 	if err := s.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
 		Protocol:          ipv6.ProtocolNumber,
-		AddressWithPrefix: netutil.ParseTcpipAddress(GatewayIP6).WithPrefix(),
+		AddressWithPrefix: netutil.ParseTcpipAddress(netconf.GatewayIP6).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
@@ -190,7 +177,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		return nil, errors.New(err.String())
 	}
 
-	_, ipSubnet4, err := net.ParseCIDR(subnet4 + ".0/24")
+	_, ipSubnet4, err := net.ParseCIDR(netconf.Subnet4 + ".0/24")
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +186,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		return nil, err
 	}
 
-	_, ipSubnet6, err := net.ParseCIDR(subnet6 + ":0/64")
+	_, ipSubnet6, err := net.ParseCIDR(netconf.Subnet6 + ":0/64")
 	if err != nil {
 		return nil, err
 	}
@@ -254,10 +241,10 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	// }
 
 	// ICMP, used by forwarders
-	guestAddr4 := netutil.ParseTcpipAddress(GuestIP4)
-	guestAddr6 := netutil.ParseTcpipAddress(GuestIP6)
-	gatewayAddr4 := netutil.ParseTcpipAddress(GatewayIP4)
-	gatewayAddr6 := netutil.ParseTcpipAddress(GatewayIP6)
+	guestAddr4 := netutil.ParseTcpipAddress(netconf.GuestIP4)
+	guestAddr6 := netutil.ParseTcpipAddress(netconf.GuestIP6)
+	gatewayAddr4 := netutil.ParseTcpipAddress(netconf.GatewayIP4)
+	gatewayAddr6 := netutil.ParseTcpipAddress(netconf.GatewayIP6)
 	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicID, guestAddr4, guestAddr6, gatewayAddr4, gatewayAddr6)
 	if err != nil {
 		return nil, err

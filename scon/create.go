@@ -145,8 +145,10 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		"username": hostUser.Username,
 	}).Info("running initial setup")
 	err = c.Agent().InitialSetup(agent.InitialSetupArgs{
-		Username:        hostUser.Username,
-		Uid:             hostUser.Uid,
+		Username:    hostUser.Username,
+		Uid:         hostUser.Uid,
+		HostHomeDir: hostUser.HomeDir,
+
 		Password:        args.UserPassword,
 		Distro:          image.Distro,
 		Timezone:        hostTimezone,

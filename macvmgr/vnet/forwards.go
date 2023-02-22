@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd"
 )
@@ -46,9 +47,9 @@ func (n *Network) StartForward(spec ForwardSpec) error {
 	case "tcp":
 		switch toProto {
 		case "tcp":
-			connectAddr4 := GuestIP4 + ":" + toPort
-			connectAddr6 := "[" + GuestIP6 + "]:" + toPort
-			fwd, err = tcpfwd.StartTcpHostForward(n.Stack, n.NIC, GatewayIP4, GatewayIP6, fromAddr, connectAddr4, connectAddr6, isInternal)
+			connectAddr4 := netconf.GuestIP4 + ":" + toPort
+			connectAddr6 := "[" + netconf.GuestIP6 + "]:" + toPort
+			fwd, err = tcpfwd.StartTcpHostForward(n.Stack, n.NIC, netconf.GatewayIP4, netconf.GatewayIP6, fromAddr, connectAddr4, connectAddr6, isInternal)
 			if err != nil {
 				return err
 			}
@@ -70,8 +71,8 @@ func (n *Network) StartForward(spec ForwardSpec) error {
 	case "udp":
 		switch toProto {
 		case "udp":
-			connectAddr4 := GuestIP4 + ":" + toPort
-			connectAddr6 := "[" + GuestIP6 + "]:" + toPort
+			connectAddr4 := netconf.GuestIP4 + ":" + toPort
+			connectAddr6 := "[" + netconf.GuestIP6 + "]:" + toPort
 			fwd, err = udpfwd.StartUDPHostForward(n.Stack, fromAddr, connectAddr4, connectAddr6)
 			if err != nil {
 				return err
@@ -84,7 +85,7 @@ func (n *Network) StartForward(spec ForwardSpec) error {
 		_ = os.Remove(fromAddr)
 		switch toProto {
 		case "tcp":
-			connectAddr4 := GuestIP4 + ":" + toPort
+			connectAddr4 := netconf.GuestIP4 + ":" + toPort
 			fwd, err = tcpfwd.StartUnixTcpHostForward(n.Stack, n.NIC, fromAddr, connectAddr4)
 			if err != nil {
 				return err

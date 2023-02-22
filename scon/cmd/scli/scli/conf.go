@@ -6,6 +6,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
 	"github.com/kdrag0n/macvirt/scon/util"
 )
 
@@ -22,7 +23,7 @@ var (
 		RpcNetwork: "tcp",
 		RpcAddr:    util.DefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon),
 		SshNet:     "tcp",
-		SshAddr:    "172.30.30.2:2222",
+		SshAddr:    netconf.GuestIP4 + ":2222",
 		ControlVM:  false,
 	}
 

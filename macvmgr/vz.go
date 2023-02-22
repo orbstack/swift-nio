@@ -72,7 +72,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 		"cgroup.memory=nokmem,nosocket",
 		// rcu_nocbs is in kernel
 		// Drivers
-		"nbd.max_part=4",
+		"nbd.nbds_max=4", // fast boot
 	}
 	if runtime.GOARCH == "amd64" {
 		// on ARM: kpti is free with E0PD

@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
 	dnssrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/dns"
 	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
@@ -22,20 +23,20 @@ const (
 
 var (
 	staticDnsHosts = map[string]dnssrv.StaticHost{
-		"vm":                {IP4: vnet.GuestIP4, IP6: vnet.GuestIP6},
-		"vm.internal":       {IP4: vnet.GuestIP4, IP6: vnet.GuestIP6},
-		"host":              {IP4: vnet.HostNatIP4, IP6: vnet.HostNatIP6},
-		"host.internal":     {IP4: vnet.HostNatIP4, IP6: vnet.HostNatIP6},
-		"services":          {IP4: vnet.ServicesIP4},
-		"services.internal": {IP4: vnet.ServicesIP4},
-		"gateway":           {IP4: vnet.GatewayIP4, IP6: vnet.GatewayIP6},
-		"gateway.internal":  {IP4: vnet.GatewayIP4, IP6: vnet.GatewayIP6},
+		"vm":                {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
+		"vm.internal":       {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
+		"host":              {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"host.internal":     {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"services":          {IP4: netconf.ServicesIP4},
+		"services.internal": {IP4: netconf.ServicesIP4},
+		"gateway":           {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
+		"gateway.internal":  {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
 	}
 )
 
 func StartNetServices(n *vnet.Network) {
-	addr := netutil.ParseTcpipAddress(vnet.ServicesIP4)
-	secureAddr := netutil.ParseTcpipAddress(vnet.SecureSvcIP4)
+	addr := netutil.ParseTcpipAddress(netconf.ServicesIP4)
+	secureAddr := netutil.ParseTcpipAddress(netconf.SecureSvcIP4)
 
 	// DNS (53): using system resolver
 	if runDNS {
