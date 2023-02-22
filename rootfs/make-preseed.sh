@@ -7,15 +7,15 @@ cd /out
 qemu-img create -f qcow2 data.qcow2 8T
 qemu-nbd -c /dev/nbd0 data.qcow2
 # partition...
-mknod /dev/nbd0p1 b 43 1
-mknod /dev/nbd0p2 b 43 2
+mknod /dev/nbd0p1 b 43 1 || :
+mknod /dev/nbd0p2 b 43 2 || :
 # create gpt partition table; create 1G partition
 sfdisk /dev/nbd0 <<EOF
 label: gpt
 size=1G, type=L, uuid=37d45f5c-49d5-47b4-9a75-fdb70418baf6
 EOF
 trap 'qemu-nbd -d /dev/nbd0' EXIT
-mkfs.btrfs -L user-data-fs -m single -R quota,free-space-tree --uuid bda85974-39e3-4ab5-b22c-000f2b59c332 /dev/nbd0p1
+mkfs.btrfs -L user-data-fs -m single -R quota,free-space-tree /dev/nbd0p1
 
 # copy preseed data
 mount /dev/nbd0p1 /mnt

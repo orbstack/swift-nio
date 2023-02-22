@@ -27,7 +27,24 @@ const (
 	startTimeout = 10 * time.Second
 )
 
-func listDevLoop() ([]string, error) {
+var (
+	extraDevicePrefixes = []string{
+		"loop",
+		"nbd",
+	}
+)
+
+func MatchesExtraDevice(name string) bool {
+	for _, prefix := range extraDevicePrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func listDevExtra() ([]string, error) {
 	entries, err := os.ReadDir("/dev")
 	if err != nil {
 		return nil, err
@@ -35,7 +52,7 @@ func listDevLoop() ([]string, error) {
 
 	devSrcs := make([]string, 0)
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), "loop") && entry.Name() != "loop-control" {
+		if MatchesExtraDevice(entry.Name()) && entry.Name() != "loop-control" {
 			devSrcs = append(devSrcs, path.Join("/dev", entry.Name()))
 		}
 	}
@@ -224,6 +241,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.cgroup2.devices.deny", "a")
 		set("lxc.cgroup2.devices.allow", "b *:* m")     // mknod block
 		set("lxc.cgroup2.devices.allow", "b 7:* rwm")   // dev/loop*
+		set("lxc.cgroup2.devices.allow", "b 43:* rwm")  // dev/nbd*
 		set("lxc.cgroup2.devices.allow", "c *:* m")     // mknod char
 		set("lxc.cgroup2.devices.allow", "c 136:* rwm") // dev/pts/*
 		set("lxc.cgroup2.devices.allow", "c 1:3 rwm")   // dev/null
@@ -243,6 +261,7 @@ func (c *Container) configureLxc() error {
 		addDev("/dev/loop-control")
 		addDev("/dev/autofs") // TODO security
 		addDev("/dev/userfaultfd")
+		addDev("/dev/btrfs-control")
 
 		// Default mounts
 		set("lxc.mount.auto", "proc:rw sys:mixed cgroup:rw:force")
@@ -519,11 +538,11 @@ func (c *Container) Start() error {
 	}()
 
 	// attach loop devices
-	loopSrcs, err := listDevLoop()
+	extraDevSrcs, err := listDevExtra()
 	if err != nil {
 		return err
 	}
-	for _, src := range loopSrcs {
+	for _, src := range extraDevSrcs {
 		err := c.addDeviceNodeLocked(src, src)
 		if err != nil {
 			return err

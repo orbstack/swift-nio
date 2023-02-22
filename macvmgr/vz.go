@@ -71,6 +71,8 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
 		// rcu_nocbs is in kernel
+		// Drivers
+		"nbd.max_part=4",
 	}
 	if runtime.GOARCH == "amd64" {
 		// on ARM: kpti is free with E0PD

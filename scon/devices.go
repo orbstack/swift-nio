@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"strings"
+	"path"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/lxc/go-lxc"
@@ -50,17 +50,15 @@ func (m *ConManager) removeDeviceNodeAll(src string, dst string) error {
 func (m *ConManager) handleDeviceEvent(event fsnotify.Event) {
 	logrus.WithField("event", event).Debug("device event")
 
-	switch {
-	case strings.HasPrefix(event.Name, "/dev/loop"):
+	nodeName := path.Base(event.Name)
+	if MatchesExtraDevice(nodeName) {
 		if event.Op&fsnotify.Create != 0 {
-			logrus.WithField("path", event.Name).Debug("loop device created")
+			logrus.WithField("path", event.Name).Debug("extra device created")
 			m.addDeviceNodeAll(event.Name, event.Name)
 		} else if event.Op&fsnotify.Remove != 0 {
-			logrus.WithField("path", event.Name).Debug("loop device removed")
+			logrus.WithField("path", event.Name).Debug("extra device removed")
 			m.removeDeviceNodeAll(event.Name, event.Name)
 		}
-	default:
-		return
 	}
 }
 
