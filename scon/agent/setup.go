@@ -42,10 +42,10 @@ var (
 )
 
 type InitialSetupArgs struct {
-	Username          string
-	Uid               int
-	HostHomeDir       string
-	
+	Username    string
+	Uid         int
+	HostHomeDir string
+
 	Password          string
 	Distro            string
 	SSHAuthorizedKeys []string
@@ -232,7 +232,15 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		if err != nil {
 			return err
 		}
+		err = os.Chown(home+"/.ssh", args.Uid, args.Uid)
+		if err != nil {
+			return err
+		}
 		err = os.WriteFile(home+"/.ssh/authorized_keys", []byte(strings.Join(args.SSHAuthorizedKeys, "\n")), 0600)
+		if err != nil {
+			return err
+		}
+		err = os.Chown(home+"/.ssh/authorized_keys", args.Uid, args.Uid)
 		if err != nil {
 			return err
 		}
@@ -257,6 +265,37 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		err = os.Chown(home+"/.gitconfig", args.Uid, args.Uid)
 		if err != nil {
 			return err
+		}
+	}
+
+	// symlink id_* ssh keys in case user has encrypted keys w/o agent
+	logrus.Debug("Symlinking ssh keys")
+	hostHome := mounts.Virtiofs + args.HostHomeDir
+	sshFiles, err := os.ReadDir(hostHome + "/.ssh")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err == nil {
+		for _, sshFile := range sshFiles {
+			if strings.HasPrefix(sshFile.Name(), "id_") {
+				logrus.WithField("file", sshFile.Name()).Debug("Symlinking ssh key")
+				err = os.MkdirAll(home+"/.ssh", 0700)
+				if err != nil {
+					return err
+				}
+				err = os.Chown(home+"/.ssh", args.Uid, args.Uid)
+				if err != nil {
+					return err
+				}
+				err = os.Symlink(hostHome+"/.ssh/"+sshFile.Name(), home+"/.ssh/"+sshFile.Name())
+				if err != nil {
+					return err
+				}
+				err = os.Chown(home+"/.ssh/"+sshFile.Name(), args.Uid, args.Uid)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 

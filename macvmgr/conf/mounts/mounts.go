@@ -10,7 +10,7 @@ var (
 
 // linux
 const (
-	VirtiofsMountpoint = "/mnt/mac"
+	Virtiofs = "/mnt/mac"
 
 	Opt             = "/opt/" + appid.AppName + "-guest"
 	Bin             = Opt + "/bin"

@@ -78,7 +78,7 @@ func TranslatePath(p string) string {
 	}
 
 	// nope, needs translation
-	return mounts.VirtiofsMountpoint + p
+	return mounts.Virtiofs + p
 }
 
 func IsPathArg(arg string) bool {
