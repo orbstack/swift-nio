@@ -61,13 +61,13 @@ touch /nfsroot-rw/.metadata_never_index /nfsroot-rw/.metadata-never-index /nfsro
 # bind ro
 mount --bind -o ro /nfsroot-rw /nfsroot-ro
 # debug only
-if [[ -f /opt/vc/is_debug ]]; then
+if [[ -f /opt/orb/is_debug ]]; then
   mkdir /nfsroot-rw/data
   mount --bind /data /nfsroot-ro/data
 fi
 
 # scon!
-/opt/vc/scon &
+/opt/orb/scon &
 
 # resize fs
 #xfs_growfs /dev/vdb1

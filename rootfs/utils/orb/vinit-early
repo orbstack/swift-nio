@@ -24,8 +24,7 @@ ip route add default via fc00:96dc:7096:1d21::1 dev eth0
 # control server
 # must be after net for IP
 ip link set lo up # too early
-vcontrol_token=$(cat /proc/cmdline | sed 's/ /\n/g' | grep vc.vcontrol_token= | sed 's/vc.vcontrol_token=//g') || true
-/opt/vc/vcontrol "$vcontrol_token" &
+/opt/orb/vcontrol &
 
 # early disk perf
 echo none > /sys/block/vda/queue/scheduler
@@ -33,8 +32,8 @@ echo none > /sys/block/vdb/queue/scheduler
 echo none > /sys/block/vdc/queue/scheduler
 
 # resize data
-# parse vc.data_size=10240 from /proc/cmdline
-data_size=$(cat /proc/cmdline | sed 's/ /\n/g' | grep vc.data_size= | sed 's/vc.data_size=//g') || true
+# parse orb.data_size=10240 from /proc/cmdline
+data_size=$(cat /proc/cmdline | sed 's/ /\n/g' | grep orb.data_size= | sed 's/orb.data_size=//g') || true
 if [[ -n "$data_size" ]]; then
     # get existing size
     old_size_bytes=$(blockdev --getsize64 /dev/vdb1)

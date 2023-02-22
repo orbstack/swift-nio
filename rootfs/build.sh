@@ -42,9 +42,12 @@ if [[ "$ARCH" == "arm64" ]]; then
 fi
 
 # main build
-docker build --build-arg TYPE=$BTYPE --platform "$platform" -f Dockerfile --target images .. -t orb/images:$BTYPE
+docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH \
+    --platform "$platform" \
+    -f Dockerfile --target images .. -t orb/images:$BTYPE
 # packer is always built for host arch
-docker build --build-arg TYPE=$BTYPE -f Dockerfile --target packer .. -t orb/packer:$BTYPE
+docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH \
+    -f Dockerfile --target packer .. -t orb/packer:$BTYPE
 
 # extract images
 CID=$(docker create --platform "$platform" orb/images:$BTYPE true)

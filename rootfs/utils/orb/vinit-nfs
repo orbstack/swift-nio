@@ -11,4 +11,4 @@
 set -euo pipefail
 
 rc-service nfs start
-/opt/vc/vsocknfs > /proc/fs/nfsd/portlist
+/opt/orb/vsocknfs > /proc/fs/nfsd/portlist

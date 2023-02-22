@@ -30,4 +30,4 @@ ulimit -Hl unlimited
 ulimit -Sl unlimited
 
 echo "[END] preinit"
-exec /opt/vc/switchroot /tmp/overlay/overlay /sbin/init "$@"
+exec /opt/orb/switchroot /tmp/overlay/overlay /sbin/init "$@"

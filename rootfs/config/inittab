@@ -3,5 +3,5 @@
 ::wait:/sbin/openrc default
 ::shutdown:/sbin/openrc shutdown
 
-::sysinit:/opt/vc/vinit-early
-::wait:/opt/vc/vinit-late
+::sysinit:/opt/orb/vinit-early
+::wait:/opt/orb/vinit-late

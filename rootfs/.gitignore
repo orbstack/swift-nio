@@ -2,9 +2,3 @@
 *.img
 *.qcow2
 *.img.tar
-
-
-# TEMP
-/rd-compile
-/rd-compile86
-/rdc2/

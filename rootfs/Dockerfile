@@ -24,15 +24,17 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
 <<EOT sh -eux
     cd /build/scon
-    mkdir -p /out && ./build-release.sh /out $TYPE
+    mkdir -p /out && ./build-release.sh /out ${TYPE}
 EOT
 
 # Build Rust - vcontrol
 FROM base AS rust-build
 RUN apk add --no-cache cargo
-COPY rootfs/vcontrol /build/vcontrol
+COPY vcontrol /build/vcontrol
+ARG ARCH=arm64
+# Rust can't deal with arch change in target/
 RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/build/vcontrol/target \
+    --mount=type=cache,target=/build/vcontrol/target,id=${ARCH} \
 <<EOT sh -eux
 cd /build/vcontrol
 cargo build --release
@@ -148,8 +150,8 @@ COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf
 # debug services
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
-    mkdir -p /opt/vc
-    touch /opt/vc/is_debug
+    mkdir -p /opt/orb
+    touch /opt/orb/is_debug
 
     chown 0600 /etc/ssh/*key*
     rc-update add sshd default
@@ -191,7 +193,8 @@ echo 'rc_need="localmount"' >> /etc/conf.d/sshd
 rm -f /bin/sh
 ln -s /usr/bin/dash /bin/sh
 
-# Mounts
+# Mountpoints
+mkdir /data
 mkdir /mnt/mac
 mkdir /mnt/rosetta
 ln -s /mnt/rosetta/rosetta '/[rosetta]'
@@ -209,19 +212,19 @@ done
 EOT
 
 # Scripts
-COPY rootfs/utils/vc /opt/vc
+COPY rootfs/utils/orb /opt/orb
 COPY rootfs/utils/guest/etc /opt/orbstack-guest/etc
 COPY LICENSE /
 
 # Compiled binaries (in order of most likely to change)
 # switchroot, vsock nfs
-COPY --from=c-build /build/switchroot /build/vsocknfs /opt/vc/
+COPY --from=c-build /build/switchroot /build/vsocknfs /opt/orb/
 # vcontrol
-COPY --from=rust-build /out/vcontrol /opt/vc/
+COPY --from=rust-build /out/vcontrol /opt/orb/
 # macctl
 COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/
 # scon
-COPY --from=go-build /out/scon /out/scon-agent /opt/vc/
+COPY --from=go-build /out/scon /out/scon-agent /opt/orb/
 COPY --from=go-build /out/scon-forksftp /opt/orbstack-guest/
 
 LABEL type=$TYPE

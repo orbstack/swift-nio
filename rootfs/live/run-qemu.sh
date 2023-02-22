@@ -39,7 +39,7 @@ qemu-system-x86_64 \
   -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
   -device virtio-rng-pci \
   -device virtio-balloon-pci,iothread=iothread4 \
-  -append "console=hvc0 init=/opt/vc/preinit vc.data_size=2000000 vc.vcontrol_token=test vc.hcontrol_token=test vc.timezone=America/Los_Angeles workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket root=/dev/vda rootfstype=erofs ro" \
+  -append "console=hvc0 init=/opt/orb/preinit orb.data_size=2000000 workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket root=/dev/vda rootfstype=erofs ro" \
   -device virtio-blk-pci,drive=drive0,id=virtblk0,num-queues=$CPUS,iothread=iothread1 \
   -drive file=$ASSETS/rootfs.img,if=none,id=drive0,format=raw,discard=on,aio=threads,cache=none,cache.direct=on,readonly=on \
   -device virtio-blk-pci,drive=drive1,id=virtblk1,num-queues=$CPUS,iothread=iothread2 \
@@ -75,7 +75,7 @@ qemu-system-x86_64 \
 #   -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
 #   -device virtio-rng-pci \
 #   -device virtio-balloon-pci \
-#   -append "root=/dev/vda rootfstype=erofs ro init=/opt/vc/preinit console=hvc0 rcu_nocbs=0-7 workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket vc.data_size=65536 vc.vcontrol_token=test vc.timezone=America/Los_Angeles" \
+#   -append "root=/dev/vda rootfstype=erofs ro init=/opt/orb/preinit console=hvc0 rcu_nocbs=0-7 workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket orb.data_size=65536" \
 #   -device virtio-blk-pci,drive=drive0,id=virtblk0,num-queues=1,physical_block_size=4096,logical_block_size=4096 \
 #   -drive file=assets/rootfs.img,if=none,id=drive0,format=raw,discard=on \
 #   -device virtio-blk-pci,drive=drive1,id=virtblk1,num-queues=1,physical_block_size=4096,logical_block_size=4096 \

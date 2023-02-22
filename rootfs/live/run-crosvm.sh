@@ -30,5 +30,5 @@ crosvm \
   --disk $ASSETS/rootfs.img,o_direct=true \
   --rwdisk data.img,o_direct=true \
   --rwdisk swap.img,o_direct=true \
-  -p "console=hvc0 init=/opt/vc/preinit vc.data_size=2000000 vc.vcontrol_token=test vc.hcontrol_token=test vc.timezone=America/Los_Angeles workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket root=/dev/vda rootfstype=erofs ro" \
+  -p "console=hvc0 init=/opt/orb/preinit orb.data_size=2000000 workqueue.power_efficient=1 cgroup.memory=nokmem,nosocket root=/dev/vda rootfstype=erofs ro" \
   $KERNEL

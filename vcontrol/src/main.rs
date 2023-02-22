@@ -1,16 +1,16 @@
 use anyhow::anyhow;
 use axum::{
     routing::{get, post},
-    response::{IntoResponse, Response},
-    Json, Router, http::{Request, StatusCode}, middleware::{Next, self}, Extension,
+    response::IntoResponse,
+    Json, Router, Extension,
 };
 use error::AppResult;
 use nix::{fcntl::{fallocate, OFlag, self, FallocateFlags}, sys::{stat::Mode, statvfs}, unistd::ftruncate};
 use serde::{Deserialize, Serialize};
 use tokio::{process::Command, sync::Mutex};
 use tower::ServiceBuilder;
-use tracing::{info, error, debug};
-use std::{net::SocketAddr, sync::{Arc}, path::Path};
+use tracing::{info, debug};
+use std::{net::SocketAddr, sync::Arc, path::Path};
 
 mod error;
 
@@ -67,7 +67,6 @@ struct DiskReportStats {
 
 #[derive(Clone, Debug)]
 struct State {
-    token: String,
 }
 
 #[derive(Clone, Debug)]
@@ -127,29 +126,11 @@ impl DiskManager {
     }
 }
 
-async fn auth<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode> {
-    let state: &State = req.extensions().get().unwrap();
-
-    let auth_header = req.headers()
-        .get("Authorization")
-        .and_then(|header| header.to_str().ok());
-
-    match auth_header {
-        Some(auth_header) if auth_header == state.token => {
-            Ok(next.run(req).await)
-        }
-        _ => Err(StatusCode::UNAUTHORIZED),
-    }
-}
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let args: Vec<String> = std::env::args().collect();
-    let state = State {
-        token: args[1].clone(),
-    };
+    let state = State {};
     let disk_manager = DiskManager::new().unwrap();
 
     let app = Router::new()
@@ -166,7 +147,6 @@ async fn main() {
             ServiceBuilder::new()
                 .layer(Extension(state))
                 .layer(Extension(Arc::new(Mutex::new(disk_manager))))
-                .layer(middleware::from_fn(auth))
         );
 
     let addr = SocketAddr::from(([172, 30, 30, 2], 103));
