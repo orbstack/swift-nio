@@ -6,4 +6,5 @@ tags="${2:-release}"
 # must be static
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -tags "$tags" -o $out ./cmd/scon-agent
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -tags "$tags" -o $out ./cmd/scon-forksftp
-go build -trimpath -ldflags="-s -w" -tags "$tags" -o $out
+
+CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -tags "$tags" -o $out

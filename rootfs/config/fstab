@@ -1,3 +1,3 @@
 /dev/vda / erofs rw,noatime 0 0
-/dev/vdb1 /data xfs rw,noatime,discard,pquota 0 0
+/dev/vdb1 /data btrfs rw,noatime,discard=async,space_cache=v2,ssd,nodatacow,nodatasum
 tmpfs /tmp tmpfs rw,noatime 0 0

@@ -1,0 +1,252 @@
+# syntax=docker/dockerfile:1
+
+# Base image versions
+FROM alpine:20221110 AS base
+FROM debian:sid-slim AS debian
+
+
+
+##########################################################################
+# Build Go - scon, macctl
+FROM base AS go-build
+RUN apk add --no-cache go alpine-sdk lxc-dev bash
+COPY vendor /build/vendor
+COPY scon /build/scon
+COPY macvmgr /build/macvmgr
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/root/go/pkg \
+<<EOT sh -eux
+cd /build/macvmgr
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/macctl ./cmd/macctl
+EOT
+ARG TYPE=release
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/root/go/pkg \
+<<EOT sh -eux
+    cd /build/scon
+    mkdir -p /out && ./build-release.sh /out $TYPE
+EOT
+
+# Build Rust - vcontrol
+FROM base AS rust-build
+RUN apk add --no-cache cargo
+COPY rootfs/vcontrol /build/vcontrol
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/build/vcontrol/target \
+<<EOT sh -eux
+cd /build/vcontrol
+cargo build --release
+mkdir /out
+cp target/release/vcontrol /out/vcontrol
+EOT
+
+# Build C - switchroot, vsocknfs
+FROM base AS c-build
+RUN apk add --no-cache alpine-sdk linux-headers
+COPY rootfs/utils/switchroot.c /build/switchroot.c
+COPY rootfs/utils/vsocknfs.c /build/vsocknfs.c
+RUN <<EOT sh -eux
+gcc -O2 -Wall -o /build/switchroot /build/switchroot.c
+gcc -O2 -Wall -o /build/vsocknfs /build/vsocknfs.c
+strip /build/switchroot
+strip /build/vsocknfs
+EOT
+
+
+
+##########################################################################
+# Docker container rootfs
+# ref: https://github.com/docker-library/docker/blob/master/20.10/dind/Dockerfile
+FROM base AS docker
+# removed: xfsprogs
+RUN apk add --no-cache \
+        docker-engine \
+		btrfs-progs \
+		e2fsprogs \
+		e2fsprogs-extra \
+		ip6tables \
+		iptables \
+		openssl \
+		shadow-uidmap \
+		xz \
+		pigz
+
+# dind script
+RUN <<EOT
+wget -O /usr/local/bin/dind https://raw.githubusercontent.com/moby/moby/b54af02b51b0dfe2e2863e8f1647aaa27936c274/hack/dind
+chmod +x /usr/local/bin/dind
+EOT
+
+# network
+COPY rootfs/config/resolv.conf /etc/resolv.conf
+COPY rootfs/config/hosts.docker /etc/hosts
+RUN <<EOT sh -eux
+echo docker > /etc/hostname
+
+# set up subuid/subgid so that "--userns-remap=default" works out-of-the-box
+addgroup -S dockremap
+adduser -S -G dockremap dockremap
+echo 'dockremap:165536:65536' >> /etc/subuid
+echo 'dockremap:165536:65536' >> /etc/subgid
+
+# mounts
+mkdir /mnt/mac
+mkdir /opt/orbstack-guest
+mkdir /var/lib/docker
+EOT
+
+
+
+##########################################################################
+# Main rootfs!
+FROM base AS rootfs
+
+# Dependencies
+RUN apk add --no-cache \
+    # basic
+    socat openrc bash libstdc++ dash chrony eudev \
+    # disk
+    # util-linux to fix "/dev/vda: Can't open blockdev" for btrfs mount
+    sfdisk nfs-utils btrfs-progs util-linux \
+    # scon deps
+    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz
+
+# debug deps
+ARG TYPE=release
+RUN <<EOT sh -eux
+if [[ "$TYPE" == "debug" ]]; then
+    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr ksmbd-tools bind e2fsprogs-extra btrfs-progs-extra f2fs-tools fish
+fi
+EOT
+
+# Docker container rootfs
+COPY --from=docker / /opt/docker-rootfs
+
+# services
+RUN <<EOT sh -eux
+rc-update add devfs
+rc-update add sysfs
+rc-update add cgroups default
+rc-update add networking default
+rc-update add udev default
+rc-update add chronyd default
+touch /etc/network/interfaces
+EOT
+
+# configs
+COPY rootfs/config/inittab /etc/inittab
+COPY rootfs/config/fstab /etc/fstab
+COPY rootfs/config/hostname /etc/hostname
+COPY rootfs/config/hosts /etc/hosts
+COPY rootfs/config/resolv.conf /etc/resolv.conf
+COPY rootfs/config/sysctl.conf /etc/sysctl.conf
+COPY rootfs/config/rc.conf /etc/rc.conf
+COPY rootfs/config/ssh_host_keys /etc/ssh
+# NTP
+COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf
+
+# debug services
+RUN <<EOT sh -eux
+if [[ "$TYPE" == "debug" ]]; then
+    mkdir -p /opt/vc
+    touch /opt/vc/is_debug
+
+    chown 0600 /etc/ssh/*key*
+    rc-update add sshd default
+    sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
+
+    mkdir /root/.ssh
+echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKE7Zy5HlH2BhRzz23wfmoO0LsSoxOfX0saf6HiL5c/c
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBWbetK7Sysq0tmjM0Hr7pwBupdEgoyDme2bcU/K30BG
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL+9Oxe4UXm5wNkkT0dx07HGFN6eqjIFzMx98oWSPCPt
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ/wCg/nWi0s+OYvjdW6JdxYaXpoO/fZvzwu0RRszPir' > /root/.ssh/authorized_keys
+
+    echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
+else
+    # release
+    # remove ssh host keys
+    rm -fr /etc/ssh
+fi
+EOT
+
+# misc setup
+RUN <<EOT sh -eux
+# remove motd
+rm -f /etc/motd
+
+# LXC
+# liblxc requires this to start
+mkdir -p /usr/lib/lxc/rootfs
+
+# NFS
+# 32 threads for perf
+echo 'OPTS_RPC_NFSD="32"' >> /etc/conf.d/nfs
+# fix fd hang
+echo 'OPTS_NFSD="nfsv4leasetime=30 nfsv4gracetime=1"' >> /etc/conf.d/nfs
+mkdir /nfsroot-ro /nfsroot-rw
+
+# speed up boot
+echo 'rc_need="localmount"' >> /etc/conf.d/sshd
+# dash is slightly faster
+rm -f /bin/sh
+ln -s /usr/bin/dash /bin/sh
+
+# Mounts
+mkdir /mnt/mac
+mkdir /mnt/rosetta
+ln -s /mnt/rosetta/rosetta '/[rosetta]'
+
+# Guest tools
+mkdir -p /opt/orbstack-guest/bin /opt/orbstack-guest/bin-hiprio /opt/orbstack-guest/run /opt/orbstack-guest/data
+ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/mac
+# default cmd links
+for cmd in open; do
+    ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin-hiprio/\$cmd
+done
+for cmd in osascript code; do
+    ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/\$cmd
+done
+EOT
+
+# Scripts
+COPY rootfs/utils/vc /opt/vc
+COPY rootfs/utils/guest/etc /opt/orbstack-guest/etc
+COPY LICENSE /
+
+# Compiled binaries (in order of most likely to change)
+# switchroot, vsock nfs
+COPY --from=c-build /build/switchroot /build/vsocknfs /opt/vc/
+# vcontrol
+COPY --from=rust-build /out/vcontrol /opt/vc/
+# macctl
+COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/
+# scon
+COPY --from=go-build /out/scon /out/scon-agent /opt/vc/
+COPY --from=go-build /out/scon-forksftp /opt/orbstack-guest/
+
+LABEL type=$TYPE
+
+
+
+# Final images
+FROM debian AS packer
+RUN apt-get update && \
+    apt-get install -y btrfs-progs erofs-utils libarchive-tools qemu-utils fdisk
+RUN mkdir /images
+
+# rootfs
+FROM packer AS rootfs-pack
+COPY --from=rootfs / /rootfs
+ARG TYPE=release
+RUN <<EOT bash -eux
+comp_alg=lz4hc
+if [[ "$TYPE" == "debug" ]]; then
+    comp_alg=lz4
+fi
+mkfs.erofs /images/rootfs.img /rootfs -z \$comp_alg
+EOT
+
+
+
+FROM scratch AS images
+COPY --from=rootfs-pack /images /images

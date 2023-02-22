@@ -29,7 +29,7 @@ impl IntoResponse for Error {
             Some(HttpError::NotFound) => (StatusCode::NOT_FOUND, "not found"),
             Some(HttpError::BadRequest) => (StatusCode::BAD_REQUEST, "bad request"),
             _ => {
-                error!("Request failed: {}\n{:?}", msg_str, self.0.backtrace());
+                error!("Request failed: {}", msg_str);
                 (StatusCode::INTERNAL_SERVER_ERROR, msg_str.as_str())
             },
         };

@@ -1,5 +1,3 @@
-#![feature(backtrace)]
-
 use anyhow::anyhow;
 use axum::{
     routing::{get, post},

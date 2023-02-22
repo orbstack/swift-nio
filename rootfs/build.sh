@@ -25,124 +25,45 @@ if [[ "$ARCH" != "arm64" ]] && [[ "$ARCH" != "amd64" ]]; then
     exit 1
 fi
 
-# require root
-if [ "$(id -u)" != "0" ]; then
-    echo "This script must be run as root" 1>&2
-    exit 1
-fi
-
-HOME=/home/dragon
-
 cd "$(dirname "$0")"
 
-# build vcontrol
-pushd vcontrol
+# update killswitch - only in release, to avoid slow build
+if $IS_RELEASE; then
+    pushd ../scon
+    go generate ./killswitch
+    popd
+fi
+
+rm -fr out
+
+platform="linux/amd64"
 if [[ "$ARCH" == "arm64" ]]; then
-    cargo build --release --target aarch64-unknown-linux-musl
-else
-    cargo build --release --target x86_64-unknown-linux-musl
+    platform="linux/arm64"
 fi
-popd
 
-# build macctl
-pushd ../macvmgr
+# main build
+docker build --build-arg TYPE=$BTYPE --platform "$platform" -f Dockerfile --target images .. -t orb/images:$BTYPE
+# packer is always built for host arch
+docker build --build-arg TYPE=$BTYPE -f Dockerfile --target packer .. -t orb/packer:$BTYPE
+
+# extract images
+CID=$(docker create --platform "$platform" orb/images:$BTYPE true)
+trap "docker rm $CID" EXIT
+docker cp -q $CID:/images out
+
+# data and swap images
+docker run -i --rm --privileged -v $PWD/out:/out orb/packer:$BTYPE < make-preseed.sh
+
+copy_file() {
+	mkdir -p ../assets/$BTYPE/$ARCH
+	cp "$1" ../assets/$BTYPE/$ARCH/$2
+}
+
+copy_file out/rootfs.img rootfs.img
 if [[ "$ARCH" == "arm64" ]]; then
-    export GOARCH=arm64
+	copy_file ~/code/android/kvm/linux/out/arch/arm64/boot/Image kernel
 else
-    export GOARCH=amd64
+	copy_file ~/code/android/kvm/linux/out86/arch/x86/boot/bzImage kernel
 fi
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" ./cmd/macctl
-popd
-
-# build scon (requires cgo)
-if [[ "$ARCH" == "arm64" ]]; then
-    compile_rd=rd-compile
-else
-    compile_rd=rd-compile86
-fi
-# update killswitch
-pushd ../scon
-go generate ./killswitch
-popd
-# private-users to fix git ownership for -buildvcs stamping
-host_uid=$(id -u dragon)
-host_gid=$(id -g dragon)
-chown -R $host_uid:$host_gid $compile_rd/out || :
-systemd-nspawn \
-    --link-journal=no \
-    -D $compile_rd \
-    --private-users=$host_uid:65536 \
-    --bind-ro="$PWD/..:/src" \
-    /bin/sh -l -c "set -eux; mkdir -p /out && cd /src/scon && ./build-release.sh /out $BTYPE"
-
-rm -fr rd
-mkdir rd
-
-# Alpine rootfs
-if [[ "$ARCH" == "arm64" ]]; then
-    rootfs_tar=$HOME/Downloads/alpine-minirootfs-20221110-aarch64.tar.gz 
-else
-    rootfs_tar=$HOME/Downloads/alpine-minirootfs-20221110-x86_64.tar.gz
-fi
-tar -C rd --numeric-owner -xf $rootfs_tar
-# again for docker rootfs
-mkdir -p rd/opt/docker-rootfs
-tar -C rd/opt/docker-rootfs --numeric-owner -xf $rootfs_tar
-
-pushd rd
-cp ../build-inside.sh .
-cp ../build-inside-docker.sh opt/docker-rootfs/
-systemd-nspawn --link-journal=no -D . /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside.sh" && \
-    systemd-nspawn --link-journal=no -D opt/docker-rootfs /bin/sh -l -c "IS_RELEASE=$IS_RELEASE; source /build-inside-docker.sh"
-
-
-rm build-inside.sh
-rm opt/docker-rootfs/build-inside-docker.sh
-
-# init and other scripts
-OPT=opt/vc
-GUEST_OPT=opt/orbstack-guest
-cp -r ../utils/vc $OPT
-cp -r ../utils/guest/* $GUEST_OPT
-# legal
-cp ../../LICENSE .
-
-# ARCH DEPENDENT
-# preinit
-cp ../$compile_rd/switch_overlay_root $OPT
-# nfs vsock
-cp ../$compile_rd/add-nfsd-vsock $OPT
-# scon
-cp ../$compile_rd/out/{scon,scon-agent} $OPT
-cp ../$compile_rd/out/scon-forksftp $GUEST_OPT
-# macctl
-cp ../../macvmgr/macctl $GUEST_OPT/bin
-if [[ "$ARCH" == "arm64" ]]; then
-    # vcontrol server
-    cp ../vcontrol/target/aarch64-unknown-linux-musl/release/vcontrol $OPT
-else
-    # vcontrol server
-    cp ../vcontrol/target/x86_64-unknown-linux-musl/release/vcontrol $OPT
-fi
-
-
-# TODO generate
-if ! $IS_RELEASE; then
-    touch $OPT/is_debug
-
-    cp ../config/ssh_host_keys/* etc/ssh/
-    chmod -R 0600 etc/ssh/*key*
-fi
-
-# data volume
-popd
-
-rm -fr out/rd
-mv rd out/
-
-pushd out
-rm -fr data
-mkdir data
-mv rd/data/* data
-
-../pack-disk.sh "$@"
+copy_file out/data.img.tar data.img.tar
+copy_file out/swap.img.tar swap.img.tar
