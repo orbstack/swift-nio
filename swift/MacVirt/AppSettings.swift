@@ -14,9 +14,21 @@ struct AppSettings: View {
     }
 
     var body: some View {
-        GeneralSettingsView(updaterController: updaterController)
-            .padding()
-            .frame(width: 450)
-            .navigationTitle("Settings")
+        TabView {
+            GeneralSettingsView(updaterController: updaterController)
+                    .tabItem {
+                        Label("General", systemImage: "gear")
+                    }
+                    .tag(Tabs.general)
+
+            MachineSettingsView()
+                    .tabItem {
+                        Label("Machine", systemImage: "cpu")
+                    }
+                    .tag(Tabs.general)
+        }
+        .frame(width: 450, height: 150)
+        .padding(20)
+        .navigationTitle("Settings")
     }
 }

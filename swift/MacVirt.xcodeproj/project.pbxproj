@@ -14,6 +14,7 @@
 		B118B249BBD0B364D80B8CCD /* MachinesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */; };
 		B118B443D41B677A8C3EC6FB /* RPCExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF7EB971BAC66F27805D /* RPCExecutor.swift */; };
 		B118B5CADCA44C8A25695EFF /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE4D3578D923BDAE7C2C /* Updater.swift */; };
+		B118B7486AF77C3A98B10D0F /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B3757D7262C8D53133ED /* MachineSettingsView.swift */; };
 		B118B7A041A184E2575844C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */; };
 		B118B96A6A028887CFCE7574 /* FilesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB1AD712EA08896F1900 /* FilesRootView.swift */; };
 		B118B99876CACE427270E9DA /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */; };
@@ -127,6 +128,7 @@
 		B118B242268639C9B875CBC3 /* StateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StateWrapperView.swift; sourceTree = "<group>"; };
 		B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B118B34EBC61512D1B66D855 /* SwiftUIUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUIUtils.swift; sourceTree = "<group>"; };
+		B118B3757D7262C8D53133ED /* MachineSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineSettingsView.swift; sourceTree = "<group>"; };
 		B118B39D053F0586CEFDE474 /* OnboardingCreateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingCreateView.swift; sourceTree = "<group>"; };
 		B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		B118B4CBF28E57766F454C98 /* CommandsRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CommandsRootView.swift; sourceTree = "<group>"; };
@@ -293,6 +295,7 @@
 				B118B7E62611F603F60BF666 /* VmViewModel.swift */,
 				B118BB1AD712EA08896F1900 /* FilesRootView.swift */,
 				B118B7E4875DB989A26F46BA /* FileContainerItem.swift */,
+				B118B3757D7262C8D53133ED /* MachineSettingsView.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -519,6 +522,7 @@
 				B118BF2634CFC22342E565CF /* OnboardingCreateView.swift in Sources */,
 				B118B96A6A028887CFCE7574 /* FilesRootView.swift in Sources */,
 				B118BE19740FC7363C335980 /* FileContainerItem.swift in Sources */,
+				B118B7486AF77C3A98B10D0F /* MachineSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
