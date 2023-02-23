@@ -149,7 +149,7 @@ async fn main() {
                 .layer(Extension(Arc::new(Mutex::new(disk_manager))))
         );
 
-    let addr = SocketAddr::from(([172, 30, 30, 2], 103));
+    let addr = SocketAddr::from(([100, 115, 92, 2], 103));
     info!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
