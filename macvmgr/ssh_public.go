@@ -12,6 +12,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/mikesmitty/edkey"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -96,6 +97,16 @@ func setupPublicSSH() error {
 		return err
 	}
 
+	// generate key if necessary
+	_, err1 := os.Stat(conf.ExtraSshDir() + "/id_ed25519")
+	_, err2 := os.Stat(conf.ExtraSshDir() + "/id_ed25519.pub")
+	if errors.Is(err1, os.ErrNotExist) || errors.Is(err2, os.ErrNotExist) {
+		err = generatePublicSSHKey()
+		if err != nil {
+			return err
+		}
+	}
+
 	// add include if necessary
 	userConfigPath := conf.UserSshDir() + "/config"
 	sshConfig, err := os.ReadFile(userConfigPath)
@@ -110,18 +121,13 @@ func setupPublicSSH() error {
 		// prepend, or it doesn't work
 		sshConfig = append([]byte(sshConfigIncludeLine+"\n\n"), sshConfig...)
 		err = os.WriteFile(userConfigPath, sshConfig, 0644)
+		// ignore permission errors and warn in case user has nix home-manager for .ssh
 		if err != nil {
-			return err
-		}
-	}
-
-	// generate key if necessary
-	_, err1 := os.Stat(conf.ExtraSshDir() + "/id_ed25519")
-	_, err2 := os.Stat(conf.ExtraSshDir() + "/id_ed25519.pub")
-	if errors.Is(err1, os.ErrNotExist) || errors.Is(err2, os.ErrNotExist) {
-		err = generatePublicSSHKey()
-		if err != nil {
-			return err
+			if errors.Is(err, os.ErrPermission) {
+				logrus.WithError(err).Warn("failed to add include for SSH config snippet")
+			} else {
+				return err
+			}
 		}
 	}
 

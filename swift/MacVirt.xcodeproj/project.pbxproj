@@ -39,6 +39,7 @@
 		D81E7857299CC56800A1D8AC /* guihelper in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* guihelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E785C29A39BF300A1D8AC /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E785B29A39BF300A1D8AC /* Utils.swift */; };
+		D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
@@ -100,6 +101,7 @@
 			dstSubfolderSpec = 6;
 			files = (
 				D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */,
+				D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */,
 				D88F4EDD299A131B00419B5C /* docker-compose in Copy Docker xbin executables */,
 				D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */,
 			);
@@ -156,6 +158,7 @@
 		D81E785E29A4CEEF00A1D8AC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		D81E786429A7012900A1D8AC /* docker-buildx */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-buildx"; path = "build/bins/docker-buildx"; sourceTree = "<group>"; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -223,6 +226,7 @@
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
+				D81E786429A7012900A1D8AC /* docker-buildx */,
 				D81E7859299F059700A1D8AC /* sparkle-cli */,
 				D88F4ED9299A131B00419B5C /* docker */,
 				D88F4EDA299A131B00419B5C /* docker-compose */,

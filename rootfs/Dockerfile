@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Base image versions
+ARG HOST_ARCH=amd64
 FROM alpine:20230208 AS base
 FROM debian:sid-slim AS debian
 
@@ -232,13 +233,13 @@ LABEL type=$TYPE
 
 
 # Final images
-FROM debian AS packer
+FROM --platform=${HOST_ARCH} debian AS packer
 RUN apt-get update && \
     apt-get install -y btrfs-progs erofs-utils libarchive-tools qemu-utils fdisk
 RUN mkdir /images
 
 # rootfs
-FROM packer AS rootfs-pack
+FROM packer AS images
 COPY --from=rootfs / /rootfs
 ARG TYPE=release
 RUN <<EOT bash -eux
@@ -248,8 +249,3 @@ if [[ "$TYPE" == "debug" ]]; then
 fi
 mkfs.erofs /images/rootfs.img /rootfs -z \$comp_alg
 EOT
-
-
-
-FROM scratch AS images
-COPY --from=rootfs-pack /images /images

@@ -42,8 +42,8 @@ type PathInfo struct {
 
 var (
 	binCommands   = []string{"orbctl", "orb", "lnxctl", "lnx"}
-	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain"}
-	dockerPlugins = []string{"docker-compose"}
+	xbinCommands  = []string{"docker", "docker-buildx", "docker-compose", "docker-credential-osxkeychain"}
+	dockerPlugins = []string{"docker-buildx", "docker-compose"}
 	// consider: docker-buildx hub-tool docker-index
 )
 
@@ -568,6 +568,8 @@ func doMacSetup() (*SetupInfo, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// TODO: /usr/local/lib/docker/cli-plugins
 	}
 
 	// need to fix docker creds store?

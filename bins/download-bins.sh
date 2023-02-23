@@ -23,9 +23,9 @@ rm -rf docker
 mv docker_ docker
 
 # buildx
-# curl -LO https://github.com/docker/buildx/releases/download/v$BUILDX_VERSION/buildx-v$BUILDX_VERSION.darwin-$GO_ARCH
-# mv buildx-v$BUILDX_VERSION.darwin-$GO_ARCH docker-buildx
-# chmod +x docker-buildx
+curl -LO https://github.com/docker/buildx/releases/download/v$BUILDX_VERSION/buildx-v$BUILDX_VERSION.darwin-$GO_ARCH
+mv buildx-v$BUILDX_VERSION.darwin-$GO_ARCH docker-buildx
+chmod +x docker-buildx
 
 # compose
 curl -LO https://github.com/docker/compose/releases/download/v$COMPOSE_VERSION/docker-compose-darwin-$DOCKER_ARCH

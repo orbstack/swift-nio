@@ -41,13 +41,16 @@ if [[ "$ARCH" == "arm64" ]]; then
     platform="linux/arm64"
 fi
 
-# main build
-docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH \
+# detect host varch
+HOST_ARCH="amd64"
+if [[ "$(uname -m)" == "aarch64" ]] || [[ "$(uname -m)" == "arm64" ]]; then
+    HOST_ARCH="arm64"
+fi
+
+# build packer and images
+docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH --build-arg HOST_ARCH=$HOST_ARCH \
     --platform "$platform" \
     -f Dockerfile --target images .. -t orb/images:$BTYPE
-# packer is always built for host arch
-docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH \
-    -f Dockerfile --target packer .. -t orb/packer:$BTYPE
 
 # extract images
 CID=$(docker create --platform "$platform" orb/images:$BTYPE true)
@@ -55,7 +58,7 @@ trap "docker rm $CID" EXIT
 docker cp -q $CID:/images out
 
 # data and swap images
-docker run -i --rm --privileged -v $PWD/out:/out orb/packer:$BTYPE < make-preseed.sh
+docker run -i --rm --privileged -v $PWD/out:/out orb/images:$BTYPE < make-preseed.sh
 
 copy_file() {
 	mkdir -p ../assets/$BTYPE/$ARCH

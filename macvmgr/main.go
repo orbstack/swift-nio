@@ -369,9 +369,8 @@ func runVmManager() {
 		}
 		extractSparse(streamObfAssetFile("data.img.tar"))
 	}
-	if _, err := os.Stat(conf.SwapImage()); errors.Is(err, os.ErrNotExist) {
-		extractSparse(streamObfAssetFile("swap.img.tar"))
-	}
+	// always overwrite swap - doesn't need persistence
+	extractSparse(streamObfAssetFile("swap.img.tar"))
 
 	consoleMode := ConsoleLog
 	if useStdioConsole {
