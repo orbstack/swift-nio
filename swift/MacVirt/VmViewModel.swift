@@ -158,6 +158,9 @@ class VmViewModel: ObservableObject {
 
     // Docker
     @Published var dockerContainers: [DockerContainer]?
+    
+    // Setup
+    @Published private(set) var isSshConfigWritable = true
 
     private func updateState(_ state: VmState) {
         self.state = state
@@ -476,6 +479,15 @@ class VmViewModel: ObservableObject {
             try await scon.setDefaultContainer(record)
         } catch {
             self.error = VmError.defaultError(error: error)
+        }
+    }
+
+    @MainActor
+    func tryRefreshSshConfigWritable() async {
+        do {
+            isSshConfigWritable = try await vmgr.isSshConfigWritable()
+        } catch {
+            print("ssh config writable error: \(error)")
         }
     }
 

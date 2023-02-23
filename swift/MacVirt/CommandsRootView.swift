@@ -81,94 +81,95 @@ struct CommandsRootView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     CommandSection(systemImage: "info.circle.fill", title: "Get started") {
                         CommandBox(
-                            title: "Control machines: orbctl",
-                            desc: "Create, start, stop, delete, change default, and more. Explore the help for more commands.",
-                            command: "orbctl help"
+                                title: "Control machines: orbctl",
+                                desc: "Create, start, stop, delete, change default, and more. Explore the help for more commands.",
+                                command: "orbctl help"
                         )
 
                         CommandBox(
-                            title: "Short command: orb",
-                            desc: "Start a shell, run commands, or control machines.",
-                            command: "orb help"
+                                title: "Short command: orb",
+                                desc: "Start a shell, run commands, or control machines.",
+                                command: "orb help"
                         )
                     }
 
                     CommandSection(systemImage: "terminal.fill", title: "Command line", desc: "Environment variables and SSH agent are forwarded by default.") {
                         CommandBox(
-                            title: "Start a shell",
-                            desc: "Log in as the default user in the machine you used most recently.",
-                            command: "orb"
+                                title: "Start a shell",
+                                desc: "Log in as the default user in the machine you used most recently.",
+                                command: "orb"
                         )
 
                         CommandBox(
-                            title: "Start a shell as a specific user and machine",
-                            desc: "Use the same flags as “orbctl shell”.",
-                            command: "orb -m ubuntu -u root"
+                                title: "Start a shell as a specific user and machine",
+                                desc: "Use the same flags as “orbctl shell”.",
+                                command: "orb -m ubuntu -u root"
                         )
 
                         CommandBox(
-                            title: "Run a command",
-                            desc: "Prefix any command with “orb” to run it in a Linux machine.",
-                            command: "orb uname -a"
+                                title: "Run a command",
+                                desc: "Prefix any command with “orb” to run it in a Linux machine.",
+                                command: "orb uname -a"
                         )
 
                         CommandBox(
-                            title: "Run a command as a specific user and machine",
-                            desc: "The same flags can be used when prefixing a command with “orb”.",
-                            command: "orb -m ubuntu -u root uname -a"
+                                title: "Run a command as a specific user and machine",
+                                desc: "The same flags can be used when prefixing a command with “orb”.",
+                                command: "orb -m ubuntu -u root uname -a"
                         )
                     }
 
-                    CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code and JetBrains IDEs.") {
+                    let sshConfigMsg = vmModel.isSshConfigWritable ? "" : "\nSee “orbctl ssh” for instructions to add OrbStack to your SSH config."
+                    CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code and JetBrains IDEs.\(sshConfigMsg)") {
                         CommandBox(
-                            title: "Log in",
-                            desc: "Run a command or log in to the default machine.",
-                            command: "ssh orb"
+                                title: "Log in",
+                                desc: "Run a command or log in to the default machine.",
+                                command: "ssh orb"
                         )
 
                         CommandBox(
-                            title: "Specify machine and user",
-                            desc: "Run a command or log in as a specific user and machine.",
-                            command: "ssh root@ubuntu@orb"
+                                title: "Specify machine and user",
+                                desc: "Run a command or log in as a specific user and machine.",
+                                command: "ssh root@ubuntu@orb"
                         )
 
                         CommandBox(
-                            title: "Connection details for other apps",
-                            desc: "For apps that don’t use OpenSSH, you can use the following details.",
-                            command: """
-                                     Host: localhost
-                                     Port: 62222
-                                     User: default (or root@ubuntu)
-                                     Private key: ~/.orbstack/ssh/id_ed25519
-                                     """
+                                title: "Connection details for other apps",
+                                desc: "For apps that don’t use OpenSSH, you can use the following details.",
+                                command: """
+                                         Host: localhost
+                                         Port: 62222
+                                         User: default (or root@ubuntu)
+                                         Private key: ~/.orbstack/ssh/id_ed25519
+                                         """
                         )
                     }
-                    
+
                     CommandSection(systemImage: "macwindow", title: "macOS from Linux") {
                         CommandBox(
-                            title: "Start a Mac shell",
-                            desc: "Start a shell on macOS from within Linux.",
-                            command: "mac"
+                                title: "Start a Mac shell",
+                                desc: "Start a shell on macOS from within Linux.",
+                                command: "mac"
                         )
 
                         CommandBox(
-                            title: "Run a Mac command",
-                            desc: "Run a command on macOS from within Linux.",
-                            command: "mac uname -a"
+                                title: "Run a Mac command",
+                                desc: "Run a command on macOS from within Linux.",
+                                command: "mac uname -a"
                         )
                     }
-                    
+
                     CommandSection(systemImage: "folder.fill", title: "File transfer", desc: "You can also use the /Users and ~/Linux shared folders to transfer files.") {
                         CommandBox(
-                            title: "Copy files from Mac to Linux",
-                            desc: "Push from Mac to the default Linux machine's home folder.",
-                            command: "orb push example.txt"
+                                title: "Copy files from Mac to Linux",
+                                desc: "Push from Mac to the default Linux machine's home folder.",
+                                command: "orb push example.txt"
                         )
 
                         CommandBox(
-                            title: "Copy files from Linux to Mac",
-                            desc: "Pull from the default Linux machine's home folder to Mac.",
-                            command: "orb pull example.txt"
+                                title: "Copy files from Linux to Mac",
+                                desc: "Pull from the default Linux machine's home folder to Mac.",
+                                command: "orb pull example.txt"
                         )
                     }
 
@@ -176,9 +177,12 @@ struct CommandsRootView: View {
                 }
                 Spacer()
             }
-            .padding()
+                    .padding()
         }
         .navigationTitle("Commands")
+        .task {
+            await vmModel.tryRefreshSshConfigWritable()
+        }
     }
 }
 

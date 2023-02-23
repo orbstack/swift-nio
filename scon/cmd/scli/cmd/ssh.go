@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fatih/color"
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
@@ -40,6 +43,12 @@ Applications that don't use OpenSSH (e.g. IntelliJ IDEA) will need the following
 For example:
     ssh -p 62222 -i ~/.<HOST>/ssh/id_ed25519 default@localhost
 `, "<HOST>", appid.AppName, -1))
+
+		if !syssetup.IsSshConfigWritable() {
+			yellow := color.New(color.FgYellow)
+			yellow.Println("\nWarning: SSH config is not writable. Add the following to your SSH config:")
+			yellow.Println("    Include " + syssetup.MakeHomeRelative(conf.ExtraSshDir() + "/config"))
+		}
 
 		return nil
 	},

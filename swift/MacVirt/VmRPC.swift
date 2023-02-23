@@ -105,4 +105,8 @@ class VmService: RPCService {
     func listDockerContainers() async throws -> [DockerContainer] {
         try await invoke("ListDockerContainers")
     }
+
+    func isSshConfigWritable() async throws -> Bool {
+        try await invoke("IsSshConfigWritable")
+    }
 }

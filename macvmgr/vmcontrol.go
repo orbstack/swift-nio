@@ -16,6 +16,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
+	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/sirupsen/logrus"
@@ -119,6 +120,10 @@ func (s *VmControlServer) ListDockerContainers(ctx context.Context) ([]dockertyp
 	return containers, nil
 }
 
+func (h *VmControlServer) IsSshConfigWritable(ctx context.Context) (bool, error) {
+	return syssetup.IsSshConfigWritable(), nil
+}
+
 // func (s *VmControlServer) doPureGoSetup
 func (s *VmControlServer) onStart() error {
 	// if setup isn't done in 10 sec, it means we don't have a GUI (or it's broken)
@@ -196,6 +201,7 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 		"StartSetup":           handler.New(s.StartSetup),
 		"FinishSetup":          handler.New(s.FinishSetup),
 		"ListDockerContainers": handler.New(s.ListDockerContainers),
+		"IsSshConfigWritable":  handler.New(s.IsSshConfigWritable),
 	}, nil)
 
 	mux := http.NewServeMux()
