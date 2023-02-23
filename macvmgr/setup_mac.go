@@ -15,6 +15,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
+	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
 	"github.com/kdrag0n/macvirt/macvmgr/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -452,7 +453,7 @@ func doMacSetup() (*SetupInfo, error) {
 
 			// is it already there?
 			// no quote: need ~/ to stay intact
-			line := fmt.Sprintf(`source %s || :`, makeHomeRelative(initSnippetPath))
+			line := fmt.Sprintf(`source %s || :`, syssetup.MakeHomeRelative(initSnippetPath))
 			logrus.WithFields(logrus.Fields{
 				"shell": shellBase,
 				"file":  profilePath,
@@ -465,7 +466,7 @@ func doMacSetup() (*SetupInfo, error) {
 				if err != nil {
 					return nil, err
 				}
-				relProfilePath := makeHomeRelative(profilePath)
+				relProfilePath := syssetup.MakeHomeRelative(profilePath)
 				// not important enough to nag user if we can link to an existing path
 				if shellPathRequired {
 					alertProfileChangedPath = &relProfilePath

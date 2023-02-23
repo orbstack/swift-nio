@@ -11,6 +11,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
 	"github.com/mikesmitty/edkey"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -45,14 +46,10 @@ Host %s
   IdentityFile %s/id_ed25519
   ProxyCommand %s ssh-proxy-fdpass
   ProxyUseFdpass yes
-`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, makeHomeRelative(conf.ExtraSshDir()), getExePath(), appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, makeHomeRelative(conf.ExtraSshDir()), getExePath())
+`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, syssetup.MakeHomeRelative(conf.ExtraSshDir()), getExePath(), appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, syssetup.MakeHomeRelative(conf.ExtraSshDir()), getExePath())
 
-	sshConfigIncludeLine = fmt.Sprintf("Include %s/config", makeHomeRelative(conf.ExtraSshDir()))
+	sshConfigIncludeLine = fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
 )
-
-func makeHomeRelative(path string) string {
-	return strings.Replace(path, conf.HomeDir(), "~", 1)
-}
 
 func getExePath() string {
 	exe, err := os.Executable()
