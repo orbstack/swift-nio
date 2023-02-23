@@ -21,14 +21,15 @@ import (
 const (
 	ifBridge = "conbr0"
 
-	subnet4      = "172.30.31"
-	subnet4cidr  = subnet4 + ".0/24"
-	gatewayIP4   = subnet4 + ".1"
-	dockerIP4    = subnet4 + ".2"
+	subnet4     = "172.30.31"
+	subnet4cidr = subnet4 + ".0/24"
+	gatewayIP4  = subnet4 + ".1"
+	dockerIP4   = subnet4 + ".2"
 
 	subnet6     = "fc00:30:31:"
 	subnet6cidr = subnet6 + ":/64"
 	gatewayIP6  = subnet6 + ":1"
+	dockerIP6   = subnet6 + ":2"
 
 	txQueueLen = 5000
 

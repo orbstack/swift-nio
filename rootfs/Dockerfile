@@ -46,8 +46,7 @@ EOT
 # Build C - switchroot, vsocknfs
 FROM base AS c-build
 RUN apk add --no-cache alpine-sdk linux-headers
-COPY rootfs/utils/switchroot.c /build/switchroot.c
-COPY rootfs/utils/vsocknfs.c /build/vsocknfs.c
+COPY rootfs/utils/switchroot.c rootfs/utils/vsocknfs.c /build/
 RUN <<EOT sh -eux
 gcc -O2 -Wall -o /build/switchroot /build/switchroot.c
 gcc -O2 -Wall -o /build/vsocknfs /build/vsocknfs.c
@@ -98,6 +97,11 @@ mkdir /opt/orbstack-guest
 mkdir /var/lib/docker
 EOT
 
+# ipv6
+COPY rootfs/config/daemon.json /etc/docker/daemon.json
+# sets up ipv6 nat
+COPY rootfs/utils/docker-entrypoint.sh /
+
 
 
 ##########################################################################
@@ -137,13 +141,14 @@ touch /etc/network/interfaces
 EOT
 
 # configs
-COPY rootfs/config/inittab /etc/inittab
-COPY rootfs/config/fstab /etc/fstab
-COPY rootfs/config/hostname /etc/hostname
-COPY rootfs/config/hosts /etc/hosts
-COPY rootfs/config/resolv.conf /etc/resolv.conf
-COPY rootfs/config/sysctl.conf /etc/sysctl.conf
-COPY rootfs/config/rc.conf /etc/rc.conf
+COPY \
+    rootfs/config/inittab \
+    rootfs/config/fstab \
+    rootfs/config/hostname \
+    rootfs/config/resolv.conf \
+    rootfs/config/sysctl.conf \
+    rootfs/config/rc.conf \
+    /etc/
 COPY rootfs/config/ssh_host_keys /etc/ssh
 # NTP
 COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf

@@ -57,7 +57,7 @@ func (h *DockerHooks) Config(c *Container, set func(string, string)) (string, er
 	set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 
 	// dind does some setup and mounts
-	set("lxc.init.cmd", "/usr/local/bin/dind /usr/bin/docker-init -- dockerd --host=unix:///var/run/docker.sock --tls=false")
+	set("lxc.init.cmd", "/usr/local/bin/dind /usr/bin/docker-init -- /docker-entrypoint.sh")
 
 	// mounts
 	set("lxc.mount.entry", "none run tmpfs rw,nosuid,nodev,mode=755 0 0")
@@ -66,9 +66,10 @@ func (h *DockerHooks) Config(c *Container, set func(string, string)) (string, er
 
 	// configure network statically
 	set("lxc.net.0.flags", "up")
-	// ipv6 is auto-configured by SLAAC, so just set v4
 	set("lxc.net.0.ipv4.address", dockerIP4+"/24")
 	set("lxc.net.0.ipv4.gateway", gatewayIP4)
+	set("lxc.net.0.ipv6.address", dockerIP6+"/64")
+	set("lxc.net.0.ipv6.gateway", gatewayIP6)
 
 	return conf.C().DockerRootfs, nil
 }
