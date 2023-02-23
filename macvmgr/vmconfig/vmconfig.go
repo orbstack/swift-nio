@@ -100,10 +100,11 @@ func Update(cb func(*VmConfig)) error {
 
 func calcMemory() uint64 {
 	hostMem := mem.PhysicalMemory()
-	if hostMem > defaultMemoryLimit {
+	targetMem := hostMem / 3
+	if targetMem > defaultMemoryLimit {
 		return defaultMemoryLimit
 	}
-	return hostMem / 3
+	return targetMem
 }
 
 func Defaults() *VmConfig {
