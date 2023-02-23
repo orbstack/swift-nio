@@ -1,7 +1,7 @@
 package netconf
 
 const (
-	Subnet4      = "172.30.30"
+	Subnet4      = "100.115.92"
 	GatewayIP4   = Subnet4 + ".1"
 	GuestIP4     = Subnet4 + ".2"
 	ServicesIP4  = Subnet4 + ".200"

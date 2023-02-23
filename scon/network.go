@@ -21,7 +21,7 @@ import (
 const (
 	ifBridge = "conbr0"
 
-	subnet4     = "172.30.31"
+	subnet4     = "100.115.93"
 	subnet4cidr = subnet4 + ".0/24"
 	gatewayIP4  = subnet4 + ".1"
 	dockerIP4   = subnet4 + ".2"
