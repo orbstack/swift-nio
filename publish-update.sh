@@ -18,8 +18,9 @@ SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsr
 mkdir -p updates/{arm64,amd64}
 cp swift/out/arm64/*.dmg updates/arm64/ || :
 cp swift/out/amd64/*.dmg updates/amd64/ || :
-$SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ --critical-update-version '' --auto-prune-update-files updates/arm64
-$SPARKLE_BIN/generate_appcast --channel beta --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ --critical-update-version '' --auto-prune-update-files updates/amd64
+COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-files --full-release-notes-url 'https://docs.orbstack.dev/release-notes')
+$SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ updates/arm64
+$SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ updates/amd64
 
 # upload to cloudflare
 rclone sync updates r2:orbstack-updates
