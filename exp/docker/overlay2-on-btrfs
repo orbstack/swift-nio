@@ -1,0 +1,376 @@
+1. clean build
+2. small incremental changes
+
+~/code/projects/macvirt/rootfs main* ⇡
+❯ make
+[+] Building 107.8s (51/51) FINISHED
+ => [internal] load .dockerignore                                                                                         0.0s
+ => => transferring context: 104B                                                                                         0.0s
+ => [internal] load build definition from Dockerfile                                                                      0.0s
+ => => transferring dockerfile: 6.88kB                                                                                    0.0s
+ => resolve image config for docker.io/docker/dockerfile:1                                                                1.5s
+ => docker-image://docker.io/docker/dockerfile:1@sha256:39b85bbfa7536a5feceb7372a0817649ecb2724562a38360f4d6a7782a409b14  0.9s
+ => => resolve docker.io/docker/dockerfile:1@sha256:39b85bbfa7536a5feceb7372a0817649ecb2724562a38360f4d6a7782a409b14      0.0s
+ => => sha256:39b85bbfa7536a5feceb7372a0817649ecb2724562a38360f4d6a7782a409b14 8.40kB / 8.40kB                            0.0s
+ => => sha256:7f44e51970d0422c2cbff3b20b6b5ef861f6244c396a06e1a96f7aa4fa83a4e6 482B / 482B                                0.0s
+ => => sha256:a28edb2041b8f23c38382d8be273f0239f51ff1f510f98bccc8d0e7f42249e97 2.90kB / 2.90kB                            0.0s
+ => => sha256:9d0cd65540a143ce38aa0be7c5e9efeed30d3580d03667f107cd76354f2bee65 10.82MB / 10.82MB                          0.8s
+ => => extracting sha256:9d0cd65540a143ce38aa0be7c5e9efeed30d3580d03667f107cd76354f2bee65                                 0.1s
+ => [internal] load metadata for docker.io/library/debian:sid-slim                                                        1.7s
+ => [internal] load metadata for docker.io/library/alpine:20230208                                                        1.6s
+ => [base 1/1] FROM docker.io/library/alpine:20230208@sha256:5bd9939b4140caa8c716499e53438053b4e1aa872a170f4399ec71c00e2  0.7s
+ => => resolve docker.io/library/alpine:20230208@sha256:5bd9939b4140caa8c716499e53438053b4e1aa872a170f4399ec71c00e23b835  0.0s
+ => => sha256:71471b3a534832b66fced4e4170f4e1de5762df46f95b974f10f61d530cbb4d4 1.49kB / 1.49kB                            0.0s
+ => => sha256:04d372b0be338a5fb23790d41ceea0572ad8e294176a42a755fc5839302ab799 3.27MB / 3.27MB                            0.4s
+ => => sha256:5bd9939b4140caa8c716499e53438053b4e1aa872a170f4399ec71c00e23b835 1.85kB / 1.85kB                            0.0s
+ => => sha256:a3f76a0741171f1cdd97371fa0d239bb46aa1c8985e8487380a2282311deb3c9 528B / 528B                                0.0s
+ => => extracting sha256:04d372b0be338a5fb23790d41ceea0572ad8e294176a42a755fc5839302ab799                                 0.1s
+ => [debian 1/1] FROM docker.io/library/debian:sid-slim@sha256:1858349247b8ed947032597dc520f1b0f6de7debed5549b16e8cd6278  2.3s
+ => => resolve docker.io/library/debian:sid-slim@sha256:1858349247b8ed947032597dc520f1b0f6de7debed5549b16e8cd627857edc1a  0.0s
+ => => sha256:ee88404a66883b2683eae4ce459fb5ace02424d9aa4bdea2e74f2277e16a276a 1.48kB / 1.48kB                            0.0s
+ => => sha256:48c0f7d4efbf4c174c31bb067ddc62bd2583d6e2c67290736221fc8c2b4d5a70 29.11MB / 29.11MB                          1.1s
+ => => sha256:1858349247b8ed947032597dc520f1b0f6de7debed5549b16e8cd627857edc1a 1.85kB / 1.85kB                            0.0s
+ => => sha256:e589fedfe8ffc9ec09811b26e8217dd12612e376e235c1ff971b68da9c86e963 529B / 529B                                0.0s
+ => => extracting sha256:48c0f7d4efbf4c174c31bb067ddc62bd2583d6e2c67290736221fc8c2b4d5a70                                 1.0s
+ => [internal] load build context                                                                                         4.3s
+ => => transferring context: 981.33MB                                                                                     4.2s
+ => [rootfs  1/17] RUN apk add --no-cache     socat openrc bash libstdc++ dash chrony eudev     sfdisk nfs-utils btrfs-p  8.5s
+ => [go-build 1/6] RUN apk add --no-cache go alpine-sdk lxc-dev bash                                                     14.6s
+ => [docker 1/7] RUN apk add --no-cache         docker-engine   btrfs-progs   e2fsprogs   e2fsprogs-extra   ip6tables     6.3s
+ => [c-build 1/3] RUN apk add --no-cache alpine-sdk linux-headers                                                         9.9s
+ => [rust-build 1/3] RUN apk add --no-cache cargo                                                                        20.4s
+ => [packer 1/2] RUN apt-get update &&     apt-get install -y btrfs-progs erofs-utils libarchive-tools qemu-utils fdisk  26.9s
+ => [docker 2/7] RUN <<EOT (wget -O /usr/local/bin/dind https://raw.githubusercontent.com/moby/moby/b54af02b51b0dfe2e286  0.9s
+ => [docker 3/7] COPY rootfs/config/resolv.conf /etc/resolv.conf                                                          0.0s
+ => [docker 4/7] COPY rootfs/config/hosts.docker /etc/hosts                                                               0.1s
+ => [docker 5/7] RUN <<EOT sh -eux                                                                                        0.9s
+ => [docker 6/7] COPY rootfs/config/daemon.json /etc/docker/daemon.json                                                   0.1s
+ => [docker 7/7] COPY rootfs/utils/docker-entrypoint.sh /                                                                 0.1s
+ => [rootfs  2/17] RUN <<EOT sh -eux                                                                                     11.4s
+ => [c-build 2/3] COPY rootfs/utils/switchroot.c rootfs/utils/vsocknfs.c /build/                                          0.2s
+ => [c-build 3/3] RUN <<EOT sh -eux                                                                                       0.9s
+ => [go-build 2/6] COPY vendor /build/vendor                                                                              0.1s
+ => [go-build 3/6] COPY scon /build/scon                                                                                  0.5s
+ => [go-build 4/6] COPY macvmgr /build/macvmgr                                                                            0.1s
+ => [go-build 5/6] RUN --mount=type=cache,target=/root/.cache/go-build     --mount=type=cache,target=/root/go/pkg <<EOT   5.9s
+ => [rootfs  3/17] COPY --from=docker / /opt/docker-rootfs                                                                0.3s
+ => [rootfs  4/17] RUN <<EOT sh -eux                                                                                      1.3s
+ => [rust-build 2/3] COPY vcontrol /build/vcontrol                                                                        0.3s
+ => [rust-build 3/3] RUN --mount=type=cache,target=/root/.cargo/registry     --mount=type=cache,target=/build/vcontrol/  76.0s
+ => [go-build 6/6] RUN --mount=type=cache,target=/root/.cache/go-build     --mount=type=cache,target=/root/go/pkg <<EOT   6.8s
+ => [rootfs  5/17] COPY     rootfs/config/inittab     rootfs/config/fstab     rootfs/config/hostname     rootfs/config/r  0.0s
+ => [rootfs  6/17] COPY rootfs/config/ssh_host_keys /etc/ssh                                                              0.0s
+ => [rootfs  7/17] COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf                                                 0.0s
+ => [rootfs  8/17] RUN <<EOT sh -eux                                                                                      1.0s
+ => [rootfs  9/17] RUN <<EOT sh -eux                                                                                      1.1s
+ => [rootfs 10/17] COPY rootfs/utils/orb /opt/orb                                                                         0.1s
+ => [rootfs 11/17] COPY rootfs/utils/guest/etc /opt/orbstack-guest/etc                                                    0.1s
+ => [rootfs 12/17] COPY LICENSE /                                                                                         0.2s
+ => [rootfs 13/17] COPY --from=c-build /build/switchroot /build/vsocknfs /opt/orb/                                        0.4s
+ => [packer 2/2] RUN mkdir /images                                                                                        0.7s
+ => [rootfs 14/17] COPY --from=rust-build /out/vcontrol /opt/orb/                                                         0.0s
+ => [rootfs 15/17] COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/                                              0.0s
+ => [rootfs 16/17] COPY --from=go-build /out/scon /out/scon-agent /opt/orb/                                               0.0s
+ => [rootfs 17/17] COPY --from=go-build /out/scon-forksftp /opt/orbstack-guest/                                           0.0s
+ => [pack-images 1/2] COPY --from=rootfs / /rootfs                                                                        0.6s
+ => [pack-images 2/2] RUN <<EOT bash -eux                                                                                 4.0s
+ => [images 1/1] COPY --from=pack-images /images /images                                                                  0.0s
+ => exporting to image                                                                                                    0.6s
+ => => exporting layers                                                                                                   0.6s
+ => => writing image sha256:636c771a13312e1d45a2c226255e4f5196e3c4122ad2687c5fc128dd3c2de25c                              0.0s
+ => => naming to docker.io/orb/images:debug                                                                               0.0s
++ cd /tmp
++ qemu-img create -f qcow2 data.qcow2 8T
+Formatting 'data.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=8796093022208 lazy_refcounts=off refcount_bits=16
++ qemu-nbd -c /dev/nbd0 data.qcow2
++ mknod /dev/nbd0p1 b 43 1
++ mknod /dev/nbd0p2 b 43 2
++ sfdisk /dev/nbd0
+Checking that no-one is using this disk right now ... OK
+
+Disk /dev/nbd0: 8 TiB, 8796093022208 bytes, 17179869184 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+
+>>> Script header accepted.
+>>> Created a new GPT disklabel (GUID: 37D38A14-CD22-534A-8407-3053903F5596).
+/dev/nbd0p1: Created a new partition 1 of type 'Linux filesystem' and of size 1 GiB.
+/dev/nbd0p2: Done.
+
+New situation:
+Disklabel type: gpt
+Disk identifier: 37D38A14-CD22-534A-8407-3053903F5596
+
+Device      Start     End Sectors Size Type
+/dev/nbd0p1  2048 2099199 2097152   1G Linux filesystem
+
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
++ trap 'qemu-nbd -d /dev/nbd0 || :' EXIT
++ mkfs.btrfs -L user-data-fs -m single -R quota,free-space-tree /dev/nbd0p1
+btrfs-progs v6.1.3
+See http://btrfs.wiki.kernel.org for more information.
+
+Performing full device TRIM /dev/nbd0p1 (1.00GiB) ...
+NOTE: several default settings have changed in version 5.15, please make sure
+      this does not affect your deployments:
+      - DUP for metadata (-m dup)
+      - enabled no-holes (-O no-holes)
+      - enabled free-space-tree (-R free-space-tree)
+
+Label:              user-data-fs
+UUID:               19ffaca9-cf1b-4508-9941-859b5aea014f
+Node size:          16384
+Sector size:        4096
+Filesystem size:    1.00GiB
+Block group profiles:
+  Data:             single            8.00MiB
+  Metadata:         single            8.00MiB
+  System:           single            4.00MiB
+SSD detected:       yes
+Zoned device:       no
+Incompat features:  extref, skinny-metadata, no-holes
+Runtime features:   quota, free-space-tree
+Checksum:           crc32c
+Number of devices:  1
+Devices:
+   ID        SIZE  PATH
+    1     1.00GiB  /dev/nbd0p1
+
++ mount /dev/nbd0p1 /mnt
++ echo 1
++ umount /mnt
++ qemu-nbd -d /dev/nbd0
+/dev/nbd0 disconnected
++ rm -f swap.qcow2
++ qemu-img create -f qcow2 swap.qcow2 10G
+Formatting 'swap.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=10737418240 lazy_refcounts=off refcount_bits=16
++ qemu-nbd -c /dev/nbd0 swap.qcow2
++ sfdisk /dev/nbd0
+Checking that no-one is using this disk right now ... OK
+
+Disk /dev/nbd0: 10 GiB, 10737418240 bytes, 20971520 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+
+>>> Script header accepted.
+>>> Created a new GPT disklabel (GUID: 6D6D22DB-E0DE-294E-A03B-EBD72A6BBBFF).
+/dev/nbd0p1: Created a new partition 1 of type 'Linux filesystem' and of size 4 GiB.
+/dev/nbd0p2: Created a new partition 2 of type 'Linux filesystem' and of size 4 GiB.
+/dev/nbd0p3: Done.
+
+New situation:
+Disklabel type: gpt
+Disk identifier: 6D6D22DB-E0DE-294E-A03B-EBD72A6BBBFF
+
+Device        Start      End Sectors Size Type
+/dev/nbd0p1    2048  8390655 8388608   4G Linux filesystem
+/dev/nbd0p2 8390656 16779263 8388608   4G Linux filesystem
+
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
++ mkswap /dev/nbd0p2
+mkswap: /dev/nbd0p2: insecure permissions 0644, fix with: chmod 0660 /dev/nbd0p2
+Setting up swapspace version 1, size = 4 GiB (4294963200 bytes)
+no label, UUID=34163a32-bbd7-4480-9759-c32e6184f4f5
++ qemu-nbd -d /dev/nbd0
+/dev/nbd0 disconnected
++ qemu-img convert data.qcow2 data.img
++ qemu-img convert swap.qcow2 swap.img
++ rm -f data.qcow2 swap.qcow2
++ rm -f data.img.tar swap.img.tar
++ bsdtar -cf data.img.tar data.img
++ bsdtar -cf swap.img.tar swap.img
++ rm -f data.img swap.img
++ cp -f data.img.tar swap.img.tar /out
++ qemu-nbd -d /dev/nbd0
+/dev/nbd0 disconnected
+95674e663aef985b3ad233d12e488dcdb3f4cd6cd2d3716c51a2ada837781c71
+
+~/code/projects/macvirt/rootfs main* ⇡ 1m 52s
+❯
+
+~/code/projects/macvirt/rootfs main* ⇡
+❯
+
+~/code/projects/macvirt/rootfs main* ⇡
+❯ make
+[+] Building 10.7s (51/51) FINISHED
+ => [internal] load build definition from Dockerfile                                                                      0.0s
+ => => transferring dockerfile: 6.88kB                                                                                    0.0s
+ => [internal] load .dockerignore                                                                                         0.0s
+ => => transferring context: 104B                                                                                         0.0s
+ => resolve image config for docker.io/docker/dockerfile:1                                                                0.4s
+ => CACHED docker-image://docker.io/docker/dockerfile:1@sha256:39b85bbfa7536a5feceb7372a0817649ecb2724562a38360f4d6a7782  0.0s
+ => [internal] load metadata for docker.io/library/alpine:20230208                                                        0.4s
+ => [internal] load metadata for docker.io/library/debian:sid-slim                                                        0.4s
+ => [internal] load build context                                                                                         0.0s
+ => => transferring context: 167.43kB                                                                                     0.0s
+ => [debian 1/1] FROM docker.io/library/debian:sid-slim@sha256:1858349247b8ed947032597dc520f1b0f6de7debed5549b16e8cd6278  0.0s
+ => [base 1/1] FROM docker.io/library/alpine:20230208@sha256:5bd9939b4140caa8c716499e53438053b4e1aa872a170f4399ec71c00e2  0.0s
+ => CACHED [docker 1/7] RUN apk add --no-cache         docker-engine   btrfs-progs   e2fsprogs   e2fsprogs-extra   ip6ta  0.0s
+ => CACHED [docker 2/7] RUN <<EOT (wget -O /usr/local/bin/dind https://raw.githubusercontent.com/moby/moby/b54af02b51b0d  0.0s
+ => CACHED [docker 3/7] COPY rootfs/config/resolv.conf /etc/resolv.conf                                                   0.0s
+ => CACHED [docker 4/7] COPY rootfs/config/hosts.docker /etc/hosts                                                        0.0s
+ => [docker 5/7] RUN <<EOT sh -eux                                                                                        0.5s
+ => CACHED [go-build 1/6] RUN apk add --no-cache go alpine-sdk lxc-dev bash                                               0.0s
+ => CACHED [go-build 2/6] COPY vendor /build/vendor                                                                       0.0s
+ => CACHED [go-build 3/6] COPY scon /build/scon                                                                           0.0s
+ => [go-build 4/6] COPY macvmgr /build/macvmgr                                                                            0.0s
+ => [go-build 5/6] RUN --mount=type=cache,target=/root/.cache/go-build     --mount=type=cache,target=/root/go/pkg <<EOT   0.7s
+ => [docker 6/7] COPY rootfs/config/daemon.json /etc/docker/daemon.json                                                   0.0s
+ => [docker 7/7] COPY rootfs/utils/docker-entrypoint.sh /                                                                 0.0s
+ => [go-build 6/6] RUN --mount=type=cache,target=/root/.cache/go-build     --mount=type=cache,target=/root/go/pkg <<EOT   1.8s
+ => CACHED [rootfs  1/17] RUN apk add --no-cache     socat openrc bash libstdc++ dash chrony eudev     sfdisk nfs-utils   0.0s
+ => CACHED [rootfs  2/17] RUN <<EOT sh -eux                                                                               0.0s
+ => CACHED [c-build 1/3] RUN apk add --no-cache alpine-sdk linux-headers                                                  0.0s
+ => CACHED [c-build 2/3] COPY rootfs/utils/switchroot.c rootfs/utils/vsocknfs.c /build/                                   0.0s
+ => CACHED [c-build 3/3] RUN <<EOT sh -eux                                                                                0.0s
+ => [rootfs  3/17] COPY --from=docker / /opt/docker-rootfs                                                                0.1s
+ => CACHED [rust-build 1/3] RUN apk add --no-cache cargo                                                                  0.0s
+ => CACHED [rust-build 2/3] COPY vcontrol /build/vcontrol                                                                 0.0s
+ => CACHED [rust-build 3/3] RUN --mount=type=cache,target=/root/.cargo/registry     --mount=type=cache,target=/build/vco  0.0s
+ => [rootfs  4/17] RUN <<EOT sh -eux                                                                                      1.0s
+ => [rootfs  5/17] COPY     rootfs/config/inittab     rootfs/config/fstab     rootfs/config/hostname     rootfs/config/r  0.0s
+ => [rootfs  6/17] COPY rootfs/config/ssh_host_keys /etc/ssh                                                              0.0s
+ => [rootfs  7/17] COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf                                                 0.0s
+ => [rootfs  8/17] RUN <<EOT sh -eux                                                                                      0.9s
+ => [rootfs  9/17] RUN <<EOT sh -eux                                                                                      0.7s
+ => [rootfs 10/17] COPY rootfs/utils/orb /opt/orb                                                                         0.0s
+ => [rootfs 11/17] COPY rootfs/utils/guest/etc /opt/orbstack-guest/etc                                                    0.0s
+ => [rootfs 12/17] COPY LICENSE /                                                                                         0.0s
+ => [rootfs 13/17] COPY --from=c-build /build/switchroot /build/vsocknfs /opt/orb/                                        0.0s
+ => [rootfs 14/17] COPY --from=rust-build /out/vcontrol /opt/orb/                                                         0.0s
+ => [rootfs 15/17] COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/                                              0.0s
+ => [rootfs 16/17] COPY --from=go-build /out/scon /out/scon-agent /opt/orb/                                               0.1s
+ => [rootfs 17/17] COPY --from=go-build /out/scon-forksftp /opt/orbstack-guest/                                           0.0s
+ => CACHED [packer 1/2] RUN apt-get update &&     apt-get install -y btrfs-progs erofs-utils libarchive-tools qemu-utils  0.0s
+ => CACHED [packer 2/2] RUN mkdir /images                                                                                 0.0s
+ => [pack-images 1/2] COPY --from=rootfs / /rootfs                                                                        0.6s
+ => [pack-images 2/2] RUN <<EOT bash -eux                                                                                 3.5s
+ => [images 1/1] COPY --from=pack-images /images /images                                                                  0.0s
+ => exporting to image                                                                                                    0.7s
+ => => exporting layers                                                                                                   0.7s
+ => => writing image sha256:27f4a2f106338a21f6b61af1bd1b80e5e40f0292dedbc8a32ba88f9934fed237                              0.0s
+ => => naming to docker.io/orb/images:debug                                                                               0.0s
++ cd /tmp
++ qemu-img create -f qcow2 data.qcow2 8T
+Formatting 'data.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=8796093022208 lazy_refcounts=off refcount_bits=16
++ qemu-nbd -c /dev/nbd0 data.qcow2
++ mknod /dev/nbd0p1 b 43 1
+mknod: /dev/nbd0p1: File exists
++ :
++ mknod /dev/nbd0p2 b 43 2
+mknod: /dev/nbd0p2: File exists
++ :
++ sfdisk /dev/nbd0
+Checking that no-one is using this disk right now ... OK
+
+Disk /dev/nbd0: 8 TiB, 8796093022208 bytes, 17179869184 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+
+>>> Script header accepted.
+>>> Created a new GPT disklabel (GUID: A77FA3A5-6189-304F-835D-E68B204B84EF).
+/dev/nbd0p1: Created a new partition 1 of type 'Linux filesystem' and of size 1 GiB.
+/dev/nbd0p2: Done.
+
+New situation:
+Disklabel type: gpt
+Disk identifier: A77FA3A5-6189-304F-835D-E68B204B84EF
+
+Device      Start     End Sectors Size Type
+/dev/nbd0p1  2048 2099199 2097152   1G Linux filesystem
+
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
++ trap 'qemu-nbd -d /dev/nbd0 || :' EXIT
++ mkfs.btrfs -L user-data-fs -m single -R quota,free-space-tree /dev/nbd0p1
+btrfs-progs v6.1.3
+See http://btrfs.wiki.kernel.org for more information.
+
+Performing full device TRIM /dev/nbd0p1 (1.00GiB) ...
+NOTE: several default settings have changed in version 5.15, please make sure
+      this does not affect your deployments:
+      - DUP for metadata (-m dup)
+      - enabled no-holes (-O no-holes)
+      - enabled free-space-tree (-R free-space-tree)
+
+Label:              user-data-fs
+UUID:               83865bb7-4f84-43fe-9767-2f8d0f7a2f9e
+Node size:          16384
+Sector size:        4096
+Filesystem size:    1.00GiB
+Block group profiles:
+  Data:             single            8.00MiB
+  Metadata:         single            8.00MiB
+  System:           single            4.00MiB
+SSD detected:       yes
+Zoned device:       no
+Incompat features:  extref, skinny-metadata, no-holes
+Runtime features:   quota, free-space-tree
+Checksum:           crc32c
+Number of devices:  1
+Devices:
+   ID        SIZE  PATH
+    1     1.00GiB  /dev/nbd0p1
+
++ mount /dev/nbd0p1 /mnt
++ echo 1
++ umount /mnt
++ qemu-nbd -d /dev/nbd0
+/dev/nbd0 disconnected
++ rm -f swap.qcow2
++ qemu-img create -f qcow2 swap.qcow2 10G
+Formatting 'swap.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=10737418240 lazy_refcounts=off refcount_bits=16
++ qemu-nbd -c /dev/nbd0 swap.qcow2
++ sfdisk /dev/nbd0
+Checking that no-one is using this disk right now ... OK
+
+Disk /dev/nbd0: 10 GiB, 10737418240 bytes, 20971520 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+
+>>> Script header accepted.
+>>> Created a new GPT disklabel (GUID: E36CDB65-1D31-2F48-A079-58056A7F76B5).
+/dev/nbd0p1: Created a new partition 1 of type 'Linux filesystem' and of size 4 GiB.
+/dev/nbd0p2: Created a new partition 2 of type 'Linux filesystem' and of size 4 GiB.
+/dev/nbd0p3: Done.
+
+New situation:
+Disklabel type: gpt
+Disk identifier: E36CDB65-1D31-2F48-A079-58056A7F76B5
+
+Device        Start      End Sectors Size Type
+/dev/nbd0p1    2048  8390655 8388608   4G Linux filesystem
+/dev/nbd0p2 8390656 16779263 8388608   4G Linux filesystem
+
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
++ mkswap /dev/nbd0p2
+Setting up swapspace version 1, size = 4 GiB (4294963200 bytes)
+no label, UUID=2e2d13c1-1079-4f67-88c1-36fccecf122e
++ qemu-nbd -d /dev/nbd0
+/dev/nbd0 disconnected
++ qemu-img convert data.qcow2 data.img
++ qemu-img convert swap.qcow2 swap.img
++ rm -f data.qcow2 swap.qcow2
++ rm -f data.img.tar swap.img.tar
++ bsdtar -cf data.img.tar data.img
++ bsdtar -cf swap.img.tar swap.img
++ rm -f data.img swap.img
++ cp -f data.img.tar swap.img.tar /out
++ qemu-nbd -d /dev/nbd0
+/dev/nbd0 disconnected
+98a2a1de95f0e878160726a9c6c41d586b938cf6ad82142ae89e32022056a03f
+
+~/code/projects/macvirt/rootfs main* ⇡ 14s
+❯
