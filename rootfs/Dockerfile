@@ -244,7 +244,7 @@ RUN apt-get update && \
 RUN mkdir /images
 
 # rootfs
-FROM packer AS images
+FROM packer AS pack-images
 COPY --from=rootfs / /rootfs
 ARG TYPE=release
 RUN <<EOT bash -eux
@@ -254,3 +254,7 @@ if [[ "$TYPE" == "debug" ]]; then
 fi
 mkfs.erofs /images/rootfs.img /rootfs -z \$comp_alg
 EOT
+
+# speed up exporting images by skipping /rootfs
+FROM packer as images
+COPY --from=pack-images /images /images
