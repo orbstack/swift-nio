@@ -240,7 +240,7 @@ LABEL type=$TYPE
 # Final images
 FROM --platform=${HOST_ARCH} debian AS packer
 RUN apt-get update && \
-    apt-get install -y btrfs-progs erofs-utils libarchive-tools qemu-utils fdisk
+    apt-get install -y btrfs-progs erofs-utils libarchive-tools fdisk
 RUN mkdir /images
 
 # rootfs
