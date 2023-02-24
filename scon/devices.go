@@ -54,10 +54,16 @@ func (m *ConManager) handleDeviceEvent(event fsnotify.Event) {
 	if MatchesExtraDevice(nodeName) {
 		if event.Op&fsnotify.Create != 0 {
 			logrus.WithField("path", event.Name).Debug("extra device created")
-			m.addDeviceNodeAll(event.Name, event.Name)
+			err := m.addDeviceNodeAll(event.Name, event.Name)
+			if err != nil {
+				logrus.WithError(err).Error("failed to add extra device")
+			}
 		} else if event.Op&fsnotify.Remove != 0 {
 			logrus.WithField("path", event.Name).Debug("extra device removed")
-			m.removeDeviceNodeAll(event.Name, event.Name)
+			err := m.removeDeviceNodeAll(event.Name, event.Name)
+			if err != nil {
+				logrus.WithError(err).Error("failed to remove extra device")
+			}
 		}
 	}
 }
