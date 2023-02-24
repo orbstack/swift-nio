@@ -62,6 +62,9 @@ docker run -i --rm --privileged --platform "$platform" -v $PWD/out:/out -v /dev:
 
 copy_file() {
 	mkdir -p ../assets/$BTYPE/$ARCH
+    # delete and swap file to avoid overwrite
+    # overwrite breaks running VM because rootfs.img changes behind its back
+    rm -f ../assets/$BTYPE/$ARCH/$2
 	cp "$1" ../assets/$BTYPE/$ARCH/$2
 }
 
