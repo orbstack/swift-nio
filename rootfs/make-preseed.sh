@@ -14,6 +14,7 @@ sfdisk /dev/loop0 <<EOF
 label: gpt
 size=1G, type=L, uuid=37d45f5c-49d5-47b4-9a75-fdb70418baf6
 EOF
+sleep 0.1 # wait for inotify
 mkfs.btrfs -L user-data-fs -m single -R quota,free-space-tree /dev/loop0p1
 
 # copy preseed data
@@ -33,11 +34,15 @@ label: gpt
 size=4G, type=L, uuid=e071c0ef-c282-439a-a621-8fbd329367dc
 size=4G, type=L, uuid=95c2fe16-bb32-478c-adda-16f43d22cffd
 EOF
+sleep 0.1 # wait for inotify
 # p1 = zram writeback 1
 # p2 = emergency swap
-sleep 10
 mkswap /dev/loop0p2
 losetup -d /dev/loop0
+
+# zeros
+fallocate -d data.img
+fallocate -d swap.img
 
 # sparse tars
 bsdtar -cf data.img.tar data.img
