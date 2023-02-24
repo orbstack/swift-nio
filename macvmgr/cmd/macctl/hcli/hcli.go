@@ -4,15 +4,16 @@ import (
 	"net"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/macvmgr/syncx"
 	"github.com/kdrag0n/macvirt/scon/hclient"
 )
 
 var (
-	cachedClient *hclient.Client
+	onceClient syncx.Once[*hclient.Client]
 )
 
 func Client() *hclient.Client {
-	if cachedClient == nil {
+	return onceClient.Do(func() *hclient.Client {
 		conn, err := net.Dial("unix", mounts.HcontrolSocket)
 		if err != nil {
 			panic(err)
@@ -21,8 +22,6 @@ func Client() *hclient.Client {
 		if err != nil {
 			panic(err)
 		}
-		cachedClient = client
-	}
-
-	return cachedClient
+		return client
+	})
 }

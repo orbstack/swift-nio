@@ -1,21 +1,21 @@
 package sjwt
 
-import "time"
+import (
+	"time"
+
+	"github.com/kdrag0n/macvirt/macvmgr/syncx"
+)
 
 const (
 	clockSyncInterval = 12 * time.Hour
 )
 
 var (
-	cachedClockSource ClockSource
+	onceClockSource syncx.Once[ClockSource]
 )
 
 func currentClock() ClockSource {
-	if cachedClockSource == nil {
-		cachedClockSource = newSyncedClock()
-	}
-
-	return cachedClockSource
+	return onceClockSource.Do(newSyncedClock)
 }
 
 type ClockSource interface {

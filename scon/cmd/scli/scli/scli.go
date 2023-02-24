@@ -1,12 +1,13 @@
 package scli
 
 import (
+	"github.com/kdrag0n/macvirt/macvmgr/syncx"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/scon/sclient"
 )
 
 var (
-	cachedClient *sclient.SconClient
+	onceClient syncx.Once[*sclient.SconClient]
 )
 
 func check(err error) {
@@ -16,18 +17,15 @@ func check(err error) {
 }
 
 func Client() *sclient.SconClient {
-	if cachedClient != nil {
-		return cachedClient
-	}
+	return onceClient.Do(func() *sclient.SconClient {
+		if Conf().ControlVM {
+			err := vmclient.EnsureSconVM()
+			check(err)
+		}
 
-	if Conf().ControlVM {
-		err := vmclient.EnsureSconVM()
+		client, err := sclient.New(Conf().RpcNetwork, Conf().RpcAddr)
 		check(err)
-	}
 
-	client, err := sclient.New(Conf().RpcNetwork, Conf().RpcAddr)
-	check(err)
-
-	cachedClient = client
-	return client
+		return client
+	})
 }

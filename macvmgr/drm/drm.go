@@ -16,6 +16,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/updates"
+	"github.com/kdrag0n/macvirt/macvmgr/syncx"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/scon/isclient"
@@ -58,8 +59,7 @@ var (
 )
 
 var (
-	cachedClient   *DrmClient
-	cachedClientMu sync.Mutex
+	onceClient syncx.Once[*DrmClient]
 
 	ErrVerify = errors.New("verification failed")
 )
@@ -456,17 +456,11 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 }
 
 func Client() *DrmClient {
-	cachedClientMu.Lock()
-	defer cachedClientMu.Unlock()
-
-	if cachedClient != nil {
-		return cachedClient
-	}
-
-	cachedClient = newDrmClient()
-	go cachedClient.Run()
-
-	return cachedClient
+	return onceClient.Do(func() *DrmClient {
+		client := newDrmClient()
+		go client.Run()
+		return client
+	})
 }
 
 func dlog(msg string, args ...interface{}) {

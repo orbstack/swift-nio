@@ -8,12 +8,13 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/syncx"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 )
 
 var (
-	cachedClient *VmClient
-	noResult     interface{}
+	onceClient syncx.Once[*VmClient]
+	noResult   interface{}
 )
 
 type VmClient struct {
@@ -21,22 +22,19 @@ type VmClient struct {
 }
 
 func Client() *VmClient {
-	if cachedClient != nil {
-		return cachedClient
-	}
+	return onceClient.Do(func() *VmClient {
+		err := EnsureVM()
+		if err != nil {
+			panic(err)
+		}
 
-	err := EnsureVM()
-	if err != nil {
-		panic(err)
-	}
+		client, err := newClient()
+		if err != nil {
+			panic(err)
+		}
 
-	client, err := newClient()
-	if err != nil {
-		panic(err)
-	}
-
-	cachedClient = client
-	return client
+		return client
+	})
 }
 
 func newClient() (*VmClient, error) {
