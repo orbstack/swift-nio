@@ -170,7 +170,7 @@ func (p *DockerProxy) waitForStart() error {
 			return nil
 		}
 
-		logrus.Debug("waiting for docker start")
+		logrus.Debug("poll docker start")
 		time.Sleep(dockerStartPoll)
 	}
 }
