@@ -58,7 +58,7 @@ trap "docker rm $CID" EXIT
 docker cp -q $CID:/images out
 
 # data and swap images
-docker run -i --rm --privileged --platform "$platform" -v $PWD/out:/out orb/images:$BTYPE < make-preseed.sh
+docker run -i --rm --privileged --platform "$platform" -v $PWD/out:/out -v /dev:/hostdev orb/images:$BTYPE < make-preseed.sh
 
 copy_file() {
 	mkdir -p ../assets/$BTYPE/$ARCH
