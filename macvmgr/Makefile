@@ -8,8 +8,7 @@ vmgr:
 	@./build.sh
 
 scli:
-	@cd ../scon
-	@make scli
+	@cd ../scon; make
 
 sync:
 	@scp pc:~/code/android/kvm/linux/out/arch/arm64/boot/Image ../assets/debug/arm64/kernel
@@ -19,15 +18,14 @@ sync:
 
 
 app:
-	@../build-app.sh
+	@cd ..; make app
 
 server:
-	@cd updates
-	@python3 -m http.server
+	@cd ../updates; python3 -m http.server
 
 serve: server
 
 publish:
-	@./publish-update.sh
+	@../publish-update.sh
 
 pub: publish
