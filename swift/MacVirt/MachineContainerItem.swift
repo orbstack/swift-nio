@@ -31,7 +31,7 @@ struct MachineContainerItem: View {
             Spacer()
             if record.running {
                 Button(action: {
-                    Task {
+                    Task { @MainActor in
                         actionInProgress = true
                         await vmModel.tryStopContainer(record)
                         actionInProgress = false
@@ -51,7 +51,7 @@ struct MachineContainerItem: View {
                         .help("Stop \(record.name)")
             } else {
                 Button(action: {
-                    Task {
+                    Task { @MainActor in
                         actionInProgress = true
                         await vmModel.tryStartContainer(record)
                         actionInProgress = false
@@ -103,7 +103,7 @@ struct MachineContainerItem: View {
         .confirmationDialog("Delete \(record.name)?",
                 isPresented: $isPresentingConfirm) {
             Button("Delete", role: .destructive) {
-                Task {
+                Task { @MainActor in
                     actionInProgress = true
                     await vmModel.tryDeleteContainer(record)
                     actionInProgress = false

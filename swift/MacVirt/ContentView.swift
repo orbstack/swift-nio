@@ -68,7 +68,7 @@ struct ContentView: View {
 
             ToolbarItem(placement: .automatic) {
                 Button(action: {
-                    Task {
+                    Task { @MainActor in
                         self.startStopInProgress = true
                         if model.state == .running {
                             await model.stop()

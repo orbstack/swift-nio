@@ -21,7 +21,7 @@ struct MachineSettingsView: View {
                     if #available(macOS 13, *) {
                         Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
                         .onChange(of: enableRosetta) { newValue in
-                            Task {
+                            Task { @MainActor in
                                 if var config = vmModel.config {
                                     config.rosetta = newValue
                                     await vmModel.tryPatchConfig(config)
@@ -45,7 +45,7 @@ struct MachineSettingsView: View {
                         Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
                     }
                     .onChange(of: memoryMib) { newValue in
-                        Task {
+                        Task { @MainActor in
                             if var config = vmModel.config {
                                 config.memoryMib = UInt64(newValue)
                                 await vmModel.tryPatchConfig(config)

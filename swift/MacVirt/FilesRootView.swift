@@ -9,7 +9,6 @@ struct FilesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var selection: String?
-    @State private var creatingOpacity = 0.0
 
     var body: some View {
         StateWrapperView {

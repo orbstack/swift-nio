@@ -49,7 +49,7 @@ struct CreateContainerView: View {
                 #endif
 
                 Button(action: {
-                    Task {
+                    Task { @MainActor in
                         creatingCount += 1
                         await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
                         creatingCount -= 1

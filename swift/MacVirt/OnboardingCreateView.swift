@@ -83,7 +83,7 @@ struct OnboardingCreateView: View {
                 .buttonStyle(.borderless)
                 Spacer()
                 CtaButton(label: "Create", action: {
-                    Task {
+                    Task { @MainActor in
                         vmModel.creatingCount += 1
                         await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
                         vmModel.creatingCount -= 1

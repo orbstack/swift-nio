@@ -141,6 +141,7 @@ struct AddPathsAlert {
     let paths: [String]
 }
 
+@MainActor
 class VmViewModel: ObservableObject {
     private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:62420"))
     private let scon = SconService(client: newRPCClient("http://127.0.0.1:62421"))
@@ -169,6 +170,12 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    private func updateStateAsync(_ state: VmState) {
+        DispatchQueue.main.async {
+            self.updateState(state)
+        }
+    }
+
     private func spawnDaemon() throws {
         guard state == .stopped else {
             return
@@ -185,9 +192,7 @@ class VmViewModel: ObservableObject {
         Task {
             do {
                 try await runProcessChecked(AppConfig.c.vmgrExe, ["spawn-daemon"])
-                DispatchQueue.main.async {
-                    self.updateState(.starting)
-                }
+                updateStateAsync(.starting)
             } catch let processError as ProcessError {
                 DispatchQueue.main.async {
                     self.updateState(.stopped)
@@ -200,7 +205,7 @@ class VmViewModel: ObservableObject {
                 }
             }
         }
-        updateState(.spawning)
+        updateStateAsync(.spawning)
     }
 
     private func waitForVM() async throws {
@@ -222,7 +227,7 @@ class VmViewModel: ObservableObject {
             }
             try await Task.sleep(nanoseconds: 100 * 1000 * 1000)
             if (DispatchTime.now() > deadline) {
-                state = .stopped
+                updateStateAsync(.stopped)
                 throw VmError.startTimeout(lastError: lastError)
             }
         }
@@ -246,7 +251,7 @@ class VmViewModel: ObservableObject {
             }
             try await Task.sleep(nanoseconds: 100 * 1000 * 1000)
             if (DispatchTime.now() > deadline) {
-                state = .stopped
+                updateStateAsync(.stopped)
                 throw VmError.startTimeout(lastError: lastError)
             }
         }

@@ -33,7 +33,7 @@ struct BuiltinContainerItem: View {
             let binding = Binding<Bool>(
                 get: { record.running },
                 set: { newValue in
-                    Task {
+                    Task { @MainActor in
                         actionInProgress = true
                         if newValue {
                             await vmModel.tryStartContainer(record)
