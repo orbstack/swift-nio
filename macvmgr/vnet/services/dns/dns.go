@@ -2,6 +2,8 @@ package dnssrv
 
 import (
 	"fmt"
+	"net"
+	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
@@ -22,6 +24,10 @@ var (
 type StaticHost struct {
 	IP4 string
 	IP6 string
+}
+
+type ReverseHost struct {
+	Name string
 }
 
 type dnsHandler struct{}
@@ -207,7 +213,7 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 	sendReply(w, req, msg, isUdp)
 }
 
-func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string]StaticHost) error {
+func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string]StaticHost, reverseHosts map[string]ReverseHost) error {
 	udpConn, err := gonet.DialUDP(stack, &tcpip.FullAddress{
 		Addr: address,
 		Port: ports.ServiceDNS,
@@ -241,16 +247,45 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 			staticRrs[host] = append(staticRrs[host], rr)
 		}
 	}
+	for ipAddr, reverseHost := range reverseHosts {
+		// parse ip
+		ip := net.ParseIP(ipAddr)
+		if ip == nil {
+			return fmt.Errorf("invalid IP: %s", ipAddr)
+		}
+
+		// create PTR record
+		var ptrName string
+		ip4 := ip.To4()
+		if ip4 != nil {
+			ptrName = fmt.Sprintf("%d.%d.%d.%d.in-addr.arpa", ip4[3], ip4[2], ip4[1], ip4[0])
+		} else {
+			// format: 4.5.2.0.0.0.0.0.0.0.0.0.0.0.0.0.2.2.d.1.6.9.0.7.c.d.6.9.0.0.c.f.ip6.arpa.
+			nibbles := []string{}
+			for i := 15; i >= 0; i-- {
+				nibbles = append(nibbles, fmt.Sprintf("%x", ip[i]&0x0f))
+				nibbles = append(nibbles, fmt.Sprintf("%x", ip[i]>>4))
+			}
+			ptrName = strings.Join(nibbles, ".") + ".ip6.arpa"
+		}
+
+		rr, err := dns.NewRR(fmt.Sprintf("%s. IN PTR %s.", ptrName, reverseHost.Name))
+		if err != nil {
+			return err
+		}
+
+		staticRrs[ptrName] = append(staticRrs[ptrName], rr)
+	}
 
 	handler := &dnsHandler{}
 
-	// UDP
-	go func() {
+	makeDnsMux := func(isUdp bool) *dns.ServeMux {
 		mux := dns.NewServeMux()
 		for _zone, _rrs := range staticRrs {
 			// Copy variables for closure
 			zone := _zone
 			rrs := _rrs
+			fmt.Println("handle func for", zone, "with", len(rrs), "records")
 			mux.HandleFunc(zone+".", func(w dns.ResponseWriter, req *dns.Msg) {
 				msg := new(dns.Msg)
 				msg.SetReply(req)
@@ -262,13 +297,18 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 						}
 					}
 				}
-				sendReply(w, req, msg, true)
+				sendReply(w, req, msg, isUdp)
 			})
 		}
 		mux.HandleFunc(".", func(w dns.ResponseWriter, req *dns.Msg) {
-			handler.handleDnsReq(w, req, true)
+			handler.handleDnsReq(w, req, isUdp)
 		})
+		return mux
+	}
 
+	// UDP
+	go func() {
+		mux := makeDnsMux(true)
 		server := &dns.Server{PacketConn: udpConn, Handler: mux}
 		err := server.ActivateAndServe()
 		if err != nil {
@@ -278,29 +318,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 
 	// TCP
 	go func() {
-		mux := dns.NewServeMux()
-		for _zone, _rrs := range staticRrs {
-			// Copy variables for closure
-			zone := _zone
-			rrs := _rrs
-			mux.HandleFunc(zone+".", func(w dns.ResponseWriter, req *dns.Msg) {
-				msg := new(dns.Msg)
-				msg.SetReply(req)
-				msg.RecursionAvailable = true
-				for _, q := range req.Question {
-					for _, rr := range rrs {
-						if q.Qtype == rr.Header().Rrtype {
-							msg.Answer = append(msg.Answer, rr)
-						}
-					}
-				}
-				sendReply(w, req, msg, true)
-			})
-		}
-		mux.HandleFunc(".", func(w dns.ResponseWriter, req *dns.Msg) {
-			handler.handleDnsReq(w, req, false)
-		})
-
+		mux := makeDnsMux(false)
 		server := &dns.Server{Listener: tcpListener, Handler: mux}
 		err := server.ActivateAndServe()
 		if err != nil {

@@ -23,14 +23,30 @@ const (
 
 var (
 	staticDnsHosts = map[string]dnssrv.StaticHost{
-		"vm":                {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
-		"vm.internal":       {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
-		"host":              {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
-		"host.internal":     {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
-		"services":          {IP4: netconf.ServicesIP4},
-		"services.internal": {IP4: netconf.ServicesIP4},
-		"gateway":           {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
-		"gateway.internal":  {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
+		"vm":                      {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
+		"vm.internal":             {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
+		"vm.orb.internal":         {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
+		"host":                    {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"host.internal":           {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"host.orb.internal":       {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"host.docker.internal":    {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"services":                {IP4: netconf.ServicesIP4},
+		"services.internal":       {IP4: netconf.ServicesIP4},
+		"services.orb.internal":   {IP4: netconf.ServicesIP4},
+		"gateway":                 {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
+		"gateway.internal":        {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
+		"gateway.orb.internal":    {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
+		"gateway.docker.internal": {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
+	}
+
+	reverseDnsHosts = map[string]dnssrv.ReverseHost{
+		netconf.GuestIP4:    {Name: "vm.internal"},
+		netconf.GuestIP6:    {Name: "vm.internal"},
+		netconf.HostNatIP4:  {Name: "host.internal"},
+		netconf.HostNatIP6:  {Name: "host.internal"},
+		netconf.ServicesIP4: {Name: "services.internal"},
+		netconf.GatewayIP4:  {Name: "gateway.internal"},
+		netconf.GatewayIP6:  {Name: "gateway.internal"},
 	}
 )
 
@@ -40,7 +56,7 @@ func StartNetServices(n *vnet.Network) {
 
 	// DNS (53): using system resolver
 	if runDNS {
-		err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts)
+		err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts, reverseDnsHosts)
 		if err != nil {
 			logrus.Error("Failed to start DNS server", err)
 		}
