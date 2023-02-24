@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/shell"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +32,7 @@ The following commands are linked by default and cannot be unlinked:
 		if err != nil {
 			// print to stderr
 			cmd.PrintErrln(err)
+			os.Exit(1)
 		}
 
 		return nil

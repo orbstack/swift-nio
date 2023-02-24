@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/hcli"
@@ -38,6 +39,7 @@ If multiple arguments are provided, they will be joined into a single message wi
 		})
 		if err != nil {
 			cmd.PrintErrln(err)
+			os.Exit(1)
 		}
 
 		return nil
