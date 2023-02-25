@@ -46,12 +46,13 @@ EOT
 # Build C - switchroot, vsocknfs
 FROM base AS c-build
 RUN apk add --no-cache alpine-sdk linux-headers
-COPY rootfs/utils/switchroot.c rootfs/utils/vsocknfs.c /build/
+COPY rootfs/utils/*.c /build/
 RUN <<EOT sh -eux
-gcc -O2 -Wall -o /build/switchroot /build/switchroot.c
-gcc -O2 -Wall -o /build/vsocknfs /build/vsocknfs.c
-strip /build/switchroot
-strip /build/vsocknfs
+mkdir /out
+gcc -O2 -Wall -o /out/switchroot /build/switchroot.c
+gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
+gcc -O2 -Wall -o /out/daemonize /build/daemonize.c
+strip /out/*
 EOT
 
 
@@ -224,8 +225,8 @@ COPY rootfs/utils/guest/etc /opt/orbstack-guest/etc
 COPY LICENSE /
 
 # Compiled binaries (in order of most likely to change)
-# switchroot, vsock nfs
-COPY --from=c-build /build/switchroot /build/vsocknfs /opt/orb/
+# switchroot, vsocknfs, daemonize
+COPY --from=c-build /out/* /opt/orb/
 # vcontrol
 COPY --from=rust-build /out/vcontrol /opt/orb/
 # macctl
