@@ -14,24 +14,17 @@ struct DockerRootView: View {
     var body: some View {
         StateWrapperView {
             Group {
-                if let machines = vmModel.containers, let containers = vmModel.dockerContainers {
+                if let machines = vmModel.containers,
+                   let containers = vmModel.dockerContainers,
+                   let dockerRecord = vmModel.containers?.first(where: { $0.builtin && $0.name == "docker" }) {
                     List(selection: $selection) {
                         if #available(macOS 13, *) {
                             Section {
-                                ForEach(machines) { record in
-                                    if record.builtin {
-                                        BuiltinContainerItem(record: record)
-                                    }
-                                }
+                                BuiltinContainerItem(record: dockerRecord)
                             }
                         } else {
-
                             Section(header: Text("Features")) {
-                                ForEach(machines) { record in
-                                    if record.builtin {
-                                        BuiltinContainerItem(record: record)
-                                    }
-                                }
+                                BuiltinContainerItem(record: dockerRecord)
                             }
                         }
 
@@ -45,8 +38,8 @@ struct DockerRootView: View {
                                     Spacer()
                                     VStack {
                                         Text("No containers")
-                                            .font(.title)
-                                            .foregroundColor(.secondary)
+                                                .font(.title)
+                                                .foregroundColor(.secondary)
                                     }
                                             .padding(.top, 32)
                                     Spacer()
@@ -54,10 +47,15 @@ struct DockerRootView: View {
                             }
                         }
                     }
-                            .refreshable {
-                                print("try refresh: docker refreshable")
-                                await refresh()
-                            }
+                    .refreshable {
+                        print("try refresh: docker refreshable")
+                        await refresh()
+                    }
+                    .onChange(of: dockerRecord.running) { _ in
+                        Task {
+                            await refresh()
+                        }
+                    }
                 } else {
                     ProgressView(label: {
                         Text("Loading")
