@@ -72,9 +72,10 @@ func (c *Container) Stop() error {
 	}
 
 	// stop agent (after listeners removed and processes reaped)
-	if c.agent.Get() != nil {
+	agent := c.agent.Get()
+	if agent != nil {
 		logrus.WithField("container", c.Name).Debug("stopping agent")
-		c.Agent().Close()
+		agent.Close()
 		c.agent.Set(nil)
 	}
 
@@ -90,8 +91,9 @@ func (c *Container) onStop() error {
 	c.lastListeners = nil
 
 	// stop agent (after listeners removed)
-	if c.agent.Get() != nil {
-		c.Agent().Close()
+	agent := c.agent.Get()
+	if agent != nil {
+		agent.Close()
 		c.agent.Set(nil)
 	}
 

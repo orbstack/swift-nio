@@ -13,7 +13,7 @@ type KeyValue[T comparable] struct {
 }
 
 type LxcForkParams struct {
-	Name      string
+	ID        string
 	LxcDir    string
 	LogFile   string
 	Verbosity lxc.Verbosity
@@ -28,7 +28,7 @@ func runForkStart() {
 	err = gobDecode(paramsData, &params)
 	check(err)
 
-	lc, err := lxc.NewContainer(params.Name, params.LxcDir)
+	lc, err := lxc.NewContainer(params.ID, params.LxcDir)
 	check(err)
 	err = lc.SetLogFile(params.LogFile)
 	check(err)

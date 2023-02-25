@@ -131,7 +131,7 @@ func (c *Container) setLxcConfig(key, value string) error {
 
 func (c *Container) initLxc() error {
 	m := c.manager
-	lc, err := lxc.NewContainer(c.Name, m.lxcDir)
+	lc, err := lxc.NewContainer(c.ID, m.lxcDir)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (c *Container) configureLxc() error {
 	lc.ClearConfig()
 	lc.SetLogFile(logPath)
 	c.lxcParams = LxcForkParams{
-		Name:    c.Name,
+		ID:      c.ID,
 		LxcDir:  m.lxcDir,
 		LogFile: logPath,
 	}

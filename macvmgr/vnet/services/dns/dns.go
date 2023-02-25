@@ -285,7 +285,6 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 			// Copy variables for closure
 			zone := _zone
 			rrs := _rrs
-			fmt.Println("handle func for", zone, "with", len(rrs), "records")
 			mux.HandleFunc(zone+".", func(w dns.ResponseWriter, req *dns.Msg) {
 				msg := new(dns.Msg)
 				msg.SetReply(req)
