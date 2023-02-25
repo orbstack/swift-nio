@@ -2,7 +2,7 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
+import Cocoa
 
 func processIsTranslated() -> Bool {
     var ret = Int32(0)
@@ -114,10 +114,12 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
 
     // try iterm2
     do {
-        try await runProcessChecked("/usr/bin/open", ["-a", "iTerm", tmpFileURL.path])
+        try await runProcessChecked("/usr/bin/open", ["-a", "iTerm"])
+        try openViaAppleEvent(tmpFileURL, bundleId: "com.googlecode.iterm2")
     } catch {
         // try terminal
-        try await runProcessChecked("/usr/bin/open", ["-a", "Terminal", tmpFileURL.path])
+        try await runProcessChecked("/usr/bin/open", ["-a", "Terminal"])
+        try openViaAppleEvent(tmpFileURL, bundleId: "com.apple.Terminal")
     }
 }
 
@@ -135,5 +137,43 @@ func runAsAdmin(script shellScript: String, prompt: String = "") throws {
     script?.executeAndReturnError(&error)
     if error != nil {
         throw AppleScriptError(output: error?[NSAppleScript.errorMessage] as? String ?? "unknown error")
+    }
+}
+
+// Workaround for macOS 13 bug (FB11745075): https://developer.apple.com/forums/thread/723842
+// this doesn't require apple event privileges because it's just open
+private func openViaAppleEvent(_ url: URL, bundleId: String) throws {
+    guard let terminal = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first else {
+        return
+    }
+
+    // Create a 'aevt' / 'odoc' Apple event.
+    let target = NSAppleEventDescriptor(processIdentifier: terminal.processIdentifier)
+    let event = NSAppleEventDescriptor(
+        eventClass: AEEventClass(kCoreEventClass),
+        eventID: AEEventID(kAEOpenDocuments),
+        targetDescriptor: target,
+        returnID: AEReturnID(kAutoGenerateReturnID),
+        transactionID: AETransactionID(kAnyTransactionID)
+    )
+
+    // Set its direct option to a list containing our script file URL.
+    let scriptURL = NSAppleEventDescriptor(fileURL: url)
+    let itemsToOpen = NSAppleEventDescriptor.list()
+    itemsToOpen.insert(scriptURL, at: 0)
+    event.setParam(itemsToOpen, forKeyword: keyDirectObject)
+
+    // Send the Apple event.
+    do {
+        let reply = try event.sendEvent(options: [.waitForReply], timeout: 30.0)
+
+        // AFAICT there’s no point looking at the reply here.  Terminal
+        // doesn’t report errors this way.
+        _ = reply
+
+        // If the event was sent successfully, bring Terminal to the front.
+        terminal.activate()
+    } catch let error as NSError {
+        return
     }
 }
