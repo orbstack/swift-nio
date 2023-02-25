@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Code-Hex/vz/v3"
+	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -202,7 +204,12 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 		"FinishSetup":          handler.New(s.FinishSetup),
 		"ListDockerContainers": handler.New(s.ListDockerContainers),
 		"IsSshConfigWritable":  handler.New(s.IsSshConfigWritable),
-	}, nil)
+	}, &jhttp.BridgeOptions{
+		Server: &jrpc2.ServerOptions{
+			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting
+			Concurrency: math.MaxInt,
+		},
+	})
 
 	mux := http.NewServeMux()
 	mux.Handle("/", bridge)

@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
 	"net/http"
 	"reflect"
 	"strconv"
 
+	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
@@ -181,7 +183,12 @@ func (s *SconServer) Serve() error {
 		"ContainerUnfreeze":           handler.New(s.ContainerUnfreeze),
 		"InternalReportStopped":       handler.New(s.InternalReportStopped),
 		"StopServerVM":                handler.New(s.StopServerVM),
-	}, nil)
+	}, &jhttp.BridgeOptions{
+		Server: &jrpc2.ServerOptions{
+			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting
+			Concurrency: math.MaxInt,
+		},
+	})
 	defer bridge.Close()
 
 	mux := http.NewServeMux()
