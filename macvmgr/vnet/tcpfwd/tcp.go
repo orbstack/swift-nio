@@ -59,12 +59,6 @@ func tryBestCleanup(conn *gonet.TCPConn) error {
 
 func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.Mutex, i *icmpfwd.IcmpFwd) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
-		// Workaround for NFS panic
-		// defer func() {
-		// 	if err := recover(); err != nil {
-		// 		logrus.Error("tcpfwd: panic in forwarder: ", err)
-		// 	}
-		// }()
 		refDec := false
 		defer func() {
 			if !refDec {
