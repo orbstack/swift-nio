@@ -28,19 +28,19 @@ type CreateParams struct {
 	UserPassword string
 }
 
-func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
+func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpec, error) {
 	if m.stopping {
-		return nil, errors.New("machine manager is stopping")
+		return nil, nil, errors.New("machine manager is stopping")
 	}
 
 	// checks
 	name := args.Name
 	image := args.Image
 	if name == "default" || name == "host" || !containerNamePattern.MatchString(name) {
-		return nil, errors.New("invalid machine name")
+		return nil, nil, errors.New("invalid machine name")
 	}
 	if _, ok := m.GetByName(name); ok {
-		return nil, errors.New("machine already exists")
+		return nil, nil, errors.New("machine already exists")
 	}
 
 	// image defaults
@@ -72,11 +72,23 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		Deleting: false,
 	}
 
-	c, _, err = m.restoreOne(&record)
+	m.containersMu.Lock()
+	defer m.containersMu.Unlock()
+
+	c, _, err := m.restoreOneLocked(&record)
+	if err != nil {
+		return nil, nil, err
+	}
+	c.creating = true
+
+	return c, &image, nil
+}
+
+func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
+	c, image, err := m.beginCreate(args)
 	if err != nil {
 		return
 	}
-	c.creating = true
 
 	defer func() {
 		if err != nil {
@@ -89,7 +101,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		c.creating = false
 	}()
 
-	err = m.makeRootfsWithImage(image, c.Name, c.rootfsDir)
+	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir)
 	if err != nil {
 		return
 	}

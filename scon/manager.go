@@ -217,7 +217,7 @@ func (m *ConManager) cleanupCaches() error {
 		if _, ok := m.containersByID[id]; !ok {
 			err = os.Remove(path.Join(logDir, f.Name()))
 			if err != nil {
-				return err
+				logrus.WithError(err).WithField("file", f.Name()).Error("failed to remove orphaned log file")
 			}
 		}
 	}
@@ -232,7 +232,7 @@ func (m *ConManager) cleanupCaches() error {
 		if _, ok := m.containersByID[f.Name()]; !ok {
 			err = deleteRootfs(path.Join(containersDir, f.Name()))
 			if err != nil {
-				return err
+				logrus.WithError(err).WithField("container", f.Name()).Error("failed to remove orphaned rootfs")
 			}
 		}
 	}
@@ -287,20 +287,24 @@ func (m *ConManager) subdir(dirs ...string) string {
 	return path
 }
 
+func (m *ConManager) getByNameLocked(name string) (*Container, bool) {
+	c, ok := m.containersByName[name]
+	return c, ok
+}
+
 func (m *ConManager) GetByName(name string) (*Container, bool) {
 	m.containersMu.RLock()
 	defer m.containersMu.RUnlock()
 
-	c, bool := m.containersByName[name]
-	return c, bool
+	return m.getByNameLocked(name)
 }
 
 func (m *ConManager) GetByID(id string) (*Container, bool) {
 	m.containersMu.RLock()
 	defer m.containersMu.RUnlock()
 
-	c, bool := m.containersByID[id]
-	return c, bool
+	c, ok := m.containersByID[id]
+	return c, ok
 }
 
 func (m *ConManager) ListContainers() []*Container {

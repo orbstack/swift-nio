@@ -358,7 +358,7 @@ func (c *Container) configureLxc() error {
 
 		// hooks
 		set("lxc.hook.version", "1")
-		set("lxc.hook.post-stop", fmt.Sprintf("%s %s %s %s", exePath, cmdLxcHook, lxcHookPostStop, c.ID))
+		set("lxc.hook.post-stop", fmt.Sprintf("/opt/orb/daemonize %s %s %s %s", exePath, cmdLxcHook, lxcHookPostStop, c.ID))
 
 		return nil
 	}()
@@ -376,6 +376,9 @@ func (c *Container) logPath() string {
 }
 
 func (m *ConManager) restoreContainers() ([]*Container, error) {
+	m.containersMu.Lock()
+	defer m.containersMu.Unlock()
+
 	records, err := m.db.GetContainers()
 	if err != nil {
 		return nil, err
@@ -388,7 +391,7 @@ func (m *ConManager) restoreContainers() ([]*Container, error) {
 
 	var pendingStarts []*Container
 	for _, record := range records {
-		c, shouldStart, err := m.restoreOne(record)
+		c, shouldStart, err := m.restoreOneLocked(record)
 		if err != nil {
 			logrus.WithError(err).WithField("container", record.Name).Error("failed to restore container")
 			continue
@@ -400,24 +403,25 @@ func (m *ConManager) restoreContainers() ([]*Container, error) {
 		}
 	}
 
+	logrus.WithField("pending", pendingStarts).Debug("will start containers")
 	return pendingStarts, nil
 }
 
-func (m *ConManager) insertContainer(c *Container) {
-	m.containersMu.Lock()
-	defer m.containersMu.Unlock()
-
+func (m *ConManager) insertContainerLocked(c *Container) {
 	m.containersByID[c.ID] = c
 	m.containersByName[c.Name] = c
 }
 
-func (m *ConManager) restoreOne(record *types.ContainerRecord) (*Container, bool, error) {
-	c, err := m.newContainer(record)
+func (m *ConManager) restoreOneLocked(record *types.ContainerRecord) (*Container, bool, error) {
+	c, err := m.newContainerLocked(record)
 	if err != nil {
 		return nil, false, err
 	}
 
-	m.insertContainer(c)
+	if _, ok := m.getByNameLocked(c.Name); ok {
+		return nil, false, fmt.Errorf("machine %q already exists", c.Name)
+	}
+	m.insertContainerLocked(c)
 
 	shouldStart := record.Running && !record.Deleting
 	if record.Deleting {
@@ -495,6 +499,10 @@ func (c *Container) Start() error {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if c.deleting {
+		return errors.New("container is being deleted")
+	}
 
 	if c.lxc.Running() {
 		return nil

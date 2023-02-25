@@ -15,17 +15,17 @@ func (m *ConManager) addDeviceNodeAll(src string, dst string) error {
 
 	errs := make([]error, 0)
 	for _, c := range m.containersByID {
+		if !c.Running() {
+			continue
+		}
+
 		err := c.addDeviceNode(src, dst)
 		if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
 			errs = append(errs, err)
 		}
 	}
 
-	if len(errs) > 0 {
-		return errs[0]
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 func (m *ConManager) removeDeviceNodeAll(src string, dst string) error {
@@ -34,17 +34,17 @@ func (m *ConManager) removeDeviceNodeAll(src string, dst string) error {
 
 	errs := make([]error, 0)
 	for _, c := range m.containersByID {
+		if !c.Running() {
+			continue
+		}
+
 		err := c.removeDeviceNode(src, dst)
 		if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
 			errs = append(errs, err)
 		}
 	}
 
-	if len(errs) > 0 {
-		return errs[0]
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 func (m *ConManager) handleDeviceEvent(event fsnotify.Event) {

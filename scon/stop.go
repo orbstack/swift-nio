@@ -20,10 +20,7 @@ var (
 	ErrTimeout = errors.New("start/stop timeout")
 )
 
-func (c *Container) Stop() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+func (c *Container) stopLocked() error {
 	if !c.Running() {
 		return nil
 	}
@@ -81,6 +78,13 @@ func (c *Container) Stop() error {
 
 	logrus.WithField("container", c.Name).Info("stopped container")
 	return nil
+}
+
+func (c *Container) Stop() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.stopLocked()
 }
 
 func (c *Container) onStop() error {

@@ -56,7 +56,7 @@ type Container struct {
 	lastAutofwdUpdate time.Time
 }
 
-func (m *ConManager) newContainer(record *types.ContainerRecord) (*Container, error) {
+func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Container, error) {
 	id := record.ID
 	dir := m.subdir("containers", id)
 
@@ -95,9 +95,7 @@ func (m *ConManager) newContainer(record *types.ContainerRecord) (*Container, er
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
 		}
 	})
-	m.containersMu.Lock()
 	m.seccompCookies[c.seccompCookie] = c
-	m.containersMu.Unlock()
 
 	return c, nil
 }

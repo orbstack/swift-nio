@@ -39,17 +39,13 @@ func (c *Container) Delete() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.lxc.Running() {
-		c.mu.Unlock()
-		err := c.Stop()
-		c.mu.Lock()
-		if err != nil {
-			return err
-		}
-	}
-
 	if c.builtin {
 		return errors.New("cannot delete builtin machine")
+	}
+
+	err := c.stopLocked()
+	if err != nil {
+		return err
 	}
 
 	logrus.WithField("container", c.Name).Info("deleting container")
@@ -59,7 +55,7 @@ func (c *Container) Delete() error {
 	c.persist()
 
 	// unmount from nfs
-	err := c.manager.onPreDeleteContainer(c)
+	err = c.manager.onPreDeleteContainer(c)
 	if err != nil {
 		logrus.WithError(err).WithField("container", c.Name).Error("container pre-delete hook failed")
 	}
