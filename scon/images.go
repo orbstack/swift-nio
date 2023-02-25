@@ -101,6 +101,8 @@ type ImageTemplate struct {
 }
 
 var imagesHttpClient = &http.Client{
+	// includes download time
+	Timeout: 30 * time.Minute,
 	Transport: &http.Transport{
 		MaxIdleConns:          2,
 		IdleConnTimeout:       1 * time.Minute,
@@ -309,7 +311,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	}
 
 	// extract rootfs
-	logrus.Info("extracting rootfs")
+	logrus.WithField("container", containerName).Info("extracting rootfs")
 	var cmd *exec.Cmd
 	switch img.RootfsFormat {
 	case ImageFormatTarXz:

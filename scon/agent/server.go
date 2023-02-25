@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
@@ -230,6 +231,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if hostname == "docker" {
 		// use default unix socket
 		dockerClient, err = &http.Client{
+			Timeout: 15 * time.Second,
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", "/var/run/docker.sock")

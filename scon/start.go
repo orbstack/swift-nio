@@ -272,7 +272,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
 
 		// nesting (proc not needed because it's rw)
-		set("lxc.mount.entry", "sys dev/.lxc/sys sysfs create=dir,optional 0 0")
+		set("lxc.mount.entry", "sys dev/.orbstack/sys sysfs create=dir,optional 0 0")
 
 		// tmpfs
 		set("lxc.mount.entry", "tmpfs tmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional 0 0")

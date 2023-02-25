@@ -39,8 +39,7 @@ mount --bind /data/guest-state /opt/orbstack-guest/data
 
 # Listeners for ssh-agent socket
 mkdir -p /tmp/launchd-ssh-agent-listeners
-touch /tmp/launchd-ssh-agent-listeners/Listeners
-mount --bind -o ro /opt/orbstack-guest/run/host-ssh-agent.sock /tmp/launchd-ssh-agent-listeners/Listeners
+ln -s /opt/orbstack-guest/run/host-ssh-agent.sock /tmp/launchd-ssh-agent-listeners/Listeners
 
 # setup docker rootfs
 #

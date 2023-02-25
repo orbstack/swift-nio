@@ -32,7 +32,7 @@ const (
 	HostSSHSocket  = Run + "/hostssh.sock"
 	HcontrolSocket = Run + "/hcontrol.sock"
 
-	TmpSshAgentProxySocket   = "/dev/.lxc/.orbstack-ssh-agent-proxy.sock"
+	TmpSshAgentProxySocket   = "/dev/.orbstack/ssh-agent-proxy.sock"
 	LaunchdSshAgentListeners = "/tmp/launchd-ssh-agent-listeners"
 )
 

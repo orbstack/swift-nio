@@ -33,6 +33,7 @@ type Updater struct {
 func NewUpdater() *Updater {
 	return &Updater{
 		client: &http.Client{
+			Timeout: 15 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 5 * time.Minute,
