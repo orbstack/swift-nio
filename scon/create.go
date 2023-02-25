@@ -75,7 +75,7 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 	m.containersMu.Lock()
 	defer m.containersMu.Unlock()
 
-	c, _, err := m.restoreOneLocked(&record)
+	c, _, err := m.restoreOneLocked(&record, false)
 	if err != nil {
 		return nil, nil, err
 	}

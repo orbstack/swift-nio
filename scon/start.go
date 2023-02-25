@@ -391,7 +391,7 @@ func (m *ConManager) restoreContainers() ([]*Container, error) {
 
 	var pendingStarts []*Container
 	for _, record := range records {
-		c, shouldStart, err := m.restoreOneLocked(record)
+		c, shouldStart, err := m.restoreOneLocked(record, true)
 		if err != nil {
 			logrus.WithError(err).WithField("container", record.Name).Error("failed to restore container")
 			continue
@@ -412,14 +412,24 @@ func (m *ConManager) insertContainerLocked(c *Container) {
 	m.containersByName[c.Name] = c
 }
 
-func (m *ConManager) restoreOneLocked(record *types.ContainerRecord) (*Container, bool, error) {
+func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrite bool) (*Container, bool, error) {
 	c, err := m.newContainerLocked(record)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if _, ok := m.getByNameLocked(c.Name); ok {
-		return nil, false, fmt.Errorf("machine %q already exists", c.Name)
+	if oldC, ok := m.getByNameLocked(c.Name); ok {
+		if canOverwrite {
+			// ok, but warn
+			// too dangerous to assume delete is ok
+			logrus.WithFields(logrus.Fields{
+				"container": c.Name,
+				"old":       oldC.ID,
+				"new":       c.ID,
+			}).Warn("overwriting existing container")
+		} else {
+			return nil, false, fmt.Errorf("machine %q already exists", c.Name)
+		}
 	}
 	m.insertContainerLocked(c)
 

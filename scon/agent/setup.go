@@ -23,8 +23,9 @@ var (
 
 	// generally: curl, scp
 	PackageInstallCommands = map[string][]string{
-		images.ImageAlpine:   {"apk add sudo curl dropbear-scp"},
-		images.ImageArch:     {"pacman --noconfirm -Sy dropbear-scp"},
+		images.ImageAlpine: {"apk add sudo curl dropbear-scp"},
+		// we install openssh instead of dropbear-scp so we can install vs code agent workaround as ssh_config
+		images.ImageArch:     {"pacman --noconfirm -Sy openssh", "systemctl disable sshd"},
 		images.ImageCentos:   nil, // no need
 		images.ImageDebian:   {"apt-get update", "apt-get install -y curl"},
 		images.ImageFedora:   nil, // no need
@@ -332,18 +333,10 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
-	// symlink /etc/ssh/ssh_config.d/10-orbstack
-	logrus.Debug("linking ssh config")
-	err = os.Symlink(mounts.SshConfig, "/etc/ssh/ssh_config.d/10-"+appid.AppName+".conf")
-	if err != nil {
-		// error ok, not all distros have ssh_config.d
-		// this isn't *that* important
-		logrus.WithError(err).Warn("Failed to symlink ssh config")
-	}
-
 	// set timezone
 	if args.Timezone != "" {
 		// don't use systemd timedatectl. it can change the system clock sometimes (+8h for pst)
+		// glibc will reload eventually so it's ok
 		logrus.WithField("timezone", args.Timezone).Debug("Setting timezone")
 
 		os.Remove("/etc/localtime")
@@ -357,7 +350,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// it's redundant because we have mac's mDNSResponder
 	// and breaks single-name unicast ("andromeda") and unicast .local ("andromeda.local")
 	if _, err := os.Stat("/run/systemd/resolve/io.systemd.Resolve"); err == nil {
-		logrus.Debug("Disabling systemd-resolved")
+		logrus.Debug("disabling systemd-resolved")
 		err = util.Run("systemctl", "disable", "systemd-resolved")
 		if err != nil {
 			logrus.WithError(err).Warn("Failed to disable systemd-resolved")
@@ -371,14 +364,26 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// link resolv.conf
 	// we do this for all distros just in case there's a race condition where resolv.conf isn't set up yet at this point
 	// because we install packages below, and that requires network
-	logrus.Debug("Symlinking resolv.conf")
+	logrus.Debug("linking resolv.conf")
 	err = os.Remove("/etc/resolv.conf")
 	if err != nil {
 		return err
 	}
-	err = os.Symlink(mounts.ResolvConf, "/etc/resolv.conf")
-	if err != nil {
-		return err
+	// Kali doesn't like this, networking fails to start
+	if args.Distro == "kali" {
+		resolvConf, err := os.ReadFile(mounts.ResolvConf)
+		if err != nil {
+			return err
+		}
+		err = os.WriteFile("/etc/resolv.conf", resolvConf, 0644)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = os.Symlink(mounts.ResolvConf, "/etc/resolv.conf")
+		if err != nil {
+			return err
+		}
 	}
 
 	// install packages
@@ -392,6 +397,35 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 				return err
 			}
 		}
+	}
+
+	// symlink /etc/ssh/ssh_config.d/10-orbstack
+	// after we've installed openssh packages if necessary
+	if _, err := os.Stat("/etc/ssh/ssh_config.d"); errors.Is(err, os.ErrNotExist) {
+		logrus.Debug("creating ssh_config.d")
+		err = os.Mkdir("/etc/ssh/ssh_config.d", 0755)
+		if err == nil {
+			// add to ssh_config
+			oldConfig, err := os.ReadFile("/etc/ssh/ssh_config")
+			if err == nil {
+				newConfig := "Include /etc/ssh/ssh_config.d/*.conf\n\n" + string(oldConfig)
+				err = os.WriteFile("/etc/ssh/ssh_config", []byte(newConfig), 0644)
+				if err != nil {
+					return err
+				}
+			} else {
+				logrus.WithError(err).Warn("Failed to read ssh_config")
+			}
+		} else {
+			logrus.WithError(err).Warn("Failed to create ssh_config.d")
+		}
+	}
+	logrus.Debug("linking ssh config")
+	err = os.Symlink(mounts.SshConfig, "/etc/ssh/ssh_config.d/10-"+appid.AppName+".conf")
+	if err != nil {
+		// error ok, not all distros have ssh_config.d
+		// this isn't *that* important
+		logrus.WithError(err).Warn("Failed to symlink ssh config")
 	}
 
 	return nil
