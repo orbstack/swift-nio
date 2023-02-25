@@ -18,7 +18,7 @@ SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsr
 mkdir -p updates/{arm64,amd64}
 cp swift/out/arm64/*.dmg updates/arm64/ || :
 cp swift/out/amd64/*.dmg updates/amd64/ || :
-COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-files --delta-compression lzfse --release-notes-url 'https://cdn-updates.orbstack.dev/release-notes.html#' --full-release-notes-url 'https://docs.orbstack.dev/release-notes')
+COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-files --delta-compression lzfse --release-notes-url-prefix 'https://cdn-updates.orbstack.dev/release-notes.html#' --full-release-notes-url 'https://docs.orbstack.dev/release-notes')
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ updates/arm64
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ updates/amd64
 
