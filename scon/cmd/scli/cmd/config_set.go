@@ -20,7 +20,7 @@ var configSetCmd = &cobra.Command{
 	Short: "Set a configuration option",
 	Long: `Set a single configuration option for the Linux virtual machine.
 
-Supported options: memory_mib
+See "orbctl config show" for a list of options.
 
 Some options will only take effect after restarting the virtual machine.
 `,
