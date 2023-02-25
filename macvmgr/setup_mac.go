@@ -464,14 +464,20 @@ func doMacSetup() (*SetupInfo, error) {
 				profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n%s\n", appid.UserAppName, line)
 				err = os.WriteFile(profilePath, []byte(profileScript), 0644)
 				if err != nil {
-					return nil, err
+					// if profile is read-only, e.g. with nix home-manager
+					logrus.WithError(err).WithFields(logrus.Fields{
+						"shell": shellBase,
+						"file":  profilePath,
+					}).Warn("failed to write shell profile")
+				} else {
+					// success
+					// not important enough to nag user if we can link to an existing path
+					if shellPathRequired {
+						relProfilePath := syssetup.MakeHomeRelative(profilePath)
+						alertProfileChangedPath = &relProfilePath
+					}
+					logrus.Debug("modified profile")
 				}
-				relProfilePath := syssetup.MakeHomeRelative(profilePath)
-				// not important enough to nag user if we can link to an existing path
-				if shellPathRequired {
-					alertProfileChangedPath = &relProfilePath
-				}
-				logrus.Debug("modified profile")
 			}
 		default:
 			// we don't know how to deal with this.
@@ -578,7 +584,7 @@ func doMacSetup() (*SetupInfo, error) {
 	// we don't consider this critical, so ignore errors
 	err = fixDockerCredsStore()
 	if err != nil {
-		logrus.WithError(err).Debug("failed to fix docker creds store")
+		logrus.WithError(err).Warn("failed to fix docker creds store")
 	}
 
 	info := &SetupInfo{}
