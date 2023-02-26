@@ -141,7 +141,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	}
 
 	// wait for network if this distro needs package installation
-	if _, ok := agent.PackageInstallCommands[image.Distro]; ok {
+	if cmds, ok := agent.PackageInstallCommands[image.Distro]; ok && len(cmds) > 0 {
 		logrus.WithField("container", c.Name).Info("waiting for network before setup")
 		var ips []string
 		ips, err = c.waitIPAddrs(startTimeout)
