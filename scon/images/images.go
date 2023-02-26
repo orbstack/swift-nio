@@ -49,7 +49,7 @@ const (
 	DistroRocky  = "rocky"
 
 	// extra
-	//DistroNixos = "nixos"
+	DistroNixos = "nixos"
 )
 
 var (
@@ -73,8 +73,7 @@ var (
 		DistroRocky:  ImageRocky,
 
 		// extra
-		// TODO support nixos
-		//DistroNixos: ImageNixos,
+		DistroNixos: ImageNixos,
 	}
 
 	ImageToLatestVersion = map[string]string{
@@ -95,8 +94,7 @@ var (
 		ImageOracle: "9",
 		ImageRocky:  "9",
 
-		// TODO support nixos
-		//ImageNixos: "22.11",
+		ImageNixos: "22.11",
 	}
 
 	// everything else is "default"

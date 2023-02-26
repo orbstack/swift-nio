@@ -35,24 +35,25 @@ const (
 )
 
 var (
-	nixosImages = map[types.ImageSpec]RawImage{
+	extraImages = map[types.ImageSpec]RawImage{
+		// too much work to keep sha256 and size up to date
 		{Distro: images.ImageNixos, Version: "22.11", Arch: "amd64", Variant: "default"}: {
-			MetadataURL:    "https://hydra.nixos.org/build/207105621/download/1/nixos-system-x86_64-linux.tar.xz",
-			MetadataSha256: "ebc704814c838bf27ff1435fd42c2a0bb9f9085ef0d5842615d4bb4145dd492e",
+			MetadataURL:    "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdMeta.x86_64-linux/latest/download-by-type/file/system-tarball",
+			MetadataSha256: "",
 			RootfsFormat:   ImageFormatTarXz,
-			RootfsURL:      "https://hydra.nixos.org/build/207105719/download/1/nixos-system-x86_64-linux.tar.xz",
-			RootfsSha256:   "d0b3889b9346d0d15a5637978fd99747f2cf99fb1ed281fd1ac737c1b8c13028",
-			Size:           147405568,
-			Revision:       "207105719",
+			RootfsURL:      "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdImage.x86_64-linux/latest/download-by-type/file/system-tarball",
+			RootfsSha256:   "",
+			Size:           0,
+			Revision:       "hydra-latest",
 		},
 		{Distro: images.ImageNixos, Version: "22.11", Arch: "arm64", Variant: "default"}: {
-			MetadataURL:    "https://hydra.nixos.org/build/207105557/download/1/nixos-system-aarch64-linux.tar.xz",
-			MetadataSha256: "cd5ab2b7f9d05cec44b62a5f3ac3a732a5e56e18f6ed6eed75d0e4cf9525f89a",
+			MetadataURL:    "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdMeta.aarch64-linux/latest/download-by-type/file/system-tarball",
+			MetadataSha256: "",
 			RootfsFormat:   ImageFormatTarXz,
-			RootfsURL:      "https://hydra.nixos.org/build/207105468/download/1/nixos-system-aarch64-linux.tar.xz",
-			RootfsSha256:   "8a013a597b2f7144229deb2a33e22ea9f44dd760f338b06ad88877bdf633e780",
-			Size:           143552368,
-			Revision:       "207105468",
+			RootfsURL:      "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdImage.aarch64-linux/latest/download-by-type/file/system-tarball",
+			RootfsSha256:   "",
+			Size:           0,
+			Revision:       "hydra-latest",
 		},
 	}
 )
@@ -104,11 +105,12 @@ var imagesHttpClient = &http.Client{
 	// includes download time
 	Timeout: 30 * time.Minute,
 	Transport: &http.Transport{
-		MaxIdleConns:          2,
-		IdleConnTimeout:       1 * time.Minute,
-		ResponseHeaderTimeout: 15 * time.Second,
-		TLSHandshakeTimeout:   15 * time.Second,
-		ExpectContinueTimeout: 15 * time.Second,
+		MaxIdleConns:    2,
+		IdleConnTimeout: 1 * time.Minute,
+		// nixos hydra can be slow
+		ResponseHeaderTimeout: 1 * time.Minute,
+		TLSHandshakeTimeout:   30 * time.Second,
+		ExpectContinueTimeout: 30 * time.Second,
 		ReadBufferSize:        32768,
 	},
 }
@@ -175,8 +177,8 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 			// ubuntu:jammy:amd64:desktop only has VM disk image
 			continue
 		}
-		if img.MetadataURL == "" || img.RootfsURL == "" || img.Size == 0 || img.Revision == "" || img.RootfsSha256 == "" || img.MetadataSha256 == "" {
-			return nil, errors.New("missing metadata, rootfs, or size for " + imageKey)
+		if img.MetadataURL == "" || img.RootfsURL == "" || img.Revision == "" {
+			return nil, errors.New("missing metadata or rootfs for " + imageKey)
 		}
 
 		// split the key
@@ -245,8 +247,8 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 		return err
 	}
 
-	// check sha256
-	if hex.EncodeToString(hash.Sum(nil)) != expectSha256 {
+	// check sha256 if we have one
+	if expectSha256 != "" && hex.EncodeToString(hash.Sum(nil)) != expectSha256 {
 		return errors.New("sha256 mismatch for " + url)
 	}
 
@@ -265,21 +267,19 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	// fetch index
 	var img RawImage
 	var ok bool
-	switch {
-	case isDistroInLxdRepo(spec.Distro):
-		logrus.Info("fetching image index")
-		images, err := fetchStreamsImages()
-		if err != nil {
-			return err
+	img, ok = extraImages[spec]
+	if !ok {
+		switch {
+		case isDistroInLxdRepo(spec.Distro):
+			logrus.Info("fetching image index")
+			images, err := fetchStreamsImages()
+			if err != nil {
+				return err
+			}
+			img, ok = images[spec]
+		default:
+			return errors.New("unsupported distro: " + spec.Distro)
 		}
-		img, ok = images[spec]
-	//TODO support nixos
-	/*
-		case spec.Distro == ImageNixos:
-			img, ok = nixosImages[spec]
-	*/
-	default:
-		return errors.New("unsupported distro: " + spec.Distro)
 	}
 	if !ok {
 		return fmt.Errorf("image not found: %v", spec)
