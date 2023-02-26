@@ -35,6 +35,12 @@ func (a *AgentServer) StartSshAgentProxy(args *SshAgentProxyArgs, _ *None) error
 
 func RunSshAgentProxy(args *SshAgentProxyArgs) error {
 	os.Remove(mounts.TmpSshAgentProxySocket)
+	// /dev/.orbstack
+	err := os.MkdirAll(path.Dir(mounts.TmpSshAgentProxySocket), 0755)
+	if err != nil {
+		return err
+	}
+
 	listener, err := net.Listen("unix", mounts.TmpSshAgentProxySocket)
 	if err != nil {
 		return err
