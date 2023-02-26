@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -16,7 +17,9 @@ var (
 )
 
 func MountNfs() error {
-	output, err := exec.Command("mount", "-t", "nfs", "-o", nfsMountOptions, "127.0.0.1:", NfsMountpoint()).CombinedOutput()
+	cmd := exec.Command("mount", "-t", "nfs", "-o", nfsMountOptions, "localhost:", NfsMountpoint())
+	logrus.WithField("cmd", cmd.Args).Debug("mounting nfs")
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("mount nfs: %w\n%s", err, output)
 	}
