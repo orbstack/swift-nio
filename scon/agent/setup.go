@@ -359,6 +359,11 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		if err != nil {
 			logrus.WithError(err).Warn("Failed to stop systemd-resolved")
 		}
+		// mask it to be safe
+		err = util.Run("systemctl", "mask", "systemd-resolved")
+		if err != nil {
+			logrus.WithError(err).Warn("Failed to stop systemd-resolved")
+		}
 	}
 
 	// link resolv.conf
