@@ -40,7 +40,17 @@ var (
 		//images.ImageAmazon: {"yum install -y curl"},
 		images.ImageOracle: nil, // no need
 		images.ImageRocky:  nil, // no need
+
+		// we don't actually use this, but keep it there to force waiting for network
+		images.ImageNixos: {"nixos-rebuild switch"}, // using nix instead
 	}
+
+	// from arch: rg WatchdogSec= /lib/systemd/system
+	systemdServices = []string{"oomd", "resolved", "userdbd", "udevd", "timesyncd", "timedated", "portabled", "nspawn@", "networkd", "machined", "localed", "logind", "journald@", "journald", "journal-remote", "journal-upload", "importd", "hostnamed", "homed"}
+
+	watchdogConf = `[Service]
+WatchdogSec=0
+`
 )
 
 type InitialSetupArgs struct {
@@ -163,6 +173,155 @@ func deleteDefaultUsers() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func configureSystemStandard(args InitialSetupArgs) error {
+	// add sudoers.d file
+	logrus.Debug("Adding sudoers.d file")
+	sudoersLine := args.Username + " ALL=(ALL) NOPASSWD:ALL"
+	err := os.MkdirAll("/etc/sudoers.d", 0750)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile("/etc/sudoers.d/"+args.Username, []byte(sudoersLine), 0440)
+	if err != nil {
+		return err
+	}
+
+	// symlink /opt/orbstack-guest/profile
+	logrus.Debug("linking profile")
+	err = os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+appid.AppName+".sh")
+	if err != nil {
+		return err
+	}
+	err = os.Symlink(mounts.ProfileLate, "/etc/profile.d/999-"+appid.AppName+".sh")
+	if err != nil {
+		return err
+	}
+
+	// set timezone
+	// don't use systemd timedatectl. it can change the system clock sometimes (+8h for pst)
+	// glibc will reload eventually so it's ok
+	logrus.WithField("timezone", args.Timezone).Debug("Setting timezone")
+
+	os.Remove("/etc/localtime")
+	err = os.Symlink("/usr/share/zoneinfo/"+args.Timezone, "/etc/localtime")
+	if err != nil {
+		return err
+	}
+
+	// disable systemd-resolved if running (arch, debian, ubuntu, fedora)
+	// it's redundant because we have mac's mDNSResponder
+	// and breaks single-name unicast ("andromeda") and unicast .local ("andromeda.local")
+	if _, err := os.Stat("/run/systemd/resolve/io.systemd.Resolve"); err == nil {
+		logrus.Debug("disabling systemd-resolved")
+		err = util.Run("systemctl", "disable", "systemd-resolved")
+		if err != nil {
+			logrus.WithError(err).Warn("Failed to disable systemd-resolved")
+		}
+		err = util.Run("systemctl", "stop", "systemd-resolved")
+		if err != nil {
+			logrus.WithError(err).Warn("Failed to stop systemd-resolved")
+		}
+		// mask it to be safe
+		err = util.Run("systemctl", "mask", "systemd-resolved")
+		if err != nil {
+			logrus.WithError(err).Warn("Failed to stop systemd-resolved")
+		}
+	}
+
+	// link resolv.conf
+	// we do this for all distros just in case there's a race condition where resolv.conf isn't set up yet at this point
+	// because we install packages below, and that requires network
+	logrus.Debug("linking resolv.conf")
+	err = os.Remove("/etc/resolv.conf")
+	if err != nil {
+		return err
+	}
+	// Kali doesn't like this, networking fails to start
+	if args.Distro == images.ImageKali {
+		resolvConf, err := os.ReadFile(mounts.ResolvConf)
+		if err != nil {
+			return err
+		}
+		err = os.WriteFile("/etc/resolv.conf", resolvConf, 0644)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = os.Symlink(mounts.ResolvConf, "/etc/resolv.conf")
+		if err != nil {
+			return err
+		}
+	}
+
+	// disable systemd service watchdogs to save CPU (wakes up every 2-3 min)
+	// only for systemd distros
+	if _, err := os.Stat("/etc/systemd/system"); err == nil {
+		logrus.Debug("disabling systemd service watchdogs")
+		for _, service := range systemdServices {
+			overrideDir := "/etc/systemd/system/systemd-" + service + ".service.d"
+			err = os.MkdirAll(overrideDir, 0755)
+			if err != nil {
+				return err
+			}
+			overrideConf := overrideDir + "/override.conf"
+			err = os.WriteFile(overrideConf, []byte(watchdogConf), 0644)
+			if err != nil {
+				return err
+			}
+		}
+
+		// won't take effect until next boot, that's ok
+		err = util.Run("systemctl", "daemon-reload")
+		if err != nil {
+			return err
+		}
+	}
+
+	// install packages
+	pkgCommands, ok := PackageInstallCommands[args.Distro]
+	if ok && len(pkgCommands) > 0 {
+		for _, cmd := range pkgCommands {
+			args := strings.Split(cmd, " ")
+			logrus.WithField("args", args).Debug("Running package install command")
+			err = util.Run(args...)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// symlink /etc/ssh/ssh_config.d/10-orbstack
+	// after we've installed openssh packages if necessary
+	if _, err := os.Stat("/etc/ssh/ssh_config.d"); errors.Is(err, os.ErrNotExist) {
+		logrus.Debug("creating ssh_config.d")
+		err = os.Mkdir("/etc/ssh/ssh_config.d", 0755)
+		if err == nil {
+			// add to ssh_config
+			oldConfig, err := os.ReadFile("/etc/ssh/ssh_config")
+			if err == nil {
+				newConfig := "Include /etc/ssh/ssh_config.d/*.conf\n\n" + string(oldConfig)
+				err = os.WriteFile("/etc/ssh/ssh_config", []byte(newConfig), 0644)
+				if err != nil {
+					return err
+				}
+			} else {
+				logrus.WithError(err).Warn("Failed to read ssh_config")
+			}
+		} else {
+			logrus.WithError(err).Warn("Failed to create ssh_config.d")
+		}
+	}
+	logrus.Debug("linking ssh config")
+	err = os.Symlink(mounts.SshConfig, "/etc/ssh/ssh_config.d/10-"+appid.AppName+".conf")
+	if err != nil {
+		// error ok, not all distros have ssh_config.d
+		// this isn't *that* important
+		logrus.WithError(err).Warn("Failed to symlink ssh config")
 	}
 
 	return nil
@@ -310,127 +469,23 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
-	// add sudoers.d file
-	logrus.Debug("Adding sudoers.d file")
-	sudoersLine := args.Username + " ALL=(ALL) NOPASSWD:ALL"
-	err = os.MkdirAll("/etc/sudoers.d", 0750)
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile("/etc/sudoers.d/"+args.Username, []byte(sudoersLine), 0440)
-	if err != nil {
-		return err
-	}
-
-	// symlink /opt/orbstack-guest/profile
-	logrus.Debug("linking profile")
-	err = os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+appid.AppName+".sh")
-	if err != nil {
-		return err
-	}
-	err = os.Symlink(mounts.ProfileLate, "/etc/profile.d/999-"+appid.AppName+".sh")
-	if err != nil {
-		return err
-	}
-
-	// set timezone
-	if args.Timezone != "" {
-		// don't use systemd timedatectl. it can change the system clock sometimes (+8h for pst)
-		// glibc will reload eventually so it's ok
-		logrus.WithField("timezone", args.Timezone).Debug("Setting timezone")
-
-		os.Remove("/etc/localtime")
-		err = os.Symlink("/usr/share/zoneinfo/"+args.Timezone, "/etc/localtime")
+	/*
+	 * after this point is system configs
+	 */
+	if args.Distro == images.ImageNixos {
+		// have to do it all with nix instead
+		err = configureSystemNixos(args)
 		if err != nil {
-			return err
-		}
-	}
-
-	// disable systemd-resolved if running (arch, debian, ubuntu, fedora)
-	// it's redundant because we have mac's mDNSResponder
-	// and breaks single-name unicast ("andromeda") and unicast .local ("andromeda.local")
-	if _, err := os.Stat("/run/systemd/resolve/io.systemd.Resolve"); err == nil {
-		logrus.Debug("disabling systemd-resolved")
-		err = util.Run("systemctl", "disable", "systemd-resolved")
-		if err != nil {
-			logrus.WithError(err).Warn("Failed to disable systemd-resolved")
-		}
-		err = util.Run("systemctl", "stop", "systemd-resolved")
-		if err != nil {
-			logrus.WithError(err).Warn("Failed to stop systemd-resolved")
-		}
-		// mask it to be safe
-		err = util.Run("systemctl", "mask", "systemd-resolved")
-		if err != nil {
-			logrus.WithError(err).Warn("Failed to stop systemd-resolved")
-		}
-	}
-
-	// link resolv.conf
-	// we do this for all distros just in case there's a race condition where resolv.conf isn't set up yet at this point
-	// because we install packages below, and that requires network
-	logrus.Debug("linking resolv.conf")
-	err = os.Remove("/etc/resolv.conf")
-	if err != nil {
-		return err
-	}
-	// Kali doesn't like this, networking fails to start
-	if args.Distro == "kali" {
-		resolvConf, err := os.ReadFile(mounts.ResolvConf)
-		if err != nil {
-			return err
-		}
-		err = os.WriteFile("/etc/resolv.conf", resolvConf, 0644)
-		if err != nil {
+			logrus.WithError(err).Error("NixOS system configuration failed")
 			return err
 		}
 	} else {
-		err = os.Symlink(mounts.ResolvConf, "/etc/resolv.conf")
+		// standard system configuration
+		err = configureSystemStandard(args)
 		if err != nil {
+			logrus.WithError(err).Error("standard system configuration failed")
 			return err
 		}
-	}
-
-	// install packages
-	pkgCommands, ok := PackageInstallCommands[args.Distro]
-	if ok && len(pkgCommands) > 0 {
-		for _, cmd := range pkgCommands {
-			args := strings.Split(cmd, " ")
-			logrus.WithField("args", args).Debug("Running package install command")
-			err = util.Run(args...)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// symlink /etc/ssh/ssh_config.d/10-orbstack
-	// after we've installed openssh packages if necessary
-	if _, err := os.Stat("/etc/ssh/ssh_config.d"); errors.Is(err, os.ErrNotExist) {
-		logrus.Debug("creating ssh_config.d")
-		err = os.Mkdir("/etc/ssh/ssh_config.d", 0755)
-		if err == nil {
-			// add to ssh_config
-			oldConfig, err := os.ReadFile("/etc/ssh/ssh_config")
-			if err == nil {
-				newConfig := "Include /etc/ssh/ssh_config.d/*.conf\n\n" + string(oldConfig)
-				err = os.WriteFile("/etc/ssh/ssh_config", []byte(newConfig), 0644)
-				if err != nil {
-					return err
-				}
-			} else {
-				logrus.WithError(err).Warn("Failed to read ssh_config")
-			}
-		} else {
-			logrus.WithError(err).Warn("Failed to create ssh_config.d")
-		}
-	}
-	logrus.Debug("linking ssh config")
-	err = os.Symlink(mounts.SshConfig, "/etc/ssh/ssh_config.d/10-"+appid.AppName+".conf")
-	if err != nil {
-		// error ok, not all distros have ssh_config.d
-		// this isn't *that* important
-		logrus.WithError(err).Warn("Failed to symlink ssh config")
 	}
 
 	return nil
