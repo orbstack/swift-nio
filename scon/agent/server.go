@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"os/exec"
 	"os/signal"
 	"reflect"
 	"runtime"
@@ -255,6 +256,20 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		return err
 	}
 
+	// in NixOS, we need to wait for systemd before we do anything else (including running /bin/sh)
+	waitForNixBoot()
+
+	// now, run the system shell to get the PATH
+	// we need this for running shell (su) and setup commands
+	out, err := exec.Command("/bin/sh", "-l", "-c", "echo \"$PATH\"").CombinedOutput()
+	if err != nil {
+		return err
+	}
+	loginPath := strings.TrimSpace(string(out))
+	logrus.WithField("path", loginPath).Debug("got PATH")
+	os.Setenv("PATH", loginPath)
+
+	// start server!
 	// fdx is used on-demand
 	go rpcServer.ServeConn(rpcConn)
 
