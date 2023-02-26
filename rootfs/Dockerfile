@@ -48,11 +48,12 @@ FROM base AS c-build
 RUN apk add --no-cache alpine-sdk linux-headers
 COPY rootfs/utils/*.c /build/
 RUN <<EOT sh -eux
-mkdir /out
+mkdir /out /out-guest
 gcc -O2 -Wall -o /out/switchroot /build/switchroot.c
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
 gcc -O2 -Wall -o /out/daemonize /build/daemonize.c
-strip /out/*
+gcc -O2 -Wall -static -o /out-guest/setctty /build/setctty.c
+strip /out/* /out-guest/*
 EOT
 
 
@@ -225,8 +226,8 @@ COPY rootfs/utils/guest/etc /opt/orbstack-guest/etc
 COPY LICENSE /
 
 # Compiled binaries (in order of most likely to change)
-# switchroot, vsocknfs, daemonize
 COPY --from=c-build /out/* /opt/orb/
+COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vcontrol
 COPY --from=rust-build /out/vcontrol /opt/orb/
 # macctl

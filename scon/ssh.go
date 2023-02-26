@@ -320,38 +320,10 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		env = append(env, "SSH_AUTH_SOCK="+mounts.SshAgentSocket)
 	}
 
-	var suCmd string
-	prelude := "cd " + shellescape.Quote(cwd) + "; " + envToShell(env)
-	if meta.RawCommand {
-		// raw command (JSON)
-		var rawArgs []string
-		err = json.Unmarshal([]byte(s.RawCommand()), &rawArgs)
-		if err != nil {
-			return
-		}
-		suCmd = prelude + " exec " + shellescape.QuoteCommand(rawArgs)
-	} else {
-		var shellArgs []string
-		if s.RawCommand() != "" {
-			shellArgs = append(shellArgs, "-c", s.RawCommand())
-		}
-		suCmd = prelude + " exec $SHELL -l " + shellescape.QuoteCommand(shellArgs)
-	}
-	// this fixes job control. with -c, util-linux su calls setsid(), causing ctty to get lost
-	// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L1269
-	commandArg := "--session-command"
-	// Busybox su doesn't support --session-command, so use -c instead
-	// TODO better way
-	if container.Image.Distro == images.ImageAlpine || container.Image.Distro == images.ImageNixos || container.Image.Distro == images.ImageDocker {
-		commandArg = "-c"
-	}
-	combinedArgs := []string{"su", "-l", user, commandArg, suCmd}
-
 	cmd := &agent.AgentCommand{
-		CombinedArgs: combinedArgs,
-		Env:          env,
-		Dir:          cwd,
-		User:         user,
+		Env:  env,
+		Dir:  cwd,
+		User: user,
 	}
 
 	if isPty {
@@ -428,6 +400,51 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		cmd.Stdout = s
 		cmd.Stderr = s.Stderr()
 	}
+
+	// after stdin/stdout setup, to deal with nixos su
+	var suCmd string
+	prelude := "cd " + shellescape.Quote(cwd) + "; " + envToShell(env)
+	if meta.RawCommand {
+		// raw command (JSON)
+		var rawArgs []string
+		err = json.Unmarshal([]byte(s.RawCommand()), &rawArgs)
+		if err != nil {
+			return
+		}
+		// prepend ctty if needed
+		// nixos uses shadow's su, not util-linux. it calls setsid unconditionally and doesn't support --session-command
+		if cmd.Setctty && container.Image.Distro == images.ImageNixos {
+			rawArgs = append([]string{mounts.Setctty, strconv.Itoa(cmd.CttyFd)}, rawArgs...)
+			// TIOCSCTTY returns EPERM if not root and the pty was already set as a ctty (in this cas, for the setsid() session we did, before calling su)
+			// to fix this, don't set ctty when spawning su
+			cmd.Setctty = false
+		}
+		suCmd = prelude + " exec " + shellescape.QuoteCommand(rawArgs)
+	} else {
+		var shellArgs []string
+		if s.RawCommand() != "" {
+			shellArgs = append(shellArgs, "-c", s.RawCommand())
+		}
+		// prepend ctty if needed
+		var cttyPrefix string
+		if cmd.Setctty && container.Image.Distro == images.ImageNixos {
+			cttyPrefix = mounts.Setctty + " " + strconv.Itoa(cmd.CttyFd) + " "
+			// TIOCSCTTY returns EPERM if not root and the pty was already set as a ctty (in this cas, for the setsid() session we did, before calling su)
+			// to fix this, don't set ctty when spawning su
+			cmd.Setctty = false
+		}
+		suCmd = prelude + " exec " + cttyPrefix + "$SHELL -l " + shellescape.QuoteCommand(shellArgs)
+	}
+	// this fixes job control. with -c, util-linux su calls setsid(), causing ctty to get lost
+	// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L1269
+	commandArg := "--session-command"
+	// Busybox su doesn't support --session-command, so use -c instead
+	// TODO call PAM with purego
+	if container.Image.Distro == images.ImageAlpine || container.Image.Distro == images.ImageNixos || container.Image.Distro == images.ImageDocker {
+		commandArg = "-c"
+	}
+	combinedArgs := []string{"su", "-l", user, commandArg, suCmd}
+	cmd.CombinedArgs = combinedArgs
 
 	err = cmd.Start(container.Agent())
 	if err != nil {

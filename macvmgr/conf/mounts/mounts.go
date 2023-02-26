@@ -13,6 +13,7 @@ const (
 	Virtiofs = "/mnt/mac"
 
 	Opt             = "/opt/" + appid.AppName + "-guest"
+	Setctty         = Opt + "/setctty"
 	Bin             = Opt + "/bin"
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"
