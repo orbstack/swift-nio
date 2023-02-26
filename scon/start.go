@@ -274,6 +274,9 @@ func (c *Container) configureLxc() error {
 		// nesting (proc not needed because it's rw)
 		// this is in .lxc not .orbstack because of lxc systemd-generator's conditions
 		// see /etc/systemd/system-generators/lxc - we effectively have security.nesting on
+		// also, we still need uncovered mounts for nesting, even if /proc is rw
+		// otherwise nixpkgs unpacking fails: error: mounting /proc: Operation not permitted
+		set("lxc.mount.entry", "proc dev/.lxc/proc proc create=dir,optional 0 0")
 		set("lxc.mount.entry", "sys dev/.lxc/sys sysfs create=dir,optional 0 0")
 
 		// tmpfs
