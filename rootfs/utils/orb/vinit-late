@@ -64,6 +64,8 @@ if [[ -f /opt/orb/is_debug ]]; then
   mkdir /nfsroot-rw/data
   mount --bind /data /nfsroot-ro/data
 fi
+# for scon bind mounts
+mount --make-rshared /nfsroot-ro
 
 # scon!
 /opt/orb/scon &
