@@ -249,6 +249,19 @@ func setupOneNat(proto iptables.Protocol, netmask string, servicesIP string) (fu
 		}
 	}
 
+	// first, accept related/established
+	err = ipt.AppendUnique("filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT")
+	if err != nil {
+		return nil, err
+	}
+
+	// then block scon from accessing our guest (VM) services that are intended for host
+	// blocked on both guest IP (100.115.92.2) and bridge gateway (100.115.93.1)
+	err = ipt.AppendUnique("filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset")
+	if err != nil {
+		return nil, err
+	}
+
 	return func() error {
 		err = ipt.DeleteIfExists("nat", "POSTROUTING", "-s", netmask, "!", "-d", netmask, "-j", "MASQUERADE")
 		if err != nil {
@@ -260,6 +273,16 @@ func setupOneNat(proto iptables.Protocol, netmask string, servicesIP string) (fu
 			if err != nil {
 				return err
 			}
+		}
+
+		err = ipt.DeleteIfExists("filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT")
+		if err != nil {
+			return err
+		}
+
+		err = ipt.DeleteIfExists("filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset")
+		if err != nil {
+			return err
 		}
 
 		return nil
