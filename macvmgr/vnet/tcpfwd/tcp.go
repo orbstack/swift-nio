@@ -81,7 +81,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 
 		extConn, err := net.DialTimeout("tcp", extAddr, tcpConnectTimeout)
 		if err != nil {
-			logrus.Errorf("TCP forward [%v] dial failed: %v", extAddr, err)
+			logrus.Debugf("TCP forward [%v] dial failed: %v", extAddr, err)
 			// if connection refused
 			if errors.Is(err, unix.ECONNREFUSED) || errors.Is(err, unix.ECONNRESET) {
 				// send RST
