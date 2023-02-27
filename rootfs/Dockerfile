@@ -147,6 +147,7 @@ COPY \
     rootfs/config/inittab \
     rootfs/config/fstab \
     rootfs/config/hostname \
+    rootfs/config/hosts \
     rootfs/config/resolv.conf \
     rootfs/config/sysctl.conf \
     rootfs/config/rc.conf \
