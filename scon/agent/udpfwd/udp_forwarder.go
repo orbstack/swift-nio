@@ -7,10 +7,10 @@ import (
 	"errors"
 	"net"
 	"net/netip"
-	"sync"
 	"syscall"
 	"time"
 
+	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -48,7 +48,7 @@ type UDPProxy struct {
 	listener       net.PacketConn
 	dialer         func(*net.UDPAddr) (net.Conn, error)
 	connTrackTable connTrackMap
-	connTrackLock  sync.Mutex
+	connTrackLock  syncx.Mutex
 }
 
 // NewUDPProxy creates a new UDPProxy.

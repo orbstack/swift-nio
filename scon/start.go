@@ -665,7 +665,7 @@ func (c *Container) startAgent() error {
 	// will block if agent is broken
 	// also, we'll close our side of the remote fd so RPC will return ECONNRESET
 	go func() {
-		err := c.initAgent()
+		err := c.initAgent(client)
 		if err != nil {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to init agent")
 		}
@@ -674,9 +674,9 @@ func (c *Container) startAgent() error {
 	return nil
 }
 
-func (c *Container) initAgent() error {
+func (c *Container) initAgent(a *agent.Client) error {
 	// inet diag
-	nlFile, err := c.Agent().OpenDiagNetlink()
+	nlFile, err := a.OpenDiagNetlink()
 	if err != nil {
 		return err
 	}
@@ -693,7 +693,7 @@ func (c *Container) initAgent() error {
 	if err != nil {
 		return err
 	}
-	err = c.Agent().StartSshAgentProxy(agent.SshAgentProxyArgs{
+	err = a.StartSshAgentProxy(agent.SshAgentProxyArgs{
 		Uid: hostUser.Uid,
 		Gid: hostUser.Uid,
 	})
@@ -703,7 +703,7 @@ func (c *Container) initAgent() error {
 
 	// bind mount NFS if ok (i.e. if host already did)
 	if c.manager.hostNfsMounted {
-		err = c.Agent().BindMountNfsRoot(agent.BindMountArgs{
+		err = a.BindMountNfsRoot(agent.BindMountArgs{
 			Source: "/mnt/machines",
 			Target: hostUser.HomeDir + "/" + mounts.NfsDirName,
 		})

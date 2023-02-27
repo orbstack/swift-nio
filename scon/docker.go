@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -18,7 +17,6 @@ import (
 	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/kdrag0n/macvirt/scon/util"
-	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 )
 
@@ -28,7 +26,7 @@ const (
 	// takes ~3 ms to unfreeze
 	dockerFreezeDelay  = 2 * time.Second
 	dockerStartPoll    = 500 * time.Millisecond
-	dockerStartTimeout = 10 * time.Second
+	dockerStartTimeout = 15 * time.Second
 
 	dockerNfsDebounce = 250 * time.Millisecond
 )
@@ -83,19 +81,34 @@ func (h *DockerHooks) PreStart(c *Container) error {
 }
 
 func (h *DockerHooks) PostStart(c *Container) error {
+	// make a freezer
+	freezer := NewContainerFreezer(c, dockerFreezeDelay, func() (bool, error) {
+		// [predicate, via agent] check docker API to see if any containers are running
+		// if so, don't freeze
+		var isIdle bool
+		err := c.useAgentInternal(func(a *agent.Client) error {
+			var err error
+			isIdle, err = a.CheckDockerIdle()
+			return err
+		}, false)
+		if err != nil {
+			return false, err
+		}
+		return isIdle, nil
+	})
+	c.freezer = freezer
+
 	// trigger an initial freeze once docker starts
-	go c.manager.dockerProxy.kickStart()
+	go c.manager.dockerProxy.kickStart(freezer)
 
 	return nil
 }
 
 type DockerProxy struct {
-	mu             sync.Mutex
-	container      *Container
-	manager        *ConManager
-	l              net.Listener
-	freezeDebounce syncx.FuncDebounce
-	numConns       int
+	mu        syncx.Mutex
+	container *Container
+	manager   *ConManager
+	l         net.Listener
 }
 
 func (m *ConManager) startDockerProxy() error {
@@ -118,20 +131,13 @@ func (m *ConManager) startDockerProxy() error {
 		container: c,
 		l:         l,
 	}
-	proxy.freezeDebounce = syncx.NewFuncDebounce(dockerFreezeDelay, func() {
-		logrus.Debug("docker idle, freezing")
-		err := proxy.tryFreeze()
-		if err != nil {
-			logrus.WithError(err).Error("failed to freeze docker")
-		}
-	})
 	m.dockerProxy = proxy
 
 	go runOne("Docker proxy", proxy.Run)
 	return nil
 }
 
-func (p *DockerProxy) kickStart() {
+func (p *DockerProxy) kickStart(freezer *Freezer) {
 	logrus.Debug("waiting for docker start")
 	err := p.waitForStart()
 	if err != nil {
@@ -139,76 +145,32 @@ func (p *DockerProxy) kickStart() {
 		return
 	}
 
-	logrus.Debug("docker started, freezing")
-	p.freezeDebounce.Call()
+	logrus.Debug("docker started, dropping freezer ref")
+	freezer.DecRef()
 }
 
 func (p *DockerProxy) waitForStart() error {
-	// wait for docker to start if container is running
-	if !p.container.Running() {
-		return nil
-	}
-
+	start := time.Now()
 	for {
-		p.mu.Lock()
-		frozen := p.container.IsFrozen()
-		p.mu.Unlock()
-
-		if frozen {
-			return nil
-		}
-
 		// check
-		agent, err := util.WithTimeout(func() (*agent.Client, error) {
-			return p.container.Agent(), nil
-		}, dockerStartTimeout)
-		if err != nil {
+		err := p.container.UseAgent(func(a *agent.Client) error {
+			_, err := a.CheckDockerIdle()
 			return err
-		}
-		_, err = agent.CheckDockerIdle()
+		})
 		if err == nil {
 			return nil
+		}
+		if errors.Is(err, ErrAgentDead) || errors.Is(err, ErrNotRunning) {
+			// start timeout
+			return err
 		}
 
 		logrus.Debug("poll docker start")
 		time.Sleep(dockerStartPoll)
+		if time.Since(start) > dockerStartTimeout {
+			return errors.New("docker start timeout")
+		}
 	}
-}
-
-func (p *DockerProxy) tryFreeze() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	logrus.Trace("considering docker freeze")
-
-	// if new connections came in, don't freeze
-	if p.numConns > 0 {
-		return nil
-	}
-
-	// if container was stopped, don't freeze
-	if !p.container.Running() {
-		return nil
-	}
-
-	// if already frozen, don't freeze again
-	if p.container.IsFrozen() {
-		return nil
-	}
-
-	// [via agent] check docker API to see if any containers are running
-	// if so, don't freeze
-	isIdle, err := p.container.Agent().CheckDockerIdle()
-	if err != nil {
-		return err
-	}
-	if !isIdle {
-		return nil
-	}
-
-	// freeze!
-	logrus.Trace("freezing docker")
-	return p.container.Freeze()
 }
 
 func (p *DockerProxy) Run() error {
@@ -232,9 +194,6 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 
 	p.mu.Lock()
 
-	// cancel pending freeze
-	p.freezeDebounce.Cancel()
-
 	// start docker container if not running
 	if !p.container.Running() {
 		logrus.Debug("docker not running, starting")
@@ -246,45 +205,19 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 		// wait for start to avoid EOF
 		p.mu.Unlock()
 		err = p.waitForStart()
-		p.mu.Lock()
 		if err != nil {
 			return err
 		}
+		// no point in reclaiming lock if we had an error
 		p.mu.Lock()
-	}
-
-	// increment while locked
-	p.numConns++
-	defer func() {
-		// after conn done, check and trigger a freeze
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
-		p.numConns--
-		logrus.WithField("numConns", p.numConns).Debug("docker conn closed")
-		if p.numConns == 0 {
-			// no more connections, trigger a pending freeze
-			p.freezeDebounce.Call()
-		}
-		if p.numConns < 0 {
-			logrus.Error("docker proxy numConns < 0")
-		}
-	}()
-
-	// unfreeze if it's frozen
-	err := p.container.Unfreeze()
-	if err != nil {
-		if !errors.Is(err, lxc.ErrNotFrozen) {
-			p.mu.Unlock()
-			return err
-		}
-	} else {
-		logrus.Trace("unfreezing docker")
 	}
 
 	// tell agent to handle this conn
+	// UseAgent holds freezer ref
 	p.mu.Unlock()
-	err = p.container.Agent().HandleDockerConn(conn)
+	err := p.container.UseAgent(func(a *agent.Client) error {
+		return a.HandleDockerConn(conn)
+	})
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return err
 	}

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"net"
 	"os"
-	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -37,7 +37,7 @@ type Fdx struct {
 	seq           atomic.Uint64
 	pendingReads  map[uint64]*pendingFdx
 	pendingQueued map[uint64]queuedFdx
-	mu            sync.Mutex
+	mu            syncx.Mutex
 	err           error
 	stopChan      chan struct{}
 }

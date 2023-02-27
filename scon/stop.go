@@ -63,7 +63,7 @@ func (c *Container) stopLocked() error {
 		return ErrTimeout
 	}
 
-	err = c.onStop()
+	err = c.onStopLocked()
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,15 @@ func (c *Container) Stop() error {
 	return c.stopLocked()
 }
 
-func (c *Container) onStop() error {
+func (c *Container) onStopLocked() error {
+	// discard freezer
+	// we don't need a ref for agent because it's already stopped
+	freezer := c.freezer
+	if freezer != nil {
+		freezer.Close()
+	}
+	c.freezer = nil
+
 	// stop forwards
 	for _, listener := range c.lastListeners {
 		c.manager.removeForward(c, listener)

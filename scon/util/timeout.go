@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+var (
+	ErrFnTimeout = errors.New("func timeout")
+)
+
 func WithTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) {
 	// wil be GC'd once both are done
 	done := make(chan struct{}, 1)
@@ -20,6 +24,6 @@ func WithTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) 
 	case <-done:
 		return result, err
 	case <-time.After(timeout):
-		return result, errors.New("timeout")
+		return result, ErrFnTimeout
 	}
 }

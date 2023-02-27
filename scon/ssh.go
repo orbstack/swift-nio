@@ -295,9 +295,11 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	env = filterEnv(env, sshenv.NoInheritEnvs)
 
 	// pwd
-	cwd, err := container.Agent().ResolveSSHDir(agent.ResolveSSHDirArgs{
-		User: user,
-		Dir:  meta.Pwd,
+	cwd, err := UseAgentRet(container, func(a *agent.Client) (string, error) {
+		return a.ResolveSSHDir(agent.ResolveSSHDirArgs{
+			User: user,
+			Dir:  meta.Pwd,
+		})
 	})
 	if err != nil {
 		return
@@ -446,7 +448,9 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	combinedArgs := []string{"su", "-l", user, commandArg, suCmd}
 	cmd.CombinedArgs = combinedArgs
 
-	err = cmd.Start(container.Agent())
+	err = container.UseAgent(func(a *agent.Client) error {
+		return cmd.Start(a)
+	})
 	if err != nil {
 		return
 	}
@@ -520,7 +524,9 @@ func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string
 		io.Copy(conn0, s)
 	}()
 
-	exitCode, err := container.Agent().ServeSftp(user, socketF1)
+	exitCode, err := UseAgentRet(container, func(a *agent.Client) (int, error) {
+		return a.ServeSftp(user, socketF1)
+	})
 	if err != nil {
 		return err
 	}
@@ -555,7 +561,9 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 		return
 	}
 
-	dstConn, err := container.Agent().DialTCPContext(dest)
+	dstConn, err := UseAgentRet(container, func(a *agent.Client) (net.Conn, error) {
+		return a.DialTCPContext(dest)
+	})
 	if err != nil {
 		newChan.Reject(gossh.ConnectionFailed, err.Error())
 		return

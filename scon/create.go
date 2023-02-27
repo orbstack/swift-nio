@@ -156,15 +156,17 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		"uid":      hostUser.Uid,
 		"username": hostUser.Username,
 	}).Info("running initial setup")
-	err = c.Agent().InitialSetup(agent.InitialSetupArgs{
-		Username:    hostUser.Username,
-		Uid:         hostUser.Uid,
-		HostHomeDir: hostUser.HomeDir,
+	err = c.UseAgent(func(a *agent.Client) error {
+		return a.InitialSetup(agent.InitialSetupArgs{
+			Username:    hostUser.Username,
+			Uid:         hostUser.Uid,
+			HostHomeDir: hostUser.HomeDir,
 
-		Password:        args.UserPassword,
-		Distro:          image.Distro,
-		Timezone:        hostTimezone,
-		BasicGitConfigs: gitConfigs,
+			Password:        args.UserPassword,
+			Distro:          image.Distro,
+			Timezone:        hostTimezone,
+			BasicGitConfigs: gitConfigs,
+		})
 	})
 	if err != nil {
 		return

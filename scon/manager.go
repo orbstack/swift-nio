@@ -14,6 +14,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
+	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
@@ -30,7 +31,7 @@ type ConManager struct {
 	// state
 	containersByID   map[string]*Container
 	containersByName map[string]*Container
-	containersMu     sync.RWMutex
+	containersMu     syncx.RWMutex
 	seccompCookies   map[uint64]*Container
 	stopping         bool
 	dockerProxy      *DockerProxy
@@ -42,10 +43,10 @@ type ConManager struct {
 
 	// auto forward
 	forwards   map[agent.ProcListener]ForwardState
-	forwardsMu sync.Mutex
+	forwardsMu syncx.Mutex
 
 	// nfs
-	nfsMu sync.Mutex
+	nfsMu syncx.Mutex
 
 	// stop
 	stopChan          chan struct{}

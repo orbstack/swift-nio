@@ -115,7 +115,9 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 		internalPort = uint16(listener.Addr().(*net.TCPAddr).Port)
 
 		// pass to agent
-		err = c.Agent().StartProxyTCP(agentSpec, listener)
+		err = c.UseAgent(func(a *agent.Client) error {
+			return a.StartProxyTCP(agentSpec, listener)
+		})
 		// if it succeeded, we don't need this anymore
 		// if it failed, we need to close it to prevent a leak
 		listener.Close()
@@ -130,7 +132,9 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 		}
 		err = m.host.StartForward(hostForwardSpec)
 		if err != nil {
-			err2 := c.Agent().StopProxyTCP(agentSpec)
+			err2 := c.UseAgent(func(a *agent.Client) error {
+				return a.StopProxyTCP(agentSpec)
+			})
 			if err2 != nil {
 				logrus.WithError(err2).Error("failed to stop tcp proxy after hcontrol error")
 			}
@@ -149,7 +153,9 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 		internalPort = uint16(listener.LocalAddr().(*net.UDPAddr).Port)
 
 		// pass to agent
-		err = c.Agent().StartProxyUDP(agentSpec, listener)
+		err = c.UseAgent(func(a *agent.Client) error {
+			return a.StartProxyUDP(agentSpec, listener)
+		})
 		// if it succeeded, we don't need this anymore
 		// if it failed, we need to close it to prevent a leak
 		listener.Close()
@@ -164,7 +170,9 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 		}
 		err = m.host.StartForward(hostForwardSpec)
 		if err != nil {
-			err2 := c.Agent().StopProxyUDP(agentSpec)
+			err2 := c.UseAgent(func(a *agent.Client) error {
+				return a.StopProxyUDP(agentSpec)
+			})
 			if err2 != nil {
 				logrus.WithError(err2).Error("failed to stop udp proxy after hcontrol error")
 			}
@@ -209,12 +217,16 @@ func (m *ConManager) removeForward(c *Container, spec agent.ProcListener) error 
 
 	// tell agent (our side of listener is already closed)
 	agentSpec := procToAgentSpec(spec)
-	switch spec.Proto {
-	case agent.ProtoTCP:
-		err = state.Owner.Agent().StopProxyTCP(agentSpec)
-	case agent.ProtoUDP:
-		err = state.Owner.Agent().StopProxyUDP(agentSpec)
-	}
+	err = state.Owner.UseAgent(func(a *agent.Client) error {
+		switch spec.Proto {
+		case agent.ProtoTCP:
+			return a.StopProxyTCP(agentSpec)
+		case agent.ProtoUDP:
+			return a.StopProxyUDP(agentSpec)
+		default:
+			return errors.New("unknown protocol")
+		}
+	})
 	if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return err
 	}
@@ -263,16 +275,6 @@ func diffSlices[T comparable](old, new []T) (added, removed []T) {
 	return
 }
 
-func filterSlice[T comparable](s []T, f func(T) bool) []T {
-	var out []T
-	for _, v := range s {
-		if f(v) {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
 func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	var out []N
 	for _, v := range s {
@@ -285,7 +287,9 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 
 // triggered on seccomp notify or inet diag
 func (c *Container) updateListenersDirect() error {
-	listeners, err := c.Agent().GetListeners()
+	listeners, err := UseAgentRet(c, func(a *agent.Client) ([]agent.ProcListener, error) {
+		return a.GetListeners()
+	})
 	if err != nil {
 		return err
 	}

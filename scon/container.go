@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"os"
-	"sync"
 	"syscall"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -21,6 +21,15 @@ type ContainerState int
 const (
 	ContainerStateStopped ContainerState = iota
 	ContainerStateRunning
+)
+
+var (
+	ErrAgentDead  = errors.New("agent dead or not responding")
+	ErrNotRunning = errors.New("container is not running")
+)
+
+const (
+	agentTimeout = 15 * time.Second
 )
 
 type ContainerHooks interface {
@@ -49,12 +58,15 @@ type Container struct {
 
 	agent   syncx.CondValue[*agent.Client]
 	manager *ConManager
-	mu      sync.RWMutex
+	mu      syncx.RWMutex
 
 	seccompCookie     uint64
 	lastListeners     []agent.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
+
+	// docker
+	freezer *Freezer
 }
 
 func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Container, error) {
@@ -99,10 +111,6 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 	m.seccompCookies[c.seccompCookie] = c
 
 	return c, nil
-}
-
-func (c *Container) Agent() *agent.Client {
-	return c.agent.Wait()
 }
 
 func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int, error) {
@@ -160,7 +168,7 @@ func (c *Container) refreshState() error {
 				return err
 			}
 		} else {
-			err := c.onStop()
+			err := c.onStopLocked()
 			if err != nil {
 				return err
 			}
@@ -198,21 +206,43 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 	return nil
 }
 
-func (c *Container) UseAgent(fn func(*agent.Client) error) error {
-	c.mu.RLock()
-
+// can't use rlock - could be called with container lock held (updateListeners)
+func (c *Container) useAgentInternal(fn func(*agent.Client) error, takeFreezerRef bool) error {
 	if !c.Running() {
-		c.mu.RUnlock()
-		return errors.New("container is not running")
+		return ErrNotRunning
 	}
 
-	//TODO
-	if c.IsFrozen() {
-		c.mu.RUnlock()
-		return errors.New("container is frozen")
+	// we want it to be unfrozen - or call will hang
+	freezer := c.Freezer()
+	if takeFreezerRef && freezer != nil {
+		freezer.IncRef()
+		defer freezer.DecRef()
 	}
-	c.mu.RUnlock()
 
-	agent := c.Agent()
+	agent, err := util.WithTimeout(func() (*agent.Client, error) {
+		return c.agent.Wait(), nil
+	}, agentTimeout)
+	if err != nil {
+		return ErrAgentDead
+	}
+
 	return fn(agent)
+}
+
+func (c *Container) UseAgent(fn func(*agent.Client) error) error {
+	return c.useAgentInternal(fn, true)
+}
+
+func UseAgentRet[T any](c *Container, fn func(*agent.Client) (T, error)) (T, error) {
+	var ret T
+	err := c.UseAgent(func(agent *agent.Client) error {
+		var err error
+		ret, err = fn(agent)
+		return err
+	})
+	return ret, err
+}
+
+func (c *Container) Freezer() *Freezer {
+	return c.freezer
 }
