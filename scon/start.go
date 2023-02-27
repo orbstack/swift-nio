@@ -194,11 +194,6 @@ func (c *Container) configureLxc() error {
 		return err
 	}
 
-	hostUser, err := c.manager.host.GetUser()
-	if err != nil {
-		return err
-	}
-
 	// set configs!
 	err = func() error {
 		defer func() {
@@ -316,7 +311,7 @@ func (c *Container) configureLxc() error {
 
 		// bind mounts
 		config := conf.C()
-		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro,rshared")
+		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro")
 		bind(config.HostMountSrc, "/mnt/mac", "")
 		// we're doing this in kernel now, to avoid showing up in `df`
 		//bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
@@ -336,9 +331,12 @@ func (c *Container) configureLxc() error {
 		}
 
 		// bind NFS root at /mnt/machines for access
+		// must be rshared for agent's ~/Linux bind to work later
 		bind(config.NfsRootRO, "/mnt/machines", "ro,rshared")
-		// also bind it to ~/Linux so paths work correctly
-		bind(config.NfsRootRO, hostUser.HomeDir+"/"+mounts.NfsDirName, "ro,rshared")
+		// we also bind it to ~/Linux later so paths work correctly
+		// but must do it AFTER macOS host mounts NFS on the path
+		// otherwise, kernel sees that inode has changed and unmounts everything
+		// https://github.com/torvalds/linux/commit/8ed936b5671bfb33d89bc60bdcc7cf0470ba52fe
 
 		// log
 		set("lxc.log.file", logPath)
@@ -691,16 +689,27 @@ func (c *Container) initAgent() error {
 	c.triggerListenersUpdate()
 
 	// ssh agent proxy (vscode workaround)
-	u, err := c.manager.host.GetUser()
+	hostUser, err := c.manager.host.GetUser()
 	if err != nil {
 		return err
 	}
 	err = c.Agent().StartSshAgentProxy(agent.SshAgentProxyArgs{
-		Uid: u.Uid,
-		Gid: u.Uid,
+		Uid: hostUser.Uid,
+		Gid: hostUser.Uid,
 	})
 	if err != nil {
 		return err
+	}
+
+	// bind mount NFS if ok (i.e. if host already did)
+	if c.manager.hostNfsMounted {
+		err = c.Agent().BindMountNfsRoot(agent.BindMountArgs{
+			Source: "/mnt/machines",
+			Target: hostUser.HomeDir + "/" + mounts.NfsDirName,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

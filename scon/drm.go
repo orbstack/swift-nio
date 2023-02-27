@@ -1,17 +1,12 @@
 package main
 
 import (
-	"net"
-	"net/rpc"
-	"strconv"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/killswitch"
-	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -117,36 +112,3 @@ func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 }
 
 type None struct{}
-
-type SconInternalServer struct {
-	drmMonitor *DrmMonitor
-}
-
-func (s *SconInternalServer) Ping(_ None, _ *None) error {
-	return nil
-}
-
-func (s *SconInternalServer) OnDrmResult(result drmtypes.Result, _ *None) error {
-	dlog("on drm result reported")
-	s.drmMonitor.dispatchResult(&result)
-	return nil
-}
-
-func ListenSconInternal(drmMonitor *DrmMonitor) (*SconInternalServer, error) {
-	server := &SconInternalServer{
-		drmMonitor: drmMonitor,
-	}
-	rpcServer := rpc.NewServer()
-	rpcServer.RegisterName("sci", server)
-
-	listener, err := net.Listen("tcp", net.JoinHostPort(util.DefaultAddress4().String(), strconv.Itoa(ports.GuestSconRPCInternal)))
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		rpcServer.Accept(listener)
-	}()
-
-	return server, nil
-}

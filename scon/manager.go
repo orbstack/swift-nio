@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/scon/agent"
@@ -35,8 +36,9 @@ type ConManager struct {
 	dockerProxy      *DockerProxy
 
 	// services
-	db   *Database
-	host *hclient.Client
+	db             *Database
+	host           *hclient.Client
+	hostNfsMounted bool
 
 	// auto forward
 	forwards   map[agent.ProcListener]ForwardState
@@ -196,7 +198,7 @@ func (m *ConManager) Start() error {
 	}
 	go runOne("DRM monitor", drmMonitor.Start)
 	go runOne("internal RPC server", func() error {
-		_, err := ListenSconInternal(drmMonitor)
+		_, err := ListenSconInternal(m, drmMonitor)
 		return err
 	})
 
@@ -424,4 +426,43 @@ func (m *ConManager) HasExplicitDefaultContainer() (bool, error) {
 	}
 
 	return id != containerIDLastUsed, nil
+}
+
+func (m *ConManager) ForEachContainer(fn func(c *Container) error) error {
+	m.containersMu.RLock()
+	defer m.containersMu.RUnlock()
+
+	errs := make([]error, 0)
+	for _, c := range m.containersByID {
+		err := fn(c)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// mount after, so inode doesn't change
+func (m *ConManager) onHostNfsMounted() error {
+	// dupe is ok - we'll have to remount if inode changed
+	m.hostNfsMounted = true
+
+	hostUser, err := m.host.GetUser()
+	if err != nil {
+		return err
+	}
+
+	return m.ForEachContainer(func(c *Container) error {
+		if !c.Running() {
+			return nil
+		}
+
+		return c.UseAgent(func(a *agent.Client) error {
+			return a.BindMountNfsRoot(agent.BindMountArgs{
+				Source: "/mnt/machines",
+				Target: hostUser.HomeDir + "/" + mounts.NfsDirName,
+			})
+		})
+	})
 }

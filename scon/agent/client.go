@@ -269,3 +269,13 @@ func (c *Client) StartSshAgentProxy(args SshAgentProxyArgs) error {
 
 	return nil
 }
+
+func (c *Client) BindMountNfsRoot(args BindMountArgs) error {
+	var none None
+	err := c.rpc.Call("a.BindMountNfsRoot", args, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

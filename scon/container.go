@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"syscall"
@@ -195,4 +196,23 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 	}
 
 	return nil
+}
+
+func (c *Container) UseAgent(fn func(*agent.Client) error) error {
+	c.mu.RLock()
+
+	if !c.Running() {
+		c.mu.RUnlock()
+		return errors.New("container is not running")
+	}
+
+	//TODO
+	if c.IsFrozen() {
+		c.mu.RUnlock()
+		return errors.New("container is frozen")
+	}
+	c.mu.RUnlock()
+
+	agent := c.Agent()
+	return fn(agent)
 }

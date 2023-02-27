@@ -30,6 +30,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
+	"github.com/kdrag0n/macvirt/scon/isclient"
 	"github.com/kdrag0n/macvirt/scon/sclient"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -564,6 +565,18 @@ func runVmManager() {
 	nfsMounted := false
 	go func() {
 		vc.WaitForDataReady()
+
+		defer func() {
+			if nfsMounted {
+				// report to scon so it can mount nfs root
+				err = drm.Client().UseSconInternalClient(func(scon *isclient.Client) error {
+					return scon.OnNfsMounted()
+				})
+				if err != nil {
+					logrus.WithError(err).Error("failed to report NFS mounted to scon")
+				}
+			}
+		}()
 
 		// vsock fails immediately unlike tcp dialing, so try 5 times
 		for i := 0; i < nfsMountTries; i++ {

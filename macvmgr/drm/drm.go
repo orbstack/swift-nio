@@ -230,7 +230,25 @@ func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
 		return nil
 	}
 
-	// report to scon internal
+	// report
+	dlog("report to scon internal")
+	err := c.UseSconInternalClient(func(scon *isclient.Client) error {
+		return scon.OnDrmResult(result)
+	})
+	if err != nil {
+		logrus.WithError(err).Error("failed to report to scon internal")
+		return err
+	}
+	c.sconHasReported = true
+
+	return nil
+}
+
+// TODO move out of drm client
+func (c *DrmClient) UseSconInternalClient(fn func(*isclient.Client) error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.sconInternal == nil || c.sconInternal.Ping() != nil {
 		if c.sconInternal != nil {
 			logrus.Info("reconnecting to scon internal rpc")
@@ -250,16 +268,7 @@ func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
 		c.sconInternal = sconInternal
 	}
 
-	// report
-	dlog("report to scon internal")
-	err := c.sconInternal.OnDrmResult(result)
-	if err != nil {
-		logrus.WithError(err).Error("failed to report to scon internal")
-		return err
-	}
-	c.sconHasReported = true
-
-	return nil
+	return fn(c.sconInternal)
 }
 
 func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
