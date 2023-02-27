@@ -47,7 +47,7 @@ enum Distro: String, CaseIterable {
     case rocky  = "rocky"
 
     // extra
-    //case nixos = "nixos"
+    case nixos = "nixos"
 
     var imageKey: ImageKey {
         switch self {
@@ -69,7 +69,7 @@ enum Distro: String, CaseIterable {
         case .rocky:  return .rocky
 
         // extra
-        //case .nixos: return .nixos
+        case .nixos: return .nixos
         }
     }
 
@@ -93,7 +93,7 @@ enum Distro: String, CaseIterable {
         case .rocky:  return "Rocky"
 
         // extra
-        //case .nixos: return "NixOS"
+        case .nixos: return "NixOS"
         }
     }
 }
