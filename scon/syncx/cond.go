@@ -9,7 +9,7 @@ type CondBool struct {
 
 func NewCondBool() CondBool {
 	return CondBool{
-		cond: sync.NewCond(&sync.Mutex{}),
+		cond: sync.NewCond(&Mutex{}),
 	}
 }
 
@@ -44,7 +44,7 @@ type CondValue[T comparable] struct {
 
 func NewCondValue[T comparable](initial T, expectNot T) CondValue[T] {
 	return CondValue[T]{
-		cond: sync.NewCond(&sync.Mutex{}),
+		cond: sync.NewCond(&Mutex{}),
 	}
 }
 

@@ -1,13 +1,12 @@
 package syncx
 
 import (
-	"sync"
 	"time"
 )
 
 type FuncDebounce struct {
 	f        func()
-	mu       sync.Mutex
+	mu       Mutex
 	timer    *time.Timer
 	duration time.Duration
 }
