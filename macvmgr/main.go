@@ -456,10 +456,6 @@ func runVmManager() {
 		}
 	}()
 
-	logrus.Info("starting VM")
-	err = vm.Start()
-	check(err)
-
 	// watchdog in case it panics
 	errCh := make(chan error, 1)
 	vmHasStarted := false
@@ -485,6 +481,10 @@ func runVmManager() {
 			}
 		}
 	}()
+
+	logrus.Info("starting VM")
+	err = vm.Start()
+	check(err)
 
 	// Listen for signals
 	go func() {
