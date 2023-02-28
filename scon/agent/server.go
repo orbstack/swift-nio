@@ -53,16 +53,6 @@ func (a *AgentServer) Ping(_ None, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) GetListeners(_ None, reply *[]ProcListener) error {
-	listeners, err := readAllProcNet()
-	if err != nil {
-		return err
-	}
-
-	*reply = listeners
-	return nil
-}
-
 func (a *AgentServer) OpenDiagNetlink(_ None, reply *uint64) error {
 	// open netlink socket
 	// cloexec safe

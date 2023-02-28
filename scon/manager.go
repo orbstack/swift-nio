@@ -15,6 +15,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/kdrag0n/macvirt/scon/syncx"
+	"github.com/kdrag0n/macvirt/scon/util/sysnet"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
@@ -42,7 +43,7 @@ type ConManager struct {
 	hostNfsMounted bool
 
 	// auto forward
-	forwards   map[agent.ProcListener]ForwardState
+	forwards   map[sysnet.ProcListener]ForwardState
 	forwardsMu syncx.Mutex
 
 	// nfs
@@ -114,7 +115,7 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		db:   db,
 		host: hc,
 
-		forwards: make(map[agent.ProcListener]ForwardState),
+		forwards: make(map[sysnet.ProcListener]ForwardState),
 
 		stopChan:      make(chan struct{}),
 		earlyStopChan: make(chan struct{}),

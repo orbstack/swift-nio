@@ -1,4 +1,4 @@
-package agent
+package sysnet
 
 import (
 	"encoding/hex"
@@ -129,11 +129,11 @@ func parseProcNet(data string, proto string) ([]ProcListener, error) {
 	return listeners, nil
 }
 
-func readAllProcNet() ([]ProcListener, error) {
+func ReadAllProcNet(pid string) ([]ProcListener, error) {
 	var listeners []ProcListener
 
 	for _, proto := range allProtos {
-		data, err := os.ReadFile("/proc/net/" + proto)
+		data, err := os.ReadFile("/proc/" + pid + "/net/" + proto)
 		if err != nil {
 			return nil, err
 		}

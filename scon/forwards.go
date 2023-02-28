@@ -11,6 +11,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/kdrag0n/macvirt/scon/util/sysnet"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,16 +39,16 @@ type ForwardState struct {
 	HostForwardSpec hclient.ForwardSpec
 }
 
-func procToAgentSpec(p agent.ProcListener) agent.ProxySpec {
+func procToAgentSpec(p sysnet.ProcListener) agent.ProxySpec {
 	return agent.ProxySpec{
 		IsIPv6: p.Addr.Is6(),
 		Port:   p.Port,
 	}
 }
 
-func filterListener(l agent.ProcListener) bool {
+func filterListener(l sysnet.ProcListener) bool {
 	// remove DHCP client and LLMNR
-	if l.Proto == agent.ProtoUDP && (l.Port == portDHCPClient || l.Port == portLLMNR) {
+	if l.Proto == sysnet.ProtoUDP && (l.Port == portDHCPClient || l.Port == portLLMNR) {
 		return false
 	}
 
@@ -69,8 +70,8 @@ func filterListener(l agent.ProcListener) bool {
 	}
 }
 
-func filterListeners(listeners []agent.ProcListener) []agent.ProcListener {
-	var filtered []agent.ProcListener
+func filterListeners(listeners []sysnet.ProcListener) []sysnet.ProcListener {
+	var filtered []sysnet.ProcListener
 	for _, l := range listeners {
 		if filterListener(l) {
 			filtered = append(filtered, l)
@@ -79,7 +80,7 @@ func filterListeners(listeners []agent.ProcListener) []agent.ProcListener {
 	return filtered
 }
 
-func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
+func (m *ConManager) addForward(c *Container, spec sysnet.ProcListener) error {
 	logrus.WithField("spec", spec).Info("add forward")
 
 	m.forwardsMu.Lock()
@@ -103,7 +104,7 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 	var internalPort uint16
 	var hostForwardSpec hclient.ForwardSpec
 	switch spec.Proto {
-	case agent.ProtoTCP:
+	case sysnet.ProtoTCP:
 		// listen
 		listener, err := net.ListenTCP("tcp", &net.TCPAddr{
 			IP:   internalListenIP, // only on NIC
@@ -141,7 +142,7 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 			return err
 		}
 
-	case agent.ProtoUDP:
+	case sysnet.ProtoUDP:
 		// listen
 		listener, err := net.ListenUDP("udp", &net.UDPAddr{
 			IP:   internalListenIP, // only on NIC
@@ -194,7 +195,7 @@ func (m *ConManager) addForward(c *Container, spec agent.ProcListener) error {
 	return nil
 }
 
-func (m *ConManager) removeForward(c *Container, spec agent.ProcListener) error {
+func (m *ConManager) removeForward(c *Container, spec sysnet.ProcListener) error {
 	logrus.WithField("spec", spec).Info("remove forward")
 
 	m.forwardsMu.Lock()
@@ -219,9 +220,9 @@ func (m *ConManager) removeForward(c *Container, spec agent.ProcListener) error 
 	agentSpec := procToAgentSpec(spec)
 	err = state.Owner.UseAgent(func(a *agent.Client) error {
 		switch spec.Proto {
-		case agent.ProtoTCP:
+		case sysnet.ProtoTCP:
 			return a.StopProxyTCP(agentSpec)
-		case agent.ProtoUDP:
+		case sysnet.ProtoUDP:
 			return a.StopProxyUDP(agentSpec)
 		default:
 			return errors.New("unknown protocol")
@@ -235,7 +236,7 @@ func (m *ConManager) removeForward(c *Container, spec agent.ProcListener) error 
 	return nil
 }
 
-func (m *ConManager) checkForward(c *Container, spec agent.ProcListener) bool {
+func (m *ConManager) checkForward(c *Container, spec sysnet.ProcListener) bool {
 	m.forwardsMu.Lock()
 	defer m.forwardsMu.Unlock()
 
@@ -287,9 +288,12 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 
 // triggered on seccomp notify or inet diag
 func (c *Container) updateListenersDirect() error {
-	listeners, err := UseAgentRet(c, func(a *agent.Client) ([]agent.ProcListener, error) {
-		return a.GetListeners()
-	})
+	initPid := c.lxc.InitPid()
+	if initPid < 0 {
+		return errors.New("container not running")
+	}
+
+	listeners, err := sysnet.ReadAllProcNet(strconv.Itoa(initPid))
 	if err != nil {
 		return err
 	}
@@ -304,8 +308,8 @@ func (c *Container) updateListenersDirect() error {
 	added, removed := diffSlices(c.lastListeners, listeners)
 
 	var lastErr error
-	var notAdded []agent.ProcListener
-	var notRemoved []agent.ProcListener
+	var notAdded []sysnet.ProcListener
+	var notRemoved []sysnet.ProcListener
 	for _, listener := range added {
 		err := c.manager.addForward(c, listener)
 		if err != nil {
@@ -356,8 +360,7 @@ func (m *ConManager) runAutoForwardGC() {
 				go func(c *Container) {
 					c.mu.RLock()
 
-					// for Docker, don't GC if frozen, otherwise it'll hang forever
-					if time.Since(c.lastAutofwdUpdate) > autoForwardGCThreshold && !c.IsFrozen() {
+					if time.Since(c.lastAutofwdUpdate) > autoForwardGCThreshold {
 						c.mu.RUnlock()
 						err := c.updateListenersDirect()
 						if err != nil {

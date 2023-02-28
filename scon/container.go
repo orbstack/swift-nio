@@ -11,6 +11,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/kdrag0n/macvirt/scon/util/sysnet"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -61,7 +62,7 @@ type Container struct {
 	mu      syncx.RWMutex
 
 	seccompCookie     uint64
-	lastListeners     []agent.ProcListener
+	lastListeners     []sysnet.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
 

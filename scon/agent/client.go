@@ -39,17 +39,6 @@ func (c *Client) Ping() error {
 	return c.rpc.Call("a.Ping", none, &none)
 }
 
-func (c *Client) GetListeners() ([]ProcListener, error) {
-	var none None
-	var listeners []ProcListener
-	err := c.rpc.Call("a.GetListeners", none, &listeners)
-	if err != nil {
-		return nil, err
-	}
-
-	return listeners, nil
-}
-
 func (c *Client) OpenDiagNetlink() (*os.File, error) {
 	var seq uint64
 	err := c.rpc.Call("a.OpenDiagNetlink", None{}, &seq)

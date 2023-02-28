@@ -8,7 +8,7 @@ import (
 	"net/netip"
 	"os"
 
-	"github.com/kdrag0n/macvirt/scon/agent"
+	"github.com/kdrag0n/macvirt/scon/util/sysnet"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -145,17 +145,17 @@ func monitorInetDiag(c *Container, nlFile *os.File) error {
 				// tcp forward exists?
 				// TODO read nlattr/rtattr INET_DIAG_PROTOCOL
 				// https://github.com/shemminger/iproute2/blob/d7f81def84013202f27cf84ee455f644ff685443/misc/ss.c#L3391
-				agentSpec := agent.ProcListener{
+				agentSpec := sysnet.ProcListener{
 					Addr:  localNetip,
 					Port:  uint16(sock.ID.SourcePort),
-					Proto: agent.ProtoTCP,
+					Proto: sysnet.ProtoTCP,
 				}
 				if c.manager.checkForward(c, agentSpec) {
 					c.triggerListenersUpdate()
 				}
 
 				// udp forward exists?
-				agentSpec.Proto = agent.ProtoUDP
+				agentSpec.Proto = sysnet.ProtoUDP
 				if c.manager.checkForward(c, agentSpec) {
 					c.triggerListenersUpdate()
 				}
