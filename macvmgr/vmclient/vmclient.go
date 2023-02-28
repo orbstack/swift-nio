@@ -8,7 +8,9 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/macvmgr/syncx"
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 )
 
@@ -106,4 +108,42 @@ func (c *VmClient) PatchConfig(patch *vmconfig.VmConfigPatch) error {
 
 func (c *VmClient) ResetConfig() error {
 	return c.rpc.CallResult(context.TODO(), "ResetConfig", nil, &noResult)
+}
+
+func (c *VmClient) StartSetup() (*vmtypes.SetupInfo, error) {
+	var info vmtypes.SetupInfo
+	err := c.rpc.CallResult(context.TODO(), "StartSetup", nil, &info)
+	if err != nil {
+		return nil, err
+	}
+
+	return &info, nil
+}
+
+func (c *VmClient) FinishSetup() error {
+	return c.rpc.CallResult(context.TODO(), "FinishSetup", nil, &noResult)
+}
+
+func (c *VmClient) ListDockerContainers() ([]dockertypes.Container, error) {
+	var containers []dockertypes.Container
+	err := c.rpc.CallResult(context.TODO(), "ListDockerContainers", nil, &containers)
+	if err != nil {
+		return nil, err
+	}
+
+	return containers, nil
+}
+
+func (c *VmClient) IsSshConfigWritable() (bool, error) {
+	var writable bool
+	err := c.rpc.CallResult(context.TODO(), "IsSshConfigWritable", nil, &writable)
+	if err != nil {
+		return false, err
+	}
+
+	return writable, nil
+}
+
+func (c *VmClient) InternalReportEnv(report *vmtypes.EnvReport) error {
+	return c.rpc.CallResult(context.TODO(), "InternalReportEnv", report, &noResult)
 }

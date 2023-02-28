@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"net"
 	"net/http"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/Code-Hex/vz/v3"
@@ -19,7 +21,9 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
+	"github.com/kdrag0n/macvirt/macvmgr/util"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/sirupsen/logrus"
 
@@ -39,7 +43,10 @@ type VmControlServer struct {
 	pendingResetData bool
 	dockerClient     *http.Client
 	drm              *drm.DrmClient
-	setupDone        bool
+
+	setupDone    bool
+	setupMu      sync.Mutex
+	setupEnvChan chan *vmtypes.EnvReport
 }
 
 func (s *VmControlServer) Ping(ctx context.Context) error {
@@ -89,8 +96,8 @@ func (s *VmControlServer) ResetConfig(ctx context.Context) error {
 	return vmconfig.Reset()
 }
 
-func (s *VmControlServer) StartSetup(ctx context.Context) (*SetupInfo, error) {
-	info, err := doMacSetup()
+func (s *VmControlServer) StartSetup(ctx context.Context) (*vmtypes.SetupInfo, error) {
+	info, err := s.doHostSetup()
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +133,33 @@ func (h *VmControlServer) IsSshConfigWritable(ctx context.Context) (bool, error)
 	return syssetup.IsSshConfigWritable(), nil
 }
 
+func (h *VmControlServer) InternalReportEnv(ctx context.Context, env *vmtypes.EnvReport) error {
+	ch := h.setupEnvChan
+	if ch == nil {
+		return errors.New("no active env report request")
+	}
+
+	ch <- env
+	return nil
+}
+
+func (h *VmControlServer) runWithEnvReport(combinedArgs ...string) (*vmtypes.EnvReport, error) {
+	// start setup
+	ch := make(chan *vmtypes.EnvReport, 1)
+	h.setupEnvChan = ch
+
+	// run command
+	_, err := util.Run(combinedArgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	// wait for report
+	env := <-ch
+	h.setupEnvChan = nil
+	return env, nil
+}
+
 // func (s *VmControlServer) doPureGoSetup
 func (s *VmControlServer) onStart() error {
 	// if setup isn't done in 10 sec, it means we don't have a GUI (or it's broken)
@@ -149,7 +183,6 @@ func (s *VmControlServer) onStart() error {
 			}
 
 			logrus.Info("CLI setup complete")
-			s.setupDone = true
 		}
 	}()
 
@@ -205,6 +238,7 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 		"FinishSetup":          handler.New(s.FinishSetup),
 		"ListDockerContainers": handler.New(s.ListDockerContainers),
 		"IsSshConfigWritable":  handler.New(s.IsSshConfigWritable),
+		"InternalReportEnv":    handler.New(s.InternalReportEnv),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

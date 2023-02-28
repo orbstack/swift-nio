@@ -15,9 +15,11 @@ func Run(combinedArgs ...string) (string, error) {
 		// without this, running interactive shell breaks ctrl-c SIGINT
 		Setsid: true,
 	}
-	output, err := cmd.CombinedOutput()
+	// avoid triggering iterm2 shell integration
+	cmd.Env = append(cmd.Env, "TERM=dumb")
+	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("%w; output: %s", err, string(output))
+		return "", fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
 	}
 
 	return string(output), nil

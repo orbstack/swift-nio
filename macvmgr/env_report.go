@@ -1,0 +1,21 @@
+package main
+
+import (
+	"os"
+
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
+)
+
+// this is in here instead of orbctl because we're the one doing setup
+func runReportEnv() {
+	client := vmclient.Client()
+	report := &vmtypes.EnvReport{
+		Path:    os.Getenv("PATH"),
+		Zdotdir: os.Getenv("ZDOTDIR"),
+	}
+	err := client.InternalReportEnv(report)
+	check(err)
+
+	os.Exit(0)
+}

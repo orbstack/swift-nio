@@ -17,17 +17,11 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
 	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
 	"github.com/kdrag0n/macvirt/macvmgr/util"
+	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
-
-type SetupInfo struct {
-	AdminShellCommand    *string  `json:"admin_shell_command,omitempty"`
-	AdminMessage         *string  `json:"admin_message,omitempty"`
-	AlertProfileChanged  *string  `json:"alert_profile_changed"`
-	AlertRequestAddPaths []string `json:"alert_request_add_paths"`
-}
 
 type UserDetails struct {
 	IsAdmin bool
@@ -89,10 +83,12 @@ func getUserDetails() (*UserDetails, error) {
 	// run login shell first to get profile
 	// then run sh in case of fish
 	// force -i (interactive) in case user put PATH in .zshrc/.bashrc
-	out, err = util.Run(shell, "-lic", `sh -c "echo $PATH"`)
+	// use single quotes to avoid expansion in zsh
+	out, err = util.Run(shell, "-lic", `sh -c 'echo "$PATH"'`)
 	if err != nil {
 		return nil, err
 	}
+	logrus.WithField("path", out).Debug("user path")
 	path := parseShellLine(out)
 
 	return &UserDetails{
@@ -337,7 +333,10 @@ for commands:
 for docker sock:
 /var/run/docker.sock IF root
 */
-func doMacSetup() (*SetupInfo, error) {
+func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
+
 	details, err := getUserDetails()
 	if err != nil {
 		return nil, err
@@ -587,7 +586,7 @@ func doMacSetup() (*SetupInfo, error) {
 		logrus.WithError(err).Warn("failed to fix docker creds store")
 	}
 
-	info := &SetupInfo{}
+	info := &vmtypes.SetupInfo{}
 	if len(adminCommands) > 0 {
 		// join and escape commands
 		cmd := "set -e; " + strings.Join(adminCommands, "; ")
@@ -621,7 +620,7 @@ func doMacSetup() (*SetupInfo, error) {
 }
 
 // for CLI-only, this completes the setup without GUI
-func completeSetupCli(info *SetupInfo) error {
+func completeSetupCli(info *vmtypes.SetupInfo) error {
 	// notify profile changed
 	if info.AlertProfileChanged != nil {
 		logrus.WithField("profile", *info.AlertProfileChanged).Info("notifying profile changed")

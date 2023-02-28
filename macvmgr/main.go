@@ -520,6 +520,8 @@ func runVmManager() {
 		stopCh:       stopCh,
 		dockerClient: makeDockerClient(),
 		drm:          drm.Client(),
+
+		setupEnvChan: nil,
 	}
 	unixListener, err := controlServer.Serve()
 	check(err)
@@ -696,6 +698,8 @@ func main() {
 		runSpawnDaemon()
 	case "ssh-proxy-fdpass":
 		runSshProxyFdpass()
+	case "report-env":
+		runReportEnv()
 	case "vmgr":
 		runVmManager()
 	default:
