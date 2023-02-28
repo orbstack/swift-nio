@@ -6,16 +6,11 @@ func (c *Container) IsFrozen() bool {
 	return c.lxc.State() == lxc.FROZEN
 }
 
+// locks removed to prevent issues with freezer's locks
 func (c *Container) Freeze() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	return c.lxc.Freeze()
 }
 
 func (c *Container) Unfreeze() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	return c.lxc.Unfreeze()
 }

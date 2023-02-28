@@ -53,33 +53,6 @@ func (a *AgentServer) Ping(_ None, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) OpenDiagNetlink(_ None, reply *uint64) error {
-	// open netlink socket
-	// cloexec safe
-	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_INET_DIAG)
-	if err != nil {
-		return err
-	}
-
-	// set nonblock (persists over SCM_RIGHTS transfer)
-	err = unix.SetNonblock(fd, true)
-	if err != nil {
-		return err
-	}
-
-	// send over fdx
-	seq, err := a.fdx.SendFdInt(fd)
-	if err != nil {
-		return err
-	}
-
-	// close original fd
-	unix.Close(fd)
-
-	*reply = seq
-	return nil
-}
-
 func (a *AgentServer) StartProxyTCP(args StartProxyArgs, _ *None) error {
 	spec := args.ProxySpec
 	listenerFd, err := a.fdx.RecvFile(args.FdxSeq)
@@ -251,7 +224,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 	// now, run the system shell to get the PATH
 	// we need this for running shell (su) and setup commands
-	out, err := exec.Command("/bin/sh", "-l", "-c", "echo \"$PATH\"").CombinedOutput()
+	out, err := exec.Command("/bin/sh", "-lc", `echo "$PATH"`).CombinedOutput()
 	if err != nil {
 		return err
 	}

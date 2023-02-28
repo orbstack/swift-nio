@@ -18,6 +18,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/kdrag0n/macvirt/scon/util/sysnet"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -676,10 +677,19 @@ func (c *Container) startAgent() error {
 
 func (c *Container) initAgent(a *agent.Client) error {
 	// inet diag
-	nlFile, err := a.OpenDiagNetlink()
+	initPidF, err := c.lxc.InitPidFd()
 	if err != nil {
 		return err
 	}
+	defer initPidF.Close()
+
+	nlFile, err := sysnet.WithNetns(initPidF, func() (*os.File, error) {
+		return sysnet.OpenDiagNetlink()
+	})
+	if err != nil {
+		return err
+	}
+	c.inetDiagFile = nlFile
 
 	go runOne("netlink monitor for "+c.Name, func() error {
 		return monitorInetDiag(c, nlFile)

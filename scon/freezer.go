@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/kdrag0n/macvirt/scon/syncx"
@@ -91,7 +92,7 @@ func (f *Freezer) tryFreeze() error {
 		ok, err := f.predicate()
 		f.mu.Lock()
 		if err != nil {
-			return err
+			return fmt.Errorf("call predicate: %w", err)
 		}
 
 		if !ok {

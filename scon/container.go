@@ -65,6 +65,7 @@ type Container struct {
 	lastListeners     []sysnet.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
+	inetDiagFile      *os.File
 
 	// docker
 	freezer *Freezer
@@ -199,7 +200,12 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	err := c.lxc.RemoveDeviceNode(src, dst)
+	// can't use lxc.RemoveDeviceNode because node is already gone from host
+	// just delete the node in the container
+	// don't bother to update the devices cgroup bpf filter
+	err := c.UseAgent(func(a *agent.Client) error {
+		return a.RemoveFile(dst)
+	})
 	if err != nil {
 		return err
 	}

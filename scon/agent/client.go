@@ -7,10 +7,9 @@ import (
 )
 
 type Client struct {
-	process      *os.Process
-	rpc          *rpc.Client
-	fdx          *Fdx
-	inetDiagFile *os.File
+	process *os.Process
+	rpc     *rpc.Client
+	fdx     *Fdx
 }
 
 func NewClient(process *os.Process, rpcConn net.Conn, fdxConn net.Conn) *Client {
@@ -24,10 +23,6 @@ func NewClient(process *os.Process, rpcConn net.Conn, fdxConn net.Conn) *Client 
 func (c *Client) Close() error {
 	c.rpc.Close()
 	c.fdx.Close()
-	if c.inetDiagFile != nil {
-		c.inetDiagFile.Close()
-		c.inetDiagFile = nil
-	}
 
 	// err doesn't matter, should already be dead from container stop
 	_ = c.process.Kill()
@@ -37,22 +32,6 @@ func (c *Client) Close() error {
 func (c *Client) Ping() error {
 	var none None
 	return c.rpc.Call("a.Ping", none, &none)
-}
-
-func (c *Client) OpenDiagNetlink() (*os.File, error) {
-	var seq uint64
-	err := c.rpc.Call("a.OpenDiagNetlink", None{}, &seq)
-	if err != nil {
-		return nil, err
-	}
-
-	file, err := c.fdx.RecvFile(seq)
-	if err != nil {
-		return nil, err
-	}
-
-	c.inetDiagFile = file
-	return file, nil
 }
 
 func (c *Client) StartProxyTCP(spec ProxySpec, listener net.Listener) error {
@@ -262,6 +241,16 @@ func (c *Client) StartSshAgentProxy(args SshAgentProxyArgs) error {
 func (c *Client) BindMountNfsRoot(args BindMountArgs) error {
 	var none None
 	err := c.rpc.Call("a.BindMountNfsRoot", args, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) RemoveFile(path string) error {
+	var none None
+	err := c.rpc.Call("a.RemoveFile", path, &none)
 	if err != nil {
 		return err
 	}

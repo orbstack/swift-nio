@@ -68,14 +68,6 @@ func (c *Container) stopLocked() error {
 		return err
 	}
 
-	// stop agent (after listeners removed and processes reaped)
-	agent := c.agent.Get()
-	if agent != nil {
-		logrus.WithField("container", c.Name).Debug("stopping agent")
-		agent.Close()
-		c.agent.Set(nil)
-	}
-
 	logrus.WithField("container", c.Name).Info("stopped container")
 	return nil
 }
@@ -102,9 +94,16 @@ func (c *Container) onStopLocked() error {
 	}
 	c.lastListeners = nil
 
-	// stop agent (after listeners removed)
+	// stop netlink diag
+	if c.inetDiagFile != nil {
+		c.inetDiagFile.Close()
+		c.inetDiagFile = nil
+	}
+
+	// stop agent (after listeners removed and processes reaped)
 	agent := c.agent.Get()
 	if agent != nil {
+		logrus.WithField("container", c.Name).Debug("stopping agent")
 		agent.Close()
 		c.agent.Set(nil)
 	}
