@@ -65,9 +65,6 @@ FROM base AS docker
 # removed: xfsprogs
 RUN apk add --no-cache \
         docker-engine \
-		btrfs-progs \
-		e2fsprogs \
-		e2fsprogs-extra \
 		ip6tables \
 		iptables \
 		openssl \
