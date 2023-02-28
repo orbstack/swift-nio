@@ -77,16 +77,23 @@ struct MacVirtApp: App {
                     let home = FileManager.default.homeDirectoryForCurrentUser.path
                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: home + "/.orbstack/log")
                 }
+                Button("Invite a Friend") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/waitlist")!)
+                }
             }
             CommandGroup(before: .systemServices) {
                 Button("Website") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
                 }
-                Button("Issues") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
-                }
                 Button("Documentation") {
                     NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
+                }
+                Divider()
+                Button("Report a Bug") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
+                }
+                Button("Request a Feature") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
                 }
                 Divider()
             }
@@ -97,11 +104,15 @@ struct MacVirtApp: App {
                 Button("Website") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
                 }
-                Button("Issues") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
-                }
                 Button("Documentation") {
                     NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
+                }
+                Divider()
+                Button("Report a Bug") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
+                }
+                Button("Request a Feature") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
                 }
             }
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
