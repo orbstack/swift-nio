@@ -62,7 +62,7 @@ EOT
 # Docker container rootfs
 # ref: https://github.com/docker-library/docker/blob/master/20.10/dind/Dockerfile
 FROM base AS docker
-# removed: xfsprogs
+# removed: xfsprogs e2fsprogs btrfs-progs
 RUN apk add --no-cache \
         docker-engine \
 		ip6tables \
