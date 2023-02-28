@@ -19,14 +19,16 @@ func (m *ConManager) addDeviceNodeAll(src string, dst string) error {
 			continue
 		}
 
-		logrus.WithFields(logrus.Fields{
-			"container": c.Name,
-			"dst":       dst,
-		}).Debug("adding device node")
-		err := c.addDeviceNode(src, dst)
-		if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
-			errs = append(errs, err)
-		}
+		go func(c *Container) {
+			logrus.WithFields(logrus.Fields{
+				"container": c.Name,
+				"dst":       dst,
+			}).Debug("adding device node")
+			err := c.addDeviceNode(src, dst)
+			if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
+				errs = append(errs, err)
+			}
+		}(c)
 	}
 
 	return errors.Join(errs...)
@@ -42,14 +44,16 @@ func (m *ConManager) removeDeviceNodeAll(src string, dst string) error {
 			continue
 		}
 
-		logrus.WithFields(logrus.Fields{
-			"container": c.Name,
-			"dst":       dst,
-		}).Debug("removing device node")
-		err := c.removeDeviceNode(src, dst)
-		if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
-			errs = append(errs, err)
-		}
+		go func(c *Container) {
+			logrus.WithFields(logrus.Fields{
+				"container": c.Name,
+				"dst":       dst,
+			}).Debug("removing device node")
+			err := c.removeDeviceNode(src, dst)
+			if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
+				errs = append(errs, err)
+			}
+		}(c)
 	}
 
 	return errors.Join(errs...)
