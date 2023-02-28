@@ -140,16 +140,16 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		gitConfigs.Email = hostGitConfigs["user.email"]
 	}
 
-	// wait for network if this distro needs package installation
-	if cmds, ok := agent.PackageInstallCommands[image.Distro]; ok && len(cmds) > 0 {
-		logrus.WithField("container", c.Name).Info("waiting for network before setup")
-		var ips []string
-		ips, err = c.waitIPAddrs(startTimeout)
-		if err != nil {
-			return
-		}
-		logrus.WithField("container", c.Name).WithField("ips", ips).Info("network is up")
+	// always wait for network
+	// even if we don't need it for setup, it ensures that resolved has started if necesary,
+	// and systemctl will work
+	logrus.WithField("container", c.Name).Info("waiting for network before setup")
+	var ips []string
+	ips, err = c.waitIPAddrs(startTimeout)
+	if err != nil {
+		return
 	}
+	logrus.WithField("container", c.Name).WithField("ips", ips).Info("network is up")
 
 	// tell agent to run setup
 	logrus.WithFields(logrus.Fields{

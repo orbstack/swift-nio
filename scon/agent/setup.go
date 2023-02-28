@@ -260,7 +260,7 @@ func configureSystemStandard(args InitialSetupArgs) error {
 
 	// disable systemd service watchdogs to save CPU (wakes up every 2-3 min)
 	// only for systemd distros
-	if _, err := os.Stat("/etc/systemd/system"); err == nil {
+	if _, err := exec.LookPath("systemctl"); err == nil {
 		logrus.Debug("disabling systemd service watchdogs")
 		for _, service := range systemdServices {
 			overrideDir := "/etc/systemd/system/systemd-" + service + ".service.d"
@@ -278,7 +278,7 @@ func configureSystemStandard(args InitialSetupArgs) error {
 		// won't take effect until next boot, that's ok
 		err = util.Run("systemctl", "daemon-reload")
 		if err != nil {
-			return err
+			logrus.WithError(err).Warn("Failed to reload systemd")
 		}
 	}
 
