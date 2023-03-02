@@ -578,6 +578,8 @@ func (c *Container) Start() error {
 		return err
 	}
 
+	logrus.WithField("container", c.Name).Info("container started")
+
 	return nil
 }
 
