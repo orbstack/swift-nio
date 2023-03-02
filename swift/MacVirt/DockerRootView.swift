@@ -16,7 +16,7 @@ struct DockerRootView: View {
             Group {
                 if let machines = vmModel.containers,
                    let containers = vmModel.dockerContainers,
-                   let dockerRecord = vmModel.containers?.first(where: { $0.builtin && $0.name == "docker" }) {
+                   let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }) {
                     List(selection: $selection) {
                         if #available(macOS 13, *) {
                             Section {

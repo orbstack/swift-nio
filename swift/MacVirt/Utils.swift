@@ -174,6 +174,6 @@ private func openViaAppleEvent(_ url: URL, bundleId: String) throws {
         // If the event was sent successfully, bring Terminal to the front.
         terminal.activate()
     } catch let error as NSError {
-        return
+        throw error
     }
 }
