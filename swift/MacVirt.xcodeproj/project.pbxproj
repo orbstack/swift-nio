@@ -21,6 +21,7 @@
 		B118BAD426D7BA4054B6E689 /* DockerRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD91CF1D1F80CDCBFB9F /* DockerRootView.swift */; };
 		B118BB2A35AC6730018691D2 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */; };
 		B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E62611F603F60BF666 /* VmViewModel.swift */; };
+		B118BC18FDD8C577B4ACF8DE /* VzClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0ECC9C2909FC9E01CF6 /* VzClient.swift */; };
 		B118BC2FFF41ABFFF0CA5BF3 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC445161ECC2F67ABFEF /* Utils.swift */; };
 		B118BC31190DB3854C66B353 /* MachineContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* MachineContainerItem.swift */; };
 		B118BC98D011CF698552D55A /* DockerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B95F44262A37E5CA5660 /* DockerViewModel.swift */; };
@@ -124,6 +125,7 @@
 
 /* Begin PBXFileReference section */
 		B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
+		B118B0ECC9C2909FC9E01CF6 /* VzClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VzClient.swift; sourceTree = "<group>"; };
 		B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DoubleClick.swift; sourceTree = "<group>"; };
 		B118B242268639C9B875CBC3 /* StateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StateWrapperView.swift; sourceTree = "<group>"; };
 		B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -211,6 +213,7 @@
 				D81E784F299CC4F200A1D8AC /* main.swift */,
 				D81E785B29A39BF300A1D8AC /* Utils.swift */,
 				D81E7858299CD27F00A1D8AC /* Info.plist */,
+				B118B0ECC9C2909FC9E01CF6 /* VzClient.swift */,
 			);
 			path = guihelper;
 			sourceTree = "<group>";
@@ -523,6 +526,7 @@
 				B118B96A6A028887CFCE7574 /* FilesRootView.swift in Sources */,
 				B118BE19740FC7363C335980 /* FileContainerItem.swift in Sources */,
 				B118B7486AF77C3A98B10D0F /* MachineSettingsView.swift in Sources */,
+				B118BC18FDD8C577B4ACF8DE /* VzClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -797,8 +801,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kdrag0n/SwiftJSONRPC.git";
 			requirement = {
-				branch = master;
-				kind = branch;
+				kind = revision;
+				revision = 0f198bdcd82ffacb97188422b3b68fea4b453cd8;
 			};
 		};
 		D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */ = {

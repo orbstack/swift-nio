@@ -41,8 +41,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kdrag0n/SwiftJSONRPC.git",
       "state" : {
-        "branch" : "master",
-        "revision" : "8eb995a4756f737e77245133fbc13f8a92087f3c"
+        "revision" : "0f198bdcd82ffacb97188422b3b68fea4b453cd8"
       }
     }
   ],
