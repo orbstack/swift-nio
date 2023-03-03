@@ -445,7 +445,8 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	if container.Image.Distro == images.ImageAlpine || container.Image.Distro == images.ImageNixos || container.Image.Distro == images.ImageDocker {
 		commandArg = "-c"
 	}
-	combinedArgs := []string{"su", "-l", user, commandArg, suCmd}
+	// compat with non-posix shells: run env and exec prelude in /bin/sh
+	combinedArgs := []string{"su", "-l", user, commandArg, shellescape.QuoteCommand([]string{"/bin/sh", "-c", suCmd})}
 	cmd.CombinedArgs = combinedArgs
 
 	err = container.UseAgent(func(a *agent.Client) error {
