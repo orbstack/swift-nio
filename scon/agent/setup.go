@@ -23,8 +23,8 @@ var (
 
 	// generally: curl, scp
 	PackageInstallCommands = map[string][]string{
-		images.ImageAlpine: {"apk add sudo curl dropbear-scp"},
-		// we install openssh instead of dropbear-scp so we can install vs code agent workaround as ssh_config
+		// we really only need scp for JetBrains Fleet, but just install openssh instead of dropbear
+		images.ImageAlpine:   {"apk add sudo curl openssh-client-common"},
 		images.ImageArch:     {"pacman --noconfirm -Sy openssh", "systemctl disable sshd"},
 		images.ImageCentos:   nil, // no need
 		images.ImageDebian:   {"apt-get update", "apt-get install -y curl"},
