@@ -274,6 +274,9 @@ class VmViewModel: ObservableObject {
         do {
             try await refreshList()
         } catch {
+            if state >= .running {
+                self.updateState(.stopped)
+            }
             self.error = VmError.listRefresh(error: error)
         }
     }
