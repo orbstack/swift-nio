@@ -1,0 +1,7 @@
+clock_gettime: ..........
+    syscall:	134 ns
+    libc:	18 ns
+
+read file: ..........
+    mmap:	6566 ns
+    read:	3379 ns
