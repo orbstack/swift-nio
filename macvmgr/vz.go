@@ -31,7 +31,7 @@ type VmParams struct {
 	DiskRootfs       string
 	DiskData         string
 	DiskSwap         string
-	NetworkGvnet     bool
+	NetworkVnet      bool
 	NetworkNat       bool
 	NetworkPairFd    *os.File
 	MacAddressPrefix string
@@ -129,7 +129,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 	mtu := findBestMtu()
 	// 1. gvnet
 	var vnetwork *vnet.Network
-	if c.NetworkGvnet {
+	if c.NetworkVnet {
 		newNetwork, gvnetFile, err := vnet.StartUnixgramPair(vnet.NetOptions{
 			MTU: uint32(mtu),
 		})
@@ -252,12 +252,6 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 		})
 	}
 
-	validated, err := config.Validate()
-	check(err)
-	if !validated {
-		logrus.Fatal("validation failed", err)
-	}
-
 	// virtiofs (shared)
 	fsDevices := []vz.DirectorySharingDeviceConfiguration{}
 	if c.Virtiofs {
@@ -299,6 +293,12 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 		config.SetAudioDevicesVirtualMachineConfiguration([]vz.AudioDeviceConfiguration{
 			sound,
 		})
+	}
+
+	validated, err := config.Validate()
+	check(err)
+	if !validated {
+		logrus.Fatal("validation failed", err)
 	}
 
 	// Boot!

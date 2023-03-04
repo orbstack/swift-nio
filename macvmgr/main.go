@@ -388,7 +388,7 @@ func runVmManager() {
 		DiskRootfs:       conf.GetAssetFile("rootfs.img"),
 		DiskData:         conf.DataImage(),
 		DiskSwap:         conf.SwapImage(),
-		NetworkGvnet:     true,
+		NetworkVnet:      true,
 		NetworkNat:       useNat,
 		MacAddressPrefix: "86:6c:f1:2e:9e",
 		Balloon:          true,
