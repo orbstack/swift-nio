@@ -21,6 +21,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/util/sysnet"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 
@@ -32,12 +33,17 @@ var (
 	extraDevicePrefixes = []string{
 		"loop",
 		"nbd",
+		"zram",
+	}
+
+	extraDeviceExcludes = []string{
+		"zram0",
 	}
 )
 
 func MatchesExtraDevice(name string) bool {
 	for _, prefix := range extraDevicePrefixes {
-		if strings.HasPrefix(name, prefix) {
+		if strings.HasPrefix(name, prefix) && !slices.Contains(extraDeviceExcludes, name) {
 			return true
 		}
 	}
