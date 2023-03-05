@@ -10,6 +10,8 @@ struct CreateContainerView: View {
 
     @State private var name = "ubuntu"
     @State private var nameChanged = false
+    @State private var isDuplicate = false
+    @State private var duplicateHeight = 0.0
     #if arch(arm64)
     @State private var arch = "arm64"
     #else
@@ -31,6 +33,12 @@ struct CreateContainerView: View {
                 })
 
                 TextField("Name", text: nameBinding)
+                Text("Already exists")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .frame(maxHeight: duplicateHeight)
+                        .clipped()
+
                 Picker("Distribution", selection: $distro) {
                     ForEach(Distro.allCases, id: \.self) { distro in
                         Text(distro.friendlyName).tag(distro)
@@ -44,6 +52,7 @@ struct CreateContainerView: View {
                             Text("Intel").tag("amd64")
                         }
                                 .pickerStyle(.segmented)
+                                .disabled(distro == .nixos)
                     }
                 }
                 #endif
@@ -58,12 +67,34 @@ struct CreateContainerView: View {
                 }) {
                     Text("Create")
                 }.keyboardShortcut(.defaultAction)
+                .disabled(isDuplicate)
             }
         }
         .padding(16)
         .onChange(of: distro) {
             if !nameChanged {
                 name = $0.rawValue
+            }
+
+            #if arch(arm64)
+            // NixOS doesn't work with Rosetta
+            if $0 == .nixos {
+                arch = "arm64"
+            }
+            #endif
+        }
+        .onChange(of: name) { newName in
+            if let containers = vmModel.containers,
+                    containers.contains(where: { $0.name == newName }) {
+                isDuplicate = true
+                withAnimation(.spring()) {
+                    duplicateHeight = NSFont.preferredFont(forTextStyle: .caption1).pointSize
+                }
+            } else {
+                isDuplicate = false
+                withAnimation(.spring()) {
+                    duplicateHeight = 0
+                }
             }
         }
     }

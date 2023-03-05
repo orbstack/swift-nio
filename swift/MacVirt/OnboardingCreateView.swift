@@ -12,6 +12,8 @@ struct OnboardingCreateView: View {
 
     @State private var name = "ubuntu"
     @State private var nameChanged = false
+    @State private var isDuplicate = false
+    @State private var duplicateHeight = 0.0
     #if arch(arm64)
     @State private var arch = "arm64"
     #else
@@ -46,6 +48,12 @@ struct OnboardingCreateView: View {
 
                     Form {
                         TextField("Name", text: nameBinding)
+                        Text("Already exists")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .frame(maxHeight: duplicateHeight)
+                                .clipped()
+
                         Picker("Distribution", selection: $distro) {
                             ForEach(Distro.allCases, id: \.self) { distro in
                                 Text(distro.friendlyName).tag(distro)
@@ -55,7 +63,29 @@ struct OnboardingCreateView: View {
                             if !nameChanged {
                                 name = $0.rawValue
                             }
+
+                            #if arch(arm64)
+                            // NixOS doesn't work with Rosetta
+                            if $0 == .nixos {
+                                arch = "arm64"
+                            }
+                            #endif
                         }
+                        .onChange(of: name) { newName in
+                            if let containers = vmModel.containers,
+                               containers.contains(where: { $0.name == newName }) {
+                                isDuplicate = true
+                                withAnimation(.spring()) {
+                                    duplicateHeight = NSFont.preferredFont(forTextStyle: .caption1).pointSize
+                                }
+                            } else {
+                                isDuplicate = false
+                                withAnimation(.spring()) {
+                                    duplicateHeight = 0
+                                }
+                            }
+                        }
+
                         #if arch(arm64)
                         if #available(macOS 13, *) {
                             if vmModel.config?.rosetta ?? true {
@@ -63,7 +93,8 @@ struct OnboardingCreateView: View {
                                     Text("Apple").tag("arm64")
                                     Text("Intel").tag("amd64")
                                 }
-                                        .pickerStyle(.segmented)
+                                .pickerStyle(.segmented)
+                                .disabled(distro == .nixos)
                             }
                         }
                         #endif
@@ -90,6 +121,7 @@ struct OnboardingCreateView: View {
                     }
                     onboardingController.finish()
                 })
+                .disabled(isDuplicate)
                 Spacer()
             }
         }
