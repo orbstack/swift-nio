@@ -400,7 +400,8 @@ func runVmManager() {
 	}
 
 	vnetwork, vm := CreateVm(params)
-	defer vm.Close()
+	// no point in closing
+	//defer vm.Close()
 
 	// Start DRM
 	drmClient := drm.Client()
