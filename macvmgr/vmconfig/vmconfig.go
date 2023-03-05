@@ -24,8 +24,8 @@ type VmConfig struct {
 }
 
 type VmConfigPatch struct {
-	MemoryMiB *uint64 `json:"memory_mib"`
-	Rosetta   *bool   `json:"rosetta"`
+	MemoryMiB *uint64 `json:"memory_mib,omitempty"`
+	Rosetta   *bool   `json:"rosetta,omitempty"`
 }
 
 func (c *VmConfig) Validate() error {
@@ -83,7 +83,11 @@ func Update(cb func(*VmConfig)) error {
 		return err
 	}
 
-	data, err := json.MarshalIndent(config, "", "\t")
+	// generate a patch and only save the patch
+	// this allows us to change defaults without breaking existing configs
+	diff := Diff(Defaults(), config)
+
+	data, err := json.MarshalIndent(diff, "", "\t")
 	if err != nil {
 		return err
 	}
@@ -118,4 +122,18 @@ func Reset() error {
 	return Update(func(c *VmConfig) {
 		*c = *Defaults()
 	})
+}
+
+func Diff(a, b *VmConfig) *VmConfigPatch {
+	patch := &VmConfigPatch{}
+
+	if a.MemoryMiB != b.MemoryMiB {
+		patch.MemoryMiB = &b.MemoryMiB
+	}
+
+	if a.Rosetta != b.Rosetta {
+		patch.Rosetta = &b.Rosetta
+	}
+
+	return patch
 }

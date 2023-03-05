@@ -17,9 +17,9 @@ type VzSpec struct {
 	NetworkNat       bool         `json:"networkNat"`
 	NetworkPairFd    *int         `json:"networkPairFd"`
 	Rng              bool         `json:"rng"`
-	DiskRootfs       string       `json:"diskRootfs",omitempty`
-	DiskData         string       `json:"diskData",omitempty`
-	DiskSwap         string       `json:"diskSwap",omitempty`
+	DiskRootfs       string       `json:"diskRootfs,omitempty"`
+	DiskData         string       `json:"diskData,omitempty"`
+	DiskSwap         string       `json:"diskSwap,omitempty"`
 	Balloon          bool         `json:"balloon"`
 	Vsock            bool         `json:"vsock"`
 	Virtiofs         bool         `json:"virtiofs"`

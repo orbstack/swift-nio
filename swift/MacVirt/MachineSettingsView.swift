@@ -22,9 +22,9 @@ struct MachineSettingsView: View {
                         Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
                         .onChange(of: enableRosetta) { newValue in
                             Task { @MainActor in
-                                if var config = vmModel.config {
-                                    config.rosetta = newValue
-                                    await vmModel.tryPatchConfig(config)
+                                if let config = vmModel.config,
+                                        config.rosetta != newValue {
+                                    await vmModel.tryPatchConfig(VmConfigPatch(rosetta: newValue))
                                 }
                             }
                         }
@@ -46,9 +46,9 @@ struct MachineSettingsView: View {
                     }
                     .onChange(of: memoryMib) { newValue in
                         Task { @MainActor in
-                            if var config = vmModel.config {
-                                config.memoryMib = UInt64(newValue)
-                                await vmModel.tryPatchConfig(config)
+                            if let config = vmModel.config,
+                                    config.memoryMib != UInt64(newValue) {
+                                await vmModel.tryPatchConfig(VmConfigPatch(memoryMib: UInt64(newValue)))
                             }
                         }
                     }

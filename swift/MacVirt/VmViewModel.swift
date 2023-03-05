@@ -467,13 +467,13 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func patchConfig(_ patch: VmConfig) async throws {
+    func patchConfig(_ patch: VmConfigPatch) async throws {
         try await vmgr.patchConfig(patch)
         try await refreshConfig()
     }
 
     @MainActor
-    func tryPatchConfig(_ patch: VmConfig) async {
+    func tryPatchConfig(_ patch: VmConfigPatch) async {
         do {
             try await patchConfig(patch)
         } catch {

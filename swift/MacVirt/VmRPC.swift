@@ -14,8 +14,8 @@ struct VmConfig: Codable, Equatable {
 }
 
 struct VmConfigPatch: Codable, Equatable {
-    var memoryMib: UInt64?
-    var rosetta: Bool?
+    var memoryMib: UInt64? = nil
+    var rosetta: Bool? = nil
 }
 
 struct SetupInfo: Codable {
@@ -86,7 +86,7 @@ class VmService: RPCService {
         try await invoke("GetConfig")
     }
 
-    func patchConfig(_ config: VmConfig) async throws {
+    func patchConfig(_ config: VmConfigPatch) async throws {
         try await invoke("PatchConfig", params: config)
     }
 
