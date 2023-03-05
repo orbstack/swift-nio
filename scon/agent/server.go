@@ -167,14 +167,14 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if err != nil {
 		return err
 	}
-	// replace original fd with stderr
+	// replace original fd (stdin) with stderr (console) in case anything writes to it
 	unix.Dup2(int(os.Stderr.Fd()), int(rpcFile.Fd()))
 
 	fdxConn, err := net.FileConn(fdxFile)
 	if err != nil {
 		return err
 	}
-	// replace original fd with stderr
+	// replace original fd (stdout) with stderr (console) in case anything writes to it
 	unix.Dup2(int(os.Stderr.Fd()), int(fdxFile.Fd()))
 
 	// now safe to init logrus

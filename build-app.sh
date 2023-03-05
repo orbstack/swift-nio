@@ -35,7 +35,7 @@ function build_one() {
 
     pushd macvmgr
     go generate ./conf/appver ./drm/killswitch
-    ./build.sh -tags release -trimpath -ldflags="-s -w" -o $OUT/macvmgr
+    EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o $OUT/macvmgr
     codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/macvmgr
     popd
 

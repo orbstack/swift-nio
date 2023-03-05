@@ -194,7 +194,7 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer)) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.ptr == nil {
-		return errors.New("machine destroyed")
+		return errors.New("machine closed")
 	}
 
 	ch := make(chan error)
@@ -211,7 +211,7 @@ func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer)) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.ptr == nil {
-		return 0, errors.New("machine destroyed")
+		return 0, errors.New("machine closed")
 	}
 
 	ch := make(chan errIntResult)
