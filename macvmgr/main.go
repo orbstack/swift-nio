@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/Code-Hex/vz/v3"
-	"github.com/alessio/shellescape"
 	"github.com/gofrs/flock"
 	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -30,6 +29,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
+	"github.com/kdrag0n/macvirt/macvmgr/vzf"
 	"github.com/kdrag0n/macvirt/scon/isclient"
 	"github.com/kdrag0n/macvirt/scon/sclient"
 	"github.com/sirupsen/logrus"
@@ -171,7 +171,7 @@ func isMountpoint(path string) bool {
 	return stat.Dev != parentStat.Dev
 }
 
-func tryForceStop(vm *vz.VirtualMachine) (err error) {
+func tryForceStop(vm *vzf.Machine) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("force stop panic: %v", r)
@@ -182,7 +182,7 @@ func tryForceStop(vm *vz.VirtualMachine) (err error) {
 	return
 }
 
-func tryGracefulStop(vm *vz.VirtualMachine, vc *vclient.VClient) (err error) {
+func tryGracefulStop(vm *vzf.Machine, vc *vclient.VClient) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("graceful stop panic: %v", r)
@@ -288,7 +288,7 @@ func runVmManager() {
 		TimestampFormat: "01-02 15:04:05",
 	})
 
-	if err := vz.MacOSAvailable(12.6); err != nil {
+	if err := vz.MacOSAvailable(12.4); err != nil {
 		logrus.Fatal("macOS too old", err)
 	}
 
@@ -442,45 +442,8 @@ func runVmManager() {
 		defer term.Restore(fd, state)
 	}
 
-	// Monitor state changes even if observer panics
-	stateChan := make(chan vz.VirtualMachineState, 1)
-	go func() {
-		vmChan := vm.StateChangedNotify()
-		for {
-			select {
-			case state := <-vmChan:
-				stateChan <- state
-			case state := <-vz.GlobalStateChan:
-				stateChan <- state
-			}
-		}
-	}()
-
-	// watchdog in case it panics
-	errCh := make(chan error, 1)
-	vmHasStarted := false
-	go func() {
-		time.Sleep(vmStartTimeout)
-		if !vmHasStarted {
-			if isRetry {
-				logrus.Error("VM start timed out on retry, giving up")
-				errCh <- errors.New("VM start timed out on retry, giving up")
-			} else {
-				logrus.Error("VM start timeout, retrying")
-
-				cmd := exec.Command("/bin/sh", "-c", "sleep 0.5 && exec "+shellescape.QuoteCommand(append(os.Args, "-retry")))
-				fmt.Println("spawn", cmd)
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				err := cmd.Start()
-				if err != nil {
-					logrus.WithError(err).Fatal("failed to spawn retry")
-				}
-
-				os.Exit(1)
-			}
-		}
-	}()
+	// Monitor state changes
+	stateChan := vm.StateChan()
 
 	logrus.Info("starting VM")
 	err = vm.Start()
@@ -528,14 +491,13 @@ func runVmManager() {
 	defer unixListener.Close()
 
 	// Host forwards (setup vsock)
-	vsock := vm.SocketDevices()[0]
 	vnetwork.VsockDialer = func(port uint32) (net.Conn, error) {
-		conn, err := vsock.Connect(port)
+		conn, err := vm.ConnectVsock(port)
 		if err != nil {
 			return nil, err
 		}
 
-		return conn.RawConn(), nil
+		return conn, nil
 	}
 	for fromSpec, toSpec := range hostForwardsToGuest {
 		spec := vnet.ForwardSpec{Host: fromSpec, Guest: toSpec}
@@ -618,6 +580,8 @@ func runVmManager() {
 
 	logrus.Info("waiting for VM to start")
 	returnCh := make(chan struct{}, 1)
+	errCh := make(chan error, 1)
+	vmHasStarted := false
 	for {
 		select {
 		case <-returnCh:
@@ -646,11 +610,11 @@ func runVmManager() {
 
 		case newState := <-stateChan:
 			switch newState {
-			case vz.VirtualMachineStateStarting:
+			case vzf.MachineStateStarting:
 				logrus.Info("[VM] starting")
-			case vz.VirtualMachineStateStopping:
+			case vzf.MachineStateStopping:
 				logrus.Info("[VM] stopping")
-			case vz.VirtualMachineStateRunning:
+			case vzf.MachineStateRunning:
 				logrus.Info("[VM] started")
 				if !vmHasStarted {
 					err := controlServer.onStart()
@@ -659,7 +623,7 @@ func runVmManager() {
 					}
 				}
 				vmHasStarted = true
-			case vz.VirtualMachineStateStopped:
+			case vzf.MachineStateStopped:
 				logrus.Info("[VM] stopped")
 				err = controlServer.onStop()
 				if err != nil {
@@ -667,14 +631,14 @@ func runVmManager() {
 					return
 				}
 				return
-			case vz.VirtualMachineStateError:
+			case vzf.MachineStateError:
 				logrus.Error("[VM] error")
 				return
-			case vz.VirtualMachineStatePaused:
+			case vzf.MachineStatePaused:
 				logrus.Debug("[VM] paused")
-			case vz.VirtualMachineStateResuming:
+			case vzf.MachineStateResuming:
 				logrus.Debug("[VM] resuming")
-			case vz.VirtualMachineStatePausing:
+			case vzf.MachineStatePausing:
 				logrus.Debug("[VM] pausing")
 			}
 		case err := <-errCh:

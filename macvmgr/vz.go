@@ -1,17 +1,16 @@
 package main
 
 import (
-	"net"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/Code-Hex/vz/v3"
-	"github.com/kdrag0n/macvirt/macvmgr/arch"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
+	"github.com/kdrag0n/macvirt/macvmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -33,7 +32,7 @@ type VmParams struct {
 	DiskSwap         string
 	NetworkVnet      bool
 	NetworkNat       bool
-	NetworkPairFd    *os.File
+	NetworkPairFile  *os.File
 	MacAddressPrefix string
 	Balloon          bool
 	Rng              bool
@@ -51,17 +50,7 @@ func findBestMtu() int {
 	}
 }
 
-func clamp[T uint | uint64](n, min, max T) T {
-	if n < min {
-		return min
-	}
-	if n > max {
-		return max
-	}
-	return n
-}
-
-func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
+func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/preinit",
@@ -88,20 +77,26 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 	}
 	logrus.Debug("cmdline", cmdline)
 
-	bootloader, err := vz.NewLinuxBootLoader(
-		c.Kernel,
-		vz.WithCommandLine(strings.Join(cmdline, " ")),
-	)
-	check(err)
-
-	config, err := vz.NewVirtualMachineConfiguration(
-		bootloader,
-		clamp(uint(c.Cpus), vz.VirtualMachineConfigurationMinimumAllowedCPUCount(), vz.VirtualMachineConfigurationMaximumAllowedCPUCount()),
-		clamp(c.Memory*1024*1024, vz.VirtualMachineConfigurationMinimumAllowedMemorySize(), vz.VirtualMachineConfigurationMaximumAllowedMemorySize()),
-	)
-	check(err)
+	spec := vzf.VzSpec{
+		Cpus:             c.Cpus,
+		Memory:           c.Memory * 1024 * 1024,
+		Kernel:           c.Kernel,
+		Cmdline:          strings.Join(cmdline, " "),
+		MacAddressPrefix: c.MacAddressPrefix,
+		NetworkNat:       c.NetworkNat,
+		Rng:              c.Rng,
+		DiskRootfs:       c.DiskRootfs,
+		DiskData:         c.DiskData,
+		DiskSwap:         c.DiskSwap,
+		Balloon:          c.Balloon,
+		Vsock:            c.Vsock,
+		Virtiofs:         c.Virtiofs,
+		Rosetta:          c.Rosetta,
+		Sound:            c.Sound,
+	}
 
 	// Console
+	var err error
 	if c.Console != ConsoleNone {
 		var read, write *os.File
 		switch c.Console {
@@ -115,195 +110,43 @@ func CreateVm(c *VmParams) (*vnet.Network, *vz.VirtualMachine) {
 			check(err)
 		}
 
-		serialConsoleFds, err := vz.NewFileHandleSerialPortAttachment(read, write)
-		check(err)
-		serialConsole, err := vz.NewVirtioConsoleDeviceSerialPortConfiguration(serialConsoleFds)
-		check(err)
-		config.SetSerialPortsVirtualMachineConfiguration([]*vz.VirtioConsoleDeviceSerialPortConfiguration{
-			serialConsole,
-		})
+		spec.Console = &vzf.ConsoleSpec{
+			ReadFd:  int(read.Fd()),
+			WriteFd: int(write.Fd()),
+		}
 	}
 
 	// Network
-	netDevices := []*vz.VirtioNetworkDeviceConfiguration{}
 	mtu := findBestMtu()
-	// 1. gvnet
+	spec.Mtu = mtu
+	// gvnet
 	var vnetwork *vnet.Network
 	if c.NetworkVnet {
 		newNetwork, gvnetFile, err := vnet.StartUnixgramPair(vnet.NetOptions{
 			MTU: uint32(mtu),
 		})
+		check(err)
 		vnetwork = newNetwork
-		check(err)
-		attachment, err := vz.NewFileHandleNetworkDeviceAttachment(gvnetFile)
-		check(err)
-		_ = attachment.SetMaximumTransmissionUnit(mtu) // ignore: err on macOS 12
-		network, err := vz.NewVirtioNetworkDeviceConfiguration(attachment)
-		check(err)
-		macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":01")
-		check(err)
-		mac, err := vz.NewMACAddress(macAddr)
-		check(err)
-		network.SetMACAddress(mac)
-		netDevices = append(netDevices, network)
+
+		// TODO: set nonblock using util.GetFd?
+		fd := int(gvnetFile.Fd())
+		spec.NetworkVnetFd = &fd
+	}
+	if c.NetworkPairFile != nil {
+		fd := int(c.NetworkPairFile.Fd())
+		spec.NetworkVnetFd = &fd
 	}
 
-	// 2. NAT
-	if c.NetworkNat {
-		attachment, err := vz.NewNATNetworkDeviceAttachment()
-		check(err)
-		network, err := vz.NewVirtioNetworkDeviceConfiguration(attachment)
-		check(err)
-		macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":02")
-		check(err)
-		mac, err := vz.NewMACAddress(macAddr)
-		check(err)
-		network.SetMACAddress(mac)
-		netDevices = append(netDevices, network)
-	}
-
-	// 3. pair
-	if c.NetworkPairFd != nil {
-		handleNet, err := vz.NewFileHandleNetworkDeviceAttachment(c.NetworkPairFd)
-		check(err)
-		handleNet.SetMaximumTransmissionUnit(mtu)
-		network, err := vz.NewVirtioNetworkDeviceConfiguration(handleNet)
-		check(err)
-		macAddr, err := net.ParseMAC(c.MacAddressPrefix + ":03")
-		check(err)
-		mac, err := vz.NewMACAddress(macAddr)
-		check(err)
-		network.SetMACAddress(mac)
-		netDevices = append(netDevices, network)
-	}
-
-	config.SetNetworkDevicesVirtualMachineConfiguration(netDevices)
-
-	// RNG
-	if c.Rng {
-		rng, err := vz.NewVirtioEntropyDeviceConfiguration()
-		check(err)
-		config.SetEntropyDevicesVirtualMachineConfiguration([]*vz.VirtioEntropyDeviceConfiguration{
-			rng,
-		})
-	}
-
-	// Disks (raw!)
-	storages := []vz.StorageDeviceConfiguration{}
-	// 1. rootfs
-	if c.DiskRootfs != "" {
-		disk1, err := vz.NewDiskImageStorageDeviceAttachmentWithCacheAndSync(
-			c.DiskRootfs,
-			true, // read-only
-			vz.DiskImageCachingModeCached,
-			vz.DiskImageSynchronizationModeFsync,
-		)
-		check(err)
-		storage1, err := vz.NewVirtioBlockDeviceConfiguration(disk1)
-		check(err)
-		storages = append(storages, storage1)
-	}
-	// 2. data
-	if c.DiskData != "" {
-		disk2, err := vz.NewDiskImageStorageDeviceAttachmentWithCacheAndSync(
-			c.DiskData,
-			false,
-			// cache for perf
-			vz.DiskImageCachingModeCached,
-			// fsync for safety, but not full fsync (degrades to 50-75 IOPS)
-			vz.DiskImageSynchronizationModeFsync,
-		)
-		check(err)
-		storage2, err := vz.NewVirtioBlockDeviceConfiguration(disk2)
-		check(err)
-		storages = append(storages, storage2)
-	}
-	// 3. swap
-	if c.DiskSwap != "" {
-		disk3, err := vz.NewDiskImageStorageDeviceAttachmentWithCacheAndSync(
-			c.DiskSwap,
-			false,
-			vz.DiskImageCachingModeCached,
-			// no point in fsyncing swap. we'll never use it again after reboot
-			vz.DiskImageSynchronizationModeNone,
-		)
-		check(err)
-		storage3, err := vz.NewVirtioBlockDeviceConfiguration(disk3)
-		check(err)
-		storages = append(storages, storage3)
-	}
-	config.SetStorageDevicesVirtualMachineConfiguration(storages)
-
-	// Balloon
-	if c.Balloon {
-		balloon, err := vz.NewVirtioTraditionalMemoryBalloonDeviceConfiguration()
-		check(err)
-		config.SetMemoryBalloonDevicesVirtualMachineConfiguration([]vz.MemoryBalloonDeviceConfiguration{
-			balloon,
-		})
-	}
-
-	// Vsock
-	if c.Vsock {
-		vsock, err := vz.NewVirtioSocketDeviceConfiguration()
-		check(err)
-		config.SetSocketDevicesVirtualMachineConfiguration([]vz.SocketDeviceConfiguration{
-			vsock,
-		})
-	}
-
-	// virtiofs (shared)
-	fsDevices := []vz.DirectorySharingDeviceConfiguration{}
-	if c.Virtiofs {
-		virtiofs, err := vz.NewVirtioFileSystemDeviceConfiguration("mac")
-		check(err)
-		hostDir, err := vz.NewSharedDirectory("/", false)
-		check(err)
-		hostDirShare, err := vz.NewSingleDirectoryShare(hostDir)
-		check(err)
-		virtiofs.SetDirectoryShare(hostDirShare)
-		fsDevices = append(fsDevices, *virtiofs)
-	}
-
-	// Rosetta (virtiofs)
-	if c.Rosetta && vmconfig.Get().Rosetta {
-		result, err := arch.CreateRosettaDevice()
-		check(err)
-		if result != nil && result.FsDevice != nil {
-			fsDevices = append(fsDevices, *result.FsDevice)
-		}
-		if result != nil && result.InstallCanceled {
-			logrus.Info("user canceled Rosetta install, saving preference")
-			err := vmconfig.Update(func(c *vmconfig.VmConfig) {
-				c.Rosetta = false
-			})
-			check(err)
-		}
-	}
-
-	config.SetDirectorySharingDevicesVirtualMachineConfiguration(fsDevices)
-
-	// Sound
-	if c.Sound {
-		sound, err := vz.NewVirtioSoundDeviceConfiguration()
-		check(err)
-		soundOutput, err := vz.NewVirtioSoundDeviceHostOutputStreamConfiguration()
-		check(err)
-		sound.SetStreams(soundOutput)
-		config.SetAudioDevicesVirtualMachineConfiguration([]vz.AudioDeviceConfiguration{
-			sound,
-		})
-	}
-
-	validated, err := config.Validate()
+	vm, rosettaCanceled, err := vzf.NewMachine(spec)
 	check(err)
-	if !validated {
-		logrus.Fatal("validation failed", err)
-	}
 
-	// Boot!
-	vm, err := vz.NewVirtualMachine(config)
-	check(err)
+	if rosettaCanceled {
+		logrus.Info("user canceled Rosetta install, saving preference")
+		err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+			c.Rosetta = false
+		})
+		check(err)
+	}
 
 	return vnetwork, vm
 }

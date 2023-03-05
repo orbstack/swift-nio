@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Code-Hex/vz/v3"
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
@@ -25,6 +24,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
+	"github.com/kdrag0n/macvirt/macvmgr/vzf"
 	"github.com/sirupsen/logrus"
 
 	_ "net/http/pprof"
@@ -36,7 +36,7 @@ const (
 )
 
 type VmControlServer struct {
-	vm               *vz.VirtualMachine
+	vm               *vzf.Machine
 	vc               *vclient.VClient
 	doneCh           chan struct{}
 	stopCh           chan StopType

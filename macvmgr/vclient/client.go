@@ -10,12 +10,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient/iokit"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -44,7 +44,7 @@ type VClient struct {
 	dataReady bool
 	lastStats diskReportStats
 	dataFile  *os.File
-	vm        *vz.VirtualMachine
+	vm        *vzf.Machine
 }
 
 type diskReportStats struct {
@@ -53,7 +53,7 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport, vm *vz.VirtualMachine) (*VClient, error) {
+func newWithTransport(tr *http.Transport, vm *vzf.Machine) (*VClient, error) {
 	httpClient := &http.Client{Transport: tr}
 	dataFile, err := os.OpenFile(conf.DataImage(), os.O_RDONLY, 0)
 	if err != nil {
@@ -67,7 +67,7 @@ func newWithTransport(tr *http.Transport, vm *vz.VirtualMachine) (*VClient, erro
 	}, nil
 }
 
-func NewWithNetwork(n *vnet.Network, vm *vz.VirtualMachine) (*VClient, error) {
+func NewWithNetwork(n *vnet.Network, vm *vzf.Machine) (*VClient, error) {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{

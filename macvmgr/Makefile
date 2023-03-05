@@ -5,6 +5,7 @@ run: vmgr
 	@./macvmgr vmgr
 
 vmgr:
+	@cd ../swift; make lib
 	@./build.sh
 
 scli:
@@ -21,11 +22,13 @@ app:
 	@cd ..; make app
 
 server:
-	@cd ../updates; python3 -m http.server
+	@cd ..; make server
 
-serve: server
+serve:
+	@cd ..; make serve
 
 publish:
-	@../publish-update.sh
+	@cd ..; make publish
 
-pub: publish
+pub:
+	@cd ..; make pub
