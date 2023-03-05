@@ -31,6 +31,7 @@ require (
 )
 
 require (
+	github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 )
