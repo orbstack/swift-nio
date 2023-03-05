@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Code-Hex/vz/v3"
 	"github.com/gofrs/flock"
 	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -24,6 +23,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/killswitch"
+	"github.com/kdrag0n/macvirt/macvmgr/osver"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
@@ -288,8 +288,8 @@ func runVmManager() {
 		TimestampFormat: "01-02 15:04:05",
 	})
 
-	if err := vz.MacOSAvailable(12.4); err != nil {
-		logrus.Fatal("macOS too old", err)
+	if !osver.IsAtLeast("v12.4") {
+		logrus.Fatal("macOS too old - min 12.4")
 	}
 
 	// parse args

@@ -4,16 +4,12 @@ go 1.19
 
 replace github.com/kdrag0n/macvirt/scon => ../scon
 
-// deps
-replace github.com/Code-Hex/vz/v3 => ../../../vm/vz
-
 // go branch
 replace gvisor.dev/gvisor => ../../../vm/gvisor
 
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
 require (
-	github.com/Code-Hex/vz/v3 v3.0.0
 	github.com/creachadair/jrpc2 v0.43.0
 	github.com/creack/pty v1.1.18
 	github.com/gliderlabs/ssh v0.3.5
@@ -35,7 +31,6 @@ require (
 )
 
 require (
-	github.com/google/gopacket v1.1.19
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 )
@@ -62,7 +57,7 @@ require (
 require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.9.0
-	golang.org/x/mod v0.7.0 // indirect
+	golang.org/x/mod v0.7.0
 	golang.org/x/net v0.5.0
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	gvisor.dev/gvisor v0.0.0-20221220191351-8ea7ab01ea4e

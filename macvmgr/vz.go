@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Code-Hex/vz/v3"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/osver"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vzf"
@@ -43,10 +43,10 @@ type VmParams struct {
 }
 
 func findBestMtu() int {
-	if err := vz.MacOSAvailable(13); err != nil {
-		return 1500
-	} else {
+	if osver.IsAtLeast("v13.0") {
 		return vnet.PreferredMtu // prefer 65520
+	} else {
+		return 1500
 	}
 }
 
