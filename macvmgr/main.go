@@ -45,8 +45,6 @@ const (
 	nfsMountDelay = 500 * time.Millisecond
 
 	gracefulStopTimeout = 15 * time.Second
-
-	vmStartTimeout = 8 * time.Second
 )
 
 type StopType int
@@ -59,17 +57,19 @@ const (
 var (
 	// host -> guest
 	hostForwardsToGuest = map[string]string{
-		// vsock is slightly faster, esp. for small files (because latency)
-		// "tcp:127.0.0.1:" + str(ports.HostNFS): "tcp:" + str(ports.GuestNFS),
-		"tcp:127.0.0.1:" + str(ports.HostNFS):           "vsock:" + str(ports.GuestNFS),
-		"tcp:[::1]:" + str(ports.HostNFS):               "vsock:" + str(ports.GuestNFS),
+		// public SSH
 		"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
 		"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
-		"tcp:127.0.0.1:" + str(ports.HostSconRPC):       "tcp:" + str(ports.GuestScon),
-		"tcp:[::1]:" + str(ports.HostSconRPC):           "tcp:" + str(ports.GuestScon),
-		"unix:" + conf.DockerSocket():                   "tcp:" + str(ports.GuestDocker),
-		"unix:" + conf.SconSSHSocket():                  "tcp:" + str(ports.GuestSconSSH),
-		"unix:" + conf.SconRPCSocket():                  "tcp:" + str(ports.GuestScon),
+		// for Swift
+		"tcp:127.0.0.1:" + str(ports.HostSconRPC): "tcp:" + str(ports.GuestScon),
+		"tcp:[::1]:" + str(ports.HostSconRPC):     "tcp:" + str(ports.GuestScon),
+		// unix sockets
+		"unix:" + conf.DockerSocket():  "tcp:" + str(ports.GuestDocker),
+		"unix:" + conf.SconSSHSocket(): "tcp:" + str(ports.GuestSconSSH),
+		"unix:" + conf.SconRPCSocket(): "tcp:" + str(ports.GuestScon),
+		// NFS
+		// vsock is slightly faster, esp. for small files (because latency)
+		"unix:" + conf.NfsSocket(): "vsock:" + str(ports.GuestNFS),
 	}
 )
 

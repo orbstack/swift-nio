@@ -87,6 +87,10 @@ func SconRPCSocket() string {
 	return RunDir() + "/sconrpc.sock"
 }
 
+func NfsSocket() string {
+	return RunDir() + "/nfs.sock"
+}
+
 func VmControlSocket() string {
 	return RunDir() + "/vmcontrol.sock"
 }
