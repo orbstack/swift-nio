@@ -20,6 +20,7 @@ struct StateWrapperView<Content: View>: View {
             VStack {
                 Text("Not running")
                         .font(.title)
+                        .foregroundColor(.secondary)
                 Button(action: {
                     Task {
                         await vmModel.start()

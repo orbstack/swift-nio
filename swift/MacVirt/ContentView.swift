@@ -120,7 +120,7 @@ struct ContentView: View {
         .task {
             let center = UNUserNotificationCenter.current()
             center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-                print("notification permission granted: \(granted)")
+                NSLog("notification permission granted: \(granted)")
             }
 
             await model.initLaunch()
@@ -128,19 +128,31 @@ struct ContentView: View {
         .onChange(of: controlActiveState) { state in
             if state == .key {
                 Task {
-                    print("try refresh: root view - key")
+                    NSLog("try refresh: root view - key")
                     await model.tryRefreshList()
                 }
             }
         }
         // error dialog
-        .alert(isPresented: $presentError, error: model.error) { _ in
+        .alert(isPresented: $presentError, error: model.error) { error in
             Button("OK") {
                 model.dismissError()
 
                 // quit if the error is fatal
                 if model.state == .stopped && !model.reachedRunning {
                     NSApp.terminate(nil)
+                }
+            }
+
+            if let error, error.shouldShowLogs {
+                Button("Show Logs") {
+                    model.dismissError()
+                    openLogsFolder()
+
+                    // quit if the error is fatal
+                    if model.state == .stopped && !model.reachedRunning {
+                        NSApp.terminate(nil)
+                    }
                 }
             }
         } message: { error in

@@ -53,25 +53,23 @@ struct DockerContainerItem: View {
         }
         .padding(.vertical, 4)
         .onDoubleClick {
-            Task {
-                do {
-                    try await openTerminal(AppConfig.c.dockerExe, ["exec", "-it", container.id, "sh"])
-                } catch {
-                    print(error)
-                }
-            }
+            openInTerminal()
         }
         .contextMenu {
             Button(action: {
-                Task {
-                    do {
-                        try await openTerminal(AppConfig.c.dockerExe, ["exec", "-it", container.id, "sh"])
-                    } catch {
-                        print(error)
-                    }
-                }
+                openInTerminal()
             }) {
                 Label("Open Terminal", systemImage: "terminal")
+            }
+        }
+    }
+
+    private func openInTerminal() {
+        Task {
+            do {
+                try await openTerminal(AppConfig.c.dockerExe, ["exec", "-it", container.id, "sh"])
+            } catch {
+                NSLog("Open terminal failed: \(error)")
             }
         }
     }

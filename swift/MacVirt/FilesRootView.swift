@@ -30,7 +30,7 @@ struct FilesRootView: View {
                     }
                 }
                 .refreshable {
-                    print("try refresh: files refreshable")
+                    NSLog("try refresh: files refreshable")
                     await vmModel.tryRefreshList()
                 }
             } else {

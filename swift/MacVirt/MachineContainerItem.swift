@@ -75,13 +75,7 @@ struct MachineContainerItem: View {
         .opacity(record.running ? 1 : 0.5)
         .contextMenu {
             Button(action: {
-                Task {
-                    do {
-                        try await openTerminal(AppConfig.c.shellExe, ["-m", record.name])
-                    } catch {
-                        print(error)
-                    }
-                }
+                openInTerminal()
             }) {
                 Label("Open Terminal", systemImage: "terminal")
             }
@@ -113,17 +107,20 @@ struct MachineContainerItem: View {
             Text("Data will be permanently lost.")
         }
         .onDoubleClick {
-            Task {
-                do {
-                    try await openTerminal(AppConfig.c.shellExe, ["-m", record.name])
-                } catch {
-                    print(error)
-                }
-            }
         }
         .onChange(of: actionInProgress) { newValue in
             withAnimation(.spring()) {
                 progressOpacity = newValue ? 1 : 0
+            }
+        }
+    }
+
+    private func openInTerminal() {
+        Task {
+            do {
+                try await openTerminal(AppConfig.c.shellExe, ["-m", record.name])
+            } catch {
+                NSLog("Open terminal failed: \(error)")
             }
         }
     }

@@ -73,9 +73,7 @@ struct MacVirtApp: App {
             }
             CommandGroup(after: .appSettings) {
                 Button("Show Logs") {
-                    // get home folder
-                    let home = FileManager.default.homeDirectoryForCurrentUser.path
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: home + "/.orbstack/log")
+                    openLogsFolder()
                 }
                 Button("Invite a Friend") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/waitlist")!)
@@ -132,4 +130,13 @@ struct MacVirtApp: App {
                     .environmentObject(model)
         }
     }
+}
+
+func getConfigDir() -> String {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    return home + "/.orbstack"
+}
+
+func openLogsFolder() {
+    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: getConfigDir() + "/log")
 }

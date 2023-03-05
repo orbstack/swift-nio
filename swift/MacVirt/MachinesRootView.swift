@@ -40,7 +40,7 @@ struct MachinesRootView: View {
                     }
                 }
                         .refreshable {
-                            print("try refresh: machines refreshable")
+                            NSLog("try refresh: machines refreshable")
                             await vmModel.tryRefreshList()
                         }
                         .overlay(alignment: .bottomTrailing, content: {

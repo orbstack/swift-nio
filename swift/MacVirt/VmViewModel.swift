@@ -5,6 +5,9 @@
 import Foundation
 import SwiftUI
 import SwiftJSONRPC
+import Sentry
+
+fileprivate let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
 
 enum VmState: Int, Comparable {
     case stopped
@@ -22,86 +25,153 @@ private let startTimeout = 15 * 1000 * 1000 * 1000
 
 enum VmError: LocalizedError, Equatable {
     // VM
-    case spawnError(error: Error)
+    case spawnError(cause: Error)
     case spawnExit(status: Int32, output: String)
     case wrongArch
     case killswitchExpired
-    case startTimeout(lastError: Error?)
-    case stopError(error: Error)
-    case setupError(error: Error)
-    case dockerError(error: Error)
-    case configRefresh(error: Error)
-    case configPatchError(error: Error)
+    case startTimeout(cause: Error?)
+    case stopError(cause: Error)
+    case setupError(cause: Error)
+    case dockerError(cause: Error)
+    case configRefresh(cause: Error)
+    case configPatchError(cause: Error)
 
     // scon
-    case startError(error: Error)
-    case listRefresh(error: Error)
-    case defaultError(error: Error)
-    case containerStopError(error: Error)
-    case containerStartError(error: Error)
-    case containerDeleteError(error: Error)
-    case containerCreateError(error: Error)
+    case startError(cause: Error)
+    case listRefresh(cause: Error)
+    case defaultError(cause: Error)
+    case containerStopError(cause: Error)
+    case containerStartError(cause: Error)
+    case containerDeleteError(cause: Error)
+    case containerCreateError(cause: Error)
 
     var errorDescription: String? {
         switch self {
-        case .spawnError(let error):
-            return "Failed to start VM: \(error.localizedDescription)"
+        case .spawnError(let cause):
+            return "Failed to start VM: \(cause.localizedDescription)"
         case .spawnExit(let status, let output):
             return "VM crashed with status \(status): \(output)"
         case .wrongArch:
             return "Wrong CPU type"
         case .killswitchExpired:
             return "Build expired"
-        case .startTimeout(let lastError):
-            return "VM did not start: \(lastError?.localizedDescription ?? "timeout")"
-        case .stopError(let error):
-            return "Failed to stop VM: \(fmtRpc(error))"
-        case .setupError(let error):
-            return "Failed to do setup: \(fmtRpc(error))"
-        case .dockerError(let error):
-            return "Failed to check Docker: \(fmtRpc(error))"
-        case .configRefresh(let error):
-            return "Failed to get settings: \(fmtRpc(error))"
-        case .configPatchError(let error):
-            return "Failed to update settings: \(fmtRpc(error))"
+        case .startTimeout(let cause):
+            return "VM did not start: \(cause?.localizedDescription ?? "timeout")"
+        case .stopError(let cause):
+            return "Failed to stop VM: \(fmtRpc(cause))"
+        case .setupError(let cause):
+            return "Failed to do setup: \(fmtRpc(cause))"
+        case .dockerError(let cause):
+            return "Failed to check Docker: \(fmtRpc(cause))"
+        case .configRefresh(let cause):
+            return "Failed to get settings: \(fmtRpc(cause))"
+        case .configPatchError(let cause):
+            return "Failed to update settings: \(fmtRpc(cause))"
 
-        case .startError(let error):
-            return "Failed to start machine manager: \(fmtRpc(error))"
-        case .listRefresh(let error):
-            return "Failed to get machines: \(fmtRpc(error))"
-        case .defaultError(let error):
-            return "Failed to set default machine: \(fmtRpc(error))"
-        case .containerStopError(let error):
-            return "Failed to stop machine: \(fmtRpc(error))"
-        case .containerStartError(let error):
-            return "Failed to start machine: \(fmtRpc(error))"
-        case .containerDeleteError(let error):
-            return "Failed to delete machine: \(fmtRpc(error))"
-        case .containerCreateError(let error):
-            return "Failed to create machine: \(fmtRpc(error))"
+        case .startError(let cause):
+            return "Failed to start machine manager: \(fmtRpc(cause))"
+        case .listRefresh(let cause):
+            return "Failed to get machines: \(fmtRpc(cause))"
+        case .defaultError(let cause):
+            return "Failed to set default machine: \(fmtRpc(cause))"
+        case .containerStopError(let cause):
+            return "Failed to stop machine: \(fmtRpc(cause))"
+        case .containerStartError(let cause):
+            return "Failed to start machine: \(fmtRpc(cause))"
+        case .containerDeleteError(let cause):
+            return "Failed to delete machine: \(fmtRpc(cause))"
+        case .containerCreateError(let cause):
+            return "Failed to create machine: \(fmtRpc(cause))"
+        }
+    }
+
+    var shouldShowLogs: Bool {
+        switch self {
+        case .spawnError:
+            return true
+        case .spawnExit:
+            return true
+        case .startTimeout:
+            return true
+        case .stopError:
+            return true
+
+        case .startError:
+            return true
+        case .listRefresh:
+            return true
+
+        default:
+            return false
         }
     }
 
     var recoverySuggestion: String? {
+        if shouldShowLogs {
+            return "Check logs for more details."
+        }
+
         switch self {
-        case .spawnError:
-            return "Check the log for more details."
-        case .spawnExit:
-            return "Check the log for more details."
         case .wrongArch:
             return "Please download the Apple Silicon version of OrbStack."
         case .killswitchExpired:
             return "Please download the latest version of OrbStack."
-        case .startTimeout:
-            return "Check the log for more details."
-        case .stopError:
-            return "Check the log for more details."
-
-        case .startError:
-            return "Check the log for more details."
 
         default:
             return nil
+        }
+    }
+
+    var cause: Error? {
+        switch self {
+        case .spawnError(let cause):
+            return cause
+        case .spawnExit:
+            return nil
+        case .wrongArch:
+            return nil
+        case .killswitchExpired:
+            return nil
+        case .startTimeout(let cause):
+            return cause
+        case .stopError(let cause):
+            return cause
+        case .setupError(let cause):
+            return cause
+        case .dockerError(let cause):
+            return cause
+        case .configRefresh(let cause):
+            return cause
+        case .configPatchError(let cause):
+            return cause
+
+        case .startError(let cause):
+            return cause
+        case .listRefresh(let cause):
+            return cause
+        case .defaultError(let cause):
+            return cause
+        case .containerStopError(let cause):
+            return cause
+        case .containerStartError(let cause):
+            return cause
+        case .containerDeleteError(let cause):
+            return cause
+        case .containerCreateError(let cause):
+            return cause
+        }
+    }
+
+    // Don't report expected errors to Sentry
+    var ignoreSentry: Bool {
+        switch self {
+        case .wrongArch:
+            return true
+        case .killswitchExpired:
+            return true
+
+        default:
+            return false
         }
     }
 
@@ -143,12 +213,30 @@ struct AddPathsAlert {
 
 @MainActor
 class VmViewModel: ObservableObject {
+    private let daemon = DaemonManager()
     private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:62420"))
     private let scon = SconService(client: newRPCClient("http://127.0.0.1:62421"))
 
-    @Published private(set) var state = VmState.stopped
+    @Published private(set) var state = VmState.stopped {
+        didSet {
+            if state == .running {
+                reachedRunning = true
+            }
+        }
+    }
+
     @Published private(set) var containers: [ContainerRecord]?
-    @Published private(set) var error: VmError?
+    @Published private(set) var error: VmError? {
+        didSet {
+            if let error = error {
+                NSLog("Error: \(error)")
+                if !error.ignoreSentry {
+                    SentrySDK.capture(error: error)
+                }
+            }
+        }
+    }
+
     @Published var creatingCount = 0
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false
@@ -163,16 +251,9 @@ class VmViewModel: ObservableObject {
     // Setup
     @Published private(set) var isSshConfigWritable = true
 
-    private func updateState(_ state: VmState) {
-        self.state = state
-        if state == .running {
-            reachedRunning = true
-        }
-    }
-
-    private func updateStateAsync(_ state: VmState) {
+    private func setStateAsync(_ state: VmState) {
         DispatchQueue.main.async {
-            self.updateState(state)
+            self.state = state
         }
     }
 
@@ -192,20 +273,20 @@ class VmViewModel: ObservableObject {
         Task {
             do {
                 try await runProcessChecked(AppConfig.c.vmgrExe, ["spawn-daemon"])
-                updateStateAsync(.starting)
+                setStateAsync(.starting)
             } catch let processError as ProcessError {
                 DispatchQueue.main.async {
-                    self.updateState(.stopped)
+                    self.state = .stopped
                     self.error = VmError.spawnExit(status: processError.status, output: processError.output)
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self.updateState(.stopped)
-                    self.error = VmError.spawnError(error: error)
+                    self.state = .stopped
+                    self.error = VmError.spawnError(cause: error)
                 }
             }
         }
-        updateStateAsync(.spawning)
+        setStateAsync(.spawning)
     }
 
     private func waitForVM() async throws {
@@ -225,10 +306,10 @@ class VmViewModel: ObservableObject {
             } catch {
                 lastError = error
             }
-            try await Task.sleep(nanoseconds: 100 * 1000 * 1000)
+            try await Task.sleep(nanoseconds: startPollInterval)
             if (DispatchTime.now() > deadline) {
-                updateStateAsync(.stopped)
-                throw VmError.startTimeout(lastError: lastError)
+                setStateAsync(.stopped)
+                throw VmError.startTimeout(cause: lastError)
             }
         }
     }
@@ -249,16 +330,20 @@ class VmViewModel: ObservableObject {
             } catch {
                 lastError = error
             }
-            try await Task.sleep(nanoseconds: 100 * 1000 * 1000)
+            try await Task.sleep(nanoseconds: startPollInterval)
             if (DispatchTime.now() > deadline) {
-                updateStateAsync(.stopped)
-                throw VmError.startTimeout(lastError: lastError)
+                setStateAsync(.stopped)
+                throw VmError.startTimeout(cause: lastError)
             }
         }
     }
 
     @MainActor
     func refreshList() async throws {
+        guard state < .stopping else {
+            return
+        }
+
         try await waitForScon()
         let allContainers = try await scon.listContainers()
         // filter into running and stopped
@@ -274,10 +359,20 @@ class VmViewModel: ObservableObject {
         do {
             try await refreshList()
         } catch {
-            if state >= .running {
-                self.updateState(.stopped)
+            // check daemon process state
+            let daemonRunning = await daemon.isRunning()
+            if !daemonRunning {
+                // daemon stopped, update state
+                self.state = .stopped
+
+                if reachedRunning {
+                    // stopped by someone else, and we've successfully started. suppress the error
+                    // TODO: check old state?
+                    return
+                }
             }
-            self.error = VmError.listRefresh(error: error)
+
+            self.error = VmError.listRefresh(cause: error)
         }
     }
 
@@ -297,7 +392,7 @@ class VmViewModel: ObservableObject {
         do {
             try await refreshDockerList()
         } catch {
-            self.error = VmError.dockerError(error: error)
+            self.error = VmError.dockerError(cause: error)
         }
     }
 
@@ -312,7 +407,7 @@ class VmViewModel: ObservableObject {
         do {
             try await refreshConfig()
         } catch {
-            self.error = VmError.configRefresh(error: error)
+            self.error = VmError.configRefresh(cause: error)
         }
     }
 
@@ -348,7 +443,7 @@ class VmViewModel: ObservableObject {
                 do {
                     try runAsAdmin(script: cmd, prompt: prompt)
                 } catch {
-                    print("setup admin error: \(error)")
+                    NSLog("setup admin error: \(error)")
                 }
             })
         }
@@ -370,7 +465,7 @@ class VmViewModel: ObservableObject {
         do {
             try await doSetup()
         } catch {
-            self.error = VmError.setupError(error: error)
+            self.error = VmError.setupError(cause: error)
         }
     }
 
@@ -383,26 +478,26 @@ class VmViewModel: ObservableObject {
         } catch VmError.killswitchExpired {
             self.error = VmError.killswitchExpired
         } catch {
-            self.error = VmError.spawnError(error: error)
+            self.error = VmError.spawnError(cause: error)
             return
         }
 
         // this includes wait
-        print("try refresh: start")
+        NSLog("try refresh: start")
         await tryRefreshList()
         await tryRefreshConfig()
-        updateState(.running)
+        self.state = .running
     }
 
     @MainActor
     func stop() async {
-        updateState(.stopping)
+        self.state = .stopping
         do {
             try await vmgr.stop()
         } catch {
-            self.error = VmError.stopError(error: error)
+            self.error = VmError.stopError(cause: error)
         }
-        updateState(.stopped)
+        self.state = .stopped
     }
 
     func stopContainer(_ record: ContainerRecord) async throws {
@@ -415,7 +510,7 @@ class VmViewModel: ObservableObject {
         do {
             try await stopContainer(record)
         } catch {
-            self.error = VmError.containerStopError(error: error)
+            self.error = VmError.containerStopError(cause: error)
         }
     }
 
@@ -429,7 +524,7 @@ class VmViewModel: ObservableObject {
         do {
             try await startContainer(record)
         } catch {
-            self.error = VmError.containerStartError(error: error)
+            self.error = VmError.containerStartError(cause: error)
         }
     }
 
@@ -443,7 +538,7 @@ class VmViewModel: ObservableObject {
         do {
             try await deleteContainer(record)
         } catch {
-            self.error = VmError.containerDeleteError(error: error)
+            self.error = VmError.containerDeleteError(cause: error)
         }
     }
 
@@ -459,11 +554,11 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     func tryCreateContainer(name: String, distro: Distro, arch: String) async {
-        print("try create one \(name) \(distro) \(arch)")
+        NSLog("try create one \(name) \(distro) \(arch)")
         do {
             try await createContainer(name: name, distro: distro, arch: arch)
         } catch {
-            self.error = VmError.containerCreateError(error: error)
+            self.error = VmError.containerCreateError(cause: error)
         }
     }
 
@@ -477,7 +572,7 @@ class VmViewModel: ObservableObject {
         do {
             try await patchConfig(patch)
         } catch {
-            self.error = VmError.configPatchError(error: error)
+            self.error = VmError.configPatchError(cause: error)
         }
     }
 
@@ -486,7 +581,7 @@ class VmViewModel: ObservableObject {
         do {
             try await scon.setDefaultContainer(record)
         } catch {
-            self.error = VmError.defaultError(error: error)
+            self.error = VmError.defaultError(cause: error)
         }
     }
 
@@ -495,7 +590,7 @@ class VmViewModel: ObservableObject {
         do {
             isSshConfigWritable = try await vmgr.isSshConfigWritable()
         } catch {
-            print("ssh config writable error: \(error)")
+            NSLog("ssh config writable error: \(error)")
         }
     }
 

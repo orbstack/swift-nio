@@ -48,7 +48,7 @@ struct DockerRootView: View {
                         }
                     }
                     .refreshable {
-                        print("try refresh: docker refreshable")
+                        NSLog("try refresh: docker refreshable")
                         await refresh()
                     }
                     .onChange(of: dockerRecord.running) { _ in
@@ -63,7 +63,7 @@ struct DockerRootView: View {
                 }
             }
             .task {
-                print("try refresh: docker task")
+                NSLog("try refresh: docker task")
                 await refresh()
             }
             .onChange(of: controlActiveState) { state in
