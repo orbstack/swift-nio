@@ -76,13 +76,10 @@ func govzf_complete_NewMachine(vmHandle C.uintptr_t, cPtr unsafe.Pointer, errC *
 		err = errors.New(errStr)
 	}
 
+	// no lock needed: caller holds mutex
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	vm.mu.Lock()
-	defer vm.mu.Unlock()
-
 	if vm.createChan != nil {
 		vm.createChan <- newMachineResult{cPtr, err, rosettaCanceled}
-		vm.createChan = nil
 	} else {
 		logrus.Error("[vzf] createChan = nil")
 	}
@@ -97,13 +94,10 @@ func govzf_complete_Machine_genericErr(vmHandle C.uintptr_t, errC *C.char) {
 		err = errors.New(errStr)
 	}
 
+	// no lock needed: caller holds mutex
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	vm.mu.Lock()
-	defer vm.mu.Unlock()
-
 	if vm.genericErrChan != nil {
 		vm.genericErrChan <- err
-		vm.genericErrChan = nil
 	} else {
 		logrus.Error("[vzf] genericErrChan = nil")
 	}
@@ -120,13 +114,10 @@ func govzf_complete_Machine_genericErrInt(vmHandle C.uintptr_t, errC *C.char, va
 		err = errors.New(errStr)
 	}
 
+	// no lock needed: caller holds mutex
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	vm.mu.Lock()
-	defer vm.mu.Unlock()
-
 	if vm.genericErrIntChan != nil {
 		vm.genericErrIntChan <- errIntResult{err, int64(value)}
-		vm.genericErrIntChan = nil
 	} else {
 		logrus.Error("[vzf] genericErrChan = nil")
 	}
@@ -138,17 +129,12 @@ func govzf_complete_Machine_genericErrInt(vmHandle C.uintptr_t, errC *C.char, va
 func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state MachineState) {
 	fmt.Println("[vzf] govzf_event_Machine_onStateChange", vmHandle, state)
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	//no lock needed
 
-	if vm.stateChan != nil {
-		// never block
-		ch := vm.stateChan
-		go func() {
-			ch <- state
-		}()
-	} else {
-		logrus.Error("[vzf] stateChan = nil")
-	}
+	// no lock needed: channel never changes
+	ch := vm.stateChan
+	go func() {
+		ch <- state
+	}()
 
 	fmt.Println("[vzf] govzf_event_Machine_onStateChange done")
 }
@@ -228,10 +214,7 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer)) error {
 	fmt.Println("calling fn")
 	fn(m.ptr)
 	fmt.Println("called fn, wait")
-	//TODO safety
-	m.mu.Unlock()
 	res := <-ch
-	m.mu.Lock()
 	fmt.Println("got res", res)
 	return res
 }
@@ -252,10 +235,7 @@ func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer)) (int64, error) {
 	fmt.Println("calling fn")
 	fn(m.ptr)
 	fmt.Println("called fn, wait")
-	//TODO safety
-	m.mu.Unlock()
 	res := <-ch
-	m.mu.Lock()
 	fmt.Println("got res", res)
 	return res.value, res.err
 }
