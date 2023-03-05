@@ -24,4 +24,5 @@ void govzf_complete_NewMachine(uintptr_t vmHandle, void* vmWrapperPtr, const cha
 void govzf_complete_Machine_genericErr(uintptr_t vmHandle, const char* error);
 void govzf_complete_Machine_genericErrInt(uintptr_t vmHandle, const char* error, int64_t value);
 
+void govzf_event_Machine_deinit(uintptr_t vmHandle);
 void govzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);

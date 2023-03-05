@@ -91,6 +91,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 
     deinit {
         print("deinit VmWrapper")
+        govzf_event_Machine_deinit(self.goHandle)
     }
 
     func guestDidStop(_ virtualMachine: VZVirtualMachine) {
@@ -327,8 +328,8 @@ func post_NewMachine(goHandle: uintptr_t, paramsStr: UnsafePointer<CChar>) {
         do {
             print("Swift post_NewMachine try")
             let (wrapper, rosettaCanceled) = try await createVm(goHandle: goHandle, paramsStr: String(cString: paramsStr))
-            let ptr = UnsafeMutablePointer<VmWrapper>.allocate(capacity: 1)
-            ptr.initialize(to: wrapper)
+            // take a permanent ref for Go
+            let ptr = Unmanaged.passRetained(wrapper).toOpaque()
             print("Swift post_NewMachine complete")
             govzf_complete_NewMachine(goHandle, ptr, nil, rosettaCanceled)
             print("Swift post_NewMachine complete done")
@@ -343,7 +344,8 @@ func post_NewMachine(goHandle: uintptr_t, paramsStr: UnsafePointer<CChar>) {
 
 func doGenericErr(_ ptr: UnsafeMutablePointer<VmWrapper>, _ block: @escaping (VmWrapper) async throws -> Void) {
     Task {
-        let wrapper = ptr.pointee
+        // take a ref for Swift VZ calls
+        let wrapper = Unmanaged<VmWrapper>.fromOpaque(ptr).takeUnretainedValue()
         do {
             print("Swift doGenericErr try")
             try await block(wrapper)
@@ -361,7 +363,8 @@ func doGenericErr(_ ptr: UnsafeMutablePointer<VmWrapper>, _ block: @escaping (Vm
 
 func doGenericErrInt(_ ptr: UnsafeMutablePointer<VmWrapper>, _ block: @escaping (VmWrapper) async throws -> Int64) {
     Task {
-        let wrapper = ptr.pointee
+        // take a ref for Swift VZ calls
+        let wrapper = Unmanaged<VmWrapper>.fromOpaque(ptr).takeUnretainedValue()
         do {
             print("Swift doGenericErrInt try")
             let value = try await block(wrapper)
@@ -424,5 +427,7 @@ func post_Machine_ConnectVsock(ptr: UnsafeMutablePointer<VmWrapper>, port: UInt3
 
 @_cdecl("govzf_post_Machine_finalize")
 func post_Machine_finalize(ptr: UnsafeMutablePointer<VmWrapper>) {
-    ptr.deinitialize(count: 1)
+    print("Swift post_Machine_finalize! \(ptr) release")
+    // drop permanent Go ref
+    Unmanaged<VmWrapper>.fromOpaque(ptr).release()
 }

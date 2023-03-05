@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"runtime"
 	"runtime/cgo"
 	"sync"
 	"unsafe"
@@ -32,8 +31,9 @@ import (
 )
 
 type Machine struct {
-	mu  sync.Mutex
-	ptr unsafe.Pointer
+	mu     sync.Mutex
+	ptr    unsafe.Pointer
+	handle cgo.Handle
 
 	stateChan         chan MachineState
 	createChan        chan<- newMachineResult
@@ -139,6 +139,20 @@ func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state MachineState)
 	fmt.Println("[vzf] govzf_event_Machine_onStateChange done")
 }
 
+// Callback when Swift object is deinitialized. At this point, we know that nothing
+// refers to the Cgo handle anymore, so we can delete it.
+//
+// Can't take lock because this can be called during Close().
+//
+//export govzf_event_Machine_deinit
+func govzf_event_Machine_deinit(vmHandle C.uintptr_t) {
+	fmt.Println("[vzf] govzf_event_Machine_deinit", vmHandle)
+	vm := cgo.Handle(vmHandle).Value().(*Machine)
+
+	cgo.Handle(vm.handle).Delete()
+	vm.handle = 0
+}
+
 func NewMachine(spec VzSpec) (*Machine, bool, error) {
 	// encode to json
 	specStr, err := json.Marshal(spec)
@@ -156,6 +170,7 @@ func NewMachine(spec VzSpec) (*Machine, bool, error) {
 		vm.createChan = nil
 	}()
 	handle := cgo.NewHandle(vm)
+	vm.handle = handle
 
 	// call cgo
 	cstr := C.CString(string(specStr))
@@ -175,21 +190,6 @@ func NewMachine(spec VzSpec) (*Machine, bool, error) {
 
 	// set ptr
 	vm.ptr = result.cPtr
-
-	// set finalizer
-	//TODO this will never run because handle
-	runtime.SetFinalizer(vm, func(vm *Machine) {
-		fmt.Println("finalizer called")
-		vm.mu.Lock()
-		defer vm.mu.Unlock()
-		if vm.ptr != nil {
-			C.govzf_post_Machine_finalize(vm.ptr)
-			vm.ptr = nil
-		}
-
-		//TODO is this safe?
-		handle.Delete()
-	})
 
 	return vm, result.rosettaCanceled, nil
 }
@@ -290,5 +290,19 @@ func (m *Machine) ConnectVsock(port uint32) (net.Conn, error) {
 }
 
 func (m *Machine) Close() error {
-	return errors.New("not implemented")
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ptr != nil {
+		C.govzf_post_Machine_finalize(m.ptr)
+		m.ptr = nil
+	}
+
+	// safe to delete after Swift object destroyed
+	if m.handle != 0 {
+		m.handle.Delete()
+		m.handle = 0
+	}
+
+	return nil
 }
