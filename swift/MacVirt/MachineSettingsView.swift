@@ -16,18 +16,31 @@ struct MachineSettingsView: View {
     var body: some View {
         Form {
             Group {
-                if vmModel.state == .running {
+                switch vmModel.state {
+                case .stopped:
+                    VStack {
+                        Text("Machine must be running to change settings.")
+                        Button(action: {
+                            Task {
+                                await vmModel.start()
+                            }
+                        }) {
+                            Text("Start")
+                        }
+                    }
+
+                case .running:
                     #if arch(arm64)
                     if #available(macOS 13, *) {
                         Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
-                        .onChange(of: enableRosetta) { newValue in
-                            Task { @MainActor in
-                                if let config = vmModel.config,
-                                        config.rosetta != newValue {
-                                    await vmModel.tryPatchConfig(VmConfigPatch(rosetta: newValue))
+                                .onChange(of: enableRosetta) { newValue in
+                                    Task { @MainActor in
+                                        if let config = vmModel.config,
+                                           config.rosetta != newValue {
+                                            await vmModel.tryPatchConfig(VmConfigPatch(rosetta: newValue))
+                                        }
+                                    }
                                 }
-                            }
-                        }
                     }
                     #endif
 
@@ -44,18 +57,19 @@ struct MachineSettingsView: View {
                     } maximumValueLabel: {
                         Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
                     }
-                    .onChange(of: memoryMib) { newValue in
-                        Task { @MainActor in
-                            if let config = vmModel.config,
-                                    config.memoryMib != UInt64(newValue) {
-                                await vmModel.tryPatchConfig(VmConfigPatch(memoryMib: UInt64(newValue)))
+                            .onChange(of: memoryMib) { newValue in
+                                Task { @MainActor in
+                                    if let config = vmModel.config,
+                                       config.memoryMib != UInt64(newValue) {
+                                        await vmModel.tryPatchConfig(VmConfigPatch(memoryMib: UInt64(newValue)))
+                                    }
+                                }
                             }
-                        }
-                    }
-                    Text("Takes effect after VM restart.")
+                    Text("Settings will take effect after the next machine restart.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                } else {
+
+                default:
                     ProgressView()
                 }
             }

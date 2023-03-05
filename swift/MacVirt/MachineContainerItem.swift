@@ -107,6 +107,7 @@ struct MachineContainerItem: View {
             Text("Data will be permanently lost.")
         }
         .onDoubleClick {
+            openInTerminal()
         }
         .onChange(of: actionInProgress) { newValue in
             withAnimation(.spring()) {
