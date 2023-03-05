@@ -1,4 +1,4 @@
-package nfsmount
+package nfsmnt
 
 import (
 	"bytes"
@@ -89,13 +89,19 @@ func Mount(spec Spec) error {
 	// Don't bother setting up a callback service, as we don't issue
 	// CB_NOTIFY operations. Using this option is also a requirement
 	// for making NFSv4 over UNIX sockets work.
+	// nocallback - fix nfs client id EINVAL with unix socket. callbacks are unused anyway - they're for delegation handoff with multiple clients
+	// mutejukebox = don't show "fs not responding" dialog
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_FLAGS
 	flags := nfs_sys_prot.NfsMattrFlags{
 		Mask: []uint32{
-			1 << nfs_sys_prot.NFS_MFLAG_NOCALLBACK,
+			1<<nfs_sys_prot.NFS_MFLAG_NOCALLBACK |
+				1<<nfs_sys_prot.NFS_MFLAG_SOFT |
+				1<<nfs_sys_prot.NFS_MFLAG_MUTEJUKEBOX,
 		},
 		Value: []uint32{
-			1 << nfs_sys_prot.NFS_MFLAG_NOCALLBACK,
+			1<<nfs_sys_prot.NFS_MFLAG_NOCALLBACK |
+				1<<nfs_sys_prot.NFS_MFLAG_SOFT |
+				1<<nfs_sys_prot.NFS_MFLAG_MUTEJUKEBOX,
 		},
 	}
 	flags.WriteTo(&attrVals)
@@ -105,6 +111,16 @@ func Mount(spec Spec) error {
 	nfs_sys_prot.WriteNfsMattrNfsVersion(&attrVals, 4)
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_MINOR_VERSION
 	nfs_sys_prot.WriteNfsMattrNfsMinorVersion(&attrVals, 0)
+
+	// rwsize=131072,readahead=64 optimal for vsock
+	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_READ_SIZE
+	nfs_sys_prot.WriteNfsMattrRsize(&attrVals, 131072)
+
+	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_WRITE_SIZE
+	nfs_sys_prot.WriteNfsMattrWsize(&attrVals, 131072)
+
+	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_READAHEAD
+	nfs_sys_prot.WriteNfsMattrReadahead(&attrVals, 64)
 
 	isUnix := spec.IsUnix
 	if isUnix {
@@ -119,15 +135,22 @@ func Mount(spec Spec) error {
 		nfs_sys_prot.WriteNfsMattrNfsPort(&attrVals, nfs_sys_prot.NfsMattrNfsPort(spec.TcpPort))
 	}
 
+	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_DEAD_TIMEOUT
+	toNfstime32(10 * time.Second).WriteTo(&attrVals)
+
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_FS_LOCATIONS
 	fsLocations := nfs_sys_prot.NfsFsLocations{
 		NfslLocation: []nfs_sys_prot.NfsFsLocation{{
 			NfslServer: []nfs_sys_prot.NfsFsServer{{
+				NfssName:    "OrbStack",
 				NfssAddress: []string{spec.Addr},
 			}},
 		}},
 	}
 	fsLocations.WriteTo(&attrVals)
+
+	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_MNTFROM
+	nfs_sys_prot.WriteNfsMattrMntfrom(&attrVals, "OrbStack:/")
 
 	if isUnix {
 		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_LOCAL_NFS_PORT
@@ -156,7 +179,7 @@ func Mount(spec Spec) error {
 	// Call mount(2) with the serialized nfs_mount_args message.
 	unix.Unmount(spec.TargetPath, 0)
 	if err := unix.Mount("nfs", spec.TargetPath, 0, unsafe.Pointer(&mountArgsBuf.Bytes()[0])); err != nil {
-		return fmt.Errorf("mount(2) nfs: %w", err)
+		return fmt.Errorf("mount(): %w", err)
 	}
 
 	return nil
