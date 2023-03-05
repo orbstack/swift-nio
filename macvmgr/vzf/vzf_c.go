@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"runtime/cgo"
 	"sync"
 	"unsafe"
@@ -34,6 +35,8 @@ type Machine struct {
 	mu     sync.Mutex
 	ptr    unsafe.Pointer
 	handle cgo.Handle
+
+	retainFiles []*os.File
 
 	stateChan         chan MachineState
 	createChan        chan<- newMachineResult
@@ -153,24 +156,27 @@ func govzf_event_Machine_deinit(vmHandle C.uintptr_t) {
 	vm.handle = 0
 }
 
-func NewMachine(spec VzSpec) (*Machine, bool, error) {
+func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 	// encode to json
 	specStr, err := json.Marshal(spec)
 	if err != nil {
 		return nil, false, err
 	}
 
-	// setup
+	// create Go object
 	vm := &Machine{
-		stateChan: make(chan MachineState, 1),
+		stateChan:   make(chan MachineState, 1),
+		retainFiles: retainFiles,
 	}
+	handle := cgo.NewHandle(vm)
+	vm.handle = handle
+
+	// start create op
 	ch := make(chan newMachineResult)
 	vm.createChan = ch
 	defer func() {
 		vm.createChan = nil
 	}()
-	handle := cgo.NewHandle(vm)
-	vm.handle = handle
 
 	// call cgo
 	cstr := C.CString(string(specStr))
@@ -190,6 +196,7 @@ func NewMachine(spec VzSpec) (*Machine, bool, error) {
 
 	// set ptr
 	vm.ptr = result.cPtr
+	runtime.SetFinalizer(vm, (*Machine).Close)
 
 	return vm, result.rosettaCanceled, nil
 }
@@ -293,15 +300,17 @@ func (m *Machine) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// drop our long-lived ref, but don't delete the handle until Swift deinit's
 	if m.ptr != nil {
 		C.govzf_post_Machine_finalize(m.ptr)
 		m.ptr = nil
 	}
 
-	// safe to delete after Swift object destroyed
-	if m.handle != 0 {
-		m.handle.Delete()
-		m.handle = 0
+	if len(m.retainFiles) > 0 {
+		for _, f := range m.retainFiles {
+			f.Close()
+		}
+		m.retainFiles = nil
 	}
 
 	return nil

@@ -97,23 +97,25 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 
 	// Console
 	var err error
+	retainFiles := []*os.File{}
 	if c.Console != ConsoleNone {
-		var read, write *os.File
+		var conRead, conWrite *os.File
 		switch c.Console {
 		case ConsoleStdio:
-			read = os.Stdin
-			write = os.Stdout
+			conRead = os.Stdin
+			conWrite = os.Stdout
 		case ConsoleLog:
-			read, err = os.Open("/dev/null")
+			conRead, err = os.Open("/dev/null")
 			check(err)
-			write, err = os.Create(conf.ConsoleLog())
+			conWrite, err = os.Create(conf.ConsoleLog())
 			check(err)
 		}
 
 		spec.Console = &vzf.ConsoleSpec{
-			ReadFd:  int(read.Fd()),
-			WriteFd: int(write.Fd()),
+			ReadFd:  int(conRead.Fd()),
+			WriteFd: int(conWrite.Fd()),
 		}
+		retainFiles = append(retainFiles, conRead, conWrite)
 	}
 
 	// Network
@@ -128,16 +130,21 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		check(err)
 		vnetwork = newNetwork
 
-		// TODO: set nonblock using util.GetFd?
+		// TODO: set nonblock using util.GetFd? doesn't seem to do anything
 		fd := int(gvnetFile.Fd())
 		spec.NetworkVnetFd = &fd
+		// already retained by network, but doesn't hurt
+		retainFiles = append(retainFiles, gvnetFile)
 	}
 	if c.NetworkPairFile != nil {
 		fd := int(c.NetworkPairFile.Fd())
 		spec.NetworkVnetFd = &fd
+		retainFiles = append(retainFiles, c.NetworkPairFile)
 	}
 
-	vm, rosettaCanceled, err := vzf.NewMachine(spec)
+	// must retain files or they get closed by Go finalizer!
+	// causes flaky console
+	vm, rosettaCanceled, err := vzf.NewMachine(spec, retainFiles)
 	check(err)
 
 	if rosettaCanceled {
