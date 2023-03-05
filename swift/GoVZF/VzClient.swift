@@ -318,7 +318,7 @@ func post_NewMachine(goHandle: uintptr_t, paramsStr: UnsafePointer<CChar>) {
     Task {
         do {
             let (wrapper, rosettaCanceled) = try await createVm(goHandle: goHandle, paramsStr: String(cString: paramsStr))
-            // take a permanent ref for Go
+            // take a long-lived ref for Go
             let ptr = Unmanaged.passRetained(wrapper).toOpaque()
             govzf_complete_NewMachine(goHandle, ptr, nil, rosettaCanceled)
         } catch {
@@ -400,6 +400,6 @@ func post_Machine_ConnectVsock(ptr: UnsafeMutablePointer<VmWrapper>, port: UInt3
 
 @_cdecl("govzf_post_Machine_finalize")
 func post_Machine_finalize(ptr: UnsafeMutablePointer<VmWrapper>) {
-    // drop permanent Go ref
+    // drop long-lived Go ref
     Unmanaged<VmWrapper>.fromOpaque(ptr).release()
 }
