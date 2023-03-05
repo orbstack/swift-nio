@@ -90,6 +90,18 @@ func (n *Network) StartForward(spec ForwardSpec) error {
 			if err != nil {
 				return err
 			}
+		case "vsock":
+			vsockPort, err := strconv.ParseUint(toPort, 10, 32)
+			if err != nil {
+				return err
+			}
+			dialer := func() (net.Conn, error) {
+				return n.VsockDialer(uint32(vsockPort))
+			}
+			fwd, err = tcpfwd.StartUnixVsockHostForward(fromAddr, dialer)
+			if err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupported protocols: %s -> %s", fromProto, toProto)
 		}
