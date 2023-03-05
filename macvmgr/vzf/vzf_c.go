@@ -72,7 +72,6 @@ const (
 
 //export govzf_complete_NewMachine
 func govzf_complete_NewMachine(vmHandle C.uintptr_t, cPtr unsafe.Pointer, errC *C.char, rosettaCanceled bool) {
-	fmt.Println("[vzf] govzf_complete_NewMachine", vmHandle, cPtr, errC, rosettaCanceled)
 	errStr := C.GoString(errC)
 	var err error
 	if errStr != "" {
@@ -90,7 +89,6 @@ func govzf_complete_NewMachine(vmHandle C.uintptr_t, cPtr unsafe.Pointer, errC *
 
 //export govzf_complete_Machine_genericErr
 func govzf_complete_Machine_genericErr(vmHandle C.uintptr_t, errC *C.char) {
-	fmt.Println("[vzf] govzf_complete_Machine_genericErr", vmHandle, errC)
 	errStr := C.GoString(errC)
 	var err error
 	if errStr != "" {
@@ -104,13 +102,10 @@ func govzf_complete_Machine_genericErr(vmHandle C.uintptr_t, errC *C.char) {
 	} else {
 		logrus.Error("[vzf] genericErrChan = nil")
 	}
-
-	fmt.Println("[vzf] govzf_complete_Machine_genericErr done")
 }
 
 //export govzf_complete_Machine_genericErrInt
 func govzf_complete_Machine_genericErrInt(vmHandle C.uintptr_t, errC *C.char, value C.int64_t) {
-	fmt.Println("[vzf] govzf_complete_Machine_genericErrInt", vmHandle, errC)
 	errStr := C.GoString(errC)
 	var err error
 	if errStr != "" {
@@ -124,13 +119,10 @@ func govzf_complete_Machine_genericErrInt(vmHandle C.uintptr_t, errC *C.char, va
 	} else {
 		logrus.Error("[vzf] genericErrChan = nil")
 	}
-
-	fmt.Println("[vzf] govzf_complete_Machine_genericErrInt done")
 }
 
 //export govzf_event_Machine_onStateChange
 func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state MachineState) {
-	fmt.Println("[vzf] govzf_event_Machine_onStateChange", vmHandle, state)
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
 
 	// no lock needed: channel never changes
@@ -138,8 +130,6 @@ func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state MachineState)
 	go func() {
 		ch <- state
 	}()
-
-	fmt.Println("[vzf] govzf_event_Machine_onStateChange done")
 }
 
 // Callback when Swift object is deinitialized. At this point, we know that nothing
@@ -149,7 +139,6 @@ func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state MachineState)
 //
 //export govzf_event_Machine_deinit
 func govzf_event_Machine_deinit(vmHandle C.uintptr_t) {
-	fmt.Println("[vzf] govzf_event_Machine_deinit", vmHandle)
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
 
 	cgo.Handle(vm.handle).Delete()
@@ -181,14 +170,10 @@ func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 	// call cgo
 	cstr := C.CString(string(specStr))
 	defer C.free(unsafe.Pointer(cstr))
-	fmt.Println("calling cgo")
 	C.govzf_post_NewMachine(C.uintptr_t(handle), cstr)
-	fmt.Println("called cgo")
 
 	// wait for result
-	fmt.Println("waiting for result")
 	result := <-ch
-	fmt.Println("got result", result)
 	if result.err != nil {
 		handle.Delete()
 		return nil, result.rosettaCanceled, result.err
@@ -212,17 +197,13 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer)) error {
 		return errors.New("machine destroyed")
 	}
 
-	fmt.Println("callGenericErr called")
 	ch := make(chan error)
 	m.genericErrChan = ch
 	defer func() {
 		m.genericErrChan = nil
 	}()
-	fmt.Println("calling fn")
 	fn(m.ptr)
-	fmt.Println("called fn, wait")
 	res := <-ch
-	fmt.Println("got res", res)
 	return res
 }
 
@@ -233,22 +214,17 @@ func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer)) (int64, error) {
 		return 0, errors.New("machine destroyed")
 	}
 
-	fmt.Println("callGenericErr called")
 	ch := make(chan errIntResult)
 	m.genericErrIntChan = ch
 	defer func() {
 		m.genericErrIntChan = nil
 	}()
-	fmt.Println("calling fn")
 	fn(m.ptr)
-	fmt.Println("called fn, wait")
 	res := <-ch
-	fmt.Println("got res", res)
 	return res.value, res.err
 }
 
 func (m *Machine) Start() error {
-	fmt.Println("start called")
 	return m.callGenericErr(func(ptr unsafe.Pointer) {
 		C.govzf_post_Machine_Start(ptr)
 	})

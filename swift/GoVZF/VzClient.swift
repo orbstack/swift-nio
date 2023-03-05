@@ -37,9 +37,7 @@ struct VzSpec: Codable {
 func asyncifyResult<T>(_ fn: @escaping (@escaping (Result<T, Error>) -> Void) -> Void) async throws -> T {
     return try await withCheckedThrowingContinuation { continuation in
         vzQueue.async {
-            print("ASYNCIFY")
             fn { result in
-                print("fn completed \(result)")
                 switch result {
                 case .success(let value):
                     continuation.resume(returning: value)
@@ -84,13 +82,11 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         stateObserver = vz.observe(\.state, options: [.new]) { [weak self] (vz, change) in
             guard let self = self else { return }
             let state = vz.state
-            print("Guest state changed to \(state)")
             self.onStateChange(state: state)
         }
     }
 
     deinit {
-        print("deinit VmWrapper")
         govzf_event_Machine_deinit(self.goHandle)
     }
 
@@ -151,16 +147,13 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 
     private func onStateChange(state: VZVirtualMachine.State) {
         vzQueue.async {
-            print("onStateChange: \(state)")
             govzf_event_Machine_onStateChange(self.goHandle, Int32(state.rawValue))
-            print("onStateChange: \(state) done")
         }
     }
 }
 
 private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (VmWrapper, Bool) {
     let spec = try JSONDecoder().decode(VzSpec.self, from: paramsStr.data(using: .utf8)!)
-    print("using spec: \(spec)")
 
     let minCpus = VZVirtualMachineConfiguration.minimumAllowedCPUCount
     let maxCpus = VZVirtualMachineConfiguration.maximumAllowedCPUCount
@@ -322,22 +315,15 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
 
 @_cdecl("govzf_post_NewMachine")
 func post_NewMachine(goHandle: uintptr_t, paramsStr: UnsafePointer<CChar>) {
-    print("Swift post_NewMachine!2")
     Task {
-        print("run ma")
         do {
-            print("Swift post_NewMachine try")
             let (wrapper, rosettaCanceled) = try await createVm(goHandle: goHandle, paramsStr: String(cString: paramsStr))
             // take a permanent ref for Go
             let ptr = Unmanaged.passRetained(wrapper).toOpaque()
-            print("Swift post_NewMachine complete")
             govzf_complete_NewMachine(goHandle, ptr, nil, rosettaCanceled)
-            print("Swift post_NewMachine complete done")
         } catch {
-            print("Swift post_NewMachine error \(error)")
             let prettyError = "\(error)"
             govzf_complete_NewMachine(goHandle, nil, prettyError.cString(using: .utf8)!, false)
-            print("Swift post_NewMachine error done")
         }
     }
 }
@@ -347,16 +333,11 @@ func doGenericErr(_ ptr: UnsafeMutablePointer<VmWrapper>, _ block: @escaping (Vm
         // take a ref for Swift VZ calls
         let wrapper = Unmanaged<VmWrapper>.fromOpaque(ptr).takeUnretainedValue()
         do {
-            print("Swift doGenericErr try")
             try await block(wrapper)
-            print("Swift doGenericErr complete")
             govzf_complete_Machine_genericErr(wrapper.goHandle, nil)
-            print("Swift doGenericErr complete done")
         } catch {
-            print("Swift doGenericErr error \(error)")
             let prettyError = "\(error)"
             govzf_complete_Machine_genericErr(wrapper.goHandle, prettyError.cString(using: .utf8)!)
-            print("Swift doGenericErr error done")
         }
     }
 }
@@ -366,27 +347,19 @@ func doGenericErrInt(_ ptr: UnsafeMutablePointer<VmWrapper>, _ block: @escaping 
         // take a ref for Swift VZ calls
         let wrapper = Unmanaged<VmWrapper>.fromOpaque(ptr).takeUnretainedValue()
         do {
-            print("Swift doGenericErrInt try")
             let value = try await block(wrapper)
-            print("Swift doGenericErrInt complete")
             govzf_complete_Machine_genericErrInt(wrapper.goHandle, nil, value)
-            print("Swift doGenericErrInt complete done")
         } catch {
-            print("Swift doGenericErrInt error \(error)")
             let prettyError = "\(error)"
             govzf_complete_Machine_genericErrInt(wrapper.goHandle, prettyError.cString(using: .utf8)!, 0)
-            print("Swift doGenericErrInt error done")
         }
     }
 }
 
 @_cdecl("govzf_post_Machine_Start")
 func post_Machine_Start(ptr: UnsafeMutablePointer<VmWrapper>) {
-    print("Swift post_Machine_Start!")
     doGenericErr(ptr) { wrapper in
-        print("Swift post_Machine_Start!before")
         try await wrapper.start()
-        print("Swift post_Machine_Start!after")
     }
 }
 
@@ -427,7 +400,6 @@ func post_Machine_ConnectVsock(ptr: UnsafeMutablePointer<VmWrapper>, port: UInt3
 
 @_cdecl("govzf_post_Machine_finalize")
 func post_Machine_finalize(ptr: UnsafeMutablePointer<VmWrapper>) {
-    print("Swift post_Machine_finalize! \(ptr) release")
     // drop permanent Go ref
     Unmanaged<VmWrapper>.fromOpaque(ptr).release()
 }
