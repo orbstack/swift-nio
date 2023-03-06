@@ -59,7 +59,7 @@ struct DockerRootView: View {
                 }
             }
             .task {
-                NSLog("try refresh: docker task")
+                NSLog("refresh: docker task")
                 await refresh()
             }
             .onChange(of: controlActiveState) { state in

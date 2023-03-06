@@ -50,7 +50,7 @@ enum VmError: LocalizedError, Equatable {
         case .spawnError(let cause):
             return "Failed to start VM: \(cause.localizedDescription)"
         case .spawnExit(let status, let output):
-            return "VM crashed with status \(status): \(output)"
+            return "VM crashed with error \(status): \(output)"
         case .wrongArch:
             return "Wrong CPU type"
         case .killswitchExpired:
@@ -89,8 +89,7 @@ enum VmError: LocalizedError, Equatable {
         switch self {
         case .spawnError:
             return true
-        case .spawnExit:
-            return true
+        // not .spawnExit. if spawn-daemon exited, it means daemon never even started so we have logs from stderr.
         case .startTimeout:
             return true
         case .stopError:
@@ -493,7 +492,7 @@ class VmViewModel: ObservableObject {
         }
 
         // this includes wait
-        NSLog("try refresh: start")
+        NSLog("refresh: start")
         await tryRefreshList()
         await tryRefreshConfig()
         self.state = .running
@@ -570,7 +569,6 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     func tryCreateContainer(name: String, distro: Distro, arch: String) async {
-        NSLog("try create one \(name) \(distro) \(arch)")
         do {
             try await createContainer(name: name, distro: distro, arch: arch)
         } catch {

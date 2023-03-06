@@ -128,7 +128,7 @@ struct ContentView: View {
         .onChange(of: controlActiveState) { state in
             if state == .key {
                 Task {
-                    NSLog("try refresh: root view - key")
+                    NSLog("refresh: root view - key")
                     await model.tryRefreshList()
                 }
             }
