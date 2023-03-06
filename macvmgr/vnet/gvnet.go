@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink"
@@ -36,6 +37,10 @@ const (
 	nicID        = 1
 
 	gatewayMac = "24:d2:f4:58:34:d7"
+
+	// TODO event based startup
+	guestDialRetryInterval = 250 * time.Millisecond
+	guestDialRetryTimeout  = 15 * time.Second
 )
 
 var (
@@ -303,4 +308,18 @@ func (n *Network) DialGuestTCP(port uint16) (net.Conn, error) {
 		Addr: n.GuestAddr4,
 		Port: port,
 	}, ipv4.ProtocolNumber)
+}
+
+func (n *Network) DialGuestTCPRetry(port uint16) (net.Conn, error) {
+	start := time.Now()
+	for {
+		conn, err := n.DialGuestTCP(port)
+		if err == nil {
+			return conn, nil
+		}
+		if time.Since(start) > guestDialRetryTimeout {
+			return nil, err
+		}
+		time.Sleep(guestDialRetryInterval)
+	}
 }

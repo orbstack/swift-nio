@@ -174,14 +174,8 @@ func (c *DrmClient) Run() {
 	ticker := time.NewTicker(evaluateInterval)
 	defer ticker.Stop()
 
-	dlog("init check")
-	_, err := c.KickCheck()
-	if err != nil {
-		dlog("init check failed: ", err)
-	}
-
-	for range ticker.C {
-		dlog("periodic check")
+	for ; true; <-ticker.C {
+		dlog("periodic/init check")
 		result, err := c.KickCheck()
 		if err != nil {
 			dlog("periodic check failed: ", err)
@@ -240,6 +234,7 @@ func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
 		return err
 	}
 	c.sconHasReported = true
+	dlog("report done")
 
 	return nil
 }
@@ -257,7 +252,8 @@ func (c *DrmClient) UseSconInternalClient(fn func(*isclient.Client) error) error
 
 		// connect
 		dlog("dial scon internal rpc")
-		conn, err := c.vnet.DialGuestTCP(ports.GuestSconRPCInternal)
+		// important: retry. if it fails, drm could fail when it shouldn't, and ~/Linux bind mounts won't work
+		conn, err := c.vnet.DialGuestTCPRetry(ports.GuestSconRPCInternal)
 		if err != nil {
 			return err
 		}
