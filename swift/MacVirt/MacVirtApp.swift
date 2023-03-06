@@ -88,10 +88,10 @@ struct MacVirtApp: App {
                 }
                 Divider()
                 Button("Report a Bug") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
                 }
                 Button("Request a Feature") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                 }
                 Divider()
             }
@@ -107,10 +107,10 @@ struct MacVirtApp: App {
                 }
                 Divider()
                 Button("Report a Bug") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
                 }
                 Button("Request a Feature") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues")!)
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                 }
             }
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
@@ -139,4 +139,10 @@ func getConfigDir() -> String {
 
 func openLogsFolder() {
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: getConfigDir() + "/log")
+}
+
+func openReportWindows() {
+    openLogsFolder()
+    // open github
+    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
 }
