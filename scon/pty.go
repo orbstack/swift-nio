@@ -8,6 +8,7 @@ import (
 )
 
 func (c *Container) OpenPty() (pty, tty *os.File, err error) {
+	// TOOD cache this
 	ptsDir, err := c.lxc.DevptsFd()
 	if err != nil {
 		return
