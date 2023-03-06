@@ -1,7 +1,8 @@
 package vzf
 
 /*
-#cgo LDFLAGS: -framework Foundation -framework Virtualization -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift
+#cgo CFLAGS: -mmacosx-version-min=12.4
+#cgo LDFLAGS: -mmacosx-version-min=12.4 -framework Foundation -framework Virtualization -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift
 
 #include <stdlib.h>
 
