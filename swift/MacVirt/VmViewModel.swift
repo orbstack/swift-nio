@@ -21,7 +21,7 @@ enum VmState: Int, Comparable {
     }
 }
 
-private let startTimeout = 5 * 60 * 1000 * 1000 * 1000 // 5 minutes
+private let startTimeout = 3 * 60 * 1000 * 1000 * 1000 // 3 minutes
 
 enum VmError: LocalizedError, Equatable {
     // VM
