@@ -30,7 +30,7 @@ This includes the Linux kernel, Docker, the CLI, GUI app, and other components.
 		bundlePath, err := updates.FindBundle()
 		checkCLI(err)
 
-		cmd := exec.Command("open", "-a", bundlePath, "--args", "--check-updates")
+		cmd := exec.Command("open", "-a", bundlePath, appid.UrlUpdate, "--args", "--check-updates")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err = cmd.Start()

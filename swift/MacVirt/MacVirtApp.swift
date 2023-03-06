@@ -51,6 +51,7 @@ struct MacVirtApp: App {
     init() {
         delegate = UpdateDelegate()
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
+        appDelegate.updaterController = updaterController
 
         for arg in CommandLine.arguments {
             if arg == "--check-updates" {

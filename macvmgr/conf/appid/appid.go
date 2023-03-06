@@ -9,3 +9,8 @@ const (
 	ShortCmd = "orb"
 	ShortCtl = "orbctl"
 )
+
+const (
+	UrlPrefix = "macvirt://"
+	UrlUpdate = UrlPrefix + "update"
+)

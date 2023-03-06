@@ -5,8 +5,11 @@
 import Foundation
 import Cocoa
 import Sentry
+import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    var updaterController: SPUStandardUpdaterController?
+
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = false
 
@@ -21,5 +24,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ aNotification: Notification) {
         // Insert code here to tear down your application
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            // CLI, to trigger GUI to update
+            // macvirt://update
+            if url.scheme == "macvirt" && url.host == "update" {
+                updaterController?.updater.checkForUpdates()
+            }
+        }
     }
 }
