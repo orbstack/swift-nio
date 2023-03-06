@@ -67,7 +67,7 @@ func SupportsUnixSocket() (bool, error) {
 	return osMajor > 22 || (osMajor == 22 && (osMinor > 'E' || (osMinor == 'E' && osDaily >= 118))), nil
 }
 
-func Mount(spec Spec) error {
+func doMount(spec Spec) error {
 	// macOS may require us to perform certain initialisation steps
 	// before attempting to create the NFS mount, such as loading
 	// the kernel extension containing the NFS client.

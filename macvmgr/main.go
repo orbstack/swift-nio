@@ -20,6 +20,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/nfsmnt"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/killswitch"
@@ -548,7 +549,7 @@ func runVmManager() {
 		// vsock fails immediately unlike tcp dialing, so try 5 times
 		for i := 0; i < nfsMountTries; i++ {
 			logrus.Info("Mounting NFS...")
-			err := conf.MountNfs()
+			err := nfsmnt.MountNfs()
 			if err != nil {
 				// if already mounted, we'll just reuse it
 				// careful, this could hang
@@ -571,7 +572,7 @@ func runVmManager() {
 	unmountNfs := func() {
 		if nfsMounted {
 			logrus.Info("Unmounting NFS...")
-			err := conf.UnmountNfs()
+			err := nfsmnt.UnmountNfs()
 			if err != nil {
 				logrus.WithError(err).Error("NFS unmount failed")
 			}
