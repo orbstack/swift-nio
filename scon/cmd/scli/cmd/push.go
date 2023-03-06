@@ -54,7 +54,7 @@ is equivalent to:
 
 		// /mnt/mac
 		for i, src := range sources {
-			sources[i] = shell.TranslatePath(src)
+			sources[i] = shell.TranslatePath(src, containerName)
 		}
 
 		// special case of translation: ~/ in dest -> relative to Linux home

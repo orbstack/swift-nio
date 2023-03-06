@@ -146,19 +146,26 @@ To run a command on macOS from Linux, use "macctl run" instead.
 			return nil
 		}
 
+		scli.EnsureSconVMWithSpinner()
+
+		containerName := flagMachine
+		if containerName == "" {
+			c, err := scli.Client().GetDefaultContainer()
+			checkCLI(err)
+			containerName = c.Name
+		}
+
 		if usePath {
-			args = shell.TranslateArgPaths(args)
+			args = shell.TranslateArgPaths(args, containerName)
 		}
 		if useShell {
 			args = []string{shellescape.QuoteCommand(args)}
 		}
 
-		scli.EnsureSconVMWithSpinner()
-
 		exitCode, err := shell.RunSSH(shell.CommandOpts{
 			CombinedArgs:  args,
 			UseShell:      useShell,
-			ContainerName: flagMachine,
+			ContainerName: containerName,
 			User:          flagUser,
 			OmitEnv:       flagNoEnv,
 		})

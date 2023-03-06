@@ -64,7 +64,7 @@ is equivalent to:
 		}
 
 		// to /mnt/mac
-		dest = shell.TranslatePath(dest)
+		dest = shell.TranslatePath(dest, containerName)
 
 		ret, err := shell.CopyFiles(containerName, sources, dest)
 		checkCLI(err)

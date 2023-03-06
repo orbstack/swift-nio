@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
@@ -56,7 +57,7 @@ type CommandOpts struct {
 	ContainerName string
 }
 
-func TranslatePath(p string) string {
+func TranslatePath(p string, targetContainer string) string {
 	// canonicalize first
 	p = path.Clean(p)
 
@@ -68,6 +69,14 @@ func TranslatePath(p string) string {
 		}
 
 		p = path.Join(cwd, p)
+	}
+
+	// if we kow the container, then we can translate from NFS mountpoint
+	if targetContainer != "" {
+		containerNfsPrefix := conf.NfsMountpoint() + "/" + targetContainer
+		if p == containerNfsPrefix || strings.HasPrefix(p, containerNfsPrefix+"/") {
+			return p[len(containerNfsPrefix):]
+		}
 	}
 
 	// common case: is it linked?
@@ -95,15 +104,15 @@ func IsPathArg(arg string) bool {
 	return false
 }
 
-func TranslateArgPaths(args []string) []string {
+func TranslateArgPaths(args []string, containerName string) []string {
 	for i, arg := range args {
 		if IsPathArg(arg) {
 			if pathArgRegexp.Match([]byte(arg)) {
 				// -option=/value, --option=/value, or option=/value
 				matches := pathArgRegexp.FindStringSubmatch(arg)
-				args[i] = matches[1] + "=" + TranslatePath(matches[2])
+				args[i] = matches[1] + "=" + TranslatePath(matches[2], containerName)
 			} else {
-				args[i] = TranslatePath(arg)
+				args[i] = TranslatePath(arg, containerName)
 			}
 		}
 	}
@@ -201,7 +210,7 @@ func RunSSH(opts CommandOpts) (int, error) {
 	if opts.Dir == nil {
 		cwd, err = os.Getwd()
 		if err == nil {
-			cwd = TranslatePath(cwd)
+			cwd = TranslatePath(cwd, opts.ContainerName)
 		}
 	} else {
 		// no translation
