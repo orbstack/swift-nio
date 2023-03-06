@@ -5,6 +5,8 @@
 import Foundation
 import SwiftUI
 
+fileprivate let containerNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9_-]+$"))!
+
 struct OnboardingCreateView: View {
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
     @EnvironmentObject private var vmModel: VmViewModel
@@ -12,7 +14,8 @@ struct OnboardingCreateView: View {
 
     @State private var name = "ubuntu"
     @State private var nameChanged = false
-    @State private var isDuplicate = false
+    @State private var isNameDuplicate = false
+    @State private var isNameInvalid = false
     @State private var duplicateHeight = 0.0
     #if arch(arm64)
     @State private var arch = "arm64"
@@ -48,7 +51,8 @@ struct OnboardingCreateView: View {
 
                     Form {
                         TextField("Name", text: nameBinding)
-                        Text("Already exists")
+                        let errorText = isNameInvalid ? "Invalid name" : "Already exists"
+                        Text(errorText)
                                 .font(.caption)
                                 .foregroundColor(.red)
                                 .frame(maxHeight: duplicateHeight)
@@ -74,12 +78,24 @@ struct OnboardingCreateView: View {
                         .onChange(of: name) { newName in
                             if let containers = vmModel.containers,
                                containers.contains(where: { $0.name == newName }) {
-                                isDuplicate = true
+                                isNameDuplicate = true
+                            } else {
+                                isNameDuplicate = false
+                            }
+
+                            // regex
+                            if !newName.isEmpty && containerNamePattern.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) == nil {
+                                isNameInvalid = true
+                            } else {
+                                isNameInvalid = false
+                            }
+                        }
+                        .onChange(of: isNameDuplicate || isNameInvalid) { hasError in
+                            if hasError {
                                 withAnimation(.spring()) {
                                     duplicateHeight = NSFont.preferredFont(forTextStyle: .caption1).pointSize
                                 }
                             } else {
-                                isDuplicate = false
                                 withAnimation(.spring()) {
                                     duplicateHeight = 0
                                 }
@@ -121,7 +137,8 @@ struct OnboardingCreateView: View {
                     }
                     onboardingController.finish()
                 })
-                .disabled(isDuplicate)
+                // empty is disabled but not error
+                .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
                 Spacer()
             }
         }

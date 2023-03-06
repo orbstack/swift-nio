@@ -88,6 +88,10 @@ class SconService: RPCService {
         try await invoke("ContainerStop", params: record)
     }
 
+    func containerRestart(_ record: ContainerRecord) async throws {
+        try await invoke("ContainerRestart", params: record)
+    }
+
     func containerDelete(_ record: ContainerRecord) async throws {
         try await invoke("ContainerDelete", params: record)
     }

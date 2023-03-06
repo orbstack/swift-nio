@@ -43,6 +43,7 @@ enum VmError: LocalizedError, Equatable {
     case defaultError(cause: Error)
     case containerStopError(cause: Error)
     case containerStartError(cause: Error)
+    case containerRestartError(cause: Error)
     case containerDeleteError(cause: Error)
     case containerCreateError(cause: Error)
 
@@ -81,6 +82,8 @@ enum VmError: LocalizedError, Equatable {
             return "Failed to stop machine: \(fmtRpc(cause))"
         case .containerStartError(let cause):
             return "Failed to start machine: \(fmtRpc(cause))"
+        case .containerRestartError(let cause):
+            return "Failed to restart machine: \(fmtRpc(cause))"
         case .containerDeleteError(let cause):
             return "Failed to delete machine: \(fmtRpc(cause))"
         case .containerCreateError(let cause):
@@ -160,6 +163,8 @@ enum VmError: LocalizedError, Equatable {
         case .containerStopError(let cause):
             return cause
         case .containerStartError(let cause):
+            return cause
+        case .containerRestartError(let cause):
             return cause
         case .containerDeleteError(let cause):
             return cause
@@ -549,6 +554,11 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    func restartContainer(_ record: ContainerRecord) async throws {
+        try await scon.containerRestart(record)
+        try await refreshList()
+    }
+
     func startContainer(_ record: ContainerRecord) async throws {
         try await scon.containerStart(record)
         try await refreshList()
@@ -560,6 +570,15 @@ class VmViewModel: ObservableObject {
             try await startContainer(record)
         } catch {
             self.error = VmError.containerStartError(cause: error)
+        }
+    }
+
+    @MainActor
+    func tryRestartContainer(_ record: ContainerRecord) async {
+        do {
+            try await restartContainer(record)
+        } catch {
+            self.error = VmError.containerRestartError(cause: error)
         }
     }
 

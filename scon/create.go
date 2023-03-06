@@ -18,6 +18,7 @@ const (
 )
 
 var (
+	// no '.' in case of conflict with mac bundle extensions
 	containerNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 )
 

@@ -87,6 +87,17 @@ struct MachineContainerItem: View {
                 Label("Make Default", systemImage: "star")
             }
             Divider()
+            Button(action: {
+                Task { @MainActor in
+                    actionInProgress = true
+                    await vmModel.tryRestartContainer(record)
+                    actionInProgress = false
+                }
+            }) {
+                Label("Restart", systemImage: "restart")
+            }
+            .disabled(actionInProgress)
+            Divider()
             Button(role: .destructive, action: {
                 self.isPresentingConfirm = true
             }) {
