@@ -123,6 +123,10 @@ func (c *SconClient) ContainerStop(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerStop", record, &noResult)
 }
 
+func (c *SconClient) ContainerRestart(record *types.ContainerRecord) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerRestart", record, &noResult)
+}
+
 func (c *SconClient) ContainerDelete(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerDelete", record, &noResult)
 }
