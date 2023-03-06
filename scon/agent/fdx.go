@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -264,12 +265,14 @@ func (f *Fdx) RecvFdInt(seq uint64) (int, error) {
 func (f *Fdx) SendFiles(files ...*os.File) (uint64, error) {
 	fds := make([]int, len(files))
 	for i, file := range files {
+		defer runtime.KeepAlive(file)
 		fds[i] = int(util.GetFd(file))
 	}
 	return f.SendFdsInt(fds...)
 }
 
 func (f *Fdx) SendFile(file *os.File) (uint64, error) {
+	defer runtime.KeepAlive(file)
 	return f.SendFdInt(int(util.GetFd(file)))
 }
 

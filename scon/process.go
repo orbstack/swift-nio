@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"os"
+	"runtime"
 
 	"github.com/lxc/go-lxc"
 )
@@ -46,6 +47,7 @@ func (c *LxcCommand) Start(container *Container) error {
 
 	if file, ok := c.Stdin.(*os.File); ok {
 		lxcOpts.StdinFd = uintptr(file.Fd())
+		defer runtime.KeepAlive(file)
 	} else {
 		// make pipe
 		r, w, err := os.Pipe()
@@ -64,6 +66,7 @@ func (c *LxcCommand) Start(container *Container) error {
 
 	if file, ok := c.Stdout.(*os.File); ok {
 		lxcOpts.StdoutFd = uintptr(file.Fd())
+		defer runtime.KeepAlive(file)
 	} else {
 		// make pipe
 		r, w, err := os.Pipe()
@@ -82,6 +85,7 @@ func (c *LxcCommand) Start(container *Container) error {
 
 	if file, ok := c.Stderr.(*os.File); ok {
 		lxcOpts.StderrFd = uintptr(file.Fd())
+		defer runtime.KeepAlive(file)
 	} else {
 		// make pipe
 		r, w, err := os.Pipe()

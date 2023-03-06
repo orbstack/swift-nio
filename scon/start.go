@@ -661,6 +661,8 @@ func (c *Container) startAgent() error {
 	if err != nil {
 		return err
 	}
+	// probably not needed
+	runtime.KeepAlive(c.manager.agentExe)
 
 	// Stop() hangs without this
 	go cmd.Process.Wait()

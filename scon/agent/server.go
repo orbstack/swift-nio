@@ -177,6 +177,10 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// replace original fd (stdout) with stderr (console) in case anything writes to it
 	unix.Dup2(int(os.Stderr.Fd()), int(fdxFile.Fd()))
 
+	// just in case
+	runtime.KeepAlive(rpcFile)
+	runtime.KeepAlive(fdxFile)
+
 	// now safe to init logrus
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)

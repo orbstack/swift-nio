@@ -23,6 +23,7 @@ func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 
 	// set ns
 	err = unix.Setns(int(newNsF.Fd()), unix.CLONE_NEWNET)
+	runtime.KeepAlive(newNsF)
 	if err != nil {
 		return zero, err
 	}
