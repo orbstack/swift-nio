@@ -21,7 +21,7 @@ enum VmState: Int, Comparable {
     }
 }
 
-private let startTimeout = 15 * 1000 * 1000 * 1000
+private let startTimeout = 5 * 60 * 1000 * 1000 * 1000 // 5 minutes
 
 enum VmError: LocalizedError, Equatable {
     // VM
@@ -29,6 +29,7 @@ enum VmError: LocalizedError, Equatable {
     case spawnExit(status: Int32, output: String)
     case wrongArch
     case killswitchExpired
+    case startFailed(cause: Error?)
     case startTimeout(cause: Error?)
     case stopError(cause: Error)
     case setupError(cause: Error)
@@ -48,15 +49,17 @@ enum VmError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .spawnError(let cause):
-            return "Failed to start VM: \(cause.localizedDescription)"
+            return "Failed to start helper: \(cause.localizedDescription)"
         case .spawnExit(let status, let output):
             return "VM crashed with error \(status): \(output)"
         case .wrongArch:
             return "Wrong CPU type"
         case .killswitchExpired:
             return "Build expired"
+        case .startFailed(let cause):
+            return "Failed to start VM: \(cause?.localizedDescription ?? "daemon stopped unexpectedly")"
         case .startTimeout(let cause):
-            return "VM did not start: \(cause?.localizedDescription ?? "timeout")"
+            return "Timed out waiting for VM to start: \(cause?.localizedDescription ?? "timeout")"
         case .stopError(let cause):
             return "Failed to stop VM: \(fmtRpc(cause))"
         case .setupError(let cause):
@@ -90,6 +93,8 @@ enum VmError: LocalizedError, Equatable {
         case .spawnError:
             return true
         // not .spawnExit. if spawn-daemon exited, it means daemon never even started so we have logs from stderr.
+        case .startFailed:
+            return true
         case .startTimeout:
             return true
         case .stopError:
@@ -131,6 +136,8 @@ enum VmError: LocalizedError, Equatable {
             return nil
         case .killswitchExpired:
             return nil
+        case .startFailed(let cause):
+            return cause
         case .startTimeout(let cause):
             return cause
         case .stopError(let cause):
@@ -305,8 +312,15 @@ class VmViewModel: ObservableObject {
             } catch {
                 lastError = error
             }
+
             try await Task.sleep(nanoseconds: startPollInterval)
-            if (DispatchTime.now() > deadline) {
+            // bail out if daemon exited
+            // TODO reduce timeout when gui handles rosetta install
+            if await !daemon.isRunning() {
+                setStateAsync(.stopped)
+                throw VmError.startFailed(cause: lastError)
+            }
+            if DispatchTime.now() > deadline {
                 setStateAsync(.stopped)
                 throw VmError.startTimeout(cause: lastError)
             }
@@ -330,7 +344,13 @@ class VmViewModel: ObservableObject {
                 lastError = error
             }
             try await Task.sleep(nanoseconds: startPollInterval)
-            if (DispatchTime.now() > deadline) {
+            // bail out if daemon exited
+            // TODO reduce timeout when gui handles rosetta install
+            if await !daemon.isRunning() {
+                setStateAsync(.stopped)
+                throw VmError.startFailed(cause: lastError)
+            }
+            if DispatchTime.now() > deadline {
                 setStateAsync(.stopped)
                 throw VmError.startTimeout(cause: lastError)
             }
