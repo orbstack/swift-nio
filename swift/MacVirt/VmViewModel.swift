@@ -356,6 +356,16 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     func tryRefreshList() async {
+        // this doubles as a daemon ping to update state if started from CLI while stopped in GUI
+        if state == .stopped {
+            let daemonRunning = await daemon.isRunning()
+            if daemonRunning {
+                // trigger normal start flow
+                await start()
+                return
+            }
+        }
+
         do {
             try await refreshList()
         } catch {

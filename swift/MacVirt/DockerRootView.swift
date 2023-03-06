@@ -47,10 +47,6 @@ struct DockerRootView: View {
                             }
                         }
                     }
-                    .refreshable {
-                        NSLog("try refresh: docker refreshable")
-                        await refresh()
-                    }
                     .onChange(of: dockerRecord.running) { _ in
                         Task {
                             await refresh()

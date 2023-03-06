@@ -29,10 +29,6 @@ struct FilesRootView: View {
                         Spacer()
                     }
                 }
-                .refreshable {
-                    NSLog("try refresh: files refreshable")
-                    await vmModel.tryRefreshList()
-                }
             } else {
                 ProgressView(label: {
                     Text("Loading")
