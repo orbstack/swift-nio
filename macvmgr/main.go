@@ -70,7 +70,7 @@ var (
 		"unix:" + conf.SconRPCSocket(): "tcp:" + str(ports.GuestScon),
 		// NFS
 		// vsock is slightly faster, esp. for small files (because latency)
-		//"unix:" + conf.NfsSocket():            "vsock:" + str(ports.GuestNFS),
+		"unix:" + conf.NfsSocket():            "vsock:" + str(ports.GuestNFS),
 		"tcp:127.0.0.1:" + str(ports.HostNFS): "vsock:" + str(ports.GuestNFS),
 	}
 )
@@ -566,6 +566,10 @@ func runVmManager() {
 
 			logrus.Info("NFS mounted")
 			nfsMounted = true
+			vnetwork.StopForward(vnet.ForwardSpec{
+				Host:  "tcp:127.0.0.1:" + str(ports.HostNFS),
+				Guest: "vsock:" + str(ports.GuestNFS),
+			})
 			break
 		}
 	}()

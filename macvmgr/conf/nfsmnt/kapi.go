@@ -54,7 +54,8 @@ func getMacOSBuildVersion() (int64, byte, int64, error) {
 
 type Spec struct {
 	IsUnix     bool
-	Addr       string
+	TcpAddr    string
+	UnixAddr   string
 	TcpPort    uint16
 	TargetPath string
 }
@@ -122,18 +123,8 @@ func doMount(spec Spec) error {
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_READAHEAD
 	nfs_sys_prot.WriteNfsMattrReadahead(&attrVals, 64)
 
-	isUnix := spec.IsUnix
-	if isUnix {
-		// "ticotsord" is the X/Open Transport Interface (XTI)
-		// equivalent of AF_LOCAL with SOCK_STREAM.
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_SOCKET_TYPE
-		nfs_sys_prot.WriteNfsMattrSocketType(&attrVals, "ticotsord")
-	}
-
-	if !isUnix {
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_PORT
-		nfs_sys_prot.WriteNfsMattrNfsPort(&attrVals, nfs_sys_prot.NfsMattrNfsPort(spec.TcpPort))
-	}
+	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_NFS_PORT
+	nfs_sys_prot.WriteNfsMattrNfsPort(&attrVals, nfs_sys_prot.NfsMattrNfsPort(spec.TcpPort))
 
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_DEAD_TIMEOUT
 	toNfstime32(10 * time.Second).WriteTo(&attrVals)
@@ -143,7 +134,7 @@ func doMount(spec Spec) error {
 		NfslLocation: []nfs_sys_prot.NfsFsLocation{{
 			NfslServer: []nfs_sys_prot.NfsFsServer{{
 				NfssName:    "OrbStack",
-				NfssAddress: []string{spec.Addr},
+				NfssAddress: []string{spec.TcpAddr, spec.UnixAddr},
 			}},
 		}},
 	}
@@ -151,11 +142,6 @@ func doMount(spec Spec) error {
 
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_MNTFROM
 	nfs_sys_prot.WriteNfsMattrMntfrom(&attrVals, "OrbStack:/")
-
-	if isUnix {
-		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_LOCAL_NFS_PORT
-		nfs_sys_prot.WriteNfsMattrLocalNfsPort(&attrVals, spec.Addr)
-	}
 
 	// Construct the nfs_mount_args message and serialize it.
 	for attrMask[len(attrMask)-1] == 0 {

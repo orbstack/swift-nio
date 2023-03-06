@@ -1,7 +1,9 @@
 package tcpfwd
 
 import (
+	"fmt"
 	"net"
+	"sync"
 	"syscall"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/sockets"
@@ -12,6 +14,9 @@ type StreamVsockHostForward struct {
 	listener        net.Listener
 	dialer          func() (net.Conn, error)
 	requireLoopback bool
+
+	connsMu sync.Mutex
+	conns   map[net.Conn]struct{}
 }
 
 func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)) (*StreamVsockHostForward, error) {
@@ -24,6 +29,7 @@ func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)
 		listener:        listener,
 		dialer:          dialer,
 		requireLoopback: requireLoopback,
+		conns:           make(map[net.Conn]struct{}),
 	}
 
 	go f.listen()
@@ -40,6 +46,7 @@ func StartUnixVsockHostForward(listenAddr string, dialer func() (net.Conn, error
 		listener:        listener,
 		dialer:          dialer,
 		requireLoopback: false,
+		conns:           make(map[net.Conn]struct{}),
 	}
 
 	go f.listen()
@@ -58,7 +65,16 @@ func (f *StreamVsockHostForward) listen() {
 }
 
 func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
+	f.connsMu.Lock()
+	f.conns[conn] = struct{}{}
+	f.connsMu.Unlock()
+
 	defer conn.Close()
+	defer func() {
+		f.connsMu.Lock()
+		delete(f.conns, conn)
+		f.connsMu.Unlock()
+	}()
 
 	// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
 	if remoteAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
@@ -111,5 +127,15 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 }
 
 func (f *StreamVsockHostForward) Close() error {
-	return f.listener.Close()
+	f.connsMu.Lock()
+	defer f.connsMu.Unlock()
+
+	f.listener.Close()
+
+	for conn := range f.conns {
+		fmt.Println("close conn", conn)
+		conn.Close()
+	}
+
+	return nil
 }
