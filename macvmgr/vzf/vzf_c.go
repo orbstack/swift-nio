@@ -181,6 +181,7 @@ func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 
 	// set ptr
 	vm.ptr = result.cPtr
+	// ref ok: this just drops Go ref; Swift ref is still held if alive
 	runtime.SetFinalizer(vm, (*Machine).Close)
 
 	return vm, result.rosettaCanceled, nil

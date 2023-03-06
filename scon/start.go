@@ -142,9 +142,8 @@ func (c *Container) initLxc() error {
 	if err != nil {
 		return err
 	}
-	runtime.SetFinalizer(lc, func(lc *lxc.Container) {
-		lc.Release()
-	})
+	// ref ok: while container is alive, ref is kept in manager maps
+	runtime.SetFinalizer(lc, (*lxc.Container).Release)
 	c.lxc = lc
 
 	return c.configureLxc()
