@@ -401,6 +401,7 @@ func runVmManager() {
 		Sound:            false,
 	}
 
+	logrus.Info("creating VM")
 	vnetwork, vm := CreateVm(params)
 	// no point in closing
 	//defer vm.Close()
