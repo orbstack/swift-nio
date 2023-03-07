@@ -204,24 +204,29 @@ func (c *Container) configureLxc() error {
 	err = func() (err error) {
 		defer func() {
 			if err2 := recover(); err2 != nil {
-				err = fmt.Errorf("failed to set LXC config: %v", err2)
+				err = fmt.Errorf("configure LXC: %v", err2)
 			}
 		}()
 
 		set := func(key, value string) {
 			if err := c.setLxcConfig(key, value); err != nil {
-				panic(err)
+				if conf.Debug() {
+					panic(fmt.Errorf("set %s=%s: %w", key, value, err))
+				} else {
+					panic(fmt.Errorf("set %s: %w", key, err))
+				}
 			}
 		}
 
-		addDev := func(node string) {
+		addDevOptional := func(node string) {
 			if err := addInitDevice(c, node); err != nil {
-				panic(err)
+				// this is only warning - devices are optional
+				logrus.WithError(err).WithField("node", node).Warn("add device failed")
 			}
 		}
 		bind := func(src, dst, opts string) {
 			if err := addInitBindMount(c, src, dst, opts); err != nil {
-				panic(err)
+				panic(fmt.Errorf("bind %s -> %s: %w", src, dst, err))
 			}
 		}
 
@@ -255,14 +260,14 @@ func (c *Container) configureLxc() error {
 		set("lxc.cgroup2.devices.allow", "c 5:2 rwm")   // dev/ptmx
 
 		// Devices
-		addDev("/dev/fuse")
-		addDev("/dev/net/tun")
-		addDev("/dev/ppp")
-		addDev("/dev/kmsg")
-		addDev("/dev/loop-control")
-		addDev("/dev/autofs") // TODO security
-		addDev("/dev/userfaultfd")
-		addDev("/dev/btrfs-control")
+		addDevOptional("/dev/fuse")
+		addDevOptional("/dev/net/tun")
+		addDevOptional("/dev/ppp")
+		addDevOptional("/dev/kmsg")
+		addDevOptional("/dev/loop-control")
+		addDevOptional("/dev/autofs") // TODO security
+		addDevOptional("/dev/userfaultfd")
+		addDevOptional("/dev/btrfs-control")
 
 		// Default mounts
 		set("lxc.mount.auto", "proc:rw sys:mixed cgroup:rw:force")
