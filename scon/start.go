@@ -201,7 +201,7 @@ func (c *Container) configureLxc() error {
 	}
 
 	// set configs!
-	err = func() error {
+	err = func() (err error) {
 		defer func() {
 			if err2 := recover(); err2 != nil {
 				err = fmt.Errorf("failed to set LXC config: %v", err2)

@@ -250,7 +250,7 @@ func setupOneNat(proto iptables.Protocol, netmask string, servicesIP string) (fu
 	}
 
 	// first, accept related/established
-	err = ipt.AppendUnique("filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT")
+	err = ipt.AppendUnique("filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT")
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +275,7 @@ func setupOneNat(proto iptables.Protocol, netmask string, servicesIP string) (fu
 			}
 		}
 
-		err = ipt.DeleteIfExists("filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT")
+		err = ipt.DeleteIfExists("filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT")
 		if err != nil {
 			return err
 		}

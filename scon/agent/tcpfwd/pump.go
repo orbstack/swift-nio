@@ -19,11 +19,11 @@ type FullDuplexConn interface {
 	CloseWrite() error
 }
 
-func pump1(errc chan<- error, src, dst FullDuplexConn) {
+func pump1(errC chan<- error, src, dst FullDuplexConn) {
 	// Workaround for NFS panic
 	defer func() {
 		if err := recover(); err != nil {
-			errc <- fmt.Errorf("tcp pump1: panic: %v", err)
+			errC <- fmt.Errorf("tcp pump1: panic: %v", err)
 		}
 	}()
 
@@ -34,7 +34,7 @@ func pump1(errc chan<- error, src, dst FullDuplexConn) {
 	dst.CloseWrite()
 	src.CloseRead()
 
-	errc <- err
+	errC <- err
 }
 
 func Pump2(c1, c2 FullDuplexConn) {

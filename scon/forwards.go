@@ -307,13 +307,13 @@ func (c *Container) updateListenersDirect() error {
 	defer c.mu.Unlock()
 	added, removed := diffSlices(c.lastListeners, listeners)
 
-	var lastErr error
+	var errs []error
 	var notAdded []sysnet.ProcListener
 	var notRemoved []sysnet.ProcListener
 	for _, listener := range added {
 		err := c.manager.addForward(c, listener)
 		if err != nil {
-			lastErr = err
+			errs = append(errs, err)
 			notAdded = append(notAdded, listener)
 			continue
 		}
@@ -322,7 +322,7 @@ func (c *Container) updateListenersDirect() error {
 	for _, listener := range removed {
 		err := c.manager.removeForward(c, listener)
 		if err != nil {
-			lastErr = err
+			errs = append(errs, err)
 			notRemoved = append(notRemoved, listener)
 			continue
 		}
@@ -337,7 +337,7 @@ func (c *Container) updateListenersDirect() error {
 
 	c.lastListeners = listeners
 	c.lastAutofwdUpdate = time.Now()
-	return lastErr
+	return errors.Join(errs...)
 }
 
 func (c *Container) triggerListenersUpdate() {
