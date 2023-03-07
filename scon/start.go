@@ -480,11 +480,9 @@ func (c *Container) forkStart() error {
 
 	// fork
 	cmd := exec.Command("/proc/self/exe", cmdForkStart, paramsB64)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return err
+		return fmt.Errorf("start '%s': %w (%s)", c.Name, err, string(out))
 	}
 
 	return nil

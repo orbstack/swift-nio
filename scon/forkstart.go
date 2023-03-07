@@ -21,24 +21,32 @@ type LxcForkParams struct {
 	Configs   []KeyValue[string]
 }
 
+func checkFork(err error) {
+	if err != nil {
+		// avoid bringing in fmt
+		os.Stderr.WriteString(err.Error())
+		os.Exit(1)
+	}
+}
+
 func runForkStart() {
 	paramsData, err := base64.StdEncoding.DecodeString(os.Args[2])
-	check(err)
+	checkFork(err)
 	var params LxcForkParams
 	err = gobDecode(paramsData, &params)
-	check(err)
+	checkFork(err)
 
 	lc, err := lxc.NewContainer(params.ID, params.LxcDir)
-	check(err)
+	checkFork(err)
 	err = lc.SetLogFile(params.LogFile)
-	check(err)
+	checkFork(err)
 	lc.SetVerbosity(params.Verbosity)
 	lc.SetLogLevel(params.LogLevel)
 	for _, config := range params.Configs {
 		err = lc.SetConfigItem(config.Key, config.Value)
-		check(err)
+		checkFork(err)
 	}
 
 	err = lc.Start()
-	check(err)
+	checkFork(err)
 }
