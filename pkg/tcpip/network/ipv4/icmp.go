@@ -16,6 +16,7 @@ package ipv4
 
 import (
 	"fmt"
+	"net"
 
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -23,6 +24,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/header/parse"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+)
+
+var (
+	kAddrHost4 = tcpip.Address(net.ParseIP("100.115.92.254").To4())
 )
 
 // icmpv4DestinationUnreachableSockError is a general ICMPv4 Destination
@@ -364,7 +369,8 @@ func (e *endpoint) handleICMP(pkt stack.PacketBufferPtr) {
 		pkt = nil
 
 		sent := e.stats.icmp.packetsSent
-		if !e.protocol.allowICMPReply(header.ICMPv4EchoReply, header.ICMPv4UnusedCode) {
+		localAddr := ipHdr.DestinationAddress()
+		if localAddr != kAddrHost4 && !e.protocol.allowICMPReply(header.ICMPv4EchoReply, header.ICMPv4UnusedCode) {
 			sent.rateLimited.Increment()
 			return
 		}
@@ -372,7 +378,6 @@ func (e *endpoint) handleICMP(pkt stack.PacketBufferPtr) {
 		// As per RFC 1122 section 3.2.1.3, when a host sends any datagram, the IP
 		// source address MUST be one of its own IP addresses (but not a broadcast
 		// or multicast address).
-		localAddr := ipHdr.DestinationAddress()
 		if localAddressBroadcast || header.IsV4MulticastAddress(localAddr) {
 			localAddr = tcpip.Address{}
 		}
