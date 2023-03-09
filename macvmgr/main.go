@@ -397,7 +397,7 @@ func runVmManager() {
 		Rng:              true,
 		Vsock:            true,
 		Virtiofs:         true,
-		Rosetta:          true,
+		Rosetta:          vmconfig.Get().Rosetta,
 		Sound:            false,
 	}
 

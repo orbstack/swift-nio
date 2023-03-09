@@ -72,12 +72,6 @@ RUN apk add --no-cache \
 		xz \
 		pigz
 
-# dind script
-RUN <<EOT
-wget -O /usr/local/bin/dind https://raw.githubusercontent.com/moby/moby/b54af02b51b0dfe2e2863e8f1647aaa27936c274/hack/dind
-chmod +x /usr/local/bin/dind
-EOT
-
 # network
 COPY rootfs/config/resolv.conf /etc/resolv.conf
 COPY rootfs/config/hosts.docker /etc/hosts
@@ -94,6 +88,9 @@ echo 'dockremap:165536:65536' >> /etc/subgid
 mkdir /mnt/mac
 mkdir /opt/orbstack-guest
 mkdir /var/lib/docker
+rm -rf /tmp
+ln -sf /private/tmp /tmp
+mkdir /dockertmp
 EOT
 
 # ipv6
@@ -122,6 +119,15 @@ ARG TYPE=release
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
     apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk
+fi
+EOT
+
+# install qemu for arm64
+RUN <<EOT sh -eux
+if [[ "\$(uname -m)" == "aarch64" ]]; then
+    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/aarch64/qemu-x86_64-7.1.0-r7.apk
+    apk add --no-cache qemu-x86_64-7.1.0-r7.apk
+    rm -f qemu-x86_64-7.1.0-r7.apk
 fi
 EOT
 
