@@ -285,8 +285,12 @@ func (c *Container) configureLxc() error {
 		set("lxc.mount.entry", "proc dev/.lxc/proc proc create=dir,optional 0 0")
 		set("lxc.mount.entry", "sys dev/.lxc/sys sysfs create=dir,optional 0 0")
 
-		// tmpfs
-		set("lxc.mount.entry", "tmpfs tmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional 0 0")
+		// premount a bigger tmpfs
+		// docker uses a /tmp -> /private/tmp symlink instead
+		// TODO: why was this added in the first place?
+		if c.Image.Distro != images.ImageDocker {
+			set("lxc.mount.entry", "tmpfs tmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
+		}
 
 		// other
 		set("lxc.apparmor.profile", "unconfined")

@@ -55,12 +55,14 @@ func (h *DockerHooks) Config(c *Container, set func(string, string)) (string, er
 	set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 
 	// dind does some setup and mounts
-	set("lxc.init.cmd", "/usr/local/bin/dind /usr/bin/docker-init -- /docker-entrypoint.sh")
+	set("lxc.init.cmd", "/usr/bin/docker-init -- /docker-entrypoint.sh")
 
 	// mounts
 	set("lxc.mount.entry", "none run tmpfs rw,nosuid,nodev,mode=755 0 0")
 	// match docker
 	set("lxc.mount.entry", "none dev/shm tmpfs rw,nosuid,nodev,noexec,relatime,size=65536k,create=dir 0 0")
+	// alternate tmpfs because our /tmp is symlinked to /private/tmp
+	set("lxc.mount.entry", "none dockertmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
 
 	// configure network statically
 	set("lxc.net.0.flags", "up")
