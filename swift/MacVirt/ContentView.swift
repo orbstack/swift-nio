@@ -29,6 +29,7 @@ struct ContentView: View {
     @StateObject private var windowHolder = WindowHolder()
     @State private var presentError = false
     @State private var pendingClose = false
+    @State private var collapsed = false
 
     var body: some View {
         NavigationView {
@@ -57,6 +58,7 @@ struct ContentView: View {
                 }.tag("files")
             }
             .listStyle(.sidebar)
+            .background(SplitViewAccessor(sideCollapsed: $collapsed))
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
