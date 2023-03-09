@@ -17,9 +17,11 @@ const (
 	cNotifRespFlagContinue = 1
 )
 
+// TODO better fix
 const seccompPolicy = `2
 denylist
 bind notify
+ioctl errno 1 [1,3222311976,SCMP_CMP_EQ]
 `
 
 type scmpNotifSizes struct {
