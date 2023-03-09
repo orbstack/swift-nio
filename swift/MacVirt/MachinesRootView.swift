@@ -8,6 +8,7 @@ import SwiftUI
 struct MachinesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
+    @AppStorage("root.selectedTab") private var rootSelectedTab = "docker"
     @State private var selection: String?
     @State private var creatingOpacity = 0.0
 
@@ -33,8 +34,26 @@ struct MachinesRootView: View {
                                 }) {
                                     Text("New Machine")
                                 }
+
+                                Spacer().frame(height: 64)
+
+                                VStack(spacing: 8) {
+                                    Text("Looking for Docker?")
+                                            .font(.title3)
+                                            .bold()
+                                    Text("You can use Docker directly from macOS.")
+                                            .font(.body)
+                                            .padding(.bottom, 8)
+                                    Button(action: {
+                                        rootSelectedTab = "docker"
+                                    }) {
+                                        Text("Go to Docker")
+                                    }
+                                }
+                                .padding(16)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                             }
-                                    .padding(.top, 32)
+                            .padding(.top, 32)
                             Spacer()
                         }
                     }

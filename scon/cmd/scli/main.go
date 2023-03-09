@@ -72,6 +72,8 @@ func printShortHelp() {
    Usage: orb <subcommand> [args...]
 
    Use "orbctl --help" for a list of subcommands.
+
+For Docker containers, use the "docker" command directly. "orb" is for full Linux machines.
 `, bold("1. Start a Linux shell."), bold(`2. Run commands on Linux, like "orbctl run".`), bold(`3. Control Linux machines, like "orbctl".`))
 	os.Exit(0)
 }

@@ -40,8 +40,24 @@ struct DockerRootView: View {
                                         Text("No containers")
                                                 .font(.title)
                                                 .foregroundColor(.secondary)
+
+                                        Spacer().frame(height: 64)
+
+                                        VStack(spacing: 8) {
+                                            Text("Get started with an example")
+                                                    .font(.title3)
+                                                    .bold()
+                                            Text("docker run -it -p 80:80 docker/getting-started")
+                                                    .font(.body.monospaced())
+                                                    .textSelection(.enabled)
+                                            Text("Then open [localhost](http://localhost) in your browser.")
+                                                    .font(.body)
+                                                    .foregroundColor(.secondary)
+                                        }
+                                        .padding(16)
+                                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                                     }
-                                            .padding(.top, 32)
+                                    .padding(.top, 32)
                                     Spacer()
                                 }
                             }

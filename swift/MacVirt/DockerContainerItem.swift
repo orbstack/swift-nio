@@ -53,7 +53,12 @@ struct DockerContainerItem: View {
         }
         .padding(.vertical, 4)
         .onDoubleClick {
-            openInTerminal()
+            if container.image == "docker/getting-started" {
+                // special case for more seamless onboarding
+                NSWorkspace.shared.open(URL(string: "http://localhost")!)
+            } else {
+                openInTerminal()
+            }
         }
         .contextMenu {
             Button(action: {

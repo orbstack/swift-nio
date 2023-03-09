@@ -29,12 +29,16 @@ fileprivate struct CommandSection<Content: View>: View {
                     Text(title)
                         .font(.title2)
                         .bold()
+                            // wrap, don't ellipsize
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             if let desc {
                 Text(desc)
                     .font(.title3)
                     .foregroundColor(.secondary)
+                        // wrap, don't ellipsize
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             content()
@@ -56,10 +60,14 @@ fileprivate struct CommandBox: View {
             Text(title)
                     .font(.title3)
                     .bold()
+                    // wrap, don't ellipsize
+                    .fixedSize(horizontal: false, vertical: true)
             if let desc {
-                Text(desc)
+                Text(try! AttributedString(markdown: desc))
                     .font(.body)
                     .foregroundColor(.secondary)
+                    // wrap, don't ellipsize
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Text(command)
                 .font(.body.monospaced())
@@ -79,7 +87,7 @@ struct CommandsRootView: View {
         ScrollView {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 12) {
-                    CommandSection(systemImage: "info.circle.fill", title: "Get started") {
+                    CommandSection(systemImage: "info.circle.fill", title: "Get started with machines") {
                         CommandBox(
                                 title: "Control machines: orbctl",
                                 desc: "Create, start, stop, delete, change default, and more. Explore the help for more commands.",
@@ -90,6 +98,26 @@ struct CommandsRootView: View {
                                 title: "Short command: orb",
                                 desc: "Start a shell, run commands, or control machines.",
                                 command: "orb help"
+                        )
+                    }
+
+                    CommandSection(systemImage: "shippingbox", title: "Docker", desc: "Use the included Docker commands directly from macOS. No Linux machines needed.") {
+                        CommandBox(
+                            title: "Main command",
+                            desc: "Build and run Docker containers, and more.",
+                            command: "docker help"
+                        )
+
+                        CommandBox(
+                            title: "Docker Compose",
+                            desc: "Build and run multiple containers at once..",
+                            command: "docker compose"
+                        )
+
+                        CommandBox(
+                            title: "Run a container",
+                            desc: "Start an example server and access it at [localhost](http://localhost/).",
+                            command: "docker run -it -p 80:80 docker/getting-started"
                         )
                     }
 
