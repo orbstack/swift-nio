@@ -546,7 +546,8 @@ func (c *Container) Start() error {
 		}
 	*/
 
-	// clean console
+	// clean logs
+	_ = os.Remove(c.logPath())
 	_ = os.Remove(c.logPath() + "-console")
 
 	// hook
