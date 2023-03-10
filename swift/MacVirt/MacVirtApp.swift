@@ -88,10 +88,10 @@ struct MacVirtApp: App {
                     NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
                 }
                 Divider()
-                Button("Report a Bug") {
+                Button("Report Bug") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
                 }
-                Button("Request a Feature") {
+                Button("Request Feature") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                 }
                 Divider()
@@ -107,10 +107,10 @@ struct MacVirtApp: App {
                     NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
                 }
                 Divider()
-                Button("Report a Bug") {
+                Button("Report Bug") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
                 }
-                Button("Request a Feature") {
+                Button("Request Feature") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                 }
             }
