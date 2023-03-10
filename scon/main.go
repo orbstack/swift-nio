@@ -51,18 +51,16 @@ func doSystemInitTasks(host *hclient.Client) error {
 		return err
 	}
 
-	// chown secure sockets
-	for _, sock := range []string{
-		mounts.SshAgentSocket,
-		mounts.HostSSHSocket,
-		mounts.HcontrolSocket,
-	} {
-		// use user group
-		err = os.Chown(sock, u.Uid, u.Uid)
-		if err != nil {
-			return err
-		}
-	}
+	// start host service proxies now that we have uid/gid
+	go runOne("host service proxy host-ssh", func() error {
+		return RunHostServiceProxy(mounts.HostSSHSocket, ports.SecureSvcHostSSH, u.Uid)
+	})
+	go runOne("host service proxy hcontrol", func() error {
+		return RunHostServiceProxy(mounts.HcontrolSocket, ports.SecureSvcHcontrol, u.Uid)
+	})
+	go runOne("host service proxy ssh-agent", func() error {
+		return RunHostServiceProxy(mounts.SshAgentSocket, ports.SecureSvcHostSSHAgent, u.Uid)
+	})
 
 	// setup and start nfs uid
 	if conf.C().StartNfs {

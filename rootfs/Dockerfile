@@ -107,7 +107,7 @@ FROM base AS rootfs
 # Dependencies
 RUN apk add --no-cache \
     # basic
-    socat openrc bash libstdc++ dash chrony eudev \
+    openrc bash dash chrony eudev \
     # disk
     # util-linux to fix "/dev/vda: Can't open blockdev" for btrfs mount
     sfdisk nfs-utils btrfs-progs util-linux \
@@ -118,7 +118,7 @@ RUN apk add --no-cache \
 ARG TYPE=release
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
-    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk
+    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk socat
 fi
 EOT
 
