@@ -294,6 +294,11 @@ func runVmManager() {
 		logrus.Fatal("macOS too old - min 12.4")
 	}
 
+	// done signal for shutdown process
+	// must close this after all cleanup so next start works (incl. closing listeners)
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
 	// parse args
 	var buildID string
 	var isRetry bool
@@ -359,9 +364,6 @@ func runVmManager() {
 	// state migration
 	err = migrateState()
 	check(err)
-
-	doneCh := make(chan struct{})
-	defer close(doneCh)
 
 	if _, err := os.Stat(conf.DataImage()); errors.Is(err, os.ErrNotExist) {
 		logrus.Info("initializing data")
@@ -510,6 +512,13 @@ func runVmManager() {
 		if err != nil {
 			logrus.WithError(err).WithField("spec", spec).Fatal("host forward failed")
 		}
+
+		defer func() {
+			err := vnetwork.StopForward(spec)
+			if err != nil {
+				logrus.WithError(err).WithField("spec", spec).Error("host forward stop cleanup failed")
+			}
+		}()
 	}
 	defer os.Remove(conf.DockerSocket())
 	defer os.Remove(conf.SconRPCSocket())
