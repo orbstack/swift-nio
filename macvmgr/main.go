@@ -405,8 +405,8 @@ func runVmManager() {
 
 	logrus.Info("creating VM")
 	vnetwork, vm := CreateVm(params)
-	// no point in closing
-	//defer vm.Close()
+	// close in case we need to release disk flock for next start
+	defer vm.Close()
 
 	// Start DRM
 	drmClient := drm.Client()
