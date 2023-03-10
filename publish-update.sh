@@ -17,5 +17,9 @@ COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-fi
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ updates/pub/arm64
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ updates/pub/amd64
 
+mkdir -p updates/old/{arm64,amd64}
+mv updates/pub/arm64/old_updates/* updates/old/arm64/ || :
+mv updates/pub/amd64/old_updates/* updates/old/amd64/ || :
+
 # upload to cloudflare
 rclone sync updates/pub r2:orbstack-updates
