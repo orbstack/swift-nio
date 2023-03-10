@@ -12,6 +12,7 @@ struct MachineSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @State private var memoryMib = 0.0
     @State private var enableRosetta = true
+    @State private var enableRosettaFalse = false
 
     var body: some View {
         Form {
@@ -33,14 +34,20 @@ struct MachineSettingsView: View {
                     #if arch(arm64)
                     if #available(macOS 13, *) {
                         Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
-                                .onChange(of: enableRosetta) { newValue in
-                                    Task { @MainActor in
-                                        if let config = vmModel.config,
-                                           config.rosetta != newValue {
-                                            await vmModel.tryPatchConfig(VmConfigPatch(rosetta: newValue))
-                                        }
+                            .onChange(of: enableRosetta) { newValue in
+                                Task { @MainActor in
+                                    if let config = vmModel.config,
+                                       config.rosetta != newValue {
+                                        await vmModel.tryPatchConfig(VmConfigPatch(rosetta: newValue))
                                     }
                                 }
+                            }
+                    } else {
+                        Toggle("Use Rosetta to run Intel code", isOn: $enableRosettaFalse)
+                            .disabled(true)
+                        Text("Requires macOS 13 or newer")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                     }
                     #endif
 
