@@ -51,7 +51,7 @@ struct MachinesRootView: View {
                                     }
                                 }
                                 .padding(16)
-                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                             }
                             .padding(.top, 32)
                             Spacer()
