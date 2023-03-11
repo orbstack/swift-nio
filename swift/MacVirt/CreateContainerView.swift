@@ -85,19 +85,7 @@ struct CreateContainerView: View {
             #endif
         }
         .onChange(of: name) { newName in
-            if let containers = vmModel.containers,
-                    containers.contains(where: { $0.name == newName }) {
-                isNameDuplicate = true
-            } else {
-                isNameDuplicate = false
-            }
-
-            // regex
-            if !newName.isEmpty && containerNamePattern.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) == nil {
-                isNameInvalid = true
-            } else {
-                isNameInvalid = false
-            }
+            checkName(newName)
         }
         .onChange(of: isNameDuplicate || isNameInvalid) { hasError in
             if hasError {
@@ -109,6 +97,28 @@ struct CreateContainerView: View {
                     duplicateHeight = 0
                 }
             }
+        }
+        .task {
+            checkName(name)
+        }
+        .onChange(of: vmModel.containers) { _ in
+            checkName(name)
+        }
+    }
+
+    private func checkName(_ newName: String) {
+        if let containers = vmModel.containers,
+           containers.contains(where: { $0.name == newName }) {
+            isNameDuplicate = true
+        } else {
+            isNameDuplicate = false
+        }
+
+        // regex
+        if !newName.isEmpty && containerNamePattern.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) == nil {
+            isNameInvalid = true
+        } else {
+            isNameInvalid = false
         }
     }
 }

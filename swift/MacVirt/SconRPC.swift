@@ -8,14 +8,14 @@
 import Foundation
 import SwiftJSONRPC
 
-struct ImageSpec: Codable {
+struct ImageSpec: Codable, Equatable {
     var distro: String
     var version: String
     var arch: String
     var variant: String
 }
 
-struct ContainerRecord: Codable, Identifiable {
+struct ContainerRecord: Codable, Identifiable, Equatable {
     var id: String
     var name: String
     var image: ImageSpec
