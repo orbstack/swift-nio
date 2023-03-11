@@ -33,13 +33,16 @@ struct DockerRootView: View {
                                 DockerContainerItem(container: container)
                             }
 
-                            if containers.isEmpty {
+                            // special case: show example http://localhost if only container is getting-started
+                            if containers.isEmpty || (containers.count == 1 && containers[0].image == "docker/getting-started") {
                                 HStack {
                                     Spacer()
                                     VStack {
-                                        Text("No containers")
-                                                .font(.title)
-                                                .foregroundColor(.secondary)
+                                        if containers.isEmpty {
+                                            Text("No containers")
+                                                    .font(.title)
+                                                    .foregroundColor(.secondary)
+                                        }
 
                                         Spacer().frame(height: 64)
 
