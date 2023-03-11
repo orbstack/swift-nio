@@ -9,6 +9,8 @@ replace gvisor.dev/gvisor => ../../../vm/gvisor
 
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
+replace github.com/fsnotify/fsnotify => github.com/kdrag0n/fsnotify-macvirt v0.0.0-20230311084904-3a09ec342ff5
+
 require (
 	github.com/creachadair/jrpc2 v0.43.0
 	github.com/creack/pty v1.1.18
@@ -32,6 +34,7 @@ require (
 
 require (
 	github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771 // indirect
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 )

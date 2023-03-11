@@ -456,6 +456,10 @@ func runVmManager() {
 	err = vm.Start()
 	check(err)
 
+	go runOne("data watcher", func() error {
+		return WatchDataImage(stopCh)
+	})
+
 	// Listen for signals
 	go func() {
 		signalCh := make(chan os.Signal, 1)
