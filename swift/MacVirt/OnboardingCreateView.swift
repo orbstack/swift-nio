@@ -103,16 +103,12 @@ struct OnboardingCreateView: View {
                         }
 
                         #if arch(arm64)
-                        if #available(macOS 13, *) {
-                            if vmModel.config?.rosetta ?? true {
-                                Picker("CPU type", selection: $arch) {
-                                    Text("Apple").tag("arm64")
-                                    Text("Intel").tag("amd64")
-                                }
-                                .pickerStyle(.segmented)
-                                .disabled(distro == .nixos)
-                            }
+                        Picker("CPU type", selection: $arch) {
+                            Text("Apple").tag("arm64")
+                            Text("Intel").tag("amd64")
                         }
+                        .pickerStyle(.segmented)
+                        .disabled(distro == .nixos)
                         #endif
                     }.frame(minWidth: 200)
                 }.fixedSize()
