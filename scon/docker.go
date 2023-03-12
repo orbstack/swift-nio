@@ -90,7 +90,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	// generate docker daemon config
 	config := DockerDaemonConfig{
 		IPv6:        true,
-		FixedCIDRv6: "fc00:30:32::/64",
+		FixedCIDRv6: "fd00:30:32::/64",
 		// most reliable, and fast on btrfs due to reflinks
 		StorageDriver: "overlay2",
 		// match our MTU

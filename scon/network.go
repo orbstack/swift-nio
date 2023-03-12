@@ -26,7 +26,7 @@ const (
 	gatewayIP4  = subnet4 + ".1"
 	dockerIP4   = subnet4 + ".2"
 
-	subnet6     = "fc00:30:31:"
+	subnet6     = "fd00:30:31:"
 	subnet6cidr = subnet6 + ":/64"
 	gatewayIP6  = subnet6 + ":1"
 	dockerIP6   = subnet6 + ":2"

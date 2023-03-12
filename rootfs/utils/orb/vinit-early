@@ -18,8 +18,8 @@ echo 0 > /proc/sys/net/ipv6/conf/eth0/accept_dad # fix tentative ipv6 delay
 ip link set eth0 up
 ip addr add 100.115.92.2/24 dev eth0
 ip route add default via 100.115.92.1 dev eth0
-ip addr add fc00:96dc:7096:1d21::2/64 dev eth0
-ip route add default via fc00:96dc:7096:1d21::1 dev eth0
+ip addr add fd00:96dc:7096:1d21::2/64 dev eth0
+ip route add default via fd00:96dc:7096:1d21::1 dev eth0
 
 # control server
 # must be after net for IP

@@ -43,6 +43,6 @@ mount --make-rshared /
 mkdir -p /run/host-services
 ln -sf /opt/orbstack-guest/run/host-ssh-agent.sock /run/host-services/ssh-auth.sock
 
-ip6tables -t nat -A POSTROUTING -s fc00:30:32::/64 -o eth0 -j MASQUERADE
+ip6tables -t nat -A POSTROUTING -s fd00:30:32::/64 -o eth0 -j MASQUERADE
 export TMPDIR=/dockertmp
 exec dockerd --host=unix:///var/run/docker.sock --tls=false
