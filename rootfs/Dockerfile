@@ -77,6 +77,8 @@ COPY rootfs/config/resolv.conf /etc/resolv.conf
 COPY rootfs/config/hosts.docker /etc/hosts
 RUN <<EOT sh -eux
 echo docker > /etc/hostname
+# for daemon.json generation
+mkdir -p /etc/docker
 
 # set up subuid/subgid so that "--userns-remap=default" works out-of-the-box
 addgroup -S dockremap
@@ -93,8 +95,6 @@ ln -sf /private/tmp /tmp
 mkdir /dockertmp
 EOT
 
-# ipv6
-COPY rootfs/config/daemon.json /etc/docker/daemon.json
 # sets up ipv6 nat
 COPY rootfs/utils/docker-entrypoint.sh /
 

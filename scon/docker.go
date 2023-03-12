@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -47,6 +48,13 @@ var (
 	}
 )
 
+type DockerDaemonConfig struct {
+	IPv6          bool   `json:"ipv6"`
+	FixedCIDRv6   string `json:"fixed-cidr-v6"`
+	StorageDriver string `json:"storage-driver"`
+	MTU           int    `json:"mtu"`
+}
+
 type DockerHooks struct {
 }
 
@@ -78,6 +86,24 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	// delete pid file if exists
 	rootfs := conf.C().DockerRootfs
 	os.Remove(filepath.Join(rootfs, "var/run/docker.pid"))
+
+	// generate docker daemon config
+	config := DockerDaemonConfig{
+		IPv6:        true,
+		FixedCIDRv6: "fc00:30:32::/64",
+		// most reliable, and fast on btrfs due to reflinks
+		StorageDriver: "overlay2",
+		// match our MTU
+		MTU: c.manager.net.mtu,
+	}
+	configBytes, err := json.Marshal(&config)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(filepath.Join(rootfs, "etc/docker/daemon.json"), configBytes, 0644)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
