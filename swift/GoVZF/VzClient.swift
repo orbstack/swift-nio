@@ -5,7 +5,7 @@
 import Foundation
 import Virtualization
 
-let vzQueue = DispatchQueue(label: "VzClient")
+let vzQueue = DispatchQueue(label: "dev.kdrag0n.govzf")
 
 struct ConsoleSpec: Codable {
     var readFd: Int32
