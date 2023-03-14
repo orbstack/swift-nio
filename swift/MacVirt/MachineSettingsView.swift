@@ -54,7 +54,7 @@ struct MachineSettingsView: View {
                     let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
                     Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
                         VStack {
-                            Text("Memory")
+                            Text("Memory limit")
                             Text("\(memoryMib / 1024, specifier: "%.0f") GiB")
                                     .font(.caption.monospacedDigit())
                                     .foregroundColor(.secondary)
