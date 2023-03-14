@@ -336,7 +336,6 @@ func (c *Container) configureLxc() error {
 		for _, p := range mounts.LinkedPaths {
 			bind("/mnt/mac"+p, p, "")
 		}
-		bind("/mnt/mac", "/mac", "")
 
 		// binds for ssh agent sockets (fixes docker $SSH_AUTH_SOCK forward)
 		// anything operation (mount, stat, access) on the /private socket through virtiofs returns EOPNOTSUPP
