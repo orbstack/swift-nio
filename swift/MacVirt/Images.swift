@@ -29,25 +29,22 @@ enum ImageKey: String {
 }
 
 enum Distro: String, CaseIterable {
+    //case Amazon = "amazon"
+    case alma   = "alma"
     case alpine   = "alpine"
     case arch     = "arch"
     case centos   = "centos"
     case debian   = "debian"
+    case devuan = "devuan"
     case fedora   = "fedora"
     case gentoo   = "gentoo"
     case kali     = "kali"
+    case nixos = "nixos"
     case opensuse = "opensuse"
-    case ubuntu   = "ubuntu"
-    case void     = "void"
-
-    case devuan = "devuan"
-    case alma   = "alma"
-    //case Amazon = "amazon"
     case oracle = "oracle"
     case rocky  = "rocky"
-
-    // extra
-    case nixos = "nixos"
+    case ubuntu   = "ubuntu"
+    case void     = "void"
 
     var imageKey: ImageKey {
         switch self {
