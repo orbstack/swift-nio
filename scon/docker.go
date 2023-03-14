@@ -48,11 +48,16 @@ var (
 	}
 )
 
+type DockerDaemonFeatures struct {
+	Buildkit bool `json:"buildkit"`
+}
+
 type DockerDaemonConfig struct {
-	IPv6          bool   `json:"ipv6"`
-	FixedCIDRv6   string `json:"fixed-cidr-v6"`
-	StorageDriver string `json:"storage-driver"`
-	MTU           int    `json:"mtu"`
+	Features      DockerDaemonFeatures `json:"features"`
+	IPv6          bool                 `json:"ipv6"`
+	FixedCIDRv6   string               `json:"fixed-cidr-v6"`
+	StorageDriver string               `json:"storage-driver"`
+	MTU           int                  `json:"mtu"`
 }
 
 type DockerHooks struct {
@@ -89,6 +94,11 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 	// generate docker daemon config
 	config := DockerDaemonConfig{
+		// just to be safe with legacy clients
+		Features: DockerDaemonFeatures{
+			Buildkit: true,
+		},
+		// enable IPv6 with NAT66
 		IPv6:        true,
 		FixedCIDRv6: "fd00:30:32::/64",
 		// most reliable, and fast on btrfs due to reflinks
