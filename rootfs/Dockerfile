@@ -123,12 +123,12 @@ fi
 EOT
 
 # install qemu for arm64
-# newer qemu breaks openssl rsa verification
+# newer qemu 7.2 breaks openssl rsa verification
 RUN <<EOT sh -eux
 if [[ "\$(uname -m)" == "aarch64" ]]; then
-    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/aarch64/qemu-x86_64-7.1.0-r7.apk
-    apk add --no-cache qemu-x86_64-7.1.0-r7.apk
-    rm -f qemu-x86_64-7.1.0-r7.apk
+    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/aarch64/qemu-x86_64-7.1.0-r7.apk https://dl-cdn.alpinelinux.org/alpine/v3.17/community/aarch64/qemu-i386-7.1.0-r7.apk
+    apk add --no-cache qemu-x86_64-7.1.0-r7.apk qemu-i386-7.1.0-r7.apk
+    rm -f qemu-x86_64-7.1.0-r7.apk qemu-i386-7.1.0-r7.apk
 fi
 EOT
 
@@ -212,6 +212,7 @@ mkdir /mnt/mac
 mkdir /mnt/rosetta
 ln -s /mnt/rosetta/rosetta '/[rosetta]'
 ln -s /usr/bin/qemu-x86_64 '[qemu]'
+ln -s /usr/bin/qemu-i386 '[qemu32]'
 
 # Guest tools
 mkdir -p /opt/orbstack-guest/bin /opt/orbstack-guest/bin-hiprio /opt/orbstack-guest/run /opt/orbstack-guest/data
