@@ -26,36 +26,51 @@ struct CreateContainerView: View {
     @Binding var creatingCount: Int
 
     var body: some View {
-        Form {
-            Section {
-                let nameBinding = Binding<String>(get: { name }, set: {
-                    if $0 != name {
-                        self.nameChanged = true
-                    }
-                    self.name = $0
-                })
+        VStack(alignment: .leading) {
+            Text("New Machine")
+                    .font(.headline.weight(.semibold))
+                    .padding(.bottom, 8)
 
-                TextField("Name", text: nameBinding)
-                let errorText = isNameInvalid ? "Invalid name" : "Already exists"
-                Text(errorText)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .frame(maxHeight: duplicateHeight)
-                        .clipped()
+            Form {
+                Section {
+                    let nameBinding = Binding<String>(get: { name }, set: {
+                        if $0 != name {
+                            self.nameChanged = true
+                        }
+                        self.name = $0
+                    })
 
-                Picker("Distribution", selection: $distro) {
-                    ForEach(Distro.allCases, id: \.self) { distro in
-                        Text(distro.friendlyName).tag(distro)
+                    TextField("Name", text: nameBinding)
+                    let errorText = isNameInvalid ? "Invalid name" : "Already exists"
+                    Text(errorText)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .frame(maxHeight: duplicateHeight)
+                            .clipped()
+
+                    Picker("Distribution", selection: $distro) {
+                        ForEach(Distro.allCases, id: \.self) { distro in
+                            Text(distro.friendlyName).tag(distro)
+                        }
                     }
+                    #if arch(arm64)
+                    Picker("CPU type", selection: $arch) {
+                        Text("Apple").tag("arm64")
+                        Text("Intel").tag("amd64")
+                    }
+                            .pickerStyle(.segmented)
+                            .disabled(distro == .nixos)
+                    #endif
                 }
-                #if arch(arm64)
-                Picker("CPU type", selection: $arch) {
-                    Text("Apple").tag("arm64")
-                    Text("Intel").tag("amd64")
+            }
+
+            HStack {
+                Spacer()
+                Button(action: {
+                    isPresented = false
+                }) {
+                    Text("Cancel")
                 }
-                .pickerStyle(.segmented)
-                .disabled(distro == .nixos)
-                #endif
 
                 Button(action: {
                     Task { @MainActor in
@@ -66,12 +81,14 @@ struct CreateContainerView: View {
                     isPresented = false
                 }) {
                     Text("Create")
-                }.keyboardShortcut(.defaultAction)
-                // empty is disabled but not error
-                .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
+                }
+                        .keyboardShortcut(.defaultAction)
+                        // empty is disabled but not error
+                        .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
             }
+                    .padding(.top, 8)
         }
-        .padding(16)
+        .padding(20)
         .onChange(of: distro) {
             if !nameChanged {
                 name = $0.rawValue
