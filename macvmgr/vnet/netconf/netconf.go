@@ -15,3 +15,11 @@ const (
 	GuestIP6   = Subnet6 + ":2"
 	HostNatIP6 = SubnetExt6 + ":254"
 )
+
+const (
+	SconSubnet4   = "100.115.93"
+	SconDockerIP4 = SconSubnet4 + ".2"
+
+	SconSubnet6   = "fd00:30:31:"
+	SconDockerIP6 = SconSubnet6 + ":2"
+)
