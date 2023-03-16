@@ -187,6 +187,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		}
 	}
 
+	logrus.WithField("container", c.Name).Info("container created")
 	return
 }
 
