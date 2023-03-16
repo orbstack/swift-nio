@@ -105,7 +105,7 @@ struct ContentView: View {
                         model.presentCreate = true
                     }) {
                         Label("New Machine", systemImage: "plus")
-                    }.popover(isPresented: $model.presentCreate) {
+                    }.sheet(isPresented: $model.presentCreate) {
                         CreateContainerView(isPresented: $model.presentCreate, creatingCount: $model.creatingCount)
                     }
                     .help("New machine")

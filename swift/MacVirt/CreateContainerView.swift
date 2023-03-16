@@ -87,26 +87,15 @@ struct CreateContainerView: View {
         .onChange(of: name) { newName in
             checkName(newName)
         }
-        .onChange(of: isNameDuplicate || isNameInvalid) { hasError in
-            if hasError {
-                withAnimation(.spring()) {
-                    duplicateHeight = NSFont.preferredFont(forTextStyle: .caption1).pointSize
-                }
-            } else {
-                withAnimation(.spring()) {
-                    duplicateHeight = 0
-                }
-            }
-        }
-        .task {
-            checkName(name)
+        .onAppear {
+            checkName(name, animate: false)
         }
         .onChange(of: vmModel.containers) { _ in
             checkName(name)
         }
     }
 
-    private func checkName(_ newName: String) {
+    private func checkName(_ newName: String, animate: Bool = true) {
         if let containers = vmModel.containers,
            containers.contains(where: { $0.name == newName }) {
             isNameDuplicate = true
@@ -119,6 +108,18 @@ struct CreateContainerView: View {
             isNameInvalid = true
         } else {
             isNameInvalid = false
+        }
+
+        let hasError = isNameDuplicate || isNameInvalid
+        let animation = animate ? Animation.spring() : nil
+        if hasError {
+            withAnimation(animation) {
+                duplicateHeight = NSFont.preferredFont(forTextStyle: .caption1).pointSize
+            }
+        } else {
+            withAnimation(animation) {
+                duplicateHeight = 0
+            }
         }
     }
 }
