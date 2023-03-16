@@ -31,6 +31,7 @@ var (
 		"host.orb.internal":       {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
 		"host.docker.internal":    {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
 		"host.lima.internal":      {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"docker":                  {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
 		"docker.internal":         {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
 		"docker.orb.internal":     {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
 		"services":                {IP4: netconf.ServicesIP4},
