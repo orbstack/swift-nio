@@ -122,7 +122,7 @@ enum VmError: LocalizedError, Equatable {
         case .wrongArch:
             return "Please download the Apple Silicon version of OrbStack."
         case .killswitchExpired:
-            return "Please download the latest version of OrbStack."
+            return "Preview builds expire after 30 days.\n\nPlease update OrbStack to continue."
 
         default:
             return nil
@@ -509,8 +509,10 @@ class VmViewModel: ObservableObject {
             try spawnDaemon()
         } catch VmError.wrongArch {
             self.error = VmError.wrongArch
+            return
         } catch VmError.killswitchExpired {
             self.error = VmError.killswitchExpired
+            return
         } catch {
             self.error = VmError.spawnError(cause: error)
             return
@@ -518,6 +520,7 @@ class VmViewModel: ObservableObject {
 
         // this includes wait
         NSLog("refresh: start")
+        // avoid feedback loop if killswitch expired
         await tryRefreshList()
         await tryRefreshConfig()
         self.state = .running

@@ -137,23 +137,33 @@ struct ContentView: View {
         }
         // error dialog
         .alert(isPresented: $presentError, error: model.error) { error in
-            Button("OK") {
-                model.dismissError()
+            if error == VmError.killswitchExpired {
+                Button("Update") {
+                    NSWorkspace.shared.open(URL(string: "macvirt://update")!)
+                }
 
-                // quit if the error is fatal
-                if model.state == .stopped && !model.reachedRunning {
+                Button("Quit") {
                     NSApp.terminate(nil)
                 }
-            }
-
-            if let error, error.shouldShowLogs {
-                Button("Report") {
+            } else {
+                Button("OK") {
                     model.dismissError()
-                    openReportWindows()
 
                     // quit if the error is fatal
                     if model.state == .stopped && !model.reachedRunning {
                         NSApp.terminate(nil)
+                    }
+                }
+
+                if error.shouldShowLogs {
+                    Button("Report") {
+                        model.dismissError()
+                        openReportWindows()
+
+                        // quit if the error is fatal
+                        if model.state == .stopped && !model.reachedRunning {
+                            NSApp.terminate(nil)
+                        }
                     }
                 }
             }
