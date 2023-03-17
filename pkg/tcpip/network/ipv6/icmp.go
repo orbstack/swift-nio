@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	kAddrHost6 = tcpip.Address(net.ParseIP("fc00:96dc:7096:1d22::254").To16())
+	kAddrHost6 = tcpip.Address(net.ParseIP("fd00:96dc:7096:1d22::254").To16())
 )
 
 // icmpv6DestinationUnreachableSockError is a general ICMPv6 Destination
