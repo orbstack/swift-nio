@@ -4,7 +4,7 @@
 
 import Cocoa
 
-fileprivate let KILLSWITCH_EXPIRE_DAYS = 30
+fileprivate let KILLSWITCH_EXPIRE_DAYS = 30.0
 
 func processIsTranslated() -> Bool {
     var ret = Int32(0)
