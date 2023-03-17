@@ -4,6 +4,8 @@
 
 import Cocoa
 
+fileprivate let KILLSWITCH_EXPIRE_DAYS = 30
+
 func processIsTranslated() -> Bool {
     var ret = Int32(0)
     var size = 4
@@ -33,8 +35,8 @@ func killswitchExpired() -> Bool {
         let killswitchTime = try readKillswitchTime()
         let now = NSDate()
         let diff = now.timeIntervalSince(killswitchTime as Date)
-        // 21 days, in seconds
-        return diff > 60 * 60 * 24 * 21
+        // 30 days, in seconds
+        return diff > 60 * 60 * 24 * KILLSWITCH_EXPIRE_DAYS
     } catch {
         return false
     }
