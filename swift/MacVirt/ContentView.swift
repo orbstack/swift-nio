@@ -41,21 +41,31 @@ struct ContentView: View {
                 }
             })
             List(selection: selBinding) {
-                NavigationLink(destination: DockerRootView()) {
-                    Label("Docker", systemImage: "shippingbox")
-                }.tag("docker")
+                Section(header: Text("Docker")) {
+                    NavigationLink(destination: DockerContainersRootView()) {
+                        Label("Containers", systemImage: "shippingbox")
+                    }.tag("docker")
 
-                NavigationLink(destination: MachinesRootView()) {
-                    Label("Machines", systemImage: "desktopcomputer")
-                }.tag("machines")
+                    NavigationLink(destination: DockerVolumesRootView()) {
+                        Label("Volumes", systemImage: "externaldrive")
+                    }.tag("docker-volumes")
+                }
 
-                NavigationLink(destination: CommandsRootView()) {
-                    Label("Commands", systemImage: "terminal")
-                }.tag("cli")
+                Section(header: Text("Linux")) {
+                    NavigationLink(destination: MachinesRootView()) {
+                        Label("Machines", systemImage: "desktopcomputer")
+                    }.tag("machines")
 
-                NavigationLink(destination: FilesRootView()) {
-                    Label("Files", systemImage: "folder")
-                }.tag("files")
+                    NavigationLink(destination: FilesRootView()) {
+                        Label("Files", systemImage: "folder")
+                    }.tag("files")
+                }
+
+                Section(header: Text("Info")) {
+                    NavigationLink(destination: CommandsRootView()) {
+                        Label("Commands", systemImage: "terminal")
+                    }.tag("cli")
+                }
             }
             .listStyle(.sidebar)
             .background(SplitViewAccessor(sideCollapsed: $collapsed))
@@ -102,13 +112,26 @@ struct ContentView: View {
             ToolbarItem(placement: .automatic) {
                 if model.state == .running && selection == "machines" {
                     Button(action: {
-                        model.presentCreate = true
+                        model.presentCreateMachine = true
                     }) {
                         Label("New Machine", systemImage: "plus")
-                    }.sheet(isPresented: $model.presentCreate) {
-                        CreateContainerView(isPresented: $model.presentCreate, creatingCount: $model.creatingCount)
+                    }.sheet(isPresented: $model.presentCreateMachine) {
+                        CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)
                     }
                     .help("New machine")
+                }
+            }
+
+            ToolbarItem(placement: .automatic) {
+                if model.state == .running && selection == "docker-volumes" {
+                    Button(action: {
+                        model.presentCreateVolume = true
+                    }) {
+                        Label("New Volume", systemImage: "plus")
+                    }.sheet(isPresented: $model.presentCreateVolume) {
+                        CreateVolumeView(isPresented: $model.presentCreateVolume)
+                    }
+                    .help("New Volume")
                 }
             }
         }

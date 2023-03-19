@@ -11,3 +11,7 @@ type EnvReport struct {
 	Path    string `json:"PATH"`
 	Zdotdir string `json:"ZDOTDIR"`
 }
+
+type IDRequest struct {
+	ID string `json:"id"`
+}

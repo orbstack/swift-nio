@@ -66,3 +66,15 @@ struct WindowAccessor: NSViewRepresentable {
 class WindowHolder: ObservableObject {
     weak var window: NSWindow?
 }
+
+func rectReader(_ binding: Binding<CGRect>, _ space: CoordinateSpace = .global) -> some View {
+    GeometryReader { (geometry) -> Color in
+        let rect = geometry.frame(in: space)
+        DispatchQueue.main.async {
+            if rect != binding.wrappedValue {
+                binding.wrappedValue = rect
+            }
+        }
+        return .clear
+    }
+}

@@ -24,7 +24,7 @@ struct BuiltinContainerItem: View {
             VStack(alignment: .leading) {
                 Text("Docker")
                         .font(.headline)
-                Text("Build and run Docker containers")
+                Text("Build and run Docker containers. [Learn more](https://docs.docker.com/get-started/overview/#containers)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
             }
@@ -39,6 +39,9 @@ struct BuiltinContainerItem: View {
                             await vmModel.tryStartContainer(record)
                         } else {
                             await vmModel.tryStopContainer(record)
+                            // delete stale data
+                            // cause reload next time
+                            vmModel.dockerContainers = nil
                         }
                         actionInProgress = false
                     }

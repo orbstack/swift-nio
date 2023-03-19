@@ -30,7 +30,7 @@ struct MachinesRootView: View {
                                         .font(.title)
                                         .foregroundColor(.secondary)
                                 Button(action: {
-                                    vmModel.presentCreate = true
+                                    vmModel.presentCreateMachine = true
                                 }) {
                                     Text("New Machine")
                                 }

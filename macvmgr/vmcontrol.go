@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -112,13 +113,17 @@ func (s *VmControlServer) FinishSetup(ctx context.Context) error {
 	return nil
 }
 
-func (s *VmControlServer) ListDockerContainers(ctx context.Context) ([]dockertypes.Container, error) {
+func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertypes.Container, error) {
 	// only includes running
 	resp, err := s.dockerClient.Get("http://docker/containers/json")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, errors.New("status: " + resp.Status)
+	}
 
 	var containers []dockertypes.Container
 	err = json.NewDecoder(resp.Body).Decode(&containers)
@@ -127,6 +132,157 @@ func (s *VmControlServer) ListDockerContainers(ctx context.Context) ([]dockertyp
 	}
 
 	return containers, nil
+}
+
+func (s *VmControlServer) DockerContainerStart(ctx context.Context, req vmtypes.IDRequest) error {
+	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/start", "application/json", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
+}
+
+func (s *VmControlServer) DockerContainerStop(ctx context.Context, req vmtypes.IDRequest) error {
+	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/stop", "application/json", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
+}
+
+func (s *VmControlServer) DockerContainerRestart(ctx context.Context, req vmtypes.IDRequest) error {
+	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/restart", "application/json", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
+}
+
+func (s *VmControlServer) DockerContainerPause(ctx context.Context, req vmtypes.IDRequest) error {
+	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/pause", "application/json", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
+}
+
+func (s *VmControlServer) DockerContainerUnpause(ctx context.Context, req vmtypes.IDRequest) error {
+	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/unpause", "application/json", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
+}
+
+func (s *VmControlServer) DockerContainerRemove(ctx context.Context, params vmtypes.IDRequest) error {
+	req, err := http.NewRequest("DELETE", "http://docker/containers/"+params.ID+"?force=true", nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := s.dockerClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
+}
+
+func (s *VmControlServer) DockerVolumeList(ctx context.Context) (*dockertypes.VolumeListResponse, error) {
+	resp, err := s.dockerClient.Get("http://docker/volumes")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, errors.New("status: " + resp.Status)
+	}
+
+	var volumes dockertypes.VolumeListResponse
+	err = json.NewDecoder(resp.Body).Decode(&volumes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &volumes, nil
+}
+
+func (s *VmControlServer) DockerVolumeCreate(ctx context.Context, options dockertypes.VolumeCreateOptions) error {
+	jsonData, err := json.Marshal(options)
+	if err != nil {
+		return err
+	}
+
+	resp, err := s.dockerClient.Post("http://docker/volumes/create", "application/json", bytes.NewReader(jsonData))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
+}
+
+func (s *VmControlServer) DockerVolumeRemove(ctx context.Context, params vmtypes.IDRequest) error {
+	req, err := http.NewRequest("DELETE", "http://docker/volumes/"+params.ID, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := s.dockerClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == 409 {
+			return errors.New("volume in use")
+		}
+
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
 }
 
 func (h *VmControlServer) IsSshConfigWritable(ctx context.Context) (bool, error) {
@@ -227,18 +383,29 @@ func makeDockerClient() *http.Client {
 
 func (s *VmControlServer) Serve() (net.Listener, error) {
 	bridge := jhttp.NewBridge(handler.Map{
-		"Ping":                 handler.New(s.Ping),
-		"Stop":                 handler.New(s.Stop),
-		"ForceStop":            handler.New(s.ForceStop),
-		"ResetData":            handler.New(s.ResetData),
-		"GetConfig":            handler.New(s.GetConfig),
-		"PatchConfig":          handler.New(s.PatchConfig),
-		"ResetConfig":          handler.New(s.ResetConfig),
-		"StartSetup":           handler.New(s.StartSetup),
-		"FinishSetup":          handler.New(s.FinishSetup),
-		"ListDockerContainers": handler.New(s.ListDockerContainers),
-		"IsSshConfigWritable":  handler.New(s.IsSshConfigWritable),
-		"InternalReportEnv":    handler.New(s.InternalReportEnv),
+		"Ping":                handler.New(s.Ping),
+		"Stop":                handler.New(s.Stop),
+		"ForceStop":           handler.New(s.ForceStop),
+		"ResetData":           handler.New(s.ResetData),
+		"GetConfig":           handler.New(s.GetConfig),
+		"PatchConfig":         handler.New(s.PatchConfig),
+		"ResetConfig":         handler.New(s.ResetConfig),
+		"StartSetup":          handler.New(s.StartSetup),
+		"FinishSetup":         handler.New(s.FinishSetup),
+		"IsSshConfigWritable": handler.New(s.IsSshConfigWritable),
+		"InternalReportEnv":   handler.New(s.InternalReportEnv),
+
+		"DockerContainerList":    handler.New(s.DockerContainerList),
+		"DockerContainerStart":   handler.New(s.DockerContainerStart),
+		"DockerContainerStop":    handler.New(s.DockerContainerStop),
+		"DockerContainerRestart": handler.New(s.DockerContainerRestart),
+		"DockerContainerPause":   handler.New(s.DockerContainerPause),
+		"DockerContainerUnpause": handler.New(s.DockerContainerUnpause),
+		"DockerContainerRemove":  handler.New(s.DockerContainerRemove),
+
+		"DockerVolumeList":   handler.New(s.DockerVolumeList),
+		"DockerVolumeCreate": handler.New(s.DockerVolumeCreate),
+		"DockerVolumeRemove": handler.New(s.DockerVolumeRemove),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

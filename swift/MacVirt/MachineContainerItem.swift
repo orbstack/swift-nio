@@ -121,9 +121,8 @@ struct MachineContainerItem: View {
             openInTerminal()
         }
         .onChange(of: actionInProgress) { newValue in
-            withAnimation(.spring()) {
-                progressOpacity = newValue ? 1 : 0
-            }
+            // animation isn't apple-like
+            progressOpacity = newValue ? 1 : 0
         }
     }
 

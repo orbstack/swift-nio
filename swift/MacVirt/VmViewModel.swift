@@ -33,7 +33,9 @@ enum VmError: LocalizedError, Equatable {
     case startTimeout(cause: Error?)
     case stopError(cause: Error)
     case setupError(cause: Error)
-    case dockerError(cause: Error)
+    case dockerListError(cause: Error)
+    case dockerContainerActionError(action: String, cause: Error)
+    case dockerVolumeActionError(action: String, cause: Error)
     case configRefresh(cause: Error)
     case configPatchError(cause: Error)
 
@@ -65,8 +67,12 @@ enum VmError: LocalizedError, Equatable {
             return "Failed to stop VM: \(fmtRpc(cause))"
         case .setupError(let cause):
             return "Failed to do setup: \(fmtRpc(cause))"
-        case .dockerError(let cause):
-            return "Failed to check Docker: \(fmtRpc(cause))"
+        case .dockerListError(let cause):
+            return "Failed to refresh Docker: \(fmtRpc(cause))"
+        case .dockerContainerActionError(let action, let cause):
+            return "Failed to \(action) Docker container: \(fmtRpc(cause))"
+        case .dockerVolumeActionError(let action, let cause):
+            return "Failed to \(action) Docker volume: \(fmtRpc(cause))"
         case .configRefresh(let cause):
             return "Failed to get settings: \(fmtRpc(cause))"
         case .configPatchError(let cause):
@@ -147,7 +153,11 @@ enum VmError: LocalizedError, Equatable {
             return cause
         case .setupError(let cause):
             return cause
-        case .dockerError(let cause):
+        case .dockerListError(let cause):
+            return cause
+        case .dockerContainerActionError(_, let cause):
+            return cause
+        case .dockerVolumeActionError(_, let cause):
             return cause
         case .configRefresh(let cause):
             return cause
@@ -254,10 +264,12 @@ class VmViewModel: ObservableObject {
 
     @Published var presentProfileChanged: ProfileChangedAlert?
     @Published var presentAddPaths: AddPathsAlert?
-    @Published var presentCreate = false
+    @Published var presentCreateMachine = false
+    @Published var presentCreateVolume = false
 
     // Docker
-    @Published var dockerContainers: [DockerContainer]?
+    @Published var dockerContainers: [DKContainer]?
+    @Published var dockerVolumes: [DKVolume]?
     
     // Setup
     @Published private(set) var isSshConfigWritable = true
@@ -418,7 +430,36 @@ class VmViewModel: ObservableObject {
 
         // it's vmgr but need to wait for scon
         try await waitForScon()
-        dockerContainers = try await vmgr.listDockerContainers()
+        let containers = try await vmgr.dockerContainerList()
+        // preprocess
+        dockerContainers = containers.map { container in
+            var container = container
+
+            // filter ports
+            container.ports = container.ports.filter { origPort in
+                // remove 127.0.0.1 if ::1 exists
+                if origPort.ip == "127.0.0.1" {
+                    return !container.ports.contains(where: { $0.ip == "::1" && $0.publicPortInt == origPort.publicPortInt })
+                }
+                // remove 0.0.0.0 if :: exists
+                if origPort.ip == "0.0.0.0" {
+                    return !container.ports.contains(where: { $0.ip == "::" && $0.publicPortInt == origPort.publicPortInt })
+                }
+                return true
+            }
+
+            // sort ports
+            container.ports.sort { $0.publicPortInt < $1.publicPortInt }
+
+            // sort mounts
+            container.mounts.sort { "\($0.source)\($0.destination)" < "\($1.source)\($1.destination)" }
+
+            return container
+        }
+        let resp = try await vmgr.dockerVolumeList()
+        // sort volumes
+        let volumes = resp.volumes.sorted { $0.name < $1.name }
+        dockerVolumes = volumes
     }
 
     @MainActor
@@ -426,7 +467,14 @@ class VmViewModel: ObservableObject {
         do {
             try await refreshDockerList()
         } catch {
-            self.error = VmError.dockerError(cause: error)
+            // ignore if stopped
+            if let machines = containers,
+               let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }),
+               !dockerRecord.running {
+                return
+            }
+
+            self.error = VmError.dockerListError(cause: error)
         }
     }
 
@@ -648,6 +696,90 @@ class VmViewModel: ObservableObject {
         } catch {
             NSLog("ssh config writable error: \(error)")
         }
+    }
+
+    @MainActor
+    private func doTryDockerContainerAction(_ label: String, _ action: () async throws -> Void) async {
+        do {
+            try await action()
+        } catch {
+            self.error = VmError.dockerContainerActionError(action: "\(label)", cause: error)
+        }
+        await tryRefreshDockerList()
+
+        // Docker quirk: may not be done.
+        // HACK: wait a bit and try again
+        Task {
+            // 250 ms
+            try await Task.sleep(nanoseconds: 250 * 1000 * 1000)
+            await tryRefreshDockerList()
+        }
+    }
+
+    func tryDockerContainerStart(_ id: String) async {
+        await doTryDockerContainerAction("start", {
+            try await vmgr.dockerContainerStart(id)
+        })
+    }
+
+    func tryDockerContainerStop(_ id: String) async {
+        await doTryDockerContainerAction("stop", {
+            try await vmgr.dockerContainerStop(id)
+        })
+    }
+
+    func tryDockerContainerRestart(_ id: String) async {
+        await doTryDockerContainerAction("restart", {
+            try await vmgr.dockerContainerRestart(id)
+        })
+    }
+
+    func tryDockerContainerPause(_ id: String) async {
+        await doTryDockerContainerAction("pause", {
+            try await vmgr.dockerContainerPause(id)
+        })
+    }
+
+    func tryDockerContainerUnpause(_ id: String) async {
+        await doTryDockerContainerAction("unpause", {
+            try await vmgr.dockerContainerUnpause(id)
+        })
+    }
+
+    func tryDockerContainerRemove(_ id: String) async {
+        await doTryDockerContainerAction("remove", {
+            try await vmgr.dockerContainerRemove(id)
+        })
+    }
+
+    @MainActor
+    private func doTryDockerVolumeAction(_ label: String, _ action: () async throws -> Void) async {
+        do {
+            try await action()
+        } catch {
+            self.error = VmError.dockerVolumeActionError(action: "\(label)", cause: error)
+        }
+        await tryRefreshDockerList()
+
+        // Docker quirk: may not be done.
+        // HACK: wait a bit and try again
+        Task {
+            // 250 ms
+            try await Task.sleep(nanoseconds: 250 * 1000 * 1000)
+            await tryRefreshDockerList()
+        }
+    }
+
+    func tryDockerVolumeCreate(_ name: String) async {
+        await doTryDockerVolumeAction("create", {
+            try await vmgr.dockerVolumeCreate(DKVolumeCreateOptions(name: name, labels: nil, driver: nil, driverOpts: nil))
+        })
+    }
+
+    func tryDockerVolumeRemove(_ name: String) async {
+        await doTryDockerVolumeAction("remove", {
+            try await vmgr.dockerVolumeRemove(name)
+        })
     }
 
     func dismissError() {

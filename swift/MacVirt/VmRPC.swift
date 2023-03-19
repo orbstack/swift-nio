@@ -25,42 +25,6 @@ struct SetupInfo: Codable {
     var alertRequestAddPaths: [String]?
 }
 
-struct DockerContainer: Codable, Identifiable {
-    var id: String
-    var names: [String]
-    var image: String
-    var imageID: String
-    var command: String
-    var created: Int64
-    //var ports: [Ports]
-    var sizeRw: Int64?
-    var sizeRootFs: Int64?
-    var labels: [String: String]
-    var state: String
-    var status: String
-    //var hostConfig: HostConfig
-    //var networkSettings: SummaryNetworkSettings
-    //var mounts: [MountPoint]
-
-    enum CodingKeys: String, CodingKey {
-        case id = "Id"
-        case names = "Names"
-        case image = "Image"
-        case imageID = "ImageID"
-        case command = "Command"
-        case created = "Created"
-        //case ports = "Ports"
-        case sizeRw = "SizeRw"
-        case sizeRootFs = "SizeRootFs"
-        case labels = "Labels"
-        case state = "State"
-        case status = "Status"
-        //case hostConfig = "HostConfig"
-        //case networkSettings = "NetworkSettings"
-        //case mounts = "Mounts"
-    }
-}
-
 class VmService: RPCService {
     static let shared = SconService(client: RPCClient(url: URL(string: "http://127.0.0.1:62420")!))
 
@@ -102,11 +66,48 @@ class VmService: RPCService {
         try await invoke("FinishSetup")
     }
 
-    func listDockerContainers() async throws -> [DockerContainer] {
-        try await invoke("ListDockerContainers")
-    }
-
     func isSshConfigWritable() async throws -> Bool {
         try await invoke("IsSshConfigWritable")
+    }
+
+    // MARK: - Docker
+    func dockerContainerList() async throws -> [DKContainer] {
+        try await invoke("DockerContainerList")
+    }
+
+    func dockerContainerStart(_ id: String) async throws {
+        try await invoke("DockerContainerStart", params: IDRequest(id: id))
+    }
+
+    func dockerContainerStop(_ id: String) async throws {
+        try await invoke("DockerContainerStop", params: IDRequest(id: id))
+    }
+
+    func dockerContainerRestart(_ id: String) async throws {
+        try await invoke("DockerContainerRestart", params: IDRequest(id: id))
+    }
+
+    func dockerContainerPause(_ id: String) async throws {
+        try await invoke("DockerContainerPause", params: IDRequest(id: id))
+    }
+
+    func dockerContainerUnpause(_ id: String) async throws {
+        try await invoke("DockerContainerUnpause", params: IDRequest(id: id))
+    }
+
+    func dockerContainerRemove(_ id: String) async throws {
+        try await invoke("DockerContainerRemove", params: IDRequest(id: id))
+    }
+
+    func dockerVolumeList() async throws -> DKVolumeListResponse {
+        try await invoke("DockerVolumeList")
+    }
+
+    func dockerVolumeCreate(_ options: DKVolumeCreateOptions) async throws {
+        try await invoke("DockerVolumeCreate", params: options)
+    }
+
+    func dockerVolumeRemove(_ id: String) async throws {
+        try await invoke("DockerVolumeRemove", params: IDRequest(id: id))
     }
 }
