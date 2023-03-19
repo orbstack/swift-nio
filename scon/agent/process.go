@@ -183,21 +183,17 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 			)
 
 			// pam_systemd
-			// enable-linger is blocking so /run/user/UID will be available by now
+			// we do enable-linger asynchronously so /run/user/UID won't exist yet,
+			// and waiting for it is too slow (~250 ms)
 			if args.DoLogin {
-				dirs, err := os.ReadDir("/run/user/")
-				if err != nil {
-					return err
-				}
-				for _, dir := range dirs {
-					if dir.IsDir() && dir.Name() == u.Uid {
+				if _, err := exec.LookPath("loginctl"); err == nil {
+					if _, err := os.Stat("/run/user"); err == nil {
 						args.Env = append(args.Env,
 							"XDG_RUNTIME_DIR=/run/user/"+u.Uid,
 							"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+u.Uid+"/bus",
 							"XDG_SESSION_TYPE=tty",
 							"XDG_SESSION_CLASS=user",
 						)
-						break
 					}
 				}
 			}

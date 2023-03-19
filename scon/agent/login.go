@@ -28,8 +28,8 @@ func (m *LoginManager) BeginUserSession(user string) {
 	defer m.refsMu.Unlock()
 	m.userRefs[user]++
 	if m.userRefs[user] == 1 {
-		// synchronous so we can check /run/user/uid
-		func() {
+		// do in background
+		go func() {
 			err := m.onUserStart(user)
 			if err != nil {
 				logrus.WithError(err).Error("Failed to start user session")
@@ -44,8 +44,8 @@ func (m *LoginManager) EndUserSession(user string) {
 	m.userRefs[user]--
 	if m.userRefs[user] == 0 {
 		delete(m.userRefs, user)
-		// synchronous so we can check /run/user/uid
-		func() {
+		// do in background
+		go func() {
 			err := m.onUserStop(user)
 			if err != nil {
 				logrus.WithError(err).Error("failed to stop user session")
