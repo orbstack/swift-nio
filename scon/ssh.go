@@ -20,7 +20,6 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
-	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/sirupsen/logrus"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
@@ -323,9 +322,11 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	}
 
 	cmd := &agent.AgentCommand{
-		Env:  env,
-		Dir:  cwd,
-		User: user,
+		Env:          env,
+		Dir:          cwd,
+		User:         user,
+		DoLogin:      true,
+		ReplaceShell: true,
 	}
 
 	if isPty {
@@ -404,8 +405,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	}
 
 	// after stdin/stdout setup, to deal with nixos su
-	var suCmd string
-	prelude := "cd " + shellescape.Quote(cwd) + "; " + envToShell(env)
+	var combinedArgs []string
 	if meta.RawCommand {
 		// raw command (JSON)
 		var rawArgs []string
@@ -413,40 +413,14 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		if err != nil {
 			return
 		}
-		// prepend ctty if needed
-		// nixos uses shadow's su, not util-linux. it calls setsid unconditionally and doesn't support --session-command
-		if cmd.Setctty && container.Image.Distro == images.ImageNixos {
-			rawArgs = append([]string{mounts.Setctty, strconv.Itoa(cmd.CttyFd)}, rawArgs...)
-			// TIOCSCTTY returns EPERM if not root and the pty was already set as a ctty (in this cas, for the setsid() session we did, before calling su)
-			// to fix this, don't set ctty when spawning su
-			cmd.Setctty = false
-		}
-		suCmd = prelude + " exec " + shellescape.QuoteCommand(rawArgs)
+		// still go through shell to get PATH
+		combinedArgs = []string{agent.ShellSentinel, "-l", "-c", shellescape.QuoteCommand(rawArgs)}
 	} else {
-		var shellArgs []string
+		combinedArgs = []string{agent.ShellSentinel, "-l"}
 		if s.RawCommand() != "" {
-			shellArgs = append(shellArgs, "-c", s.RawCommand())
+			combinedArgs = append(combinedArgs, "-c", s.RawCommand())
 		}
-		// prepend ctty if needed
-		var cttyPrefix string
-		if cmd.Setctty && container.Image.Distro == images.ImageNixos {
-			cttyPrefix = mounts.Setctty + " " + strconv.Itoa(cmd.CttyFd) + " "
-			// TIOCSCTTY returns EPERM if not root and the pty was already set as a ctty (in this cas, for the setsid() session we did, before calling su)
-			// to fix this, don't set ctty when spawning su
-			cmd.Setctty = false
-		}
-		suCmd = prelude + " exec " + cttyPrefix + "$SHELL -l " + shellescape.QuoteCommand(shellArgs)
 	}
-	// this fixes job control. with -c, util-linux su calls setsid(), causing ctty to get lost
-	// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L1269
-	commandArg := "--session-command"
-	// Busybox su doesn't support --session-command, so use -c instead
-	// TODO call PAM with purego
-	if container.Image.Distro == images.ImageAlpine || container.Image.Distro == images.ImageNixos || container.Image.Distro == images.ImageDocker {
-		commandArg = "-c"
-	}
-	// compat with non-posix shells: run env and exec prelude in /bin/sh
-	combinedArgs := []string{"su", "-l", user, commandArg, shellescape.QuoteCommand([]string{"/bin/sh", "-c", suCmd})}
 	cmd.CombinedArgs = combinedArgs
 
 	err = container.UseAgent(func(a *agent.Client) error {
@@ -455,6 +429,14 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	if err != nil {
 		return
 	}
+	defer func() {
+		err := container.UseAgent(func(a *agent.Client) error {
+			return a.EndUserSession(user)
+		})
+		if err != nil {
+			logrus.WithError(err).Error("end user session failed")
+		}
+	}()
 
 	// now that the command has been started, don't print errors to pty
 	printErr = false

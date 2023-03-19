@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/user"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -18,6 +19,8 @@ const (
 	fdStdin  = 0
 	fdStdout = 1
 	fdStderr = 2
+
+	ShellSentinel = "<SHELL>"
 )
 
 type SpawnProcessArgs struct {
@@ -29,6 +32,9 @@ type SpawnProcessArgs struct {
 	Setctty      bool
 	CttyFd       int
 	FdxSeq       uint64
+
+	DoLogin      bool
+	ReplaceShell bool
 }
 
 type SpawnProcessReply struct {
@@ -61,9 +67,33 @@ func (a *AgentServer) ResolveSSHDir(args ResolveSSHDirArgs, reply *string) (err 
 	return nil
 }
 
-func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessReply) error {
+func lookupShell(user string) (string, error) {
+	passwdBytes, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return "", err
+	}
+	passwd := string(passwdBytes)
+
+	// find user entry
+	lines := strings.Split(passwd, "\n")
+	for _, line := range lines {
+		fields := strings.Split(line, ":")
+		if len(fields) < 7 {
+			continue
+		}
+		if fields[0] == user {
+			// found
+			return fields[6], nil
+		}
+	}
+
+	return "", errors.New("user not found")
+}
+
+func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessReply) (err error) {
 	// receive fds
 	stdios, err := a.fdx.RecvFiles(args.FdxSeq)
+	// returning sets err
 	if err != nil {
 		return err
 	}
@@ -122,6 +152,31 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 			groups[i] = uint32(group)
 		}
 
+		if args.ReplaceShell && args.CombinedArgs[0] == ShellSentinel {
+			// look up user shell
+			shell, err := lookupShell(args.User)
+			if err != nil {
+				return err
+			}
+
+			// replace sentinel with shell
+			args.CombinedArgs[0] = shell
+			// set standard login/su environment
+			// inherit system PATH
+			// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L760
+			args.Env = append(args.Env, "SHELL="+shell, "HOME="+u.HomeDir, "USER="+u.Username, "LOGNAME="+u.Username, "PATH="+os.Getenv("PATH"))
+		}
+
+		if args.DoLogin {
+			a.loginManager.BeginUserSession(args.User)
+			// if start successful, we end after WaitPid
+			defer func() {
+				if err != nil {
+					a.loginManager.EndUserSession(args.User)
+				}
+			}()
+		}
+
 		// if we have a pty (ctty), fix its ownership
 		if args.Setctty {
 			err = unix.Fchown(int(ptyF.Fd()), uid, gid)
@@ -131,13 +186,11 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 		}
 
 		// doesn't work: permission denied
-		/*
-			attrs.Credential = &syscall.Credential{
-				Uid:    uint32(uid),
-				Gid:    uint32(gid),
-				Groups: groups,
-			}
-		*/
+		attrs.Credential = &syscall.Credential{
+			Uid:    uint32(uid),
+			Gid:    uint32(gid),
+			Groups: groups,
+		}
 	}
 
 	// create process
@@ -192,6 +245,11 @@ func (a *AgentServer) WaitPid(pid int, reply *int) error {
 	return nil
 }
 
+func (a *AgentServer) EndUserSession(user string, reply *None) error {
+	a.loginManager.EndUserSession(user)
+	return nil
+}
+
 type AgentCommand struct {
 	CombinedArgs []string
 	Dir          string
@@ -200,6 +258,10 @@ type AgentCommand struct {
 	Stdout       io.Writer
 	Stderr       io.Writer
 	User         string
+
+	// special login stuff
+	DoLogin      bool
+	ReplaceShell bool
 
 	Setsid  bool
 	Setctty bool
@@ -275,6 +337,8 @@ func (c *AgentCommand) Start(agent *Client) error {
 		Setsid:       c.Setsid,
 		Setctty:      c.Setctty,
 		CttyFd:       c.CttyFd,
+		DoLogin:      c.DoLogin,
+		ReplaceShell: c.ReplaceShell,
 	}, stdin, stdout, stderr)
 	if err != nil {
 		return err

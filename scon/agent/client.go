@@ -257,3 +257,13 @@ func (c *Client) RemoveFile(path string) error {
 
 	return nil
 }
+
+func (c *Client) EndUserSession(user string) error {
+	var none None
+	err := c.rpc.Call("a.EndUserSession", user, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

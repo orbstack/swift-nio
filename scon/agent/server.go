@@ -32,6 +32,7 @@ type AgentServer struct {
 	tcpProxies   map[ProxySpec]*tcpfwd.TCPProxy
 	udpProxies   map[ProxySpec]*udpfwd.UDPProxy
 	dockerClient *http.Client
+	loginManager *LoginManager
 }
 
 type ProxySpec struct {
@@ -216,6 +217,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		tcpProxies:   make(map[ProxySpec]*tcpfwd.TCPProxy),
 		udpProxies:   make(map[ProxySpec]*udpfwd.UDPProxy),
 		dockerClient: dockerClient,
+		loginManager: NewLoginManager(),
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("a", server)
@@ -235,10 +237,6 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	loginPath := strings.TrimSpace(string(out))
 	logrus.WithField("path", loginPath).Debug("got PATH")
 	os.Setenv("PATH", loginPath)
-
-	// now that systemctl is in PATH, wait for systemd-logind to start
-	// for PAM session
-	waitForLogind()
 
 	// start server!
 	// fdx is used on-demand

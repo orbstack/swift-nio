@@ -52,7 +52,7 @@ mkdir /out /out-guest
 gcc -O2 -Wall -o /out/switchroot /build/switchroot.c
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
 gcc -O2 -Wall -o /out/daemonize /build/daemonize.c
-gcc -O2 -Wall -static -o /out-guest/setctty /build/setctty.c
+gcc -O2 -Wall -static -o /out-guest/dummy /build/dummy.c
 strip /out/* /out-guest/*
 EOT
 
