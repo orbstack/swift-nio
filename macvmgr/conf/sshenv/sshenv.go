@@ -29,5 +29,20 @@ var (
 		"XPC_SERVICE_NAME",
 		"XPC_FLAGS",
 		"SECURITYSESSIONID",
+
+		// go
+		"GOBIN",
+		"GOCACHE",
+		"GOENV",
+		"GOMODCACHE",
+		"GOEXE",
+		"GOMODCACHE",
+		"GOOS",
+		"GOPATH",
+		"GOROOT",
+		"GOTMPDIR",
+		"GOTOOLDIR",
+		"GOMOD",
+		"GOWORK",
 	}
 )
