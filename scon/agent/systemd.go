@@ -8,22 +8,22 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func waitForSystemdBoot() {
-	if _, err := exec.LookPath("systemctl"); err != nil {
+func waitForLogind() {
+	if _, err := exec.LookPath("loginctl"); err != nil {
 		return
 	}
 
-	logrus.Info("waiting for systemd")
+	logrus.Info("waiting for systemd-logind")
 	start := time.Now()
 	for {
-		err := util.Run("systemctl", "is-system-running", "--wait")
+		err := util.Run("loginctl")
 		if err == nil {
 			break
 		}
 
 		time.Sleep(nixosPollInterval)
 		if time.Since(start) > nixosBootTimeout {
-			logrus.WithError(err).Error("timed out waiting for systemd")
+			logrus.WithError(err).Error("timed out waiting for systemd-logind")
 			break
 		}
 	}
