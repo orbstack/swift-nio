@@ -36,7 +36,6 @@ struct DockerContainerItem: View {
     var container: DKContainer
 
     @State private var actionInProgress: DKContainerAction? = nil
-    @State private var progressOpacity = 0.0
 
     @State private var presentPopover = false
     @State private var rawLabelRect: CGRect = .zero
@@ -322,11 +321,6 @@ struct DockerContainerItem: View {
                 }
             }
             .padding(20)
-        }
-        .onChange(of: actionInProgress) { newValue in
-            withAnimation(.spring()) {
-                progressOpacity = newValue != nil ? 1 : 0
-            }
         }
     }
 
