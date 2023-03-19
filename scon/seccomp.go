@@ -17,11 +17,14 @@ const (
 	cNotifRespFlagContinue = 1
 )
 
-// TODO better fix
+// TODO better fix for btrfs quota
 const seccompPolicy = `2
 denylist
 bind notify
 ioctl errno 1 [1,3222311976,SCMP_CMP_EQ]
+init_module errno 38
+finit_module errno 38
+delete_module errno 38
 `
 
 type scmpNotifSizes struct {
