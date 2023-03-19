@@ -236,6 +236,9 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	logrus.WithField("path", loginPath).Debug("got PATH")
 	os.Setenv("PATH", loginPath)
 
+	// now that systemctl is in PATH, wait for systemd to finish booting
+	waitForSystemdBoot()
+
 	// start server!
 	// fdx is used on-demand
 	go rpcServer.ServeConn(rpcConn)
