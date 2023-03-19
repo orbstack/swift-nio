@@ -23,7 +23,7 @@ enum VmState: Int, Comparable {
 
 private let startTimeout = 3 * 60 * 1000 * 1000 * 1000 // 3 minutes
 
-enum VmError: LocalizedError, Equatable {
+enum VmError: LocalizedError, CustomNSError, Equatable {
     // VM
     case spawnError(cause: Error)
     case spawnExit(status: Int32, output: String)
@@ -48,6 +48,11 @@ enum VmError: LocalizedError, Equatable {
     case containerRestartError(cause: Error)
     case containerDeleteError(cause: Error)
     case containerCreateError(cause: Error)
+
+    var errorUserInfo: [String : Any] {
+        // debug desc gives most info for sentry
+        [NSDebugDescriptionErrorKey: "\(self)"]
+    }
 
     var errorDescription: String? {
         switch self {
