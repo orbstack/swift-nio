@@ -187,14 +187,12 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 			// and waiting for it is too slow (~250 ms)
 			if args.DoLogin {
 				if _, err := exec.LookPath("loginctl"); err == nil {
-					if _, err := os.Stat("/run/user"); err == nil {
-						args.Env = append(args.Env,
-							"XDG_RUNTIME_DIR=/run/user/"+u.Uid,
-							"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+u.Uid+"/bus",
-							"XDG_SESSION_TYPE=tty",
-							"XDG_SESSION_CLASS=user",
-						)
-					}
+					args.Env = append(args.Env,
+						"XDG_RUNTIME_DIR=/run/user/"+u.Uid,
+						"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+u.Uid+"/bus",
+						"XDG_SESSION_TYPE=tty",
+						"XDG_SESSION_CLASS=user",
+					)
 				}
 			}
 		}
