@@ -152,6 +152,16 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 			groups[i] = uint32(group)
 		}
 
+		if args.DoLogin {
+			a.loginManager.BeginUserSession(args.User)
+			// if start successful, we end after WaitPid
+			defer func() {
+				if err != nil {
+					a.loginManager.EndUserSession(args.User)
+				}
+			}()
+		}
+
 		if args.ReplaceShell && args.CombinedArgs[0] == ShellSentinel {
 			// look up user shell
 			shell, err := lookupShell(args.User)
@@ -164,17 +174,33 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 			// set standard login/su environment
 			// inherit system PATH
 			// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L760
-			args.Env = append(args.Env, "SHELL="+shell, "HOME="+u.HomeDir, "USER="+u.Username, "LOGNAME="+u.Username, "PATH="+os.Getenv("PATH"))
-		}
+			args.Env = append(args.Env,
+				"SHELL="+shell,
+				"HOME="+u.HomeDir,
+				"USER="+u.Username,
+				"LOGNAME="+u.Username,
+				"PATH="+os.Getenv("PATH"),
+			)
 
-		if args.DoLogin {
-			a.loginManager.BeginUserSession(args.User)
-			// if start successful, we end after WaitPid
-			defer func() {
+			// pam_systemd
+			// enable-linger is blocking so /run/user/UID will be available by now
+			if args.DoLogin {
+				dirs, err := os.ReadDir("/run/user/")
 				if err != nil {
-					a.loginManager.EndUserSession(args.User)
+					return err
 				}
-			}()
+				for _, dir := range dirs {
+					if dir.IsDir() && dir.Name() == u.Uid {
+						args.Env = append(args.Env,
+							"XDG_RUNTIME_DIR=/run/user/"+u.Uid,
+							"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+u.Uid+"/bus",
+							"XDG_SESSION_TYPE=tty",
+							"XDG_SESSION_CLASS=user",
+						)
+						break
+					}
+				}
+			}
 		}
 
 		// if we have a pty (ctty), fix its ownership

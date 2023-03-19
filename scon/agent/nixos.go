@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	nixosPollInterval = 50 * time.Millisecond
+	// also used for loginctl
+	nixosPollInterval = 25 * time.Millisecond
 	nixosBootTimeout  = 30 * time.Second
 )
 

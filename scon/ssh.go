@@ -430,6 +430,10 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		return
 	}
 	defer func() {
+		if !container.Running() {
+			return
+		}
+
 		err := container.UseAgent(func(a *agent.Client) error {
 			return a.EndUserSession(user)
 		})
