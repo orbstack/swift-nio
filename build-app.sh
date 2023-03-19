@@ -6,8 +6,8 @@ set -euxo pipefail
 #NOTARIZE=true
 #PUBLISH_UPDATE=true
 
-ARCHS=(amd64 arm64)
-NOTARIZE=true
+ARCHS=(arm64)
+NOTARIZE=false
 PUBLISH_UPDATE=false
 
 LONG_VER=$(git describe --tags --always --dirty)
@@ -88,11 +88,12 @@ function build_one() {
         -exportOptionsPlist export-options.plist \
         -exportPath build/$arch_go
 
-    rm -fr build/app.xcarchive
-
     rm -fr out/$arch_go
     mkdir -p out/$arch_go
     mv build/$arch_go/OrbStack.app out/$arch_go/
+    
+    mkdir -p out/$arch_go/dsym
+    cp -r build/app.xcarchive/dSYMs/*.dSYM out/$arch_go/dsym/
 
     popd
 }

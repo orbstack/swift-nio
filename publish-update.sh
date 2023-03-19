@@ -13,6 +13,14 @@ SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsr
 mkdir -p updates/pub/{arm64,amd64}
 cp swift/out/arm64/*.dmg updates/pub/arm64/ || :
 cp swift/out/amd64/*.dmg updates/pub/amd64/ || :
+
+# upload dsyms
+function upload_dsyms() {
+    sentry-cli upload-dif --org kdrag0n --project orbstack "$@"
+}
+upload_dsyms swift/out/*/OrbStack.app.dSYM &
+
+# generate appcast
 COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-files --delta-compression lzfse --release-notes-url-prefix 'https://cdn-updates.orbstack.dev/release-notes.html#' --full-release-notes-url 'https://docs.orbstack.dev/release-notes' --maximum-versions 2 --maximum-deltas 3)
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ updates/pub/arm64
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ updates/pub/amd64
