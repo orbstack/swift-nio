@@ -27,7 +27,9 @@ struct DockerContainersRootView: View {
 
                 Section(header: Text("Running")) {
                     ForEach(containers) { container in
-                        DockerContainerItem(container: container)
+                        if container.running {
+                            DockerContainerItem(container: container)
+                        }
                     }
 
                     // special case: show example http://localhost if only container is getting-started
@@ -62,6 +64,16 @@ struct DockerContainersRootView: View {
                         }
                     }
                 }
+
+                /*
+                Section(header: Text("Stopped")) {
+                    ForEach(containers) { container in
+                        if !container.running {
+                            DockerContainerItem(container: container)
+                        }
+                    }
+                }
+                 */
             }
         }
         .navigationTitle("Containers")

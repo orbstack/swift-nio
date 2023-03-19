@@ -115,7 +115,7 @@ func (s *VmControlServer) FinishSetup(ctx context.Context) error {
 
 func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertypes.Container, error) {
 	// only includes running
-	resp, err := s.dockerClient.Get("http://docker/containers/json")
+	resp, err := s.dockerClient.Get("http://docker/containers/json?all=true")
 	if err != nil {
 		return nil, err
 	}

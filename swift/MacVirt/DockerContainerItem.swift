@@ -137,6 +137,7 @@ struct DockerContainerItem: View {
                     .disabled(actionInProgress != nil)
                     .help("Delete container")
         }
+        .opacity(container.running ? 1 : 0.5)
         .padding(.vertical, 4)
         .onDoubleClick {
             presentPopover = true

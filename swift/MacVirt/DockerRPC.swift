@@ -25,6 +25,10 @@ struct DKContainer: Codable, Identifiable {
     //var networkSettings: SummaryNetworkSettings
     var mounts: [DKMountPoint]
 
+    var running: Bool {
+        state == "running"
+    }
+
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case names = "Names"
