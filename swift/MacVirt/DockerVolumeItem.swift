@@ -27,6 +27,7 @@ struct DockerVolumeItem: View {
     var volume: DKVolume
 
     @State private var actionInProgress = false
+    @State private var presentConfirmDelete = false
 
     var body: some View {
         HStack {
@@ -49,11 +50,16 @@ struct DockerVolumeItem: View {
             Spacer()
 
             Button(action: {
-                Task { @MainActor in
-                    actionInProgress = true
-                    await vmModel.tryDockerVolumeRemove(volume.name)
-                    actionInProgress = false
-                }
+                openFolder()
+            }) {
+                Image(systemName: "folder.fill")
+            }
+            .buttonStyle(.borderless)
+            .disabled(actionInProgress)
+            .help("Open volume")
+
+            Button(role: .destructive, action: {
+                self.presentConfirmDelete = true
             }) {
                 let opacity = actionInProgress ? 1.0 : 0.0
                 ZStack {
@@ -65,32 +71,40 @@ struct DockerVolumeItem: View {
                             .opacity(opacity)
                 }
             }
-                    .buttonStyle(.borderless)
-                    .disabled(actionInProgress)
-                    .help("Delete volume")
+            .buttonStyle(.borderless)
+            .disabled(actionInProgress)
+            .help("Delete volume")
         }
         .padding(.vertical, 4)
         .onDoubleClick {
             openFolder()
         }
-        .contextMenu {
-            Button(action: {
+        .confirmationDialog("Delete \(volume.name)?",
+                isPresented: $presentConfirmDelete) {
+            Button("Delete", role: .destructive) {
                 Task { @MainActor in
                     actionInProgress = true
                     await vmModel.tryDockerVolumeRemove(volume.name)
                     actionInProgress = false
                 }
+            }
+        } message: {
+            Text("Data will be permanently lost.")
+        }
+        .contextMenu {
+            Button(action: {
+                openFolder()
             }) {
-                Label("Delete", systemImage: "trash.fill")
-            }.disabled(actionInProgress)
+                Label("Open", systemImage: "folder")
+            }
 
             Divider()
 
             Button(action: {
-                openFolder()
+                self.presentConfirmDelete = true
             }) {
-                Label("Open in Finder", systemImage: "terminal")
-            }
+                Label("Delete", systemImage: "trash.fill")
+            }.disabled(actionInProgress)
 
             Divider()
 

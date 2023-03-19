@@ -41,6 +41,14 @@ struct FileContainerItem: View {
                         .font(.body)
             }
             Spacer()
+
+            Button(action: {
+                openOne(record)
+            }) {
+                Image(systemName: "folder.fill")
+            }
+            .buttonStyle(.borderless)
+            .help("Show machine files")
         }
         .padding(.vertical, 4)
         .onDoubleClick {
