@@ -30,6 +30,21 @@ func IsRunning() bool {
 	return true
 }
 
+func IsSconRunning() (bool, error) {
+	client, err := sclient.New("unix", conf.SconRPCSocket())
+	if err != nil {
+		return false, err
+	}
+	defer client.Close()
+
+	err = client.Ping()
+	if err != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func FindVmgrExe() (string, error) {
 	selfExe, err := os.Executable()
 	if err != nil {
@@ -101,14 +116,11 @@ func EnsureSconVM() error {
 			return errors.New("timed out waiting for machine manager to start")
 		}
 
-		client, err := sclient.New("unix", conf.SconRPCSocket())
+		isRunning, err := IsSconRunning()
 		if err != nil {
 			return err
 		}
-
-		err = client.Ping()
-		client.Close()
-		if err == nil {
+		if isRunning {
 			break
 		}
 

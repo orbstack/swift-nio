@@ -29,12 +29,12 @@ In the future, this will be done automatically if the VM is idle and unused.
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !vmclient.IsRunning() {
-			cmd.PrintErrln("VM is not running")
+			cmd.PrintErrln("No machines are running")
 			os.Exit(1)
 		}
 
 		// spinner
-		spinner := spinutil.Start("red", "Stopping VM and machines")
+		spinner := spinutil.Start("red", "Stopping Docker and machines")
 		var err error
 		if flagForce {
 			err = vmclient.Client().ForceStop()
