@@ -10,10 +10,6 @@ struct DockerFilterView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Filter")
-                    .font(.headline.weight(.semibold))
-                    .padding(.bottom, 8)
-
             Form {
                 Section {
                     Toggle("Show stopped containers", isOn: $settingShowStopped)

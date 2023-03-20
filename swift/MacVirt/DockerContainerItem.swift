@@ -40,7 +40,7 @@ struct DockerContainerItem: View {
     @State private var presentPopover = false
 
     var body: some View {
-        let isRunning = container.state == "running"
+        let isRunning = container.running
 
         HStack {
             HStack {
@@ -60,98 +60,100 @@ struct DockerContainerItem: View {
                             .joined(separator: ", ")
                     let name = nameTxt.isEmpty ? "(no name)" : nameTxt
                     Text(name)
-                            .font(.body)
+                    .font(.body)
+                    .popover(isPresented: $presentPopover, arrowEdge: .trailing) {
+                        VStack(alignment: .leading, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Info")
+                                        .font(.headline)
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .trailing) {
+                                        Text("Status")
+                                        Text("ID")
+                                        Text("Image")
+                                    }
+
+                                    VStack(alignment: .leading) {
+                                        Text(container.status)
+                                        Text(String(container.id.prefix(12)))
+                                                .font(.body.monospaced())
+                                        Text(container.image)
+                                    }
+                                }
+                                        .padding(.leading, 16)
+                            }
+
+                            if !container.ports.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Ports")
+                                            .font(.headline)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        ForEach(container.ports) { port in
+                                            Text(formatPort(port))
+                                                    .font(.body.monospacedDigit())
+                                                    .foregroundColor(.blue)
+                                                    .onHover { inside in
+                                                        if inside {
+                                                            NSCursor.pointingHand.push()
+                                                        } else {
+                                                            NSCursor.pop()
+                                                        }
+                                                    }
+                                                    .onTapGesture {
+                                                        openPort(port)
+                                                    }
+                                        }
+                                    }
+                                            .padding(.leading, 16)
+                                }
+                            }
+
+                            if !container.mounts.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Mounts")
+                                            .font(.headline)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        ForEach(container.mounts) { mount in
+                                            Text(formatMount(mount))
+                                                    .font(.body.monospacedDigit())
+                                                    .foregroundColor(.blue)
+                                                    .onHover { inside in
+                                                        if inside {
+                                                            NSCursor.pointingHand.push()
+                                                        } else {
+                                                            NSCursor.pop()
+                                                        }
+                                                    }
+                                                    .onTapGesture {
+                                                        openMount(mount)
+                                                    }
+                                        }
+                                    }
+                                            .padding(.leading, 16)
+                                }
+                            }
+
+                            VStack(alignment: .leading) {
+                                Button("Open Terminal", action: openInTerminal)
+
+                                if container.image == "docker/getting-started" {
+                                    // special case for more seamless onboarding
+                                    Button("Open in Browser", action: {
+                                        NSWorkspace.shared.open(URL(string: "http://localhost")!)
+                                    })
+                                }
+                            }
+                        }
+                                .padding(20)
+                    }
 
                     let shortId = String(container.id.prefix(12))
                     Text("\(shortId) (\(container.image))")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                            .truncationMode(.tail)
+                            .lineLimit(1)
                 }
-            }
-            .popover(isPresented: $presentPopover, arrowEdge: .trailing) {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Info")
-                                .font(.headline)
-                        HStack(spacing: 12) {
-                            VStack(alignment: .trailing) {
-                                Text("Status")
-                                Text("ID")
-                                Text("Image")
-                            }
-
-                            VStack(alignment: .leading) {
-                                Text(container.status)
-                                Text(String(container.id.prefix(12)))
-                                        .font(.body.monospaced())
-                                Text(container.image)
-                            }
-                        }
-                                .padding(.leading, 16)
-                    }
-
-                    if !container.ports.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Ports")
-                                    .font(.headline)
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(container.ports) { port in
-                                    Text(formatPort(port))
-                                            .font(.body.monospacedDigit())
-                                            .foregroundColor(.blue)
-                                            .onHover { inside in
-                                                if inside {
-                                                    NSCursor.pointingHand.push()
-                                                } else {
-                                                    NSCursor.pop()
-                                                }
-                                            }
-                                            .onTapGesture {
-                                                openPort(port)
-                                            }
-                                }
-                            }
-                                    .padding(.leading, 16)
-                        }
-                    }
-
-                    if !container.mounts.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Mounts")
-                                    .font(.headline)
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(container.mounts) { mount in
-                                    Text(formatMount(mount))
-                                            .font(.body.monospacedDigit())
-                                            .foregroundColor(.blue)
-                                            .onHover { inside in
-                                                if inside {
-                                                    NSCursor.pointingHand.push()
-                                                } else {
-                                                    NSCursor.pop()
-                                                }
-                                            }
-                                            .onTapGesture {
-                                                openMount(mount)
-                                            }
-                                }
-                            }
-                                    .padding(.leading, 16)
-                        }
-                    }
-
-                    VStack(alignment: .leading) {
-                        Button("Open Terminal", action: openInTerminal)
-
-                        if container.image == "docker/getting-started" {
-                            // special case for more seamless onboarding
-                            Button("Open in Browser", action: {
-                                NSWorkspace.shared.open(URL(string: "http://localhost")!)
-                            })
-                        }
-                    }
-                }
-                        .padding(20)
             }
             Spacer()
             if isRunning {
