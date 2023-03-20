@@ -44,5 +44,8 @@ var (
 		"GOTOOLDIR",
 		"GOMOD",
 		"GOWORK",
+
+		// nvm
+		"NVM_DIR",
 	}
 )
