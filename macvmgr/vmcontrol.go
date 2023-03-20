@@ -142,6 +142,10 @@ func (s *VmControlServer) DockerContainerStart(ctx context.Context, req vmtypes.
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == 304 { // Not Modified
+			return nil
+		}
+
 		return errors.New("status: " + resp.Status)
 	}
 
@@ -156,6 +160,10 @@ func (s *VmControlServer) DockerContainerStop(ctx context.Context, req vmtypes.I
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == 304 { // Not Modified
+			return nil
+		}
+
 		return errors.New("status: " + resp.Status)
 	}
 
@@ -184,6 +192,10 @@ func (s *VmControlServer) DockerContainerPause(ctx context.Context, req vmtypes.
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == 304 { // Not Modified
+			return nil
+		}
+
 		return errors.New("status: " + resp.Status)
 	}
 
@@ -198,6 +210,10 @@ func (s *VmControlServer) DockerContainerUnpause(ctx context.Context, req vmtype
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == 304 { // Not Modified
+			return nil
+		}
+
 		return errors.New("status: " + resp.Status)
 	}
 
@@ -275,7 +291,7 @@ func (s *VmControlServer) DockerVolumeRemove(ctx context.Context, params vmtypes
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == 409 {
+		if resp.StatusCode == 409 { // Conflict
 			return errors.New("volume in use")
 		}
 

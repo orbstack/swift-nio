@@ -147,7 +147,7 @@ struct DockerContainerItem: View {
 
                                 if container.image == "docker/getting-started" {
                                     // special case for more seamless onboarding
-                                    Button("Open in Browser", action: {
+                                    Button("Open Tutorial", action: {
                                         NSWorkspace.shared.open(URL(string: "http://localhost")!)
                                     })
                                 }

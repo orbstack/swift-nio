@@ -17,6 +17,7 @@ struct DockerContainersRootView: View {
             refreshAction: refresh
         ) { containers, dockerRecord in
             let runningCount = containers.filter { $0.running }.count
+            let totalCount = containers.count
 
             List(selection: $selection) {
                 if #available(macOS 13, *) {
@@ -37,7 +38,8 @@ struct DockerContainersRootView: View {
                     }
 
                     // special case: show example http://localhost if only container is getting-started
-                    if containers.isEmpty || (containers.count == 1 && containers[0].image == "docker/getting-started") {
+                    let visibleCount = settingShowStopped ? totalCount : runningCount
+                    if visibleCount == 0 || (visibleCount == 1 && containers[0].image == "docker/getting-started") {
                         HStack {
                             Spacer()
                             VStack {

@@ -280,6 +280,12 @@ func migrateStateV1ToV2(state *vmconfig.VmgrState) error {
 		// unlink
 		err = os.Remove(linuxDir)
 		if err != nil {
+			// if permission denied, that means dir is not empty
+			// leave it alone
+			if errors.Is(err, os.ErrPermission) {
+				return nil
+			}
+
 			return err
 		}
 
@@ -290,6 +296,7 @@ func migrateStateV1ToV2(state *vmconfig.VmgrState) error {
 		}
 	}
 
+	// nothing to do if ~/Linux doesn't exist
 	return nil
 }
 
