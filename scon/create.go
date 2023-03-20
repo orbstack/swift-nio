@@ -18,8 +18,8 @@ const (
 )
 
 var (
-	// no '.' in case of conflict with mac bundle extensions
-	containerNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	// min 2 chars, disallows hidden files (^.)
+	containerNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`)
 )
 
 type CreateParams struct {

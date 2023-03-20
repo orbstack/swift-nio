@@ -5,7 +5,8 @@
 import Foundation
 import SwiftUI
 
-fileprivate let containerNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9_-]+$"))!
+// min 2 chars, disallows hidden files (^.)
+fileprivate let dockerRestrictedNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"))!
 
 struct CreateVolumeView: View {
     @EnvironmentObject private var vmModel: VmViewModel
@@ -82,7 +83,7 @@ struct CreateVolumeView: View {
         }
 
         // regex
-        if !newName.isEmpty && containerNamePattern.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) == nil {
+        if !newName.isEmpty && dockerRestrictedNamePattern.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) == nil {
             isNameInvalid = true
         } else {
             isNameInvalid = false

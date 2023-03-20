@@ -5,7 +5,8 @@
 import Foundation
 import SwiftUI
 
-fileprivate let containerNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9_-]+$"))!
+// min 2 chars, disallows hidden files (^.)
+fileprivate let containerNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"))!
 
 struct CreateContainerView: View {
     @EnvironmentObject private var vmModel: VmViewModel
