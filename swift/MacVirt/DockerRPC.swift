@@ -8,7 +8,7 @@ struct IDRequest: Codable {
     let id: String
 }
 
-struct DKContainer: Codable, Identifiable {
+struct DKContainer: Codable, Identifiable, Hashable {
     var id: String
     var names: [String]
     var image: String
