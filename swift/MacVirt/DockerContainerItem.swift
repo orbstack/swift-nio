@@ -28,6 +28,15 @@ enum DKContainerAction {
     case unpause
     case restart
     case remove
+
+    var isStartStop: Bool {
+        switch self {
+        case .start, .stop, .restart:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 struct DockerContainerItem: View {
@@ -164,7 +173,7 @@ struct DockerContainerItem: View {
                         actionInProgress = nil
                     }
                 }) {
-                    let opacity = actionInProgress == .stop || actionInProgress == .restart ? 1.0 : 0.0
+                    let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
                     ZStack {
                         Image(systemName: "stop.fill")
                                 .opacity(1 - opacity)
@@ -185,7 +194,7 @@ struct DockerContainerItem: View {
                         actionInProgress = nil
                     }
                 }) {
-                    let opacity = actionInProgress == .stop || actionInProgress == .restart ? 1.0 : 0.0
+                    let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
                     ZStack {
                         Image(systemName: "play.fill")
                                 .opacity(1 - opacity)
