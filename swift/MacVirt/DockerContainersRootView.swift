@@ -30,7 +30,7 @@ struct DockerContainersRootView: View {
                 }
 
                 Section(header: Text("Running")) {
-                    ForEach(containers, id: \.self) { container in
+                    ForEach(containers) { container in
                         if container.running {
                             DockerContainerItem(container: container)
                         }
@@ -71,7 +71,7 @@ struct DockerContainersRootView: View {
 
                 if settingShowStopped {
                     Section(header: Text("Stopped")) {
-                        ForEach(containers, id: \.self) { container in
+                        ForEach(containers) { container in
                             if !container.running {
                                 DockerContainerItem(container: container)
                             }
