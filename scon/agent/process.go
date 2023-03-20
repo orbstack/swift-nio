@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -88,6 +89,51 @@ func lookupShell(user string) (string, error) {
 	}
 
 	return "", errors.New("user not found")
+}
+
+func parsePamEnv() ([]string, bool, error) {
+	envBytes, err := os.ReadFile("/etc/environment")
+	if err != nil {
+		return nil, false, err
+	}
+	env := string(envBytes)
+
+	// parse
+	lines := strings.Split(env, "\n")
+	envs := make([]string, 0)
+	foundPath := false
+	for _, line := range lines {
+		// empty line
+		if line == "" {
+			continue
+		}
+		// comment
+		if line[0] == '#' {
+			continue
+		}
+		// shell compat: "export "
+		line = strings.TrimPrefix(line, "export ")
+		// split kv
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		// quotes
+		if len(v) > 0 {
+			if v[0] == '"' && v[len(v)-1] == '"' {
+				v = v[1 : len(v)-1]
+			}
+			if v[0] == '\'' && v[len(v)-1] == '\'' {
+				v = v[1 : len(v)-1]
+			}
+		}
+		envs = append(envs, k+"="+v)
+		if k == "PATH" {
+			foundPath = true
+		}
+	}
+
+	return envs, foundPath, nil
 }
 
 func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessReply) (err error) {
@@ -171,21 +217,35 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 
 			// replace sentinel with shell
 			args.CombinedArgs[0] = shell
-			// set standard login/su environment
-			// inherit system PATH
-			// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L760
-			args.Env = append(args.Env,
-				"SHELL="+shell,
-				"HOME="+u.HomeDir,
-				"USER="+u.Username,
-				"LOGNAME="+u.Username,
-				"PATH="+os.Getenv("PATH"),
-			)
 
-			// pam_systemd
-			// we do enable-linger asynchronously so /run/user/UID won't exist yet,
-			// and waiting for it is too slow (~250 ms)
 			if args.DoLogin {
+				pamEnv, foundPath, err := parsePamEnv()
+				// not exist is ok
+				if err != nil && !errors.Is(err, os.ErrNotExist) {
+					// never fail though - just log
+					logrus.WithError(err).Error("failed to parse /etc/environment")
+				}
+
+				args.Env = append(args.Env, pamEnv...)
+				if !foundPath {
+					// inherit system PATH
+					args.Env = append(args.Env, "PATH="+os.Getenv("PATH"))
+				}
+
+				// initial PAM environment
+				// set standard login/su environment
+				// inherit system PATH
+				// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L760
+				args.Env = append(args.Env,
+					"SHELL="+shell,
+					"HOME="+u.HomeDir,
+					"USER="+u.Username,
+					"LOGNAME="+u.Username,
+				)
+
+				// pam_systemd
+				// we do enable-linger asynchronously so /run/user/UID won't exist yet,
+				// and waiting for it is too slow (~250 ms)
 				if _, err := exec.LookPath("loginctl"); err == nil {
 					args.Env = append(args.Env,
 						"XDG_RUNTIME_DIR=/run/user/"+u.Uid,

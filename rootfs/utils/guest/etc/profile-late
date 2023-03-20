@@ -1,12 +1,3 @@
-__orb_path_set=0
-case "$PATH" in
-*"/opt/orbstack-guest/bin"*)
-__orb_path_set=1
-;;
-esac
-
-if [ $__orb_path_set = 0 ]; then
+if [ -n "${PATH##*/opt/orbstack-guest/bin*}" ]; then
     export PATH="/opt/orbstack-guest/bin-hiprio:$PATH:/opt/orbstack-guest/bin:/opt/orbstack-guest/data/bin/cmdlinks"
 fi
-
-unset __orb_path_set
