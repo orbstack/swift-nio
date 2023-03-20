@@ -23,6 +23,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const (
+	dataReadmeText = `# OrbStack data
+
+This folder is used to store all OrbStack data, including Docker images, containers, and Linux machines.
+
+If you see an 8 TB data.img file, don't panic! It's a special type of file that it only takes as much space as you use, and automatically shrinks when you delete data. It does *not* take up 8 TB of disk space.
+
+To find the real size:
+    - Run "du -sh data.img" in Terminal, or
+    - Right-click the file and select "Get Info"
+      Then look at "size on disk"
+
+For more details, see https://docs.orbstack.dev/faq#data-img
+`
+)
+
 type UserDetails struct {
 	IsAdmin bool
 	Shell   string
@@ -323,6 +339,11 @@ func writeShellProfileSnippets() error {
 	return nil
 }
 
+func writeDataReadme() error {
+	// write readme
+	return os.WriteFile(conf.DataDir()+"/!! READ ME !!.txt", []byte(dataReadmeText), 0644)
+}
+
 /*
 for commands:
 1. ~/bin IF exists AND in path (or ~/.local/bin)
@@ -402,6 +423,11 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 
 	// write all the shell profile snippets
 	err = writeShellProfileSnippets()
+	if err != nil {
+		return nil, err
+	}
+
+	err = writeDataReadme()
 	if err != nil {
 		return nil, err
 	}
