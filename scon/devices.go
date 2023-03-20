@@ -4,9 +4,9 @@ import (
 	"errors"
 	"path"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
+	"k8s.io/utils/inotify"
 )
 
 func (m *ConManager) addDeviceNodeAll(src string, dst string) error {
@@ -59,18 +59,18 @@ func (m *ConManager) removeDeviceNodeAll(src string, dst string) error {
 	return errors.Join(errs...)
 }
 
-func (m *ConManager) handleDeviceEvent(event fsnotify.Event) {
+func (m *ConManager) handleDeviceEvent(event *inotify.Event) {
 	logrus.WithField("event", event).Debug("device event")
 
 	nodeName := path.Base(event.Name)
 	if MatchesExtraDevice(nodeName) {
-		if event.Op&fsnotify.Create != 0 {
+		if event.Mask&inotify.InCreate != 0 {
 			logrus.WithField("path", event.Name).Debug("creating extra device")
 			err := m.addDeviceNodeAll(event.Name, event.Name)
 			if err != nil {
 				logrus.WithError(err).Error("failed to add extra device")
 			}
-		} else if event.Op&fsnotify.Remove != 0 {
+		} else if event.Mask&inotify.InDelete != 0 {
 			logrus.WithField("path", event.Name).Debug("removing extra device")
 			err := m.removeDeviceNodeAll(event.Name, event.Name)
 			if err != nil {
@@ -81,26 +81,26 @@ func (m *ConManager) handleDeviceEvent(event fsnotify.Event) {
 }
 
 func (m *ConManager) runDeviceMonitor() error {
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := inotify.NewWatcher()
 	if err != nil {
 		return err
 	}
 	defer watcher.Close()
 
-	err = watcher.Add("/dev")
+	err = watcher.AddWatch("/dev", inotify.InCreate|inotify.InDelete)
 	if err != nil {
 		return err
 	}
 
 	for {
 		select {
-		case event := <-watcher.Events:
-			if event.Op&fsnotify.Create != 0 {
+		case event := <-watcher.Event:
+			if event.Mask&inotify.InCreate != 0 {
 				m.handleDeviceEvent(event)
-			} else if event.Op&fsnotify.Remove != 0 {
+			} else if event.Mask&inotify.InDelete != 0 {
 				m.handleDeviceEvent(event)
 			}
-		case err := <-watcher.Errors:
+		case err := <-watcher.Error:
 			logrus.WithError(err).Error("device watcher error")
 		}
 	}

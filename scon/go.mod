@@ -22,16 +22,17 @@ require (
 	github.com/creachadair/jrpc2 v0.43.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/fatih/color v1.14.1
-	github.com/fsnotify/fsnotify v1.6.0
 	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/pkg/sftp v1.13.5
+	github.com/sasha-s/go-deadlock v0.3.1
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.1
 	go.etcd.io/bbolt v1.3.6
 	golang.org/x/exp v0.0.0-20230206171751-46f607a40771
 	golang.org/x/term v0.4.0
 	gopkg.in/yaml.v3 v3.0.1
+	k8s.io/utils v0.0.0-20230313181309-38a27ef9d749
 )
 
 require (
@@ -42,7 +43,6 @@ require (
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 )

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
@@ -19,6 +18,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
+	"k8s.io/utils/inotify"
 )
 
 const (
@@ -334,26 +334,26 @@ func (m *ConManager) runDockerNFS() error {
 	})
 	debounce.Call()
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := inotify.NewWatcher()
 	if err != nil {
 		return err
 	}
 	defer watcher.Close()
 
-	err = watcher.Add(dockerVolDir)
+	err = watcher.AddWatch(dockerVolDir, inotify.InCreate|inotify.InDelete)
 	if err != nil {
 		return err
 	}
 
 	for {
 		select {
-		case event := <-watcher.Events:
-			if event.Op&fsnotify.Create != 0 {
+		case event := <-watcher.Event:
+			if event.Mask&inotify.InCreate != 0 {
 				debounce.Call()
-			} else if event.Op&fsnotify.Remove != 0 {
+			} else if event.Mask&inotify.InDelete != 0 {
 				debounce.Call()
 			}
-		case err := <-watcher.Errors:
+		case err := <-watcher.Error:
 			logrus.WithError(err).Error("docker volume watcher error")
 		}
 	}
