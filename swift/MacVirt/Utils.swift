@@ -178,3 +178,11 @@ private func openViaAppleEvent(_ url: URL, bundleId: String) throws {
         throw error
     }
 }
+
+struct Folders {
+    static let home = FileManager.default.homeDirectoryForCurrentUser.path
+    static let nfsName = "OrbStack"
+    static let nfs = "\(home)/\(nfsName)"
+    static let nfsDocker = "\(nfs)/docker"
+    static let nfsDockerVolumes = "\(nfsDocker)/volumes"
+}

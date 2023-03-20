@@ -62,7 +62,7 @@ func NfsDataRoot() string {
 		panic(err)
 	}
 
-	return "/Users/" + user + "/Linux/" + hostname
+	return "/Users/" + user + "/" + mounts.NfsDirName + "/" + hostname
 }
 
 func TranslatePath(p string) string {

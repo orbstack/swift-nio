@@ -260,12 +260,63 @@ func writePidFile() {
 	check(err)
 }
 
+func migrateStateV1ToV2(state *vmconfig.VmgrState) error {
+	logrus.WithFields(logrus.Fields{
+		"from": "1",
+		"to":   "2",
+	}).Info("migrating state")
+
+	// check for ~/Linux
+	linuxDir := conf.HomeDir() + "/Linux"
+	if _, err := os.Stat(linuxDir); err == nil {
+		// unmount if it's mounted
+		if isMountpoint(linuxDir) {
+			err = nfsmnt.UnmountNfs()
+			if err != nil {
+				return err
+			}
+		}
+
+		// unlink
+		err = os.Remove(linuxDir)
+		if err != nil {
+			return err
+		}
+
+		// replace with symlink
+		err = os.Symlink(conf.NfsMountpoint(), linuxDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func migrateState() error {
 	old := vmconfig.GetState()
 	logrus.Debug("old state: ", old)
 
-	err := vmconfig.UpdateState(func(state *vmconfig.VmgrState) {
-		state.Version = vmconfig.CurrentVersion
+	// TODO: future versions need transactional updates
+	err := vmconfig.UpdateState(func(state *vmconfig.VmgrState) error {
+		ver := state.Version
+
+		// v1: initial version up to 0.4.0
+
+		// v2: 0.4.1 - moved nfs mount from ~/Linux to ~/OrbStack
+		if ver == 1 {
+			err := migrateStateV1ToV2(state)
+			if err != nil {
+				return err
+			}
+
+			ver = 2
+		}
+
+		ver = vmconfig.CurrentVersion
+		state.Version = ver
+
+		return nil
 	})
 	if err != nil {
 		return err

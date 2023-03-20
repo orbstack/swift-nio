@@ -383,8 +383,7 @@ struct DockerContainerItem: View {
 
         if let volName = mount.name,
            mount.type == .volume {
-            let home = FileManager.default.homeDirectoryForCurrentUser.path
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: home + "/Linux/docker/volumes/\(volName)")
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerVolumes)/\(volName)")
         } else {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: src)
         }

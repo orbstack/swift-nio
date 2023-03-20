@@ -64,7 +64,6 @@ struct FileContainerItem: View {
     }
 
     func openOne(_ container: ContainerRecord) {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: home + "/Linux/\(container.name)")
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfs)/\(container.name)")
     }
 }

@@ -187,7 +187,7 @@ struct CommandsRootView: View {
                         )
                     }
 
-                    CommandSection(systemImage: "folder.fill", title: "File transfer", desc: "You can also use shared folders at /Users and ~/Linux to transfer files.") {
+                    CommandSection(systemImage: "folder.fill", title: "File transfer", desc: "You can also use shared folders at /Users and ~/\(Folders.nfsName) to transfer files.") {
                         CommandBox(
                                 title: "Copy files from Mac to Linux",
                                 desc: "Push from Mac to the default Linux machine's home folder.",

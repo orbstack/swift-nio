@@ -33,7 +33,7 @@ struct DockerVolumesRootView: View {
                         HStack {
                             Spacer()
                             VStack {
-                                Text("You can also find these volumes in ~/Linux/docker.")
+                                Text("You can also find these volumes in ~/\(Folders.nfsName)/docker.")
                                         .font(.title3)
                                         .foregroundColor(.secondary)
                             }

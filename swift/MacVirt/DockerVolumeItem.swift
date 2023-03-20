@@ -117,8 +117,7 @@ struct DockerVolumeItem: View {
             }
 
             Button(action: {
-                let home = FileManager.default.homeDirectoryForCurrentUser.path
-                let path = home + "/Linux/docker/volumes/\(volume.name)"
+                let path = "\(Folders.nfsDockerVolumes)/\(volume.name)"
 
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
@@ -130,7 +129,6 @@ struct DockerVolumeItem: View {
     }
 
     private func openFolder() {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: home + "/Linux/docker/volumes/\(volume.name)")
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerVolumes)/\(volume.name)")
     }
 }

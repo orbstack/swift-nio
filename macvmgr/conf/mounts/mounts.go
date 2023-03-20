@@ -39,5 +39,5 @@ const (
 
 // mac
 const (
-	NfsDirName = "Linux"
+	NfsDirName = "OrbStack"
 )

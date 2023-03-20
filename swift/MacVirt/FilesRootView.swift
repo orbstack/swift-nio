@@ -21,7 +21,7 @@ struct FilesRootView: View {
                     HStack {
                         Spacer()
                         VStack {
-                            Text("You can also find these files in ~/Linux.")
+                            Text("You can also find these files in ~/\(Folders.nfsName).")
                                     .font(.title3)
                                     .foregroundColor(.secondary)
                         }

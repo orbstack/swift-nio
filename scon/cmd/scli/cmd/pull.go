@@ -26,7 +26,7 @@ If destination is not specified, the current directory is used.
 This is provided for convenience, but you can also use shared folders. For example:
     ` + appid.ShortCtl + ` pull code/example.txt .
 is equivalent to:
-	cp ~/Linux/ubuntu/home/$USER/code/example.txt .`,
+	cp ~/OrbStack/ubuntu/home/$USER/code/example.txt .`,
 	Example: "  " + appid.ShortCtl + " pull code/example.txt .",
 	Args:    cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {

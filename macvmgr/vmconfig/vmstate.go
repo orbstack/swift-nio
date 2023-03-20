@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	CurrentVersion = 1
+	CurrentVersion = 2
 )
 
 var (
@@ -67,15 +67,18 @@ func GetState() *VmgrState {
 	return globalState
 }
 
-func UpdateState(cb func(*VmgrState)) error {
+func UpdateState(cb func(*VmgrState) error) error {
 	state := GetState()
 
 	globalStateMu.Lock()
 	defer globalStateMu.Unlock()
 
-	cb(state)
+	err := cb(state)
+	if err != nil {
+		return err
+	}
 
-	err := state.Validate()
+	err = state.Validate()
 	if err != nil {
 		return err
 	}

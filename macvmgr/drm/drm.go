@@ -252,7 +252,7 @@ func (c *DrmClient) UseSconInternalClient(fn func(*isclient.Client) error) error
 
 		// connect
 		dlog("dial scon internal rpc")
-		// important: retry. if it fails, drm could fail when it shouldn't, and ~/Linux bind mounts won't work
+		// important: retry. if it fails, drm could fail when it shouldn't, and ~/OrbStack bind mounts won't work
 		conn, err := c.vnet.DialGuestTCPRetry(ports.GuestSconRPCInternal)
 		if err != nil {
 			return err
