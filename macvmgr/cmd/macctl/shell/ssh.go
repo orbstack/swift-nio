@@ -15,8 +15,8 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 const (
@@ -181,22 +181,22 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	// individual ptys
 	// tell the host which ones should be pipes and which ones should be ptys
 	ptyFd := -1
-	if terminal.IsTerminal(fdStdin) {
+	if term.IsTerminal(fdStdin) {
 		meta.PtyStdin = true
 		ptyFd = fdStdin
 	}
-	if terminal.IsTerminal(fdStdout) {
+	if term.IsTerminal(fdStdout) {
 		meta.PtyStdout = true
 		ptyFd = fdStdout
 	}
-	if terminal.IsTerminal(fdStderr) {
+	if term.IsTerminal(fdStderr) {
 		meta.PtyStderr = true
 		ptyFd = fdStderr
 	}
 	// need a pty?
 	if meta.PtyStdin || meta.PtyStdout || meta.PtyStderr {
-		term := os.Getenv("TERM")
-		w, h, err := terminal.GetSize(ptyFd)
+		termEnv := os.Getenv("TERM")
+		w, h, err := term.GetSize(ptyFd)
 		if err != nil {
 			return 0, err
 		}
@@ -210,15 +210,15 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 
 		// raw mode if both outputs are ptys
 		if meta.PtyStdout && meta.PtyStderr {
-			state, err := terminal.MakeRaw(ptyFd)
+			state, err := term.MakeRaw(ptyFd)
 			if err != nil {
 				return 0, err
 			}
-			defer terminal.Restore(ptyFd, state)
+			defer term.Restore(ptyFd, state)
 		}
 
 		// request pty
-		err = session.RequestPty(term, h, w, modes)
+		err = session.RequestPty(termEnv, h, w, modes)
 		if err != nil {
 			return 0, err
 		}
@@ -308,7 +308,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 				logrus.WithError(err).Warn("failed to forward signal")
 			}
 		case <-winchChan:
-			w, h, err := terminal.GetSize(ptyFd)
+			w, h, err := term.GetSize(ptyFd)
 			if err != nil {
 				continue
 			}
