@@ -8,12 +8,16 @@ import SwiftUI
 struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
+    @AppStorage("docker_filterShowStopped") private var settingShowStopped = false
+
     @State private var selection: String?
 
     var body: some View {
         DockerStateWrapperView(
             refreshAction: refresh
         ) { containers, dockerRecord in
+            let runningCount = containers.filter { $0.running }.count
+
             List(selection: $selection) {
                 if #available(macOS 13, *) {
                     Section {
@@ -65,16 +69,17 @@ struct DockerContainersRootView: View {
                     }
                 }
 
-                /*
-                Section(header: Text("Stopped")) {
-                    ForEach(containers) { container in
-                        if !container.running {
-                            DockerContainerItem(container: container)
+                if settingShowStopped {
+                    Section(header: Text("Stopped")) {
+                        ForEach(containers) { container in
+                            if !container.running {
+                                DockerContainerItem(container: container)
+                            }
                         }
                     }
                 }
-                 */
             }
+            .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
         }
         .navigationTitle("Containers")
     }

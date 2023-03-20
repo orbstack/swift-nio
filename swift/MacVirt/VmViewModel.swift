@@ -271,6 +271,7 @@ class VmViewModel: ObservableObject {
     @Published var presentAddPaths: AddPathsAlert?
     @Published var presentCreateMachine = false
     @Published var presentCreateVolume = false
+    @Published var presentDockerFilter = false
 
     // Docker
     @Published var dockerContainers: [DKContainer]?
@@ -437,31 +438,36 @@ class VmViewModel: ObservableObject {
         try await waitForScon()
         let containers = try await vmgr.dockerContainerList()
         // preprocess
-        dockerContainers = containers
-                .map { container in
-                    var container = container
+        dockerContainers = containers.map { container in
+            var container = container
 
-                    // filter ports
-                    container.ports = container.ports.filter { origPort in
-                        // remove 127.0.0.1 if ::1 exists
-                        if origPort.ip == "127.0.0.1" {
-                            return !container.ports.contains(where: { $0.ip == "::1" && $0.publicPortInt == origPort.publicPortInt })
-                        }
-                        // remove 0.0.0.0 if :: exists
-                        if origPort.ip == "0.0.0.0" {
-                            return !container.ports.contains(where: { $0.ip == "::" && $0.publicPortInt == origPort.publicPortInt })
-                        }
-                        return true
-                    }
-
-                    // sort ports
-                    container.ports.sort { $0.publicPortInt < $1.publicPortInt }
-
-                    // sort mounts
-                    container.mounts.sort { "\($0.source)\($0.destination)" < "\($1.source)\($1.destination)" }
-
-                    return container
+            // filter ports
+            container.ports = container.ports.filter { origPort in
+                // only include ones with public ports
+                // private port only = EXPOSE w/o forward
+                guard origPort.publicPort != nil else {
+                    return false
                 }
+
+                // remove 127.0.0.1 if ::1 exists
+                if origPort.ip == "127.0.0.1" {
+                    return !container.ports.contains(where: { $0.ip == "::1" && $0.publicPortInt == origPort.publicPortInt })
+                }
+                // remove 0.0.0.0 if :: exists
+                if origPort.ip == "0.0.0.0" {
+                    return !container.ports.contains(where: { $0.ip == "::" && $0.publicPortInt == origPort.publicPortInt })
+                }
+                return true
+            }
+
+            // sort ports
+            container.ports.sort { $0.publicPortInt < $1.publicPortInt }
+
+            // sort mounts
+            container.mounts.sort { "\($0.source)\($0.destination)" < "\($1.source)\($1.destination)" }
+
+            return container
+        }
         let resp = try await vmgr.dockerVolumeList()
         // sort volumes
         let volumes = resp.volumes.sorted { $0.name < $1.name }

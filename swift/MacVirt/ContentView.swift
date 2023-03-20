@@ -134,6 +134,19 @@ struct ContentView: View {
                     .help("New Volume")
                 }
             }
+
+            ToolbarItem(placement: .automatic) {
+                if model.state == .running && selection == "docker" {
+                    Button(action: {
+                        model.presentDockerFilter = true
+                    }) {
+                        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                    }.popover(isPresented: $model.presentDockerFilter, arrowEdge: .bottom) {
+                        DockerFilterView()
+                    }
+                    .help("Filter containers")
+                }
+            }
         }
         .background(WindowAccessor(holder: windowHolder))
         .onAppear {

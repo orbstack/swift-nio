@@ -38,8 +38,6 @@ struct DockerContainerItem: View {
     @State private var actionInProgress: DKContainerAction? = nil
 
     @State private var presentPopover = false
-    @State private var rawLabelRect: CGRect = .zero
-    @State private var popoverRect: CGRect = .zero
 
     var body: some View {
         let isRunning = container.state == "running"
@@ -70,7 +68,91 @@ struct DockerContainerItem: View {
                             .foregroundColor(.secondary)
                 }
             }
-            .background(rectReader($rawLabelRect, .local))
+            .popover(isPresented: $presentPopover, arrowEdge: .trailing) {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Info")
+                                .font(.headline)
+                        HStack(spacing: 12) {
+                            VStack(alignment: .trailing) {
+                                Text("Status")
+                                Text("ID")
+                                Text("Image")
+                            }
+
+                            VStack(alignment: .leading) {
+                                Text(container.status)
+                                Text(String(container.id.prefix(12)))
+                                        .font(.body.monospaced())
+                                Text(container.image)
+                            }
+                        }
+                                .padding(.leading, 16)
+                    }
+
+                    if !container.ports.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Ports")
+                                    .font(.headline)
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(container.ports) { port in
+                                    Text(formatPort(port))
+                                            .font(.body.monospacedDigit())
+                                            .foregroundColor(.blue)
+                                            .onHover { inside in
+                                                if inside {
+                                                    NSCursor.pointingHand.push()
+                                                } else {
+                                                    NSCursor.pop()
+                                                }
+                                            }
+                                            .onTapGesture {
+                                                openPort(port)
+                                            }
+                                }
+                            }
+                                    .padding(.leading, 16)
+                        }
+                    }
+
+                    if !container.mounts.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Mounts")
+                                    .font(.headline)
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(container.mounts) { mount in
+                                    Text(formatMount(mount))
+                                            .font(.body.monospacedDigit())
+                                            .foregroundColor(.blue)
+                                            .onHover { inside in
+                                                if inside {
+                                                    NSCursor.pointingHand.push()
+                                                } else {
+                                                    NSCursor.pop()
+                                                }
+                                            }
+                                            .onTapGesture {
+                                                openMount(mount)
+                                            }
+                                }
+                            }
+                                    .padding(.leading, 16)
+                        }
+                    }
+
+                    VStack(alignment: .leading) {
+                        Button("Open Terminal", action: openInTerminal)
+
+                        if container.image == "docker/getting-started" {
+                            // special case for more seamless onboarding
+                            Button("Open in Browser", action: {
+                                NSWorkspace.shared.open(URL(string: "http://localhost")!)
+                            })
+                        }
+                    }
+                }
+                        .padding(20)
+            }
             Spacer()
             if isRunning {
                 Button(action: {
@@ -80,7 +162,7 @@ struct DockerContainerItem: View {
                         actionInProgress = nil
                     }
                 }) {
-                    let opacity = actionInProgress == .stop ? 1.0 : 0.0
+                    let opacity = actionInProgress == .stop || actionInProgress == .restart ? 1.0 : 0.0
                     ZStack {
                         Image(systemName: "stop.fill")
                                 .opacity(1 - opacity)
@@ -101,7 +183,7 @@ struct DockerContainerItem: View {
                         actionInProgress = nil
                     }
                 }) {
-                    let opacity = actionInProgress == .stop ? 1.0 : 0.0
+                    let opacity = actionInProgress == .stop || actionInProgress == .restart ? 1.0 : 0.0
                     ZStack {
                         Image(systemName: "play.fill")
                                 .opacity(1 - opacity)
@@ -143,6 +225,16 @@ struct DockerContainerItem: View {
             presentPopover = true
         }
         .contextMenu {
+            Button(action: {
+                Task { @MainActor in
+                    actionInProgress = .start
+                    await vmModel.tryDockerContainerStart(container.id)
+                    actionInProgress = nil
+                }
+            }) {
+                Label("Start", systemImage: "start.fill")
+            }.disabled(actionInProgress != nil || isRunning)
+
             Button(action: {
                 Task { @MainActor in
                     actionInProgress = .stop
@@ -233,96 +325,6 @@ struct DockerContainerItem: View {
                 Label("Copy Command", systemImage: "doc.on.doc")
             }
         }
-        .onChange(of: rawLabelRect) { rect in
-            var r = rect
-            r.size.width += 16
-            popoverRect = r
-        }
-        .popover(isPresented: $presentPopover, attachmentAnchor: .rect(.rect(popoverRect)), arrowEdge: .trailing) {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Info")
-                            .font(.headline)
-                    HStack(spacing: 12) {
-                        VStack(alignment: .trailing) {
-                            Text("Status")
-                            Text("ID")
-                            Text("Image")
-                        }
-
-                        VStack(alignment: .leading) {
-                            Text(container.status)
-                            Text(String(container.id.prefix(12)))
-                                    .font(.body.monospaced())
-                            Text(container.image)
-                        }
-                    }
-                    .padding(.leading, 16)
-                }
-
-                if !container.ports.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Ports")
-                                .font(.headline)
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(container.ports) { port in
-                                Text(formatPort(port))
-                                        .font(.body.monospacedDigit())
-                                        .foregroundColor(.blue)
-                                        .onHover { inside in
-                                            if inside {
-                                                NSCursor.pointingHand.push()
-                                            } else {
-                                                NSCursor.pop()
-                                            }
-                                        }
-                                        .onTapGesture {
-                                            openPort(port)
-                                        }
-                            }
-                        }
-                        .padding(.leading, 16)
-                    }
-                }
-
-                if !container.mounts.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Mounts")
-                                .font(.headline)
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(container.mounts) { mount in
-                                Text(formatMount(mount))
-                                        .font(.body.monospacedDigit())
-                                        .foregroundColor(.blue)
-                                        .onHover { inside in
-                                            if inside {
-                                                NSCursor.pointingHand.push()
-                                            } else {
-                                                NSCursor.pop()
-                                            }
-                                        }
-                                        .onTapGesture {
-                                            openMount(mount)
-                                        }
-                            }
-                        }
-                        .padding(.leading, 16)
-                    }
-                }
-
-                VStack(alignment: .leading) {
-                    Button("Open Terminal", action: openInTerminal)
-
-                    if container.image == "docker/getting-started" {
-                        // special case for more seamless onboarding
-                        Button("Open in Browser", action: {
-                            NSWorkspace.shared.open(URL(string: "http://localhost")!)
-                        })
-                    }
-                }
-            }
-            .padding(20)
-        }
     }
 
     private func openInTerminal() {
@@ -357,11 +359,11 @@ struct DockerContainerItem: View {
 
         if let volName = mount.name,
            mount.type == .volume {
-            return "\(volName)  →  \(dest)"
+            return "\(abbreviateMount(volName))  →  \(dest)"
         } else {
             let home = FileManager.default.homeDirectoryForCurrentUser.path
             let prettySrc = src.replacingOccurrences(of: home, with: "~")
-            return "\(prettySrc)  →  \(dest)"
+            return "\(abbreviateMount(prettySrc))  →  \(dest)"
         }
     }
 
@@ -374,6 +376,14 @@ struct DockerContainerItem: View {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: home + "/Linux/docker/volumes/\(volName)")
         } else {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: src)
+        }
+    }
+
+    private func abbreviateMount(_ src: String) -> String {
+        if src.count > 45 {
+            return src.prefix(35) + "…" + src.suffix(10)
+        } else {
+            return src
         }
     }
 }
