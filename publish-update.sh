@@ -18,7 +18,7 @@ cp swift/out/amd64/*.dmg updates/pub/amd64/ || :
 function upload_dsyms() {
     sentry-cli upload-dif --org kdrag0n --project orbstack "$@"
 }
-upload_dsyms swift/out/*/OrbStack.app.dSYM &
+upload_dsyms swift/out/*/dsym/OrbStack.app.dSYM &
 
 # generate appcast
 COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-files --delta-compression lzfse --release-notes-url-prefix 'https://cdn-updates.orbstack.dev/release-notes.html#' --full-release-notes-url 'https://docs.orbstack.dev/release-notes' --maximum-versions 2 --maximum-deltas 3)
