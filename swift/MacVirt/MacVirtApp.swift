@@ -116,7 +116,7 @@ struct MacVirtApp: App {
                 }
             }
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
-        .windowDefaultSize(width: 700, height: 550)
+        .windowDefaultSize(width: 750, height: 600)
 
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()
