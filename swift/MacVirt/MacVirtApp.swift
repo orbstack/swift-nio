@@ -64,8 +64,9 @@ struct MacVirtApp: App {
         WindowGroup {
             ContentView()
                     .environmentObject(model)
-                    // workaround: default size uses min height, so this fixes default window size
-                    .frame(minWidth: 400, maxWidth: .infinity, minHeight: 500, maxHeight: .infinity)
+                    // workaround: default size uses min height on macOS 12, so this fixes default window size
+                    // on macOS 13+ we can set smaller min and use windowDefaultSize
+                    .frame(minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(), maxHeight: .infinity)
         }.commands {
             CommandGroup(replacing: .newItem) {}
             SidebarCommands()
@@ -115,6 +116,7 @@ struct MacVirtApp: App {
                 }
             }
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
+        .windowDefaultSize(width: 700, height: 550)
 
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()
@@ -129,6 +131,14 @@ struct MacVirtApp: App {
         Settings {
             AppSettings(updaterController: updaterController)
                     .environmentObject(model)
+        }
+    }
+
+    private func getMinHeight() -> CGFloat {
+        if #available(macOS 13, *) {
+            return 300
+        } else {
+            return 500
         }
     }
 }

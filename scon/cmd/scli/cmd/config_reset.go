@@ -25,7 +25,7 @@ Some options will only take effect after restarting the virtual machine.
 		err := vmclient.Client().ResetConfig()
 		checkCLI(err)
 
-		cmd.Println(`Restart the VM with "` + appid.ShortCtl + ` shutdown" to apply changes.`)
+		cmd.Println(`Restart OrbStack with "` + appid.ShortCtl + ` shutdown" to apply changes.`)
 
 		return nil
 	},

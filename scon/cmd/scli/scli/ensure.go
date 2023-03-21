@@ -23,7 +23,7 @@ const (
     │              OrbStack update available!               │
     │              Run "orb update" to update.              │
     │                                                       │
-	│  Updates include improvements, features, fixes, etc.  │
+	│  Updates include improvements, features, and fixes.   │
 	│            This version expires in %2d days.           │
     │                                                       │
     ╰───────────────────────────────────────────────────────╯
@@ -79,7 +79,7 @@ func tryPrintUpdateWarning() {
 		yellow.Fprint(os.Stderr, `│
     │                                                       │
     │`)
-		fmt.Fprint(os.Stderr, `  Updates include improvements, features, fixes, etc.  `)
+		fmt.Fprint(os.Stderr, `  Updates include improvements, features, and fixes.   `)
 		yellow.Fprint(os.Stderr, `│
     │`)
 		fmt.Fprint(os.Stderr, `            This version expires in `)
