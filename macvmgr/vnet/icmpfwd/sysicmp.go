@@ -95,6 +95,9 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 	return goipv6.NewPacketConn(c), nil
 }
 
+// reply handling: we cheat and don't implement conntrack
+// we just send all incoming ICMP packets that macOS sends us to Linux, and set the source ip to all the same
+// Linux NAT will discard any replies it didn't send, so scon machines will never see them
 func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6, gatewayAddr4, gatewayAddr6 tcpip.Address) (*IcmpFwd, error) {
 	conn4, err := newIcmpPacketConn4()
 	if err != nil {

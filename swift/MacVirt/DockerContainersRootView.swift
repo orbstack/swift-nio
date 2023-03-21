@@ -43,7 +43,7 @@ struct DockerContainersRootView: View {
                         HStack {
                             Spacer()
                             VStack {
-                                if containers.isEmpty {
+                                if visibleCount == 0 {
                                     Text("No containers")
                                             .font(.title)
                                             .foregroundColor(.secondary)
