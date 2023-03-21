@@ -15,6 +15,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
+	"github.com/kdrag0n/macvirt/scon/agent/envutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -144,6 +145,9 @@ func handleSshConn(s ssh.Session) error {
 	env = append(env, "PWD="+pwd)
 	// set prompt ssh
 	env = append(env, "SSH_CONNECTION=::1 0 ::1 22")
+
+	// dedupe env
+	env = envutil.Dedupe(env)
 
 	var combinedArgs []string
 	if meta.RawCommand {

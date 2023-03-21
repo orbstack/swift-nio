@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/kdrag0n/macvirt/scon/agent/envutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -272,6 +273,9 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 			Groups: groups,
 		}
 	}
+
+	// dedupe env
+	args.Env = envutil.Dedupe(args.Env)
 
 	// create process
 	exePath, err := exec.LookPath(args.CombinedArgs[0])

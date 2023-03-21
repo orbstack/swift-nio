@@ -478,13 +478,17 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 
 			// is it already there?
 			// no quote: need ~/ to stay intact
-			line := fmt.Sprintf(`source %s || :`, syssetup.MakeHomeRelative(initSnippetPath))
+			// we only check for the base (source %s) because:
+			//   - 2>/dev/null was added later
+			//   - user can edit it
+			lineBase := fmt.Sprintf(`source %s`, syssetup.MakeHomeRelative(initSnippetPath))
+			line := fmt.Sprintf(`%s 2>/dev/null || :`, lineBase)
 			logrus.WithFields(logrus.Fields{
-				"shell": shellBase,
-				"file":  profilePath,
-				"line":  line,
-			}).Debug("checking for line in profile")
-			if !strings.Contains(profileScript, line) {
+				"shell":    shellBase,
+				"file":     profilePath,
+				"lineBase": lineBase,
+			}).Debug("checking for lineBase in profile")
+			if !strings.Contains(profileScript, lineBase) {
 				// if not, add it
 				profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n%s\n", appid.UserAppName, line)
 				err = os.WriteFile(profilePath, []byte(profileScript), 0644)
