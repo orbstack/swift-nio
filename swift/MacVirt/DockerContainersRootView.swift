@@ -39,7 +39,7 @@ struct DockerContainersRootView: View {
 
                     // special case: show example http://localhost if only container is getting-started
                     let visibleCount = settingShowStopped ? totalCount : runningCount
-                    if visibleCount == 0 || (visibleCount == 1 && containers[0].image == "docker/getting-started") {
+                    if visibleCount == 0 || (visibleCount == 1 && containers[0].image == "docker/getting-started" && containers[0].running) {
                         HStack {
                             Spacer()
                             VStack {
