@@ -86,7 +86,7 @@ struct CommandsRootView: View {
     var body: some View {
         ScrollView {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 32) {
                     CommandSection(systemImage: "info.circle.fill", title: "Get started with machines") {
                         CommandBox(
                                 title: "Control machines: orbctl",
@@ -101,7 +101,7 @@ struct CommandsRootView: View {
                         )
                     }
 
-                    CommandSection(systemImage: "shippingbox", title: "Docker", desc: "Use the included Docker commands directly from macOS. No Linux machines needed.") {
+                    CommandSection(systemImage: "shippingbox.fill", title: "Docker", desc: "Use the included Docker commands directly from macOS. No Linux machines needed.") {
                         CommandBox(
                             title: "Main command",
                             desc: "Build and run Docker containers, and more.",
