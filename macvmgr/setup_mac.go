@@ -107,7 +107,7 @@ func getUserDetails() (*UserDetails, error) {
 	// force -i (interactive) in case user put PATH in .zshrc/.bashrc
 	// use single quotes to avoid expansion in zsh
 	// nu shell doesn't like combining short args (-lic) so split them
-	out, err := util.Run(shell, "-l", "-i", "-c", `sh -c 'echo "$PATH"'`)
+	out, err := util.RunLoginShell(shell, "-i", "-c", `sh -c 'echo "$PATH"'`)
 	if err != nil {
 		return nil, err
 	}
@@ -454,7 +454,7 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 		case "zsh":
 			// what's the ZDOTDIR?
 			// no need for -i (interactive), ZDOTDIR must be in .zshenv
-			out, err := util.Run(details.Shell, "-l", "-c", `echo "$ZDOTDIR"`)
+			out, err := util.RunLoginShell(details.Shell, "-c", `echo "$ZDOTDIR"`)
 			if err != nil {
 				return nil, err
 			}
