@@ -80,7 +80,8 @@ func getUserDetails() (*UserDetails, error) {
 	for _, gid := range gids {
 		group, err := user.LookupGroupId(gid)
 		if err != nil {
-			return nil, err
+			logrus.WithError(err).WithField("gid", gid).Warn("failed to look up group")
+			continue
 		}
 		if group.Name == "admin" {
 			isAdmin = true
