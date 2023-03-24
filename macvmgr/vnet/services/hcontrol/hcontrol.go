@@ -36,7 +36,11 @@ func (h *HcontrolServer) Ping(_ *None, _ *None) error {
 }
 
 func (h *HcontrolServer) StartForward(spec vnet.ForwardSpec, _ *None) error {
-	return h.n.StartForward(spec)
+	_, err := h.n.StartForward(spec)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (h *HcontrolServer) StopForward(spec vnet.ForwardSpec, _ *None) error {

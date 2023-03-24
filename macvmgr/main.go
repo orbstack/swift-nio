@@ -30,6 +30,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vzf"
 	"github.com/kdrag0n/macvirt/scon/isclient"
 	"github.com/kdrag0n/macvirt/scon/sclient"
@@ -68,10 +69,7 @@ var (
 		"unix:" + conf.DockerSocket():  "tcp:" + str(ports.GuestDocker),
 		"unix:" + conf.SconSSHSocket(): "tcp:" + str(ports.GuestSconSSH),
 		"unix:" + conf.SconRPCSocket(): "tcp:" + str(ports.GuestScon),
-		// NFS
-		// vsock is slightly faster, esp. for small files (because latency)
-		//"unix:" + conf.NfsSocket():            "vsock:" + str(ports.GuestNFS),
-		"tcp:127.0.0.1:" + str(ports.HostNFS): "vsock:" + str(ports.GuestNFS),
+		// NFS is special, handled below
 	}
 )
 
@@ -570,7 +568,7 @@ func runVmManager() {
 	}
 	for fromSpec, toSpec := range hostForwardsToGuest {
 		spec := vnet.ForwardSpec{Host: fromSpec, Guest: toSpec}
-		err := vnetwork.StartForward(spec)
+		_, err := vnetwork.StartForward(spec)
 		if err != nil {
 			logrus.WithError(err).WithField("spec", spec).Fatal("host forward failed")
 		}
@@ -582,6 +580,26 @@ func runVmManager() {
 			}
 		}()
 	}
+
+	// special NFS forward
+	// vsock is slightly faster, esp. for small files (because latency)
+	nfsFwdSpec := vnet.ForwardSpec{
+		// dynamically assigned port
+		Host:  "tcp:127.0.0.1:0",
+		Guest: "vsock:" + str(ports.GuestNFS),
+	}
+	nfsFwd, err := vnetwork.StartForward(nfsFwdSpec)
+	if err != nil {
+		logrus.WithError(err).Fatal("host forward failed")
+	}
+	nfsPort := nfsFwd.(*tcpfwd.StreamVsockHostForward).TcpPort()
+	defer func() {
+		err := vnetwork.StopForward(nfsFwdSpec)
+		if err != nil {
+			logrus.WithError(err).Error("host forward stop cleanup failed")
+		}
+	}()
+
 	defer os.Remove(conf.DockerSocket())
 	defer os.Remove(conf.SconRPCSocket())
 	defer os.Remove(conf.SconSSHSocket())
@@ -621,7 +639,7 @@ func runVmManager() {
 		// vsock fails immediately unlike tcp dialing, so try 5 times
 		for i := 0; i < nfsMountTries; i++ {
 			logrus.Info("Mounting NFS...")
-			err := nfsmnt.MountNfs()
+			err := nfsmnt.MountNfs(nfsPort)
 			if err != nil {
 				// if already mounted, we'll just reuse it
 				// careful, this could hang

@@ -19,7 +19,6 @@ var (
 		ports.GuestNFS:      {}, // NFS
 		ports.GuestVcontrol: {}, // vcontrol
 		ports.HostVmControl: {}, // hcontrol
-		ports.HostNFS:       {}, // NFS
 	}
 )
 

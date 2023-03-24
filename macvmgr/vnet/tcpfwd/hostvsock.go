@@ -4,6 +4,7 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/sockets"
 	"github.com/sirupsen/logrus"
 )
@@ -12,6 +13,7 @@ type StreamVsockHostForward struct {
 	listener        net.Listener
 	dialer          func() (net.Conn, error)
 	requireLoopback bool
+	nfsMode         bool
 }
 
 func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)) (*StreamVsockHostForward, error) {
@@ -24,6 +26,7 @@ func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)
 		listener:        listener,
 		dialer:          dialer,
 		requireLoopback: requireLoopback,
+		nfsMode:         true,
 	}
 
 	go f.listen()
@@ -40,6 +43,7 @@ func StartUnixVsockHostForward(listenAddr string, dialer func() (net.Conn, error
 		listener:        listener,
 		dialer:          dialer,
 		requireLoopback: false,
+		nfsMode:         false,
 	}
 
 	go f.listen()
@@ -100,7 +104,11 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 	})
 
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		err = setExtNodelay(tcpConn, 0) // vsock port is not considered
+		otherPort := 0 // vsock port is not considered
+		if f.nfsMode {
+			otherPort = ports.GuestNFS
+		}
+		err = setExtNodelay(tcpConn, otherPort)
 		if err != nil {
 			logrus.Errorf("set ext opts failed ", err)
 			return
@@ -108,6 +116,14 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 	}
 
 	pump2(conn.(FullDuplexConn), virtConn.(*net.UnixConn))
+}
+
+func (f *StreamVsockHostForward) TcpPort() int {
+	if tcpAddr, ok := f.listener.Addr().(*net.TCPAddr); ok {
+		return tcpAddr.Port
+	}
+
+	return 0
 }
 
 func (f *StreamVsockHostForward) Close() error {

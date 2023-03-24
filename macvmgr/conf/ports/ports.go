@@ -6,7 +6,7 @@ const (
 	HostSconSSHPublic = 32222
 	HostVmControl     = 62420 // for Swift
 	HostSconRPC       = 62421 // for Swift
-	HostNFS           = 62429
+	// host NFS is dynamically assigned
 
 	// guest
 	GuestDebugSSH        = 22 // debug
