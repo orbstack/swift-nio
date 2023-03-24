@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/alessio/shellescape"
@@ -21,6 +22,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
+)
+
+const (
+	gidAdmin = 80
 )
 
 const (
@@ -77,13 +82,11 @@ func getUserDetails() (*UserDetails, error) {
 	}
 	// check if admin
 	isAdmin := false
+	gidAdminStr := strconv.Itoa(gidAdmin)
 	for _, gid := range gids {
-		group, err := user.LookupGroupId(gid)
-		if err != nil {
-			logrus.WithError(err).WithField("gid", gid).Warn("failed to look up group")
-			continue
-		}
-		if group.Name == "admin" {
+		// querying group info can take a long time with active directory
+		// so just check for gid 80
+		if gid == gidAdminStr {
 			isAdmin = true
 			break
 		}
