@@ -2,15 +2,22 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"text/tabwriter"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
+)
+
+var (
+	flagRunning bool
 )
 
 func init() {
 	rootCmd.AddCommand(listCmd)
+	listCmd.Flags().BoolVarP(&flagRunning, "running", "r", false, "only show running machines")
 }
 
 var listCmd = &cobra.Command{
@@ -29,10 +36,15 @@ var listCmd = &cobra.Command{
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 		defer w.Flush()
 
-		fmt.Fprintf(w, "NAME\tSTATUS\tDISTRO\tVERSION\tARCH\n")
-		fmt.Fprintf(w, "----\t------\t------\t-------\t----\n")
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			fmt.Fprintf(w, "NAME\tSTATUS\tDISTRO\tVERSION\tARCH\n")
+			fmt.Fprintf(w, "----\t------\t------\t-------\t----\n")
+		}
 		for _, c := range containers {
 			if c.Builtin {
+				continue
+			}
+			if flagRunning && !c.Running {
 				continue
 			}
 
@@ -44,7 +56,7 @@ var listCmd = &cobra.Command{
 		}
 
 		if len(containers) == 0 {
-			fmt.Println(`\nUse "` + appid.ShortCtl + `" create to create a machine.`)
+			fmt.Fprintln(os.Stderr, `\nUse "`+appid.ShortCtl+`" create to create a machine.`)
 		}
 
 		return nil
