@@ -37,11 +37,11 @@ Most apps (including Visual Studio Code and JetBrains Fleet) will work with the 
 
 Applications that don't use OpenSSH (e.g. IntelliJ IDEA) will need the following settings:
     Host: localhost
-    Port: 62222
+    Port: 32222
     User: default
     Private key: ~/.orbstack/ssh/id_ed25519
 For example:
-    ssh -p 62222 -i ~/.orbstack/ssh/id_ed25519 default@localhost
+    ssh -p 32222 -i ~/.orbstack/ssh/id_ed25519 default@localhost
 `, "<HOST>", appid.ShortAppName, -1))
 
 		if !syssetup.IsSshConfigWritable() {

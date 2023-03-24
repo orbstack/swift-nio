@@ -3,7 +3,7 @@ package ports
 const (
 	// host
 	HostDebugSSH      = 2222 // debug
-	HostSconSSHPublic = 62222
+	HostSconSSHPublic = 32222
 	HostVmControl     = 62420 // for Swift
 	HostSconRPC       = 62421 // for Swift
 	HostNFS           = 62429

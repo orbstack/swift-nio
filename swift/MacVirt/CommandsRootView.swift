@@ -166,7 +166,7 @@ struct CommandsRootView: View {
                                 desc: "For apps that don’t use OpenSSH, you can use the following details.",
                                 command: """
                                          Host: localhost
-                                         Port: 62222
+                                         Port: 32222
                                          User: default (or root@ubuntu)
                                          Private key: ~/.orbstack/ssh/id_ed25519
                                          """
