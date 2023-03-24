@@ -41,7 +41,7 @@ fileprivate struct GetByNameRequest: Codable {
 }
 
 class SconService: RPCService {
-    static let shared = SconService(client: RPCClient(url: URL(string: "http://127.0.0.1:62421")!))
+    static let shared = SconService(client: RPCClient(url: URL(string: "http://127.0.0.1:42507")!))
 
     func ping() async throws {
         try await invoke("Ping")

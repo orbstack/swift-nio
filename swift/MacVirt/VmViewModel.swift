@@ -240,8 +240,8 @@ struct AddPathsAlert {
 @MainActor
 class VmViewModel: ObservableObject {
     private let daemon = DaemonManager()
-    private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:62420"))
-    private let scon = SconService(client: newRPCClient("http://127.0.0.1:62421"))
+    private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:42506"))
+    private let scon = SconService(client: newRPCClient("http://127.0.0.1:42507"))
 
     @Published private(set) var state = VmState.stopped {
         didSet {

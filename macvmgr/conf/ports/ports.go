@@ -4,8 +4,8 @@ const (
 	// host
 	HostDebugSSH      = 2222 // debug
 	HostSconSSHPublic = 32222
-	HostVmControl     = 62420 // for Swift
-	HostSconRPC       = 62421 // for Swift
+	HostVmControl     = 42506 // for Swift
+	HostSconRPC       = 42507 // for Swift
 	// host NFS is dynamically assigned
 
 	// guest

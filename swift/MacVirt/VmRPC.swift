@@ -26,8 +26,6 @@ struct SetupInfo: Codable {
 }
 
 class VmService: RPCService {
-    static let shared = SconService(client: RPCClient(url: URL(string: "http://127.0.0.1:62420")!))
-
     func ping() async throws {
         try await invoke("Ping")
     }
