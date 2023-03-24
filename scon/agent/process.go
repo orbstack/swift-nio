@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -37,6 +38,7 @@ type SpawnProcessArgs struct {
 
 	DoLogin      bool
 	ReplaceShell bool
+	Argv0        string
 }
 
 type SpawnProcessReply struct {
@@ -220,6 +222,9 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 			args.CombinedArgs[0] = shell
 
 			if args.DoLogin {
+				// replace argv0 with login shell, e.g. -bash
+				args.Argv0 = "-" + filepath.Base(shell)
+
 				pamEnv, foundPath, err := parsePamEnv()
 				// not exist is ok
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -281,6 +286,9 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 	exePath, err := exec.LookPath(args.CombinedArgs[0])
 	if err != nil {
 		return err
+	}
+	if args.Argv0 != "" {
+		args.CombinedArgs[0] = args.Argv0
 	}
 	proc, err := os.StartProcess(exePath, args.CombinedArgs, &os.ProcAttr{
 		Dir:   args.Dir,
@@ -346,6 +354,7 @@ type AgentCommand struct {
 	// special login stuff
 	DoLogin      bool
 	ReplaceShell bool
+	Argv0        string // override
 
 	Setsid  bool
 	Setctty bool
@@ -423,6 +432,7 @@ func (c *AgentCommand) Start(agent *Client) error {
 		CttyFd:       c.CttyFd,
 		DoLogin:      c.DoLogin,
 		ReplaceShell: c.ReplaceShell,
+		Argv0:        c.Argv0,
 	}, stdin, stdout, stderr)
 	if err != nil {
 		return err

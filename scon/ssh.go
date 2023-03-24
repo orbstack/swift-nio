@@ -414,9 +414,9 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			return
 		}
 		// still go through shell to get PATH
-		combinedArgs = []string{agent.ShellSentinel, "-l", "-c", shellescape.QuoteCommand(rawArgs)}
+		combinedArgs = []string{agent.ShellSentinel, "-c", shellescape.QuoteCommand(rawArgs)}
 	} else {
-		combinedArgs = []string{agent.ShellSentinel, "-l"}
+		combinedArgs = []string{agent.ShellSentinel}
 		if s.RawCommand() != "" {
 			combinedArgs = append(combinedArgs, "-c", s.RawCommand())
 		}
