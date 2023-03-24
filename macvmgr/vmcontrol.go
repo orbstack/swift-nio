@@ -443,7 +443,13 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 		}()
 	}
 
-	go http.ListenAndServe("127.0.0.1:"+str(ports.HostVmControl), mux)
+	go func() {
+		err := http.ListenAndServe("127.0.0.1:"+str(ports.HostVmControl), mux)
+		if err != nil {
+			logrus.WithError(err).Error("listen vmcontrol failed")
+		}
+	}()
+
 	listener, err := listenAndServeUnix(conf.VmControlSocket(), mux)
 	if err != nil {
 		return nil, err
