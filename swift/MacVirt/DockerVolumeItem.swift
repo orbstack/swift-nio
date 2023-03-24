@@ -43,6 +43,8 @@ struct DockerVolumeItem: View {
                 VStack(alignment: .leading) {
                     Text(volume.name)
                             .font(.body)
+                            .truncationMode(.tail)
+                            .lineLimit(1)
 
                     // TODO: subheadline = size
                 }
