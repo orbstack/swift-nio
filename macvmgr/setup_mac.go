@@ -16,6 +16,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
+	"github.com/kdrag0n/macvirt/macvmgr/setup/userutil"
 	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
 	"github.com/kdrag0n/macvirt/macvmgr/util"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
@@ -93,11 +94,12 @@ func getUserDetails() (*UserDetails, error) {
 	}
 
 	// look up the user's shell
-	out, err := util.Run("dscl", ".", "-read", u.HomeDir, "UserShell")
+	// until Go os/user supports shell, use cgo getpwuid_r instead of dscl
+	// dscl returns exit status 70 or killed sometimes
+	shell, err := userutil.GetShell()
 	if err != nil {
 		return nil, err
 	}
-	shell := strings.TrimSpace(strings.TrimPrefix(out, "UserShell: "))
 
 	// look up the user's PATH
 	// run login shell first to get profile
@@ -105,11 +107,11 @@ func getUserDetails() (*UserDetails, error) {
 	// force -i (interactive) in case user put PATH in .zshrc/.bashrc
 	// use single quotes to avoid expansion in zsh
 	// nu shell doesn't like combining short args (-lic) so split them
-	out, err = util.Run(shell, "-l", "-i", "-c", `sh -c 'echo "$PATH"'`)
+	out, err := util.Run(shell, "-l", "-i", "-c", `sh -c 'echo "$PATH"'`)
 	if err != nil {
 		return nil, err
 	}
-	logrus.WithField("path", out).Debug("user path")
+	logrus.WithField("path", out).WithField("shell", shell).Debug("user path")
 	path := parseShellLine(out)
 
 	return &UserDetails{
