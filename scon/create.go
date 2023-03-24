@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/netip"
 	"regexp"
 	"time"
@@ -38,10 +39,10 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 	name := args.Name
 	image := args.Image
 	if name == "default" || name == "host" || !containerNamePattern.MatchString(name) {
-		return nil, nil, errors.New("invalid machine name")
+		return nil, nil, fmt.Errorf("invalid machine name '%s'", name)
 	}
 	if _, ok := m.GetByName(name); ok {
-		return nil, nil, errors.New("machine already exists")
+		return nil, nil, fmt.Errorf("machine already exists: '%s'", name)
 	}
 
 	// image defaults

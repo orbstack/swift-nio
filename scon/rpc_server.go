@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net"
 	"net/http"
@@ -40,7 +41,7 @@ func (s *SconServer) Create(ctx context.Context, req types.CreateRequest) (*type
 		UserPassword: pwd,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create '%s': %w", req.Name, err)
 	}
 
 	return c.toRecord(), nil
