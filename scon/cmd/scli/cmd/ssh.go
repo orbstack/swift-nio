@@ -39,15 +39,15 @@ Applications that don't use OpenSSH (e.g. IntelliJ IDEA) will need the following
     Host: localhost
     Port: 62222
     User: default
-    Private key: ~/.<HOST>/ssh/id_ed25519
+    Private key: ~/.orbstack/ssh/id_ed25519
 For example:
-    ssh -p 62222 -i ~/.<HOST>/ssh/id_ed25519 default@localhost
-`, "<HOST>", appid.AppName, -1))
+    ssh -p 62222 -i ~/.orbstack/ssh/id_ed25519 default@localhost
+`, "<HOST>", appid.ShortAppName, -1))
 
 		if !syssetup.IsSshConfigWritable() {
 			yellow := color.New(color.FgYellow)
 			yellow.Println("\nWarning: SSH config is not writable. Add the following to your SSH config:")
-			yellow.Println("    Include " + syssetup.MakeHomeRelative(conf.ExtraSshDir() + "/config"))
+			yellow.Println("    Include " + syssetup.MakeHomeRelative(conf.ExtraSshDir()+"/config"))
 		}
 
 		return nil
