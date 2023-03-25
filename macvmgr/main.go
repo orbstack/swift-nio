@@ -513,7 +513,7 @@ func runVmManager() {
 	check(err)
 
 	go runOne("data watcher", func() error {
-		return WatchDataImage(stopCh)
+		return WatchCriticalFiles(stopCh)
 	})
 
 	// Listen for signals

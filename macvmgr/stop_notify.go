@@ -7,7 +7,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func WatchDataImage(stopCh chan<- StopType) error {
+func WatchCriticalFiles(stopCh chan<- StopType) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -22,7 +22,7 @@ func WatchDataImage(stopCh chan<- StopType) error {
 	for {
 		select {
 		case event := <-watcher.Events:
-			logrus.Debugf("Data image event: %#v", event)
+			logrus.Debugf("Critical file event: %#v", event)
 			if event.Op&fsnotify.Remove == fsnotify.Remove {
 				logrus.Info("Data image deleted, stopping VM")
 				// force is ok - data doesn't matter anymore
