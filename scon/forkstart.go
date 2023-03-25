@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/lxc/go-lxc"
+	"golang.org/x/sys/unix"
 )
 
 type KeyValue[T comparable] struct {
@@ -30,6 +31,12 @@ func checkFork(err error) {
 }
 
 func runForkStart() {
+	// first thing: prctl(PR_SET_PDEATHSIG) so we exit when parent exits
+	// XXX: this would break if Go OS threads exit, but they don't
+	// so we can rely on parent thread staying around
+	err := unix.Prctl(unix.PR_SET_PDEATHSIG, uintptr(unix.SIGKILL), 0, 0, 0)
+	checkFork(err)
+
 	paramsData, err := base64.StdEncoding.DecodeString(os.Args[2])
 	checkFork(err)
 	var params LxcForkParams
