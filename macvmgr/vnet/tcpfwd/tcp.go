@@ -89,9 +89,17 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) || errors.Is(err, unix.ENETUNREACH) {
 				logrus.Debug("inject ICMP unreachable")
 				if localAddress.To4() == "" {
-					i.InjectDestUnreachable6(r.Pkt, header.ICMPv6NetworkUnreachable)
+					if errors.Is(err, unix.ENETUNREACH) {
+						i.InjectDestUnreachable6(r.Pkt, header.ICMPv6NetworkUnreachable)
+					} else {
+						i.InjectDestUnreachable6(r.Pkt, header.ICMPv6AddressUnreachable)
+					}
 				} else {
-					// TODO
+					if errors.Is(err, unix.ENETUNREACH) {
+						i.InjectDestUnreachable4(r.Pkt, header.ICMPv4NetUnreachable)
+					} else {
+						i.InjectDestUnreachable4(r.Pkt, header.ICMPv4HostUnreachable)
+					}
 				}
 				r.Complete(false)
 			} else if errors.Is(err, unix.ETIMEDOUT) {

@@ -172,7 +172,18 @@ func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
 
 		_, err := i.conn4.WriteTo(icmpMsg, nil, dstAddr)
 		if err != nil {
-			logrus.Error("error writing to icmp4 socket ", err)
+			logrus.WithError(err).Error("icmp4 write failed")
+			if errors.Is(err, unix.ENETUNREACH) {
+				err = i.InjectDestUnreachable4(pkt, header.ICMPv4NetUnreachable)
+				if err != nil {
+					logrus.WithError(err).Error("icmp4 inject unreachable failed")
+				}
+			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) {
+				err = i.InjectDestUnreachable4(pkt, header.ICMPv4HostUnreachable)
+				if err != nil {
+					logrus.WithError(err).Error("icmp4 inject unreachable failed")
+				}
+			}
 			return false
 		}
 		return true
@@ -197,7 +208,18 @@ func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
 
 		_, err := i.conn6.WriteTo(icmpMsg, nil, dstAddr)
 		if err != nil {
-			logrus.Error("error writing to icmp6 socket ", err)
+			logrus.WithError(err).Error("icmp6 write failed")
+			if errors.Is(err, unix.ENETUNREACH) {
+				err = i.InjectDestUnreachable6(pkt, header.ICMPv6NetworkUnreachable)
+				if err != nil {
+					logrus.WithError(err).Error("icmp6 inject unreachable failed")
+				}
+			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) {
+				err = i.InjectDestUnreachable6(pkt, header.ICMPv6AddressUnreachable)
+				if err != nil {
+					logrus.WithError(err).Error("icmp6 inject unreachable failed")
+				}
+			}
 			return false
 		}
 		return true
@@ -430,7 +452,6 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 }
 
 // for now, only ipv6 because we really need it in case there's no IPv6 on host
-// TODO: ipv4
 func (i *IcmpFwd) InjectDestUnreachable6(pkt stack.PacketBufferPtr, code header.ICMPv6Code) error {
 	// Make a new IP header
 	// TODO do this better
@@ -469,6 +490,42 @@ func (i *IcmpFwd) InjectDestUnreachable6(pkt stack.PacketBufferPtr, code header.
 	copy(icmpHdr.Payload(), payload)
 
 	return i.sendReply(ipv6.ProtocolNumber, i.gatewayAddr6, i.lastSourceAddr6, msg)
+}
+
+func (i *IcmpFwd) InjectDestUnreachable4(pkt stack.PacketBufferPtr, code header.ICMPv4Code) error {
+	// Make a new IP header
+	// TODO do this better
+	payload := append(pkt.NetworkHeader().View().ToSlice(), extractPacketPayload(pkt)...)
+	// only take IP header + first 8 bytes of payload
+	// to be lazy, we violate this and use IPv4 max heade size
+	if len(payload) > header.IPv4MaximumHeaderSize+8 {
+		payload = payload[:header.IPv4MaximumHeaderSize+8]
+	}
+	totalLen := header.IPv4MinimumSize + header.ICMPv4MinimumSize + len(payload)
+
+	msg := make([]byte, totalLen)
+	ipHdr := header.IPv4(msg)
+	ipHdr.Encode(&header.IPv4Fields{
+		TotalLength: uint16(len(msg)),
+		TTL:         64,
+		Protocol:    uint8(gvicmp.ProtocolNumber4),
+		SrcAddr:     i.gatewayAddr4,
+		DstAddr:     i.lastSourceAddr4,
+	})
+
+	icmpHdr := header.ICMPv4(ipHdr.Payload())
+	icmpHdr.SetType(header.ICMPv4DstUnreachable)
+	icmpHdr.SetCode(code)
+	icmpHdr.SetChecksum(0)
+	icmpHdr.SetChecksum(header.ICMPv4Checksum(icmpHdr, 0))
+
+	// Copy payload
+	copy(icmpHdr.Payload(), payload)
+
+	ipHdr.SetChecksum(0)
+	ipHdr.SetChecksum(^ipHdr.CalculateChecksum())
+
+	return i.sendReply(ipv4.ProtocolNumber, i.gatewayAddr4, i.lastSourceAddr4, msg)
 }
 
 func (i *IcmpFwd) sendReply(netProto tcpip.NetworkProtocolNumber, srcAddr, dstAddr tcpip.Address, msg []byte) error {
