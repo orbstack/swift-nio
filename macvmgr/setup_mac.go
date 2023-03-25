@@ -282,7 +282,11 @@ func execLookPath(path string, file string) (string, error) {
 	return "", fmt.Errorf("ErrNotFound: %s", file)
 }
 
-func lookPath(pathEnv string, cmd string) (string, error) {
+// XXX: xbin is special - relink if:
+// - is from any .app (Docker Desktop, or ourself)
+// - target doesn't exist
+// so we don't replace homebrew or nix one
+func lookPathXbinRelink(pathEnv string, cmd string) (string, error) {
 	path, err := execLookPath(pathEnv, cmd)
 	if err != nil {
 		return "", err
@@ -292,23 +296,37 @@ func lookPath(pathEnv string, cmd string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// force relink if links to a dmg
-	if strings.HasPrefix(path, "/Volumes/") {
-		return "", fmt.Errorf("command %s is a link to a dmg", cmd)
+
+	// cond 1: if .app
+	if strings.Contains(path, ".app/") {
+		return "", fmt.Errorf("is in app: %s", path)
 	}
+	// cond 2: if target doesn't exist
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("target doesn't exist: %s", path)
+	}
+
 	return path, nil
 }
 
-func symlinkIfNotExists(src, dest string) error {
+func shouldUpdateSymlink(src, dest string) bool {
 	currentSrc, err := os.Readlink(dest)
 	if err == nil && currentSrc == src {
 		// already linked
+		return false
+	}
+
+	return true
+}
+
+func symlinkIfNotExists(src, dest string) error {
+	if !shouldUpdateSymlink(src, dest) {
 		return nil
 	}
 
 	// link it
 	os.Remove(dest)
-	err = os.Symlink(src, dest)
+	err := os.Symlink(src, dest)
 	if err != nil {
 		return err
 	}
@@ -531,12 +549,21 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 		doLinkCommand := func(src string) error {
 			dest := targetCmdPath.Dir + "/" + filepath.Base(src)
 
+			// skip if link update is not needed
+			if !shouldUpdateSymlink(src, dest) {
+				logrus.WithFields(logrus.Fields{
+					"src": src,
+					"dst": dest,
+				}).Debug("skipping link (no update needed)")
+				return nil
+			}
+
 			// if root isn't required, just link it
 			if !targetCmdPath.RequiresRoot {
 				logrus.WithFields(logrus.Fields{
 					"src": src,
 					"dst": dest,
-				}).Debug("linking command (don't need root)")
+				}).Debug("linking command (as user)")
 				err = symlinkIfNotExists(src, dest)
 				if err != nil {
 					return err
@@ -548,7 +575,7 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 			logrus.WithFields(logrus.Fields{
 				"src": src,
 				"dst": dest,
-			}).Debug("[request admin] linking command (need root)")
+			}).Debug("[request admin] linking command (as root)")
 			adminCommands = append(adminCommands, shellescape.QuoteCommand([]string{"ln", "-sf", src, dest}))
 			adminLinkCommands = true
 			return nil
@@ -561,33 +588,29 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 		})
 		otherPathEnv := strings.Join(otherPathItems, ":")
 		for _, cmd := range binCommands {
-			_, err := lookPath(otherPathEnv, cmd)
 			cmdSrc := conf.CliBinDir() + "/" + cmd
 			logrus.WithFields(logrus.Fields{
 				"cmd": cmd,
 				"src": cmdSrc,
 			}).Debug("checking bin command")
 
-			// keep existing one if it exists
+			// always link our bin
+			err = doLinkCommand(cmdSrc)
 			if err != nil {
-				// link it
-				err := doLinkCommand(cmdSrc)
-				if err != nil {
-					return nil, err
-				}
+				return nil, err
 			}
 		}
 
 		// check each xbin command
 		for _, cmd := range xbinCommands {
-			_, err := lookPath(otherPathEnv, cmd)
+			_, err := lookPathXbinRelink(otherPathEnv, cmd)
 			cmdSrc := conf.CliXbinDir() + "/" + cmd
 			logrus.WithFields(logrus.Fields{
 				"cmd": cmd,
 				"src": cmdSrc,
 			}).Debug("checking xbin command")
 
-			// keep existing one if it exists
+			// relink conditions are in lookPathXbinRelink
 			if err != nil {
 				// link it
 				err := doLinkCommand(cmdSrc)
