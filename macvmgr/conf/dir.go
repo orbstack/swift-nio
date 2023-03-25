@@ -107,10 +107,6 @@ func VmManagerLog() string {
 	return LogDir() + "/vmgr.log"
 }
 
-func VmgrPidFile() string {
-	return RunDir() + "/vmgr.pid"
-}
-
 func VmgrTimestampFile() string {
 	return RunDir() + "/vmgr.version"
 }

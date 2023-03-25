@@ -251,15 +251,6 @@ func tryGracefulStop(vm *vzf.Machine, vc *vclient.VClient) (err error) {
 	return
 }
 
-func writePidFile() {
-	pidFile, err := os.Create(conf.VmgrPidFile())
-	check(err)
-	defer pidFile.Close()
-
-	_, err = pidFile.WriteString(strconv.Itoa(os.Getpid()))
-	check(err)
-}
-
 func migrateStateV1ToV2(state *vmconfig.VmgrState) error {
 	logrus.WithFields(logrus.Fields{
 		"from": "1",
@@ -403,10 +394,6 @@ func runVmManager() {
 
 	// remove everything in run, sockets and pid
 	os.RemoveAll(conf.RunDir())
-
-	// write PID file
-	writePidFile()
-	defer os.Remove(conf.VmgrPidFile())
 
 	// write build ID
 	if buildID == "" {
