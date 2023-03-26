@@ -195,10 +195,17 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return true
         case .killswitchExpired:
             return true
+        case .dockerVolumeActionError(let action, let cause):
+            if action == "remove",
+                fmtRpc(cause) == "volume in use" {
+                return true
+            }
 
         default:
             return false
         }
+
+        return false
     }
 
     static func ==(lhs: VmError, rhs: VmError) -> Bool {
