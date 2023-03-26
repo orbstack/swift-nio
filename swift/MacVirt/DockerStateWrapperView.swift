@@ -23,7 +23,7 @@ struct DockerStateWrapperView<Content: View>: View {
                 if let machines = vmModel.containers,
                    let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }) {
                     if let containers = vmModel.dockerContainers,
-                       dockerRecord.running {
+                       dockerRecord.state != .stopped {
                         content(containers, dockerRecord)
                         .onChange(of: dockerRecord.running) { _ in
                             Task {
