@@ -11,7 +11,6 @@ struct MachineContainerItem: View {
     var record: ContainerRecord
 
     @State private var actionInProgress = false
-    @State private var progressOpacity = 0.0
     @State private var isPresentingConfirm = false
 
     var body: some View {
@@ -29,6 +28,7 @@ struct MachineContainerItem: View {
                         .foregroundColor(.secondary)
             }
             Spacer()
+            let progressOpacity = (actionInProgress || record.state == .creating) ? 1.0 : 0.0
             if record.running {
                 Button(action: {
                     Task { @MainActor in
@@ -67,7 +67,7 @@ struct MachineContainerItem: View {
                     }
                 }
                 .buttonStyle(.borderless)
-                .disabled(actionInProgress)
+                .disabled(actionInProgress || record.state == .creating)
                 .help("Start \(record.name)")
             }
         }
@@ -119,10 +119,6 @@ struct MachineContainerItem: View {
         }
         .onDoubleClick {
             openInTerminal()
-        }
-        .onChange(of: actionInProgress) { newValue in
-            // animation isn't apple-like
-            progressOpacity = newValue ? 1 : 0
         }
     }
 

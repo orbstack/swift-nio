@@ -31,7 +31,7 @@ struct BuiltinContainerItem: View {
             Spacer()
 
             let binding = Binding<Bool>(
-                get: { record.running },
+                get: { record.state == .starting || record.running },
                 set: { newValue in
                     Task { @MainActor in
                         actionInProgress = true

@@ -8,6 +8,15 @@
 import Foundation
 import SwiftJSONRPC
 
+enum ContainerState: String, Codable {
+    case creating = "creating"
+    case starting = "starting"
+    case running = "running"
+    case stopping = "stopping"
+    case stopped = "stopped"
+    case deleting = "deleting"
+}
+
 struct ImageSpec: Codable, Equatable {
     var distro: String
     var version: String
@@ -20,10 +29,13 @@ struct ContainerRecord: Codable, Identifiable, Equatable {
     var name: String
     var image: ImageSpec
     var isolated: Bool
-    
+
     var builtin: Bool
-    var running: Bool
-    var deleting: Bool
+    var state: ContainerState
+
+    var running: Bool {
+        state == .running
+    }
 }
 
 fileprivate struct CreateRequest: Codable {
