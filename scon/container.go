@@ -138,10 +138,7 @@ func (c *Container) toRecord() *types.ContainerRecord {
 }
 
 func (c *Container) persist() error {
-	if c.builtin {
-		return nil
-	}
-
+	// we do still persist builtin containers, we just ignore most fields when reading
 	record := c.toRecord()
 	logrus.WithField("record", record).Debug("persisting container")
 	return c.manager.db.SetContainer(c.ID, record)

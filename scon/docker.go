@@ -34,7 +34,7 @@ const (
 
 var (
 	dockerContainerRecord = types.ContainerRecord{
-		ID:   "01GQQVF6C60000000000DOCKER",
+		ID:   "00000000000000000000DOCKER",
 		Name: ContainerDocker,
 		Image: types.ImageSpec{
 			Distro:  images.ImageDocker,

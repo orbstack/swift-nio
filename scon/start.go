@@ -375,6 +375,35 @@ func (c *Container) logPath() string {
 	return c.manager.subdir("logs") + "/" + c.ID + ".log"
 }
 
+func mergeBuiltinContainers(records []*types.ContainerRecord, builtins []*types.ContainerRecord) []*types.ContainerRecord {
+	// find existing builtins
+	for _, builtin := range builtins {
+		found := false
+		for _, record := range records {
+			if record.ID == builtin.ID {
+				// if found, update the builtin state, but otherwise keep ours
+				// this makes the start/stop state persistent while keeping the rest built in
+				logrus.WithField("container", record.Name).Debug("found persisted builtin container")
+				builtin.State = record.State
+
+				// then replace the entire record
+				*record = *builtin
+
+				found = true
+				break
+			}
+		}
+
+		// if not found, add it
+		if !found {
+			logrus.WithField("container", builtin.Name).Debug("adding builtin container")
+			records = append(records, builtin)
+		}
+	}
+
+	return records
+}
+
 func (m *ConManager) restoreContainers() ([]*Container, error) {
 	m.containersMu.Lock()
 	defer m.containersMu.Unlock()
@@ -384,10 +413,9 @@ func (m *ConManager) restoreContainers() ([]*Container, error) {
 		return nil, err
 	}
 
-	// inject builtin
-	copy := dockerContainerRecord
-	// prepend
-	records = append([]*types.ContainerRecord{&copy}, records...)
+	// add or update builtins
+	dockerCopy := dockerContainerRecord
+	records = mergeBuiltinContainers(records, []*types.ContainerRecord{&dockerCopy})
 
 	var pendingStarts []*Container
 	for _, record := range records {

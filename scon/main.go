@@ -132,7 +132,7 @@ func runContainerManager() {
 		}
 	}()
 	defer mgr.Close()
-	mgr.Start()
+	err = mgr.Start()
 	check(err)
 
 	// services

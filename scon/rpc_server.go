@@ -164,7 +164,7 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 	go func() {
 		err := c.refreshState()
 		if err != nil {
-			logrus.WithError(err).Error("failed to refresh container state")
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh container state")
 		}
 	}()
 	return nil
