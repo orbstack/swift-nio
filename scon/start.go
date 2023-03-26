@@ -401,7 +401,28 @@ func mergeBuiltinContainers(records []*types.ContainerRecord, builtins []*types.
 		}
 	}
 
-	return records
+	// filter: remove any builtins that are not in the list
+	// for forward compatibility
+	var filtered []*types.ContainerRecord
+	for _, record := range records {
+		if !record.Builtin {
+			filtered = append(filtered, record)
+		}
+
+		found := false
+		for _, builtin := range builtins {
+			if record.ID == builtin.ID {
+				found = true
+				break
+			}
+		}
+
+		if found {
+			filtered = append(filtered, record)
+		}
+	}
+
+	return filtered
 }
 
 func (m *ConManager) restoreContainers() ([]*Container, error) {
