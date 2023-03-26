@@ -30,7 +30,7 @@ struct DockerStateWrapperView<Content: View>: View {
                                 await refreshAction()
                             }
                         }
-                    } else if !dockerRecord.running {
+                    } else if dockerRecord.state == .stopped {
                         VStack {
                             Text("Docker is off")
                                     .font(.title)
