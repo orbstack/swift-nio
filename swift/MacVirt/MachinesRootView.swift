@@ -81,6 +81,11 @@ struct MachinesRootView: View {
                                 }
                             }
                         }
+                        .onAppear {
+                            if vmModel.creatingCount > 0 {
+                                creatingOpacity = 1
+                            }
+                        }
             } else {
                 ProgressView(label: {
                     Text("Loading")
