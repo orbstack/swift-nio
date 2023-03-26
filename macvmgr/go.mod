@@ -35,8 +35,10 @@ require (
 require (
 	github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/getsentry/sentry-go v0.19.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
+	golang.org/x/text v0.6.0 // indirect
 )
 
 require (
@@ -63,6 +65,6 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	golang.org/x/mod v0.7.0
 	golang.org/x/net v0.5.0
-	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
+	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	gvisor.dev/gvisor v0.0.0-20221220191351-8ea7ab01ea4e
 )

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
@@ -46,7 +47,8 @@ const (
 	nfsMountTries = 10
 	nfsMountDelay = 500 * time.Millisecond
 
-	gracefulStopTimeout = 15 * time.Second
+	gracefulStopTimeout   = 15 * time.Second
+	sentryShutdownTimeout = 2 * time.Second
 )
 
 type StopType int
@@ -345,6 +347,18 @@ func runVmManager() {
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
 	})
+
+	if !conf.Debug() {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn:   "https://b72e32846ada4101bf63f27a1eeca89c@o120089.ingest.sentry.io/4504665519554560",
+			Debug: true,
+		})
+		if err != nil {
+			logrus.WithError(err).Error("failed to init Sentry")
+		}
+		defer sentry.Flush(sentryShutdownTimeout)
+		defer sentry.Recover()
+	}
 
 	if !osver.IsAtLeast("v12.4") {
 		logrus.Fatal("macOS too old - min 12.4")

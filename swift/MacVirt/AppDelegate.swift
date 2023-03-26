@@ -20,7 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         if !AppConfig.c.debug {
             SentrySDK.start { options in
-                options.dsn = "https://e115a1e5bb7a453f93fada4fadc4c3ac@o120089.ingest.sentry.io/4504665519554560"
+                options.dsn = "https://b72e32846ada4101bf63f27a1eeca89c@o120089.ingest.sentry.io/4504665519554560"
                 options.tracesSampleRate = 0.0
                 options.enableAppHangTracking = false
             }
