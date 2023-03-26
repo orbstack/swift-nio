@@ -122,6 +122,16 @@ struct OnboardingCreateView: View {
                 Spacer()
                 CtaButton(label: "Create", action: {
                     Task { @MainActor in
+                        // wait for scon before doing anything - might not be started yet
+                        await vmModel.tryRefreshList()
+
+                        // user picked linux, so stop docker container to save memory
+                        if let machines = vmModel.containers,
+                           let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }) {
+                            await vmModel.tryStopContainer(dockerRecord)
+                        }
+
+                        // then create
                         vmModel.creatingCount += 1
                         await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
                         vmModel.creatingCount -= 1
