@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	dbVersion = 1
+	// v1: initial
+	// v2: added container state machine (replaces running/deleting flags)
+	dbVersion = 2
 
 	bktMeta       = "meta"
 	bktState      = "state"
@@ -74,6 +76,7 @@ func (db *Database) init() error {
 	}
 
 	ver := db.getVersion()
+	// if new or default
 	if ver == dbVersion {
 		err = db.setVersion(dbVersion)
 		if err != nil {
@@ -83,8 +86,59 @@ func (db *Database) init() error {
 	}
 
 	// migrations
+	if ver == 1 {
+		err = db.migrate1to2()
+		if err != nil {
+			return err
+		}
+
+		// set version
+		err = db.setVersion(2)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 
 	return nil
+}
+
+func (db *Database) migrate1to2() error {
+	// new container records: running+deleting -> state machine
+	return db.db.Update(func(tx *bbolt.Tx) error {
+		bkt := tx.Bucket([]byte(bktContainers))
+		if bkt == nil {
+			return bbolt.ErrBucketNotFound
+		}
+		return bkt.ForEach(func(k, v []byte) error {
+			var containerV1 types.ContainerRecordV1
+			err := gobDecode(v, &containerV1)
+			if err != nil {
+				return err
+			}
+
+			containerV2 := types.ContainerRecord{
+				ID:       containerV1.ID,
+				Name:     containerV1.Name,
+				Image:    containerV1.Image,
+				Isolated: containerV1.Isolated,
+
+				Builtin: containerV1.Builtin,
+				State:   types.ContainerStateStopped,
+			}
+			if containerV1.Running {
+				containerV2.State = types.ContainerStateRunning
+			} else if containerV1.Deleting {
+				containerV2.State = types.ContainerStateDeleting
+			}
+
+			data, err := gobEncode(&containerV2)
+			if err != nil {
+				return err
+			}
+			return bkt.Put([]byte(k), data)
+		})
+	})
 }
 
 func (db *Database) getVersion() int {
