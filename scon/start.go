@@ -508,6 +508,10 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		return nil
 	}
 
+	if c.manager.stopping {
+		return ErrStopping
+	}
+
 	oldState, err := c.setStateInternalLocked(types.ContainerStateStarting, isInternal)
 	if err != nil {
 		return err

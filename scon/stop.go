@@ -22,15 +22,19 @@ var (
 	ErrTimeout = errors.New("timeout")
 )
 
-func (c *Container) stopLocked(isInternal bool) (oldState types.ContainerState, err error) {
+func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState, err error) {
 	if !c.Running() {
 		return c.state, nil
+	}
+
+	if !internalStop && c.manager.stopping {
+		return c.state, ErrStopping
 	}
 
 	logrus.WithField("container", c.Name).Info("stopping container")
 
 	// begin transition
-	oldState, err = c.setStateInternalLocked(types.ContainerStateStopping, isInternal)
+	oldState, err = c.setStateLocked(types.ContainerStateStopping)
 	if err != nil {
 		return oldState, err
 	}
@@ -89,7 +93,7 @@ func (c *Container) Stop() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, err := c.stopLocked(false /* isInternal */)
+	_, err := c.stopLocked(false /* internalStop */)
 	return err
 }
 
@@ -97,7 +101,7 @@ func (c *Container) stopForShutdown() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, err := c.stopLocked(true /* isInternal */)
+	_, err := c.stopLocked(true /* internalStop */)
 	return err
 }
 

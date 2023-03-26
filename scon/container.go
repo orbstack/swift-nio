@@ -255,12 +255,6 @@ func (c *Container) setStateInternalLocked(state types.ContainerState, isInterna
 		return "", fmt.Errorf("invalid state transition from %v to %v", c.state, state)
 	}
 
-	// non-internal transitions are not allowed while manager is stopping
-	// otherwise we may persist wrong state
-	if !isInternal && c.manager.stopping {
-		return "", fmt.Errorf("invalid state transition from %v to %v while manager is stopping", c.state, state)
-	}
-
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
 		"from":      c.state,
@@ -270,9 +264,12 @@ func (c *Container) setStateInternalLocked(state types.ContainerState, isInterna
 	oldState := c.state
 	c.state = state
 
-	err := c.persist()
-	if err != nil {
-		return "", err
+	// do not persist state transitions when manager is stopping
+	if !c.manager.stopping {
+		err := c.persist()
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return oldState, nil

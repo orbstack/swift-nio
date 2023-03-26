@@ -36,15 +36,16 @@ func deleteRootfs(rootfs string) error {
 	return nil
 }
 
-func (c *Container) Delete() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+func (c *Container) deleteLocked() error {
 	if c.builtin {
 		return errors.New("cannot delete builtin machine")
 	}
 
-	_, err := c.stopLocked(false /* isInternal */)
+	if c.manager.stopping {
+		return ErrStopping
+	}
+
+	_, err := c.stopLocked(false /* internalStop */)
 	if err != nil {
 		return err
 	}
@@ -75,4 +76,11 @@ func (c *Container) Delete() error {
 	}
 
 	return c.manager.removeContainer(c)
+}
+
+func (c *Container) Delete() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.deleteLocked()
 }

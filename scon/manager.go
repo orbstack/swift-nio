@@ -20,6 +20,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+var (
+	ErrStopping = errors.New("manager is stopping")
+)
+
 type ConManager struct {
 	// config
 	dataDir           string
