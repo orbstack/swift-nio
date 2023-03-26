@@ -273,7 +273,7 @@ func (m *ConManager) stopAll() {
 		go func(c *Container) {
 			defer wg.Done()
 
-			err := c.Stop()
+			err := c.stopForShutdown()
 			if err != nil {
 				logrus.WithError(err).Error("failed to stop container for manager shutdown")
 			}

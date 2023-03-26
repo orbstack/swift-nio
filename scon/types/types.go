@@ -13,9 +13,8 @@ type ContainerRecord struct {
 	Image    ImageSpec `json:"image"`
 	Isolated bool      `json:"isolated"`
 
-	Builtin  bool `json:"builtin"`
-	Running  bool `json:"running"`
-	Deleting bool `json:"deleting"`
+	Builtin  bool           `json:"builtin"`
+	State    ContainerState `json:"state"`
 }
 
 type CreateRequest struct {

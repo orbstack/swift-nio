@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"syscall"
 	"time"
@@ -15,13 +16,6 @@ import (
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
-)
-
-type ContainerState int
-
-const (
-	ContainerStateStopped ContainerState = iota
-	ContainerStateRunning
 )
 
 var (
@@ -48,9 +42,7 @@ type Container struct {
 
 	builtin bool
 	// state
-	state    ContainerState
-	creating bool
-	deleting bool
+	state types.ContainerState
 
 	hooks ContainerHooks
 
@@ -80,7 +72,8 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		Name:    record.Name,
 		Image:   record.Image,
 		builtin: record.Builtin,
-		state:   ContainerStateStopped,
+		// always create in stopped state
+		state:   types.ContainerStateStopped,
 		dir:     dir,
 		manager: m,
 		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
@@ -140,9 +133,8 @@ func (c *Container) toRecord() *types.ContainerRecord {
 		Name:  c.Name,
 		Image: c.Image,
 
-		Builtin:  c.builtin,
-		Running:  c.Running(),
-		Deleting: c.deleting,
+		Builtin: c.builtin,
+		State:   c.state,
 	}
 }
 
@@ -161,11 +153,11 @@ func (c *Container) refreshState() error {
 	defer c.mu.Unlock()
 
 	logrus.WithField("container", c.Name).Debug("refreshing container state")
-	stateRunning := c.state == ContainerStateRunning
+	stateRunning := c.state == types.ContainerStateRunning
 	lxcRunning := c.Running()
 	if lxcRunning != stateRunning {
 		if lxcRunning {
-			err := c.onStart()
+			err := c.onStartLocked()
 			if err != nil {
 				return err
 			}
@@ -252,4 +244,50 @@ func UseAgentRet[T any](c *Container, fn func(*agent.Client) (T, error)) (T, err
 
 func (c *Container) Freezer() *Freezer {
 	return c.freezer
+}
+
+func (c *Container) setStateInternalLocked(state types.ContainerState, isInternal bool) (types.ContainerState, error) {
+	if c.state == state {
+		return "", nil
+	}
+
+	if !c.state.CanTransitionTo(state, isInternal) {
+		return "", fmt.Errorf("invalid state transition from %v to %v", c.state, state)
+	}
+
+	// non-internal transitions are not allowed while manager is stopping
+	// otherwise we may persist wrong state
+	if !isInternal && c.manager.stopping {
+		return "", fmt.Errorf("invalid state transition from %v to %v while manager is stopping", c.state, state)
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"container": c.Name,
+		"from":      c.state,
+		"to":        state,
+	}).Debug("transitioning container state")
+
+	oldState := c.state
+	c.state = state
+
+	err := c.persist()
+	if err != nil {
+		return "", err
+	}
+
+	return oldState, nil
+}
+
+func (c *Container) setStateLocked(state types.ContainerState) (types.ContainerState, error) {
+	return c.setStateInternalLocked(state, false)
+}
+
+func (c *Container) revertStateLocked(oldState types.ContainerState) {
+	logrus.WithFields(logrus.Fields{
+		"container": c.Name,
+		"from":      c.state,
+		"to":        oldState,
+	}).Debug("reverting container state")
+
+	c.state = oldState
 }

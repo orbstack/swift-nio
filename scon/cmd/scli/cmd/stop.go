@@ -53,11 +53,6 @@ var stopCmd = &cobra.Command{
 			}
 			checkCLI(err)
 
-			if !c.Running {
-				cmd.PrintErrln(containerName + ": not running")
-				continue
-			}
-
 			// spinner
 			spinner := spinutil.Start("red", "Stopping "+c.Name)
 			err = scli.Client().ContainerStop(c)

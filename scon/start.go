@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -438,6 +437,11 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrit
 		return nil, false, err
 	}
 
+	// important to restore creating state
+	if record.State == types.ContainerStateCreating {
+		c.state = types.ContainerStateCreating
+	}
+
 	if oldC, ok := m.getByNameLocked(c.Name); ok {
 		if canOverwrite {
 			// ok, but warn
@@ -453,8 +457,8 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrit
 	}
 	m.insertContainerLocked(c)
 
-	shouldStart := record.Running && !record.Deleting
-	if record.Deleting {
+	shouldStart := record.State == types.ContainerStateRunning
+	if record.State == types.ContainerStateDeleting {
 		go func() {
 			err := c.Delete()
 			if err != nil {
@@ -492,59 +496,29 @@ func (c *Container) forkStart() error {
 	return nil
 }
 
-func (c *Container) updateTimeOffsets() error {
-	var tsMono unix.Timespec
-	err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &tsMono)
-	if err != nil {
-		return err
-	}
-
-	var tsBoot unix.Timespec
-	err = unix.ClockGettime(unix.CLOCK_BOOTTIME, &tsBoot)
-	if err != nil {
-		return err
-	}
-
-	nsMono := uint64(tsMono.Sec)*1e9 + uint64(tsMono.Nsec)
-	nsBoot := uint64(tsBoot.Sec)*1e9 + uint64(tsBoot.Nsec)
-	err = c.setLxcConfig("lxc.time.offset.monotonic", strconv.FormatUint(nsMono, 10)+"ns")
-	if err != nil {
-		return err
-	}
-
-	err = c.setLxcConfig("lxc.time.offset.boot", strconv.FormatUint(nsBoot, 10)+"ns")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (c *Container) Start() error {
-	if c.manager.stopping {
-		return errors.New("machine manager is stopping")
-	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.deleting {
-		return errors.New("container is being deleted")
-	}
+	return c.startLocked(false /* isInternal */)
+}
 
+func (c *Container) startLocked(isInternal bool) (err error) {
 	if c.lxc.Running() {
 		return nil
 	}
 
-	logrus.WithField("container", c.Name).Info("starting container")
-
-	// update time offsets
-	/*
-		err := c.updateTimeOffsets()
+	oldState, err := c.setStateInternalLocked(types.ContainerStateStarting, isInternal)
+	if err != nil {
+		return err
+	}
+	defer func() {
 		if err != nil {
-			return err
+			c.revertStateLocked(oldState)
 		}
-	*/
+	}()
+
+	logrus.WithField("container", c.Name).Info("starting container")
 
 	// clean logs
 	_ = os.Remove(c.logPath())
@@ -558,7 +532,7 @@ func (c *Container) Start() error {
 		}
 	}
 
-	err := c.forkStart()
+	err = c.forkStart()
 	if err != nil {
 		return err
 	}
@@ -586,7 +560,7 @@ func (c *Container) Start() error {
 		}
 	}
 
-	err = c.onStart()
+	err = c.onStartLocked()
 	if err != nil {
 		return err
 	}
@@ -596,11 +570,8 @@ func (c *Container) Start() error {
 	return nil
 }
 
-func (c *Container) onStart() error {
-	c.state = ContainerStateRunning
-
-	// update & persist state
-	err := c.persist()
+func (c *Container) onStartLocked() error {
+	_, err := c.setStateLocked(types.ContainerStateRunning)
 	if err != nil {
 		return err
 	}

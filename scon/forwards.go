@@ -288,6 +288,9 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 
 // triggered on seccomp notify or inet diag
 func (c *Container) updateListenersDirect() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	initPid := c.lxc.InitPid()
 	if initPid < 0 {
 		return errors.New("container not running")
@@ -303,8 +306,6 @@ func (c *Container) updateListenersDirect() error {
 		"listeners": listeners,
 	}).Debug("update listeners")
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	added, removed := diffSlices(c.lastListeners, listeners)
 
 	var errs []error

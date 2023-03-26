@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -43,16 +44,23 @@ func (c *Container) Delete() error {
 		return errors.New("cannot delete builtin machine")
 	}
 
-	err := c.stopLocked()
+	_, err := c.stopLocked(false /* isInternal */)
 	if err != nil {
 		return err
 	}
 
-	logrus.WithField("container", c.Name).Info("deleting container")
+	oldState, err := c.setStateLocked(types.ContainerStateDeleting)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// restore old state if we failed
+		if err != nil {
+			c.revertStateLocked(oldState)
+		}
+	}()
 
-	// set deleting in case of failure
-	c.deleting = true
-	c.persist()
+	logrus.WithField("container", c.Name).Info("deleting container")
 
 	// unmount from nfs
 	err = c.manager.onPreDeleteContainer(c)
@@ -64,15 +72,6 @@ func (c *Container) Delete() error {
 	err = deleteRootfs(c.dir)
 	if err != nil {
 		return err
-	}
-
-	// delete log if not creating
-	// leave it for debugging if creating
-	if !c.creating {
-		err = os.Remove(c.logPath())
-		if err != nil {
-			return err
-		}
 	}
 
 	return c.manager.removeContainer(c)

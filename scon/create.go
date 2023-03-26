@@ -69,9 +69,7 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 		ID:    id,
 		Name:  name,
 		Image: image,
-
-		Running:  false,
-		Deleting: false,
+		State: types.ContainerStateCreating,
 	}
 
 	m.containersMu.Lock()
@@ -81,7 +79,6 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 	if err != nil {
 		return nil, nil, err
 	}
-	c.creating = true
 
 	return c, &image, nil
 }
@@ -99,8 +96,6 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 				logrus.WithError(err2).Error("failed to clean up failed container creation")
 			}
 		}
-
-		c.creating = false
 	}()
 
 	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir)
@@ -108,68 +103,16 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		return
 	}
 
-	// persist
-	err = c.persist()
-	if err != nil {
-		return
-	}
-
 	// start
-	err = c.Start()
+	c.mu.Lock()
+	err = c.startLocked(true /* isInternal */)
+	c.mu.Unlock()
 	if err != nil {
 		return
 	}
 
-	// get host user
-	hostUser, err := m.host.GetUser()
-	if err != nil {
-		return
-	}
-
-	// get host timezone
-	hostTimezone, err := m.host.GetTimezone()
-	if err != nil {
-		return
-	}
-
-	// get git configs
-	var gitConfigs agent.BasicGitConfigs
-	hostGitConfigs, err := m.host.GetGitConfig()
-	if err != nil {
-		logrus.WithError(err).Warn("failed to get host git configs")
-	} else {
-		gitConfigs.Name = hostGitConfigs["user.name"]
-		gitConfigs.Email = hostGitConfigs["user.email"]
-	}
-
-	// always wait for network
-	// even if we don't need it for setup, it ensures that resolved has started if necesary,
-	// and systemctl will work
-	logrus.WithField("container", c.Name).Info("waiting for network before setup")
-	var ips []string
-	ips, err = c.waitIPAddrs(startTimeout)
-	if err != nil {
-		return
-	}
-	logrus.WithField("container", c.Name).WithField("ips", ips).Info("network is up")
-
-	// tell agent to run setup
-	logrus.WithFields(logrus.Fields{
-		"uid":      hostUser.Uid,
-		"username": hostUser.Username,
-	}).Info("running initial setup")
-	err = c.UseAgent(func(a *agent.Client) error {
-		return a.InitialSetup(agent.InitialSetupArgs{
-			Username:    hostUser.Username,
-			Uid:         hostUser.Uid,
-			HostHomeDir: hostUser.HomeDir,
-
-			Password:        args.UserPassword,
-			Distro:          image.Distro,
-			Timezone:        hostTimezone,
-			BasicGitConfigs: gitConfigs,
-		})
-	})
+	// setup
+	err = c.setupInitial(args)
 	if err != nil {
 		return
 	}
@@ -190,6 +133,64 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 
 	logrus.WithField("container", c.Name).Info("container created")
 	return
+}
+
+func (c *Container) setupInitial(args CreateParams) error {
+	// get host user
+	hostUser, err := c.manager.host.GetUser()
+	if err != nil {
+		return err
+	}
+
+	// get host timezone
+	hostTimezone, err := c.manager.host.GetTimezone()
+	if err != nil {
+		return err
+	}
+
+	// get git configs
+	var gitConfigs agent.BasicGitConfigs
+	hostGitConfigs, err := c.manager.host.GetGitConfig()
+	if err != nil {
+		logrus.WithError(err).Warn("failed to get host git configs")
+	} else {
+		gitConfigs.Name = hostGitConfigs["user.name"]
+		gitConfigs.Email = hostGitConfigs["user.email"]
+	}
+
+	// always wait for network
+	// even if we don't need it for setup, it ensures that resolved has started if necesary,
+	// and systemctl will work
+	logrus.WithField("container", c.Name).Info("waiting for network before setup")
+	var ips []string
+	ips, err = c.waitIPAddrs(startTimeout)
+	if err != nil {
+		return err
+	}
+	logrus.WithField("container", c.Name).WithField("ips", ips).Info("network is up")
+
+	// tell agent to run setup
+	logrus.WithFields(logrus.Fields{
+		"uid":      hostUser.Uid,
+		"username": hostUser.Username,
+	}).Info("running initial setup")
+	err = c.UseAgent(func(a *agent.Client) error {
+		return a.InitialSetup(agent.InitialSetupArgs{
+			Username:    hostUser.Username,
+			Uid:         hostUser.Uid,
+			HostHomeDir: hostUser.HomeDir,
+
+			Password:        args.UserPassword,
+			Distro:          c.Image.Distro,
+			Timezone:        hostTimezone,
+			BasicGitConfigs: gitConfigs,
+		})
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {

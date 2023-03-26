@@ -61,11 +61,6 @@ If no machines are specified, the command will start all machines that were runn
 			}
 			checkCLI(err)
 
-			if c.Running {
-				cmd.PrintErrln(containerName + ": already running")
-				continue
-			}
-
 			// spinner
 			spinner := spinutil.Start("green", "Starting "+c.Name)
 			err = scli.Client().ContainerStart(c)

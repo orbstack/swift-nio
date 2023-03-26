@@ -218,27 +218,6 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 		return
 	}
 
-	// hack for debug testing
-	if conf.Debug() {
-		switch user {
-		case "stop":
-			err = container.Stop()
-			return
-		case "delete":
-			err = container.Delete()
-			return
-		case "start":
-			err = container.Start()
-			return
-		case "freeze":
-			err = container.Freeze()
-			return
-		case "unfreeze":
-			err = container.Unfreeze()
-			return
-		}
-	}
-
 	// set as last container
 	if !container.builtin {
 		go sv.m.db.SetLastContainerID(container.ID)

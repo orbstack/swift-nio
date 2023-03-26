@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 )
@@ -17,20 +19,31 @@ const (
 )
 
 var (
-	ErrTimeout = errors.New("start/stop timeout")
+	ErrTimeout = errors.New("timeout")
 )
 
-func (c *Container) stopLocked() error {
+func (c *Container) stopLocked(isInternal bool) (oldState types.ContainerState, err error) {
 	if !c.Running() {
-		return nil
+		return c.state, nil
 	}
 
 	logrus.WithField("container", c.Name).Info("stopping container")
 
+	// begin transition
+	oldState, err = c.setStateInternalLocked(types.ContainerStateStopping, isInternal)
+	if err != nil {
+		return oldState, err
+	}
+	defer func() {
+		if err != nil {
+			c.revertStateLocked(oldState)
+		}
+	}()
+
 	// must unfreeze so agent responds
-	err := c.lxc.Unfreeze()
+	err = c.lxc.Unfreeze()
 	if err != nil && err != lxc.ErrNotFrozen {
-		return err
+		return oldState, err
 	}
 
 	// stop forwards
@@ -46,7 +59,7 @@ func (c *Container) stopLocked() error {
 	}
 	err = c.lxc.Shutdown(timeout)
 	if err != nil {
-		logrus.Warn("graceful shutdown failed: ", err)
+		logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
 	}
 
 	if c.lxc.Running() {
@@ -55,28 +68,37 @@ func (c *Container) stopLocked() error {
 		err = c.lxc.Stop()
 		c.mu.Lock()
 		if err != nil {
-			return err
+			return oldState, err
 		}
 	}
 
 	if !c.lxc.Wait(lxc.STOPPED, stopTimeout) {
-		return ErrTimeout
+		return oldState, fmt.Errorf("stop '%s': %w", c.Name, ErrTimeout)
 	}
 
 	err = c.onStopLocked()
 	if err != nil {
-		return err
+		return oldState, err
 	}
 
 	logrus.WithField("container", c.Name).Info("stopped container")
-	return nil
+	return oldState, nil
 }
 
 func (c *Container) Stop() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.stopLocked()
+	_, err := c.stopLocked(false /* isInternal */)
+	return err
+}
+
+func (c *Container) stopForShutdown() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	_, err := c.stopLocked(true /* isInternal */)
+	return err
 }
 
 func (c *Container) onStopLocked() error {
@@ -108,14 +130,9 @@ func (c *Container) onStopLocked() error {
 		c.agent.Set(nil)
 	}
 
-	c.state = ContainerStateStopped
-
-	// update & persist state IF manager isn't shutting down
-	if !c.manager.stopping {
-		err := c.persist()
-		if err != nil {
-			return err
-		}
+	_, err := c.setStateLocked(types.ContainerStateStopped)
+	if err != nil {
+		return err
 	}
 
 	return nil

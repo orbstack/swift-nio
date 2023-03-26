@@ -31,24 +31,16 @@ var infoCmd = &cobra.Command{
 		}
 		checkCLI(err)
 
-		status := "stopped"
-		if c.Running {
-			status = "running"
-		}
-
 		fmt.Printf("ID: %s\n", c.ID)
 		fmt.Printf("Name: %s\n", c.Name)
+		fmt.Printf("State: %s\n", c.State)
+		fmt.Printf("\n")
 		fmt.Printf("Distro: %s\n", c.Image.Distro)
 		fmt.Printf("Version: %s\n", c.Image.Version)
 		fmt.Printf("Architecture: %s\n", c.Image.Arch)
-		fmt.Printf("Status: %s\n", status)
 
 		if c.Builtin {
 			fmt.Printf("\nMachine is built-in.\n")
-		}
-
-		if c.Deleting {
-			fmt.Printf("\nMachine is being deleted.\n")
 		}
 
 		return nil

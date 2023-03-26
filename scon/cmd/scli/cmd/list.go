@@ -7,6 +7,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -37,22 +38,18 @@ var listCmd = &cobra.Command{
 		defer w.Flush()
 
 		if term.IsTerminal(int(os.Stdout.Fd())) {
-			fmt.Fprintf(w, "NAME\tSTATUS\tDISTRO\tVERSION\tARCH\n")
-			fmt.Fprintf(w, "----\t------\t------\t-------\t----\n")
+			fmt.Fprintf(w, "NAME\tSTATE\tDISTRO\tVERSION\tARCH\n")
+			fmt.Fprintf(w, "----\t-----\t------\t-------\t----\n")
 		}
 		for _, c := range containers {
 			if c.Builtin {
 				continue
 			}
-			if flagRunning && !c.Running {
+			if flagRunning && c.State != types.ContainerStateRunning {
 				continue
 			}
 
-			status := "stopped"
-			if c.Running {
-				status = "running"
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Name, status, c.Image.Distro, c.Image.Version, c.Image.Arch)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Name, c.State, c.Image.Distro, c.Image.Version, c.Image.Arch)
 		}
 
 		if len(containers) == 0 {

@@ -42,9 +42,8 @@ var (
 			Arch:    images.NativeArch(),
 			Variant: "default",
 		},
-		Builtin:  true,
-		Running:  true,
-		Deleting: false,
+		Builtin: true,
+		State:   types.ContainerStateRunning,
 	}
 )
 
