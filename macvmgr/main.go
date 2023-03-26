@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/flock"
 	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
@@ -24,6 +23,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/killswitch"
+	"github.com/kdrag0n/macvirt/macvmgr/flock"
 	"github.com/kdrag0n/macvirt/macvmgr/osver"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
@@ -374,15 +374,18 @@ func runVmManager() {
 	}
 
 	// take the lock
-	lockFile := flock.New(conf.VmgrLockFile())
-	locked, err := lockFile.TryLock()
+	lockFile, err := flock.Open(conf.VmgrLockFile())
+	check(err)
+	err = flock.Lock(lockFile)
 	if err != nil {
-		logrus.Fatal("failed to take lock:", err)
+		logrus.Fatal("vmgr is already running (lock): ", err)
 	}
-	if !locked {
-		logrus.Fatal("vmgr is already running (lock)")
-	}
-	defer lockFile.Unlock()
+	defer func() {
+		err := flock.Unlock(lockFile)
+		if err != nil {
+			logrus.WithError(err).Error("failed to unlock")
+		}
+	}()
 
 	// remove everything in run, sockets and pid
 	os.RemoveAll(conf.RunDir())

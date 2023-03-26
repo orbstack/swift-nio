@@ -37,7 +37,7 @@ In the future, this will be done automatically if the VM is idle and unused.
 		spinner := spinutil.Start("red", "Stopping Docker and machines")
 		var err error
 		if flagForce {
-			err = vmclient.Client().ForceStop()
+			err = vmclient.Client().SyntheticForceStopOrKill()
 		} else {
 			err = vmclient.Client().Stop()
 		}

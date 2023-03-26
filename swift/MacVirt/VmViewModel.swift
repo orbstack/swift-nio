@@ -306,6 +306,8 @@ class VmViewModel: ObservableObject {
             throw VmError.killswitchExpired
         }
 
+        // on MainActor
+        state = .spawning
         Task {
             do {
                 try await runProcessChecked(AppConfig.c.vmgrExe, ["spawn-daemon"])
@@ -322,7 +324,6 @@ class VmViewModel: ObservableObject {
                 }
             }
         }
-        setStateAsync(.spawning)
     }
 
     private func waitForVM() async throws {
@@ -407,7 +408,7 @@ class VmViewModel: ObservableObject {
     func tryRefreshList() async {
         // this doubles as a daemon ping to update state if started from CLI while stopped in GUI
         if state == .stopped {
-            let daemonRunning = await daemon.isRunning()
+            let daemonRunning = daemon.isRunning()
             if daemonRunning {
                 // trigger normal start flow
                 await start()
@@ -419,7 +420,7 @@ class VmViewModel: ObservableObject {
             try await refreshList()
         } catch {
             // check daemon process state
-            let daemonRunning = await daemon.isRunning()
+            let daemonRunning = daemon.isRunning()
             if !daemonRunning {
                 // daemon stopped, update state
                 self.state = .stopped

@@ -5,22 +5,37 @@
 import Foundation
 
 class DaemonManager {
-    func isRunning() async -> Bool {
-        // read pid file
-        let path = getConfigDir() + "/run/vmgr.pid"
-        do {
-            let pidStr = try String(contentsOfFile: path)
-            let pid = Int(pidStr.trimmingCharacters(in: .whitespacesAndNewlines))
-            guard pid != nil else {
-                return false
-            }
+    private func getPid() -> Int? {
+        // read flock
+        let path = FileManager.default.temporaryDirectory.path + "/orbstack-vmgr.lock"
+        let file = FileHandle(forReadingAtPath: path)
 
-            // check if process is running by sending signal 0
-            let ret = kill(pid_t(pid!), 0)
-            return ret == 0
-        } catch {
-            // failed to read pid file
-            return false
+        var lock = flock()
+        lock.l_type = Int16(F_WRLCK)
+        lock.l_whence = Int16(SEEK_SET)
+        lock.l_start = 0
+        lock.l_len = 0
+
+        let ret = fcntl(file!.fileDescriptor, F_GETLK, &lock)
+        guard ret != -1 else {
+            NSLog("Error getting lock information: \(errno)")
+            return nil
         }
+
+        guard lock.l_type != F_UNLCK else {
+            return nil
+        }
+
+        // safeguard: never return pid -1 in case of wrong lock type
+        guard lock.l_pid != -1 && lock.l_pid != 0 else {
+            return nil
+        }
+
+        return Int(lock.l_pid)
+    }
+
+    func isRunning() -> Bool {
+        // no point in using kill(pid, 0) test. flock is already atomic
+        return getPid() != nil
     }
 }

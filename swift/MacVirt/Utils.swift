@@ -100,7 +100,7 @@ func runProcessChecked(_ command: String, _ args: [String]) async throws -> Stri
 func openTerminal(_ command: String, _ args: [String]) async throws {
     // make tmp file
     let tmpDir = FileManager.default.temporaryDirectory
-    let tmpFile = tmpDir.appendingPathComponent(UUID().uuidString)
+    let tmpFile = tmpDir.appendingPathComponent("orbstack-open-terminal_\(UUID().uuidString).sh")
     let tmpFileURL = URL(fileURLWithPath: tmpFile.path)
 
     // write command to tmp file

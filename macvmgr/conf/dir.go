@@ -115,9 +115,10 @@ func VmgrTimestampFile() string {
 	return RunDir() + "/vmgr.version"
 }
 
-// not in run to avoid being removed
+// in tmpdir to persist even if ~/.orbstack is deleted
+// so we can stop it for port fwd
 func VmgrLockFile() string {
-	return ConfigDir() + "/vmgr.lock"
+	return os.TempDir() + "/orbstack-vmgr.lock"
 }
 
 func VmConfigFile() string {

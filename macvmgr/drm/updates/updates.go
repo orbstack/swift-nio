@@ -143,7 +143,7 @@ func (u *Updater) CheckNow() error {
 		return err
 	}
 
-	if true {
+	if info.Available {
 		logrus.Info("update available")
 		file := conf.UpdatePendingFlag()
 		_, err := os.Stat(file)

@@ -2,16 +2,24 @@ package vmclient
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
+	"github.com/kdrag0n/macvirt/macvmgr/flock"
 	"github.com/kdrag0n/macvirt/macvmgr/syncx"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
+	"golang.org/x/sys/unix"
+)
+
+const (
+	forceStopTimeout = 15 * time.Second
 )
 
 var (
@@ -78,10 +86,43 @@ func (c *VmClient) Stop() error {
 }
 
 func (c *VmClient) ForceStop() error {
-	err := c.rpc.CallResult(context.TODO(), "ForceStop", nil, &noResult)
+	ctx, cancel := context.WithTimeout(context.Background(), forceStopTimeout)
+	defer cancel()
+
+	err := c.rpc.CallResult(ctx, "ForceStop", nil, &noResult)
 	// EOF is ok, it means we got disconnected
 	// TODO fix
 	if err != nil && err.Error() != `[-32603] Post "http://vmrpc": EOF` {
+		return err
+	}
+
+	return nil
+}
+
+func (c *VmClient) SyntheticForceStopOrKill() error {
+	err := c.ForceStop()
+	if err != nil {
+		return c.SyntheticKill()
+	}
+
+	return nil
+}
+
+func (c *VmClient) SyntheticKill() error {
+	// read pid
+	pid, err := flock.ReadPid(conf.VmgrLockFile())
+	if err != nil {
+		return err
+	}
+
+	// safeguard: never kill pid -1 (if lock type is wrong)
+	if pid == -1 {
+		return fmt.Errorf("invalid pid -1")
+	}
+
+	// kill
+	err = unix.Kill(pid, unix.SIGKILL)
+	if err != nil {
 		return err
 	}
 
