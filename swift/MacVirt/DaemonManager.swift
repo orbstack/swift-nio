@@ -8,7 +8,15 @@ class DaemonManager {
     private func getPid() -> Int? {
         // read flock
         let path = FileManager.default.temporaryDirectory.path + "/orbstack-vmgr.lock"
-        let file = FileHandle(forReadingAtPath: path)
+        // don't use FileHandle - we can't catch the exception if doesn't exist
+        let fd = open(path, O_RDONLY | O_CLOEXEC)
+        // doesn't exist
+        guard fd != -1 else {
+            return nil
+        }
+        defer {
+            close(fd)
+        }
 
         var lock = flock()
         lock.l_type = Int16(F_WRLCK)
@@ -16,7 +24,7 @@ class DaemonManager {
         lock.l_start = 0
         lock.l_len = 0
 
-        let ret = fcntl(file!.fileDescriptor, F_GETLK, &lock)
+        let ret = fcntl(fd, F_GETLK, &lock)
         guard ret != -1 else {
             NSLog("Error getting lock information: \(errno)")
             return nil
