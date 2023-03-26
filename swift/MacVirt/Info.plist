@@ -17,7 +17,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>macvirt</string>
+				<string>orbstack</string>
 			</array>
 		</dict>
 	</array>

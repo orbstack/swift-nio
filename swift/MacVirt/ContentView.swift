@@ -152,7 +152,7 @@ struct ContentView: View {
         .onAppear {
             if !onboardingCompleted {
                 pendingClose = true
-                NSWorkspace.shared.open(URL(string: "macvirt://onboarding")!)
+                NSWorkspace.shared.open(URL(string: "orbstack://onboarding")!)
             }
         }
         .task {
@@ -175,7 +175,7 @@ struct ContentView: View {
         .alert(isPresented: $presentError, error: model.error) { error in
             if error == VmError.killswitchExpired {
                 Button("Update") {
-                    NSWorkspace.shared.open(URL(string: "macvirt://update")!)
+                    NSWorkspace.shared.open(URL(string: "orbstack://update")!)
                 }
 
                 Button("Quit") {

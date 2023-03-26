@@ -19,6 +19,9 @@ func mainNotify(_ args: [String]) -> Int32 {
     if args[3] == "--sound" {
         content.sound = UNNotificationSound.default
     }
+    if args[4] != "" {
+        content.userInfo = ["url": args[4]]
+    }
 
     let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.001, repeats: false)
     let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)

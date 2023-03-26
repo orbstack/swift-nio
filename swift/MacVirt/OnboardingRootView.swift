@@ -63,6 +63,6 @@ struct OnboardingRootView: View, OnboardingController {
     func finish() {
         onboardingCompleted = true
         windowHolder.window?.close()
-        //NSWorkspace.shared.open(URL(string: "macvirt://main")!)
+        //NSWorkspace.shared.open(URL(string: "orbstack://main")!)
     }
 }

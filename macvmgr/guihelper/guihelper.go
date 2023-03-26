@@ -23,11 +23,11 @@ func run(args ...string) (string, error) {
 }
 
 type Notification struct {
-	Title   string
-	Message string
-
+	Title    string
+	Message  string
 	Subtitle string
 	Silent   bool
+	URL      string
 }
 
 func Notify(n Notification) error {
@@ -36,7 +36,7 @@ func Notify(n Notification) error {
 		soundArg = "--no-sound"
 	}
 
-	_, err := run("notify", n.Title, n.Message, n.Subtitle, soundArg)
+	_, err := run("notify", n.Title, n.Message, n.Subtitle, soundArg, n.URL)
 	return err
 }
 

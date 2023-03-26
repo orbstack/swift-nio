@@ -143,7 +143,7 @@ func (u *Updater) CheckNow() error {
 		return err
 	}
 
-	if info.Available {
+	if true {
 		logrus.Info("update available")
 		file := conf.UpdatePendingFlag()
 		_, err := os.Stat(file)
@@ -183,6 +183,7 @@ func (u *Updater) MaybeNotify() error {
 	err := guihelper.Notify(guihelper.Notification{
 		Title:   "OrbStack Update Ready",
 		Message: "A new version of OrbStack is available. Open the app to install it.",
+		URL:     "orbstack://update",
 	})
 	if err != nil {
 		return err

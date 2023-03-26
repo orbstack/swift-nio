@@ -6,9 +6,14 @@ import Foundation
 import Cocoa
 import Sentry
 import Sparkle
+import UserNotifications
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var updaterController: SPUStandardUpdaterController?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = self
+    }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = false
@@ -29,10 +34,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             // CLI, to trigger GUI to update
-            // macvirt://update
-            if url.scheme == "macvirt" && url.host == "update" {
+            // orbstack://update
+            if url.scheme == "orbstack" && url.host == "update" {
                 updaterController?.updater.checkForUpdates()
             }
+        }
+    }
+
+    // notification
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        if let url = response.notification.request.content.userInfo["url"] as? String {
+            NSWorkspace.shared.open(URL(string: url)!)
         }
     }
 }
