@@ -27,7 +27,6 @@ const (
 	AppName = "scon"
 
 	cmdContainerManager = "container-manager"
-	cmdForkStart        = "fork-start"
 	cmdLxcHook          = "lxc-hook"
 )
 
@@ -161,8 +160,6 @@ func main() {
 	switch cmd {
 	case cmdContainerManager:
 		runContainerManager()
-	case cmdForkStart:
-		runForkStart()
 	case cmdLxcHook:
 		runLxcHook()
 	default:

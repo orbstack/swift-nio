@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -131,7 +129,6 @@ func (c *Container) setLxcConfig(key, value string) error {
 		return err
 	}
 
-	c.lxcParams.Configs = append(c.lxcParams.Configs, KeyValue[string]{key, value})
 	return nil
 }
 
@@ -156,21 +153,12 @@ func (c *Container) configureLxc() error {
 	logPath := m.subdir("logs") + "/" + c.ID + ".log"
 	lc.ClearConfig()
 	lc.SetLogFile(logPath)
-	c.lxcParams = LxcForkParams{
-		ID:      c.ID,
-		LxcDir:  m.lxcDir,
-		LogFile: logPath,
-	}
 	if conf.Debug() {
 		lc.SetVerbosity(lxc.Verbose)
 		lc.SetLogLevel(lxc.TRACE)
-		c.lxcParams.Verbosity = lxc.Verbose
-		c.lxcParams.LogLevel = lxc.TRACE
 	} else {
 		lc.SetVerbosity(lxc.Quiet)
 		lc.SetLogLevel(lxc.INFO)
-		c.lxcParams.Verbosity = lxc.Quiet
-		c.lxcParams.LogLevel = lxc.INFO
 	}
 
 	// configs
@@ -352,14 +340,6 @@ func (c *Container) configureLxc() error {
 		// otherwise, kernel sees that inode has changed and unmounts everything
 		// https://github.com/torvalds/linux/commit/8ed936b5671bfb33d89bc60bdcc7cf0470ba52fe
 
-		// log
-		set("lxc.log.file", logPath)
-		if conf.Debug() {
-			set("lxc.log.level", "trace")
-		} else {
-			set("lxc.log.level", "info")
-		}
-
 		// container hooks, before rootfs is set
 		if c.hooks != nil {
 			newRootfs, err := c.hooks.Config(c, set)
@@ -387,6 +367,7 @@ func (c *Container) configureLxc() error {
 
 	c.seccompCookie = cookieU64
 	c.rootfsDir = rootfs
+
 	return nil
 }
 
@@ -477,25 +458,6 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrit
 	return c, shouldStart, nil
 }
 
-func (c *Container) forkStart() error {
-	paramsData, err := gobEncode(&c.lxcParams)
-	if err != nil {
-		return err
-	}
-
-	// base64
-	paramsB64 := base64.StdEncoding.EncodeToString(paramsData)
-
-	// fork
-	cmd := exec.Command("/proc/self/exe", cmdForkStart, paramsB64)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("start '%s': %w (%s)", c.Name, err, string(out))
-	}
-
-	return nil
-}
-
 func (c *Container) Start() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -536,7 +498,7 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		}
 	}
 
-	err = c.forkStart()
+	err = c.lxc.Start()
 	if err != nil {
 		return err
 	}

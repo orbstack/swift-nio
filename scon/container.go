@@ -46,8 +46,7 @@ type Container struct {
 
 	hooks ContainerHooks
 
-	lxc       *lxc.Container
-	lxcParams LxcForkParams
+	lxc *lxc.Container
 
 	agent   syncx.CondValue[*agent.Client]
 	manager *ConManager
