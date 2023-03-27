@@ -419,7 +419,9 @@ func runVmManager() {
 
 	// Rosetta check
 	err = verifyRosetta()
-	check(err)
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
 	// state migration
 	err = migrateState()
