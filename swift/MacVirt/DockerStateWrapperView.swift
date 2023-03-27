@@ -22,32 +22,34 @@ struct DockerStateWrapperView<Content: View>: View {
             Group {
                 if let machines = vmModel.containers,
                    let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }) {
-                    if let containers = vmModel.dockerContainers,
-                       dockerRecord.state != .stopped {
-                        content(containers, dockerRecord)
-                        .onChange(of: dockerRecord.running) { _ in
-                            Task {
-                                await refreshAction()
-                            }
-                        }
-                    } else if dockerRecord.state == .stopped {
-                        VStack {
-                            Text("Docker is off")
-                                    .font(.title)
-                                    .foregroundColor(.secondary)
-                            Button(action: {
-                                Task {
-                                    await vmModel.tryStartContainer(dockerRecord)
-                                    await refreshAction()
+                    Group {
+                        if let containers = vmModel.dockerContainers,
+                           dockerRecord.state != .stopped {
+                            content(containers, dockerRecord)
+                        } else if dockerRecord.state == .stopped {
+                            VStack {
+                                Text("Docker is off")
+                                        .font(.title)
+                                        .foregroundColor(.secondary)
+                                Button(action: {
+                                    Task {
+                                        await vmModel.tryStartContainer(dockerRecord)
+                                        await refreshAction()
+                                    }
+                                }) {
+                                    Text("Turn on Docker")
                                 }
-                            }) {
-                                Text("Turn on Docker")
                             }
+                        } else {
+                            ProgressView(label: {
+                                Text("Loading")
+                            })
                         }
-                    } else {
-                        ProgressView(label: {
-                            Text("Loading")
-                        })
+                    }
+                    .onChange(of: dockerRecord.state) { _ in
+                        Task {
+                            await refreshAction()
+                        }
                     }
                 } else {
                     ProgressView(label: {
