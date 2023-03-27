@@ -1,18 +1,14 @@
-.PHONY: app server publish pub r2
+.PHONY: app serve pub r2
 
 app:
 	@cd rootfs; make release
 	@./build-app.sh
 
-server:
+serve:
 	@cd updates; python3 -m http.server
 
-serve: server
-
-publish:
+pub:
 	@./publish-update.sh
-
-pub: publish
 
 r2:
 	rclone sync -P updates/pub r2:orbstack-updates
