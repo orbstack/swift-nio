@@ -715,7 +715,7 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 			prompt = *info.AdminMessage
 		}
 
-		err := guihelper.RunAsAdmin(*info.AdminShellCommand, "OrbStack wants to "+prompt+".")
+		err := guihelper.RunAsAdmin(*info.AdminShellCommand, "OrbStack wants to "+prompt+". This is optional.")
 		if err != nil {
 			return err
 		}
