@@ -20,6 +20,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/nfsmnt"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
@@ -341,7 +342,8 @@ func runVmManager() {
 
 	if !conf.Debug() {
 		err := sentry.Init(sentry.ClientOptions{
-			Dsn: "https://b72e32846ada4101bf63f27a1eeca89c@o120089.ingest.sentry.io/4504665519554560",
+			Dsn:     "https://b72e32846ada4101bf63f27a1eeca89c@o120089.ingest.sentry.io/4504665519554560",
+			Release: appver.Get().Short,
 		})
 		if err != nil {
 			logrus.WithError(err).Error("failed to init Sentry")
