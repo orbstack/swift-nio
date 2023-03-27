@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	startTimeout = 20 * time.Second
+	startTimeout = 15 * time.Second
 )
 
 var (
