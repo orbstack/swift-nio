@@ -341,8 +341,7 @@ func runVmManager() {
 
 	if !conf.Debug() {
 		err := sentry.Init(sentry.ClientOptions{
-			Dsn:   "https://b72e32846ada4101bf63f27a1eeca89c@o120089.ingest.sentry.io/4504665519554560",
-			Debug: true,
+			Dsn: "https://b72e32846ada4101bf63f27a1eeca89c@o120089.ingest.sentry.io/4504665519554560",
 		})
 		if err != nil {
 			logrus.WithError(err).Error("failed to init Sentry")
