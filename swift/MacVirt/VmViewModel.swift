@@ -347,7 +347,7 @@ class VmViewModel: ObservableObject {
             try await Task.sleep(nanoseconds: startPollInterval)
             // bail out if daemon exited
             // TODO reduce timeout when gui handles rosetta install
-            if await !daemon.isRunning() {
+            if !daemon.isRunning() {
                 setStateAsync(.stopped)
                 throw VmError.startFailed(cause: lastError)
             }
@@ -377,7 +377,7 @@ class VmViewModel: ObservableObject {
             try await Task.sleep(nanoseconds: startPollInterval)
             // bail out if daemon exited
             // TODO reduce timeout when gui handles rosetta install
-            if await !daemon.isRunning() {
+            if !daemon.isRunning() {
                 setStateAsync(.stopped)
                 throw VmError.startFailed(cause: lastError)
             }
@@ -601,7 +601,7 @@ class VmViewModel: ObservableObject {
             try await vmgr.stop()
         } catch {
             // if it's stopped, ignore the error. ("The network connection was lost." NSURLErrorNetworkConnectionLost)
-            if await !daemon.isRunning() {
+            if !daemon.isRunning() {
                 self.state = .stopped
                 return
             }
