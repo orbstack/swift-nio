@@ -6,13 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	flagZap bool
-)
-
 func init() {
 	internalCmd.AddCommand(internalBrewUninstall)
-	internalBrewUninstall.Flags().BoolVarP(&flagZap, "zap", "z", false, "")
 }
 
 var internalBrewUninstall = &cobra.Command{
@@ -24,14 +19,7 @@ var internalBrewUninstall = &cobra.Command{
 		}
 
 		spinner := spinutil.Start("red", "Cleaning up")
-		var err error
-		if flagZap {
-			// force stop if zap
-			err = vmclient.Client().SyntheticForceStopOrKill()
-		} else {
-			// otherwise graceful stop
-			err = vmclient.Client().Stop()
-		}
+		err := vmclient.Client().Stop()
 		spinner.Stop()
 		checkCLI(err)
 
