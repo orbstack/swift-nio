@@ -9,7 +9,7 @@ import (
 )
 
 func verifyAPFS() error {
-	testPath := conf.RunDir() + "/.apfs-test"
+	testPath := conf.DataDir() + "/.apfs-test"
 	testPath2 := testPath + ".2"
 
 	f, err := os.Create(testPath)
