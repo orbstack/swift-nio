@@ -23,10 +23,10 @@ func main() {
 	exitCode := 0
 	switch cmd {
 	// control-only command mode
-	case appid.ShortCtl, "lnxctl", "scli":
+	case appid.ShortCtl, "scli":
 		err = runCtl(false)
 	// control or shell, depending on args
-	case appid.ShortCmd, "lnx":
+	case appid.ShortCmd:
 		err = runCtl(true)
 	// command stub mode
 	default:

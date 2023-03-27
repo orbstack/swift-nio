@@ -58,7 +58,7 @@ type PathInfo struct {
 }
 
 var (
-	binCommands   = []string{"orbctl", "orb", "lnxctl", "lnx"}
+	binCommands   = []string{"orbctl", "orb"}
 	xbinCommands  = []string{"docker", "docker-buildx", "docker-compose", "docker-credential-osxkeychain"}
 	dockerPlugins = []string{"docker-buildx", "docker-compose"}
 	// consider: docker-buildx hub-tool docker-index

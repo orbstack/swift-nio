@@ -222,7 +222,7 @@ for cmd in open; do
     ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin-hiprio/\$cmd
 done
 # control from mac
-for cmd in osascript code orb orbctl lnx lnxctl; do
+for cmd in osascript code orb orbctl; do
     ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/\$cmd
 done
 EOT
