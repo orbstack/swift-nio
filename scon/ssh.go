@@ -186,7 +186,7 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 		}
 	}
 	if !ok {
-		err = fmt.Errorf("container not found: %s", containerName)
+		err = fmt.Errorf("machine not found: %s", containerName)
 		return
 	}
 

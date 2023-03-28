@@ -186,7 +186,7 @@ func configureSystemStandard(args InitialSetupArgs) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile("/etc/sudoers.d/"+args.Username, []byte(sudoersLine), 0440)
+	err = os.WriteFile("/etc/sudoers.d/orbstack", []byte(sudoersLine), 0440)
 	if err != nil {
 		return err
 	}
