@@ -73,10 +73,12 @@ const (
 
 var (
 	// host -> guest
-	hostForwardsToGuest = map[string]string{
+	optionalForwards = map[string]string{
 		// public SSH
 		"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
 		"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
+	}
+	essentialForwards = map[string]string{
 		// for Swift
 		"tcp:127.0.0.1:" + str(ports.HostSconRPC): "tcp:" + str(ports.GuestScon),
 		"tcp:[::1]:" + str(ports.HostSconRPC):     "tcp:" + str(ports.GuestScon),
@@ -90,7 +92,7 @@ var (
 
 func init() {
 	if conf.Debug() {
-		hostForwardsToGuest["tcp:127.0.0.1:"+str(ports.HostDebugSSH)] = "tcp:" + str(ports.GuestDebugSSH)
+		optionalForwards["tcp:127.0.0.1:"+str(ports.HostDebugSSH)] = "tcp:" + str(ports.GuestDebugSSH)
 	}
 }
 
@@ -598,11 +600,18 @@ func runVmManager() {
 
 		return conn, nil
 	}
-	for fromSpec, toSpec := range hostForwardsToGuest {
+	for fromSpec, toSpec := range essentialForwards {
 		spec := vnet.ForwardSpec{Host: fromSpec, Guest: toSpec}
 		_, err := vnetwork.StartForward(spec)
 		if err != nil {
 			logrus.WithError(err).WithField("spec", spec).Fatal("host forward failed")
+		}
+	}
+	for fromSpec, toSpec := range optionalForwards {
+		spec := vnet.ForwardSpec{Host: fromSpec, Guest: toSpec}
+		_, err := vnetwork.StartForward(spec)
+		if err != nil {
+			logrus.WithError(err).WithField("spec", spec).Error("host forward failed")
 		}
 	}
 
