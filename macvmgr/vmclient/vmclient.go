@@ -120,6 +120,11 @@ func (c *VmClient) SyntheticKill() error {
 		return fmt.Errorf("invalid pid -1")
 	}
 
+	if pid == 0 {
+		// nothing to kill
+		return nil
+	}
+
 	// kill
 	err = unix.Kill(pid, unix.SIGKILL)
 	if err != nil {

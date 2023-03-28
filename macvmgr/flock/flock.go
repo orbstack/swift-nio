@@ -1,7 +1,6 @@
 package flock
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -72,7 +71,7 @@ func ReadPid(path string) (int, error) {
 	fmt.Println("flock:", flock)
 
 	if flock.Type == unix.F_UNLCK {
-		return 0, errors.New("file is not locked")
+		return 0, nil
 	} else {
 		return int(flock.Pid), nil
 	}
