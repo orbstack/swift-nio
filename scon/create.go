@@ -77,7 +77,7 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 
 	c, _, err := m.restoreOneLocked(&record, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("restore: %w", err)
 	}
 
 	return c, &image, nil
@@ -100,7 +100,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 
 	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir)
 	if err != nil {
-		return
+		return nil, fmt.Errorf("make rootfs: %w", err)
 	}
 
 	// start
@@ -108,13 +108,13 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	err = c.startLocked(true /* isInternal */)
 	c.mu.Unlock()
 	if err != nil {
-		return
+		return nil, fmt.Errorf("start: %w", err)
 	}
 
 	// setup
 	err = c.setupInitial(args)
 	if err != nil {
-		return
+		return nil, fmt.Errorf("setup: %w", err)
 	}
 
 	// set as last container
@@ -139,13 +139,13 @@ func (c *Container) setupInitial(args CreateParams) error {
 	// get host user
 	hostUser, err := c.manager.host.GetUser()
 	if err != nil {
-		return err
+		return fmt.Errorf("get user: %w", err)
 	}
 
 	// get host timezone
 	hostTimezone, err := c.manager.host.GetTimezone()
 	if err != nil {
-		return err
+		return fmt.Errorf("get timezone: %w", err)
 	}
 
 	// get git configs
@@ -187,7 +187,7 @@ func (c *Container) setupInitial(args CreateParams) error {
 		})
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("do initial setup: %w", err)
 	}
 
 	return nil
