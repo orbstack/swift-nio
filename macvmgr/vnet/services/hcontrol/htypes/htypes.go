@@ -1,7 +1,5 @@
 package htypes
 
-import "reflect"
-
 type SSHAgentSockets struct {
 	SshConfig string
 	Env       string
@@ -15,7 +13,3 @@ type User struct {
 	Name     string
 	HomeDir  string
 }
-
-// garble
-var _ = reflect.TypeOf(SSHAgentSockets{})
-var _ = reflect.TypeOf(User{})

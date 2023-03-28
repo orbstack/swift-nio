@@ -46,9 +46,6 @@ type StartProxyArgs struct {
 	FdxSeq uint64
 }
 
-// Never obfuscate the AgentServer type (garble)
-var _ = reflect.TypeOf(AgentServer{})
-
 type None struct{}
 
 func (a *AgentServer) Ping(_ None, _ *None) error {

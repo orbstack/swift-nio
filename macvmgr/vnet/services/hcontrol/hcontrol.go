@@ -6,7 +6,6 @@ import (
 	"net/rpc"
 	"os"
 	"os/user"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -24,9 +23,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
-
-// Never obfuscate the HcontrolServer type (garble)
-var _ = reflect.TypeOf(HcontrolServer{})
 
 type HcontrolServer struct {
 	n         *vnet.Network
