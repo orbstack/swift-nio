@@ -12,14 +12,14 @@ var (
 
 type TCPProxy struct {
 	listener net.Listener
-	isIPv6   bool
+	preferV6 bool
 	port     uint16
 }
 
-func NewTCPProxy(listener net.Listener, isIPv6 bool, port uint16) *TCPProxy {
+func NewTCPProxy(listener net.Listener, preferV6 bool, port uint16) *TCPProxy {
 	return &TCPProxy{
 		listener: listener,
-		isIPv6:   isIPv6,
+		preferV6: preferV6,
 		port:     port,
 	}
 }
@@ -42,10 +42,13 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 	dialAddr := net.TCPAddr{
 		Port: int(p.port),
 	}
-	if p.isIPv6 {
+	var otherIP net.IP
+	if p.preferV6 {
 		dialAddr.IP = net.IPv6loopback
+		otherIP = ipv4Loopback
 	} else {
 		dialAddr.IP = ipv4Loopback
+		otherIP = net.IPv6loopback
 	}
 
 	dialConn, err := net.DialTCP("tcp", nil, &dialAddr)
@@ -54,11 +57,7 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 
 		// if conn refused (i.e. no listener) but our proxy is still registered,
 		// try dialing the other v4/v6 protocol
-		if p.isIPv6 {
-			dialAddr.IP = ipv4Loopback
-		} else {
-			dialAddr.IP = net.IPv6loopback
-		}
+		dialAddr.IP = otherIP
 		logrus.WithField("dialAddr", dialAddr).Debug("retrying with other protocol")
 		dialConn, err = net.DialTCP("tcp", nil, &dialAddr)
 		if err != nil {

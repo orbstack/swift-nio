@@ -28,11 +28,12 @@ const (
 )
 
 type AgentServer struct {
-	fdx          *Fdx
-	tcpProxies   map[ProxySpec]*tcpfwd.TCPProxy
-	udpProxies   map[ProxySpec]*udpfwd.UDPProxy
-	dockerClient *http.Client
-	loginManager *LoginManager
+	fdx           *Fdx
+	tcpProxies    map[ProxySpec]*tcpfwd.TCPProxy
+	udpProxies    map[ProxySpec]*udpfwd.UDPProxy
+	dockerClient  *http.Client
+	loginManager  *LoginManager
+	containerName string
 }
 
 type ProxySpec struct {
@@ -67,7 +68,10 @@ func (a *AgentServer) StartProxyTCP(args StartProxyArgs, _ *None) error {
 	}
 	listenerFd.Close()
 
-	proxy := tcpfwd.NewTCPProxy(listener, spec.IsIPv6, spec.Port)
+	// Docker: always prefer v4 because Docker is traditionally v4-only
+	// still try v6 in case of host net and v6-only servers
+	preferV6 := spec.IsIPv6 && a.containerName != "docker"
+	proxy := tcpfwd.NewTCPProxy(listener, preferV6, spec.Port)
 	a.tcpProxies[spec] = proxy
 	go proxy.Run()
 
@@ -213,11 +217,12 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 	fdx := NewFdx(fdxConn)
 	server := &AgentServer{
-		fdx:          fdx,
-		tcpProxies:   make(map[ProxySpec]*tcpfwd.TCPProxy),
-		udpProxies:   make(map[ProxySpec]*udpfwd.UDPProxy),
-		dockerClient: dockerClient,
-		loginManager: NewLoginManager(),
+		fdx:           fdx,
+		tcpProxies:    make(map[ProxySpec]*tcpfwd.TCPProxy),
+		udpProxies:    make(map[ProxySpec]*udpfwd.UDPProxy),
+		dockerClient:  dockerClient,
+		loginManager:  NewLoginManager(),
+		containerName: hostname,
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("a", server)
