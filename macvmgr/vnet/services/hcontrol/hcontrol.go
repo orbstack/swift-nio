@@ -2,6 +2,7 @@ package hcsrv
 
 import (
 	"errors"
+	"io"
 	"net/rpc"
 	"os"
 	"os/user"
@@ -19,6 +20,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/sshagent"
 	"github.com/muja/goconfig"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
@@ -151,7 +153,16 @@ func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, er
 	}
 
 	go func() {
-		rpcServer.Accept(listener)
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					logrus.WithError(err).Error("hcontrol: accept failed")
+				}
+				return
+			}
+			go rpcServer.ServeConn(conn)
+		}
 	}()
 
 	return server, nil

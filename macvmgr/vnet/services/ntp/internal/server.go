@@ -16,6 +16,7 @@ package ntpserver
 
 import (
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -122,7 +123,9 @@ func (s *Server) Serve() {
 			// gracefully quit
 			return
 		} else if err != nil {
-			logrus.Error("NTP server failed", err)
+			if !errors.Is(err, io.EOF) {
+				logrus.Error("NTP server failed ", err)
+			}
 			return
 		}
 		go s.Respond(req)

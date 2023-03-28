@@ -468,6 +468,7 @@ func runVmManager() {
 
 	logrus.Info("creating VM")
 	vnetwork, vm := CreateVm(params)
+	defer vnetwork.Close()
 	// close in case we need to release disk flock for next start
 	defer vm.Close()
 
@@ -579,13 +580,6 @@ func runVmManager() {
 		if err != nil {
 			logrus.WithError(err).WithField("spec", spec).Fatal("host forward failed")
 		}
-
-		defer func() {
-			err := vnetwork.StopForward(spec)
-			if err != nil {
-				logrus.WithError(err).WithField("spec", spec).Error("host forward stop cleanup failed")
-			}
-		}()
 	}
 
 	// special NFS forward
@@ -600,12 +594,6 @@ func runVmManager() {
 		logrus.WithError(err).Fatal("host forward failed")
 	}
 	nfsPort := nfsFwd.(*tcpfwd.StreamVsockHostForward).TcpPort()
-	defer func() {
-		err := vnetwork.StopForward(nfsFwdSpec)
-		if err != nil {
-			logrus.WithError(err).Error("host forward stop cleanup failed")
-		}
-	}()
 
 	defer os.Remove(conf.DockerSocket())
 	defer os.Remove(conf.SconRPCSocket())

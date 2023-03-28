@@ -282,11 +282,17 @@ func (l *TCPListener) Accept() (net.Conn, error) {
 	}
 
 	if err != nil {
+		var underlying error
+		if l.ep.State() == uint32(tcp.StateClose) {
+			underlying = io.EOF
+		} else {
+			underlying = errors.New(err.String())
+		}
 		return nil, &net.OpError{
 			Op:   "accept",
 			Net:  "tcp",
 			Addr: l.Addr(),
-			Err:  errors.New(err.String()),
+			Err:  underlying,
 		}
 	}
 

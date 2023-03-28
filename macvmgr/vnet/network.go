@@ -18,6 +18,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/qemulink"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd"
+	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
@@ -290,7 +291,22 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	return network, nil
 }
 
+func (n *Network) stopAllForwards() {
+	n.hostForwardMu.Lock()
+	defer n.hostForwardMu.Unlock()
+
+	for spec, f := range n.hostForwards {
+		logrus.WithField("spec", spec).Debug("closing forward")
+		err := f.Close()
+		if err != nil {
+			logrus.WithError(err).WithField("spec", spec).Warn("failed to close forward")
+		}
+		delete(n.hostForwards, spec)
+	}
+}
+
 func (n *Network) Close() error {
+	n.stopAllForwards()
 	n.Stack.Destroy()
 	if n.file0 != nil {
 		n.file0.Close()

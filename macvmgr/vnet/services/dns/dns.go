@@ -1,7 +1,9 @@
 package dnssrv
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 
@@ -310,7 +312,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 		mux := makeDnsMux(true)
 		server := &dns.Server{PacketConn: udpConn, Handler: mux}
 		err := server.ActivateAndServe()
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			logrus.Error("dns.Server.ActivateAndServe() =", err)
 		}
 	}()
@@ -320,7 +322,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 		mux := makeDnsMux(false)
 		server := &dns.Server{Listener: tcpListener, Handler: mux}
 		err := server.ActivateAndServe()
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			logrus.Error("dns.Server.ActivateAndServe() =", err)
 		}
 	}()

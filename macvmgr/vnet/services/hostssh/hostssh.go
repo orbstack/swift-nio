@@ -2,6 +2,7 @@ package sshsrv
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -306,12 +307,9 @@ func ListenHostSSH(stack *stack.Stack, address tcpip.Address) error {
 		return err
 	}
 
-	// passwordHandler := func(ctx ssh.Context, password string) bool {
-	// 	return password == "test"
-	// }
 	go func() {
-		err = ssh.Serve(listener, handler, ssh.HostKeyPEM([]byte(hostKeyEd25519))) //, ssh.PasswordAuth(passwordHandler))
-		if err != nil {
+		err = ssh.Serve(listener, handler, ssh.HostKeyPEM([]byte(hostKeyEd25519)))
+		if err != nil && !errors.Is(err, io.EOF) {
 			logrus.Error("hostssh: Serve() =", err)
 		}
 	}()
