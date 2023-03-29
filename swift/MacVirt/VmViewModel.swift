@@ -6,6 +6,7 @@ import Foundation
 import SwiftUI
 import SwiftJSONRPC
 import Sentry
+import Virtualization
 
 fileprivate let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
 
@@ -28,6 +29,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case spawnError(cause: Error)
     case spawnExit(status: Int32, output: String)
     case wrongArch
+    case virtUnsupported
     case killswitchExpired
     case startFailed(cause: Error?)
     case startTimeout(cause: Error?)
@@ -62,6 +64,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "VM crashed with error \(status): \(output)"
         case .wrongArch:
             return "Wrong CPU type"
+        case .virtUnsupported:
+            return "Virtualization not supported"
         case .killswitchExpired:
             return "Build expired"
         case .startFailed(let cause):
@@ -132,6 +136,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         switch self {
         case .wrongArch:
             return "Please download the Apple Silicon version of OrbStack."
+        case .virtUnsupported:
+            return "OrbStack cannot run because your computer does not support virtualization."
         case .killswitchExpired:
             return "Preview builds expire after 30 days.\n\nPlease update OrbStack to continue."
 
@@ -147,6 +153,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .spawnExit:
             return nil
         case .wrongArch:
+            return nil
+        case .virtUnsupported:
             return nil
         case .killswitchExpired:
             return nil
@@ -293,6 +301,16 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    private func setError(_ error: VmError) {
+        if let cause = error.cause,
+           case let cause as CancellationError = cause {
+            NSLog("Ignoring cancellation error: \(cause)")
+            return
+        }
+
+        self.error = error
+    }
+
     private func spawnDaemon() throws {
         guard state == .stopped else {
             return
@@ -300,6 +318,10 @@ class VmViewModel: ObservableObject {
 
         guard !processIsTranslated() else {
             throw VmError.wrongArch
+        }
+
+        guard VZVirtualMachine.isSupported else {
+            throw VmError.virtUnsupported
         }
 
         guard !killswitchExpired() else {
@@ -315,12 +337,12 @@ class VmViewModel: ObservableObject {
             } catch let processError as ProcessError {
                 DispatchQueue.main.async {
                     self.state = .stopped
-                    self.error = VmError.spawnExit(status: processError.status, output: processError.output)
+                    self.setError(.spawnExit(status: processError.status, output: processError.output))
                 }
             } catch {
                 DispatchQueue.main.async {
                     self.state = .stopped
-                    self.error = VmError.spawnError(cause: error)
+                    self.setError(.spawnError(cause: error))
                 }
             }
         }
@@ -432,7 +454,7 @@ class VmViewModel: ObservableObject {
                 }
             }
 
-            self.error = VmError.listRefresh(cause: error)
+            setError(.listRefresh(cause: error))
         }
     }
 
@@ -494,7 +516,7 @@ class VmViewModel: ObservableObject {
                 return
             }
 
-            self.error = VmError.dockerListError(cause: error)
+            setError(.dockerListError(cause: error))
         }
     }
 
@@ -509,7 +531,7 @@ class VmViewModel: ObservableObject {
         do {
             try await refreshConfig()
         } catch {
-            self.error = VmError.configRefresh(cause: error)
+            setError(.configRefresh(cause: error))
         }
     }
 
@@ -567,7 +589,7 @@ class VmViewModel: ObservableObject {
         do {
             try await doSetup()
         } catch {
-            self.error = VmError.setupError(cause: error)
+            setError(.setupError(cause: error))
         }
     }
 
@@ -576,13 +598,16 @@ class VmViewModel: ObservableObject {
         do {
             try spawnDaemon()
         } catch VmError.wrongArch {
-            self.error = VmError.wrongArch
+            setError(.wrongArch)
+            return
+        } catch VmError.virtUnsupported {
+            setError(.virtUnsupported)
             return
         } catch VmError.killswitchExpired {
-            self.error = VmError.killswitchExpired
+            setError(.killswitchExpired)
             return
         } catch {
-            self.error = VmError.spawnError(cause: error)
+            setError(.spawnError(cause: error))
             return
         }
 
@@ -606,7 +631,7 @@ class VmViewModel: ObservableObject {
                 return
             }
 
-            self.error = VmError.stopError(cause: error)
+            setError(.stopError(cause: error))
         }
         self.state = .stopped
     }
@@ -621,7 +646,7 @@ class VmViewModel: ObservableObject {
         do {
             try await stopContainer(record)
         } catch {
-            self.error = VmError.containerStopError(cause: error)
+            setError(.containerStopError(cause: error))
         }
     }
 
@@ -640,7 +665,7 @@ class VmViewModel: ObservableObject {
         do {
             try await startContainer(record)
         } catch {
-            self.error = VmError.containerStartError(cause: error)
+            setError(.containerStartError(cause: error))
         }
     }
 
@@ -649,7 +674,7 @@ class VmViewModel: ObservableObject {
         do {
             try await restartContainer(record)
         } catch {
-            self.error = VmError.containerRestartError(cause: error)
+            setError(.containerRestartError(cause: error))
         }
     }
 
@@ -663,7 +688,7 @@ class VmViewModel: ObservableObject {
         do {
             try await deleteContainer(record)
         } catch {
-            self.error = VmError.containerDeleteError(cause: error)
+            setError(.containerDeleteError(cause: error))
         }
     }
 
@@ -682,7 +707,7 @@ class VmViewModel: ObservableObject {
         do {
             try await createContainer(name: name, distro: distro, arch: arch)
         } catch {
-            self.error = VmError.containerCreateError(cause: error)
+            setError(.containerCreateError(cause: error))
         }
     }
 
@@ -696,7 +721,7 @@ class VmViewModel: ObservableObject {
         do {
             try await patchConfig(patch)
         } catch {
-            self.error = VmError.configPatchError(cause: error)
+            setError(.configPatchError(cause: error))
         }
     }
 
@@ -705,7 +730,7 @@ class VmViewModel: ObservableObject {
         do {
             try await scon.setDefaultContainer(record)
         } catch {
-            self.error = VmError.defaultError(cause: error)
+            setError(.defaultError(cause: error))
         }
     }
 
@@ -723,7 +748,7 @@ class VmViewModel: ObservableObject {
         do {
             try await action()
         } catch {
-            self.error = VmError.dockerContainerActionError(action: "\(label)", cause: error)
+            setError(.dockerContainerActionError(action: "\(label)", cause: error))
         }
         await tryRefreshDockerList()
 
@@ -777,7 +802,7 @@ class VmViewModel: ObservableObject {
         do {
             try await action()
         } catch {
-            self.error = VmError.dockerVolumeActionError(action: "\(label)", cause: error)
+            setError(.dockerVolumeActionError(action: "\(label)", cause: error))
         }
         await tryRefreshDockerList()
 
