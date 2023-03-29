@@ -621,6 +621,8 @@ func runVmManager() {
 
 		defer func() {
 			if nfsMounted {
+				logrus.Debug("Reporting NFS to scon")
+
 				// report to scon so it can mount nfs root
 				err = drm.Client().UseSconInternalClient(func(scon *isclient.Client) error {
 					return scon.OnNfsMounted()
@@ -628,6 +630,8 @@ func runVmManager() {
 				if err != nil {
 					logrus.WithError(err).Error("failed to report NFS mounted to scon")
 				}
+
+				logrus.Debug("Reporting NFS to scon done")
 			}
 		}()
 
