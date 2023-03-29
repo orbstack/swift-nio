@@ -378,6 +378,8 @@ class VmViewModel: ObservableObject {
                 throw VmError.startTimeout(cause: lastError)
             }
         }
+
+        setStateAsync(.running)
     }
 
     private func waitForScon() async throws {
@@ -408,6 +410,8 @@ class VmViewModel: ObservableObject {
                 throw VmError.startTimeout(cause: lastError)
             }
         }
+
+        setStateAsync(.running)
     }
 
     @MainActor
@@ -614,9 +618,17 @@ class VmViewModel: ObservableObject {
         // this includes wait
         NSLog("refresh: start")
         // avoid feedback loop if killswitch expired
-        await tryRefreshList()
-        await tryRefreshConfig()
-        self.state = .running
+        // HACK XXX: ignore errors here
+        do {
+            try await refreshList()
+        } catch {
+            NSLog("refresh: start: refresh list: \(error)")
+        }
+        do {
+            try await refreshConfig()
+        } catch {
+            NSLog("refresh: start: refresh config: \(error)")
+        }
     }
 
     @MainActor
