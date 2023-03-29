@@ -109,7 +109,7 @@ function package_one() {
     local arch="$1"
 
     # dmg
-    create-dmg --overwrite $arch/OrbStack.app $arch
+    create-dmg --overwrite --dmg-title="Install OrbStack $LONG_VER" $arch/OrbStack.app $arch
 
     if $NOTARIZE; then
         # notarize
