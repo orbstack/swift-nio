@@ -100,7 +100,8 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 
 	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir)
 	if err != nil {
-		return nil, fmt.Errorf("make rootfs: %w", err)
+		err = fmt.Errorf("make rootfs: %w", err)
+		return
 	}
 
 	// start
@@ -108,13 +109,15 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	err = c.startLocked(true /* isInternal */)
 	c.mu.Unlock()
 	if err != nil {
-		return nil, fmt.Errorf("start: %w", err)
+		err = fmt.Errorf("start: %w", err)
+		return
 	}
 
 	// setup
 	err = c.setupInitial(args)
 	if err != nil {
-		return nil, fmt.Errorf("setup: %w", err)
+		err = fmt.Errorf("setup: %w", err)
+		return
 	}
 
 	// set as last container
