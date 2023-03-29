@@ -1,7 +1,6 @@
 package flock
 
 import (
-	"fmt"
 	"os"
 
 	"golang.org/x/sys/unix"
@@ -68,7 +67,6 @@ func ReadPid(path string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	fmt.Println("flock:", flock)
 
 	if flock.Type == unix.F_UNLCK {
 		return 0, nil
