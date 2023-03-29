@@ -63,6 +63,12 @@ func doSystemInitTasks(host *hclient.Client) error {
 
 	// setup and start nfs uid
 	if conf.C().StartNfs {
+		// chown nfs root (perm mode = 700)
+		err = os.Chown(conf.C().NfsRootRW, u.Uid, u.Uid)
+		if err != nil {
+			return err
+		}
+
 		nfsExport := fmt.Sprintf("/nfsroot-ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)\n", u.Uid, u.Uid)
 		//err = util.RunCmd("exportfs", "-o", "rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid="+strconv.Itoa(u.Uid)+",anongid="+strconv.Itoa(u.Uid), nfsExport)
 		err = os.WriteFile(conf.C().EtcExports, []byte(nfsExport), 0644)
