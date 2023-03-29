@@ -13,8 +13,10 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/scon/agent/envutil"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 
@@ -281,6 +283,29 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 
 	// dedupe env
 	args.Env = envutil.Dedupe(args.Env)
+	// find the path, and prepend/append our bin to PATH
+	for i, env := range args.Env {
+		if strings.HasPrefix(env, "PATH=") {
+			k, pathEnv, ok := strings.Cut(env, "=")
+			if !ok {
+				continue
+			}
+
+			// only do the ones that aren't there
+			pathList := strings.Split(pathEnv, ":")
+			if !slices.Contains(pathList, mounts.BinHiprio) {
+				pathList = append([]string{mounts.BinHiprio}, pathList...)
+			}
+			if !slices.Contains(pathList, mounts.Bin) {
+				pathList = append(pathList, mounts.Bin)
+			}
+			if !slices.Contains(pathList, mounts.UserCmdLinks) {
+				pathList = append(pathList, mounts.UserCmdLinks)
+			}
+			args.Env[i] = k + "=" + strings.Join(pathList, ":")
+			break
+		}
+	}
 
 	// create process
 	exePath, err := exec.LookPath(args.CombinedArgs[0])
