@@ -378,8 +378,6 @@ class VmViewModel: ObservableObject {
                 throw VmError.startTimeout(cause: lastError)
             }
         }
-
-        setStateAsync(.running)
     }
 
     private func waitForScon() async throws {
