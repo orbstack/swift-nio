@@ -366,7 +366,7 @@ func writeShellProfileSnippets() error {
 
 func writeDataReadme() error {
 	// write readme
-	return os.WriteFile(conf.DataDir()+"/!! READ ME !!.txt", []byte(dataReadmeText), 0644)
+	return os.WriteFile(conf.DataDir()+"/README.txt", []byte(dataReadmeText), 0644)
 }
 
 /*
