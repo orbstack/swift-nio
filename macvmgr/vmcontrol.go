@@ -103,7 +103,6 @@ func (s *VmControlServer) StartSetup(ctx context.Context) (*vmtypes.SetupInfo, e
 		return nil, err
 	}
 
-	s.setupDone = true
 	return info, nil
 }
 

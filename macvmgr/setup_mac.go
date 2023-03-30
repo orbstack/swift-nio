@@ -383,6 +383,10 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 	s.setupMu.Lock()
 	defer s.setupMu.Unlock()
 
+	if s.setupDone {
+		return &vmtypes.SetupInfo{}, nil
+	}
+
 	details, err := getUserDetails()
 	if err != nil {
 		return nil, err
@@ -676,6 +680,8 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 		"alertAddPaths":     info.AlertRequestAddPaths,
 		"alertProfile":      info.AlertProfileChanged,
 	}).Debug("prepare setup info done")
+
+	s.setupDone = true
 	return info, nil
 }
 
