@@ -41,7 +41,7 @@ To find the real size:
     - Right-click the file and select "Get Info"
       Then look at "size on disk"
 
-For more details, see https://docs.orbstack.dev/faq#data-img
+For more details, see https://docs.orbstack.dev/readme-link/data-img
 `
 )
 

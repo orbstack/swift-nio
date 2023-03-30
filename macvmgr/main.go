@@ -52,6 +52,19 @@ const (
 	sentryShutdownTimeout = 2 * time.Second
 )
 
+const (
+	nfsReadmeText = `# OrbStack file sharing
+
+When OrbStack is running, this folder contains Docker volumes and Linux machines. All Docker and Linux files can be found here.
+
+This folder is empty when OrbStack is not running. Do not put files here.
+
+For more details, see:
+    - https://docs.orbstack.dev/readme-link/docker-mount
+    - https://docs.orbstack.dev/readme-link/machine-mount
+`
+)
+
 type StopType int
 
 const (
@@ -617,6 +630,22 @@ func runVmManager() {
 	// Mount NFS
 	nfsMounted := false
 	go func() {
+		// prep: create nfs dir, write readme, make read-only
+		dir := conf.NfsMountpoint()
+		// only if not mounted yet
+		if !isMountpoint(dir) {
+			// conf.NfsMountpoint() already calls mkdir
+			err := os.WriteFile(dir+"/README.txt", []byte(nfsReadmeText), 0644)
+			// permission error is normal, that means it's already read only
+			if err != nil && !errors.Is(err, os.ErrPermission) {
+				logrus.WithError(err).Error("failed to write NFS readme")
+			}
+			err = os.Chmod(dir, 0555)
+			if err != nil {
+				logrus.WithError(err).Error("failed to chmod NFS dir")
+			}
+		}
+
 		vc.WaitForDataReady()
 
 		defer func() {
@@ -642,7 +671,7 @@ func runVmManager() {
 			if err != nil {
 				// if already mounted, we'll just reuse it
 				// careful, this could hang
-				if isMountpoint(conf.NfsMountpoint()) {
+				if isMountpoint(dir) {
 					logrus.Info("NFS already mounted")
 					nfsMounted = true
 					return
