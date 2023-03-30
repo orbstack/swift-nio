@@ -255,6 +255,9 @@ func (c *Container) configureLxc() error {
 		addDevOptional("/dev/autofs") // TODO security
 		addDevOptional("/dev/userfaultfd")
 		addDevOptional("/dev/btrfs-control")
+		addDevOptional("/dev/binder")
+		addDevOptional("/dev/vndbinder")
+		addDevOptional("/dev/hwbinder")
 
 		// Default mounts
 		set("lxc.mount.auto", "proc:rw sys:mixed cgroup:rw:force")
