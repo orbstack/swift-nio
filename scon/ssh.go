@@ -191,7 +191,7 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 	}
 
 	if !conf.Debug() && container.builtin {
-		err = fmt.Errorf("cannot connect to builtin container: %s", containerName)
+		err = fmt.Errorf("cannot enter builtin machine: %s", containerName)
 		return
 	}
 
