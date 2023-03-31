@@ -141,6 +141,10 @@ func CliXbinDir() string {
 	return ExecutableDir() + "/xbin"
 }
 
+func FindXbin(name string) string {
+	return CliXbinDir() + "/" + name
+}
+
 func UserAppBinDir() string {
 	return ensureDir(ConfigDir() + "/bin")
 }

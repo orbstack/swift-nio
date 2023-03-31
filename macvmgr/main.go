@@ -147,7 +147,7 @@ func streamObfAssetFile(name string) io.ReadCloser {
 
 func setupDockerContext() error {
 	// use our builtin docker client so it always works
-	dockerBin := conf.CliXbinDir() + "/docker"
+	dockerBin := conf.FindXbin("docker")
 
 	// create context
 	var errBuf bytes.Buffer
