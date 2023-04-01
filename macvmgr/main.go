@@ -479,7 +479,7 @@ func runVmManager() {
 		Sound:            false,
 	}
 
-	logrus.Info("creating VM")
+	logrus.Info("configuring VM")
 	vnetwork, vm := CreateVm(params)
 	defer vnetwork.Close()
 	// close in case we need to release disk flock for next start
