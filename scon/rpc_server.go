@@ -170,7 +170,7 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 	return nil
 }
 
-func (s *SconServer) StopServerVM(ctx context.Context) error {
+func (s *SconServer) ShutdownVM(ctx context.Context) error {
 	s.m.pendingVMShutdown = true
 	return s.m.Close()
 }
@@ -193,7 +193,7 @@ func (s *SconServer) Serve() error {
 		"ContainerFreeze":             handler.New(s.ContainerFreeze),
 		"ContainerUnfreeze":           handler.New(s.ContainerUnfreeze),
 		"InternalReportStopped":       handler.New(s.InternalReportStopped),
-		"StopServerVM":                handler.New(s.StopServerVM),
+		"ShutdownVM":                  handler.New(s.ShutdownVM),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting
