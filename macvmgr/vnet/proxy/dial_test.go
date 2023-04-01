@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/internal/sockstest"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/sockstest"
 	"golang.org/x/net/nettest"
 )
 

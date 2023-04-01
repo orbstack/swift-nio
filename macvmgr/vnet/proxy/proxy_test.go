@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/net/internal/socks"
-	"golang.org/x/net/internal/sockstest"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/socks"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/sockstest"
 )
 
 type proxyFromEnvTest struct {

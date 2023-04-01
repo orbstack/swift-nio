@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/internal/socks"
-	"golang.org/x/net/internal/sockstest"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/socks"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/sockstest"
 )
 
 func TestDial(t *testing.T) {
