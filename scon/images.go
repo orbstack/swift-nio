@@ -362,7 +362,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	var meta ImageMetadata
 	err = yaml.Unmarshal(metadataBytes, &meta)
 	if err != nil {
-		return fmt.Errorf("unmarshal metadata: %w", err)
+		return fmt.Errorf("parse metadata: %w", err)
 	}
 	logrus.WithField("metadata", meta).Debug("loaded metadata")
 

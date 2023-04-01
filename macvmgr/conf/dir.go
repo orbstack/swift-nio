@@ -27,16 +27,16 @@ func ensureDir(dir string) string {
 	return dir
 }
 
-func ConfigDir() string {
+func AppDir() string {
 	return ensureDir(HomeDir() + "/." + appid.AppName)
 }
 
 func RunDir() string {
-	return ensureDir(ConfigDir() + "/run")
+	return ensureDir(AppDir() + "/run")
 }
 
 func LogDir() string {
-	return ensureDir(ConfigDir() + "/log")
+	return ensureDir(AppDir() + "/log")
 }
 
 func NfsMountpoint() string {
@@ -44,7 +44,7 @@ func NfsMountpoint() string {
 }
 
 func DataDir() string {
-	return ensureDir(ConfigDir() + "/data")
+	return ensureDir(AppDir() + "/data")
 }
 
 func GetDataFile(name string) string {
@@ -117,12 +117,13 @@ func VmgrLockFile() string {
 	return os.TempDir() + "/orbstack-vmgr.lock"
 }
 
+// TODO: migrate to /config
 func VmConfigFile() string {
-	return ConfigDir() + "/vmconfig.json"
+	return AppDir() + "/vmconfig.json"
 }
 
 func VmStateFile() string {
-	return ConfigDir() + "/vmstate.json"
+	return AppDir() + "/vmstate.json"
 }
 
 func UserSshDir() string {
@@ -130,7 +131,7 @@ func UserSshDir() string {
 }
 
 func ExtraSshDir() string {
-	return ensureDir(ConfigDir() + "/ssh")
+	return ensureDir(AppDir() + "/ssh")
 }
 
 func CliBinDir() string {
@@ -146,11 +147,11 @@ func FindXbin(name string) string {
 }
 
 func UserAppBinDir() string {
-	return ensureDir(ConfigDir() + "/bin")
+	return ensureDir(AppDir() + "/bin")
 }
 
 func ShellInitDir() string {
-	return ensureDir(ConfigDir() + "/shell")
+	return ensureDir(AppDir() + "/shell")
 }
 
 func DockerCliPluginsDir() string {
@@ -158,7 +159,7 @@ func DockerCliPluginsDir() string {
 }
 
 func InstallIDFile() string {
-	return ConfigDir() + "/.installid"
+	return AppDir() + "/.installid"
 }
 
 func Arch() string {
@@ -168,4 +169,12 @@ func Arch() string {
 
 func UpdatePendingFlag() string {
 	return RunDir() + "/.update-pending"
+}
+
+func ConfigDir() string {
+	return ensureDir(AppDir() + "/config")
+}
+
+func DockerDaemonConfig() string {
+	return ConfigDir() + "/docker.json"
 }

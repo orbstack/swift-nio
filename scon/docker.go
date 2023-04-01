@@ -3,11 +3,13 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
@@ -51,14 +53,6 @@ type DockerDaemonFeatures struct {
 	Buildkit bool `json:"buildkit"`
 }
 
-type DockerDaemonConfig struct {
-	Features      DockerDaemonFeatures `json:"features"`
-	IPv6          bool                 `json:"ipv6"`
-	FixedCIDRv6   string               `json:"fixed-cidr-v6"`
-	StorageDriver string               `json:"storage-driver"`
-	MTU           int                  `json:"mtu"`
-}
-
 type DockerHooks struct {
 }
 
@@ -91,20 +85,43 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	rootfs := conf.C().DockerRootfs
 	os.Remove(filepath.Join(rootfs, "var/run/docker.pid"))
 
-	// generate docker daemon config
-	config := DockerDaemonConfig{
-		// just to be safe with legacy clients
-		Features: DockerDaemonFeatures{
-			Buildkit: true,
-		},
-		// enable IPv6 with NAT66
-		IPv6:        true,
-		FixedCIDRv6: "fd00:30:32::/64",
-		// most reliable, and fast on btrfs due to reflinks
-		StorageDriver: "overlay2",
-		// match our MTU
-		MTU: c.manager.net.mtu,
+	// generate base docker daemon config
+	baseFeatures := map[string]any{
+		"buildkit": true,
 	}
+	config := map[string]any{
+		// just to be safe with legacy clients
+		"features": baseFeatures,
+		// enable IPv6 with NAT66
+		"ipv6":          true,
+		"fixed-cidr-v6": "fd00:30:32::/64",
+		// most reliable, and fast on btrfs due to reflinks
+		"storage-driver": "overlay2",
+		// match our MTU
+		"mtu": c.manager.net.mtu,
+	}
+
+	// read config overrides from host
+	overrideConfig, err := c.manager.host.ReadDockerDaemonConfig()
+	if err != nil {
+		return fmt.Errorf("read docker daemon config: %w", err)
+	}
+	overrideConfig = strings.TrimSpace(overrideConfig)
+	if overrideConfig != "" {
+		// write as override
+		err = json.Unmarshal([]byte(overrideConfig), &config)
+		if err != nil {
+			return fmt.Errorf("parse docker daemon config: %w", err)
+		}
+	}
+
+	// merge features map
+	newFeatures := config["features"].(map[string]any)
+	for k, v := range newFeatures {
+		baseFeatures[k] = v
+	}
+	config["features"] = baseFeatures
+
 	configBytes, err := json.Marshal(&config)
 	if err != nil {
 		return err

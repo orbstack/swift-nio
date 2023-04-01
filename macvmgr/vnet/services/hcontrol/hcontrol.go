@@ -126,6 +126,27 @@ func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error 
 	return nil
 }
 
+func (h *HcontrolServer) ReadDockerDaemonConfig(_ None, reply *string) error {
+	data, err := os.ReadFile(conf.DockerDaemonConfig())
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// write an empty config for user convenience if it doesn't exist
+			err = os.WriteFile(conf.DockerDaemonConfig(), []byte("{}"), 0644)
+			if err != nil {
+				return err
+			}
+
+			*reply = ""
+			return nil
+		}
+
+		return err
+	}
+
+	*reply = string(data)
+	return nil
+}
+
 func (h *HcontrolServer) Notify(n guihelper.Notification, _ *None) error {
 	return guihelper.Notify(n)
 }
