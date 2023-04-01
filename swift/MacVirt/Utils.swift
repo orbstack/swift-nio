@@ -97,17 +97,30 @@ func runProcessChecked(_ command: String, _ args: [String]) async throws -> Stri
     return result.output
 }
 
+fileprivate func escapeShellArg(_ arg: String) -> String {
+    return "'" + arg.replacingOccurrences(of: "'", with: "'\\''") + "'"
+}
+
+fileprivate func escapeShellArgs(_ args: [String]) -> String {
+    return args.map(escapeShellArg).joined(separator: " ")
+}
+
 func openTerminal(_ command: String, _ args: [String]) async throws {
     // make tmp file
     let tmpDir = FileManager.default.temporaryDirectory
-    let tmpFile = tmpDir.appendingPathComponent("orbstack-open-terminal_\(UUID().uuidString).sh")
+    let uuid = UUID().uuidString.prefix(8)
+    let tmpFile = tmpDir.appendingPathComponent("orbstack-open-terminal_\(uuid).sh")
     let tmpFileURL = URL(fileURLWithPath: tmpFile.path)
 
     // write command to tmp file
+    // use cleanup function to do escape
     let command = """
     #!/bin/sh -e
-    rm -f "\(tmpFileURL.path)"
-    "\(command)" \(args.joined(separator: " "))
+    cleanup() {
+        rm -f \(escapeShellArg(tmpFileURL.path))
+    }
+    trap cleanup EXIT
+    \(escapeShellArgs([command] + args))
     """
     try command.write(to: tmpFileURL, atomically: true, encoding: .utf8)
 
