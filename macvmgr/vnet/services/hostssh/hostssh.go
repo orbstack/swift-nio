@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/sshenv"
+	"github.com/kdrag0n/macvirt/macvmgr/setup/userutil"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
@@ -151,6 +153,7 @@ func handleSshConn(s ssh.Session) error {
 	env = envutil.Dedupe(env)
 
 	var combinedArgs []string
+	var argv0 string
 	if meta.RawCommand {
 		// raw command (JSON)
 		err = json.Unmarshal([]byte(s.RawCommand()), &combinedArgs)
@@ -158,13 +161,23 @@ func handleSshConn(s ssh.Session) error {
 			return err
 		}
 	} else {
-		// TODO look up at runtime
-		combinedArgs = []string{os.Getenv("SHELL")}
+		// get shell in case it changed
+		shell, err := userutil.GetShell()
+		if err != nil {
+			return err
+		}
+		combinedArgs = []string{shell}
 		if s.RawCommand() != "" {
 			combinedArgs = append(combinedArgs, "-c", s.RawCommand())
 		}
+		// force login shell
+		base := filepath.Base(shell)
+		argv0 = "-" + base
 	}
 	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
+	if argv0 != "" {
+		cmd.Args[0] = argv0
+	}
 	cmd.Env = env
 	cmd.Dir = pwd
 
