@@ -100,6 +100,16 @@ func (c *Client) GetLastDrmResult() (*drmtypes.Result, error) {
 	return &result, nil
 }
 
+func (c *Client) ReadDockerDaemonConfig() (string, error) {
+	var result string
+	err := c.rpc.Call("hc.ReadDockerDaemonConfig", None{}, &result)
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
+}
+
 func (c *Client) Notify(n guihelper.Notification) error {
 	var none None
 	return c.rpc.Call("hc.Notify", n, &none)
