@@ -3,9 +3,9 @@ package udpfwd
 import (
 	"net"
 	"strconv"
-	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/gvaddr"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -19,7 +19,7 @@ type icmpSender interface {
 	InjectDestUnreachable6(stack.PacketBufferPtr, header.ICMPv6Code) error
 }
 
-func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.Mutex, i icmpSender) *udp.Forwarder {
+func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *udp.Forwarder {
 	// can't move to goroutine - packet ref issue: PullUp failed; see udp-goroutine-panic.log
 	// happens with DNS packets (to 192.168.66.1 nameserver)
 	return udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
@@ -28,11 +28,13 @@ func NewUdpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			return
 		}
 
-		natLock.Lock()
-		if replaced, ok := natTable[localAddress]; ok {
-			localAddress = replaced
+		// host NAT: match source v4/v6
+		// can't fall back for UDP because we don't know if anyone received it
+		if localAddress == hostNatIP4 {
+			localAddress = gvaddr.LoopbackGvIP4
+		} else if localAddress == hostNatIP6 {
+			localAddress = gvaddr.LoopbackGvIP6
 		}
-		natLock.Unlock()
 
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)

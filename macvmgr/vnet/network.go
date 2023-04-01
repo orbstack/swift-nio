@@ -44,14 +44,6 @@ const (
 	guestDialRetryTimeout  = 15 * time.Second
 )
 
-var (
-	// guest -> host
-	natFromGuest = map[string]string{
-		netconf.HostNatIP4: "127.0.0.1",
-		netconf.HostNatIP6: "::1",
-	}
-)
-
 type Network struct {
 	Stack       *stack.Stack
 	NIC         tcpip.NICID
@@ -259,17 +251,14 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	icmpFwd.MonitorReplies()
 
 	// Build NAT table
-	var natLock sync.Mutex
-	natTable := make(map[tcpip.Address]tcpip.Address)
-	for virtIp, hostIp := range natFromGuest {
-		natTable[netutil.ParseTcpipAddress(virtIp)] = netutil.ParseTcpipAddress(hostIp)
-	}
+	hostNatIP4 := netutil.ParseTcpipAddress(netconf.HostNatIP4)
+	hostNatIP6 := netutil.ParseTcpipAddress(netconf.HostNatIP6)
 
 	// Forwarders
-	tcpForwarder := tcpfwd.NewTcpForwarder(s, natTable, &natLock, icmpFwd)
+	tcpForwarder := tcpfwd.NewTcpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
-	udpForwarder := udpfwd.NewUdpForwarder(s, natTable, &natLock, icmpFwd)
+	udpForwarder := udpfwd.NewUdpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
 	// Silence gvisor logs
@@ -280,7 +269,6 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		NIC:          nicID,
 		VsockDialer:  nil,
 		ICMP:         icmpFwd,
-		NatTable:     natTable,
 		GuestAddr4:   guestAddr4,
 		GuestAddr6:   guestAddr6,
 		hostForwards: make(map[string]HostForward),

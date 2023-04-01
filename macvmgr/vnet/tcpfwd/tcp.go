@@ -1,14 +1,15 @@
 package tcpfwd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/gvaddr"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
@@ -57,7 +58,7 @@ func tryBestCleanup(conn *gonet.TCPConn) error {
 	return tryAbort(conn)
 }
 
-func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, natLock *sync.Mutex, i *icmpfwd.IcmpFwd) *tcp.Forwarder {
+func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *tcp.Forwarder {
 	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
 		refDec := false
 		defer func() {
@@ -72,14 +73,30 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 			return
 		}
 
-		natLock.Lock()
-		if replaced, ok := natTable[localAddress]; ok {
-			localAddress = replaced
+		// host NAT: try dial preferred v4/v6 first, then fall back to the other one
+		var altHostIP tcpip.Address
+		if localAddress == hostNatIP4 {
+			localAddress = gvaddr.LoopbackGvIP4
+			altHostIP = gvaddr.LoopbackGvIP6
+		} else if localAddress == hostNatIP6 {
+			localAddress = gvaddr.LoopbackGvIP6
+			altHostIP = gvaddr.LoopbackGvIP4
 		}
-		natLock.Unlock()
 		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
 
-		extConn, err := net.DialTimeout("tcp", extAddr, tcpConnectTimeout)
+		var dialer net.Dialer
+		ctx, cancel := context.WithTimeout(context.TODO(), tcpConnectTimeout)
+		defer cancel()
+		extConn, err := dialer.DialContext(ctx, "tcp", extAddr)
+		if err != nil && errors.Is(err, unix.ECONNREFUSED) && altHostIP != "" {
+			// try the other host IP
+			// do not set localAddress or icmp unreachable logic below will send wrong protocol
+			logrus.Debugf("TCP forward [%v] dial retry host", extAddr)
+			extAddr = net.JoinHostPort(altHostIP.String(), strconv.Itoa(int(r.ID().LocalPort)))
+			// don't reset timeout - localhost shouldn't take so long
+			// if it did, it was probably listen backlog full, so we don't want to retry too long
+			extConn, err = dialer.DialContext(ctx, "tcp", extAddr)
+		}
 		if err != nil {
 			logrus.Debugf("TCP forward [%v] dial failed: %v", extAddr, err)
 			// if connection refused
@@ -102,7 +119,7 @@ func NewTcpForwarder(s *stack.Stack, natTable map[tcpip.Address]tcpip.Address, n
 					}
 				}
 				r.Complete(false)
-			} else if errors.Is(err, unix.ETIMEDOUT) {
+			} else if errors.Is(err, unix.ETIMEDOUT) || errors.Is(err, context.DeadlineExceeded) {
 				r.Complete(false)
 			} else {
 				// unknown
