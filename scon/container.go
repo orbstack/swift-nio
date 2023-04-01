@@ -248,7 +248,7 @@ func (c *Container) setStateInternalLocked(state types.ContainerState, isInterna
 	}
 
 	if !c.state.CanTransitionTo(state, isInternal) {
-		return "", fmt.Errorf("invalid state transition from %v to %v", c.state, state)
+		return "", fmt.Errorf("invalid transition from %v to %v", c.state, state)
 	}
 
 	logrus.WithFields(logrus.Fields{

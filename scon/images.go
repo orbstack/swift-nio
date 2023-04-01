@@ -128,13 +128,13 @@ func findItem(items map[string]StreamsImage, ftype string) (*StreamsImage, bool)
 func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 	resp, err := imagesHttpClient.Get(RepoLxd + "/streams/v1/images.json")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get index: %w", err)
 	}
 	defer resp.Body.Close()
 
 	var images StreamsImages
 	if err := json.NewDecoder(resp.Body).Decode(&images); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode index: %w", err)
 	}
 
 	imagesMap := make(map[types.ImageSpec]RawImage)
@@ -214,6 +214,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	if err != nil {
 		return err
 	}
+	defer os.Remove(tmpPath)
 	defer out.Close()
 
 	// download
@@ -225,10 +226,12 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	if err != nil {
 		return err
 	}
+	// workaround for unexpected EOF?
+	req.Close = true
 	req = req.WithContext(ctx)
 	resp, err := imagesHttpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("start GET %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 
@@ -244,7 +247,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	// write to file
 	_, err = io.Copy(out, tee)
 	if err != nil {
-		return err
+		return fmt.Errorf("stream download to file: %w", err)
 	}
 
 	// check sha256 if we have one
@@ -253,7 +256,12 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	}
 
 	// rename
-	return os.Rename(tmpPath, outPath)
+	err = os.Rename(tmpPath, outPath)
+	if err != nil {
+		return fmt.Errorf("rename: %w", err)
+	}
+
+	return nil
 }
 
 func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string) error {
@@ -274,7 +282,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 			logrus.Info("fetching image index")
 			images, err := fetchStreamsImages()
 			if err != nil {
-				return err
+				return fmt.Errorf("fetch index: %w", err)
 			}
 			img, ok = images[spec]
 		default:
@@ -304,10 +312,10 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 
 	// check errors
 	if metadataErr != nil {
-		return metadataErr
+		return fmt.Errorf("download metadata: %w", metadataErr)
 	}
 	if rootfsErr != nil {
-		return rootfsErr
+		return fmt.Errorf("download rootfs: %w", rootfsErr)
 	}
 
 	// extract rootfs
@@ -328,7 +336,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	}
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("extracting rootfs failed: %w\n%s", err, output)
+		return fmt.Errorf("extract rootfs: %w\n%s", err, output)
 	}
 
 	// make temp dir for metadata
@@ -342,19 +350,19 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	cmd = exec.Command("tar", "-xf", metaFile, "-C", metadataDir)
 	output, err = cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("extracting metadata failed: %w\n%s", err, output)
+		return fmt.Errorf("extract metadata: %w\n%s", err, output)
 	}
 
 	// load metadata
 	metadataPath := metadataDir + "/metadata.yaml"
 	metadataBytes, err := os.ReadFile(metadataPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("read metadata: %w", err)
 	}
 	var meta ImageMetadata
 	err = yaml.Unmarshal(metadataBytes, &meta)
 	if err != nil {
-		return err
+		return fmt.Errorf("unmarshal metadata: %w", err)
 	}
 	logrus.WithField("metadata", meta).Debug("loaded metadata")
 

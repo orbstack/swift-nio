@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/kdrag0n/macvirt/scon/types"
@@ -26,10 +27,10 @@ func deleteRootfs(rootfs string) error {
 			// try again
 			err = os.RemoveAll(rootfs)
 			if err != nil {
-				return err
+				return fmt.Errorf("remove all x2: %w", err)
 			}
 		} else {
-			return err
+			return fmt.Errorf("remove all: %w", err)
 		}
 	}
 
@@ -72,7 +73,7 @@ func (c *Container) deleteLocked() error {
 	// delete the entire directory
 	err = deleteRootfs(c.dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("delete rootfs: %w", err)
 	}
 
 	return c.manager.removeContainer(c)
