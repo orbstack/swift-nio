@@ -426,7 +426,6 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 	// forward signals
 	fwdSigChan := make(chan ssh.Signal, 1)
-	defer close(fwdSigChan)
 	s.Signals(fwdSigChan)
 	go func() {
 		for {
