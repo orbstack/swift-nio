@@ -201,6 +201,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         switch self {
         case .wrongArch:
             return true
+        case .virtUnsupported:
+            return true
         case .killswitchExpired:
             return true
         case .dockerVolumeActionError(let action, let cause):
