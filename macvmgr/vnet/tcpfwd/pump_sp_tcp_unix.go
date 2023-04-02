@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// monomorphized copy of pump.go
 func pump1SpTcpUnix(errc chan<- error, src *net.TCPConn, dst *net.UnixConn) {
 	// Workaround for NFS panic
 	defer func() {
