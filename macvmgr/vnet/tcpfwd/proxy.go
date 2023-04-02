@@ -20,12 +20,22 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
+const (
+	proxyProtoHttp  = "http"
+	proxyProtoHttps = "https"
+	proxyProtoSocks = "socks5"
+)
+
 type ProxyManager struct {
 	hostNatIP4 tcpip.Address
 	hostNatIP6 tcpip.Address
 
 	dialerMu sync.Mutex
 	dialer   proxy.ContextDialer
+
+	httpMu            sync.Mutex
+	requiresHttpProxy bool
+	httpRevProxy      *httpReverseProxy
 }
 
 type fullDuplexTlsConn struct {
@@ -44,14 +54,7 @@ func newProxyManager(hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *ProxyM
 	}
 }
 
-func (p *ProxyManager) Refresh() error {
-	settings, err := vzf.SwextProxyGetSettings()
-	if err != nil {
-		return fmt.Errorf("get proxy settings: %w", err)
-	}
-
-	logrus.WithField("settings", settings).Debug("got proxy settings")
-
+func (p *ProxyManager) updateProxyDialer(settings *vzf.SwextProxySettings) (*url.URL, error) {
 	p.dialerMu.Lock()
 	defer p.dialerMu.Unlock()
 
@@ -60,7 +63,7 @@ func (p *ProxyManager) Refresh() error {
 	if overrideConfig != "" {
 		u, err := url.Parse(overrideConfig)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		logrus.WithFields(logrus.Fields{
 			"host": u.Host,
@@ -69,11 +72,15 @@ func (p *ProxyManager) Refresh() error {
 
 		proxyDialer, err := proxy.FromURL(u, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		p.dialer = proxyDialer.(proxy.ContextDialer)
-		return nil
+		// normalize socks5h -> socks5
+		if u.Scheme == "socks5h" {
+			u.Scheme = "socks5"
+		}
+		return u, nil
 	}
 
 	// 1. if SOCKS: use it for everything
@@ -93,12 +100,13 @@ func (p *ProxyManager) Refresh() error {
 
 		dialer, err := proxy.SOCKS5("tcp", net.JoinHostPort(settings.SOCKSProxy, strconv.Itoa(settings.SOCKSPort)), &auth, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		socksDialer := dialer.(*socks.Dialer)
 		p.dialer = socksDialer
-		return nil
+		// don't care about socks url
+		return nil, nil
 	}
 
 	// 2. if HTTPS: use it for everything
@@ -119,11 +127,11 @@ func (p *ProxyManager) Refresh() error {
 
 		proxyDialer, err := proxy.FromURL(u, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		p.dialer = proxyDialer.(proxy.ContextDialer)
-		return nil
+		return u, nil
 	}
 
 	// 3. if HTTP: use it for everything
@@ -144,16 +152,48 @@ func (p *ProxyManager) Refresh() error {
 
 		proxyDialer, err := proxy.FromURL(u, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		p.dialer = proxyDialer.(proxy.ContextDialer)
-		return nil
+		return u, nil
 	}
 
 	// 4. if none: use direct connection
 	logrus.Info("using proxy: none")
 	p.dialer = nil
+	return nil, nil
+}
+
+func (p *ProxyManager) Refresh() error {
+	settings, err := vzf.SwextProxyGetSettings()
+	if err != nil {
+		return fmt.Errorf("get proxy settings: %w", err)
+	}
+
+	logrus.WithField("settings", settings).Debug("got proxy settings")
+
+	proxyUrl, err := p.updateProxyDialer(settings)
+	if err != nil {
+		return err
+	}
+
+	// check if we need to use HTTP proxy
+	p.httpMu.Lock()
+	requiresHttp := proxyUrl != nil && (proxyUrl.Scheme == proxyProtoHttp || proxyUrl.Scheme == proxyProtoHttps)
+	if requiresHttp {
+		p.dialerMu.Lock()
+		defer p.dialerMu.Unlock()
+
+		oldHttpRevProxy := p.httpRevProxy
+		p.httpRevProxy = newHttpReverseProxy(proxyUrl)
+		if oldHttpRevProxy != nil {
+			oldHttpRevProxy.Close()
+		}
+	}
+	p.requiresHttpProxy = requiresHttp
+	p.httpMu.Unlock()
+
 	return nil
 }
 

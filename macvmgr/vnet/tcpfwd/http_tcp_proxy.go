@@ -28,18 +28,18 @@ type httpProxy struct {
 	userAgent  string
 }
 
-func newHTTPProxy(uri *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
+func newHTTPProxy(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
 	if forward != nil {
 		return nil, errors.New("http proxy does not support chaining")
 	}
 
 	var proxy httpProxy
-	if uri.Scheme == "https" {
+	if u.Scheme == "https" {
 		proxy.isTls = true
 	}
 
-	host := uri.Host
-	if uri.Port() == "" {
+	host := u.Host
+	if u.Port() == "" {
 		if proxy.isTls {
 			host += ":443"
 		} else {
@@ -48,9 +48,8 @@ func newHTTPProxy(uri *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
 	}
 	proxy.host = host
 
-	if uri.User != nil {
-		pass, _ := uri.User.Password()
-		proxy.authHeader = "Basic " + basicAuth(uri.User.Username(), pass)
+	if u.User != nil {
+		proxy.authHeader = "Basic " + basicAuth(u.User)
 	}
 
 	proxy.userAgent = appid.UserAppName + "/" + appver.Get().Short
@@ -58,8 +57,11 @@ func newHTTPProxy(uri *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
 	return &proxy, nil
 }
 
-func basicAuth(username, password string) string {
-	auth := username + ":" + password
+func basicAuth(user *url.Userinfo) string {
+	password, _ := user.Password()
+
+	// in http basic auth we always have :, even if password is empty
+	auth := user.Username() + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 

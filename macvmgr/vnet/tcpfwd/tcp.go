@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
@@ -73,8 +74,41 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 			return
 		}
 
+		// if we require proxy and don't have SOCKS, port 80 should use reverse proxy
+		extPort := int(r.ID().LocalPort)
+		if proxyMgr.requiresHttpProxy && extPort == 80 && localAddress != hostNatIP4 && localAddress != hostNatIP6 {
+			proxyMgr.httpMu.Lock()
+			revProxy := proxyMgr.httpRevProxy
+			proxyMgr.httpMu.Unlock()
+			if revProxy == nil {
+				logrus.Error("TCP forward: missing HTTP reverse proxy")
+				r.Complete(false)
+				return
+			}
+
+			r.Pkt.DecRef()
+			refDec = true
+
+			var wq waiter.Queue
+			ep, tcpErr := r.CreateEndpoint(&wq)
+			r.Complete(false)
+			if tcpErr != nil {
+				// Maybe VM abandoned the connection already, nothing to do
+				extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(extPort))
+				logrus.Errorf("TCP forward [%v] create endpoint failed: %v", extAddr, tcpErr)
+				return
+			}
+
+			virtConn := gonet.NewTCPConn(&wq, ep)
+			// we don't defer close - http server will do it
+
+			// TODO: dial first and handle conn refused, etc. correctly
+			revProxy.HandleConn(virtConn)
+			return
+		}
+
 		// this also handles host NAT
-		extConn, extAddr, err := proxyMgr.DialForward(localAddress, int(r.ID().LocalPort))
+		extConn, extAddr, err := proxyMgr.DialForward(localAddress, extPort)
 		if err != nil {
 			logrus.Debugf("TCP forward [%v] dial failed: %v", extAddr, err)
 			// if connection refused
