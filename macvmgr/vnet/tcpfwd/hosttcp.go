@@ -174,7 +174,8 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 	}
 	defer virtConn.Close()
 
-	err = setExtNodelay(conn.(*net.TCPConn), int(connectAddr.Port))
+	// other port doesn't matter, only service does (client port should be ephemeral)
+	err = setExtNodelay(conn.(*net.TCPConn), 0)
 	if err != nil {
 		logrus.Errorf("set ext opts failed ", err)
 		return

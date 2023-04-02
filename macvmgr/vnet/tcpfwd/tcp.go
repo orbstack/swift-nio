@@ -161,7 +161,8 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 		}()
 
 		if extTcpConn, ok := extConn.(*net.TCPConn); ok {
-			err = setExtNodelay(extTcpConn, virtConn.RemoteAddr().(*net.TCPAddr).Port)
+			// other port doesn't matter, only service does (client port should be ephemeral)
+			err = setExtNodelay(extTcpConn, 0)
 			if err != nil {
 				logrus.Errorf("TCP forward [%v] set ext opts failed: %v", extAddr, err)
 				return
