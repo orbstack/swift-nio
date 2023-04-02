@@ -166,8 +166,12 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 				logrus.Errorf("TCP forward [%v] set ext opts failed: %v", extAddr, err)
 				return
 			}
-		}
 
-		pump2(virtConn, extConn)
+			// fast path, specialized for non-proxy TCP
+			pump2SpTcpGv(extTcpConn, virtConn)
+		} else {
+			// generic (proxy case)
+			pump2(extConn, virtConn)
+		}
 	}), proxyMgr
 }
