@@ -19,44 +19,8 @@ import (
 )
 
 var (
-	// ssh-proxy-fdpass is to ensure VM starts
-	sshConfigSegment = fmt.Sprintf(`Host %s
-  Hostname 127.0.0.1
-  Port %d
-  # SSH user syntax:
-  #   <container>@%s to connect to <container> as the default user (matching your macOS user)
-  #   <user>@<container>@%s to connect to <container> as <user>
-  # Examples:
-  #   ubuntu@%s: container "ubuntu", user matching your macOS user
-  #   root@fedora@%s: container "fedora", user "root"
-  User default
-  IdentityFile %s/id_ed25519
-  ProxyCommand %s ssh-proxy-fdpass
-  ProxyUseFdpass yes
-
-Host %s
-  Hostname 127.0.0.1
-  Port %d
-  # SSH user syntax:
-  #   <container>@%s to connect to <container> as the default user (matching your macOS user)
-  #   <user>@<container>@%s to connect to <container> as <user>
-  # Examples:
-  #   ubuntu@%s: container "ubuntu", user matching your macOS user
-  #   root@fedora@%s: container "fedora", user "root"
-  User default
-  IdentityFile %s/id_ed25519
-  ProxyCommand %s ssh-proxy-fdpass
-  ProxyUseFdpass yes
-`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, syssetup.MakeHomeRelative(conf.ExtraSshDir()), shellescape.Quote(getExePath()), appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, syssetup.MakeHomeRelative(conf.ExtraSshDir()), shellescape.Quote(getExePath()))
-
 	sshConfigIncludeLine = fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
 )
-
-func getExePath() string {
-	exe, err := os.Executable()
-	check(err)
-	return exe
-}
 
 func generatePublicSSHKey() error {
 	pk, sk, err := ed25519.GenerateKey(nil)
@@ -89,8 +53,45 @@ func generatePublicSSHKey() error {
 }
 
 func setupPublicSSH() error {
+	// ssh-proxy-fdpass is to ensure VM start
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("find executable: %w", err)
+	}
+
+	relHome := syssetup.MakeHomeRelative(conf.ExtraSshDir())
+	quotedExe := shellescape.Quote(exePath)
+	sshConfigSection := fmt.Sprintf(`Host %s
+  Hostname 127.0.0.1
+  Port %d
+  # SSH user syntax:
+  #   <container>@%s to connect to <container> as the default user (matching your macOS user)
+  #   <user>@<container>@%s to connect to <container> as <user>
+  # Examples:
+  #   ubuntu@%s: container "ubuntu", user matching your macOS user
+  #   root@fedora@%s: container "fedora", user "root"
+  User default
+  IdentityFile %s/id_ed25519
+  ProxyCommand %s ssh-proxy-fdpass
+  ProxyUseFdpass yes
+
+Host %s
+  Hostname 127.0.0.1
+  Port %d
+  # SSH user syntax:
+  #   <container>@%s to connect to <container> as the default user (matching your macOS user)
+  #   <user>@<container>@%s to connect to <container> as <user>
+  # Examples:
+  #   ubuntu@%s: container "ubuntu", user matching your macOS user
+  #   root@fedora@%s: container "fedora", user "root"
+  User default
+  IdentityFile %s/id_ed25519
+  ProxyCommand %s ssh-proxy-fdpass
+  ProxyUseFdpass yes
+`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, relHome, quotedExe, appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, relHome, quotedExe)
+
 	// write extra config
-	err := os.WriteFile(conf.ExtraSshDir()+"/config", []byte(sshConfigSegment), 0644)
+	err = os.WriteFile(conf.ExtraSshDir()+"/config", []byte(sshConfigSection), 0644)
 	if err != nil {
 		return err
 	}
