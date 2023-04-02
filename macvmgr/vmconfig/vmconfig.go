@@ -10,6 +10,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
+	"github.com/kdrag0n/macvirt/macvmgr/syncx"
 )
 
 const (
@@ -19,6 +20,8 @@ const (
 var (
 	globalConfig   *VmConfig
 	globalConfigMu sync.Mutex
+
+	diffBroadcaster = syncx.NewBroadcaster[VmConfigPatch]()
 )
 
 type VmConfig struct {
@@ -101,6 +104,8 @@ func Get() *VmConfig {
 
 func Update(cb func(*VmConfig)) error {
 	config := Get()
+	// copy the old config
+	oldConfig := *config
 
 	globalConfigMu.Lock()
 	defer globalConfigMu.Unlock()
@@ -114,9 +119,9 @@ func Update(cb func(*VmConfig)) error {
 
 	// generate a patch and only save the patch
 	// this allows us to change defaults without breaking existing configs
-	diff := Diff(Defaults(), config)
+	diffDefault := Diff(Defaults(), config)
 
-	data, err := json.MarshalIndent(diff, "", "\t")
+	data, err := json.MarshalIndent(diffDefault, "", "\t")
 	if err != nil {
 		return err
 	}
@@ -126,6 +131,10 @@ func Update(cb func(*VmConfig)) error {
 	if err != nil {
 		return err
 	}
+
+	// broadcast the diff from old
+	diffOld := Diff(&oldConfig, config)
+	diffBroadcaster.Emit(*diffOld)
 
 	globalConfig = config
 	return nil
@@ -193,4 +202,12 @@ func Apply(a *VmConfig, patch *VmConfigPatch) {
 	if patch.NetworkProxy != nil {
 		a.NetworkProxy = *patch.NetworkProxy
 	}
+}
+
+func SubscribeDiff() chan VmConfigPatch {
+	return diffBroadcaster.Subscribe()
+}
+
+func UnsubscribeDiff(ch chan VmConfigPatch) {
+	diffBroadcaster.Unsubscribe(ch)
 }

@@ -29,6 +29,7 @@ func (b *Broadcaster[T]) Unsubscribe(ch chan T) {
 
 func (b *Broadcaster[T]) Emit(msg T) {
 	for _, sub := range b.subscribers {
+		// defend against blocking subscribers
 		go func(sub chan T) {
 			sub <- msg
 		}(sub)
