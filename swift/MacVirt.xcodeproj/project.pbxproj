@@ -28,7 +28,6 @@
 		B118BAC7BDF77DCFE564EF36 /* CreateVolumeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B42B941198E5B15B2494 /* CreateVolumeView.swift */; };
 		B118BAD426D7BA4054B6E689 /* DockerContainersRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD91CF1D1F80CDCBFB9F /* DockerContainersRootView.swift */; };
 		B118BB2A35AC6730018691D2 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */; };
-		B118BB4B2CEF159F6913BD8D /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE577DB19F2ADECF9C9F /* Proxy.swift */; };
 		B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E62611F603F60BF666 /* VmViewModel.swift */; };
 		B118BC2FFF41ABFFF0CA5BF3 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC445161ECC2F67ABFEF /* Utils.swift */; };
 		B118BC31190DB3854C66B353 /* MachineContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* MachineContainerItem.swift */; };
@@ -52,6 +51,7 @@
 		D81E785C29A39BF300A1D8AC /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E785B29A39BF300A1D8AC /* Utils.swift */; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D829039729D95671004D42A3 /* OrbStack Helper (VM) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D829039629D95671004D42A3 /* OrbStack Helper (VM) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D829039829D9E093004D42A3 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE577DB19F2ADECF9C9F /* Proxy.swift */; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
@@ -584,6 +584,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D829039829D9E093004D42A3 /* Proxy.swift in Sources */,
 				D870292F29B349D100A4CFD9 /* VzClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -635,7 +636,6 @@
 				B118B3F700D1BE2360D67EFC /* DockerVolumeItem.swift in Sources */,
 				B118BAC7BDF77DCFE564EF36 /* CreateVolumeView.swift in Sources */,
 				B118B9D1B19DDBB36F4153AA /* DockerFilterView.swift in Sources */,
-				B118BB4B2CEF159F6913BD8D /* Proxy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
