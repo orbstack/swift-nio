@@ -19,13 +19,15 @@ var (
 )
 
 type VmConfig struct {
-	MemoryMiB uint64 `json:"memory_mib"`
-	Rosetta   bool   `json:"rosetta"`
+	MemoryMiB    uint64 `json:"memory_mib"`
+	Rosetta      bool   `json:"rosetta"`
+	NetworkProxy string `json:"network_proxy"`
 }
 
 type VmConfigPatch struct {
-	MemoryMiB *uint64 `json:"memory_mib,omitempty"`
-	Rosetta   *bool   `json:"rosetta,omitempty"`
+	MemoryMiB    *uint64 `json:"memory_mib,omitempty"`
+	Rosetta      *bool   `json:"rosetta,omitempty"`
+	NetworkProxy *string `json:"network_proxy,omitempty"`
 }
 
 func (c *VmConfig) Validate() error {
@@ -113,8 +115,9 @@ func calcMemory() uint64 {
 
 func Defaults() *VmConfig {
 	return &VmConfig{
-		MemoryMiB: calcMemory() / 1024 / 1024,
-		Rosetta:   true,
+		MemoryMiB:    calcMemory() / 1024 / 1024,
+		Rosetta:      true,
+		NetworkProxy: "",
 	}
 }
 
@@ -135,5 +138,23 @@ func Diff(a, b *VmConfig) *VmConfigPatch {
 		patch.Rosetta = &b.Rosetta
 	}
 
+	if a.NetworkProxy != b.NetworkProxy {
+		patch.NetworkProxy = &b.NetworkProxy
+	}
+
 	return patch
+}
+
+func Apply(a *VmConfig, patch *VmConfigPatch) {
+	if patch.MemoryMiB != nil {
+		a.MemoryMiB = *patch.MemoryMiB
+	}
+
+	if patch.Rosetta != nil {
+		a.Rosetta = *patch.Rosetta
+	}
+
+	if patch.NetworkProxy != nil {
+		a.NetworkProxy = *patch.NetworkProxy
+	}
 }

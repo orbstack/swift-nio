@@ -485,6 +485,14 @@ func runVmManager() {
 	// close in case we need to release disk flock for next start
 	defer vm.Close()
 
+	// load proxy settings and proxy password (keychain prompt)
+	go func() {
+		err := vnetwork.Proxy.Refresh()
+		if err != nil {
+			logrus.WithError(err).Error("failed to load proxy settings")
+		}
+	}()
+
 	// Start DRM
 	drmClient := drm.Client()
 	// set network

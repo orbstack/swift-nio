@@ -84,12 +84,7 @@ func (s *VmControlServer) GetConfig(ctx context.Context) (*vmconfig.VmConfig, er
 
 func (s *VmControlServer) PatchConfig(ctx context.Context, patch *vmconfig.VmConfigPatch) error {
 	return vmconfig.Update(func(c *vmconfig.VmConfig) {
-		if patch.MemoryMiB != nil {
-			c.MemoryMiB = *patch.MemoryMiB
-		}
-		if patch.Rosetta != nil {
-			c.Rosetta = *patch.Rosetta
-		}
+		vmconfig.Apply(c, patch)
 	})
 }
 

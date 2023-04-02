@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/gvaddr"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
@@ -58,7 +56,9 @@ func tryBestCleanup(conn *gonet.TCPConn) error {
 	return tryAbort(conn)
 }
 
-func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *tcp.Forwarder {
+func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) (*tcp.Forwarder, *ProxyManager) {
+	proxyMgr := newProxyManager(hostNatIP4, hostNatIP6)
+
 	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
 		refDec := false
 		defer func() {
@@ -73,30 +73,8 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 			return
 		}
 
-		// host NAT: try dial preferred v4/v6 first, then fall back to the other one
-		var altHostIP tcpip.Address
-		if localAddress == hostNatIP4 {
-			localAddress = gvaddr.LoopbackGvIP4
-			altHostIP = gvaddr.LoopbackGvIP6
-		} else if localAddress == hostNatIP6 {
-			localAddress = gvaddr.LoopbackGvIP6
-			altHostIP = gvaddr.LoopbackGvIP4
-		}
-		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
-
-		var dialer net.Dialer
-		ctx, cancel := context.WithTimeout(context.TODO(), tcpConnectTimeout)
-		defer cancel()
-		extConn, err := dialer.DialContext(ctx, "tcp", extAddr)
-		if err != nil && errors.Is(err, unix.ECONNREFUSED) && altHostIP != "" {
-			// try the other host IP
-			// do not set localAddress or icmp unreachable logic below will send wrong protocol
-			logrus.Debugf("TCP forward [%v] dial retry host", extAddr)
-			extAddr = net.JoinHostPort(altHostIP.String(), strconv.Itoa(int(r.ID().LocalPort)))
-			// don't reset timeout - localhost shouldn't take so long
-			// if it did, it was probably listen backlog full, so we don't want to retry too long
-			extConn, err = dialer.DialContext(ctx, "tcp", extAddr)
-		}
+		// this also handles host NAT
+		extConn, extAddr, err := proxyMgr.DialForward(localAddress, int(r.ID().LocalPort))
 		if err != nil {
 			logrus.Debugf("TCP forward [%v] dial failed: %v", extAddr, err)
 			// if connection refused
@@ -148,12 +126,14 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 			}
 		}()
 
-		err = setExtNodelay(extConn.(*net.TCPConn), virtConn.RemoteAddr().(*net.TCPAddr).Port)
-		if err != nil {
-			logrus.Errorf("TCP forward [%v] set ext opts failed: %v", extAddr, err)
-			return
+		if extTcpConn, ok := extConn.(*net.TCPConn); ok {
+			err = setExtNodelay(extTcpConn, virtConn.RemoteAddr().(*net.TCPAddr).Port)
+			if err != nil {
+				logrus.Errorf("TCP forward [%v] set ext opts failed: %v", extAddr, err)
+				return
+			}
 		}
 
-		pump2(virtConn, extConn.(*net.TCPConn))
-	})
+		pump2(virtConn, extConn)
+	}), proxyMgr
 }

@@ -52,6 +52,7 @@ type Network struct {
 	NatTable    map[tcpip.Address]tcpip.Address
 	GuestAddr4  tcpip.Address
 	GuestAddr6  tcpip.Address
+	Proxy       *tcpfwd.ProxyManager
 	// mapped by host side. guest side can be duplicated
 	hostForwards  map[string]HostForward
 	hostForwardMu sync.Mutex
@@ -255,7 +256,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	hostNatIP6 := netutil.ParseTcpipAddress(netconf.HostNatIP6)
 
 	// Forwarders
-	tcpForwarder := tcpfwd.NewTcpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)
+	tcpForwarder, proxyManager := tcpfwd.NewTcpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
 	udpForwarder := udpfwd.NewUdpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)
@@ -271,6 +272,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		ICMP:         icmpFwd,
 		GuestAddr4:   guestAddr4,
 		GuestAddr6:   guestAddr6,
+		Proxy:        proxyManager,
 		hostForwards: make(map[string]HostForward),
 		file0:        nil,
 		fd1:          -1,

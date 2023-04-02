@@ -44,6 +44,8 @@ Some options will only take effect after restarting the virtual machine.
 			checkCLI(err)
 			patch.Rosetta = &val
 			rebootRequired = true
+		case "network_proxy":
+			patch.NetworkProxy = &value
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)
