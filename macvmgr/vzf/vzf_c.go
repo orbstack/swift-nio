@@ -2,7 +2,7 @@ package vzf
 
 /*
 #cgo CFLAGS: -mmacosx-version-min=12.4
-#cgo LDFLAGS: -mmacosx-version-min=12.4 -framework Foundation -framework Virtualization -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift
+#cgo LDFLAGS: -mmacosx-version-min=12.4 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx
 
 #include <stdlib.h>
 
@@ -14,6 +14,8 @@ void govzf_post_Machine_Pause(void* ptr);
 void govzf_post_Machine_Resume(void* ptr);
 void govzf_post_Machine_ConnectVsock(void* ptr, uint32_t port);
 void govzf_post_Machine_finalize(void* ptr);
+
+char* swext_proxy_get_settings();
 */
 import (
 	"C"
@@ -292,4 +294,21 @@ func (m *Machine) Close() error {
 	}
 
 	return nil
+}
+
+func SwextProxyGetSettings() (*SwextProxySettings, error) {
+	cStr := C.swext_proxy_get_settings()
+	if cStr == nil {
+		return nil, errors.New("swift returned nil")
+	}
+
+	// convert to Go
+	var settings SwextProxySettings
+	err := json.Unmarshal([]byte(C.GoString(cStr)), &settings)
+	C.free(unsafe.Pointer(cStr))
+	if err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
 }
