@@ -115,7 +115,15 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 		}
 	}
 
-	pump2(conn.(FullDuplexConn), virtConn.(*net.UnixConn))
+	// specialized fast paths
+	virtUnixConn := virtConn.(*net.UnixConn)
+	if hostTcpConn, ok := conn.(*net.TCPConn); ok {
+		pump2SpTcpUnix(hostTcpConn, virtUnixConn)
+	} else if hostUnixConn, ok := conn.(*net.UnixConn); ok {
+		pump2SpUnixUnix(hostUnixConn, virtUnixConn)
+	} else {
+		pump2(conn.(FullDuplexConn), virtUnixConn)
+	}
 }
 
 func (f *StreamVsockHostForward) TcpPort() int {
