@@ -2,6 +2,8 @@ package vmconfig
 
 import (
 	"encoding/json"
+	"errors"
+	"net/url"
 	"os"
 	"sync"
 
@@ -34,6 +36,20 @@ func (c *VmConfig) Validate() error {
 	err := c.validatePlatform()
 	if err != nil {
 		return err
+	}
+
+	// must be a supported proxy protocol
+	if c.NetworkProxy != "" {
+		u, err := url.Parse(c.NetworkProxy)
+		if err != nil {
+			return err
+		}
+
+		switch u.Scheme {
+		case "http", "https", "socks5", "socks5h":
+		default:
+			return errors.New("unsupported proxy protocol. supported protocols: http, https, socks5, socks5h")
+		}
 	}
 
 	return nil

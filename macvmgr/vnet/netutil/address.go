@@ -35,7 +35,7 @@ func GetDefaultAddress6() net.IP {
 	return conn.LocalAddr().(*net.UDPAddr).IP.To16()
 }
 
-func ShouldProxy(addr tcpip.Address) bool {
+func ShouldForward(addr tcpip.Address) bool {
 	ip := net.IP(addr)
 	if ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() {
 		return false

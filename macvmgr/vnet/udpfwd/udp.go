@@ -24,7 +24,7 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 	// happens with DNS packets (to 192.168.66.1 nameserver)
 	return udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
 		localAddress := r.ID().LocalAddress
-		if !netutil.ShouldProxy(localAddress) {
+		if !netutil.ShouldForward(localAddress) {
 			return
 		}
 

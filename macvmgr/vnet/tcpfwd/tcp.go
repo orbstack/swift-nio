@@ -69,14 +69,14 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 		}()
 
 		localAddress := r.ID().LocalAddress
-		if !netutil.ShouldProxy(localAddress) {
+		if !netutil.ShouldForward(localAddress) {
 			r.Complete(false)
 			return
 		}
 
 		// if we require proxy and don't have SOCKS, port 80 should use reverse proxy
 		extPort := int(r.ID().LocalPort)
-		if proxyMgr.requiresHttpProxy && extPort == 80 && localAddress != hostNatIP4 && localAddress != hostNatIP6 {
+		if proxyMgr.requiresHttpProxy && extPort == 80 && proxyMgr.isProxyEligibleIPPre(localAddress) {
 			proxyMgr.httpMu.Lock()
 			revProxy := proxyMgr.httpRevProxy
 			proxyMgr.httpMu.Unlock()
