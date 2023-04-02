@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy"
+	"github.com/sirupsen/logrus"
 )
 
 type httpReverseProxy struct {
@@ -52,7 +55,7 @@ func (h *httpReverseProxy) Close() error {
 	return h.server.Close()
 }
 
-func newHttpReverseProxy(proxyUrl *url.URL) *httpReverseProxy {
+func newHttpReverseProxy(proxyUrl *url.URL, perHostFilter *proxy.PerHost) *httpReverseProxy {
 	// do we need auth?
 	authHeader := ""
 	if proxyUrl.User != nil {
@@ -72,11 +75,24 @@ func newHttpReverseProxy(proxyUrl *url.URL) *httpReverseProxy {
 				}
 			}
 
-			r.SetURL(&url.URL{
-				Scheme: proxyUrl.Scheme,
-				Host:   proxyUrl.Host,
-				Path:   "http://" + host,
-			})
+			// this is our only chance to test per-host against a real domain name
+			if perHostFilter != nil && perHostFilter.TestBypass(host) {
+				logrus.Debugf("bypassing proxy for %s (http)", host)
+				// bypass proxy
+				r.SetURL(&url.URL{
+					Scheme: "http",
+					Host:   host,
+					Path:   r.In.URL.Path,
+				})
+			} else {
+				// use proxy
+				r.SetURL(&url.URL{
+					Scheme: proxyUrl.Scheme,
+					Host:   proxyUrl.Host,
+					Path:   "http://" + host,
+				})
+			}
+
 			r.Out.Host = r.In.Host
 
 			// set Proxy-Authorization header if we need it

@@ -56,35 +56,42 @@ func (p *PerHost) DialContext(ctx context.Context, network, addr string) (c net.
 	return dialContext(ctx, d, network, addr)
 }
 
-func (p *PerHost) dialerForRequest(host string) Dialer {
+func (p *PerHost) TestBypass(host string) bool {
 	if ip := net.ParseIP(host); ip != nil {
 		for _, net := range p.bypassNetworks {
 			if net.Contains(ip) {
-				return p.bypass
+				return true
 			}
 		}
 		for _, bypassIP := range p.bypassIPs {
 			if bypassIP.Equal(ip) {
-				return p.bypass
+				return true
 			}
 		}
-		return p.def
+		return false
 	}
 
 	for _, zone := range p.bypassZones {
 		if strings.HasSuffix(host, zone) {
-			return p.bypass
+			return true
 		}
 		if host == zone[1:] {
 			// For a zone ".example.com", we match "example.com"
 			// too.
-			return p.bypass
+			return true
 		}
 	}
 	for _, bypassHost := range p.bypassHosts {
 		if bypassHost == host {
-			return p.bypass
+			return true
 		}
+	}
+	return false
+}
+
+func (p *PerHost) dialerForRequest(host string) Dialer {
+	if p.TestBypass(host) {
+		return p.bypass
 	}
 	return p.def
 }

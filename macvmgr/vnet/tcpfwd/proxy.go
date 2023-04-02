@@ -30,10 +30,11 @@ type ProxyManager struct {
 	hostNatIP4 tcpip.Address
 	hostNatIP6 tcpip.Address
 
-	dialerMu    sync.Mutex
-	dialerAll   proxy.ContextDialer
-	dialerHttp  proxy.ContextDialer
-	dialerHttps proxy.ContextDialer
+	dialerMu      sync.Mutex
+	dialerAll     proxy.ContextDialer
+	dialerHttp    proxy.ContextDialer
+	dialerHttps   proxy.ContextDialer
+	perHostFilter *proxy.PerHost
 
 	httpMu            sync.Mutex
 	requiresHttpProxy bool
@@ -105,6 +106,12 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 	p.dialerHttp = nil
 	p.dialerHttps = nil
 	p.httpsProxyUrl = nil
+
+	// build exceptions list
+	p.perHostFilter = proxy.NewPerHost(nil, nil)
+	for _, host := range settings.ExceptionsList {
+		p.perHostFilter.AddFromString(host)
+	}
 
 	// if override is set, use it
 	overrideConfig := vmconfig.Get().NetworkProxy
@@ -252,6 +259,8 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 	// 4. if none: use direct connection
 	if p.dialerAll == nil && p.dialerHttp == nil && p.dialerHttps == nil {
 		logrus.Info("using proxy: none")
+		// discard the per-host filter to save memory
+		p.perHostFilter = nil
 	}
 	return nil, nil
 }
@@ -277,7 +286,7 @@ func (p *ProxyManager) Refresh() error {
 		defer p.dialerMu.Unlock()
 
 		oldHttpRevProxy := p.httpRevProxy
-		p.httpRevProxy = newHttpReverseProxy(proxyUrl)
+		p.httpRevProxy = newHttpReverseProxy(proxyUrl, p.perHostFilter)
 		if oldHttpRevProxy != nil {
 			oldHttpRevProxy.Close()
 		}
@@ -302,6 +311,21 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 			dialer = p.dialerAll
 		}
 		p.dialerMu.Unlock()
+
+		// if we got a proxy, check if we should bypass it
+		// for perf, we skip this logic if no proxy
+		if dialer != nil {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+
+			if p.perHostFilter != nil && p.perHostFilter.TestBypass(host) {
+				// bypass
+				logrus.Debugf("bypassing proxy for %s (dial)", host)
+				dialer = nil
+			}
+		}
 	}
 
 	if dialer == nil {

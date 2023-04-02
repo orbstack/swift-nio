@@ -22,4 +22,6 @@ type SwextProxySettings struct {
 	SOCKSPort     int    `json:"socksPort,omitempty"`
 	SOCKSUser     string `json:"socksUser,omitempty"`
 	SOCKSPassword string `json:"socksPassword,omitempty"`
+
+	ExceptionsList []string `json:"exceptionsList,omitempty"`
 }
