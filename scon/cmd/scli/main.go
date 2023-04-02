@@ -50,7 +50,7 @@ func runCommandStub(cmd string) (int, error) {
 
 func printShortHelp() {
 	bold := color.New(color.Bold, color.FgHiBlue).SprintFunc()
-	fmt.Printf(`OrbStack's short "orb" command has 3 usages:
+	fmt.Printf(`OrbStack's short "orb" command can be used in 3 ways:
 
 %s
    Just run "orb" with no arguments.
@@ -68,12 +68,12 @@ func printShortHelp() {
    If you prefer SSH, use "orbctl ssh" for details.
 
 %s
-   For convenience, you can use orbctl subcommands with this command.
+   Start, stop, and manage OrbStack and its machines with any "orbctl" subcommand.
    Usage: orb <subcommand> [args...]
 
    Use "orbctl --help" for a list of subcommands.
 
-For Docker containers, use the "docker" command directly. "orb" is for full Linux machines.
+For Docker containers, use the "docker" command. "orb" is generally for full Linux machines.
 `, bold("1. Start a Linux shell."), bold(`2. Run commands on Linux, like "orbctl run".`), bold(`3. Control Linux machines, like "orbctl".`))
 	os.Exit(0)
 }

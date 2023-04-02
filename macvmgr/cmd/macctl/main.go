@@ -44,7 +44,7 @@ func runCommandStub(cmd string) (int, error) {
 
 func printShortHelp() {
 	bold := color.New(color.Bold, color.FgHiBlue).SprintFunc()
-	fmt.Printf(`OrbStack's short "mac" command has 3 usages:
+	fmt.Printf(`OrbStack's short "mac" command can be used in 3 ways:
 
 %s
    Just run "mac" with no arguments.
@@ -58,7 +58,7 @@ func printShortHelp() {
    Use "macctl run --help" for a list of flags.
 
 %s
-   For convenience, you can use macctl subcommands with this command.
+   Send macOS notifications, copy files, and more with any "macctl" subcommand.
    Usage: mac <subcommand> [args...]
 
    Use "macctl --help" for a list of subcommands.
