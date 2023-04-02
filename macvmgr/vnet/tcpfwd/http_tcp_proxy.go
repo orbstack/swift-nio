@@ -66,22 +66,42 @@ func basicAuth(user *url.Userinfo) string {
 }
 
 func (p *httpProxy) DialContext(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-	if p.isTls {
-		var tlsDialer tls.Dialer
-		conn, err = tlsDialer.DialContext(ctx, "tcp", p.host)
-	} else {
-		var dialer net.Dialer
-		conn, err = dialer.DialContext(ctx, "tcp", p.host)
-	}
+	var dialer net.Dialer
+	conn, err = dialer.DialContext(ctx, "tcp", p.host)
 	if err != nil {
 		return nil, err
 	}
+	// save tcp conn even if we wrap it with tls later
+	tcpConn := conn.(*net.TCPConn)
 
 	defer func() {
-		if err != nil {
+		if err != nil && conn != nil {
 			conn.Close()
 		}
 	}()
+
+	if p.isTls {
+		// dial tcp and wrap it ourselves in order to set/unset TCP_NODELAY
+		// (tls.Conn does not expose the underlying net.Conn)
+
+		// find tls host
+		tlsHost, _, err := net.SplitHostPort(p.host)
+		if err != nil {
+			return conn, err
+		}
+
+		// wrap and handshake
+		tlsConn := tls.Client(conn, &tls.Config{
+			ServerName: tlsHost,
+		})
+		err = tlsConn.HandshakeContext(ctx)
+		if err != nil {
+			return conn, err
+		}
+
+		// swap conn
+		conn = tlsConn
+	}
 
 	httpUrl, err := url.Parse("http://" + addr)
 	if err != nil {
@@ -113,6 +133,14 @@ func (p *httpProxy) DialContext(ctx context.Context, network, addr string) (conn
 	resp.Body.Close()
 	if resp.StatusCode != 200 {
 		err = fmt.Errorf("proxy CONNECT: %s", resp.Status)
+		return
+	}
+
+	// set nodelay early for tls, or we'll lose the tcp conn reference
+	// other port doesn't matter, only service does (client port should be ephemeral)
+	// we set this *after* CONNECT because CONNECT benefits from the default TCP_NODELAY
+	err = setExtNodelay(tcpConn, 0)
+	if err != nil {
 		return
 	}
 
