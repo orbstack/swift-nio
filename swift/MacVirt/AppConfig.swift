@@ -15,14 +15,14 @@ struct AppConfig {
 #if DEBUG
     static let c = AppConfig(
         debug: true,
-        vmgrExe: "/Users/dragon/code/projects/macvirt/macvmgr/macvmgr",
+        vmgrExe: "/Users/dragon/code/projects/macvirt/macvmgr/OrbStack Helper (VM)",
         shellExe: "/Users/dragon/code/projects/macvirt/macvmgr/bin/orb",
         dockerExe: "/Users/dragon/code/projects/macvirt/macvmgr/xbin/docker"
     )
 #else
     static let c = AppConfig(
         debug: false,
-        vmgrExe: Bundle.main.path(forAuxiliaryExecutable: "macvmgr")!,
+        vmgrExe: Bundle.main.path(forAuxiliaryExecutable: "OrbStack Helper (VM)")!,
         shellExe: Bundle.main.path(forAuxiliaryExecutable: "bin/orb")!,
         dockerExe: Bundle.main.path(forAuxiliaryExecutable: "xbin/docker")!
     )

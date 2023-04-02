@@ -9,7 +9,7 @@
             "type": "go",
             "request": "launch",
             "mode": "exec",
-            "program": "${workspaceFolder}/macvmgr",
+            "program": "${workspaceFolder}/OrbStack Helper (VM)",
             "args": ["vmgr"],
             "preLaunchTask": "go: build (debug)",
         }

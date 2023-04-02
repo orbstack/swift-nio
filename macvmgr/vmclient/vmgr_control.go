@@ -57,7 +57,7 @@ func FindVmgrExe() (string, error) {
 		return "", err
 	}
 
-	return path.Join(path.Dir(selfExe), "macvmgr"), nil
+	return path.Join(path.Dir(selfExe), "OrbStack Helper (VM)"), nil
 }
 
 func SpawnDaemon(newBuildID string) error {

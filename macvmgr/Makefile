@@ -2,7 +2,7 @@
 
 run: vmgr
 	@orb shutdown -f || :
-	@./macvmgr vmgr
+	@"./OrbStack Helper (VM)" vmgr
 
 vmgr:
 	@cd ../swift; make lib

@@ -28,6 +28,7 @@
 		B118BAC7BDF77DCFE564EF36 /* CreateVolumeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B42B941198E5B15B2494 /* CreateVolumeView.swift */; };
 		B118BAD426D7BA4054B6E689 /* DockerContainersRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD91CF1D1F80CDCBFB9F /* DockerContainersRootView.swift */; };
 		B118BB2A35AC6730018691D2 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */; };
+		B118BB4B2CEF159F6913BD8D /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE577DB19F2ADECF9C9F /* Proxy.swift */; };
 		B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E62611F603F60BF666 /* VmViewModel.swift */; };
 		B118BC2FFF41ABFFF0CA5BF3 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC445161ECC2F67ABFEF /* Utils.swift */; };
 		B118BC31190DB3854C66B353 /* MachineContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* MachineContainerItem.swift */; };
@@ -50,12 +51,12 @@
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E785C29A39BF300A1D8AC /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E785B29A39BF300A1D8AC /* Utils.swift */; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D829039729D95671004D42A3 /* OrbStack Helper (VM) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D829039629D95671004D42A3 /* OrbStack Helper (VM) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D8694A31298F9C9D0046B6B6 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A30298F9C9D0046B6B6 /* SconRPC.swift */; };
 		D8694A33298F9EF00046B6B6 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8694A32298F9EF00046B6B6 /* VmRPC.swift */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
-		D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8694A412992247F0046B6B6 /* macvmgr */; };
 		D8694A44299224990046B6B6 /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
@@ -98,10 +99,10 @@
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
+				D829039729D95671004D42A3 /* OrbStack Helper (VM) in Copy Go executables and Swift GUI helper */,
 				D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */,
 				D81E7857299CC56800A1D8AC /* guihelper in Copy Go executables and Swift GUI helper */,
 				D8694A44299224990046B6B6 /* scli in Copy Go executables and Swift GUI helper */,
-				D8694A422992247F0046B6B6 /* macvmgr in Copy Go executables and Swift GUI helper */,
 			);
 			name = "Copy Go executables and Swift GUI helper";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -169,6 +170,7 @@
 		B118BDB1897ACFEB7A47E00A /* Operators.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Operators.swift; sourceTree = "<group>"; };
 		B118BDE072F572BA61600007 /* AppSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		B118BE4D3578D923BDAE7C2C /* Updater.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
+		B118BE577DB19F2ADECF9C9F /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
 		B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerContainerItem.swift; sourceTree = "<group>"; };
 		B118BF7EB971BAC66F27805D /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
 		B118BF97B9B18E6C8E67AA19 /* DockerFilterView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerFilterView.swift; sourceTree = "<group>"; };
@@ -181,10 +183,10 @@
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D81E786429A7012900A1D8AC /* docker-buildx */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-buildx"; path = "build/bins/docker-buildx"; sourceTree = "<group>"; };
+		D829039629D95671004D42A3 /* OrbStack Helper (VM) */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "OrbStack Helper (VM)"; path = "../macvmgr/OrbStack Helper (VM)"; sourceTree = "<group>"; };
 		D8694A30298F9C9D0046B6B6 /* SconRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D8694A32298F9EF00046B6B6 /* VmRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		D8694A412992247F0046B6B6 /* macvmgr */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = macvmgr; path = ../macvmgr/macvmgr; sourceTree = "<group>"; };
 		D8694A43299224990046B6B6 /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../scon/scli; sourceTree = "<group>"; };
 		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../macvmgr/xbin/docker; sourceTree = "<group>"; };
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../macvmgr/xbin/docker-compose"; sourceTree = "<group>"; };
@@ -260,6 +262,7 @@
 			children = (
 				D870292229B316A700A4CFD9 /* GoVZF.h */,
 				D870292E29B349D100A4CFD9 /* VzClient.swift */,
+				B118BE577DB19F2ADECF9C9F /* Proxy.swift */,
 			);
 			path = GoVZF;
 			sourceTree = "<group>";
@@ -267,6 +270,7 @@
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
+				D829039629D95671004D42A3 /* OrbStack Helper (VM) */,
 				D81E786429A7012900A1D8AC /* docker-buildx */,
 				D81E7859299F059700A1D8AC /* sparkle-cli */,
 				D88F4ED9299A131B00419B5C /* docker */,
@@ -277,7 +281,6 @@
 				D86F35432997A57E00DADC6F /* docker-compose */,
 				D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */,
 				D8694A43299224990046B6B6 /* scli */,
-				D8694A412992247F0046B6B6 /* macvmgr */,
 				D8A32B90296F839100E56EEF /* MacVirt */,
 				D81E784E299CC4F200A1D8AC /* guihelper */,
 				D870292129B316A700A4CFD9 /* GoVZF */,
@@ -632,6 +635,7 @@
 				B118B3F700D1BE2360D67EFC /* DockerVolumeItem.swift in Sources */,
 				B118BAC7BDF77DCFE564EF36 /* CreateVolumeView.swift in Sources */,
 				B118B9D1B19DDBB36F4153AA /* DockerFilterView.swift in Sources */,
+				B118BB4B2CEF159F6913BD8D /* Proxy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -13,6 +13,8 @@ PUBLISH_UPDATE=false
 LONG_VER=$(git describe --tags --always --dirty)
 COMMITS=$(git rev-list --count HEAD)
 
+VMGR_BIN="OrbStack Helper (VM)"
+
 cd "$(dirname "$0")"
 
 function build_one() {
@@ -39,10 +41,10 @@ function build_one() {
     OUT=./
 
     pushd macvmgr
-    rm -f $OUT/macvmgr
+    rm -f $OUT/"$VMGR_BIN"
     go generate ./conf/appver ./drm/killswitch
-    EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o $OUT/macvmgr
-    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/macvmgr
+    EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o $OUT/"$VMGR_BIN"
+    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/"$VMGR_BIN"
     popd
 
     pushd scon
