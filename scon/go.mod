@@ -14,7 +14,7 @@ require (
 	github.com/lxc/go-lxc v0.0.0-20220627182551-ad3d9f7cb822
 	github.com/sirupsen/logrus v1.9.0
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/sys v0.4.0
+	golang.org/x/sys v0.6.0
 )
 
 require (
@@ -30,7 +30,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	go.etcd.io/bbolt v1.3.6
 	golang.org/x/exp v0.0.0-20230206171751-46f607a40771
-	golang.org/x/term v0.4.0
+	golang.org/x/term v0.6.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/utils v0.0.0-20230313181309-38a27ef9d749
 )
