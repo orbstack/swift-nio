@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alessio/shellescape"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
@@ -46,7 +47,7 @@ Host %s
   IdentityFile %s/id_ed25519
   ProxyCommand %s ssh-proxy-fdpass
   ProxyUseFdpass yes
-`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, syssetup.MakeHomeRelative(conf.ExtraSshDir()), getExePath(), appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, syssetup.MakeHomeRelative(conf.ExtraSshDir()), getExePath())
+`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, syssetup.MakeHomeRelative(conf.ExtraSshDir()), shellescape.Quote(getExePath()), appid.AppName, ports.HostSconSSHPublic, appid.AppName, appid.AppName, appid.AppName, appid.AppName, syssetup.MakeHomeRelative(conf.ExtraSshDir()), shellescape.Quote(getExePath()))
 
 	sshConfigIncludeLine = fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
 )
