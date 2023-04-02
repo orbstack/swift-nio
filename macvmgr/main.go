@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -459,7 +458,7 @@ func runVmManager() {
 		consoleMode = ConsoleStdio
 	}
 	params := &VmParams{
-		Cpus: runtime.NumCPU(),
+		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
 		Memory: vmconfig.Get().MemoryMiB,
 		Kernel: conf.GetAssetFile("kernel"),

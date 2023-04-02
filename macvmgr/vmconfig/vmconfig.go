@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -22,12 +23,14 @@ var (
 
 type VmConfig struct {
 	MemoryMiB    uint64 `json:"memory_mib"`
+	CPU          int    `json:"cpu"`
 	Rosetta      bool   `json:"rosetta"`
 	NetworkProxy string `json:"network_proxy"`
 }
 
 type VmConfigPatch struct {
 	MemoryMiB    *uint64 `json:"memory_mib,omitempty"`
+	CPU          *int    `json:"cpu,omitempty"`
 	Rosetta      *bool   `json:"rosetta,omitempty"`
 	NetworkProxy *string `json:"network_proxy,omitempty"`
 }
@@ -36,6 +39,14 @@ func (c *VmConfig) Validate() error {
 	err := c.validatePlatform()
 	if err != nil {
 		return err
+	}
+
+	// clamp cpus
+	if c.CPU < 1 {
+		c.CPU = 1
+	}
+	if c.CPU > runtime.NumCPU() {
+		c.CPU = runtime.NumCPU()
 	}
 
 	// must be a supported proxy protocol
@@ -132,6 +143,7 @@ func calcMemory() uint64 {
 func Defaults() *VmConfig {
 	return &VmConfig{
 		MemoryMiB:    calcMemory() / 1024 / 1024,
+		CPU:          runtime.NumCPU(),
 		Rosetta:      true,
 		NetworkProxy: "",
 	}
@@ -150,6 +162,10 @@ func Diff(a, b *VmConfig) *VmConfigPatch {
 		patch.MemoryMiB = &b.MemoryMiB
 	}
 
+	if a.CPU != b.CPU {
+		patch.CPU = &b.CPU
+	}
+
 	if a.Rosetta != b.Rosetta {
 		patch.Rosetta = &b.Rosetta
 	}
@@ -164,6 +180,10 @@ func Diff(a, b *VmConfig) *VmConfigPatch {
 func Apply(a *VmConfig, patch *VmConfigPatch) {
 	if patch.MemoryMiB != nil {
 		a.MemoryMiB = *patch.MemoryMiB
+	}
+
+	if patch.CPU != nil {
+		a.CPU = *patch.CPU
 	}
 
 	if patch.Rosetta != nil {

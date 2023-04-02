@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"os"
+	"runtime"
 	"strconv"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
@@ -38,6 +40,20 @@ Some options will only take effect after restarting the virtual machine.
 			val, err := strconv.ParseUint(value, 10, 64)
 			checkCLI(err)
 			patch.MemoryMiB = &val
+			rebootRequired = true
+		case "cpu":
+			val, err := strconv.ParseUint(value, 10, 64)
+			checkCLI(err)
+			intV := int(val)
+			patch.CPU = &intV
+
+			if intV < 1 {
+				checkCLI(errors.New("CPU limit must be at least 1"))
+			}
+			if intV > runtime.NumCPU() {
+				checkCLI(errors.New("CPU limit cannot exceed number of cores"))
+			}
+
 			rebootRequired = true
 		case "rosetta":
 			val, err := strconv.ParseBool(value)
