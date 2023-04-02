@@ -69,7 +69,13 @@ func doSystemInitTasks(host *hclient.Client) error {
 			return err
 		}
 
-		nfsExport := fmt.Sprintf("/nfsroot-ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)\n", u.Uid, u.Uid)
+		// we create two exports:
+		// 1. root export, for linux machines (fsid=0): squash uid to host user
+		// this makes sure copied files have correct ownership
+		// 2. docker export, for docker volumes (fsid=1): squash uid to root
+		// most docker volumes are owned by root and some have restrictive perms
+		// so this ensures people can actually use them, e.g. in finder (which can't use sudo)
+		nfsExport := fmt.Sprintf("/nfsroot-ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)\n/nfsroot-ro/docker 127.0.0.8(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", u.Uid, u.Uid)
 		//err = util.RunCmd("exportfs", "-o", "rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid="+strconv.Itoa(u.Uid)+",anongid="+strconv.Itoa(u.Uid), nfsExport)
 		err = os.WriteFile(conf.C().EtcExports, []byte(nfsExport), 0644)
 		if err != nil {
