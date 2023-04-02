@@ -36,7 +36,16 @@ func main() {
 func runCommandStub(cmd string) (int, error) {
 	args := []string{cmd}
 	args = append(args, os.Args[1:]...)
-	args = shell.TranslateArgPathsRelaxed(args)
+
+	// what command are we running?
+	baseCmd := path.Base(args[0])
+	if baseCmd == "open" {
+		// "open" is a special case where we know args that look like paths must be paths, so we can safely translate them w/o relaxed
+		args = shell.TranslateArgPaths(args)
+	} else {
+		// we can't safely do this kind of translation for everything. e.g. adb
+		args = shell.TranslateArgPathsRelaxed(args)
+	}
 	return shell.ConnectSSH(shell.CommandOpts{
 		CombinedArgs: args,
 	})
