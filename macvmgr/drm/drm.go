@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -101,24 +102,16 @@ func newDrmClient() *DrmClient {
 		Git:  ver.GitCommit,
 	}
 
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    3,
-			IdleConnTimeout: 60 * time.Second,
-		},
-	}
-
 	baseURL := apiBaseUrlProd
 	if conf.Debug() {
 		baseURL = apiBaseUrlDev
 	}
 
-	return &DrmClient{
+	c := &DrmClient{
 		// start in permissive valid state
-		state:      drmtypes.StateValid,
-		verifier:   sjwt.NewVerifier(ids, appVersion),
-		http:       httpClient,
+		state:    drmtypes.StateValid,
+		verifier: sjwt.NewVerifier(ids, appVersion),
+		/*http below*/
 		apiBaseURL: baseURL,
 
 		lastResult: nil,
@@ -133,6 +126,27 @@ func newDrmClient() *DrmClient {
 
 		failChan: make(chan struct{}),
 	}
+
+	c.http = &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:    3,
+			IdleConnTimeout: 60 * time.Second,
+			Proxy: func(*http.Request) (*url.URL, error) {
+				vnetwork := c.vnet
+				if vnetwork == nil {
+					return nil, nil
+				}
+
+				// use same proxy as VM network
+				proxy := vnetwork.Proxy.GetHTTPSProxyURL()
+				dlog("using proxy: ", proxy)
+				return proxy, nil
+			},
+		},
+	}
+
+	return c
 }
 
 func (c *DrmClient) State() drmtypes.State {
@@ -171,6 +185,9 @@ func (c *DrmClient) UpdateResult() (*drmtypes.Result, error) {
 }
 
 func (c *DrmClient) Run() {
+	// sleep for a few sec to allow for proxy settings to load
+	time.Sleep(3 * time.Second)
+
 	ticker := time.NewTicker(evaluateInterval)
 	defer ticker.Stop()
 

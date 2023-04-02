@@ -41,6 +41,8 @@ type ProxyManager struct {
 
 	vmconfigCh chan vmconfig.VmConfigPatch
 	stopCh     chan struct{}
+	// for drm: the proxy url used by HTTPS connection
+	httpsProxyUrl *url.URL
 }
 
 type fullDuplexTlsConn struct {
@@ -102,6 +104,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 	p.dialerAll = nil
 	p.dialerHttp = nil
 	p.dialerHttps = nil
+	p.httpsProxyUrl = nil
 
 	// if override is set, use it
 	overrideConfig := vmconfig.Get().NetworkProxy
@@ -145,6 +148,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 		}
 
 		// we use this as our ONLY proxy if overridden
+		p.httpsProxyUrl = u
 		return u, nil
 	}
 
@@ -172,8 +176,18 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 		p.dialerAll = ctxDialer
 		p.dialerHttp = ctxDialer
 		p.dialerHttps = ctxDialer
-		// don't care about socks url
-		return nil, nil
+
+		// make an url for drm proxy
+		u := &url.URL{
+			Scheme: "socks5",
+			Host:   net.JoinHostPort(settings.SOCKSProxy, strconv.Itoa(settings.SOCKSPort)),
+		}
+		if settings.SOCKSUser != "" {
+			u.User = url.UserPassword(settings.SOCKSUser, settings.SOCKSPassword)
+		}
+
+		p.httpsProxyUrl = u
+		return u, nil
 	}
 
 	// 2. if HTTPS: use it for HTTPS (443) only
@@ -201,6 +215,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 		p.dialerHttps = proxyDialer.(proxy.ContextDialer)
 		// don't return - we might still have http left to do
 		lastProxyUrl = u
+		p.httpsProxyUrl = u
 	}
 
 	// 3. if HTTP: use it for HTTP (80) only
@@ -361,6 +376,13 @@ func (p *ProxyManager) isProxyEligibleIPPre(addr tcpip.Address) bool {
 func (p *ProxyManager) isProxyEligibleIPPost(addr tcpip.Address) bool {
 	// never proxy host nat (the translated versions)
 	return addr != gvaddr.LoopbackGvIP4 && addr != gvaddr.LoopbackGvIP6
+}
+
+func (p *ProxyManager) GetHTTPSProxyURL() *url.URL {
+	p.dialerMu.Lock()
+	defer p.dialerMu.Unlock()
+
+	return p.httpsProxyUrl
 }
 
 func (p *ProxyManager) Close() error {

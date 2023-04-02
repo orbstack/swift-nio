@@ -3,7 +3,6 @@ package updates
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -24,22 +23,13 @@ const (
 )
 
 type Updater struct {
-	client         *http.Client
 	lastCheckTime  *timex.MonoSleepTime
 	lastNotifyTime *timex.MonoSleepTime
 	lastInfo       *UpdateInfo
 }
 
 func NewUpdater() *Updater {
-	return &Updater{
-		client: &http.Client{
-			Timeout: 15 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:    2,
-				IdleConnTimeout: 5 * time.Minute,
-			},
-		},
-	}
+	return &Updater{}
 }
 
 func getFeedURL() string {
