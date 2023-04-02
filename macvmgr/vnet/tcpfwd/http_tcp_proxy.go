@@ -41,9 +41,9 @@ func newHTTPProxy(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
 	host := u.Host
 	if u.Port() == "" {
 		if proxy.isTls {
-			host += ":443"
+			host = net.JoinHostPort(host, "443")
 		} else {
-			host += ":80"
+			host = net.JoinHostPort(host, "80")
 		}
 	}
 	proxy.host = host
