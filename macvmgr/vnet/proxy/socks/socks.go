@@ -103,7 +103,7 @@ func (a *Addr) String() string {
 
 // A Conn represents a forward proxy connection.
 type Conn struct {
-	net.Conn
+	*net.TCPConn
 
 	boundAddr net.Addr
 }
@@ -175,7 +175,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		proxy, dst, _ := d.pathAddrs(address)
 		return nil, &net.OpError{Op: d.cmd.String(), Net: network, Source: proxy, Addr: dst, Err: err}
 	}
-	return &Conn{Conn: c, boundAddr: a}, nil
+	return &Conn{TCPConn: c.(*net.TCPConn), boundAddr: a}, nil
 }
 
 // DialWithConn initiates a connection from SOCKS server to the target
