@@ -16,6 +16,7 @@ void govzf_post_Machine_ConnectVsock(void* ptr, uint32_t port);
 void govzf_post_Machine_finalize(void* ptr);
 
 char* swext_proxy_get_settings();
+char* swext_proxy_monitor_changes();
 */
 import (
 	"C"
@@ -311,4 +312,25 @@ func SwextProxyGetSettings() (*SwextProxySettings, error) {
 	}
 
 	return &settings, nil
+}
+
+//export swext_proxy_cb_changed
+func swext_proxy_cb_changed() {
+	logrus.Debug("sys proxy settings changed")
+	go func() {
+		// defend against blocked subscribers
+		SwextProxyChangesChan <- struct{}{}
+	}()
+}
+
+func SwextProxyMonitorChangesOnRunLoop() error {
+	msgC := C.swext_proxy_monitor_changes()
+	msgStr := C.GoString(msgC)
+	C.free(unsafe.Pointer(msgC))
+
+	if msgStr != "" {
+		return errors.New(msgStr)
+	}
+
+	return nil
 }

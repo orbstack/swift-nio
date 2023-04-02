@@ -115,3 +115,27 @@ func swext_proxy_get_settings() -> UnsafeMutablePointer<CChar> {
     // go frees the copy
     return strdup(cStr)
 }
+
+private let scSessionName = "dev.kdrag0n.MacVirt__swext_proxy"
+private let scKeyProxies = "State:/Network/Global/Proxies"
+
+@_cdecl("swext_proxy_monitor_changes")
+func swext_proxy_monitor_changes() -> UnsafeMutablePointer<CChar> {
+    func callback(store: SCDynamicStore, changedKeys: CFArray, info: UnsafeMutableRawPointer?) {
+        let keys = changedKeys as! [String]
+        if keys.contains(scKeyProxies) {
+            swext_proxy_cb_changed()
+        }
+    }
+
+    let store = SCDynamicStoreCreate(nil, scSessionName as CFString, callback, nil)!
+    guard SCDynamicStoreSetNotificationKeys(store, [scKeyProxies] as CFArray, nil) else {
+        return strdup("failed to set notification keys")
+    }
+    let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0)
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .defaultMode)
+
+    // return but retain store
+    let _ = Unmanaged.passRetained(store)
+    return strdup("")
+}

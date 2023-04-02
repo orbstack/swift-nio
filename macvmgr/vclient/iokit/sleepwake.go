@@ -29,6 +29,8 @@ import (
 	"unsafe"
 
 	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
+	"github.com/kdrag0n/macvirt/macvmgr/vzf"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -71,6 +73,13 @@ func MonitorSleepWake() (*SleepWakeMonitor, error) {
 		defer runtime.UnlockOSThread()
 
 		C.CFRunLoopAddSource(C.CFRunLoopGetCurrent(), C.IONotificationPortGetRunLoopSource(notifyPortRef), C.kCFRunLoopDefaultMode)
+
+		// also add SC proxy settings notifier to runloop
+		err := vzf.SwextProxyMonitorChangesOnRunLoop()
+		if err != nil {
+			logrus.WithError(err).Error("failed to watch proxy settings")
+		}
+
 		runLoop()
 	}()
 

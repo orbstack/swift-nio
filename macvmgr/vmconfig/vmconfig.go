@@ -132,9 +132,11 @@ func Update(cb func(*VmConfig)) error {
 		return err
 	}
 
-	// broadcast the diff from old
-	diffOld := Diff(&oldConfig, config)
-	diffBroadcaster.Emit(*diffOld)
+	// broadcast the diff from old, if anything changed
+	if *config != oldConfig {
+		diffOld := Diff(&oldConfig, config)
+		diffBroadcaster.Emit(*diffOld)
+	}
 
 	globalConfig = config
 	return nil

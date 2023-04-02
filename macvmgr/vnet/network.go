@@ -297,6 +297,9 @@ func (n *Network) stopAllForwards() {
 
 func (n *Network) Close() error {
 	n.stopAllForwards()
+	if n.Proxy != nil {
+		n.Proxy.Close()
+	}
 	n.Stack.Destroy()
 	if n.file0 != nil {
 		n.file0.Close()

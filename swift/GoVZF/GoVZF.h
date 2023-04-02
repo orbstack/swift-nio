@@ -26,3 +26,5 @@ void govzf_complete_Machine_genericErrInt(uintptr_t vmHandle, const char* error,
 
 void govzf_event_Machine_deinit(uintptr_t vmHandle);
 void govzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);
+
+void swext_proxy_cb_changed(void);

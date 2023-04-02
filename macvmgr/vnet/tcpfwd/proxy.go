@@ -38,6 +38,9 @@ type ProxyManager struct {
 	httpMu            sync.Mutex
 	requiresHttpProxy bool
 	httpRevProxy      *httpReverseProxy
+
+	vmconfigCh chan vmconfig.VmConfigPatch
+	stopCh     chan struct{}
 }
 
 type fullDuplexTlsConn struct {
@@ -50,9 +53,38 @@ func (c *fullDuplexTlsConn) CloseRead() error {
 }
 
 func newProxyManager(hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *ProxyManager {
-	return &ProxyManager{
+	mgr := &ProxyManager{
 		hostNatIP4: hostNatIP4,
 		hostNatIP6: hostNatIP6,
+		stopCh:     make(chan struct{}),
+	}
+
+	// subscribe to vmconfig
+	mgr.vmconfigCh = vmconfig.SubscribeDiff()
+	go mgr.monitorChanges()
+
+	return mgr
+}
+
+func (p *ProxyManager) monitorChanges() {
+	// note: refresh can block because of keychain prompt
+	for {
+		select {
+		case patch := <-p.vmconfigCh:
+			if patch.NetworkProxy != nil {
+				err := p.Refresh()
+				if err != nil {
+					logrus.WithError(err).Error("failed to refresh proxy settings (config change)")
+				}
+			}
+		case <-vzf.SwextProxyChangesChan:
+			err := p.Refresh()
+			if err != nil {
+				logrus.WithError(err).Error("failed to refresh proxy settings (sys settings change)")
+			}
+		case <-p.stopCh:
+			return
+		}
 	}
 }
 
@@ -329,4 +361,19 @@ func (p *ProxyManager) isProxyEligibleIPPre(addr tcpip.Address) bool {
 func (p *ProxyManager) isProxyEligibleIPPost(addr tcpip.Address) bool {
 	// never proxy host nat (the translated versions)
 	return addr != gvaddr.LoopbackGvIP4 && addr != gvaddr.LoopbackGvIP6
+}
+
+func (p *ProxyManager) Close() error {
+	p.httpMu.Lock()
+	defer p.httpMu.Unlock()
+
+	if p.httpRevProxy != nil {
+		p.httpRevProxy.Close()
+		p.httpRevProxy = nil
+	}
+
+	close(p.stopCh)
+	vmconfig.UnsubscribeDiff(p.vmconfigCh)
+
+	return nil
 }

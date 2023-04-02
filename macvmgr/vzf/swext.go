@@ -1,5 +1,9 @@
 package vzf
 
+var (
+	SwextProxyChangesChan = make(chan struct{}, 1)
+)
+
 type SwextProxySettings struct {
 	HTTPEnable   bool   `json:"httpEnable"`
 	HTTPProxy    string `json:"httpProxy,omitempty"`

@@ -49,7 +49,6 @@ func (l *loopListener) Close() error {
 }
 
 func (h *httpReverseProxy) Close() error {
-	h.loopListener.Close()
 	return h.server.Close()
 }
 

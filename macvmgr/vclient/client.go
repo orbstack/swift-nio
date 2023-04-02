@@ -160,7 +160,7 @@ func (vc *VClient) StartBackground() error {
 	// Sync time on wake
 	mon, err := iokit.MonitorSleepWake()
 	if err != nil {
-		return err
+		return fmt.Errorf("register iokit: %w", err)
 	}
 
 	go func() {
