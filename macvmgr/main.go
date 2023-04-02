@@ -223,7 +223,7 @@ func tryGracefulStop(vm *vzf.Machine, vc *vclient.VClient) (err error) {
 	if err == nil {
 		defer sclient.Close()
 
-		err = sclient.StopServerVM()
+		err = sclient.ShutdownVM()
 		if err == nil {
 			return
 		} else {
