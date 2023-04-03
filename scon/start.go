@@ -158,7 +158,7 @@ func (c *Container) configureLxc() error {
 		lc.SetLogLevel(lxc.TRACE)
 	} else {
 		lc.SetVerbosity(lxc.Quiet)
-		lc.SetLogLevel(lxc.INFO)
+		lc.SetLogLevel(lxc.NOTICE)
 	}
 
 	// configs
