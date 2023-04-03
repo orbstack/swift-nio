@@ -60,9 +60,16 @@ func (c *VmConfig) Validate() error {
 		}
 
 		switch u.Scheme {
-		case "http", "https", "socks5", "socks5h":
+		case "http", "https", "socks5":
 		default:
-			return errors.New("unsupported proxy protocol. supported protocols: http, https, socks5, socks5h")
+			return errors.New("unsupported proxy protocol. supported protocols: http, https, socks5")
+		}
+
+		if u.Host == "" {
+			return errors.New("invalid proxy URL")
+		}
+		if u.Path != "" && u.Path != "/" {
+			return errors.New("proxy URL must not contain a path")
 		}
 	}
 
