@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
@@ -21,7 +22,7 @@ func (c *Container) GetLogs(logType types.LogType) (string, error) {
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
 		"path":      path,
-	}).Debug("reading logs")
+	}).Debug("reading log")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -31,5 +32,11 @@ func (c *Container) GetLogs(logType types.LogType) (string, error) {
 		}
 	}
 
-	return string(data), nil
+	// obfuscate lxc
+	logStr := string(data)
+	if logType == types.LogRuntime {
+		logStr = strings.Replace(logStr, "lxc", "ctr", -1)
+	}
+
+	return logStr, nil
 }

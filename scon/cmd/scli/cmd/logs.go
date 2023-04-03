@@ -35,8 +35,9 @@ var logsCmd = &cobra.Command{
 		checkCLI(err)
 
 		red := color.New(color.FgRed)
+		header := color.New(color.Bold)
 		if flagAll {
-			fmt.Println("Runtime:")
+			header.Println("Runtime:")
 			logRuntime, err := scli.Client().ContainerGetLogs(c, types.LogRuntime)
 			if err != nil {
 				red.Println(err)
@@ -44,7 +45,7 @@ var logsCmd = &cobra.Command{
 				fmt.Println(logRuntime)
 			}
 
-			fmt.Println("\n\n\nConsole:")
+			header.Println("\n\n\nConsole:")
 		}
 
 		logConsole, err := scli.Client().ContainerGetLogs(c, types.LogConsole)
