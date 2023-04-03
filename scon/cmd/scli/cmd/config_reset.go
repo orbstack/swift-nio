@@ -13,7 +13,7 @@ func init() {
 
 var configResetCmd = &cobra.Command{
 	Use:   "reset",
-	Short: "Reset configuration to default",
+	Short: "Reset config to defaults",
 	Long: `Reset all configuration options to their default values.
 
 Some options will only take effect after restarting the virtual machine.

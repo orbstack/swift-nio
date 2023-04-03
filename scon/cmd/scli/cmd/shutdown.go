@@ -20,10 +20,10 @@ func init() {
 
 var shutdownCmd = &cobra.Command{
 	Use:   "shutdown",
-	Short: "Stop the lightweight Linux virtual machine",
-	Long: `Stop the lightweight Linux virtual machine. This will stop Docker and all Linux machines.
+	Short: "Stop OrbStack, Docker, and all machines",
+	Long: `Stop OrbStack completely. This includes Docker and all Linux machines.
 
-In the future, this will be done automatically if the VM is idle and unused.
+In the future, this will be done automatically if OrbStack hasn't been used for a while.
 `,
 	Example: "  " + appid.ShortCtl + " shutdown",
 	Args:    cobra.NoArgs,

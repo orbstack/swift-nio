@@ -19,7 +19,7 @@ func init() {
 
 var configSetCmd = &cobra.Command{
 	Use:   "set KEY VALUE",
-	Short: "Set a configuration option",
+	Short: "Set a config option",
 	Long: `Set a single configuration option for the Linux virtual machine.
 
 See "orbctl config show" for a list of options.

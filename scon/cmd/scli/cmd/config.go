@@ -10,6 +10,6 @@ func init() {
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Configure the Linux virtual machine",
-	Long:  `Get or set configuration options for the Linux virtual machine.`,
+	Short: "Configure OrbStack, Docker, and machines",
+	Long:  `Manage OrbStack configuration for Docker and Linux machines.`,
 }
