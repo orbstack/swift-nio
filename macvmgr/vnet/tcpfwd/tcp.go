@@ -110,7 +110,13 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 		// this also handles host NAT
 		extConn, extAddr, err := proxyMgr.DialForward(localAddress, extPort)
 		if err != nil {
-			logrus.Debugf("TCP forward [%v] dial failed: %v", extAddr, err)
+			// log level depends on proxy
+			if _, ok := err.(*ProxyDialError); ok {
+				logrus.Warnf("TCP forward [%v] dial failed: %v", extAddr, err)
+			} else {
+				logrus.Debugf("TCP forward [%v] dial failed: %v", extAddr, err)
+			}
+
 			// if connection refused
 			if errors.Is(err, unix.ECONNREFUSED) || errors.Is(err, unix.ECONNRESET) {
 				// send RST

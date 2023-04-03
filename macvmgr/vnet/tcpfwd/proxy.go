@@ -46,6 +46,18 @@ type ProxyManager struct {
 	httpsProxyUrl *url.URL
 }
 
+type ProxyDialError struct {
+	Err error
+}
+
+func (e *ProxyDialError) Error() string {
+	return fmt.Sprintf("via proxy: %v", e.Err)
+}
+
+func (e *ProxyDialError) Unwrap() error {
+	return e.Err
+}
+
 type fullDuplexTlsConn struct {
 	*tls.Conn
 }
@@ -340,7 +352,7 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, err
+		return nil, &ProxyDialError{err}
 	}
 
 	// unwrap SOCKS connection
