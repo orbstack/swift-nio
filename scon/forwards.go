@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	autoForwardGCInterval  = 1 * time.Second
-	autoForwardGCThreshold = 1 * time.Second / 2
+	autoForwardGCInterval  = 2 * time.Minute
+	autoForwardGCThreshold = 1 * time.Minute
 	autoForwardDebounce    = 250 * time.Millisecond
 
 	// special case for systemd-network DHCP client, and Debian's LLMNR
