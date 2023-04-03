@@ -1,5 +1,12 @@
 package types
 
+type LogType string
+
+const (
+	LogRuntime LogType = "runtime"
+	LogConsole LogType = "console"
+)
+
 type ImageSpec struct {
 	Distro  string `json:"distro"`
 	Version string `json:"version"`
@@ -41,6 +48,11 @@ type GetByIDRequest struct {
 
 type GetByNameRequest struct {
 	Name string `json:"name"`
+}
+
+type ContainerGetLogsRequest struct {
+	Container *ContainerRecord `json:"container"`
+	Type      LogType          `json:"type"`
 }
 
 type InternalReportStoppedRequest struct {

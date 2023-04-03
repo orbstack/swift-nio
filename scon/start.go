@@ -538,8 +538,11 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 
 	logrus.WithField("container", c.Name).Info("starting container")
 
-	// clean logs
-	_ = os.Remove(c.logPath())
+	// clean logs (truncate - otherwise logs are gone because they're opened when creating lxc container)
+	err = os.WriteFile(c.logPath(), nil, 0644)
+	if err != nil {
+		return fmt.Errorf("truncate log: %w", err)
+	}
 	_ = os.Remove(c.logPath() + "-console")
 
 	// hook

@@ -139,6 +139,19 @@ func (c *SconClient) ContainerUnfreeze(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerUnfreeze", record, &noResult)
 }
 
+func (c *SconClient) ContainerGetLogs(record *types.ContainerRecord, logType types.LogType) (string, error) {
+	var logs string
+	err := c.rpc.CallResult(context.TODO(), "ContainerGetLogs", types.ContainerGetLogsRequest{
+		Container: record,
+		Type:      logType,
+	}, &logs)
+	if err != nil {
+		return "", err
+	}
+
+	return logs, nil
+}
+
 func (c *SconClient) InternalReportStopped(id string) error {
 	return c.rpc.CallResult(context.TODO(), "InternalReportStopped", types.InternalReportStoppedRequest{
 		ID: id,
