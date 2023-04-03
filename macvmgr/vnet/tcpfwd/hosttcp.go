@@ -42,7 +42,8 @@ func ListenTCP(addr string) (net.Listener, bool, error) {
 		network = "tcp"
 	}
 
-	if addrPort.Addr().IsLoopback() && addrPort.Port() < 1024 {
+	// port 0 must not be 0.0.0.0
+	if addrPort.Addr().IsLoopback() && addrPort.Port() < 1024 && addrPort.Port() != 0 {
 		// Bypass privileged ports by listening on 0.0.0.0
 		addr := net.IPv4zero
 		if addrPort.Addr().Is6() {
