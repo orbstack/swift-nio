@@ -17,9 +17,11 @@ func (s ContainerState) CanTransitionTo(other ContainerState, isInternal bool) b
 		// only internal!
 		return (isInternal && other == ContainerStateStarting) || other == ContainerStateDeleting
 	case ContainerStateStarting:
-		return other == ContainerStateRunning
+		// stopped: if failed to start (users cannot trigger this state)
+		return other == ContainerStateRunning || other == ContainerStateStopped
 	case ContainerStateRunning:
-		return other == ContainerStateStopping
+		// stopped: if machine powered off (users cannot trigger this state)
+		return other == ContainerStateStopping || other == ContainerStateStopped
 	case ContainerStateStopping:
 		return other == ContainerStateStopped
 	case ContainerStateStopped:
