@@ -13,6 +13,7 @@ struct AppSettings: View {
         case general
         case machine
         case docker
+        case network
     }
 
     var body: some View {
@@ -25,7 +26,7 @@ struct AppSettings: View {
 
             MachineSettingsView()
                     .tabItem {
-                        Label("Machine", systemImage: "cpu")
+                        Label("Resources", systemImage: "cpu")
                     }
                     .tag(Tabs.machine)
 
@@ -34,6 +35,12 @@ struct AppSettings: View {
                         Label("Docker", systemImage: "shippingbox")
                     }
                     .tag(Tabs.docker)
+
+            NetworkSettingsView()
+                    .tabItem {
+                        Label("Network", systemImage: "network")
+                    }
+                    .tag(Tabs.network)
         }
         .frame(width: 475, height: 200)
         .padding(20)

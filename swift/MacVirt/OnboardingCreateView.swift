@@ -52,6 +52,10 @@ struct OnboardingCreateView: View {
 
                     Form {
                         TextField("Name", text: nameBinding)
+                                .onSubmit {
+                                    create()
+                                }
+
                         let errorText = isNameInvalid ? "Invalid name" : "Already exists"
                         Text(errorText)
                                 .font(.caption)
@@ -121,22 +125,7 @@ struct OnboardingCreateView: View {
                 .buttonStyle(.borderless)
                 Spacer()
                 CtaButton(label: "Create", action: {
-                    Task { @MainActor in
-                        // wait for scon before doing anything - might not be started yet
-                        await vmModel.tryRefreshList()
-
-                        // user picked linux, so stop docker container to save memory
-                        if let machines = vmModel.containers,
-                           let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }) {
-                            await vmModel.tryStopContainer(dockerRecord)
-                        }
-
-                        // then create
-                        vmModel.creatingCount += 1
-                        await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
-                        vmModel.creatingCount -= 1
-                    }
-                    onboardingController.finish()
+                    create()
                 })
                 // empty is disabled but not error
                 .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
@@ -159,5 +148,29 @@ struct OnboardingCreateView: View {
         } else {
             isNameInvalid = false
         }
+    }
+
+    private func create() {
+        // disabled
+        if isNameDuplicate || isNameInvalid || name.isEmpty {
+            return
+        }
+
+        Task { @MainActor in
+            // wait for scon before doing anything - might not be started yet
+            await vmModel.tryRefreshList()
+
+            // user picked linux, so stop docker container to save memory
+            if let machines = vmModel.containers,
+               let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }) {
+                await vmModel.tryStopContainer(dockerRecord)
+            }
+
+            // then create
+            vmModel.creatingCount += 1
+            await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
+            vmModel.creatingCount -= 1
+        }
+        onboardingController.finish()
     }
 }

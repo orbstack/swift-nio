@@ -12,12 +12,14 @@ struct VmConfig: Codable, Equatable {
     var memoryMib: UInt64
     var cpu: UInt
     var rosetta: Bool
+    var networkProxy: String
 }
 
 struct VmConfigPatch: Codable, Equatable {
     var memoryMib: UInt64? = nil
     var cpu: UInt? = nil
     var rosetta: Bool? = nil
+    var networkProxy: String? = nil
 }
 
 struct SetupInfo: Codable {

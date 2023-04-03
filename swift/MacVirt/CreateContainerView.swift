@@ -42,6 +42,10 @@ struct CreateContainerView: View {
                     })
 
                     TextField("Name", text: nameBinding)
+                    .onSubmit {
+                        create()
+                    }
+
                     let errorText = isNameInvalid ? "Invalid name" : "Already exists"
                     Text(errorText)
                             .font(.caption)
@@ -74,12 +78,7 @@ struct CreateContainerView: View {
                 }
 
                 Button(action: {
-                    Task { @MainActor in
-                        creatingCount += 1
-                        await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
-                        creatingCount -= 1
-                    }
-                    isPresented = false
+                    create()
                 }) {
                     Text("Create")
                 }
@@ -139,5 +138,19 @@ struct CreateContainerView: View {
                 duplicateHeight = 0
             }
         }
+    }
+
+    private func create() {
+        // disabled
+        if isNameDuplicate || isNameInvalid || name.isEmpty {
+            return
+        }
+
+        Task { @MainActor in
+            creatingCount += 1
+            await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
+            creatingCount -= 1
+        }
+        isPresented = false
     }
 }
