@@ -27,7 +27,7 @@ struct AppSettings: View {
                     }
                     .tag(Tabs.general)
         }
-        .frame(width: 475, height: 150)
+        .frame(width: 475, height: 200)
         .padding(20)
         .navigationTitle("Settings")
     }

@@ -11,6 +11,7 @@ import Sparkle
 struct MachineSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @State private var memoryMib = 0.0
+    @State private var cpu = 1.0
     @State private var enableRosetta = true
     @State private var enableRosettaFalse = false
 
@@ -51,9 +52,12 @@ struct MachineSettingsView: View {
                     }
                     #endif
 
+                    Spacer()
+                            .frame(height: 32)
+
                     let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
                     Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
-                        VStack {
+                        VStack(alignment: .trailing) {
                             Text("Memory limit")
                             Text("\(memoryMib / 1024, specifier: "%.0f") GiB")
                                     .font(.caption.monospacedDigit())
@@ -64,15 +68,40 @@ struct MachineSettingsView: View {
                     } maximumValueLabel: {
                         Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
                     }
-                            .onChange(of: memoryMib) { newValue in
-                                Task { @MainActor in
-                                    if let config = vmModel.config,
-                                       config.memoryMib != UInt64(newValue) {
-                                        await vmModel.tryPatchConfig(VmConfigPatch(memoryMib: UInt64(newValue)))
-                                    }
-                                }
+                    .onChange(of: memoryMib) { newValue in
+                        Task { @MainActor in
+                            if let config = vmModel.config,
+                               config.memoryMib != UInt64(newValue) {
+                                await vmModel.tryPatchConfig(VmConfigPatch(memoryMib: UInt64(newValue)))
                             }
-                    Text("Settings will take effect after the next machine restart.")
+                        }
+                    }
+
+                    let maxCpu = ProcessInfo.processInfo.processorCount
+                    Slider(value: $cpu, in: 1...Double(maxCpu), step: 1) {
+                        VStack(alignment: .trailing) {
+                            Text("CPU limit")
+                            Text("\(cpu, specifier: "%.0f")00%")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(.secondary)
+                        }
+                    } minimumValueLabel: {
+                        Text("100%")
+                    } maximumValueLabel: {
+                        Text("\(maxCpu)00%")
+                    }
+                    .onChange(of: cpu) { newValue in
+                        Task { @MainActor in
+                            if let config = vmModel.config,
+                               config.cpu != UInt64(newValue) {
+                                await vmModel.tryPatchConfig(VmConfigPatch(cpu: UInt(newValue)))
+                            }
+                        }
+                    }
+                    Text("Resources are used on demand, up to these limits.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    Text("Requires machine restart.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
 
@@ -83,12 +112,15 @@ struct MachineSettingsView: View {
             .onChange(of: vmModel.config) { config in
                 if let config {
                     memoryMib = Double(config.memoryMib)
+                    cpu = Double(config.cpu)
                     enableRosetta = config.rosetta
                 }
             }
             .onAppear {
                 if let config = vmModel.config {
                     memoryMib = Double(config.memoryMib)
+                    cpu = Double(config.cpu)
+                    enableRosetta = config.rosetta
                 }
             }
         }
