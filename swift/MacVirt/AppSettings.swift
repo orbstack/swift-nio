@@ -12,6 +12,7 @@ struct AppSettings: View {
     private enum Tabs: Hashable {
         case general
         case machine
+        case docker
     }
 
     var body: some View {
@@ -27,6 +28,12 @@ struct AppSettings: View {
                         Label("Machine", systemImage: "cpu")
                     }
                     .tag(Tabs.machine)
+
+            DockerSettingsView()
+                    .tabItem {
+                        Label("Docker", systemImage: "shippingbox")
+                    }
+                    .tag(Tabs.docker)
         }
         .frame(width: 475, height: 200)
         .padding(20)
