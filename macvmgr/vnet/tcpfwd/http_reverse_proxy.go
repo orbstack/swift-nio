@@ -1,6 +1,7 @@
 package tcpfwd
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -18,6 +19,14 @@ type httpReverseProxy struct {
 
 func (h *httpReverseProxy) HandleConn(conn net.Conn) {
 	h.loopListener.ch <- conn
+}
+
+type connContextKeyType struct{}
+
+var connContextKey = &connContextKeyType{}
+
+func getConn(r *http.Request) net.Conn {
+	return r.Context().Value(connContextKey).(net.Conn)
 }
 
 type loopListener struct {
@@ -100,10 +109,20 @@ func newHttpReverseProxy(proxyUrl *url.URL, perHostFilter *proxy.PerHost) *httpR
 				r.Out.Header.Set("Proxy-Authorization", authHeader)
 			}
 		},
+
+		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
+			logrus.WithError(err).Error("http proxy error")
+			// reset the connection
+			getConn(req).Close()
+		},
 	}
 
 	server := &http.Server{
 		Handler: proxy,
+		// add conn to context
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return context.WithValue(ctx, connContextKey, c)
+		},
 	}
 
 	listener := newLoopListener()
