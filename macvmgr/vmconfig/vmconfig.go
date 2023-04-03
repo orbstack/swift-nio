@@ -15,6 +15,8 @@ import (
 
 const (
 	defaultMemoryLimit = 8 * 1024 * 1024 * 1024 // 8 GiB
+
+	ProxyNone = "none"
 )
 
 var (
@@ -53,7 +55,7 @@ func (c *VmConfig) Validate() error {
 	}
 
 	// must be a supported proxy protocol
-	if c.NetworkProxy != "" {
+	if c.NetworkProxy != "" && c.NetworkProxy != ProxyNone {
 		u, err := url.Parse(c.NetworkProxy)
 		if err != nil {
 			return err
