@@ -14,25 +14,42 @@ import (
 
 var (
 	flagRunning bool
+	flagQuiet   bool
 )
 
 func init() {
 	rootCmd.AddCommand(listCmd)
 	listCmd.Flags().BoolVarP(&flagRunning, "running", "r", false, "only show running machines")
+	listCmd.Flags().BoolVarP(&flagQuiet, "quiet", "q", false, "only show machine names")
 }
 
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all Linux machines",
-	Long: `List all Linux machines and statuses.
+	Long: `List all Linux machines and their state.
 `,
 	Example: "  " + appid.ShortCtl + " list",
 	Args:    cobra.NoArgs,
+	// no "ps" alias because of conflict with short cmd
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
 		containers, err := scli.Client().ListContainers()
 		checkCLI(err)
+
+		if flagQuiet {
+			for _, c := range containers {
+				if c.Builtin {
+					continue
+				}
+				if flagRunning && c.State != types.ContainerStateRunning {
+					continue
+				}
+
+				fmt.Println(c.Name)
+			}
+			return nil
+		}
 
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 		defer w.Flush()
