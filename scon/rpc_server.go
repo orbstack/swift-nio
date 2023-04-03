@@ -212,12 +212,9 @@ func (s *SconServer) Serve() error {
 	})
 	defer bridge.Close()
 
-	mux := http.NewServeMux()
-	mux.Handle("/", bridge)
-
 	listenIP := util.DefaultAddress4()
 	listenAddrPort := net.JoinHostPort(listenIP.String(), strconv.Itoa(ports.GuestScon))
-	return http.ListenAndServe(listenAddrPort, mux)
+	return http.ListenAndServe(listenAddrPort, bridge)
 }
 
 func runSconServer(m *ConManager) error {
