@@ -555,7 +555,7 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 
 	err = c.lxc.Start()
 	if err != nil {
-		return err
+		return fmt.Errorf("start '%s': %w", c.Name, err)
 	}
 
 	if !c.lxc.Wait(lxc.RUNNING, startTimeout) {

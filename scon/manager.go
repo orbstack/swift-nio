@@ -183,7 +183,7 @@ func (m *ConManager) Start() error {
 	})
 
 	// periodic tasks
-	go m.runAutoForwardGC()
+	go m.runWatchdogGC()
 
 	// start all pending containers
 	for _, c := range pendingStarts {

@@ -10,14 +10,15 @@ import (
 
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/hclient"
+	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/kdrag0n/macvirt/scon/util/sysnet"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	autoForwardGCInterval  = 2 * time.Minute
-	autoForwardGCThreshold = 1 * time.Minute
+	autoForwardGCInterval  = 1 * time.Second
+	autoForwardGCThreshold = 1 * time.Second / 2
 	autoForwardDebounce    = 250 * time.Millisecond
 
 	// special case for systemd-network DHCP client, and Debian's LLMNR
@@ -345,7 +346,7 @@ func (c *Container) triggerListenersUpdate() {
 	c.autofwdDebounce.Call()
 }
 
-func (m *ConManager) runAutoForwardGC() {
+func (m *ConManager) runWatchdogGC() {
 	ticker := time.NewTicker(autoForwardGCInterval)
 	defer ticker.Stop()
 
@@ -354,7 +355,35 @@ func (m *ConManager) runAutoForwardGC() {
 		case <-ticker.C:
 			m.containersMu.RLock()
 			for _, c := range m.containersByID {
-				if !c.Running() {
+				running := c.Running()
+				// make sure it matches our status
+				if running != (c.state == types.ContainerStateRunning) {
+					// we did that without locking so this isn't necessarily correct. take a closer look
+					go func(c *Container) {
+						c.mu.RLock()
+						lockedRunning := c.Running()
+						lockedState := c.state
+						hasMismatch := lockedRunning != (lockedState == types.ContainerStateRunning)
+						c.mu.RUnlock()
+
+						if !hasMismatch {
+							// false positive, we were in the middle of a state change
+							return
+						}
+
+						logrus.WithFields(logrus.Fields{
+							"container": c.Name,
+							"running":   running,
+							"state":     c.state,
+						}).Warn("watchdog: container state mismatch, refreshing")
+						err := c.refreshState()
+						if err != nil {
+							logrus.WithField("container", c.Name).WithError(err).Error("watchdog: failed to refresh container state")
+						}
+					}(c)
+				}
+
+				if !running {
 					continue
 				}
 
