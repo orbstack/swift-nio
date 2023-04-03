@@ -11,6 +11,7 @@ struct AppSettings: View {
 
     private enum Tabs: Hashable {
         case general
+        case machine
     }
 
     var body: some View {
@@ -25,7 +26,7 @@ struct AppSettings: View {
                     .tabItem {
                         Label("Machine", systemImage: "cpu")
                     }
-                    .tag(Tabs.general)
+                    .tag(Tabs.machine)
         }
         .frame(width: 475, height: 200)
         .padding(20)
