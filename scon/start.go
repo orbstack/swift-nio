@@ -259,6 +259,10 @@ func (c *Container) configureLxc() error {
 		addDevOptional("/dev/vndbinder")
 		addDevOptional("/dev/hwbinder")
 
+		// add /dev/vdb1 to make k3s happy - it just wants to stat
+		// but keep it blocked in devices cgroup
+		bind("/dev/vdb1", "/dev/vdb1", "")
+
 		// Default mounts
 		set("lxc.mount.auto", "proc:rw sys:mixed cgroup:rw:force")
 		set("lxc.mount.entry", "mqueue dev/mqueue mqueue rw,relatime,create=dir,optional 0 0")
