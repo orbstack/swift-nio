@@ -54,8 +54,6 @@ var logsCmd = &cobra.Command{
 			fmt.Println(logConsole)
 		}
 
-		fmt.Println(logConsole)
-
 		return nil
 	},
 }
