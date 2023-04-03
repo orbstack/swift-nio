@@ -234,11 +234,12 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// we need this for running shell (su) and setup commands
 	out, err := exec.Command("/bin/sh", "-lc", `echo "$PATH"`).CombinedOutput()
 	if err != nil {
-		return err
+		logrus.WithError(err).WithField("output", string(out)).Error("failed to get PATH")
+	} else {
+		loginPath := strings.TrimSpace(string(out))
+		logrus.WithField("path", loginPath).Debug("got PATH")
+		os.Setenv("PATH", loginPath)
 	}
-	loginPath := strings.TrimSpace(string(out))
-	logrus.WithField("path", loginPath).Debug("got PATH")
-	os.Setenv("PATH", loginPath)
 
 	// start server!
 	// fdx is used on-demand
