@@ -365,8 +365,8 @@ func runVmManager() {
 		defer sentry.Recover()
 	}
 
-	if !osver.IsAtLeast("v12.4") {
-		logrus.Fatal("macOS too old - min 12.4")
+	if !osver.IsAtLeast("v12.3") {
+		logrus.Fatal("macOS too old - min 12.3")
 	}
 
 	// done signal for shutdown process

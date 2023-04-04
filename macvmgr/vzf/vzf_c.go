@@ -1,8 +1,8 @@
 package vzf
 
 /*
-#cgo CFLAGS: -mmacosx-version-min=12.4
-#cgo LDFLAGS: -mmacosx-version-min=12.4 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx
+#cgo CFLAGS: -mmacosx-version-min=12.3
+#cgo LDFLAGS: -mmacosx-version-min=12.3 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx
 
 #include <stdlib.h>
 
