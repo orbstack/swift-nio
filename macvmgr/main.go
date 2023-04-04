@@ -109,7 +109,8 @@ func extractSparse(file io.ReadCloser) {
 
 	target := conf.DataDir()
 	// Go archive/tar doesn't fully support sparse. bsdtar does.
-	cmd := exec.Command("bsdtar", "-xf", "-", "-C", target)
+	// apparently some people get not found in PATH so we use the full path
+	cmd := exec.Command("/usr/bin/bsdtar", "-xf", "-", "-C", target)
 	cmd.Stdin = file
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
