@@ -103,6 +103,36 @@ func (p *ProxyManager) monitorChanges() {
 	}
 }
 
+func (p *ProxyManager) excludeProxyHost(hostPort string) error {
+	if p.perHostFilter == nil {
+		return nil
+	}
+
+	host, _, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		if addrError, ok := err.(*net.AddrError); ok && addrError.Err == "missing port in address" {
+			host = hostPort
+		} else {
+			return err
+		}
+	}
+
+	p.perHostFilter.AddFromString(host)
+
+	// now we have to resolve the IPs because we usually don't use hostname for filter
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return err
+	}
+
+	for _, ip := range ips {
+		logrus.WithField("ip", ip).Debug("adding ip to proxy exclusion list")
+		p.perHostFilter.AddIP(ip)
+	}
+
+	return nil
+}
+
 // general idea:
 // SOCKS: use it for everything
 // HTTP: use it for HTTP *and* HTTPS
@@ -173,6 +203,12 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 			return nil, errors.New("invalid proxy scheme: " + u.Scheme)
 		}
 
+		// exclude the proxy from filter to prevent infinite loop
+		err = p.excludeProxyHost(u.Host)
+		if err != nil {
+			logrus.WithError(err).Error("failed to exclude proxy host from filter")
+		}
+
 		// we use this as our ONLY proxy if overridden
 		p.httpsProxyUrl = u
 		return u, nil
@@ -212,6 +248,12 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 			u.User = url.UserPassword(settings.SOCKSUser, settings.SOCKSPassword)
 		}
 
+		// exclude the proxy from filter to prevent infinite loop
+		err = p.excludeProxyHost(u.Host)
+		if err != nil {
+			logrus.WithError(err).Error("failed to exclude proxy host from filter")
+		}
+
 		p.httpsProxyUrl = u
 		return u, nil
 	}
@@ -236,6 +278,12 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 		proxyDialer, err := proxy.FromURL(u, nil)
 		if err != nil {
 			return nil, fmt.Errorf("create HTTPS proxy: %w", err)
+		}
+
+		// exclude the proxy from filter to prevent infinite loop
+		err = p.excludeProxyHost(u.Host)
+		if err != nil {
+			logrus.WithError(err).Error("failed to exclude proxy host from filter")
 		}
 
 		p.dialerHttps = proxyDialer.(proxy.ContextDialer)
@@ -263,6 +311,12 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 		proxyDialer, err := proxy.FromURL(u, nil)
 		if err != nil {
 			return nil, err
+		}
+
+		// exclude the proxy from filter to prevent infinite loop
+		err = p.excludeProxyHost(u.Host)
+		if err != nil {
+			logrus.WithError(err).Warn("failed to exclude proxy host from filter")
 		}
 
 		p.dialerHttp = proxyDialer.(proxy.ContextDialer)
