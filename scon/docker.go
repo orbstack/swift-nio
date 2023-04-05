@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/scon/agent"
 	"github.com/kdrag0n/macvirt/scon/conf"
@@ -56,26 +57,35 @@ type DockerDaemonFeatures struct {
 type DockerHooks struct {
 }
 
-func (h *DockerHooks) Config(c *Container, set func(string, string)) (string, error) {
+func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, error) {
 	// env from Docker
-	set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+	cm.set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 
 	// dind does some setup and mounts
-	set("lxc.init.cmd", "/usr/bin/docker-init -- /docker-entrypoint.sh")
+	cm.set("lxc.init.cmd", "/usr/bin/docker-init -- /docker-entrypoint.sh")
 
 	// mounts
-	set("lxc.mount.entry", "none run tmpfs rw,nosuid,nodev,mode=755 0 0")
+	cm.set("lxc.mount.entry", "none run tmpfs rw,nosuid,nodev,mode=755 0 0")
 	// match docker
-	set("lxc.mount.entry", "none dev/shm tmpfs rw,nosuid,nodev,noexec,relatime,size=65536k,create=dir 0 0")
+	cm.set("lxc.mount.entry", "none dev/shm tmpfs rw,nosuid,nodev,noexec,relatime,size=65536k,create=dir 0 0")
 	// alternate tmpfs because our /tmp is symlinked to /private/tmp
-	set("lxc.mount.entry", "none dockertmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
+	cm.set("lxc.mount.entry", "none dockertmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
+
+	// mount ~/.docker/certs.d. host ensures this exists
+	hostUser, err := c.manager.host.GetUser()
+	if err != nil {
+		return "", fmt.Errorf("get user: %w", err)
+	}
+
+	certsD := hostUser.HomeDir + "/.docker/certs.d"
+	cm.bind(mounts.Virtiofs+certsD, "/etc/docker/certs.d", "ro")
 
 	// configure network statically
-	set("lxc.net.0.flags", "up")
-	set("lxc.net.0.ipv4.address", dockerIP4+"/24")
-	set("lxc.net.0.ipv4.gateway", gatewayIP4)
-	set("lxc.net.0.ipv6.address", dockerIP6+"/64")
-	set("lxc.net.0.ipv6.gateway", gatewayIP6)
+	cm.set("lxc.net.0.flags", "up")
+	cm.set("lxc.net.0.ipv4.address", dockerIP4+"/24")
+	cm.set("lxc.net.0.ipv4.gateway", gatewayIP4)
+	cm.set("lxc.net.0.ipv6.address", dockerIP6+"/64")
+	cm.set("lxc.net.0.ipv6.gateway", gatewayIP6)
 
 	return conf.C().DockerRootfs, nil
 }

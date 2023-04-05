@@ -27,8 +27,13 @@ const (
 	agentTimeout = 15 * time.Second
 )
 
+type containerConfigMethods struct {
+	set  func(string, string)
+	bind func(string, string, string)
+}
+
 type ContainerHooks interface {
-	Config(*Container, func(string, string)) (string, error)
+	Config(*Container, containerConfigMethods) (string, error)
 	PreStart(*Container) error
 	PostStart(*Container) error
 }

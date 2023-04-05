@@ -350,7 +350,10 @@ func (c *Container) configureLxc() error {
 
 		// container hooks, before rootfs is set
 		if c.hooks != nil {
-			newRootfs, err := c.hooks.Config(c, set)
+			newRootfs, err := c.hooks.Config(c, containerConfigMethods{
+				set: set,
+				bind: bind,
+			})
 			if err != nil {
 				panic(err)
 			}
