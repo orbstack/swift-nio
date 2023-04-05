@@ -107,7 +107,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		case ConsoleLog:
 			conRead, err = os.Open("/dev/null")
 			check(err)
-			conWrite, err = os.Create(conf.ConsoleLog())
+			conWrite, err = NewConsoleLogPipe()
 			check(err)
 		}
 
