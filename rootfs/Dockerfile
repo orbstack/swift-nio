@@ -2,7 +2,7 @@
 
 # Base image versions
 ARG HOST_ARCH=amd64
-FROM alpine:20230208 AS base
+FROM alpine:20230329 AS base
 FROM debian:sid-slim AS debian
 
 
