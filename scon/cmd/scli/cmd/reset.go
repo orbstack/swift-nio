@@ -26,7 +26,7 @@ var resetCmd = &cobra.Command{
 	Short: "Delete all Linux and Docker data",
 	Long: `Delete all Linux machines and Docker data. All data will be permanently lost!
 
-This resets the lightweight VM to its initial state, but configuration is preserved.
+This resets OrbStack to its initial state, but configuration is preserved.
 All machines will be stopped immediately.
 `,
 	Example: "  " + appid.ShortCtl + " reset",
@@ -34,8 +34,7 @@ All machines will be stopped immediately.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// confirm
 		if !flagYes {
-			cmd.PrintErrln("WARNING: This will PERMANENTLY DELETE ALL DATA in the VM!")
-			cmd.PrintErrln("This includes all Linux and Docker data.")
+			cmd.PrintErrln("WARNING: This will PERMANENTLY DELETE ALL Linux AND Docker DATA!")
 			cmd.PrintErrln("This cannot be undone.")
 			cmd.PrintErrln("")
 			cmd.PrintErr("Are you sure you want to continue [y/N]? ")
