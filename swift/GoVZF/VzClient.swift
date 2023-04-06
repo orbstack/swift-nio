@@ -104,7 +104,11 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 
     func start() async throws {
         try await asyncifyResult { [self] fn in
-            vz.start(completionHandler: fn)
+            NSLog("[VZF] start: begin dispatch call")
+            vz.start(completionHandler: { result in
+                NSLog("[VZF] start: completed \(result)")
+                fn(result)
+            })
         }
     }
 
@@ -358,7 +362,9 @@ func doGenericErrInt(_ ptr: UnsafeMutablePointer<VmWrapper>, _ block: @escaping 
 
 @_cdecl("govzf_post_Machine_Start")
 func post_Machine_Start(ptr: UnsafeMutablePointer<VmWrapper>) {
+    NSLog("[VZF] start: begin ffi")
     doGenericErr(ptr) { wrapper in
+        NSLog("[VZF] start: begin task")
         try await wrapper.start()
     }
 }
