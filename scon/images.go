@@ -132,6 +132,11 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 	}
 	defer resp.Body.Close()
 
+	// check status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("GET index status: " + resp.Status)
+	}
+
 	var images StreamsImages
 	if err := json.NewDecoder(resp.Body).Decode(&images); err != nil {
 		return nil, fmt.Errorf("decode index: %w", err)
@@ -237,7 +242,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 
 	// check status code
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("bad status code: " + resp.Status)
+		return errors.New("GET download status: " + resp.Status)
 	}
 
 	// check sha256
@@ -247,7 +252,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	// write to file
 	_, err = io.Copy(out, tee)
 	if err != nil {
-		return fmt.Errorf("stream download to file: %w", err)
+		return fmt.Errorf("stream to file: %w", err)
 	}
 
 	// check sha256 if we have one
