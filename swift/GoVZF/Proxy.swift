@@ -132,8 +132,10 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
         SecTrustCreateWithCertificates(certificate, policy, &trust)
 
         if let trust {
+            // disable network fetch - can't block here
+            SecTrustSetNetworkFetchAllowed(trust, false)
+
             var error: CFError?
-            //TODO network req?
             let result = SecTrustEvaluateWithError(trust, &error)
             // check validity
             guard result && error == nil else {
@@ -167,7 +169,6 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
                """
     }
 }
-
 
 @_cdecl("swext_proxy_get_settings")
 func swext_proxy_get_settings() -> UnsafeMutablePointer<CChar> {
