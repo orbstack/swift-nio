@@ -621,7 +621,6 @@ func runVmManager() {
 	defer os.Remove(conf.SconSSHSocket())
 
 	// Docker context and certs.d
-	conf.EnsureDockerCertsDir() // scon assumes this exists for binding
 	go func() {
 		// PATH for hostssh
 		// blocking here because docker depends on it

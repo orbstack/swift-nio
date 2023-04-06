@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -71,15 +70,6 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// alternate tmpfs because our /tmp is symlinked to /private/tmp
 	cm.set("lxc.mount.entry", "none dockertmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
 
-	// mount ~/.docker/certs.d. host ensures this exists
-	hostUser, err := c.manager.host.GetUser()
-	if err != nil {
-		return "", fmt.Errorf("get user: %w", err)
-	}
-
-	certsD := hostUser.HomeDir + "/.docker/certs.d"
-	cm.bind(mounts.Virtiofs+certsD, "/etc/docker/certs.d", "ro")
-
 	// configure network statically
 	cm.set("lxc.net.0.flags", "up")
 	cm.set("lxc.net.0.ipv4.address", dockerIP4+"/24")
@@ -93,7 +83,7 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 func (h *DockerHooks) PreStart(c *Container) error {
 	// delete pid file if exists
 	rootfs := conf.C().DockerRootfs
-	os.Remove(filepath.Join(rootfs, "var/run/docker.pid"))
+	os.Remove(rootfs + "/var/run/docker.pid")
 
 	// generate base docker daemon config
 	baseFeatures := map[string]any{
@@ -114,14 +104,14 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	// read config overrides from host
 	overrideConfig, err := c.manager.host.ReadDockerDaemonConfig()
 	if err != nil {
-		return fmt.Errorf("read docker daemon config: %w", err)
+		return fmt.Errorf("read docker config: %w", err)
 	}
 	overrideConfig = strings.TrimSpace(overrideConfig)
 	if overrideConfig != "" {
 		// write as override
 		err = json.Unmarshal([]byte(overrideConfig), &config)
 		if err != nil {
-			return fmt.Errorf("parse docker daemon config: %w", err)
+			return fmt.Errorf("parse docker config: %w", err)
 		}
 	}
 
@@ -136,9 +126,21 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(filepath.Join(rootfs, "etc/docker/daemon.json"), configBytes, 0644)
+	err = os.WriteFile(rootfs+"/etc/docker/daemon.json", configBytes, 0644)
 	if err != nil {
 		return err
+	}
+
+	// symlink ~/.docker/certs.d. host ensures this exists
+	hostUser, err := c.manager.host.GetUser()
+	if err != nil {
+		return fmt.Errorf("get user: %w", err)
+	}
+	certsDLink := rootfs + "/etc/docker/certs.d"
+	_ = os.Remove(certsDLink)
+	err = os.Symlink(mounts.Virtiofs+hostUser.HomeDir+"/.docker/certs.d", certsDLink)
+	if err != nil {
+		return fmt.Errorf("link certs: %w", err)
 	}
 
 	return nil
@@ -177,7 +179,7 @@ type DockerProxy struct {
 
 func (m *ConManager) startDockerProxy() error {
 	l, err := net.ListenTCP("tcp4", &net.TCPAddr{
-		// NIC interface, port 62375
+		// NIC interface, port 2375
 		IP:   util.DefaultAddress4(),
 		Port: ports.GuestDocker,
 	})

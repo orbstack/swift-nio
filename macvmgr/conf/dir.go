@@ -178,7 +178,3 @@ func ConfigDir() string {
 func DockerDaemonConfig() string {
 	return ConfigDir() + "/docker.json"
 }
-
-func EnsureDockerCertsDir() string {
-	return ensureDir(HomeDir() + "/.docker/certs.d")
-}
