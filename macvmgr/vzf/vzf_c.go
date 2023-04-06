@@ -30,6 +30,7 @@ import (
 	"runtime"
 	"runtime/cgo"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/sirupsen/logrus"
@@ -43,9 +44,9 @@ type Machine struct {
 	retainFiles []*os.File
 
 	stateChan         chan MachineState
-	createChan        chan<- newMachineResult
-	genericErrChan    chan<- error
-	genericErrIntChan chan<- errIntResult
+	createChan        atomic.Pointer[chan newMachineResult]
+	genericErrChan    atomic.Pointer[chan error]
+	genericErrIntChan atomic.Pointer[chan errIntResult]
 }
 
 type newMachineResult struct {
@@ -84,8 +85,9 @@ func govzf_complete_NewMachine(vmHandle C.uintptr_t, cPtr unsafe.Pointer, errC *
 
 	// no lock needed: caller holds mutex
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	if vm.createChan != nil {
-		vm.createChan <- newMachineResult{cPtr, err, rosettaCanceled}
+	ch := vm.createChan.Swap(nil)
+	if ch != nil {
+		*ch <- newMachineResult{cPtr, err, rosettaCanceled}
 	} else {
 		logrus.Error("[vzf] createChan = nil")
 	}
@@ -101,8 +103,9 @@ func govzf_complete_Machine_genericErr(vmHandle C.uintptr_t, errC *C.char) {
 
 	// no lock needed: caller holds mutex
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	if vm.genericErrChan != nil {
-		vm.genericErrChan <- err
+	ch := vm.genericErrChan.Swap(nil)
+	if ch != nil {
+		*ch <- err
 	} else {
 		logrus.Error("[vzf] genericErrChan = nil")
 	}
@@ -118,8 +121,9 @@ func govzf_complete_Machine_genericErrInt(vmHandle C.uintptr_t, errC *C.char, va
 
 	// no lock needed: caller holds mutex
 	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	if vm.genericErrIntChan != nil {
-		vm.genericErrIntChan <- errIntResult{err, int64(value)}
+	ch := vm.genericErrIntChan.Swap(nil)
+	if ch != nil {
+		*ch <- errIntResult{err, int64(value)}
 	} else {
 		logrus.Error("[vzf] genericErrChan = nil")
 	}
@@ -166,9 +170,9 @@ func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 
 	// start create op
 	ch := make(chan newMachineResult)
-	vm.createChan = ch
+	vm.createChan.Store(&ch)
 	defer func() {
-		vm.createChan = nil
+		vm.createChan.CompareAndSwap(&ch, nil)
 	}()
 
 	// call cgo
@@ -203,9 +207,9 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer)) error {
 	}
 
 	ch := make(chan error)
-	m.genericErrChan = ch
+	m.genericErrChan.Store(&ch)
 	defer func() {
-		m.genericErrChan = nil
+		m.genericErrChan.CompareAndSwap(&ch, nil)
 	}()
 	fn(m.ptr)
 	res := <-ch
@@ -220,9 +224,9 @@ func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer)) (int64, error) {
 	}
 
 	ch := make(chan errIntResult)
-	m.genericErrIntChan = ch
+	m.genericErrIntChan.Store(&ch)
 	defer func() {
-		m.genericErrIntChan = nil
+		m.genericErrIntChan.CompareAndSwap(&ch, nil)
 	}()
 	fn(m.ptr)
 	res := <-ch
