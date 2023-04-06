@@ -4,16 +4,17 @@ package vzf
 #cgo CFLAGS: -mmacosx-version-min=12.3
 #cgo LDFLAGS: -mmacosx-version-min=12.3 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx
 
-#include <stdlib.h>
+#define CGO
+#include "../../swift/GoVZF/GoVZF.h"
 
-void govzf_post_NewMachine(uintptr_t handle, const char* params_str);
-void govzf_post_Machine_Start(void* ptr);
-void govzf_post_Machine_Stop(void* ptr);
-void govzf_post_Machine_RequestStop(void* ptr);
-void govzf_post_Machine_Pause(void* ptr);
-void govzf_post_Machine_Resume(void* ptr);
-void govzf_post_Machine_ConnectVsock(void* ptr, uint32_t port);
-void govzf_post_Machine_finalize(void* ptr);
+struct GovzfResultCreate* govzf_run_NewMachine(uintptr_t handle, const char* params_str);
+struct GovzfResultErr* govzf_run_Machine_Start(void* ptr);
+struct GovzfResultErr* govzf_run_Machine_Stop(void* ptr);
+struct GovzfResultErr* govzf_run_Machine_RequestStop(void* ptr);
+struct GovzfResultErr* govzf_run_Machine_Pause(void* ptr);
+struct GovzfResultErr* govzf_run_Machine_Resume(void* ptr);
+struct GovzfResultIntErr* govzf_run_Machine_ConnectVsock(void* ptr, uint32_t port);
+void govzf_run_Machine_finalize(void* ptr);
 
 char* swext_proxy_get_settings();
 char* swext_proxy_monitor_changes();
@@ -30,7 +31,6 @@ import (
 	"runtime"
 	"runtime/cgo"
 	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/sirupsen/logrus"
@@ -43,21 +43,7 @@ type Machine struct {
 
 	retainFiles []*os.File
 
-	stateChan         chan MachineState
-	createChan        atomic.Pointer[chan newMachineResult]
-	genericErrChan    atomic.Pointer[chan error]
-	genericErrIntChan atomic.Pointer[chan errIntResult]
-}
-
-type newMachineResult struct {
-	cPtr            unsafe.Pointer
-	err             error
-	rosettaCanceled bool
-}
-
-type errIntResult struct {
-	err   error
-	value int64
+	stateChan chan MachineState
 }
 
 type MachineState int
@@ -74,60 +60,6 @@ const (
 	// macOS 12
 	MachineStateStopping
 )
-
-//export govzf_complete_NewMachine
-func govzf_complete_NewMachine(vmHandle C.uintptr_t, cPtr unsafe.Pointer, errC *C.char, rosettaCanceled bool) {
-	errStr := C.GoString(errC)
-	var err error
-	if errStr != "" {
-		err = errors.New(errStr)
-	}
-
-	// no lock needed: caller holds mutex
-	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	ch := vm.createChan.Swap(nil)
-	if ch != nil {
-		*ch <- newMachineResult{cPtr, err, rosettaCanceled}
-	} else {
-		logrus.Error("[vzf] createChan = nil")
-	}
-}
-
-//export govzf_complete_Machine_genericErr
-func govzf_complete_Machine_genericErr(vmHandle C.uintptr_t, errC *C.char) {
-	errStr := C.GoString(errC)
-	var err error
-	if errStr != "" {
-		err = errors.New(errStr)
-	}
-
-	// no lock needed: caller holds mutex
-	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	ch := vm.genericErrChan.Swap(nil)
-	if ch != nil {
-		*ch <- err
-	} else {
-		logrus.Error("[vzf] genericErrChan = nil")
-	}
-}
-
-//export govzf_complete_Machine_genericErrInt
-func govzf_complete_Machine_genericErrInt(vmHandle C.uintptr_t, errC *C.char, value C.int64_t) {
-	errStr := C.GoString(errC)
-	var err error
-	if errStr != "" {
-		err = errors.New(errStr)
-	}
-
-	// no lock needed: caller holds mutex
-	vm := cgo.Handle(vmHandle).Value().(*Machine)
-	ch := vm.genericErrIntChan.Swap(nil)
-	if ch != nil {
-		*ch <- errIntResult{err, int64(value)}
-	} else {
-		logrus.Error("[vzf] genericErrChan = nil")
-	}
-}
 
 //export govzf_event_Machine_onStateChange
 func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state MachineState) {
@@ -168,104 +100,94 @@ func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 	handle := cgo.NewHandle(vm)
 	vm.handle = handle
 
-	// start create op
-	ch := make(chan newMachineResult)
-	vm.createChan.Store(&ch)
-	defer func() {
-		vm.createChan.CompareAndSwap(&ch, nil)
-	}()
-
 	// call cgo
 	cstr := C.CString(string(specStr))
 	defer C.free(unsafe.Pointer(cstr))
-	C.govzf_post_NewMachine(C.uintptr_t(handle), cstr)
+	result := C.govzf_run_NewMachine(C.uintptr_t(handle), cstr)
+	defer C.free(unsafe.Pointer(result))
 
 	// wait for result
-	result := <-ch
 	if result.err != nil {
 		handle.Delete()
-		return nil, result.rosettaCanceled, result.err
+		return nil, bool(result.rosetta_canceled), errFromC(result.err)
 	}
 
 	// set ptr
-	vm.ptr = result.cPtr
+	vm.ptr = result.ptr
 	// ref ok: this just drops Go ref; Swift ref is still held if alive
 	runtime.SetFinalizer(vm, (*Machine).Close)
 
-	return vm, result.rosettaCanceled, nil
+	return vm, bool(result.rosetta_canceled), nil
 }
 
 func (m *Machine) StateChan() <-chan MachineState {
 	return m.stateChan
 }
 
-func (m *Machine) callGenericErr(fn func(unsafe.Pointer)) error {
+func errFromC(err *C.char) error {
+	if err == nil {
+		return nil
+	}
+	defer C.free(unsafe.Pointer(err))
+	return errors.New(C.GoString(err))
+}
+
+func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultErr) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.ptr == nil {
+	ptr := m.ptr
+	m.mu.Unlock()
+	if ptr == nil {
 		return errors.New("machine closed")
 	}
 
-	ch := make(chan error)
-	m.genericErrChan.Store(&ch)
-	defer func() {
-		m.genericErrChan.CompareAndSwap(&ch, nil)
-	}()
-	fn(m.ptr)
-	res := <-ch
-	return res
+	res := fn(ptr)
+	return errFromC(res.err)
 }
 
-func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer)) (int64, error) {
+func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) *C.struct_GovzfResultIntErr) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.ptr == nil {
 		return 0, errors.New("machine closed")
 	}
 
-	ch := make(chan errIntResult)
-	m.genericErrIntChan.Store(&ch)
-	defer func() {
-		m.genericErrIntChan.CompareAndSwap(&ch, nil)
-	}()
-	fn(m.ptr)
-	res := <-ch
-	return res.value, res.err
+	res := fn(m.ptr)
+	return int64(res.value), errFromC(res.err)
 }
 
 func (m *Machine) Start() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) {
-		C.govzf_post_Machine_Start(ptr)
+	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+		return C.govzf_run_Machine_Start(ptr)
 	})
 }
 
 func (m *Machine) Stop() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) {
-		C.govzf_post_Machine_Stop(ptr)
+	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+		return C.govzf_run_Machine_Stop(ptr)
 	})
 }
 
 func (m *Machine) RequestStop() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) {
-		C.govzf_post_Machine_RequestStop(ptr)
+	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+		return C.govzf_run_Machine_RequestStop(ptr)
 	})
 }
 
 func (m *Machine) Pause() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) {
-		C.govzf_post_Machine_Pause(ptr)
+	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+		return C.govzf_run_Machine_Pause(ptr)
 	})
 }
 
 func (m *Machine) Resume() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) {
-		C.govzf_post_Machine_Resume(ptr)
+	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+		return C.govzf_run_Machine_Resume(ptr)
 	})
 }
 
 func (m *Machine) ConnectVsock(port uint32) (net.Conn, error) {
-	fd, err := m.callGenericErrInt(func(ptr unsafe.Pointer) {
-		C.govzf_post_Machine_ConnectVsock(ptr, C.uint32_t(port))
+	fd, err := m.callGenericErrInt(func(ptr unsafe.Pointer) *C.struct_GovzfResultIntErr {
+		return C.govzf_run_Machine_ConnectVsock(ptr, C.uint32_t(port))
 	})
 	if err != nil {
 		return nil, err
@@ -287,7 +209,7 @@ func (m *Machine) Close() error {
 
 	// drop our long-lived ref, but don't delete the handle until Swift deinit's
 	if m.ptr != nil {
-		C.govzf_post_Machine_finalize(m.ptr)
+		C.govzf_run_Machine_finalize(m.ptr)
 		m.ptr = nil
 	}
 
