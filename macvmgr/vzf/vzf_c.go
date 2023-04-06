@@ -30,14 +30,15 @@ import (
 	"os"
 	"runtime"
 	"runtime/cgo"
-	"sync/atomic"
+	"sync"
 	"unsafe"
 
 	"github.com/sirupsen/logrus"
 )
 
 type Machine struct {
-	aPtr   unsafe.Pointer
+	mu     sync.Mutex
+	ptr    unsafe.Pointer
 	handle cgo.Handle
 
 	retainFiles []*os.File
@@ -112,7 +113,7 @@ func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 	}
 
 	// set ptr
-	atomic.StorePointer(&vm.aPtr, result.ptr)
+	vm.ptr = result.ptr
 	// ref ok: this just drops Go ref; Swift ref is still held if alive
 	runtime.SetFinalizer(vm, (*Machine).Close)
 
@@ -132,7 +133,9 @@ func errFromC(err *C.char) error {
 }
 
 func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultErr) error {
-	ptr := atomic.LoadPointer(&m.aPtr)
+	m.mu.Lock()
+	ptr := m.ptr
+	m.mu.Unlock()
 	if ptr == nil {
 		return errors.New("machine closed")
 	}
@@ -142,12 +145,13 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultEr
 }
 
 func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) *C.struct_GovzfResultIntErr) (int64, error) {
-	ptr := atomic.LoadPointer(&m.aPtr)
-	if ptr == nil {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ptr == nil {
 		return 0, errors.New("machine closed")
 	}
 
-	res := fn(ptr)
+	res := fn(m.ptr)
 	return int64(res.value), errFromC(res.err)
 }
 
@@ -200,10 +204,13 @@ func (m *Machine) ConnectVsock(port uint32) (net.Conn, error) {
 }
 
 func (m *Machine) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	// drop our long-lived ref, but don't delete the handle until Swift deinit's
-	ptr := atomic.SwapPointer(&m.aPtr, nil)
-	if ptr != nil {
-		C.govzf_run_Machine_finalize(ptr)
+	if m.ptr != nil {
+		C.govzf_run_Machine_finalize(m.ptr)
+		m.ptr = nil
 	}
 
 	if len(m.retainFiles) > 0 {
