@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
@@ -15,6 +16,10 @@ func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("docker API returned " + resp.Status)
+	}
 
 	var containers []struct {
 		ID string `json:"Id"`

@@ -241,7 +241,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	defer resp.Body.Close()
 
 	// check status code
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return errors.New("GET download status: " + resp.Status)
 	}
 
