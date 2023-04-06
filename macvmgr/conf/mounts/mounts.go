@@ -4,8 +4,8 @@ import "github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 
 var (
 	// linked paths don't need translation
-	// excluded: /cores /opt/homebrew
-	LinkedPaths = [...]string{"/Applications", "/Library", "/System", "/Users", "/Volumes", "/private"}
+	// excluded: /cores /opt/homebrew, /System due to Python platform.mac_ver()
+	LinkedPaths = [...]string{"/Applications", "/Library", "/Users", "/Volumes", "/private"}
 )
 
 // linux
