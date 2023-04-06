@@ -37,7 +37,7 @@ import (
 )
 
 type Machine struct {
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	ptr    unsafe.Pointer
 	handle cgo.Handle
 
@@ -133,9 +133,9 @@ func errFromC(err *C.char) error {
 }
 
 func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultErr) error {
-	m.mu.Lock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	ptr := m.ptr
-	m.mu.Unlock()
 	if ptr == nil {
 		return errors.New("machine closed")
 	}
@@ -145,8 +145,8 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultEr
 }
 
 func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) *C.struct_GovzfResultIntErr) (int64, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.ptr == nil {
 		return 0, errors.New("machine closed")
 	}
