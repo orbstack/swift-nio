@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 
@@ -80,11 +82,41 @@ func envToShell(env []string) string {
 	return strings.Join(shenv, " ")
 }
 
-func filterEnv(env []string, filter []string) []string {
+func translateProxyEnv(key, value string) (string, error) {
+	// translate proxy url
+	u, err := url.Parse(value)
+	if err != nil {
+		return "", err
+	}
+
+	// split host:port
+	host, port, err := net.SplitHostPort(u.Host)
+	if addrError, ok := err.(*net.AddrError); ok && addrError.Err == "missing port in address" {
+		// no port, use default
+		host = u.Host
+	} else if err != nil {
+		return "", err
+	}
+
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		if port == "" {
+			u.Host = "host.orb.internal"
+		} else {
+			u.Host = "host.orb.internal:" + port
+		}
+
+		return key + "=" + u.String(), nil
+	}
+
+	return key + "=" + value, nil
+}
+
+// filter out sshenv exclusions and translate proxies
+func filterTranslateEnv(env []string, filter []string) []string {
 	filtered := make([]string, 0, len(env))
 outer:
 	for _, kv := range env {
-		key, _, ok := strings.Cut(kv, "=")
+		key, value, ok := strings.Cut(kv, "=")
 		if !ok {
 			continue
 		}
@@ -95,7 +127,19 @@ outer:
 			}
 		}
 
-		filtered = append(filtered, kv)
+		if slices.Contains(sshenv.ProxyEnvs, key) {
+			// translate proxy env
+			translated, err := translateProxyEnv(key, value)
+			if err != nil {
+				logrus.WithError(err).WithField("env", kv).Warn("Failed to translate proxy env")
+				filtered = append(filtered, kv)
+				continue
+			}
+
+			filtered = append(filtered, translated)
+		} else {
+			filtered = append(filtered, kv)
+		}
 	}
 
 	return filtered
@@ -270,7 +314,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	}).Debug("SSH connection - command session")
 
 	// remove envs inherited from container
-	env = filterEnv(env, sshenv.NoInheritEnvs)
+	env = filterTranslateEnv(env, sshenv.NoInheritEnvs)
 
 	// pwd
 	cwd, err := UseAgentRet(container, func(a *agent.Client) (string, error) {

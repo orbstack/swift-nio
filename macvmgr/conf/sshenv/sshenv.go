@@ -48,4 +48,18 @@ var (
 		// nvm
 		"NVM_DIR",
 	}
+
+	// need url host translation
+	ProxyEnvs = []string{
+		"HTTP_PROXY",
+		"HTTPS_PROXY",
+		"FTP_PROXY",
+		"ALL_PROXY",
+
+		// apparently these can be lowercase?
+		"http_proxy",
+		"https_proxy",
+		"ftp_proxy",
+		"all_proxy",
+	}
 )

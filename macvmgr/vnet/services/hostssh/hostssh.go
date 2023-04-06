@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +22,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/kdrag0n/macvirt/scon/agent/envutil"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -84,6 +87,63 @@ func init() {
 			}
 		}
 	}
+}
+
+func translateProxyEnv(key, value string) (string, error) {
+	// translate proxy url
+	u, err := url.Parse(value)
+	if err != nil {
+		return "", err
+	}
+
+	// split host:port
+	host, port, err := net.SplitHostPort(u.Host)
+	if addrError, ok := err.(*net.AddrError); ok && addrError.Err == "missing port in address" {
+		// no port, use default
+		host = u.Host
+	} else if err != nil {
+		return "", err
+	}
+
+	if host == "host.orb.internal" || host == "host.docker.internal" || host == "host.internal" || host == "host.lima.internal" || host == "host" {
+		if port == "" {
+			u.Host = "localhost"
+		} else {
+			u.Host = "localhost:" + port
+		}
+
+		return key + "=" + u.String(), nil
+	}
+
+	return key + "=" + value, nil
+}
+
+// filter out sshenv exclusions and translate proxies
+func translateEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+
+	for _, kv := range env {
+		key, value, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+
+		if slices.Contains(sshenv.ProxyEnvs, key) {
+			// translate proxy env
+			translated, err := translateProxyEnv(key, value)
+			if err != nil {
+				logrus.WithError(err).WithField("env", kv).Warn("Failed to translate proxy env")
+				filtered = append(filtered, kv)
+				continue
+			}
+
+			filtered = append(filtered, translated)
+		} else {
+			filtered = append(filtered, kv)
+		}
+	}
+
+	return filtered
 }
 
 func handleSshConn(s ssh.Session) error {
@@ -151,6 +211,8 @@ func handleSshConn(s ssh.Session) error {
 
 	// dedupe env
 	env = envutil.Dedupe(env)
+	// translate env
+	env = translateEnv(env)
 
 	var combinedArgs []string
 	var argv0 string
