@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -143,6 +145,41 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	err = os.Symlink(mounts.Virtiofs+hostUser.HomeDir+"/.docker/certs.d", certsDLink)
 	if err != nil {
 		return fmt.Errorf("link certs: %w", err)
+	}
+
+	// add macos certs
+	extraCaCerts, err := c.manager.host.GetExtraCaCertificates()
+	if err != nil {
+		return fmt.Errorf("get certs: %w", err)
+	}
+
+	// delete old orb-extra certs
+	certsDir := rootfs + "/etc/ssl/certs"
+	certFiles, err := os.ReadDir(certsDir)
+	if err != nil {
+		return fmt.Errorf("read certs dir: %w", err)
+	}
+	for _, f := range certFiles {
+		if strings.HasPrefix(f.Name(), "orb-extra-") {
+			err = os.Remove(certsDir + "/" + f.Name())
+			if err != nil {
+				return fmt.Errorf("remove cert: %w", err)
+			}
+		}
+	}
+	// write new certs
+	for _, cert := range extraCaCerts {
+		// hash the cert
+		h := sha256.New()
+		_, _ = h.Write([]byte(cert))
+		hash := hex.EncodeToString(h.Sum(nil))[:8]
+
+		// write cert
+		certPath := certsDir + "/orb-extra-" + hash + ".crt"
+		err = os.WriteFile(certPath, []byte(cert), 0644)
+		if err != nil {
+			return fmt.Errorf("write cert: %w", err)
+		}
 	}
 
 	return nil

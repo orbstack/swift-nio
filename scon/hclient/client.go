@@ -110,6 +110,16 @@ func (c *Client) ReadDockerDaemonConfig() (string, error) {
 	return result, nil
 }
 
+func (c *Client) GetExtraCaCertificates() ([]string, error) {
+	var result []string
+	err := c.rpc.Call("hc.GetExtraCaCertificates", None{}, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func (c *Client) Notify(n guihelper.Notification) error {
 	var none None
 	return c.rpc.Call("hc.Notify", n, &none)

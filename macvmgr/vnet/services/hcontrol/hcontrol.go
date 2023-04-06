@@ -18,6 +18,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/sshagent"
+	"github.com/kdrag0n/macvirt/macvmgr/vzf"
 	"github.com/muja/goconfig"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -144,6 +145,16 @@ func (h *HcontrolServer) ReadDockerDaemonConfig(_ None, reply *string) error {
 	}
 
 	*reply = string(data)
+	return nil
+}
+
+func (h *HcontrolServer) GetExtraCaCertificates(_ None, reply *[]string) error {
+	certs, err := vzf.SwextSecurityGetExtraCaCerts()
+	if err != nil {
+		return err
+	}
+
+	*reply = certs
 	return nil
 }
 

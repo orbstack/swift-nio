@@ -106,14 +106,76 @@ private func getProxyPassword(proto: String, server: String, port: Int) -> Strin
     return nil
 }
 
+enum SwextError: Error {
+    case fetchCertificate(status: OSStatus)
+}
+
+private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassCertificate,
+        kSecMatchLimit as String: kSecMatchLimitAll,
+        kSecReturnRef as String: true
+    ]
+
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+    guard status == errSecSuccess else {
+        throw SwextError.fetchCertificate(status: status)
+    }
+
+    let certs = result as! [SecCertificate]
+    let extraCaCerts = certs.filter { certificate in
+        // validate for SSL use
+        var trust: SecTrust?
+        let policy = SecPolicyCreateSSL(true, nil)
+        SecTrustCreateWithCertificates(certificate, policy, &trust)
+
+        if let trust {
+            var error: CFError?
+            //TODO network req?
+            let result = SecTrustEvaluateWithError(trust, &error)
+            // check validity
+            guard result && error == nil else {
+                return false
+            }
+
+            if filterRootOnly {
+                let chainLen = SecTrustGetCertificateCount(trust)
+                guard chainLen == 1 else {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        return false
+    }
+
+    return extraCaCerts.compactMap { certificate in
+        guard let data = SecCertificateCopyData(certificate) as Data? else {
+            return nil
+        }
+
+        let base64EncodedData = data.base64EncodedString(options: .lineLength64Characters)
+        return """
+               -----BEGIN CERTIFICATE-----
+               \(base64EncodedData)
+               -----END CERTIFICATE-----
+
+               """
+    }
+}
+
+
 @_cdecl("swext_proxy_get_settings")
 func swext_proxy_get_settings() -> UnsafeMutablePointer<CChar> {
     let settings = readProxySettings()
     let data = try! JSONEncoder().encode(settings)
     let str = String(data: data, encoding: .utf8)!
-    let cStr = UnsafeMutablePointer<CChar>(mutating: (str as NSString).utf8String!)
     // go frees the copy
-    return strdup(cStr)
+    return strdup(str)
 }
 
 private let scSessionName = "dev.kdrag0n.MacVirt__swext_proxy"
@@ -138,4 +200,17 @@ func swext_proxy_monitor_changes() -> UnsafeMutablePointer<CChar> {
     // return but retain store
     let _ = Unmanaged.passRetained(store)
     return strdup("")
+}
+
+@_cdecl("swext_security_get_extra_ca_certs")
+func swext_security_get_extra_ca_certs() -> UnsafeMutablePointer<CChar> {
+    do {
+        let certs = try getExtraCaCerts()
+        let data = try JSONEncoder().encode(certs)
+        let str = String(data: data, encoding: .utf8)!
+        // go frees the copy
+        return strdup(str)
+    } catch {
+        return strdup("E\(error)")
+    }
 }

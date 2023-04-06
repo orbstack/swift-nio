@@ -18,6 +18,7 @@ void govzf_run_Machine_finalize(void* ptr);
 
 char* swext_proxy_get_settings();
 char* swext_proxy_monitor_changes();
+char* swext_security_get_extra_ca_certs();
 */
 import (
 	"C"
@@ -225,14 +226,12 @@ func (m *Machine) Close() error {
 
 func SwextProxyGetSettings() (*SwextProxySettings, error) {
 	cStr := C.swext_proxy_get_settings()
-	if cStr == nil {
-		return nil, errors.New("swift returned nil")
-	}
+	defer C.free(unsafe.Pointer(cStr))
+	str := C.GoString(cStr)
 
 	// convert to Go
 	var settings SwextProxySettings
-	err := json.Unmarshal([]byte(C.GoString(cStr)), &settings)
-	C.free(unsafe.Pointer(cStr))
+	err := json.Unmarshal([]byte(str), &settings)
 	if err != nil {
 		return nil, err
 	}
@@ -251,12 +250,32 @@ func swext_proxy_cb_changed() {
 
 func SwextProxyMonitorChangesOnRunLoop() error {
 	msgC := C.swext_proxy_monitor_changes()
+	defer C.free(unsafe.Pointer(msgC))
 	msgStr := C.GoString(msgC)
-	C.free(unsafe.Pointer(msgC))
 
 	if msgStr != "" {
 		return errors.New(msgStr)
 	}
 
 	return nil
+}
+
+func SwextSecurityGetExtraCaCerts() ([]string, error) {
+	cStr := C.swext_security_get_extra_ca_certs()
+	defer C.free(unsafe.Pointer(cStr))
+	str := C.GoString(cStr)
+
+	// error?
+	if str[0] == 'E' {
+		return nil, errors.New(str[1:])
+	}
+
+	// convert to Go
+	var certs []string
+	err := json.Unmarshal([]byte(str), &certs)
+	if err != nil {
+		return nil, err
+	}
+
+	return certs, nil
 }
