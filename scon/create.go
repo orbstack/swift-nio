@@ -161,12 +161,6 @@ func (c *Container) setupInitial(args CreateParams) error {
 		gitConfigs.Email = hostGitConfigs["user.email"]
 	}
 
-	// get extra certificates
-	extraCerts, err := c.manager.host.GetExtraCaCertificates()
-	if err != nil {
-		return fmt.Errorf("get extra certs: %w", err)
-	}
-
 	// always wait for network
 	// even if we don't need it for setup, it ensures that resolved has started if necesary,
 	// and systemctl will work
@@ -193,7 +187,6 @@ func (c *Container) setupInitial(args CreateParams) error {
 			Distro:          c.Image.Distro,
 			Timezone:        hostTimezone,
 			BasicGitConfigs: gitConfigs,
-			ExtraCerts:      extraCerts,
 		})
 	})
 	if err != nil {
