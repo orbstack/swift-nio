@@ -155,17 +155,18 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 		p.perHostFilter.AddFromString(host)
 	}
 
-	// if override is set, use it
-	overrideConfig := vmconfig.Get().NetworkProxy
-	if overrideConfig != "" {
-		if overrideConfig == vmconfig.ProxyNone {
-			logrus.Info("using proxy: none (override)")
-			// discard the per-host filter to save memory
-			p.perHostFilter = nil
-			return nil, nil
-		}
-
-		u, err := url.Parse(overrideConfig)
+	// pick behavior based on config
+	configVal := vmconfig.Get().NetworkProxy
+	switch configVal {
+	case vmconfig.ProxyNone:
+		logrus.Info("using proxy: none (override)")
+		// discard the per-host filter to save memory
+		p.perHostFilter = nil
+		return nil, nil
+	case vmconfig.ProxyAuto:
+		break
+	default:
+		u, err := url.Parse(configVal)
 		if err != nil {
 			return nil, err
 		}

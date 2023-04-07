@@ -17,6 +17,7 @@ const (
 	defaultMemoryLimit = 8 * 1024 * 1024 * 1024 // 8 GiB
 
 	ProxyNone = "none"
+	ProxyAuto = "auto"
 )
 
 var (
@@ -55,7 +56,7 @@ func (c *VmConfig) Validate() error {
 	}
 
 	// must be a supported proxy protocol
-	if c.NetworkProxy != "" && c.NetworkProxy != ProxyNone {
+	if c.NetworkProxy != ProxyNone && c.NetworkProxy != ProxyAuto {
 		u, err := url.Parse(c.NetworkProxy)
 		if err != nil {
 			return err
@@ -165,7 +166,7 @@ func Defaults() *VmConfig {
 		MemoryMiB:    calcMemory() / 1024 / 1024,
 		CPU:          runtime.NumCPU(),
 		Rosetta:      true,
-		NetworkProxy: "",
+		NetworkProxy: ProxyAuto,
 	}
 }
 
