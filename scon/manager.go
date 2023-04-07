@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
 	"github.com/kdrag0n/macvirt/scon/agent"
+	"github.com/kdrag0n/macvirt/scon/agent/common"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/kdrag0n/macvirt/scon/syncx"
@@ -158,6 +160,21 @@ func (m *ConManager) Start() error {
 
 	// clean up leftover logs and rootfs
 	go runOne("cache cleanup", m.cleanupCaches)
+
+	// certs - must be early because RPC server will allow creation, which uses HTTPS
+	extraCerts, err := m.host.GetExtraCaCertificates()
+	if err != nil {
+		logrus.WithError(err).Error("Failed to get extra certs")
+	}
+	err = common.WriteCaCerts("/etc/ssl/certs", extraCerts)
+	if err != nil {
+		return fmt.Errorf("write certs: %w", err)
+	}
+	// write bundle too for nixos
+	err = os.WriteFile(mounts.ExtraCerts, []byte(strings.Join(extraCerts, "\n")), 0644)
+	if err != nil {
+		return err
+	}
 
 	// services
 	go runOne("SSH server", func() error {
@@ -471,4 +488,18 @@ func (m *ConManager) onHostNfsMounted() error {
 			})
 		})
 	})
+}
+
+func (m *ConManager) getAndWriteCerts(destDir string) error {
+	extraCaCerts, err := m.host.GetExtraCaCertificates()
+	if err != nil {
+		return fmt.Errorf("get: %w", err)
+	}
+
+	err = common.WriteCaCerts(destDir, extraCaCerts)
+	if err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+
+	return nil
 }

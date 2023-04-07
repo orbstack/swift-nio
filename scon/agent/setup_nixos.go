@@ -192,6 +192,11 @@ with lib;
   programs.ssh.extraConfig = ''
     Include /opt/orbstack-guest/etc/ssh_config
   '';
+
+  # extra certificates
+  security.pki.certificateFiles = [
+    "/opt/orbstack-guest/etc/extra-certs.crt"
+  ];
 }
 `, args.Username, args.Timezone)
 

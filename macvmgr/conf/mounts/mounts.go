@@ -24,6 +24,7 @@ const (
 	ProfileLate  = Etc + "/profile-late"
 	SshConfig    = Etc + "/ssh_config"
 	ResolvConf   = Etc + "/resolv.conf"
+	ExtraCerts   = Etc + "/extra-certs.crt"
 
 	BinHiprio             = Opt + "/bin-hiprio"
 	DefaultHiprioCmdLinks = BinHiprio

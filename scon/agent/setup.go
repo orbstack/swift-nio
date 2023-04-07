@@ -11,6 +11,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/scon/agent/common"
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
@@ -63,6 +64,7 @@ type InitialSetupArgs struct {
 	SSHAuthorizedKeys []string
 	Timezone          string
 	BasicGitConfigs   BasicGitConfigs
+	ExtraCerts        []string
 }
 
 type BasicGitConfigs struct {
@@ -279,6 +281,49 @@ func configureSystemStandard(args InitialSetupArgs) error {
 		err = util.Run("systemctl", "daemon-reload")
 		if err != nil {
 			logrus.WithError(err).Warn("Failed to reload systemd")
+		}
+	}
+
+	// write extra certs
+	if len(args.ExtraCerts) > 0 {
+		logrus.Debug("writing extra certificates")
+		if _, err := exec.LookPath("update-ca-certificates"); err == nil {
+			// debian scripts
+			logrus.Debug("using update-ca-certificates")
+			err = os.MkdirAll("/usr/local/share/ca-certificates", 0755)
+			if err != nil {
+				return err
+			}
+			err = common.WriteCaCerts("/usr/local/share/ca-certificates", args.ExtraCerts)
+			if err != nil {
+				return err
+			}
+			err = util.Run("update-ca-certificates")
+			if err != nil {
+				return err
+			}
+		} else if _, err := exec.LookPath("update-ca-trust"); err == nil {
+			// p11-kit
+			logrus.Debug("using update-ca-trust")
+			// arch /etc/ca-certificates/trust-source/anchors
+			if _, err := os.Stat("/etc/ca-certificates/trust-source/anchors"); err == nil {
+				err = common.WriteCaCerts("/etc/ca-certificates/trust-source/anchors", args.ExtraCerts)
+				if err != nil {
+					return err
+				}
+			} else if _, err := os.Stat("/etc/pki/ca-trust/source/anchors"); err == nil {
+				err = common.WriteCaCerts("/etc/pki/ca-trust/source/anchors", args.ExtraCerts)
+				if err != nil {
+					return err
+				}
+			} else {
+				return errors.New("no trust-source/anchors directory found")
+			}
+
+			err = util.Run("update-ca-trust")
+			if err != nil {
+				return err
+			}
 		}
 	}
 
