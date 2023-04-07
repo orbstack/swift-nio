@@ -67,6 +67,9 @@ fi
 # for scon bind mounts
 mount --make-rshared /nfsroot-ro
 
+# scon prereqs
+mount -t tracefs -o rw,nosuid,nodev,noexec,relatime tracefs /sys/kernel/tracing
+
 # scon!
 /opt/orb/scon &
 

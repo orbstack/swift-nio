@@ -271,7 +271,8 @@ func (c *Container) configureLxc() error {
 		set("lxc.mount.entry", "/sys/fs/fuse/connections sys/fs/fuse/connections none rbind,create=dir,optional 0 0")
 		set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
 		set("lxc.mount.entry", "bpf sys/fs/bpf bpf rw,nosuid,nodev,noexec,relatime,mode=700,optional 0 0")
-		set("lxc.mount.entry", "tracefs sys/kernel/tracing tracefs rw,nosuid,nodev,noexec,relatime,optional 0 0")
+		bind("/sys/kernel/tracing", "/sys/kernel/tracing", "")
+		bind("/sys/kernel/tracing", "/sys/kernel/debug/tracing", "")
 
 		// nesting (proc not needed because it's rw)
 		// this is in .lxc not .orbstack because of lxc systemd-generator's conditions
@@ -351,7 +352,7 @@ func (c *Container) configureLxc() error {
 		// container hooks, before rootfs is set
 		if c.hooks != nil {
 			newRootfs, err := c.hooks.Config(c, containerConfigMethods{
-				set: set,
+				set:  set,
 				bind: bind,
 			})
 			if err != nil {
