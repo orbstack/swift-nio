@@ -1,6 +1,7 @@
 package conf
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,7 +24,9 @@ func HomeDir() string {
 
 func ensureDir(dir string) string {
 	err := os.MkdirAll(dir, 0755)
-	check(err)
+	if err != nil && !errors.Is(err, os.ErrExist) {
+		panic(err)
+	}
 	return dir
 }
 
