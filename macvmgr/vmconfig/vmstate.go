@@ -68,22 +68,24 @@ func GetState() *VmgrState {
 }
 
 func UpdateState(cb func(*VmgrState) error) error {
-	state := GetState()
+	oldState := GetState()
+	// copy for mutating
+	newState := *oldState
 
 	globalStateMu.Lock()
 	defer globalStateMu.Unlock()
 
-	err := cb(state)
+	err := cb(&newState)
 	if err != nil {
 		return err
 	}
 
-	err = state.Validate()
+	err = newState.Validate()
 	if err != nil {
 		return err
 	}
 
-	data, err := json.MarshalIndent(state, "", "\t")
+	data, err := json.MarshalIndent(&newState, "", "\t")
 	if err != nil {
 		return err
 	}
@@ -94,7 +96,7 @@ func UpdateState(cb func(*VmgrState) error) error {
 		return err
 	}
 
-	globalState = state
+	globalState = &newState
 	return nil
 }
 
