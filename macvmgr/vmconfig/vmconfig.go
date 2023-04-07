@@ -113,23 +113,23 @@ func Get() *VmConfig {
 }
 
 func Update(cb func(*VmConfig)) error {
-	config := Get()
-	// copy the old config
-	oldConfig := *config
+	oldConfig := Get()
 
 	globalConfigMu.Lock()
 	defer globalConfigMu.Unlock()
 
-	cb(config)
+	// make a copy for mutating
+	newConfig := *oldConfig
+	cb(&newConfig)
 
-	err := config.Validate()
+	err := newConfig.Validate()
 	if err != nil {
 		return err
 	}
 
 	// generate a patch and only save the patch
 	// this allows us to change defaults without breaking existing configs
-	diffDefault := Diff(Defaults(), config)
+	diffDefault := Diff(Defaults(), &newConfig)
 
 	data, err := json.MarshalIndent(diffDefault, "", "\t")
 	if err != nil {
@@ -143,12 +143,12 @@ func Update(cb func(*VmConfig)) error {
 	}
 
 	// broadcast the diff from old, if anything changed
-	if *config != oldConfig {
-		diffOld := Diff(&oldConfig, config)
+	if newConfig != *oldConfig {
+		diffOld := Diff(oldConfig, &newConfig)
 		diffBroadcaster.Emit(*diffOld)
 	}
 
-	globalConfig = config
+	globalConfig = &newConfig
 	return nil
 }
 
