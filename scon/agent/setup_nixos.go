@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
@@ -195,10 +196,10 @@ with lib;
 
   # extra certificates
   security.pki.certificateFiles = [
-    "/opt/orbstack-guest/etc/extra-certs.crt"
+    "%s"
   ];
 }
-`, args.Username, args.Timezone)
+`, args.Username, args.Timezone, mounts.ExtraCerts)
 
 	err := os.WriteFile("/etc/nixos/orbstack.nix", []byte(nixSnippet), 0644)
 	if err != nil {
