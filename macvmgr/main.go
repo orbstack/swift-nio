@@ -454,6 +454,9 @@ func runVmManager() {
 	// always overwrite swap - doesn't need persistence
 	extractSparse(streamObfAssetFile("swap.img.tar"))
 
+	// remove legacy logs
+	_ = os.Remove(conf.ConsoleLog())
+
 	consoleMode := ConsoleLog
 	if useStdioConsole {
 		consoleMode = ConsoleStdio
