@@ -81,14 +81,16 @@ struct MachineSettingsView: View {
                     Slider(value: $cpu, in: 1...Double(maxCpu), step: 1) {
                         VStack(alignment: .trailing) {
                             Text("CPU limit")
-                            Text("\(cpu, specifier: "%.0f")00%")
+                            let intCpu = Int(cpu + 0.5)
+                            let label = (intCpu == maxCpu) ? "None" : "\(intCpu)00%"
+                            Text(label)
                                     .font(.caption.monospacedDigit())
                                     .foregroundColor(.secondary)
                         }
                     } minimumValueLabel: {
                         Text("100%")
                     } maximumValueLabel: {
-                        Text("\(maxCpu)00%")
+                        Text("None")
                     }
                     .onChange(of: cpu) { newValue in
                         Task { @MainActor in
