@@ -24,7 +24,6 @@ const (
 	ProfileLate  = Etc + "/profile-late"
 	SshConfig    = Etc + "/ssh_config"
 	ResolvConf   = Etc + "/resolv.conf"
-	ExtraCerts   = Etc + "/extra-certs.crt"
 
 	BinHiprio             = Opt + "/bin-hiprio"
 	DefaultHiprioCmdLinks = BinHiprio
@@ -33,6 +32,7 @@ const (
 	SshAgentSocket = Run + "/host-ssh-agent.sock"
 	HostSSHSocket  = Run + "/hostssh.sock"
 	HcontrolSocket = Run + "/hcontrol.sock"
+	ExtraCerts     = Run + "/extra-certs.crt"
 
 	TmpSshAgentProxySocket   = "/dev/.orbstack/ssh-agent-proxy.sock"
 	LaunchdSshAgentListeners = "/tmp/launchd-ssh-agent-listeners"
