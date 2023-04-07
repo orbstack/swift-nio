@@ -222,8 +222,10 @@ func (c *Container) configureLxc() error {
 		 */
 		set("lxc.pty.max", "1024")
 		set("lxc.tty.max", "0")
-		// limiting caps breaks privileged nested docker containers, even if only sys_time
-		//set("lxc.cap.drop", "sys_time sys_module sys_rawio mac_admin mac_override")
+		// limiting sys_time breaks privileged nested docker containers, but sys_rawio is ok
+		// because of dummy debugfs, we limit CAP_SYS_RAWIO so the systemd service condition fails
+		// otherwise it tries to mount if ConditionPathExists=/sys/kernel/debug and ConditionCapability=CAP_SYS_RAWIO
+		set("lxc.cap.drop", "sys_rawio")
 		set("lxc.autodev", "1") // populate /dev
 
 		// console
