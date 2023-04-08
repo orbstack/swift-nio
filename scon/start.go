@@ -274,8 +274,8 @@ func (c *Container) configureLxc() error {
 		set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
 		set("lxc.mount.entry", "bpf sys/fs/bpf bpf rw,nosuid,nodev,noexec,relatime,mode=700,optional 0 0")
 		bind("/sys/kernel/tracing", "/sys/kernel/tracing", "")
+		// this is recursive (rbind) so no need for /sys/kernel/debug/tracing
 		bind("/sys/kernel/debug", "/sys/kernel/debug", "")
-		bind("/sys/kernel/tracing", "/sys/kernel/debug/tracing", "")
 
 		// nesting (proc not needed because it's rw)
 		// this is in .lxc not .orbstack because of lxc systemd-generator's conditions
