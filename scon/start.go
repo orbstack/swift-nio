@@ -222,10 +222,10 @@ func (c *Container) configureLxc() error {
 		 */
 		set("lxc.pty.max", "1024")
 		set("lxc.tty.max", "0")
-		// limiting sys_time breaks privileged nested docker containers, but sys_rawio is ok
+		// limiting caps breaks privileged nested docker 20.10.x containers (fixed in 23.0)
 		// because of dummy debugfs, we limit CAP_SYS_RAWIO so the systemd service condition fails
 		// otherwise it tries to mount if ConditionPathExists=/sys/kernel/debug and ConditionCapability=CAP_SYS_RAWIO
-		set("lxc.cap.drop", "sys_rawio")
+		//set("lxc.cap.drop", "sys_rawio")
 		set("lxc.autodev", "1") // populate /dev
 
 		// console
@@ -274,6 +274,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
 		set("lxc.mount.entry", "bpf sys/fs/bpf bpf rw,nosuid,nodev,noexec,relatime,mode=700,optional 0 0")
 		bind("/sys/kernel/tracing", "/sys/kernel/tracing", "")
+		bind("/sys/kernel/debug", "/sys/kernel/debug", "")
 		bind("/sys/kernel/tracing", "/sys/kernel/debug/tracing", "")
 
 		// nesting (proc not needed because it's rw)
