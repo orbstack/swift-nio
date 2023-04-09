@@ -20,10 +20,13 @@ func WithTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) 
 		done <- struct{}{}
 	}()
 
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
 	select {
 	case <-done:
 		return result, err
-	case <-time.After(timeout):
+	case <-timer.C:
 		return result, ErrFnTimeout
 	}
 }
