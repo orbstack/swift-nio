@@ -85,7 +85,7 @@ func waitRunLogind(cmd ...string) error {
 	}
 
 	// wait for logind to start
-	err := util.WaitForPathExist("/run/systemd/units/invocation:systemd-logind.service")
+	err := util.WaitForRunPathExist("/run/systemd/units/invocation:systemd-logind.service")
 	if err != nil {
 		return err
 	}

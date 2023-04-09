@@ -132,7 +132,7 @@ func (a *AgentServer) WaitForDockerStart(_ None, _ *None) error {
 
 func (a *AgentServer) dockerPostStart() error {
 	// wait for Docker API to start
-	err := util.WaitForPathExist("/var/run/docker.sock")
+	err := util.WaitForRunPathExist("/var/run/docker.sock")
 	if err != nil {
 		return err
 	}

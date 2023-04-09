@@ -5,9 +5,42 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"golang.org/x/sys/unix"
 	"k8s.io/utils/inotify"
 )
+
+// faster and simpler, but can't detect bind mounts
+func IsMountpointSimple(path string) bool {
+	var stat unix.Stat_t
+	err := unix.Stat(path, &stat)
+	if err != nil {
+		return false
+	}
+
+	var parentStat unix.Stat_t
+	err = unix.Stat(path+"/..", &parentStat)
+	if err != nil {
+		return false
+	}
+
+	return stat.Dev != parentStat.Dev
+}
+
+// like WaitForPathExist but polls and waits for /run to be mounted first
+// needed for nixos
+func WaitForRunPathExist(path string) error {
+	// wait for /run mount
+	for {
+		if IsMountpointSimple("/run") {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	return WaitForPathExist(path)
+}
 
 func WaitForPathExist(path string) error {
 	// skip watcher if exists

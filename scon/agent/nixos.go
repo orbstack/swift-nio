@@ -26,7 +26,7 @@ func waitForNixBoot() {
 	// for setup and, we depend on su security wrappers in /run/wrappers and /etc/shells
 	// that stuff is set up by stage2 init (/sbin/init) and activation script
 	// wait for it to spawn systemd before we start the server
-	err := util.WaitForPathExist("/run/systemd")
+	err := util.WaitForRunPathExist("/run/systemd")
 	if err != nil {
 		logrus.WithError(err).Warn("failed to wait for nixos boot")
 		return
