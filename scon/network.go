@@ -37,7 +37,7 @@ const (
 	// leave room for static assignments like docker
 	dhcpLeaseStart = 10
 	dhcpLeaseEnd   = 254
-	raInterval     = 2 * time.Hour
+	raInterval     = 8 * time.Hour
 	raLifetime     = 30 * 24 * time.Hour
 )
 
