@@ -571,7 +571,7 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 	}
 
 	if !c.lxc.Wait(lxc.RUNNING, startTimeout) {
-		return fmt.Errorf("container did not start: %s - %v", c.Name, c.lxc.State())
+		return fmt.Errorf("machine did not start: %s - %v", c.Name, c.lxc.State())
 	}
 
 	go func() {

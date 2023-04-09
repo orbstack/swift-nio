@@ -83,10 +83,6 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 }
 
 func (h *DockerHooks) PreStart(c *Container) error {
-	// delete pid file if exists
-	rootfs := conf.C().DockerRootfs
-	os.Remove(rootfs + "/var/run/docker.pid")
-
 	// generate base docker daemon config
 	baseFeatures := map[string]any{
 		"buildkit": true,
@@ -128,6 +124,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	if err != nil {
 		return err
 	}
+	rootfs := conf.C().DockerRootfs
 	err = os.WriteFile(rootfs+"/etc/docker/daemon.json", configBytes, 0644)
 	if err != nil {
 		return err
@@ -180,7 +177,6 @@ func (h *DockerHooks) PostStart(c *Container) error {
 }
 
 type DockerProxy struct {
-	mu        syncx.Mutex
 	container *Container
 	manager   *ConManager
 	l         net.Listener
@@ -214,7 +210,10 @@ func (m *ConManager) startDockerProxy() error {
 
 func (p *DockerProxy) kickStart(freezer *Freezer) {
 	logrus.Debug("waiting for docker start")
-	err := p.waitForStart()
+	// this fails if agent socket is closed
+	err := p.container.UseAgent(func(a *agent.Client) error {
+		return a.WaitForDockerStart()
+	})
 	if err != nil {
 		logrus.WithError(err).Error("failed to wait for docker start")
 		return
@@ -222,30 +221,6 @@ func (p *DockerProxy) kickStart(freezer *Freezer) {
 
 	logrus.Debug("docker started, dropping freezer ref")
 	freezer.DecRef()
-}
-
-func (p *DockerProxy) waitForStart() error {
-	start := time.Now()
-	for {
-		// check
-		err := p.container.UseAgent(func(a *agent.Client) error {
-			_, err := a.CheckDockerIdle()
-			return err
-		})
-		if err == nil {
-			return nil
-		}
-		if errors.Is(err, ErrAgentDead) || errors.Is(err, ErrNotRunning) {
-			// start timeout
-			return err
-		}
-
-		logrus.Debug("poll docker start")
-		time.Sleep(dockerStartPoll)
-		if time.Since(start) > dockerStartTimeout {
-			return errors.New("docker start timeout")
-		}
-	}
 }
 
 func (p *DockerProxy) Run() error {
@@ -267,8 +242,6 @@ func (p *DockerProxy) Run() error {
 func (p *DockerProxy) handleConn(conn net.Conn) error {
 	defer conn.Close()
 
-	p.mu.Lock()
-
 	// start docker container if not running
 	if !p.container.Running() {
 		logrus.Debug("docker not running, starting")
@@ -276,20 +249,11 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 		if err != nil {
 			return err
 		}
-
-		// wait for start to avoid EOF
-		p.mu.Unlock()
-		err = p.waitForStart()
-		if err != nil {
-			return err
-		}
-		// no point in reclaiming lock if we had an error
-		p.mu.Lock()
 	}
 
 	// tell agent to handle this conn
 	// UseAgent holds freezer ref
-	p.mu.Unlock()
+	// this also waits for docker start on the agent side, so no need to call waitStart
 	err := p.container.UseAgent(func(a *agent.Client) error {
 		return a.HandleDockerConn(conn)
 	})

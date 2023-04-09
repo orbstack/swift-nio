@@ -1,10 +1,8 @@
 package agent
 
 import (
-	"fmt"
 	"os/exec"
 	"sync"
-	"time"
 
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
@@ -62,7 +60,7 @@ func (m *LoginManager) onUserStart(user string) error {
 
 	// loginctl enable-linger $user
 	// this starts per-user systemd instance
-	err := retryRunLogind("loginctl", "enable-linger", user)
+	err := waitRunLogind("loginctl", "enable-linger", user)
 	if err != nil {
 		return err
 	}
@@ -80,22 +78,18 @@ func (m *LoginManager) onUserStop(user string) error {
 	return nil
 }
 
-func retryRunLogind(cmd ...string) error {
+func waitRunLogind(cmd ...string) error {
 	// if no loginctl, don't bother
 	if _, err := exec.LookPath("loginctl"); err != nil {
 		return nil
 	}
 
-	start := time.Now()
-	for {
-		err := util.Run(cmd...)
-		if err == nil {
-			return nil
-		}
-
-		time.Sleep(nixosPollInterval)
-		if time.Since(start) > nixosBootTimeout {
-			return fmt.Errorf("timeout waiting for logind: %w", err)
-		}
+	// wait for logind to start
+	err := util.WaitForPathExist("/run/systemd/units/invocation:systemd-logind.service")
+	if err != nil {
+		return err
 	}
+
+	// run command
+	return util.Run(cmd...)
 }

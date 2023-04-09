@@ -19,6 +19,8 @@ import (
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
 	"github.com/kdrag0n/macvirt/scon/agent/udpfwd"
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/syncx"
+	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -31,9 +33,11 @@ type AgentServer struct {
 	fdx           *Fdx
 	tcpProxies    map[ProxySpec]*tcpfwd.TCPProxy
 	udpProxies    map[ProxySpec]*udpfwd.UDPProxy
-	dockerClient  *http.Client
 	loginManager  *LoginManager
 	containerName string
+
+	dockerClient  *http.Client
+	dockerRunning syncx.CondBool
 }
 
 type ProxySpec struct {
@@ -121,6 +125,22 @@ func (a *AgentServer) StopProxyUDP(args ProxySpec, _ *None) error {
 	return nil
 }
 
+func (a *AgentServer) WaitForDockerStart(_ None, _ *None) error {
+	a.dockerRunning.Wait()
+	return nil
+}
+
+func (a *AgentServer) dockerPostStart() error {
+	// wait for Docker API to start
+	err := util.WaitForPathExist("/var/run/docker.sock")
+	if err != nil {
+		return err
+	}
+
+	a.dockerRunning.Set(true)
+	return nil
+}
+
 // TODO fix zeroing: https://source.chromium.org/chromium/chromium/src/+/main:content/common/set_process_title_linux.cc
 func setProcessCmdline(name string) error {
 	argv0str := (*reflect.StringHeader)(unsafe.Pointer(&os.Args[0]))
@@ -197,10 +217,24 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if err != nil {
 		return err
 	}
-	var dockerClient *http.Client
+
+	fdx := NewFdx(fdxConn)
+	server := &AgentServer{
+		fdx:           fdx,
+		tcpProxies:    make(map[ProxySpec]*tcpfwd.TCPProxy),
+		udpProxies:    make(map[ProxySpec]*udpfwd.UDPProxy),
+		loginManager:  NewLoginManager(),
+		containerName: hostname,
+	}
+	rpcServer := rpc.NewServer()
+	err = rpcServer.RegisterName("a", server)
+	if err != nil {
+		return err
+	}
+
 	if hostname == "docker" {
 		// use default unix socket
-		dockerClient, err = &http.Client{
+		server.dockerClient = &http.Client{
 			Timeout: 15 * time.Second,
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -209,22 +243,9 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 				// idle conns are ok here because we get frozen along with docker
 				MaxIdleConns: 2,
 			},
-		}, nil
-	}
+		}
 
-	fdx := NewFdx(fdxConn)
-	server := &AgentServer{
-		fdx:           fdx,
-		tcpProxies:    make(map[ProxySpec]*tcpfwd.TCPProxy),
-		udpProxies:    make(map[ProxySpec]*udpfwd.UDPProxy),
-		dockerClient:  dockerClient,
-		loginManager:  NewLoginManager(),
-		containerName: hostname,
-	}
-	rpcServer := rpc.NewServer()
-	err = rpcServer.RegisterName("a", server)
-	if err != nil {
-		return err
+		server.dockerRunning = syncx.NewCondBool()
 	}
 
 	// in NixOS, we need to wait for systemd before we do anything else (including running /bin/sh)
@@ -244,6 +265,15 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// start server!
 	// fdx is used on-demand
 	go rpcServer.ServeConn(rpcConn)
+
+	if hostname == "docker" {
+		go func() {
+			err := server.dockerPostStart()
+			if err != nil {
+				logrus.WithError(err).Error("docker post-start failed")
+			}
+		}()
+	}
 
 	runtime.Goexit()
 	return nil

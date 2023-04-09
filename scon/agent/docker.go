@@ -6,7 +6,6 @@ import (
 	"net"
 
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
-	"github.com/kdrag0n/macvirt/scon/util"
 )
 
 func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
@@ -47,8 +46,11 @@ func (a *AgentServer) HandleDockerConn(fdxSeq uint64, _ *None) error {
 	}
 	defer extConn.Close()
 
+	// wait for docker
+	a.dockerRunning.Wait()
+
 	// dial unix socket
-	dockerConn, err := util.RetryDial("unix", "/var/run/docker.sock")
+	dockerConn, err := net.Dial("unix", "/var/run/docker.sock")
 	if err != nil {
 		return err
 	}

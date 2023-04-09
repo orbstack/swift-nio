@@ -188,6 +188,16 @@ func (c *Client) CheckDockerIdle() (bool, error) {
 	return idle, nil
 }
 
+func (c *Client) WaitForDockerStart() error {
+	var none None
+	err := c.rpc.Call("a.WaitForDockerStart", None{}, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
 	seq, err := c.fdx.SendFile(socket)
 	if err != nil {
