@@ -26,13 +26,12 @@ func (m *LoginManager) BeginUserSession(user string) {
 	defer m.refsMu.Unlock()
 	m.userRefs[user]++
 	if m.userRefs[user] == 1 {
-		// do in background
-		go func() {
-			err := m.onUserStart(user)
-			if err != nil {
-				logrus.WithError(err).Error("Failed to start user session")
-			}
-		}()
+		// do in foreground, or running programs could fail (/run/user/UID doesn't exist)
+		// example: vscode ln -sf auth sock
+		err := m.onUserStart(user)
+		if err != nil {
+			logrus.WithError(err).Error("Failed to start user session")
+		}
 	}
 }
 
@@ -74,7 +73,8 @@ func (m *LoginManager) onUserStop(user string) error {
 
 	logrus.WithField("user", user).Debug("stopping user session")
 
-	// we don't stop sessions for now
+	// we don't stop sessions for now,
+	// to avoid disrupting users running "loginctl enable-linger" themselves
 	return nil
 }
 
