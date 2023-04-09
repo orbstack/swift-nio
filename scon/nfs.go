@@ -3,32 +3,11 @@ package main
 import (
 	"errors"
 	"os"
-	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
-
-func isMountpoint(path string) (bool, error) {
-	mountinfo, err := os.ReadFile("/proc/self/mountinfo")
-	if err != nil {
-		return false, err
-	}
-
-	for _, line := range strings.Split(string(mountinfo), "\n") {
-		parts := strings.Split(line, " ")
-		if len(parts) < 5 {
-			continue
-		}
-
-		if parts[4] == path {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
 
 func mountOneNfs(dataSrc string, nfsSubDst string) error {
 	nfsRootRO := conf.C().NfsRootRO
@@ -45,17 +24,10 @@ func mountOneNfs(dataSrc string, nfsSubDst string) error {
 		return err
 	}
 
-	// is it already mounted?
-	isMounted, err := isMountpoint(mountPath)
-	if err != nil {
+	// unmount first
+	err = unix.Unmount(mountPath, unix.MNT_DETACH)
+	if err != nil && !errors.Is(err, unix.EINVAL) {
 		return err
-	}
-	if isMounted {
-		// unmount first
-		err = unix.Unmount(mountPath, unix.MNT_DETACH)
-		if err != nil {
-			return err
-		}
 	}
 
 	// bind mount

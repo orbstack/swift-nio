@@ -7,30 +7,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"golang.org/x/sys/unix"
 	"k8s.io/utils/inotify"
 )
 
 const (
 	runPollTimeout = 15 * time.Second
 )
-
-// faster and simpler, but can't detect bind mounts
-func IsMountpointSimple(path string) bool {
-	var stat unix.Stat_t
-	err := unix.Stat(path, &stat)
-	if err != nil {
-		return false
-	}
-
-	var parentStat unix.Stat_t
-	err = unix.Stat(path+"/..", &parentStat)
-	if err != nil {
-		return false
-	}
-
-	return stat.Dev != parentStat.Dev
-}
 
 // like WaitForPathExist but polls and waits for /run to be mounted first
 // needed for nixos
