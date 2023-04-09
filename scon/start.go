@@ -573,6 +573,14 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		return fmt.Errorf("start '%s': %w", c.Name, err)
 	}
 
+	// for some reason our process (in addition to monitor) gets moved into lxc monitor cgroup,
+	// so move it back
+	// TODO: file an issue. it's not caused by parent-cgroup kernel hack
+	err = os.WriteFile("/sys/fs/cgroup/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0644)
+	if err != nil {
+		return fmt.Errorf("move process to root cgroup: %w", err)
+	}
+
 	if !c.lxc.Wait(lxc.RUNNING, startStopTimeout) {
 		return fmt.Errorf("machine did not start: %s - %v", c.Name, c.lxc.State())
 	}
