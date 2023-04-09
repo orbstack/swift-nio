@@ -325,6 +325,7 @@ func (m *ConManager) runDockerNFS() error {
 
 		return nil
 	}
+	// TODO: use WaitForPathExist w/ timeout so we don't need debounce to wait for _data here
 	debounce := syncx.NewFuncDebounce(dockerNfsDebounce, func() {
 		err := updateMountsFunc()
 		if err != nil {
