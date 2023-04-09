@@ -19,18 +19,19 @@ var (
 )
 
 func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState, err error) {
+	oldState = c.State()
 	if !c.runningLocked() {
-		return c.state, nil
+		return oldState, nil
 	}
 
 	if !internalStop && c.manager.stopping {
-		return c.state, ErrStopping
+		return oldState, ErrStopping
 	}
 
 	logrus.WithField("container", c.Name).Info("stopping container")
 
 	// begin transition
-	oldState, err = c.setStateLocked(types.ContainerStateStopping)
+	oldState, err = c.transitionStateLocked(types.ContainerStateStopping)
 	if err != nil {
 		return oldState, err
 	}
@@ -125,7 +126,7 @@ func (c *Container) onStopLocked() error {
 		c.agent.Set(nil)
 	}
 
-	_, err := c.setStateLocked(types.ContainerStateStopped)
+	_, err := c.transitionStateLocked(types.ContainerStateStopped)
 	if err != nil {
 		return err
 	}

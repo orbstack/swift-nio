@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -47,7 +48,7 @@ type Container struct {
 
 	builtin bool
 	// state
-	state types.ContainerState
+	state atomic.Pointer[types.ContainerState]
 
 	hooks ContainerHooks
 
@@ -76,12 +77,12 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		Name:    record.Name,
 		Image:   record.Image,
 		builtin: record.Builtin,
-		// always create in stopped state
-		state:   types.ContainerStateStopped,
 		dir:     dir,
 		manager: m,
 		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
 	}
+	// always create in stopped state
+	c.setState(types.ContainerStateStopped)
 
 	// special-case hooks for docker
 	if c.builtin && c.Image.Distro == images.ImageDocker {
@@ -127,13 +128,17 @@ func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int
 	return c.lxc.RunCommandNoWait(cmd, opts)
 }
 
+func (c *Container) State() types.ContainerState {
+	return *c.state.Load()
+}
+
+func (c *Container) setState(state types.ContainerState) {
+	c.state.Store(&state)
+}
+
 func (c *Container) Running() bool {
 	// currently the same
 	return c.runningLocked()
-}
-
-func (c *Container) State() types.ContainerState {
-	return c.state
 }
 
 func (c *Container) runningLocked() bool {
@@ -151,7 +156,7 @@ func (c *Container) toRecord() *types.ContainerRecord {
 		Image: c.Image,
 
 		Builtin: c.builtin,
-		State:   c.state,
+		State:   c.State(),
 	}
 }
 
@@ -260,23 +265,23 @@ func (c *Container) Freezer() *Freezer {
 	return c.freezer
 }
 
-func (c *Container) setStateInternalLocked(state types.ContainerState, isInternal bool) (types.ContainerState, error) {
-	if c.state == state {
+func (c *Container) transitionStateInternalLocked(newState types.ContainerState, isInternal bool) (types.ContainerState, error) {
+	oldState := c.State()
+	if c.State() == newState {
 		return "", nil
 	}
 
-	if !c.state.CanTransitionTo(state, isInternal) {
-		return "", fmt.Errorf("invalid transition from %v to %v", c.state, state)
+	if !oldState.CanTransitionTo(newState, isInternal) {
+		return "", fmt.Errorf("invalid transition from %v to %v", oldState, newState)
 	}
 
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
-		"from":      c.state,
-		"to":        state,
+		"from":      oldState,
+		"to":        newState,
 	}).Debug("transitioning container state")
 
-	oldState := c.state
-	c.state = state
+	c.setState(newState)
 
 	// do not persist state transitions when manager is stopping
 	if !c.manager.stopping {
@@ -289,16 +294,16 @@ func (c *Container) setStateInternalLocked(state types.ContainerState, isInterna
 	return oldState, nil
 }
 
-func (c *Container) setStateLocked(state types.ContainerState) (types.ContainerState, error) {
-	return c.setStateInternalLocked(state, false)
+func (c *Container) transitionStateLocked(state types.ContainerState) (types.ContainerState, error) {
+	return c.transitionStateInternalLocked(state, false)
 }
 
 func (c *Container) revertStateLocked(oldState types.ContainerState) {
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
-		"from":      c.state,
+		"from":      c.State(),
 		"to":        oldState,
 	}).Debug("reverting container state")
 
-	c.state = oldState
+	c.setState(oldState)
 }

@@ -51,7 +51,7 @@ func (c *Container) deleteLocked() error {
 		return err
 	}
 
-	oldState, err := c.setStateLocked(types.ContainerStateDeleting)
+	oldState, err := c.transitionStateLocked(types.ContainerStateDeleting)
 	if err != nil {
 		return err
 	}

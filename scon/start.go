@@ -484,7 +484,7 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrit
 
 	// important to restore creating state
 	if record.State == types.ContainerStateCreating {
-		c.state = types.ContainerStateCreating
+		c.setState(types.ContainerStateCreating)
 	}
 
 	if oldC, ok := m.getByNameLocked(c.Name); ok {
@@ -538,7 +538,7 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		return ErrStopping
 	}
 
-	oldState, err := c.setStateInternalLocked(types.ContainerStateStarting, isInternal)
+	oldState, err := c.transitionStateInternalLocked(types.ContainerStateStarting, isInternal)
 	if err != nil {
 		return err
 	}
@@ -602,7 +602,7 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 }
 
 func (c *Container) onStartLocked() error {
-	_, err := c.setStateLocked(types.ContainerStateRunning)
+	_, err := c.transitionStateLocked(types.ContainerStateRunning)
 	if err != nil {
 		return err
 	}

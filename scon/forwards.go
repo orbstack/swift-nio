@@ -376,7 +376,7 @@ func (m *ConManager) runWatchdogGC() {
 						logrus.WithFields(logrus.Fields{
 							"container": c.Name,
 							"running":   running,
-							"state":     c.state,
+							"state":     c.State(),
 						}).Warn("watchdog: container state mismatch, refreshing")
 						err := c.refreshState()
 						if err != nil {
