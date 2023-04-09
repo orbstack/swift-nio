@@ -24,7 +24,7 @@ var (
 )
 
 const (
-	agentTimeout = 15 * time.Second
+	agentTimeout = 5 * time.Second
 )
 
 type containerConfigMethods struct {
