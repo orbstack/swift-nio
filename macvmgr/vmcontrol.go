@@ -379,7 +379,6 @@ func listenAndServeUnix(addr string, handler http.Handler) (net.Listener, error)
 
 func makeDockerClient() *http.Client {
 	return &http.Client{
-		Timeout: 15 * time.Second,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial("unix", conf.DockerSocket())
