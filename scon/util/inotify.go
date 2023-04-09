@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,7 +24,17 @@ func WaitForPathExist(path string) error {
 
 	// watch the parent directory
 	// includes both create and rename (to cover systemd invocation units)
-	err = watcher.AddWatch(filepath.Dir(path), inotify.InCreate|inotify.InMovedTo)
+	parent := filepath.Dir(path)
+	err = watcher.AddWatch(parent, inotify.InCreate|inotify.InMovedTo)
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		err = WaitForPathExist(parent)
+		if err != nil {
+			return err
+		}
+
+		// ok, now parent exists, then retry
+		err = watcher.AddWatch(parent, inotify.InCreate|inotify.InMovedTo)
+	}
 	if err != nil {
 		return err
 	}
