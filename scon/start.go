@@ -574,12 +574,10 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		return fmt.Errorf("machine did not start: %s - %v", c.Name, c.lxc.State())
 	}
 
-	go func() {
-		err := c.startAgent()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to start agent")
-		}
-	}()
+	err = c.startAgentLocked()
+	if err != nil {
+		logrus.WithError(err).WithField("container", c.Name).Error("failed to start agent")
+	}
 
 	// attach loop devices
 	extraDevSrcs, err := listDevExtra()
@@ -638,10 +636,7 @@ func padAgentCmd(cmd string) string {
 	return cmd
 }
 
-func (c *Container) startAgent() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+func (c *Container) startAgentLocked() error {
 	logrus.WithField("container", c.Name).Debug("starting agent")
 
 	// make agent fds

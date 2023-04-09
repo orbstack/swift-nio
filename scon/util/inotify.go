@@ -37,7 +37,6 @@ func WaitForPathExist(path string) error {
 	for {
 		select {
 		case event := <-watcher.Event:
-			fmt.Println("event:", event)
 			if event.Name == path {
 				return nil
 			}
