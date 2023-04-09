@@ -6,7 +6,9 @@ import Foundation
 import SwiftUI
 
 // min 2 chars, disallows hidden files (^.)
-fileprivate let containerNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"))!
+fileprivate let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$")
+// .orb.internal domains, plus "default" special ssh name
+fileprivate let containerNameBlacklist = ["default", "vm", "host", "services", "gateway"]
 
 struct CreateContainerView: View {
     @EnvironmentObject private var vmModel: VmViewModel
@@ -121,7 +123,9 @@ struct CreateContainerView: View {
         }
 
         // regex
-        if !newName.isEmpty && containerNamePattern.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) == nil {
+        let isValid = containerNameRegex.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) != nil &&
+                !containerNameBlacklist.contains(newName)
+        if !newName.isEmpty && !isValid {
             isNameInvalid = true
         } else {
             isNameInvalid = false

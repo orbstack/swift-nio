@@ -12,6 +12,7 @@ import (
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/oklog/ulid/v2"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -20,7 +21,9 @@ const (
 
 var (
 	// min 2 chars, disallows hidden files (^.)
-	containerNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`)
+	containerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`)
+	// .orb.internal domains, plus "default" special ssh name
+	containerNameBlacklist = []string{"default", "vm", "host", "services", "gateway"}
 )
 
 type CreateParams struct {
@@ -38,7 +41,7 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 	// checks
 	name := args.Name
 	image := args.Image
-	if name == "default" || name == "host" || !containerNamePattern.MatchString(name) {
+	if !containerNameRegex.MatchString(name) || slices.Contains(containerNameBlacklist, name) {
 		return nil, nil, fmt.Errorf("invalid machine name '%s'", name)
 	}
 	if _, ok := m.GetByName(name); ok {
