@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	gracefulShutdownTimeoutRelease = 5 * time.Second
-	gracefulShutdownTimeoutDebug   = 100 * time.Millisecond
+	gracefulShutdownTimeout = 5 * time.Second
 )
 
 var (
@@ -55,11 +53,7 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 	c.lastListeners = nil
 
 	// ignore failure
-	timeout := gracefulShutdownTimeoutRelease
-	if conf.Debug() {
-		timeout = gracefulShutdownTimeoutDebug
-	}
-	err = c.lxc.Shutdown(timeout)
+	err = c.lxc.Shutdown(gracefulShutdownTimeout)
 	if err != nil {
 		logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
 	}
