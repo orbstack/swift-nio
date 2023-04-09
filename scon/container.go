@@ -12,7 +12,6 @@ import (
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/kdrag0n/macvirt/scon/types"
-	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/kdrag0n/macvirt/scon/util/sysnet"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
@@ -20,12 +19,8 @@ import (
 )
 
 var (
-	ErrAgentDead  = errors.New("agent dead or not responding")
+	ErrAgentDead  = errors.New("agent not running")
 	ErrNotRunning = errors.New("machine not running")
-)
-
-const (
-	agentTimeout = 5 * time.Second
 )
 
 type containerConfigMethods struct {
@@ -54,7 +49,7 @@ type Container struct {
 
 	lxc *lxc.Container
 
-	agent   syncx.CondValue[*agent.Client]
+	agent   atomic.Pointer[agent.Client]
 	manager *ConManager
 	mu      syncx.RWMutex
 
@@ -79,7 +74,6 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		builtin: record.Builtin,
 		dir:     dir,
 		manager: m,
-		agent:   syncx.NewCondValue[*agent.Client](nil, nil),
 	}
 	// always create in stopped state
 	c.setState(types.ContainerStateStopped)
@@ -237,10 +231,8 @@ func (c *Container) useAgentInternal(fn func(*agent.Client) error, takeFreezerRe
 		defer freezer.DecRef()
 	}
 
-	agent, err := util.WithTimeout(func() (*agent.Client, error) {
-		return c.agent.Wait(), nil
-	}, agentTimeout)
-	if err != nil {
+	agent := c.agent.Load()
+	if agent == nil {
 		return ErrAgentDead
 	}
 

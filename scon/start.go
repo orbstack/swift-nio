@@ -676,7 +676,11 @@ func (c *Container) startAgentLocked() error {
 
 	// agent client
 	client := agent.NewClient(cmd.Process, rpcConn, fdxConn)
-	c.agent.Set(client)
+	oldClient := c.agent.Swap(client)
+	// close old client if any
+	if oldClient != nil {
+		oldClient.Close()
+	}
 
 	// async tasks, so we can release the lock
 	// will block if agent is broken

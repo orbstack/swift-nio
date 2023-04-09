@@ -118,11 +118,10 @@ func (c *Container) onStopLocked() error {
 	c.autofwdDebounce.Cancel()
 
 	// stop agent (after listeners removed and processes reaped)
-	agent := c.agent.Get()
+	agent := c.agent.Swap(nil)
 	if agent != nil {
 		logrus.WithField("container", c.Name).Debug("stopping agent")
 		agent.Close()
-		c.agent.Set(nil)
 	}
 
 	_, err := c.transitionStateLocked(types.ContainerStateStopped)
