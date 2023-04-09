@@ -154,7 +154,8 @@ func runContainerManager() {
 
 	// listen for signals
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT)
+	// TODO: catch SIGTERM and kill child processes so scon ssh can call wait() and read exit codes
+	signal.Notify(sigChan, unix.SIGINT, unix.SIGQUIT)
 	select {
 	case <-sigChan:
 	case <-mgr.stopChan:
