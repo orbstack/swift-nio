@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -158,6 +159,21 @@ func setProcessCmdline(name string) error {
 }
 
 func runAgent(rpcFile *os.File, fdxFile *os.File) error {
+	// double fork so we get reparented to pidns init, away from scon
+	if len(os.Args) == 2 {
+		_, err := os.StartProcess(os.Args[0], []string{os.Args[0]}, &os.ProcAttr{
+			Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
+			Sys: &syscall.SysProcAttr{
+				Setsid: true,
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		os.Exit(0)
+	}
+
 	// our only unused fd
 	os.Stdin = os.Stderr
 	os.Stdout = os.Stderr

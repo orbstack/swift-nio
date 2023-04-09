@@ -654,7 +654,7 @@ func (c *Container) startAgentLocked() error {
 	// add some more fds
 	exeFd := int(c.manager.agentExe.Fd())
 	cmd := &LxcCommand{
-		CombinedArgs: []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd))},
+		CombinedArgs: []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd)), "fork"},
 		Dir:          "/",
 		Env:          []string{},
 		Stdin:        rpcFile,
