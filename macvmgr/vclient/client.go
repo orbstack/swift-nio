@@ -45,6 +45,7 @@ type VClient struct {
 	lastStats diskReportStats
 	dataFile  *os.File
 	vm        *vzf.Machine
+	stopChan  chan struct{}
 }
 
 type diskReportStats struct {
@@ -64,6 +65,7 @@ func newWithTransport(tr *http.Transport, vm *vzf.Machine) (*VClient, error) {
 		client:   httpClient,
 		dataFile: dataFile,
 		vm:       vm,
+		stopChan: make(chan struct{}),
 	}, nil
 }
 
@@ -157,61 +159,65 @@ func (vc *VClient) WaitForDataReady() {
 }
 
 func (vc *VClient) StartBackground() error {
-	// Sync time on wake
 	mon, err := iokit.MonitorSleepWake()
 	if err != nil {
 		return fmt.Errorf("register iokit: %w", err)
 	}
 
+	// don't want to miss the first report, or we'll have to wait
 	go func() {
-		for range mon.WakeChan {
-			logrus.Info("wake")
-			// arm doesn't need pause/resume
-			if needsPauseResume {
-				err := vc.vm.Resume()
-				if err != nil {
-					logrus.Error("resume err", err)
-				}
-			}
-			go func() {
-				// For some reason, we have to sync *twice* in order for chrony to step the clock after suspend.
-				// Running it twice back-to-back doesn't work, and neither does "chronyc makestep"
-				_, err := vc.Post("time/sync", nil)
-				if err != nil {
-					logrus.Error("sync err", err)
-				}
-
-				// 2 sec per iburst check * 4 = 8 sec, plus margin
-				time.Sleep(10 * time.Second)
-				_, err = vc.Post("time/sync", nil)
-				if err != nil {
-					logrus.Error("sync err", err)
-				}
-			}()
-		}
-	}()
-
-	go func() {
-		for range mon.SleepChan {
-			logrus.Info("sleep")
-			// arm doesn't need pause/resume
-			if needsPauseResume {
-				err := vc.vm.Pause()
-				if err != nil {
-					logrus.Error("pause err", err)
-				}
-			}
-		}
-	}()
-
-	// Report disk stats periodically
-	go func() {
-		// don't want to miss the first report, or we'll have to wait
 		vc.WaitForDataReady()
+		vc.reportDiskStats()
+	}()
 
+	// Report disk stats periodically, sync time on wake
+	go func() {
 		ticker := time.NewTicker(diskStatsInterval)
-		for ; true; <-ticker.C {
-			vc.reportDiskStats()
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-vc.stopChan:
+				return
+
+			case <-mon.SleepChan:
+				logrus.Info("sleep")
+				// arm doesn't need pause/resume
+				if needsPauseResume {
+					err := vc.vm.Pause()
+					if err != nil {
+						logrus.Error("pause err", err)
+					}
+				}
+
+			case <-mon.WakeChan:
+				logrus.Info("wake")
+				// arm doesn't need pause/resume
+				if needsPauseResume {
+					err := vc.vm.Resume()
+					if err != nil {
+						logrus.Error("resume err", err)
+					}
+				}
+				go func() {
+					// For some reason, we have to sync *twice* in order for chrony to step the clock after suspend.
+					// Running it twice back-to-back doesn't work, and neither does "chronyc makestep"
+					_, err := vc.Post("time/sync", nil)
+					if err != nil {
+						logrus.Error("sync err", err)
+					}
+
+					// 2 sec per iburst check * 4 = 8 sec, plus margin
+					time.Sleep(10 * time.Second)
+					_, err = vc.Post("time/sync", nil)
+					if err != nil {
+						logrus.Error("sync err", err)
+					}
+				}()
+
+			case <-ticker.C:
+				vc.reportDiskStats()
+			}
 		}
 	}()
 
@@ -222,14 +228,14 @@ func (vc *VClient) reportDiskStats() {
 	var statFs unix.Statfs_t
 	err := unix.Fstatfs(int(vc.dataFile.Fd()), &statFs)
 	if err != nil {
-		logrus.Error("statfs err", err)
+		logrus.WithError(err).Error("statfs failed")
 		return
 	}
 
 	var imgStat unix.Stat_t
 	err = unix.Fstat(int(vc.dataFile.Fd()), &imgStat)
 	if err != nil {
-		logrus.Error("stat err", err)
+		logrus.WithError(err).Error("stat failed")
 		return
 	}
 
@@ -262,5 +268,6 @@ func (vc *VClient) Shutdown() error {
 func (vc *VClient) Close() error {
 	vc.client.CloseIdleConnections()
 	vc.dataFile.Close()
+	close(vc.stopChan)
 	return nil
 }
