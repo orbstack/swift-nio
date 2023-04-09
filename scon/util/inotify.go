@@ -11,6 +11,10 @@ import (
 	"k8s.io/utils/inotify"
 )
 
+const (
+	runPollTimeout = 15 * time.Second
+)
+
 // faster and simpler, but can't detect bind mounts
 func IsMountpointSimple(path string) bool {
 	var stat unix.Stat_t
@@ -32,11 +36,16 @@ func IsMountpointSimple(path string) bool {
 // needed for nixos
 func WaitForRunPathExist(path string) error {
 	// wait for /run mount
+	start := time.Now()
 	for {
 		if IsMountpointSimple("/run") {
 			break
 		}
 		time.Sleep(25 * time.Millisecond)
+
+		if time.Since(start) > runPollTimeout {
+			return fmt.Errorf("timeout waiting for /run mount")
+		}
 	}
 
 	return WaitForPathExist(path)
