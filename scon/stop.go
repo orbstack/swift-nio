@@ -53,10 +53,12 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 		logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
 	}
 
-	// this blocks until hook exits, but keeping lock is ok because we run hook asynchronously
-	err = c.lxc.Stop()
-	if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
-		return oldState, err
+	if c.lxc.Running() {
+		// this blocks until hook exits, but keeping lock is ok because we run hook asynchronously
+		err = c.lxc.Stop()
+		if err != nil {
+			return oldState, err
+		}
 	}
 
 	if !c.lxc.Wait(lxc.STOPPED, startStopTimeout) {
