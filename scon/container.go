@@ -97,7 +97,7 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 	}
 
 	c.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
-		err := c.updateListenersDirect()
+		err := c.updateListenersNow()
 		if err != nil {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
 		}
@@ -195,8 +195,8 @@ func (c *Container) addDeviceNodeLocked(src string, dst string) error {
 }
 
 func (c *Container) addDeviceNode(src string, dst string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return c.addDeviceNodeLocked(src, dst)
 }

@@ -47,12 +47,6 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 		return oldState, err
 	}
 
-	// stop forwards
-	for _, listener := range c.lastListeners {
-		c.manager.removeForward(c, listener)
-	}
-	c.lastListeners = nil
-
 	// ignore failure
 	err = c.lxc.Shutdown(gracefulShutdownTimeout)
 	if err != nil {
@@ -86,7 +80,7 @@ func (c *Container) Stop() error {
 	return err
 }
 
-func (c *Container) stopForShutdown() error {
+func (c *Container) stopForManagerShutdown() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

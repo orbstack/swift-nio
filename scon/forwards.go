@@ -288,9 +288,15 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 }
 
 // triggered on seccomp notify or inet diag
-func (c *Container) updateListenersDirect() error {
+func (c *Container) updateListenersNow() error {
+	// this is to prevent stopping while we're updating listeners
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// if scheduled before stop
+	if !c.runningLocked() {
+		return nil
+	}
 
 	initPid := c.lxc.InitPid()
 	if initPid < 0 {
