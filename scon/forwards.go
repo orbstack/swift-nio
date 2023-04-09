@@ -391,15 +391,14 @@ func (m *ConManager) runWatchdogGC() {
 
 				go func(c *Container) {
 					c.mu.RLock()
+					lastAutofwdUpdate := c.lastAutofwdUpdate
+					c.mu.RUnlock()
 
-					if time.Since(c.lastAutofwdUpdate) > autoForwardGCThreshold {
-						c.mu.RUnlock()
-						err := c.updateListenersDirect()
+					if time.Since(lastAutofwdUpdate) > autoForwardGCThreshold {
+						err := c.updateListenersNow()
 						if err != nil {
 							logrus.WithField("container", c.Name).WithError(err).Error("failed to GC listeners")
 						}
-					} else {
-						c.mu.RUnlock()
 					}
 				}(c)
 			}
