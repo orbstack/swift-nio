@@ -98,7 +98,7 @@ func (c *Container) onStopLocked() error {
 
 	// stop forwards
 	for _, listener := range c.lastListeners {
-		c.manager.removeForward(c, listener)
+		c.manager.removeForwardCLocked(c, listener)
 	}
 	c.lastListeners = nil
 

@@ -202,8 +202,7 @@ func (c *Container) addDeviceNode(src string, dst string) error {
 }
 
 func (c *Container) removeDeviceNode(src string, dst string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// lock not needed: UseAgent takes rlock
 
 	// can't use lxc.RemoveDeviceNode because node is already gone from host
 	// just delete the node in the container
@@ -218,8 +217,9 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 	return nil
 }
 
-// can't use rlock - could be called with container lock held (updateListeners)
-func (c *Container) useAgentInternal(fn func(*agent.Client) error, takeFreezerRef bool) error {
+// must be called with lock held in case container is in the middle of starting,
+// freezer is not yet created but agent is
+func (c *Container) useAgentInternalLocked(fn func(*agent.Client) error, takeFreezerRef bool) error {
 	if !c.Running() {
 		return ErrNotRunning
 	}
@@ -227,8 +227,8 @@ func (c *Container) useAgentInternal(fn func(*agent.Client) error, takeFreezerRe
 	// we want it to be unfrozen - or call will hang
 	freezer := c.Freezer()
 	if takeFreezerRef && freezer != nil {
-		freezer.IncRef()
-		defer freezer.DecRef()
+		freezer.incRefCLocked()
+		defer freezer.decRefCLocked()
 	}
 
 	agent := c.agent.Load()
@@ -237,6 +237,17 @@ func (c *Container) useAgentInternal(fn func(*agent.Client) error, takeFreezerRe
 	}
 
 	return fn(agent)
+}
+
+func (c *Container) useAgentLocked(fn func(*agent.Client) error) error {
+	return c.useAgentInternalLocked(fn, true)
+}
+
+func (c *Container) useAgentInternal(fn func(*agent.Client) error, takeFreezerRef bool) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.useAgentInternalLocked(fn, takeFreezerRef)
 }
 
 func (c *Container) UseAgent(fn func(*agent.Client) error) error {

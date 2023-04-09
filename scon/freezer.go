@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/kdrag0n/macvirt/scon/syncx"
@@ -10,35 +11,45 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	ErrFreezerClosed = errors.New("freezer closed")
+)
+
 type Freezer struct {
 	container *Container
-	mu        syncx.Mutex
 	count     int
 	predicate func() (bool, error)
-	debounce  syncx.FuncDebounce
+	debounce  atomic.Pointer[syncx.FuncDebounce]
 }
 
-func NewContainerFreezer(c *Container, debounce time.Duration, predicate func() (bool, error)) *Freezer {
+// freezer does not have its own lock
+// instead, it uses the container's lock
+// otherwise we run into inconsistent lock order issues
+func NewContainerFreezer(c *Container, debouncePeriod time.Duration, predicate func() (bool, error)) *Freezer {
 	f := &Freezer{
 		container: c,
 		predicate: predicate,
 		count:     1, // start with a ref
 	}
-	f.debounce = syncx.NewFuncDebounce(debounce, func() {
+	debounce := syncx.NewFuncDebounce(debouncePeriod, func() {
 		err := f.tryFreeze()
 		if err != nil {
 			logrus.WithError(err).Error("failed to update freezer state")
 		}
 	})
+	f.debounce.Store(&debounce)
 
 	return f
 }
 
-func (f *Freezer) IncRef() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+func (f *Freezer) incRefCLocked() {
+	debounce := f.debounce.Load()
+	if debounce == nil {
+		logrus.Error("use of closed freezer")
+		return
+	}
 
-	f.debounce.Cancel()
+	debounce.Cancel()
 	f.count++
 	logrus.WithField("count", f.count).Debug("freezer inc ref")
 
@@ -51,15 +62,18 @@ func (f *Freezer) IncRef() {
 	}
 }
 
-func (f *Freezer) DecRef() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+func (f *Freezer) decRefCLocked() {
+	debounce := f.debounce.Load()
+	if debounce == nil {
+		logrus.Error("use of closed freezer")
+		return
+	}
 
 	f.count--
 	logrus.WithField("count", f.count).Debug("freezer dec ref")
 	if f.count == 0 {
 		logrus.Debug("freezer last ref, freezing")
-		f.debounce.Call()
+		debounce.Call()
 	}
 
 	if f.count < 0 {
@@ -67,20 +81,29 @@ func (f *Freezer) DecRef() {
 	}
 }
 
+func (f *Freezer) DecRef() {
+	f.container.mu.Lock()
+	defer f.container.mu.Unlock()
+
+	f.decRefCLocked()
+}
+
 func (f *Freezer) tryFreeze() error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	// take container lock
+	f.container.mu.Lock()
+	defer f.container.mu.Unlock()
 
 	if f.count > 0 {
 		logrus.Debug("freeze blocked: refs >= 1")
 		return nil
 	}
 
-	c := f.container
-	if c == nil {
-		return errors.New("freezer is closed")
+	// in case debounce was scheduled before closed
+	if f.debounce.Load() == nil {
+		return ErrFreezerClosed
 	}
 
+	c := f.container
 	if c.IsFrozen() {
 		logrus.Debug("freeze blocked: already frozen")
 		return nil
@@ -88,9 +111,7 @@ func (f *Freezer) tryFreeze() error {
 
 	if f.predicate != nil {
 		// release lock for the predicate - it could call UseAgent
-		f.mu.Unlock()
 		ok, err := f.predicate()
-		f.mu.Lock()
 		if err != nil {
 			return fmt.Errorf("call predicate: %w", err)
 		}
@@ -112,10 +133,6 @@ func (f *Freezer) tryFreeze() error {
 
 func (f *Freezer) doUnfreezeLocked() error {
 	c := f.container
-	if c == nil {
-		return errors.New("freezer is closed")
-	}
-
 	if !c.IsFrozen() {
 		return nil
 	}
@@ -128,10 +145,10 @@ func (f *Freezer) doUnfreezeLocked() error {
 	return nil
 }
 
+// close must be lock-free, or we'll deadlock on stop + tryFreeze predicate (which keeps the lock held)
 func (f *Freezer) Close() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.debounce.Cancel()
-	f.container = nil
+	debounce := f.debounce.Swap(nil)
+	if debounce != nil {
+		debounce.Cancel()
+	}
 }

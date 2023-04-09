@@ -155,7 +155,8 @@ func (h *DockerHooks) PostStart(c *Container) error {
 		// [predicate, via agent] check docker API to see if any containers are running
 		// if so, don't freeze
 		var isIdle bool
-		err := c.useAgentInternal(func(a *agent.Client) error {
+		// freezer operates under container lock
+		err := c.useAgentInternalLocked(func(a *agent.Client) error {
 			var err error
 			isIdle, err = a.CheckDockerIdle()
 			return err

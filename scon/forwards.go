@@ -81,7 +81,7 @@ func filterListeners(listeners []sysnet.ProcListener) []sysnet.ProcListener {
 	return filtered
 }
 
-func (m *ConManager) addForward(c *Container, spec sysnet.ProcListener) error {
+func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) error {
 	logrus.WithField("spec", spec).Info("add forward")
 
 	m.forwardsMu.Lock()
@@ -117,7 +117,7 @@ func (m *ConManager) addForward(c *Container, spec sysnet.ProcListener) error {
 		internalPort = uint16(listener.Addr().(*net.TCPAddr).Port)
 
 		// pass to agent
-		err = c.UseAgent(func(a *agent.Client) error {
+		err = c.useAgentLocked(func(a *agent.Client) error {
 			return a.StartProxyTCP(agentSpec, listener)
 		})
 		// if it succeeded, we don't need this anymore
@@ -134,7 +134,7 @@ func (m *ConManager) addForward(c *Container, spec sysnet.ProcListener) error {
 		}
 		err = m.host.StartForward(hostForwardSpec)
 		if err != nil {
-			err2 := c.UseAgent(func(a *agent.Client) error {
+			err2 := c.useAgentLocked(func(a *agent.Client) error {
 				return a.StopProxyTCP(agentSpec)
 			})
 			if err2 != nil {
@@ -155,7 +155,7 @@ func (m *ConManager) addForward(c *Container, spec sysnet.ProcListener) error {
 		internalPort = uint16(listener.LocalAddr().(*net.UDPAddr).Port)
 
 		// pass to agent
-		err = c.UseAgent(func(a *agent.Client) error {
+		err = c.useAgentLocked(func(a *agent.Client) error {
 			return a.StartProxyUDP(agentSpec, listener)
 		})
 		// if it succeeded, we don't need this anymore
@@ -172,7 +172,7 @@ func (m *ConManager) addForward(c *Container, spec sysnet.ProcListener) error {
 		}
 		err = m.host.StartForward(hostForwardSpec)
 		if err != nil {
-			err2 := c.UseAgent(func(a *agent.Client) error {
+			err2 := c.useAgentLocked(func(a *agent.Client) error {
 				return a.StopProxyUDP(agentSpec)
 			})
 			if err2 != nil {
@@ -196,7 +196,7 @@ func (m *ConManager) addForward(c *Container, spec sysnet.ProcListener) error {
 	return nil
 }
 
-func (m *ConManager) removeForward(c *Container, spec sysnet.ProcListener) error {
+func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener) error {
 	logrus.WithField("spec", spec).Info("remove forward")
 
 	m.forwardsMu.Lock()
@@ -219,7 +219,7 @@ func (m *ConManager) removeForward(c *Container, spec sysnet.ProcListener) error
 
 	// tell agent (our side of listener is already closed)
 	agentSpec := procToAgentSpec(spec)
-	err = state.Owner.UseAgent(func(a *agent.Client) error {
+	err = c.useAgentLocked(func(a *agent.Client) error {
 		switch spec.Proto {
 		case sysnet.ProtoTCP:
 			return a.StopProxyTCP(agentSpec)
@@ -319,7 +319,7 @@ func (c *Container) updateListenersNow() error {
 	var notAdded []sysnet.ProcListener
 	var notRemoved []sysnet.ProcListener
 	for _, listener := range added {
-		err := c.manager.addForward(c, listener)
+		err := c.manager.addForwardCLocked(c, listener)
 		if err != nil {
 			errs = append(errs, err)
 			notAdded = append(notAdded, listener)
@@ -328,7 +328,7 @@ func (c *Container) updateListenersNow() error {
 	}
 
 	for _, listener := range removed {
-		err := c.manager.removeForward(c, listener)
+		err := c.manager.removeForwardCLocked(c, listener)
 		if err != nil {
 			errs = append(errs, err)
 			notRemoved = append(notRemoved, listener)
