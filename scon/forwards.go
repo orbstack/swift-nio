@@ -294,7 +294,7 @@ func (c *Container) updateListenersDirect() error {
 
 	initPid := c.lxc.InitPid()
 	if initPid < 0 {
-		return errors.New("container not running")
+		return ErrNotRunning
 	}
 
 	listeners, err := sysnet.ReadAllProcNet(strconv.Itoa(initPid))
@@ -355,14 +355,16 @@ func (m *ConManager) runWatchdogGC() {
 		case <-ticker.C:
 			m.containersMu.RLock()
 			for _, c := range m.containersByID {
+				// watchdog: verify container state
 				running := c.Running()
+				lxcRunning := c.lxcRunning()
 				// make sure it matches our status
-				if running != (c.state == types.ContainerStateRunning) {
+				if running != lxcRunning {
 					// we did that without locking so this isn't necessarily correct. take a closer look
 					go func(c *Container) {
 						c.mu.RLock()
 						lockedRunning := c.Running()
-						lockedState := c.state
+						lockedState := c.State()
 						hasMismatch := lockedRunning != (lockedState == types.ContainerStateRunning)
 						c.mu.RUnlock()
 

@@ -19,7 +19,7 @@ var (
 )
 
 func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState, err error) {
-	if !c.Running() {
+	if !c.runningLocked() {
 		return c.state, nil
 	}
 
@@ -58,14 +58,10 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 		logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
 	}
 
-	if c.lxc.Running() {
-		// release the lock. lxc.Stop() blocks until hook exits
-		c.mu.Unlock()
-		err = c.lxc.Stop()
-		c.mu.Lock()
-		if err != nil {
-			return oldState, err
-		}
+	// this blocks until hook exits, but keeping lock is ok because we run hook asynchronously
+	err = c.lxc.Stop()
+	if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
+		return oldState, err
 	}
 
 	if !c.lxc.Wait(lxc.STOPPED, startStopTimeout) {
@@ -117,6 +113,9 @@ func (c *Container) onStopLocked() error {
 		c.inetDiagFile.Close()
 		c.inetDiagFile = nil
 	}
+
+	// cancel listener update
+	c.autofwdDebounce.Cancel()
 
 	// stop agent (after listeners removed and processes reaped)
 	agent := c.agent.Get()

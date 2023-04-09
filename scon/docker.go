@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"net"
 	"os"
@@ -255,7 +254,7 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 	err := p.container.UseAgent(func(a *agent.Client) error {
 		return a.HandleDockerConn(conn)
 	})
-	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
+	if err != nil {
 		return err
 	}
 	// after the RPC call returns, we know the conn is closed

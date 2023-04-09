@@ -372,7 +372,7 @@ func (c *Container) configureLxc() error {
 
 		// hooks
 		set("lxc.hook.version", "1")
-		set("lxc.hook.post-stop", fmt.Sprintf("/opt/orb/daemonize %s %s %s %s", exePath, cmdLxcHook, lxcHookPostStop, c.ID))
+		set("lxc.hook.post-stop", fmt.Sprintf("%s %s %s %s", exePath, cmdLxcHook, lxcHookPostStop, c.ID))
 
 		return nil
 	}()
@@ -530,7 +530,7 @@ func (c *Container) Start() error {
 }
 
 func (c *Container) startLocked(isInternal bool) (err error) {
-	if c.lxc.Running() {
+	if c.runningLocked() {
 		return nil
 	}
 

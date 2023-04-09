@@ -164,13 +164,14 @@ func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGe
 }
 
 func (s *SconServer) InternalReportStopped(ctx context.Context, req types.InternalReportStoppedRequest) error {
-	c, ok := s.m.GetByID(req.ID)
-	if !ok {
-		return errors.New("container not found")
-	}
-
 	// lxc.Stop() blocks until hook exits, so this breaks the deadlock
 	go func() {
+		c, ok := s.m.GetByID(req.ID)
+		if !ok {
+			logrus.WithField("container", req.ID).Error("internal report: container not found")
+			return
+		}
+
 		err := c.refreshState()
 		if err != nil {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh container state")

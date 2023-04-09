@@ -20,7 +20,7 @@ import (
 
 var (
 	ErrAgentDead  = errors.New("agent dead or not responding")
-	ErrNotRunning = errors.New("container is not running")
+	ErrNotRunning = errors.New("machine not running")
 )
 
 const (
@@ -128,6 +128,19 @@ func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int
 }
 
 func (c *Container) Running() bool {
+	// currently the same
+	return c.runningLocked()
+}
+
+func (c *Container) State() types.ContainerState {
+	return c.state
+}
+
+func (c *Container) runningLocked() bool {
+	return c.State() == types.ContainerStateRunning
+}
+
+func (c *Container) lxcRunning() bool {
 	return c.lxc.Running()
 }
 
@@ -154,8 +167,8 @@ func (c *Container) refreshState() error {
 	defer c.mu.Unlock()
 
 	logrus.WithField("container", c.Name).Debug("refreshing container state")
-	stateRunning := c.state == types.ContainerStateRunning
-	lxcRunning := c.Running()
+	stateRunning := c.runningLocked()
+	lxcRunning := c.lxcRunning()
 	if lxcRunning != stateRunning {
 		if lxcRunning {
 			err := c.onStartLocked()
