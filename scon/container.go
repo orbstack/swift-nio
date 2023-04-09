@@ -65,7 +65,7 @@ type Container struct {
 	inetDiagFile      *os.File
 
 	// docker
-	freezer *Freezer
+	freezer atomic.Pointer[Freezer]
 }
 
 func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Container, error) {
@@ -262,7 +262,7 @@ func UseAgentRet[T any](c *Container, fn func(*agent.Client) (T, error)) (T, err
 }
 
 func (c *Container) Freezer() *Freezer {
-	return c.freezer
+	return c.freezer.Load()
 }
 
 func (c *Container) transitionStateInternalLocked(newState types.ContainerState, isInternal bool) (types.ContainerState, error) {

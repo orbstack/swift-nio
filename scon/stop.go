@@ -97,11 +97,10 @@ func (c *Container) stopForShutdown() error {
 func (c *Container) onStopLocked() error {
 	// discard freezer
 	// we don't need a ref for agent because it's already stopped
-	freezer := c.freezer
+	freezer := c.freezer.Swap(nil)
 	if freezer != nil {
 		freezer.Close()
 	}
-	c.freezer = nil
 
 	// stop forwards
 	for _, listener := range c.lastListeners {

@@ -165,7 +165,7 @@ func (h *DockerHooks) PostStart(c *Container) error {
 		}
 		return isIdle, nil
 	})
-	c.freezer = freezer
+	c.freezer.Store(freezer)
 
 	// trigger an initial freeze once docker starts
 	go c.manager.dockerProxy.kickStart(freezer)
