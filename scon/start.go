@@ -303,6 +303,9 @@ func (c *Container) configureLxc() error {
 		} else if c.Image.Distro == images.ImageAlpine {
 			// alpine: busybox/OpenRC - SIGUSR1
 			set("lxc.signal.halt", "SIGUSR1")
+		} else if c.Name == ContainerDocker {
+			// docker: tini (docker-init) - SIGTERM
+			set("lxc.signal.halt", "SIGTERM")
 		}
 
 		/*
