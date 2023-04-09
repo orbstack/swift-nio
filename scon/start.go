@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	startTimeout = 15 * time.Second
+	startStopTimeout = 15 * time.Second
 )
 
 var (
@@ -570,7 +570,7 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		return fmt.Errorf("start '%s': %w", c.Name, err)
 	}
 
-	if !c.lxc.Wait(lxc.RUNNING, startTimeout) {
+	if !c.lxc.Wait(lxc.RUNNING, startStopTimeout) {
 		return fmt.Errorf("machine did not start: %s - %v", c.Name, c.lxc.State())
 	}
 

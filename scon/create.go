@@ -166,7 +166,7 @@ func (c *Container) setupInitial(args CreateParams) error {
 	// and systemctl will work
 	logrus.WithField("container", c.Name).Info("waiting for network before setup")
 	var ips []string
-	ips, err = c.waitIPAddrs(startTimeout)
+	ips, err = c.waitIPAddrs(startStopTimeout)
 	if err != nil {
 		return err
 	}

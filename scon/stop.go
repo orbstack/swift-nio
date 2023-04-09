@@ -12,10 +12,8 @@ import (
 )
 
 const (
-	gracefulShutdownTimeoutRelease = 4 * time.Second
+	gracefulShutdownTimeoutRelease = 5 * time.Second
 	gracefulShutdownTimeoutDebug   = 100 * time.Millisecond
-
-	stopTimeout = 10 * time.Second
 )
 
 var (
@@ -76,7 +74,7 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 		}
 	}
 
-	if !c.lxc.Wait(lxc.STOPPED, stopTimeout) {
+	if !c.lxc.Wait(lxc.STOPPED, startStopTimeout) {
 		return oldState, fmt.Errorf("stop '%s': %w", c.Name, ErrTimeout)
 	}
 

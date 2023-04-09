@@ -27,9 +27,7 @@ const (
 	ContainerDocker = "docker"
 
 	// takes ~3 ms to unfreeze
-	dockerFreezeDelay  = 2 * time.Second
-	dockerStartPoll    = 500 * time.Millisecond
-	dockerStartTimeout = 15 * time.Second
+	dockerFreezeDebounce = 2 * time.Second
 
 	dockerNfsDebounce = 250 * time.Millisecond
 )
@@ -154,7 +152,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 func (h *DockerHooks) PostStart(c *Container) error {
 	// make a freezer
-	freezer := NewContainerFreezer(c, dockerFreezeDelay, func() (bool, error) {
+	freezer := NewContainerFreezer(c, dockerFreezeDebounce, func() (bool, error) {
 		// [predicate, via agent] check docker API to see if any containers are running
 		// if so, don't freeze
 		var isIdle bool
