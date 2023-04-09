@@ -11,7 +11,8 @@ import (
 
 func WaitForPathExist(path string) error {
 	// skip watcher if exists
-	if _, err := os.Stat(path); err == nil {
+	// must lstat because systemd units are non-existent symlinks
+	if _, err := os.Lstat(path); err == nil {
 		return nil
 	}
 
@@ -40,7 +41,7 @@ func WaitForPathExist(path string) error {
 	}
 
 	// stat again in case of race
-	if _, err := os.Stat(path); err == nil {
+	if _, err := os.Lstat(path); err == nil {
 		return nil
 	}
 
