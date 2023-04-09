@@ -45,7 +45,6 @@ func NewContainerFreezer(c *Container, debouncePeriod time.Duration, predicate f
 func (f *Freezer) incRefCLocked() {
 	debounce := f.debounce.Load()
 	if debounce == nil {
-		logrus.Error("use of closed freezer")
 		return
 	}
 
@@ -65,7 +64,6 @@ func (f *Freezer) incRefCLocked() {
 func (f *Freezer) decRefCLocked() {
 	debounce := f.debounce.Load()
 	if debounce == nil {
-		logrus.Error("use of closed freezer")
 		return
 	}
 
@@ -100,7 +98,7 @@ func (f *Freezer) tryFreeze() error {
 
 	// in case debounce was scheduled before closed
 	if f.debounce.Load() == nil {
-		return ErrFreezerClosed
+		return nil
 	}
 
 	c := f.container

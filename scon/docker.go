@@ -156,11 +156,11 @@ func (h *DockerHooks) PostStart(c *Container) error {
 		// if so, don't freeze
 		var isIdle bool
 		// freezer operates under container lock
-		err := c.useAgentInternalLocked(func(a *agent.Client) error {
+		err := c.useAgentInternal(func(a *agent.Client) error {
 			var err error
 			isIdle, err = a.CheckDockerIdle()
 			return err
-		}, false)
+		}, /*needFreezerRef*/ false /*needLock*/, false)
 		if err != nil {
 			return false, err
 		}

@@ -217,41 +217,64 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 	return nil
 }
 
-// must be called with lock held in case container is in the middle of starting,
-// freezer is not yet created but agent is
-func (c *Container) useAgentInternalLocked(fn func(*agent.Client) error, takeFreezerRef bool) error {
+func (c *Container) acquireAgent(needFreezerRef bool, needLock bool) (*Freezer, *agent.Client, error) {
+	// only keep lock for duration of agent acquire
+	if needLock {
+		c.mu.RLock()
+		defer c.mu.RUnlock()
+	}
+
 	if !c.Running() {
-		return ErrNotRunning
+		return nil, nil, ErrNotRunning
 	}
 
 	// we want it to be unfrozen - or call will hang
-	freezer := c.Freezer()
-	if takeFreezerRef && freezer != nil {
-		freezer.incRefCLocked()
-		defer freezer.decRefCLocked()
+	var freezer *Freezer
+	if needFreezerRef {
+		freezer = c.Freezer()
+		if freezer != nil {
+			freezer.incRefCLocked()
+		}
 	}
 
 	agent := c.agent.Load()
 	if agent == nil {
-		return ErrAgentDead
+		if freezer != nil {
+			freezer.decRefCLocked()
+		}
+		return nil, nil, ErrAgentDead
 	}
 
+	return freezer, agent, nil
+}
+
+// must be called with lock held in case container is in the middle of starting,
+// freezer is not yet created but agent is
+func (c *Container) useAgentInternal(fn func(*agent.Client) error, needFreezerRef bool, needLock bool) error {
+	freezer, agent, err := c.acquireAgent(needFreezerRef, needLock)
+	if err != nil {
+		return err
+	}
+
+	if freezer != nil {
+		if needLock {
+			// relock if needed to dec ref
+			defer freezer.DecRef()
+		} else {
+			defer freezer.decRefCLocked()
+		}
+	}
+
+	// ... so we make the actual agent call outside the lock (if caller isn't locked)
 	return fn(agent)
 }
 
 func (c *Container) useAgentLocked(fn func(*agent.Client) error) error {
-	return c.useAgentInternalLocked(fn, true)
-}
-
-func (c *Container) useAgentInternal(fn func(*agent.Client) error, takeFreezerRef bool) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.useAgentInternalLocked(fn, takeFreezerRef)
+	return c.useAgentInternal(fn /*needFreezerRef*/, true /*needLock*/, false)
 }
 
 func (c *Container) UseAgent(fn func(*agent.Client) error) error {
-	return c.useAgentInternal(fn, true)
+	return c.useAgentInternal(fn /*needFreezerRef*/, true /*needLock*/, true)
 }
 
 func UseAgentRet[T any](c *Container, fn func(*agent.Client) (T, error)) (T, error) {
