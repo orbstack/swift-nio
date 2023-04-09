@@ -28,6 +28,11 @@ func WaitForPathExist(path string) error {
 	parent := filepath.Dir(path)
 	err = watcher.AddWatch(parent, inotify.InCreate|inotify.InMovedTo)
 	if err != nil && errors.Is(err, os.ErrNotExist) {
+		// precaution: stop at /
+		if parent == "/" {
+			return err
+		}
+
 		err = WaitForPathExist(parent)
 		if err != nil {
 			return err
