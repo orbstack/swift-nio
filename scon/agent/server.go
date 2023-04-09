@@ -195,7 +195,8 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// catch and ignore signals, so children exit first
 	// so rpc wait works better
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT)
+	// TODO: catch SIGTERM and kill child processes so scon ssh can call wait() and read exit codes
+	signal.Notify(sigCh, unix.SIGINT, unix.SIGQUIT)
 	go func() {
 		for range sigCh {
 		}
