@@ -39,7 +39,7 @@ func mountOneNfs(dataSrc string, nfsSubDst string) error {
 	logrus.WithFields(logrus.Fields{
 		"src": dataSrc,
 		"dst": mountPath,
-	}).Debug("mounting nfs")
+	}).Trace("mounting nfs")
 	err := os.Mkdir(backingPath, 0755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return err
