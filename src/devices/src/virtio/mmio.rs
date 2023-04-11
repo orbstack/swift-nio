@@ -51,7 +51,7 @@ pub struct MmioTransport {
     pub(crate) config_generation: u32,
     mem: GuestMemoryMmap,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
-    queue_evts: HashMap<u32, EventFd>,
+    queue_evts: Vec<EventFd>,
     shm_region_select: u32,
 }
 
@@ -72,7 +72,7 @@ impl MmioTransport {
             config_generation: 0,
             mem,
             interrupt_status,
-            queue_evts: HashMap::new(),
+            queue_evts: Vec::new(),
             shm_region_select: 0,
         }
     }
@@ -86,8 +86,8 @@ impl MmioTransport {
         self.device.clone()
     }
 
-    pub fn register_queue_evt(&mut self, queue_evt: EventFd, id: u32) {
-        self.queue_evts.insert(id, queue_evt);
+    pub fn register_queue_evt(&mut self, queue_evt: EventFd, _id: u32) {
+        self.queue_evts.push(queue_evt);
     }
 
     fn check_device_status(&self, set: u32, clr: u32) -> bool {
@@ -300,7 +300,7 @@ impl BusDevice for MmioTransport {
                     0x38 => self.update_queue_field(|q| q.size = v as u16),
                     0x44 => self.update_queue_field(|q| q.ready = v == 1),
                     0x50 => {
-                        if let Some(eventfd) = self.queue_evts.get(&v) {
+                        if let Some(eventfd) = self.queue_evts.get(v as usize) {
                             eventfd.write(v as u64).unwrap();
                         }
                     }
