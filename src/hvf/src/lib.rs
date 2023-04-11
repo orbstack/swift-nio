@@ -12,6 +12,8 @@ use bindings::*;
 
 use std::convert::TryInto;
 use std::fmt::{Display, Formatter};
+use std::sync::{Arc};
+use std::sync::atomic::{Ordering};
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
@@ -172,6 +174,13 @@ pub fn vcpu_set_vtimer_mask(vcpuid: u64, masked: bool) -> Result<(), Error> {
     }
 }
 
+pub trait Parkable: Send + Sync {
+    fn park(&self) -> Result<(), Error>;
+    fn unpark(&self) -> Result<(), Error>;
+    fn before_vcpu_run(&self) -> Result<(), Error>;
+}
+
+#[derive(Clone, Debug)]
 pub struct HvfVm {}
 
 impl HvfVm {
@@ -213,6 +222,15 @@ impl HvfVm {
             Ok(())
         }
     }
+
+    pub fn force_exits(&self, vcpu_ids: &mut Vec<hv_vcpu_t>) -> Result<(), Error> {
+        let ret = unsafe { hv_vcpus_exit(vcpu_ids.as_mut_ptr(), vcpu_ids.len() as u32) };
+        if ret != HV_SUCCESS {
+            Err(Error::VcpuRequestExit)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -239,16 +257,18 @@ struct MmioRead {
 }
 
 pub struct HvfVcpu<'a> {
+    parker: Arc<dyn Parkable>,
     vcpuid: hv_vcpu_t,
     vcpu_exit: &'a hv_vcpu_exit_t,
     cntfrq: u64,
     mmio_buf: [u8; 8],
     pending_mmio_read: Option<MmioRead>,
     pending_advance_pc: bool,
+    pending_park: bool,
 }
 
 impl<'a> HvfVcpu<'a> {
-    pub fn new() -> Result<Self, Error> {
+    pub fn new(parker: Arc<dyn Parkable>) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
         let vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
         let cntfrq: u64 = 24000000;
@@ -270,12 +290,14 @@ impl<'a> HvfVcpu<'a> {
         let vcpu_exit: &hv_vcpu_exit_t = unsafe { vcpu_exit_ptr.as_mut().unwrap() };
 
         Ok(Self {
+            parker,
             vcpuid,
             vcpu_exit,
             cntfrq,
             mmio_buf: [0; 8],
             pending_mmio_read: None,
             pending_advance_pc: false,
+            pending_park: false,
         })
     }
 
@@ -343,6 +365,8 @@ impl<'a> HvfVcpu<'a> {
     }
 
     pub fn run(&mut self, pending_irq: bool) -> Result<VcpuExit, Error> {
+        self.parker.before_vcpu_run().unwrap();
+
         if let Some(mmio_read) = self.pending_mmio_read.take() {
             if mmio_read.srt < 31 {
                 let val = match mmio_read.len {

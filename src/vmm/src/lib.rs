@@ -43,6 +43,8 @@ use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 #[cfg(target_os = "linux")]
 use std::time::Duration;
+use std::sync::Arc;
+use crate::macos::Parker;
 
 #[cfg(target_arch = "x86_64")]
 use crate::device_manager::legacy::PortIODeviceManager;
@@ -195,6 +197,7 @@ pub struct Vmm {
 
     vcpus_handles: Vec<VcpuHandle>,
     exit_evt: EventFd,
+    parker: Arc<Parker>,
     vm: Vm,
     exit_observers: Vec<Arc<Mutex<dyn VmmExitObserver>>>,
 
@@ -226,7 +229,7 @@ impl Vmm {
             vcpu.set_mmio_bus(self.mmio_device_manager.bus.clone());
 
             self.vcpus_handles
-                .push(vcpu.start_threaded().map_err(Error::VcpuHandle)?);
+                .push(vcpu.start_threaded(self.parker.clone()).map_err(Error::VcpuHandle)?);
         }
 
         // The vcpus start off in the `Paused` state, let them run.

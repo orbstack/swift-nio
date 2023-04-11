@@ -69,6 +69,7 @@ use vm_memory::mmap::MmapRegion;
 use vm_memory::Bytes;
 use vm_memory::GuestMemory;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
+use crate::macos::Parker;
 
 #[cfg(feature = "efi")]
 static EDK2_BINARY: &[u8] = include_bytes!("../../../edk2/KRUN_EFI.silent.fd");
@@ -356,7 +357,7 @@ pub fn build_microvm(
 
     #[cfg(not(feature = "tee"))]
     #[allow(unused_mut)]
-    let mut vm = setup_vm(&guest_memory)?;
+    let mut vm = setup_vm(&guest_memory, vcpu_config.vcpu_count)?;
 
     #[cfg(feature = "tee")]
     let (kvm, mut vm) = {
@@ -529,7 +530,7 @@ pub fn build_microvm(
         let start_addr = GuestAddress(0u64);
 
         vcpus = create_vcpus_aarch64(
-            &vm,
+            &mut vm,
             &vcpu_config,
             &guest_memory,
             start_addr,
@@ -567,6 +568,7 @@ pub fn build_microvm(
         vcpus_handles: Vec::new(),
         exit_evt,
         exit_observers: Vec::new(),
+        parker: vm.get_parker().clone(),
         vm,
         mmio_device_manager,
         #[cfg(target_arch = "x86_64")]
@@ -815,8 +817,9 @@ pub(crate) fn setup_vm(
 #[cfg(target_os = "macos")]
 pub(crate) fn setup_vm(
     guest_memory: &GuestMemoryMmap,
+    vcpu_count: u8,
 ) -> std::result::Result<Vm, StartMicrovmError> {
-    let mut vm = Vm::new()
+    let mut vm = Vm::new(vcpu_count)
         .map_err(Error::Vm)
         .map_err(StartMicrovmError::Internal)?;
     vm.memory_init(guest_memory)
@@ -1016,7 +1019,7 @@ fn create_vcpus_aarch64(
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 fn create_vcpus_aarch64(
-    _vm: &Vm,
+    vm: &mut Vm,
     vcpu_config: &VcpuConfig,
     guest_mem: &GuestMemoryMmap,
     entry_addr: GuestAddress,
@@ -1053,6 +1056,7 @@ fn create_vcpus_aarch64(
 
     vcpus[0].set_boot_senders(boot_senders);
 
+    vm.set_vcpus(&vcpus);
     Ok(vcpus)
 }
 
@@ -1287,6 +1291,8 @@ fn attach_balloon_device(
     if let Some(intc) = intc {
         balloon.lock().unwrap().set_intc(intc);
     }
+
+    balloon.lock().unwrap().set_parker(vmm.parker.clone());
 
     // The device mutex mustn't be locked here otherwise it will deadlock.
     attach_mmio_device(

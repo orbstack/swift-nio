@@ -15,6 +15,7 @@ use super::super::{
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::Error as DeviceError;
+use hvf::Parkable;
 
 // Inflate queue.
 pub(crate) const IFQ_INDEX: usize = 0;
@@ -61,6 +62,7 @@ pub struct Balloon {
     config: VirtioBalloonConfig,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
+    parker: Option<Arc<dyn Parkable>>,
 }
 
 impl Balloon {
@@ -87,6 +89,7 @@ impl Balloon {
             config,
             intc: None,
             irq_line: None,
+            parker: None,
         })
     }
 
@@ -104,6 +107,10 @@ impl Balloon {
 
     pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
         self.intc = Some(intc);
+    }
+
+    pub fn set_parker(&mut self, parker: Arc<dyn Parkable>) {
+        self.parker = Some(parker);
     }
 
     pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
@@ -132,6 +139,15 @@ impl Balloon {
         let mut have_used = false;
 
         while let Some(head) = self.queues[FRQ_INDEX].pop(mem) {
+            // the idea:
+            // to work around macos bug,
+            // force vcpus to exit and park them
+            // hv_vm_unmap
+            // madvise
+            // remap
+            // and unpark
+            self.parker.as_ref().unwrap().park().unwrap();
+
             let index = head.index;
             for desc in head.into_iter() {
                 let host_addr = mem.get_host_address(desc.addr).unwrap();
@@ -140,14 +156,16 @@ impl Balloon {
                     desc.addr, host_addr, desc.len
                 );
                 unsafe {
-                    libc::madvise(
+                   let res = libc::madvise(
                         host_addr as *mut libc::c_void,
                         desc.len.try_into().unwrap(),
-                        libc::MADV_DONTNEED,
-                    )
+                        libc::MADV_FREE_REUSABLE,
+                    );
+                   debug!("ballon res = {:?}", res);
                 };
             }
 
+            self.parker.as_ref().unwrap().unpark().unwrap();
             have_used = true;
             if let Err(e) = self.queues[FRQ_INDEX].add_used(mem, index, 0) {
                 error!("failed to add used elements to the queue: {:?}", e);

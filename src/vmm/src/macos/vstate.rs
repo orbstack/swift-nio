@@ -9,8 +9,8 @@ use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
-#[cfg(not(test))]
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Barrier};
+use std::sync::atomic::{Ordering, AtomicBool};
 use std::thread;
 use std::time::Duration;
 
@@ -22,7 +22,7 @@ use arch;
 use arch::aarch64::gic::GICDevice;
 use crossbeam_channel::{unbounded, Receiver, RecvTimeoutError, Sender};
 use devices::legacy::Gic;
-use hvf::{HvfVcpu, HvfVm, VcpuExit};
+use hvf::{HvfVcpu, HvfVm, VcpuExit, Parkable};
 use utils::eventfd::EventFd;
 use vm_memory::{
     Address, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap, GuestMemoryRegion,
@@ -103,22 +103,130 @@ pub type Result<T> = result::Result<T, Error>;
 /// A wrapper around creating and using a VM.
 pub struct Vm {
     hvf_vm: HvfVm,
+    parker: Arc<Parker>,
     irqchip_handle: Option<Box<dyn GICDevice>>,
+}
+
+pub struct Parker {
+    // everything in here must be Send
+    hvf_vm: HvfVm,
+    vcpu_ids: Mutex<Vec<u64>>,
+    pending_park: AtomicBool,
+    // we use this both when parking and when unparking
+    barrier: Barrier,
+    regions: Mutex<Vec<MapRegion>>,
+}
+
+pub struct MapRegion {
+    host_start_addr: u64,
+    guest_start_addr: u64,
+    size: u64,
+}
+
+impl Parker {
+    pub fn new(vcpu_count: u8, hvf_vm: HvfVm) -> Self {
+        Parker {
+            hvf_vm,
+            vcpu_ids: Mutex::new(Vec::new()),
+            pending_park: AtomicBool::new(false),
+            barrier: Barrier::new(usize::from(vcpu_count) + 1),
+            regions: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn set_regions(&self, new_regions: Vec<MapRegion>) {
+        let mut regions = self.regions.lock().unwrap();
+        *regions = new_regions;
+    }
+
+    pub fn set_vcpu_ids(&self, new_vcpu_ids: Vec<u64>) {
+        let mut vcpu_ids = self.vcpu_ids.lock().unwrap();
+        *vcpu_ids = new_vcpu_ids;
+    }
+}
+
+impl Parkable for Parker {
+    fn park(&self) -> std::result::Result<(), hvf::Error> {
+        debug!("park begin");
+        // 1. set bool
+        self.pending_park.store(true, Ordering::SeqCst);
+
+        // force all vcpus to exit
+        let mut vcpu_ids = self.vcpu_ids.lock().unwrap();
+        debug!("force vcpus to exit: {:?}", vcpu_ids);
+        self.hvf_vm.force_exits(&mut vcpu_ids).unwrap();
+
+        // 2. wait for all vcpus to reach this point
+        self.barrier.wait();
+
+        // then we can unmap the memory
+        let regions = self.regions.lock().unwrap();
+        for region in regions.iter() {
+            debug!("unmap_memory: {:x} {:x}", region.guest_start_addr, region.size);
+            self.hvf_vm
+                .unmap_memory(region.guest_start_addr, region.size)
+                .unwrap();
+        }
+
+        debug!("park end");
+        Ok(())
+    }
+
+    fn unpark(&self) -> std::result::Result<(), hvf::Error> {
+        debug!("unpark begin");
+        // remap the memory
+        let regions = self.regions.lock().unwrap();
+        for region in regions.iter() {
+            debug!("map_memory: {:x} {:x} {:x}", region.host_start_addr, region.guest_start_addr, region.size);
+            self.hvf_vm
+                .map_memory(
+                    region.host_start_addr,
+                    region.guest_start_addr,
+                    region.size,
+                )
+                .unwrap();
+        }
+
+        // 1. clear bool
+        self.pending_park.store(false, Ordering::SeqCst);
+
+        // 2. all vcpus are waiting on the barrier
+        // so trigger it
+        self.barrier.wait();
+
+        debug!("unpark end");
+        Ok(())
+    }
+
+    fn before_vcpu_run(&self) -> std::result::Result<(), hvf::Error> {
+        // problem: cpus stuck in VcpuEmulation::WaitForEvent won't hit this
+        // need an atomic vcpu count
+        if self.pending_park.load(Ordering::SeqCst) {
+            debug!("before_vcpu_run begin");
+            self.barrier.wait();
+            self.barrier.wait();
+            debug!("before_vcpu_run end");
+        }
+
+        Ok(())
+    }
 }
 
 impl Vm {
     /// Constructs a new `Vm` using the given `Kvm` instance.
-    pub fn new() -> Result<Self> {
+    pub fn new(vcpu_count: u8) -> Result<Self> {
         let hvf_vm = HvfVm::new().map_err(Error::VmSetup)?;
 
         Ok(Vm {
-            hvf_vm,
+            hvf_vm: hvf_vm.clone(),
+            parker: Arc::new(Parker::new(vcpu_count, hvf_vm.clone())),
             irqchip_handle: None,
         })
     }
 
     /// Initializes the guest memory.
     pub fn memory_init(&mut self, guest_mem: &GuestMemoryMmap) -> Result<()> {
+        let mut map_regions = Vec::new();
         for region in guest_mem.iter() {
             // It's safe to unwrap because the guest address is valid.
             let host_addr = guest_mem.get_host_address(region.start_addr()).unwrap();
@@ -135,8 +243,14 @@ impl Vm {
                     region.len(),
                 )
                 .map_err(Error::SetUserMemoryRegion)?;
+            map_regions.push(MapRegion {
+                host_start_addr: host_addr as u64,
+                guest_start_addr: region.start_addr().raw_value() as u64,
+                size: region.len() as u64,
+            });
         }
 
+        self.parker.set_regions(map_regions);
         Ok(())
     }
 
@@ -180,6 +294,17 @@ impl Vm {
         } else {
             reply_sender.send(true).unwrap();
         }
+    }
+
+    pub fn set_vcpus(&mut self, vcpus: &[Vcpu]) {
+        self.parker.set_vcpu_ids(
+            vcpus.iter()
+            .map(|vcpu| vcpu.id as u64)
+            .collect());
+    }
+
+    pub fn get_parker(&self) -> Arc<Parker> {
+        self.parker.clone()
     }
 }
 
@@ -352,7 +477,7 @@ impl Vcpu {
 
     /// Moves the vcpu to its own thread and constructs a VcpuHandle.
     /// The handle can be used to control the remote vcpu.
-    pub fn start_threaded(mut self) -> Result<VcpuHandle> {
+    pub fn start_threaded(mut self, parker: Arc<Parker>) -> Result<VcpuHandle> {
         let event_sender = self.event_sender.take().unwrap();
         let response_receiver = self.response_receiver.take().unwrap();
         let (init_tls_sender, init_tls_receiver) = unbounded();
@@ -367,7 +492,7 @@ impl Vcpu {
                     .send(true)
                     .expect("Cannot notify vcpu TLS initialization.");
 
-                self.run();
+                self.run(parker);
             })
             .map_err(Error::VcpuSpawn)?;
 
@@ -467,8 +592,8 @@ impl Vcpu {
     }
 
     /// Main loop of the vCPU thread.
-    pub fn run(&mut self) {
-        let mut hvf_vcpu = HvfVcpu::new().expect("Can't create HVF vCPU");
+    pub fn run(&mut self, parker: Arc<Parker>) {
+        let mut hvf_vcpu = HvfVcpu::new(parker).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();
 
         let (wfe_sender, wfe_receiver) = unbounded();
