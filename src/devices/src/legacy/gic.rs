@@ -5,6 +5,7 @@ use crossbeam_channel::Sender;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, VecDeque};
 use std::convert::TryInto;
+use std::thread::Thread;
 
 use arch::aarch64::gicv2::GICv2;
 use arch::aarch64::layout::GTIMER_VIRT;
@@ -23,7 +24,7 @@ enum VcpuStatus {
 struct VcpuInfo {
     status: VcpuStatus,
     pending_irqs: VecDeque<u32>,
-    wfe_sender: Sender<u32>,
+    wfe_thread: Thread,
 }
 
 pub struct Gic {
@@ -78,7 +79,7 @@ impl Gic {
 
                 match vcpu.status {
                     VcpuStatus::Waiting => {
-                        vcpu.wfe_sender.send(vcpuid as u32).unwrap();
+                        vcpu.wfe_thread.unpark();
                         vcpu.status = VcpuStatus::Running;
                     }
                     VcpuStatus::Running => {
@@ -111,13 +112,13 @@ impl Gic {
         }
     }
 
-    pub fn register_vcpu(&mut self, vcpuid: u64, wfe_sender: Sender<u32>) {
+    pub fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread) {
         assert!(vcpuid < MAX_CPUS);
         self.vcpus.insert(
             vcpuid as u8,
             VcpuInfo {
                 status: VcpuStatus::Running,
-                wfe_sender,
+                wfe_thread,
                 pending_irqs: VecDeque::new(),
             },
         );

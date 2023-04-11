@@ -596,11 +596,10 @@ impl Vcpu {
         let mut hvf_vcpu = HvfVcpu::new(parker).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();
 
-        let (wfe_sender, wfe_receiver) = unbounded();
         self.intc
             .lock()
             .unwrap()
-            .register_vcpu(hvf_vcpuid, wfe_sender);
+            .register_vcpu(hvf_vcpuid, thread::current());
 
         let entry_addr = if let Some(boot_receiver) = &self.boot_receiver {
             boot_receiver.recv().unwrap()
@@ -620,11 +619,11 @@ impl Vcpu {
                 Ok(VcpuEmulation::Interrupted) => self.wait_for_resume(),
                 // Wait for an external event.
                 Ok(VcpuEmulation::WaitForEvent) => {
-                    self.wait_for_event(hvf_vcpuid, &wfe_receiver, None)
+                    self.wait_for_event(hvf_vcpuid, None)
                 }
                 Ok(VcpuEmulation::WaitForEventExpired) => (),
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
-                    self.wait_for_event(hvf_vcpuid, &wfe_receiver, Some(timeout))
+                    self.wait_for_event(hvf_vcpuid, Some(timeout))
                 }
                 // The guest was rebooted or halted.
                 Ok(VcpuEmulation::Stopped) => {
@@ -643,20 +642,13 @@ impl Vcpu {
     fn wait_for_event(
         &mut self,
         hvf_vcpuid: u64,
-        receiver: &Receiver<u32>,
         timeout: Option<Duration>,
     ) {
         if self.intc.lock().unwrap().vcpu_should_wait(hvf_vcpuid) {
             if let Some(timeout) = timeout {
-                match receiver.recv_timeout(timeout) {
-                    Ok(_) => {}
-                    Err(e) => match e {
-                        RecvTimeoutError::Timeout => {}
-                        RecvTimeoutError::Disconnected => panic!("WFE channel closed unexpectedly"),
-                    },
-                }
+                thread::park_timeout(timeout);
             } else {
-                receiver.recv().unwrap();
+                thread::park();
             }
         }
     }
