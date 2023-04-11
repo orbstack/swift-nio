@@ -7,6 +7,7 @@ use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::{Arc, Mutex};
 
+use ahash::RandomState;
 use utils::epoll::{self, Epoll, EpollEvent};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -64,7 +65,7 @@ pub trait Subscriber {
 /// Manages I/O notifications using epoll mechanism.
 pub struct EventManager {
     epoll: Epoll,
-    subscribers: HashMap<RawFd, Arc<Mutex<dyn Subscriber>>>,
+    subscribers: HashMap<RawFd, Arc<Mutex<dyn Subscriber>>, RandomState>,
     ready_events: Vec<EpollEvent>,
 }
 
@@ -83,7 +84,7 @@ impl EventManager {
 
         Ok(EventManager {
             epoll: epoll_fd,
-            subscribers: HashMap::new(),
+            subscribers: HashMap::default(),
             // This buffer is used for storing the events returned by `epoll_wait()`.
             // We preallocate memory for this buffer in order to not repeat this
             // operation every time `run()` loop is executed.
