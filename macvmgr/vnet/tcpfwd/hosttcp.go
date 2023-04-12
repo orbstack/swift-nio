@@ -21,8 +21,8 @@ type TcpHostForward struct {
 	requireLoopback bool
 	connectAddr4    tcpip.FullAddress
 	connectAddr6    tcpip.FullAddress
-	hostAddr4    tcpip.Address
-	hostAddr6    tcpip.Address
+	hostAddr4       tcpip.Address
+	hostAddr6       tcpip.Address
 	stack           *stack.Stack
 	nicId           tcpip.NICID
 	// whether this port forward is an internal implementation detail
@@ -90,11 +90,11 @@ func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, hostAddr4, hostAddr6
 			Addr: tcpip.Address(connectAddrPort6.Addr().AsSlice()),
 			Port: uint16(connectAddrPort6.Port()),
 		},
-		hostAddr4: netutil.ParseTcpipAddress(hostAddr4),
-		hostAddr6: netutil.ParseTcpipAddress(hostAddr6),
-		stack:        s,
-		nicId:        nicId,
-		isInternal:   isInternal,
+		hostAddr4:  netutil.ParseTcpipAddress(hostAddr4),
+		hostAddr6:  netutil.ParseTcpipAddress(hostAddr6),
+		stack:      s,
+		nicId:      nicId,
+		isInternal: isInternal,
 	}
 
 	go f.listen()
