@@ -55,7 +55,7 @@ func (f *UnixNATForward) handleConn(conn net.Conn) {
 	}
 	defer unixConn.Close()
 
-	pump2(conn.(*gonet.TCPConn), unixConn.(*net.UnixConn))
+	pump2SpUnixGv(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
 }
 
 func (f *UnixNATForward) Close() error {

@@ -177,7 +177,7 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 			// fast path, specialized for non-proxy TCP
 			pump2SpTcpGv(extTcpConn, virtConn)
 		} else {
-			// generic (proxy case)
+			// generic (proxy case / TLS)
 			pump2(extConn, virtConn)
 		}
 	}), proxyMgr

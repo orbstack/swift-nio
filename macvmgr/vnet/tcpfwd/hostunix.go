@@ -75,7 +75,7 @@ func (f *UnixTcpHostForward) handleConn(conn net.Conn) {
 	}
 	defer virtConn.Close()
 
-	pump2(conn.(*net.UnixConn), virtConn)
+	pump2SpUnixGv(conn.(*net.UnixConn), virtConn)
 }
 
 func (f *UnixTcpHostForward) Close() error {

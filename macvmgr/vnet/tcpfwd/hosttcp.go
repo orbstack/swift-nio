@@ -182,7 +182,7 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 		return
 	}
 
-	pump2(conn.(*net.TCPConn), virtConn)
+	pump2SpTcpGv(conn.(*net.TCPConn), virtConn)
 }
 
 func (f *TcpHostForward) Close() error {
