@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/types"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
@@ -37,7 +38,40 @@ func deleteRootfs(rootfs string) error {
 	return nil
 }
 
+func (c *Container) deleteDockerLocked() error {
+	if c.manager.stopping {
+		return ErrStopping
+	}
+
+	_, err := c.stopLocked(false /* internalStop */)
+	if err != nil {
+		return err
+	}
+
+	oldState, err := c.transitionStateLocked(types.ContainerStateDeleting)
+	if err != nil {
+		return err
+	}
+	// always restore old state - we go back after deleting
+	defer c.revertStateLocked(oldState)
+
+	logrus.WithField("container", c.Name).Info("deleting container data")
+
+	// delete the entire directory
+	err = deleteRootfs(conf.C().DockerDataDir)
+	if err != nil {
+		return fmt.Errorf("delete rootfs: %w", err)
+	}
+
+	return nil
+}
+
 func (c *Container) deleteLocked() error {
+	// exception for builtin: docker can be deleted (data only)
+	if c.ID == ContainerIDDocker {
+		return c.deleteDockerLocked()
+	}
+
 	if c.builtin {
 		return errors.New("cannot delete builtin machine")
 	}

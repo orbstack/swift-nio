@@ -61,9 +61,18 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// dind does some setup and mounts
 	cm.set("lxc.init.cmd", "/usr/bin/docker-init -- /docker-entrypoint.sh")
 
+	// create docker data dir in case it was deleted
+	err := os.MkdirAll(conf.C().DockerDataDir, 0755)
+	if err != nil {
+		return "", fmt.Errorf("create docker data: %w", err)
+	}
+
 	// mounts
+	// data
+	cm.bind(conf.C().DockerDataDir, "/var/lib/docker", "")
+	// tmp (like dind)
 	cm.set("lxc.mount.entry", "none run tmpfs rw,nosuid,nodev,mode=755 0 0")
-	// match docker
+	// match docker dind
 	cm.set("lxc.mount.entry", "none dev/shm tmpfs rw,nosuid,nodev,noexec,relatime,size=65536k,create=dir 0 0")
 	// alternate tmpfs because our /tmp is symlinked to /private/tmp
 	cm.set("lxc.mount.entry", "none dockertmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
@@ -145,6 +154,12 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	err = c.manager.getAndWriteCerts(certsDir)
 	if err != nil {
 		return fmt.Errorf("write certs: %w", err)
+	}
+
+	// create docker data dir in case it was deleted
+	err = os.MkdirAll(conf.C().DockerDataDir, 0755)
+	if err != nil {
+		return fmt.Errorf("create docker data: %w", err)
 	}
 
 	return nil
@@ -286,8 +301,14 @@ func (m *ConManager) runDockerNFS() error {
 		// get all volumes
 		volEntries, err := os.ReadDir(dockerVolDir)
 		if err != nil {
-			return err
+			// if doesn't exist, then assume empty (e.g. just started or just deleted)
+			if errors.Is(err, os.ErrNotExist) {
+				volEntries = nil
+			} else {
+				return err
+			}
 		}
+
 		vols := filterMapSlice(volEntries, func(entry fs.DirEntry) (string, bool) {
 			if entry.IsDir() {
 				// make sure it has _data

@@ -57,6 +57,7 @@ func (p *HostServiceProxy) Serve() error {
 		go func(conn net.Conn) {
 			defer conn.Close()
 
+			// TODO: isolated should be blocked
 			extConn, err := net.DialTCP("tcp4", nil, p.connectAddr)
 			if err != nil {
 				return

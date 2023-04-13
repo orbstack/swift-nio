@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
@@ -14,8 +15,8 @@ import (
 
 func init() {
 	rootCmd.AddCommand(deleteCmd)
-	deleteCmd.Flags().BoolVarP(&flagAll, "all", "a", false, "Stop all machines")
-	deleteCmd.Flags().BoolVarP(&flagYes, "yes", "y", false, "Skip confirmation prompt (for --all)")
+	deleteCmd.Flags().BoolVarP(&flagAll, "all", "a", false, "Delete all machines")
+	deleteCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force deletion without confirmation")
 }
 
 var deleteCmd = &cobra.Command{
@@ -30,12 +31,20 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// confirm
-		if flagAll && !flagYes {
-			cmd.PrintErrln("WARNING: This will PERMANENTLY DELETE ALL DATA in ALL of your machines!")
-			cmd.PrintErrln("This includes all Linux data.")
-			cmd.PrintErrln("This cannot be undone.")
+		if !flagForce {
+			red := color.New(color.FgRed)
+			if flagAll {
+				red.Fprintln(os.Stderr, "WARNING: This will PERMANENTLY DELETE ALL DATA in ALL machines!")
+			} else {
+
+				red.Fprintln(os.Stderr, "WARNING: This will PERMANENTLY DELETE ALL DATA in the following machines:")
+				for _, name := range args {
+					red.Fprintln(os.Stderr, "  "+name)
+				}
+			}
+			red.Fprintln(os.Stderr, "You cannot undo this action.")
 			cmd.PrintErrln("")
-			cmd.PrintErr("Are you sure you want to continue [y/N]? ")
+			cmd.PrintErr("Continue [y/N]? ")
 			var resp string
 			_, err := fmt.Scanln(&resp)
 			checkCLI(err)
