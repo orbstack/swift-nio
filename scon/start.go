@@ -337,6 +337,12 @@ func (c *Container) configureLxc() error {
 		// faster ipv6 config
 		set("lxc.sysctl.net.ipv6.conf.eth0.accept_dad", "0")
 
+		// rlimit
+		// lower soft limit to avoid slowing down programs that iterate through and close full fd range, but not so low (1024)
+		// high hard limit so users can set what they want
+		// ref: https://github.com/containerd/containerd/pull/7566
+		set("lxc.prlimit.nofile", "16384:1048576")
+
 		// bind mounts
 		config := conf.C()
 		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro")

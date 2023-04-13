@@ -265,6 +265,15 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		server.dockerRunning = syncx.NewCondBool()
 	}
 
+	// Go sets soft rlimit = hard. bring it back down to avoid perf issues
+	err = unix.Setrlimit(unix.RLIMIT_NOFILE, &unix.Rlimit{
+		Cur: 16384,
+		Max: 1048576,
+	})
+	if err != nil {
+		return err
+	}
+
 	// in NixOS, we need to wait for systemd before we do anything else (including running /bin/sh)
 	waitForNixBoot()
 

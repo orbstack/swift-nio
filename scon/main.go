@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -101,8 +100,7 @@ func runContainerManager() {
 		TimestampFormat: "01-02 15:04:05",
 	})
 
-	// rand seed
-	rand.Seed(time.Now().UnixNano())
+	// rand seed no longer needed in go 1.20+
 
 	// killswitch
 	err := killswitch.Check()
