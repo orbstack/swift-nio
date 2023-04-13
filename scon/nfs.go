@@ -68,7 +68,7 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 		defer m.nfsMu.Unlock()
 
 		// docker is special
-		if c.Name == ContainerDocker {
+		if c.ID == ContainerIDDocker {
 			return nil
 		}
 
@@ -93,7 +93,7 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 		defer m.nfsMu.Unlock()
 
 		// docker is special
-		if c.Name == ContainerDocker {
+		if c.ID == ContainerIDDocker {
 			return nil
 		}
 

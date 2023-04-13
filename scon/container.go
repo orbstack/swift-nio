@@ -59,6 +59,7 @@ type Container struct {
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
 	inetDiagFile      *os.File
+	bpfCleanupFunc    func() error
 
 	// docker
 	freezer atomic.Pointer[Freezer]

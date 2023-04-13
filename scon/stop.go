@@ -110,6 +110,12 @@ func (c *Container) onStopLocked() error {
 		c.inetDiagFile = nil
 	}
 
+	// stop bpf
+	if c.bpfCleanupFunc != nil {
+		c.bpfCleanupFunc()
+		c.bpfCleanupFunc = nil
+	}
+
 	// cancel listener update
 	c.autofwdDebounce.Cancel()
 

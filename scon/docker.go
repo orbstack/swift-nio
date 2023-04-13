@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	ContainerDocker = "docker"
+	ContainerDocker   = "docker"
+	ContainerIDDocker = "01GQQVF6C60000000000DOCKER"
 
 	// takes ~3 ms to unfreeze
 	dockerFreezeDebounce = 2 * time.Second
@@ -33,7 +34,7 @@ const (
 
 var (
 	dockerContainerRecord = types.ContainerRecord{
-		ID:   "01GQQVF6C60000000000DOCKER",
+		ID:   ContainerIDDocker,
 		Name: ContainerDocker,
 		Image: types.ImageSpec{
 			Distro:  images.ImageDocker,
@@ -190,7 +191,7 @@ func (m *ConManager) startDockerProxy() error {
 		return err
 	}
 
-	c, ok := m.GetByName(ContainerDocker)
+	c, ok := m.GetByID(ContainerIDDocker)
 	if !ok {
 		return errors.New("docker container not found")
 	}

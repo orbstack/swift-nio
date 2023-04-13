@@ -12,6 +12,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/scon/agent"
+	"github.com/kdrag0n/macvirt/scon/bpf"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/kdrag0n/macvirt/scon/images"
 	"github.com/kdrag0n/macvirt/scon/types"
@@ -312,7 +313,7 @@ func (c *Container) configureLxc() error {
 		} else if c.Image.Distro == images.ImageAlpine {
 			// alpine: busybox/OpenRC - SIGUSR1
 			set("lxc.signal.halt", "SIGUSR1")
-		} else if c.Name == ContainerDocker {
+		} else if c.ID == ContainerIDDocker {
 			// docker: tini (docker-init) - SIGTERM
 			set("lxc.signal.halt", "SIGTERM")
 		}
@@ -710,7 +711,7 @@ func (c *Container) startAgentLocked() error {
 	// can block if agent is broken
 	// also, we'll close our side of the remote fd so RPC will return ECONNRESET
 	go func() {
-		err := c.initAgent(client)
+		err := c.postStartAsync(client)
 		if err != nil {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to init agent")
 		}
@@ -719,35 +720,118 @@ func (c *Container) startAgentLocked() error {
 	return nil
 }
 
-func (c *Container) initAgent(a *agent.Client) error {
-	// we set cleanup fields here
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.isolated {
-		// isolated containers don't have auto listener forward, bpf reverse localhost forward, or machine bind mounts
-		return nil
-	}
-	// inet diag
-	initPidF, err := c.lxc.InitPidFd()
+func findCgroup(pid int) (string, error) {
+	cgList, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/cgroup")
 	if err != nil {
-		return err
+		return "", fmt.Errorf("read cgroup: %w", err)
 	}
+	for _, line := range strings.Split(string(cgList), "\n") {
+		// only works for cgroup v2 (no controllers list)
+		if strings.HasPrefix(line, "0::") {
+			return line[3:], nil
+		}
+	}
+
+	return "", fmt.Errorf("no cgroup found")
+}
+
+// start monitoring inet diag netlink
+// returns netns cookie for bpf lfwd
+func (c *Container) startNetlinkMonitor(initPid int) (uint64, error) {
+	// open pidfd for netns switch
+	initPidFd, err := unix.PidfdOpen(initPid, 0)
+	if err != nil {
+		return 0, fmt.Errorf("open pid: %w", err)
+	}
+	initPidF := os.NewFile(uintptr(initPidFd), "[pidfd]")
 	defer initPidF.Close()
 
+	// open inet diag
 	nlFile, err := sysnet.WithNetns(initPidF, func() (*os.File, error) {
 		return sysnet.OpenDiagNetlink()
 	})
 	if err != nil {
-		return err
+		return 0, fmt.Errorf("open nl: %w", err)
 	}
 	c.inetDiagFile = nlFile
+
+	// get netns cookie
+	netnsCookie, err := sysnet.GetNetnsCookie(nlFile)
+	if err != nil {
+		return 0, fmt.Errorf("get cookie: %w", err)
+	}
 
 	go runOne("netlink monitor for "+c.Name, func() error {
 		return monitorInetDiag(c, nlFile)
 	})
 
-	// update listeners in case we missed any before agent start
+	return netnsCookie, nil
+}
+
+// attach eBPF localhost reverse forward for Docker host net
+func (c *Container) attachBpfLfwd(initPid int, netnsCookie uint64) error {
+	// find cgroup
+	cgGroup, err := findCgroup(initPid)
+	if err != nil {
+		return fmt.Errorf("find cgroup: %w", err)
+	}
+	// only take the first part ("lxc") in case systemd created init.scope
+	cgPath := "/sys/fs/cgroup/" + strings.Split(cgGroup, "/")[1]
+
+	// attach bpf
+	cleanupFunc, err := bpf.AttachLfwd(cgPath, netnsCookie)
+	if err != nil {
+		return fmt.Errorf("attach bpf: %w", err)
+	}
+	// keep finalizers alive
+	c.bpfCleanupFunc = cleanupFunc
+
+	return nil
+}
+
+func (c *Container) initNetPostStart() error {
+	// we set cleanup fields here
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.isolated {
+		// isolated containers don't have auto listener or bpf reverse localhost forward
+		return nil
+	}
+
+	// need pid, not pidfd, to open /proc/PID/cgroup
+	initPid := c.lxc.InitPid()
+	if initPid < 0 {
+		return fmt.Errorf("no init pid")
+	}
+
+	// start netlink monitor
+	netnsCookie, err := c.startNetlinkMonitor(initPid)
+	if err != nil {
+		return fmt.Errorf("start netlink: %w", err)
+	}
+
+	// attach bpf localhost reverse forward for Docker
+	if c.ID == ContainerIDDocker {
+		err = c.attachBpfLfwd(initPid, netnsCookie)
+		if err != nil {
+			return fmt.Errorf("attach bpf: %w", err)
+		}
+		logrus.WithField("container", c.Name).Debug("attached bpf lfwd")
+	}
+
+	return nil
+}
+
+func (c *Container) postStartAsync(a *agent.Client) error {
+	// does not really fit in postStartAsync, but not critical so we do it here
+	// compiling bpf programs could take a while
+	err := c.initNetPostStart()
+	if err != nil {
+		return fmt.Errorf("init net: %w", err)
+	}
+
+	// kick listener update in case we missed any before agent start
 	c.triggerListenersUpdate()
 
 	// ssh agent proxy (vscode workaround)

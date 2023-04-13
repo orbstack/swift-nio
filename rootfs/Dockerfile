@@ -8,9 +8,10 @@ FROM debian:sid-slim AS debian
 
 
 ##########################################################################
-# Build Go - scon, macctl
+# Build Go and eBPF (C) - scon + eBPF, macctl
 FROM base AS go-build
-RUN apk add --no-cache go alpine-sdk lxc-dev bash
+RUN apk add --no-cache go alpine-sdk lxc-dev bash \
+    clang linux-headers libbpf-dev
 COPY vendor /build/vendor
 COPY scon /build/scon
 COPY macvmgr /build/macvmgr
@@ -21,6 +22,9 @@ cd /build/macvmgr
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/macctl ./cmd/macctl
 EOT
 ARG TYPE=release
+# eBPF
+RUN cd /build/scon && make bpfgen
+# Go
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
 <<EOT sh -eux
