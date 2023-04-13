@@ -229,6 +229,14 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		}
 	}
 
+	// fix time_wait
+	{
+		opt := tcpip.TCPTimeWaitReuseOption(tcpip.TCPTimeWaitReuseGlobal)
+		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
+			return nil, errors.New(err.String())
+		}
+	}
+
 	// TODO: buffer sizes
 	// {
 	// 	opt := tcpip.TCPReceiveBufferSizeRangeOption{Min: 1, Default: 2 * 1024 * 1024, Max: 2 * 1024 * 1024}
@@ -300,7 +308,8 @@ func (n *Network) Close() error {
 	if n.Proxy != nil {
 		n.Proxy.Close()
 	}
-	n.Stack.Destroy()
+	// destroy waits and blocks
+	n.Stack.Close()
 	if n.file0 != nil {
 		n.file0.Close()
 	}
