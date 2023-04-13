@@ -9,7 +9,7 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel lfwd src/lfwd.c
+//go:generate ./build-bpf.sh
 
 func AttachLfwd(cgPath string, netnsCookie uint64) (func() error, error) {
 	var closers []io.Closer
