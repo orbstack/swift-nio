@@ -215,6 +215,7 @@ mkdir /mnt/rosetta
 ln -s /mnt/rosetta/rosetta '/[rosetta]'
 ln -s /usr/bin/qemu-x86_64 '[qemu]'
 ln -s /usr/bin/qemu-i386 '[qemu32]'
+ln -s /opt/orbstack-guest/bin/macctl '[mac]'
 
 # Guest tools
 mkdir -p /opt/orbstack-guest/bin /opt/orbstack-guest/bin-hiprio /opt/orbstack-guest/run /opt/orbstack-guest/data

@@ -10,7 +10,8 @@ var (
 
 // linux
 const (
-	Virtiofs = "/mnt/mac"
+	Virtiofs      = "/mnt/mac"
+	LinuxExplicit = "/mnt/linux"
 
 	Opt             = "/opt/" + appid.AppName + "-guest"
 	Setctty         = Opt + "/setctty"

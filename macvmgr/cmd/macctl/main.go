@@ -21,6 +21,9 @@ func main() {
 	// control or shell, depending on args
 	case "mac":
 		err = runCtl(true)
+	// binfmt_misc stub mode
+	case "[mac]":
+		exitCode, err = runBinfmtStub()
 	// command stub mode
 	default:
 		exitCode, err = runCommandStub(cmd)
@@ -31,6 +34,21 @@ func main() {
 	}
 
 	os.Exit(exitCode)
+}
+
+func runBinfmtStub() (int, error) {
+	// we use preserve-argv0 mode, so first arg is argv0
+	argv0 := os.Args[1]
+	combinedArgs := os.Args[2:]
+
+	// always translate paths in relaxed mode
+	combinedArgs = shell.TranslateArgPathsRelaxed(combinedArgs)
+
+	// run the command
+	return shell.ConnectSSH(shell.CommandOpts{
+		CombinedArgs: combinedArgs,
+		Argv0:        &argv0,
+	})
 }
 
 func runCommandStub(cmd string) (int, error) {

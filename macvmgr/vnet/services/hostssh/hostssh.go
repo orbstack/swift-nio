@@ -146,6 +146,14 @@ func translateEnv(env []string) []string {
 	return filtered
 }
 
+func strp(s *string) string {
+	if s == nil {
+		return ""
+	}
+
+	return *s
+}
+
 func handleSshConn(s ssh.Session) error {
 	ptyReq, winCh, isPty := s.Pty()
 
@@ -176,10 +184,11 @@ func handleSshConn(s ssh.Session) error {
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"pty":  isPty,
-		"user": s.User(),
-		"cmd":  s.RawCommand(),
-		"meta": meta,
+		"pty":   isPty,
+		"user":  s.User(),
+		"cmd":   s.RawCommand(),
+		"meta":  meta,
+		"argv0": strp(meta.Argv0),
 	}).Debug("SSH connection")
 
 	// override with some env inherited from host
@@ -215,7 +224,7 @@ func handleSshConn(s ssh.Session) error {
 	env = translateEnv(env)
 
 	var combinedArgs []string
-	var argv0 string
+	argv0 := meta.Argv0
 	if meta.RawCommand {
 		// raw command (JSON)
 		err = json.Unmarshal([]byte(s.RawCommand()), &combinedArgs)
@@ -234,11 +243,14 @@ func handleSshConn(s ssh.Session) error {
 		}
 		// force login shell
 		base := filepath.Base(shell)
-		argv0 = "-" + base
+		loginArgv0 := "-" + base
+		if argv0 == nil {
+			argv0 = &loginArgv0
+		}
 	}
 	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
-	if argv0 != "" {
-		cmd.Args[0] = argv0
+	if argv0 != nil {
+		cmd.Args[0] = *argv0
 	}
 	cmd.Env = env
 	cmd.Dir = pwd

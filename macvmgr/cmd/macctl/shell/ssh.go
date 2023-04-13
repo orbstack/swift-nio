@@ -48,6 +48,7 @@ type CommandOpts struct {
 	CombinedArgs []string
 	UseShell     bool
 	ExtraEnv     map[string]string
+	Argv0        *string
 }
 
 func NfsDataRoot() string {
@@ -91,16 +92,34 @@ func TranslatePathRelaxed(p string) string {
 	// canonicalize first
 	p = path.Clean(p)
 
-	// ONLY translate home
+	// if path is under mac virtiofs mount, remove the mount prefix
+	if p == mounts.Virtiofs {
+		return "/"
+	} else if strings.HasPrefix(p, mounts.Virtiofs+"/") {
+		return strings.TrimPrefix(p, mounts.Virtiofs)
+	}
+
+	// nothing to do for linked paths
+	for _, linkPrefix := range mounts.LinkedPaths {
+		if p == linkPrefix || strings.HasPrefix(p, linkPrefix+"/") {
+			return p
+		}
+	}
+
 	linuxHome, err := os.UserHomeDir()
 	if err != nil {
 		// do nothing
 		return p
 	}
 
-	// ONLY translate home
+	// only translate home to linux
 	if p == linuxHome || strings.HasPrefix(p, linuxHome+"/") {
 		return NfsDataRoot() + p
+	}
+
+	// also translate explicit /mnt/linux prefix for disambiguation
+	if p == mounts.LinuxExplicit || strings.HasPrefix(p, mounts.LinuxExplicit+"/") {
+		return NfsDataRoot() + strings.TrimPrefix(p, mounts.LinuxExplicit)
 	}
 
 	return p
@@ -176,6 +195,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 
 	meta := sshtypes.SshMeta{
 		RawCommand: !opts.UseShell && len(opts.CombinedArgs) > 0,
+		Argv0:      opts.Argv0,
 	}
 
 	// individual ptys
