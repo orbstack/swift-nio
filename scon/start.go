@@ -225,7 +225,10 @@ func (c *Container) configureLxc() error {
 		// limiting caps breaks privileged nested docker 20.10.x containers (fixed in 23.0)
 		// because of dummy debugfs, we limit CAP_SYS_RAWIO so the systemd service condition fails
 		// otherwise it tries to mount if ConditionPathExists=/sys/kernel/debug and ConditionCapability=CAP_SYS_RAWIO
-		//set("lxc.cap.drop", "sys_rawio")
+		// HOWEVER, we need this for isolated
+		if c.isolated {
+			set("lxc.cap.drop", "sys_rawio")
+		}
 		set("lxc.autodev", "1") // populate /dev
 
 		// console
@@ -234,9 +237,11 @@ func (c *Container) configureLxc() error {
 		set("lxc.console.size", "auto")
 
 		set("lxc.cgroup2.devices.deny", "a")
-		set("lxc.cgroup2.devices.allow", "b *:* m")     // mknod block
-		set("lxc.cgroup2.devices.allow", "b 7:* rwm")   // dev/loop*
-		set("lxc.cgroup2.devices.allow", "b 43:* rwm")  // dev/nbd*
+		set("lxc.cgroup2.devices.allow", "b *:* m") // mknod block
+		if !c.isolated {
+			set("lxc.cgroup2.devices.allow", "b 7:* rwm")  // dev/loop*
+			set("lxc.cgroup2.devices.allow", "b 43:* rwm") // dev/nbd*
+		}
 		set("lxc.cgroup2.devices.allow", "c *:* m")     // mknod char
 		set("lxc.cgroup2.devices.allow", "c 136:* rwm") // dev/pts/*
 		set("lxc.cgroup2.devices.allow", "c 1:3 rwm")   // dev/null
@@ -252,14 +257,16 @@ func (c *Container) configureLxc() error {
 		addDevOptional("/dev/fuse")
 		addDevOptional("/dev/net/tun")
 		addDevOptional("/dev/ppp")
-		addDevOptional("/dev/kmsg")
-		addDevOptional("/dev/loop-control")
-		addDevOptional("/dev/autofs") // TODO security
-		addDevOptional("/dev/userfaultfd")
-		addDevOptional("/dev/btrfs-control")
-		addDevOptional("/dev/binder")
-		addDevOptional("/dev/vndbinder")
-		addDevOptional("/dev/hwbinder")
+		if !c.isolated {
+			addDevOptional("/dev/kmsg")
+			addDevOptional("/dev/loop-control")
+			addDevOptional("/dev/autofs") // TODO security
+			addDevOptional("/dev/userfaultfd")
+			addDevOptional("/dev/btrfs-control")
+			addDevOptional("/dev/binder")
+			addDevOptional("/dev/vndbinder")
+			addDevOptional("/dev/hwbinder")
+		}
 
 		// add /dev/vdb1 to make k3s happy - it just wants to stat
 		// but keep it blocked in devices cgroup
@@ -274,8 +281,10 @@ func (c *Container) configureLxc() error {
 		set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
 		set("lxc.mount.entry", "bpf sys/fs/bpf bpf rw,nosuid,nodev,noexec,relatime,mode=700,optional 0 0")
 		bind("/sys/kernel/tracing", "/sys/kernel/tracing", "")
-		// this is recursive (rbind) so no need for /sys/kernel/debug/tracing
-		bind("/sys/kernel/debug", "/sys/kernel/debug", "")
+		if !c.isolated {
+			// this is recursive (rbind) so no need for /sys/kernel/debug/tracing
+			bind("/sys/kernel/debug", "/sys/kernel/debug", "")
+		}
 
 		// nesting (proc not needed because it's rw)
 		// this is in .lxc not .orbstack because of lxc systemd-generator's conditions
@@ -330,30 +339,34 @@ func (c *Container) configureLxc() error {
 		// bind mounts
 		config := conf.C()
 		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro")
-		bind(config.HostMountSrc, "/mnt/mac", "")
-		// we're doing this in kernel now, to avoid showing up in `df`
-		//bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
 
-		// binds for mac linked paths
-		// symlinks cause problems with vs code, git, etc. so we bind them
-		for _, p := range mounts.LinkedPaths {
-			bind("/mnt/mac"+p, p, "")
+		// isolated containers don't get bind mounts
+		if !c.isolated {
+			bind(config.HostMountSrc, "/mnt/mac", "")
+			// we're doing this in kernel now, to avoid showing up in `df`
+			//bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
+
+			// binds for mac linked paths
+			// symlinks cause problems with vs code, git, etc. so we bind them
+			for _, p := range mounts.LinkedPaths {
+				bind("/mnt/mac"+p, p, "")
+			}
+
+			// binds for ssh agent sockets (fixes docker $SSH_AUTH_SOCK forward)
+			// anything operation (mount, stat, access) on the /private socket through virtiofs returns EOPNOTSUPP
+			// so we bind the dir to a tmpfs
+			if sshAgentSocks.Env != "" && strings.HasPrefix(sshAgentSocks.Env, "/private/tmp/com.apple.launchd.") {
+				bind(mounts.LaunchdSshAgentListeners, path.Dir(sshAgentSocks.Env), "ro")
+			}
+
+			// bind NFS root at /mnt/machines for access
+			// must be rshared for agent's ~/OrbStack bind to work later
+			bind(config.NfsRootRO, "/mnt/machines", "ro,rshared")
+			// we also bind it to ~/OrbStack later so paths work correctly
+			// but must do it AFTER macOS host mounts NFS on the path
+			// otherwise, kernel sees that inode has changed and unmounts everything
+			// https://github.com/torvalds/linux/commit/8ed936b5671bfb33d89bc60bdcc7cf0470ba52fe
 		}
-
-		// binds for ssh agent sockets (fixes docker $SSH_AUTH_SOCK forward)
-		// anything operation (mount, stat, access) on the /private socket through virtiofs returns EOPNOTSUPP
-		// so we bind the dir to a tmpfs
-		if sshAgentSocks.Env != "" && strings.HasPrefix(sshAgentSocks.Env, "/private/tmp/com.apple.launchd.") {
-			bind(mounts.LaunchdSshAgentListeners, path.Dir(sshAgentSocks.Env), "ro")
-		}
-
-		// bind NFS root at /mnt/machines for access
-		// must be rshared for agent's ~/OrbStack bind to work later
-		bind(config.NfsRootRO, "/mnt/machines", "ro,rshared")
-		// we also bind it to ~/OrbStack later so paths work correctly
-		// but must do it AFTER macOS host mounts NFS on the path
-		// otherwise, kernel sees that inode has changed and unmounts everything
-		// https://github.com/torvalds/linux/commit/8ed936b5671bfb33d89bc60bdcc7cf0470ba52fe
 
 		// container hooks, before rootfs is set
 		if c.hooks != nil {
@@ -694,7 +707,7 @@ func (c *Container) startAgentLocked() error {
 	}
 
 	// async tasks, so we can release the lock
-	// will block if agent is broken
+	// can block if agent is broken
 	// also, we'll close our side of the remote fd so RPC will return ECONNRESET
 	go func() {
 		err := c.initAgent(client)
@@ -707,6 +720,14 @@ func (c *Container) startAgentLocked() error {
 }
 
 func (c *Container) initAgent(a *agent.Client) error {
+	// we set cleanup fields here
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.isolated {
+		// isolated containers don't have auto listener forward, bpf reverse localhost forward, or machine bind mounts
+		return nil
+	}
 	// inet diag
 	initPidF, err := c.lxc.InitPidFd()
 	if err != nil {
