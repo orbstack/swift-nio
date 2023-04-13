@@ -825,7 +825,7 @@ func (c *Container) initNetPostStart() error {
 
 func (c *Container) postStartAsync(a *agent.Client) error {
 	// does not really fit in postStartAsync, but not critical so we do it here
-	// compiling bpf programs could take a while
+	// compiling bpf programs is a little slow (3 ms)
 	err := c.initNetPostStart()
 	if err != nil {
 		return fmt.Errorf("init net: %w", err)
