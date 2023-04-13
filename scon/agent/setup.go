@@ -510,6 +510,13 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
+	// create path translation disambiguation symlink at /mnt/linux
+	logrus.Debug("Creating /mnt/linux symlink")
+	err = os.Symlink("/", "/mnt/linux")
+	if err != nil {
+		return err
+	}
+
 	/*
 	 * after this point is system configs
 	 */
