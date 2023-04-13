@@ -7,18 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	//TODO
-	bufferSize = 256 * 1024
-)
-
-type FullDuplexConn interface {
-	net.Conn
-	CloseRead() error
-	CloseWrite() error
-}
-
-func pump1(errC chan<- error, src, dst FullDuplexConn) {
+func pump1SpTcpTcp(errC chan<- error, src *net.TCPConn, dst *net.TCPConn) {
 	buf := make([]byte, bufferSize)
 	_, err := io.CopyBuffer(dst, src, buf)
 
@@ -29,10 +18,10 @@ func pump1(errC chan<- error, src, dst FullDuplexConn) {
 	errC <- err
 }
 
-func Pump2(c1, c2 FullDuplexConn) {
+func Pump2SpTcpTcp(c1 *net.TCPConn, c2 *net.TCPConn) {
 	errChan := make(chan error, 2)
-	go pump1(errChan, c1, c2)
-	go pump1(errChan, c2, c1)
+	go pump1SpTcpTcp(errChan, c1, c2)
+	go pump1SpTcpTcp(errChan, c2, c1)
 
 	// Don't wait for both if one side failed (not EOF)
 	if err1 := <-errChan; err1 != nil {

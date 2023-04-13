@@ -56,6 +56,6 @@ func (a *AgentServer) HandleDockerConn(fdxSeq uint64, _ *None) error {
 	}
 	defer dockerConn.Close()
 
-	tcpfwd.Pump2(extConn.(*net.TCPConn), dockerConn.(*net.UnixConn))
+	tcpfwd.Pump2SpTcpUnix(extConn.(*net.TCPConn), dockerConn.(*net.UnixConn))
 	return nil
 }

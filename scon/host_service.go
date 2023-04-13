@@ -63,7 +63,7 @@ func (p *HostServiceProxy) Serve() error {
 			}
 			defer extConn.Close()
 
-			tcpfwd.Pump2(conn.(tcpfwd.FullDuplexConn), extConn)
+			tcpfwd.Pump2SpTcpUnix(extConn, conn.(*net.UnixConn))
 		}(conn)
 	}
 }

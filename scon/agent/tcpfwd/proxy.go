@@ -70,7 +70,7 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 	// set TCP_NODELAY for localhost
 	dialConn.SetNoDelay(true)
 
-	Pump2(conn.(*net.TCPConn), dialConn)
+	Pump2SpTcpTcp(conn.(*net.TCPConn), dialConn)
 }
 
 func (p *TCPProxy) Close() error {
