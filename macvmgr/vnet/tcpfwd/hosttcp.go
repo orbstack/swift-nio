@@ -188,3 +188,7 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 func (f *TcpHostForward) Close() error {
 	return f.listener.Close()
 }
+
+func (f *TcpHostForward) TcpPort() int {
+	return f.listener.Addr().(*net.TCPAddr).Port
+}
