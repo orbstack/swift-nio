@@ -26,7 +26,6 @@ struct ContentView: View {
     @AppStorage("root.selectedTab") private var selection = "docker"
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @State private var startStopInProgress = false
-    @StateObject private var windowHolder = WindowHolder()
     @State private var presentError = false
     @State private var pendingClose = false
     @State private var collapsed = false
@@ -148,7 +147,6 @@ struct ContentView: View {
                 }
             }
         }
-        .background(WindowAccessor(holder: windowHolder))
         .onAppear {
             if !onboardingCompleted {
                 pendingClose = true
