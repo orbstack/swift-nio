@@ -146,6 +146,13 @@ func main() {
 	err = cmd.Run()
 	check(err)
 
+	// delete the .BTF.ext section
+	cmd = exec.Command("objcopy", "--remove-section", ".BTF.ext", path)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	check(err)
+
 	// cleanup
 	err = os.Remove(secF.Name())
 	check(err)
