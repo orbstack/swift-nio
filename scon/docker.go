@@ -77,7 +77,7 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// alternate tmpfs because our /tmp is symlinked to /private/tmp
 	cm.set("lxc.mount.entry", "none dockertmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
 	// extra linked path: /System
-	cm.bind("/mnt/mac/System", "/System", "")
+	cm.bind(mounts.Virtiofs+"/System", "/System", "")
 
 	// configure network statically
 	cm.set("lxc.net.0.flags", "up")
