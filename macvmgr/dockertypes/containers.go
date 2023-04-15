@@ -27,7 +27,7 @@ const (
 	MountPropagationSlave MountPropagation = "slave"
 )
 
-type Container struct {
+type ContainerSummary struct {
 	ID         string `json:"Id"`
 	Names      []string
 	Image      string
@@ -47,6 +47,11 @@ type Container struct {
 	Mounts []MountPoint
 }
 
+type ContainerDetails struct {
+	ID     string `json:"Id"`
+	Mounts []MountPoint
+}
+
 type Port struct {
 	IP          string `json:",omitempty"`
 	PrivatePort uint16
@@ -63,4 +68,26 @@ type MountPoint struct {
 	Mode        string
 	RW          bool
 	Propagation MountPropagation `json:",omitempty"`
+}
+
+type Event struct {
+	Type   string `json:"Type"`
+	Action string `json:"Action"`
+	Actor  struct {
+		ID         string `json:"ID"`
+		Attributes struct {
+			// varies
+			Container string `json:"container"`
+			Name      string `json:"name"`
+			Type      string `json:"type"`
+		} `json:"Attributes"`
+	} `json:"Actor"`
+	Scope    string `json:"scope"`
+	Time     int64  `json:"time"`
+	TimeNano int64  `json:"timeNano"`
+
+	// varies
+	Status string `json:"status"`
+	ID     string `json:"id"`
+	From   string `json:"from"`
 }

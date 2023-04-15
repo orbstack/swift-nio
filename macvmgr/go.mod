@@ -28,6 +28,7 @@ require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 require (
 	github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771
 	github.com/fatih/color v1.14.1
+	github.com/fsnotify/fsevents v0.1.1
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/getsentry/sentry-go v0.19.0
 	github.com/google/uuid v1.3.0

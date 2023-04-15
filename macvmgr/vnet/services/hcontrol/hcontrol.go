@@ -8,11 +8,13 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
+	"github.com/kdrag0n/macvirt/macvmgr/fsnotify"
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
@@ -28,6 +30,10 @@ import (
 type HcontrolServer struct {
 	n         *vnet.Network
 	drmClient *drm.DrmClient
+
+	fsnotifyMu   sync.Mutex
+	fsnotifyRefs map[string]int
+	FsNotifier   *fsnotify.VmNotifier
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -162,12 +168,45 @@ func (h *HcontrolServer) Notify(n guihelper.Notification, _ *None) error {
 	return guihelper.Notify(n)
 }
 
+func (h *HcontrolServer) AddFsnotifyRef(path string, _ *None) error {
+	h.fsnotifyMu.Lock()
+	defer h.fsnotifyMu.Unlock()
+
+	h.fsnotifyRefs[path]++
+
+	if h.fsnotifyRefs[path] == 1 {
+		err := h.FsNotifier.Add(path)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
+	h.fsnotifyMu.Lock()
+	defer h.fsnotifyMu.Unlock()
+
+	h.fsnotifyRefs[path]--
+
+	if h.fsnotifyRefs[path] == 0 {
+		err := h.FsNotifier.Remove(path)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type None struct{}
 
 func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, error) {
 	server := &HcontrolServer{
-		n:         n,
-		drmClient: drm.Client(),
+		n:            n,
+		drmClient:    drm.Client(),
+		fsnotifyRefs: make(map[string]int),
 	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)

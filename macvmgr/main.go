@@ -25,6 +25,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/killswitch"
 	"github.com/kdrag0n/macvirt/macvmgr/flock"
+	"github.com/kdrag0n/macvirt/macvmgr/fsnotify"
 	"github.com/kdrag0n/macvirt/macvmgr/osver"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
@@ -523,7 +524,7 @@ func runVmManager() {
 	}()
 
 	// Services
-	services.StartNetServices(vnetwork)
+	hcServer := services.StartNetServices(vnetwork)
 
 	// VM control server client
 	vc, err := vclient.NewWithNetwork(vnetwork, vm)
@@ -531,6 +532,13 @@ func runVmManager() {
 	defer vc.Close()
 	err = vc.StartBackground()
 	check(err)
+
+	// fsnotifier
+	fsNotifier, err := fsnotify.NewVmNotifier(drm.Client().SconInternalClientsCh())
+	check(err)
+	defer fsNotifier.Close()
+	hcServer.FsNotifier = fsNotifier
+	go runOne("fsnotify proxy", fsNotifier.Run)
 
 	if useStdioConsole {
 		fd := int(os.Stdin.Fd())

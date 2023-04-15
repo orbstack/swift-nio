@@ -119,7 +119,7 @@ func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertype
 		return nil, errors.New("status: " + resp.Status)
 	}
 
-	var containers []dockertypes.Container
+	var containers []dockertypes.ContainerSummary
 	err = json.NewDecoder(resp.Body).Decode(&containers)
 	if err != nil {
 		return nil, err

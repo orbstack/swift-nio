@@ -13,15 +13,14 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
 	"github.com/kdrag0n/macvirt/scon/agent/udpfwd"
 	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/kdrag0n/macvirt/scon/syncx"
-	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -37,8 +36,11 @@ type AgentServer struct {
 	loginManager  *LoginManager
 	containerName string
 
-	dockerClient  *http.Client
-	dockerRunning syncx.CondBool
+	dockerClient         *http.Client
+	dockerRunning        syncx.CondBool
+	dockerMu             syncx.Mutex
+	dockerHost           *hclient.Client
+	dockerContainerBinds map[string][]string
 }
 
 type ProxySpec struct {
@@ -123,22 +125,6 @@ func (a *AgentServer) StopProxyUDP(args ProxySpec, _ *None) error {
 	proxy.Close()
 	delete(a.udpProxies, args)
 
-	return nil
-}
-
-func (a *AgentServer) WaitForDockerStart(_ None, _ *None) error {
-	a.dockerRunning.Wait()
-	return nil
-}
-
-func (a *AgentServer) dockerPostStart() error {
-	// wait for Docker API to start
-	err := util.WaitForRunPathExist("/var/run/docker.sock")
-	if err != nil {
-		return err
-	}
-
-	a.dockerRunning.Set(true)
 	return nil
 }
 
@@ -252,7 +238,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if hostname == "docker" {
 		// use default unix socket
 		server.dockerClient = &http.Client{
-			Timeout: 15 * time.Second,
+			// no timeout - we do event monitoring
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", "/var/run/docker.sock")
@@ -263,6 +249,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		}
 
 		server.dockerRunning = syncx.NewCondBool()
+		server.dockerContainerBinds = make(map[string][]string)
 	}
 
 	// Go sets soft rlimit = hard. bring it back down to avoid perf issues

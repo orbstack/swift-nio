@@ -125,6 +125,16 @@ func (c *Client) Notify(n guihelper.Notification) error {
 	return c.rpc.Call("hc.Notify", n, &none)
 }
 
+func (c *Client) AddFsnotifyRef(path string) error {
+	var none None
+	return c.rpc.Call("hc.AddFsnotifyRef", path, &none)
+}
+
+func (c *Client) RemoveFsnotifyRef(path string) error {
+	var none None
+	return c.rpc.Call("hc.RemoveFsnotifyRef", path, &none)
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }
