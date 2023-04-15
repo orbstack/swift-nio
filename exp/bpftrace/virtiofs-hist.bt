@@ -1,0 +1,23 @@
+kprobe:queue_request_and_unlock
+{
+    $req = (struct fuse_req *)arg1;
+    $unique = $req->in.h.unique;
+
+    @start[$unique] = nsecs;
+}
+
+kprobe:virtio_fs_request_complete
+{
+    $req = (struct fuse_req *)arg0;
+    $unique = $req->in.h.unique;
+
+    $now = nsecs;
+    @total_usecs = lhist(($now - @start[$unique]) / 1000, 0, 1000, 50);
+
+    delete(@start[$unique]);
+}
+
+END
+{
+    clear(@start);
+}
