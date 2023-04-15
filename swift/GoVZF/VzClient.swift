@@ -256,10 +256,15 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
     // Virtiofs (shared)
     var fsDevices: [VZDirectorySharingDeviceConfiguration] = []
     if spec.virtiofs {
-        let fs = VZVirtioFileSystemDeviceConfiguration(tag: "mac")
-        let dir = VZSharedDirectory(url: URL(fileURLWithPath: "/"), readOnly: false)
-        fs.share = VZSingleDirectoryShare(directory: dir)
-        fsDevices.append(fs)
+        let fsRoot = VZVirtioFileSystemDeviceConfiguration(tag: "mac")
+        let dirRoot = VZSharedDirectory(url: URL(fileURLWithPath: "/"), readOnly: false)
+        fsRoot.share = VZSingleDirectoryShare(directory: dirRoot)
+        fsDevices.append(fsRoot)
+
+        let fsHome = VZVirtioFileSystemDeviceConfiguration(tag: "home")
+        let dirHome = VZSharedDirectory(url: FileManager.default.homeDirectoryForCurrentUser, readOnly: false)
+        fsHome.share = VZSingleDirectoryShare(directory: dirHome)
+        fsDevices.append(fsHome)
     }
 
     // Rosetta
