@@ -4,10 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/syncx"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vzf"
 	"github.com/sirupsen/logrus"
@@ -45,17 +43,6 @@ func (n *VmNotifier) Run() error {
 
 	client := NewKrpcClient(conn)
 
-	fileBufs := make([][]byte, 0, 16)
-	fileDebounce := syncx.NewLeadingFuncDebounce(func() {
-		for _, buf := range fileBufs {
-			err := client.WriteRaw(buf)
-			if err != nil {
-				logrus.WithError(err).Error("Failed to inject fsnotify events (krpc)")
-			}
-		}
-		fileBufs = fileBufs[:0]
-	}, 100*time.Millisecond)
-
 	// err = vzf.SwextFseventsMonitorDirs()
 	// if err != nil {
 	// 	return fmt.Errorf("start dir monitor: %w", err)
@@ -64,9 +51,10 @@ func (n *VmNotifier) Run() error {
 	for {
 		select {
 		case buf := <-vzf.SwextFseventsKrpcEventsChan:
-			// fsevents stops batching after certain size, so we need to debounce as well
-			fileBufs = append(fileBufs, buf)
-			fileDebounce.Trigger()
+			err := client.WriteRaw(buf)
+			if err != nil {
+				logrus.WithError(err).Error("Failed to inject fsnotify events (krpc)")
+			}
 		case <-n.stopCh:
 			return nil
 		}
