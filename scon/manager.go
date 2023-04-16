@@ -224,6 +224,7 @@ func (m *ConManager) Start() error {
 		_, err := ListenSconInternal(m, drmMonitor)
 		return err
 	})
+	go runOne("krpc initiator server", RunKrpcInitiator)
 
 	logrus.Info("started")
 	return err

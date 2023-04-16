@@ -7,15 +7,13 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
-	"github.com/kdrag0n/macvirt/scon/isclient/istypes"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
 
 type SconInternalServer struct {
-	m                *ConManager
-	drmMonitor       *DrmMonitor
-	fsnotifyInjector *fsnotifyInjector
+	m          *ConManager
+	drmMonitor *DrmMonitor
 }
 
 func (s *SconInternalServer) Ping(_ None, _ *None) error {
@@ -33,16 +31,10 @@ func (s *SconInternalServer) OnNfsMounted(_ None, _ *None) error {
 	return s.m.onHostNfsMounted()
 }
 
-func (s *SconInternalServer) InjectFsnotifyEvents(events istypes.FsnotifyEventsBatch, _ *None) error {
-	logrus.WithField("events", events).Debug("injecting fsnotify events")
-	return s.fsnotifyInjector.Inject(events)
-}
-
 func ListenSconInternal(m *ConManager, drmMonitor *DrmMonitor) (*SconInternalServer, error) {
 	server := &SconInternalServer{
-		m:                m,
-		drmMonitor:       drmMonitor,
-		fsnotifyInjector: newFsnotifyInjector(),
+		m:          m,
+		drmMonitor: drmMonitor,
 	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("sci", server)

@@ -5,7 +5,6 @@ import (
 	"net/rpc"
 
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
-	"github.com/kdrag0n/macvirt/scon/isclient/istypes"
 )
 
 type None struct{}
@@ -37,9 +36,4 @@ func (c *Client) OnDrmResult(result *drmtypes.Result) error {
 func (c *Client) OnNfsMounted() error {
 	var noResult None
 	return c.rpc.Call("sci.OnNfsMounted", None{}, &noResult)
-}
-
-func (c *Client) InjectFsnotifyEvents(events istypes.FsnotifyEventsBatch) error {
-	var noResult None
-	return c.rpc.Call("sci.InjectFsnotifyEvents", events, &noResult)
 }

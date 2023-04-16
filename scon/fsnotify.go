@@ -1,57 +1,57 @@
 package main
 
 import (
+	"net"
 	"os"
+	"strconv"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
-	"github.com/kdrag0n/macvirt/scon/isclient/istypes"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
-type fsnotifyInjector struct {
-}
+const (
+	iocNotifyproxyPassconn = 0x8004da02
+)
 
-func writeOneEvent(path string, typ string) error {
-	return os.WriteFile("/proc/.orbinternal/"+typ, []byte(mounts.Virtiofs+path), 0644)
-}
-
-func newFsnotifyInjector() *fsnotifyInjector {
-	return &fsnotifyInjector{}
-}
-
-func (f *fsnotifyInjector) Inject(events istypes.FsnotifyEventsBatch) error {
-	//TODO: batched ioctl, pack all into a string
-	for i, path := range events.Paths {
-		flags := events.Flags[i]
-
-		// order: create, modify, attrib, unlink
-		if flags&istypes.FsnotifyEventCreate != 0 {
-			err := writeOneEvent(path, "create")
-			if err != nil {
-				return err
-			}
-		}
-
-		if flags&istypes.FsnotifyEventModify != 0 {
-			err := writeOneEvent(path, "modify")
-			if err != nil {
-				return err
-			}
-		}
-
-		if flags&istypes.FsnotifyEventStatAttr != 0 {
-			err := writeOneEvent(path, "attrib")
-			if err != nil {
-				return err
-			}
-		}
-
-		if flags&istypes.FsnotifyEventRemove != 0 {
-			err := writeOneEvent(path, "unlink")
-			if err != nil {
-				return err
-			}
-		}
+func RunKrpcInitiator() error {
+	listener, err := net.Listen("tcp", util.DefaultAddress4().String()+":"+strconv.Itoa(ports.GuestKrpc))
+	if err != nil {
+		return err
 	}
 
-	return nil
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			return err
+		}
+
+		err = func(conn net.Conn) error {
+			defer conn.Close()
+
+			// submit fd to kernel
+			devFile, err := os.Open("/dev/notifyproxy")
+			if err != nil {
+				return err
+			}
+			defer devFile.Close()
+
+			connFile, err := conn.(*net.TCPConn).File()
+			if err != nil {
+				return err
+			}
+			defer connFile.Close()
+
+			err = unix.IoctlSetInt(int(devFile.Fd()), iocNotifyproxyPassconn, int(connFile.Fd()))
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}(conn)
+		if err != nil {
+			logrus.WithError(err).Error("krpc: failed to pass conn")
+		}
+	}
 }

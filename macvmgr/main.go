@@ -534,7 +534,7 @@ func runVmManager() {
 	check(err)
 
 	// fsnotifier
-	fsNotifier, err := fsnotify.NewVmNotifier(drm.Client().SconInternalClientsCh())
+	fsNotifier, err := fsnotify.NewVmNotifier(vnetwork)
 	check(err)
 	defer fsNotifier.Close()
 	hcServer.FsNotifier = fsNotifier

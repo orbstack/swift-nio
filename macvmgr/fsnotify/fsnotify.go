@@ -2,97 +2,100 @@ package fsnotify
 
 import (
 	"errors"
+	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsevents"
-	"github.com/kdrag0n/macvirt/scon/isclient"
-	"github.com/kdrag0n/macvirt/scon/isclient/istypes"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/sirupsen/logrus"
 )
 
 type VmNotifier struct {
-	mu            sync.Mutex
-	es            *fsevents.EventStream
-	isclient      atomic.Pointer[isclient.Client]
-	sconClientsCh <-chan *isclient.Client
-	stopCh        chan struct{}
+	mu      sync.Mutex
+	es      *fsevents.EventStream
+	network *vnet.Network
+	stopCh  chan struct{}
 }
 
-func NewVmNotifier(sconClientsCh <-chan *isclient.Client) (*VmNotifier, error) {
+type eventBatch struct {
+	Paths []string
+	Descs []uint64
+}
+
+func NewVmNotifier(network *vnet.Network) (*VmNotifier, error) {
 	es := &fsevents.EventStream{
 		Paths:   []string{},
 		Latency: 100 * time.Millisecond,
-		Flags:   fsevents.IgnoreSelf | fsevents.FileEvents,
+		Flags:   fsevents.IgnoreSelf | fsevents.NoDefer | fsevents.FileEvents,
 		// fix initial restart replaying events
 		EventID: uint64(0xFFFFFFFFFFFFFFFF),
 	}
 
 	return &VmNotifier{
-		es:            es,
-		sconClientsCh: sconClientsCh,
-		stopCh:        make(chan struct{}),
+		es:      es,
+		network: network,
+		stopCh:  make(chan struct{}),
 	}, nil
 }
 
-func convertEventBatch(events []fsevents.Event) istypes.FsnotifyEventsBatch {
+func convertEventBatch(events []fsevents.Event) eventBatch {
 	paths := make([]string, 0, len(events))
-	flags := make([]istypes.FsnotifyEventFlags, 0, len(events))
+	descs := make([]uint64, 0, len(events))
 
 	for _, event := range events {
-		flgs := istypes.FsnotifyEventFlags(0)
+		var flgs uint64
 		if event.Flags&fsevents.ItemCreated != 0 {
-			flgs |= istypes.FsnotifyEventCreate
+			flgs |= npFlagCreate
 		}
 		if event.Flags&fsevents.ItemRemoved != 0 {
-			flgs |= istypes.FsnotifyEventRemove
+			flgs |= npFlagRemove
 		}
 		//TODO renamed
 		if event.Flags&fsevents.ItemModified != 0 {
-			flgs |= istypes.FsnotifyEventModify
+			flgs |= npFlagModify
 		}
 		// no finder info
 		if event.Flags&(fsevents.ItemInodeMetaMod|fsevents.ItemChangeOwner|fsevents.ItemXattrMod) != 0 {
-			flgs |= istypes.FsnotifyEventStatAttr
+			flgs |= npFlagStatAttr
 		}
 
 		// ignore HistoryDone, etc
-		if flgs != 0 {
-			paths = append(paths, event.Path)
-			flags = append(flags, flgs)
+		if flgs != 0 && len(event.Path) <= linuxPathMax {
+			// prefix all the paths here
+			newPath := mounts.Virtiofs + event.Path
+			paths = append(paths, newPath)
+			descs = append(descs, flgs|uint64(len(newPath))<<32)
 		}
 	}
 
-	return istypes.FsnotifyEventsBatch{
+	return eventBatch{
 		Paths: paths,
-		Flags: flags,
+		Descs: descs,
 	}
-}
-
-func (n *VmNotifier) SetIsclient(isclient *isclient.Client) {
-	n.isclient.Store(isclient)
 }
 
 func (n *VmNotifier) Run() error {
 	n.es.Start()
 
+	conn, err := n.network.DialGuestTCPRetry(ports.GuestKrpc)
+	if err != nil {
+		return fmt.Errorf("dial guest: %w", err)
+	}
+	defer conn.Close()
+
+	client := NewKrpcClient(conn)
 	for {
 		select {
 		case events := <-n.es.Events:
 			batch := convertEventBatch(events)
 
-			client := n.isclient.Load()
-			if client == nil {
-				continue
-			}
-
-			err := client.InjectFsnotifyEvents(batch)
+			err := client.NotifyproxyInject(batch)
 			if err != nil {
 				logrus.WithError(err).Error("Failed to inject fsnotify events")
 			}
-		case client := <-n.sconClientsCh:
-			n.SetIsclient(client)
 		case <-n.stopCh:
 			return nil
 		}
