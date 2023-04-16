@@ -16,9 +16,17 @@ struct GovzfResultErr* govzf_run_Machine_Resume(void* ptr);
 struct GovzfResultIntErr* govzf_run_Machine_ConnectVsock(void* ptr, uint32_t port);
 void govzf_run_Machine_finalize(void* ptr);
 
-char* swext_proxy_get_settings();
-char* swext_proxy_monitor_changes();
-char* swext_security_get_extra_ca_certs();
+char* swext_proxy_get_settings(void);
+char* swext_proxy_monitor_changes(void);
+
+char* swext_security_get_extra_ca_certs(void);
+
+char* swext_fsevents_monitor_dirs(void);
+void* swext_fsevents_VmNotifier_new(void);
+char* swext_fsevents_VmNotifier_start(void* ptr);
+char* swext_fsevents_VmNotifier_updatePaths(void* ptr, const char** paths, int count);
+char* swext_fsevents_VmNotifier_stop(void* ptr);
+void swext_fsevents_VmNotifier_finalize(void* ptr);
 */
 import (
 	"C"
@@ -278,4 +286,117 @@ func SwextSecurityGetExtraCaCerts() ([]string, error) {
 	}
 
 	return certs, nil
+}
+
+//export swext_fsevents_cb_krpc_events
+func swext_fsevents_cb_krpc_events(ptr *C.uint8_t, len C.size_t) {
+	// copy to Go slice
+	data := C.GoBytes(unsafe.Pointer(ptr), C.int(len))
+
+	// send to channel
+	// block if necessary for backpressure
+	SwextFseventsKrpcEventsChan <- data
+}
+
+func SwextFseventsMonitorDirs() error {
+	msgC := C.swext_fsevents_monitor_dirs()
+	defer C.free(unsafe.Pointer(msgC))
+	msgStr := C.GoString(msgC)
+
+	if msgStr != "" {
+		return errors.New(msgStr)
+	}
+
+	return nil
+}
+
+type FsVmNotifier struct {
+	mu  sync.Mutex
+	ptr unsafe.Pointer
+}
+
+func NewFsVmNotifier() (*FsVmNotifier, error) {
+	ptr := C.swext_fsevents_VmNotifier_new()
+	if ptr == nil {
+		return nil, errors.New("failed to create FsVmNotifier")
+	}
+
+	notifier := &FsVmNotifier{
+		ptr: ptr,
+	}
+	runtime.SetFinalizer(notifier, func(n *FsVmNotifier) {
+		n.Close()
+	})
+
+	return notifier, nil
+}
+
+func (n *FsVmNotifier) Close() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.ptr != nil {
+		C.swext_fsevents_VmNotifier_finalize(n.ptr)
+		n.ptr = nil
+		runtime.SetFinalizer(n, nil)
+	}
+
+	return nil
+}
+
+func (n *FsVmNotifier) Start() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.ptr == nil {
+		return errors.New("FsVmNotifier closed")
+	}
+
+	msgC := C.swext_fsevents_VmNotifier_start(n.ptr)
+	defer C.free(unsafe.Pointer(msgC))
+	msgStr := C.GoString(msgC)
+
+	if msgStr != "" {
+		return errors.New(msgStr)
+	}
+
+	return nil
+}
+
+func (n *FsVmNotifier) Stop() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.ptr == nil {
+		return errors.New("FsVmNotifier closed")
+	}
+
+	C.swext_fsevents_VmNotifier_stop(n.ptr)
+	return nil
+}
+
+func (n *FsVmNotifier) UpdatePaths(paths []string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.ptr == nil {
+		return errors.New("FsVmNotifier closed")
+	}
+
+	// convert to C
+	cPaths := make([]*C.char, len(paths))
+	for i, path := range paths {
+		cPaths[i] = C.CString(path)
+		defer C.free(unsafe.Pointer(cPaths[i]))
+	}
+
+	msgC := C.swext_fsevents_VmNotifier_updatePaths(n.ptr, &cPaths[0], C.int(len(paths)))
+	defer C.free(unsafe.Pointer(msgC))
+	msgStr := C.GoString(msgC)
+
+	if msgStr != "" {
+		return errors.New(msgStr)
+	}
+
+	return nil
 }

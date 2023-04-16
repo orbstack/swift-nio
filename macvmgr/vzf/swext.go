@@ -2,6 +2,8 @@ package vzf
 
 var (
 	SwextProxyChangesChan = make(chan struct{}, 1)
+
+	SwextFseventsKrpcEventsChan = make(chan []byte)
 )
 
 type SwextProxySettings struct {
