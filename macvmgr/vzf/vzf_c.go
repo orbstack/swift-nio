@@ -383,6 +383,11 @@ func (n *FsVmNotifier) UpdatePaths(paths []string) error {
 		return errors.New("FsVmNotifier closed")
 	}
 
+	// min 1 for fsevents to work (also &cPaths[0] below)
+	if len(paths) == 0 {
+		paths = []string{"/.__non_existent_path__/.xyz"}
+	}
+
 	// convert to C
 	cPaths := make([]*C.char, len(paths))
 	for i, path := range paths {

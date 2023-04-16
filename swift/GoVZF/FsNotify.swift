@@ -201,7 +201,6 @@ private class VmNotifier {
 
         // create a new stream
         let lastEventId = FSEventStreamGetLatestEventId(oldStream)
-        print("lastEventId: \(lastEventId)")
         try newStream(paths: newPaths, lastEventId: lastEventId)
 
         // start the new stream
