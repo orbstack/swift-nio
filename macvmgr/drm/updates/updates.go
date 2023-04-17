@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	updateCheckInterval = 12 * time.Hour
+	// match SUScheduledCheckInterval
+	updateCheckInterval = 4 * time.Hour
 	notifyInterval      = 24 * time.Hour
 )
 

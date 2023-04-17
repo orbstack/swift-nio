@@ -7,7 +7,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>
-	<integer>43200</integer>
+	<integer>14400</integer>
 	<key>SUEnableSystemProfiling</key>
 	<true/>
 	<key>SUEnableJavaScript</key>
