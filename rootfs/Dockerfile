@@ -11,7 +11,7 @@ FROM debian:sid-slim AS debian
 # Build Go and eBPF (C) - scon + eBPF, macctl
 FROM base AS go-build
 RUN apk add --no-cache go alpine-sdk lxc-dev bash \
-    clang linux-headers libbpf-dev
+    llvm clang linux-headers libbpf-dev
 COPY vendor /build/vendor
 COPY scon /build/scon
 COPY macvmgr /build/macvmgr
