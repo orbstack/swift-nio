@@ -139,15 +139,8 @@ func main() {
 	_, err = secF.Write(btfData)
 	check(err)
 
-	// replace
-	cmd := exec.Command("objcopy", "--update-section", ".BTF="+secF.Name(), path)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
-	check(err)
-
-	// delete the .BTF.ext section
-	cmd = exec.Command("objcopy", "--remove-section", ".BTF.ext", path)
+	// replace and delete the .BTF.ext section
+	cmd := exec.Command("llvm-objcopy", "--remove-section=.BTF.ext", "--update-section=.BTF="+secF.Name(), path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
