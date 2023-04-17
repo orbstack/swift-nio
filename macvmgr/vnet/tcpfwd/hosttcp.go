@@ -154,10 +154,16 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 		srcAddr = tcpip.Address(remoteAddr.IP)
 	}
 
+	// TODO: preserve source IP and fix TIME_WAIT/FIN_WAIT_2 issue in gvisor
+	// git stash in gvisor and here for more debugging
+	// https://github.com/orbstack/orbstack/issues/165
+	_ = srcAddr
 	virtSrcAddr := tcpip.FullAddress{
-		NIC:  f.nicId,
-		Addr: srcAddr,
-		Port: uint16(remoteAddr.Port),
+		/*
+			NIC:  f.nicId,
+			Addr: srcAddr,
+			Port: uint16(remoteAddr.Port),
+		*/
 	}
 
 	logrus.WithFields(logrus.Fields{
