@@ -9,6 +9,11 @@ type KrpcClient struct {
 	conn net.Conn
 }
 
+type krpcHeader struct {
+	Len uint32
+	Typ uint32
+}
+
 func NewKrpcClient(conn net.Conn) *KrpcClient {
 	return &KrpcClient{
 		conn: conn,

@@ -1,0 +1,64 @@
+BEGIN
+{
+    // from the enum above
+    @opcodes[1] = "lookup";
+    @opcodes[2] = "forget";
+    @opcodes[3] = "getattr";
+    @opcodes[4] = "setattr";
+    @opcodes[5] = "readlink";
+    @opcodes[6] = "symlink";
+    @opcodes[8] = "mknod";
+    @opcodes[9] = "mkdir";
+    @opcodes[10] = "unlink";
+    @opcodes[11] = "rmdir";
+    @opcodes[12] = "rename";
+    @opcodes[13] = "link";
+    @opcodes[14] = "open";
+    @opcodes[15] = "read";
+    @opcodes[16] = "write";
+    @opcodes[17] = "statfs";
+    @opcodes[18] = "release";
+    @opcodes[20] = "fsync";
+    @opcodes[21] = "setxattr";
+    @opcodes[22] = "getxattr";
+    @opcodes[23] = "listxattr";
+    @opcodes[24] = "removexattr";
+    @opcodes[25] = "flush";
+    @opcodes[26] = "init";
+    @opcodes[27] = "opendir";
+    @opcodes[28] = "readdir";
+    @opcodes[29] = "releasedir";
+    @opcodes[30] = "fsyncdir";
+    @opcodes[31] = "getlk";
+    @opcodes[32] = "setlk";
+    @opcodes[33] = "setlkw";
+    @opcodes[34] = "access";
+    @opcodes[35] = "create";
+    @opcodes[36] = "interrupt";
+    @opcodes[37] = "bmap";
+    @opcodes[38] = "destroy";
+    @opcodes[39] = "ioctl";
+    @opcodes[40] = "poll";
+    @opcodes[41] = "notify_reply";
+    @opcodes[42] = "batch_forget";
+    @opcodes[43] = "fallocate";
+    @opcodes[44] = "readdirplus";
+    @opcodes[45] = "rename2";
+    @opcodes[46] = "lseek";
+    @opcodes[47] = "copy_file_range";
+    @opcodes[48] = "setupmapping";
+    @opcodes[49] = "removemapping";
+    @opcodes[50] = "syncfs";
+    @opcodes[51] = "tmpfile";
+}
+
+kprobe:virtio_fs_request_complete
+{
+    $req = (struct fuse_req *)arg0;
+    printf("%s\n", @opcodes[$req->in.h.opcode]);
+}
+
+END
+{
+    clear(@opcodes);
+}
