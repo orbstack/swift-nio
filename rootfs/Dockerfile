@@ -23,7 +23,12 @@ CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/macctl ./cmd/macctl
 EOT
 ARG TYPE=release
 # eBPF
-RUN cd /build/scon && make bpfgen
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/root/go/pkg \
+<<EOT sh -eux
+cd /build/scon
+make bpfgen
+EOT
 # Go
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
