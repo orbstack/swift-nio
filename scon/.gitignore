@@ -7,3 +7,6 @@
 /scon-forksftp
 
 /killswitch/ksconst_release.go
+
+/bpf/*bpfel*
+*.o

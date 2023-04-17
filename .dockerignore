@@ -3,3 +3,5 @@ rootfs/out/
 rootfs/rd-compile*
 rootfs/rdc2
 rootfs/live/
+scon/bpf/*bpfel*
+*.o
