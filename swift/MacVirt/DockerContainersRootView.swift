@@ -8,7 +8,7 @@ import SwiftUI
 struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @AppStorage("docker_filterShowStopped") private var settingShowStopped = false
+    @AppStorage("docker_filterShowStopped") private var settingShowStopped = true
 
     @State private var selection: String?
 

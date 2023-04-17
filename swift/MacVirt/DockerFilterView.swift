@@ -6,7 +6,7 @@ import Foundation
 import SwiftUI
 
 struct DockerFilterView: View {
-    @AppStorage("docker_filterShowStopped") private var settingShowStopped = false
+    @AppStorage("docker_filterShowStopped") private var settingShowStopped = true
 
     var body: some View {
         VStack(alignment: .leading) {
