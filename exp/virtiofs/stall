@@ -1,0 +1,23 @@
+console | [  940.019936] rcu: INFO: rcu_sched detected stalls on CPUs/tasks:
+console | [  940.020247] rcu: 	.0: (22 ticks this GP) idle=9174/0/0x1 softirq=614/615 fqs=200
+console | [  940.020858] 	    (detected by 4, t=402 jiffies, g=1265, q=6320 ncpus=10)
+console | [  940.021051] Task dump for CPU 0:
+console | [  940.021174] task:swapper/0       state:R  running task     stack:0     pid:0     ppid:0      flags:0x0000000a
+console | [  940.021368] Call trace:
+console | [  940.021399]  __switch_to+0xbc/0x100
+console | [  940.021562]  0xffffb74b7babe940
+console | [  943.824013] rpc-srv/tcp: nfsd: got error -32 when sending 228 bytes - shutting down socket
+
+caused by:
+rg -uuu sys > /dev/null
+in ~/Users/dragon
+
+i think it's vmm stall, happen even with preempt:
+console | [  179.472544] rcu: INFO: rcu_preempt detected stalls on CPUs/tasks:
+console | [  179.472873] rcu: 	.0: (1 GPs behind) idle=3664/1/0x4000000000000000 softirq=466/466 fqs=152
+console | [  179.473081] 	    (detected by 5, t=302 jiffies, g=373, q=17254 ncpus=10)
+console | [  179.473333] Task dump for CPU 0:
+console | [  179.473483] task:rg              state:R  running task     stack:0     pid:2352  ppid:2145   flags:0x0000080e
+console | [  179.473754] Call trace:
+console | [  179.473840]  __switch_to+0xbc/0x100
+console | [  179.474109]  0x3489
