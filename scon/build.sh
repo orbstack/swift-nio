@@ -2,6 +2,8 @@
 
 set -euxo pipefail
 
+make bpfgen
+
 # must be static
 CGO_ENABLED=0 go build ./cmd/scon-agent
 CGO_ENABLED=0 go build ./cmd/scon-forksftp
