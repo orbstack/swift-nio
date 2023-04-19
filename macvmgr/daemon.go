@@ -40,7 +40,6 @@ func runSpawnDaemon() {
 
 		// replace it.
 		// 1. shut down
-		fmt.Fprintln(os.Stderr, "replacing daemon")
 		err = vmclient.Client().Stop()
 		check(err)
 
