@@ -8,6 +8,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/buildid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/flock"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 )
 
@@ -21,23 +22,25 @@ func getSpawnBuildID() (string, error) {
 }
 
 func runSpawnDaemon() {
-	// try dialing vmcontrol
+	// try process
 	var buildID string
 	var err error
-	if vmclient.IsRunning() {
+	pid, err := flock.ReadPid(conf.VmgrLockFile())
+	check(err)
+	if pid != 0 {
 		// check version, replace if changed
 		buildID, err = getSpawnBuildID()
 		check(err)
 
 		runningBuildID, err := os.ReadFile(conf.VmgrTimestampFile())
 		if err == nil && buildID == string(runningBuildID) {
-			fmt.Println("already running")
+			fmt.Println(pid)
 			return
 		}
 
 		// replace it.
 		// 1. shut down
-		fmt.Println("stopping old daemon")
+		fmt.Fprintln(os.Stderr, "replacing daemon")
 		err = vmclient.Client().Stop()
 		check(err)
 
@@ -53,7 +56,6 @@ func runSpawnDaemon() {
 	exe, err := os.Executable()
 	check(err)
 
-	fmt.Println("spawning daemon")
 	logFile, err := os.Create(conf.VmManagerLog())
 	check(err)
 
@@ -65,6 +67,9 @@ func runSpawnDaemon() {
 	}
 	err = cmd.Start()
 	check(err)
+
+	// print pid
+	fmt.Println(cmd.Process.Pid)
 
 	os.Exit(0)
 }

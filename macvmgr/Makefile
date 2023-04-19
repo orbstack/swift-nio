@@ -1,12 +1,14 @@
-.PHONY: vmgr run scli app server serve publish pub
+.PHONY: run scli app serve publish vmgr
 
-run: vmgr
+run: OrbStack\ Helper\ \(VM\)
 	@orb shutdown -f || :
 	@"./OrbStack Helper (VM)" vmgr
 
-vmgr:
+OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib
 	@./build.sh
+
+vmgr: OrbStack\ Helper\ \(VM\)
 
 scli:
 	@cd ../scon; make
@@ -21,14 +23,8 @@ sync:
 app:
 	@cd ..; make app
 
-server:
-	@cd ..; make server
-
 serve:
 	@cd ..; make serve
 
 publish:
 	@cd ..; make publish
-
-pub:
-	@cd ..; make pub
