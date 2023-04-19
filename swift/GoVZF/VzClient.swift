@@ -235,8 +235,9 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
     }
     // 3. swap
     if let diskSwap = spec.diskSwap {
+        // no fsync needed for swap
         let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: diskSwap),
-                readOnly: false, cachingMode: .cached, synchronizationMode: .fsync)
+                readOnly: false, cachingMode: .cached, synchronizationMode: .none)
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
