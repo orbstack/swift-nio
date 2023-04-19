@@ -467,7 +467,7 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 	// if there's no existing (home/system) path to link to, we *require* a shell $PATH
 	shellPathRequired := targetCmdPath == nil
 	// is the PATH already there?
-	if !slices.Contains(pathItems, conf.CliBinDir()) && !slices.Contains(pathItems, conf.CliXbinDir()) {
+	if !slices.Contains(pathItems, conf.CliBinDir()) && !slices.Contains(pathItems, conf.CliXbinDir()) && !slices.Contains(pathItems, conf.UserAppBinDir()) {
 		// do we recognize this shell?
 		shellBase := filepath.Base(details.Shell)
 		var profilePath string
