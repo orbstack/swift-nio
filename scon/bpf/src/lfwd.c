@@ -246,11 +246,11 @@ static __always_inline bool check_listener6(struct bpf_sock_addr *ctx, const __b
         // skc lookup includes timewait and request
         sk = bpf_skc_lookup_tcp(ctx, &tuple, sizeof(tuple.ipv6), BPF_F_CURRENT_NETNS, 0);
     } else if (ctx->type == SOCK_DGRAM) {
-        bpf_printk("lookup udp: %08x%08x%08x%08x:%d -> %08x%08x%08x%08x:%d", bpf_ntohl(tuple.ipv6.saddr[0]), bpf_ntohl(tuple.ipv6.saddr[1]), bpf_ntohl(tuple.ipv6.saddr[2]), bpf_ntohl(tuple.ipv6.saddr[3]), ctx->sk->src_port, bpf_ntohl(tuple.ipv6.daddr[0]), bpf_ntohl(tuple.ipv6.daddr[1]), bpf_ntohl(tuple.ipv6.daddr[2]), bpf_ntohl(tuple.ipv6.daddr[3]), bpf_ntohs(tuple.ipv6.dport));
         if (udp_src_ip6 != NULL) {
             copy4(tuple.ipv6.saddr, udp_src_ip6);
-            tuple.ipv6.sport = ctx->sk->src_port;
+            tuple.ipv6.sport = bpf_htons(ctx->sk->src_port);
         }
+        bpf_printk("lookup udp: %08x%08x%08x%08x:%d -> %08x%08x%08x%08x:%d", bpf_ntohl(tuple.ipv6.saddr[0]), bpf_ntohl(tuple.ipv6.saddr[1]), bpf_ntohl(tuple.ipv6.saddr[2]), bpf_ntohl(tuple.ipv6.saddr[3]), ctx->sk->src_port, bpf_ntohl(tuple.ipv6.daddr[0]), bpf_ntohl(tuple.ipv6.daddr[1]), bpf_ntohl(tuple.ipv6.daddr[2]), bpf_ntohl(tuple.ipv6.daddr[3]), bpf_ntohs(tuple.ipv6.dport));
         sk = bpf_sk_lookup_udp(ctx, &tuple, sizeof(tuple.ipv6), BPF_F_CURRENT_NETNS, 0);
     } else {
         bpf_printk("unknown socket type %d", ctx->type);
