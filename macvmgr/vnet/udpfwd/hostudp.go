@@ -18,21 +18,30 @@ func ListenUDP(addr string) (*net.UDPConn, bool, error) {
 		return nil, false, err
 	}
 
-	if addrPort.Addr().IsLoopback() && addrPort.Port() < 1024 {
+	// disable udp46 for IPv4-only. we only do 4-6 for v6 listeners
+	network := "udp4"
+	if addrPort.Addr().Is6() {
+		network = "udp"
+	}
+
+	if addrPort.Addr().IsLoopback() && addrPort.Port() < 1024 && addrPort.Port() != 0 {
 		// Bypass privileged ports by listening on 0.0.0.0
 		addr := net.IPv4zero
 		if addrPort.Addr().Is6() {
 			addr = net.IPv6zero
+			// disable 4-in-6. if we intended to bind to localhost, then we only want v6.
+			// there's no 4-in-6 for non-0000 addresses.
+			network = "udp6"
 		}
 
-		l, err := net.ListenUDP("udp", &net.UDPAddr{
+		l, err := net.ListenUDP(network, &net.UDPAddr{
 			IP:   addr,
 			Port: int(addrPort.Port()),
 		})
 		return l, true, err
 	}
 
-	l, err := net.ListenUDP("udp", &net.UDPAddr{
+	l, err := net.ListenUDP(network, &net.UDPAddr{
 		IP:   addrPort.Addr().AsSlice(),
 		Port: int(addrPort.Port()),
 	})
