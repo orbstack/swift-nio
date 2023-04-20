@@ -1,0 +1,25 @@
+{
+    "files.associations": {
+        "*.dependencies": "json",
+        "Kbuild": "makefile",
+        "*.c": "c",
+        "*.h": "c",
+        "array": "c",
+        "*.tcc": "c",
+        "concepts": "c",
+        "deque": "c",
+        "string": "c",
+        "unordered_map": "c",
+        "vector": "c",
+        "memory": "c",
+        "string_view": "c",
+        "istream": "c",
+        "ostream": "c",
+        "sstream": "c",
+        "streambuf": "c",
+        "functional": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c"
+    }
+}
