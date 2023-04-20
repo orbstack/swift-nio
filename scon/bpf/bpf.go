@@ -18,18 +18,25 @@ func AttachLfwd(cgPath string, netnsCookie uint64) (func() error, error) {
 	// maps are per-program instance
 	// and this is an unpinned program (no ref in /sys/fs/bpf), so it'll be destroyed
 	// when we close fds
-	objs := lfwdObjects{}
-	err := loadLfwdObjects(&objs, nil)
+	spec, err := loadLfwd()
 	if err != nil {
-		return nil, fmt.Errorf("load obj: %w", err)
+		return nil, fmt.Errorf("load spec: %w", err)
 	}
-	closers = append(closers, &objs)
 
 	// set netns cookie filter
-	err = objs.ConfigMap.Update(uint32(0), netnsCookie, ebpf.UpdateAny)
+	err = spec.RewriteConstants(map[string]any{
+		"config_netns_cookie": netnsCookie,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("update config map: %w", err)
+		return nil, fmt.Errorf("configure: %w", err)
 	}
+
+	objs := lfwdObjects{}
+	err = spec.LoadAndAssign(&objs, nil)
+	if err != nil {
+		return nil, fmt.Errorf("load objs: %w", err)
+	}
+	closers = append(closers, &objs)
 
 	attachOne := func(typ ebpf.AttachType, prog *ebpf.Program) error {
 		l, err := link.AttachCgroup(link.CgroupOptions{
