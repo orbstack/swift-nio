@@ -26,14 +26,17 @@
 #define bpf_printk(fmt, ...) do { } while (0)
 #endif
 
-#define VERDICT_REJECT	0
-#define VERDICT_PROCEED	1
+enum {
+    VERDICT_REJECT = 0,
+    VERDICT_PROCEED = 1,
+};
 
 #define LOCALHOST_IP4 0x7f000001
 #define LOCALHOST_IP6_0 0x00000000
 #define LOCALHOST_IP6_1 0x00000000
 #define LOCALHOST_IP6_2 0x00000000
 #define LOCALHOST_IP6_3 0x00000001
+static const __u32 LOCALHOST_IP6[4] = {bpf_htonl(LOCALHOST_IP6_0), bpf_htonl(LOCALHOST_IP6_1), bpf_htonl(LOCALHOST_IP6_2), bpf_htonl(LOCALHOST_IP6_3)};
 
 // hostnat ip = 100.115.92.254
 #define HOSTNAT_IP4 0x64735cfe
@@ -42,6 +45,7 @@
 #define HOSTNAT_IP6_1 0x70961d22
 #define HOSTNAT_IP6_2 0x00000000
 #define HOSTNAT_IP6_3 0x00000254
+static const __u32 HOSTNAT_IP6[4] = {bpf_htonl(HOSTNAT_IP6_0), bpf_htonl(HOSTNAT_IP6_1), bpf_htonl(HOSTNAT_IP6_2), bpf_htonl(HOSTNAT_IP6_3)};
 
 struct fwd_meta {
     // value size can't be 0
@@ -98,7 +102,7 @@ static bool check_ip4(struct bpf_sock_addr *ctx) {
     return true;
 }
 
-static bool check_listener4(struct bpf_sock_addr *ctx) {
+static bool check_listener4(struct bpf_sock_addr *ctx, __be32 udp_src_ip4) {
     struct bpf_sock_tuple tuple = {
         .ipv4 = {
             .saddr = 0,
@@ -110,9 +114,15 @@ static bool check_listener4(struct bpf_sock_addr *ctx) {
 
     struct bpf_sock *sk;
     if (ctx->type == SOCK_STREAM) {
+        bpf_printk("lookup tcp: %x:%d", bpf_ntohl(tuple.ipv4.daddr), bpf_ntohs(tuple.ipv4.dport));
         // skc lookup includes timewait and request
         sk = bpf_skc_lookup_tcp(ctx, &tuple, sizeof(tuple.ipv4), BPF_F_CURRENT_NETNS, 0);
     } else if (ctx->type == SOCK_DGRAM) {
+        bpf_printk("lookup udp: %x:%d -> %x:%d", bpf_ntohl(udp_src_ip4), ctx->sk->src_port, bpf_ntohl(tuple.ipv4.daddr), bpf_ntohs(tuple.ipv4.dport));
+        if (udp_src_ip4 != 0) {
+            tuple.ipv4.saddr = udp_src_ip4;
+            tuple.ipv4.sport = bpf_htons(ctx->sk->src_port);
+        }
         sk = bpf_sk_lookup_udp(ctx, &tuple, sizeof(tuple.ipv4), BPF_F_CURRENT_NETNS, 0);
     } else {
         bpf_printk("unknown socket type %d", ctx->type);
@@ -137,9 +147,14 @@ int lfwd_connect4(struct bpf_sock_addr *ctx) {
     if (!check_netns(ctx)) {
         return VERDICT_PROCEED;
     }
+    // strange things will happen with port 0
+    if (ctx->user_port == 0) {
+        bpf_printk("port 0");
+        return VERDICT_PROCEED;
+    }
 
     // check for existing socket
-    if (!check_listener4(ctx)) {
+    if (!check_listener4(ctx, 0)) {
         return VERDICT_PROCEED;
     }
 
@@ -154,7 +169,7 @@ int lfwd_connect4(struct bpf_sock_addr *ctx) {
         return VERDICT_REJECT;
     }
 
-    bpf_printk("redirecting tcp4: %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
+    bpf_printk("redirecting tcp4/udp4: %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
     return VERDICT_PROCEED;
 }
 
@@ -168,11 +183,21 @@ int lfwd_sendmsg4(struct bpf_sock_addr *ctx) {
     if (!check_netns(ctx)) {
         return VERDICT_PROCEED;
     }
+    // strange things will happen with port 0
+    if (ctx->user_port == 0) {
+        bpf_printk("port 0");
+        return VERDICT_PROCEED;
+    }
 
-    bpf_printk("sendmsg4: ip=%x port=%d state=%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port), ctx->sk->state);
+    bpf_printk("sendmsg4: ip=%x srcip=%x port=%d state=%d", bpf_ntohl(ctx->user_ip4), bpf_ntohl(ctx->msg_src_ip4), bpf_ntohs(ctx->user_port), ctx->sk->state);
 
     // check for existing socket
-    if (!check_listener4(ctx)) {
+    // combinations: src 0.0.0.0 (unlikely for client), src 127.0.0.1 (likely since dest is localhost), and explicit src
+    if (!check_listener4(ctx, 0) || !check_listener4(ctx, bpf_htonl(LOCALHOST_IP4))) {
+        return VERDICT_PROCEED;
+    }
+    // also check for explicit sendmsg src ip4 if needed
+    if (ctx->msg_src_ip4 != 0 && !check_listener4(ctx, ctx->msg_src_ip4)) {
         return VERDICT_PROCEED;
     }
 
@@ -202,12 +227,8 @@ int lfwd_getpeername4(struct bpf_sock_addr *ctx) {
 /*
  * v6
  */
-static bool ip6_eq4(__u32 *a, __u32 b0, __u32 b1, __u32 b2, __u32 b3) {
-    return a[0] == bpf_htonl(b0) && a[1] == bpf_htonl(b1) && a[2] == bpf_htonl(b2) && a[3] == bpf_htonl(b3);
-}
-
 static bool check_ip6(struct bpf_sock_addr *ctx) {
-    if (!ip6_eq4(ctx->user_ip6, LOCALHOST_IP6_0, LOCALHOST_IP6_1, LOCALHOST_IP6_2, LOCALHOST_IP6_3)) {
+    if (!memcmp(ctx->user_ip6, LOCALHOST_IP6, 16)) {
         bpf_printk("not localhost %x%x%x%x", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]));
 
         // udp sockets can be reconnected, so delete meta just in case
@@ -221,7 +242,14 @@ static bool check_ip6(struct bpf_sock_addr *ctx) {
     return true;
 }
 
-static bool check_listener6(struct bpf_sock_addr *ctx) {
+#define copy4(dst, src) \
+    dst[0] = src[0]; \
+    dst[1] = src[1]; \
+    dst[2] = src[2]; \
+    dst[3] = src[3];
+
+// inline needed for copy from *udp_src_ip6
+static __always_inline bool check_listener6(struct bpf_sock_addr *ctx, const __be32 *udp_src_ip6) {
     struct bpf_sock_tuple tuple = {
         .ipv6 = {
             .saddr = {0},
@@ -230,16 +258,19 @@ static bool check_listener6(struct bpf_sock_addr *ctx) {
         },
     };
     // copy daddr (verifier doesn't like memcpy)
-    tuple.ipv6.daddr[0] = ctx->user_ip6[0];
-    tuple.ipv6.daddr[1] = ctx->user_ip6[1];
-    tuple.ipv6.daddr[2] = ctx->user_ip6[2];
-    tuple.ipv6.daddr[3] = ctx->user_ip6[3];
+    copy4(tuple.ipv6.daddr, ctx->user_ip6);
 
     struct bpf_sock *sk;
     if (ctx->type == SOCK_STREAM) {
+        bpf_printk("lookup tcp: %x%x%x%x:%d", bpf_ntohl(tuple.ipv6.daddr[0]), bpf_ntohl(tuple.ipv6.daddr[1]), bpf_ntohl(tuple.ipv6.daddr[2]), bpf_ntohl(tuple.ipv6.daddr[3]), bpf_ntohs(tuple.ipv6.dport));
         // skc lookup includes timewait and request
         sk = bpf_skc_lookup_tcp(ctx, &tuple, sizeof(tuple.ipv6), BPF_F_CURRENT_NETNS, 0);
     } else if (ctx->type == SOCK_DGRAM) {
+        bpf_printk("lookup udp: %x%x%x%x:%d -> %x%x%x%x:%d", bpf_ntohl(tuple.ipv6.saddr[0]), bpf_ntohl(tuple.ipv6.saddr[1]), bpf_ntohl(tuple.ipv6.saddr[2]), bpf_ntohl(tuple.ipv6.saddr[3]), ctx->sk->src_port, bpf_ntohl(tuple.ipv6.daddr[0]), bpf_ntohl(tuple.ipv6.daddr[1]), bpf_ntohl(tuple.ipv6.daddr[2]), bpf_ntohl(tuple.ipv6.daddr[3]), bpf_ntohs(tuple.ipv6.dport));
+        if (udp_src_ip6 != NULL) {
+            copy4(tuple.ipv6.saddr, udp_src_ip6);
+            tuple.ipv6.sport = ctx->sk->src_port;
+        }
         sk = bpf_sk_lookup_udp(ctx, &tuple, sizeof(tuple.ipv6), BPF_F_CURRENT_NETNS, 0);
     } else {
         bpf_printk("unknown socket type %d", ctx->type);
@@ -264,17 +295,19 @@ int lfwd_connect6(struct bpf_sock_addr *ctx) {
     if (!check_netns(ctx)) {
         return VERDICT_PROCEED;
     }
+    // strange things will happen with port 0
+    if (ctx->user_port == 0) {
+        bpf_printk("port 0");
+        return VERDICT_PROCEED;
+    }
 
     // check for existing socket
-    if (!check_listener6(ctx)) {
+    if (!check_listener6(ctx, NULL)) {
         return VERDICT_PROCEED;
     }
 
     // rewrite address
-    ctx->user_ip6[0] = bpf_htonl(HOSTNAT_IP6_0);
-    ctx->user_ip6[1] = bpf_htonl(HOSTNAT_IP6_1);
-    ctx->user_ip6[2] = bpf_htonl(HOSTNAT_IP6_2);
-    ctx->user_ip6[3] = bpf_htonl(HOSTNAT_IP6_3);
+    copy4(ctx->user_ip6, HOSTNAT_IP6);
 
     // save to map
     struct fwd_meta meta = {};
@@ -284,7 +317,7 @@ int lfwd_connect6(struct bpf_sock_addr *ctx) {
         return VERDICT_REJECT;
     }
 
-    bpf_printk("redirecting tcp6: %x%x%x%x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
+    bpf_printk("redirecting tcp6/udp6: %x%x%x%x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return VERDICT_PROCEED;
 }
 
@@ -298,19 +331,31 @@ int lfwd_sendmsg6(struct bpf_sock_addr *ctx) {
     if (!check_netns(ctx)) {
         return VERDICT_PROCEED;
     }
+    // strange things will happen with port 0
+    if (ctx->user_port == 0) {
+        bpf_printk("port 0");
+        return VERDICT_PROCEED;
+    }
 
     bpf_printk("sendmsg6: ip=%x%x%x%x port=%d state=%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port), ctx->sk->state);
 
     // check for existing socket
-    if (!check_listener6(ctx)) {
+    // combinations: src :: (unlikely for client), src ::1 (likely since dest is localhost), and explicit src
+    if (!check_listener6(ctx, NULL) || !check_listener6(ctx, LOCALHOST_IP6)) {
+        return VERDICT_PROCEED;
+    }
+    // also check for explicit sendmsg src ip6 if needed
+    bool has_explicit_src =
+        ctx->msg_src_ip6[0] != 0 ||
+        ctx->msg_src_ip6[1] != 0 ||
+        ctx->msg_src_ip6[2] != 0 ||
+        ctx->msg_src_ip6[3] != 0;
+    if (has_explicit_src && !check_listener6(ctx, (__be32*) &ctx->msg_src_ip6)) {
         return VERDICT_PROCEED;
     }
 
     // rewrite address
-    ctx->user_ip6[0] = bpf_htonl(HOSTNAT_IP6_0);
-    ctx->user_ip6[1] = bpf_htonl(HOSTNAT_IP6_1);
-    ctx->user_ip6[2] = bpf_htonl(HOSTNAT_IP6_2);
-    ctx->user_ip6[3] = bpf_htonl(HOSTNAT_IP6_3);
+    copy4(ctx->user_ip6, HOSTNAT_IP6);
 
     // don't save to map. this is an unconnected udp socket, so no getpeername
 
@@ -327,11 +372,7 @@ int lfwd_getpeername6(struct bpf_sock_addr *ctx) {
     }
 
     // rewrite address
-    ctx->user_ip6[0] = bpf_htonl(LOCALHOST_IP6_0);
-    ctx->user_ip6[1] = bpf_htonl(LOCALHOST_IP6_1);
-    ctx->user_ip6[2] = bpf_htonl(LOCALHOST_IP6_2);
-    ctx->user_ip6[3] = bpf_htonl(LOCALHOST_IP6_3);
-
+    copy4(ctx->user_ip6, LOCALHOST_IP6);
     return VERDICT_PROCEED;
 }
 
