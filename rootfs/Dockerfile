@@ -71,7 +71,7 @@ EOT
 # ref: https://github.com/docker-library/docker/blob/master/20.10/dind/Dockerfile
 FROM base AS docker
 # change to trigger update
-RUN echo docker=v23.0.3
+RUN echo docker=v23.0.4
 
 # removed: xfsprogs e2fsprogs btrfs-progs
 RUN apk add --no-cache \
