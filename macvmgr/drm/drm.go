@@ -83,7 +83,6 @@ type DrmClient struct {
 	// late init
 	vnet            *vnet.Network
 	sconInternal    *isclient.Client
-	sconClientsCh   chan *isclient.Client
 	sconHasReported bool
 
 	updater *updates.Updater
@@ -125,8 +124,7 @@ func newDrmClient() *DrmClient {
 
 		updater: updates.NewUpdater(),
 
-		failChan:      make(chan struct{}),
-		sconClientsCh: make(chan *isclient.Client, 1),
+		failChan: make(chan struct{}),
 	}
 
 	c.http = &http.Client{
@@ -281,7 +279,6 @@ func (c *DrmClient) UseSconInternalClient(fn func(*isclient.Client) error) error
 			return err
 		}
 		c.sconInternal = sconInternal
-		c.sconClientsCh <- sconInternal
 	}
 
 	return fn(c.sconInternal)
@@ -478,10 +475,6 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 
 	dlog("response: ", response)
 	return &response, nil
-}
-
-func (c *DrmClient) SconInternalClientsCh() <-chan *isclient.Client {
-	return c.sconClientsCh
 }
 
 func Client() *DrmClient {
