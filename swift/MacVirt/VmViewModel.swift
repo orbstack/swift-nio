@@ -566,7 +566,7 @@ class VmViewModel: ObservableObject {
         // need to do anything?
         if let cmd = info.adminShellCommand {
             let reason = info.adminMessage ?? "make changes"
-            let prompt = "\(Constants.userAppName) wants to \(reason)."
+            let prompt = "\(Constants.userAppName) wants to \(reason). This is optional."
             waitTasks.append(Task.detached {
                 do {
                     try runAsAdmin(script: cmd, prompt: prompt)

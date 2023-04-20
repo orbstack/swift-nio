@@ -1,6 +1,7 @@
 package flock
 
 import (
+	"errors"
 	"os"
 
 	"golang.org/x/sys/unix"
@@ -52,6 +53,10 @@ func Unlock(file *os.File) error {
 func ReadPid(path string) (int, error) {
 	file, err := os.Open(path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		}
+
 		return 0, err
 	}
 	defer file.Close()
