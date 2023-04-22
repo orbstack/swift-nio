@@ -83,7 +83,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 		// no need for GSO when our MTU is so high. 16 -> 17 Gbps
 		// GSOMaxSize:         opts.MTU,
 		GvisorGSOEnabled:   false,
-		PacketDispatchMode: dglink.Readv,
+		PacketDispatchMode: dglink.RecvMMsg,
 		TXChecksumOffload:  true,
 		RXChecksumOffload:  true,
 	})

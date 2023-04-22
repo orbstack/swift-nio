@@ -72,6 +72,8 @@ const (
 	// dispatch options but the one that is supported by all underlying FD
 	// types.
 	Readv PacketDispatchMode = iota
+	// macos private api: recvmsg_x
+	RecvMMsg
 )
 
 func (p PacketDispatchMode) String() string {
@@ -318,6 +320,14 @@ func createInboundDispatcher(e *endpoint, fd int, isSocket bool, fID int32) (lin
 
 	if isSocket {
 		switch e.packetDispatchMode {
+		case RecvMMsg:
+			// If the provided FD is a socket then we optimize
+			// packet reads by using recvmmsg() instead of read() to
+			// read packets in a batch.
+			inboundDispatcher, err = newRecvMMsgDispatcher(fd, e)
+			if err != nil {
+				return nil, fmt.Errorf("newRecvMMsgDispatcher(%d, %+v) = %v", fd, e, err)
+			}
 		case Readv:
 		default:
 			return nil, fmt.Errorf("unknown dispatch mode %d", e.packetDispatchMode)

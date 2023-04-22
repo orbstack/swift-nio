@@ -148,3 +148,36 @@ func BlockingPollUntilStopped(efd int, fd int, events int16) (bool, unix.Errno) 
 	}
 	return pfds[0].Revents&unix.POLLIN != 0, 0
 }
+
+// MMsgHdr represents the mmsg_hdr structure required by recvmsg_x() on macOS.
+// xnu bsd/sys/socket.h, struct msghdr_x
+type MMsgHdr struct {
+	Msg unix.Msghdr
+	Len uint32
+}
+
+// BlockingRecvMMsgUntilStopped reads from a file descriptor that is set up as
+// non-blocking and stores the received messages in a slice of MMsgHdr
+// structures. If no data is available, it will block in a poll() syscall until
+// the file descriptor becomes readable or stop is signalled (efd becomes
+// readable). Returns -1 in the latter case.
+func BlockingRecvMMsgUntilStopped(efd int, fd int, msgHdrs []MMsgHdr) (int, tcpip.Error) {
+	for {
+		n, _, e := unix.RawSyscall6(unix.SYS_RECVMSG_X, uintptr(fd), uintptr(unsafe.Pointer(&msgHdrs[0])), uintptr(len(msgHdrs)), unix.MSG_DONTWAIT, 0, 0)
+		if e == 0 {
+			return int(n), nil
+		}
+
+		if e != 0 && e != unix.EWOULDBLOCK {
+			return 0, TranslateErrno(e)
+		}
+
+		stopped, e := BlockingPollUntilStopped(efd, fd, unix.POLLIN)
+		if stopped {
+			return -1, nil
+		}
+		if e != 0 && e != unix.EINTR {
+			return 0, TranslateErrno(e)
+		}
+	}
+}
