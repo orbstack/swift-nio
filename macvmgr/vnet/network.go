@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/link/qdisc/fifo"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -151,7 +152,9 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		}
 	}
 
-	if err := s.CreateNIC(nicID, nicEp); err != nil {
+	if err := s.CreateNICWithOptions(nicID, nicEp, stack.NICOptions{
+		QDisc: fifo.New(nicEp, 1, 1000),
+	}); err != nil {
 		return nil, errors.New(err.String())
 	}
 

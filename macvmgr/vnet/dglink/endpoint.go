@@ -520,15 +520,113 @@ func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
 }
 
 func (e *endpoint) sendBatch(batchFDInfo fdInfo, pkts []stack.PacketBufferPtr) (int, tcpip.Error) {
-	var written int
-	var err tcpip.Error
-	for written < len(pkts) {
-		if err = e.writePacket(pkts[written]); err != nil {
-			break
+	// Degrade to writePacket if underlying fd is not a socket.
+	if !batchFDInfo.isSocket {
+		var written int
+		var err tcpip.Error
+		for written < len(pkts) {
+			if err = e.writePacket(pkts[written]); err != nil {
+				break
+			}
+			written++
 		}
-		written++
+		return written, err
 	}
-	return written, err
+
+	// Send a batch of packets through batchFD.
+	batchFD := batchFDInfo.fd
+	mmsgHdrsStorage := make([]rawfile.MMsgHdr, 0, len(pkts))
+	packets := 0
+	for packets < len(pkts) {
+		mmsgHdrs := mmsgHdrsStorage
+		batch := pkts[packets:]
+		//syscallHeaderBytes := uintptr(0)
+		for _, pkt := range batch {
+			var vnetHdrBuf []byte
+			if e.gsoKind == stack.HostGSOSupported {
+				vnetHdr := virtioNetHdr{}
+				if pkt.GSOOptions.Type != stack.GSONone {
+					vnetHdr.hdrLen = uint16(pkt.HeaderSize())
+					if pkt.GSOOptions.NeedsCsum {
+						vnetHdr.flags = _VIRTIO_NET_HDR_F_NEEDS_CSUM
+						vnetHdr.csumStart = header.EthernetMinimumSize + pkt.GSOOptions.L3HdrLen
+						vnetHdr.csumOffset = pkt.GSOOptions.CsumOffset
+					}
+					if pkt.GSOOptions.Type != stack.GSONone && uint16(pkt.Data().Size()) > pkt.GSOOptions.MSS {
+						switch pkt.GSOOptions.Type {
+						case stack.GSOTCPv4:
+							vnetHdr.gsoType = _VIRTIO_NET_HDR_GSO_TCPV4
+						case stack.GSOTCPv6:
+							vnetHdr.gsoType = _VIRTIO_NET_HDR_GSO_TCPV6
+						default:
+							panic(fmt.Sprintf("Unknown gso type: %v", pkt.GSOOptions.Type))
+						}
+						vnetHdr.gsoSize = pkt.GSOOptions.MSS
+					}
+				}
+				vnetHdrBuf = vnetHdr.marshal()
+			}
+
+			views := pkt.AsSlices()
+			numIovecs := len(views)
+			if len(vnetHdrBuf) != 0 {
+				numIovecs++
+			}
+			if numIovecs > rawfile.MaxIovs {
+				numIovecs = rawfile.MaxIovs
+			}
+			// we don't have SizeofMMsgHdr
+			/*
+				if e.maxSyscallHeaderBytes != 0 {
+					syscallHeaderBytes += rawfile.SizeofMMsgHdr + uintptr(numIovecs)*rawfile.SizeofIovec
+					if syscallHeaderBytes > e.maxSyscallHeaderBytes {
+						// We can't fit this packet into this call to sendmmsg().
+						// We could potentially do so if we reduced numIovecs
+						// further, but this might incur considerable extra
+						// copying. Leave it to the next batch instead.
+						break
+					}
+				}
+			*/
+
+			// We can't easily allocate iovec arrays on the stack here since
+			// they will escape this loop iteration via mmsgHdrs.
+			iovecs := make([]unix.Iovec, 0, numIovecs)
+			iovecs = rawfile.AppendIovecFromBytes(iovecs, vnetHdrBuf, numIovecs)
+			for _, v := range views {
+				iovecs = rawfile.AppendIovecFromBytes(iovecs, v, numIovecs)
+			}
+
+			var mmsgHdr rawfile.MMsgHdr
+			mmsgHdr.Msg.Iov = &iovecs[0]
+			mmsgHdr.Msg.SetIovlen(len(iovecs))
+			mmsgHdrs = append(mmsgHdrs, mmsgHdr)
+		}
+
+		if len(mmsgHdrs) == 0 {
+			// We can't fit batch[0] into a mmsghdr while staying under
+			// e.maxSyscallHeaderBytes. Use WritePacket, which will avoid the
+			// mmsghdr (by using writev) and re-buffer iovecs more aggressively
+			// if necessary (by using e.writevMaxIovs instead of
+			// rawfile.MaxIovs).
+			pkt := batch[0]
+			if err := e.writePacket(pkt); err != nil {
+				return packets, err
+			}
+			packets++
+		} else {
+			for len(mmsgHdrs) > 0 {
+				sent, err := rawfile.NonBlockingSendMMsg(batchFD, mmsgHdrs)
+				if err != nil {
+					return packets, err
+				}
+				packets += sent
+				mmsgHdrs = mmsgHdrs[sent:]
+			}
+		}
+	}
+
+	return packets, nil
 }
 
 // WritePackets writes outbound packets to the underlying file descriptors. If
@@ -540,16 +638,37 @@ func (e *endpoint) sendBatch(batchFDInfo fdInfo, pkts []stack.PacketBufferPtr) (
 //   - pkt.GSOOptions
 //   - pkt.NetworkProtocolNumber
 func (e *endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
+	// Preallocate to avoid repeated reallocation as we append to batch.
+	batch := make([]stack.PacketBufferPtr, 0, BatchSize)
+	batchFDInfo := fdInfo{fd: -1, isSocket: false}
 	sentPackets := 0
-	var err tcpip.Error
 	for _, pkt := range pkts.AsSlice() {
-		if err = e.writePacket(pkt); err != nil {
-			break
+		if len(batch) == 0 {
+			batchFDInfo = e.fds[pkt.Hash%uint32(len(e.fds))]
 		}
-		sentPackets++
+		pktFDInfo := e.fds[pkt.Hash%uint32(len(e.fds))]
+		if sendNow := pktFDInfo != batchFDInfo; !sendNow {
+			batch = append(batch, pkt)
+			continue
+		}
+		n, err := e.sendBatch(batchFDInfo, batch)
+		sentPackets += n
+		if err != nil {
+			return sentPackets, err
+		}
+		batch = batch[:0]
+		batch = append(batch, pkt)
+		batchFDInfo = pktFDInfo
 	}
 
-	return sentPackets, err
+	if len(batch) != 0 {
+		n, err := e.sendBatch(batchFDInfo, batch)
+		sentPackets += n
+		if err != nil {
+			return sentPackets, err
+		}
+	}
+	return sentPackets, nil
 }
 
 // InjectOutbound implements stack.InjectableEndpoint.InjectOutbound.
