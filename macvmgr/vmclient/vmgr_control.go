@@ -4,12 +4,12 @@ import (
 	"errors"
 	"net"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/util"
 	"github.com/kdrag0n/macvirt/scon/sclient"
 )
 
@@ -68,12 +68,11 @@ func SpawnDaemon(newBuildID string) error {
 	}
 
 	// exec self with spawn-daemon
-	args := []string{"spawn-daemon"}
+	args := []string{vmgrExe, "spawn-daemon"}
 	if newBuildID != "" {
 		args = append(args, newBuildID)
 	}
-	cmd := exec.Command(vmgrExe, args...)
-	err = cmd.Run()
+	_, err = util.Run(args...)
 	if err != nil {
 		return err
 	}
