@@ -15,6 +15,8 @@
 package dglink
 
 import (
+	"fmt"
+
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink/rawfile"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink/stopfd"
 	"golang.org/x/sys/unix"
@@ -221,7 +223,8 @@ func (d *readVDispatcher) dispatch() (bool, tcpip.Error) {
 type recvMMsgDispatcher struct {
 	stopfd.StopFD
 	// fd is the file descriptor used to send and receive packets.
-	fd int
+	fd   int
+	kqFd int
 
 	// e is the endpoint this dispatcher is attached to.
 	e *endpoint
@@ -247,9 +250,41 @@ func newRecvMMsgDispatcher(fd int, e *endpoint) (linkDispatcher, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: don't leak kqueue fd - does not matter because we never remove NICs
+	kqFd, err := unix.Kqueue()
+	if err != nil {
+		return nil, err
+	}
+
+	ev1 := unix.Kevent_t{
+		Ident:  uint64(fd),
+		Filter: unix.EVFILT_READ,
+		Flags:  unix.EV_ADD | unix.EV_ENABLE,
+		Fflags: 0,
+		Data:   0,
+		Udata:  nil,
+	}
+	ev2 := unix.Kevent_t{
+		Ident:  uint64(stopFD.EFD),
+		Filter: unix.EVFILT_READ,
+		Flags:  unix.EV_ADD | unix.EV_ENABLE,
+		Fflags: 0,
+		Data:   0,
+		Udata:  nil,
+	}
+	nReg, err := unix.Kevent(kqFd, []unix.Kevent_t{ev1, ev2}, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if nReg == -1 {
+		return nil, fmt.Errorf("failed to register kqueue events")
+	}
+
 	d := &recvMMsgDispatcher{
 		StopFD:  stopFD,
 		fd:      fd,
+		kqFd:    kqFd,
 		e:       e,
 		bufs:    make([]*iovecBuffer, MaxMsgsPerRecv),
 		msgHdrs: make([]rawfile.MMsgHdr, MaxMsgsPerRecv),
@@ -282,7 +317,7 @@ func (d *recvMMsgDispatcher) dispatch() (bool, tcpip.Error) {
 		d.msgHdrs[k].Msg.SetIovlen(iovLen)
 	}
 
-	nMsgs, err := rawfile.BlockingRecvMMsgUntilStopped(d.EFD, d.fd, d.msgHdrs)
+	nMsgs, err := rawfile.BlockingRecvMMsgUntilStopped(d.kqFd, d.EFD, d.fd, d.msgHdrs)
 	if nMsgs == -1 || err != nil {
 		return false, err
 	}

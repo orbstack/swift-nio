@@ -149,6 +149,26 @@ func BlockingPollUntilStopped(efd int, fd int, events int16) (bool, unix.Errno) 
 	return pfds[0].Revents&unix.POLLIN != 0, 0
 }
 
+func BlockingKeventUntilStopped(kqfd int, efd int, fd int) (bool, unix.Errno) {
+	var kevent [1]unix.Kevent_t
+	_, errno := unix.Kevent(kqfd, nil, kevent[:], nil)
+	if errno != nil {
+		return kevent[0].Ident == uint64(efd), errno.(unix.Errno)
+	}
+
+	if kevent[0].Ident == uint64(fd) {
+		if kevent[0].Flags&unix.EV_EOF != 0 || kevent[0].Flags&unix.EV_ERROR != 0 {
+			errno = unix.ECONNRESET
+		}
+		if errno != nil {
+			return false, errno.(unix.Errno)
+		}
+		return false, 0
+	}
+
+	return kevent[0].Ident == uint64(efd), 0
+}
+
 // MMsgHdr represents the mmsg_hdr structure required by recvmsg_x() on macOS.
 // xnu bsd/sys/socket.h, struct msghdr_x
 type MMsgHdr struct {
@@ -161,7 +181,7 @@ type MMsgHdr struct {
 // structures. If no data is available, it will block in a poll() syscall until
 // the file descriptor becomes readable or stop is signalled (efd becomes
 // readable). Returns -1 in the latter case.
-func BlockingRecvMMsgUntilStopped(efd int, fd int, msgHdrs []MMsgHdr) (int, tcpip.Error) {
+func BlockingRecvMMsgUntilStopped(kqFd int, efd int, fd int, msgHdrs []MMsgHdr) (int, tcpip.Error) {
 	for {
 		n, _, e := unix.RawSyscall6(unix.SYS_RECVMSG_X, uintptr(fd), uintptr(unsafe.Pointer(&msgHdrs[0])), uintptr(len(msgHdrs)), unix.MSG_DONTWAIT, 0, 0)
 		if e == 0 {
@@ -172,7 +192,7 @@ func BlockingRecvMMsgUntilStopped(efd int, fd int, msgHdrs []MMsgHdr) (int, tcpi
 			return 0, TranslateErrno(e)
 		}
 
-		stopped, e := BlockingPollUntilStopped(efd, fd, unix.POLLIN)
+		stopped, e := BlockingKeventUntilStopped(kqFd, efd, fd)
 		if stopped {
 			return -1, nil
 		}
