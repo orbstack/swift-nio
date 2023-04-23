@@ -501,25 +501,13 @@ func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
 		vnetHdrBuf = vnetHdr.marshal()
 	}
 
-	views := pkt.AsSlices()
-	numIovecs := len(views)
-	if len(vnetHdrBuf) != 0 {
-		numIovecs++
-	}
-	if numIovecs > e.writevMaxIovs {
-		numIovecs = e.writevMaxIovs
-	}
-
 	// Allocate small iovec arrays on the stack.
 	var iovecsArr [8]unix.Iovec
 	iovecs := iovecsArr[:0]
-	if numIovecs > len(iovecsArr) {
-		iovecs = make([]unix.Iovec, 0, numIovecs)
-	}
-	iovecs = rawfile.AppendIovecFromBytes(iovecs, vnetHdrBuf, numIovecs)
-	for _, v := range views {
-		iovecs = rawfile.AppendIovecFromBytes(iovecs, v, numIovecs)
-	}
+	iovecs = rawfile.AppendIovecFromBytes(iovecs, vnetHdrBuf, e.writevMaxIovs)
+	pkt.ForEachView(func(v *bufferv2.View) {
+		iovecs = rawfile.AppendIovecFromBytes(iovecs, v.AsSlice(), e.writevMaxIovs)
+	})
 	return rawfile.NonBlockingWriteIovec(fd, iovecs)
 }
 
