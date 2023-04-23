@@ -15,6 +15,7 @@ echo "[BEGIN] vinit-early"
 # net
 echo 0 > /proc/sys/net/ipv6/conf/eth0/accept_ra
 echo 0 > /proc/sys/net/ipv6/conf/eth0/accept_dad # fix tentative ipv6 delay
+ip link set eth0 mtu 1500
 ip link set eth0 up
 ip addr add 100.115.92.2/24 dev eth0
 ip route add default via 100.115.92.1 dev eth0

@@ -214,9 +214,12 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		{Destination: subnet6, NIC: nicID},
 	})
 
-	// Performance. Not actually causing NFS panics
+	// Disable SACK for performance
+	// SACK causes high iperf3 retransmits through machine bridge/NAT (10-50/sec @ 65k MTU, 50-500/sec @ 1500 MTU + TSO)
+	// gvisor SACK is broken: https://github.com/google/gvisor/issues/7406
+	// TODO: why do bridge and TSO affect it?
 	{
-		opt := tcpip.TCPSACKEnabled(true)
+		opt := tcpip.TCPSACKEnabled(false)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
 			return nil, errors.New(err.String())
 		}
