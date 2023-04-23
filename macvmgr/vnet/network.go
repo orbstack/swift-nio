@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	PreferredMtu = 65520
+	PreferredMtu = 65535
 	capturePcap  = false
 	nicID        = 1
 
