@@ -113,6 +113,101 @@ COPY rootfs/utils/docker-entrypoint.sh /
 
 
 ##########################################################################
+# Patched qemu for arm64
+# newer qemu 7.2 breaks openssl rsa verification
+FROM base as pkgbuild-qemu
+
+# deps for build, qemu
+RUN apk add --no-cache \
+    alpine-sdk git \
+    meson bash alsa-lib-dev bison capstone-dev curl-dev flex glib-dev glib-static gnutls-dev gtk+3.0-dev libaio-dev libcap-dev libcap-ng-dev libjpeg-turbo-dev libnfs-dev libpng-dev libseccomp-dev libslirp-dev libssh-dev liburing-dev libusb-dev libxml2-dev linux-headers lzo-dev ncurses-dev numactl-dev perl pulseaudio-dev python3 py3-sphinx py3-sphinx_rtd_theme sdl2-dev snappy-dev spice-dev texinfo usbredir-dev util-linux-dev vde2-dev virglrenderer-dev vte3-dev xfsprogs-dev zlib-dev zlib-static zstd-dev
+RUN <<EOT sh -eux
+if [[ "\$(uname -m)" != "aarch64" ]]; then
+    echo "skip"
+fi
+
+mkdir /work
+cd /work
+curl -LO https://wiki.qemu-project.org/download/qemu-7.1.0.tar.xz
+echo "c60c5ff8ec99b7552e485768908920658fdd8035ff7a6fa370fb6881957dc8b7e5f18ff1a8f49bd6aa22909ede2a7c084986d8244f12074ccd33ebe40a0c411f  qemu-7.1.0.tar.xz" > checksum
+sha512sum -c checksum
+
+tar xf qemu-7.1.0.tar.xz
+mv qemu-7.1.0 qemu
+
+mkdir patches
+EOT
+
+COPY rootfs/pkgs/qemu/*.patch /work/patches/
+RUN <<EOT sh -eux
+if [[ "\$(uname -m)" != "aarch64" ]]; then
+    echo "skip"
+fi
+
+cd /work/qemu
+for p in /work/patches/*.patch; do
+    patch -p1 < \$p
+done
+EOT
+
+# TODO fix cache
+RUN --mount=type=cache,target=/work/qemu/build2 \
+<<EOT sh -eux
+if [[ "\$(uname -m)" != "aarch64" ]]; then
+    echo "skip"
+fi
+
+cd /work/qemu
+export CFLAGS="-O2 -flto=auto"
+./configure \
+    --disable-glusterfs \
+    --disable-debug-info \
+    --disable-bsd-user \
+    --disable-werror \
+    --disable-xen \
+    --enable-linux-user \
+    --disable-system \
+    --static \
+    --disable-brlapi \
+    --disable-cap-ng \
+    --disable-capstone \
+    --disable-curl \
+    --disable-curses \
+    --disable-docs \
+    --disable-gcrypt \
+    --disable-gnutls \
+    --disable-gtk \
+    --disable-guest-agent \
+    --disable-guest-agent-msi \
+    --disable-libnfs \
+    --disable-mpath \
+    --disable-nettle \
+    --disable-numa \
+    --disable-sdl \
+    --disable-spice \
+    --disable-tools
+EOT
+
+RUN --mount=type=cache,target=/work/qemu/build2 \
+<<EOT sh -eux
+if [[ "\$(uname -m)" != "aarch64" ]]; then
+    echo "skip"
+    mkdir /out
+    touch /out/qemu-x86_64 /out/qemu-i386
+fi
+
+cd /work/qemu
+export CFLAGS="-O2 -flto=auto"
+make -j\$(nproc) ARFLAGS="rc" qemu-x86_64
+make -j\$(nproc) ARFLAGS="rc" qemu-i386
+
+mkdir /out
+cp /work/qemu/build/qemu-x86_64 /work/qemu/build/qemu-i386 /out/
+EOT
+
+
+
+##########################################################################
 # Main rootfs!
 FROM base AS rootfs
 
@@ -134,15 +229,8 @@ if [[ "$TYPE" == "debug" ]]; then
 fi
 EOT
 
-# install qemu for arm64
-# newer qemu 7.2 breaks openssl rsa verification
-RUN <<EOT sh -eux
-if [[ "\$(uname -m)" == "aarch64" ]]; then
-    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/aarch64/qemu-x86_64-7.1.0-r7.apk https://dl-cdn.alpinelinux.org/alpine/v3.17/community/aarch64/qemu-i386-7.1.0-r7.apk
-    apk add --no-cache qemu-x86_64-7.1.0-r7.apk qemu-i386-7.1.0-r7.apk
-    rm -f qemu-x86_64-7.1.0-r7.apk qemu-i386-7.1.0-r7.apk
-fi
-EOT
+# qemu
+COPY --from=pkgbuild-qemu /out/qemu-x86_64 /out/qemu-i386 /opt/orb/
 
 # Docker container rootfs
 COPY --from=docker / /opt/docker-rootfs
@@ -223,8 +311,8 @@ mkdir /data
 mkdir /mnt/mac
 mkdir /mnt/rosetta
 ln -s /mnt/rosetta/rosetta '/[rosetta]'
-ln -s /usr/bin/qemu-x86_64 '[qemu]'
-ln -s /usr/bin/qemu-i386 '[qemu32]'
+ln -s /opt/orb/qemu-x86_64 '[qemu]'
+ln -s /opt/orb/qemu-i386 '[qemu32]'
 ln -s /opt/orbstack-guest/bin/macctl '[mac]'
 
 # Guest tools
