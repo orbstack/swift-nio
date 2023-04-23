@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,6 +105,12 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		"storage-driver": "overlay2",
 		// match our MTU
 		"mtu": c.manager.net.mtu,
+		// TODO: merge with user object
+		"default-network-opts": map[string]any{
+			"bridge": map[string]any{
+				"com.docker.network.driver.mtu": strconv.Itoa(c.manager.net.mtu),
+			},
+		},
 	}
 
 	// read config overrides from host
