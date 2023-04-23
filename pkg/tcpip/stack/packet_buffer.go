@@ -292,6 +292,12 @@ func (pk PacketBufferPtr) AsSlices() [][]byte {
 	return views
 }
 
+// AsSlices returns the underlying storage of the whole packet.
+func (pk PacketBufferPtr) ForEachView(fn func(v *bufferv2.View)) {
+	offset := pk.headerOffset()
+	pk.buf.SubApply(offset, int(pk.buf.Size())-offset, fn)
+}
+
 // ToBuffer returns a caller-owned copy of the underlying storage of the whole
 // packet.
 func (pk PacketBufferPtr) ToBuffer() bufferv2.Buffer {
