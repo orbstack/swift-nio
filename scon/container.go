@@ -223,8 +223,8 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 func (c *Container) acquireAgent(needFreezerRef bool, needLock bool) (*Freezer, *agent.Client, error) {
 	// only keep lock for duration of agent acquire
 	if needLock {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
+		c.mu.Lock()
+		defer c.mu.Unlock()
 	}
 
 	if !c.Running() {
