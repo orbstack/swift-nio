@@ -1,3 +1,6 @@
+// Copyright 2023 Danny Lin / OrbStack
+// License: proprietary and confidential.
+
 // Redirects connect() calls to localhost (127.0.0.1 or ::1) to host NAT
 // (100.115.92.254) if there's no listener on localhost.
 // Also translates getpeername() to return localhost so programs don't get confused,
@@ -31,13 +34,16 @@ enum {
     VERDICT_PROCEED = 1,
 };
 
-#define LOCALHOST_IP4 0x7f000001
-static const __be32 LOCALHOST_IP6[4] = {bpf_htonl(0x00000000), bpf_htonl(0x00000000), bpf_htonl(0x00000000), bpf_htonl(0x00000001)};
+#define IP4(a, b, c, d) ((a << 24) | (b << 16) | (c << 8) | d)
+#define IP6(a,b,c,d,e,f,g,h) {bpf_htonl(a << 16 | b), bpf_htonl(c << 16 | d), bpf_htonl(e << 16 | f), bpf_htonl(g << 16 | h)}
 
-// hostnat ip = 100.115.92.254
-#define HOSTNAT_IP4 0x64735cfe
-// ipv6 = fd00:96dc:7096:1d22::254
-static const __be32 HOSTNAT_IP6[4] = {bpf_htonl(0xfd0096dc), bpf_htonl(0x70961d22), bpf_htonl(0x00000000), bpf_htonl(0x00000254)};
+#define LOCALHOST_IP4 IP4(127, 0, 0, 1)
+static const __be32 LOCALHOST_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 1);
+
+// 100.115.92.254
+#define HOSTNAT_IP4 IP4(100, 115, 92, 254)
+// fd00:96dc:7096:1d22::254
+static const __be32 HOSTNAT_IP6[4] = IP6(0xfd00, 0x96dc, 0x7096, 0x1d22, 0, 0, 0, 0x254);
 
 const volatile __u64 config_netns_cookie = 0;
 
