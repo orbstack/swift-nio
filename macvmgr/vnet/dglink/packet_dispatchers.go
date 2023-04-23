@@ -103,37 +103,10 @@ func (b *iovecBuffer) nextIovecs() []unix.Iovec {
 // of b.buffer's storage must be reallocated during the next call to
 // nextIovecs.
 func (b *iovecBuffer) pullBuffer(n int) bufferv2.Buffer {
-	var views []*bufferv2.View
-	c := 0
-	if b.skipsVnetHdr {
-		c += virtioNetHdrSize
-		if c >= n {
-			// Nothing in the packet.
-			return bufferv2.Buffer{}
-		}
-	}
-	// Remove the used views from the buffer.
-	for i, v := range b.views {
-		c += v.Size()
-		if c >= n {
-			b.views[i].CapLength(v.Size() - (c - n))
-			views = append(views, b.views[:i+1]...)
-			break
-		}
-	}
-	for i := range views {
-		b.views[i] = nil
-	}
-	if b.skipsVnetHdr {
-		// Exclude the size of the vnet header.
-		n -= virtioNetHdrSize
-	}
-	pulled := bufferv2.Buffer{}
-	for _, v := range views {
-		pulled.Append(v)
-	}
-	pulled.Truncate(int64(n))
-	return pulled
+	buf := bufferv2.MakeWithView(b.views[0])
+	b.views[0] = nil
+	buf.Truncate(int64(n))
+	return buf
 }
 
 func (b *iovecBuffer) release() {
