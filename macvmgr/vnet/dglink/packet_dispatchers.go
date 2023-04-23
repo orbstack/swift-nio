@@ -30,7 +30,8 @@ import (
 )
 
 // BufConfig defines the shape of the buffer used to read packets from the NIC.
-var BufConfig = []int{128, 256, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768}
+// a single 65536 buf gets us up from 37 -> 40 gbps
+var BufConfig = []int{65536}
 
 type iovecBuffer struct {
 	// buffer is the actual buffer that holds the packet contents. Some contents
