@@ -1,12 +1,17 @@
 package tcpfwd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
+)
+
+var (
+	errInvalidWrite = errors.New("invalid write result")
 )
 
 // monomorphized copy of pump.go
@@ -28,6 +33,40 @@ func pump1SpTcpGv(errc chan<- error, src *net.TCPConn, dst *gonet.TCPConn) {
 	errc <- err
 }
 
+func copyViewBuffer(dst *net.TCPConn, src *gonet.TCPConn, vw *gonet.ViewWriter) (written int64, err error) {
+	for {
+		vw.Reset(512 * 1024)
+		_nr, er := src.ReadViews(vw)
+		nr := int64(_nr)
+		if nr > 0 {
+			buffers := vw.Buffers()
+			nw, ew := buffers.WriteTo(dst)
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errInvalidWrite
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
+}
+
 func pump1SpGvTcp(errc chan<- error, src *gonet.TCPConn, dst *net.TCPConn) {
 	// Workaround for NFS panic
 	defer func() {
@@ -36,8 +75,9 @@ func pump1SpGvTcp(errc chan<- error, src *gonet.TCPConn, dst *net.TCPConn) {
 		}
 	}()
 
-	buf := make([]byte, 512*1024)
-	_, err := io.CopyBuffer(dst, src, buf)
+	vw := gonet.NewViewWriter(2)
+	defer vw.Reset(0)
+	_, err := copyViewBuffer(dst, src, vw)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()

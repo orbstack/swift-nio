@@ -24,6 +24,7 @@ import (
 	"net"
 	"time"
 
+	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -305,16 +306,15 @@ type opErrorer interface {
 
 // commonRead implements the common logic between net.Conn.Read and
 // net.PacketConn.ReadFrom.
-func commonRead(b []byte, ep tcpip.Endpoint, wq *waiter.Queue, deadline <-chan struct{}, addr *tcpip.FullAddress, ttl *uint8, errorer opErrorer) (int, error) {
+func commonRead(w io.Writer, ep tcpip.Endpoint, wq *waiter.Queue, deadline <-chan struct{}, addr *tcpip.FullAddress, ttl *uint8, errorer opErrorer) (int, error) {
 	select {
 	case <-deadline:
 		return 0, errorer.newOpError("read", &timeoutError{})
 	default:
 	}
 
-	w := tcpip.SliceWriter(b)
 	opts := tcpip.ReadOptions{NeedRemoteAddr: addr != nil}
-	res, err := ep.Read(&w, opts)
+	res, err := ep.Read(w, opts)
 
 	if _, ok := err.(*tcpip.ErrWouldBlock); ok {
 		// Create wait queue entry that notifies a channel.
@@ -322,7 +322,7 @@ func commonRead(b []byte, ep tcpip.Endpoint, wq *waiter.Queue, deadline <-chan s
 		wq.EventRegister(&waitEntry)
 		defer wq.EventUnregister(&waitEntry)
 		for {
-			res, err = ep.Read(&w, opts)
+			res, err = ep.Read(w, opts)
 			if _, ok := err.(*tcpip.ErrWouldBlock); !ok {
 				break
 			}
@@ -363,7 +363,21 @@ func (c *TCPConn) Read(b []byte) (int, error) {
 
 	deadline := c.readCancel()
 
-	n, err := commonRead(b, c.ep, c.wq, deadline, nil, nil, c)
+	w := tcpip.SliceWriter(b)
+	n, err := commonRead(&w, c.ep, c.wq, deadline, nil, nil, c)
+	if n != 0 {
+		c.ep.ModerateRecvBuf(n)
+	}
+	return n, err
+}
+
+func (c *TCPConn) ReadViews(vw *ViewWriter) (int, error) {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+
+	deadline := c.readCancel()
+
+	n, err := commonRead(vw, c.ep, c.wq, deadline, nil, nil, c)
 	if n != 0 {
 		c.ep.ModerateRecvBuf(n)
 	}
@@ -659,7 +673,8 @@ func (c *UDPConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	deadline := c.readCancel()
 
 	var addr tcpip.FullAddress
-	n, err := commonRead(b, c.ep, c.wq, deadline, &addr, &c.LastTTL, c)
+	w := tcpip.SliceWriter(b)
+	n, err := commonRead(&w, c.ep, c.wq, deadline, &addr, &c.LastTTL, c)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -733,4 +748,59 @@ func (c *UDPConn) LocalAddr() net.Addr {
 		return nil
 	}
 	return fullToUDPAddr(a)
+}
+
+type ViewWriter struct {
+	views []*bufferv2.View
+	bufs  [][]byte
+	rem   int
+}
+
+func NewViewWriter(cap int) *ViewWriter {
+	return &ViewWriter{
+		views: make([]*bufferv2.View, 0, cap),
+		bufs:  make([][]byte, 0, cap),
+		rem:   0,
+	}
+}
+
+func (vw *ViewWriter) WriteView(v *bufferv2.View) (int, error) {
+	if vw.rem == 0 {
+		return 0, io.ErrShortWrite
+	}
+
+	vLen := v.Size()
+	// write as much as we can
+	if vw.rem < vLen {
+		vLen = vw.rem
+	}
+	vw.views = append(vw.views, v)
+	vw.bufs = append(vw.bufs, v.AsSlice()[:vLen])
+	vw.rem -= vLen
+	if vw.rem == 0 {
+		return vLen, io.ErrShortWrite
+	}
+	return vLen, nil
+}
+
+func (vw *ViewWriter) Write(p []byte) (int, error) {
+	v := bufferv2.NewViewWithData(p)
+	return vw.WriteView(v)
+}
+
+func (vw *ViewWriter) Reset(len int) {
+	for _, v := range vw.views {
+		v.Release()
+	}
+	vw.views = vw.views[:0]
+	vw.bufs = vw.bufs[:0]
+	vw.rem = len
+}
+
+func (vw *ViewWriter) Views() []*bufferv2.View {
+	return vw.views
+}
+
+func (vw *ViewWriter) Buffers() net.Buffers {
+	return vw.bufs
 }
