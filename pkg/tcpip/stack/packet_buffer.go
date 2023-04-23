@@ -171,6 +171,10 @@ type PacketBuffer struct {
 	onRelease func() `state:"nosave"`
 }
 
+type ViewWriter interface {
+	WriteView(v *bufferv2.View) (int, error)
+}
+
 // NewPacketBuffer creates a new PacketBuffer with opts.
 func NewPacketBuffer(opts PacketBufferOptions) PacketBufferPtr {
 	pk := pkPool.Get().(*PacketBuffer)
@@ -556,7 +560,11 @@ func (d PacketData) ReadTo(dst io.Writer, peek bool) (int, error) {
 			return
 		}
 		var n int
-		n, err = dst.Write(v.AsSlice())
+		if dstV, ok := dst.(ViewWriter); ok {
+			n, err = dstV.WriteView(v.Clone())
+		} else {
+			n, err = dst.Write(v.AsSlice())
+		}
 		done += n
 		if err != nil {
 			return
