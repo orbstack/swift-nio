@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// OrbStack modifications are proprietary and confidential.
+
 // Package stopfd provides an type that can be used to signal the stop of a dispatcher.
 package stopfd
 

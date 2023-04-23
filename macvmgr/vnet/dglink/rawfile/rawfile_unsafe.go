@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// OrbStack modifications are proprietary and confidential.
+
 // Package rawfile contains utilities for using the netstack with raw host
 // files on Linux hosts.
 package rawfile
