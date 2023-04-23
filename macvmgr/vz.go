@@ -44,9 +44,9 @@ type VmParams struct {
 
 func findBestMtu() int {
 	if osver.IsAtLeast("v13.0") {
-		return vnet.PreferredMtu // prefer 65520
+		return vnet.PreferredMTU
 	} else {
-		return 1500
+		return vnet.BaseMTU
 	}
 }
 
@@ -125,7 +125,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 	var vnetwork *vnet.Network
 	if c.NetworkVnet {
 		newNetwork, gvnetFile, err := vnet.StartUnixgramPair(vnet.NetOptions{
-			MTU: uint32(mtu),
+			LinkMTU: uint32(mtu),
 		})
 		check(err)
 		vnetwork = newNetwork

@@ -21,3 +21,5 @@ import (
 )
 
 const virtioNetHdrSize = int(unsafe.Sizeof(virtioNetHdr{}))
+
+const VirtioNetHdrSize = virtioNetHdrSize

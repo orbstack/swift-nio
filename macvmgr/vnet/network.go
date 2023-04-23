@@ -33,9 +33,11 @@ import (
 )
 
 const (
-	PreferredMtu = 65535
-	capturePcap  = false
-	nicID        = 1
+	PreferredMTU = 65535
+	// fallback on macOS 12
+	BaseMTU     = 1500
+	capturePcap = false
+	nicID       = 1
 
 	gatewayMac = "24:d2:f4:58:34:d7"
 
@@ -61,7 +63,7 @@ type Network struct {
 }
 
 type NetOptions struct {
-	MTU uint32
+	LinkMTU uint32
 }
 
 func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
@@ -75,18 +77,31 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 		return nil, nil, err
 	}
 
-	nicEp, err := dglink.New(&dglink.Options{
+	linkOpts := dglink.Options{
 		FDs:            []int{fd1},
-		MTU:            opts.MTU,
+		MTU:            opts.LinkMTU,
 		EthernetHeader: true,
 		Address:        macAddr,
-		// no need for GSO when our MTU is so high. 16 -> 17 Gbps
-		// GSOMaxSize:         opts.MTU,
+		// only enable GSO for high MTU
+		GSOMaxSize: 0,
+		// if GSO is enabled, we add a virtio_net_hdr
 		GvisorGSOEnabled:   false,
 		PacketDispatchMode: dglink.RecvMMsg,
 		TXChecksumOffload:  true,
 		RXChecksumOffload:  true,
-	})
+	}
+
+	// for high MTU, add double virtio_net_hdr for GSO/TSO metadata
+	// for low MTU, don't touch it or we'd end up with 1490 MTU.
+	// (no point anyway because there's no GSO to do at 1500)
+	if opts.LinkMTU > BaseMTU {
+		linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize)
+		// we use GSO *with* high MTU just to give Linux kernel the GSO/TSO metadata
+		// so it can split for mtu-1500 bridges like Docker Compose
+		linkOpts.GSOMaxSize = opts.LinkMTU - uint32(dglink.VirtioNetHdrSize)
+	}
+
+	nicEp, err := dglink.New(&linkOpts)
 	if err != nil {
 		return nil, nil, err
 	}

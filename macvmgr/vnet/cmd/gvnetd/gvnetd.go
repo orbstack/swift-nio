@@ -22,7 +22,7 @@ func main() {
 	})
 
 	opts := vnet.NetOptions{
-		MTU: vnet.PreferredMtu,
+		LinkMTU: vnet.PreferredMTU,
 	}
 
 	_, err := vnet.StartQemuFd(opts, os.Stdin)

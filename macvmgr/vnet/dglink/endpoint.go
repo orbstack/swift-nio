@@ -450,6 +450,7 @@ func (h *virtioNetHdr) marshal() []byte {
 // These constants are declared in linux/virtio_net.h.
 const (
 	_VIRTIO_NET_HDR_F_NEEDS_CSUM = 1
+	_VIRTIO_NET_HDR_F_DATA_VALID = 2
 
 	_VIRTIO_NET_HDR_GSO_TCPV4 = 1
 	_VIRTIO_NET_HDR_GSO_TCPV6 = 4
@@ -480,7 +481,8 @@ func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
 		if pkt.GSOOptions.Type != stack.GSONone {
 			vnetHdr.hdrLen = uint16(pkt.HeaderSize())
 			if pkt.GSOOptions.NeedsCsum {
-				vnetHdr.flags = _VIRTIO_NET_HDR_F_NEEDS_CSUM
+				// for some reason F_NEEDS_CSUM alone doesn't work
+				vnetHdr.flags = _VIRTIO_NET_HDR_F_DATA_VALID | _VIRTIO_NET_HDR_F_NEEDS_CSUM
 				vnetHdr.csumStart = header.EthernetMinimumSize + pkt.GSOOptions.L3HdrLen
 				vnetHdr.csumOffset = pkt.GSOOptions.CsumOffset
 			}
