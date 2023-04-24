@@ -27,7 +27,7 @@ func runSpawnDaemon() {
 	var err error
 	pid, err := flock.ReadPid(conf.VmgrLockFile())
 	check(err)
-	if pid != 0 {
+	if vmclient.IsRunning() || pid != 0 {
 		// check version, replace if changed
 		buildID, err = getSpawnBuildID()
 		check(err)
