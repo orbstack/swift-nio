@@ -68,20 +68,6 @@ var (
 	}
 )
 
-func envToShell(env []string) string {
-	shenv := make([]string, 0, len(env))
-	for _, kv := range env {
-		key, val, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-
-		shenv = append(shenv, key+"="+shellescape.Quote(val))
-	}
-
-	return strings.Join(shenv, " ")
-}
-
 func translateProxyEnv(key, value string) (string, error) {
 	// translate proxy url
 	u, err := url.Parse(value)
@@ -338,6 +324,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		env = append(env, "SSH_AUTH_SOCK="+mounts.SshAgentSocket)
 	}
 
+	// dedupe not needed. agent does dedupe after adding some envs
 	cmd := &agent.AgentCommand{
 		Env:          env,
 		Dir:          cwd,

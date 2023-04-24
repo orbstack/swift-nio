@@ -138,11 +138,8 @@ func strp(s *string) string {
 func handleSshConn(s ssh.Session) error {
 	ptyReq, winCh, isPty := s.Pty()
 
-	// new empty env
-	env := make([]string, 0)
-
-	// add all from mac as a starting point
-	env = append(env, os.Environ()...)
+	// new env based on mac as starting point (this is a copy)
+	env := os.Environ()
 
 	// ssh env: extract __MV_META and ORBENV/WSLENV metadata
 	var metaStr string
@@ -152,7 +149,6 @@ func handleSshConn(s ssh.Session) error {
 			metaStr = kv[10:]
 			continue
 		} else {
-			// TODO translate paths
 			env = append(env, kv)
 		}
 	}
