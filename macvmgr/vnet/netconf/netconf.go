@@ -25,3 +25,9 @@ const (
 	SconSubnet6   = "fd00:30:31:"
 	SconDockerIP6 = SconSubnet6 + ":2"
 )
+
+// static ARP/neighbors to save CPU
+const (
+	GuestMACPrefix = "86:6c:f1:2e:9e"
+	GuestMACVnet   = GuestMACPrefix + ":01"
+)

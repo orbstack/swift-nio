@@ -31,6 +31,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
+	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kdrag0n/macvirt/macvmgr/vzf"
@@ -476,7 +477,7 @@ func runVmManager() {
 		DiskSwap:         conf.SwapImage(),
 		NetworkVnet:      true,
 		NetworkNat:       useNat,
-		MacAddressPrefix: "86:6c:f1:2e:9e",
+		MacAddressPrefix: netconf.GuestMACPrefix,
 		Balloon:          true,
 		Rng:              true,
 		Vsock:            true,

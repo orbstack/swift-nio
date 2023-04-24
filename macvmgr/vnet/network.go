@@ -270,6 +270,19 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	guestAddr6 := netutil.ParseTcpipAddress(netconf.GuestIP6)
 	gatewayAddr4 := netutil.ParseTcpipAddress(netconf.GatewayIP4)
 	gatewayAddr6 := netutil.ParseTcpipAddress(netconf.GatewayIP6)
+
+	// add static neighbors so we don't need ARP (waste of CPU)
+	guestMac, err := tcpip.ParseMACAddress(netconf.GuestMACVnet)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.AddStaticNeighbor(nicID, ipv4.ProtocolNumber, guestAddr4, guestMac); err != nil {
+		return nil, errors.New(err.String())
+	}
+	if err := s.AddStaticNeighbor(nicID, ipv6.ProtocolNumber, guestAddr6, guestMac); err != nil {
+		return nil, errors.New(err.String())
+	}
+
 	icmpFwd, err := icmpfwd.NewIcmpFwd(s, nicID, guestAddr4, guestAddr6, gatewayAddr4, gatewayAddr6)
 	if err != nil {
 		return nil, err
