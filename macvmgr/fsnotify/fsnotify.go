@@ -60,6 +60,8 @@ func (n *VmNotifier) Add(path string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
+	logrus.WithField("path", path).Debug("Adding fsnotify watch")
+
 	n.paths = append(n.paths, path)
 	err := n.swext.UpdatePaths(n.paths)
 	if err != nil {
@@ -72,6 +74,8 @@ func (n *VmNotifier) Add(path string) error {
 func (n *VmNotifier) Remove(path string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+
+	logrus.WithField("path", path).Debug("Removing fsnotify watch")
 
 	for i, p := range n.paths {
 		if p == path {
