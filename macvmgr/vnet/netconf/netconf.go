@@ -30,4 +30,6 @@ const (
 const (
 	GuestMACPrefix = "86:6c:f1:2e:9e"
 	GuestMACVnet   = GuestMACPrefix + ":01"
+
+	GatewayMAC = "24:d2:f4:58:34:d7"
 )

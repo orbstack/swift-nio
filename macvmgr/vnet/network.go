@@ -39,8 +39,6 @@ const (
 	capturePcap = false
 	nicID       = 1
 
-	gatewayMac = "24:d2:f4:58:34:d7"
-
 	// TODO event based startup
 	guestDialRetryInterval = 250 * time.Millisecond
 	guestDialRetryTimeout  = 15 * time.Second
@@ -72,7 +70,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 		return nil, nil, err
 	}
 
-	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
+	macAddr, err := tcpip.ParseMACAddress(netconf.GatewayMAC)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -117,7 +115,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 }
 
 func StartQemuFd(opts NetOptions, file *os.File) (*Network, error) {
-	macAddr, err := tcpip.ParseMACAddress(gatewayMac)
+	macAddr, err := tcpip.ParseMACAddress(netconf.GatewayMAC)
 	if err != nil {
 		return nil, err
 	}
