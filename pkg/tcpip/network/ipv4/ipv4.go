@@ -1403,13 +1403,15 @@ func (e *endpoint) AcquireAssignedAddress(localAddr tcpip.Address, allowTemp boo
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	loopback := e.nic.IsLoopback()
-	return e.addressableEndpointState.AcquireAssignedAddressOrMatching(localAddr, func(addressEndpoint stack.AddressEndpoint) bool {
-		subnet := addressEndpoint.Subnet()
-		// IPv4 has a notion of a subnet broadcast address and considers the
-		// loopback interface bound to an address's whole subnet (on linux).
-		return subnet.IsBroadcast(localAddr) || (loopback && subnet.Contains(localAddr))
-	}, allowTemp, tempPEB)
+	//loopback := e.nic.IsLoopback()
+	// TODO: fix this if we ever support broadcast
+	// loopback = false always for us
+	return e.addressableEndpointState.AcquireAssignedAddressOrMatching(localAddr, nil, /*func(addressEndpoint stack.AddressEndpoint) bool {
+			subnet := addressEndpoint.Subnet()
+			// IPv4 has a notion of a subnet broadcast address and considers the
+			// loopback interface bound to an address's whole subnet (on linux).
+			return subnet.IsBroadcast(localAddr) || (loopback && subnet.Contains(localAddr))
+		}*/allowTemp, tempPEB)
 }
 
 // AcquireOutgoingPrimaryAddress implements stack.AddressableEndpoint.
