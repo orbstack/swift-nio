@@ -26,7 +26,9 @@ func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
 		return errors.New("docker API returned " + resp.Status)
 	}
 
-	var containers []dockertypes.ContainerSummary
+	var containers []struct {
+		ID string `json:"Id"`
+	}
 	err = json.NewDecoder(resp.Body).Decode(&containers)
 	if err != nil {
 		return err
