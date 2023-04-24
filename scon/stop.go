@@ -131,5 +131,12 @@ func (c *Container) onStopLocked() error {
 		return err
 	}
 
+	if c.hooks != nil {
+		err := c.hooks.PostStop(c)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

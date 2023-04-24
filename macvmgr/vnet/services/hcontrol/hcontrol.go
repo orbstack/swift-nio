@@ -200,6 +200,21 @@ func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
 	return nil
 }
 
+func (h *HcontrolServer) ClearFsnotifyRefs(_ None, _ *None) error {
+	h.fsnotifyMu.Lock()
+	defer h.fsnotifyMu.Unlock()
+
+	for path := range h.fsnotifyRefs {
+		err := h.FsNotifier.Remove(path)
+		if err != nil {
+			return err
+		}
+	}
+
+	h.fsnotifyRefs = make(map[string]int)
+	return nil
+}
+
 type None struct{}
 
 func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, error) {

@@ -32,6 +32,7 @@ type ContainerHooks interface {
 	Config(*Container, containerConfigMethods) (string, error)
 	PreStart(*Container) error
 	PostStart(*Container) error
+	PostStop(*Container) error
 }
 
 type Container struct {

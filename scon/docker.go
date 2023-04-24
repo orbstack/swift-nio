@@ -197,6 +197,15 @@ func (h *DockerHooks) PostStart(c *Container) error {
 	return nil
 }
 
+func (h *DockerHooks) PostStop(c *Container) error {
+	err := c.manager.host.ClearFsnotifyRefs()
+	if err != nil {
+		return fmt.Errorf("clear refs: %w", err)
+	}
+
+	return nil
+}
+
 type DockerProxy struct {
 	container *Container
 	manager   *ConManager

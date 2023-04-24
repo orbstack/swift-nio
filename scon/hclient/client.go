@@ -135,6 +135,11 @@ func (c *Client) RemoveFsnotifyRef(path string) error {
 	return c.rpc.Call("hc.RemoveFsnotifyRef", path, &none)
 }
 
+func (c *Client) ClearFsnotifyRefs() error {
+	var none None
+	return c.rpc.Call("hc.ClearFsnotifyRefs", None{}, &none)
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }
