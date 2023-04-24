@@ -118,48 +118,6 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
     return (buf, totalLen)
 }
 
-@_cdecl("swext_fsevents_monitor_dirs")
-func swext_fsevents_monitor_dirs() -> UnsafeMutablePointer<CChar> {
-    func callback(stream: ConstFSEventStreamRef, info: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids: UnsafePointer<FSEventStreamEventId>) {
-        let pathsAndFlags = dedupeEvents(paths, flags, numEvents)
-
-        // send to krpc
-        let (buf, len) = eventsToKrpc(pathsAndFlags, isDirChange: true)
-        swext_fsevents_cb_krpc_events(buf, len)
-        buf.deallocate()
-    }
-
-    // up to 1 sec is ok because that's virtiofs entry_valid
-    let latency = 1.0
-    let paths = ["/"] as CFArray
-    let stream = FSEventStreamCreate(nil, callback, nil, paths,
-            UInt64(kFSEventStreamEventIdSinceNow), latency,
-            UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer))
-    guard let stream else {
-        return strdup("FSEventStreamCreate failed")
-    }
-
-    // exclude chatty paths
-    let homePrefix = FileManager.default.homeDirectoryForCurrentUser.path
-    let cachesPrefix = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].path
-    let tmpPrefix = FileManager.default.temporaryDirectory.path
-    let nfsPrefix = "\(homePrefix)/OrbStack"
-    let appDataPrefix = "\(homePrefix)/.orbstack"
-    let excludePaths = [cachesPrefix, tmpPrefix, nfsPrefix, appDataPrefix] as CFArray
-    guard FSEventStreamSetExclusionPaths(stream, excludePaths) else {
-        return strdup("FSEventStreamSetExclusionPaths failed")
-    }
-
-    FSEventStreamSetDispatchQueue(stream, fseventsQueue)
-    guard FSEventStreamStart(stream) else {
-        return strdup("FSEventStreamStart failed")
-    }
-
-    // retain for Go
-    FSEventStreamRetain(stream)
-    return strdup("")
-}
-
 // now, the standard files monitor
 private class VmNotifier {
     private var stream: FSEventStreamRef?
