@@ -26,6 +26,16 @@ extension Scene {
     }
 }
 
+extension View {
+    func formStyleGrouped() -> some View {
+        if #available(macOS 13, *) {
+            return formStyle(.grouped)
+        } else {
+            return self
+        }
+    }
+}
+
 class UpdateDelegate: NSObject, SPUUpdaterDelegate {
     func feedURLString(for updater: SPUUpdater) -> String? {
         #if arch(arm64)
