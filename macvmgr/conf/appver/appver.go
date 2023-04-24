@@ -33,11 +33,11 @@ func Get() *Version {
 		var short string
 		dashParts := strings.Split(describe, "-")
 		dashParts[0] = strings.TrimPrefix(dashParts[0], "v")
-		var betaNum int
-		if strings.Contains(describe, "-beta") {
+		var rcNum int
+		if strings.Contains(describe, "-rc") {
 			short = dashParts[0] + "-" + dashParts[1]
 			var err error
-			betaNum, err = strconv.Atoi(strings.TrimPrefix(dashParts[1], "beta"))
+			rcNum, err = strconv.Atoi(strings.TrimPrefix(dashParts[1], "rc"))
 			if err != nil {
 				panic(err)
 			}
@@ -61,8 +61,8 @@ func Get() *Version {
 			panic(err)
 		}
 		code := major*100*100*100 + minor*100*100 + patch*100
-		if betaNum > 0 {
-			code = code - 50 + betaNum
+		if rcNum > 0 {
+			code = code - 50 + rcNum
 		}
 
 		return &Version{
