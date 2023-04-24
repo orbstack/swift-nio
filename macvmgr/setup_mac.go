@@ -179,7 +179,7 @@ func findTargetCmdPath(details *UserDetails, pathItems []string) (*PathInfo, err
 }
 
 func fixDockerCredsStore() error {
-	dockerConfigPath := conf.HomeDir() + "/.docker/config.json"
+	dockerConfigPath := conf.UserDockerDir() + "/config.json"
 	if _, err := os.Stat(dockerConfigPath); err == nil {
 		// read the file
 		data, err := os.ReadFile(dockerConfigPath)
@@ -367,6 +367,20 @@ func writeShellProfileSnippets() error {
 func writeDataReadme() error {
 	// write readme
 	return os.WriteFile(conf.DataDir()+"/README.txt", []byte(dataReadmeText), 0644)
+}
+
+func readDockerConfigEnv(shell string) error {
+	out, err := util.RunLoginShell(shell, "-i", "-c", `sh -c 'echo "$DOCKER_CONFIG"'`)
+	if err != nil {
+		return err
+	}
+	logrus.WithField("DOCKER_CONFIG", out).Debug("user DOCKER_CONFIG")
+	value := parseShellLine(out)
+	if value != "" && strings.HasPrefix(value, "/") {
+		os.Setenv("DOCKER_CONFIG", value)
+	}
+
+	return nil
 }
 
 /*
@@ -623,6 +637,13 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 				}
 			}
 		}
+	}
+
+	// get DOCKER_CONFIG
+	// below is first usage of it
+	err = readDockerConfigEnv(details.Shell)
+	if err != nil {
+		logrus.WithError(err).Warn("failed to read DOCKER_CONFIG env")
 	}
 
 	// link docker CLI plugins

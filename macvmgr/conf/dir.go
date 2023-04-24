@@ -157,8 +157,16 @@ func ShellInitDir() string {
 	return ensureDir(AppDir() + "/shell")
 }
 
+func UserDockerDir() string {
+	env := os.Getenv("DOCKER_CONFIG")
+	if env != "" {
+		return env
+	}
+	return ensureDir(HomeDir() + "/.docker")
+}
+
 func DockerCliPluginsDir() string {
-	return ensureDir(HomeDir() + "/.docker/cli-plugins")
+	return ensureDir(UserDockerDir() + "/cli-plugins")
 }
 
 func InstallIDFile() string {
