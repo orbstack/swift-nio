@@ -124,6 +124,7 @@ RUN apk add --no-cache \
 RUN <<EOT sh -eux
 if [[ "\$(uname -m)" != "aarch64" ]]; then
     echo "skip"
+    exit
 fi
 
 mkdir /work
@@ -142,6 +143,7 @@ COPY rootfs/pkgs/qemu/*.patch /work/patches/
 RUN <<EOT sh -eux
 if [[ "\$(uname -m)" != "aarch64" ]]; then
     echo "skip"
+    exit
 fi
 
 cd /work/qemu
@@ -155,6 +157,7 @@ RUN --mount=type=cache,target=/work/qemu/build2 \
 <<EOT sh -eux
 if [[ "\$(uname -m)" != "aarch64" ]]; then
     echo "skip"
+    exit
 fi
 
 cd /work/qemu
@@ -194,6 +197,7 @@ if [[ "\$(uname -m)" != "aarch64" ]]; then
     echo "skip"
     mkdir /out
     touch /out/qemu-x86_64 /out/qemu-i386
+    exit
 fi
 
 cd /work/qemu
