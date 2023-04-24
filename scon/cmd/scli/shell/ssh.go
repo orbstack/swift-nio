@@ -6,12 +6,9 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path"
-	"regexp"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
@@ -29,8 +26,6 @@ const (
 )
 
 var (
-	pathArgRegexp = regexp.MustCompile(`^([a-zA-Z0-9_\-]+)?=(/.+)$`)
-
 	sshSigMap = map[os.Signal]ssh.Signal{
 		unix.SIGABRT: ssh.SIGABRT,
 		unix.SIGALRM: ssh.SIGALRM,
@@ -55,69 +50,6 @@ type CommandOpts struct {
 	User          string
 	Dir           *string
 	ContainerName string
-}
-
-func TranslatePath(p string, targetContainer string) string {
-	// canonicalize first
-	p = path.Clean(p)
-
-	// is it relative? if so, translate it to absolute
-	if !path.IsAbs(p) {
-		cwd, err := os.Getwd()
-		if err != nil {
-			panic(err)
-		}
-
-		p = path.Join(cwd, p)
-	}
-
-	// if we kow the container, then we can translate from NFS mountpoint
-	if targetContainer != "" {
-		containerNfsPrefix := conf.NfsMountpoint() + "/" + targetContainer
-		if p == containerNfsPrefix || strings.HasPrefix(p, containerNfsPrefix+"/") {
-			return p[len(containerNfsPrefix):]
-		}
-	}
-
-	// common case: is it linked?
-	for _, linkPrefix := range mounts.LinkedPaths {
-		if p == linkPrefix || strings.HasPrefix(p, linkPrefix+"/") {
-			return p
-		}
-	}
-
-	// nope, needs translation
-	return mounts.Virtiofs + p
-}
-
-func IsPathArg(arg string) bool {
-	// 1. starts with slash
-	if strings.HasPrefix(arg, "/") {
-		return true
-	}
-
-	// 2. -option=/value, --option=/value, or option=/value
-	if pathArgRegexp.Match([]byte(arg)) {
-		return true
-	}
-
-	return false
-}
-
-func TranslateArgPaths(args []string, containerName string) []string {
-	for i, arg := range args {
-		if IsPathArg(arg) {
-			if pathArgRegexp.Match([]byte(arg)) {
-				// -option=/value, --option=/value, or option=/value
-				matches := pathArgRegexp.FindStringSubmatch(arg)
-				args[i] = matches[1] + "=" + TranslatePath(matches[2], containerName)
-			} else {
-				args[i] = TranslatePath(arg, containerName)
-			}
-		}
-	}
-
-	return args
 }
 
 func RunSSH(opts CommandOpts) (int, error) {
@@ -210,7 +142,10 @@ func RunSSH(opts CommandOpts) (int, error) {
 	if opts.Dir == nil {
 		cwd, err = os.Getwd()
 		if err == nil {
-			cwd = TranslatePath(cwd, opts.ContainerName)
+			// we know target container name, so translate it
+			cwd = sshpath.ToLinux(cwd, sshpath.ToLinuxOptions{
+				TargetContainer: opts.ContainerName,
+			})
 		}
 	} else {
 		// no translation
@@ -230,7 +165,7 @@ func RunSSH(opts CommandOpts) (int, error) {
 	winchChan := make(chan os.Signal, 1)
 	signal.Notify(winchChan, unix.SIGWINCH)
 
-	// send environment (server chooses what to accept)
+	// send all env (server chooses what to accept)
 	if !opts.OmitEnv {
 		for _, kv := range os.Environ() {
 			key, value, ok := strings.Cut(kv, "=")

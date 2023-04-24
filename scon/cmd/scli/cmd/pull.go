@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
 	"github.com/spf13/cobra"
@@ -64,7 +65,9 @@ is equivalent to:
 		}
 
 		// to /mnt/mac
-		dest = shell.TranslatePath(dest, containerName)
+		dest = sshpath.ToLinux(dest, sshpath.ToLinuxOptions{
+			TargetContainer: containerName,
+		})
 
 		ret, err := shell.CopyFiles(containerName, sources, dest)
 		checkCLI(err)

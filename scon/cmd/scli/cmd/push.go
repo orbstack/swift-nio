@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
 	"github.com/spf13/cobra"
@@ -54,7 +55,9 @@ is equivalent to:
 
 		// /mnt/mac
 		for i, src := range sources {
-			sources[i] = shell.TranslatePath(src, containerName)
+			sources[i] = sshpath.ToLinux(src, sshpath.ToLinuxOptions{
+				TargetContainer: containerName,
+			})
 		}
 
 		// special case of translation: ~/ in dest -> relative to Linux home

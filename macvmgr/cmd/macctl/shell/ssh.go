@@ -6,11 +6,10 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path"
-	"regexp"
 	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
@@ -26,8 +25,6 @@ const (
 )
 
 var (
-	pathArgRegexp = regexp.MustCompile(`^([a-zA-Z0-9_\-]+)?=/(.+)$`)
-
 	sshSigMap = map[os.Signal]ssh.Signal{
 		unix.SIGABRT: ssh.SIGABRT,
 		unix.SIGALRM: ssh.SIGALRM,
@@ -51,7 +48,7 @@ type CommandOpts struct {
 	Argv0        *string
 }
 
-func NfsDataRoot() string {
+func getNfsMachineRoot() string {
 	user := HostUser()
 	if user == "" {
 		user = os.Getenv("USER")
@@ -66,110 +63,10 @@ func NfsDataRoot() string {
 	return "/Users/" + user + "/" + mounts.NfsDirName + "/" + hostname
 }
 
-func TranslatePath(p string) string {
-	// canonicalize first
-	p = path.Clean(p)
-
-	// if path is under mac virtiofs mount, remove the mount prefix
-	if p == mounts.Virtiofs {
-		return "/"
-	} else if strings.HasPrefix(p, mounts.Virtiofs+"/") {
-		return strings.TrimPrefix(p, mounts.Virtiofs)
+func MakePathTransOptions() sshpath.ToMacOptions {
+	return sshpath.ToMacOptions{
+		NfsMachineRoot: getNfsMachineRoot(),
 	}
-
-	// nothing to do for linked paths
-	for _, linkPrefix := range mounts.LinkedPaths {
-		if p == linkPrefix || strings.HasPrefix(p, linkPrefix+"/") {
-			return p
-		}
-	}
-
-	// otherwise, translate to linux
-	return NfsDataRoot() + p
-}
-
-func TranslatePathRelaxed(p string) string {
-	// canonicalize first
-	p = path.Clean(p)
-
-	// if path is under mac virtiofs mount, remove the mount prefix
-	if p == mounts.Virtiofs {
-		return "/"
-	} else if strings.HasPrefix(p, mounts.Virtiofs+"/") {
-		return strings.TrimPrefix(p, mounts.Virtiofs)
-	}
-
-	// nothing to do for linked paths
-	for _, linkPrefix := range mounts.LinkedPaths {
-		if p == linkPrefix || strings.HasPrefix(p, linkPrefix+"/") {
-			return p
-		}
-	}
-
-	linuxHome, err := os.UserHomeDir()
-	if err != nil {
-		// do nothing
-		return p
-	}
-
-	// only translate home to linux
-	if p == linuxHome || strings.HasPrefix(p, linuxHome+"/") {
-		return NfsDataRoot() + p
-	}
-
-	// also translate explicit /mnt/linux prefix for disambiguation
-	if p == mounts.LinuxExplicit || strings.HasPrefix(p, mounts.LinuxExplicit+"/") {
-		return NfsDataRoot() + strings.TrimPrefix(p, mounts.LinuxExplicit)
-	}
-
-	return p
-}
-
-func IsPathArg(arg string) bool {
-	// 1. starts with slash
-	if strings.HasPrefix(arg, "/") {
-		return true
-	}
-
-	// 2. -option=/value, --option=/value, or option=/value
-	if pathArgRegexp.Match([]byte(arg)) {
-		return true
-	}
-
-	return false
-}
-
-func TranslateArgPaths(args []string) []string {
-	for i, arg := range args {
-		if IsPathArg(arg) {
-			if pathArgRegexp.Match([]byte(arg)) {
-				// -option=/value, --option=/value, or option=/value
-				matches := pathArgRegexp.FindStringSubmatch(arg)
-				args[i] = matches[1] + "=" + TranslatePath(matches[2])
-			} else {
-				args[i] = TranslatePath(arg)
-			}
-		}
-	}
-
-	return args
-}
-
-// only translates /home/<user>
-func TranslateArgPathsRelaxed(args []string) []string {
-	for i, arg := range args {
-		if IsPathArg(arg) {
-			if pathArgRegexp.Match([]byte(arg)) {
-				// -option=/value, --option=/value, or option=/value
-				matches := pathArgRegexp.FindStringSubmatch(arg)
-				args[i] = matches[1] + "=" + TranslatePathRelaxed(matches[2])
-			} else {
-				args[i] = TranslatePathRelaxed(arg)
-			}
-		}
-	}
-
-	return args
 }
 
 func ConnectSSH(opts CommandOpts) (int, error) {
@@ -251,7 +148,8 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	// forward and translate cwd path
 	cwd, err := os.Getwd()
 	if err == nil {
-		meta.Pwd = TranslatePath(cwd)
+		opts := MakePathTransOptions()
+		meta.Pwd = sshpath.ToMac(cwd, opts)
 	}
 
 	// forward signals
@@ -266,7 +164,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	winchChan := make(chan os.Signal, 1)
 	signal.Notify(winchChan, unix.SIGWINCH)
 
-	// send environment (server chooses what to accept)
+	// send all env (server chooses what to accept)
 	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
 		if !ok {

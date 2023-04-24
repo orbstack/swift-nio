@@ -7,6 +7,7 @@ import (
 
 	"github.com/alessio/shellescape"
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/shell"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +20,7 @@ var (
 func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().BoolVarP(&useShell, "shell", "s", false, "Use the login shell instead of running command directly")
-	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate all absolute Linux paths to macOS paths (experimental)")
+	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate all absolute Linux paths to macOS paths")
 }
 
 func ParseRunFlags(args []string) ([]string, error) {
@@ -99,6 +100,8 @@ If no arguments are provided, an interactive shell is started.
 You can also prefix commands with "mac" to run them on macOS. For example:
     mac uname -a
 will run "uname -a" on macOS, and is equivalent to: macctl run uname -a
+
+Paths are translated automatically when safe. To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac.
 `,
 	Example: "  macctl run ls",
 	Args:    cobra.ArbitraryArgs,
@@ -117,11 +120,11 @@ will run "uname -a" on macOS, and is equivalent to: macctl run uname -a
 			return nil
 		}
 
+		opts := shell.MakePathTransOptions()
 		if usePath {
-			args = shell.TranslateArgPaths(args)
-		} else {
-			args = shell.TranslateArgPathsRelaxed(args)
+			opts.Relaxed = true
 		}
+		args = sshpath.TranslateArgs(args, sshpath.ToMac, opts)
 		if useShell {
 			args = []string{shellescape.QuoteCommand(args)}
 		}

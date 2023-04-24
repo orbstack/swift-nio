@@ -1,7 +1,8 @@
 package sshenv
 
 var (
-	NoInheritEnvs = []string{
+	// this is actually useless because we inherit *all* from daemon anyway
+	MacHostEnvs = []string{
 		"USER",
 		"LOGNAME",
 		"HOME",
@@ -11,7 +12,7 @@ var (
 		"SSH_AUTH_SOCK",
 		"ZDOTDIR",
 
-		// locale may not be available in linux
+		// locale
 		"LANG",
 		"LC_ALL",
 		"LC_CTYPE",
@@ -21,32 +22,41 @@ var (
 		"LC_NUMERIC",
 		"LC_TIME",
 
-		// linux system
-		"XDG_SESSION_ID",
-		"XDG_RUNTIME_DIR",
-
 		// mac system
 		"XPC_SERVICE_NAME",
 		"XPC_FLAGS",
 		"SECURITYSESSIONID",
+	}
 
-		// go
-		"GOBIN",
-		"GOCACHE",
-		"GOENV",
-		"GOMODCACHE",
-		"GOEXE",
-		"GOMODCACHE",
-		"GOOS",
-		"GOPATH",
-		"GOROOT",
-		"GOTMPDIR",
-		"GOTOOLDIR",
-		"GOMOD",
-		"GOWORK",
+	DefaultPassEnvs = []string{
+		// pty req includes this, but also send it when piped
+		"TERM",
 
-		// nvm
-		"NVM_DIR",
+		// terminal (iterm2)
+		"TERM_PROGRAM",
+		"TERM_PROGRAM_VERSION",
+		"TERM_SESSION_ID",
+		"COMMAND_MODE",
+		"LC_TERMINAL_VERSION",
+		"LC_TERMINAL",
+		"ITERM_SESSION_ID",
+		"ITERM_PROFILE",
+		"COLORTERM",
+
+		// default programs depends on PATH
+		"TERMINAL",
+
+		// warp
+		"LaunchInstanceID",
+
+		// mac
+		"__CF_USER_TEXT_ENCODING",
+		"__CFBundleIdentifier",
+
+		// ?
+		"DISPLAY",
+
+		// default translated ones below
 	}
 
 	// need url host translation

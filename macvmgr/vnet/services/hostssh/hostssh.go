@@ -64,7 +64,7 @@ var (
 	}
 
 	// matches macOS ssh vars
-	inheritHostEnvValues = []string{}
+	hostEnvValues = []string{}
 )
 
 const (
@@ -80,9 +80,9 @@ func init() {
 			continue
 		}
 
-		for _, cand := range sshenv.NoInheritEnvs {
+		for _, cand := range sshenv.MacHostEnvs {
 			if key == cand {
-				inheritHostEnvValues = append(inheritHostEnvValues, kv)
+				hostEnvValues = append(hostEnvValues, kv)
 				break
 			}
 		}
@@ -157,18 +157,23 @@ func strp(s *string) string {
 func handleSshConn(s ssh.Session) error {
 	ptyReq, winCh, isPty := s.Pty()
 
-	// new env
+	// new empty env
 	env := make([]string, 0)
 
-	// add all from mac
+	// add all from mac as a starting point
 	env = append(env, os.Environ()...)
 
-	// ssh env: extract __MV_META metadata, inherit the rest
+	// add ones inherited from mac
+	// TODO remove unless we start clearing the env
+	env = append(env, hostEnvValues...)
+
+	// ssh env: extract __MV_META and ORBENV/WSLENV metadata
 	var metaStr string
 	var meta sshtypes.SshMeta
 	for _, kv := range s.Environ() {
 		if strings.HasPrefix(kv, "__MV_META=") {
 			metaStr = kv[10:]
+			continue
 		} else {
 			// TODO translate paths
 			env = append(env, kv)
@@ -190,9 +195,6 @@ func handleSshConn(s ssh.Session) error {
 		"meta":  meta,
 		"argv0": strp(meta.Argv0),
 	}).Debug("SSH connection")
-
-	// override with some env inherited from host
-	env = append(env, inheritHostEnvValues...)
 
 	// pwd
 	var err error

@@ -8,6 +8,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/cmd"
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/shell"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
 )
 
 func main() {
@@ -42,7 +43,9 @@ func runBinfmtStub() (int, error) {
 	combinedArgs := os.Args[2:]
 
 	// always translate paths in relaxed mode
-	combinedArgs = shell.TranslateArgPathsRelaxed(combinedArgs)
+	opts := shell.MakePathTransOptions()
+	opts.Relaxed = true
+	combinedArgs = sshpath.TranslateArgs(combinedArgs, sshpath.ToMac, opts)
 
 	// run the command
 	return shell.ConnectSSH(shell.CommandOpts{
@@ -57,13 +60,15 @@ func runCommandStub(cmd string) (int, error) {
 
 	// what command are we running?
 	baseCmd := path.Base(args[0])
+	opts := shell.MakePathTransOptions()
 	if baseCmd == "open" {
 		// "open" is a special case where we know args that look like paths must be paths, so we can safely translate them w/o relaxed
-		args = shell.TranslateArgPaths(args)
+		opts.Relaxed = false
 	} else {
 		// we can't safely do this kind of translation for everything. e.g. adb
-		args = shell.TranslateArgPathsRelaxed(args)
+		opts.Relaxed = true
 	}
+	args = sshpath.TranslateArgs(args, sshpath.ToMac, opts)
 	return shell.ConnectSSH(shell.CommandOpts{
 		CombinedArgs: args,
 	})

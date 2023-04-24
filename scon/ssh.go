@@ -112,19 +112,13 @@ func translateProxyEnv(key, value string) (string, error) {
 }
 
 // filter out sshenv exclusions and translate proxies
-func filterTranslateEnv(env []string, filter []string) []string {
+func translateEnvs(env []string) []string {
 	filtered := make([]string, 0, len(env))
-outer:
+
 	for _, kv := range env {
 		key, value, ok := strings.Cut(kv, "=")
 		if !ok {
 			continue
-		}
-
-		for _, cand := range filter {
-			if key == cand {
-				continue outer
-			}
 		}
 
 		if slices.Contains(sshenv.ProxyEnvs, key) {
@@ -313,8 +307,8 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		"meta": meta,
 	}).Debug("SSH connection - command session")
 
-	// remove envs inherited from container
-	env = filterTranslateEnv(env, sshenv.NoInheritEnvs)
+	// translate proxy envs
+	env = translateEnvs(env)
 
 	// pwd
 	cwd, err := UseAgentRet(container, func(a *agent.Client) (string, error) {

@@ -19,7 +19,6 @@ var (
 	flagMachine  string
 	flagUser     string
 	FlagWantHelp bool
-	flagNoEnv    bool
 )
 
 func init() {
@@ -27,8 +26,7 @@ func init() {
 	runCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Use a specific machine")
 	runCmd.Flags().StringVarP(&flagUser, "user", "u", "", "Run as a specific user")
 	runCmd.Flags().BoolVarP(&useShell, "shell", "s", false, "Use the login shell instead of running command directly")
-	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate absolute macOS paths to Linux paths (experimental)")
-	runCmd.Flags().BoolVarP(&flagNoEnv, "no-env", "E", false, "Don't pass environment variables")
+	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate absolute macOS paths to Linux paths")
 }
 
 func ParseRunFlags(args []string) ([]string, error) {
@@ -53,9 +51,6 @@ func ParseRunFlags(args []string) ([]string, error) {
 			case "-p", "--path", "-path":
 				usePath = true
 				continue
-			case "-E", "--no-env", "-no-env":
-				flagNoEnv = true
-				continue
 			case "-h", "--help", "-help":
 				FlagWantHelp = true
 				continue
@@ -75,8 +70,6 @@ func ParseRunFlags(args []string) ([]string, error) {
 					useShell = valuePart == "true"
 				case "-p", "--path", "-path":
 					usePath = valuePart == "true"
-				case "-E", "--no-env", "-no-env":
-					flagNoEnv = valuePart == "true"
 				}
 				continue
 			}
@@ -128,6 +121,8 @@ will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run u
 If you prefer SSH, use "` + appid.ShortCtl + ` ssh" for details.
 
 To run a command on macOS from Linux, use "macctl run" instead.
+
+Paths are translated automatically when safe. To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac.
 `,
 	Example: "  " + appid.ShortCtl + " run ls",
 	Args:    cobra.ArbitraryArgs,
@@ -156,7 +151,7 @@ To run a command on macOS from Linux, use "macctl run" instead.
 		}
 
 		if usePath {
-			args = shell.TranslateArgPaths(args, containerName)
+			args = sshpath.TranslateArgs(args, sshpath.ToLinux, containerName)
 		}
 		if useShell {
 			args = []string{shellescape.QuoteCommand(args)}
@@ -167,7 +162,6 @@ To run a command on macOS from Linux, use "macctl run" instead.
 			UseShell:      useShell,
 			ContainerName: containerName,
 			User:          flagUser,
-			OmitEnv:       flagNoEnv,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "\n%v\n", err)
