@@ -69,6 +69,10 @@ func (r *ForwarderRequest) ID() stack.TransportEndpointID {
 	return r.id
 }
 
+func (r *ForwarderRequest) Packet() stack.PacketBufferPtr {
+	return r.pkt
+}
+
 // CreateEndpoint creates a connected UDP endpoint for the session request.
 func (r *ForwarderRequest) CreateEndpoint(queue *waiter.Queue) (tcpip.Endpoint, tcpip.Error) {
 	ep := newEndpoint(r.stack, r.pkt.NetworkProtocolNumber, queue)
