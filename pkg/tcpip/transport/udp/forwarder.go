@@ -44,6 +44,7 @@ func NewForwarder(s *stack.Stack, handler func(*ForwarderRequest)) *Forwarder {
 // This function is expected to be passed as an argument to the
 // stack.SetTransportProtocolHandler function.
 func (f *Forwarder) HandlePacket(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+	defer pkt.DecRef()
 	f.handler(&ForwarderRequest{
 		stack: f.stack,
 		id:    id,
