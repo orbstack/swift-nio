@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	runPprof         = false
+	pprofExtra       = false
 	initSetupTimeout = 10 * time.Second
 )
 
@@ -425,10 +425,14 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/", bridge)
 
-	if runPprof {
+	// pprof server
+	if conf.Debug() {
 		go func() {
-			runtime.SetBlockProfileRate(1)
-			runtime.SetMutexProfileFraction(1)
+			// affects perf
+			if pprofExtra {
+				runtime.SetBlockProfileRate(1)
+				runtime.SetMutexProfileFraction(1)
+			}
 			err := http.ListenAndServe("localhost:6060", nil)
 			if err != nil {
 				logrus.Error("pprof: ListenAndServe() =", err)
