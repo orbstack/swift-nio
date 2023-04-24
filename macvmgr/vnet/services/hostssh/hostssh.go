@@ -62,9 +62,6 @@ var (
 		PtyStdout:  true,
 		PtyStderr:  true,
 	}
-
-	// matches macOS ssh vars
-	hostEnvValues = []string{}
 )
 
 const (
@@ -72,22 +69,6 @@ const (
 	fdStdout = 1
 	fdStderr = 2
 )
-
-func init() {
-	for _, kv := range os.Environ() {
-		key, _, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-
-		for _, cand := range sshenv.MacHostEnvs {
-			if key == cand {
-				hostEnvValues = append(hostEnvValues, kv)
-				break
-			}
-		}
-	}
-}
 
 func translateProxyEnv(key, value string) (string, error) {
 	// translate proxy url
@@ -162,10 +143,6 @@ func handleSshConn(s ssh.Session) error {
 
 	// add all from mac as a starting point
 	env = append(env, os.Environ()...)
-
-	// add ones inherited from mac
-	// TODO remove unless we start clearing the env
-	env = append(env, hostEnvValues...)
 
 	// ssh env: extract __MV_META and ORBENV/WSLENV metadata
 	var metaStr string

@@ -1,33 +1,6 @@
 package sshenv
 
 var (
-	// this is actually useless because we inherit *all* from daemon anyway
-	MacHostEnvs = []string{
-		"USER",
-		"LOGNAME",
-		"HOME",
-		"PATH",
-		"SHELL",
-		"TMPDIR",
-		"SSH_AUTH_SOCK",
-		"ZDOTDIR",
-
-		// locale
-		"LANG",
-		"LC_ALL",
-		"LC_CTYPE",
-		"LC_COLLATE",
-		"LC_MESSAGES",
-		"LC_MONETARY",
-		"LC_NUMERIC",
-		"LC_TIME",
-
-		// mac system
-		"XPC_SERVICE_NAME",
-		"XPC_FLAGS",
-		"SECURITYSESSIONID",
-	}
-
 	DefaultPassEnvs = []string{
 		// pty req includes this, but also send it when piped
 		"TERM",
