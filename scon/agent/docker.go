@@ -102,13 +102,49 @@ func (a *AgentServer) dockerPostStart() error {
 	return nil
 }
 
+func (a *AgentServer) dockerAddStartedContainers() error {
+	// only includes running
+	resp, err := a.dockerClient.Get("http://docker/containers/json")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("docker API returned " + resp.Status)
+	}
+
+	var containers []struct {
+		ID string `json:"Id"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&containers)
+	if err != nil {
+		return err
+	}
+
+	// trigger started for each one
+	for _, c := range containers {
+		err = a.onDockerContainerStart(c.ID)
+		if err != nil {
+			logrus.WithError(err).Error("failed to handle initial Docker container start")
+		}
+	}
+
+	return nil
+}
+
 func (a *AgentServer) monitorDockerEvents() error {
 	req, err := a.dockerClient.Get("http://unix/events")
 	if err != nil {
 		return err
 	}
 
-	//TODO diff on start
+	// ok, we subscribed to events, now sample starting set
+	err = a.dockerAddStartedContainers()
+	if err != nil {
+		return err
+	}
+
 	dec := json.NewDecoder(req.Body)
 	for {
 		var event dockertypes.Event
