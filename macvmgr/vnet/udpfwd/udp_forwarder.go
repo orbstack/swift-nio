@@ -5,6 +5,7 @@ package udpfwd
 
 import (
 	"errors"
+	"io"
 	"net"
 	"net/netip"
 	"sync"
@@ -131,7 +132,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 			// NOTE: Apparently ReadFrom doesn't return
 			// ECONNREFUSED like Read do (see comment in
 			// UDPProxy.replyLoop)
-			if !errors.Is(err, net.ErrClosed) {
+			if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
 				logrus.Error("UDP proxy conn ReadFrom() failed: ", err)
 			}
 			break
