@@ -2,6 +2,7 @@ package vmclient
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path"
@@ -48,13 +49,13 @@ func IsSconRunning() (bool, error) {
 func FindVmgrExe() (string, error) {
 	selfExe, err := os.Executable()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get exe path: %w", err)
 	}
 
 	// resolve symlinks
 	selfExe, err = filepath.EvalSymlinks(selfExe)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("resolve symlinks: %w", err)
 	}
 
 	return path.Join(path.Dir(selfExe), "OrbStack Helper (VM)"), nil
@@ -64,7 +65,7 @@ func SpawnDaemon(newBuildID string) error {
 	// start it. assume executable is next to ours, unless this is debug
 	vmgrExe, err := FindVmgrExe()
 	if err != nil {
-		return err
+		return fmt.Errorf("find vmgr exe: %w", err)
 	}
 
 	// exec self with spawn-daemon
@@ -84,7 +85,7 @@ func EnsureVM() error {
 	if !IsRunning() {
 		err := SpawnDaemon("")
 		if err != nil {
-			return err
+			return fmt.Errorf("spawn daemon: %w", err)
 		}
 
 		// wait for VM to start
@@ -105,7 +106,7 @@ func EnsureSconVM() error {
 	// ensure VM first
 	err := EnsureVM()
 	if err != nil {
-		return err
+		return fmt.Errorf("ensure VM: %w", err)
 	}
 
 	// wait for sconrpc to start
@@ -117,7 +118,7 @@ func EnsureSconVM() error {
 
 		isRunning, err := IsSconRunning()
 		if err != nil {
-			return err
+			return fmt.Errorf("check scon running: %w", err)
 		}
 		if isRunning {
 			break
