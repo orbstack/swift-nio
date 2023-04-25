@@ -92,11 +92,18 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	// for high MTU, add double virtio_net_hdr for GSO/TSO metadata
 	// for low MTU, don't touch it or we'd end up with 1490 MTU.
 	// (no point anyway because there's no GSO to do at 1500)
+	//
+	// this causes asymmetric MTU:
+	// - guest -> host: 65535 (TSO from 1500)
+	// - host -> guest: 65517 (65535 - 10 (vnet_hdr) - 8 (ipv6 overhead))
+	// but that's ok, because official MTU on the Linux side is 1500. 65535 is a TSO detail
 	if opts.LinkMTU > BaseMTU {
-		linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize)
+		// IPv6 gets truncated without -8 bytes on GSOMaxSize. TODO: why?
+		// also, we don't strictly need -8 on MTU, only GSOMaxSize. but just make it match to avoid issues
+		linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize + 8)
 		// we use GSO *with* high MTU just to give Linux kernel the GSO/TSO metadata
 		// so it can split for mtu-1500 bridges like Docker Compose
-		linkOpts.GSOMaxSize = opts.LinkMTU - uint32(dglink.VirtioNetHdrSize)
+		linkOpts.GSOMaxSize = opts.LinkMTU - uint32(dglink.VirtioNetHdrSize+8)
 	}
 
 	nicEp, err := dglink.New(&linkOpts)
