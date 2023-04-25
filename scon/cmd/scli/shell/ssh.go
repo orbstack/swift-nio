@@ -167,7 +167,7 @@ func RunSSH(opts CommandOpts) (int, error) {
 
 	// start with only necessary client env
 	osEnv := envutil.ToMap(os.Environ())
-	clientEnv, err := sshenv.OSToClientEnv(osEnv, sshenv.ToMac)
+	clientEnv, err := sshenv.OSToClientEnv(osEnv, sshenv.ToLinux)
 	if err != nil {
 		return 0, err
 	}

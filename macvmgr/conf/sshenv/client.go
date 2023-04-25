@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/kdrag0n/macvirt/scon/agent/envutil"
-	"github.com/sirupsen/logrus"
 )
 
 type TranslatorFuncs struct {
@@ -36,7 +35,9 @@ func OSToClientEnv(osEnv envutil.EnvMap, transFns TranslatorFuncs) (envutil.EnvM
 		if v, ok := osEnv[k]; ok {
 			newValue, err := translateOneProxyUrl(v, transFns.Proxy)
 			if err != nil {
-				logrus.WithError(err).WithField("key", k).Warn("failed to translate proxy url")
+				//logrus.WithError(err).WithField("key", k).Warn("failed to translate proxy url")
+				// just pass it as-is if we don't know what to do with it
+				clientEnv[k] = v
 				continue
 			}
 
