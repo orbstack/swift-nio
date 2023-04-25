@@ -5,18 +5,25 @@ import (
 	"strings"
 )
 
-func Dedupe(env []string) []string {
-	// later ones override earlier ones
-	// easiest to use a map
-	m := make(map[string]string)
-	for _, e := range env {
+type EnvMap map[string]string
+
+func NewMap() EnvMap {
+	return make(map[string]string)
+}
+
+func ToMap(envPairs []string) EnvMap {
+	m := make(map[string]string, len(envPairs))
+	for _, e := range envPairs {
 		k, v, ok := strings.Cut(e, "=")
 		if !ok {
 			continue
 		}
 		m[k] = v
 	}
-	// convert back to slice
+	return m
+}
+
+func (m EnvMap) ToPairs() []string {
 	out := make([]string, 0, len(m))
 	for k, v := range m {
 		out = append(out, k+"="+v)
@@ -25,4 +32,12 @@ func Dedupe(env []string) []string {
 	sort.Strings(out)
 
 	return out
+}
+
+func (m EnvMap) SetPair(kv string) {
+	k, v, ok := strings.Cut(kv, "=")
+	if !ok {
+		return
+	}
+	m[k] = v
 }

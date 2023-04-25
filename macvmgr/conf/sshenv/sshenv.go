@@ -1,7 +1,7 @@
 package sshenv
 
 var (
-	DefaultPassEnvs = []string{
+	defaultPassEnvKeys = []string{
 		// pty req includes this, but also send it when piped
 		"TERM",
 
@@ -29,11 +29,15 @@ var (
 		// ?
 		"DISPLAY",
 
+		// need to propagate this for correct translation
+		"ORBENV",
+		"WSLENV",
+
 		// default translated ones below
 	}
 
 	// need url host translation
-	ProxyEnvs = []string{
+	proxyEnvKeys = []string{
 		"HTTP_PROXY",
 		"HTTPS_PROXY",
 		"FTP_PROXY",

@@ -101,7 +101,11 @@ You can also prefix commands with "mac" to run them on macOS. For example:
     mac uname -a
 will run "uname -a" on macOS, and is equivalent to: macctl run uname -a
 
-Paths are translated automatically when safe. To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac.
+To pass environment variables, set ORBENV to a colon-separated list of variables:
+	ORBENV=EDITOR:VISUAL mac git commit
+
+Paths are translated automatically when safe.
+To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac.
 `,
 	Example: "  macctl run ls",
 	Args:    cobra.ArbitraryArgs,

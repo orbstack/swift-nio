@@ -8,6 +8,7 @@ import (
 
 	"github.com/alessio/shellescape"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
 	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
 	"github.com/spf13/cobra"
@@ -112,8 +113,6 @@ var runCmd = &cobra.Command{
 If no arguments are provided, an interactive shell is started.
 The default machine and/or user are used if not specified.
 
-Environment variables are passed to the command by default.
-
 You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux. For example:
     ` + appid.ShortCmd + ` uname -a
 will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run uname -a
@@ -122,7 +121,11 @@ If you prefer SSH, use "` + appid.ShortCtl + ` ssh" for details.
 
 To run a command on macOS from Linux, use "macctl run" instead.
 
-Paths are translated automatically when safe. To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac.
+To pass environment variables, set ORBENV to a colon-separated list of variables:
+	ORBENV=EDITOR:VISUAL ` + appid.ShortCmd + ` git commit
+
+Paths are translated automatically when safe.
+To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac.
 `,
 	Example: "  " + appid.ShortCtl + " run ls",
 	Args:    cobra.ArbitraryArgs,
@@ -151,7 +154,9 @@ Paths are translated automatically when safe. To be explicit, prefix Linux paths
 		}
 
 		if usePath {
-			args = sshpath.TranslateArgs(args, sshpath.ToLinux, containerName)
+			args = sshpath.TranslateArgs(args, sshpath.ToLinux, sshpath.ToLinuxOptions{
+				TargetContainer: containerName,
+			})
 		}
 		if useShell {
 			args = []string{shellescape.QuoteCommand(args)}

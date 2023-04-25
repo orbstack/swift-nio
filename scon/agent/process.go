@@ -31,7 +31,7 @@ const (
 type SpawnProcessArgs struct {
 	CombinedArgs []string
 	Dir          string
-	Env          []string
+	Env          envutil.EnvMap
 	User         string
 	Setsid       bool
 	Setctty      bool
@@ -234,33 +234,32 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 					logrus.WithError(err).Error("failed to parse /etc/environment")
 				}
 
-				args.Env = append(args.Env, pamEnv...)
+				// add PAM envs
+				for _, pair := range pamEnv {
+					args.Env.SetPair(pair)
+				}
 				if !foundPath {
 					// inherit system PATH
-					args.Env = append(args.Env, "PATH="+os.Getenv("PATH"))
+					args.Env["PATH"] = os.Getenv("PATH")
 				}
 
 				// initial PAM environment
 				// set standard login/su environment
 				// inherit system PATH
 				// https://github.com/util-linux/util-linux/blob/master/login-utils/su-common.c#L760
-				args.Env = append(args.Env,
-					"SHELL="+shell,
-					"HOME="+u.HomeDir,
-					"USER="+u.Username,
-					"LOGNAME="+u.Username,
-				)
+				args.Env["SHELL"] = shell
+				args.Env["HOME"] = u.HomeDir
+				args.Env["USER"] = u.Username
+				args.Env["LOGNAME"] = u.Username
 
 				// pam_systemd
 				// we do enable-linger asynchronously so /run/user/UID won't exist yet,
 				// and waiting for it is too slow (~250 ms)
 				if _, err := exec.LookPath("loginctl"); err == nil {
-					args.Env = append(args.Env,
-						"XDG_RUNTIME_DIR=/run/user/"+u.Uid,
-						"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+u.Uid+"/bus",
-						"XDG_SESSION_TYPE=tty",
-						"XDG_SESSION_CLASS=user",
-					)
+					args.Env["XDG_RUNTIME_DIR"] = "/run/user/" + u.Uid
+					args.Env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/" + u.Uid + "/bus"
+					args.Env["XDG_SESSION_TYPE"] = "tty"
+					args.Env["XDG_SESSION_CLASS"] = "user"
 				}
 			}
 		}
@@ -281,30 +280,20 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 		}
 	}
 
-	// dedupe env
-	args.Env = envutil.Dedupe(args.Env)
 	// find the path, and prepend/append our bin to PATH
-	for i, env := range args.Env {
-		if strings.HasPrefix(env, "PATH=") {
-			k, pathEnv, ok := strings.Cut(env, "=")
-			if !ok {
-				continue
-			}
-
-			// only do the ones that aren't there
-			pathList := strings.Split(pathEnv, ":")
-			if !slices.Contains(pathList, mounts.BinHiprio) {
-				pathList = append([]string{mounts.BinHiprio}, pathList...)
-			}
-			if !slices.Contains(pathList, mounts.Bin) {
-				pathList = append(pathList, mounts.Bin)
-			}
-			if !slices.Contains(pathList, mounts.UserCmdLinks) {
-				pathList = append(pathList, mounts.UserCmdLinks)
-			}
-			args.Env[i] = k + "=" + strings.Join(pathList, ":")
-			break
+	if pathValue, ok := args.Env["PATH"]; ok {
+		// only add what's not already there
+		pathList := strings.Split(pathValue, ":")
+		if !slices.Contains(pathList, mounts.BinHiprio) {
+			pathList = append([]string{mounts.BinHiprio}, pathList...)
 		}
+		if !slices.Contains(pathList, mounts.Bin) {
+			pathList = append(pathList, mounts.Bin)
+		}
+		if !slices.Contains(pathList, mounts.UserCmdLinks) {
+			pathList = append(pathList, mounts.UserCmdLinks)
+		}
+		args.Env["PATH"] = strings.Join(pathList, ":")
 	}
 
 	// create process
@@ -318,7 +307,7 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 	proc, err := os.StartProcess(exePath, args.CombinedArgs, &os.ProcAttr{
 		Dir:   args.Dir,
 		Files: []*os.File{stdin, stdout, stderr},
-		Env:   args.Env,
+		Env:   args.Env.ToPairs(),
 		Sys:   attrs,
 	})
 	if err != nil {
@@ -370,7 +359,7 @@ func (a *AgentServer) EndUserSession(user string, reply *None) error {
 type AgentCommand struct {
 	CombinedArgs []string
 	Dir          string
-	Env          []string
+	Env          envutil.EnvMap
 	Stdin        io.Reader
 	Stdout       io.Writer
 	Stderr       io.Writer
@@ -389,6 +378,11 @@ type AgentCommand struct {
 }
 
 func (c *AgentCommand) Start(agent *Client) error {
+	// must always have env map
+	if c.Env == nil {
+		c.Env = envutil.NewMap()
+	}
+
 	var stdin *os.File
 	var stdout *os.File
 	var stderr *os.File

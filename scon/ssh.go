@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -20,10 +19,10 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/kdrag0n/macvirt/scon/agent"
+	"github.com/kdrag0n/macvirt/scon/agent/envutil"
 	"github.com/kdrag0n/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 
@@ -67,63 +66,6 @@ var (
 		PtyStderr:  true,
 	}
 )
-
-func translateProxyEnv(key, value string) (string, error) {
-	// translate proxy url
-	u, err := url.Parse(value)
-	if err != nil {
-		return "", err
-	}
-
-	// split host:port
-	host, port, err := net.SplitHostPort(u.Host)
-	if addrError, ok := err.(*net.AddrError); ok && addrError.Err == "missing port in address" {
-		// no port, use default
-		host = u.Host
-	} else if err != nil {
-		return "", err
-	}
-
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-		if port == "" {
-			u.Host = "host.orb.internal"
-		} else {
-			u.Host = "host.orb.internal:" + port
-		}
-
-		return key + "=" + u.String(), nil
-	}
-
-	return key + "=" + value, nil
-}
-
-// filter out sshenv exclusions and translate proxies
-func translateEnvs(env []string) []string {
-	filtered := make([]string, 0, len(env))
-
-	for _, kv := range env {
-		key, value, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-
-		if slices.Contains(sshenv.ProxyEnvs, key) {
-			// translate proxy env
-			translated, err := translateProxyEnv(key, value)
-			if err != nil {
-				logrus.WithError(err).WithField("env", kv).Warn("Failed to translate proxy env")
-				filtered = append(filtered, kv)
-				continue
-			}
-
-			filtered = append(filtered, translated)
-		} else {
-			filtered = append(filtered, kv)
-		}
-	}
-
-	return filtered
-}
 
 type ExitError struct {
 	status int
@@ -263,25 +205,20 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	ptyReq, winCh, isPty := s.Pty()
 	printErr = isPty
 
-	// new env
-	env := make([]string, 0)
+	// new empty env (agent adds basics)
+	env := envutil.NewMap()
 
-	// ssh env: extract __MV_META metadata, inherit the rest
-	var metaStr string
+	// ssh env: extract __ORB_META metadata, and add anything client sent
 	var meta sshtypes.SshMeta
 	for _, kv := range s.Environ() {
-		if strings.HasPrefix(kv, "__MV_META=") {
-			metaStr = kv[10:]
-		} else {
-			// TODO translate paths
-			env = append(env, kv)
-		}
+		env.SetPair(kv)
 	}
-	if metaStr != "" {
+	if metaStr, ok := env[sshenv.KeyMeta]; ok {
 		err = json.Unmarshal([]byte(metaStr), &meta)
 		if err != nil {
 			return
 		}
+		delete(env, sshenv.KeyMeta)
 	} else {
 		meta = defaultMeta
 	}
@@ -292,9 +229,6 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		"cmd":  s.RawCommand(),
 		"meta": meta,
 	}).Debug("SSH connection - command session")
-
-	// translate proxy envs
-	env = translateEnvs(env)
 
 	// pwd
 	cwd, err := UseAgentRet(container, func(a *agent.Client) (string, error) {
@@ -309,11 +243,11 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 	// env: set TERM and PWD
 	if isPty {
-		env = append(env, "TERM="+ptyReq.Term)
+		env["TERM"] = ptyReq.Term
 	}
-	env = append(env, "PWD="+cwd)
+	env["PWD"] = cwd
 	// set prompt ssh
-	env = append(env, "SSH_CONNECTION=::1 0 ::1 22")
+	env["SSH_CONNECTION"] = "::1 0 ::1 22"
 
 	// forward ssh agent
 	sshAgentSocks, err := sv.m.host.GetSSHAgentSockets()
@@ -321,10 +255,9 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		return
 	}
 	if sshAgentSocks.Preferred != "" {
-		env = append(env, "SSH_AUTH_SOCK="+mounts.SshAgentSocket)
+		env["SSH_AUTH_SOCK"] = mounts.SshAgentSocket
 	}
 
-	// dedupe not needed. agent does dedupe after adding some envs
 	cmd := &agent.AgentCommand{
 		Env:          env,
 		Dir:          cwd,

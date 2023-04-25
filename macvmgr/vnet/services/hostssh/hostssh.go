@@ -4,12 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -18,11 +15,9 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/sshenv"
 	"github.com/kdrag0n/macvirt/macvmgr/setup/userutil"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
 	"github.com/kdrag0n/macvirt/scon/agent/envutil"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -56,7 +51,7 @@ var (
 		ssh.SIGUSR2: unix.SIGUSR2,
 	}
 
-	defaultMeta = sshtypes.SshMeta{
+	defaultMeta = sshenv.CmdMeta{
 		RawCommand: false,
 		PtyStdin:   true,
 		PtyStdout:  true,
@@ -70,63 +65,6 @@ const (
 	fdStderr = 2
 )
 
-func translateProxyEnv(key, value string) (string, error) {
-	// translate proxy url
-	u, err := url.Parse(value)
-	if err != nil {
-		return "", err
-	}
-
-	// split host:port
-	host, port, err := net.SplitHostPort(u.Host)
-	if addrError, ok := err.(*net.AddrError); ok && addrError.Err == "missing port in address" {
-		// no port, use default
-		host = u.Host
-	} else if err != nil {
-		return "", err
-	}
-
-	if host == "host.orb.internal" || host == "host.docker.internal" || host == "host.internal" || host == "host.lima.internal" || host == "host" {
-		if port == "" {
-			u.Host = "localhost"
-		} else {
-			u.Host = "localhost:" + port
-		}
-
-		return key + "=" + u.String(), nil
-	}
-
-	return key + "=" + value, nil
-}
-
-// filter out sshenv exclusions and translate proxies
-func translateEnv(env []string) []string {
-	filtered := make([]string, 0, len(env))
-
-	for _, kv := range env {
-		key, value, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-
-		if slices.Contains(sshenv.ProxyEnvs, key) {
-			// translate proxy env
-			translated, err := translateProxyEnv(key, value)
-			if err != nil {
-				logrus.WithError(err).WithField("env", kv).Warn("Failed to translate proxy env")
-				filtered = append(filtered, kv)
-				continue
-			}
-
-			filtered = append(filtered, translated)
-		} else {
-			filtered = append(filtered, kv)
-		}
-	}
-
-	return filtered
-}
-
 func strp(s *string) string {
 	if s == nil {
 		return ""
@@ -139,24 +77,19 @@ func handleSshConn(s ssh.Session) error {
 	ptyReq, winCh, isPty := s.Pty()
 
 	// new env based on mac as starting point (this is a copy)
-	env := os.Environ()
+	env := envutil.ToMap(os.Environ())
 
-	// ssh env: extract __MV_META and ORBENV/WSLENV metadata
-	var metaStr string
-	var meta sshtypes.SshMeta
+	// add everything from client
+	var meta sshenv.CmdMeta
 	for _, kv := range s.Environ() {
-		if strings.HasPrefix(kv, "__MV_META=") {
-			metaStr = kv[10:]
-			continue
-		} else {
-			env = append(env, kv)
-		}
+		env.SetPair(kv)
 	}
-	if metaStr != "" {
+	if metaStr, ok := env[sshenv.KeyMeta]; ok {
 		err := json.Unmarshal([]byte(metaStr), &meta)
 		if err != nil {
 			return err
 		}
+		delete(env, sshenv.KeyMeta)
 	} else {
 		meta = defaultMeta
 	}
@@ -184,19 +117,12 @@ func handleSshConn(s ssh.Session) error {
 		pwd = "/"
 	}
 
-	// env: set TERM and PWD
+	// set basic conn-specific envs
 	if isPty {
-		env = append(env, "TERM="+ptyReq.Term)
+		env["TERM"] = ptyReq.Term
 	}
-	// TODO need to translate pwd path
-	env = append(env, "PWD="+pwd)
-	// set prompt ssh
-	env = append(env, "SSH_CONNECTION=::1 0 ::1 22")
-
-	// dedupe env
-	env = envutil.Dedupe(env)
-	// translate env
-	env = translateEnv(env)
+	env["PWD"] = pwd
+	env["SSH_CONNECTION"] = "::1 0 ::1 22"
 
 	var combinedArgs []string
 	argv0 := meta.Argv0
@@ -227,7 +153,7 @@ func handleSshConn(s ssh.Session) error {
 	if argv0 != nil {
 		cmd.Args[0] = *argv0
 	}
-	cmd.Env = env
+	cmd.Env = env.ToPairs()
 	cmd.Dir = pwd
 
 	if isPty {

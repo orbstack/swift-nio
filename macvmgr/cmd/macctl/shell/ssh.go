@@ -9,9 +9,10 @@ import (
 	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/sshenv"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/sshtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh/termios"
+	"github.com/kdrag0n/macvirt/scon/agent/envutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
@@ -71,10 +72,7 @@ func MakePathTransOptions() sshpath.ToMacOptions {
 
 func ConnectSSH(opts CommandOpts) (int, error) {
 	config := &ssh.ClientConfig{
-		User: "macctl", // unused, only one user
-		// Auth: []ssh.AuthMethod{
-		// 	ssh.Password("test"),
-		// },
+		User:            "macctl", // unused, only one user
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
@@ -90,7 +88,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	}
 	defer session.Close()
 
-	meta := sshtypes.SshMeta{
+	meta := sshenv.CmdMeta{
 		RawCommand: !opts.UseShell && len(opts.CombinedArgs) > 0,
 		Argv0:      opts.Argv0,
 	}
@@ -164,26 +162,32 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	winchChan := make(chan os.Signal, 1)
 	signal.Notify(winchChan, unix.SIGWINCH)
 
-	// send all env (server chooses what to accept)
-	for _, kv := range os.Environ() {
-		key, value, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-		session.Setenv(key, value)
+	// start with only necessary client env
+	osEnv := envutil.ToMap(os.Environ())
+	clientEnv, err := sshenv.OSToClientEnv(osEnv, sshenv.ToMac)
+	if err != nil {
+		return 0, err
 	}
 
-	// extra env
+	// add extra env
 	for k, v := range opts.ExtraEnv {
-		session.Setenv(k, v)
+		clientEnv[k] = v
 	}
 
-	// send metadata
+	// add metadata
 	metaBytes, err := json.Marshal(&meta)
 	if err != nil {
 		return 0, err
 	}
-	session.Setenv("__MV_META", string(metaBytes))
+	clientEnv[sshenv.KeyMeta] = string(metaBytes)
+
+	// send all env
+	for k, v := range clientEnv {
+		err = session.Setenv(k, v)
+		if err != nil {
+			return 0, err
+		}
+	}
 
 	if len(opts.CombinedArgs) > 0 {
 		if opts.UseShell {
@@ -193,7 +197,6 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 			}
 		} else {
 			// run $0
-			// TODO find and translate paths
 			combinedArgsBytes, err := json.Marshal(&opts.CombinedArgs)
 			if err != nil {
 				return 0, err
