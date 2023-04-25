@@ -39,7 +39,7 @@ If no machines are specified, the command will start all machines that were runn
 			if len(args) == 0 {
 				// start VM instead
 				if vmclient.IsRunning() {
-					cmd.PrintErrln("Some machines are already running. Use --all to start all machines.")
+					cmd.PrintErrln("OrbStack is already running. Docker is ready to use.\nUse --all to start all machines.")
 					return nil
 				}
 
