@@ -103,7 +103,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 		linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize + 8)
 		// we use GSO *with* high MTU just to give Linux kernel the GSO/TSO metadata
 		// so it can split for mtu-1500 bridges like Docker Compose
-		linkOpts.GSOMaxSize = opts.LinkMTU - uint32(dglink.VirtioNetHdrSize+8)
+		linkOpts.GSOMaxSize = linkOpts.MTU
 	}
 
 	nicEp, err := dglink.New(&linkOpts)
