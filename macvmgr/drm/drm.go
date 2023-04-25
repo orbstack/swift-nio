@@ -236,10 +236,10 @@ func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
 	// scon only requires initial valid report now on start
 	// in debug, don't do this because I restart scon in dev
 	// TODO remove if we do perpetual periodic checks again
-	if !conf.Debug() && c.sconHasReported && result.State == drmtypes.StateValid {
+	/*if c.sconHasReported && result.State == drmtypes.StateValid {
 		dlog("already reported to scon, skip")
 		return nil
-	}
+	}*/
 
 	// report
 	dlog("report to scon internal")

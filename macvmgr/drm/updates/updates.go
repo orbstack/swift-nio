@@ -59,9 +59,8 @@ func NewSparkleCommand(args ...string) (*exec.Cmd, error) {
 	bundlePath := strings.TrimSuffix(path.Dir(sparkleExe), "/Contents/MacOS")
 
 	if conf.Debug() {
-		bundlePath = "/Users/dragon/Library/Caches/JetBrains/AppCode2022.3/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app"
-		sparkleExe = bundlePath + "/Contents/MacOS/sparkle-cli"
 		bundlePath = "/Applications/OrbStack.app"
+		sparkleExe = bundlePath + "/Contents/MacOS/sparkle-cli"
 	}
 
 	baseArgs := []string{"--user-agent-name", userAgent, "--feed-url", feedURL, "--send-profile", "--grant-automatic-checks", "--channels", "beta", "--allow-major-upgrades", bundlePath}
