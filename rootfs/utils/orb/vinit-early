@@ -15,6 +15,15 @@ echo "[BEGIN] vinit-early"
 # net
 echo 0 > /proc/sys/net/ipv6/conf/eth0/accept_ra
 echo 0 > /proc/sys/net/ipv6/conf/eth0/accept_dad # fix tentative ipv6 delay
+# static neigh
+ip neigh add 100.115.92.1 lladdr 24:d2:f4:58:34:d7 dev eth0
+ip neigh add 100.115.92.200 lladdr 24:d2:f4:58:34:d7 dev eth0
+ip neigh add 100.115.92.201 lladdr 24:d2:f4:58:34:d7 dev eth0
+ip neigh add 100.115.92.253 lladdr 24:d2:f4:58:34:d7 dev eth0
+ip neigh add 100.115.92.254 lladdr 24:d2:f4:58:34:d7 dev eth0
+# we use diff subnet for other v6
+ip -6 neigh add fd00:96dc:7096:1d21::1 lladdr 24:d2:f4:58:34:d7 dev eth0
+# config
 ip link set eth0 mtu 1500
 ip link set eth0 up
 ip addr add 100.115.92.2/24 dev eth0
