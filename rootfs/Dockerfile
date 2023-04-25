@@ -233,8 +233,19 @@ if [[ "$TYPE" == "debug" ]]; then
 fi
 EOT
 
-# qemu
+# qemu for arm64 host
 COPY --from=pkgbuild-qemu /out/qemu-x86_64 /out/qemu-i386 /opt/orb/
+
+# qemu for x86_64 host
+# 7.2 breaks openssl rsa verification (for x86_64 on arm64)
+# 8.0 segfaults in rustc/cargo like rosetta vmtracker
+RUN <<EOT sh -eux
+if [[ "\$(uname -m)" == "x86_64" ]]; then
+    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/x86_64/qemu-aarch64-7.1.0-r7.apk
+    apk add --no-cache qemu-aarch64-7.1.0-r7.apk
+    rm -f qemu-aarch64-7.1.0-r7.apk
+fi
+EOT
 
 # Docker container rootfs
 COPY --from=docker / /opt/docker-rootfs
@@ -317,6 +328,7 @@ mkdir /mnt/rosetta
 ln -s /mnt/rosetta/rosetta '/[rosetta]'
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
+ln -s /usr/bin/qemu-aarch64 '[qemu-arm64]'
 ln -s /opt/orbstack-guest/bin/macctl '[mac]'
 
 # Guest tools
