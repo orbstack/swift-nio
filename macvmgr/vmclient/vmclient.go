@@ -31,17 +31,20 @@ type VmClient struct {
 	rpc *jrpc2.Client
 }
 
+func checkCLI(err error) {
+	if err != nil {
+		//TODO user friendly log
+		panic(err)
+	}
+}
+
 func Client() *VmClient {
 	return onceClient.Do(func() *VmClient {
 		err := EnsureVM()
-		if err != nil {
-			panic(err)
-		}
+		checkCLI(err)
 
 		client, err := newClient()
-		if err != nil {
-			panic(err)
-		}
+		checkCLI(err)
 
 		return client
 	})
