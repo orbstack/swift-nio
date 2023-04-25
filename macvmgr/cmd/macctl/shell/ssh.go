@@ -245,6 +245,9 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 				} else if errors.Is(err, io.EOF) {
 					// TODO correct exit status
 					return 0, nil
+				} else if _, ok := err.(*ssh.ExitMissingError); ok {
+					// TODO print message?
+					return 1, nil
 				} else {
 					return 0, err
 				}
