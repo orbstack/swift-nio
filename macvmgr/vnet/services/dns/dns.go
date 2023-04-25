@@ -96,12 +96,11 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 			continue
 		}
 
-		if verboseTrace {
-			logrus.WithFields(logrus.Fields{
-				"name": q.Name,
-				"type": dns.TypeToString[q.Qtype],
-			}).Trace("start handling DNS query")
-		}
+		// log DNS in debug to catch missing UDP packets
+		logrus.WithFields(logrus.Fields{
+			"name": q.Name,
+			"type": dns.TypeToString[q.Qtype],
+		}).Debug("start DNS query")
 		answers, err := dnssd.QueryRecursive(q.Name, q.Qtype)
 		if verboseTrace {
 			logrus.WithFields(logrus.Fields{
