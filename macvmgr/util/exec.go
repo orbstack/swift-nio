@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
@@ -16,9 +17,11 @@ func Run(combinedArgs ...string) (string, error) {
 		// without this, running interactive shell breaks ctrl-c SIGINT
 		Setsid: true,
 	}
+	// inherit env
+	cmd.Env = os.Environ()
 	// avoid triggering iterm2 shell integration
 	cmd.Env = append(cmd.Env, "TERM=dumb")
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
 	}
@@ -35,6 +38,8 @@ func RunLoginShell(combinedArgs ...string) (string, error) {
 		// without this, running interactive shell breaks ctrl-c SIGINT
 		Setsid: true,
 	}
+	// inherit env
+	cmd.Env = os.Environ()
 	// avoid triggering iterm2 shell integration
 	cmd.Env = append(cmd.Env, "TERM=dumb")
 	output, err := cmd.Output()
