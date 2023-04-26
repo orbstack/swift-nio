@@ -380,17 +380,12 @@ func runVmManager() {
 
 	// parse args
 	var buildID string
-	var isRetry bool
 	var isLaunchd bool
 	flag.StringVar(&buildID, "build-id", "", "build ID")
-	flag.BoolVar(&isRetry, "retry", false, "retry")
 	flag.BoolVar(&isLaunchd, "launchd", false, "launchd")
 	if len(os.Args) > 2 {
 		err := flag.CommandLine.Parse(os.Args[2:])
 		check(err)
-	}
-	if isRetry {
-		logrus.Info("retrying vmgr launch")
 	}
 
 	// ensure it's not running
@@ -422,6 +417,10 @@ func runVmManager() {
 	}
 	err = os.WriteFile(conf.VmgrTimestampFile(), []byte(buildID), 0644)
 	check(err)
+
+	// everything is set up for spawn-daemon to work properly (build id and pid)
+	// now notify GUI that we've started
+	vzf.SwextIpcNotifyStarted()
 
 	// killswitch
 	err = killswitch.Check()

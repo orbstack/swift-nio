@@ -27,6 +27,7 @@ char* swext_fsevents_VmNotifier_start(void* ptr);
 char* swext_fsevents_VmNotifier_updatePaths(void* ptr, const char** paths, int count);
 char* swext_fsevents_VmNotifier_stop(void* ptr);
 void swext_fsevents_VmNotifier_finalize(void* ptr);
+void swext_ipc_notify_started(void);
 */
 import (
 	"C"
@@ -392,4 +393,8 @@ func (n *FsVmNotifier) UpdatePaths(paths []string) error {
 	}
 
 	return nil
+}
+
+func SwextIpcNotifyStarted() {
+	C.swext_ipc_notify_started()
 }

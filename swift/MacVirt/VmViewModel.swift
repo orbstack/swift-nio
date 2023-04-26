@@ -326,6 +326,15 @@ class VmViewModel: ObservableObject {
     // Setup
     @Published private(set) var isSshConfigWritable = true
 
+    init() {
+        daemon.monitorNotificationCenter { [self] _ in
+            // go through spawn-daemon for simplicity and ignore pid
+            Task { @MainActor in
+                await self.start()
+            }
+        }
+    }
+
     private func setStateAsync(_ state: VmState) {
         DispatchQueue.main.async {
             self.state = state
@@ -370,7 +379,7 @@ class VmViewModel: ObservableObject {
                 }
 
                 setStateAsync(.starting)
-                daemon.monitorPid(newPid) { reason in
+                await daemon.monitorPid(newPid) { reason in
                     self.onPidExit(reason)
                 }
             } catch let processError as ProcessError {

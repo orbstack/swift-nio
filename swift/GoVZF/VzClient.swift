@@ -435,3 +435,11 @@ func run_Machine_finalize(ptr: UnsafeMutablePointer<VmWrapper>) {
     // drop long-lived Go ref
     Unmanaged<VmWrapper>.fromOpaque(ptr).release()
 }
+
+
+// TODO move this
+@_cdecl("swext_ipc_notify_started")
+func swext_ipc_notify_started() {
+    let nc = DistributedNotificationCenter.default()
+    nc.post(name: .init("dev.orbstack.vmgr.DaemonStarted"), object: nil, userInfo: ["pid": getpid()])
+}

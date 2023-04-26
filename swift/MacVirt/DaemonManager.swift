@@ -21,7 +21,29 @@ enum ExitReason: CustomStringConvertible {
     }
 }
 
+private actor PidsHolder {
+    var pids: Set<Int> = []
+
+    func add(_ pid: Int) -> Bool {
+        guard !pids.contains(pid) else {
+            return false
+        }
+        pids.insert(pid)
+        return true
+    }
+
+    func remove(_ pid: Int) -> Bool {
+        guard pids.contains(pid) else {
+            return false
+        }
+        pids.remove(pid)
+        return true
+    }
+}
+
 class DaemonManager {
+    private let pidsHolder = PidsHolder()
+
     private func getPid() -> Int? {
         // read flock
         let path = FileManager.default.temporaryDirectory.path + "/orbstack-vmgr.lock"
@@ -70,8 +92,13 @@ class DaemonManager {
     //
     // we do NOT check flock to get a new pid on start, because then it'll stop during spawn-daemon upgrade
     // spawn-daemon will return an existing pid so it works out
-    func monitorPid(_ pid: Int, callback: @escaping (ExitReason) -> Void) {
-        Task.detached {
+    func monitorPid(_ pid: Int, callback: @escaping (ExitReason) -> Void) async {
+        // make sure we're not already monitoring this pid
+        guard await pidsHolder.add(pid) else {
+            return
+        }
+
+        Task.detached { [self] in
             NSLog("Watching pid \(pid)")
             let kqFd = kqueue()
             guard kqFd != -1 else {
@@ -126,6 +153,23 @@ class DaemonManager {
             }
             callback(reason)
             NSLog("Daemon exited: \(reason)")
+
+            // remove pid
+            Task {
+                await pidsHolder.remove(pid)
+            }
+        }
+    }
+
+    // subscribe to notification center and dispatch any pids with the given callback
+    func monitorNotificationCenter(callback: @escaping (Int) -> Void) {
+        let nc = DistributedNotificationCenter.default()
+        nc.addObserver(forName: .init("dev.orbstack.vmgr.DaemonStarted"), object: nil, queue: nil) { notification in
+            guard let pid = notification.userInfo?["pid"] as? Int else {
+                NSLog("Invalid notification: \(notification)")
+                return
+            }
+            callback(pid)
         }
     }
 }
