@@ -5,3 +5,4 @@ rootfs/rdc2
 rootfs/live/
 scon/bpf/*bpfel*
 *.o
+*.pcap
