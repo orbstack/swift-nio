@@ -58,51 +58,51 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .spawnError(let cause):
-            return "Failed to start helper: \(cause.localizedDescription)"
-        case .spawnExit(let status, let output):
-            return "VM crashed with error \(status): \(output)"
+        case .spawnError:
+            return "Failed to start helper"
+        case .spawnExit(let status, _):
+            return "VM crashed with error \(status)"
         case .wrongArch:
             return "Wrong CPU type"
         case .virtUnsupported:
             return "Virtualization not supported"
         case .killswitchExpired:
             return "Build expired"
-        case .startFailed(let cause):
-            return "Failed to start VM: \(cause?.localizedDescription ?? "daemon stopped unexpectedly")"
-        case .startTimeout(let cause):
-            return "Timed out waiting for VM to start: \(cause?.localizedDescription ?? "timeout")"
-        case .stopError(let cause):
-            return "Failed to stop VM: \(fmtRpc(cause))"
-        case .setupError(let cause):
-            return "Failed to do setup: \(fmtRpc(cause))"
-        case .dockerListError(let cause):
-            return "Failed to refresh Docker: \(fmtRpc(cause))"
-        case .dockerContainerActionError(let action, let cause):
-            return "Failed to \(action) Docker container: \(fmtRpc(cause))"
-        case .dockerVolumeActionError(let action, let cause):
-            return "Failed to \(action) Docker volume: \(fmtRpc(cause))"
-        case .configRefresh(let cause):
-            return "Failed to get settings: \(fmtRpc(cause))"
-        case .configPatchError(let cause):
-            return "Failed to update settings: \(fmtRpc(cause))"
+        case .startFailed:
+            return "Failed to start VM"
+        case .startTimeout:
+            return "Timed out waiting for VM to start"
+        case .stopError:
+            return "Failed to stop VM"
+        case .setupError:
+            return "Failed to do setup"
+        case .dockerListError:
+            return "Failed to refresh Docker"
+        case .dockerContainerActionError(let action, _):
+            return "Failed to \(action) Docker container"
+        case .dockerVolumeActionError(let action, _):
+            return "Failed to \(action) Docker volume"
+        case .configRefresh:
+            return "Failed to get settings"
+        case .configPatchError:
+            return "Failed to update settings"
 
-        case .startError(let cause):
-            return "Failed to start machine manager: \(fmtRpc(cause))"
-        case .listRefresh(let cause):
-            return "Failed to get machines: \(fmtRpc(cause))"
-        case .defaultError(let cause):
-            return "Failed to set default machine: \(fmtRpc(cause))"
-        case .containerStopError(let cause):
-            return "Failed to stop machine: \(fmtRpc(cause))"
-        case .containerStartError(let cause):
-            return "Failed to start machine: \(fmtRpc(cause))"
-        case .containerRestartError(let cause):
-            return "Failed to restart machine: \(fmtRpc(cause))"
-        case .containerDeleteError(let cause):
-            return "Failed to delete machine: \(fmtRpc(cause))"
-        case .containerCreateError(let cause):
-            return "Failed to create machine: \(fmtRpc(cause))"
+        case .startError:
+            return "Failed to start machine manager"
+        case .listRefresh:
+            return "Failed to load machines"
+        case .defaultError:
+            return "Failed to set default machine"
+        case .containerStopError:
+            return "Failed to stop machine"
+        case .containerStartError:
+            return "Failed to start machine"
+        case .containerRestartError:
+            return "Failed to restart machine"
+        case .containerDeleteError:
+            return "Failed to delete machine"
+        case .containerCreateError:
+            return "Failed to create machine"
         }
     }
 
@@ -128,7 +128,25 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         }
     }
 
-    var recoverySuggestion: String? {
+    fileprivate var errorDesc: String? {
+        switch self {
+        case .spawnError(let cause):
+            return cause.localizedDescription
+        case .spawnExit(_, let output):
+            return output
+        case .startFailed(let cause):
+            return cause?.localizedDescription ?? "daemon stopped unexpectedly"
+
+        default:
+            if let cause {
+                return fmtRpc(cause)
+            } else {
+                return nil
+            }
+        }
+    }
+
+    private var fixTip: String? {
         if shouldShowLogs {
             return "Check logs for more details."
         }
@@ -143,6 +161,18 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
         default:
             return nil
+        }
+    }
+
+    var recoverySuggestion: String? {
+        if let errorDesc {
+            if let fixTip {
+                return "\(errorDesc)\n\n\(fixTip)"
+            } else {
+                return errorDesc
+            }
+        } else {
+            return fixTip
         }
     }
 
@@ -207,7 +237,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return true
         case .dockerVolumeActionError(let action, let cause):
             if action == "remove",
-                fmtRpc(cause) == "volume in use" {
+               fmtRpc(cause) == "volume in use" {
                 return true
             }
 
@@ -242,7 +272,8 @@ private func fmtRpc(_ error: Error) -> String {
             return "Unknown error: \(cause)"
         }
     default:
-        return error.localizedDescription
+        // prefer info, not localized "operation could not be completed"
+        return "\(error)"
     }
 }
 
