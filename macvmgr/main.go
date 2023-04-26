@@ -413,8 +413,7 @@ func runVmManager() {
 	}()
 
 	// remove everything in run, sockets and pid
-	// TODO - maybe don't remove everything
-	//os.RemoveAll(conf.RunDir())
+	os.RemoveAll(conf.RunDir())
 
 	// write build ID
 	if buildID == "" {

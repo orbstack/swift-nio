@@ -665,12 +665,17 @@ class VmViewModel: ObservableObject {
             try await vmgr.stop()
         } catch {
             // if it's stopped, ignore the error. ("The network connection was lost." NSURLErrorNetworkConnectionLost)
-            if !daemon.isRunning() {
+            if case let InvocationError.applicationError(cause) = error,
+               let execError = cause as? HTTPRequestExecutorError,
+               case let .httpClientError(clientError) = execError.reason,
+               let nestedError = clientError as? NestedError<Error>,
+               let urlError = nestedError.cause as? URLError,
+               urlError.code == .networkConnectionLost {
                 self.state = .stopped
                 return
+            } else {
+                setError(.stopError(cause: error))
             }
-
-            setError(.stopError(cause: error))
         }
         self.state = .stopped
     }
