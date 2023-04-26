@@ -54,6 +54,8 @@ func maybeStopOld(canRecurse bool) (string, error) {
 
 		runningBuildID, err := os.ReadFile(conf.VmgrTimestampFile())
 		if err == nil && buildID == string(runningBuildID) {
+			// we found an existing one and it's the same version
+			// return the pid and use it
 			fmt.Println(pid)
 			os.Exit(0)
 		}
@@ -91,7 +93,13 @@ func runSpawnDaemon() {
 	exe, err := os.Executable()
 	check(err)
 
-	logFile, err := os.Create(conf.VmManagerLog())
+	// rotate the log if needed
+	if _, err := os.Lstat(conf.VmgrLog()); err == nil {
+		// exists, so rename it
+		err = os.Rename(conf.VmgrLog(), conf.VmgrLog()+".1")
+		check(err)
+	}
+	logFile, err := os.Create(conf.VmgrLog())
 	check(err)
 
 	cmd := exec.Command(exe, "vmgr", "-build-id", buildID)

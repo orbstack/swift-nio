@@ -370,21 +370,8 @@ class VmViewModel: ObservableObject {
                 }
 
                 setStateAsync(.starting)
-                daemon.monitorPid(newPid) { exitReason in
-                    switch exitReason {
-                    case .status(let status):
-                        DispatchQueue.main.async {
-                            self.state = .stopped
-                            if status != 0 {
-                                self.setError(.vmgrExit(reason: exitReason))
-                            }
-                        }
-                    default:
-                        DispatchQueue.main.async {
-                            self.state = .stopped
-                            self.setError(.vmgrExit(reason: exitReason))
-                        }
-                    }
+                daemon.monitorPid(newPid) { reason in
+                    self.onPidExit(reason)
                 }
             } catch let processError as ProcessError {
                 DispatchQueue.main.async {
@@ -396,6 +383,23 @@ class VmViewModel: ObservableObject {
                     self.state = .stopped
                     self.setError(.spawnError(cause: error))
                 }
+            }
+        }
+    }
+
+    private func onPidExit(_ reason: ExitReason) {
+        switch reason {
+        case .status(let status):
+            DispatchQueue.main.async {
+                self.state = .stopped
+                if status != 0 {
+                    self.setError(.vmgrExit(reason: reason))
+                }
+            }
+        default:
+            DispatchQueue.main.async {
+                self.state = .stopped
+                self.setError(.vmgrExit(reason: reason))
             }
         }
     }

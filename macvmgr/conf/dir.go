@@ -106,7 +106,7 @@ func ConsoleLog() string {
 	return LogDir() + "/console.log"
 }
 
-func VmManagerLog() string {
+func VmgrLog() string {
 	return LogDir() + "/vmgr.log"
 }
 
