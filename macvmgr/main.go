@@ -381,8 +381,10 @@ func runVmManager() {
 	// parse args
 	var buildID string
 	var isRetry bool
+	var isLaunchd bool
 	flag.StringVar(&buildID, "build-id", "", "build ID")
 	flag.BoolVar(&isRetry, "retry", false, "retry")
+	flag.BoolVar(&isLaunchd, "launchd", false, "launchd")
 	if len(os.Args) > 2 {
 		err := flag.CommandLine.Parse(os.Args[2:])
 		check(err)
@@ -411,7 +413,8 @@ func runVmManager() {
 	}()
 
 	// remove everything in run, sockets and pid
-	os.RemoveAll(conf.RunDir())
+	// TODO - maybe don't remove everything
+	//os.RemoveAll(conf.RunDir())
 
 	// write build ID
 	if buildID == "" {

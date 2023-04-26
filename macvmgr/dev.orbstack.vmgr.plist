@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.orbstack.vmgr</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/dragon/code/projects/macvirt/macvmgr/OrbStack Helper (VM)</string>
+        <string>vmgr</string>
+        <string>-launchd</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/</string>
+    <key>StandardOutPath</key>
+    <string>/Users/dragon/.orbstack/log/vmgr.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/dragon/.orbstack/log/vmgr.log</string>
+    <key>Debug</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>LimitLoadToSessionType</key>
+    <array>
+        <string>Aqua</string>
+        <string>StandardIO</string>
+    </array>
+    <key>Sockets</key>
+    <dict>
+        <key>docker</key>
+        <dict>
+            <key>SockPathName</key>
+            <string>/Users/dragon/.orbstack/run/docker.sock</string>
+            <key>SockType</key>
+            <string>stream</string>
+        </dict>
+        <key>sconrpc</key>
+        <dict>
+            <key>SockPathName</key>
+            <string>/Users/dragon/.orbstack/run/sconrpc.sock</string>
+            <key>SockType</key>
+            <string>stream</string>
+        </dict>
+        <key>sconssh</key>
+        <dict>
+            <key>SockPathName</key>
+            <string>/Users/dragon/.orbstack/run/sconssh.sock</string>
+            <key>SockType</key>
+            <string>stream</string>
+        </dict>
+    </dict>
+</dict>
+</plist>
