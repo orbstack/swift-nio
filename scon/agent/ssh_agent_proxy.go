@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"net"
 	"os"
 	"path"
@@ -121,8 +122,10 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 
 	// should we proxy this?
 	if strings.HasPrefix(path.Base(sockPath), "vscode-ssh-auth-sock-") {
-		// fix it
-		sockPath = mounts.SshAgentSocket
+		// fix it IFF it doesn't exist
+		if _, err := os.Lstat(sockPath); errors.Is(err, os.ErrNotExist) {
+			sockPath = mounts.SshAgentSocket
+		}
 	}
 
 	// resolve socket path relative to process cwd
