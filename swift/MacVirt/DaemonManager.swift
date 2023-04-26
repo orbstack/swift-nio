@@ -4,6 +4,23 @@
 
 import Foundation
 
+enum ExitReason: CustomStringConvertible {
+    case status(Int)
+    case signal(Int)
+    case unknown
+
+    var description: String {
+        switch self {
+        case .status(let status):
+            return "status \(status)"
+        case .signal(let signal):
+            return "signal \(signal)"
+        case .unknown:
+            return "unknown status"
+        }
+    }
+}
+
 class DaemonManager {
     private func getPid() -> Int? {
         // read flock
@@ -42,8 +59,73 @@ class DaemonManager {
         return Int(lock.l_pid)
     }
 
-    func isRunning() -> Bool {
+    func checkRunningNow() -> Bool {
         // no point in using kill(pid, 0) test. flock is already atomic
         return getPid() != nil
+    }
+
+    // there are 2 ways we can get a new daemon:
+    // 1. spawn-daemon returned a pid
+    // 2. notification center -> flock
+    //
+    // we do NOT check flock to get a new pid on start, because then it'll stop during spawn-daemon upgrade
+    // spawn-daemon will return an existing pid so it works out
+    func monitorPid(_ pid: Int, callback: @escaping (ExitReason) -> Void) {
+        Task.detached {
+            NSLog("Watching pid \(pid)")
+            let kqFd = kqueue()
+            guard kqFd != -1 else {
+                NSLog("Error creating kqueue: \(errno)")
+                return
+            }
+
+            defer {
+                close(kqFd)
+            }
+
+            var kev = kevent(
+                ident: UInt(pid),
+                filter: Int16(EVFILT_PROC),
+                flags: UInt16(EV_ADD | EV_ENABLE | EV_RECEIPT),
+                fflags: NOTE_EXIT | UInt32(NOTE_EXITSTATUS),
+                data: 0,
+                udata: nil
+            )
+            var ret = kevent(kqFd, &kev, 1, nil, 0, nil)
+            guard ret != -1 else {
+                // if errno = ESRCH, the process has already exited
+                if errno == ESRCH {
+                    callback(.unknown)
+                } else {
+                    NSLog("Error registering kevent: \(errno)")
+                }
+                return
+            }
+
+            // wait for the process to exit
+            var kev2 = kevent()
+            ret = kevent(kqFd, nil, 0, &kev2, 1, nil)
+            guard ret != -1 else {
+                NSLog("Error waiting for kevent: \(errno)")
+                return
+            }
+
+            // if the process exited, we should get a NOTE_EXIT
+            guard kev2.fflags & NOTE_EXIT != 0 else {
+                NSLog("Unexpected kevent: \(kev2.fflags)")
+                return
+            }
+
+            let waitStatus = kev2.data
+            // extract status or signal
+            var reason: ExitReason
+            if waitStatus & 0x7f != 0 {
+                reason = .signal(waitStatus & 0x7f)
+            } else {
+                reason = .status(waitStatus >> 8)
+            }
+            callback(reason)
+            NSLog("Daemon exited: \(reason)")
+        }
     }
 }

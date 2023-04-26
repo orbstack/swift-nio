@@ -55,7 +55,7 @@ func maybeStopOld(canRecurse bool) (string, error) {
 		runningBuildID, err := os.ReadFile(conf.VmgrTimestampFile())
 		if err == nil && buildID == string(runningBuildID) {
 			fmt.Println(pid)
-			return buildID, nil
+			os.Exit(0)
 		}
 
 		// replace it.
@@ -105,6 +105,5 @@ func runSpawnDaemon() {
 
 	// print pid
 	fmt.Println(cmd.Process.Pid)
-
 	os.Exit(0)
 }

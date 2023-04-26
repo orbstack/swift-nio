@@ -28,10 +28,10 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     // VM
     case spawnError(cause: Error)
     case spawnExit(status: Int32, output: String)
+    case vmgrExit(reason: ExitReason)
     case wrongArch
     case virtUnsupported
     case killswitchExpired
-    case startFailed(cause: Error?)
     case startTimeout(cause: Error?)
     case stopError(cause: Error)
     case setupError(cause: Error)
@@ -61,19 +61,19 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .spawnError:
             return "Failed to start helper"
         case .spawnExit(let status, _):
-            return "VM crashed with error \(status)"
+            return "Start failed with error \(status)"
+        case .vmgrExit(let reason):
+            return "Stopped with \(reason)"
         case .wrongArch:
             return "Wrong CPU type"
         case .virtUnsupported:
             return "Virtualization not supported"
         case .killswitchExpired:
             return "Build expired"
-        case .startFailed:
-            return "Failed to start VM"
         case .startTimeout:
-            return "Timed out waiting for VM to start"
+            return "Timed out waiting for start"
         case .stopError:
-            return "Failed to stop VM"
+            return "Failed to stop"
         case .setupError:
             return "Failed to do setup"
         case .dockerListError:
@@ -111,7 +111,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .spawnError:
             return true
         // not .spawnExit. if spawn-daemon exited, it means daemon never even started so we have logs from stderr.
-        case .startFailed:
+        case .vmgrExit:
             return true
         case .startTimeout:
             return true
@@ -134,8 +134,6 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause.localizedDescription
         case .spawnExit(_, let output):
             return output
-        case .startFailed(let cause):
-            return cause?.localizedDescription ?? "daemon stopped unexpectedly"
 
         default:
             if let cause {
@@ -182,14 +180,14 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .spawnExit:
             return nil
+        case .vmgrExit:
+            return nil
         case .wrongArch:
             return nil
         case .virtUnsupported:
             return nil
         case .killswitchExpired:
             return nil
-        case .startFailed(let cause):
-            return cause
         case .startTimeout(let cause):
             return cause
         case .stopError(let cause):
@@ -365,8 +363,29 @@ class VmViewModel: ObservableObject {
         state = .spawning
         Task {
             do {
-                try await runProcessChecked(AppConfig.c.vmgrExe, ["spawn-daemon"])
+                let newPidStr = try await runProcessChecked(AppConfig.c.vmgrExe, ["spawn-daemon"])
+                let newPid = Int(newPidStr.trimmingCharacters(in: .whitespacesAndNewlines))
+                guard let newPid else {
+                    throw VmError.spawnError(cause: ProcessError(status: 0, output: "Invalid pid: \(newPidStr)"))
+                }
+
                 setStateAsync(.starting)
+                daemon.monitorPid(newPid) { exitReason in
+                    switch exitReason {
+                    case .status(let status):
+                        DispatchQueue.main.async {
+                            self.state = .stopped
+                            if status != 0 {
+                                self.setError(.vmgrExit(reason: exitReason))
+                            }
+                        }
+                    default:
+                        DispatchQueue.main.async {
+                            self.state = .stopped
+                            self.setError(.vmgrExit(reason: exitReason))
+                        }
+                    }
+                }
             } catch let processError as ProcessError {
                 DispatchQueue.main.async {
                     self.state = .stopped
@@ -400,12 +419,11 @@ class VmViewModel: ObservableObject {
             }
 
             try await Task.sleep(nanoseconds: startPollInterval)
-            // bail out if daemon exited
-            // TODO reduce timeout when gui handles rosetta install
-            if !daemon.isRunning() {
-                setStateAsync(.stopped)
-                throw VmError.startFailed(cause: lastError)
+            // bail out if daemon exited (next call will fail)
+            if self.state == .stopped {
+                return
             }
+            // TODO reduce timeout when gui handles rosetta install
             if DispatchTime.now() > deadline {
                 setStateAsync(.stopped)
                 throw VmError.startTimeout(cause: lastError)
@@ -430,12 +448,11 @@ class VmViewModel: ObservableObject {
                 lastError = error
             }
             try await Task.sleep(nanoseconds: startPollInterval)
-            // bail out if daemon exited
-            // TODO reduce timeout when gui handles rosetta install
-            if !daemon.isRunning() {
-                setStateAsync(.stopped)
-                throw VmError.startFailed(cause: lastError)
+            // bail out if daemon exited (next call will fail)
+            if self.state == .stopped {
+                return
             }
+            // TODO reduce timeout when gui handles rosetta install
             if DispatchTime.now() > deadline {
                 setStateAsync(.stopped)
                 throw VmError.startTimeout(cause: lastError)
@@ -463,26 +480,13 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     func tryRefreshList() async {
-        // this doubles as a daemon ping to update state if started from CLI while stopped in GUI
-        if state == .stopped && daemon.isRunning() {
-            // trigger start flow to update state
-            return await start()
-        }
-
         do {
             try await refreshList()
         } catch {
-            // check daemon process state
-            let daemonRunning = daemon.isRunning()
-            if !daemonRunning {
-                // daemon stopped, update state
-                self.state = .stopped
-
-                if reachedRunning {
-                    // stopped by someone else, and we've successfully started. suppress the error
-                    // TODO: check old state?
-                    return
-                }
+            // ignore if daemon exited
+            // just in case kqueue didn't get the message yet, check now
+            if self.state == .stopped || !daemon.checkRunningNow() {
+                return
             }
 
             setError(.listRefresh(cause: error))
@@ -671,13 +675,12 @@ class VmViewModel: ObservableObject {
                let nestedError = clientError as? NestedError<Error>,
                let urlError = nestedError.cause as? URLError,
                urlError.code == .networkConnectionLost {
-                self.state = .stopped
                 return
             } else {
                 setError(.stopError(cause: error))
             }
         }
-        self.state = .stopped
+        // we don't set state. daemonManager callback must do it
     }
 
     func stopContainer(_ record: ContainerRecord) async throws {

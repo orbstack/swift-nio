@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/alessio/shellescape"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -420,13 +421,19 @@ func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
 	adminLinkCommands := false
 	if details.IsAdmin {
 		sockDest, err := os.Readlink("/var/run/docker.sock")
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, err
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// doesn't exist - ignore, relink
+			} else if errors.Is(err, syscall.EINVAL) {
+				// not a link - ignore, relink
+			} else {
+				return nil, err
+			}
 		}
 		wantDest := conf.DockerSocket()
 		if sockDest != wantDest {
 			logrus.Debug("[request admin] link docker socket")
-			adminCommands = append(adminCommands, "ln -sf "+wantDest+" /var/run/docker.sock")
+			adminCommands = append(adminCommands, "rm -f /var/run/docker.sock; ln -sf "+wantDest+" /var/run/docker.sock")
 			adminLinkDocker = true
 		}
 	}
