@@ -271,7 +271,7 @@ class VmViewModel: ObservableObject {
     @Published private(set) var containers: [ContainerRecord]?
     @Published private(set) var error: VmError? {
         didSet {
-            if let error = error {
+            if let error {
                 NSLog("Error: \(error)")
                 if !error.ignoreSentry {
                     SentrySDK.capture(error: error)

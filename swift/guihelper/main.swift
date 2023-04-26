@@ -27,7 +27,7 @@ func mainNotify(_ args: [String]) -> Int32 {
     let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
     let center = UNUserNotificationCenter.current()
     center.add(request) { (error) in
-        if let error = error {
+        if let error {
             print("Failed to post notification: \(error)")
         }
     }

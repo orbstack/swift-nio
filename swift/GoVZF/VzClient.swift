@@ -53,7 +53,7 @@ func asyncifyError(_ fn: @escaping (@escaping (Error?) -> Void) -> Void) async t
     return try await withCheckedThrowingContinuation { continuation in
         vzQueue.async {
             fn { error in
-                if let error = error {
+                if let error {
                     continuation.resume(throwing: error)
                 } else {
                     continuation.resume(returning: ())
