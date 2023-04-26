@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	iocNotifyproxyPassconn = 0x8004da02
+	iocKrpcPassconn = 0x8004da02
 )
 
 func RunKrpcInitiator() error {
@@ -31,7 +31,7 @@ func RunKrpcInitiator() error {
 			defer conn.Close()
 
 			// submit fd to kernel
-			devFile, err := os.Open("/dev/notifyproxy")
+			devFile, err := os.Open("/dev/krpc")
 			if err != nil {
 				return err
 			}
@@ -43,7 +43,7 @@ func RunKrpcInitiator() error {
 			}
 			defer connFile.Close()
 
-			err = unix.IoctlSetInt(int(devFile.Fd()), iocNotifyproxyPassconn, int(connFile.Fd()))
+			err = unix.IoctlSetInt(int(devFile.Fd()), iocKrpcPassconn, int(connFile.Fd()))
 			if err != nil {
 				return err
 			}
