@@ -21,30 +21,66 @@ func getSpawnBuildID() (string, error) {
 	return buildid.CalculateCurrent()
 }
 
-func runSpawnDaemon() {
+func tryStopOld() error {
+	client, err := vmclient.NewClient()
+	if err != nil {
+		return err
+	}
+
+	// try to stop
+	err = client.SyntheticStopOrKill()
+	if err != nil {
+		// didn't work. vmclient already checked flock and killed it if there was a pid, so nothing else we can do...
+		return err
+	}
+
+	return nil
+}
+
+func maybeStopOld(canRecurse bool) (string, error) {
 	// try process
 	var buildID string
 	var err error
 	pid, err := flock.ReadPid(conf.VmgrLockFile())
-	check(err)
-	if vmclient.IsRunning() || pid != 0 {
+	if err != nil {
+		return "", err
+	}
+	if pid != 0 || vmclient.IsRunning() {
 		// check version, replace if changed
 		buildID, err = getSpawnBuildID()
-		check(err)
+		if err != nil {
+			return "", err
+		}
 
 		runningBuildID, err := os.ReadFile(conf.VmgrTimestampFile())
 		if err == nil && buildID == string(runningBuildID) {
 			fmt.Println(pid)
-			return
+			return buildID, nil
 		}
 
 		// replace it.
-		// 1. shut down
-		err = vmclient.Client().Stop()
-		check(err)
+		// 1. try to shut down
+		// we CAN'T use vmclient.Client because it could recurse into spawn-daemon
+		err = tryStopOld()
+		if err != nil {
+			// if it didn't work, check if it's still running and what version it is now
+			// we could've raced with another spawn-daemon upgrade - so max 1 try
+			if canRecurse {
+				return maybeStopOld(false)
+			} else {
+				return "", err
+			}
+		}
 
 		// 2. continue... below
 	}
+
+	return buildID, nil
+}
+
+func runSpawnDaemon() {
+	buildID, err := maybeStopOld(true)
+	check(err)
 
 	if buildID == "" {
 		buildID, err = getSpawnBuildID()

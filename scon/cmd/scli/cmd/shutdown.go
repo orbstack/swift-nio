@@ -39,7 +39,7 @@ In the future, this will be done automatically if OrbStack hasn't been used for 
 		if flagForce {
 			err = vmclient.Client().SyntheticForceStopOrKill()
 		} else {
-			err = vmclient.Client().Stop()
+			err = vmclient.Client().SyntheticStopOrKill()
 		}
 		spinner.Stop()
 		checkCLI(err)

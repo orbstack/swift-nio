@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	forceStopTimeout = 15 * time.Second
+	forceStopTimeout    = 15 * time.Second
+	gracefulStopTimeout = 25 * time.Second
 )
 
 var (
@@ -43,14 +44,14 @@ func Client() *VmClient {
 		err := EnsureVM()
 		checkCLI(err)
 
-		client, err := newClient()
+		client, err := NewClient()
 		checkCLI(err)
 
 		return client
 	})
 }
 
-func newClient() (*VmClient, error) {
+func NewClient() (*VmClient, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns: 2,
@@ -78,11 +79,24 @@ func (c *VmClient) Ping() error {
 }
 
 func (c *VmClient) Stop() error {
-	err := c.rpc.CallResult(context.TODO(), "Stop", nil, &noResult)
+	// we only enforce total graceful stop timeout. vmgr has a timeout to switch to force stop
+	ctx, cancel := context.WithTimeout(context.Background(), gracefulStopTimeout)
+	defer cancel()
+
+	err := c.rpc.CallResult(ctx, "Stop", nil, &noResult)
 	// EOF is ok, it means we got disconnected
 	// TODO fix
 	if err != nil && err.Error() != `[-32603] Post "http://vmrpc": EOF` {
 		return err
+	}
+
+	return nil
+}
+
+func (c *VmClient) SyntheticStopOrKill() error {
+	err := c.Stop()
+	if err != nil {
+		return c.SyntheticKill()
 	}
 
 	return nil
