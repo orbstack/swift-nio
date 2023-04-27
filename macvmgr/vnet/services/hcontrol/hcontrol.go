@@ -195,6 +195,7 @@ func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
 		if err != nil {
 			return err
 		}
+		delete(h.fsnotifyRefs, path)
 	}
 
 	return nil
