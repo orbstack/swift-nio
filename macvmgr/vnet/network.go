@@ -344,8 +344,8 @@ func (n *Network) Close() error {
 	if n.Proxy != nil {
 		n.Proxy.Close()
 	}
-	// destroy waits and blocks
-	n.Stack.Close()
+	// destroy waits and blocks, but this sometiems does too...
+	//n.Stack.Close()
 	if n.file0 != nil {
 		n.file0.Close()
 	}
