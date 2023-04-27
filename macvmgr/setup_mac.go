@@ -375,7 +375,7 @@ func readDockerConfigEnv(shell string) error {
 	if err != nil {
 		return err
 	}
-	logrus.WithField("DOCKER_CONFIG", out).Debug("user DOCKER_CONFIG")
+	logrus.WithField("path", out).Info("detected DOCKER_CONFIG")
 	value := parseShellLine(out)
 	if value != "" && strings.HasPrefix(value, "/") {
 		os.Setenv("DOCKER_CONFIG", value)
@@ -394,13 +394,20 @@ for commands:
 for docker sock:
 /var/run/docker.sock IF root
 */
-func (s *VmControlServer) doHostSetup() (*vmtypes.SetupInfo, error) {
+func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr error) {
 	s.setupMu.Lock()
 	defer s.setupMu.Unlock()
 
 	if s.setupDone {
 		return &vmtypes.SetupInfo{}, nil
 	}
+
+	// too many risks of panic in here
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("panic: %v", r)
+		}
+	}()
 
 	details, err := getUserDetails()
 	if err != nil {
