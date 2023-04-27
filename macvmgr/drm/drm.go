@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -434,7 +435,8 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 
 	resp, err := c.http.Post(c.apiBaseURL+"/api/v0/drm/preview/entitlement", "application/json", bytes.NewReader(reqBytes))
 	if err != nil {
-		return nil, err
+		// hide the path part of the URL
+		return nil, errors.New(strings.Replace(err.Error(), "/api/v0/drm/preview/entitlement", "/...", 1))
 	}
 	defer resp.Body.Close()
 
