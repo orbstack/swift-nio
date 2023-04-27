@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"path"
+	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
@@ -172,6 +174,26 @@ func (a *AgentServer) monitorDockerEvents() error {
 	}
 }
 
+func translateDockerPathToMac(p string) string {
+	p = path.Clean(p)
+
+	// if under /mnt/mac, translate
+	if p == mounts.Virtiofs || strings.HasPrefix(p, mounts.Virtiofs+"/") {
+		return strings.TrimPrefix(p, mounts.Virtiofs)
+	}
+
+	// if linked, do nothing
+	// extra Docker /var/folders and /tmp links can be ignored because they link to virtiofs, and docker bind mount sources resolve links
+	for _, linkPrefix := range mounts.LinkedPaths {
+		if p == linkPrefix || strings.HasPrefix(p, linkPrefix+"/") {
+			return p
+		}
+	}
+
+	// otherwise skip
+	return ""
+}
+
 func (a *AgentServer) onDockerContainerStart(cid string) error {
 	logrus.WithField("cid", cid).Debug("Docker container started")
 
@@ -206,6 +228,13 @@ func (a *AgentServer) onDockerContainerStart(cid string) error {
 	// report to host
 	logrus.WithField("cid", cid).WithField("binds", binds).Debug("reporting Docker container binds")
 	for _, path := range binds {
+		// path translation:
+		path = translateDockerPathToMac(path)
+		if path == "" {
+			logrus.WithField("path", path).Debug("ignoring Docker bind mount")
+			continue
+		}
+
 		err = a.dockerHost.AddFsnotifyRef(path)
 		if err != nil {
 			return err

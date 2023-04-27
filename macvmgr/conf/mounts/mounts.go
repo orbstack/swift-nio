@@ -5,7 +5,7 @@ import "github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 var (
 	// linked paths don't need translation
 	// excluded: /cores /opt/homebrew, /System due to Python platform.mac_ver()
-	// Docker has more because lower chance of corruption
+	// Docker has more because lower chance of conflict
 	LinkedPaths = [...]string{"/Applications", "/Library", "/Users", "/Volumes", "/private"}
 )
 
