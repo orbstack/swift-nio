@@ -61,6 +61,8 @@ var (
 	onceClient syncx.Once[*DrmClient]
 
 	ErrVerify = errors.New("verification failed")
+	ErrSleep  = errors.New("sleep")
+	ErrGrace  = errors.New("grace")
 )
 
 type DrmClient struct {
@@ -194,21 +196,17 @@ func (c *DrmClient) Run() {
 		result, err := c.KickCheck()
 		if err != nil {
 			dlog("periodic check failed: ", err)
-			// only log in release if we actually didn't get anything back
-			if result == nil {
+			// only log in release if we got something (bad/good)
+			if result != nil && !errors.Is(err, ErrSleep) && !errors.Is(err, ErrGrace) {
 				logrus.WithError(err).Error("check failed")
 			}
-			continue
+			// and don't log if we got none back
+			if result == nil {
+				continue
+			}
 		}
 
 		dlog("periodic check result: ", result)
-		// report every period, to make sure scon stays alive
-		go func() {
-			err := c.reportToScon(result)
-			if err != nil {
-				logrus.WithError(err).Error("failed to report to scon")
-			}
-		}()
 	}
 }
 
@@ -301,7 +299,7 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 
 	if iokit.IsAsleep() {
 		dlog("skipping checkin due to sleep")
-		return nil, errors.New("asleep")
+		return nil, ErrSleep
 	}
 
 	if !c.Valid() {
@@ -322,11 +320,11 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 		} else if !isVerifyFail && lastResult == nil && /*mono*/ timex.SinceMonoSleep(c.startTime) < startGracePeriod {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in start grace period")
-			return nil, err
+			return nil, errors.Join(err, ErrGrace)
 		} else if !isVerifyFail && lastResult == nil && wakeTime != nil && /*mono*/ timex.SinceMonoSleep(*wakeTime) < startGracePeriod {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in wake grace period")
-			return nil, err
+			return nil, errors.Join(err, ErrGrace)
 		} else {
 			// no grace period (or verify failed), so invalidate the result
 			result = &drmtypes.Result{
@@ -410,6 +408,14 @@ func (c *DrmClient) dispatchResult(result *drmtypes.Result) {
 	dlog("dispatchResult: ", result)
 	c.lastResult = result
 	c.setState(result.State)
+
+	// report every period, to make sure scon stays alive
+	go func() {
+		err := c.reportToScon(result)
+		if err != nil {
+			logrus.WithError(err).Error("failed to report to scon")
+		}
+	}()
 }
 
 func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error) {

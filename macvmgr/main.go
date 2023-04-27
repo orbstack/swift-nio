@@ -597,9 +597,9 @@ func runVmManager() {
 
 		setupEnvChan: nil,
 	}
-	unixListener, err := controlServer.Serve()
+	vmcontrolListener, err := controlServer.Serve()
 	check(err)
-	defer unixListener.Close()
+	defer vmcontrolListener.Close()
 
 	// Host forwards (setup vsock)
 	vnetwork.VsockDialer = func(port uint32) (net.Conn, error) {
