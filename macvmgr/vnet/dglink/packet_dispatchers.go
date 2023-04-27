@@ -233,6 +233,7 @@ func newRecvMMsgDispatcher(fd int, e *endpoint) (linkDispatcher, error) {
 	if err != nil {
 		return nil, err
 	}
+	unix.CloseOnExec(kqFd)
 
 	ev1 := unix.Kevent_t{
 		Ident:  uint64(fd),

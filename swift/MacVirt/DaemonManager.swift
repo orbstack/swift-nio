@@ -105,11 +105,12 @@ class DaemonManager {
                 NSLog("Error creating kqueue: \(errno)")
                 return
             }
-
+            let _ = fcntl(kqFd, F_SETFD, FD_CLOEXEC)
             defer {
                 close(kqFd)
             }
 
+            // register event
             var kev = kevent(
                 ident: UInt(pid),
                 filter: Int16(EVFILT_PROC),
@@ -129,7 +130,7 @@ class DaemonManager {
                 return
             }
 
-            // wait for the process to exit
+            // wait for exit event
             var kev2 = kevent()
             ret = kevent(kqFd, nil, 0, &kev2, 1, nil)
             guard ret != -1 else {
