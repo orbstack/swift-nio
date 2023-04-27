@@ -45,7 +45,7 @@ func maybeStopOld(canRecurse bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if pid != 0 || vmclient.IsRunning() {
+	if pid != 0 {
 		// check version, replace if changed
 		buildID, err = getSpawnBuildID()
 		if err != nil {
@@ -75,6 +75,13 @@ func maybeStopOld(canRecurse bool) (string, error) {
 		}
 
 		// 2. continue... below
+	} else if vmclient.IsRunning() {
+		// if socket is running but flock PID is not, we must stop it and restart
+		// GUI will not work properly with socket but no lock
+		err = tryStopOld()
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return buildID, nil
