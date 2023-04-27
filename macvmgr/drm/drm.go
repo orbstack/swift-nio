@@ -43,11 +43,6 @@ const (
 	// this is 4 burst reqs * 2 secs interval * 2x syncs + margin = 30 secs
 	sleepSyncPeriod = 30 * time.Second
 
-	// retry delays for DRM checkin requests
-	retryDelay1 = 5 * time.Second
-	retryDelay2 = 30 * time.Second
-	retryDelay3 = 5 * time.Minute
-
 	// temporary preview refresh token
 	previewRefreshToken = "1181201e-23f8-41f6-9660-b7110f4bfedb"
 
@@ -57,6 +52,9 @@ const (
 
 var (
 	verboseDebug = conf.Debug()
+
+	// retry delays for DRM checkin requests
+	retryDelays = []time.Duration{0, 5 * time.Second, 30 * time.Second, 5 * time.Minute}
 )
 
 var (
@@ -196,6 +194,10 @@ func (c *DrmClient) Run() {
 		result, err := c.KickCheck()
 		if err != nil {
 			dlog("periodic check failed: ", err)
+			// only log in release if we actually didn't get anything back
+			if result == nil {
+				logrus.WithError(err).Error("check failed")
+			}
 			continue
 		}
 
@@ -345,48 +347,22 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 }
 
 func (c *DrmClient) doCheckinLockedRetry() (*drmtypes.Result, error) {
-	dlog("doCheckinLockedRetry 1")
-	result, err := c.doCheckinLocked()
-	if err == nil {
-		return result, nil
-	}
-	if errors.Is(err, ErrVerify) {
-		return nil, err
-	}
-	dlog("1 error ", err)
+	var err error
+	for i, delay := range retryDelays {
+		if i > 0 {
+			time.Sleep(delay)
+		}
 
-	time.Sleep(retryDelay1)
-	dlog("doCheckinLockedRetry 2")
-	result, err = c.doCheckinLocked()
-	if err == nil {
-		return result, nil
+		var result *drmtypes.Result
+		result, err = c.doCheckinLocked()
+		if err == nil {
+			return result, nil
+		}
+		if errors.Is(err, ErrVerify) {
+			return nil, err
+		}
+		dlog("error ", i, " ", err)
 	}
-	if errors.Is(err, ErrVerify) {
-		return nil, err
-	}
-	dlog("2 error ", err)
-
-	time.Sleep(retryDelay2)
-	dlog("doCheckinLockedRetry 3")
-	result, err = c.doCheckinLocked()
-	if err == nil {
-		return result, nil
-	}
-	if errors.Is(err, ErrVerify) {
-		return nil, err
-	}
-	dlog("3 error ", err)
-
-	time.Sleep(retryDelay3)
-	dlog("doCheckinLockedRetry 4")
-	result, err = c.doCheckinLocked()
-	if err == nil {
-		return result, nil
-	}
-	if errors.Is(err, ErrVerify) {
-		return nil, err
-	}
-	dlog("4 error ", err)
 
 	return nil, err
 }
