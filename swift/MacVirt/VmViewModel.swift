@@ -564,6 +564,11 @@ class VmViewModel: ObservableObject {
                 return
             }
 
+            // also ignore if vm stopped
+            if self.state == .stopped || !daemon.checkRunningNow() {
+                return
+            }
+
             setError(.dockerListError(cause: error))
         }
     }

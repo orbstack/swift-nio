@@ -169,6 +169,7 @@ class DaemonManager {
                 NSLog("Invalid notification: \(notification)")
                 return
             }
+            NSLog("Received notification for pid \(pid)")
             callback(pid)
         }
     }
