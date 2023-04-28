@@ -98,9 +98,8 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	config := map[string]any{
 		// just to be safe with legacy clients
 		"features": baseFeatures,
-		// enable IPv6 with NAT66
-		"ipv6":          true,
-		"fixed-cidr-v6": "fd00:30:32::/64",
+		// disable IPv6 by default
+		"ipv6": false,
 		// most reliable, and fast on btrfs due to reflinks
 		"storage-driver": "overlay2",
 		// match our MTU
@@ -133,6 +132,14 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		baseFeatures[k] = v
 	}
 	config["features"] = baseFeatures
+
+	// iff IPv6 is enabled and user did not set a CIDR, set our default
+	// otherwise keep it unset to avoid adding IPv6 to bridge IPAM
+	if ipv6, ok := config["ipv6"].(bool); ok && ipv6 {
+		if _, ok := config["fixed-cidr-v6"]; !ok {
+			config["fixed-cidr-v6"] = "fd00:30:32::/64"
+		}
+	}
 
 	configBytes, err := json.Marshal(&config)
 	if err != nil {
