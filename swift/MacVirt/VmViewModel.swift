@@ -327,10 +327,17 @@ class VmViewModel: ObservableObject {
     @Published private(set) var isSshConfigWritable = true
 
     init() {
-        daemon.monitorNotificationCenter { [self] _ in
+        daemon.monitorDaemonNotifications { [self] _ in
             // go through spawn-daemon for simplicity and ignore pid
             Task { @MainActor in
                 await self.start()
+            }
+        }
+        daemon.monitorDockerNotifications { [self] event in
+            Task { @MainActor in
+                let doContainers = event.changed.contains(.container)
+                let doVolumes = event.changed.contains(.volume)
+                await self.tryRefreshDockerList(doContainers: doContainers, doVolumes: doVolumes)
             }
         }
     }
@@ -507,13 +514,7 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func refreshDockerList() async throws {
-        guard state < .stopping else {
-            return
-        }
-
-        // it's vmgr but need to wait for scon
-        try await waitForScon()
+    private func refreshDockerContainersList() async throws {
         let containers = try await vmgr.dockerContainerList()
         // preprocess
         dockerContainers = containers.map { container in
@@ -546,6 +547,10 @@ class VmViewModel: ObservableObject {
 
             return container
         }
+    }
+
+    @MainActor
+    func refreshDockerVolumesList() async throws {
         let resp = try await vmgr.dockerVolumeList()
         // sort volumes
         let volumes = resp.volumes.sorted { $0.name < $1.name }
@@ -553,9 +558,26 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func tryRefreshDockerList() async {
+    func refreshDockerList(doContainers: Bool = true, doVolumes: Bool = true) async throws {
+        guard state < .stopping else {
+            return
+        }
+
+        // it's vmgr but need to wait for scon
+        try await waitForScon()
+
+        if doContainers {
+            try await refreshDockerContainersList()
+        }
+        if doVolumes {
+            try await refreshDockerVolumesList()
+        }
+    }
+
+    @MainActor
+    func tryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true) async {
         do {
-            try await refreshDockerList()
+            try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes)
         } catch {
             // ignore if stopped
             if let machines = containers,
@@ -564,8 +586,8 @@ class VmViewModel: ObservableObject {
                 return
             }
 
-            // also ignore if vm stopped
-            if self.state == .stopped || !daemon.checkRunningNow() {
+            // also ignore if vm not running
+            if self.state != .running || !daemon.checkRunningNow() {
                 return
             }
 
@@ -815,15 +837,6 @@ class VmViewModel: ObservableObject {
         } catch {
             setError(.dockerContainerActionError(action: "\(label)", cause: error))
         }
-        await tryRefreshDockerList()
-
-        // Docker quirk: may not be done.
-        // HACK: wait a bit and try again
-        Task {
-            // 250 ms
-            try await Task.sleep(nanoseconds: 250 * 1000 * 1000)
-            await tryRefreshDockerList()
-        }
     }
 
     func tryDockerContainerStart(_ id: String) async {
@@ -868,15 +881,6 @@ class VmViewModel: ObservableObject {
             try await action()
         } catch {
             setError(.dockerVolumeActionError(action: "\(label)", cause: error))
-        }
-        await tryRefreshDockerList()
-
-        // Docker quirk: may not be done.
-        // HACK: wait a bit and try again
-        Task {
-            // 250 ms
-            try await Task.sleep(nanoseconds: 250 * 1000 * 1000)
-            await tryRefreshDockerList()
         }
     }
 

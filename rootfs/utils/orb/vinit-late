@@ -54,6 +54,11 @@ mount --bind -o ro /nfsroot-rw /nfsroot-ro
 if [[ -f /opt/orb/is_debug ]]; then
   mkdir /nfsroot-rw/data
   mount --bind /data /nfsroot-ro/data
+
+  # root home
+  mkdir -p /data/dev-root-home/.ssh
+  cp -af /root/.ssh/authorized_keys /data/dev-root-home/.ssh
+  mount --bind /data/dev-root-home /root
 fi
 # for scon bind mounts
 mount --make-rshared /nfsroot-ro

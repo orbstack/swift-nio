@@ -41,6 +41,15 @@ private actor PidsHolder {
     }
 }
 
+enum DKUIEntity: String, Codable {
+    case container = "container"
+    case volume = "volume"
+    case image = "image"
+}
+
+struct DKUIEvent: Codable {
+    let changed: [DKUIEntity]
+}
 class DaemonManager {
     private let pidsHolder = PidsHolder()
 
@@ -163,15 +172,33 @@ class DaemonManager {
     }
 
     // subscribe to notification center and dispatch any pids with the given callback
-    func monitorNotificationCenter(callback: @escaping (Int) -> Void) {
+    func monitorDaemonNotifications(callback: @escaping (Int) -> Void) {
         let nc = DistributedNotificationCenter.default()
-        nc.addObserver(forName: .init("dev.orbstack.vmgr.DaemonStarted"), object: nil, queue: nil) { notification in
+        nc.addObserver(forName: .init("dev.orbstack.vmgr.private.DaemonStarted"), object: nil, queue: nil) { notification in
             guard let pid = notification.userInfo?["pid"] as? Int else {
                 NSLog("Invalid notification: \(notification)")
                 return
             }
             NSLog("Received notification for pid \(pid)")
             callback(pid)
+        }
+    }
+
+    func monitorDockerNotifications(callback: @escaping (DKUIEvent) -> Void) {
+        let nc = DistributedNotificationCenter.default()
+        nc.addObserver(forName: .init("dev.orbstack.vmgr.private.DockerUIEvent"), object: nil, queue: nil) { notification in
+            guard let eventJson = notification.userInfo?["event_json"] as? String else {
+                NSLog("Invalid notification: \(notification)")
+                return
+            }
+            // decode
+            let decoder = JSONDecoder()
+            guard let event = try? decoder.decode(DKUIEvent.self, from: eventJson.data(using: .utf8)!) else {
+                NSLog("Invalid notification: \(notification)")
+                return
+            }
+            NSLog("Received Docker notification: \(event)")
+            callback(event)
         }
     }
 }

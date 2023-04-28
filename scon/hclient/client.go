@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/rpc"
 
+	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
@@ -138,6 +139,11 @@ func (c *Client) RemoveFsnotifyRef(path string) error {
 func (c *Client) ClearFsnotifyRefs() error {
 	var none None
 	return c.rpc.Call("hc.ClearFsnotifyRefs", None{}, &none)
+}
+
+func (c *Client) OnDockerUIEvent(event *dockertypes.UIEvent) error {
+	var none None
+	return c.rpc.Call("hc.OnDockerUIEvent", event, &none)
 }
 
 func (c *Client) Close() error {

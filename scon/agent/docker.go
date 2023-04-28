@@ -16,10 +16,12 @@ import (
 	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 const (
 	dockerRefreshDebounce = 100 * time.Millisecond
+	dockerUIEventDebounce = 50 * time.Millisecond
 )
 
 func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
@@ -151,6 +153,33 @@ func (a *AgentServer) dockerRefreshContainers() error {
 	return nil
 }
 
+func (a *AgentServer) dockerTriggerUIEvent(entity dockertypes.UIEntity) {
+	a.dockerMu.Lock()
+	defer a.dockerMu.Unlock()
+
+	if !slices.Contains(a.dockerPendingUIEntities, entity) {
+		a.dockerPendingUIEntities = append(a.dockerPendingUIEntities, entity)
+	}
+	a.dockerUIEventDebounce.Call()
+}
+
+func (a *AgentServer) dockerDoSendUIEvent() error {
+	a.dockerMu.Lock()
+	defer a.dockerMu.Unlock()
+
+	event := dockertypes.UIEvent{
+		Changed: a.dockerPendingUIEntities,
+	}
+	logrus.WithField("event", event).Debug("sending Docker UI event")
+	err := a.dockerHost.OnDockerUIEvent(&event)
+	if err != nil {
+		return err
+	}
+
+	a.dockerPendingUIEntities = nil
+	return nil
+}
+
 func (a *AgentServer) monitorDockerEvents() error {
 	req, err := a.dockerClient.Get("http://unix/events")
 	if err != nil {
@@ -173,13 +202,17 @@ func (a *AgentServer) monitorDockerEvents() error {
 			}
 		}
 
-		if event.Type != "container" {
-			continue
-		}
+		switch event.Type {
+		case "container":
+			switch event.Action {
+			case "start", "die":
+				a.dockerTriggerUIEvent(dockertypes.UIEventContainer)
+				a.dockerRefreshDebounce.Call()
+			}
 
-		switch event.Action {
-		case "start", "die":
-			a.dockerRefreshDebounce.Call()
+		case "volume":
+			a.dockerTriggerUIEvent(dockertypes.UIEventVolume)
+			// there is no event for images
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package hcsrv
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/fsnotify"
@@ -224,6 +226,19 @@ func (h *HcontrolServer) ClearFsnotifyRefs(_ None, _ *None) error {
 	}
 
 	h.fsnotifyRefs = make(map[string]int)
+	return nil
+}
+
+func (h *HcontrolServer) OnDockerUIEvent(event dockertypes.UIEvent, _ *None) error {
+	// encode to json
+	data, err := json.Marshal(&event)
+	if err != nil {
+		return err
+	}
+
+	// notify GUI
+	logrus.WithField("event", event).Debug("sending docker UI event to GUI")
+	vzf.SwextIpcNotifyDockerEvent(string(data))
 	return nil
 }
 

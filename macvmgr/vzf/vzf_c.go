@@ -28,6 +28,7 @@ char* swext_fsevents_VmNotifier_updatePaths(void* ptr, const char** paths, int c
 char* swext_fsevents_VmNotifier_stop(void* ptr);
 void swext_fsevents_VmNotifier_finalize(void* ptr);
 void swext_ipc_notify_started(void);
+void swext_ipc_notify_docker_event(const char* event);
 */
 import (
 	"C"
@@ -397,4 +398,10 @@ func (n *FsVmNotifier) UpdatePaths(paths []string) error {
 
 func SwextIpcNotifyStarted() {
 	C.swext_ipc_notify_started()
+}
+
+func SwextIpcNotifyDockerEvent(eventJsonStr string) {
+	cStr := C.CString(eventJsonStr)
+	defer C.free(unsafe.Pointer(cStr))
+	C.swext_ipc_notify_docker_event(cStr)
 }

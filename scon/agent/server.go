@@ -37,14 +37,16 @@ type AgentServer struct {
 	loginManager  *LoginManager
 	containerName string
 
-	dockerClient          *http.Client
-	dockerRunning         syncx.CondBool
-	dockerMu              syncx.Mutex
-	dockerHost            *hclient.Client
-	dockerContainerBinds  map[string][]string
-	dockerLastContainers  []dockertypes.ContainerSummaryMin
+	dockerClient         *http.Client
+	dockerRunning        syncx.CondBool
+	dockerMu             syncx.Mutex
+	dockerHost           *hclient.Client
+	dockerContainerBinds map[string][]string
+	dockerLastContainers []dockertypes.ContainerSummaryMin
 	// refreshing w/ debounce+diff ensures consistent snapshots
-	dockerRefreshDebounce syncx.FuncDebounce
+	dockerRefreshDebounce   syncx.FuncDebounce
+	dockerUIEventDebounce   syncx.FuncDebounce
+	dockerPendingUIEntities []dockertypes.UIEntity
 }
 
 type ProxySpec struct {
@@ -258,6 +260,12 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 			err := server.dockerRefreshContainers()
 			if err != nil {
 				logrus.WithError(err).Error("failed to refresh docker containers")
+			}
+		})
+		server.dockerUIEventDebounce = syncx.NewFuncDebounce(dockerUIEventDebounce, func() {
+			err := server.dockerDoSendUIEvent()
+			if err != nil {
+				logrus.WithError(err).Error("failed to send docker UI event")
 			}
 		})
 	}
