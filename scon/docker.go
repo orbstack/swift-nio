@@ -339,7 +339,7 @@ func (m *ConManager) runDockerNFS() error {
 			}
 		})
 
-		added, removed := diffSlices(lastVols, vols)
+		added, removed := util.DiffSlices(lastVols, vols)
 		lastVols = vols
 
 		// add new volumes

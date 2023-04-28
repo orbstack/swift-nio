@@ -253,30 +253,6 @@ func (m *ConManager) checkForward(c *Container, spec sysnet.ProcListener) bool {
 	return true
 }
 
-func diffSlices[T comparable](old, new []T) (added, removed []T) {
-	oldMap := make(map[T]struct{})
-	for _, listener := range old {
-		oldMap[listener] = struct{}{}
-	}
-	newMap := make(map[T]struct{})
-	for _, listener := range new {
-		newMap[listener] = struct{}{}
-	}
-
-	for _, newListener := range new {
-		if _, ok := oldMap[newListener]; !ok {
-			added = append(added, newListener)
-		}
-	}
-	for _, oldListener := range old {
-		if _, ok := newMap[oldListener]; !ok {
-			removed = append(removed, oldListener)
-		}
-	}
-
-	return
-}
-
 func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	var out []N
 	for _, v := range s {
@@ -313,7 +289,7 @@ func (c *Container) updateListenersNow() error {
 		"listeners": listeners,
 	}).Debug("update listeners")
 
-	added, removed := diffSlices(c.lastListeners, listeners)
+	added, removed := util.DiffSlices(c.lastListeners, listeners)
 
 	var errs []error
 	var notAdded []sysnet.ProcListener

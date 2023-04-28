@@ -89,7 +89,7 @@ func (n *VmNotifier) Remove(path string) error {
 		}
 	}
 
-	return errors.New("path not found")
+	return errors.New("path not tracked in notifier: " + path)
 }
 
 func (n *VmNotifier) Close() error {

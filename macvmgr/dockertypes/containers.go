@@ -47,6 +47,18 @@ type ContainerSummary struct {
 	Mounts []MountPoint
 }
 
+// minimized version:
+// the more fields we try to decode, the greater the chance of failure
+type ContainerSummaryMin struct {
+	ID     string `json:"Id"`
+	Mounts []MountPoint
+}
+
+// Identifiable
+func (c ContainerSummaryMin) Identifier() string {
+	return c.ID
+}
+
 type ContainerDetails struct {
 	ID     string `json:"Id"`
 	Mounts []MountPoint

@@ -16,6 +16,7 @@ import (
 	"unsafe"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
 	"github.com/kdrag0n/macvirt/scon/agent/udpfwd"
 	"github.com/kdrag0n/macvirt/scon/conf"
@@ -36,11 +37,14 @@ type AgentServer struct {
 	loginManager  *LoginManager
 	containerName string
 
-	dockerClient         *http.Client
-	dockerRunning        syncx.CondBool
-	dockerMu             syncx.Mutex
-	dockerHost           *hclient.Client
-	dockerContainerBinds map[string][]string
+	dockerClient          *http.Client
+	dockerRunning         syncx.CondBool
+	dockerMu              syncx.Mutex
+	dockerHost            *hclient.Client
+	dockerContainerBinds  map[string][]string
+	dockerLastContainers  []dockertypes.ContainerSummaryMin
+	// refreshing w/ debounce+diff ensures consistent snapshots
+	dockerRefreshDebounce syncx.FuncDebounce
 }
 
 type ProxySpec struct {
@@ -250,6 +254,12 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 		server.dockerRunning = syncx.NewCondBool()
 		server.dockerContainerBinds = make(map[string][]string)
+		server.dockerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+			err := server.dockerRefreshContainers()
+			if err != nil {
+				logrus.WithError(err).Error("failed to refresh docker containers")
+			}
+		})
 	}
 
 	// Go sets soft rlimit = hard. bring it back down to avoid perf issues

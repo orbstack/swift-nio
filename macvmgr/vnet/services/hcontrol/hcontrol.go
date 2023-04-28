@@ -2,6 +2,7 @@ package hcsrv
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/rpc"
 	"os"
@@ -188,6 +189,10 @@ func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
 	h.fsnotifyMu.Lock()
 	defer h.fsnotifyMu.Unlock()
 
+	if h.fsnotifyRefs[path] == 0 {
+		return fmt.Errorf("path not tracked in hcontrol: %s", path)
+	}
+
 	h.fsnotifyRefs[path]--
 
 	if h.fsnotifyRefs[path] == 0 {
@@ -198,6 +203,10 @@ func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
 		delete(h.fsnotifyRefs, path)
 	}
 
+	if h.fsnotifyRefs[path] < 0 {
+		return fmt.Errorf("negative refcount for %s", path)
+	}
+
 	return nil
 }
 
@@ -205,10 +214,12 @@ func (h *HcontrolServer) ClearFsnotifyRefs(_ None, _ *None) error {
 	h.fsnotifyMu.Lock()
 	defer h.fsnotifyMu.Unlock()
 
-	for path := range h.fsnotifyRefs {
-		err := h.FsNotifier.Remove(path)
-		if err != nil {
-			return err
+	for path, count := range h.fsnotifyRefs {
+		if count > 0 {
+			err := h.FsNotifier.Remove(path)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

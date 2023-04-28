@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
@@ -14,6 +16,10 @@ import (
 	"github.com/kdrag0n/macvirt/scon/hclient"
 	"github.com/kdrag0n/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	dockerRefreshDebounce = 100 * time.Millisecond
 )
 
 func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
@@ -28,9 +34,7 @@ func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
 		return errors.New("docker API returned " + resp.Status)
 	}
 
-	var containers []struct {
-		ID string `json:"Id"`
-	}
+	var containers []dockertypes.ContainerSummaryMin
 	err = json.NewDecoder(resp.Body).Decode(&containers)
 	if err != nil {
 		return err
@@ -104,7 +108,9 @@ func (a *AgentServer) dockerPostStart() error {
 	return nil
 }
 
-func (a *AgentServer) dockerAddStartedContainers() error {
+func (a *AgentServer) dockerRefreshContainers() error {
+	// no mu needed: synchronized by debounce
+
 	// only includes running
 	resp, err := a.dockerClient.Get("http://docker/containers/json")
 	if err != nil {
@@ -116,22 +122,32 @@ func (a *AgentServer) dockerAddStartedContainers() error {
 		return errors.New("docker API returned " + resp.Status)
 	}
 
-	var containers []struct {
-		ID string `json:"Id"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&containers)
+	var newContainers []dockertypes.ContainerSummaryMin
+	err = json.NewDecoder(resp.Body).Decode(&newContainers)
 	if err != nil {
 		return err
 	}
 
-	// trigger started for each one
-	for _, c := range containers {
-		err = a.onDockerContainerStart(c.ID)
+	// diff
+	added, removed := util.DiffSlicesKey[string](a.dockerLastContainers, newContainers)
+
+	// add first
+	for _, c := range added {
+		err = a.onDockerContainerStart(c)
 		if err != nil {
-			logrus.WithError(err).Error("failed to handle initial Docker container start")
+			logrus.WithError(err).Error("failed to add Docker container")
 		}
 	}
 
+	// then remove
+	for _, c := range removed {
+		err = a.onDockerContainerStop(c)
+		if err != nil {
+			logrus.WithError(err).Error("failed to remove Docker container")
+		}
+	}
+
+	a.dockerLastContainers = newContainers
 	return nil
 }
 
@@ -141,18 +157,20 @@ func (a *AgentServer) monitorDockerEvents() error {
 		return err
 	}
 
-	// ok, we subscribed to events, now sample starting set
-	err = a.dockerAddStartedContainers()
-	if err != nil {
-		return err
-	}
+	// kick an initial refresh
+	a.dockerRefreshDebounce.Call()
 
 	dec := json.NewDecoder(req.Body)
 	for {
 		var event dockertypes.Event
 		err := dec.Decode(&event)
 		if err != nil {
-			return fmt.Errorf("decode json: %w", err)
+			// EOF = Docker daemon stopped
+			if errors.Is(err, io.ErrUnexpectedEOF) {
+				return nil
+			} else {
+				return fmt.Errorf("decode json: %w", err)
+			}
 		}
 
 		if event.Type != "container" {
@@ -160,16 +178,8 @@ func (a *AgentServer) monitorDockerEvents() error {
 		}
 
 		switch event.Action {
-		case "start":
-			err = a.onDockerContainerStart(event.Actor.ID)
-			if err != nil {
-				logrus.WithError(err).Error("failed to handle Docker container start")
-			}
-		case "die":
-			err = a.onDockerContainerStop(event.Actor.ID)
-			if err != nil {
-				logrus.WithError(err).Error("failed to handle Docker container stop")
-			}
+		case "start", "die":
+			a.dockerRefreshDebounce.Call()
 		}
 	}
 }
@@ -194,29 +204,13 @@ func translateDockerPathToMac(p string) string {
 	return ""
 }
 
-func (a *AgentServer) onDockerContainerStart(cid string) error {
+func (a *AgentServer) onDockerContainerStart(ctr dockertypes.ContainerSummaryMin) error {
+	cid := ctr.ID
 	logrus.WithField("cid", cid).Debug("Docker container started")
-
-	// get container info
-	resp, err := a.dockerClient.Get("http://docker/containers/" + cid + "/json")
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New("docker API returned " + resp.Status)
-	}
-
-	var info dockertypes.ContainerDetails
-	err = json.NewDecoder(resp.Body).Decode(&info)
-	if err != nil {
-		return err
-	}
 
 	// get container bind mounts
 	var binds []string
-	for _, m := range info.Mounts {
+	for _, m := range ctr.Mounts {
 		if m.Type == dockertypes.MountTypeBind {
 			binds = append(binds, m.Source)
 		}
@@ -235,7 +229,7 @@ func (a *AgentServer) onDockerContainerStart(cid string) error {
 			continue
 		}
 
-		err = a.dockerHost.AddFsnotifyRef(path)
+		err := a.dockerHost.AddFsnotifyRef(path)
 		if err != nil {
 			return err
 		}
@@ -244,7 +238,8 @@ func (a *AgentServer) onDockerContainerStart(cid string) error {
 	return nil
 }
 
-func (a *AgentServer) onDockerContainerStop(cid string) error {
+func (a *AgentServer) onDockerContainerStop(ctr dockertypes.ContainerSummaryMin) error {
+	cid := ctr.ID
 	logrus.WithField("cid", cid).Debug("Docker container stopped")
 
 	// get container bind mounts
@@ -260,6 +255,13 @@ func (a *AgentServer) onDockerContainerStop(cid string) error {
 	// report to host
 	logrus.WithField("cid", cid).WithField("binds", binds).Debug("reporting Docker container binds")
 	for _, path := range binds {
+		// path translation:
+		path = translateDockerPathToMac(path)
+		if path == "" {
+			logrus.WithField("path", path).Debug("ignoring Docker bind mount")
+			continue
+		}
+
 		err := a.dockerHost.RemoveFsnotifyRef(path)
 		if err != nil {
 			return err
