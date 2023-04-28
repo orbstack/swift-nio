@@ -409,6 +409,9 @@ func runVmManager() {
 
 	// remove everything in run, sockets and pid
 	os.RemoveAll(conf.RunDir())
+	// then recreate because RunDir only ensures once
+	err = os.MkdirAll(conf.RunDir(), 0755)
+	check(err)
 
 	// write build ID
 	if buildID == "" {

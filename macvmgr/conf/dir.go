@@ -5,9 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+)
+
+var (
+	ensuredDirsMu sync.Mutex
+	ensuredDirs   = make(map[string]string)
 )
 
 func check(err error) {
@@ -23,6 +29,21 @@ func HomeDir() string {
 }
 
 func ensureDir(dir string) string {
+	ensuredDirsMu.Lock()
+	defer ensuredDirsMu.Unlock()
+
+	if d, ok := ensuredDirs[dir]; ok {
+		return d
+	}
+	defer func() {
+		ensuredDirs[dir] = dir
+	}()
+
+	// stat first
+	if st, err := os.Stat(dir); err == nil && st.IsDir() {
+		return dir
+	}
+
 	err := os.MkdirAll(dir, 0755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		panic(err)
