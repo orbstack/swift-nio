@@ -142,14 +142,16 @@ struct DockerContainerItem: View {
                                 }
                             }
 
-                            VStack(alignment: .leading) {
-                                Button("Open Terminal", action: openInTerminal)
+                            if isRunning {
+                                VStack(alignment: .leading) {
+                                    Button("Open Terminal", action: openInTerminal)
 
-                                if container.image == "docker/getting-started" {
-                                    // special case for more seamless onboarding
-                                    Button("Open Tutorial", action: {
-                                        NSWorkspace.shared.open(URL(string: "http://localhost")!)
-                                    })
+                                    if container.image == "docker/getting-started" {
+                                        // special case for more seamless onboarding
+                                        Button("Open Tutorial", action: {
+                                            NSWorkspace.shared.open(URL(string: "http://localhost")!)
+                                        })
+                                    }
                                 }
                             }
                         }
@@ -282,7 +284,7 @@ struct DockerContainerItem: View {
                 openInTerminal()
             }) {
                 Label("Open Terminal", systemImage: "terminal")
-            }
+            }.disabled(!isRunning)
 
             Menu("Ports & Mounts") {
                 if container.ports.isEmpty && container.mounts.isEmpty {
