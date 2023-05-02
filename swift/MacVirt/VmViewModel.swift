@@ -70,7 +70,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .spawnExit(let status, _):
             return "Start failed with error \(status)"
         case .vmgrExit(let reason):
-            return "Stopped with \(reason)"
+            return "Stopped unexpectedly with \(reason)"
         case .wrongArch:
             return "Wrong CPU type"
         case .virtUnsupported:
