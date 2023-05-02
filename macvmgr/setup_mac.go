@@ -375,9 +375,18 @@ func readDockerConfigEnv(shell string) error {
 	if err != nil {
 		return err
 	}
-	logrus.WithField("path", out).Info("detected DOCKER_CONFIG")
 	value := parseShellLine(out)
+	logrus.WithField("path", value).Info("detected DOCKER_CONFIG")
 	if value != "" && strings.HasPrefix(value, "/") {
+		// let's try to ensure the dir
+		_, err := conf.EnsureDir(value)
+		if err != nil {
+			// it doesn't work - doesn't exist and we couldn't create.
+			// fall back to ~/.docker
+			logrus.WithError(err).WithField("path", value).Warn("invalid DOCKER_CONFIG dir")
+			value = ""
+		}
+
 		os.Setenv("DOCKER_CONFIG", value)
 	}
 

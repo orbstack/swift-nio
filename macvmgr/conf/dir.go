@@ -29,11 +29,17 @@ func HomeDir() string {
 }
 
 func ensureDir(dir string) string {
+	_, err := EnsureDir(dir)
+	check(err)
+	return dir
+}
+
+func EnsureDir(dir string) (string, error) {
 	ensuredDirsMu.Lock()
 	defer ensuredDirsMu.Unlock()
 
 	if d, ok := ensuredDirs[dir]; ok {
-		return d
+		return d, nil
 	}
 	defer func() {
 		ensuredDirs[dir] = dir
@@ -41,14 +47,14 @@ func ensureDir(dir string) string {
 
 	// stat first
 	if st, err := os.Stat(dir); err == nil && st.IsDir() {
-		return dir
+		return dir, nil
 	}
 
 	err := os.MkdirAll(dir, 0755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		panic(err)
+		return "", err
 	}
-	return dir
+	return dir, nil
 }
 
 func AppDir() string {
@@ -181,7 +187,7 @@ func ShellInitDir() string {
 func UserDockerDir() string {
 	env := os.Getenv("DOCKER_CONFIG")
 	if env != "" {
-		return env
+		return ensureDir(env)
 	}
 	return ensureDir(HomeDir() + "/.docker")
 }
