@@ -8,7 +8,11 @@ import SwiftJSONRPC
 import Sentry
 import Virtualization
 
-fileprivate let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
+private let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
+private let jsonIpv6Regex = try! NSRegularExpression(pattern: """
+                                                              ("ipv6"\\s*:\\s*)(true|false)\\b
+                                                              """)
+private let jsonClosingBracketRegex = try! NSRegularExpression(pattern: "(\\}\\s*)$")
 
 enum VmState: Int, Comparable {
     case stopped
@@ -35,11 +39,14 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case startTimeout(cause: Error?)
     case stopError(cause: Error)
     case setupError(cause: Error)
+    case configRefresh(cause: Error)
+    case configPatchError(cause: Error)
+
+    // docker
     case dockerListError(cause: Error)
     case dockerContainerActionError(action: String, cause: Error)
     case dockerVolumeActionError(action: String, cause: Error)
-    case configRefresh(cause: Error)
-    case configPatchError(cause: Error)
+    case dockerConfigSaveError(cause: Error)
 
     // scon
     case startError(cause: Error)
@@ -76,16 +83,19 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Failed to stop"
         case .setupError:
             return "Failed to do setup"
+        case .configRefresh:
+            return "Failed to get settings"
+        case .configPatchError:
+            return "Failed to update settings"
+
         case .dockerListError:
             return "Failed to refresh Docker"
         case .dockerContainerActionError(let action, _):
             return "Failed to \(action) Docker container"
         case .dockerVolumeActionError(let action, _):
             return "Failed to \(action) Docker volume"
-        case .configRefresh:
-            return "Failed to get settings"
-        case .configPatchError:
-            return "Failed to update settings"
+        case .dockerConfigSaveError:
+            return "Failed to apply Docker config"
 
         case .startError:
             return "Failed to start machine manager"
@@ -194,15 +204,18 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .setupError(let cause):
             return cause
+        case .configRefresh(let cause):
+            return cause
+        case .configPatchError(let cause):
+            return cause
+
         case .dockerListError(let cause):
             return cause
         case .dockerContainerActionError(_, let cause):
             return cause
         case .dockerVolumeActionError(_, let cause):
             return cause
-        case .configRefresh(let cause):
-            return cause
-        case .configPatchError(let cause):
+        case .dockerConfigSaveError(let cause):
             return cause
 
         case .startError(let cause):
@@ -325,6 +338,9 @@ class VmViewModel: ObservableObject {
     
     // Setup
     @Published private(set) var isSshConfigWritable = true
+
+    @Published private(set) var dockerEnableIPv6 = false
+    @Published var dockerConfigJson = "{\n}"
 
     init() {
         daemon.monitorDaemonNotifications { [self] _ in
@@ -904,6 +920,54 @@ class VmViewModel: ObservableObject {
             do {
                 try await refreshList()
             } catch {}
+        }
+    }
+
+    func tryLoadDockerConfig() {
+        do {
+            let jsonText = try String(contentsOf: URL(fileURLWithPath: Files.dockerDaemonConfig), encoding: .utf8)
+            dockerConfigJson = jsonText
+            // can we parse it and grab ipv6?
+            let json = try JSONSerialization.jsonObject(with: jsonText.data(using: .utf8)!, options: []) as! [String: Any]
+            if let ipv6 = json["ipv6"] as? Bool {
+                dockerEnableIPv6 = ipv6
+            }
+        } catch {
+            NSLog("docker config load error: \(error)")
+        }
+    }
+
+    func trySetDockerConfig(configJson: String, enableIpv6: Bool) async {
+        do {
+            // parse and update the json for ipv6
+            // we do this with crude regex to avoid messing with whitespace
+            let matches = jsonIpv6Regex.matches(in: configJson, range: NSRange(location: 0, length: configJson.utf16.count))
+            var finalConfig = configJson
+            if let range = matches.last?.range(at: 2),
+               let strRange = Range(range, in: configJson) {
+                let oldValue = configJson[strRange] == "true"
+
+                if enableIpv6 != oldValue {
+                    // replace it
+                    finalConfig = finalConfig.replacingCharacters(in: strRange, with: "\(enableIpv6)")
+                }
+            } else {
+                let oldValue = false
+
+                if enableIpv6 != oldValue {
+                    // no old value. need to add it
+                    finalConfig = finalConfig.replaceNSRegex(jsonClosingBracketRegex, with: "    \"ipv6\": \(enableIpv6)\n}")
+                }
+            }
+
+            // write it back out
+            try finalConfig.write(to: URL(fileURLWithPath: Files.dockerDaemonConfig), atomically: true, encoding: .utf8)
+
+            // update state
+            dockerConfigJson = finalConfig
+            dockerEnableIPv6 = enableIpv6
+        } catch {
+            setError(.dockerConfigSaveError(cause: error))
         }
     }
 }

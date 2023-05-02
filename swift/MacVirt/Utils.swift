@@ -192,6 +192,23 @@ private func openViaAppleEvent(_ url: URL, bundleId: String) throws {
     }
 }
 
+extension String {
+    func replaceNSRegex(_ regex: NSRegularExpression, with: (NSTextCheckingResult) -> String) -> String {
+        let nsString = self as NSString
+        let matches = regex.matches(in: self, options: [], range: NSRange(location: 0, length: nsString.length))
+        var result = self
+        for match in matches.reversed() {
+            let replacement = with(match)
+            result = (result as NSString).replacingCharacters(in: match.range, with: replacement)
+        }
+        return result
+    }
+
+    func replaceNSRegex(_ regex: NSRegularExpression, with: String) -> String {
+        return replaceNSRegex(regex) { _ in with }
+    }
+}
+
 struct Folders {
     static let home = FileManager.default.homeDirectoryForCurrentUser.path
     static let nfsName = "OrbStack"
@@ -202,4 +219,8 @@ struct Folders {
     static let appData = "\(home)/.orbstack"
     static let config = "\(appData)/config"
     static let run = "\(appData)/run"
+}
+
+struct Files {
+    static let dockerDaemonConfig = "\(Folders.config)/docker.json"
 }
