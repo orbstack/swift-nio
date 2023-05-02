@@ -5,6 +5,8 @@
 import Foundation
 import CoreServices
 
+private let debugPrintEvents = false
+
 private let fseventsQueue = DispatchQueue(label: "fsevents", qos: .background)
 
 private let npFlagCreate: UInt64 = 1 << 0
@@ -24,17 +26,110 @@ enum SwextFseventsError: Error {
 }
 
 private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePointer<FSEventStreamEventFlags>, _ numEvents: Int) -> [String: FSEventStreamEventFlags] {
+    if debugPrintEvents {
+        print("---begin---")
+        print("# of events: \(numEvents)")
+    }
     let paths = paths.assumingMemoryBound(to: UnsafePointer<CChar>.self)
 
     // dedupe and coalesce flags by path
     var pathsAndFlags = [String: FSEventStreamEventFlags]()
     for i in 0..<numEvents {
         let path = String(cString: paths[i])
-        let flags = flags[i]
+        var flags = flags[i]
+        var flagsInt = Int(flags)
+        if debugPrintEvents {
+            print("path: \(path), flags: \(flags)")
+            print("  ", terminator: "")
+            if flagsInt & kFSEventStreamEventFlagNone != 0 {
+                print("[none] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagMustScanSubDirs != 0 {
+                print("[must scan subdirs] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagUserDropped != 0 {
+                print("[user dropped] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagKernelDropped != 0 {
+                print("[kernel dropped] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagEventIdsWrapped != 0 {
+                print("[event ids wrapped] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagHistoryDone != 0 {
+                print("[history done] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagRootChanged != 0 {
+                print("[root changed] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagMount != 0 {
+                print("[mount] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagUnmount != 0 {
+                print("[unmount] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemCreated != 0 {
+                print("[created] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemRemoved != 0 {
+                print("[removed] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemInodeMetaMod != 0 {
+                print("[inode meta mod] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemRenamed != 0 {
+                print("[renamed] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemModified != 0 {
+                print("[modified] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemFinderInfoMod != 0 {
+                print("[finder info mod] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemChangeOwner != 0 {
+                print("[change owner] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemXattrMod != 0 {
+                print("[xattr mod] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemIsFile != 0 {
+                print("[is file] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemIsDir != 0 {
+                print("[is dir] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemIsSymlink != 0 {
+                print("[is symlink] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagOwnEvent != 0 {
+                print("[own event] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemIsHardlink != 0 {
+                print("[is hardlink] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemIsLastHardlink != 0 {
+                print("[is last hardlink] ", terminator: "")
+            }
+            if flagsInt & kFSEventStreamEventFlagItemCloned != 0 {
+                print("[cloned] ", terminator: "")
+            }
+            print("")
+        }
 
         // ignore "history done" sentinel
-        if Int(flags) & kFSEventStreamEventFlagHistoryDone != 0 {
+        if flagsInt & kFSEventStreamEventFlagHistoryDone != 0 {
             continue
+        }
+
+        // fix misreported events: if (created|modified), remove (created) if (inode meta mod) is set
+        // sometimes a relatively new file that's modified will have (created | modified) set
+        // differentiate: real modification always has (inode meta mod)
+        // the weird events have all set: [created] [inode meta mod] [modified] [is file]
+        if flagsInt & kFSEventStreamEventFlagItemCreated != 0 &&
+           flagsInt & kFSEventStreamEventFlagItemModified != 0 &&
+           flagsInt & kFSEventStreamEventFlagItemInodeMetaMod != 0 {
+            flags = FSEventStreamEventFlags(flagsInt & ~kFSEventStreamEventFlagItemCreated)
+            flagsInt = Int(flags)
         }
 
         if path.utf8.count > linuxPathMax {
@@ -51,6 +146,9 @@ private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePoint
         }
     }
 
+    if debugPrintEvents {
+        print("---end---")
+    }
     return pathsAndFlags
 }
 
