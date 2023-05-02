@@ -124,13 +124,20 @@ func getUserDetails() (*UserDetails, error) {
 }
 
 // we're started under launchd with only this PATH: /usr/bin:/bin:/usr/sbin:/sbin
-func setupPath() error {
+func setupEnv() error {
 	details, err := getUserDetails()
 	if err != nil {
 		return err
 	}
 
 	os.Setenv("PATH", details.Path)
+
+	// also set DOCKER_CONFIG
+	err = readDockerConfigEnv(details.Shell)
+	if err != nil {
+		logrus.WithError(err).Warn("failed to read DOCKER_CONFIG env")
+	}
+
 	return nil
 }
 
@@ -404,6 +411,8 @@ for docker sock:
 /var/run/docker.sock IF root
 */
 func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr error) {
+	s.setupReady.Wait()
+
 	s.setupMu.Lock()
 	defer s.setupMu.Unlock()
 
@@ -660,13 +669,6 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 				}
 			}
 		}
-	}
-
-	// get DOCKER_CONFIG
-	// below is first usage of it
-	err = readDockerConfigEnv(details.Shell)
-	if err != nil {
-		logrus.WithError(err).Warn("failed to read DOCKER_CONFIG env")
 	}
 
 	// link docker CLI plugins

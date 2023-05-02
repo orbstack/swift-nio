@@ -26,6 +26,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 	"github.com/kdrag0n/macvirt/macvmgr/vzf"
+	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 
 	_ "net/http/pprof"
@@ -48,6 +49,7 @@ type VmControlServer struct {
 	setupDone    bool
 	setupMu      sync.Mutex
 	setupEnvChan chan *vmtypes.EnvReport
+	setupReady   syncx.CondBool
 }
 
 func (s *VmControlServer) Ping(ctx context.Context) error {

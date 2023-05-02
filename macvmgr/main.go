@@ -37,6 +37,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/vzf"
 	"github.com/kdrag0n/macvirt/scon/isclient"
 	"github.com/kdrag0n/macvirt/scon/sclient"
+	"github.com/kdrag0n/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -599,6 +600,7 @@ func runVmManager() {
 		drm:          drm.Client(),
 
 		setupEnvChan: nil,
+		setupReady:   syncx.NewCondBool(),
 	}
 	vmcontrolListener, err := controlServer.Serve()
 	check(err)
@@ -647,9 +649,10 @@ func runVmManager() {
 
 	// Docker context and certs.d
 	go func() {
-		// PATH for hostssh
+		// PATH for hostssh, DOCKER_CONFIG for docker cli
 		// blocking here because docker depends on it
-		runOne("PATH setup", setupPath)
+		runOne("env setup", setupEnv)
+		controlServer.setupReady.Set(true)
 
 		err := setupDockerContext()
 		if err != nil {
