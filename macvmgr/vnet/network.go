@@ -159,7 +159,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	})
 
 	if capturePcap {
-		pcapPath := conf.ExecutableDir() + "/gv.pcap"
+		pcapPath := conf.MustExecutableDir() + "/gv.pcap"
 		_ = os.Remove(pcapPath)
 		f, err := os.Create(pcapPath)
 		if err != nil {
