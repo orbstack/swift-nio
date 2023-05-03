@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"path/filepath"
 	"time"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
@@ -47,18 +46,11 @@ func IsSconRunning() (bool, error) {
 }
 
 func FindVmgrExe() (string, error) {
-	selfExe, err := os.Executable()
+	exeDir, err := conf.ExecutableDir()
 	if err != nil {
-		return "", fmt.Errorf("get exe path: %w", err)
+		return "", err
 	}
-
-	// resolve symlinks
-	selfExe, err = filepath.EvalSymlinks(selfExe)
-	if err != nil {
-		return "", fmt.Errorf("resolve symlinks: %w", err)
-	}
-
-	return path.Join(path.Dir(selfExe), "OrbStack Helper (VM)"), nil
+	return path.Join(exeDir, "OrbStack Helper (VM)"), nil
 }
 
 func SpawnDaemon(newBuildID string) error {

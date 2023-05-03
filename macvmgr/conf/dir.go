@@ -2,6 +2,7 @@ package conf
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -89,16 +90,28 @@ func SwapImage() string {
 	return GetDataFile("swap.img")
 }
 
-func ExecutableDir() string {
-	ex, err := os.Executable()
+func ExecutableDir() (string, error) {
+	selfExe, err := os.Executable()
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("get exe path: %w", err)
 	}
-	return filepath.Dir(ex)
+
+	// resolve symlinks
+	selfExe, err = filepath.EvalSymlinks(selfExe)
+	if err != nil {
+		return "", fmt.Errorf("resolve symlinks: %w", err)
+	}
+	return filepath.Dir(selfExe), nil
+}
+
+func MustExecutableDir() string {
+	dir, err := ExecutableDir()
+	check(err)
+	return dir
 }
 
 func AssetsDir() string {
-	return ExecutableDir() + "/../assets/" + buildVariant + "/" + Arch()
+	return MustExecutableDir() + "/../assets/" + buildVariant + "/" + Arch()
 }
 
 func GetAssetFile(name string) string {
@@ -165,11 +178,11 @@ func ExtraSshDir() string {
 }
 
 func CliBinDir() string {
-	return ExecutableDir() + "/bin"
+	return MustExecutableDir() + "/bin"
 }
 
 func CliXbinDir() string {
-	return ExecutableDir() + "/xbin"
+	return MustExecutableDir() + "/xbin"
 }
 
 func FindXbin(name string) string {
