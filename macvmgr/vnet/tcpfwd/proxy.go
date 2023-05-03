@@ -267,8 +267,10 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 			"port": settings.HTTPSPort,
 		}).Info("using proxy: https")
 
+		// this is a proxy *for* HTTPS,
+		// but the proxy *protocol* is HTTP
 		u := &url.URL{
-			Scheme: "https",
+			Scheme: "http",
 			Host:   net.JoinHostPort(settings.HTTPSProxy, strconv.Itoa(settings.HTTPSPort)),
 		}
 
