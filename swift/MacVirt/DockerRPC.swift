@@ -140,7 +140,7 @@ struct DKVolume: Codable, Identifiable, Equatable {
     let options: [String: String]?
     let scope: String
     //let status: [String: any Codable]?
-    //let usageData: VolumeUsageData?
+    let usageData: DKVolumeUsageData?
 
     var id: String {
         name
@@ -161,7 +161,17 @@ struct DKVolume: Codable, Identifiable, Equatable {
         case options = "Options"
         case scope = "Scope"
         //case status = "Status"
-        //case usageData = "UsageData"
+        case usageData = "UsageData"
+    }
+}
+
+struct DKVolumeUsageData: Codable, Equatable {
+    let refCount: Int
+    let size: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case refCount = "RefCount"
+        case size = "Size"
     }
 }
 
@@ -231,5 +241,19 @@ struct DKImage: Codable, Identifiable {
         case sharedSize = "SharedSize"
         case size = "Size"
         case virtualSize = "VirtualSize"
+    }
+}
+
+struct DKSystemDf: Codable {
+    let layersSize: Int64
+    let images: [DKImage]
+    //layers
+    //containers, etc
+    let volumes: [DKVolume]
+
+    enum CodingKeys: String, CodingKey {
+        case layersSize = "LayersSize"
+        case images = "Images"
+        case volumes = "Volumes"
     }
 }

@@ -346,6 +346,7 @@ class VmViewModel: ObservableObject {
     @Published var dockerContainers: [DKContainer]?
     @Published var dockerVolumes: [DKVolume]?
     @Published var dockerImages: [DKImage]?
+    @Published var dockerSystemDf: DKSystemDf?
     
     // Setup
     @Published private(set) var isSshConfigWritable = true
@@ -591,7 +592,13 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func refreshDockerList(doContainers: Bool, doVolumes: Bool, doImages: Bool) async throws {
+    func refreshDockerSystemDf() async throws {
+        let resp = try await vmgr.dockerSystemDf()
+        dockerSystemDf = resp
+    }
+
+    @MainActor
+    func refreshDockerList(doContainers: Bool, doVolumes: Bool, doImages: Bool, doSystemDf: Bool) async throws {
         guard state < .stopping else {
             return
         }
@@ -608,12 +615,16 @@ class VmViewModel: ObservableObject {
         if doImages {
             try await refreshDockerImagesList()
         }
+        if doSystemDf {
+            try await refreshDockerSystemDf()
+        }
     }
 
+    // system df is slow - skip by default
     @MainActor
-    func tryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true) async {
+    func tryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true, doSystemDf: Bool = false) async {
         do {
-            try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages)
+            try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages, doSystemDf: doSystemDf)
         } catch {
             // ignore if stopped
             if let machines = containers,

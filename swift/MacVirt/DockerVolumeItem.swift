@@ -47,9 +47,20 @@ struct DockerVolumeItem: View {
                             .truncationMode(.tail)
                             .lineLimit(1)
 
-                    Text("Created \(volume.formattedCreatedAt)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                    // can we find the size from system df?
+                    if let dockerDf = vmModel.dockerSystemDf,
+                       let dfVolume = dockerDf.volumes.first(where: { $0.name == volume.name }),
+                       let usageData = dfVolume.usageData {
+                        let fmtSize = ByteCountFormatter.string(fromByteCount: usageData.size, countStyle: .file)
+                        Text("\(fmtSize), created \(volume.formattedCreatedAt)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                    } else {
+
+                        Text("Created \(volume.formattedCreatedAt)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                    }
                 }
             }
             Spacer()
