@@ -46,6 +46,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case dockerListError(cause: Error)
     case dockerContainerActionError(action: String, cause: Error)
     case dockerVolumeActionError(action: String, cause: Error)
+    case dockerImageActionError(action: String, cause: Error)
     case dockerConfigSaveError(cause: Error)
 
     // scon
@@ -94,6 +95,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Failed to \(action) Docker container"
         case .dockerVolumeActionError(let action, _):
             return "Failed to \(action) Docker volume"
+        case .dockerImageActionError(let action, _):
+            return "Failed to \(action) Docker image"
         case .dockerConfigSaveError:
             return "Failed to apply Docker config"
 
@@ -215,6 +218,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .dockerVolumeActionError(_, let cause):
             return cause
+        case .dockerImageActionError(_, let cause):
+            return cause
         case .dockerConfigSaveError(let cause):
             return cause
 
@@ -249,6 +254,11 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .dockerVolumeActionError(let action, let cause):
             if action == "remove",
                fmtRpc(cause) == "volume in use" {
+                return true
+            }
+        case .dockerImageActionError(let action, let cause):
+            if action == "remove",
+               fmtRpc(cause) == "image in use" {
                 return true
             }
 
@@ -335,6 +345,7 @@ class VmViewModel: ObservableObject {
     // Docker
     @Published var dockerContainers: [DKContainer]?
     @Published var dockerVolumes: [DKVolume]?
+    @Published var dockerImages: [DKImage]?
     
     // Setup
     @Published private(set) var isSshConfigWritable = true
@@ -457,6 +468,7 @@ class VmViewModel: ObservableObject {
             try await Task.sleep(nanoseconds: startPollInterval)
             // bail out if daemon exited (next call will fail)
             if self.state == .stopped {
+                NSLog("poll VM: daemon exited")
                 return
             }
             // TODO reduce timeout when gui handles rosetta install
@@ -486,6 +498,7 @@ class VmViewModel: ObservableObject {
             try await Task.sleep(nanoseconds: startPollInterval)
             // bail out if daemon exited (next call will fail)
             if self.state == .stopped {
+                NSLog("poll scon: daemon exited")
                 return
             }
             // TODO reduce timeout when gui handles rosetta install
@@ -574,7 +587,15 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func refreshDockerList(doContainers: Bool = true, doVolumes: Bool = true) async throws {
+    func refreshDockerImagesList() async throws {
+        let rawImages = try await vmgr.dockerImageList()
+        // sort images
+        let images = rawImages.sorted { $0.userTag < $1.userTag }
+        dockerImages = images
+    }
+
+    @MainActor
+    func refreshDockerList(doContainers: Bool, doVolumes: Bool, doImages: Bool) async throws {
         guard state < .stopping else {
             return
         }
@@ -588,12 +609,15 @@ class VmViewModel: ObservableObject {
         if doVolumes {
             try await refreshDockerVolumesList()
         }
+        if doImages {
+            try await refreshDockerImagesList()
+        }
     }
 
     @MainActor
-    func tryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true) async {
+    func tryRefreshDockerList(doContainers: Bool = false, doVolumes: Bool = false, doImages: Bool = false) async {
         do {
-            try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes)
+            try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages)
         } catch {
             // ignore if stopped
             if let machines = containers,
@@ -909,6 +933,21 @@ class VmViewModel: ObservableObject {
     func tryDockerVolumeRemove(_ name: String) async {
         await doTryDockerVolumeAction("remove", {
             try await vmgr.dockerVolumeRemove(name)
+        })
+    }
+
+    @MainActor
+    private func doTryDockerImageAction(_ label: String, _ action: () async throws -> Void) async {
+        do {
+            try await action()
+        } catch {
+            setError(.dockerImageActionError(action: "\(label)", cause: error))
+        }
+    }
+
+    func tryDockerImageRemove(_ id: String) async {
+        await doTryDockerImageAction("remove", {
+            try await vmgr.dockerImageRemove(id)
         })
     }
 

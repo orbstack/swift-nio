@@ -166,3 +166,64 @@ struct DKVolumeListResponse: Codable {
         case warnings = "Warnings"
     }
 }
+
+struct DKImage: Codable, Identifiable {
+    let id: String
+    let containers: Int
+    let created: Int64
+    let labels: [String: String]?
+    let parentId: String?
+    let repoDigests: [String]?
+    let repoTags: [String]?
+    let sharedSize: Int64
+    let size: Int64
+    let virtualSize: Int64
+
+    var tag: String {
+        repoTags?.first ?? "<none>"
+    }
+
+    var userId: String {
+        id.replacingOccurrences(of: "sha256:", with: "")
+    }
+
+    var hasTag: Bool {
+        if let tag = repoTags?.first, tag != "<none>:<none>" {
+            return true
+        } else {
+            return false
+        }
+    }
+
+    var userTag: String {
+        if let tag = repoTags?.first, tag != "<none>:<none>" {
+            return tag
+        } else {
+            return userId.prefix(12).description
+        }
+    }
+
+    var formattedSize: String {
+        ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+
+    var formattedCreated: String {
+        let date = Date(timeIntervalSince1970: TimeInterval(created))
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id = "Id"
+        case containers = "Containers"
+        case created = "Created"
+        case labels = "Labels"
+        case parentId = "ParentId"
+        case repoDigests = "RepoDigests"
+        case repoTags = "RepoTags"
+        case sharedSize = "SharedSize"
+        case size = "Size"
+        case virtualSize = "VirtualSize"
+    }
+}

@@ -19,8 +19,10 @@
 		B118B476CB4C76AC8C1AB56A /* DockerVolumesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB33EB9147E884160796 /* DockerVolumesRootView.swift */; };
 		B118B5CADCA44C8A25695EFF /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE4D3578D923BDAE7C2C /* Updater.swift */; };
 		B118B5DF2FBF71BA834C6E2B /* DockerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5F3C807DC202E72C98D /* DockerSettingsView.swift */; };
+		B118B70B66C6C6783217879F /* DockerImagesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB9E5BE4F474CCC8299F /* DockerImagesRootView.swift */; };
 		B118B7486AF77C3A98B10D0F /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B3757D7262C8D53133ED /* MachineSettingsView.swift */; };
 		B118B7A041A184E2575844C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */; };
+		B118B8DECB91526F6E0CAB71 /* DockerImageItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7D9E783D39A73D51265 /* DockerImageItem.swift */; };
 		B118B8E105D4AABC82629088 /* DockerInspect.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B891235112E38B6E3E75 /* DockerInspect.swift */; };
 		B118B96A6A028887CFCE7574 /* FilesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB1AD712EA08896F1900 /* FilesRootView.swift */; };
 		B118B99876CACE427270E9DA /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */; };
@@ -153,6 +155,7 @@
 		B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		B118B5F3C807DC202E72C98D /* DockerSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerSettingsView.swift; sourceTree = "<group>"; };
 		B118B7660570E904ED742A59 /* NetworkSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NetworkSettingsView.swift; sourceTree = "<group>"; };
+		B118B7D9E783D39A73D51265 /* DockerImageItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerImageItem.swift; sourceTree = "<group>"; };
 		B118B7E4875DB989A26F46BA /* FileContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileContainerItem.swift; sourceTree = "<group>"; };
 		B118B7E62611F603F60BF666 /* VmViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VmViewModel.swift; sourceTree = "<group>"; };
 		B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
@@ -167,6 +170,7 @@
 		B118BB4D521563F31AB550C7 /* CreateContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateContainerView.swift; sourceTree = "<group>"; };
 		B118BB5624616EC1041FA0C3 /* OnboardingModeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingModeView.swift; sourceTree = "<group>"; };
 		B118BB7FC301D4CA4C830B30 /* DaemonManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DaemonManager.swift; sourceTree = "<group>"; };
+		B118BB9E5BE4F474CCC8299F /* DockerImagesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerImagesRootView.swift; sourceTree = "<group>"; };
 		B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuiltinContainerItem.swift; sourceTree = "<group>"; };
 		B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachinesRootView.swift; sourceTree = "<group>"; };
 		B118BC445161ECC2F67ABFEF /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
@@ -358,6 +362,8 @@
 				B118BF97B9B18E6C8E67AA19 /* DockerFilterView.swift */,
 				B118B5F3C807DC202E72C98D /* DockerSettingsView.swift */,
 				B118B7660570E904ED742A59 /* NetworkSettingsView.swift */,
+				B118BB9E5BE4F474CCC8299F /* DockerImagesRootView.swift */,
+				B118B7D9E783D39A73D51265 /* DockerImageItem.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -648,6 +654,8 @@
 				B118B9D1B19DDBB36F4153AA /* DockerFilterView.swift in Sources */,
 				B118B5DF2FBF71BA834C6E2B /* DockerSettingsView.swift in Sources */,
 				B118B3927D2DDFA52490E377 /* NetworkSettingsView.swift in Sources */,
+				B118B70B66C6C6783217879F /* DockerImagesRootView.swift in Sources */,
+				B118B8DECB91526F6E0CAB71 /* DockerImageItem.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

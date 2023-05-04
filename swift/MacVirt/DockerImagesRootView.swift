@@ -5,7 +5,7 @@
 import Foundation
 import SwiftUI
 
-struct DockerVolumesRootView: View {
+struct DockerImagesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var selection: String?
@@ -14,31 +14,32 @@ struct DockerVolumesRootView: View {
         DockerStateWrapperView(
             refreshAction: refresh
         ) { _, _ in
-            if let volumes = vmModel.dockerVolumes {
+            if let images = vmModel.dockerImages {
                 List(selection: $selection) {
-                    ForEach(volumes) { volume in
-                        DockerVolumeItem(volume: volume)
+                    Section(header: Text("Tagged")) {
+                        ForEach(images) { image in
+                            if image.hasTag {
+                                DockerImageItem(image: image)
+                            }
+                        }
                     }
 
-                    if volumes.isEmpty {
+                    if images.isEmpty {
                         HStack {
                             Spacer()
-                            Text("No volumes")
+                            Text("No images")
                                     .font(.title)
                                     .foregroundColor(.secondary)
                                     .padding(.top, 32)
                             Spacer()
                         }
-                    } else {
-                        HStack {
-                            Spacer()
-                            VStack {
-                                Text("You can also find these volumes at ~/\(Folders.nfsName)/docker.")
-                                        .font(.title3)
-                                        .foregroundColor(.secondary)
+                    }
+
+                    Section(header: Text("Untagged")) {
+                        ForEach(images) { image in
+                            if !image.hasTag {
+                                DockerImageItem(image: image)
                             }
-                                    .padding(.vertical, 24)
-                            Spacer()
                         }
                     }
                 }
@@ -48,7 +49,7 @@ struct DockerVolumesRootView: View {
                 })
             }
         }
-        .navigationTitle("Volumes")
+        .navigationTitle("Images")
     }
 
     private func refresh() async {
@@ -59,7 +60,7 @@ struct DockerVolumesRootView: View {
         if let containers = vmModel.containers,
            let dockerContainer = containers.first(where: { $0.name == "docker" }),
            dockerContainer.running {
-            await vmModel.tryRefreshDockerList(doContainers: true, doVolumes: true)
+            await vmModel.tryRefreshDockerList(doContainers: true, doImages: true)
         }
     }
 }

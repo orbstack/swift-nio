@@ -48,6 +48,10 @@ struct ContentView: View {
                     NavigationLink(destination: DockerVolumesRootView()) {
                         Label("Volumes", systemImage: "externaldrive")
                     }.tag("docker-volumes")
+
+                    NavigationLink(destination: DockerImagesRootView()) {
+                        Label("Images", systemImage: "doc.zipper")
+                    }.tag("docker-images")
                 }
 
                 Section(header: Text("Linux")) {

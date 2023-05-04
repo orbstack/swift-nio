@@ -112,4 +112,12 @@ class VmService: RPCService {
     func dockerVolumeRemove(_ id: String) async throws {
         try await invoke("DockerVolumeRemove", params: IDRequest(id: id))
     }
+
+    func dockerImageList() async throws -> [DKImage] {
+        try await invoke("DockerImageList")
+    }
+
+    func dockerImageRemove(_ id: String) async throws {
+        try await invoke("DockerImageRemove", params: IDRequest(id: id))
+    }
 }

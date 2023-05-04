@@ -297,6 +297,49 @@ func (s *VmControlServer) DockerVolumeRemove(ctx context.Context, params vmtypes
 	return nil
 }
 
+func (s *VmControlServer) DockerImageList(ctx context.Context) ([]dockertypes.Image, error) {
+	resp, err := s.dockerClient.Get("http://docker/images/json")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, errors.New("status: " + resp.Status)
+	}
+
+	var images []dockertypes.Image
+	err = json.NewDecoder(resp.Body).Decode(&images)
+	if err != nil {
+		return nil, err
+	}
+
+	return images, nil
+}
+
+func (s *VmControlServer) DockerImageRemove(ctx context.Context, params vmtypes.IDRequest) error {
+	req, err := http.NewRequest("DELETE", "http://docker/images/"+params.ID+"?force=true", nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := s.dockerClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == 409 { // Conflict
+			return errors.New("image in use")
+		}
+
+		return errors.New("status: " + resp.Status)
+	}
+
+	return nil
+}
+
 func (h *VmControlServer) IsSshConfigWritable(ctx context.Context) (bool, error) {
 	return syssetup.IsSshConfigWritable(), nil
 }
@@ -417,6 +460,9 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 		"DockerVolumeList":   handler.New(s.DockerVolumeList),
 		"DockerVolumeCreate": handler.New(s.DockerVolumeCreate),
 		"DockerVolumeRemove": handler.New(s.DockerVolumeRemove),
+
+		"DockerImageList":   handler.New(s.DockerImageList),
+		"DockerImageRemove": handler.New(s.DockerImageRemove),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

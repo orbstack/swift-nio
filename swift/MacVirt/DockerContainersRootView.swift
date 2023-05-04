@@ -94,7 +94,7 @@ struct DockerContainersRootView: View {
         if let containers = vmModel.containers,
             let dockerContainer = containers.first(where: { $0.name == "docker" }),
             dockerContainer.state != .stopped {
-            await vmModel.tryRefreshDockerList()
+            await vmModel.tryRefreshDockerList(doContainers: true)
         }
     }
 }
