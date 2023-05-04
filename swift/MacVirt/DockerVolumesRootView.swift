@@ -25,7 +25,7 @@ struct DockerVolumesRootView: View {
                     Section(header: Text("In Use")) {
                         ForEach(filteredVolumes) { volume in
                             if isMounted(volume) {
-                                DockerVolumeItem(volume: volume)
+                                DockerVolumeItem(volume: volume, isMounted: true)
                             }
                         }
                     }
@@ -33,7 +33,7 @@ struct DockerVolumesRootView: View {
                     Section(header: Text("Unused")) {
                         ForEach(filteredVolumes) { volume in
                             if !isMounted(volume) {
-                                DockerVolumeItem(volume: volume)
+                                DockerVolumeItem(volume: volume, isMounted: false)
                             }
                         }
                     }

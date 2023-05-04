@@ -166,7 +166,10 @@ struct DockerContainerItem: View {
                             .lineLimit(1)
                 }
             }
+            .opacity(container.running ? 1 : 0.5)
+
             Spacer()
+
             if isRunning {
                 Button(action: {
                     Task { @MainActor in
@@ -232,7 +235,6 @@ struct DockerContainerItem: View {
                     .disabled(actionInProgress != nil)
                     .help("Delete container")
         }
-        .opacity(container.running ? 1 : 0.5)
         .padding(.vertical, 4)
         .onDoubleClick {
             presentPopover = true

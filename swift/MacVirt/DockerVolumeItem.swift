@@ -25,6 +25,7 @@ struct DockerVolumeItem: View {
     @EnvironmentObject var vmModel: VmViewModel
 
     var volume: DKVolume
+    var isMounted: Bool
 
     @State private var actionInProgress = false
     @State private var presentConfirmDelete = false
@@ -76,8 +77,8 @@ struct DockerVolumeItem: View {
                 }
             }
             .buttonStyle(.borderless)
-            .disabled(actionInProgress)
-            .help("Delete volume")
+            .disabled(actionInProgress || isMounted)
+            .help(isMounted ? "Volume in use" : "Delete volume")
         }
         .padding(.vertical, 4)
         .onDoubleClick {
@@ -108,7 +109,7 @@ struct DockerVolumeItem: View {
                 self.presentConfirmDelete = true
             }) {
                 Label("Delete", systemImage: "trash.fill")
-            }.disabled(actionInProgress)
+            }.disabled(actionInProgress || isMounted)
 
             Divider()
 

@@ -20,6 +20,7 @@ struct MachineContainerItem: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 32, height: 32)
                     .padding(.trailing, 8)
+                    .opacity(record.running ? 1 : 0.5)
             VStack(alignment: .leading) {
                 Text(record.name)
                         .font(.body)
@@ -27,7 +28,10 @@ struct MachineContainerItem: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
             }
+            .opacity(record.running ? 1 : 0.5)
+
             Spacer()
+
             let progressOpacity = (actionInProgress || record.state == .creating) ? 1.0 : 0.0
             if record.running {
                 Button(action: {
@@ -72,7 +76,6 @@ struct MachineContainerItem: View {
             }
         }
         .padding(.vertical, 4)
-        .opacity(record.running ? 1 : 0.5)
         .contextMenu {
             Button(action: {
                 openInTerminal()
