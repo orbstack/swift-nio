@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	nfs_sys_prot "github.com/buildbarn/go-xdr/pkg/protocols/darwin_nfs_sys_prot"
+	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 
 	"golang.org/x/sys/unix"
 )
@@ -178,7 +179,11 @@ func doMount(spec Spec) error {
 
 	// Call mount(2) with the serialized nfs_mount_args message.
 	unix.Unmount(spec.TargetPath, 0)
-	if err := unix.Mount("nfs", spec.TargetPath, 0, unsafe.Pointer(&mountArgsBuf.Bytes()[0])); err != nil {
+	mountFlags := 0
+	if vmconfig.Get().MountHideShared {
+		mountFlags |= unix.MNT_DONTBROWSE
+	}
+	if err := unix.Mount("nfs", spec.TargetPath, mountFlags, unsafe.Pointer(&mountArgsBuf.Bytes()[0])); err != nil {
 		return fmt.Errorf("mount(): %w", err)
 	}
 

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultMemoryLimit = 8 * 1024 * 1024 * 1024 // 8 GiB
+	maxDefaultMemory = 8 * 1024 * 1024 * 1024 // 8 GiB
 
 	ProxyNone = "none"
 	ProxyAuto = "auto"
@@ -28,17 +28,19 @@ var (
 )
 
 type VmConfig struct {
-	MemoryMiB    uint64 `json:"memory_mib"`
-	CPU          int    `json:"cpu"`
-	Rosetta      bool   `json:"rosetta"`
-	NetworkProxy string `json:"network_proxy"`
+	MemoryMiB       uint64 `json:"memory_mib"`
+	CPU             int    `json:"cpu"`
+	Rosetta         bool   `json:"rosetta"`
+	NetworkProxy    string `json:"network_proxy"`
+	MountHideShared bool   `json:"mount_hide_share"`
 }
 
 type VmConfigPatch struct {
-	MemoryMiB    *uint64 `json:"memory_mib,omitempty"`
-	CPU          *int    `json:"cpu,omitempty"`
-	Rosetta      *bool   `json:"rosetta,omitempty"`
-	NetworkProxy *string `json:"network_proxy,omitempty"`
+	MemoryMiB       *uint64 `json:"memory_mib,omitempty"`
+	CPU             *int    `json:"cpu,omitempty"`
+	Rosetta         *bool   `json:"rosetta,omitempty"`
+	NetworkProxy    *string `json:"network_proxy,omitempty"`
+	MountHideShared *bool   `json:"mount_hide_share,omitempty"`
 }
 
 func (c *VmConfig) Validate() error {
@@ -155,8 +157,8 @@ func Update(cb func(*VmConfig)) error {
 func calcMemory() uint64 {
 	hostMem := mem.PhysicalMemory()
 	targetMem := hostMem / 3
-	if targetMem > defaultMemoryLimit {
-		return defaultMemoryLimit
+	if targetMem > maxDefaultMemory {
+		return maxDefaultMemory
 	}
 	return targetMem
 }
@@ -213,6 +215,10 @@ func Apply(a *VmConfig, patch *VmConfigPatch) {
 
 	if patch.NetworkProxy != nil {
 		a.NetworkProxy = *patch.NetworkProxy
+	}
+
+	if patch.MountHideShared != nil {
+		a.MountHideShared = *patch.MountHideShared
 	}
 }
 
