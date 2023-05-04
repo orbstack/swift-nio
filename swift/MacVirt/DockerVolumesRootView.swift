@@ -9,18 +9,24 @@ struct DockerVolumesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var selection: String?
+    @State private var searchQuery: String = ""
 
     var body: some View {
         DockerStateWrapperView(
             refreshAction: refresh
         ) { _, _ in
             if let volumes = vmModel.dockerVolumes {
+                let filteredVolumes = volumes.filter { volume in
+                    searchQuery.isEmpty ||
+                            volume.name.localizedCaseInsensitiveContains(searchQuery)
+                }
+
                 List(selection: $selection) {
-                    ForEach(volumes) { volume in
+                    ForEach(filteredVolumes) { volume in
                         DockerVolumeItem(volume: volume)
                     }
 
-                    if volumes.isEmpty {
+                    if filteredVolumes.isEmpty {
                         HStack {
                             Spacer()
                             Text("No volumes")
@@ -49,6 +55,11 @@ struct DockerVolumesRootView: View {
             }
         }
         .navigationTitle("Volumes")
+        .searchable(
+            text: $searchQuery,
+            placement: .toolbar,
+            prompt: "Search"
+        )
     }
 
     private func refresh() async {

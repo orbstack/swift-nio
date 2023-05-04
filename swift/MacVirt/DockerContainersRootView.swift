@@ -11,6 +11,7 @@ struct DockerContainersRootView: View {
     @AppStorage("docker_filterShowStopped") private var settingShowStopped = true
 
     @State private var selection: String?
+    @State private var searchQuery: String = ""
 
     var body: some View {
         DockerStateWrapperView(
@@ -18,6 +19,14 @@ struct DockerContainersRootView: View {
         ) { containers, dockerRecord in
             let runningCount = containers.filter { $0.running }.count
             let totalCount = containers.count
+
+            let filteredContainers = containers.filter { container in
+                searchQuery.isEmpty ||
+                        container.id.localizedCaseInsensitiveContains(searchQuery) ||
+                        container.image.localizedCaseInsensitiveContains(searchQuery) ||
+                        container.imageID.localizedCaseInsensitiveContains(searchQuery) ||
+                        container.names.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
+            }
 
             List(selection: $selection) {
                 if #available(macOS 13, *) {
@@ -31,7 +40,7 @@ struct DockerContainersRootView: View {
                 }
 
                 Section(header: Text("Running")) {
-                    ForEach(containers) { container in
+                    ForEach(filteredContainers) { container in
                         if container.running {
                             DockerContainerItem(container: container)
                         }
@@ -73,7 +82,7 @@ struct DockerContainersRootView: View {
 
                 if settingShowStopped {
                     Section(header: Text("Stopped")) {
-                        ForEach(containers) { container in
+                        ForEach(filteredContainers) { container in
                             if !container.running {
                                 DockerContainerItem(container: container)
                             }
@@ -84,6 +93,11 @@ struct DockerContainersRootView: View {
             .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
         }
         .navigationTitle("Containers")
+        .searchable(
+            text: $searchQuery,
+            placement: .toolbar,
+            prompt: "Search"
+        )
     }
 
     private func refresh() async {

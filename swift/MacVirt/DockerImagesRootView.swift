@@ -9,22 +9,29 @@ struct DockerImagesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var selection: String?
+    @State private var searchQuery: String = ""
 
     var body: some View {
         DockerStateWrapperView(
             refreshAction: refresh
         ) { _, _ in
             if let images = vmModel.dockerImages {
+                let filteredImages = images.filter { image in
+                    searchQuery.isEmpty ||
+                            image.id.localizedCaseInsensitiveContains(searchQuery) ||
+                            image.repoTags?.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
+                }
+
                 List(selection: $selection) {
                     Section(header: Text("Tagged")) {
-                        ForEach(images) { image in
+                        ForEach(filteredImages) { image in
                             if image.hasTag {
                                 DockerImageItem(image: image)
                             }
                         }
                     }
 
-                    if images.isEmpty {
+                    if filteredImages.isEmpty {
                         HStack {
                             Spacer()
                             Text("No images")
@@ -36,7 +43,7 @@ struct DockerImagesRootView: View {
                     }
 
                     Section(header: Text("Untagged")) {
-                        ForEach(images) { image in
+                        ForEach(filteredImages) { image in
                             if !image.hasTag {
                                 DockerImageItem(image: image)
                             }
@@ -50,6 +57,11 @@ struct DockerImagesRootView: View {
             }
         }
         .navigationTitle("Images")
+        .searchable(
+            text: $searchQuery,
+            placement: .toolbar,
+            prompt: "Search"
+        )
     }
 
     private func refresh() async {

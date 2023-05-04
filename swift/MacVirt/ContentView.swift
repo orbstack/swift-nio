@@ -72,6 +72,25 @@ struct ContentView: View {
             }
             .listStyle(.sidebar)
             .background(SplitViewAccessor(sideCollapsed: $collapsed))
+            .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Button(action: {
+                        Task { @MainActor in
+                            self.startStopInProgress = true
+                            if model.state == .running {
+                                await model.stop()
+                            } else {
+                                await model.start()
+                            }
+                            self.startStopInProgress = false
+                        }
+                    }) {
+                        Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
+                    }
+                    .disabled(startStopInProgress)
+                    .help(model.state == .running ? "Stop everything" : "Start everything")
+                }
+            }
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -79,37 +98,6 @@ struct ContentView: View {
                     Image(systemName: "sidebar.leading")
                 })
                         .help("Toggle sidebar")
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    Task { @MainActor in
-                        self.startStopInProgress = true
-                        if model.state == .running {
-                            await model.stop()
-                        } else {
-                            await model.start()
-                        }
-                        self.startStopInProgress = false
-                    }
-                }) {
-                    Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
-                }
-                        .disabled(startStopInProgress)
-                        .help(model.state == .running ? "Stop everything" : "Start everything")
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    if #available(macOS 13, *) {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    } else {
-                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                    }
-                }) {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .help("Settings")
             }
             
             ToolbarItem(placement: .automatic) {
@@ -159,8 +147,11 @@ struct ContentView: View {
         }
         .task {
             let center = UNUserNotificationCenter.current()
-            center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-                NSLog("notification permission granted: \(granted)")
+            do {
+                let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                NSLog("notification request granted: \(granted)")
+            } catch {
+                NSLog("notification request failed: \(error)")
             }
 
             await model.initLaunch()
