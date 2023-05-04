@@ -23,7 +23,7 @@ struct StateWrapperView<Content: View>: View {
                         .foregroundColor(.secondary)
                 Button(action: {
                     Task {
-                        await vmModel.start()
+                        await vmModel.tryStartAndWait()
                     }
                 }) {
                     Text("Start")

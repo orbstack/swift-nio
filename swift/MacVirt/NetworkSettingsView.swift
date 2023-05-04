@@ -23,7 +23,7 @@ struct NetworkSettingsView: View {
                         Text("Machine must be running to change settings.")
                         Button(action: {
                             Task {
-                                await vmModel.start()
+                                await vmModel.tryStartAndWait()
                             }
                         }) {
                             Text("Start")

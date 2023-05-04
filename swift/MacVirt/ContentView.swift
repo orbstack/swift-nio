@@ -80,9 +80,9 @@ struct ContentView: View {
                         Task { @MainActor in
                             self.startStopInProgress = true
                             if model.state == .running {
-                                await model.stop()
+                                await model.tryStop()
                             } else {
-                                await model.start()
+                                await model.tryStartAndWait()
                             }
                             self.startStopInProgress = false
                         }

@@ -24,7 +24,7 @@ struct MachineSettingsView: View {
                         Text("Machine must be running to change settings.")
                         Button(action: {
                             Task {
-                                await vmModel.start()
+                                await vmModel.tryStartAndWait()
                             }
                         }) {
                             Text("Start")
@@ -103,10 +103,17 @@ struct MachineSettingsView: View {
                     Text("Resources are used on demand, up to these limits.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                    Text("Requires machine restart.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
 
+                    Spacer()
+                            .frame(height: 32)
+
+                    Button(action: {
+                        Task {
+                            await vmModel.tryRestart()
+                        }
+                    }) {
+                        Text("Apply")
+                    }.disabled(vmModel.configAtLastStart == vmModel.config)
                 default:
                     ProgressView()
                 }

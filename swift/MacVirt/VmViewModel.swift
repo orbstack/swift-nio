@@ -333,6 +333,7 @@ class VmViewModel: ObservableObject {
     }
 
     @Published var creatingCount = 0
+    @Published var configAtLastStart: VmConfig?
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false
 
@@ -356,7 +357,7 @@ class VmViewModel: ObservableObject {
         daemon.monitorDaemonNotifications { [self] _ in
             // go through spawn-daemon for simplicity and ignore pid
             Task { @MainActor in
-                await self.start()
+                await self.tryStartAndWait()
             }
         }
         daemon.monitorDockerNotifications { [self] event in
@@ -447,12 +448,8 @@ class VmViewModel: ObservableObject {
     }
 
     private func waitForVM() async throws {
-        // wait for .starting
-        for await value in $state.first(where: { $0 >= .starting }).values {
-            if value == .starting {
-                break
-            }
-        }
+        // wait for at least .starting
+        await waitForStateEquals(.starting)
 
         let deadline = DispatchTime.now() + .nanoseconds(startTimeout)
         var lastError: Error?
@@ -641,15 +638,6 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func tryRefreshConfig() async {
-        do {
-            try await refreshConfig()
-        } catch {
-            setError(.configRefresh(cause: error))
-        }
-    }
-
-    @MainActor
     func doSetup() async throws {
         let info = try await vmgr.startSetup()
 
@@ -697,7 +685,7 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     func initLaunch() async {
-        await start()
+        await tryStartAndWait()
 
         // do setup
         do {
@@ -708,7 +696,7 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func start() async {
+    func tryStartAndWait() async {
         do {
             try spawnDaemon()
         } catch VmError.wrongArch {
@@ -736,13 +724,14 @@ class VmViewModel: ObservableObject {
         }
         do {
             try await refreshConfig()
+            configAtLastStart = config
         } catch {
             NSLog("refresh: start: refresh config: \(error)")
         }
     }
 
     @MainActor
-    func stop() async {
+    func stop() async throws {
         self.state = .stopping
         do {
             try await vmgr.stop()
@@ -756,10 +745,37 @@ class VmViewModel: ObservableObject {
                urlError.code == .networkConnectionLost {
                 return
             } else {
-                setError(.stopError(cause: error))
+                throw error
             }
         }
         // we don't set state. daemonManager callback must do it
+    }
+
+    @MainActor
+    func tryStop() async {
+        do {
+            try await stop()
+        } catch {
+            setError(.stopError(cause: error))
+        }
+    }
+
+    // this makes vmgr re-exec itself so we don't worry about state
+    @MainActor
+    func tryRestart() async {
+        // stop
+        do {
+            try await stop()
+        } catch {
+            setError(.stopError(cause: error))
+            return
+        }
+
+        // wait for state change from daemon manager callback
+        await waitForStateEquals(.stopped)
+
+        // start
+        await tryStartAndWait()
     }
 
     func stopContainer(_ record: ContainerRecord) async throws {
@@ -1008,6 +1024,22 @@ class VmViewModel: ObservableObject {
             dockerEnableIPv6 = enableIpv6
         } catch {
             setError(.dockerConfigSaveError(cause: error))
+        }
+    }
+
+    private func waitForStateEquals(_ target: VmState) async {
+        for await value in $state.first(where: { $0 >= target }).values {
+            if value == target {
+                break
+            }
+        }
+    }
+
+    private func waitForStateAtLeast(_ target: VmState) async {
+        for await value in $state.first(where: { $0 >= target }).values {
+            if value >= target {
+                break
+            }
         }
     }
 }

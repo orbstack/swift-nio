@@ -26,7 +26,7 @@ struct AppSettings: View {
 
             MachineSettingsView()
                     .tabItem {
-                        Label("Machine", systemImage: "cpu")
+                        Label("System", systemImage: "cpu")
                     }
                     .tag(Tabs.machine)
 
