@@ -46,7 +46,9 @@ struct DockerVolumeItem: View {
                             .truncationMode(.tail)
                             .lineLimit(1)
 
-                    // TODO: subheadline = size
+                    Text("Created \(volume.formattedCreatedAt)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                 }
             }
             Spacer()

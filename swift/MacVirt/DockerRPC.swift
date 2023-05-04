@@ -4,6 +4,8 @@
 
 import Foundation
 
+private let relativeDateFormatter = RelativeDateTimeFormatter()
+
 struct IDRequest: Codable {
     let id: String
 }
@@ -144,6 +146,12 @@ struct DKVolume: Codable, Identifiable, Equatable {
         name
     }
 
+    var formattedCreatedAt: String {
+        // ISO 8601
+        let date = ISO8601DateFormatter().date(from: createdAt ?? "") ?? Date()
+        return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+
     enum CodingKeys: String, CodingKey {
         case createdAt = "CreatedAt"
         case driver = "Driver"
@@ -209,9 +217,7 @@ struct DKImage: Codable, Identifiable {
 
     var formattedCreated: String {
         let date = Date(timeIntervalSince1970: TimeInterval(created))
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     enum CodingKeys: String, CodingKey {
