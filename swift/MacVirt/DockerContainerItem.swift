@@ -288,7 +288,7 @@ struct DockerContainerItem: View {
                 Label("Open Terminal", systemImage: "terminal")
             }.disabled(!isRunning)
 
-            Menu("Ports & Mounts") {
+            Group {
                 if container.ports.isEmpty && container.mounts.isEmpty {
                     Button("No ports or mounts") {}
                             .disabled(true)
