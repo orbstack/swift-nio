@@ -118,7 +118,7 @@ func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertype
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New("status: " + resp.Status)
+		return nil, errors.New( " + resp.Status)
 	}
 
 	var containers []dockertypes.ContainerSummary
@@ -142,7 +142,7 @@ func (s *VmControlServer) DockerContainerStart(ctx context.Context, req vmtypes.
 			return nil
 		}
 
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -160,7 +160,7 @@ func (s *VmControlServer) DockerContainerStop(ctx context.Context, req vmtypes.I
 			return nil
 		}
 
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -174,7 +174,7 @@ func (s *VmControlServer) DockerContainerRestart(ctx context.Context, req vmtype
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -192,7 +192,7 @@ func (s *VmControlServer) DockerContainerPause(ctx context.Context, req vmtypes.
 			return nil
 		}
 
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -210,7 +210,7 @@ func (s *VmControlServer) DockerContainerUnpause(ctx context.Context, req vmtype
 			return nil
 		}
 
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -229,7 +229,7 @@ func (s *VmControlServer) DockerContainerRemove(ctx context.Context, params vmty
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -243,7 +243,7 @@ func (s *VmControlServer) DockerVolumeList(ctx context.Context) (*dockertypes.Vo
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New("status: " + resp.Status)
+		return nil, errors.New(resp.Status)
 	}
 
 	var volumes dockertypes.VolumeListResponse
@@ -268,7 +268,7 @@ func (s *VmControlServer) DockerVolumeCreate(ctx context.Context, options docker
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -291,7 +291,7 @@ func (s *VmControlServer) DockerVolumeRemove(ctx context.Context, params vmtypes
 			return errors.New("volume in use")
 		}
 
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -305,7 +305,7 @@ func (s *VmControlServer) DockerImageList(ctx context.Context) ([]dockertypes.Im
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New("status: " + resp.Status)
+		return nil, errors.New(resp.Status)
 	}
 
 	var images []dockertypes.Image
@@ -334,7 +334,7 @@ func (s *VmControlServer) DockerImageRemove(ctx context.Context, params vmtypes.
 			return errors.New("image in use")
 		}
 
-		return errors.New("status: " + resp.Status)
+		return errors.New(resp.Status)
 	}
 
 	return nil
@@ -348,7 +348,7 @@ func (s *VmControlServer) DockerSystemDf(ctx context.Context) (*dockertypes.Syst
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New("status: " + resp.Status)
+		return nil, errors.New(resp.Status)
 	}
 
 	var df dockertypes.SystemDf
