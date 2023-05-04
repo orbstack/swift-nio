@@ -317,27 +317,38 @@ struct DockerContainerItem: View {
 
             Divider()
 
-            Button(action: {
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(container.id, forType: .string)
-            }) {
-                Label("Copy ID", systemImage: "doc.on.doc")
-            }
-            Button(action: {
-                Task { @MainActor in
-                    do {
-                        let runCmd = try await runProcessChecked(AppConfig.c.dockerExe, ["--context", "orbstack", "inspect", "--format", DKInspectRunCommandTemplate, container.id])
-
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.setString(runCmd, forType: .string)
-                    } catch {
-                        NSLog("Failed to get run command: \(error)")
-                    }
+            Group {
+                Button(action: {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(container.id, forType: .string)
+                }) {
+                    Label("Copy ID", systemImage: "doc.on.doc")
                 }
-            }) {
-                Label("Copy Command", systemImage: "doc.on.doc")
+
+                Button(action: {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(container.image, forType: .string)
+                }) {
+                    Label("Copy Image", systemImage: "doc.on.doc")
+                }
+
+                Button(action: {
+                    Task { @MainActor in
+                        do {
+                            let runCmd = try await runProcessChecked(AppConfig.c.dockerExe, ["--context", "orbstack", "inspect", "--format", DKInspectRunCommandTemplate, container.id])
+
+                            let pasteboard = NSPasteboard.general
+                            pasteboard.clearContents()
+                            pasteboard.setString(runCmd, forType: .string)
+                        } catch {
+                            NSLog("Failed to get run command: \(error)")
+                        }
+                    }
+                }) {
+                    Label("Copy Command", systemImage: "doc.on.doc")
+                }
             }
         }
     }

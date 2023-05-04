@@ -25,3 +25,8 @@ type VolumeListResponse struct {
 	Volumes  []*Volume
 	Warnings []string
 }
+
+type SystemDf struct {
+	LayersSize int64
+	Images     []Image
+}
