@@ -72,7 +72,7 @@ struct DockerImagesRootView: View {
         if let containers = vmModel.containers,
            let dockerContainer = containers.first(where: { $0.name == "docker" }),
            dockerContainer.running {
-            await vmModel.tryRefreshDockerList(doContainers: true, doImages: true)
+            await vmModel.tryRefreshDockerList()
         }
     }
 }

@@ -615,7 +615,7 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func tryRefreshDockerList(doContainers: Bool = false, doVolumes: Bool = false, doImages: Bool = false) async {
+    func tryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true) async {
         do {
             try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages)
         } catch {
