@@ -5,22 +5,6 @@
 import Foundation
 import SwiftUI
 
-fileprivate let colors = [
-    Color(.systemRed),
-    Color(.systemGreen),
-    Color(.systemBlue),
-    Color(.systemOrange),
-    Color(.systemYellow),
-    Color(.systemBrown),
-    Color(.systemPink),
-    Color(.systemPurple),
-    Color(.systemGray),
-    Color(.systemTeal),
-    Color(.systemIndigo),
-    Color(.systemMint),
-    Color(.systemCyan),
-]
-
 struct DockerImageItem: View {
     @EnvironmentObject var vmModel: VmViewModel
 
@@ -32,14 +16,6 @@ struct DockerImageItem: View {
     var body: some View {
         HStack {
             HStack {
-                let color = colors[image.id.hashValue %% colors.count]
-                Image(systemName: "doc.zipper")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
-                        .padding(.trailing, 8)
-                        .foregroundColor(color)
-
                 VStack(alignment: .leading) {
                     Text(image.userTag)
                             .font(.body)
