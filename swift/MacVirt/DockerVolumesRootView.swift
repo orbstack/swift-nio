@@ -60,6 +60,10 @@ struct DockerVolumesRootView: View {
             placement: .toolbar,
             prompt: "Search"
         )
+        // SwiftUI bug: sheet in button keeps appearing and disappearing when searchable is there
+        .sheet(isPresented: $vmModel.presentCreateVolume) {
+            CreateVolumeView(isPresented: $vmModel.presentCreateVolume)
+        }
     }
 
     private func refresh() async {

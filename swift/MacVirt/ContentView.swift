@@ -119,8 +119,6 @@ struct ContentView: View {
                         model.presentCreateVolume = true
                     }) {
                         Label("New Volume", systemImage: "plus")
-                    }.sheet(isPresented: $model.presentCreateVolume) {
-                        CreateVolumeView(isPresented: $model.presentCreateVolume)
                     }
                     .help("New Volume")
                 }
