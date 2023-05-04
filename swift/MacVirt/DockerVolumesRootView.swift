@@ -22,8 +22,20 @@ struct DockerVolumesRootView: View {
                 }
 
                 List(selection: $selection) {
-                    ForEach(filteredVolumes) { volume in
-                        DockerVolumeItem(volume: volume)
+                    Section(header: Text("In Use")) {
+                        ForEach(filteredVolumes) { volume in
+                            if isMounted(volume) {
+                                DockerVolumeItem(volume: volume)
+                            }
+                        }
+                    }
+
+                    Section(header: Text("Unused")) {
+                        ForEach(filteredVolumes) { volume in
+                            if !isMounted(volume) {
+                                DockerVolumeItem(volume: volume)
+                            }
+                        }
                     }
 
                     if filteredVolumes.isEmpty {
@@ -76,5 +88,18 @@ struct DockerVolumesRootView: View {
            dockerContainer.running {
             await vmModel.tryRefreshDockerList()
         }
+    }
+
+    private func isMounted(_ volume: DKVolume) -> Bool {
+        guard let containers = vmModel.dockerContainers else {
+            return false
+        }
+
+        return containers.first { container in
+            container.mounts.contains { mount in
+                mount.type == .volume &&
+                    mount.name == volume.name
+            }
+        } != nil
     }
 }

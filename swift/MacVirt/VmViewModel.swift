@@ -67,7 +67,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     var errorDescription: String? {
         switch self {
         case .spawnError:
-            return "Failed to start helper"
+            return "Can’t start helper"
         case .spawnExit(let status, _):
             return "Start failed with error \(status)"
         case .vmgrExit(let reason):
@@ -81,41 +81,41 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .startTimeout:
             return "Timed out waiting for start"
         case .stopError:
-            return "Failed to stop"
+            return "Can’t stop"
         case .setupError:
             return "Failed to do setup"
         case .configRefresh:
-            return "Failed to get settings"
+            return "Can’t get settings"
         case .configPatchError:
-            return "Failed to update settings"
+            return "Can’t change settings"
 
         case .dockerListError:
             return "Failed to refresh Docker"
         case .dockerContainerActionError(let action, _):
-            return "Failed to \(action) Docker container"
+            return "Can’t \(action) container"
         case .dockerVolumeActionError(let action, _):
-            return "Failed to \(action) Docker volume"
+            return "Can’t \(action) volume"
         case .dockerImageActionError(let action, _):
-            return "Failed to \(action) Docker image"
+            return "Can’t \(action) image"
         case .dockerConfigSaveError:
-            return "Failed to apply Docker config"
+            return "Can’t apply Docker config"
 
         case .startError:
             return "Failed to start machine manager"
         case .listRefresh:
             return "Failed to load machines"
         case .defaultError:
-            return "Failed to set default machine"
+            return "Can’t set default machine"
         case .containerStopError:
-            return "Failed to stop machine"
+            return "Can’t stop machine"
         case .containerStartError:
-            return "Failed to start machine"
+            return "Can’t start machine"
         case .containerRestartError:
-            return "Failed to restart machine"
+            return "Can’t restart machine"
         case .containerDeleteError:
-            return "Failed to delete machine"
+            return "Can’t delete machine"
         case .containerCreateError:
-            return "Failed to create machine"
+            return "Can’t create machine"
         }
     }
 
