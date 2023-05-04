@@ -166,7 +166,7 @@ struct OnboardingCreateView: View {
 
             // user picked linux, so stop docker container to save memory
             if let machines = vmModel.containers,
-               let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }) {
+               let dockerRecord = machines.first(where: { $0.builtin && $0.id == ContainerIds.docker }) {
                 await vmModel.tryStopContainer(dockerRecord)
             }
 

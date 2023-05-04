@@ -18,7 +18,12 @@ type Volume struct {
 	Options    map[string]string
 	Scope      string
 	Status     map[string]interface{} `json:",omitempty"`
-	//UsageData  *VolumeUsageData `json:",omitempty"`
+	UsageData  *VolumeUsageData       `json:",omitempty"`
+}
+
+type VolumeUsageData struct {
+	RefCount int
+	Size     int64
 }
 
 type VolumeListResponse struct {
@@ -29,4 +34,7 @@ type VolumeListResponse struct {
 type SystemDf struct {
 	LayersSize int64
 	Images     []Image
+	//Layers
+	//Containers, etc
+	Volumes []*Volume
 }

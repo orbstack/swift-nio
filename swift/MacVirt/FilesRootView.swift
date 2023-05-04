@@ -15,18 +15,33 @@ struct FilesRootView: View {
             if let containers = vmModel.containers {
                 List(selection: $selection) {
                     ForEach(containers) { container in
-                        FileContainerItem(record: container)
+                        if container.id != ContainerIds.docker {
+                            FileContainerItem(record: container)
+                        }
                     }
 
-                    HStack {
-                        Spacer()
-                        VStack {
-                            Text("You can also find these files at ~/\(Folders.nfsName).")
-                                    .font(.title3)
-                                    .foregroundColor(.secondary)
+                    if !containers.contains(where: { !$0.builtin }) {
+                        HStack {
+                            Spacer()
+                            VStack {
+                                Text("No Linux machines")
+                                        .font(.title)
+                                        .foregroundColor(.secondary)
+                            }
+                            .padding(.top, 32)
+                            Spacer()
                         }
-                                .padding(.vertical, 24)
-                        Spacer()
+                    } else {
+                        HStack {
+                            Spacer()
+                            VStack {
+                                Text("You can also find these files at ~/\(Folders.nfsName).")
+                                        .font(.title3)
+                                        .foregroundColor(.secondary)
+                            }
+                                    .padding(.vertical, 24)
+                            Spacer()
+                        }
                     }
                 }
             } else {

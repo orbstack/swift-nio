@@ -620,7 +620,7 @@ class VmViewModel: ObservableObject {
         } catch {
             // ignore if stopped
             if let machines = containers,
-               let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }),
+               let dockerRecord = machines.first(where: { $0.builtin && $0.id == ContainerIds.docker }),
                !dockerRecord.running {
                 return
             }
@@ -942,6 +942,8 @@ class VmViewModel: ObservableObject {
         } catch {
             setError(.dockerImageActionError(action: "\(label)", cause: error))
         }
+        // must refresh images after action because there's no events for images
+        await tryRefreshDockerList(doContainers: false, doVolumes: false, doImages: true)
     }
 
     func tryDockerImageRemove(_ id: String) async {

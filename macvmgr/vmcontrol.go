@@ -340,6 +340,8 @@ func (s *VmControlServer) DockerImageRemove(ctx context.Context, params vmtypes.
 	return nil
 }
 
+func (s *VmControlServer) DockerSystemDf
+
 func (h *VmControlServer) IsSshConfigWritable(ctx context.Context) (bool, error) {
 	return syssetup.IsSshConfigWritable(), nil
 }
@@ -463,6 +465,8 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 
 		"DockerImageList":   handler.New(s.DockerImageList),
 		"DockerImageRemove": handler.New(s.DockerImageRemove),
+
+		"DockerSystemDf": handler.New(s.DockerSystemDf),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

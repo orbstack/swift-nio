@@ -21,7 +21,7 @@ struct DockerStateWrapperView<Content: View>: View {
         StateWrapperView {
             Group {
                 if let machines = vmModel.containers,
-                   let dockerRecord = machines.first(where: { $0.builtin && $0.name == "docker" }) {
+                   let dockerRecord = machines.first(where: { $0.builtin && $0.id == ContainerIds.docker }) {
                     Group {
                         if let containers = vmModel.dockerContainers,
                            dockerRecord.state != .stopped {

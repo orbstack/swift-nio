@@ -224,3 +224,7 @@ struct Folders {
 struct Files {
     static let dockerDaemonConfig = "\(Folders.config)/docker.json"
 }
+
+struct ContainerIds {
+    static let docker = "01GQQVF6C60000000000DOCKER"
+}
