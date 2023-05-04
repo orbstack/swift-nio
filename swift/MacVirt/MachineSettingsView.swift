@@ -14,6 +14,7 @@ struct MachineSettingsView: View {
     @State private var cpu = 1.0
     @State private var enableRosetta = true
     @State private var enableRosettaFalse = false
+    @State private var mountHideShared = false
 
     var body: some View {
         Form {
@@ -51,6 +52,16 @@ struct MachineSettingsView: View {
                                 .foregroundColor(.secondary)
                     }
                     #endif
+
+                    Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
+                            .onChange(of: mountHideShared) { newValue in
+                                Task { @MainActor in
+                                    if let config = vmModel.config,
+                                       config.mountHideShared != newValue {
+                                        await vmModel.tryPatchConfig(VmConfigPatch(mountHideShared: newValue))
+                                    }
+                                }
+                            }
 
                     Spacer()
                             .frame(height: 32)
@@ -114,6 +125,7 @@ struct MachineSettingsView: View {
                     }) {
                         Text("Apply")
                     }.disabled(vmModel.configAtLastStart == vmModel.config)
+
                 default:
                     ProgressView()
                 }
@@ -123,6 +135,7 @@ struct MachineSettingsView: View {
                     memoryMib = Double(config.memoryMib)
                     cpu = Double(config.cpu)
                     enableRosetta = config.rosetta
+                    mountHideShared = config.mountHideShared
                 }
             }
             .onAppear {
@@ -130,6 +143,7 @@ struct MachineSettingsView: View {
                     memoryMib = Double(config.memoryMib)
                     cpu = Double(config.cpu)
                     enableRosetta = config.rosetta
+                    mountHideShared = config.mountHideShared
                 }
             }
         }

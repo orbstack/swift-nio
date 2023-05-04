@@ -32,7 +32,7 @@ type VmConfig struct {
 	CPU             int    `json:"cpu"`
 	Rosetta         bool   `json:"rosetta"`
 	NetworkProxy    string `json:"network_proxy"`
-	MountHideShared bool   `json:"mount_hide_share"`
+	MountHideShared bool   `json:"mount_hide_shared"`
 }
 
 type VmConfigPatch struct {
@@ -40,7 +40,7 @@ type VmConfigPatch struct {
 	CPU             *int    `json:"cpu,omitempty"`
 	Rosetta         *bool   `json:"rosetta,omitempty"`
 	NetworkProxy    *string `json:"network_proxy,omitempty"`
-	MountHideShared *bool   `json:"mount_hide_share,omitempty"`
+	MountHideShared *bool   `json:"mount_hide_shared,omitempty"`
 }
 
 func (c *VmConfig) Validate() error {
@@ -195,6 +195,10 @@ func Diff(a, b *VmConfig) *VmConfigPatch {
 
 	if a.NetworkProxy != b.NetworkProxy {
 		patch.NetworkProxy = &b.NetworkProxy
+	}
+
+	if a.MountHideShared != b.MountHideShared {
+		patch.MountHideShared = &b.MountHideShared
 	}
 
 	return patch

@@ -13,6 +13,7 @@ struct VmConfig: Codable, Equatable {
     var cpu: UInt
     var rosetta: Bool
     var networkProxy: String
+    var mountHideShared: Bool
 }
 
 struct VmConfigPatch: Codable, Equatable {
@@ -20,6 +21,7 @@ struct VmConfigPatch: Codable, Equatable {
     var cpu: UInt? = nil
     var rosetta: Bool? = nil
     var networkProxy: String? = nil
+    var mountHideShared: Bool? = nil
 }
 
 struct SetupInfo: Codable {
