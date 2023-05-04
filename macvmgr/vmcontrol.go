@@ -340,7 +340,25 @@ func (s *VmControlServer) DockerImageRemove(ctx context.Context, params vmtypes.
 	return nil
 }
 
-func (s *VmControlServer) DockerSystemDf
+func (s *VmControlServer) DockerSystemDf(ctx context.Context) (*dockertypes.SystemDf, error) {
+	resp, err := s.dockerClient.Get("http://docker/system/df")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, errors.New("status: " + resp.Status)
+	}
+
+	var df dockertypes.SystemDf
+	err = json.NewDecoder(resp.Body).Decode(&df)
+	if err != nil {
+		return nil, err
+	}
+
+	return &df, nil
+}
 
 func (h *VmControlServer) IsSshConfigWritable(ctx context.Context) (bool, error) {
 	return syssetup.IsSshConfigWritable(), nil
