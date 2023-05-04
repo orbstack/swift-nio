@@ -29,6 +29,8 @@ struct ContentView: View {
     @State private var presentError = false
     @State private var pendingClose = false
     @State private var collapsed = false
+    // with searchable, this breaks if it's on model, but works as state
+    @State private var presentDockerFilter = false
 
     var body: some View {
         NavigationView {
@@ -127,10 +129,10 @@ struct ContentView: View {
             ToolbarItem(placement: .automatic) {
                 if model.state == .running && selection == "docker" {
                     Button(action: {
-                        model.presentDockerFilter = true
+                        presentDockerFilter = true
                     }) {
                         Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
-                    }.popover(isPresented: $model.presentDockerFilter, arrowEdge: .bottom) {
+                    }.popover(isPresented: $presentDockerFilter, arrowEdge: .bottom) {
                         DockerFilterView()
                     }
                     .help("Filter containers")

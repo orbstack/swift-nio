@@ -340,7 +340,6 @@ class VmViewModel: ObservableObject {
     @Published var presentAddPaths: AddPathsAlert?
     @Published var presentCreateMachine = false
     @Published var presentCreateVolume = false
-    @Published var presentDockerFilter = false
 
     // Docker
     @Published var dockerContainers: [DKContainer]?
