@@ -21,6 +21,9 @@ struct DockerImagesRootView: View {
                             image.id.localizedCaseInsensitiveContains(searchQuery) ||
                             image.repoTags?.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
                 }
+                let imageCount = filteredImages.count
+                let totalSize = filteredImages.reduce(0) { $0 + $1.size }
+                let totalSizeFormatted = ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
 
                 List(selection: $selection) {
                     Section(header: Text("Tagged")) {
@@ -50,6 +53,7 @@ struct DockerImagesRootView: View {
                         }
                     }
                 }
+                .navigationSubtitle("\(totalSizeFormatted) used")
             } else {
                 ProgressView(label: {
                     Text("Loading")
