@@ -74,8 +74,8 @@ struct ContentView: View {
             }
             .listStyle(.sidebar)
             .background(SplitViewAccessor(sideCollapsed: $collapsed))
-            .toolbarMacOS13 {
-                ToolbarItem(placement: .automatic) {
+            .toolbarMacOS13(id: "sidebar-toolbar") {
+                ToolbarItem(id: "ctl-power", placement: .automatic) {
                     Button(action: {
                         Task { @MainActor in
                             self.startStopInProgress = true
@@ -94,15 +94,15 @@ struct ContentView: View {
                 }
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
+        .toolbar(id: "main-toolbar") {
+            ToolbarItem(id: "toggle-sidebar", placement: .navigation) {
                 Button(action: toggleSidebar, label: {
-                    Image(systemName: "sidebar.leading")
+                    Label("Toggle Sidebar", systemImage: "sidebar.leading")
                 })
-                        .help("Toggle sidebar")
+                .help("Toggle Sidebar")
             }
 
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(id: "macos12-power", placement: .automatic) {
                 if #available(macOS 13.0, *) {
                     // in sidebar instead
                 } else {
@@ -124,32 +124,34 @@ struct ContentView: View {
                 }
             }
             
-            ToolbarItem(placement: .automatic) {
-                if model.state == .running && selection == "machines" {
+            ToolbarItem(id: "machines-new", placement: .automatic) {
+                if selection == "machines" {
                     Button(action: {
                         model.presentCreateMachine = true
                     }) {
                         Label("New Machine", systemImage: "plus")
                     }.sheet(isPresented: $model.presentCreateMachine) {
-                        CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)
-                    }
-                    .help("New machine")
+                                CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)
+                            }
+                    .help("New Machine")
+                    .disabled(model.state != .running)
                 }
             }
 
-            ToolbarItem(placement: .automatic) {
-                if model.state == .running && selection == "docker-volumes" {
+            ToolbarItem(id: "docker-volume-new", placement: .automatic) {
+                if selection == "docker-volumes" {
                     Button(action: {
                         model.presentCreateVolume = true
                     }) {
                         Label("New Volume", systemImage: "plus")
                     }
                     .help("New Volume")
+                    .disabled(model.state != .running)
                 }
             }
 
-            ToolbarItem(placement: .automatic) {
-                if model.state == .running && selection == "docker" {
+            ToolbarItem(id: "docker-container-filter", placement: .automatic) {
+                if selection == "docker" {
                     Button(action: {
                         presentDockerFilter = true
                     }) {
@@ -157,7 +159,8 @@ struct ContentView: View {
                     }.popover(isPresented: $presentDockerFilter, arrowEdge: .bottom) {
                         DockerFilterView()
                     }
-                    .help("Filter containers")
+                    .help("Filter Containers")
+                    .disabled(model.state != .running)
                 }
             }
         }
@@ -267,9 +270,9 @@ struct ContentView_Previews: PreviewProvider {
 }
 
 extension View {
-    func toolbarMacOS13<Content: ToolbarContent>(@ToolbarContentBuilder content: () -> Content) -> some View {
+    func toolbarMacOS13<Content: CustomizableToolbarContent>(id: String, @ToolbarContentBuilder content: () -> Content) -> some View {
         if #available(macOS 13.0, *) {
-            return self.toolbar(content: content)
+            return self.toolbar(id: id, content: content)
         } else {
             return self
         }
