@@ -74,7 +74,7 @@ struct ContentView: View {
             }
             .listStyle(.sidebar)
             .background(SplitViewAccessor(sideCollapsed: $collapsed))
-            .toolbar {
+            .toolbarMacOS13 {
                 ToolbarItem(placement: .automatic) {
                     Button(action: {
                         Task { @MainActor in
@@ -100,6 +100,28 @@ struct ContentView: View {
                     Image(systemName: "sidebar.leading")
                 })
                         .help("Toggle sidebar")
+            }
+
+            ToolbarItem(placement: .automatic) {
+                if #available(macOS 13.0, *) {
+                    // in sidebar instead
+                } else {
+                    Button(action: {
+                        Task { @MainActor in
+                            self.startStopInProgress = true
+                            if model.state == .running {
+                                await model.tryStop()
+                            } else {
+                                await model.tryStartAndWait()
+                            }
+                            self.startStopInProgress = false
+                        }
+                    }) {
+                        Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
+                    }
+                            .disabled(startStopInProgress)
+                            .help(model.state == .running ? "Stop everything" : "Start everything")
+                }
             }
             
             ToolbarItem(placement: .automatic) {
@@ -241,5 +263,15 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+    }
+}
+
+extension View {
+    func toolbarMacOS13<Content: ToolbarContent>(@ToolbarContentBuilder content: () -> Content) -> some View {
+        if #available(macOS 13.0, *) {
+            return self.toolbar(content: content)
+        } else {
+            return self
+        }
     }
 }
