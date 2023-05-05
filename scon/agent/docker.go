@@ -202,10 +202,11 @@ func (a *AgentServer) monitorDockerEvents() error {
 			}
 		}
 
+		logrus.WithField("event", event).Debug("Docker event")
 		switch event.Type {
 		case "container":
 			switch event.Action {
-			case "start", "die":
+			case "create", "start", "die", "destroy":
 				a.dockerTriggerUIEvent(dockertypes.UIEventContainer)
 				a.dockerRefreshDebounce.Call()
 			}
