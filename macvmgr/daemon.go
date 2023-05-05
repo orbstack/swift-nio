@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -100,10 +101,9 @@ func runSpawnDaemon() {
 	exe, err := os.Executable()
 	check(err)
 
-	// rotate the log if needed
-	if _, err := os.Lstat(conf.VmgrLog()); err == nil {
-		// exists, so rename it
-		err = os.Rename(conf.VmgrLog(), conf.VmgrLog()+".1")
+	// rotate the log if needed (avoid TOCTOU - this is before vmgr start)
+	err = os.Rename(conf.VmgrLog(), conf.VmgrLog()+".1")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		check(err)
 	}
 	logFile, err := os.Create(conf.VmgrLog())
