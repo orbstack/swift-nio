@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
@@ -37,7 +38,9 @@ If changes are made, the Docker engine will be restarted.
 		preConfig, err := os.ReadFile(configPath)
 		checkCLI(err)
 
-		eCmd := exec.Command(preferredEditor, configPath)
+		editorCombinedArgs := strings.Fields(preferredEditor)
+		editorCombinedArgs = append(editorCombinedArgs, configPath)
+		eCmd := exec.Command(editorCombinedArgs[0], editorCombinedArgs[1:]...)
 		eCmd.Stdin = os.Stdin
 		eCmd.Stdout = os.Stdout
 		eCmd.Stderr = os.Stderr
