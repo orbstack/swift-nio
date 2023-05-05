@@ -172,7 +172,7 @@ func (u *Updater) MaybeNotify() error {
 
 	err := guihelper.Notify(guihelper.Notification{
 		Title:   "OrbStack Update Ready",
-		Message: "A new version of OrbStack is available. Open the app to install it.",
+		Message: "A new version of OrbStack is available. Click to install.",
 		URL:     "orbstack://update",
 	})
 	if err != nil {
