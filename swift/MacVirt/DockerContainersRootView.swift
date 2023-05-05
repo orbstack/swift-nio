@@ -93,13 +93,13 @@ struct DockerContainersRootView: View {
                 }
             }
             .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
+            .searchable(
+                text: $searchQuery,
+                placement: .toolbar,
+                prompt: "Search"
+            )
         }
         .navigationTitle("Containers")
-        .searchable(
-            text: $searchQuery,
-            placement: .toolbar,
-            prompt: "Search"
-        )
     }
 
     private func refresh() async {
