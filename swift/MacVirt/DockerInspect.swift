@@ -5,6 +5,7 @@
 import Foundation
 
 // https://gist.github.com/efrecon/8ce9c75d518b6eb863f667442d7bc679
+// fork: https://gist.github.com/ictus4u/e28b47dc826644412629093d5c9185be
 // removed: {{- if .BindOptions}},bind-propagation={{.BindOptions.Propagation}}{{- end}}{{- if .ReadOnly}},readonly{{- end}}
 let DKInspectRunCommandTemplate = """
                                   docker run \\
@@ -25,13 +26,34 @@ let DKInspectRunCommandTemplate = """
                                           {{- range $v := .VolumesFrom}}
                                     --volumes-from {{printf "%q" $v}} \\
                                           {{- end}}
+                                          {{- if index . "Mounts"}}
+                                              {{- range $m := .Mounts}}
+                                    --mount type={{.Type}}
+                                                  {{- if $s := index $m "Source"}},source={{$s}}{{- end}}
+                                                  {{- if $t := index $m "Target"}},destination={{$t}}{{- end}}
+                                                  {{- if index $m "ReadOnly"}},readonly{{- end}}
+                                                  {{- if $vo := index $m "VolumeOptions"}}
+                                                      {{- range $i, $v := $vo.Labels}}
+                                                          {{- printf ",volume-label=%s=%s" $i $v}}
+                                                      {{- end}}
+                                                      {{- if $dc := index $vo "DriverConfig" }}
+                                                          {{- if $n := index $dc "Name" }}
+                                                              {{- printf ",volume-driver=%s" $n}}
+                                                          {{- end}}
+                                                          {{- range $i, $v := $dc.Options}}
+                                                              {{- printf ",volume-opt=%s=%s" $i $v}}
+                                                          {{- end}}
+                                                      {{- end}}
+                                                  {{- end}}
+                                                  {{- if $bo := index $m "BindOptions"}}
+                                                      {{- if $p := index $bo "Propagation" }}
+                                                          {{- printf ",bind-propagation=%s" $p}}
+                                                      {{- end}}
+                                                  {{- end}} \\
+                                              {{- end}}
+                                          {{- end}}
                                           {{- range $l := .Links}}
                                     --link {{printf "%q" $l}} \\
-                                          {{- end}}
-                                          {{- if .Mounts}}
-                                              {{- range .Mounts}}
-                                    --mount type={{.Type}},source={{.Source}},destination={{.Target}} \\
-                                              {{- end}}
                                           {{- end}}
                                           {{- if .PublishAllPorts}}
                                     --publish-all \\
