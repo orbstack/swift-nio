@@ -31,6 +31,9 @@ struct CreateVolumeView: View {
                     })
 
                     TextField("Name", text: nameBinding)
+                            .onSubmit {
+                                submit()
+                            }
                     let errorText = isNameInvalid ? "Invalid name" : "Already exists"
                     Text(errorText)
                             .font(.caption)
@@ -49,10 +52,7 @@ struct CreateVolumeView: View {
                 }
 
                 Button(action: {
-                    Task { @MainActor in
-                        await vmModel.tryDockerVolumeCreate(name)
-                    }
-                    isPresented = false
+                    submit()
                 }) {
                     Text("Create")
                 }
@@ -100,5 +100,12 @@ struct CreateVolumeView: View {
                 duplicateHeight = 0
             }
         }
+    }
+
+    private func submit() {
+        Task { @MainActor in
+            await vmModel.tryDockerVolumeCreate(name)
+        }
+        isPresented = false
     }
 }
