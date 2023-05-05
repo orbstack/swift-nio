@@ -23,17 +23,19 @@ struct DockerVolumesRootView: View {
 
                 List(selection: $selection) {
                     Section(header: Text("In Use")) {
-                        ForEach(filteredVolumes) { volume in
+                        ForEach(filteredVolumes, id: \.name) { volume in
                             if isMounted(volume) {
                                 DockerVolumeItem(volume: volume, isMounted: true)
+                                        .id(volume.name)
                             }
                         }
                     }
 
                     Section(header: Text("Unused")) {
-                        ForEach(filteredVolumes) { volume in
+                        ForEach(filteredVolumes, id: \.name) { volume in
                             if !isMounted(volume) {
                                 DockerVolumeItem(volume: volume, isMounted: false)
+                                        .id(volume.name)
                             }
                         }
                     }
