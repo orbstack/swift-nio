@@ -54,11 +54,6 @@ struct DockerImagesRootView: View {
                     }
                 }
                 .navigationSubtitle("\(totalSizeFormatted) used")
-                .searchable(
-                        text: $searchQuery,
-                        placement: .toolbar,
-                        prompt: "Search"
-                )
             } else {
                 ProgressView(label: {
                     Text("Loading")
@@ -66,6 +61,11 @@ struct DockerImagesRootView: View {
             }
         }
         .navigationTitle("Images")
+        .searchable(
+            text: $searchQuery,
+            placement: .toolbar,
+            prompt: "Search"
+        )
     }
 
     private func refresh() async {

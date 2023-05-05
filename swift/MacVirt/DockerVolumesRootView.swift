@@ -62,11 +62,6 @@ struct DockerVolumesRootView: View {
                         }
                     }
                 }
-                .searchable(
-                        text: $searchQuery,
-                        placement: .toolbar,
-                        prompt: "Search"
-                )
             } else {
                 ProgressView(label: {
                     Text("Loading")
@@ -74,6 +69,11 @@ struct DockerVolumesRootView: View {
             }
         }
         .navigationTitle("Volumes")
+        .searchable(
+            text: $searchQuery,
+            placement: .toolbar,
+            prompt: "Search"
+        )
         // SwiftUI bug: sheet in button keeps appearing and disappearing when searchable is there
         .sheet(isPresented: $vmModel.presentCreateVolume) {
             CreateVolumeView(isPresented: $vmModel.presentCreateVolume)
