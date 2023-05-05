@@ -75,7 +75,7 @@ struct DockerImagesRootView: View {
         // querying this will start it
         if let containers = vmModel.containers,
            let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
-           dockerContainer.running {
+           dockerContainer.state != .stopped {
             await vmModel.tryRefreshDockerList()
         }
     }
