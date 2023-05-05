@@ -39,7 +39,7 @@ enum DKContainerAction {
     }
 }
 
-struct DockerContainerItem: View {
+struct DockerContainerItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
 
     var container: DKContainer
@@ -47,6 +47,10 @@ struct DockerContainerItem: View {
     @State private var actionInProgress: DKContainerAction? = nil
 
     @State private var presentPopover = false
+
+    static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
+        lhs.container == rhs.container
+    }
 
     var body: some View {
         let isRunning = container.running

@@ -43,6 +43,7 @@ struct DockerContainersRootView: View {
                     ForEach(filteredContainers) { container in
                         if container.running {
                             DockerContainerItem(container: container)
+                                    .equatable()
                         }
                     }
 
@@ -85,6 +86,7 @@ struct DockerContainersRootView: View {
                         ForEach(filteredContainers) { container in
                             if !container.running {
                                 DockerContainerItem(container: container)
+                                        .equatable()
                             }
                         }
                     }
