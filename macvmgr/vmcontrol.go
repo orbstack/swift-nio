@@ -118,7 +118,7 @@ func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertype
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New( " + resp.Status)
+		return nil, errors.New(resp.Status)
 	}
 
 	var containers []dockertypes.ContainerSummary
@@ -341,7 +341,8 @@ func (s *VmControlServer) DockerImageRemove(ctx context.Context, params vmtypes.
 }
 
 func (s *VmControlServer) DockerSystemDf(ctx context.Context) (*dockertypes.SystemDf, error) {
-	resp, err := s.dockerClient.Get("http://docker/system/df")
+	// limiting to volumes is less expensive
+	resp, err := s.dockerClient.Get("http://docker/system/df?type=volume")
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,8 @@ private let jsonIpv6Regex = try! NSRegularExpression(pattern: """
                                                               """)
 private let jsonClosingBracketRegex = try! NSRegularExpression(pattern: "(\\}\\s*)$")
 
+private let dockerSystemDfRatelimit = 1.0 * 60 * 60 // 1 hour
+
 enum VmState: Int, Comparable {
     case stopped
     case spawning
@@ -347,6 +349,7 @@ class VmViewModel: ObservableObject {
     @Published var dockerVolumes: [DKVolume]?
     @Published var dockerImages: [DKImage]?
     @Published var dockerSystemDf: DKSystemDf?
+    @Published var lastDockerSystemDfAt: Date?
     
     // Setup
     @Published private(set) var isSshConfigWritable = true
@@ -616,7 +619,10 @@ class VmViewModel: ObservableObject {
             try await refreshDockerImagesList()
         }
         if doSystemDf {
-            try await refreshDockerSystemDf()
+            if shouldUpdateDockerSystemDf() {
+                try await refreshDockerSystemDf()
+                lastDockerSystemDfAt = Date()
+            }
         }
     }
 
@@ -1052,5 +1058,24 @@ class VmViewModel: ObservableObject {
                 break
             }
         }
+    }
+
+    private func shouldUpdateDockerSystemDf() -> Bool {
+        guard let systemDf = dockerSystemDf,
+              let lastUpdatedAt = lastDockerSystemDfAt else {
+            return true
+        }
+
+        // system df refresh is expensive (100 ms),
+        // so only do it if we're missing info for a volume,
+        if let volumes = dockerVolumes,
+           !volumes.allSatisfy({ vol in
+               systemDf.volumes.contains(where: { sVol in vol.name == sVol.name })
+           }) {
+            return true
+        }
+
+        // or have not updated for a while
+        return Date().timeIntervalSince(lastUpdatedAt) > dockerSystemDfRatelimit
     }
 }

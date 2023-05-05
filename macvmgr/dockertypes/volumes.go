@@ -27,14 +27,14 @@ type VolumeUsageData struct {
 }
 
 type VolumeListResponse struct {
-	Volumes  []*Volume
+	Volumes  []Volume
 	Warnings []string
 }
 
 type SystemDf struct {
 	LayersSize int64
-	Images     []Image
+	Images     []Image `json:",omitempty"`
 	//Layers
 	//Containers, etc
-	Volumes []*Volume
+	Volumes []Volume
 }

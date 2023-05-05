@@ -246,7 +246,7 @@ struct DKImage: Codable, Identifiable {
 
 struct DKSystemDf: Codable {
     let layersSize: Int64
-    let images: [DKImage]
+    let images: [DKImage]?
     //layers
     //containers, etc
     let volumes: [DKVolume]
