@@ -80,6 +80,7 @@ struct MacVirtApp: App {
         }.commands {
             CommandGroup(replacing: .newItem) {}
             SidebarCommands()
+            ToolbarCommands()
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
