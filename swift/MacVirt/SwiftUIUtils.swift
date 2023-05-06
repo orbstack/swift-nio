@@ -5,6 +5,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import CoreGraphics
 
 // this new impl from https://stackoverflow.com/a/72676028, combined with weak WindowHolder, fixes duplicate windows opening on alert
 // but still not 100% reliable
@@ -76,5 +77,18 @@ func rectReader(_ binding: Binding<CGRect>, _ space: CoordinateSpace = .global) 
             }
         }
         return .clear
+    }
+}
+
+extension CGKeyCode {
+    static let kVK_Option     : CGKeyCode = 0x3A
+    static let kVK_RightOption: CGKeyCode = 0x3D
+
+    var isPressed: Bool {
+        CGEventSource.keyState(.combinedSessionState, key: self)
+    }
+
+    static var optionKeyPressed: Bool {
+        return Self.kVK_Option.isPressed || Self.kVK_RightOption.isPressed
     }
 }

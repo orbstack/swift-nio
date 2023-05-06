@@ -11,7 +11,6 @@ struct DockerImageItem: View {
     var image: DKImage
 
     @State private var actionInProgress = false
-    @State private var presentConfirmDelete = false
 
     var body: some View {
         HStack {
@@ -30,7 +29,7 @@ struct DockerImageItem: View {
             Spacer()
 
             Button(role: .destructive, action: {
-                self.presentConfirmDelete = true
+                finishDelete()
             }) {
                 let opacity = actionInProgress ? 1.0 : 0.0
                 ZStack {
@@ -47,21 +46,9 @@ struct DockerImageItem: View {
             .help("Delete image")
         }
         .padding(.vertical, 4)
-        .confirmationDialog("Delete \(image.userTag)?",
-                isPresented: $presentConfirmDelete) {
-            Button("Delete", role: .destructive) {
-                Task { @MainActor in
-                    actionInProgress = true
-                    await vmModel.tryDockerImageRemove(image.id)
-                    actionInProgress = false
-                }
-            }
-        } message: {
-            Text("Data will be permanently lost.")
-        }
         .contextMenu {
             Button(action: {
-                self.presentConfirmDelete = true
+                finishDelete()
             }) {
                 Label("Delete", systemImage: "trash.fill")
             }.disabled(actionInProgress)
@@ -83,6 +70,14 @@ struct DockerImageItem: View {
             }) {
                 Label("Copy ID", systemImage: "doc.on.doc")
             }
+        }
+    }
+
+    private func finishDelete() {
+        Task { @MainActor in
+            actionInProgress = true
+            await vmModel.tryDockerImageRemove(image.id)
+            actionInProgress = false
         }
     }
 }

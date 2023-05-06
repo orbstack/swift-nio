@@ -75,7 +75,12 @@ struct DockerVolumeItem: View {
             .help("Open volume")
 
             Button(role: .destructive, action: {
-                self.presentConfirmDelete = true
+                // skip confirmation if Option pressed
+                if CGKeyCode.optionKeyPressed {
+                    finishDelete()
+                } else {
+                    self.presentConfirmDelete = true
+                }
             }) {
                 let opacity = actionInProgress ? 1.0 : 0.0
                 ZStack {
@@ -89,7 +94,7 @@ struct DockerVolumeItem: View {
             }
             .buttonStyle(.borderless)
             .disabled(actionInProgress || isMounted)
-            .help(isMounted ? "Volume in use" : "Delete volume")
+            .help(isMounted ? "Volume in use" : "Delete volume\n(Option to confirm)")
         }
         .padding(.vertical, 4)
         .onDoubleClick {
@@ -98,11 +103,7 @@ struct DockerVolumeItem: View {
         .confirmationDialog("Delete \(volume.name)?",
                 isPresented: $presentConfirmDelete) {
             Button("Delete", role: .destructive) {
-                Task { @MainActor in
-                    actionInProgress = true
-                    await vmModel.tryDockerVolumeRemove(volume.name)
-                    actionInProgress = false
-                }
+                finishDelete()
             }
         } message: {
             Text("Data will be permanently lost.")
@@ -146,5 +147,13 @@ struct DockerVolumeItem: View {
 
     private func openFolder() {
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerVolumes)/\(volume.name)")
+    }
+
+    private func finishDelete() {
+        Task { @MainActor in
+            actionInProgress = true
+            await vmModel.tryDockerVolumeRemove(volume.name)
+            actionInProgress = false
+        }
     }
 }
