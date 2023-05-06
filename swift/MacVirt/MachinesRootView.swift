@@ -15,14 +15,16 @@ struct MachinesRootView: View {
     var body: some View {
         StateWrapperView {
             if let containers = vmModel.containers {
-                List(selection: $selection) {
-                    ForEach(containers) { container in
-                        if !container.builtin {
-                            MachineContainerItem(record: container)
+                VStack {
+                    if containers.contains(where: { !$0.builtin }) {
+                        List(containers, id: \.id, selection: $selection) { container in
+                            if !container.builtin {
+                                MachineContainerItem(record: container)
+                                        .id(container.id)
+                            }
                         }
-                    }
-
-                    if !containers.contains(where: { !$0.builtin }) {
+                    } else {
+                        Spacer()
                         HStack {
                             Spacer()
                             VStack {
@@ -51,41 +53,41 @@ struct MachinesRootView: View {
                                     }
                                 }
                                 .padding(16)
-                                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                             }
-                            .padding(.top, 32)
+                                    .padding(.top, 32)
                             Spacer()
                         }
+                        Spacer()
                     }
                 }
-                        .overlay(alignment: .bottomTrailing, content: {
-                            HStack {
-                                Text("Creating")
-                                ProgressView()
-                                        .scaleEffect(0.5)
-                                        .frame(width: 16, height: 16)
-                            }
+                .overlay(alignment: .bottomTrailing, content: {
+                    HStack {
+                        Text("Creating")
+                        ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 16, height: 16)
+                    }
                             .padding(8)
                             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                             .opacity(creatingOpacity)
                             .padding(16)
-                        })
-                        .onChange(of: vmModel.creatingCount) { newValue in
-                            if newValue > 0 {
-                                withAnimation {
-                                    creatingOpacity = 1
-                                }
-                            } else {
-                                withAnimation {
-                                    creatingOpacity = 0
-                                }
-                            }
+                })
+                .onChange(of: vmModel.creatingCount) { newValue in
+                    if newValue > 0 {
+                        withAnimation {
+                            creatingOpacity = 1
                         }
-                        .onAppear {
-                            if vmModel.creatingCount > 0 {
-                                creatingOpacity = 1
-                            }
+                    } else {
+                        withAnimation {
+                            creatingOpacity = 0
                         }
+                    }
+                }
+                .onAppear {
+                    if vmModel.creatingCount > 0 {
+                        creatingOpacity = 1
+                    }
+                }
             } else {
                 ProgressView(label: {
                     Text("Loading")
