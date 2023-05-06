@@ -5,7 +5,7 @@
 import Foundation
 import SwiftUI
 
-fileprivate let colors = [
+private let colors = [
     Color(.systemRed),
     Color(.systemGreen),
     Color(.systemBlue),

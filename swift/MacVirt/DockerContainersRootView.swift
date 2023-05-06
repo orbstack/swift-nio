@@ -5,14 +5,45 @@
 import Foundation
 import SwiftUI
 
-private struct ListItem: Identifiable {
-    let builtinRecord: ContainerRecord?
-    let sectionLabel: String?
-    let container: DKContainer?
-    let children: [ListItem]?
+struct ComposeGroup: Hashable, Identifiable, Equatable {
+    let project: String
+    var anyRunning: Bool = false
 
     var id: String {
-        builtinRecord?.id ?? sectionLabel ?? container!.id
+        "ComposeGroup:\(project)"
+    }
+}
+
+private struct ListItem: Identifiable, Equatable {
+    var builtinRecord: ContainerRecord? = nil
+    var sectionLabel: String? = nil
+    var container: DKContainer? = nil
+    var composeGroup: ComposeGroup? = nil
+    var children: [ListItem]? = nil
+
+    var id: String {
+        builtinRecord?.id ?? sectionLabel ?? container?.id ?? composeGroup?.id ?? ""
+    }
+
+    var containerName: String {
+        container?.names.first ?? composeGroup?.project ?? ""
+    }
+
+    init(builtinRecord: ContainerRecord) {
+        self.builtinRecord = builtinRecord
+    }
+
+    init(sectionLabel: String) {
+        self.sectionLabel = sectionLabel
+    }
+
+    init(container: DKContainer) {
+        self.container = container
+    }
+
+    init(composeGroup: ComposeGroup, children: [ListItem]) {
+        self.composeGroup = composeGroup
+        self.children = children
     }
 }
 
@@ -41,23 +72,26 @@ struct DockerContainersRootView: View {
 
             let listItems = makeListItems(dockerRecord, filteredContainers)
             List(listItems, id: \.id, children: \.children, selection: $selection) { item in
-                if let builtinRecord = item.builtinRecord {
-                    BuiltinContainerItem(record: builtinRecord)
-                            .listRowInsets(EdgeInsets())
-                }
-                if let sectionLabel = item.sectionLabel {
-                    Text(sectionLabel)
-                            .font(.subheadline.bold())
-                            .foregroundColor(.secondary)
-                            .listRowInsets(EdgeInsets())
-                }
-                if let container = item.container {
-                    DockerContainerItem(container: container)
-                            .equatable()
-                            .listRowInsets(EdgeInsets())
+                VStack {
+                    // MUST have VStack!
+                    // otherwise each unused item in this group (3) is shown as an empty space for compose groups w/ children
+                    if let builtinRecord = item.builtinRecord {
+                        BuiltinContainerItem(record: builtinRecord)
+                    }
+                    if let sectionLabel = item.sectionLabel {
+                        Text(sectionLabel)
+                                .font(.subheadline.bold())
+                                .foregroundColor(.secondary)
+                    }
+                    if let container = item.container {
+                        DockerContainerItem(container: container)
+                                .equatable()
+                    }
+                    if let composeGroup = item.composeGroup {
+                        DockerComposeGroupItem(composeGroup: composeGroup)
+                    }
                 }
             }
-                    .listRowInsets(EdgeInsets())
             .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
 
             // special case: show example http://localhost if only container is getting-started
@@ -115,24 +149,63 @@ struct DockerContainersRootView: View {
 
     private func makeListItems(_ dockerRecord: ContainerRecord, _ filteredContainers: [DKContainer]) -> [ListItem] {
         var listItems = [
-            ListItem(builtinRecord: dockerRecord, sectionLabel: nil, container: nil, children: nil),
-            ListItem(builtinRecord: nil, sectionLabel: "Running", container: nil, children: nil),
+            //ListItem(builtinRecord: dockerRecord),
+            ListItem(sectionLabel: "Running"),
         ]
+        var runningItems: [ListItem] = []
+        var stoppedItems: [ListItem] = []
 
-        // add running containers
+        // collect compose groups and remove them from containers
+        var ungroupedContainers: [DKContainer] = []
+        var composeGroups: [ComposeGroup: [DKContainer]] = [:]
+
         for container in filteredContainers {
-            if container.running {
-                listItems.append(ListItem(builtinRecord: nil, sectionLabel: nil, container: container, children: nil))
+            if let composeProject = container.labels["com.docker.compose.project"] {
+                let group = ComposeGroup(project: composeProject)
+                if composeGroups[group] == nil {
+                    composeGroups[group] = [container]
+                } else {
+                    composeGroups[group]?.append(container)
+                }
+            } else {
+                ungroupedContainers.append(container)
             }
         }
 
-        // add stopped containers
-        if settingShowStopped {
-            listItems.append(ListItem(builtinRecord: nil, sectionLabel: "Stopped", container: nil, children: nil))
-            for container in filteredContainers {
-                if !container.running {
-                    listItems.append(ListItem(builtinRecord: nil, sectionLabel: nil, container: container, children: nil))
-                }
+        // convert to list items
+        for (group, containers) in composeGroups {
+            let children = containers.map { ListItem(container: $0) }
+            var item = ListItem(composeGroup: group, children: children)
+            // if ANY container in the group is running, show the group as running
+            if containers.contains(where: { $0.running }) {
+                item.composeGroup?.anyRunning = true
+                runningItems.append(item)
+            } else {
+                stoppedItems.append(item)
+            }
+        }
+
+        // add ungrouped containers
+        for container in ungroupedContainers {
+            if container.running {
+                runningItems.append(ListItem(container: container))
+            } else {
+                stoppedItems.append(ListItem(container: container))
+            }
+        }
+
+        // sort by name within running/stopped sections
+        runningItems.sort { $0.containerName < $1.containerName }
+        stoppedItems.sort { $0.containerName < $1.containerName }
+
+        // add running/stopped sections
+        for item in runningItems {
+            listItems.append(item)
+        }
+        if !stoppedItems.isEmpty {
+            listItems.append(ListItem(sectionLabel: "Stopped"))
+            for item in stoppedItems {
+                listItems.append(item)
             }
         }
 
