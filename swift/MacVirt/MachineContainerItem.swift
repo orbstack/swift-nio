@@ -11,7 +11,7 @@ struct MachineContainerItem: View {
     var record: ContainerRecord
 
     @State private var actionInProgress = false
-    @State private var isPresentingConfirm = false
+    @State private var presentConfirmDelete = false
 
     var body: some View {
         HStack {
@@ -102,20 +102,20 @@ struct MachineContainerItem: View {
             .disabled(actionInProgress)
             Divider()
             Button(role: .destructive, action: {
-                self.isPresentingConfirm = true
+                if CGKeyCode.optionKeyPressed {
+                    finishDelete()
+                } else {
+                    self.presentConfirmDelete = true
+                }
             }) {
                 Label("Delete", systemImage: "trash")
             }
             .disabled(actionInProgress)
         }
         .confirmationDialog("Delete \(record.name)?",
-                isPresented: $isPresentingConfirm) {
+                isPresented: $presentConfirmDelete) {
             Button("Delete", role: .destructive) {
-                Task { @MainActor in
-                    actionInProgress = true
-                    await vmModel.tryDeleteContainer(record)
-                    actionInProgress = false
-                }
+                finishDelete()
             }
         } message: {
             Text("Data will be permanently lost.")
@@ -132,6 +132,14 @@ struct MachineContainerItem: View {
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }
+        }
+    }
+
+    private func finishDelete() {
+        Task { @MainActor in
+            actionInProgress = true
+            await vmModel.tryDeleteContainer(record)
+            actionInProgress = false
         }
     }
 }
