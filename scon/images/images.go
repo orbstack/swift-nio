@@ -81,11 +81,11 @@ var (
 		ImageArch:     "current",
 		ImageCentos:   "9-Stream",
 		ImageDebian:   "bullseye",
-		ImageFedora:   "37",
+		ImageFedora:   "38",
 		ImageGentoo:   "current",
 		ImageKali:     "current",
 		ImageOpensuse: "15.4",
-		ImageUbuntu:   "kinetic",
+		ImageUbuntu:   "lunar",
 		ImageVoid:     "current",
 
 		ImageDevuan: "chimaera",
