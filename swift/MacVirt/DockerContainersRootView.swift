@@ -20,10 +20,10 @@ private struct ListItem: Identifiable, Equatable {
 
     var id: DockerContainerId {
         if let builtinRecord {
-            return .notDocker(key: builtinRecord.id)
+            return .notDocker(key: "BUI:\(builtinRecord.id)")
         }
         if let sectionLabel {
-            return .notDocker(key: sectionLabel)
+            return .notDocker(key: "SEC:\(sectionLabel)")
         }
         if let container {
             return .container(id: container.id)
@@ -56,6 +56,24 @@ private struct ListItem: Identifiable, Equatable {
     }
 }
 
+private struct GettingStartedHintBox: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("Get started with an example")
+                    .font(.title3)
+                    .bold()
+            Text("docker run -it -p 80:80 docker/getting-started")
+                    .font(.body.monospaced())
+                    .textSelection(.enabled)
+            Text("Then open [localhost](http://localhost) in your browser.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+        }
+        .padding(16)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
@@ -69,7 +87,6 @@ struct DockerContainersRootView: View {
             refreshAction: refresh
         ) { containers, dockerRecord in
             let runningCount = containers.filter { $0.running }.count
-            let totalCount = containers.count
 
             let filteredContainers = containers.filter { container in
                 searchQuery.isEmpty ||
@@ -79,64 +96,65 @@ struct DockerContainersRootView: View {
                         container.names.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
             }
 
-            let listItems = makeListItems(dockerRecord, filteredContainers)
-            List(listItems, id: \.id, children: \.children, selection: $selection) { item in
-                VStack {
-                    // MUST have VStack!
-                    // otherwise each unused item in this group (3) is shown as an empty space for compose groups w/ children
-                    if let builtinRecord = item.builtinRecord {
-                        BuiltinContainerItem(record: builtinRecord)
-                    }
-                    if let sectionLabel = item.sectionLabel {
-                        Text(sectionLabel)
-                                .font(.subheadline.bold())
-                                .foregroundColor(.secondary)
-                    }
-                    if let container = item.container {
-                        DockerContainerItem(container: container, selection: selection)
-                                .equatable()
-                    }
-                    if let composeGroup = item.composeGroup {
-                        DockerComposeGroupItem(composeGroup: composeGroup, selection: selection)
-                                .equatable()
-                    }
-                }
+            // 0 spacing to fix bg color gap between list and getting started hint
+            VStack(spacing: 0) {
+                let listItems = makeListItems(dockerRecord, filteredContainers)
+                if !listItems.isEmpty {
+                    List(listItems, id: \.id, children: \.children, selection: $selection) { item in
+                        VStack {
+                            // MUST have VStack!
+                            // otherwise each unused item in this group (3) is shown as an empty space for compose groups w/ children
+                            if let builtinRecord = item.builtinRecord {
+                                BuiltinContainerItem(record: builtinRecord)
+                            }
+                            if let sectionLabel = item.sectionLabel {
+                                Text(sectionLabel)
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.secondary)
+                            }
+                            if let container = item.container {
+                                DockerContainerItem(container: container, selection: selection)
+                                        .equatable()
+                            }
+                            if let composeGroup = item.composeGroup {
+                                DockerComposeGroupItem(composeGroup: composeGroup, selection: selection)
+                                        .equatable()
+                            }
+                        }
                         .id(item.id)
-            }
-            .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
-            // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group
-            .border(width: 10, edges: [.leading, .trailing], color: Color(NSColor.textBackgroundColor))
-
-            // special case: show example http://localhost if only container is getting-started
-            let visibleCount = settingShowStopped ? totalCount : runningCount
-            if visibleCount == 0 || (visibleCount == 1 && containers[0].image == "docker/getting-started" && containers[0].running) {
-                HStack {
-                    Spacer()
-                    VStack {
-                        if visibleCount == 0 {
+                    }
+                    .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
+                    // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group
+                    .border(width: 10, edges: [.leading, .trailing], color: Color(NSColor.textBackgroundColor))
+                } else {
+                    HStack {
+                        Spacer()
+                        VStack {
                             Text("No containers")
                                     .font(.title)
                                     .foregroundColor(.secondary)
-                        }
 
-                        Spacer().frame(height: 64)
+                            Spacer().frame(height: 64)
 
-                        VStack(spacing: 8) {
-                            Text("Get started with an example")
-                                    .font(.title3)
-                                    .bold()
-                            Text("docker run -it -p 80:80 docker/getting-started")
-                                    .font(.body.monospaced())
-                                    .textSelection(.enabled)
-                            Text("Then open [localhost](http://localhost) in your browser.")
-                                    .font(.body)
-                                    .foregroundColor(.secondary)
+                            GettingStartedHintBox()
                         }
-                                .padding(16)
-                                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .padding(.top, 32)
+                        Spacer()
                     }
-                            .padding(.top, 32)
-                    Spacer()
+                }
+
+                // special case: show example http://localhost if only visible container is getting-started
+                // getting started hint box moves to bottom in this case
+                if listItems.count == 1,
+                   let container = listItems.first?.container,
+                   container.image == "docker/getting-started" {
+                    HStack {
+                        Spacer()
+                        GettingStartedHintBox()
+                        Spacer()
+                    }
+                    .padding(.bottom, 64)
+                    .background(Color(NSColor.textBackgroundColor))
                 }
             }
         }
