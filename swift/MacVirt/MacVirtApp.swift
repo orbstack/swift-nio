@@ -142,7 +142,7 @@ struct MacVirtApp: App {
         WindowGroup("Logs", id: "docker-container-logs") {
             DockerLogsWindow()
                     .environmentObject(model)
-        }.handlesExternalEvents(matching: Set(arrayLiteral: "docker/containers/logs/"))
+        }.handlesExternalEvents(matching: Set(arrayLiteral: "docker/containers/logs/", "docker/projects/logs/"))
 
         Settings {
             AppSettings(updaterController: updaterController)

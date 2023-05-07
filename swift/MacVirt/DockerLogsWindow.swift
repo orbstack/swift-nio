@@ -10,6 +10,7 @@ struct DockerLogsWindow: View {
     @StateObject private var windowHolder = WindowHolder()
 
     @State private var containerId: String?
+    @State private var composeProject: String?
 
     var body: some View {
         VStack {
@@ -21,10 +22,22 @@ struct DockerLogsWindow: View {
                         // env is more robust, user can mess with context
                         env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
                 .navigationTitle("Logs: \(container.userName)")
+            } else if let composeProject {
+                SwiftUILocalProcessTerminal(executable: AppConfig.dockerComposeExe,
+                        args: ["-p", composeProject, "logs", "-f"],
+                        // env is more robust, user can mess with context
+                        env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
+                .navigationTitle("Project Logs: \(composeProject)")
+            } else {
+                Text("No container selected")
             }
         }
         .onOpenURL { url in
-            containerId = url.lastPathComponent
+            if url.pathComponents[1] == "projects" {
+                composeProject = url.lastPathComponent
+            } else {
+                containerId = url.lastPathComponent
+            }
         }
         .background(WindowAccessor(holder: windowHolder))
         .onChange(of: windowHolder.window) { window in

@@ -127,29 +127,35 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 }
                  */
                 .contextMenu {
-                    Button(action: {
-                        finishStart()
-                    }) {
-                        Label("Start", systemImage: "start.fill")
-                    }.disabled(actionInProgress != nil || isRunning)
+                    Group {
+                        Button(action: {
+                            finishStart()
+                        }) {
+                            Label("Start", systemImage: "start.fill")
+                        }.disabled(actionInProgress != nil || isRunning)
 
-                    Button(action: {
-                        finishStop()
-                    }) {
-                        Label("Stop", systemImage: "stop.fill")
-                    }.disabled(actionInProgress != nil || !isRunning)
+                        Button(action: {
+                            finishStop()
+                        }) {
+                            Label("Stop", systemImage: "stop.fill")
+                        }.disabled(actionInProgress != nil || !isRunning)
 
-                    Button(action: {
-                        finishRestart()
-                    }) {
-                        Label("Restart", systemImage: "arrow.clockwise")
-                    }.disabled(actionInProgress != nil || !isRunning)
+                        Button(action: {
+                            finishRestart()
+                        }) {
+                            Label("Restart", systemImage: "arrow.clockwise")
+                        }.disabled(actionInProgress != nil || !isRunning)
 
-                    Button(action: {
-                        finishRemove()
-                    }) {
-                        Label("Delete", systemImage: "trash.fill")
-                    }.disabled(actionInProgress != nil)
+                        Button(action: {
+                            finishRemove()
+                        }) {
+                            Label("Delete", systemImage: "trash.fill")
+                        }.disabled(actionInProgress != nil)
+                    }
+
+                    Divider()
+
+                    Button("Show Logs", action: showLogs)
 
                     Divider()
 
@@ -165,53 +171,8 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 }
     }
 
-    private func formatPort(_ port: DKPort) -> String {
-        let ctrPort = port.privatePort
-        let localPort = port.publicPort ?? port.privatePort
-        let protoSuffix = port.type == "tcp" ? "" : "  (\(port.type.uppercased()))"
-        let portStr = ctrPort == localPort ? "\(ctrPort)" : "\(ctrPort) → \(localPort)"
-
-        return "\(portStr)\(protoSuffix)"
-    }
-
-    private func openPort(_ port: DKPort) {
-        let ctrPort = port.privatePort
-        let localPort = port.publicPort ?? port.privatePort
-        let httpProto = (ctrPort == 443 || ctrPort == 8443 || localPort == 443 || localPort == 8443) ? "https" : "http"
-        NSWorkspace.shared.open(URL(string: "\(httpProto)://localhost:\(localPort)")!)
-    }
-
-    private func formatMount(_ mount: DKMountPoint) -> String {
-        let src = mount.source
-        let dest = mount.destination
-
-        if let volName = mount.name,
-           mount.type == .volume {
-            return "\(abbreviateMount(volName))  →  \(dest)"
-        } else {
-            let home = FileManager.default.homeDirectoryForCurrentUser.path
-            let prettySrc = src.replacingOccurrences(of: home, with: "~")
-            return "\(abbreviateMount(prettySrc))  →  \(dest)"
-        }
-    }
-
-    private func openMount(_ mount: DKMountPoint) {
-        let src = mount.source
-
-        if let volName = mount.name,
-           mount.type == .volume {
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerVolumes)/\(volName)")
-        } else {
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: src)
-        }
-    }
-
-    private func abbreviateMount(_ src: String) -> String {
-        if src.count > 45 {
-            return src.prefix(35) + "…" + src.suffix(10)
-        } else {
-            return src
-        }
+    private func showLogs() {
+        NSWorkspace.shared.open(URL(string: "orbstack://docker/projects/logs/\(composeGroup.project)")!)
     }
 
     var selfId: DockerContainerId {

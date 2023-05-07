@@ -21,7 +21,6 @@ struct SwiftUILocalProcessTerminal: NSViewRepresentable {
     }
 
     // TODO fix process leak when closed
-    // TODO clos on process exit
     /*
     static func dismantleNSView(_ nsView: LocalProcessTerminalViewCustom, coordinator: ()) {
         if nsView.process.running {
