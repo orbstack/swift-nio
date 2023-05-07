@@ -51,18 +51,18 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                                             VStack(alignment: .leading) {
                                                 //Text(container.status)
                                                 //Text(String(container.id.prefix(12)))
-                                                  //      .font(.body.monospaced())
+                                                //      .font(.body.monospaced())
                                                 //Text(container.image)
                                             }
                                         }
                                                 .padding(.leading, 16)
                                     }
                                 }
-                                .padding(20)
+                                        .padding(20)
                             }
                 }
             }
-            .opacity(isRunning ? 1 : 0.5)
+                    .opacity(isRunning ? 1 : 0.5)
 
             Spacer()
 
@@ -120,9 +120,12 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                     .help("Delete project")
         }
                 .padding(.vertical, 4)
+                // ideally use Introspect to expand row, but does nothing for now
+                /*
                 .onDoubleClick {
                     presentPopover = true
                 }
+                 */
                 .contextMenu {
                     Button(action: {
                         finishStart()
