@@ -7,13 +7,14 @@ import SwiftUI
 
 struct DockerImageItem: View {
     @EnvironmentObject var vmModel: VmViewModel
+    @EnvironmentObject var actionTracker: ActionTracker
 
     var image: DKImage
     var selection: Set<String>
 
-    @State private var actionInProgress = false
-
     var body: some View {
+        let actionInProgress = actionTracker.ongoingForImage(image.id) != nil
+
         HStack {
             HStack {
                 VStack(alignment: .leading) {
@@ -76,12 +77,12 @@ struct DockerImageItem: View {
 
     private func finishDelete() {
         Task { @MainActor in
-            actionInProgress = true
             for id in resolveActionList() {
                 NSLog("remove image \(id)")
+                actionTracker.beginImage(id, action: .remove)
                 await vmModel.tryDockerImageRemove(id)
+                actionTracker.endImage(id)
             }
-            actionInProgress = false
         }
     }
 

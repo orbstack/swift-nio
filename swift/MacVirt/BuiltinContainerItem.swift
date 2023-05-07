@@ -7,12 +7,13 @@ import SwiftUI
 
 struct BuiltinContainerItem: View {
     @EnvironmentObject var vmModel: VmViewModel
+    @EnvironmentObject var actionTracker: ActionTracker
 
     var record: ContainerRecord
 
-    @State private var actionInProgress = false
-
     var body: some View {
+        let actionInProgress = actionTracker.ongoingForMachine(record.id) != nil
+
         HStack {
             Image("distro_\(record.image.distro)")
                     .resizable()
@@ -34,16 +35,17 @@ struct BuiltinContainerItem: View {
                 get: { record.state == .starting || record.running },
                 set: { newValue in
                     Task { @MainActor in
-                        actionInProgress = true
                         if newValue {
+                            actionTracker.beginMachine(record.id, action: .start)
                             await vmModel.tryStartContainer(record)
                         } else {
+                            actionTracker.beginMachine(record.id, action: .stop)
                             await vmModel.tryStopContainer(record)
                             // delete stale data
                             // cause reload next time
                             vmModel.dockerContainers = nil
                         }
-                        actionInProgress = false
+                        actionTracker.endMachine(record.id)
                     }
                 }
             )

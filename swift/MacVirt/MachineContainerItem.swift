@@ -7,13 +7,15 @@ import SwiftUI
 
 struct MachineContainerItem: View {
     @EnvironmentObject var vmModel: VmViewModel
+    @EnvironmentObject var actionTracker: ActionTracker
 
     var record: ContainerRecord
 
-    @State private var actionInProgress = false
     @State private var presentConfirmDelete = false
 
     var body: some View {
+        let actionInProgress = actionTracker.ongoingForMachine(record.id) != nil
+
         HStack {
             Image("distro_\(record.image.distro)")
                     .resizable()
@@ -36,9 +38,9 @@ struct MachineContainerItem: View {
             if record.running {
                 Button(action: {
                     Task { @MainActor in
-                        actionInProgress = true
+                        actionTracker.beginMachine(record.id, action: .stop)
                         await vmModel.tryStopContainer(record)
-                        actionInProgress = false
+                        actionTracker.endMachine(record.id)
                     }
                 }) {
                     ZStack {
@@ -56,9 +58,9 @@ struct MachineContainerItem: View {
             } else {
                 Button(action: {
                     Task { @MainActor in
-                        actionInProgress = true
+                        actionTracker.beginMachine(record.id, action: .start)
                         await vmModel.tryStartContainer(record)
-                        actionInProgress = false
+                        actionTracker.endMachine(record.id)
                     }
                 }) {
                     ZStack {
@@ -92,9 +94,9 @@ struct MachineContainerItem: View {
             Divider()
             Button(action: {
                 Task { @MainActor in
-                    actionInProgress = true
+                    actionTracker.beginMachine(record.id, action: .restart)
                     await vmModel.tryRestartContainer(record)
-                    actionInProgress = false
+                    actionTracker.endMachine(record.id)
                 }
             }) {
                 Label("Restart", systemImage: "restart")
@@ -137,9 +139,9 @@ struct MachineContainerItem: View {
 
     private func finishDelete() {
         Task { @MainActor in
-            actionInProgress = true
+            actionTracker.beginMachine(record.id, action: .delete)
             await vmModel.tryDeleteContainer(record)
-            actionInProgress = false
+            actionTracker.endMachine(record.id)
         }
     }
 }

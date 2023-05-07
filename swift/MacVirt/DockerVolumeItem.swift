@@ -7,15 +7,17 @@ import SwiftUI
 
 struct DockerVolumeItem: View {
     @EnvironmentObject var vmModel: VmViewModel
+    @EnvironmentObject var actionTracker: ActionTracker
 
     var volume: DKVolume
     var isMounted: Bool
     var selection: Set<String>
 
-    @State private var actionInProgress = false
     @State private var presentConfirmDelete = false
 
     var body: some View {
+        let actionInProgress = actionTracker.ongoingForVolume(volume.name) != nil
+
         let deletionList = resolveActionList()
         let deleteConfirmMsg = deletionList.count > 1 ?
                 "Delete \(deletionList.count) volumes?" :
@@ -146,12 +148,12 @@ struct DockerVolumeItem: View {
 
     private func finishDelete() {
         Task { @MainActor in
-            actionInProgress = true
             for name in resolveActionList() {
                 NSLog("remove volume \(name)")
+                actionTracker.beginVolume(name, action: .remove)
                 await vmModel.tryDockerVolumeRemove(name)
+                actionTracker.endVolume(name)
             }
-            actionInProgress = false
         }
     }
 
