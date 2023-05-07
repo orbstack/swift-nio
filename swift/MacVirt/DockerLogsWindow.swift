@@ -49,12 +49,12 @@ struct DockerLogsWindow: View {
                     Spacer()
                 }
             }
-            .onAppear {
-                sizeHolderModel.windowSize = geometry.size
-            }
-            .onChange(of: geometry.size) { newSize in
-                sizeHolderModel.windowSize = newSize
-            }
+                    .onAppear {
+                        sizeHolderModel.windowSize = geometry.size
+                    }
+                    .onChange(of: geometry.size) { newSize in
+                        sizeHolderModel.windowSize = newSize
+                    }
         }
         // match terminal bg
         .background(Color(NSColor.textBackgroundColor))
@@ -75,6 +75,11 @@ struct DockerLogsWindow: View {
             }
         }
         .background(WindowAccessor(holder: windowHolder))
+        .onAppear {
+            if let window = windowHolder.window {
+                window.isRestorable = false
+            }
+        }
         .onChange(of: windowHolder.window) { window in
             if let window {
                 // unrestorable: is ephemeral, and also restored doesn't preserve url

@@ -45,7 +45,7 @@ struct OnboardingRootView: View, OnboardingController {
                         OnboardingCreateView(onboardingController: self)
                     }
                 }
-                .environmentObject(onboardingModel)
+                        .environmentObject(onboardingModel)
                 Spacer()
             }.padding()
             Spacer()
@@ -55,6 +55,11 @@ struct OnboardingRootView: View, OnboardingController {
         .background(WindowAccessor(holder: windowHolder))
         .onChange(of: windowHolder.window) { window in
             if let window {
+                window.isRestorable = false
+            }
+        }
+        .onAppear {
+            if let window = windowHolder.window {
                 window.isRestorable = false
             }
         }
