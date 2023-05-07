@@ -29,7 +29,7 @@ In the future, this will be done automatically if OrbStack hasn't been used for 
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !vmclient.IsRunning() {
-			cmd.PrintErrln("No machines are running")
+			cmd.PrintErrln("OrbStack is not running")
 			os.Exit(1)
 		}
 
