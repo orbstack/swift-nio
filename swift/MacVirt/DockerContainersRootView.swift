@@ -101,9 +101,11 @@ struct DockerContainersRootView: View {
                                 .equatable()
                     }
                 }
-                .id(item.id)
+                        .id(item.id)
             }
             .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
+            // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group
+            .border(width: 10, edges: [.leading, .trailing], color: Color(NSColor.textBackgroundColor))
 
             // special case: show example http://localhost if only container is getting-started
             let visibleCount = settingShowStopped ? totalCount : runningCount
