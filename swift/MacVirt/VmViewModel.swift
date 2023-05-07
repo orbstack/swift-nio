@@ -360,7 +360,10 @@ class VmViewModel: ObservableObject {
     @Published var dockerImages: [DKImage]?
     @Published var dockerSystemDf: DKSystemDf?
     @Published var lastDockerSystemDfAt: Date?
-    
+
+    // TODO move out
+    var openLogWindowIds: Set<String> = []
+
     // Setup
     @Published private(set) var isSshConfigWritable = true
 

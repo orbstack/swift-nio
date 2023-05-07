@@ -13,6 +13,18 @@ struct SwiftUILocalProcessTerminal: NSViewRepresentable {
 
     func makeNSView(context: Context) -> LocalProcessTerminalViewCustom {
         let view = LocalProcessTerminalViewCustom(frame: NSRect())
+        view.caretColor = NSColor.clear
+        view.caretTextColor = NSColor.clear
+        view.allowMouseReporting = false
+        view.getTerminal().setCursorStyle(.steadyBar)
+        view.getTerminal().hideCursor()
+        view.configureNativeColors()
+        // remove NSScroller subview to fix weird scrollbar
+        for subview in view.subviews {
+            if subview is NSScroller {
+                subview.removeFromSuperview()
+            }
+        }
         view.startProcess(executable: executable, args: args, environment: env)
         return view
     }
@@ -127,7 +139,8 @@ class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalP
      */
     public func send(source: TerminalView, data: ArraySlice<UInt8>)
     {
-        process.send (data: data)
+        // don't send anything, we don't take input
+        //process.send (data: data)
     }
 
     /**

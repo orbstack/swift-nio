@@ -21,22 +21,35 @@ struct DockerLogsWindow: View {
                         args: ["logs", "-f", containerId],
                         // env is more robust, user can mess with context
                         env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
-                .navigationTitle("Logs: \(container.userName)")
+                        .padding(8)
+                        .navigationTitle("Logs: \(container.userName)")
             } else if let composeProject {
                 SwiftUILocalProcessTerminal(executable: AppConfig.dockerComposeExe,
                         args: ["-p", composeProject, "logs", "-f"],
                         // env is more robust, user can mess with context
                         env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
-                .navigationTitle("Project Logs: \(composeProject)")
+                        .padding(8)
+                        .navigationTitle("Project Logs: \(composeProject)")
             } else {
                 Text("No container selected")
             }
         }
+        // match terminal bg
+        .background(Color(NSColor.textBackgroundColor))
         .onOpenURL { url in
             if url.pathComponents[1] == "projects" {
                 composeProject = url.lastPathComponent
+                vmModel.openLogWindowIds.insert(composeProject!)
             } else {
                 containerId = url.lastPathComponent
+                vmModel.openLogWindowIds.insert(containerId!)
+            }
+        }
+        .onDisappear {
+            if let containerId {
+                vmModel.openLogWindowIds.remove(containerId)
+            } else if let composeProject {
+                vmModel.openLogWindowIds.remove(composeProject)
             }
         }
         .background(WindowAccessor(holder: windowHolder))
@@ -46,5 +59,6 @@ struct DockerLogsWindow: View {
                 window.isRestorable = false
             }
         }
+        .frame(minWidth: 400, minHeight: 200)
     }
 }

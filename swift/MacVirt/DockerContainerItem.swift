@@ -327,7 +327,17 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     }
 
     private func showLogs() {
-        NSWorkspace.shared.open(URL(string: "orbstack://docker/containers/logs/\(container.id)")!)
+        if !vmModel.openLogWindowIds.contains(container.id) {
+            NSWorkspace.shared.open(URL(string: "orbstack://docker/containers/logs/\(container.id)")!)
+        } else {
+            // find window by title and bring to front
+            for window in NSApplication.shared.windows {
+                if window.title == "Logs: \(container.userName)" {
+                    window.makeKeyAndOrderFront(nil)
+                    break
+                }
+            }
+        }
     }
 
     private func formatPort(_ port: DKPort) -> String {

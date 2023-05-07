@@ -143,6 +143,7 @@ struct MacVirtApp: App {
             DockerLogsWindow()
                     .environmentObject(model)
         }.handlesExternalEvents(matching: Set(arrayLiteral: "docker/containers/logs/", "docker/projects/logs/"))
+        .windowDefaultSize(width: 750, height: 500)
 
         Settings {
             AppSettings(updaterController: updaterController)
