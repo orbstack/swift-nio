@@ -16,6 +16,7 @@ import (
 	"github.com/alessio/shellescape"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
 	"github.com/kdrag0n/macvirt/macvmgr/setup/userutil"
 	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
@@ -386,7 +387,7 @@ func readDockerConfigEnv(shell string) error {
 	logrus.WithField("path", value).Info("detected DOCKER_CONFIG")
 	if value != "" && strings.HasPrefix(value, "/") {
 		// let's try to ensure the dir
-		_, err := conf.EnsureDir(value)
+		_, err := coredir.EnsureDir(value)
 		if err != nil {
 			// it doesn't work - doesn't exist and we couldn't create.
 			// fall back to ~/.docker

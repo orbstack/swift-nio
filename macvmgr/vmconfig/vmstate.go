@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
 )
 
 const (
@@ -48,7 +48,7 @@ func GetState() *VmgrState {
 		return globalState
 	}
 
-	data, err := os.ReadFile(conf.VmStateFile())
+	data, err := os.ReadFile(coredir.VmStateFile())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return defaultState()
@@ -91,7 +91,7 @@ func UpdateState(cb func(*VmgrState) error) error {
 	}
 
 	// apfs doesn't need to be synced
-	err = os.WriteFile(conf.VmStateFile(), data, 0644)
+	err = os.WriteFile(coredir.VmStateFile(), data, 0644)
 	if err != nil {
 		return err
 	}

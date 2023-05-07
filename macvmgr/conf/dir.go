@@ -1,65 +1,30 @@
 package conf
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 )
 
-var (
-	ensuredDirsMu sync.Mutex
-	ensuredDirs   = make(map[string]string)
-)
-
-func check(err error) {
+func ensureDir(dir string) string {
+	_, err := coredir.EnsureDir(dir)
 	if err != nil {
 		panic(err)
 	}
-}
-
-func HomeDir() string {
-	home, err := os.UserHomeDir()
-	check(err)
-	return home
-}
-
-func ensureDir(dir string) string {
-	_, err := EnsureDir(dir)
-	check(err)
 	return dir
 }
 
-func EnsureDir(dir string) (string, error) {
-	ensuredDirsMu.Lock()
-	defer ensuredDirsMu.Unlock()
-
-	if d, ok := ensuredDirs[dir]; ok {
-		return d, nil
-	}
-	defer func() {
-		ensuredDirs[dir] = dir
-	}()
-
-	// stat first
-	if st, err := os.Stat(dir); err == nil && st.IsDir() {
-		return dir, nil
-	}
-
-	err := os.MkdirAll(dir, 0755)
-	if err != nil && !errors.Is(err, os.ErrExist) {
-		return "", err
-	}
-	return dir, nil
+func HomeDir() string {
+	return coredir.HomeDir()
 }
 
 func AppDir() string {
-	return ensureDir(HomeDir() + "/." + appid.AppName)
+	return coredir.AppDir()
 }
 
 func RunDir() string {
@@ -75,6 +40,10 @@ func NfsMountpoint() string {
 }
 
 func DataDir() string {
+	dir := vmconfig.Get().DataDir
+	if dir != "" {
+		return ensureDir(dir)
+	}
 	return ensureDir(AppDir() + "/data")
 }
 
@@ -106,7 +75,9 @@ func ExecutableDir() (string, error) {
 
 func MustExecutableDir() string {
 	dir, err := ExecutableDir()
-	check(err)
+	if err != nil {
+		panic(err)
+	}
 	return dir
 }
 
@@ -158,15 +129,6 @@ func VmgrTimestampFile() string {
 // so we can stop it for port fwd
 func VmgrLockFile() string {
 	return os.TempDir() + "/orbstack-vmgr.lock"
-}
-
-// TODO: migrate to /config
-func VmConfigFile() string {
-	return AppDir() + "/vmconfig.json"
-}
-
-func VmStateFile() string {
-	return AppDir() + "/vmstate.json"
 }
 
 func UserSshDir() string {

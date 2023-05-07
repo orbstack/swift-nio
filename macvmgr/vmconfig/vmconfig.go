@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
 	"github.com/kdrag0n/macvirt/macvmgr/syncx"
 )
@@ -33,6 +33,7 @@ type VmConfig struct {
 	Rosetta         bool   `json:"rosetta"`
 	NetworkProxy    string `json:"network_proxy"`
 	MountHideShared bool   `json:"mount_hide_shared"`
+	DataDir         string `json:"data_dir"`
 }
 
 type VmConfigPatch struct {
@@ -41,6 +42,7 @@ type VmConfigPatch struct {
 	Rosetta         *bool   `json:"rosetta,omitempty"`
 	NetworkProxy    *string `json:"network_proxy,omitempty"`
 	MountHideShared *bool   `json:"mount_hide_shared,omitempty"`
+	DataDir         *string `json:"data_dir,omitempty"`
 }
 
 func (c *VmConfig) Validate() error {
@@ -95,7 +97,7 @@ func Get() *VmConfig {
 		return globalConfig
 	}
 
-	data, err := os.ReadFile(conf.VmConfigFile())
+	data, err := os.ReadFile(coredir.VmConfigFile())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return Defaults()
@@ -139,7 +141,7 @@ func Update(cb func(*VmConfig)) error {
 	}
 
 	// apfs doesn't need to be synced
-	err = os.WriteFile(conf.VmConfigFile(), data, 0644)
+	err = os.WriteFile(coredir.VmConfigFile(), data, 0644)
 	if err != nil {
 		return err
 	}
@@ -165,10 +167,11 @@ func calcMemory() uint64 {
 
 func Defaults() *VmConfig {
 	return &VmConfig{
-		MemoryMiB:    calcMemory() / 1024 / 1024,
-		CPU:          runtime.NumCPU(),
-		Rosetta:      true,
-		NetworkProxy: ProxyAuto,
+		MemoryMiB:       calcMemory() / 1024 / 1024,
+		CPU:             runtime.NumCPU(),
+		Rosetta:         true,
+		NetworkProxy:    ProxyAuto,
+		MountHideShared: false,
 	}
 }
 
