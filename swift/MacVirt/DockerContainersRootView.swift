@@ -84,7 +84,7 @@ struct DockerContainersRootView: View {
                                 .foregroundColor(.secondary)
                     }
                     if let container = item.container {
-                        DockerContainerItem(container: container)
+                        DockerContainerItem(container: container, selection: selection)
                                 .equatable()
                     }
                     if let composeGroup = item.composeGroup {

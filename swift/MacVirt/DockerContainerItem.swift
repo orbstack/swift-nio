@@ -43,13 +43,15 @@ struct DockerContainerItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
 
     var container: DKContainer
+    var selection: Set<String>
 
     @State private var actionInProgress: DKContainerAction? = nil
 
     @State private var presentPopover = false
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
-        lhs.container == rhs.container
+        lhs.container == rhs.container &&
+                lhs.selection == rhs.selection
     }
 
     var body: some View {
@@ -176,11 +178,7 @@ struct DockerContainerItem: View, Equatable {
 
             if isRunning {
                 Button(action: {
-                    Task { @MainActor in
-                        actionInProgress = .stop
-                        await vmModel.tryDockerContainerStop(container.id)
-                        actionInProgress = nil
-                    }
+                    finishStop()
                 }) {
                     let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
                     ZStack {
@@ -197,11 +195,7 @@ struct DockerContainerItem: View, Equatable {
                         .help("Stop container")
             } else {
                 Button(action: {
-                    Task { @MainActor in
-                        actionInProgress = .start
-                        await vmModel.tryDockerContainerStart(container.id)
-                        actionInProgress = nil
-                    }
+                    finishStart()
                 }) {
                     let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
                     ZStack {
@@ -219,11 +213,7 @@ struct DockerContainerItem: View, Equatable {
             }
 
             Button(action: {
-                Task { @MainActor in
-                    actionInProgress = .remove
-                    await vmModel.tryDockerContainerRemove(container.id)
-                    actionInProgress = nil
-                }
+                finishRemove()
             }) {
                 let opacity = actionInProgress == .remove ? 1.0 : 0.0
                 ZStack {
@@ -245,41 +235,25 @@ struct DockerContainerItem: View, Equatable {
         }
         .contextMenu {
             Button(action: {
-                Task { @MainActor in
-                    actionInProgress = .start
-                    await vmModel.tryDockerContainerStart(container.id)
-                    actionInProgress = nil
-                }
+                finishStart()
             }) {
                 Label("Start", systemImage: "start.fill")
             }.disabled(actionInProgress != nil || isRunning)
 
             Button(action: {
-                Task { @MainActor in
-                    actionInProgress = .stop
-                    await vmModel.tryDockerContainerStop(container.id)
-                    actionInProgress = nil
-                }
+                finishStop()
             }) {
                 Label("Stop", systemImage: "stop.fill")
             }.disabled(actionInProgress != nil || !isRunning)
 
             Button(action: {
-                Task { @MainActor in
-                    actionInProgress = .restart
-                    await vmModel.tryDockerContainerRestart(container.id)
-                    actionInProgress = nil
-                }
+                finishRestart()
             }) {
                 Label("Restart", systemImage: "arrow.clockwise")
             }.disabled(actionInProgress != nil || !isRunning)
 
             Button(action: {
-                Task { @MainActor in
-                    actionInProgress = .remove
-                    await vmModel.tryDockerContainerRemove(container.id)
-                    actionInProgress = nil
-                }
+                finishRemove()
             }) {
                 Label("Delete", systemImage: "trash.fill")
             }.disabled(actionInProgress != nil)
@@ -413,6 +387,68 @@ struct DockerContainerItem: View, Equatable {
             return src.prefix(35) + "…" + src.suffix(10)
         } else {
             return src
+        }
+    }
+
+    private func finishStop() {
+        Task { @MainActor in
+            actionInProgress = .stop
+            for id in resolveActionList() {
+                await vmModel.tryDockerContainerStop(id)
+            }
+            actionInProgress = nil
+        }
+    }
+
+    private func finishStart() {
+        Task { @MainActor in
+            actionInProgress = .start
+            for id in resolveActionList() {
+                await vmModel.tryDockerContainerStart(id)
+            }
+            actionInProgress = nil
+        }
+    }
+
+    private func finishRestart() {
+        Task { @MainActor in
+            actionInProgress = .restart
+            for id in resolveActionList() {
+                await vmModel.tryDockerContainerRestart(id)
+            }
+            actionInProgress = nil
+        }
+    }
+
+    private func finishRemove() {
+        Task { @MainActor in
+            actionInProgress = .remove
+            for id in resolveActionList() {
+                await vmModel.tryDockerContainerRemove(id)
+            }
+            actionInProgress = nil
+        }
+    }
+
+    private func isSelected() -> Bool {
+        selection.contains(container.id)
+    }
+
+    private func resolveActionList() -> Set<String> {
+        print("sel is: \(selection)")
+        // if action is performed on a selected item, then use all selections
+        // otherwise only use volume
+        if isSelected() {
+            // SwiftUI List bug: deleted items stay in selection set so we need to filter
+            if let containers = vmModel.dockerContainers {
+                return selection.filter { sel in
+                    containers.contains(where: { $0.id == sel })
+                }
+            } else {
+                return selection
+            }
+        } else {
+            return [container.id]
         }
     }
 }
