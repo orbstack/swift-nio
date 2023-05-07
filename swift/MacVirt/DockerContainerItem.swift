@@ -372,9 +372,13 @@ protocol BaseDockerContainerItem {
 
     var selfId: DockerContainerId { get }
 
+    @MainActor
     func finishStart()
+    @MainActor
     func finishStop()
+    @MainActor
     func finishRestart()
+    @MainActor
     func finishRemove()
 
     func isSelected() -> Bool
@@ -383,9 +387,10 @@ protocol BaseDockerContainerItem {
 }
 
 extension BaseDockerContainerItem {
+    @MainActor
     func finishStop() {
-        Task { @MainActor in
-            for item in resolveActionList() {
+        for item in resolveActionList() {
+            Task { @MainActor in
                 actionTracker.begin(item, action: .stop)
 
                 switch item {
@@ -394,7 +399,7 @@ extension BaseDockerContainerItem {
                 case .compose:
                     await vmModel.tryDockerComposeStop(item)
                 default:
-                    continue
+                    return
                 }
 
                 actionTracker.end(item)
@@ -402,9 +407,10 @@ extension BaseDockerContainerItem {
         }
     }
 
+    @MainActor
     func finishStart() {
-        Task { @MainActor in
-            for item in resolveActionList() {
+        for item in resolveActionList() {
+            Task { @MainActor in
                 actionTracker.begin(item, action: .start)
 
                 switch item {
@@ -413,7 +419,7 @@ extension BaseDockerContainerItem {
                 case .compose:
                     await vmModel.tryDockerComposeStart(item)
                 default:
-                    continue
+                    return
                 }
 
                 actionTracker.end(item)
@@ -421,6 +427,7 @@ extension BaseDockerContainerItem {
         }
     }
 
+    @MainActor
     func finishRestart() {
         Task { @MainActor in
             for item in resolveActionList() {
@@ -432,7 +439,7 @@ extension BaseDockerContainerItem {
                 case .compose:
                     await vmModel.tryDockerComposeRestart(item)
                 default:
-                    continue
+                    return
                 }
 
                 actionTracker.end(item)
@@ -440,9 +447,10 @@ extension BaseDockerContainerItem {
         }
     }
 
+    @MainActor
     func finishRemove() {
-        Task { @MainActor in
-            for item in resolveActionList() {
+        for item in resolveActionList() {
+            Task { @MainActor in
                 actionTracker.begin(item, action: .remove)
 
                 switch item {
@@ -451,7 +459,7 @@ extension BaseDockerContainerItem {
                 case .compose:
                     await vmModel.tryDockerComposeRemove(item)
                 default:
-                    continue
+                    return
                 }
 
                 actionTracker.end(item)

@@ -76,9 +76,9 @@ struct DockerImageItem: View {
     }
 
     private func finishDelete() {
-        Task { @MainActor in
-            for id in resolveActionList() {
-                NSLog("remove image \(id)")
+        for id in resolveActionList() {
+            NSLog("remove image \(id)")
+            Task { @MainActor in
                 actionTracker.beginImage(id, action: .remove)
                 await vmModel.tryDockerImageRemove(id)
                 actionTracker.endImage(id)
