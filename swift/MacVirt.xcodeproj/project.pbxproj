@@ -12,6 +12,7 @@
 		B118B1847379D830C007E7E7 /* CreateContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB4D521563F31AB550C7 /* CreateContainerView.swift */; };
 		B118B1C2435DAF0D619BB2BD /* OnboardingRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */; };
 		B118B249BBD0B364D80B8CCD /* MachinesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC27017014DBEA64D8A0 /* MachinesRootView.swift */; };
+		B118B24F6010F0EB85FE09D2 /* Terminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDFDB3332CA1204C634C /* Terminal.swift */; };
 		B118B313FBB75C8112AA6B78 /* DockerStateWrapperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0BF63B1073BB3FFA0CD /* DockerStateWrapperView.swift */; };
 		B118B3927D2DDFA52490E377 /* NetworkSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7660570E904ED742A59 /* NetworkSettingsView.swift */; };
 		B118B3F700D1BE2360D67EFC /* DockerVolumeItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BCE21C5D7E25B20CC38D /* DockerVolumeItem.swift */; };
@@ -33,6 +34,7 @@
 		B118BAC7BDF77DCFE564EF36 /* CreateVolumeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B42B941198E5B15B2494 /* CreateVolumeView.swift */; };
 		B118BAD426D7BA4054B6E689 /* DockerContainersRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD91CF1D1F80CDCBFB9F /* DockerContainersRootView.swift */; };
 		B118BB2A35AC6730018691D2 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */; };
+		B118BBBDA2B28AA7173B8C49 /* DockerLogsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6CF159A5B58FB89D81C /* DockerLogsWindow.swift */; };
 		B118BBF68DB88AC073541CD2 /* VmViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E62611F603F60BF666 /* VmViewModel.swift */; };
 		B118BC2FFF41ABFFF0CA5BF3 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC445161ECC2F67ABFEF /* Utils.swift */; };
 		B118BC31190DB3854C66B353 /* MachineContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* MachineContainerItem.swift */; };
@@ -78,6 +80,7 @@
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
 		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
 		D8CBDA25298F791F0026F44A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CBDA24298F791F0026F44A /* AppConfig.swift */; };
+		D8EB973E2A07B0C1009308BA /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = D8EB973D2A07B0C1009308BA /* SwiftTerm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -157,6 +160,7 @@
 		B118B4CBF28E57766F454C98 /* CommandsRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CommandsRootView.swift; sourceTree = "<group>"; };
 		B118B5C4347A3837FA386E75 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		B118B5F3C807DC202E72C98D /* DockerSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerSettingsView.swift; sourceTree = "<group>"; };
+		B118B6CF159A5B58FB89D81C /* DockerLogsWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerLogsWindow.swift; sourceTree = "<group>"; };
 		B118B7660570E904ED742A59 /* NetworkSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NetworkSettingsView.swift; sourceTree = "<group>"; };
 		B118B7D9E783D39A73D51265 /* DockerImageItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerImageItem.swift; sourceTree = "<group>"; };
 		B118B7E4875DB989A26F46BA /* FileContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileContainerItem.swift; sourceTree = "<group>"; };
@@ -182,6 +186,7 @@
 		B118BDB1897ACFEB7A47E00A /* Operators.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Operators.swift; sourceTree = "<group>"; };
 		B118BDC8C60359F5F1FF9F2A /* ActionTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActionTracker.swift; sourceTree = "<group>"; };
 		B118BDE072F572BA61600007 /* AppSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		B118BDFDB3332CA1204C634C /* Terminal.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Terminal.swift; sourceTree = "<group>"; };
 		B118BE4D3578D923BDAE7C2C /* Updater.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
 		B118BE577DB19F2ADECF9C9F /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
 		B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerContainerItem.swift; sourceTree = "<group>"; };
@@ -242,6 +247,7 @@
 			files = (
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
 				D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */,
+				D8EB973E2A07B0C1009308BA /* SwiftTerm in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
 				D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */,
@@ -370,6 +376,8 @@
 				B118B7D9E783D39A73D51265 /* DockerImageItem.swift */,
 				B118B221A4DD9BC70D1BC05B /* DockerComposeGroupItem.swift */,
 				B118BDC8C60359F5F1FF9F2A /* ActionTracker.swift */,
+				B118B6CF159A5B58FB89D81C /* DockerLogsWindow.swift */,
+				B118BDFDB3332CA1204C634C /* Terminal.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -457,6 +465,7 @@
 				D8694A48299464810046B6B6 /* Sparkle */,
 				D8694A4B2994D4FA0046B6B6 /* Defaults */,
 				D855F1EF2998B6A700B62588 /* Sentry */,
+				D8EB973D2A07B0C1009308BA /* SwiftTerm */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -500,6 +509,7 @@
 				D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */,
 				D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+				D8EB973C2A07B0C1009308BA /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -664,6 +674,8 @@
 				B118B8DECB91526F6E0CAB71 /* DockerImageItem.swift in Sources */,
 				B118BF44160D1D0E5664D278 /* DockerComposeGroupItem.swift in Sources */,
 				B118BA6D2796E4A3301F619A /* ActionTracker.swift in Sources */,
+				B118BBBDA2B28AA7173B8C49 /* DockerLogsWindow.swift in Sources */,
+				B118B24F6010F0EB85FE09D2 /* Terminal.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1051,6 +1063,14 @@
 				kind = branch;
 			};
 		};
+		D8EB973C2A07B0C1009308BA /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1078,6 +1098,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */;
 			productName = Defaults;
+		};
+		D8EB973D2A07B0C1009308BA /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8EB973C2A07B0C1009308BA /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

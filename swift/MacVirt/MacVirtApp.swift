@@ -139,6 +139,11 @@ struct MacVirtApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
+        WindowGroup("Logs", id: "docker-container-logs") {
+            DockerLogsWindow()
+                    .environmentObject(model)
+        }.handlesExternalEvents(matching: Set(arrayLiteral: "docker/containers/logs/"))
+
         Settings {
             AppSettings(updaterController: updaterController)
                     .environmentObject(model)

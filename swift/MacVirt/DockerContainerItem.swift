@@ -34,13 +34,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         .foregroundColor(color)
 
                 VStack(alignment: .leading) {
-                    // prefer compose service label first (because we'll be grouped if it's compose)
-                    let nameTxt = container.labels[DockerLabels.composeService] ??
-                            container.names
-                                    .map {
-                                        $0.deletingPrefix("/")
-                                    }
-                                    .joined(separator: ", ")
+                    let nameTxt = container.userName
 
                     let name = nameTxt.isEmpty ? "(no name)" : nameTxt
                     Text(name)
@@ -120,6 +114,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             if isRunning {
                                 VStack(alignment: .leading) {
                                     Button("Open Terminal", action: openInTerminal)
+
+                                    Button("Show Logs", action: showLogs)
 
                                     if container.image == "docker/getting-started" {
                                         // special case for more seamless onboarding
@@ -203,42 +199,60 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             presentPopover = true
         }
         .contextMenu {
-            Button(action: {
-                finishStart()
-            }) {
-                Label("Start", systemImage: "start.fill")
-            }.disabled(actionInProgress != nil || isRunning)
+            Group {
+                Button(action: {
+                    finishStart()
+                }) {
+                    Label("Start", systemImage: "start.fill")
+                }
+                .disabled(actionInProgress != nil || isRunning)
 
-            Button(action: {
-                finishStop()
-            }) {
-                Label("Stop", systemImage: "stop.fill")
-            }.disabled(actionInProgress != nil || !isRunning)
+                Button(action: {
+                    finishStop()
+                }) {
+                    Label("Stop", systemImage: "stop.fill")
+                }
+                .disabled(actionInProgress != nil || !isRunning)
 
-            Button(action: {
-                finishRestart()
-            }) {
-                Label("Restart", systemImage: "arrow.clockwise")
-            }.disabled(actionInProgress != nil || !isRunning)
+                Button(action: {
+                    finishRestart()
+                }) {
+                    Label("Restart", systemImage: "arrow.clockwise")
+                }
+                .disabled(actionInProgress != nil || !isRunning)
 
-            Button(action: {
-                finishRemove()
-            }) {
-                Label("Delete", systemImage: "trash.fill")
-            }.disabled(actionInProgress != nil)
+                Button(action: {
+                    finishRemove()
+                }) {
+                    Label("Delete", systemImage: "trash.fill")
+                }
+                .disabled(actionInProgress != nil)
+            }
 
             Divider()
 
-            Button(action: {
-                openInTerminal()
-            }) {
-                Label("Open Terminal", systemImage: "terminal")
-            }.disabled(!isRunning)
+            Group {
+                Button(action: {
+                    openInTerminal()
+                }) {
+                    Label("Open Terminal", systemImage: "terminal")
+                }
+                .disabled(!isRunning)
+
+                Button(action: {
+                    showLogs()
+                }) {
+                    Label("Show Logs", systemImage: "terminal")
+                }
+                .disabled(!isRunning)
+            }
+
+            Divider()
 
             Group {
                 if container.ports.isEmpty && container.mounts.isEmpty {
                     Button("No Ports or Mounts") {}
-                            .disabled(true)
+                    .disabled(true)
                 }
 
                 if !container.ports.isEmpty {
@@ -284,7 +298,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 Button(action: {
                     Task { @MainActor in
                         do {
-                            let runCmd = try await runProcessChecked(AppConfig.dockerExe, ["--context", "orbstack", "inspect", "--format", DKInspectRunCommandTemplate, container.id])
+                            let runCmd = try await runProcessChecked(AppConfig.dockerExe,
+                                    ["inspect", "--format", DKInspectRunCommandTemplate, container.id],
+                                    env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
 
                             let pasteboard = NSPasteboard.general
                             pasteboard.clearContents()
@@ -308,6 +324,10 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 NSLog("Open terminal failed: \(error)")
             }
         }
+    }
+
+    private func showLogs() {
+        NSWorkspace.shared.open(URL(string: "orbstack://docker/containers/logs/\(container.id)")!)
     }
 
     private func formatPort(_ port: DKPort) -> String {

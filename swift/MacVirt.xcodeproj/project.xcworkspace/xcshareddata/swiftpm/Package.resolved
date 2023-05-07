@@ -43,6 +43,15 @@
       "state" : {
         "revision" : "0f198bdcd82ffacb97188422b3b68fea4b453cd8"
       }
+    },
+    {
+      "identity" : "swiftterm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/migueldeicaza/SwiftTerm",
+      "state" : {
+        "revision" : "0d31c2eea98e65ff1a34ec4a312099a8c25958b2",
+        "version" : "1.2.1"
+      }
     }
   ],
   "version" : 2
