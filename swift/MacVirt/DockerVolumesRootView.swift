@@ -8,7 +8,7 @@ import SwiftUI
 struct DockerVolumesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @State private var selection: String?
+    @State private var selection: Set<String> = []
     @State private var searchQuery: String = ""
 
     var body: some View {
@@ -25,7 +25,7 @@ struct DockerVolumesRootView: View {
                     Section(header: Text("In Use")) {
                         ForEach(filteredVolumes, id: \.name) { volume in
                             if isMounted(volume) {
-                                DockerVolumeItem(volume: volume, isMounted: true)
+                                DockerVolumeItem(volume: volume, isMounted: true, selection: selection)
                                         .id(volume.name)
                             }
                         }
@@ -34,7 +34,7 @@ struct DockerVolumesRootView: View {
                     Section(header: Text("Unused")) {
                         ForEach(filteredVolumes, id: \.name) { volume in
                             if !isMounted(volume) {
-                                DockerVolumeItem(volume: volume, isMounted: false)
+                                DockerVolumeItem(volume: volume, isMounted: false, selection: selection)
                                         .id(volume.name)
                             }
                         }

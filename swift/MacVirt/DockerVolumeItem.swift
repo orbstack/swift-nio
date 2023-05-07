@@ -26,11 +26,17 @@ struct DockerVolumeItem: View {
 
     var volume: DKVolume
     var isMounted: Bool
+    var selection: Set<String>
 
     @State private var actionInProgress = false
     @State private var presentConfirmDelete = false
 
     var body: some View {
+        let deletionList = resolveActionList()
+        let deleteConfirmMsg = deletionList.count > 1 ?
+                "Delete \(deletionList.count) volumes?" :
+                "Delete \(deletionList.joined())?"
+
         HStack {
             HStack {
                 let color = colors[volume.name.hashValue %% colors.count]
@@ -100,7 +106,7 @@ struct DockerVolumeItem: View {
         .onDoubleClick {
             openFolder()
         }
-        .confirmationDialog("Delete \(volume.name)?",
+        .confirmationDialog(deleteConfirmMsg,
                 isPresented: $presentConfirmDelete) {
             Button("Delete", role: .destructive) {
                 finishDelete()
@@ -118,7 +124,12 @@ struct DockerVolumeItem: View {
             Divider()
 
             Button(action: {
-                self.presentConfirmDelete = true
+                // skip confirmation if Option pressed
+                if CGKeyCode.optionKeyPressed {
+                    finishDelete()
+                } else {
+                    self.presentConfirmDelete = true
+                }
             }) {
                 Label("Delete", systemImage: "trash.fill")
             }.disabled(actionInProgress || isMounted)
@@ -152,8 +163,32 @@ struct DockerVolumeItem: View {
     private func finishDelete() {
         Task { @MainActor in
             actionInProgress = true
-            await vmModel.tryDockerVolumeRemove(volume.name)
+            for name in resolveActionList() {
+                NSLog("remove volume \(name)")
+                await vmModel.tryDockerVolumeRemove(name)
+            }
             actionInProgress = false
+        }
+    }
+
+    private func isSelected() -> Bool {
+        selection.contains(volume.name)
+    }
+
+    private func resolveActionList() -> Set<String> {
+        // if action is performed on a selected item, then use all selections
+        // otherwise only use volume
+        if isSelected() {
+            // SwiftUI List bug: deleted items stay in selection set so we need to filter
+            if let volumes = vmModel.dockerVolumes {
+                return selection.filter { selectedVol in
+                    volumes.contains(where: { $0.name == selectedVol })
+                }
+            } else {
+                return selection
+            }
+        } else {
+            return [volume.name]
         }
     }
 }
