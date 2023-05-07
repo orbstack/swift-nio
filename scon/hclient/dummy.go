@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/muja/goconfig"
@@ -67,7 +66,12 @@ func (h *HcontrolServer) GetSSHAgentSockets(_ None, reply *htypes.SSHAgentSocket
 }
 
 func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
-	data, err := os.ReadFile(conf.HomeDir() + "/.gitconfig")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	data, err := os.ReadFile(homeDir + "/.gitconfig")
 	if err != nil {
 		return err
 	}
