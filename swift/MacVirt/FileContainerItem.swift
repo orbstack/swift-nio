@@ -5,22 +5,6 @@
 import Foundation
 import SwiftUI
 
-fileprivate let colors = [
-    Color(.systemRed),
-    Color(.systemGreen),
-    Color(.systemBlue),
-    Color(.systemOrange),
-    Color(.systemYellow),
-    Color(.systemBrown),
-    Color(.systemPink),
-    Color(.systemPurple),
-    Color(.systemGray),
-    Color(.systemTeal),
-    Color(.systemIndigo),
-    Color(.systemMint),
-    Color(.systemCyan),
-]
-
 struct FileContainerItem: View {
     @EnvironmentObject var vmModel: VmViewModel
 
@@ -28,7 +12,7 @@ struct FileContainerItem: View {
 
     var body: some View {
         HStack {
-            let color = colors[record.id.hashValue %% colors.count]
+            let color = SystemColors.forHashable(record.id)
             Image(systemName: "folder.fill")
                     .resizable()
                     .aspectRatio(contentMode: .fit)

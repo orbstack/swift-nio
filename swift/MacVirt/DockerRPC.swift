@@ -257,3 +257,10 @@ struct DKSystemDf: Codable {
         case volumes = "Volumes"
     }
 }
+
+struct DockerLabels {
+    static let composeProject = "com.docker.compose.project"
+    static let composeService = "com.docker.compose.service"
+    static let composeConfigFiles = "com.docker.compose.project.config_files"
+    static let composeWorkingDir = "com.docker.compose.project.working_dir"
+}

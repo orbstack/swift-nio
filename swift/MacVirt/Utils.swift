@@ -56,15 +56,21 @@ struct AppleScriptError: Error {
     let output: String
 }
 
-func runProcess(_ command: String, _ args: [String]) async throws -> ProcessResult {
+func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]) async throws -> ProcessResult {
     let task = Process()
     task.launchPath = command
     task.arguments = args
 
+    // based on current env, apply overrides
+    var newEnv = ProcessInfo.processInfo.environment
+    for (key, value) in env {
+        newEnv[key] = value
+    }
+    task.environment = newEnv
+
     let outPipe = Pipe()
     task.standardOutput = outPipe
     task.standardError = outPipe
-    task.arguments = args
     let readOutputTask = Task.detached {
         let output = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)!
         return output
@@ -89,8 +95,8 @@ func runProcess(_ command: String, _ args: [String]) async throws -> ProcessResu
 }
 
 @discardableResult
-func runProcessChecked(_ command: String, _ args: [String]) async throws -> String {
-    let result = try await runProcess(command, args)
+func runProcessChecked(_ command: String, _ args: [String], env: [String: String] = [:]) async throws -> String {
+    let result = try await runProcess(command, args, env: env)
     if result.status != 0 {
         throw ProcessError(status: result.status, output: result.output)
     }
@@ -223,6 +229,7 @@ struct Folders {
 
 struct Files {
     static let dockerDaemonConfig = "\(Folders.config)/docker.json"
+    static let dockerSocket = "\(Folders.run)/docker.sock"
 }
 
 struct ContainerIds {

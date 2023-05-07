@@ -5,22 +5,6 @@
 import Foundation
 import SwiftUI
 
-private let colors = [
-    Color(.systemRed),
-    Color(.systemGreen),
-    Color(.systemBlue),
-    Color(.systemOrange),
-    Color(.systemYellow),
-    Color(.systemBrown),
-    Color(.systemPink),
-    Color(.systemPurple),
-    Color(.systemGray),
-    Color(.systemTeal),
-    Color(.systemIndigo),
-    Color(.systemMint),
-    Color(.systemCyan),
-]
-
 enum DKContainerAction {
     case start
     case stop
@@ -43,10 +27,9 @@ struct DockerContainerItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
 
     var container: DKContainer
-    var selection: Set<String>
+    var selection: Set<DockerContainerId>
 
     @State private var actionInProgress: DKContainerAction? = nil
-
     @State private var presentPopover = false
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
@@ -59,7 +42,7 @@ struct DockerContainerItem: View, Equatable {
 
         HStack {
             HStack {
-                let color = colors[container.id.hashValue %% colors.count]
+                let color = SystemColors.forHashable(container.id)
                 Image(systemName: "shippingbox.fill")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -68,11 +51,14 @@ struct DockerContainerItem: View, Equatable {
                         .foregroundColor(color)
 
                 VStack(alignment: .leading) {
-                    let nameTxt = container.names
-                            .map {
-                                $0.deletingPrefix("/")
-                            }
-                            .joined(separator: ", ")
+                    // prefer compose service label first (because we'll be grouped if it's compose)
+                    let nameTxt = container.labels[DockerLabels.composeService] ??
+                            container.names
+                                    .map {
+                                        $0.deletingPrefix("/")
+                                    }
+                                    .joined(separator: ", ")
+
                     let name = nameTxt.isEmpty ? "(no name)" : nameTxt
                     Text(name)
                     .font(.body)
@@ -268,7 +254,7 @@ struct DockerContainerItem: View, Equatable {
 
             Group {
                 if container.ports.isEmpty && container.mounts.isEmpty {
-                    Button("No ports or mounts") {}
+                    Button("No Ports or Mounts") {}
                             .disabled(true)
                 }
 
@@ -315,7 +301,7 @@ struct DockerContainerItem: View, Equatable {
                 Button(action: {
                     Task { @MainActor in
                         do {
-                            let runCmd = try await runProcessChecked(AppConfig.c.dockerExe, ["--context", "orbstack", "inspect", "--format", DKInspectRunCommandTemplate, container.id])
+                            let runCmd = try await runProcessChecked(AppConfig.dockerExe, ["--context", "orbstack", "inspect", "--format", DKInspectRunCommandTemplate, container.id])
 
                             let pasteboard = NSPasteboard.general
                             pasteboard.clearContents()
@@ -334,7 +320,7 @@ struct DockerContainerItem: View, Equatable {
     private func openInTerminal() {
         Task {
             do {
-                try await openTerminal(AppConfig.c.dockerExe, ["exec", "-it", container.id, "sh"])
+                try await openTerminal(AppConfig.dockerExe, ["exec", "-it", container.id, "sh"])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }
@@ -393,8 +379,15 @@ struct DockerContainerItem: View, Equatable {
     private func finishStop() {
         Task { @MainActor in
             actionInProgress = .stop
-            for id in resolveActionList() {
-                await vmModel.tryDockerContainerStop(id)
+            for item in resolveActionList() {
+                switch item {
+                case .container(let id):
+                    await vmModel.tryDockerContainerStop(id)
+                case .compose:
+                    await vmModel.tryDockerComposeStop(item)
+                default:
+                    continue
+                }
             }
             actionInProgress = nil
         }
@@ -403,8 +396,15 @@ struct DockerContainerItem: View, Equatable {
     private func finishStart() {
         Task { @MainActor in
             actionInProgress = .start
-            for id in resolveActionList() {
-                await vmModel.tryDockerContainerStart(id)
+            for item in resolveActionList() {
+                switch item {
+                case .container(let id):
+                    await vmModel.tryDockerContainerStart(id)
+                case .compose:
+                    await vmModel.tryDockerComposeStart(item)
+                default:
+                    continue
+                }
             }
             actionInProgress = nil
         }
@@ -413,8 +413,15 @@ struct DockerContainerItem: View, Equatable {
     private func finishRestart() {
         Task { @MainActor in
             actionInProgress = .restart
-            for id in resolveActionList() {
-                await vmModel.tryDockerContainerRestart(id)
+            for item in resolveActionList() {
+                switch item {
+                case .container(let id):
+                    await vmModel.tryDockerContainerRestart(id)
+                case .compose:
+                    await vmModel.tryDockerComposeRestart(item)
+                default:
+                    continue
+                }
             }
             actionInProgress = nil
         }
@@ -423,32 +430,45 @@ struct DockerContainerItem: View, Equatable {
     private func finishRemove() {
         Task { @MainActor in
             actionInProgress = .remove
-            for id in resolveActionList() {
-                await vmModel.tryDockerContainerRemove(id)
+            for item in resolveActionList() {
+                switch item {
+                case .container(let id):
+                    await vmModel.tryDockerContainerRemove(id)
+                case .compose:
+                    await vmModel.tryDockerComposeRemove(item)
+                default:
+                    continue
+                }
             }
             actionInProgress = nil
         }
     }
 
     private func isSelected() -> Bool {
-        selection.contains(container.id)
+        selection.contains(.container(id: container.id))
     }
 
-    private func resolveActionList() -> Set<String> {
-        print("sel is: \(selection)")
+    private func resolveActionList() -> Set<DockerContainerId> {
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
         if isSelected() {
             // SwiftUI List bug: deleted items stay in selection set so we need to filter
             if let containers = vmModel.dockerContainers {
                 return selection.filter { sel in
-                    containers.contains(where: { $0.id == sel })
+                    switch sel {
+                    case .container(let id):
+                        return containers.contains(where: { container in container.id == id })
+                    case .compose(let project, _):
+                        return containers.contains(where: { container in container.labels[DockerLabels.composeProject] == project })
+                    default:
+                        return false
+                    }
                 }
             } else {
                 return selection
             }
         } else {
-            return [container.id]
+            return [.container(id: container.id)]
         }
     }
 }

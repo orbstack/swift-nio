@@ -5,22 +5,6 @@
 import Foundation
 import SwiftUI
 
-fileprivate let colors = [
-    Color(.systemRed),
-    Color(.systemGreen),
-    Color(.systemBlue),
-    Color(.systemOrange),
-    Color(.systemYellow),
-    Color(.systemBrown),
-    Color(.systemPink),
-    Color(.systemPurple),
-    Color(.systemGray),
-    Color(.systemTeal),
-    Color(.systemIndigo),
-    Color(.systemMint),
-    Color(.systemCyan),
-]
-
 struct DockerVolumeItem: View {
     @EnvironmentObject var vmModel: VmViewModel
 
@@ -39,7 +23,7 @@ struct DockerVolumeItem: View {
 
         HStack {
             HStack {
-                let color = colors[volume.name.hashValue %% colors.count]
+                let color = SystemColors.forHashable(volume.name)
                 Image(systemName: "externaldrive.fill")
                         .resizable()
                         .aspectRatio(contentMode: .fit)

@@ -49,6 +49,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case dockerContainerActionError(action: String, cause: Error)
     case dockerVolumeActionError(action: String, cause: Error)
     case dockerImageActionError(action: String, cause: Error)
+    case dockerComposeActionError(action: String, cause: Error)
     case dockerConfigSaveError(cause: Error)
 
     // scon
@@ -99,6 +100,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t \(action) volume"
         case .dockerImageActionError(let action, _):
             return "Can’t \(action) image"
+        case .dockerComposeActionError(let action, _):
+            return "Can’t \(action) project"
         case .dockerConfigSaveError:
             return "Can’t apply Docker config"
 
@@ -222,6 +225,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .dockerImageActionError(_, let cause):
             return cause
+        case .dockerComposeActionError(_, let cause):
+            return cause
         case .dockerConfigSaveError(let cause):
             return cause
 
@@ -274,6 +279,11 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     static func ==(lhs: VmError, rhs: VmError) -> Bool {
         lhs.errorDescription == rhs.errorDescription
     }
+}
+
+private enum DockerComposeError: Error {
+    case composeCidExpected
+    case missingWorkingDir
 }
 
 private func fmtRpc(_ error: Error) -> String {
@@ -410,7 +420,7 @@ class VmViewModel: ObservableObject {
         state = .spawning
         Task {
             do {
-                let newPidStr = try await runProcessChecked(AppConfig.c.vmgrExe, ["spawn-daemon"])
+                let newPidStr = try await runProcessChecked(AppConfig.vmgrExe, ["spawn-daemon"])
                 let newPid = Int(newPidStr.trimmingCharacters(in: .whitespacesAndNewlines))
                 guard let newPid else {
                     throw VmError.spawnError(cause: ProcessError(status: 0, output: "Invalid pid: \(newPidStr)"))
@@ -945,6 +955,49 @@ class VmViewModel: ObservableObject {
         await doTryDockerContainerAction("remove", {
             try await vmgr.dockerContainerRemove(id)
         })
+    }
+
+    @MainActor
+    private func doTryDockerComposeAction(_ label: String, cid: DockerContainerId, args: [String]) async {
+        if case let .compose(project, configFiles) = cid {
+            // find working dir from containers
+            if let containers = dockerContainers,
+               let container = containers.first(where: { container in
+                   container.labels[DockerLabels.composeProject] == project &&
+                       container.labels[DockerLabels.composeConfigFiles] == configFiles
+               }),
+               let workingDir = container.labels[DockerLabels.composeWorkingDir] {
+                    do {
+                        try await runProcessChecked(AppConfig.dockerComposeExe,
+                                ["-p", project, "-f", configFiles, "--project-directory", workingDir] + args,
+                                env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
+                    } catch {
+                        setError(.dockerComposeActionError(action: "\(label)", cause: error))
+                    }
+            } else {
+                // should never happen
+                setError(.dockerComposeActionError(action: "\(label)", cause: DockerComposeError.missingWorkingDir))
+            }
+        } else {
+            // should never happen
+            setError(.dockerComposeActionError(action: "\(label)", cause: DockerComposeError.composeCidExpected))
+        }
+    }
+
+    func tryDockerComposeStart(_ cid: DockerContainerId) async {
+        await doTryDockerComposeAction("start", cid: cid, args: ["start"])
+    }
+
+    func tryDockerComposeStop(_ cid: DockerContainerId) async {
+        await doTryDockerComposeAction("stop", cid: cid, args: ["stop"])
+    }
+
+    func tryDockerComposeRestart(_ cid: DockerContainerId) async {
+        await doTryDockerComposeAction("restart", cid: cid, args: ["restart"])
+    }
+
+    func tryDockerComposeRemove(_ cid: DockerContainerId) async {
+        await doTryDockerComposeAction("remove", cid: cid, args: ["rm", "-f", "--stop"])
     }
 
     @MainActor

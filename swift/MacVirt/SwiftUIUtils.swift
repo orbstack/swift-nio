@@ -92,3 +92,26 @@ extension CGKeyCode {
         return Self.kVK_Option.isPressed || Self.kVK_RightOption.isPressed
     }
 }
+
+struct SystemColors {
+    private static let all = [
+        Color(.systemRed),
+        Color(.systemGreen),
+        Color(.systemBlue),
+        Color(.systemOrange),
+        Color(.systemYellow),
+        Color(.systemBrown),
+        Color(.systemPink),
+        Color(.systemPurple),
+        Color(.systemGray),
+        Color(.systemTeal),
+        Color(.systemIndigo),
+        Color(.systemMint),
+        Color(.systemCyan),
+    ]
+
+    static func forHashable(_ hashable: AnyHashable) -> Color {
+        let index = hashable.hashValue %% all.count
+        return all[index]
+    }
+}

@@ -13,23 +13,16 @@ struct Constants {
 
 struct AppConfig {
 #if DEBUG
-    static let c = AppConfig(
-        debug: true,
-        vmgrExe: "/Users/dragon/code/projects/macvirt/macvmgr/OrbStack Helper (VM)",
-        shellExe: "/Users/dragon/code/projects/macvirt/macvmgr/bin/orb",
-        dockerExe: "/Users/dragon/code/projects/macvirt/macvmgr/xbin/docker"
-    )
+    static let debug = true
+    static let vmgrExe = "/Users/dragon/code/projects/macvirt/macvmgr/OrbStack Helper (VM)"
+    static let shellExe = "/Users/dragon/code/projects/macvirt/macvmgr/bin/orb"
+    static let dockerExe = "/Users/dragon/code/projects/macvirt/macvmgr/xbin/docker"
+    static let dockerComposeExe = "/Users/dragon/code/projects/macvirt/macvmgr/xbin/docker-compose"
 #else
-    static let c = AppConfig(
-        debug: false,
-        vmgrExe: Bundle.main.path(forAuxiliaryExecutable: "OrbStack Helper (VM)")!,
-        shellExe: Bundle.main.path(forAuxiliaryExecutable: "bin/orb")!,
-        dockerExe: Bundle.main.path(forAuxiliaryExecutable: "xbin/docker")!
-    )
+    static let debug = false
+    static let vmgrExe = Bundle.main.path(forAuxiliaryExecutable: "OrbStack Helper (VM)")!
+    static let shellExe = Bundle.main.path(forAuxiliaryExecutable: "bin/orb")!
+    static let dockerExe = Bundle.main.path(forAuxiliaryExecutable: "xbin/docker")!
+    static let dockerComposeExe = Bundle.main.path(forAuxiliaryExecutable: "xbin/docker-compose")!
 #endif
-    
-    let debug: Bool
-    let vmgrExe: String
-    let shellExe: String
-    let dockerExe: String
 }

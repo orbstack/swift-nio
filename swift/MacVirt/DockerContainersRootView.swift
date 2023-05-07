@@ -5,13 +5,17 @@
 import Foundation
 import SwiftUI
 
-struct ComposeGroup: Hashable, Identifiable, Equatable {
-    let project: String
-    var anyRunning: Bool = false
+enum DockerContainerId: Hashable {
+    case container(id: String)
+    // ID by config files + working dir to prevent duplicate project name from breaking stuff
+    case compose(project: String, configFiles: String)
+    case notDocker(key: String)
+}
 
-    var id: String {
-        "ComposeGroup:\(project)"
-    }
+struct ComposeGroup: Hashable, Equatable {
+    let project: String
+    let configFiles: String
+    var anyRunning: Bool = false
 }
 
 private struct ListItem: Identifiable, Equatable {
@@ -21,8 +25,20 @@ private struct ListItem: Identifiable, Equatable {
     var composeGroup: ComposeGroup? = nil
     var children: [ListItem]? = nil
 
-    var id: String {
-        builtinRecord?.id ?? sectionLabel ?? container?.id ?? composeGroup?.id ?? ""
+    var id: DockerContainerId {
+        if let builtinRecord {
+            return .notDocker(key: builtinRecord.id)
+        }
+        if let sectionLabel {
+            return .notDocker(key: sectionLabel)
+        }
+        if let container {
+            return .container(id: container.id)
+        }
+        if let composeGroup {
+            return .compose(project: composeGroup.project, configFiles: composeGroup.configFiles)
+        }
+        return .notDocker(key: "")
     }
 
     var containerName: String {
@@ -52,7 +68,7 @@ struct DockerContainersRootView: View {
 
     @AppStorage("docker_filterShowStopped") private var settingShowStopped = true
 
-    @State private var selection: Set<String> = []
+    @State private var selection: Set<DockerContainerId> = []
     @State private var searchQuery: String = ""
 
     var body: some View {
@@ -88,9 +104,11 @@ struct DockerContainersRootView: View {
                                 .equatable()
                     }
                     if let composeGroup = item.composeGroup {
-                        DockerComposeGroupItem(composeGroup: composeGroup)
+                        DockerComposeGroupItem(composeGroup: composeGroup, selection: selection)
+                                .equatable()
                     }
                 }
+                .id(item.id)
             }
             .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
 
@@ -148,9 +166,10 @@ struct DockerContainersRootView: View {
     }
 
     private func makeListItems(_ dockerRecord: ContainerRecord, _ filteredContainers: [DKContainer]) -> [ListItem] {
-        var listItems = [
+        // TODO - workaround was to remove section headers
+        var listItems: [ListItem] = [
             //ListItem(builtinRecord: dockerRecord),
-            ListItem(sectionLabel: "Running"),
+            //ListItem(sectionLabel: "Running"),
         ]
         var runningItems: [ListItem] = []
         var stoppedItems: [ListItem] = []
@@ -160,8 +179,9 @@ struct DockerContainersRootView: View {
         var composeGroups: [ComposeGroup: [DKContainer]] = [:]
 
         for container in filteredContainers {
-            if let composeProject = container.labels["com.docker.compose.project"] {
-                let group = ComposeGroup(project: composeProject)
+            if let composeProject = container.labels[DockerLabels.composeProject],
+               let configFiles = container.labels[DockerLabels.composeConfigFiles] {
+                let group = ComposeGroup(project: composeProject, configFiles: configFiles)
                 if composeGroups[group] == nil {
                     composeGroups[group] = [container]
                 } else {
@@ -203,7 +223,7 @@ struct DockerContainersRootView: View {
             listItems.append(item)
         }
         if !stoppedItems.isEmpty {
-            listItems.append(ListItem(sectionLabel: "Stopped"))
+            //listItems.append(ListItem(sectionLabel: "Stopped"))
             for item in stoppedItems {
                 listItems.append(item)
             }

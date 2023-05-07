@@ -128,7 +128,7 @@ struct MachineContainerItem: View {
     private func openInTerminal() {
         Task {
             do {
-                try await openTerminal(AppConfig.c.shellExe, ["-m", record.name])
+                try await openTerminal(AppConfig.shellExe, ["-m", record.name])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }

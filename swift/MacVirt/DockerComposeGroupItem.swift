@@ -5,37 +5,26 @@
 import Foundation
 import SwiftUI
 
-private let colors = [
-    Color(.systemRed),
-    Color(.systemGreen),
-    Color(.systemBlue),
-    Color(.systemOrange),
-    Color(.systemYellow),
-    Color(.systemBrown),
-    Color(.systemPink),
-    Color(.systemPurple),
-    Color(.systemGray),
-    Color(.systemTeal),
-    Color(.systemIndigo),
-    Color(.systemMint),
-    Color(.systemCyan),
-]
-
-struct DockerComposeGroupItem: View {
+struct DockerComposeGroupItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
 
     var composeGroup: ComposeGroup
+    var selection: Set<DockerContainerId>
 
     @State private var actionInProgress: DKContainerAction? = nil
-
     @State private var presentPopover = false
+
+    static func == (lhs: DockerComposeGroupItem, rhs: DockerComposeGroupItem) -> Bool {
+        lhs.composeGroup == rhs.composeGroup &&
+                lhs.selection == rhs.selection
+    }
 
     var body: some View {
         let isRunning = composeGroup.anyRunning
 
         HStack {
             HStack {
-                let color = colors[composeGroup.project.hashValue %% colors.count]
+                let color = SystemColors.forHashable(composeGroup.project)
                 Image(systemName: "square.stack.3d.up.fill")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -78,11 +67,7 @@ struct DockerComposeGroupItem: View {
 
             if isRunning {
                 Button(action: {
-                    Task { @MainActor in
-                        actionInProgress = .stop
-                        //await vmModel.tryDockerContainerStop(container.id)
-                        actionInProgress = nil
-                    }
+                    finishStop()
                 }) {
                     let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
                     ZStack {
@@ -96,14 +81,10 @@ struct DockerComposeGroupItem: View {
                 }
                         .buttonStyle(.borderless)
                         .disabled(actionInProgress != nil)
-                        .help("Stop container")
+                        .help("Stop project")
             } else {
                 Button(action: {
-                    Task { @MainActor in
-                        actionInProgress = .start
-                        //await vmModel.tryDockerContainerStart(container.id)
-                        actionInProgress = nil
-                    }
+                    finishStart()
                 }) {
                     let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
                     ZStack {
@@ -117,15 +98,11 @@ struct DockerComposeGroupItem: View {
                 }
                         .buttonStyle(.borderless)
                         .disabled(actionInProgress != nil)
-                        .help("Start container")
+                        .help("Start project")
             }
 
             Button(action: {
-                Task { @MainActor in
-                    actionInProgress = .remove
-                    //await vmModel.tryDockerContainerRemove(container.id)
-                    actionInProgress = nil
-                }
+                finishRemove()
             }) {
                 let opacity = actionInProgress == .remove ? 1.0 : 0.0
                 ZStack {
@@ -139,7 +116,7 @@ struct DockerComposeGroupItem: View {
             }
                     .buttonStyle(.borderless)
                     .disabled(actionInProgress != nil)
-                    .help("Delete container")
+                    .help("Delete project")
         }
                 .padding(.vertical, 4)
                 .onDoubleClick {
@@ -147,41 +124,25 @@ struct DockerComposeGroupItem: View {
                 }
                 .contextMenu {
                     Button(action: {
-                        Task { @MainActor in
-                            actionInProgress = .start
-                            //await vmModel.tryDockerContainerStart(container.id)
-                            actionInProgress = nil
-                        }
+                        finishStart()
                     }) {
                         Label("Start", systemImage: "start.fill")
                     }.disabled(actionInProgress != nil || isRunning)
 
                     Button(action: {
-                        Task { @MainActor in
-                            actionInProgress = .stop
-                            //await vmModel.tryDockerContainerStop(container.id)
-                            actionInProgress = nil
-                        }
+                        finishStop()
                     }) {
                         Label("Stop", systemImage: "stop.fill")
                     }.disabled(actionInProgress != nil || !isRunning)
 
                     Button(action: {
-                        Task { @MainActor in
-                            actionInProgress = .restart
-                            //await vmModel.tryDockerContainerRestart(container.id)
-                            actionInProgress = nil
-                        }
+                        finishRestart()
                     }) {
                         Label("Restart", systemImage: "arrow.clockwise")
                     }.disabled(actionInProgress != nil || !isRunning)
 
                     Button(action: {
-                        Task { @MainActor in
-                            actionInProgress = .remove
-                            //await vmModel.tryDockerContainerRemove(container.id)
-                            actionInProgress = nil
-                        }
+                        finishRemove()
                     }) {
                         Label("Delete", systemImage: "trash.fill")
                     }.disabled(actionInProgress != nil)
@@ -192,9 +153,9 @@ struct DockerComposeGroupItem: View {
                         Button(action: {
                             let pasteboard = NSPasteboard.general
                             pasteboard.clearContents()
-                            pasteboard.setString("xyz", forType: .string)
+                            pasteboard.setString(composeGroup.project, forType: .string)
                         }) {
-                            Label("Copy ID", systemImage: "doc.on.doc")
+                            Label("Copy Name", systemImage: "doc.on.doc")
                         }
                     }
                 }
@@ -246,6 +207,107 @@ struct DockerComposeGroupItem: View {
             return src.prefix(35) + "…" + src.suffix(10)
         } else {
             return src
+        }
+    }
+
+    private func finishStop() {
+        Task { @MainActor in
+            actionInProgress = .stop
+            for item in resolveActionList() {
+                switch item {
+                case .container(let id):
+                    await vmModel.tryDockerContainerStop(id)
+                case .compose:
+                    await vmModel.tryDockerComposeStop(item)
+                default:
+                    continue
+                }
+            }
+            actionInProgress = nil
+        }
+    }
+
+    private func finishStart() {
+        Task { @MainActor in
+            actionInProgress = .start
+            for item in resolveActionList() {
+                switch item {
+                case .container(let id):
+                    await vmModel.tryDockerContainerStart(id)
+                case .compose:
+                    await vmModel.tryDockerComposeStart(item)
+                default:
+                    continue
+                }
+            }
+            actionInProgress = nil
+        }
+    }
+
+    private func finishRestart() {
+        Task { @MainActor in
+            actionInProgress = .restart
+            for item in resolveActionList() {
+                switch item {
+                case .container(let id):
+                    await vmModel.tryDockerContainerRestart(id)
+                case .compose:
+                    await vmModel.tryDockerComposeRestart(item)
+                default:
+                    continue
+                }
+            }
+            actionInProgress = nil
+        }
+    }
+
+    private func finishRemove() {
+        Task { @MainActor in
+            actionInProgress = .remove
+            for item in resolveActionList() {
+                switch item {
+                case .container(let id):
+                    await vmModel.tryDockerContainerRemove(id)
+                case .compose:
+                    await vmModel.tryDockerComposeRemove(item)
+                default:
+                    continue
+                }
+            }
+            actionInProgress = nil
+        }
+    }
+
+    private var selfId: DockerContainerId {
+        .compose(project: composeGroup.project,
+                configFiles: composeGroup.configFiles)
+    }
+
+    private func isSelected() -> Bool {
+        selection.contains(selfId)
+    }
+
+    private func resolveActionList() -> Set<DockerContainerId> {
+        // if action is performed on a selected item, then use all selections
+        // otherwise only use volume
+        if isSelected() {
+            // SwiftUI List bug: deleted items stay in selection set so we need to filter
+            if let containers = vmModel.dockerContainers {
+                return selection.filter { sel in
+                    switch sel {
+                    case .container(let id):
+                        return containers.contains(where: { container in container.id == id })
+                    case .compose(let project, _):
+                        return containers.contains(where: { container in container.labels[DockerLabels.composeProject] == project })
+                    default:
+                        return false
+                    }
+                }
+            } else {
+                return selection
+            }
+        } else {
+            return [selfId]
         }
     }
 }
