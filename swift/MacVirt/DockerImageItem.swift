@@ -9,6 +9,7 @@ struct DockerImageItem: View {
     @EnvironmentObject var vmModel: VmViewModel
 
     var image: DKImage
+    var selection: Set<String>
 
     @State private var actionInProgress = false
 
@@ -76,8 +77,32 @@ struct DockerImageItem: View {
     private func finishDelete() {
         Task { @MainActor in
             actionInProgress = true
-            await vmModel.tryDockerImageRemove(image.id)
+            for id in resolveActionList() {
+                NSLog("remove image \(id)")
+                await vmModel.tryDockerImageRemove(id)
+            }
             actionInProgress = false
+        }
+    }
+
+    private func isSelected() -> Bool {
+        selection.contains(image.id)
+    }
+
+    private func resolveActionList() -> Set<String> {
+        // if action is performed on a selected item, then use all selections
+        // otherwise only use volume
+        if isSelected() {
+            // SwiftUI List bug: deleted items stay in selection set so we need to filter
+            if let images = vmModel.dockerImages {
+                return selection.filter { sel in
+                    images.contains(where: { $0.id == sel })
+                }
+            } else {
+                return selection
+            }
+        } else {
+            return [image.id]
         }
     }
 }

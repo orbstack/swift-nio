@@ -8,7 +8,7 @@ import SwiftUI
 struct DockerImagesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @State private var selection: String?
+    @State private var selection: Set<String> = []
     @State private var searchQuery: String = ""
 
     var body: some View {
@@ -21,7 +21,6 @@ struct DockerImagesRootView: View {
                             image.id.localizedCaseInsensitiveContains(searchQuery) ||
                             image.repoTags?.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
                 }
-                let imageCount = filteredImages.count
                 let totalSize = filteredImages.reduce(0) { $0 + $1.size }
                 let totalSizeFormatted = ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
 
@@ -29,7 +28,7 @@ struct DockerImagesRootView: View {
                     Section(header: Text("Tagged")) {
                         ForEach(filteredImages) { image in
                             if image.hasTag {
-                                DockerImageItem(image: image)
+                                DockerImageItem(image: image, selection: selection)
                             }
                         }
                     }
@@ -48,7 +47,7 @@ struct DockerImagesRootView: View {
                     Section(header: Text("Untagged")) {
                         ForEach(filteredImages) { image in
                             if !image.hasTag {
-                                DockerImageItem(image: image)
+                                DockerImageItem(image: image, selection: selection)
                             }
                         }
                     }
