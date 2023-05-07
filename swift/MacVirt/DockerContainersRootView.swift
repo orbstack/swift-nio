@@ -127,20 +127,24 @@ struct DockerContainersRootView: View {
                     // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group
                     .border(width: 10, edges: [.leading, .trailing], color: Color(NSColor.textBackgroundColor))
                 } else {
+                    Spacer()
                     HStack {
                         Spacer()
                         VStack {
                             Text("No containers")
                                     .font(.title)
                                     .foregroundColor(.secondary)
-
-                            Spacer().frame(height: 64)
-
-                            GettingStartedHintBox()
                         }
                         .padding(.top, 32)
                         Spacer()
                     }
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        GettingStartedHintBox()
+                        Spacer()
+                    }
+                            .padding(.bottom, 64)
                 }
 
                 // special case: show example http://localhost if only visible container is getting-started
