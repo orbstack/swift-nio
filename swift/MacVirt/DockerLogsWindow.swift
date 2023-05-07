@@ -40,7 +40,13 @@ struct DockerLogsWindow: View {
                             .navigationTitle("Project Logs: \(composeProject)")
                             .frame(width: terminalFrame.width, height: terminalFrame.height)
                 } else {
-                    Text("No container selected")
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Text("No container selected")
+                        Spacer()
+                    }
+                    Spacer()
                 }
             }
             .onAppear {
