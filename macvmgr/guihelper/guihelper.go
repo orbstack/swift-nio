@@ -5,6 +5,7 @@ import (
 	"os/exec"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
 )
 
 func run(args ...string) (string, error) {
@@ -22,15 +23,7 @@ func run(args ...string) (string, error) {
 	return string(out), nil
 }
 
-type Notification struct {
-	Title    string
-	Message  string
-	Subtitle string
-	Silent   bool
-	URL      string
-}
-
-func Notify(n Notification) error {
+func Notify(n guitypes.Notification) error {
 	soundArg := "--sound"
 	if n.Silent {
 		soundArg = "--no-sound"

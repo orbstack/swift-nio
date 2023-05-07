@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/hcli"
-	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +31,7 @@ If multiple arguments are provided, they will be joined into a single message wi
 	Example: `  macctl notify "Command finished!"`,
 	Args:    cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := hcli.Client().Notify(guihelper.Notification{
+		err := hcli.Client().Notify(guitypes.Notification{
 			Title:    title,
 			Message:  strings.Join(args, " "),
 			Subtitle: subtitle,

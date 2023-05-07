@@ -19,6 +19,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
 	"github.com/kdrag0n/macvirt/macvmgr/fsnotify"
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
@@ -167,7 +168,7 @@ func (h *HcontrolServer) GetExtraCaCertificates(_ None, reply *[]string) error {
 	return nil
 }
 
-func (h *HcontrolServer) Notify(n guihelper.Notification, _ *None) error {
+func (h *HcontrolServer) Notify(n guitypes.Notification, _ *None) error {
 	return guihelper.Notify(n)
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/nfsmnt"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
@@ -300,7 +301,7 @@ func migrateStateV1ToV2(state *vmconfig.VmgrState) error {
 		}
 
 		// replace with symlink
-		err = os.Symlink(conf.NfsMountpoint(), linuxDir)
+		err = os.Symlink(coredir.NfsMountpoint(), linuxDir)
 		if err != nil {
 			return err
 		}
@@ -667,10 +668,10 @@ func runVmManager() {
 	nfsMounted := false
 	go func() {
 		// prep: create nfs dir, write readme, make read-only
-		dir := conf.NfsMountpoint()
+		dir := coredir.NfsMountpoint()
 		// only if not mounted yet
 		if !isMountpoint(dir) {
-			// conf.NfsMountpoint() already calls mkdir
+			// coredir.NfsMountpoint() already calls mkdir
 			err := os.WriteFile(dir+"/README.txt", []byte(nfsReadmeText), 0644)
 			// permission error is normal, that means it's already read only
 			if err != nil && !errors.Is(err, os.ErrPermission) {

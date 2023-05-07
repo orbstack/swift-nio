@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 )
 
@@ -79,7 +79,7 @@ func ToLinux(p string, opts ToLinuxOptions) string {
 
 	// if we kow the container, then we can translate from NFS mountpoint
 	if opts.TargetContainer != "" {
-		containerNfsPrefix := conf.NfsMountpoint() + "/" + opts.TargetContainer
+		containerNfsPrefix := coredir.NfsMountpoint() + "/" + opts.TargetContainer
 		if p == containerNfsPrefix || strings.HasPrefix(p, containerNfsPrefix+"/") {
 			return p[len(containerNfsPrefix):]
 		}

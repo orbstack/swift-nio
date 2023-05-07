@@ -14,6 +14,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/sirupsen/logrus"
 )
 
@@ -170,7 +171,7 @@ func (u *Updater) MaybeNotify() error {
 		return nil
 	}
 
-	err := guihelper.Notify(guihelper.Notification{
+	err := guihelper.Notify(guitypes.Notification{
 		Title:   "OrbStack Update Ready",
 		Message: "A new version of OrbStack is available. Click to install.",
 		URL:     "orbstack://update",

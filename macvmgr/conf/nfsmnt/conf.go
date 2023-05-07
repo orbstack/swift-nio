@@ -3,7 +3,7 @@ package nfsmnt
 import (
 	"fmt"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -20,7 +20,7 @@ func MountNfs(tcpPort int) error {
 		IsUnix:     false,
 		Addr:       "127.0.0.1",
 		TcpPort:    uint16(tcpPort),
-		TargetPath: conf.NfsMountpoint(),
+		TargetPath: coredir.NfsMountpoint(),
 	})
 	if err != nil {
 		return fmt.Errorf("mount nfs: %w", err)
@@ -30,5 +30,5 @@ func MountNfs(tcpPort int) error {
 }
 
 func UnmountNfs() error {
-	return unix.Unmount(conf.NfsMountpoint(), unix.MNT_FORCE)
+	return unix.Unmount(coredir.NfsMountpoint(), unix.MNT_FORCE)
 }

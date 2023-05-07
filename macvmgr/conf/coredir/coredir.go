@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 )
 
 var (
@@ -63,4 +64,9 @@ func VmConfigFile() string {
 
 func VmStateFile() string {
 	return AppDir() + "/vmstate.json"
+}
+
+// used in linux macctl
+func NfsMountpoint() string {
+	return ensureDir(HomeDir() + "/" + mounts.NfsDirName)
 }

@@ -7,7 +7,6 @@ import (
 	"runtime"
 
 	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
 )
 
@@ -33,10 +32,6 @@ func RunDir() string {
 
 func LogDir() string {
 	return ensureDir(AppDir() + "/log")
-}
-
-func NfsMountpoint() string {
-	return ensureDir(HomeDir() + "/" + mounts.NfsDirName)
 }
 
 func DataDir() string {

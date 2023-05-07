@@ -18,6 +18,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
 	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/kdrag0n/macvirt/macvmgr/setup/userutil"
 	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
 	"github.com/kdrag0n/macvirt/macvmgr/util"
@@ -738,7 +739,7 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 	if info.AlertProfileChanged != nil {
 		logrus.WithField("profile", *info.AlertProfileChanged).Info("notifying profile changed")
 		profileRelPath := *info.AlertProfileChanged
-		err := guihelper.Notify(guihelper.Notification{
+		err := guihelper.Notify(guitypes.Notification{
 			Title:   "Shell Profile Changed",
 			Message: "Command-line tools added to PATH. To use them, run: source " + profileRelPath,
 		})
@@ -751,7 +752,7 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 	if info.AlertRequestAddPaths != nil {
 		logrus.WithField("paths", info.AlertRequestAddPaths).Info("notifying add paths")
 		paths := strings.Join(info.AlertRequestAddPaths, " and ")
-		err := guihelper.Notify(guihelper.Notification{
+		err := guihelper.Notify(guitypes.Notification{
 			Title:   "Add Tools to PATH",
 			Message: "To use command-line tools, add " + paths + " to your PATH.",
 		})

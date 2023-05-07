@@ -6,7 +6,7 @@ import (
 
 	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
-	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
+	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 )
 
@@ -121,7 +121,7 @@ func (c *Client) GetExtraCaCertificates() ([]string, error) {
 	return result, nil
 }
 
-func (c *Client) Notify(n guihelper.Notification) error {
+func (c *Client) Notify(n guitypes.Notification) error {
 	var none None
 	return c.rpc.Call("hc.Notify", n, &none)
 }
