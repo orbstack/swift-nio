@@ -13,6 +13,7 @@ struct SwiftUILocalProcessTerminal: NSViewRepresentable {
 
     func makeNSView(context: Context) -> LocalProcessTerminalViewCustom {
         let view = LocalProcessTerminalViewCustom(frame: NSRect())
+        // scrollback increased in SwiftTerm fork
         view.caretColor = NSColor.clear
         view.caretTextColor = NSColor.clear
         view.allowMouseReporting = false
@@ -32,13 +33,13 @@ struct SwiftUILocalProcessTerminal: NSViewRepresentable {
     func updateNSView(_ nsView: LocalProcessTerminalViewCustom, context: Context) {
     }
 
-    // TODO fix process leak when closed
-    /*
     static func dismantleNSView(_ nsView: LocalProcessTerminalViewCustom, coordinator: ()) {
+        // on close, kill process if still running
         if nsView.process.running {
+            // require SwiftTerm fork/PR to avoid crash
             nsView.process.terminate()
         }
-    }*/
+    }
 }
 
 protocol LocalProcessTerminalViewDelegateCustom: AnyObject {
