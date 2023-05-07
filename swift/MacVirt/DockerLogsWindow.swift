@@ -5,33 +5,49 @@
 import Foundation
 import SwiftUI
 
+private class SizeHolderModel: ObservableObject {
+    @Published var windowSize = CGSize.zero
+}
+
 struct DockerLogsWindow: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @StateObject private var windowHolder = WindowHolder()
+    @StateObject private var sizeHolderModel = SizeHolderModel()
 
     @State private var containerId: String?
     @State private var composeProject: String?
+    @State private var terminalFrame = CGSize.zero
 
     var body: some View {
-        VStack {
-            if let containerId,
-               let containers = vmModel.dockerContainers,
-               let container = containers.first(where: { $0.id == containerId }) {
-                SwiftUILocalProcessTerminal(executable: AppConfig.dockerExe,
-                        args: ["logs", "-f", containerId],
-                        // env is more robust, user can mess with context
-                        env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
-                        .padding(8)
-                        .navigationTitle("Logs: \(container.userName)")
-            } else if let composeProject {
-                SwiftUILocalProcessTerminal(executable: AppConfig.dockerComposeExe,
-                        args: ["-p", composeProject, "logs", "-f"],
-                        // env is more robust, user can mess with context
-                        env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
-                        .padding(8)
-                        .navigationTitle("Project Logs: \(composeProject)")
-            } else {
-                Text("No container selected")
+        GeometryReader { geometry in
+            VStack {
+                if let containerId,
+                   let containers = vmModel.dockerContainers,
+                   let container = containers.first(where: { $0.id == containerId }) {
+                    SwiftUILocalProcessTerminal(executable: AppConfig.dockerExe,
+                            args: ["logs", "-f", containerId],
+                            // env is more robust, user can mess with context
+                            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
+                            .padding(8)
+                            .navigationTitle("Logs: \(container.userName)")
+                            .frame(width: terminalFrame.width, height: terminalFrame.height)
+                } else if let composeProject {
+                    SwiftUILocalProcessTerminal(executable: AppConfig.dockerComposeExe,
+                            args: ["-p", composeProject, "logs", "-f"],
+                            // env is more robust, user can mess with context
+                            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
+                            .padding(8)
+                            .navigationTitle("Project Logs: \(composeProject)")
+                            .frame(width: terminalFrame.width, height: terminalFrame.height)
+                } else {
+                    Text("No container selected")
+                }
+            }
+            .onAppear {
+                sizeHolderModel.windowSize = geometry.size
+            }
+            .onChange(of: geometry.size) { newSize in
+                sizeHolderModel.windowSize = newSize
             }
         }
         // match terminal bg
@@ -60,5 +76,13 @@ struct DockerLogsWindow: View {
             }
         }
         .frame(minWidth: 400, minHeight: 200)
+        // debounce terminal resize for perf
+        .onReceive(sizeHolderModel.$windowSize.debounce(for: 0.1, scheduler: DispatchQueue.main)) { newSize in
+            terminalFrame = newSize
+        }
+        // effectively make it a throttled leading edge as well
+        .onReceive(sizeHolderModel.$windowSize.throttle(for: 0.25, scheduler: DispatchQueue.main, latest: true)) { newSize in
+            terminalFrame = newSize
+        }
     }
 }
