@@ -49,7 +49,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kdrag0n/SwiftTerm.git",
       "state" : {
-        "revision" : "a8d70b35e8bb12ecc60a1726f9e994e4c0918c4b"
+        "revision" : "b38996dcc58a57af910afdd7b3035bd2f589d527"
       }
     }
   ],

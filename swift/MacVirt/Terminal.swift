@@ -14,6 +14,7 @@ struct SwiftUILocalProcessTerminal: NSViewRepresentable {
     func makeNSView(context: Context) -> LocalProcessTerminalViewCustom {
         let view = LocalProcessTerminalViewCustom(frame: NSRect())
         // scrollback increased in SwiftTerm fork
+        // 5000 lines, not 25000, due to poor resize performance with large windows
         view.caretColor = NSColor.clear
         view.caretTextColor = NSColor.clear
         view.allowMouseReporting = false

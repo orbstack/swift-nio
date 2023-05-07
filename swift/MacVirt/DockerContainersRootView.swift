@@ -214,14 +214,10 @@ struct DockerContainersRootView: View {
         stoppedItems.sort { $0.containerName < $1.containerName }
 
         // add running/stopped sections
-        for item in runningItems {
-            listItems.append(item)
-        }
+        listItems += runningItems
         if !stoppedItems.isEmpty {
             //listItems.append(ListItem(sectionLabel: "Stopped"))
-            for item in stoppedItems {
-                listItems.append(item)
-            }
+            listItems += stoppedItems
         }
 
         return listItems

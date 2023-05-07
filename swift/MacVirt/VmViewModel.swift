@@ -970,13 +970,20 @@ class VmViewModel: ObservableObject {
                        container.labels[DockerLabels.composeConfigFiles] == configFiles
                }),
                let workingDir = container.labels[DockerLabels.composeWorkingDir] {
-                    do {
-                        try await runProcessChecked(AppConfig.dockerComposeExe,
-                                ["-p", project, "-f", configFiles, "--project-directory", workingDir] + args,
-                                env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
-                    } catch {
-                        setError(.dockerComposeActionError(action: "\(label)", cause: error))
-                    }
+                // handle multiple compose files
+                var configFileArgs = [String]()
+                for configFile in configFiles.split(separator: ",") {
+                    configFileArgs.append("-f")
+                    configFileArgs.append(String(configFile))
+                }
+
+                do {
+                    try await runProcessChecked(AppConfig.dockerComposeExe,
+                            ["-p", project, "--project-directory", workingDir] + configFileArgs + args,
+                            env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
+                } catch {
+                    setError(.dockerComposeActionError(action: "\(label)", cause: error))
+                }
             } else {
                 // should never happen
                 setError(.dockerComposeActionError(action: "\(label)", cause: DockerComposeError.missingWorkingDir))
