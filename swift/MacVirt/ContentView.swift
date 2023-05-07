@@ -22,6 +22,8 @@ struct ContentView: View {
     @Environment(\.controlActiveState) var controlActiveState
     @EnvironmentObject private var model: VmViewModel
 
+    @StateObject private var actionTracker = ActionTracker()
+
     // SceneStorage inits too late
     @AppStorage("root.selectedTab") private var selection = "docker"
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
@@ -94,6 +96,7 @@ struct ContentView: View {
                 }
             }
         }
+        .environmentObject(actionTracker)
         .toolbar(id: "main-toolbar") {
             ToolbarItem(id: "toggle-sidebar", placement: .navigation) {
                 Button(action: toggleSidebar, label: {

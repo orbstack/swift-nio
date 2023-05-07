@@ -5,31 +5,13 @@
 import Foundation
 import SwiftUI
 
-enum DKContainerAction {
-    case start
-    case stop
-    case pause
-    case unpause
-    case restart
-    case remove
-
-    var isStartStop: Bool {
-        switch self {
-        case .start, .stop, .restart:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
-struct DockerContainerItem: View, Equatable {
+struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
+    @EnvironmentObject var actionTracker: ActionTracker
 
     var container: DKContainer
     var selection: Set<DockerContainerId>
 
-    @State private var actionInProgress: DKContainerAction? = nil
     @State private var presentPopover = false
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
@@ -39,6 +21,7 @@ struct DockerContainerItem: View, Equatable {
 
     var body: some View {
         let isRunning = container.running
+        let actionInProgress = actionTracker.ongoingFor(selfId)
 
         HStack {
             HStack {
@@ -376,10 +359,35 @@ struct DockerContainerItem: View, Equatable {
         }
     }
 
-    private func finishStop() {
+    var selfId: DockerContainerId {
+        .container(id: container.id)
+    }
+}
+
+protocol BaseDockerContainerItem {
+    var vmModel: VmViewModel { get }
+    var actionTracker: ActionTracker { get }
+
+    var selection: Set<DockerContainerId> { get }
+
+    var selfId: DockerContainerId { get }
+
+    func finishStart()
+    func finishStop()
+    func finishRestart()
+    func finishRemove()
+
+    func isSelected() -> Bool
+    @MainActor
+    func resolveActionList() -> Set<DockerContainerId>
+}
+
+extension BaseDockerContainerItem {
+    func finishStop() {
         Task { @MainActor in
-            actionInProgress = .stop
             for item in resolveActionList() {
+                actionTracker.begin(item, action: .stop)
+
                 switch item {
                 case .container(let id):
                     await vmModel.tryDockerContainerStop(id)
@@ -388,15 +396,17 @@ struct DockerContainerItem: View, Equatable {
                 default:
                     continue
                 }
+
+                actionTracker.end(item)
             }
-            actionInProgress = nil
         }
     }
 
-    private func finishStart() {
+    func finishStart() {
         Task { @MainActor in
-            actionInProgress = .start
             for item in resolveActionList() {
+                actionTracker.begin(item, action: .start)
+
                 switch item {
                 case .container(let id):
                     await vmModel.tryDockerContainerStart(id)
@@ -405,15 +415,17 @@ struct DockerContainerItem: View, Equatable {
                 default:
                     continue
                 }
+
+                actionTracker.end(item)
             }
-            actionInProgress = nil
         }
     }
 
-    private func finishRestart() {
+    func finishRestart() {
         Task { @MainActor in
-            actionInProgress = .restart
             for item in resolveActionList() {
+                actionTracker.begin(item, action: .restart)
+
                 switch item {
                 case .container(let id):
                     await vmModel.tryDockerContainerRestart(id)
@@ -422,15 +434,17 @@ struct DockerContainerItem: View, Equatable {
                 default:
                     continue
                 }
+
+                actionTracker.end(item)
             }
-            actionInProgress = nil
         }
     }
 
-    private func finishRemove() {
+    func finishRemove() {
         Task { @MainActor in
-            actionInProgress = .remove
             for item in resolveActionList() {
+                actionTracker.begin(item, action: .remove)
+
                 switch item {
                 case .container(let id):
                     await vmModel.tryDockerContainerRemove(id)
@@ -439,16 +453,18 @@ struct DockerContainerItem: View, Equatable {
                 default:
                     continue
                 }
+
+                actionTracker.end(item)
             }
-            actionInProgress = nil
         }
     }
 
-    private func isSelected() -> Bool {
-        selection.contains(.container(id: container.id))
+    func isSelected() -> Bool {
+        selection.contains(selfId)
     }
 
-    private func resolveActionList() -> Set<DockerContainerId> {
+    @MainActor
+    func resolveActionList() -> Set<DockerContainerId> {
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
         if isSelected() {
@@ -468,7 +484,7 @@ struct DockerContainerItem: View, Equatable {
                 return selection
             }
         } else {
-            return [.container(id: container.id)]
+            return [selfId]
         }
     }
 }

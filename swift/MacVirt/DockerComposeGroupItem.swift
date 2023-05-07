@@ -5,13 +5,13 @@
 import Foundation
 import SwiftUI
 
-struct DockerComposeGroupItem: View, Equatable {
+struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
+    @EnvironmentObject var actionTracker: ActionTracker
 
     var composeGroup: ComposeGroup
     var selection: Set<DockerContainerId>
 
-    @State private var actionInProgress: DKContainerAction? = nil
     @State private var presentPopover = false
 
     static func == (lhs: DockerComposeGroupItem, rhs: DockerComposeGroupItem) -> Bool {
@@ -21,6 +21,7 @@ struct DockerComposeGroupItem: View, Equatable {
 
     var body: some View {
         let isRunning = composeGroup.anyRunning
+        let actionInProgress = actionTracker.ongoingFor(selfId)
 
         HStack {
             HStack {
@@ -210,104 +211,8 @@ struct DockerComposeGroupItem: View, Equatable {
         }
     }
 
-    private func finishStop() {
-        Task { @MainActor in
-            actionInProgress = .stop
-            for item in resolveActionList() {
-                switch item {
-                case .container(let id):
-                    await vmModel.tryDockerContainerStop(id)
-                case .compose:
-                    await vmModel.tryDockerComposeStop(item)
-                default:
-                    continue
-                }
-            }
-            actionInProgress = nil
-        }
-    }
-
-    private func finishStart() {
-        Task { @MainActor in
-            actionInProgress = .start
-            for item in resolveActionList() {
-                switch item {
-                case .container(let id):
-                    await vmModel.tryDockerContainerStart(id)
-                case .compose:
-                    await vmModel.tryDockerComposeStart(item)
-                default:
-                    continue
-                }
-            }
-            actionInProgress = nil
-        }
-    }
-
-    private func finishRestart() {
-        Task { @MainActor in
-            actionInProgress = .restart
-            for item in resolveActionList() {
-                switch item {
-                case .container(let id):
-                    await vmModel.tryDockerContainerRestart(id)
-                case .compose:
-                    await vmModel.tryDockerComposeRestart(item)
-                default:
-                    continue
-                }
-            }
-            actionInProgress = nil
-        }
-    }
-
-    private func finishRemove() {
-        Task { @MainActor in
-            actionInProgress = .remove
-            for item in resolveActionList() {
-                switch item {
-                case .container(let id):
-                    await vmModel.tryDockerContainerRemove(id)
-                case .compose:
-                    await vmModel.tryDockerComposeRemove(item)
-                default:
-                    continue
-                }
-            }
-            actionInProgress = nil
-        }
-    }
-
-    private var selfId: DockerContainerId {
+    var selfId: DockerContainerId {
         .compose(project: composeGroup.project,
                 configFiles: composeGroup.configFiles)
-    }
-
-    private func isSelected() -> Bool {
-        selection.contains(selfId)
-    }
-
-    private func resolveActionList() -> Set<DockerContainerId> {
-        // if action is performed on a selected item, then use all selections
-        // otherwise only use volume
-        if isSelected() {
-            // SwiftUI List bug: deleted items stay in selection set so we need to filter
-            if let containers = vmModel.dockerContainers {
-                return selection.filter { sel in
-                    switch sel {
-                    case .container(let id):
-                        return containers.contains(where: { container in container.id == id })
-                    case .compose(let project, _):
-                        return containers.contains(where: { container in container.labels[DockerLabels.composeProject] == project })
-                    default:
-                        return false
-                    }
-                }
-            } else {
-                return selection
-            }
-        } else {
-            return [selfId]
-        }
     }
 }

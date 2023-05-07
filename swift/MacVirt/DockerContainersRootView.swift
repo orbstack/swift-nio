@@ -5,13 +5,6 @@
 import Foundation
 import SwiftUI
 
-enum DockerContainerId: Hashable {
-    case container(id: String)
-    // ID by config files + working dir to prevent duplicate project name from breaking stuff
-    case compose(project: String, configFiles: String)
-    case notDocker(key: String)
-}
-
 struct ComposeGroup: Hashable, Equatable {
     let project: String
     let configFiles: String
