@@ -38,26 +38,32 @@ struct MachinesRootView: View {
                                 }
 
                                 Spacer().frame(height: 64)
-
-                                VStack(spacing: 8) {
-                                    Text("Looking for Docker?")
-                                            .font(.title3)
-                                            .bold()
-                                    Text("You can use Docker directly from macOS.")
-                                            .font(.body)
-                                            .padding(.bottom, 8)
-                                    Button(action: {
-                                        rootSelectedTab = "docker"
-                                    }) {
-                                        Text("Go to Docker")
-                                    }
-                                }
-                                .padding(16)
                             }
-                                    .padding(.top, 32)
+                            .padding(.top, 32)
                             Spacer()
                         }
                         Spacer()
+
+                        HStack {
+                            Spacer()
+                            VStack(spacing: 8) {
+                                Text("Looking for Docker?")
+                                        .font(.title3)
+                                        .bold()
+                                Text("You don’t need a Linux machine.")
+                                        .font(.body)
+                                        .padding(.bottom, 8)
+                                Button(action: {
+                                    rootSelectedTab = "docker"
+                                }) {
+                                    Text("Go to Docker")
+                                }
+                            }
+                                    .padding(16)
+                                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            Spacer()
+                        }
+                        .padding(.bottom, 64)
                     }
                 }
                 .overlay(alignment: .bottomTrailing, content: {

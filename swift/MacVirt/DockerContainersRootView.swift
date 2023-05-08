@@ -138,6 +138,7 @@ struct DockerContainersRootView: View {
                     )
                 } else {
                     Spacer()
+
                     HStack {
                         Spacer()
                         VStack {
@@ -148,13 +149,15 @@ struct DockerContainersRootView: View {
                         .padding(.top, 32)
                         Spacer()
                     }
+
                     Spacer()
+
                     HStack {
                         Spacer()
                         GettingStartedHintBox()
                         Spacer()
                     }
-                            .padding(.bottom, 64)
+                    .padding(.bottom, 64)
                 }
 
                 // special case: show example http://localhost if only visible container is getting-started
