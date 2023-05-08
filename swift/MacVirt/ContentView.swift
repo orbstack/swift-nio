@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UserNotifications
+import Sparkle
 
 func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
     Binding<Bool>(get: {
@@ -229,8 +230,15 @@ struct ContentView: View {
                 Text(msg)
             }
         }
-        .onReceive(model.$error, perform: {
-            presentError = $0 != nil
+        .onReceive(model.$error, perform: { error in
+            presentError = error != nil
+
+            if error == VmError.killswitchExpired {
+                // trigger updater as well
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    NSWorkspace.shared.open(URL(string: "orbstack://update")!)
+                }
+            }
         })
         .onChange(of: presentError) {
             if !$0 {
@@ -263,12 +271,6 @@ struct ContentView: View {
 
     private func toggleSidebar() {
         NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
-    }
-}
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
     }
 }
 
