@@ -250,7 +250,7 @@ struct DockerContainersRootView: View {
 
         // add running/stopped sections
         listItems += runningItems
-        if !stoppedItems.isEmpty {
+        if settingShowStopped && !stoppedItems.isEmpty {
             //listItems.append(ListItem(sectionLabel: "Stopped"))
             listItems += stoppedItems
         }
