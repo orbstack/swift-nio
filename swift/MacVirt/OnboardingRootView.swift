@@ -6,12 +6,24 @@ import Foundation
 import SwiftUI
 
 struct VisualEffectView: NSViewRepresentable {
+    let blendingMode: NSVisualEffectView.BlendingMode
+    let state: NSVisualEffectView.State
+    let material: NSVisualEffectView.Material
+
+    init(blendingMode: NSVisualEffectView.BlendingMode = .behindWindow,
+         state: NSVisualEffectView.State = .followsWindowActiveState,
+         material: NSVisualEffectView.Material = .underWindowBackground) {
+        self.blendingMode = blendingMode
+        self.state = state
+        self.material = material
+    }
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
 
-        view.blendingMode = .behindWindow
-        view.state = .active
-        view.material = .underWindowBackground
+        view.blendingMode = blendingMode
+        view.state = state
+        view.material = material
 
         return view
     }

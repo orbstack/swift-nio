@@ -121,11 +121,21 @@ struct DockerContainersRootView: View {
                                         .equatable()
                             }
                         }
-                        .id(item.id)
+                                .id(item.id)
                     }
                     .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
                     // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group
-                    .border(width: 10, edges: [.leading, .trailing], color: Color(NSColor.textBackgroundColor))
+                    // must use VisualEffectView for color Desktop Tinting
+                    .overlay(
+                            VisualEffectView(material: .contentBackground)
+                                .frame(width: 10),
+                            alignment: .leading
+                    )
+                    .overlay(
+                            VisualEffectView(material: .contentBackground)
+                                .frame(width: 10),
+                            alignment: .trailing
+                    )
                 } else {
                     Spacer()
                     HStack {
@@ -158,7 +168,7 @@ struct DockerContainersRootView: View {
                         Spacer()
                     }
                     .padding(.bottom, 64)
-                    .background(Color(NSColor.textBackgroundColor))
+                    .background(VisualEffectView(material: .contentBackground))
                 }
             }
         }

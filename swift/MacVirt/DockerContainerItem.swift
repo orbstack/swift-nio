@@ -111,18 +111,18 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                 }
                             }
 
-                            if isRunning {
-                                VStack(alignment: .leading) {
+                            VStack(alignment: .leading) {
+                                if isRunning {
                                     Button("Open Terminal", action: openInTerminal)
+                                }
 
-                                    Button("Show Logs", action: showLogs)
+                                Button("Show Logs", action: showLogs)
 
-                                    if container.image == "docker/getting-started" {
-                                        // special case for more seamless onboarding
-                                        Button("Open Tutorial", action: {
-                                            NSWorkspace.shared.open(URL(string: "http://localhost")!)
-                                        })
-                                    }
+                                if isRunning && container.image == "docker/getting-started" {
+                                    // special case for more seamless onboarding
+                                    Button("Open Tutorial", action: {
+                                        NSWorkspace.shared.open(URL(string: "http://localhost")!)
+                                    })
                                 }
                             }
                         }
@@ -244,7 +244,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }) {
                     Label("Show Logs", systemImage: "terminal")
                 }
-                .disabled(!isRunning)
             }
 
             Divider()
