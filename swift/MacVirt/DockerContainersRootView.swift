@@ -96,7 +96,7 @@ struct DockerContainersRootView: View {
                 searchQuery.isEmpty ||
                         container.id.localizedCaseInsensitiveContains(searchQuery) ||
                         container.image.localizedCaseInsensitiveContains(searchQuery) ||
-                        container.imageID.localizedCaseInsensitiveContains(searchQuery) ||
+                        container.imageId.localizedCaseInsensitiveContains(searchQuery) ||
                         container.names.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
             }
 

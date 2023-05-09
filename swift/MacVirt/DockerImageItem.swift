@@ -14,6 +14,7 @@ struct DockerImageItem: View {
 
     var body: some View {
         let actionInProgress = actionTracker.ongoingForImage(image.id) != nil
+        let isInUse = isInUse()
 
         HStack {
             HStack {
@@ -44,8 +45,8 @@ struct DockerImageItem: View {
                 }
             }
             .buttonStyle(.borderless)
-            .disabled(actionInProgress)
-            .help("Delete image")
+            .disabled(actionInProgress || isInUse)
+            .help(isInUse ? "Image in use" : "Delete image")
         }
         .padding(.vertical, 4)
         .contextMenu {
@@ -53,7 +54,7 @@ struct DockerImageItem: View {
                 finishDelete()
             }) {
                 Label("Delete", systemImage: "trash.fill")
-            }.disabled(actionInProgress)
+            }.disabled(actionInProgress || isInUse)
 
             Divider()
 
@@ -83,6 +84,15 @@ struct DockerImageItem: View {
                 await vmModel.tryDockerImageRemove(id)
                 actionTracker.endImage(id)
             }
+        }
+    }
+
+    private func isInUse() -> Bool {
+        if let containers = vmModel.dockerContainers {
+            // we use force image delete, so stopped containers are auto-removed
+            return containers.contains(where: { $0.imageId == image.id && $0.running })
+        } else {
+            return false
         }
     }
 

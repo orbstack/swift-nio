@@ -15,7 +15,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
     var id: String
     var names: [String]
     var image: String
-    var imageID: String
+    var imageId: String
     var command: String
     var created: Int64
     var ports: [DKPort]
@@ -44,7 +44,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
         case id = "Id"
         case names = "Names"
         case image = "Image"
-        case imageID = "ImageID"
+        case imageId = "ImageID"
         case command = "Command"
         case created = "Created"
         case ports = "Ports"
