@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -104,7 +105,7 @@ func newDrmClient() *DrmClient {
 	}
 
 	baseURL := apiBaseUrlProd
-	if conf.Debug() {
+	if conf.Debug() && os.Getenv("ORB_DRM_DEBUG") == "1" {
 		baseURL = apiBaseUrlDev
 	}
 
