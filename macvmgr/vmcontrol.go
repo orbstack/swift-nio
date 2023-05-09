@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"math"
 	"net"
@@ -18,6 +16,7 @@ import (
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/kdrag0n/macvirt/macvmgr/dockerclient"
 	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
 	"github.com/kdrag0n/macvirt/macvmgr/drm"
 	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
@@ -43,7 +42,7 @@ type VmControlServer struct {
 	doneCh           chan struct{}
 	stopCh           chan StopType
 	pendingResetData bool
-	dockerClient     *http.Client
+	dockerClient     *dockerclient.Client
 	drm              *drm.DrmClient
 
 	setupDone    bool
@@ -110,19 +109,9 @@ func (s *VmControlServer) FinishSetup(ctx context.Context) error {
 }
 
 func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertypes.ContainerSummary, error) {
-	// only includes running
-	resp, err := s.dockerClient.Get("http://docker/containers/json?all=true")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New(resp.Status)
-	}
-
+	// includes stopped
 	var containers []dockertypes.ContainerSummary
-	err = json.NewDecoder(resp.Body).Decode(&containers)
+	err := s.dockerClient.Call("GET", "/containers/json?all=true", nil, &containers)
 	if err != nil {
 		return nil, err
 	}
@@ -131,123 +120,32 @@ func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertype
 }
 
 func (s *VmControlServer) DockerContainerStart(ctx context.Context, req vmtypes.IDRequest) error {
-	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/start", "application/json", nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == 304 { // Not Modified
-			return nil
-		}
-
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/start", nil, nil)
 }
 
 func (s *VmControlServer) DockerContainerStop(ctx context.Context, req vmtypes.IDRequest) error {
-	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/stop", "application/json", nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == 304 { // Not Modified
-			return nil
-		}
-
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/stop", nil, nil)
 }
 
 func (s *VmControlServer) DockerContainerRestart(ctx context.Context, req vmtypes.IDRequest) error {
-	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/restart", "application/json", nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/restart", nil, nil)
 }
 
 func (s *VmControlServer) DockerContainerPause(ctx context.Context, req vmtypes.IDRequest) error {
-	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/pause", "application/json", nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == 304 { // Not Modified
-			return nil
-		}
-
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/pause", nil, nil)
 }
 
 func (s *VmControlServer) DockerContainerUnpause(ctx context.Context, req vmtypes.IDRequest) error {
-	resp, err := s.dockerClient.Post("http://docker/containers/"+req.ID+"/unpause", "application/json", nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == 304 { // Not Modified
-			return nil
-		}
-
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/unpause", nil, nil)
 }
 
 func (s *VmControlServer) DockerContainerRemove(ctx context.Context, params vmtypes.IDRequest) error {
-	req, err := http.NewRequest("DELETE", "http://docker/containers/"+params.ID+"?force=true", nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := s.dockerClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("DELETE", "/containers/"+params.ID+"?force=true", nil, nil)
 }
 
 func (s *VmControlServer) DockerVolumeList(ctx context.Context) (*dockertypes.VolumeListResponse, error) {
-	resp, err := s.dockerClient.Get("http://docker/volumes")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New(resp.Status)
-	}
-
 	var volumes dockertypes.VolumeListResponse
-	err = json.NewDecoder(resp.Body).Decode(&volumes)
+	err := s.dockerClient.Call("GET", "/volumes", nil, &volumes)
 	if err != nil {
 		return nil, err
 	}
@@ -256,60 +154,16 @@ func (s *VmControlServer) DockerVolumeList(ctx context.Context) (*dockertypes.Vo
 }
 
 func (s *VmControlServer) DockerVolumeCreate(ctx context.Context, options dockertypes.VolumeCreateOptions) error {
-	jsonData, err := json.Marshal(options)
-	if err != nil {
-		return err
-	}
-
-	resp, err := s.dockerClient.Post("http://docker/volumes/create", "application/json", bytes.NewReader(jsonData))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("POST", "/volumes/create", &options, nil)
 }
 
 func (s *VmControlServer) DockerVolumeRemove(ctx context.Context, params vmtypes.IDRequest) error {
-	req, err := http.NewRequest("DELETE", "http://docker/volumes/"+params.ID, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := s.dockerClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == 409 { // Conflict
-			return errors.New("volume in use")
-		}
-
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("DELETE", "/volumes/"+params.ID, nil, nil)
 }
 
 func (s *VmControlServer) DockerImageList(ctx context.Context) ([]dockertypes.Image, error) {
-	resp, err := s.dockerClient.Get("http://docker/images/json")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New(resp.Status)
-	}
-
 	var images []dockertypes.Image
-	err = json.NewDecoder(resp.Body).Decode(&images)
+	err := s.dockerClient.Call("GET", "/images/json", nil, &images)
 	if err != nil {
 		return nil, err
 	}
@@ -318,42 +172,13 @@ func (s *VmControlServer) DockerImageList(ctx context.Context) ([]dockertypes.Im
 }
 
 func (s *VmControlServer) DockerImageRemove(ctx context.Context, params vmtypes.IDRequest) error {
-	req, err := http.NewRequest("DELETE", "http://docker/images/"+params.ID+"?force=true", nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := s.dockerClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == 409 { // Conflict
-			return errors.New("image in use")
-		}
-
-		return errors.New(resp.Status)
-	}
-
-	return nil
+	return s.dockerClient.Call("DELETE", "/images/"+params.ID+"?force=true", nil, nil)
 }
 
 func (s *VmControlServer) DockerSystemDf(ctx context.Context) (*dockertypes.SystemDf, error) {
 	// limiting to volumes is less expensive
-	resp, err := s.dockerClient.Get("http://docker/system/df?type=volume")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, errors.New(resp.Status)
-	}
-
 	var df dockertypes.SystemDf
-	err = json.NewDecoder(resp.Body).Decode(&df)
+	err := s.dockerClient.Call("GET", "/system/df?type=volume", nil, &df)
 	if err != nil {
 		return nil, err
 	}
@@ -443,8 +268,8 @@ func listenAndServeUnix(addr string, handler http.Handler) (net.Listener, error)
 	return listener, nil
 }
 
-func makeDockerClient() *http.Client {
-	return &http.Client{
+func makeDockerClient() *dockerclient.Client {
+	httpClient := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial("unix", conf.DockerSocket())
@@ -454,6 +279,8 @@ func makeDockerClient() *http.Client {
 			IdleConnTimeout: 1 * time.Second,
 		},
 	}
+
+	return dockerclient.New(httpClient)
 }
 
 func (s *VmControlServer) Serve() (net.Listener, error) {
