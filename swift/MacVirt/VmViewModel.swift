@@ -961,7 +961,7 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    private func doTryDockerComposeAction(_ label: String, cid: DockerContainerId, args: [String]) async {
+    private func doTryDockerComposeAction(_ label: String, cid: DockerContainerId, args: [String], requiresConfig: Bool = false) async {
         if case let .compose(project, configFiles) = cid {
             // find working dir from containers
             if let containers = dockerContainers,
@@ -973,6 +973,12 @@ class VmViewModel: ObservableObject {
                 // handle multiple compose files
                 var configFileArgs = [String]()
                 for configFile in configFiles.split(separator: ",") {
+                    // only add config file if exists, or if required for action (to show better error than missing files)
+                    let exists = FileManager.default.fileExists(atPath: String(configFile))
+                    if !requiresConfig && !exists {
+                        continue
+                    }
+
                     configFileArgs.append("-f")
                     configFileArgs.append(String(configFile))
                 }
