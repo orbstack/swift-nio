@@ -1,0 +1,130 @@
+INFO[2023-05-09T21:23:21.361502033Z] Starting up
+WARN[2023-05-09T21:23:21.362470826Z] could not change group /var/run/docker.sock to docker: group docker not found
+INFO[2023-05-09T21:23:21.363173182Z] libcontainerd: started new containerd process  pid=40
+INFO[2023-05-09T21:23:21.380410546Z] starting containerd                           revision=1fbd70374134b891f97ce19c70b6e50c7b9f4e0d version=v1.7.0
+INFO[2023-05-09T21:23:21.387657511Z] loading plugin "io.containerd.snapshotter.v1.aufs"...  type=io.containerd.snapshotter.v1
+INFO[2023-05-09T21:23:21.388200173Z] skip loading plugin "io.containerd.snapshotter.v1.aufs"...  error="aufs is not supported (modprobe aufs failed: exit status 1 \"modprobe: can't change directory to '/lib/modules': No such file or directory\\n\"): skip plugin" type=io.containerd.snapshotter.v1
+INFO[2023-05-09T21:23:21.388218255Z] loading plugin "io.containerd.snapshotter.v1.btrfs"...  type=io.containerd.snapshotter.v1
+INFO[2023-05-09T21:23:21.388480774Z] loading plugin "io.containerd.content.v1.content"...  type=io.containerd.content.v1
+INFO[2023-05-09T21:23:21.388494106Z] loading plugin "io.containerd.snapshotter.v1.native"...  type=io.containerd.snapshotter.v1
+INFO[2023-05-09T21:23:21.388502772Z] loading plugin "io.containerd.snapshotter.v1.overlayfs"...  type=io.containerd.snapshotter.v1
+INFO[2023-05-09T21:23:21.388556726Z] loading plugin "io.containerd.snapshotter.v1.devmapper"...  type=io.containerd.snapshotter.v1
+WARN[2023-05-09T21:23:21.388566850Z] failed to load plugin io.containerd.snapshotter.v1.devmapper  error="devmapper not configured"
+INFO[2023-05-09T21:23:21.388570766Z] loading plugin "io.containerd.snapshotter.v1.zfs"...  type=io.containerd.snapshotter.v1
+INFO[2023-05-09T21:23:21.388802997Z] skip loading plugin "io.containerd.snapshotter.v1.zfs"...  error="path /var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.zfs must be a zfs filesystem to be used with the zfs snapshotter: skip plugin" type=io.containerd.snapshotter.v1
+INFO[2023-05-09T21:23:21.388813871Z] loading plugin "io.containerd.metadata.v1.bolt"...  type=io.containerd.metadata.v1
+WARN[2023-05-09T21:23:21.388820912Z] could not use snapshotter devmapper in metadata plugin  error="devmapper not configured"
+INFO[2023-05-09T21:23:21.388825661Z] metadata content store policy set             policy=shared
+INFO[2023-05-09T21:23:21.389195380Z] loading plugin "io.containerd.differ.v1.walking"...  type=io.containerd.differ.v1
+INFO[2023-05-09T21:23:21.389207587Z] loading plugin "io.containerd.event.v1.exchange"...  type=io.containerd.event.v1
+INFO[2023-05-09T21:23:21.389212212Z] loading plugin "io.containerd.gc.v1.scheduler"...  type=io.containerd.gc.v1
+INFO[2023-05-09T21:23:21.389227085Z] loading plugin "io.containerd.lease.v1.manager"...  type=io.containerd.lease.v1
+INFO[2023-05-09T21:23:21.389237418Z] loading plugin "io.containerd.nri.v1.nri"...  type=io.containerd.nri.v1
+INFO[2023-05-09T21:23:21.389245709Z] NRI interface is disabled by configuration.
+INFO[2023-05-09T21:23:21.389422236Z] loading plugin "io.containerd.runtime.v2.task"...  type=io.containerd.runtime.v2
+INFO[2023-05-09T21:23:21.389463315Z] loading plugin "io.containerd.runtime.v2.shim"...  type=io.containerd.runtime.v2
+INFO[2023-05-09T21:23:21.389474273Z] loading plugin "io.containerd.sandbox.store.v1.local"...  type=io.containerd.sandbox.store.v1
+INFO[2023-05-09T21:23:21.389480106Z] loading plugin "io.containerd.sandbox.controller.v1.local"...  type=io.containerd.sandbox.controller.v1
+INFO[2023-05-09T21:23:21.389489438Z] loading plugin "io.containerd.streaming.v1.manager"...  type=io.containerd.streaming.v1
+INFO[2023-05-09T21:23:21.389499729Z] loading plugin "io.containerd.service.v1.introspection-service"...  type=io.containerd.service.v1
+INFO[2023-05-09T21:23:21.389505812Z] loading plugin "io.containerd.service.v1.containers-service"...  type=io.containerd.service.v1
+INFO[2023-05-09T21:23:21.389511478Z] loading plugin "io.containerd.service.v1.content-service"...  type=io.containerd.service.v1
+INFO[2023-05-09T21:23:21.389520935Z] loading plugin "io.containerd.service.v1.diff-service"...  type=io.containerd.service.v1
+INFO[2023-05-09T21:23:21.389529101Z] loading plugin "io.containerd.service.v1.images-service"...  type=io.containerd.service.v1
+INFO[2023-05-09T21:23:21.389537142Z] loading plugin "io.containerd.service.v1.namespaces-service"...  type=io.containerd.service.v1
+INFO[2023-05-09T21:23:21.389545475Z] loading plugin "io.containerd.service.v1.snapshots-service"...  type=io.containerd.service.v1
+INFO[2023-05-09T21:23:21.389551724Z] loading plugin "io.containerd.runtime.v1.linux"...  type=io.containerd.runtime.v1
+INFO[2023-05-09T21:23:21.389570181Z] loading plugin "io.containerd.monitor.v1.cgroups"...  type=io.containerd.monitor.v1
+INFO[2023-05-09T21:23:21.389737667Z] loading plugin "io.containerd.service.v1.tasks-service"...  type=io.containerd.service.v1
+INFO[2023-05-09T21:23:21.389752791Z] loading plugin "io.containerd.grpc.v1.introspection"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389764123Z] loading plugin "io.containerd.transfer.v1.local"...  type=io.containerd.transfer.v1
+INFO[2023-05-09T21:23:21.389778580Z] loading plugin "io.containerd.internal.v1.restart"...  type=io.containerd.internal.v1
+INFO[2023-05-09T21:23:21.389843241Z] loading plugin "io.containerd.grpc.v1.containers"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389852116Z] loading plugin "io.containerd.grpc.v1.content"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389856948Z] loading plugin "io.containerd.grpc.v1.diff"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389861448Z] loading plugin "io.containerd.grpc.v1.events"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389866906Z] loading plugin "io.containerd.grpc.v1.healthcheck"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389873989Z] loading plugin "io.containerd.grpc.v1.images"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389878822Z] loading plugin "io.containerd.grpc.v1.leases"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389883196Z] loading plugin "io.containerd.grpc.v1.namespaces"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389893820Z] loading plugin "io.containerd.internal.v1.opt"...  type=io.containerd.internal.v1
+INFO[2023-05-09T21:23:21.389924859Z] loading plugin "io.containerd.grpc.v1.sandbox-controllers"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389933525Z] loading plugin "io.containerd.grpc.v1.sandboxes"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389942524Z] loading plugin "io.containerd.grpc.v1.snapshots"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389951190Z] loading plugin "io.containerd.grpc.v1.streaming"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389959648Z] loading plugin "io.containerd.grpc.v1.tasks"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389973147Z] loading plugin "io.containerd.grpc.v1.transfer"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389978396Z] loading plugin "io.containerd.grpc.v1.version"...  type=io.containerd.grpc.v1
+INFO[2023-05-09T21:23:21.389986062Z] loading plugin "io.containerd.tracing.processor.v1.otlp"...  type=io.containerd.tracing.processor.v1
+INFO[2023-05-09T21:23:21.389995812Z] skip loading plugin "io.containerd.tracing.processor.v1.otlp"...  error="no OpenTelemetry endpoint: skip plugin" type=io.containerd.tracing.processor.v1
+INFO[2023-05-09T21:23:21.390008852Z] loading plugin "io.containerd.internal.v1.tracing"...  type=io.containerd.internal.v1
+INFO[2023-05-09T21:23:21.390014143Z] skipping tracing processor initialization (no tracing plugin)  error="no OpenTelemetry endpoint: skip plugin"
+INFO[2023-05-09T21:23:21.390337324Z] serving...                                    address=/var/run/docker/containerd/containerd-debug.sock
+INFO[2023-05-09T21:23:21.390491978Z] serving...                                    address=/var/run/docker/containerd/containerd.sock.ttrpc
+INFO[2023-05-09T21:23:21.390670796Z] serving...                                    address=/var/run/docker/containerd/containerd.sock
+INFO[2023-05-09T21:23:21.390687294Z] containerd successfully booted in 0.010834s
+INFO[2023-05-09T21:23:21.399846680Z] [graphdriver] trying configured driver: overlay2
+ERRO[2023-05-09T21:23:21.503305732Z] not restoring image with unsupported operating system sha256:8b30155d8795f0c9b6a35c5674c3d85134944c0a959170b34ccb7aaeac258569, sha256:09f4f8857270dcea18debeb65d23405b894a730b12b1b97cf8bbe865c60d7395, wasi
+INFO[2023-05-09T21:23:21.512131562Z] Loading containers: start.
+ERRO[2023-05-09T21:23:21.512484657Z] failed to load container mount                container=6369736a381db44fdf59d8e592aab4c92ae32c06fa7a1c221783e3dfda1b3c0c error="mount does not exist"
+ERRO[2023-05-09T21:23:21.512961992Z] failed to load container mount                container=20af359a24eaffb63c3eef668708c50528583b6a9e2304c1112d98f96afce59f error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513035194Z] failed to load container mount                container=22573ea7410bdef1d335181dcc62e47a50167a292a039babe5b9882b2069bc16 error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513134685Z] failed to load container mount                container=7c90279402dc9d015d3774d8935b4e4592553f8becc6da8c30ccc6328b01f2de error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513216845Z] failed to load container mount                container=1650c26e280dd252e023aa558c4512d8804ae9037637767c3e15529f1d658058 error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513223178Z] failed to load container                      container=978a132e380bd6e57880794d5707a004b9c8eedfeb39931e3fccaec3ff0c69b8 error="open /var/lib/docker/containers/978a132e380bd6e57880794d5707a004b9c8eedfeb39931e3fccaec3ff0c69b8/config.v2.json: no such file or directory"
+ERRO[2023-05-09T21:23:21.513340876Z] failed to load container mount                container=cc2fcf5cd1bc41f25b3ffe1bce37789dc3abccd2b001949e0e7f7250acc001f0 error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513363416Z] failed to load container mount                container=291b61ec6f7f93cf94769fa96ad4a6064bf3b013f73cd26aa8936395f1324b2a error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513469282Z] failed to load container mount                container=bbbe78f5b6633a505e780a68808fbc14ff10743378a6fe6319e8174d05fd939a error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513489905Z] failed to load container mount                container=99846b339a307498558f8f1ad07f9afe8799f25fdee09a6f2312133268e18465 error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513540901Z] failed to load container mount                container=eea8877073b647e873c1af2ad3f9371cf2f7334d14801ab9745adcf9b945227e error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513565315Z] failed to load container mount                container=e995f29713ae1e6021c0eb4418983358ad7051ed0921bf47aa08231f20b0f32e error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513603770Z] failed to load container mount                container=a1bf9cb0f93aea1fd917f97f1557e59295032a009e9efbe19c0c38f70c0cbe40 error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513637559Z] failed to load container mount                container=d22059913aa6b8b9aa2e61cf91dd076b0330daec218a98534fb0debc6acd490b error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513715094Z] failed to load container mount                container=a38351a516f0ca146cc1825ac7d69af323e57e8a822e8d95f077afbd5536e189 error="mount does not exist"
+ERRO[2023-05-09T21:23:21.513803212Z] failed to load container mount                container=fe32ed8a121274b39c456e2577337b9451b8361441c6accc151c39736c2013ad error="mount does not exist"
+ERRO[2023-05-09T21:23:21.582793453Z] Could not add route to IPv6 network fc00:f853:ccd:e793::1/64 via device br-55e8b55912f5: network is down
+ERRO[2023-05-09T21:23:21.595205186Z] Could not add route to IPv6 network fd00:30:32::1/64 via device docker0: network is down
+INFO[2023-05-09T21:23:21.670112733Z] Default bridge (docker0) is assigned with an IP address 172.17.0.0/16. Daemon option --bip can be used to set a preferred IP address
+INFO[2023-05-09T21:23:21.687301539Z] Loading containers: done.
+INFO[2023-05-09T21:23:21.704662639Z] Docker daemon                                 commit=94d3ad69cc598b5a8eb8a643d6999375953512e8 graphdriver=overlay2 version=23.0.5
+INFO[2023-05-09T21:23:21.704722099Z] Daemon has completed initialization
+INFO[2023-05-09T21:23:22.908299327Z] stopping event stream following graceful shutdown  error="context canceled" module=libcontainerd namespace=moby
+INFO[2023-05-09T21:23:22.908301327Z] stopping event stream following graceful shutdown  error="context canceled" module=libcontainerd namespace=plugins.moby
+INFO[2023-05-09T21:23:22.908313743Z] stopping healthcheck following graceful shutdown  module=libcontainerd
+panic: invalid freelist page: 2916, page type is leaf
+
+goroutine 1 [running]:
+github.com/docker/docker/vendor/go.etcd.io/bbolt.(*freelist).read(0xaaaac6ac8b1b?, 0xffff47d64000)
+	github.com/docker/docker/vendor/go.etcd.io/bbolt/freelist.go:267 +0x1d8
+github.com/docker/docker/vendor/go.etcd.io/bbolt.(*DB).loadFreelist.func1()
+	github.com/docker/docker/vendor/go.etcd.io/bbolt/db.go:415 +0xac
+sync.(*Once).doSlow(0x4000b4ed08?, 0xaaaac71d4dc0?)
+	sync/once.go:74 +0x104
+sync.(*Once).Do(...)
+	sync/once.go:65
+github.com/docker/docker/vendor/go.etcd.io/bbolt.(*DB).loadFreelist(0x4000b4eb40?)
+	github.com/docker/docker/vendor/go.etcd.io/bbolt/db.go:408 +0x48
+github.com/docker/docker/vendor/go.etcd.io/bbolt.Open({0x4000e76780, 0x21}, 0x21?, 0x0)
+	github.com/docker/docker/vendor/go.etcd.io/bbolt/db.go:290 +0x3a0
+github.com/docker/docker/vendor/github.com/moby/buildkit/solver/bboltcachestorage.NewStore({0x4000e76780, 0x21})
+	github.com/docker/docker/vendor/github.com/moby/buildkit/solver/bboltcachestorage/storage.go:26 +0x2c
+github.com/docker/docker/builder/builder-next.newController({_, _}, {0x40010b94b8, {0x40006494d0, 0x18}, {0x4001122ba0, {0xaaaac74ae1e0, 0x40008c2da0}, {0xaaaac74bb580, 0x4000e1e140}, ...}, ...})
+	github.com/docker/docker/builder/builder-next/controller.go:170 +0xda8
+github.com/docker/docker/builder/builder-next.New({0x40010b94b8, {0x40006494d0, 0x18}, {0x4001122ba0, {0xaaaac74ae1e0, 0x40008c2da0}, {0xaaaac74bb580, 0x4000e1e140}, {0xaaaac74bc080, 0x4001122c00}, ...}, ...})
+	github.com/docker/docker/builder/builder-next/builder.go:98 +0x100
+main.newRouterOptions(0x4000765080, 0x4000a12480)
+	github.com/docker/docker/cmd/dockerd/daemon.go:294 +0x5b0
+main.(*DaemonCli).start(0x40005964e0, 0x40005981c0)
+	github.com/docker/docker/cmd/dockerd/daemon.go:230 +0xcc0
+main.runDaemon(...)
+	github.com/docker/docker/cmd/dockerd/docker_unix.go:14
+main.newDaemonCommand.func1(0x400059e000?, {0x4000596480?, 0x3?, 0x3?})
+	github.com/docker/docker/cmd/dockerd/docker.go:38 +0x68
+github.com/docker/docker/vendor/github.com/spf13/cobra.(*Command).execute(0x400059e000, {0x4000136010, 0x3, 0x3})
+	github.com/docker/docker/vendor/github.com/spf13/cobra/command.go:916 +0x5c8
+github.com/docker/docker/vendor/github.com/spf13/cobra.(*Command).ExecuteC(0x400059e000)
+	github.com/docker/docker/vendor/github.com/spf13/cobra/command.go:1044 +0x35c
+github.com/docker/docker/vendor/github.com/spf13/cobra.(*Command).Execute(...)
+	github.com/docker/docker/vendor/github.com/spf13/cobra/command.go:968
+main.main()
+	github.com/docker/docker/cmd/dockerd/docker.go:103 +0x174
