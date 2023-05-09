@@ -38,6 +38,10 @@ private struct ListItem: Identifiable, Equatable {
         container?.names.first ?? composeGroup?.project ?? ""
     }
 
+    var isGroup: Bool {
+        composeGroup != nil
+    }
+
     init(builtinRecord: ContainerRecord) {
         self.builtinRecord = builtinRecord
     }
@@ -245,8 +249,19 @@ struct DockerContainersRootView: View {
         }
 
         // sort by name within running/stopped sections
-        runningItems.sort { $0.containerName < $1.containerName }
-        stoppedItems.sort { $0.containerName < $1.containerName }
+        // and within each section, sort by isGroup first
+        runningItems.sort { a, b in
+            if a.isGroup != b.isGroup {
+                return a.isGroup
+            }
+            return a.containerName < b.containerName
+        }
+        stoppedItems.sort { a, b in
+            if a.isGroup != b.isGroup {
+                return a.isGroup
+            }
+            return a.containerName < b.containerName
+        }
 
         // add running/stopped sections
         listItems += runningItems
