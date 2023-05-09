@@ -103,6 +103,10 @@ struct CreateVolumeView: View {
     }
 
     private func submit() {
+        if isNameDuplicate || isNameInvalid || name.isEmpty {
+            return
+        }
+
         Task { @MainActor in
             await vmModel.tryDockerVolumeCreate(name)
         }

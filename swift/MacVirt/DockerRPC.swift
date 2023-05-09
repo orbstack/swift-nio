@@ -5,6 +5,7 @@
 import Foundation
 
 private let relativeDateFormatter = RelativeDateTimeFormatter()
+private let nowTimeThreshold: TimeInterval = 5 // sec
 
 struct IDRequest: Codable {
     let id: String
@@ -157,6 +158,11 @@ struct DKVolume: Codable, Identifiable, Equatable {
     var formattedCreatedAt: String {
         // ISO 8601
         let date = ISO8601DateFormatter().date(from: createdAt ?? "") ?? Date()
+        // fix "in 0 seconds"
+        if Date().timeIntervalSince(date) < nowTimeThreshold {
+            return "just now"
+        }
+
         return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 
@@ -235,6 +241,11 @@ struct DKImage: Codable, Identifiable {
 
     var formattedCreated: String {
         let date = Date(timeIntervalSince1970: TimeInterval(created))
+        // fix "in 0 seconds"
+        if Date().timeIntervalSince(date) < nowTimeThreshold {
+            return "just now"
+        }
+
         return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 

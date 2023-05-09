@@ -48,7 +48,6 @@ struct DockerVolumeItem: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                     } else {
-
                         Text("Created \(volume.formattedCreatedAt)")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
