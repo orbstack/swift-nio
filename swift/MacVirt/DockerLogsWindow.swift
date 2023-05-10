@@ -5,6 +5,9 @@
 import Foundation
 import SwiftUI
 
+// equal to swiftterm scrollback
+private let maxLines = 5000
+
 private class SizeHolderModel: ObservableObject {
     @Published var windowSize = CGSize.zero
 }
@@ -25,7 +28,7 @@ struct DockerLogsWindow: View {
                    let containers = vmModel.dockerContainers,
                    let container = containers.first(where: { $0.id == containerId }) {
                     SwiftUILocalProcessTerminal(executable: AppConfig.dockerExe,
-                            args: ["logs", "-f", containerId],
+                            args: ["logs", "-f", "-n", String(maxLines), containerId],
                             // env is more robust, user can mess with context
                             env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
                             .padding(8)
@@ -33,7 +36,7 @@ struct DockerLogsWindow: View {
                             .frame(width: terminalFrame.width, height: terminalFrame.height)
                 } else if let composeProject {
                     SwiftUILocalProcessTerminal(executable: AppConfig.dockerComposeExe,
-                            args: ["-p", composeProject, "logs", "-f"],
+                            args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
                             // env is more robust, user can mess with context
                             env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
                             .padding(8)
