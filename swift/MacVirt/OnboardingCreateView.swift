@@ -26,6 +26,7 @@ struct OnboardingCreateView: View {
     @State private var arch = "amd64"
     #endif
     @State private var distro = Distro.ubuntu
+    @State private var version = Distro.ubuntu.versions.last!.key
 
     var body: some View {
         VStack {
@@ -81,6 +82,8 @@ struct OnboardingCreateView: View {
                                 arch = "arm64"
                             }
                             #endif
+
+                            version = $0.versions.last!.key
                         }
                         .onChange(of: name) { newName in
                             checkName(newName)
@@ -101,6 +104,15 @@ struct OnboardingCreateView: View {
                         }
                         .onChange(of: vmModel.containers) { _ in
                             checkName(name)
+                        }
+
+                        Picker("Version", selection: $version) {
+                            ForEach(distro.versions, id: \.self) { version in
+                                if version == distro.versions.last! && distro.versions.count > 1 {
+                                    Divider()
+                                }
+                                Text(version.friendlyName).tag(version.key)
+                            }
                         }
 
                         #if arch(arm64)
@@ -172,7 +184,7 @@ struct OnboardingCreateView: View {
 
             // then create
             vmModel.creatingCount += 1
-            await vmModel.tryCreateContainer(name: name, distro: distro, version: "", arch: arch)
+            await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch)
             vmModel.creatingCount -= 1
         }
         onboardingController.finish()
