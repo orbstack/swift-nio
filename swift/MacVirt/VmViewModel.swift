@@ -283,7 +283,6 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
 private enum DockerComposeError: Error {
     case composeCidExpected
-    case missingWorkingDir
 }
 
 private func fmtRpc(_ error: Error) -> String {
@@ -968,8 +967,7 @@ class VmViewModel: ObservableObject {
                let container = containers.first(where: { container in
                    container.labels[DockerLabels.composeProject] == project &&
                        container.labels[DockerLabels.composeConfigFiles] == configFiles
-               }),
-               let workingDir = container.labels[DockerLabels.composeWorkingDir] {
+               }) {
                 // handle multiple compose files
                 var configFileArgs = [String]()
                 for configFile in configFiles.split(separator: ",") {
@@ -983,16 +981,21 @@ class VmViewModel: ObservableObject {
                     configFileArgs.append(String(configFile))
                 }
 
+                // pass working dir if we have it
+                var dirArgs = [String]()
+                if let workingDir = container.labels[DockerLabels.composeWorkingDir],
+                   FileManager.default.fileExists(atPath: workingDir) {
+                    dirArgs.append("--project-directory")
+                    dirArgs.append(workingDir)
+                }
+
                 do {
                     try await runProcessChecked(AppConfig.dockerComposeExe,
-                            ["-p", project, "--project-directory", workingDir] + configFileArgs + args,
+                            ["-p", project] + dirArgs + configFileArgs + args,
                             env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
                 } catch {
                     setError(.dockerComposeActionError(action: "\(label)", cause: error))
                 }
-            } else {
-                // should never happen
-                setError(.dockerComposeActionError(action: "\(label)", cause: DockerComposeError.missingWorkingDir))
             }
         } else {
             // should never happen
