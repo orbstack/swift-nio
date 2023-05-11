@@ -864,10 +864,10 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func createContainer(name: String, distro: Distro, arch: String) async throws {
+    func createContainer(name: String, distro: Distro, version: String, arch: String) async throws {
         try await scon.create(name: name, image: ImageSpec(
-            distro: distro.imageKey.rawValue,
-            version: "",
+            distro: distro.imageKey,
+            version: version,
             arch: arch,
             variant: ""
         ), userPassword: nil)
@@ -875,9 +875,9 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func tryCreateContainer(name: String, distro: Distro, arch: String) async {
+    func tryCreateContainer(name: String, distro: Distro, version: String, arch: String) async {
         do {
-            try await createContainer(name: name, distro: distro, arch: arch)
+            try await createContainer(name: name, distro: distro, version: version, arch: arch)
         } catch {
             setError(.containerCreateError(cause: error))
         }

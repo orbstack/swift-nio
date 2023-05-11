@@ -4,32 +4,18 @@
 
 import Foundation
 
-enum ImageKey: String {
-    case alpine   = "alpine"
-    case arch     = "archlinux"
-    case centos   = "centos"
-    case debian   = "debian"
-    case fedora   = "fedora"
-    case gentoo   = "gentoo"
-    case kali     = "kali"
-    case opensuse = "opensuse"
-    case ubuntu   = "ubuntu"
-    case void     = "voidlinux"
+struct DistroVersion: Equatable, Identifiable, Hashable {
+    let key: String
+    let friendlyName: String
 
-    case devuan = "devuan"
-    case alma   = "almalinux"
-    //case amazon = "amazonlinux"
-    case oracle = "oracle"
-    case rocky  = "rockylinux"
+    var id: String { key }
+}
 
-    // extra
-    case nixos  = "nixos"
-    case docker = "docker" // can't be created
-    //case ubuntuFull = "ubuntu-full" // not yet supported
+private func v(_ key: String, as friendlyName: String? = nil) -> DistroVersion {
+    DistroVersion(key: key, friendlyName: friendlyName ?? key)
 }
 
 enum Distro: String, CaseIterable {
-    //case Amazon = "amazon"
     case alma   = "alma"
     case alpine   = "alpine"
     case arch     = "arch"
@@ -46,51 +32,73 @@ enum Distro: String, CaseIterable {
     case ubuntu   = "ubuntu"
     case void     = "void"
 
-    var imageKey: ImageKey {
+    var imageKey: String {
         switch self {
-        case .alpine:   return .alpine
-        case .arch:     return .arch
-        case .centos:   return .centos
-        case .debian:   return .debian
-        case .fedora:   return .fedora
-        case .gentoo:   return .gentoo
-        case .kali:     return .kali
-        case .opensuse: return .opensuse
-        case .ubuntu:   return .ubuntu
-        case .void:     return .void
-
-        case .devuan: return .devuan
-        case .alma:   return .alma
-        //case .Amazon: return .Amazon
-        case .oracle: return .oracle
-        case .rocky:  return .rocky
-
-        // extra
-        case .nixos: return .nixos
+        case .alma:   return "almalinux"
+        case .alpine:   return "alpine"
+        case .arch:     return "archlinux"
+        case .centos:   return "centos"
+        case .debian:   return "debian"
+        case .devuan: return "devuan"
+        case .fedora:   return "fedora"
+        case .gentoo:   return "gentoo"
+        case .kali:     return "kali"
+        case .nixos: return "nixos"
+        case .opensuse: return "opensuse"
+        case .oracle: return "oracle"
+        case .rocky:  return "rockylinux"
+        case .ubuntu:   return "ubuntu"
+        case .void:     return "voidlinux"
         }
     }
 
     var friendlyName: String {
         switch self {
+        case .alma:   return "Alma"
         case .alpine:   return "Alpine"
         case .arch:     return "Arch"
         case .centos:   return "CentOS"
         case .debian:   return "Debian"
+        case .devuan: return "Devuan"
         case .fedora:   return "Fedora"
         case .gentoo:   return "Gentoo"
         case .kali:     return "Kali"
+        case .nixos: return "NixOS"
         case .opensuse: return "OpenSUSE"
-        case .ubuntu:   return "Ubuntu"
-        case .void:     return "Void"
-
-        case .devuan: return "Devuan"
-        case .alma:   return "Alma"
-        //case .Amazon: return "Amazon"
         case .oracle: return "Oracle"
         case .rocky:  return "Rocky"
+        case .ubuntu:   return "Ubuntu"
+        case .void:     return "Void"
+        }
+    }
 
-        // extra
-        case .nixos: return "NixOS"
+    // last version is latest stable default
+    // systemd cgroupv1 excluded: centos 7, ubuntu bionic, oracle 7
+    var versions: [DistroVersion] {
+        switch self {
+        case .alma:   return [v("8"), v("9")]
+        case .alpine:   return [v("edge"), v("3.14"), v("3.15"), v("3.16"), v("3.17")]
+        case .arch:     return [v("current", as: "latest")]
+        case .centos:   return [/*v("7"),*/ v("8-Stream", as: "8 (Stream)"), v("9-Stream", as: "9 (Stream)")]
+        case .debian:   return [v("buster", as: "10 (Buster)"), v("bookworm", as: "12 (Bookworm, testing)"), v("sid", as: "Sid (unstable)"), v("bullseye", as: "11 (Bullseye)")]
+        case .devuan: return [v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera")]
+        case .fedora:   return [v("36"), v("37"), v("Rawhide"), v("38")]
+        case .gentoo:   return [v("current", as: "latest")]
+        case .kali:     return [v("current", as: "latest")]
+        case .nixos: return [v("22.11")]
+        case .opensuse: return [v("tumbleweed", as: "Tumbleweed"), v("15.4")]
+        case .oracle: return [v("8"), v("9")]
+        case .rocky:  return [v("8"), v("9")]
+        case .ubuntu:   return [
+            //v("xenial", as: "16.04 LTS (Xenial Xerus)"),
+            v("bionic", as: "18.04 LTS (Bionic Beaver)"),
+            v("focal", as: "20.04 LTS (Focal Fossa)"),
+            v("jammy", as: "22.04 LTS (Jammy Jellyfish)"),
+            v("kinetic", as: "22.10 (Kinetic Kudu)"),
+            //v("mantic", as: "23.10 (Mantic Minotaur, future)"),
+            v("lunar", as: "23.04 (Lunar Lobster)")
+        ]
+        case .void:     return [v("current", as: "latest")]
         }
     }
 }

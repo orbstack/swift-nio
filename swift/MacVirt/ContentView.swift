@@ -139,6 +139,7 @@ struct ContentView: View {
                             }
                     .help("New Machine")
                     .disabled(model.state != .running)
+                    .keyboardShortcut("n", modifiers: [.command])
                 }
             }
 
@@ -151,6 +152,7 @@ struct ContentView: View {
                     }
                     .help("New Volume")
                     .disabled(model.state != .running)
+                    .keyboardShortcut("n", modifiers: [.command])
                 }
             }
 

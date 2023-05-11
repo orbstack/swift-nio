@@ -24,6 +24,7 @@ struct CreateContainerView: View {
     @State private var arch = "amd64"
     #endif
     @State private var distro = Distro.ubuntu
+    @State private var version = Distro.ubuntu.versions.last!.key
 
     @Binding var isPresented: Bool
     @Binding var creatingCount: Int
@@ -60,6 +61,16 @@ struct CreateContainerView: View {
                             Text(distro.friendlyName).tag(distro)
                         }
                     }
+
+                    Picker("Version", selection: $version) {
+                        ForEach(distro.versions, id: \.self) { version in
+                            if version == distro.versions.last! && distro.versions.count > 1 {
+                                Divider()
+                            }
+                            Text(version.friendlyName).tag(version.key)
+                        }
+                    }
+
                     #if arch(arm64)
                     Picker("CPU type", selection: $arch) {
                         Text("Apple").tag("arm64")
@@ -102,6 +113,8 @@ struct CreateContainerView: View {
                 arch = "arm64"
             }
             #endif
+
+            version = $0.versions.last!.key
         }
         .onChange(of: name) { newName in
             checkName(newName)
@@ -152,7 +165,7 @@ struct CreateContainerView: View {
 
         Task { @MainActor in
             creatingCount += 1
-            await vmModel.tryCreateContainer(name: name, distro: distro, arch: arch)
+            await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch)
             creatingCount -= 1
         }
         isPresented = false
