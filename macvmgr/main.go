@@ -28,6 +28,7 @@ import (
 	"github.com/kdrag0n/macvirt/macvmgr/flock"
 	"github.com/kdrag0n/macvirt/macvmgr/fsnotify"
 	"github.com/kdrag0n/macvirt/macvmgr/osver"
+	"github.com/kdrag0n/macvirt/macvmgr/util"
 	"github.com/kdrag0n/macvirt/macvmgr/vclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
 	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
@@ -156,20 +157,23 @@ func setupDockerContext() error {
 	dockerBin := conf.FindXbin("docker")
 
 	// create context
-	var errBuf bytes.Buffer
-	createCmd := exec.Command(dockerBin, "context", "create", appid.AppName, "--description", appid.UserAppName, "--docker", "host=unix://"+conf.DockerSocket())
-	createCmd.Stderr = &errBuf
-	err := createCmd.Run()
+	logrus.Debug("creating Docker context")
+	_, err := util.Run(dockerBin, "context", "create", appid.AppName, "--description", appid.UserAppName, "--docker", "host=unix://"+conf.DockerSocket())
 	if err != nil {
-		if strings.Contains(errBuf.String(), "already exists") {
-			// ignore and continue to set use
+		if strings.Contains(err.Error(), "already exists") {
+			// update context if it already exists
+			// path can change if username or home dir changes
+			_, err = util.Run(dockerBin, "context", "update", appid.AppName, "--docker", "host=unix://"+conf.DockerSocket())
+			if err != nil {
+				return err
+			}
 		} else {
 			return err
 		}
 	}
 
 	// use context
-	err = exec.Command(dockerBin, "context", "use", appid.AppName).Run()
+	_, err = util.Run(dockerBin, "context", "use", appid.AppName)
 	if err != nil {
 		return err
 	}
