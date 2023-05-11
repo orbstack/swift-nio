@@ -37,8 +37,9 @@ struct DockerStateWrapperView<Content: View>: View {
                                         await refreshAction()
                                     }
                                 }) {
-                                    Text("Turn on Docker")
+                                    Text("Turn on")
                                 }
+                                .keyboardShortcut(.defaultAction)
                             }
                         } else {
                             ProgressView(label: {

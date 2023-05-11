@@ -24,35 +24,44 @@ struct DockerImagesRootView: View {
                 let totalSize = filteredImages.reduce(0) { $0 + $1.size }
                 let totalSizeFormatted = ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
 
-                List(selection: $selection) {
-                    Section(header: Text("Tagged")) {
-                        ForEach(filteredImages) { image in
-                            if image.hasTag {
-                                DockerImageItem(image: image, selection: selection)
+                // 0 spacing to fix bg color gap between list and getting started hint
+                VStack(spacing: 0) {
+                    if !filteredImages.isEmpty {
+                        List(selection: $selection) {
+                            Section(header: Text("Tagged")) {
+                                ForEach(filteredImages) { image in
+                                    if image.hasTag {
+                                        DockerImageItem(image: image, selection: selection)
+                                    }
+                                }
+                            }
+
+                            Section(header: Text("Untagged")) {
+                                ForEach(filteredImages) { image in
+                                    if !image.hasTag {
+                                        DockerImageItem(image: image, selection: selection)
+                                    }
+                                }
                             }
                         }
-                    }
+                        .navigationSubtitle("\(totalSizeFormatted) used")
+                    } else {
+                        Spacer()
 
-                    if filteredImages.isEmpty {
                         HStack {
                             Spacer()
-                            Text("No images")
-                                    .font(.title)
-                                    .foregroundColor(.secondary)
+                            VStack {
+                                Text("No images")
+                                        .font(.title)
+                                        .foregroundColor(.secondary)
+                            }
                                     .padding(.top, 32)
                             Spacer()
                         }
-                    }
 
-                    Section(header: Text("Untagged")) {
-                        ForEach(filteredImages) { image in
-                            if !image.hasTag {
-                                DockerImageItem(image: image, selection: selection)
-                            }
-                        }
+                        Spacer()
                     }
                 }
-                .navigationSubtitle("\(totalSizeFormatted) used")
             } else {
                 ProgressView(label: {
                     Text("Loading")

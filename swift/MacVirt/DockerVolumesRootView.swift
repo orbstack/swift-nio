@@ -21,45 +21,54 @@ struct DockerVolumesRootView: View {
                             volume.name.localizedCaseInsensitiveContains(searchQuery)
                 }
 
-                List(selection: $selection) {
-                    Section(header: Text("In Use")) {
-                        ForEach(filteredVolumes, id: \.name) { volume in
-                            if isMounted(volume) {
-                                DockerVolumeItem(volume: volume, isMounted: true, selection: selection)
-                                        .id(volume.name)
+                // 0 spacing to fix bg color gap between list and getting started hint
+                VStack(spacing: 0) {
+                    if !filteredVolumes.isEmpty {
+                        List(selection: $selection) {
+                            Section(header: Text("In Use")) {
+                                ForEach(filteredVolumes, id: \.name) { volume in
+                                    if isMounted(volume) {
+                                        DockerVolumeItem(volume: volume, isMounted: true, selection: selection)
+                                                .id(volume.name)
+                                    }
+                                }
                             }
-                        }
-                    }
 
-                    Section(header: Text("Unused")) {
-                        ForEach(filteredVolumes, id: \.name) { volume in
-                            if !isMounted(volume) {
-                                DockerVolumeItem(volume: volume, isMounted: false, selection: selection)
-                                        .id(volume.name)
+                            Section(header: Text("Unused")) {
+                                ForEach(filteredVolumes, id: \.name) { volume in
+                                    if !isMounted(volume) {
+                                        DockerVolumeItem(volume: volume, isMounted: false, selection: selection)
+                                                .id(volume.name)
+                                    }
+                                }
                             }
-                        }
-                    }
 
-                    if filteredVolumes.isEmpty {
-                        HStack {
-                            Spacer()
-                            Text("No volumes")
-                                    .font(.title)
-                                    .foregroundColor(.secondary)
-                                    .padding(.top, 32)
-                            Spacer()
+                            HStack {
+                                Spacer()
+                                VStack {
+                                    Text("You can also find these volumes at ~/\(Folders.nfsName)/docker.")
+                                            .font(.title3)
+                                            .foregroundColor(.secondary)
+                                }
+                                        .padding(.vertical, 24)
+                                Spacer()
+                            }
                         }
                     } else {
+                        Spacer()
+
                         HStack {
                             Spacer()
                             VStack {
-                                Text("You can also find these volumes at ~/\(Folders.nfsName)/docker.")
-                                        .font(.title3)
+                                Text("No volumes")
+                                        .font(.title)
                                         .foregroundColor(.secondary)
                             }
-                                    .padding(.vertical, 24)
+                                    .padding(.top, 32)
                             Spacer()
                         }
+
+                        Spacer()
                     }
                 }
             } else {
