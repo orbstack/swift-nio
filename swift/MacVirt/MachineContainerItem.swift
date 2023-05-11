@@ -85,6 +85,11 @@ struct MachineContainerItem: View {
                 Label("Open Terminal", systemImage: "terminal")
             }
             Button(action: {
+                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfs)/\(record.name)")
+            }) {
+                Label("Open Files", systemImage: "folder")
+            }
+            Button(action: {
                 Task {
                     await vmModel.trySetDefaultContainer(record)
                 }
