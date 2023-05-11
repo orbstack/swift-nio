@@ -101,8 +101,8 @@ struct DockerContainersRootView: View {
             }
 
             // 0 spacing to fix bg color gap between list and getting started hint
+            let listItems = makeListItems(dockerRecord, filteredContainers)
             VStack(spacing: 0) {
-                let listItems = makeListItems(dockerRecord, filteredContainers)
                 if !listItems.isEmpty {
                     List(listItems, id: \.id, children: \.children, selection: $selection) { item in
                         VStack {
@@ -127,19 +127,19 @@ struct DockerContainersRootView: View {
                         }
                                 .id(item.id)
                     }
-                    .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
-                    // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group
-                    // must use VisualEffectView for color Desktop Tinting
-                    .overlay(
-                            VisualEffectView(material: .contentBackground)
-                                .frame(width: 10),
-                            alignment: .leading
-                    )
-                    .overlay(
-                            VisualEffectView(material: .contentBackground)
-                                .frame(width: 10),
-                            alignment: .trailing
-                    )
+                            .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
+                            // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group
+                            // must use VisualEffectView for color Desktop Tinting
+                            .overlay(
+                                    VisualEffectView(material: .contentBackground)
+                                            .frame(width: 10),
+                                    alignment: .leading
+                            )
+                            .overlay(
+                                    VisualEffectView(material: .contentBackground)
+                                            .frame(width: 10),
+                                    alignment: .trailing
+                            )
                 } else {
                     Spacer()
 
@@ -150,7 +150,7 @@ struct DockerContainersRootView: View {
                                     .font(.title)
                                     .foregroundColor(.secondary)
                         }
-                        .padding(.top, 32)
+                                .padding(.top, 32)
                         Spacer()
                     }
 
@@ -161,21 +161,27 @@ struct DockerContainersRootView: View {
                         GettingStartedHintBox()
                         Spacer()
                     }
-                    .padding(.bottom, 64)
+                            .padding(.bottom, 48)
                 }
-
+            }
+            // show as overlay to avoid VisualEffectView affecting toolbar color
+            .overlay {
                 // special case: show example http://localhost if only visible container is getting-started
                 // getting started hint box moves to bottom in this case
                 if listItems.count == 1,
                    let container = listItems.first?.container,
                    container.image == "docker/getting-started" {
-                    HStack {
+
+                    VStack {
                         Spacer()
-                        GettingStartedHintBox()
-                        Spacer()
+                        HStack {
+                            Spacer()
+                            GettingStartedHintBox()
+                            Spacer()
+                        }
+                                .padding(.bottom, 48)
+                                .background(VisualEffectView(material: .contentBackground))
                     }
-                    .padding(.bottom, 64)
-                    .background(VisualEffectView(material: .contentBackground))
                 }
             }
         }

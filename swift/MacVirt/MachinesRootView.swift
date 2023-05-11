@@ -36,8 +36,7 @@ struct MachinesRootView: View {
                                 }) {
                                     Text("New Machine")
                                 }
-
-                                Spacer().frame(height: 64)
+                                .keyboardShortcut(.defaultAction)
                             }
                             .padding(.top, 32)
                             Spacer()
@@ -63,7 +62,7 @@ struct MachinesRootView: View {
                                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                             Spacer()
                         }
-                        .padding(.bottom, 64)
+                        .padding(.bottom, 48)
                     }
                 }
                 .overlay(alignment: .bottomTrailing, content: {

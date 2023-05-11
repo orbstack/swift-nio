@@ -13,14 +13,31 @@ struct FilesRootView: View {
     var body: some View {
         StateWrapperView {
             if let containers = vmModel.containers {
-                List(selection: $selection) {
-                    ForEach(containers) { container in
-                        if container.id != ContainerIds.docker {
-                            FileContainerItem(record: container)
-                        }
-                    }
+                let haveContainers = containers.contains(where: { !$0.builtin })
 
-                    if !containers.contains(where: { !$0.builtin }) {
+                VStack {
+                    if haveContainers {
+                        List(selection: $selection) {
+                            ForEach(containers) { container in
+                                if !container.builtin {
+                                    FileContainerItem(record: container)
+                                }
+                            }
+
+                            HStack {
+                                Spacer()
+                                VStack {
+                                    Text("You can also find these files at ~/\(Folders.nfsName).")
+                                            .font(.title3)
+                                            .foregroundColor(.secondary)
+                                }
+                                        .padding(.vertical, 24)
+                                Spacer()
+                            }
+                        }
+                    } else {
+                        Spacer()
+
                         HStack {
                             Spacer()
                             VStack {
@@ -28,20 +45,11 @@ struct FilesRootView: View {
                                         .font(.title)
                                         .foregroundColor(.secondary)
                             }
-                            .padding(.top, 32)
+                                    .padding(.top, 32)
                             Spacer()
                         }
-                    } else {
-                        HStack {
-                            Spacer()
-                            VStack {
-                                Text("You can also find these files at ~/\(Folders.nfsName).")
-                                        .font(.title3)
-                                        .foregroundColor(.secondary)
-                            }
-                                    .padding(.vertical, 24)
-                            Spacer()
-                        }
+
+                        Spacer()
                     }
                 }
             } else {

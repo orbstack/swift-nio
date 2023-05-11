@@ -112,13 +112,18 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             }
 
                             VStack(alignment: .leading) {
-                                if isRunning {
-                                    Button("Open Terminal", action: openInTerminal)
+                                HStack {
+                                    if isRunning {
+                                        Button("Terminal", action: openInTerminal)
+                                    }
+
+                                    Button("Logs", action: showLogs)
                                 }
 
-                                Button("Show Logs", action: showLogs)
-
                                 if isRunning && container.image == "docker/getting-started" {
+                                    Spacer()
+                                        .frame(height: 20)
+
                                     // special case for more seamless onboarding
                                     Button("Open Tutorial", action: {
                                         NSWorkspace.shared.open(URL(string: "http://localhost")!)
