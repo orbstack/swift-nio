@@ -3,9 +3,9 @@ package shell
 import (
 	"net"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
-	"github.com/kdrag0n/macvirt/macvmgr/syncx"
-	"github.com/kdrag0n/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/macvmgr/syncx"
+	"github.com/orbstack/macvirt/scon/hclient"
 )
 
 var (

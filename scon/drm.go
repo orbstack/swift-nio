@@ -3,10 +3,10 @@ package main
 import (
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
-	"github.com/kdrag0n/macvirt/macvmgr/drm/sjwt"
-	"github.com/kdrag0n/macvirt/scon/conf"
-	"github.com/kdrag0n/macvirt/scon/killswitch"
+	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/macvmgr/drm/sjwt"
+	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/killswitch"
 	"github.com/sirupsen/logrus"
 )
 

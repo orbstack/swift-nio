@@ -5,9 +5,9 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
-	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

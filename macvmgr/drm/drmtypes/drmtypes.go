@@ -3,7 +3,7 @@ package drmtypes
 import (
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
+	"github.com/orbstack/macvirt/macvmgr/drm/timex"
 )
 
 const (

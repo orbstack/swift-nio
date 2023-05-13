@@ -19,8 +19,8 @@ package dglink
 import (
 	"fmt"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink/rawfile"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink/stopfd"
+	"github.com/orbstack/macvirt/macvmgr/vnet/dglink/rawfile"
+	"github.com/orbstack/macvirt/macvmgr/vnet/dglink/stopfd"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"

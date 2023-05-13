@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/socks"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/sockstest"
+	"github.com/orbstack/macvirt/macvmgr/vnet/proxy/socks"
+	"github.com/orbstack/macvirt/macvmgr/vnet/proxy/sockstest"
 )
 
 type proxyFromEnvTest struct {

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/syncx"
+	"github.com/orbstack/macvirt/macvmgr/syncx"
 )
 
 //go:generate ./gen_version.sh

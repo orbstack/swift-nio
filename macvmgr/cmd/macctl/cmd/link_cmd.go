@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/shell"
+	"github.com/orbstack/macvirt/macvmgr/cmd/macctl/shell"
 	"github.com/spf13/cobra"
 )
 

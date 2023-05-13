@@ -1,6 +1,6 @@
 package gvaddr
 
-import "github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
+import "github.com/orbstack/macvirt/macvmgr/vnet/netutil"
 
 var (
 	LoopbackGvIP4 = netutil.ParseTcpipAddress("127.0.0.1")

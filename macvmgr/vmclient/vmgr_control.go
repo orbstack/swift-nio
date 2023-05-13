@@ -8,9 +8,9 @@ import (
 	"path"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/util"
-	"github.com/kdrag0n/macvirt/scon/sclient"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/util"
+	"github.com/orbstack/macvirt/scon/sclient"
 )
 
 const (

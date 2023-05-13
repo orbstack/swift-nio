@@ -1,6 +1,6 @@
 package mounts
 
-import "github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+import "github.com/orbstack/macvirt/macvmgr/conf/appid"
 
 var (
 	// linked paths don't need translation

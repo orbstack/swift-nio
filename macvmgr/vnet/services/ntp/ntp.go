@@ -1,9 +1,9 @@
 package ntpsrv
 
 import (
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
-	ntpserver "github.com/kdrag0n/macvirt/macvmgr/vnet/services/ntp/internal"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
+	ntpserver "github.com/orbstack/macvirt/macvmgr/vnet/services/ntp/internal"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"

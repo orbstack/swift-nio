@@ -5,9 +5,9 @@ import (
 	"net/rpc"
 	"strconv"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
 

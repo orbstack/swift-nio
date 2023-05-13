@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/dglink/rawfile"
+	"github.com/orbstack/macvirt/macvmgr/vnet/dglink/rawfile"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"

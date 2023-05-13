@@ -1,7 +1,7 @@
 package osver
 
 import (
-	"github.com/kdrag0n/macvirt/macvmgr/syncx"
+	"github.com/orbstack/macvirt/macvmgr/syncx"
 	"golang.org/x/mod/semver"
 	"golang.org/x/sys/unix"
 )

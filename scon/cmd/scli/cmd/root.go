@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 

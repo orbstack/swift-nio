@@ -3,9 +3,9 @@ package cmd
 import (
 	"os/exec"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
-	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/vmclient"
+	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
 )
 

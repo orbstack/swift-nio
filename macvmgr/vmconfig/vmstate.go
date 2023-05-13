@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
+	"github.com/orbstack/macvirt/macvmgr/conf/coredir"
 )
 
 const (

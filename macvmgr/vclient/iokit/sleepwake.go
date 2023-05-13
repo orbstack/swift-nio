@@ -28,8 +28,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
-	"github.com/kdrag0n/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/macvmgr/drm/timex"
+	"github.com/orbstack/macvirt/macvmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 

@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/kdrag0n/macvirt/scon/agent"
-	"github.com/kdrag0n/macvirt/scon/images"
-	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/oklog/ulid/v2"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"

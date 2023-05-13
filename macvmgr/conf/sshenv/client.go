@@ -3,7 +3,7 @@ package sshenv
 import (
 	"strings"
 
-	"github.com/kdrag0n/macvirt/scon/agent/envutil"
+	"github.com/orbstack/macvirt/scon/agent/envutil"
 )
 
 type TranslatorFuncs struct {

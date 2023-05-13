@@ -3,7 +3,7 @@ package agent
 import (
 	"os"
 
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
 

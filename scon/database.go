@@ -5,7 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 
-	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/types"
 	"go.etcd.io/bbolt"
 )
 

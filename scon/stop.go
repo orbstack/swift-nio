@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 )

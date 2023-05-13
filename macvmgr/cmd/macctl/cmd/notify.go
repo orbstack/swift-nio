@@ -4,8 +4,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/hcli"
-	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/macvmgr/cmd/macctl/hcli"
+	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/spf13/cobra"
 )
 

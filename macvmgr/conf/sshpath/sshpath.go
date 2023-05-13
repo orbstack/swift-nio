@@ -5,8 +5,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/macvmgr/conf/coredir"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
 )
 
 type PathTranslatorFunc[T any] func(string, T) string

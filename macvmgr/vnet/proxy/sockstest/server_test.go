@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/socks"
+	"github.com/orbstack/macvirt/macvmgr/vnet/proxy/socks"
 )
 
 func TestParseAuthRequest(t *testing.T) {

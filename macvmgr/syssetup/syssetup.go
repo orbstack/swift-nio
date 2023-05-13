@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/conf"
 )
 
 func IsSshConfigWritable() bool {

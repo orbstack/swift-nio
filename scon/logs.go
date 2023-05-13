@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
 )
 

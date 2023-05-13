@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/conf"
 	"golang.org/x/sys/unix"
 )
 

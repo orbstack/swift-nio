@@ -5,9 +5,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/kevinburke/ssh_config"
+	"github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol/htypes"
+	"github.com/orbstack/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"

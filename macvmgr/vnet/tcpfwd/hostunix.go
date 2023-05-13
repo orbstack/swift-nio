@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"

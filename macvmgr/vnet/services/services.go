@@ -1,14 +1,14 @@
 package services
 
 import (
-	"github.com/kdrag0n/macvirt/macvmgr/vnet"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
-	dnssrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/dns"
-	hcsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol"
-	sshsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/hostssh"
-	ntpsrv "github.com/kdrag0n/macvirt/macvmgr/vnet/services/ntp"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/sshagent"
+	"github.com/orbstack/macvirt/macvmgr/vnet"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netutil"
+	dnssrv "github.com/orbstack/macvirt/macvmgr/vnet/services/dns"
+	hcsrv "github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol"
+	sshsrv "github.com/orbstack/macvirt/macvmgr/vnet/services/hostssh"
+	ntpsrv "github.com/orbstack/macvirt/macvmgr/vnet/services/ntp"
+	"github.com/orbstack/macvirt/macvmgr/vnet/services/sshagent"
 	"github.com/sirupsen/logrus"
 )
 

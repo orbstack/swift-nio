@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
 )
 
 func run(args ...string) (string, error) {

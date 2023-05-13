@@ -9,12 +9,12 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
-	"github.com/kdrag0n/macvirt/macvmgr/flock"
-	"github.com/kdrag0n/macvirt/macvmgr/syncx"
-	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
-	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/dockertypes"
+	"github.com/orbstack/macvirt/macvmgr/flock"
+	"github.com/orbstack/macvirt/macvmgr/syncx"
+	"github.com/orbstack/macvirt/macvmgr/vmclient/vmtypes"
+	"github.com/orbstack/macvirt/macvmgr/vmconfig"
 	"golang.org/x/sys/unix"
 )
 

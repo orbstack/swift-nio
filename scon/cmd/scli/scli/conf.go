@@ -4,10 +4,10 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/scon/util"
 )
 
 type Config struct {

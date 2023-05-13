@@ -4,9 +4,9 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/gvaddr"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
+	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/macvmgr/vnet/gvaddr"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"

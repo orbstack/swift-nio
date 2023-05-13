@@ -4,7 +4,7 @@
 
 // Package proxy provides support for a variety of protocols to proxy network
 // data.
-package proxy // import "github.com/kdrag0n/macvirt/macvmgr/vnet/proxy"
+package proxy // import "github.com/orbstack/macvirt/macvmgr/vnet/proxy"
 
 import (
 	"errors"

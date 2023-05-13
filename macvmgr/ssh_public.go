@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	"github.com/alessio/shellescape"
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/syssetup"
 	"github.com/mikesmitty/edkey"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/syssetup"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )

@@ -12,12 +12,12 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/scon/conf"
-	"github.com/kdrag0n/macvirt/scon/hclient"
-	"github.com/kdrag0n/macvirt/scon/killswitch"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/scon/killswitch"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

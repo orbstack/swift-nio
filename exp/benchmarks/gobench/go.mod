@@ -1,4 +1,4 @@
-module github.com/kdrag0n/macvirt/exp/benchmarks/gobench
+module github.com/orbstack/macvirt/exp/benchmarks/gobench
 
 go 1.20
 

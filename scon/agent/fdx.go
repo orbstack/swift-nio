@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/kdrag0n/macvirt/scon/syncx"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

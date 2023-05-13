@@ -3,7 +3,7 @@ package conf
 import (
 	"path"
 
-	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/conf"
 )
 
 func findSiblingExe(name string) (string, error) {

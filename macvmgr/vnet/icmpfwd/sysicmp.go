@@ -6,7 +6,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd"
+	"github.com/orbstack/macvirt/macvmgr/vnet/udpfwd"
 	"github.com/sirupsen/logrus"
 	goipv4 "golang.org/x/net/ipv4"
 	goipv6 "golang.org/x/net/ipv6"

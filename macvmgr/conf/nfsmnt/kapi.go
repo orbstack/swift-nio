@@ -11,7 +11,7 @@ import (
 	"unsafe"
 
 	nfs_sys_prot "github.com/buildbarn/go-xdr/pkg/protocols/darwin_nfs_sys_prot"
-	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
+	"github.com/orbstack/macvirt/macvmgr/vmconfig"
 
 	"golang.org/x/sys/unix"
 )

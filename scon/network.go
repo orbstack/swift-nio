@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-iptables/iptables"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
-	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"

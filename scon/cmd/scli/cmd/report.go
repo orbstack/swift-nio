@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
-	"github.com/kdrag0n/macvirt/scon/cmd/scli/osutil"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/macvmgr/conf/appver"
+	"github.com/orbstack/macvirt/scon/cmd/scli/osutil"
 	"github.com/spf13/cobra"
 )
 

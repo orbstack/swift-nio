@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
-	"github.com/kdrag0n/macvirt/macvmgr/vmclient/vmtypes"
+	"github.com/orbstack/macvirt/macvmgr/vmclient"
+	"github.com/orbstack/macvirt/macvmgr/vmclient/vmtypes"
 )
 
 // this is in here instead of orbctl because we're the one doing setup

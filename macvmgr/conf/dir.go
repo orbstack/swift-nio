@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
-	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
+	"github.com/orbstack/macvirt/macvmgr/conf/coredir"
+	"github.com/orbstack/macvirt/macvmgr/vmconfig"
 )
 
 func ensureDir(dir string) string {

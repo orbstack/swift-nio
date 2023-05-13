@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package scon;
-option go_package = "github.com/kdrag0n/macvirt/scon/sconrpc";
+option go_package = "github.com/orbstack/macvirt/scon/sconrpc";
 
 message ImageSpec {
     string distro = 1;

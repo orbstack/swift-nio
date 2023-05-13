@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
-	"github.com/kdrag0n/macvirt/scon/images"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

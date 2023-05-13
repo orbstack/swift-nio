@@ -3,7 +3,7 @@ package tcpfwd
 import (
 	"net"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
 )
 
 var (

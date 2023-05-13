@@ -8,7 +8,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/socks"
+	"github.com/orbstack/macvirt/macvmgr/vnet/proxy/socks"
 )
 
 // SOCKS5 returns a Dialer that makes SOCKSv5 connections to the given

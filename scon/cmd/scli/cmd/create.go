@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/scon/cmd/scli/scli"
-	"github.com/kdrag0n/macvirt/scon/cmd/scli/spinutil"
-	"github.com/kdrag0n/macvirt/scon/images"
-	"github.com/kdrag0n/macvirt/scon/types"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

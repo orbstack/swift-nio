@@ -6,8 +6,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/shell"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/macvmgr/cmd/macctl/shell"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
 	"github.com/spf13/cobra"
 )
 

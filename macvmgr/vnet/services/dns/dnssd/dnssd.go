@@ -27,8 +27,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
 	"github.com/miekg/dns"
+	"github.com/orbstack/macvirt/macvmgr/conf"
 	"github.com/sirupsen/logrus"
 )
 

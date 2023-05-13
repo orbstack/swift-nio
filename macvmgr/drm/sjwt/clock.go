@@ -3,7 +3,7 @@ package sjwt
 import (
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/syncx"
+	"github.com/orbstack/macvirt/macvmgr/syncx"
 )
 
 const (

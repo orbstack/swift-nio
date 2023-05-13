@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/kdrag0n/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

@@ -4,8 +4,8 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/macvmgr/drm/updates"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/macvmgr/drm/updates"
 	"github.com/spf13/cobra"
 )
 

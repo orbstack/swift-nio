@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
-	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

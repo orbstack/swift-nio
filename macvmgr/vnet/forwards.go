@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/tcpfwd"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/macvmgr/vnet/tcpfwd"
+	"github.com/orbstack/macvirt/macvmgr/vnet/udpfwd"
 )
 
 type HostForward interface {

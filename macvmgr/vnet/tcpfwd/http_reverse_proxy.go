@@ -7,7 +7,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy"
+	"github.com/orbstack/macvirt/macvmgr/vnet/proxy"
 	"github.com/sirupsen/logrus"
 )
 

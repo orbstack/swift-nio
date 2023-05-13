@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kdrag0n/macvirt/scon/agent"
-	"github.com/kdrag0n/macvirt/scon/hclient"
-	"github.com/kdrag0n/macvirt/scon/types"
-	"github.com/kdrag0n/macvirt/scon/util"
-	"github.com/kdrag0n/macvirt/scon/util/sysnet"
+	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/sirupsen/logrus"
 )
 

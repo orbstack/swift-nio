@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/alessio/shellescape"
-	"github.com/kdrag0n/macvirt/macvmgr/cmd/macctl/shell"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/sshpath"
+	"github.com/orbstack/macvirt/macvmgr/cmd/macctl/shell"
+	"github.com/orbstack/macvirt/macvmgr/conf/sshpath"
 	"github.com/spf13/cobra"
 )
 

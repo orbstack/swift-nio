@@ -4,7 +4,7 @@ import (
 	"os/exec"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/conf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

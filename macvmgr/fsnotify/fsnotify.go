@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet"
-	"github.com/kdrag0n/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/vnet"
+	"github.com/orbstack/macvirt/macvmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 

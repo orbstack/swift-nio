@@ -1,8 +1,8 @@
-module github.com/kdrag0n/macvirt/macvmgr
+module github.com/orbstack/macvirt/macvmgr
 
 go 1.19
 
-replace github.com/kdrag0n/macvirt/scon => ../scon
+replace github.com/orbstack/macvirt/scon => ../scon
 
 // go branch
 replace gvisor.dev/gvisor => ../../../vm/gvisor
@@ -17,7 +17,7 @@ require (
 	github.com/creachadair/jrpc2 v0.43.0
 	github.com/creack/pty v1.1.18
 	github.com/gliderlabs/ssh v0.3.5
-	github.com/kdrag0n/macvirt/scon v0.0.0-00010101000000-000000000000
+	github.com/orbstack/macvirt/scon v0.0.0-00010101000000-000000000000
 	github.com/mdlayher/vsock v1.2.0
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	golang.org/x/sys v0.6.0

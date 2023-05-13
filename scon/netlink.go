@@ -8,7 +8,7 @@ import (
 	"net/netip"
 	"os"
 
-	"github.com/kdrag0n/macvirt/scon/util/sysnet"
+	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"

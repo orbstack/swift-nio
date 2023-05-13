@@ -20,8 +20,8 @@ import (
 	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
-	"github.com/kdrag0n/macvirt/scon/images"
-	"github.com/kdrag0n/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )

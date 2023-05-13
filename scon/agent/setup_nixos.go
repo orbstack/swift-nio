@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
 

@@ -9,9 +9,9 @@ gvisor.dev/gvisor/pkg/tcpip/stack.PacketBufferPtr.Network({0x140000c4a00?})
         /Users/dragon/code/vm/gvisor/pkg/tcpip/stack/packet_buffer.go:418 +0x5c
 gvisor.dev/gvisor/pkg/tcpip/transport/udp.(*ForwarderRequest).CreateEndpoint(0x140000f4c80, 0x1400020e240?)
         /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/udp/forwarder.go:77 +0x9c
-github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd.NewUdpForwarder.func1.1()
+github.com/orbstack/macvirt/macvmgr/vnet/udpfwd.NewUdpForwarder.func1.1()
         /Users/dragon/code/projects/macvirt/macvmgr/vnet/udpfwd/udp.go:32 +0x184
-created by github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd.NewUdpForwarder.func1
+created by github.com/orbstack/macvirt/macvmgr/vnet/udpfwd.NewUdpForwarder.func1
         /Users/dragon/code/projects/macvirt/macvmgr/vnet/udpfwd/udp.go:19 +0xb4
 panic: PullUp failed
 
@@ -24,7 +24,7 @@ gvisor.dev/gvisor/pkg/tcpip/stack.PacketBufferPtr.Network({0x140000c4a00?})
         /Users/dragon/code/vm/gvisor/pkg/tcpip/stack/packet_buffer.go:418 +0x5c
 gvisor.dev/gvisor/pkg/tcpip/transport/udp.(*ForwarderRequest).CreateEndpoint(0x140000f4cc0, 0x1400020e240?)
         /Users/dragon/code/vm/gvisor/pkg/tcpip/transport/udp/forwarder.go:77 +0x9c
-github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd.NewUdpForwarder.func1.1()
+github.com/orbstack/macvirt/macvmgr/vnet/udpfwd.NewUdpForwarder.func1.1()
         /Users/dragon/code/projects/macvirt/macvmgr/vnet/udpfwd/udp.go:32 +0x184
-created by github.com/kdrag0n/macvirt/macvmgr/vnet/udpfwd.NewUdpForwarder.func1
+created by github.com/orbstack/macvirt/macvmgr/vnet/udpfwd.NewUdpForwarder.func1
         /Users/dragon/code/projects/macvirt/macvmgr/vnet/udpfwd/udp.go:19 +0xb4

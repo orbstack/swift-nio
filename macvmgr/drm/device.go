@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/drm/drmtypes"
-	"github.com/kdrag0n/macvirt/macvmgr/drm/ioreg"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/macvmgr/drm/ioreg"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

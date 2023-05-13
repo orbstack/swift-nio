@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/osver"
-	"github.com/kdrag0n/macvirt/macvmgr/vmconfig"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet"
-	"github.com/kdrag0n/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/osver"
+	"github.com/orbstack/macvirt/macvmgr/vmconfig"
+	"github.com/orbstack/macvirt/macvmgr/vnet"
+	"github.com/orbstack/macvirt/macvmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 

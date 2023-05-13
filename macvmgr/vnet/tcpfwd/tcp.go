@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/gonet"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/icmpfwd"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/netutil"
+	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/macvmgr/vnet/icmpfwd"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"

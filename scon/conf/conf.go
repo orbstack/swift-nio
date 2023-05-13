@@ -3,7 +3,7 @@ package conf
 import (
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 )
 
 var (

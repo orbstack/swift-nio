@@ -4,8 +4,8 @@ import (
 	"net"
 	"syscall"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/sockets"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/vnet/sockets"
 	"github.com/sirupsen/logrus"
 )
 

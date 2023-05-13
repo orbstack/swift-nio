@@ -4,8 +4,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/vmclient"
 	"golang.org/x/sys/unix"
 )
 

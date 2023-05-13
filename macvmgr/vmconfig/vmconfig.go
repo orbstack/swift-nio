@@ -8,9 +8,9 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/coredir"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mem"
-	"github.com/kdrag0n/macvirt/macvmgr/syncx"
+	"github.com/orbstack/macvirt/macvmgr/conf/coredir"
+	"github.com/orbstack/macvirt/macvmgr/conf/mem"
+	"github.com/orbstack/macvirt/macvmgr/syncx"
 )
 
 const (

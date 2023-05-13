@@ -7,10 +7,10 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/kdrag0n/macvirt/macvmgr/buildid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/flock"
-	"github.com/kdrag0n/macvirt/macvmgr/vmclient"
+	"github.com/orbstack/macvirt/macvmgr/buildid"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/flock"
+	"github.com/orbstack/macvirt/macvmgr/vmclient"
 )
 
 func getSpawnBuildID() (string, error) {

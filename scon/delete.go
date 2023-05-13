@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kdrag0n/macvirt/scon/conf"
-	"github.com/kdrag0n/macvirt/scon/types"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

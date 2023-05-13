@@ -3,7 +3,7 @@ package vnet
 import (
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/sockets"
+	"github.com/orbstack/macvirt/macvmgr/vnet/sockets"
 	"golang.org/x/sys/unix"
 )
 

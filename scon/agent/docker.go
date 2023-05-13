@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
-	"github.com/kdrag0n/macvirt/macvmgr/dockertypes"
-	"github.com/kdrag0n/macvirt/scon/agent/tcpfwd"
-	"github.com/kdrag0n/macvirt/scon/hclient"
-	"github.com/kdrag0n/macvirt/scon/util"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/macvmgr/dockertypes"
+	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
+	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )

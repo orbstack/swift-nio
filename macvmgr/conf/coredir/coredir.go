@@ -5,8 +5,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
 )
 
 var (

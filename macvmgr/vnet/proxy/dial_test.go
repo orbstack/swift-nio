@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/sockstest"
+	"github.com/orbstack/macvirt/macvmgr/vnet/proxy/sockstest"
 	"golang.org/x/net/nettest"
 )
 

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
-	"github.com/kdrag0n/macvirt/macvmgr/drm/timex"
-	"github.com/kdrag0n/macvirt/macvmgr/guihelper"
-	"github.com/kdrag0n/macvirt/macvmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/conf/appver"
+	"github.com/orbstack/macvirt/macvmgr/drm/timex"
+	"github.com/orbstack/macvirt/macvmgr/guihelper"
+	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/sirupsen/logrus"
 )
 

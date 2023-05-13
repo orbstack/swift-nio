@@ -7,8 +7,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/ports"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/services/hcontrol/htypes"
+	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/muja/goconfig"
 	"github.com/sirupsen/logrus"
 )

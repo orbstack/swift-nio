@@ -3,8 +3,8 @@ package cmd
 import (
 	"os"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/scon/cmd/scli/shell"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
 	"github.com/spf13/cobra"
 )
 

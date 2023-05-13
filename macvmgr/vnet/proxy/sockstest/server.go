@@ -10,7 +10,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy/socks"
+	"github.com/orbstack/macvirt/macvmgr/vnet/proxy/socks"
 	"golang.org/x/net/nettest"
 )
 

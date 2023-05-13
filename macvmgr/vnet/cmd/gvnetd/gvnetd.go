@@ -4,7 +4,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/kdrag0n/macvirt/macvmgr/vnet"
+	"github.com/orbstack/macvirt/macvmgr/vnet"
 	"github.com/sirupsen/logrus"
 )
 

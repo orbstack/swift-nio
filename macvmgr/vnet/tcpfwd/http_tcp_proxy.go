@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appid"
-	"github.com/kdrag0n/macvirt/macvmgr/conf/appver"
-	"github.com/kdrag0n/macvirt/macvmgr/vnet/proxy"
+	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/macvmgr/conf/appver"
+	"github.com/orbstack/macvirt/macvmgr/vnet/proxy"
 )
 
 func init() {
