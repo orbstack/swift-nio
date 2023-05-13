@@ -525,6 +525,12 @@ func (e *endpoint) write(p tcpip.Payloader, opts tcpip.WriteOptions) (int64, tcp
 			xsum = ^xsum
 		}
 		udp.SetChecksum(xsum)
+	} else if !pktInfo.RequiresTXTransportChecksum && pktInfo.NetProto == header.IPv6ProtocolNumber {
+		// Workaround: even with CHECKSUM_UNNECESSARY, Linux still drops udp6 packets
+		// with zero checksum. So we set it to 0xffff (as if calculated checksum was 0).
+		// TODO: proper partial checksum offload
+		// for some reason all TCP packets get dropped w/o CHECKSUM_UNNECESSARY
+		udp.SetChecksum(0xffff)
 	}
 	if err := udpInfo.ctx.WritePacket(pkt, false /* headerIncluded */); err != nil {
 		e.stack.Stats().UDP.PacketSendErrors.Increment()
