@@ -287,6 +287,10 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 			zone := _zone
 			rrs := _rrs
 			mux.HandleFunc(zone+".", func(w dns.ResponseWriter, req *dns.Msg) {
+				logrus.WithFields(logrus.Fields{
+					"zone": zone,
+				}).Debug("handling static DNS query")
+
 				msg := new(dns.Msg)
 				msg.SetReply(req)
 				msg.RecursionAvailable = true
