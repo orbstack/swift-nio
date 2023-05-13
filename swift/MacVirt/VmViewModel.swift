@@ -968,30 +968,30 @@ class VmViewModel: ObservableObject {
                    container.labels[DockerLabels.composeProject] == project &&
                        container.labels[DockerLabels.composeConfigFiles] == configFiles
                }) {
-                // handle multiple compose files
-                var configFileArgs = [String]()
-                for configFile in configFiles.split(separator: ",") {
-                    // only add config file if exists, or if required for action (to show better error than missing files)
-                    let exists = FileManager.default.fileExists(atPath: String(configFile))
-                    if !requiresConfig && !exists {
-                        continue
+                // only pass configs and working dir if needed for action
+                // otherwise skip for robustness
+                // to avoid failing on missing working dir, deleted/moved configs, invalid syntax, etc.
+                // it's just not necessary
+
+                var configArgs = [String]()
+                if requiresConfig {
+                    // handle multiple compose files
+                    for configFile in configFiles.split(separator: ",") {
+                        configArgs.append("-f")
+                        configArgs.append(String(configFile))
                     }
 
-                    configFileArgs.append("-f")
-                    configFileArgs.append(String(configFile))
-                }
-
-                // pass working dir if we have it
-                var dirArgs = [String]()
-                if let workingDir = container.labels[DockerLabels.composeWorkingDir],
-                   FileManager.default.fileExists(atPath: workingDir) {
-                    dirArgs.append("--project-directory")
-                    dirArgs.append(workingDir)
+                    // pass working dir if we have it
+                    if let workingDir = container.labels[DockerLabels.composeWorkingDir],
+                       FileManager.default.fileExists(atPath: workingDir) {
+                        configArgs.append("--project-directory")
+                        configArgs.append(workingDir)
+                    }
                 }
 
                 do {
                     try await runProcessChecked(AppConfig.dockerComposeExe,
-                            ["-p", project] + dirArgs + configFileArgs + args,
+                            ["-p", project] + configArgs + args,
                             env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
                 } catch {
                     setError(.dockerComposeActionError(action: "\(label)", cause: error))
