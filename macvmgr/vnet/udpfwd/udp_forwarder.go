@@ -81,16 +81,13 @@ func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKe
 		proxy.connTrackLock.Unlock()
 
 		if proxy.trackExtConn {
-			go func() {
-				// Keep conntrack entry for a while for ICMP time exceeded
-				time.Sleep(UDPConnTrackTimeout)
-				// CAS in case a new connection
-				localExtConnsLock.Lock()
-				if newAddr, ok := localExtConns[*localExtKey]; ok && newAddr == clientAddr.(*net.UDPAddr) {
-					delete(localExtConns, *localExtKey)
-				}
-				localExtConnsLock.Unlock()
-			}()
+			// remove conntrack entry for ICMP time exceeded - already passed conntrack timeout
+			// CAS in case a new connection
+			localExtConnsLock.Lock()
+			if newAddr, ok := localExtConns[*localExtKey]; ok && newAddr == clientAddr.(*net.UDPAddr) {
+				delete(localExtConns, *localExtKey)
+			}
+			localExtConnsLock.Unlock()
 		}
 
 		extConn.Close()
