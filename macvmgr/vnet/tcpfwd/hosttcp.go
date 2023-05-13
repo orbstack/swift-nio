@@ -115,8 +115,14 @@ func (f *TcpHostForward) listen() {
 func (f *TcpHostForward) handleConn(conn net.Conn) {
 	defer conn.Close()
 
-	// Detect IPv4 or IPv6
+	// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
 	remoteAddr := conn.RemoteAddr().(*net.TCPAddr)
+	if f.requireLoopback && !remoteAddr.IP.IsLoopback() {
+		logrus.Debug("rejecting connection from non-loopback address", remoteAddr)
+		return
+	}
+
+	// Detect IPv4 or IPv6
 	proto := ipv4.ProtocolNumber
 	connectAddr := f.connectAddr4
 	// 4-in-6 means the listener is v6, so the other side must be v6
@@ -124,12 +130,6 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 	if is4in6 || remoteAddr.IP.To4() == nil {
 		proto = ipv6.ProtocolNumber
 		connectAddr = f.connectAddr6
-	}
-
-	// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
-	if f.requireLoopback && !remoteAddr.IP.IsLoopback() {
-		logrus.Debug("rejecting connection from non-loopback address", remoteAddr)
-		return
 	}
 
 	// Spoof source address

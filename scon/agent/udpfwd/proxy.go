@@ -4,7 +4,7 @@ import "net"
 
 func NewUDPLocalProxy(conn net.PacketConn, isIPv6 bool, port uint16) (*UDPProxy, error) {
 	dialer := func(clientAddr *net.UDPAddr) (net.Conn, error) {
-		dialAddr := *&net.UDPAddr{
+		dialAddr := net.UDPAddr{
 			Port: int(port),
 		}
 		if isIPv6 {

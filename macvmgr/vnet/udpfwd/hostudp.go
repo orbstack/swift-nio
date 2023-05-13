@@ -74,17 +74,19 @@ func StartUDPHostForward(s *stack.Stack, listenAddr, connectAddr4, connectAddr6 
 		Port: uint16(connectUdpAddr6.Port),
 	}
 
-	dialer := func(fromAddr *net.UDPAddr) (net.Conn, error) {
-		proto := ipv4.ProtocolNumber
-		connectAddr := connectFullAddr4
-		if fromAddr.IP.To4() == nil {
-			proto = ipv6.ProtocolNumber
-			connectAddr = connectFullAddr6
+	dialer := func(remoteAddr *net.UDPAddr) (net.Conn, error) {
+		// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
+		if requireLoopback && !remoteAddr.IP.IsLoopback() {
+			return nil, fmt.Errorf("rejecting connection from non-loopback address %s", remoteAddr)
 		}
 
-		// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
-		if requireLoopback && !fromAddr.IP.IsLoopback() {
-			return nil, fmt.Errorf("rejecting connection from non-loopback address %s", fromAddr)
+		proto := ipv4.ProtocolNumber
+		connectAddr := connectFullAddr4
+		// 4-in-6 means the listener is v6, so the other side must be v6
+		is4in6 := remoteAddr.AddrPort().Addr().Is4In6()
+		if is4in6 || remoteAddr.IP.To4() == nil {
+			proto = ipv6.ProtocolNumber
+			connectAddr = connectFullAddr6
 		}
 
 		return gonet.DialUDP(s, nil, &connectAddr, proto)
