@@ -225,7 +225,7 @@ class BridgeNetwork {
         xpc_dictionary_set_uuid(ifDesc, vmnet_network_identifier_key, uuidBytes)
         xpc_dictionary_set_string(ifDesc, vmnet_host_ip_address_key, "100.115.93.3")
         xpc_dictionary_set_string(ifDesc, vmnet_host_subnet_mask_key, "255.255.255.0")
-        xpc_dictionary_set_string(ifDesc, vmnet_host_ipv6_address_key, "fd00:30:31::3")
+        xpc_dictionary_set_string(ifDesc, vmnet_host_ipv6_address_key, "fd00:96dc:7096:1d00::3")
         /* vmnet_start_address_key, vmnet_end_address_key, vmnet_subnet_mask_key are for shared/NAT */
 
         // use our own MAC address (allow any)

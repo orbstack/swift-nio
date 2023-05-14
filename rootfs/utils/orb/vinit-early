@@ -22,14 +22,14 @@ ip neigh add 100.115.92.201 lladdr 24:d2:f4:58:34:d7 dev eth0
 ip neigh add 100.115.92.253 lladdr 24:d2:f4:58:34:d7 dev eth0
 ip neigh add 100.115.92.254 lladdr 24:d2:f4:58:34:d7 dev eth0
 # we use diff subnet for other v6
-ip -6 neigh add fd00:96dc:7096:1d21::1 lladdr 24:d2:f4:58:34:d7 dev eth0
+ip -6 neigh add fd00:96dc:7096:1df0::1 lladdr 24:d2:f4:58:34:d7 dev eth0
 # config
 ip link set eth0 mtu 1500
 ip link set eth0 up
 ip addr add 100.115.92.2/24 dev eth0
 ip route add default via 100.115.92.1 dev eth0
-ip addr add fd00:96dc:7096:1d21::2/64 dev eth0
-ip route add default via fd00:96dc:7096:1d21::1 dev eth0
+ip addr add fd00:96dc:7096:1df0::2/64 dev eth0
+ip route add default via fd00:96dc:7096:1df0::1 dev eth0
 # bridge
 # scon deals with the rest
 ip link set eth1 mtu 1500

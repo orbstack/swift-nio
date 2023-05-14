@@ -45,7 +45,7 @@ var configVM = Config{
 	DummyHcontrol: false,
 	DNSServer:     netconf.ServicesIP4,
 	SSHListenIP4:  netconf.GuestIP4,
-	SSHListenIP6:  "fd00:96dc:7096:1d21::2",
+	SSHListenIP6:  netconf.GuestIP6,
 	DockerRootfs:  "/opt/docker-rootfs",
 	DockerDataDir: "/data/docker",
 	NfsRootRO:     "/nfsroot-ro",

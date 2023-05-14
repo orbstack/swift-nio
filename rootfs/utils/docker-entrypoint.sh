@@ -43,7 +43,7 @@ mount --make-rshared /
 mkdir -p /run/host-services
 ln -sf /opt/orbstack-guest/run/host-ssh-agent.sock /run/host-services/ssh-auth.sock
 
-ip6tables -t nat -A POSTROUTING -s fd00:30:32::/64 -o eth0 -j MASQUERADE
+ip6tables -t nat -A POSTROUTING -s fd00:96dc:7096:1d01::/64 -o eth0 -j MASQUERADE
 export TMPDIR=/dockertmp
 # host-gateway-ip: fix https://github.com/orgs/orbstack/discussions/102
 exec dockerd --host=unix:///var/run/docker.sock --tls=false --host-gateway-ip=100.115.92.254
