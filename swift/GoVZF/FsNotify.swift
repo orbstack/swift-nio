@@ -7,7 +7,7 @@ import CoreServices
 
 private let debugPrintEvents = false
 
-private let fseventsQueue = DispatchQueue(label: "fsevents", qos: .background)
+private let fseventsQueue = DispatchQueue(label: "dev.kdrag0n.govzf.fsevents", qos: .background)
 
 private let npFlagCreate: UInt64 = 1 << 0
 private let npFlagModify: UInt64 = 1 << 1
