@@ -19,7 +19,7 @@ import (
 
 const (
 	// UDPConnTrackTimeout is the timeout used for UDP connection tracking
-	UDPConnTrackTimeout = 60 * time.Second
+	UDPConnTrackTimeout = 30 * time.Second
 )
 
 // A net.Addr where the IP is split into two fields so you can use it as a key
