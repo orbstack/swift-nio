@@ -131,7 +131,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 			// NOTE: Apparently ReadFrom doesn't return
 			// ECONNREFUSED like Read do (see comment in
 			// UDPProxy.replyLoop)
-			if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
+			if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) && !errors.Is(err, gonet.ErrTimeout) {
 				logrus.Error("UDP proxy conn ReadFrom() failed: ", err)
 			}
 			break
