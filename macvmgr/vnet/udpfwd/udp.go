@@ -1,12 +1,14 @@
 package udpfwd
 
 import (
+	"errors"
 	"net"
 
 	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/macvmgr/vnet/gvaddr"
 	"github.com/orbstack/macvirt/macvmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -62,6 +64,10 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			}, dialDestAddr)
 			if err == nil {
 				return conn, nil
+			}
+			// also bail out if it's not an address-in-use error
+			if err != nil && !errors.Is(err, unix.EADDRINUSE) {
+				return nil, err
 			}
 
 			// explicit bind is conservative. fall back to dynamic if port is used
