@@ -30,6 +30,10 @@ ip addr add 100.115.92.2/24 dev eth0
 ip route add default via 100.115.92.1 dev eth0
 ip addr add fd00:96dc:7096:1d21::2/64 dev eth0
 ip route add default via fd00:96dc:7096:1d21::1 dev eth0
+# bridge
+# scon deals with the rest
+ip link set eth1 mtu 1500
+ip link set eth1 up
 
 # control server
 # must be after net for IP

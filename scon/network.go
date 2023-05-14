@@ -19,17 +19,22 @@ import (
 )
 
 const (
-	ifBridge = "conbr0"
+	ifBridge       = "conbr0"
+	ifVmnetMachine = "eth1"
+	ifVmnetDocker  = "eth2"
 
-	subnet4     = "100.115.93"
-	subnet4cidr = subnet4 + ".0/24"
-	gatewayIP4  = subnet4 + ".1"
-	dockerIP4   = subnet4 + ".2"
+	subnet4       = "100.115.93"
+	subnet4cidr   = subnet4 + ".0/24"
+	gatewayIP4    = subnet4 + ".1"
+	dockerIP4     = subnet4 + ".2"
+	hostBridgeIP4 = subnet4 + ".3"
+	/* used in GoVZF vmnet BridgeNet.swift */
 
-	subnet6     = "fd00:30:31:"
-	subnet6cidr = subnet6 + ":/64"
-	gatewayIP6  = subnet6 + ":1"
-	dockerIP6   = subnet6 + ":2"
+	subnet6       = "fd00:30:31:"
+	subnet6cidr   = subnet6 + ":/64"
+	gatewayIP6    = subnet6 + ":1"
+	dockerIP6     = subnet6 + ":2"
+	hostBridgeIP6 = subnet6 + ":3"
 
 	txQueueLen = 5000
 
@@ -205,6 +210,18 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// attach machine vmnet to bridge
+	vmnet, err := netlink.LinkByName(ifVmnetMachine)
+	if err != nil {
+		return nil, err
+	}
+
+	err = netlink.LinkSetMaster(vmnet, bridge)
+	if err != nil {
+		return nil, err
+	}
+
 	return bridge, nil
 }
 

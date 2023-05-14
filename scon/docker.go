@@ -87,6 +87,14 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	cm.set("lxc.net.0.ipv6.address", dockerIP6+"/64")
 	cm.set("lxc.net.0.ipv6.gateway", gatewayIP6)
 
+	// attach Docker vmnet to machine's netns
+	// inside machine, we'll attach it to the Docker bridge
+	/*
+		cm.set("lxc.net.1.type", "phys")
+		cm.set("lxc.net.1.link", ifVmnetDocker)
+		cm.set("lxc.net.1.flags", "up")
+	*/
+
 	return conf.C().DockerRootfs, nil
 }
 

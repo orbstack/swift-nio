@@ -23,6 +23,7 @@ struct VzSpec: Codable {
     var networkVnetFd: Int32?
     var networkNat: Bool
     var networkPairFd: Int32?
+    var networkHostBridge: Bool
     var rng: Bool
     var diskRootfs: String?
     var diskData: String?
@@ -68,12 +69,14 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     private var vz: VZVirtualMachine
     private var vsockDevice: VZVirtioSocketDevice
     private var stateObserver: NSKeyValueObservation?
+    private var bridgeNet: BridgeNetwork?
 
-    init(goHandle: uintptr_t, vz: VZVirtualMachine) {
+    init(goHandle: uintptr_t, vz: VZVirtualMachine, bridgeNet: BridgeNetwork?) {
         // must init before calling super
         self.vz = vz
         self.vsockDevice = vz.socketDevices[0] as! VZVirtioSocketDevice
         self.goHandle = goHandle
+        self.bridgeNet = bridgeNet
 
         // init the rest
         super.init()
@@ -183,6 +186,7 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
 
     // network
     var netDevices: [VZNetworkDeviceConfiguration] = []
+    var bridgeNet: BridgeNetwork?
     if let networkVnetFd = spec.networkVnetFd {
         let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: networkVnetFd))
         if #available(macOS 13, *) {
@@ -208,6 +212,18 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
         let device = VZVirtioNetworkDeviceConfiguration()
         device.attachment = attachment
         device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":03")!
+        netDevices.append(device)
+    }
+    if spec.networkHostBridge {
+        let (brNet, fd) = try BridgeNetwork.newPair()
+        bridgeNet = brNet
+        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: fd))
+        /*if #available(macOS 13, *) {
+            attachment.maximumTransmissionUnit = spec.mtu
+        }*/
+        let device = VZVirtioNetworkDeviceConfiguration()
+        device.attachment = attachment
+        device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":04")!
         netDevices.append(device)
     }
     config.networkDevices = netDevices
@@ -315,7 +331,7 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
 
     // Create
     let vm = VZVirtualMachine(configuration: config, queue: vzQueue)
-    return (VmWrapper(goHandle: goHandle, vz: vm), rosettaCanceled)
+    return (VmWrapper(goHandle: goHandle, vz: vm, bridgeNet: bridgeNet), rosettaCanceled)
 }
 
 class ResultWrapper<T: Any> {

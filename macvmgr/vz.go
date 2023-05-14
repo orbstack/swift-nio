@@ -23,23 +23,24 @@ const (
 )
 
 type VmParams struct {
-	Cpus             int
-	Memory           uint64
-	Kernel           string
-	Console          ConsoleMode
-	DiskRootfs       string
-	DiskData         string
-	DiskSwap         string
-	NetworkVnet      bool
-	NetworkNat       bool
-	NetworkPairFile  *os.File
-	MacAddressPrefix string
-	Balloon          bool
-	Rng              bool
-	Vsock            bool
-	Virtiofs         bool
-	Rosetta          bool
-	Sound            bool
+	Cpus              int
+	Memory            uint64
+	Kernel            string
+	Console           ConsoleMode
+	DiskRootfs        string
+	DiskData          string
+	DiskSwap          string
+	NetworkVnet       bool
+	NetworkNat        bool
+	NetworkHostBridge bool
+	NetworkPairFile   *os.File
+	MacAddressPrefix  string
+	Balloon           bool
+	Rng               bool
+	Vsock             bool
+	Virtiofs          bool
+	Rosetta           bool
+	Sound             bool
 }
 
 func findBestMtu() int {
@@ -78,21 +79,22 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 	logrus.Debug("cmdline", cmdline)
 
 	spec := vzf.VzSpec{
-		Cpus:             c.Cpus,
-		Memory:           c.Memory * 1024 * 1024,
-		Kernel:           c.Kernel,
-		Cmdline:          strings.Join(cmdline, " "),
-		MacAddressPrefix: c.MacAddressPrefix,
-		NetworkNat:       c.NetworkNat,
-		Rng:              c.Rng,
-		DiskRootfs:       c.DiskRootfs,
-		DiskData:         c.DiskData,
-		DiskSwap:         c.DiskSwap,
-		Balloon:          c.Balloon,
-		Vsock:            c.Vsock,
-		Virtiofs:         c.Virtiofs,
-		Rosetta:          c.Rosetta,
-		Sound:            c.Sound,
+		Cpus:              c.Cpus,
+		Memory:            c.Memory * 1024 * 1024,
+		Kernel:            c.Kernel,
+		Cmdline:           strings.Join(cmdline, " "),
+		MacAddressPrefix:  c.MacAddressPrefix,
+		NetworkNat:        c.NetworkNat,
+		NetworkHostBridge: c.NetworkHostBridge,
+		Rng:               c.Rng,
+		DiskRootfs:        c.DiskRootfs,
+		DiskData:          c.DiskData,
+		DiskSwap:          c.DiskSwap,
+		Balloon:           c.Balloon,
+		Vsock:             c.Vsock,
+		Virtiofs:          c.Virtiofs,
+		Rosetta:           c.Rosetta,
+		Sound:             c.Sound,
 	}
 
 	// Console
