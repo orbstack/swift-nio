@@ -2,7 +2,6 @@ package udpfwd
 
 import (
 	"net"
-	"strconv"
 
 	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/macvmgr/vnet/gvaddr"
@@ -47,9 +46,31 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 		ep.SocketOptions().SetReceiveTTL(true)
 		ep.SocketOptions().SetReceiveHopLimit(true)
 
-		extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(int(r.ID().LocalPort)))
+		// remember: local = target (because we're acting as proxy)
+		dialDestAddr := &net.UDPAddr{
+			IP:   net.IP(localAddress),
+			Port: int(r.ID().LocalPort),
+		}
 		proxy, err := NewUDPProxy(&autoStoppingListener{UDPConn: gonet.NewUDPConn(s, &wq, ep)}, func(fromAddr *net.UDPAddr) (net.Conn, error) {
-			return net.Dial("udp", extAddr)
+			// try to reuse the source port if possible
+			// this helps preserve connection after conntrack timeouts, as it's expected that Docker host net doesn't involve NAT and thus will never time out
+			// do it conservatively, without SO_REUSEADDR or SO_REUSEPORT, to avoid port conflicts
+			// not needed for external (non-loopback) conns because there's usually internet NAT anyway
+			// remote port = VM client port
+			conn, err := net.DialUDP("udp", &net.UDPAddr{
+				Port: int(r.ID().RemotePort),
+			}, dialDestAddr)
+			if err == nil {
+				return conn, nil
+			}
+
+			// explicit bind is conservative. fall back to dynamic if port is used
+			logrus.WithFields(logrus.Fields{
+				"localPort": r.ID().LocalPort,
+				"remote":    dialDestAddr,
+			}).WithError(err).Debug("explicit UDP dial failed")
+
+			return net.DialUDP("udp", nil, dialDestAddr)
 		}, true)
 		if err != nil {
 			logrus.Error("NewUDPProxy() =", err)
