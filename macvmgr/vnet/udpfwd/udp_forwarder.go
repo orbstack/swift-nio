@@ -121,6 +121,8 @@ func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKe
 
 // Run starts forwarding the traffic using UDP.
 func (proxy *UDPProxy) Run(useTtl bool) {
+	defer proxy.Close()
+
 	readBuf := make([]byte, 65536)
 	lastTtl := uint8(64)
 	for {
