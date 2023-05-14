@@ -21,6 +21,13 @@ private let VIRTIO_NET_HDR_GSO_NONE: UInt8 = 0
 private let VIRTIO_NET_HDR_GSO_TCPV4: UInt8 = 1
 private let VIRTIO_NET_HDR_GSO_TCPV6: UInt8 = 4
 
+private let ETHTYPE_IPV4: UInt16 = 0x0800
+private let ETHTYPE_IPV6: UInt16 = 0x86DD
+private let ETHTYPE_ARP: UInt16 = 0x0806
+
+private let IPPROTO_UDP: UInt8 = 17
+private let IPPROTO_TCP: UInt8 = 6
+
 private enum VmnetError: Error {
     case generalFailure
     case memFailure
@@ -62,6 +69,7 @@ private enum VmnetError: Error {
 
 private enum BridgeError: Error {
     case errno(Int32)
+    case invalidPacket
 }
 
 private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) throws -> (interface_ref, xpc_object_t) {
@@ -119,6 +127,83 @@ private func newDatagramPair() throws -> (Int32, Int32) {
     return (fds[0], fds[1])
 }
 
+private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: Int = 1500) throws -> virtio_net_hdr {
+    var hdr = virtio_net_hdr()
+    hdr.flags = VIRTIO_NET_HDR_F_DATA_VALID
+
+    func checkLoad<T>(offset: Int) throws -> T {
+        if offset + MemoryLayout<T>.size > pktLen {
+            throw BridgeError.invalidPacket
+        }
+
+        return pkt.load(fromByteOffset: offset, as: T.self)
+    }
+
+    // read ethertype from pkt
+    let ipStartOff = 14
+    let etherType = (try checkLoad(offset: 12) as UInt16).bigEndian
+    // read udp/tcp
+    var transportProto: UInt8 = 0
+    var transportHdrLen = 0
+    if etherType == ETHTYPE_IPV4 {
+        //print("ipv4")
+        transportProto = try checkLoad(offset: ipStartOff + 9)
+        // not always 20 bytes
+        transportHdrLen = Int(((try checkLoad(offset: ipStartOff) as UInt8) & 0x0F) * 4)
+    } else if etherType == ETHTYPE_IPV6 {
+        //print("ipv6")
+        transportProto = try checkLoad(offset: ipStartOff + 6)
+        // assume 40 bytes for now
+        // TODO: check for hop-by-hop extension headers
+        transportHdrLen = 40
+    }
+    let transportStartOff = ipStartOff + transportHdrLen
+    //print("etherType: \(String(etherType, radix: 16))")
+    //print("transportProto: \(String(transportProto, radix: 16))")
+    //print("transportHdrLen: \(transportHdrLen)")
+    //print("transportStartOff: \(transportStartOff)")
+
+    // csum: for TCP and UDP
+    if transportProto == IPPROTO_TCP {
+        //print("tcp")
+        hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
+        hdr.csum_start = UInt16(transportStartOff)
+        hdr.csum_offset = UInt16(16)
+        //print("csum start: \(hdr.csum_start)")
+        //print("csum offset: \(hdr.csum_offset)")
+    } else if transportProto == IPPROTO_UDP {
+        //print("udp")
+        hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
+        hdr.csum_start = UInt16(transportStartOff)
+        hdr.csum_offset = UInt16(6)
+        //print("csum start: \(hdr.csum_start)")
+        //print("csum offset: \(hdr.csum_offset)")
+    }
+
+    // gso: if TCP data segment > MSS (1500 -
+    if transportProto == IPPROTO_TCP {
+        let tcpHdrLen = ((try checkLoad(offset: transportStartOff + 12) as UInt8) >> 4) * 4
+        let tcpDataLen = pktLen - transportStartOff - Int(tcpHdrLen)
+        let tcpMss = realMtu - transportHdrLen - Int(tcpHdrLen)
+        //print("tcp hdr len: \(tcpHdrLen)")
+        //print("tcp data len: \(tcpDataLen)")
+        //print("tcp mss: \(tcpMss)")
+        if tcpDataLen > tcpMss {
+            //print("tcp GSO > MSS")
+            if etherType == ETHTYPE_IPV4 {
+                hdr.gso_type = UInt8(VIRTIO_NET_HDR_GSO_TCPV4)
+            } else if etherType == ETHTYPE_IPV6 {
+                hdr.gso_type = UInt8(VIRTIO_NET_HDR_GSO_TCPV6)
+            }
+            hdr.gso_size = UInt16(tcpMss)
+            //print("gso type: \(hdr.gso_type)")
+            //print("gso size: \(hdr.gso_size)")
+        }
+    }
+
+    return hdr
+}
+
 class BridgeNetwork {
     private let tapFd: Int32
     private let ifRef: interface_ref
@@ -130,7 +215,7 @@ class BridgeNetwork {
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
         xpc_dictionary_set_uint64(ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))
         // macOS max MTU = 16384, but we use TSO instead
-        xpc_dictionary_set_uint64(ifDesc, vmnet_mtu_key, 16384)
+        xpc_dictionary_set_uint64(ifDesc, vmnet_mtu_key, 1500)
 
         // UUID
         var uuidBytes = [UInt8](repeating: 0, count: 16)
@@ -149,7 +234,7 @@ class BridgeNetwork {
         // TSO and checksum offload
         xpc_dictionary_set_bool(ifDesc, vmnet_enable_checksum_offload_key, true)
         // TODO: can't use this on macOS 12
-        xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, false)
+        xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, true)
 
         let (ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: queue)
         print("if param: \(ifParam)")
@@ -177,6 +262,7 @@ class BridgeNetwork {
             pktDescs.append(pktDesc)
         }
 
+        let vnetHdr = UnsafeMutablePointer<virtio_net_hdr>.allocate(capacity: 1)
         let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, queue) { (eventMask, event) in
             //let numPackets = xpc_dictionary_get_uint64(event, vmnet_estimated_packets_available_key)
             //print("num packets: \(numPackets)")
@@ -192,27 +278,19 @@ class BridgeNetwork {
             // send packets to tap
             for i in 0..<Int(pktsRead) {
                 let pktDesc = pktDescs[i]
-                /*
-                var vnetHdr = virtio_net_hdr(
-                    flags: VIRTIO_NET_HDR_F_DATA_VALID | VIRTIO_NET_HDR_F_NEEDS_CSUM,
-                    gso_type: 0,
-                    hdr_len: 0,
-                    gso_size: 0,
-                    csum_start: 34,
-                    csum_offset: 16
-                )
-                if pktDesc.vm_pkt_size > 1500 {
-                    vnetHdr.gso_type = VIRTIO_NET_HDR_GSO_TCPV4
-                    vnetHdr.gso_size = UInt16(pktDesc.vm_pkt_size - 52)
+                do {
+                    vnetHdr[0] = try buildVnetHdr(pkt: pktDesc.vm_pkt_iov[0].iov_base, pktLen: pktDesc.vm_pkt_size)
+                } catch {
+                    print("error building vnet hdr: \(error)")
+                    continue
                 }
-                 */
                 var iovs = [
-                    //iovec(iov_base: &vnetHdr, iov_len: MemoryLayout<virtio_net_hdr>.size),
+                    iovec(iov_base: vnetHdr, iov_len: MemoryLayout<virtio_net_hdr>.size),
                     iovec(iov_base: pktDesc.vm_pkt_iov[0].iov_base, iov_len: pktDesc.vm_pkt_size)
                 ]
-                let totalSize = pktDesc.vm_pkt_size// + MemoryLayout<virtio_net_hdr>.size
+                let totalSize = pktDesc.vm_pkt_size + MemoryLayout<virtio_net_hdr>.size
                 //print("writing \(totalSize) bytes to tap")
-                let ret = writev(tapFd, &iovs, 1)
+                let ret = writev(tapFd, &iovs, 2)
                 guard ret == totalSize else {
                     print("write error: \(errno)")
                     continue
@@ -251,10 +329,10 @@ class BridgeNetwork {
 
                 // write to vmnet
                 var pktDesc = vmpktdesc(
-                        vm_pkt_size: n,
-                        vm_pkt_iov: writeIov,
-                        vm_pkt_iovcnt: 1,
-                        vm_flags: 0
+                    vm_pkt_size: n,
+                    vm_pkt_iov: writeIov,
+                    vm_pkt_iovcnt: 1,
+                    vm_flags: 0
                 )
                 var pktsWritten = Int32(1)
                 let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
