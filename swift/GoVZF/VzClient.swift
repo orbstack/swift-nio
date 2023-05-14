@@ -218,9 +218,9 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
         let (brNet, fd) = try BridgeNetwork.newPair()
         bridgeNet = brNet
         let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: fd))
-        /*if #available(macOS 13, *) {
-            attachment.maximumTransmissionUnit = spec.mtu
-        }*/
+        if #available(macOS 13, *) {
+            attachment.maximumTransmissionUnit = 16384
+        }
         let device = VZVirtioNetworkDeviceConfiguration()
         device.attachment = attachment
         device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":04")!

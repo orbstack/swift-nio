@@ -14,6 +14,13 @@ private let bridgeUuid = UUID(uuidString: "25ef1ee1-1ead-40fd-a97d-f9284917459b"
 private let dgramSockBuf = 512 * 1024
 private let maxPacketsPerRead = 64
 
+private let VIRTIO_NET_HDR_F_NEEDS_CSUM: UInt8 = 1 << 0
+private let VIRTIO_NET_HDR_F_DATA_VALID: UInt8 = 1 << 1
+
+private let VIRTIO_NET_HDR_GSO_NONE: UInt8 = 0
+private let VIRTIO_NET_HDR_GSO_TCPV4: UInt8 = 1
+private let VIRTIO_NET_HDR_GSO_TCPV6: UInt8 = 4
+
 private enum VmnetError: Error {
     case generalFailure
     case memFailure
@@ -122,9 +129,8 @@ class BridgeNetwork {
     init(tapFd: Int32) throws {
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
         xpc_dictionary_set_uint64(ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))
-        // macOS max MTU = 16384
-        //xpc_dictionary_set_uint64(ifDesc, vmnet_mtu_key, 16384)
-        xpc_dictionary_set_uint64(ifDesc, vmnet_mtu_key, 1500)
+        // macOS max MTU = 16384, but we use TSO instead
+        xpc_dictionary_set_uint64(ifDesc, vmnet_mtu_key, 16384)
 
         // UUID
         var uuidBytes = [UInt8](repeating: 0, count: 16)
@@ -142,7 +148,8 @@ class BridgeNetwork {
 
         // TSO and checksum offload
         xpc_dictionary_set_bool(ifDesc, vmnet_enable_checksum_offload_key, true)
-        //xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, false)
+        // TODO: can't use this on macOS 12
+        xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, false)
 
         let (ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: queue)
         print("if param: \(ifParam)")
@@ -185,9 +192,28 @@ class BridgeNetwork {
             // send packets to tap
             for i in 0..<Int(pktsRead) {
                 let pktDesc = pktDescs[i]
-                let pktIov = pktDesc.vm_pkt_iov.pointee
-                let ret = write(tapFd, pktIov.iov_base, pktIov.iov_len)
-                guard ret == pktIov.iov_len else {
+                /*
+                var vnetHdr = virtio_net_hdr(
+                    flags: VIRTIO_NET_HDR_F_DATA_VALID | VIRTIO_NET_HDR_F_NEEDS_CSUM,
+                    gso_type: 0,
+                    hdr_len: 0,
+                    gso_size: 0,
+                    csum_start: 34,
+                    csum_offset: 16
+                )
+                if pktDesc.vm_pkt_size > 1500 {
+                    vnetHdr.gso_type = VIRTIO_NET_HDR_GSO_TCPV4
+                    vnetHdr.gso_size = UInt16(pktDesc.vm_pkt_size - 52)
+                }
+                 */
+                var iovs = [
+                    //iovec(iov_base: &vnetHdr, iov_len: MemoryLayout<virtio_net_hdr>.size),
+                    iovec(iov_base: pktDesc.vm_pkt_iov[0].iov_base, iov_len: pktDesc.vm_pkt_size)
+                ]
+                let totalSize = pktDesc.vm_pkt_size// + MemoryLayout<virtio_net_hdr>.size
+                //print("writing \(totalSize) bytes to tap")
+                let ret = writev(tapFd, &iovs, 1)
+                guard ret == totalSize else {
                     print("write error: \(errno)")
                     continue
                 }
@@ -198,7 +224,6 @@ class BridgeNetwork {
                 pktDescs[i].vm_pkt_size = Int(maxPacketSize)
                 pktDescs[i].vm_pkt_iovcnt = 1
                 pktDescs[i].vm_flags = 0
-                pktDescs[i].vm_pkt_iov.pointee.iov_len = Int(maxPacketSize)
             }
         }
         guard ret == .VMNET_SUCCESS else {
@@ -208,11 +233,11 @@ class BridgeNetwork {
         // read from tap, write to vmnet
         let tapSource = DispatchSource.makeReadSource(fileDescriptor: tapFd, queue: queue)
         let writeIov = UnsafeMutablePointer<iovec>.allocate(capacity: 1)
-        writeIov.pointee.iov_base = malloc(Int(maxPacketSize))
+        writeIov[0].iov_base = malloc(Int(maxPacketSize))
         tapSource.setEventHandler {
             while true {
                 // read from
-                let buf = writeIov.pointee.iov_base!
+                let buf = writeIov[0].iov_base!
                 let n = read(tapFd, buf, Int(maxPacketSize))
                 guard n > 0 else {
                     if errno != EAGAIN {
@@ -222,7 +247,7 @@ class BridgeNetwork {
                 }
 
                 // set in iov
-                writeIov.pointee.iov_len = n
+                writeIov[0].iov_len = n
 
                 // write to vmnet
                 var pktDesc = vmpktdesc(
@@ -252,5 +277,19 @@ class BridgeNetwork {
         let (fd0, fd1) = try newDatagramPair()
         let bridgeNet = try BridgeNetwork(tapFd: fd0)
         return (bridgeNet, fd1)
+    }
+
+    deinit {
+        fdReadSource.cancel()
+        fdReadIovs.deallocate()
+        vmnetReadIovs.deallocate()
+        Darwin.close(tapFd)
+        let ret = vmnet_stop_interface(ifRef, queue) { status in
+            print("stop status: \(status)")
+        }
+        guard ret == .VMNET_SUCCESS else {
+            print("stop error: \(VmnetError.from(ret))")
+            return
+        }
     }
 }

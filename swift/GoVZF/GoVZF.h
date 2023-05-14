@@ -33,6 +33,15 @@ struct krpc_notifyproxy_inject  {
     uint64_t count;
 } __attribute__((packed));
 
+struct virtio_net_hdr {
+    uint8_t flags;
+    uint8_t gso_type;
+    uint16_t hdr_len;
+    uint16_t gso_size;
+    uint16_t csum_start;
+    uint16_t csum_offset;
+} __attribute__((packed));
+
 #ifndef CGO
 void govzf_event_Machine_deinit(uintptr_t vmHandle);
 void govzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);
