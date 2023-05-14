@@ -804,3 +804,6 @@ func (vw *ViewWriter) Views() []*bufferv2.View {
 func (vw *ViewWriter) Buffers() net.Buffers {
 	return vw.bufs
 }
+
+// ADDED: for comparison
+var ErrTimeout = &timeoutError{}
