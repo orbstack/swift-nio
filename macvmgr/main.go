@@ -754,6 +754,11 @@ func runVmManager() {
 	}
 	defer unmountNfs()
 
+	/*
+		logrus.Info("waiting for init tasks")
+		startWg.Wait()
+	*/
+
 	logrus.Info("waiting for VM to start")
 	returnCh := make(chan struct{}, 1)
 	errCh := make(chan error, 1)
