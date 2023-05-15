@@ -136,19 +136,11 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 	var srcAddr tcpip.Address
 	//TODO fix source addr
 	if true {
-		// We can't spoof loopback. Look up the host's default address.
+		// Can't spoof loopback source. Use the machine host NAT IP
 		if proto == ipv4.ProtocolNumber {
-			srcAddr = tcpip.Address(netutil.GetDefaultAddress4())
-			// Fallback = gateway (i.e. if airplane mode)
-			if srcAddr == "" || f.isInternal {
-				srcAddr = f.hostAddr4
-			}
+			srcAddr = f.hostAddr4
 		} else {
-			srcAddr = tcpip.Address(netutil.GetDefaultAddress6())
-			// Fallback = gateway (i.e. if airplane mode)
-			if srcAddr == "" || f.isInternal {
-				srcAddr = f.hostAddr6
-			}
+			srcAddr = f.hostAddr6
 		}
 	} else {
 		srcAddr = tcpip.Address(remoteAddr.IP)
