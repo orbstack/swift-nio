@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
 )
@@ -25,6 +26,7 @@ func interfaceIndexFor(addr netip.Addr, canRecurse bool) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("creating AF_ROUTE socket: %w", err)
 	}
+	unix.CloseOnExec(fd)
 	defer unix.Close(fd)
 
 	var routeAddr route.Addr
@@ -139,5 +141,8 @@ func IsMachineRouteCorrect() (bool, error) {
 		return false, err
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"iface": iface.Name,
+	}).Debug("check bridge route")
 	return strings.HasPrefix(iface.Name, "bridge"), nil
 }

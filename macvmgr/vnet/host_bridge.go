@@ -1,6 +1,7 @@
 package vnet
 
 import (
+	"sync"
 	"time"
 
 	"github.com/orbstack/macvirt/macvmgr/vnet/bridge"
@@ -61,6 +62,11 @@ func (n *Network) createHostBridge(index int, config vzf.BridgeNetworkConfig) er
 	return nil
 }
 
+// This recreates the bridge if the route to the machine subnet is wrong.
+// Usually happens when VPN is enabled (changes to utun3) or when VPN is disabled (route is deleted, changes to en0).
+// Since we don't have root, recreating the bridge is necessary to fix the route.
+//
+// Works because TCP flows, etc. don't get terminated. Just a brief ~100-200 ms of packet loss
 func (n *Network) MonitorHostBridgeRoute() error {
 	mon, err := bridge.NewRouteMon()
 	if err != nil {
@@ -68,11 +74,19 @@ func (n *Network) MonitorHostBridgeRoute() error {
 	}
 	defer mon.Close()
 
+	var recreateMu sync.Mutex
 	recreateDebounce := syncx.NewFuncDebounce(100*time.Millisecond, func() {
+		// ignore if we're already recreating
+		// to avoid feedback loop
+		if !recreateMu.TryLock() {
+			return
+		}
+		defer recreateMu.Unlock()
+
 		// check and skip if route is OK
 		correct, err := bridge.IsMachineRouteCorrect()
 		if err != nil {
-			logrus.WithError(err).Error("failed to check  machine host bridge route")
+			logrus.WithError(err).Error("failed to check machine host bridge route")
 			return
 		}
 		if correct {
