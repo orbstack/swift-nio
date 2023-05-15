@@ -273,7 +273,7 @@ class BridgeNetwork {
             var pktsRead = Int32(maxPacketsPerRead) // max
             let ret = vmnet_read(ifRef, &pktDescs, &pktsRead)
             guard ret == .VMNET_SUCCESS else {
-                print("read error: \(VmnetError.from(ret))")
+                NSLog("[brnet] read error: \(VmnetError.from(ret))")
                 return
             }
 
@@ -291,7 +291,7 @@ class BridgeNetwork {
                 do {
                     vnetHdr[0] = try buildVnetHdr(pkt: pktDesc.vm_pkt_iov[0].iov_base, pktLen: pktDesc.vm_pkt_size)
                 } catch {
-                    print("error building vnet hdr: \(error)")
+                    NSLog("[brnet] error building hdr: \(error)")
                     continue
                 }
                 var iovs = [
@@ -302,7 +302,9 @@ class BridgeNetwork {
                 //print("writing \(totalSize) bytes to tap")
                 let ret = writev(tapFd, &iovs, 2)
                 guard ret == totalSize else {
-                    print("write error: \(errno)")
+                    if errno != ENOBUFS {
+                        NSLog("[brnet] write error: \(errno)")
+                    }
                     continue
                 }
             }
@@ -328,8 +330,8 @@ class BridgeNetwork {
                 let buf = writeIov[0].iov_base!
                 let n = read(tapFd, buf, Int(maxPacketSize))
                 guard n > 0 else {
-                    if errno != EAGAIN {
-                        print("tap read error: \(errno)")
+                    if errno != EAGAIN && errno != EWOULDBLOCK {
+                        NSLog("[brnet] tap read error: \(errno)")
                     }
                     return
                 }
@@ -347,7 +349,7 @@ class BridgeNetwork {
                 var pktsWritten = Int32(1)
                 let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
                 guard ret2 == .VMNET_SUCCESS else {
-                    print("vmnet write error: \(VmnetError.from(ret2))")
+                    NSLog("[brnet] vmnet write error: \(VmnetError.from(ret2))")
                     return
                 }
             }
@@ -377,10 +379,10 @@ class BridgeNetwork {
         vmnetReadIovs.deallocate()
         Darwin.close(tapFd)
         let ret = vmnet_stop_interface(ifRef, queue) { status in
-            print("stop status: \(status)")
+            NSLog("[brnet] stop status: \(status)")
         }
         guard ret == .VMNET_SUCCESS else {
-            print("stop error: \(VmnetError.from(ret))")
+            NSLog("[brnet] stop error: \(VmnetError.from(ret))")
             return
         }
     }
