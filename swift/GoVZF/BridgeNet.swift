@@ -357,13 +357,20 @@ class BridgeNetwork {
     func close() {
         fdReadSource.cancel()
         fdReadSource.setEventHandler(handler: nil)
+
+        let sem = DispatchSemaphore(value: 0)
         let ret = vmnet_stop_interface(ifRef, queue) { status in
-            NSLog("[brnet] stop status: \(status)")
+            if status != .VMNET_SUCCESS {
+                NSLog("[brnet] stop status: \(VmnetError.from(status))")
+            }
+            sem.signal()
         }
         guard ret == .VMNET_SUCCESS else {
             NSLog("[brnet] stop error: \(VmnetError.from(ret))")
             return
         }
+
+        sem.wait()
     }
 
     deinit {

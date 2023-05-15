@@ -523,6 +523,7 @@ func runVmManager() {
 	runAsyncInitTask("proxy settings", vnetwork.Proxy.Refresh)
 
 	// create scon machines host network bridge
+	go runOne("host bridge route monitor", vnetwork.MonitorHostBridgeRoute)
 	runAsyncInitTask("host bridge", vnetwork.CreateSconMachineHostBridge)
 
 	// Start DRM

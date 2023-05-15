@@ -129,6 +129,12 @@ func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6, g
 	}, nil
 }
 
+func (i *IcmpFwd) Close() error {
+	i.conn4.Close()
+	i.conn6.Close()
+	return nil
+}
+
 func (i *IcmpFwd) ProxyRequests() {
 	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
 		i.lastSourceAddr4 = pkt.Network().SourceAddress()
@@ -247,7 +253,9 @@ func (i *IcmpFwd) forwardReplies4() error {
 	for {
 		n, _, _, err := i.conn4.ReadFrom(fullBuf)
 		if err != nil {
-			logrus.Error("error reading from icmp4 socket ", err)
+			if !errors.Is(err, net.ErrClosed) {
+				logrus.Error("error reading from icmp4 socket ", err)
+			}
 			return err
 		}
 		msg := fullBuf[:n]
@@ -360,7 +368,9 @@ func (i *IcmpFwd) forwardReplies6() error {
 	for {
 		n, cm, addr, err := i.conn6.ReadFrom(fullBuf)
 		if err != nil {
-			logrus.Error("error reading from icmp6 socket ", err)
+			if !errors.Is(err, net.ErrClosed) {
+				logrus.Error("error reading from icmp6 socket ", err)
+			}
 			return err
 		}
 		msg := fullBuf[:n]

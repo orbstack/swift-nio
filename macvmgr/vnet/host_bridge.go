@@ -1,8 +1,13 @@
 package vnet
 
 import (
+	"time"
+
+	"github.com/orbstack/macvirt/macvmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -25,6 +30,8 @@ func (n *Network) AddHostBridgeFd(fd int) {
 func (n *Network) CreateSconMachineHostBridge() error {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
+
+	logrus.Debug("creating scon machine host bridge")
 
 	// recreate if needed
 	oldBrnet := n.hostBridges[brIndexSconMachine]
@@ -52,4 +59,41 @@ func (n *Network) createHostBridge(index int, config vzf.BridgeNetworkConfig) er
 
 	n.hostBridges[index] = brnet
 	return nil
+}
+
+func (n *Network) MonitorHostBridgeRoute() error {
+	mon, err := bridge.NewRouteMon()
+	if err != nil {
+		return err
+	}
+	defer mon.Close()
+
+	recreateDebounce := syncx.NewFuncDebounce(100*time.Millisecond, func() {
+		// check and skip if route is OK
+		correct, err := bridge.IsMachineRouteCorrect()
+		if err != nil {
+			logrus.WithError(err).Error("failed to check  machine host bridge route")
+			return
+		}
+		if correct {
+			return
+		}
+
+		err = n.CreateSconMachineHostBridge()
+		if err != nil {
+			logrus.WithError(err).Error("failed to refresh machine host bridge")
+		}
+	})
+
+	// TODO support stopping
+	for {
+		// monitor route changes to relevant subnet
+		_, err := mon.Receive()
+		if err != nil {
+			return err
+		}
+
+		// kick route check
+		recreateDebounce.Call()
+	}
 }

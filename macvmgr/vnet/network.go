@@ -58,7 +58,7 @@ type Network struct {
 
 	VsockDialer func(uint32) (net.Conn, error)
 
-	ICMP       *icmpfwd.IcmpFwd
+	icmp       *icmpfwd.IcmpFwd
 	NatTable   map[tcpip.Address]tcpip.Address
 	GuestAddr4 tcpip.Address
 	GuestAddr6 tcpip.Address
@@ -309,7 +309,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		NIC:          nicID,
 		LinkMTU:      opts.LinkMTU,
 		VsockDialer:  nil,
-		ICMP:         icmpFwd,
+		icmp:         icmpFwd,
 		GuestAddr4:   guestAddr4,
 		GuestAddr6:   guestAddr6,
 		Proxy:        proxyManager,
@@ -362,6 +362,7 @@ func (n *Network) stopAllHostBridges() {
 func (n *Network) Close() error {
 	n.stopAllForwards()
 	n.stopAllHostBridges()
+	n.icmp.Close()
 	if n.Proxy != nil {
 		n.Proxy.Close()
 	}
