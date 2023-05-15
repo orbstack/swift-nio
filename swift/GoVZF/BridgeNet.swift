@@ -328,33 +328,31 @@ class BridgeNetwork {
 
         // read from tap, write to vmnet
         fdReadSource.setEventHandler { [self] in
-            while true {
-                // read from
-                let buf = fdReadIovs[0].iov_base!
-                let n = read(tapFd, buf, Int(maxPacketSize))
-                guard n > 0 else {
-                    if errno != EAGAIN && errno != EWOULDBLOCK {
-                        NSLog("[brnet] tap read error: \(errno)")
-                    }
-                    return
+            // read from
+            let buf = fdReadIovs[0].iov_base!
+            let n = read(tapFd, buf, Int(maxPacketSize))
+            guard n > 0 else {
+                if errno != EAGAIN && errno != EWOULDBLOCK {
+                    NSLog("[brnet] tap read error: \(errno)")
                 }
+                return
+            }
 
-                // set in iov
-                fdReadIovs[0].iov_len = n
+            // set in iov
+            fdReadIovs[0].iov_len = n
 
-                // write to vmnet
-                var pktDesc = vmpktdesc(
+            // write to vmnet
+            var pktDesc = vmpktdesc(
                     vm_pkt_size: n,
                     vm_pkt_iov: fdReadIovs,
                     vm_pkt_iovcnt: 1,
                     vm_flags: 0
-                )
-                var pktsWritten = Int32(1)
-                let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
-                guard ret2 == .VMNET_SUCCESS else {
-                    NSLog("[brnet] vmnet write error: \(VmnetError.from(ret2))")
-                    return
-                }
+            )
+            var pktsWritten = Int32(1)
+            let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
+            guard ret2 == .VMNET_SUCCESS else {
+                NSLog("[brnet] vmnet write error: \(VmnetError.from(ret2))")
+                return
             }
         }
         fdReadSource.resume()
