@@ -348,6 +348,13 @@ func migrateState() error {
 	return nil
 }
 
+func runOne(what string, fn func() error) {
+	err := fn()
+	if err != nil {
+		logrus.WithError(err).Error(what + " failed")
+	}
+}
+
 func runVmManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -499,7 +506,7 @@ func runVmManager() {
 
 	// prepare to run async startup tasks
 	var startWg sync.WaitGroup
-	runOneAsync := func(what string, fn func() error) {
+	runAsyncInitTask := func(what string, fn func() error) {
 		startWg.Add(1)
 
 		go func() {
@@ -513,10 +520,10 @@ func runVmManager() {
 	}
 
 	// load proxy settings and proxy password (keychain prompt)
-	runOneAsync("proxy settings", vnetwork.Proxy.Refresh)
+	runAsyncInitTask("proxy settings", vnetwork.Proxy.Refresh)
 
 	// create scon machines host network bridge
-	runOneAsync("host bridge", vnetwork.CreateSconMachineHostBridge)
+	runAsyncInitTask("host bridge", vnetwork.CreateSconMachineHostBridge)
 
 	// Start DRM
 	drmClient := drm.Client()
@@ -557,7 +564,7 @@ func runVmManager() {
 	check(err)
 	defer fsNotifier.Close()
 	hcServer.FsNotifier = fsNotifier
-	runOneAsync("fsnotify proxy", fsNotifier.Run)
+	go runOne("fsnotify proxy", fsNotifier.Run)
 
 	if useStdioConsole {
 		fd := int(os.Stdin.Fd())
@@ -573,7 +580,7 @@ func runVmManager() {
 	err = vm.Start()
 	check(err)
 
-	runOneAsync("data watcher", func() error {
+	go runOne("data watcher", func() error {
 		return WatchCriticalFiles(stopCh)
 	})
 
@@ -661,7 +668,7 @@ func runVmManager() {
 	defer os.Remove(conf.SconSSHSocket())
 
 	// Docker context and certs.d
-	runOneAsync("Docker context", func() error {
+	runAsyncInitTask("Docker context", func() error {
 		// PATH for hostssh, DOCKER_CONFIG for docker cli
 		// blocking here because docker depends on it
 		err := setupEnv()
@@ -679,7 +686,7 @@ func runVmManager() {
 	})
 
 	// SSH key and config
-	runOneAsync("public SSH setup", setupPublicSSH)
+	runAsyncInitTask("public SSH setup", setupPublicSSH)
 
 	// Mount NFS
 	nfsMounted := false
