@@ -1,7 +1,7 @@
 package netconf
 
 const (
-	Subnet4       = "100.115.92"
+	Subnet4       = "198.19.248"
 	GatewayIP4    = Subnet4 + ".1"
 	GuestIP4      = Subnet4 + ".2"
 	ServicesIP4   = Subnet4 + ".200"
@@ -19,7 +19,7 @@ const (
 )
 
 const (
-	SconSubnet4   = "100.115.93"
+	SconSubnet4   = "198.19.249"
 	SconDockerIP4 = SconSubnet4 + ".2"
 
 	SconSubnet6   = "fd00:96dc:7096:1d00:"

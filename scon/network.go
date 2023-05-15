@@ -23,7 +23,7 @@ const (
 	ifVmnetMachine = "eth1"
 	ifVmnetDocker  = "eth2"
 
-	subnet4       = "100.115.93"
+	subnet4       = "198.19.249"
 	subnet4cidr   = subnet4 + ".0/24"
 	gatewayIP4    = subnet4 + ".1"
 	dockerIP4     = subnet4 + ".2"
@@ -273,7 +273,7 @@ func setupOneNat(proto iptables.Protocol, netmask string, servicesIP string) (fu
 	}
 
 	// then block scon from accessing our guest (VM) services that are intended for host
-	// blocked on both guest IP (100.115.92.2) and bridge gateway (100.115.93.1)
+	// blocked on both guest IP (198.19.248.2) and bridge gateway (198.19.249.1)
 	err = ipt.AppendUnique("filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset")
 	if err != nil {
 		return nil, err

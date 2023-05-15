@@ -2,7 +2,7 @@
 // License: proprietary and confidential.
 
 // Redirects connect() calls to localhost (127.0.0.1 or ::1) to host NAT
-// (100.115.92.254) if there's no listener on localhost.
+// (198.19.248.254) if there's no listener on localhost.
 // Also translates getpeername() to return localhost so programs don't get confused,
 // and sendmsg() for UDP.
 
@@ -40,8 +40,8 @@ enum {
 #define LOCALHOST_IP4 IP4(127, 0, 0, 1)
 static const __be32 LOCALHOST_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 1);
 
-// 100.115.92.254
-#define HOSTNAT_IP4 IP4(100, 115, 92, 254)
+// 198.19.248.254
+#define HOSTNAT_IP4 IP4(198, 19, 248, 254)
 // fd00:96dc:7096:1df0::254
 static const __be32 HOSTNAT_IP6[4] = IP6(0xfd00, 0x96dc, 0x7096, 0x1df0, 0, 0, 0, 0x254);
 
