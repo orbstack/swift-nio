@@ -8,7 +8,9 @@
 import Foundation
 import vmnet
 
-private let queue = DispatchQueue(label: "dev.kdrag0n.govzf.bridge")
+// vmnet is ok with concurrenet queue
+// gets us from 21 -> 30 Gbps
+private let queue = DispatchQueue(label: "dev.kdrag0n.govzf.bridge", attributes: .concurrent)
 private let bridgeUuid = UUID(uuidString: "25ef1ee1-1ead-40fd-a97d-f9284917459b")!
 
 private let dgramSockBuf = 512 * 1024
@@ -237,7 +239,7 @@ class BridgeNetwork {
         xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, true)
 
         let (ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: queue)
-        print("if param: \(ifParam)")
+        //print("if param: \(ifParam)")
         let maxPacketSize = xpc_dictionary_get_uint64(ifParam, vmnet_max_packet_size_key)
 
         // pre-allocate buffers
@@ -278,6 +280,14 @@ class BridgeNetwork {
             // send packets to tap
             for i in 0..<Int(pktsRead) {
                 let pktDesc = pktDescs[i]
+
+                // sanity: never write a packet > 65535 bytes. that breaks the network, so just drop it
+                let vnetHdrSize = MemoryLayout<virtio_net_hdr>.size
+                guard pktDesc.vm_pkt_size + vnetHdrSize <= 65535 else {
+                    //print("packet too big: \(pktDesc.vm_pkt_size + vnetHdrSize)")
+                    continue
+                }
+
                 do {
                     vnetHdr[0] = try buildVnetHdr(pkt: pktDesc.vm_pkt_iov[0].iov_base, pktLen: pktDesc.vm_pkt_size)
                 } catch {
@@ -285,10 +295,10 @@ class BridgeNetwork {
                     continue
                 }
                 var iovs = [
-                    iovec(iov_base: vnetHdr, iov_len: MemoryLayout<virtio_net_hdr>.size),
+                    iovec(iov_base: vnetHdr, iov_len: vnetHdrSize),
                     iovec(iov_base: pktDesc.vm_pkt_iov[0].iov_base, iov_len: pktDesc.vm_pkt_size)
                 ]
-                let totalSize = pktDesc.vm_pkt_size + MemoryLayout<virtio_net_hdr>.size
+                let totalSize = pktDesc.vm_pkt_size + vnetHdrSize
                 //print("writing \(totalSize) bytes to tap")
                 let ret = writev(tapFd, &iovs, 2)
                 guard ret == totalSize else {
@@ -359,6 +369,10 @@ class BridgeNetwork {
 
     deinit {
         fdReadSource.cancel()
+        for i in 0..<maxPacketsPerRead {
+            free(vmnetReadIovs[i].iov_base)
+        }
+        free(fdReadIovs[0].iov_base)
         fdReadIovs.deallocate()
         vmnetReadIovs.deallocate()
         Darwin.close(tapFd)
