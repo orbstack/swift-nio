@@ -223,7 +223,9 @@ RUN apk add --no-cache \
     # util-linux to fix "/dev/vda: Can't open blockdev" for btrfs mount
     sfdisk nfs-utils btrfs-progs util-linux \
     # scon deps
-    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz
+    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz \
+    # needed for static ip neigh
+    iproute2-minimal
 
 # debug deps
 ARG TYPE=release
