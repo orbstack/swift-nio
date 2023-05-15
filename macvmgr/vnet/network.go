@@ -3,6 +3,7 @@ package vnet
 import (
 	"bytes"
 	"errors"
+	"io"
 	"math"
 	"net"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vnet/icmpfwd"
 	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/macvmgr/vnet/netutil"
-	"github.com/orbstack/macvirt/macvmgr/vnet/qemulink"
 	"github.com/orbstack/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/macvmgr/vnet/udpfwd"
 	"github.com/sirupsen/logrus"
@@ -44,20 +44,35 @@ const (
 	guestDialRetryTimeout  = 15 * time.Second
 )
 
+type HostBridge interface {
+	io.Closer
+}
+
 type Network struct {
-	Stack       *stack.Stack
-	NIC         tcpip.NICID
+	Stack   *stack.Stack
+	NIC     tcpip.NICID
+	LinkMTU uint32
+
+	file0 *os.File
+	fd1   int
+
 	VsockDialer func(uint32) (net.Conn, error)
-	ICMP        *icmpfwd.IcmpFwd
-	NatTable    map[tcpip.Address]tcpip.Address
-	GuestAddr4  tcpip.Address
-	GuestAddr6  tcpip.Address
-	Proxy       *tcpfwd.ProxyManager
+
+	ICMP       *icmpfwd.IcmpFwd
+	NatTable   map[tcpip.Address]tcpip.Address
+	GuestAddr4 tcpip.Address
+	GuestAddr6 tcpip.Address
+
+	Proxy *tcpfwd.ProxyManager
+
 	// mapped by host side. guest side can be duplicated
 	hostForwards  map[string]HostForward
 	hostForwardMu sync.Mutex
-	file0         *os.File
-	fd1           int
+
+	// bridges
+	hostBridgeMu  sync.Mutex
+	hostBridgeFds []int
+	hostBridges   []HostBridge
 }
 
 type NetOptions struct {
@@ -119,26 +134,6 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	network.file0 = file0
 	network.fd1 = fd1
 	return network, file0, nil
-}
-
-func StartQemuFd(opts NetOptions, file *os.File) (*Network, error) {
-	macAddr, err := tcpip.ParseMACAddress(netconf.GatewayMAC)
-	if err != nil {
-		return nil, err
-	}
-
-	nicEp, err := qemulink.New(file, macAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	network, err := startNet(opts, nicEp)
-	if err != nil {
-		return nil, err
-	}
-
-	network.file0 = file
-	return network, nil
 }
 
 func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
@@ -312,6 +307,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	network := &Network{
 		Stack:        s,
 		NIC:          nicID,
+		LinkMTU:      opts.LinkMTU,
 		VsockDialer:  nil,
 		ICMP:         icmpFwd,
 		GuestAddr4:   guestAddr4,
@@ -339,8 +335,33 @@ func (n *Network) stopAllForwards() {
 	}
 }
 
+func (n *Network) stopAllHostBridges() {
+	n.hostBridgeMu.Lock()
+	defer n.hostBridgeMu.Unlock()
+
+	for _, b := range n.hostBridges {
+		if b == nil {
+			continue
+		}
+
+		logrus.WithField("bridge", b).Debug("closing bridge")
+		err := b.Close()
+		if err != nil {
+			logrus.WithError(err).WithField("bridge", b).Warn("failed to close bridge")
+		}
+	}
+
+	n.hostBridges = nil
+	// close fds
+	for _, fd := range n.hostBridgeFds {
+		file := os.NewFile(uintptr(fd), "host bridge fd")
+		file.Close()
+	}
+}
+
 func (n *Network) Close() error {
 	n.stopAllForwards()
+	n.stopAllHostBridges()
 	if n.Proxy != nil {
 		n.Proxy.Close()
 	}

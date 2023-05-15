@@ -11,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vmconfig"
 	"github.com/orbstack/macvirt/macvmgr/vnet"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,24 +24,24 @@ const (
 )
 
 type VmParams struct {
-	Cpus              int
-	Memory            uint64
-	Kernel            string
-	Console           ConsoleMode
-	DiskRootfs        string
-	DiskData          string
-	DiskSwap          string
-	NetworkVnet       bool
-	NetworkNat        bool
-	NetworkHostBridge bool
-	NetworkPairFile   *os.File
-	MacAddressPrefix  string
-	Balloon           bool
-	Rng               bool
-	Vsock             bool
-	Virtiofs          bool
-	Rosetta           bool
-	Sound             bool
+	Cpus               int
+	Memory             uint64
+	Kernel             string
+	Console            ConsoleMode
+	DiskRootfs         string
+	DiskData           string
+	DiskSwap           string
+	NetworkNat         bool
+	NetworkVnet        bool
+	NetworkHostBridges int
+	NetworkPairFile    *os.File
+	MacAddressPrefix   string
+	Balloon            bool
+	Rng                bool
+	Vsock              bool
+	Virtiofs           bool
+	Rosetta            bool
+	Sound              bool
 }
 
 func findBestMtu() int {
@@ -79,22 +80,22 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 	logrus.Debug("cmdline", cmdline)
 
 	spec := vzf.VzSpec{
-		Cpus:              c.Cpus,
-		Memory:            c.Memory * 1024 * 1024,
-		Kernel:            c.Kernel,
-		Cmdline:           strings.Join(cmdline, " "),
-		MacAddressPrefix:  c.MacAddressPrefix,
-		NetworkNat:        c.NetworkNat,
-		NetworkHostBridge: c.NetworkHostBridge,
-		Rng:               c.Rng,
-		DiskRootfs:        c.DiskRootfs,
-		DiskData:          c.DiskData,
-		DiskSwap:          c.DiskSwap,
-		Balloon:           c.Balloon,
-		Vsock:             c.Vsock,
-		Virtiofs:          c.Virtiofs,
-		Rosetta:           c.Rosetta,
-		Sound:             c.Sound,
+		Cpus:             c.Cpus,
+		Memory:           c.Memory * 1024 * 1024,
+		Kernel:           c.Kernel,
+		Cmdline:          strings.Join(cmdline, " "),
+		MacAddressPrefix: c.MacAddressPrefix,
+		NetworkNat:       c.NetworkNat,
+		/* fds populated below */
+		Rng:        c.Rng,
+		DiskRootfs: c.DiskRootfs,
+		DiskData:   c.DiskData,
+		DiskSwap:   c.DiskSwap,
+		Balloon:    c.Balloon,
+		Vsock:      c.Vsock,
+		Virtiofs:   c.Virtiofs,
+		Rosetta:    c.Rosetta,
+		Sound:      c.Sound,
 	}
 
 	// Console
@@ -132,15 +133,24 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		check(err)
 		vnetwork = newNetwork
 
-		// TODO: set nonblock using util.GetFd? doesn't seem to do anything
-		fd := int(gvnetFile.Fd())
-		spec.NetworkVnetFd = &fd
+		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(gvnetFile)))
 		// already retained by network, but doesn't hurt
 		retainFiles = append(retainFiles, gvnetFile)
 	}
+	for i := 0; i < c.NetworkHostBridges; i++ {
+		// host bridges are only reserved, not
+		file0, fd1, err := vnet.NewUnixgramPair()
+		check(err)
+
+		// use util.GetFd to preserve nonblock
+		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(file0)))
+		retainFiles = append(retainFiles, file0)
+
+		// keep fd1 for bridge management
+		vnetwork.AddHostBridgeFd(fd1)
+	}
 	if c.NetworkPairFile != nil {
-		fd := int(c.NetworkPairFile.Fd())
-		spec.NetworkVnetFd = &fd
+		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(c.NetworkPairFile)))
 		retainFiles = append(retainFiles, c.NetworkPairFile)
 	}
 

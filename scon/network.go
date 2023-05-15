@@ -23,19 +23,6 @@ const (
 	ifVmnetMachine = "eth1"
 	ifVmnetDocker  = "eth2"
 
-	subnet4       = "198.19.249"
-	subnet4cidr   = subnet4 + ".0/24"
-	gatewayIP4    = subnet4 + ".1"
-	dockerIP4     = subnet4 + ".2"
-	hostBridgeIP4 = subnet4 + ".3"
-	/* used in GoVZF vmnet BridgeNet.swift */
-
-	subnet6       = "fd07:b51a:cc66:0000:"
-	subnet6cidr   = subnet6 + ":/64"
-	gatewayIP6    = subnet6 + ":1"
-	dockerIP6     = subnet6 + ":2"
-	hostBridgeIP6 = subnet6 + ":3"
-
 	txQueueLen = 5000
 
 	dhcpLeaseTime4 = "48h"
@@ -98,8 +85,8 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 		"--strict-order",
 		"--pid-file=", // disable pid file
 
-		"--listen-address=" + gatewayIP4,
-		"--listen-address=" + gatewayIP6,
+		"--listen-address=" + netconf.SconGatewayIP4,
+		"--listen-address=" + netconf.SconGatewayIP6,
 		"--interface=" + ifBridge,
 		"--no-ping", // LXD: prevent delays in lease file updates
 
@@ -110,7 +97,7 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 		"--dhcp-authoritative",
 		"--dhcp-no-override",
 		"--dhcp-leasefile=" + path.Join(n.dataDir, "dnsmasq.leases"),
-		fmt.Sprintf("--dhcp-range=%s.%d,%s.%d,%s", subnet4, dhcpLeaseStart, subnet4, dhcpLeaseEnd, dhcpLeaseTime4),
+		fmt.Sprintf("--dhcp-range=%s.%d,%s.%d,%s", netconf.SconSubnet4, dhcpLeaseStart, netconf.SconSubnet4, dhcpLeaseEnd, dhcpLeaseTime4),
 		"--dhcp-option=option:dns-server," + conf.C().DNSServer, // DNS
 		"--dhcp-option-force=26," + strconv.Itoa(n.mtu),         // MTU
 
@@ -186,7 +173,7 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 	}
 
 	// add ip
-	addr, err := netlink.ParseAddr(gatewayIP4 + "/24")
+	addr, err := netlink.ParseAddr(netconf.SconGatewayIP4 + "/24")
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +183,7 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 	}
 
 	// add ipv6
-	addr, err = netlink.ParseAddr(gatewayIP6 + "/64")
+	addr, err = netlink.ParseAddr(netconf.SconGatewayIP6 + "/64")
 	if err != nil {
 		return nil, err
 	}
@@ -226,12 +213,12 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 }
 
 func setupAllNat() (func() error, error) {
-	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, subnet4cidr, netconf.SecureSvcIP4)
+	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, netconf.SconSubnet4CIDR, netconf.SecureSvcIP4)
 	if err != nil {
 		return nil, err
 	}
 
-	cleanup6, err := setupOneNat(iptables.ProtocolIPv6, subnet6cidr, "")
+	cleanup6, err := setupOneNat(iptables.ProtocolIPv6, netconf.SconSubnet6CIDR, "")
 	if err != nil {
 		_ = cleanup4()
 		return nil, err

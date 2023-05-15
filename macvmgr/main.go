@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -347,13 +348,6 @@ func migrateState() error {
 	return nil
 }
 
-func runOne(what string, fn func() error) {
-	err := fn()
-	if err != nil {
-		logrus.WithError(err).Error(what + " failed")
-	}
-}
-
 func runVmManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -481,20 +475,20 @@ func runVmManager() {
 		Memory: vmconfig.Get().MemoryMiB,
 		Kernel: conf.GetAssetFile("kernel"),
 		// this one uses gvproxy ssh
-		Console:           consoleMode,
-		DiskRootfs:        conf.GetAssetFile("rootfs.img"),
-		DiskData:          conf.DataImage(),
-		DiskSwap:          conf.SwapImage(),
-		NetworkVnet:       true,
-		NetworkNat:        useNat,
-		NetworkHostBridge: true,
-		MacAddressPrefix:  netconf.GuestMACPrefix,
-		Balloon:           true,
-		Rng:               true,
-		Vsock:             true,
-		Virtiofs:          true,
-		Rosetta:           vmconfig.Get().Rosetta,
-		Sound:             false,
+		Console:            consoleMode,
+		DiskRootfs:         conf.GetAssetFile("rootfs.img"),
+		DiskData:           conf.DataImage(),
+		DiskSwap:           conf.SwapImage(),
+		NetworkVnet:        true,
+		NetworkNat:         useNat,
+		NetworkHostBridges: 2, // machine + docker
+		MacAddressPrefix:   netconf.GuestMACPrefix,
+		Balloon:            true,
+		Rng:                true,
+		Vsock:              true,
+		Virtiofs:           true,
+		Rosetta:            vmconfig.Get().Rosetta,
+		Sound:              false,
 	}
 
 	logrus.Info("configuring VM")
@@ -503,13 +497,26 @@ func runVmManager() {
 	// close in case we need to release disk flock for next start
 	defer vm.Close()
 
+	// prepare to run async startup tasks
+	var startWg sync.WaitGroup
+	runOneAsync := func(what string, fn func() error) {
+		startWg.Add(1)
+
+		go func() {
+			defer startWg.Done()
+
+			err := fn()
+			if err != nil {
+				logrus.WithError(err).Error(what + " failed")
+			}
+		}()
+	}
+
 	// load proxy settings and proxy password (keychain prompt)
-	go func() {
-		err := vnetwork.Proxy.Refresh()
-		if err != nil {
-			logrus.WithError(err).Error("failed to load proxy settings")
-		}
-	}()
+	runOneAsync("proxy settings", vnetwork.Proxy.Refresh)
+
+	// create scon machines host network bridge
+	runOneAsync("host bridge", vnetwork.CreateSconMachineHostBridge)
 
 	// Start DRM
 	drmClient := drm.Client()
@@ -550,7 +557,7 @@ func runVmManager() {
 	check(err)
 	defer fsNotifier.Close()
 	hcServer.FsNotifier = fsNotifier
-	go runOne("fsnotify proxy", fsNotifier.Run)
+	runOneAsync("fsnotify proxy", fsNotifier.Run)
 
 	if useStdioConsole {
 		fd := int(os.Stdin.Fd())
@@ -566,7 +573,7 @@ func runVmManager() {
 	err = vm.Start()
 	check(err)
 
-	go runOne("data watcher", func() error {
+	runOneAsync("data watcher", func() error {
 		return WatchCriticalFiles(stopCh)
 	})
 
@@ -654,20 +661,25 @@ func runVmManager() {
 	defer os.Remove(conf.SconSSHSocket())
 
 	// Docker context and certs.d
-	go func() {
+	runOneAsync("Docker context", func() error {
 		// PATH for hostssh, DOCKER_CONFIG for docker cli
 		// blocking here because docker depends on it
-		runOne("env setup", setupEnv)
+		err := setupEnv()
+		if err != nil {
+			logrus.WithError(err).Error("failed to set up environment")
+		}
 		controlServer.setupReady.Set(true)
 
-		err := setupDockerContext()
+		err = setupDockerContext()
 		if err != nil {
 			logrus.WithError(err).Error("failed to set Docker context")
 		}
-	}()
+
+		return nil
+	})
 
 	// SSH key and config
-	go runOne("public SSH setup", setupPublicSSH)
+	runOneAsync("public SSH setup", setupPublicSSH)
 
 	// Mount NFS
 	nfsMounted := false

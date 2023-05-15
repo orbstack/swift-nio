@@ -96,38 +96,6 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
     return (interfaceRef, outIfParam)
 }
 
-private func sys(_ ret: Int32) throws {
-    guard ret != -1 else {
-        throw BridgeError.errno(errno)
-    }
-}
-
-private func setLargeBuffers(fd: Int32) throws {
-    var size = UInt64(dgramSockBuf)
-    try sys(setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, socklen_t(MemoryLayout<UInt64>.size)))
-    size *= 4
-    try sys(setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, socklen_t(MemoryLayout<UInt64>.size)))
-}
-
-func newDatagramPair() throws -> (Int32, Int32) {
-    var fds: [Int32] = [-1, -1]
-    try sys(socketpair(AF_UNIX, SOCK_DGRAM, 0, &fds))
-
-    // cloexec
-    try sys(fcntl(fds[0], F_SETFD, FD_CLOEXEC))
-    try sys(fcntl(fds[1], F_SETFD, FD_CLOEXEC))
-
-    // set large buffers
-    try setLargeBuffers(fd: fds[0])
-    try setLargeBuffers(fd: fds[1])
-
-    // nonblock
-    try sys(fcntl(fds[0], F_SETFL, O_NONBLOCK))
-    try sys(fcntl(fds[1], F_SETFL, O_NONBLOCK))
-
-    return (fds[0], fds[1])
-}
-
 private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: Int = 1500) throws -> virtio_net_hdr {
     var hdr = virtio_net_hdr()
     hdr.flags = VIRTIO_NET_HDR_F_DATA_VALID
@@ -205,8 +173,7 @@ private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: In
     return hdr
 }
 
-struct BridgeNetworkConfig {
-    // -1 = create pair
+struct BridgeNetworkConfig: Codable {
     var tapFd: Int32
 
     let uuid: String
@@ -410,4 +377,32 @@ class BridgeNetwork {
         fdReadIovs.deallocate()
         vmnetReadIovs.deallocate()
     }
+}
+
+@_cdecl("swext_brnet_create")
+func swext_brnet_create(configJsonStr: UnsafePointer<CChar>) -> UnsafeMutablePointer<GovzfResultCreate> {
+    let configJson = String(cString: configJsonStr)
+    let config = try! JSONDecoder().decode(BridgeNetworkConfig.self, from: configJson.data(using: .utf8)!)
+
+    let result = ResultWrapper<GovzfResultCreate>()
+    do {
+        do {
+            let obj = try BridgeNetwork(config: config)
+            // take a long-lived ref for Go
+            let ptr = Unmanaged.passRetained(obj).toOpaque()
+            result.set(GovzfResultCreate(ptr: ptr, err: nil, rosetta_canceled: false))
+        } catch {
+            let prettyError = "\(error)"
+            result.set(GovzfResultCreate(ptr: nil, err: strdup(prettyError.cString(using: .utf8)!), rosetta_canceled: false))
+        }
+    }
+
+    return result.waitPtr()
+}
+
+@_cdecl("swext_brnet_close")
+func swext_brnet_close(ptr: UnsafeMutableRawPointer) {
+    // ref is dropped at the end of this function
+    let obj = Unmanaged<BridgeNetwork>.fromOpaque(ptr).takeRetainedValue()
+    obj.close()
 }

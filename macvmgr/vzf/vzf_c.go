@@ -29,6 +29,9 @@ char* swext_fsevents_VmNotifier_stop(void* ptr);
 void swext_fsevents_VmNotifier_finalize(void* ptr);
 void swext_ipc_notify_started(void);
 void swext_ipc_notify_docker_event(const char* event);
+
+struct GovzfResultCreate* swext_brnet_create(const char* config_str);
+void swext_brnet_close(void* ptr);
 */
 import (
 	"C"
@@ -404,4 +407,51 @@ func SwextIpcNotifyDockerEvent(eventJsonStr string) {
 	cStr := C.CString(eventJsonStr)
 	defer C.free(unsafe.Pointer(cStr))
 	C.swext_ipc_notify_docker_event(cStr)
+}
+
+type BridgeNetwork struct {
+	mu  sync.RWMutex
+	ptr unsafe.Pointer
+}
+
+func SwextNewBrnet(config BridgeNetworkConfig) (*BridgeNetwork, error) {
+	// encode to json
+	specStr, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
+	}
+
+	// create Go object
+	brnet := &BridgeNetwork{}
+
+	// call cgo
+	cstr := C.CString(string(specStr))
+	defer C.free(unsafe.Pointer(cstr))
+	result := C.swext_brnet_create(cstr)
+	defer C.free(unsafe.Pointer(result))
+
+	// wait for result
+	if result.err != nil {
+		return nil, errFromC(result.err)
+	}
+
+	// set ptr
+	brnet.ptr = result.ptr
+	// ref ok: this just drops Go ref; Swift ref is still held if alive
+	runtime.SetFinalizer(brnet, (*BridgeNetwork).Close)
+
+	return brnet, nil
+}
+
+func (brnet *BridgeNetwork) Close() error {
+	brnet.mu.Lock()
+	defer brnet.mu.Unlock()
+
+	if brnet.ptr != nil {
+		C.swext_brnet_close(brnet.ptr)
+		brnet.ptr = nil
+		runtime.SetFinalizer(brnet, nil)
+	}
+
+	return nil
 }

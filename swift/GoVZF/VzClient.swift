@@ -20,10 +20,8 @@ struct VzSpec: Codable {
     var console: ConsoleSpec?
     var mtu: Int
     var macAddressPrefix: String
-    var networkVnetFd: Int32?
     var networkNat: Bool
-    var networkPairFd: Int32?
-    var networkHostBridge: Bool
+    var networkFds: [Int32]
     var rng: Bool
     var diskRootfs: String?
     var diskData: String?
@@ -73,14 +71,12 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     private var vz: VZVirtualMachine
     private var vsockDevice: VZVirtioSocketDevice
     private var stateObserver: NSKeyValueObservation?
-    private var bridgeNets: [BridgeNetwork?]
 
-    init(goHandle: uintptr_t, vz: VZVirtualMachine, bridgeNets: [BridgeNetwork]) {
+    init(goHandle: uintptr_t, vz: VZVirtualMachine) {
         // must init before calling super
         self.vz = vz
         self.vsockDevice = vz.socketDevices[0] as! VZVirtioSocketDevice
         self.goHandle = goHandle
-        self.bridgeNets = bridgeNets
 
         // init the rest
         super.init()
@@ -94,9 +90,6 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     }
 
     deinit {
-        for net in bridgeNets {
-            net?.close()
-        }
         govzf_event_Machine_deinit(self.goHandle)
     }
 
@@ -159,20 +152,6 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         return fd
     }
 
-    func recreateBridgeNetwork(_ index: Int) throws {
-        guard index < bridgeNets.count else {
-            throw GovzfError.invalidNetIndex
-        }
-
-        // grab config, close, and drop ref
-        let config = bridgeNets[index]!.config
-        bridgeNets[index]!.close()
-        bridgeNets[index] = nil
-
-        // re-create
-        bridgeNets[index] = try BridgeNetwork(config: config)
-    }
-
     private func dispatchOnStateChange(state: VZVirtualMachine.State) {
         vzQueue.async {
             govzf_event_Machine_onStateChange(self.goHandle, Int32(state.rawValue))
@@ -207,53 +186,23 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
 
     // network
     var netDevices: [VZNetworkDeviceConfiguration] = []
-    var bridgeNets: [BridgeNetwork] = []
-    if let networkVnetFd = spec.networkVnetFd {
+    if spec.networkNat {
+        let attachment = VZNATNetworkDeviceAttachment()
+        let device = VZVirtioNetworkDeviceConfiguration()
+        device.attachment = attachment
+        device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":00")!
+        netDevices.append(device)
+    }
+    for (index, networkVnetFd) in spec.networkFds.enumerated() {
         let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: networkVnetFd))
         if #available(macOS 13, *) {
             attachment.maximumTransmissionUnit = spec.mtu
         }
         let device = VZVirtioNetworkDeviceConfiguration()
         device.attachment = attachment
-        device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":01")!
-        netDevices.append(device)
-    }
-    if spec.networkNat {
-        let attachment = VZNATNetworkDeviceAttachment()
-        let device = VZVirtioNetworkDeviceConfiguration()
-        device.attachment = attachment
-        device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":02")!
-        netDevices.append(device)
-    }
-    if let networkPairFd = spec.networkPairFd {
-        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: networkPairFd))
-        if #available(macOS 13, *) {
-            attachment.maximumTransmissionUnit = spec.mtu
-        }
-        let device = VZVirtioNetworkDeviceConfiguration()
-        device.attachment = attachment
-        device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":03")!
-        netDevices.append(device)
-    }
-    if spec.networkHostBridge {
-        let (fd0, fd1) = try newDatagramPair()
-        let brNet = try BridgeNetwork(config: BridgeNetworkConfig(
-                tapFd: fd0,
-                uuid: "25ef1ee1-1ead-40fd-a97d-f9284917459b",
-                ip4Address: "198.19.249.3",
-                ip4Mask: "255.255.255.0",
-                ip6Address: "fd07:b51a:cc66:0000::3",
-                maxLinkMtu: 65535))
-
-        bridgeNets.append(brNet)
-        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: fd1))
-        if #available(macOS 13, *) {
-            // set max if we're using TSO
-            attachment.maximumTransmissionUnit = spec.mtu
-        }
-        let device = VZVirtioNetworkDeviceConfiguration()
-        device.attachment = attachment
-        device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":04")!
+        // starting at :01
+        let lastByte = UInt8(1 + index)
+        device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":" + String(format: "%02x", lastByte))!
         netDevices.append(device)
     }
     config.networkDevices = netDevices
@@ -361,7 +310,7 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
 
     // Create
     let vm = VZVirtualMachine(configuration: config, queue: vzQueue)
-    return (VmWrapper(goHandle: goHandle, vz: vm, bridgeNets: bridgeNets), rosettaCanceled)
+    return (VmWrapper(goHandle: goHandle, vz: vm), rosettaCanceled)
 }
 
 class ResultWrapper<T: Any> {

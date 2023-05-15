@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/types"
@@ -30,8 +31,8 @@ var (
 	netipIPv4Loopback = netip.AddrFrom4([4]byte{127, 0, 0, 1})
 	netipIPv6Loopback = netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
 
-	netipSubnet4 = netip.MustParsePrefix(subnet4cidr)
-	netipSubnet6 = netip.MustParsePrefix(subnet6cidr)
+	netipSubnet4 = netip.MustParsePrefix(netconf.SconSubnet4CIDR)
+	netipSubnet6 = netip.MustParsePrefix(netconf.SconSubnet6CIDR)
 )
 
 type ForwardState struct {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
 	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/images"
@@ -82,10 +83,10 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 
 	// configure network statically
 	cm.set("lxc.net.0.flags", "up")
-	cm.set("lxc.net.0.ipv4.address", dockerIP4+"/24")
-	cm.set("lxc.net.0.ipv4.gateway", gatewayIP4)
-	cm.set("lxc.net.0.ipv6.address", dockerIP6+"/64")
-	cm.set("lxc.net.0.ipv6.gateway", gatewayIP6)
+	cm.set("lxc.net.0.ipv4.address", netconf.SconDockerIP4+"/24")
+	cm.set("lxc.net.0.ipv4.gateway", netconf.SconGatewayIP4)
+	cm.set("lxc.net.0.ipv6.address", netconf.SconDockerIP6+"/64")
+	cm.set("lxc.net.0.ipv6.gateway", netconf.SconGatewayIP6)
 
 	// attach Docker vmnet to machine's netns
 	// inside machine, we'll attach it to the Docker bridge
