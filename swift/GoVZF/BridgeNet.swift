@@ -11,7 +11,6 @@ import vmnet
 // vmnet is ok with concurrenet queue
 // gets us from 21 -> 30 Gbps
 private let queue = DispatchQueue(label: "dev.kdrag0n.govzf.bridge", attributes: .concurrent)
-private let bridgeUuid = UUID(uuidString: "25ef1ee1-1ead-40fd-a97d-f9284917459b")!
 
 private let dgramSockBuf = 512 * 1024
 private let maxPacketsPerRead = 64
@@ -206,28 +205,42 @@ private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: In
     return hdr
 }
 
+struct BridgeNetworkConfig {
+    // -1 = create pair
+    var tapFd: Int32
+
+    let uuid: String
+    let ip4Address: String
+    let ip4Mask: String
+    let ip6Address: String?
+    let maxLinkMtu: Int
+}
+
 class BridgeNetwork {
-    private let tapFd: Int32
+    let config: BridgeNetworkConfig
     private let ifRef: interface_ref
     private let fdReadSource: DispatchSourceRead
     private let fdReadIovs: UnsafeMutablePointer<iovec>
     private let vmnetReadIovs: UnsafeMutablePointer<iovec>
 
-    init(tapFd: Int32) throws {
+    init(config: BridgeNetworkConfig) throws {
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
         xpc_dictionary_set_uint64(ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))
-        // macOS max MTU = 16384, but we use TSO instead
+        // macOS max MTU = 16384, but we use TSO instead and match VM bridge MTU
         xpc_dictionary_set_uint64(ifDesc, vmnet_mtu_key, 1500)
 
         // UUID
+        let uuid = UUID(uuidString: config.uuid)!
         var uuidBytes = [UInt8](repeating: 0, count: 16)
-        (bridgeUuid as NSUUID).getBytes(&uuidBytes)
+        (uuid as NSUUID).getBytes(&uuidBytes)
         xpc_dictionary_set_uuid(ifDesc, vmnet_interface_id_key, uuidBytes)
 
         xpc_dictionary_set_uuid(ifDesc, vmnet_network_identifier_key, uuidBytes)
-        xpc_dictionary_set_string(ifDesc, vmnet_host_ip_address_key, "198.19.249.3")
-        xpc_dictionary_set_string(ifDesc, vmnet_host_subnet_mask_key, "255.255.255.0")
-        xpc_dictionary_set_string(ifDesc, vmnet_host_ipv6_address_key, "fd07:b51a:cc66:0000::3")
+        xpc_dictionary_set_string(ifDesc, vmnet_host_ip_address_key, config.ip4Address)
+        xpc_dictionary_set_string(ifDesc, vmnet_host_subnet_mask_key, config.ip4Mask)
+        if let ip6Address = config.ip6Address {
+            xpc_dictionary_set_string(ifDesc, vmnet_host_ipv6_address_key, ip6Address)
+        }
         /* vmnet_start_address_key, vmnet_end_address_key, vmnet_subnet_mask_key are for shared/NAT */
 
         // use our own MAC address (allow any)
@@ -237,8 +250,8 @@ class BridgeNetwork {
 
         // TSO and checksum offload
         xpc_dictionary_set_bool(ifDesc, vmnet_enable_checksum_offload_key, true)
-        // TODO: can't use this on macOS 12
-        xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, true)
+        // enable TSO if link MTU allows
+        xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, config.maxLinkMtu >= 65535)
 
         let (ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: queue)
         //print("if param: \(ifParam)")
@@ -253,20 +266,19 @@ class BridgeNetwork {
         // update iov pointers
         for i in 0..<maxPacketsPerRead {
             // allocate buf and set in iov
-            pktIovs[i].iov_base = malloc(Int(maxPacketSize))
+            pktIovs[i].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
             pktIovs[i].iov_len = Int(maxPacketSize)
 
             // set in pktDesc
-            let pktDesc = vmpktdesc(
-                    vm_pkt_size: Int(maxPacketSize),
-                    vm_pkt_iov: pktIovs.advanced(by: i),
-                    vm_pkt_iovcnt: 1,
-                    vm_flags: 0
-            )
+            let pktDesc = vmpktdesc(vm_pkt_size: Int(maxPacketSize),
+                vm_pkt_iov: pktIovs.advanced(by: i),
+                vm_pkt_iovcnt: 1,
+                vm_flags: 0)
             pktDescs.append(pktDesc)
         }
 
         let vnetHdr = UnsafeMutablePointer<virtio_net_hdr>.allocate(capacity: 1)
+        let tapFd = config.tapFd
         let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, queue) { (eventMask, event) in
             //let numPackets = xpc_dictionary_get_uint64(event, vmnet_estimated_packets_available_key)
             //print("num packets: \(numPackets)")
@@ -325,7 +337,7 @@ class BridgeNetwork {
         // read from tap, write to vmnet
         let tapSource = DispatchSource.makeReadSource(fileDescriptor: tapFd, queue: queue)
         let writeIov = UnsafeMutablePointer<iovec>.allocate(capacity: 1)
-        writeIov[0].iov_base = malloc(Int(maxPacketSize))
+        writeIov[0].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
         tapSource.setEventHandler {
             while true {
                 // read from
@@ -358,28 +370,24 @@ class BridgeNetwork {
         }
         tapSource.resume()
 
-        self.tapFd = tapFd
+        self.config = config
         self.ifRef = ifRef
         self.fdReadSource = tapSource
         self.fdReadIovs = writeIov
         self.vmnetReadIovs = pktIovs
     }
 
-    static func newPair() throws -> (BridgeNetwork, Int32) {
+    static func newPair(config: BridgeNetworkConfig) throws -> (BridgeNetwork, Int32) {
         let (fd0, fd1) = try newDatagramPair()
-        let bridgeNet = try BridgeNetwork(tapFd: fd0)
+        var config = config
+        config.tapFd = fd0
+        let bridgeNet = try BridgeNetwork(config: config)
         return (bridgeNet, fd1)
     }
 
-    deinit {
+    func close() {
         fdReadSource.cancel()
-        for i in 0..<maxPacketsPerRead {
-            free(vmnetReadIovs[i].iov_base)
-        }
-        free(fdReadIovs[0].iov_base)
-        fdReadIovs.deallocate()
-        vmnetReadIovs.deallocate()
-        Darwin.close(tapFd)
+        fdReadSource.setEventHandler(handler: nil)
         let ret = vmnet_stop_interface(ifRef, queue) { status in
             NSLog("[brnet] stop status: \(status)")
         }
@@ -387,5 +395,17 @@ class BridgeNetwork {
             NSLog("[brnet] stop error: \(VmnetError.from(ret))")
             return
         }
+    }
+
+    deinit {
+        // safe to deallocate now that refs from callbacks are gone
+        for i in 0..<maxPacketsPerRead {
+            vmnetReadIovs[i].iov_base.deallocate()
+        }
+        fdReadIovs[0].iov_base.deallocate()
+
+        // must free after, so refs are valid
+        fdReadIovs.deallocate()
+        vmnetReadIovs.deallocate()
     }
 }

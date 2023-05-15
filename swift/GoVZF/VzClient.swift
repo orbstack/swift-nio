@@ -64,19 +64,23 @@ func asyncifyError(_ fn: @escaping (@escaping (Error?) -> Void) -> Void) async t
     }
 }
 
+private enum GovzfError: Error {
+    case invalidNetIndex
+}
+
 class VmWrapper: NSObject, VZVirtualMachineDelegate {
     var goHandle: uintptr_t
     private var vz: VZVirtualMachine
     private var vsockDevice: VZVirtioSocketDevice
     private var stateObserver: NSKeyValueObservation?
-    private var bridgeNet: BridgeNetwork?
+    private var bridgeNets: [BridgeNetwork?]
 
-    init(goHandle: uintptr_t, vz: VZVirtualMachine, bridgeNet: BridgeNetwork?) {
+    init(goHandle: uintptr_t, vz: VZVirtualMachine, bridgeNets: [BridgeNetwork]) {
         // must init before calling super
         self.vz = vz
         self.vsockDevice = vz.socketDevices[0] as! VZVirtioSocketDevice
         self.goHandle = goHandle
-        self.bridgeNet = bridgeNet
+        self.bridgeNets = bridgeNets
 
         // init the rest
         super.init()
@@ -85,11 +89,14 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         stateObserver = vz.observe(\.state, options: [.new]) { [weak self] (vz, change) in
             guard let self = self else { return }
             let state = vz.state
-            self.onStateChange(state: state)
+            self.dispatchOnStateChange(state: state)
         }
     }
 
     deinit {
+        for net in bridgeNets {
+            net?.close()
+        }
         govzf_event_Machine_deinit(self.goHandle)
     }
 
@@ -152,7 +159,21 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         return fd
     }
 
-    private func onStateChange(state: VZVirtualMachine.State) {
+    func recreateBridgeNetwork(_ index: Int) throws {
+        guard index < bridgeNets.count else {
+            throw GovzfError.invalidNetIndex
+        }
+
+        // grab config, close, and drop ref
+        let config = bridgeNets[index]!.config
+        bridgeNets[index]!.close()
+        bridgeNets[index] = nil
+
+        // re-create
+        bridgeNets[index] = try BridgeNetwork(config: config)
+    }
+
+    private func dispatchOnStateChange(state: VZVirtualMachine.State) {
         vzQueue.async {
             govzf_event_Machine_onStateChange(self.goHandle, Int32(state.rawValue))
         }
@@ -186,7 +207,7 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
 
     // network
     var netDevices: [VZNetworkDeviceConfiguration] = []
-    var bridgeNet: BridgeNetwork?
+    var bridgeNets: [BridgeNetwork] = []
     if let networkVnetFd = spec.networkVnetFd {
         let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: networkVnetFd))
         if #available(macOS 13, *) {
@@ -215,11 +236,33 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
         netDevices.append(device)
     }
     if spec.networkHostBridge {
-        let (brNet, fd) = try BridgeNetwork.newPair()
-        bridgeNet = brNet
+        // max link mtu
+        var maxLinkMtu = 1500
+        if #available(macOS 13, *) {
+            maxLinkMtu = 65535
+        }
+
+        let (brNet, fd) = try BridgeNetwork.newPair(config: BridgeNetworkConfig(
+                tapFd: -1,
+                uuid: "25ef1ee1-1ead-40fd-a97d-f9284917459b",
+                ip4Address: "198.19.249.3",
+                ip4Mask: "255.255.255.0",
+                ip6Address: "fd07:b51a:cc66:0000::3",
+                maxLinkMtu: maxLinkMtu))
+        let (brNet2, fd2) = try BridgeNetwork.newPair(config: BridgeNetworkConfig(
+                tapFd: -1,
+                uuid: "25ef1ee1-1ead-40fd-a97d-f9284917459c",
+                ip4Address: "172.16.255.254",
+                ip4Mask: "255.255.0.0",
+                ip6Address: nil,
+                maxLinkMtu: maxLinkMtu))
+
+        bridgeNets.append(brNet)
+        bridgeNets.append(brNet2)
         let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: fd))
         if #available(macOS 13, *) {
-            attachment.maximumTransmissionUnit = 65535
+            // set max if we're using TSO
+            attachment.maximumTransmissionUnit = maxLinkMtu
         }
         let device = VZVirtioNetworkDeviceConfiguration()
         device.attachment = attachment
@@ -331,7 +374,7 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
 
     // Create
     let vm = VZVirtualMachine(configuration: config, queue: vzQueue)
-    return (VmWrapper(goHandle: goHandle, vz: vm, bridgeNet: bridgeNet), rosettaCanceled)
+    return (VmWrapper(goHandle: goHandle, vz: vm, bridgeNets: bridgeNets), rosettaCanceled)
 }
 
 class ResultWrapper<T: Any> {
