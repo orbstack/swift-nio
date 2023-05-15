@@ -18,7 +18,7 @@ var (
 	netipMachineSubnet4 = netip.MustParsePrefix(netconf.SconSubnet4CIDR)
 )
 
-const debugRouteMessages = true
+const debugRouteMessages = false
 
 // unspecifiedMessage is a minimal message implementation that should not
 // be ignored. In general, OS-specific implementations should use better
