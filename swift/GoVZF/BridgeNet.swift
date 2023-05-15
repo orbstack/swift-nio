@@ -232,6 +232,8 @@ class BridgeNetwork {
 
         // use our own MAC address (allow any)
         xpc_dictionary_set_bool(ifDesc, vmnet_allocate_mac_address_key, false)
+        // sets IFBIF_PRIVATE
+        xpc_dictionary_set_bool(ifDesc, vmnet_enable_isolation_key, true)
 
         // TSO and checksum offload
         xpc_dictionary_set_bool(ifDesc, vmnet_enable_checksum_offload_key, true)
