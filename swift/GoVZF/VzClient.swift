@@ -236,33 +236,20 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
         netDevices.append(device)
     }
     if spec.networkHostBridge {
-        // max link mtu
-        var maxLinkMtu = 1500
-        if #available(macOS 13, *) {
-            maxLinkMtu = 65535
-        }
-
-        let (brNet, fd) = try BridgeNetwork.newPair(config: BridgeNetworkConfig(
-                tapFd: -1,
+        let (fd0, fd1) = try newDatagramPair()
+        let brNet = try BridgeNetwork(config: BridgeNetworkConfig(
+                tapFd: fd0,
                 uuid: "25ef1ee1-1ead-40fd-a97d-f9284917459b",
                 ip4Address: "198.19.249.3",
                 ip4Mask: "255.255.255.0",
                 ip6Address: "fd07:b51a:cc66:0000::3",
-                maxLinkMtu: maxLinkMtu))
-        let (brNet2, fd2) = try BridgeNetwork.newPair(config: BridgeNetworkConfig(
-                tapFd: -1,
-                uuid: "25ef1ee1-1ead-40fd-a97d-f9284917459c",
-                ip4Address: "172.16.255.254",
-                ip4Mask: "255.255.0.0",
-                ip6Address: nil,
-                maxLinkMtu: maxLinkMtu))
+                maxLinkMtu: 65535))
 
         bridgeNets.append(brNet)
-        bridgeNets.append(brNet2)
-        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: fd))
+        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: fd1))
         if #available(macOS 13, *) {
             // set max if we're using TSO
-            attachment.maximumTransmissionUnit = maxLinkMtu
+            attachment.maximumTransmissionUnit = spec.mtu
         }
         let device = VZVirtioNetworkDeviceConfiguration()
         device.attachment = attachment

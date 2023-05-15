@@ -109,7 +109,7 @@ private func setLargeBuffers(fd: Int32) throws {
     try sys(setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, socklen_t(MemoryLayout<UInt64>.size)))
 }
 
-private func newDatagramPair() throws -> (Int32, Int32) {
+func newDatagramPair() throws -> (Int32, Int32) {
     var fds: [Int32] = [-1, -1]
     try sys(socketpair(AF_UNIX, SOCK_DGRAM, 0, &fds))
 
@@ -222,8 +222,11 @@ class BridgeNetwork {
     private let fdReadSource: DispatchSourceRead
     private let fdReadIovs: UnsafeMutablePointer<iovec>
     private let vmnetReadIovs: UnsafeMutablePointer<iovec>
+    private let vnetHdr: UnsafeMutablePointer<virtio_net_hdr>
 
     init(config: BridgeNetworkConfig) throws {
+        self.config = config
+
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
         xpc_dictionary_set_uint64(ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))
         // macOS max MTU = 16384, but we use TSO instead and match VM bridge MTU
@@ -253,33 +256,40 @@ class BridgeNetwork {
         // enable TSO if link MTU allows
         xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, config.maxLinkMtu >= 65535)
 
-        let (ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: queue)
+        let (_ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: queue)
+        self.ifRef = _ifRef
         //print("if param: \(ifParam)")
         let maxPacketSize = xpc_dictionary_get_uint64(ifParam, vmnet_max_packet_size_key)
 
         // pre-allocate buffers
         // theoretically: max 200 packets, but 65k*200 is big so limit it
-        let pktIovs = UnsafeMutablePointer<iovec>.allocate(capacity: maxPacketsPerRead)
+        vmnetReadIovs = UnsafeMutablePointer<iovec>.allocate(capacity: maxPacketsPerRead)
         var pktDescs = [vmpktdesc]()
         pktDescs.reserveCapacity(maxPacketsPerRead)
 
         // update iov pointers
         for i in 0..<maxPacketsPerRead {
             // allocate buf and set in iov
-            pktIovs[i].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
-            pktIovs[i].iov_len = Int(maxPacketSize)
+            vmnetReadIovs[i].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
+            vmnetReadIovs[i].iov_len = Int(maxPacketSize)
 
             // set in pktDesc
             let pktDesc = vmpktdesc(vm_pkt_size: Int(maxPacketSize),
-                vm_pkt_iov: pktIovs.advanced(by: i),
+                vm_pkt_iov: vmnetReadIovs.advanced(by: i),
                 vm_pkt_iovcnt: 1,
                 vm_flags: 0)
             pktDescs.append(pktDesc)
         }
 
-        let vnetHdr = UnsafeMutablePointer<virtio_net_hdr>.allocate(capacity: 1)
+        // more buffers
         let tapFd = config.tapFd
-        let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, queue) { (eventMask, event) in
+        fdReadSource = DispatchSource.makeReadSource(fileDescriptor: tapFd, queue: queue)
+        fdReadIovs = UnsafeMutablePointer<iovec>.allocate(capacity: 1)
+        fdReadIovs[0].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
+        vnetHdr = UnsafeMutablePointer<virtio_net_hdr>.allocate(capacity: 1)
+
+        // must keep self ref to prevent deinit while referenced
+        let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, queue) { [self] (eventMask, event) in
             //let numPackets = xpc_dictionary_get_uint64(event, vmnet_estimated_packets_available_key)
             //print("num packets: \(numPackets)")
 
@@ -331,17 +341,23 @@ class BridgeNetwork {
             }
         }
         guard ret == .VMNET_SUCCESS else {
+            // dealloc
+            for i in 0..<maxPacketsPerRead {
+                vmnetReadIovs[i].iov_base?.deallocate()
+            }
+            fdReadIovs[0].iov_base?.deallocate()
+            fdReadIovs.deallocate()
+            vmnetReadIovs.deallocate()
+            vnetHdr.deallocate()
+
             throw VmnetError.from(ret)
         }
 
         // read from tap, write to vmnet
-        let tapSource = DispatchSource.makeReadSource(fileDescriptor: tapFd, queue: queue)
-        let writeIov = UnsafeMutablePointer<iovec>.allocate(capacity: 1)
-        writeIov[0].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
-        tapSource.setEventHandler {
+        fdReadSource.setEventHandler { [self] in
             while true {
                 // read from
-                let buf = writeIov[0].iov_base!
+                let buf = fdReadIovs[0].iov_base!
                 let n = read(tapFd, buf, Int(maxPacketSize))
                 guard n > 0 else {
                     if errno != EAGAIN && errno != EWOULDBLOCK {
@@ -351,12 +367,12 @@ class BridgeNetwork {
                 }
 
                 // set in iov
-                writeIov[0].iov_len = n
+                fdReadIovs[0].iov_len = n
 
                 // write to vmnet
                 var pktDesc = vmpktdesc(
                     vm_pkt_size: n,
-                    vm_pkt_iov: writeIov,
+                    vm_pkt_iov: fdReadIovs,
                     vm_pkt_iovcnt: 1,
                     vm_flags: 0
                 )
@@ -368,21 +384,7 @@ class BridgeNetwork {
                 }
             }
         }
-        tapSource.resume()
-
-        self.config = config
-        self.ifRef = ifRef
-        self.fdReadSource = tapSource
-        self.fdReadIovs = writeIov
-        self.vmnetReadIovs = pktIovs
-    }
-
-    static func newPair(config: BridgeNetworkConfig) throws -> (BridgeNetwork, Int32) {
-        let (fd0, fd1) = try newDatagramPair()
-        var config = config
-        config.tapFd = fd0
-        let bridgeNet = try BridgeNetwork(config: config)
-        return (bridgeNet, fd1)
+        fdReadSource.resume()
     }
 
     func close() {
