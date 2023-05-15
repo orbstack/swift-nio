@@ -16,7 +16,6 @@ package ipv6
 
 import (
 	"fmt"
-	"net"
 
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -25,7 +24,7 @@ import (
 )
 
 var (
-	kAddrHost6 = tcpip.Address(net.ParseIP("fd00:96dc:7096:1d22::254").To16())
+	KAddrHost6 tcpip.Address
 )
 
 // icmpv6DestinationUnreachableSockError is a general ICMPv6 Destination
@@ -673,7 +672,7 @@ func (e *endpoint) handleICMP(pkt stack.PacketBufferPtr, hasFragmentHeader bool,
 		}
 		defer r.Release()
 
-		if localAddr != kAddrHost6 && !e.protocol.allowICMPReply(header.ICMPv6EchoReply) {
+		if localAddr != KAddrHost6 && !e.protocol.allowICMPReply(header.ICMPv6EchoReply) {
 			sent.rateLimited.Increment()
 			e.dispatcher.DeliverTransportPacket(header.ICMPv6ProtocolNumber, pkt)
 			return

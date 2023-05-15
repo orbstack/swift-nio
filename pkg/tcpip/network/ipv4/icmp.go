@@ -16,7 +16,6 @@ package ipv4
 
 import (
 	"fmt"
-	"net"
 
 	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -27,7 +26,7 @@ import (
 )
 
 var (
-	kAddrHost4 = tcpip.Address(net.ParseIP("100.115.92.254").To4())
+	KAddrHost4 tcpip.Address
 )
 
 // icmpv4DestinationUnreachableSockError is a general ICMPv4 Destination
@@ -370,7 +369,7 @@ func (e *endpoint) handleICMP(pkt stack.PacketBufferPtr) {
 
 		sent := e.stats.icmp.packetsSent
 		localAddr := ipHdr.DestinationAddress()
-		if localAddr != kAddrHost4 && !e.protocol.allowICMPReply(header.ICMPv4EchoReply, header.ICMPv4UnusedCode) {
+		if localAddr != KAddrHost4 && !e.protocol.allowICMPReply(header.ICMPv4EchoReply, header.ICMPv4UnusedCode) {
 			sent.rateLimited.Increment()
 			return
 		}
