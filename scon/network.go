@@ -30,7 +30,7 @@ const (
 	hostBridgeIP4 = subnet4 + ".3"
 	/* used in GoVZF vmnet BridgeNet.swift */
 
-	subnet6       = "fd00:96dc:7096:1d00:"
+	subnet6       = "fd07:b51a:cc66:0000:"
 	subnet6cidr   = subnet6 + ":/64"
 	gatewayIP6    = subnet6 + ":1"
 	dockerIP6     = subnet6 + ":2"

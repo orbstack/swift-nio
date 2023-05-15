@@ -9,9 +9,9 @@ const (
 	ExtHostNatIP4 = Subnet4 + ".253"
 	HostNatIP4    = Subnet4 + ".254"
 
-	Subnet6 = "fd00:96dc:7096:1df0:"
+	Subnet6 = "fd07:b51a:cc66:00f0:"
 	// hack: because we don't implement NDP, we need to use a different subnet for anything that's not guest or gateway
-	SubnetExt6    = "fd00:96dc:7096:1df1:"
+	SubnetExt6    = "fd07:b51a:cc66:00f1:"
 	GatewayIP6    = Subnet6 + ":1"
 	GuestIP6      = Subnet6 + ":2"
 	ExtHostNatIP6 = SubnetExt6 + ":253"
@@ -22,7 +22,7 @@ const (
 	SconSubnet4   = "198.19.249"
 	SconDockerIP4 = SconSubnet4 + ".2"
 
-	SconSubnet6   = "fd00:96dc:7096:1d00:"
+	SconSubnet6   = "fd07:b51a:cc66:0000:"
 	SconDockerIP6 = SconSubnet6 + ":2"
 )
 
