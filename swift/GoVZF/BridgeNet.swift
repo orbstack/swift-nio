@@ -121,10 +121,16 @@ private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: In
         transportHdrLen = Int(((try checkLoad(offset: ipStartOff) as UInt8) & 0x0F) * 4)
     } else if etherType == ETHTYPE_IPV6 {
         //print("ipv6")
-        transportProto = try checkLoad(offset: ipStartOff + 6)
-        // assume 40 bytes for now
-        // TODO: check for hop-by-hop extension headers
-        transportHdrLen = 40
+        let nextHeader: UInt8 = try checkLoad(offset: ipStartOff + 6)
+        // handle hop-by-hop extension header
+        if nextHeader == 0 {
+            //print("hop-by-hop")
+            transportProto = try checkLoad(offset: ipStartOff + 40)
+            transportHdrLen = 40 + 8
+        } else {
+            transportProto = nextHeader
+            transportHdrLen = 40
+        }
     }
     let transportStartOff = ipStartOff + transportHdrLen
     //print("etherType: \(String(etherType, radix: 16))")
