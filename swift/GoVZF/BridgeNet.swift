@@ -397,15 +397,13 @@ func swext_brnet_create(configJsonStr: UnsafePointer<CChar>) -> UnsafeMutablePoi
 
     let result = ResultWrapper<GovzfResultCreate>()
     do {
-        do {
-            let obj = try BridgeNetwork(config: config)
-            // take a long-lived ref for Go
-            let ptr = Unmanaged.passRetained(obj).toOpaque()
-            result.set(GovzfResultCreate(ptr: ptr, err: nil, rosetta_canceled: false))
-        } catch {
-            let prettyError = "\(error)"
-            result.set(GovzfResultCreate(ptr: nil, err: strdup(prettyError.cString(using: .utf8)!), rosetta_canceled: false))
-        }
+        let obj = try BridgeNetwork(config: config)
+        // take a long-lived ref for Go
+        let ptr = Unmanaged.passRetained(obj).toOpaque()
+        result.set(GovzfResultCreate(ptr: ptr, err: nil, rosetta_canceled: false))
+    } catch {
+        let prettyError = "\(error)"
+        result.set(GovzfResultCreate(ptr: nil, err: strdup(prettyError.cString(using: .utf8)!), rosetta_canceled: false))
     }
 
     return result.waitPtr()
