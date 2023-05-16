@@ -385,8 +385,9 @@ func readDockerConfigEnv(shell string) error {
 		return err
 	}
 	value := parseShellLine(out)
-	logrus.WithField("path", value).Info("detected DOCKER_CONFIG")
 	if value != "" && strings.HasPrefix(value, "/") {
+		logrus.WithField("path", value).Info("detected DOCKER_CONFIG")
+
 		// let's try to ensure the dir
 		_, err := coredir.EnsureDir(value)
 		if err != nil {
