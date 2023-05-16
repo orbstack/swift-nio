@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/binary"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"runtime"
@@ -153,6 +154,10 @@ func (f *Fdx) readLoop() (err error) {
 		var oobn int
 		n, oobn, _, _, err = f.conn.ReadMsgUnix(msg, oob)
 		if err != nil {
+			return
+		}
+		if n == 0 {
+			err = io.ErrUnexpectedEOF
 			return
 		}
 		if oobn < minOob {
