@@ -96,6 +96,7 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
     return (interfaceRef, outIfParam)
 }
 
+// reconstruct checksum and TSO metadata from packet
 private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: Int = 1500) throws -> virtio_net_hdr {
     var hdr = virtio_net_hdr()
     hdr.flags = VIRTIO_NET_HDR_F_DATA_VALID
@@ -113,12 +114,12 @@ private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: In
     let etherType = (try checkLoad(offset: 12) as UInt16).bigEndian
     // read udp/tcp
     var transportProto: UInt8 = 0
-    var transportHdrLen = 0
+    var ipHdrLen = 0
     if etherType == ETHTYPE_IPV4 {
         //print("ipv4")
         transportProto = try checkLoad(offset: ipStartOff + 9)
         // not always 20 bytes
-        transportHdrLen = Int(((try checkLoad(offset: ipStartOff) as UInt8) & 0x0F) * 4)
+        ipHdrLen = Int(((try checkLoad(offset: ipStartOff) as UInt8) & 0x0F) * 4)
     } else if etherType == ETHTYPE_IPV6 {
         //print("ipv6")
         let nextHeader: UInt8 = try checkLoad(offset: ipStartOff + 6)
@@ -126,19 +127,20 @@ private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: In
         if nextHeader == 0 {
             //print("hop-by-hop")
             transportProto = try checkLoad(offset: ipStartOff + 40)
-            transportHdrLen = 40 + 8
+            ipHdrLen = 40 + 8
         } else {
             transportProto = nextHeader
-            transportHdrLen = 40
+            ipHdrLen = 40
         }
     }
-    let transportStartOff = ipStartOff + transportHdrLen
+    let transportStartOff = ipStartOff + ipHdrLen
     //print("etherType: \(String(etherType, radix: 16))")
     //print("transportProto: \(String(transportProto, radix: 16))")
-    //print("transportHdrLen: \(transportHdrLen)")
+    //print("ipHdrLen: \(ipHdrLen)")
     //print("transportStartOff: \(transportStartOff)")
 
     // csum: for TCP and UDP
+    var transportHdrLen = 0
     if transportProto == IPPROTO_TCP {
         //print("tcp")
         hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
@@ -153,13 +155,14 @@ private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: In
         hdr.csum_offset = UInt16(6)
         //print("csum start: \(hdr.csum_start)")
         //print("csum offset: \(hdr.csum_offset)")
+        transportHdrLen = 8
     }
 
     // gso: if TCP data segment > MSS (1500 -
     if transportProto == IPPROTO_TCP {
         let tcpHdrLen = ((try checkLoad(offset: transportStartOff + 12) as UInt8) >> 4) * 4
         let tcpDataLen = pktLen - transportStartOff - Int(tcpHdrLen)
-        let tcpMss = realMtu - transportHdrLen - Int(tcpHdrLen)
+        let tcpMss = realMtu - ipHdrLen - Int(tcpHdrLen)
         //print("tcp hdr len: \(tcpHdrLen)")
         //print("tcp data len: \(tcpDataLen)")
         //print("tcp mss: \(tcpMss)")
@@ -174,7 +177,13 @@ private func buildVnetHdr(pkt: UnsafeMutableRawPointer, pktLen: Int, realMtu: In
             //print("gso type: \(hdr.gso_type)")
             //print("gso size: \(hdr.gso_size)")
         }
+
+        transportHdrLen = Int(tcpHdrLen)
     }
+
+    // hdr_size is just a performance hint
+    // it's the sum of all headers, including ethernet + ip + transport
+    hdr.hdr_len = UInt16(transportStartOff + transportHdrLen)
 
     return hdr
 }
@@ -342,12 +351,10 @@ class BridgeNetwork {
             fdReadIovs[0].iov_len = n
 
             // write to vmnet
-            var pktDesc = vmpktdesc(
-                    vm_pkt_size: n,
-                    vm_pkt_iov: fdReadIovs,
-                    vm_pkt_iovcnt: 1,
-                    vm_flags: 0
-            )
+            var pktDesc = vmpktdesc(vm_pkt_size: n,
+                vm_pkt_iov: fdReadIovs,
+                vm_pkt_iovcnt: 1,
+                vm_flags: 0)
             var pktsWritten = Int32(1)
             let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
             guard ret2 == .VMNET_SUCCESS else {
@@ -355,15 +362,20 @@ class BridgeNetwork {
                 return
             }
         }
-        fdReadSource.resume()
+        fdReadSource.activate()
     }
 
     func close() {
+        // remove callbacks
         fdReadSource.cancel()
         fdReadSource.setEventHandler(handler: nil)
+        var ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, nil, nil)
+        if ret != .VMNET_SUCCESS {
+            NSLog("[brnet] remove callback error: \(VmnetError.from(ret))")
+        }
 
         let sem = DispatchSemaphore(value: 0)
-        let ret = vmnet_stop_interface(ifRef, queue) { status in
+        ret = vmnet_stop_interface(ifRef, queue) { status in
             if status != .VMNET_SUCCESS {
                 NSLog("[brnet] stop status: \(VmnetError.from(status))")
             }
