@@ -172,6 +172,7 @@ func Defaults() *VmConfig {
 		Rosetta:         true,
 		NetworkProxy:    ProxyAuto,
 		MountHideShared: false,
+		DataDir:         "",
 	}
 }
 
@@ -204,6 +205,10 @@ func Diff(a, b *VmConfig) *VmConfigPatch {
 		patch.MountHideShared = &b.MountHideShared
 	}
 
+	if a.DataDir != b.DataDir {
+		patch.DataDir = &b.DataDir
+	}
+
 	return patch
 }
 
@@ -226,6 +231,10 @@ func Apply(a *VmConfig, patch *VmConfigPatch) {
 
 	if patch.MountHideShared != nil {
 		a.MountHideShared = *patch.MountHideShared
+	}
+
+	if patch.DataDir != nil {
+		a.DataDir = *patch.DataDir
 	}
 }
 
