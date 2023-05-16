@@ -512,7 +512,7 @@ extension BaseDockerContainerItem {
         if isSelected() {
             // SwiftUI List bug: deleted items stay in selection set so we need to filter
             if let containers = vmModel.dockerContainers {
-                return selection.filter { sel in
+                let firstPass = selection.filter { sel in
                     switch sel {
                     case .container(let id):
                         return containers.contains(where: { container in container.id == id })
@@ -520,6 +520,25 @@ extension BaseDockerContainerItem {
                         return containers.contains(where: { container in container.labels[DockerLabels.composeProject] == project })
                     default:
                         return false
+                    }
+                }
+
+                // now we only have items that exist
+                // if we're doing a batch action, we could have groups *and* containers selected
+                // in that case, skip containers that are under an existing group to avoid racing
+                return firstPass.filter { sel in
+                    switch sel {
+                    case .container(let id):
+                        if let container = containers.first(where: { container in container.id == id }),
+                           let composeProject = container.labels[DockerLabels.composeProject],
+                           let configFiles = container.labels[DockerLabels.composeConfigFiles] {
+                            return !firstPass.contains(.compose(project: composeProject, configFiles: configFiles))
+                        } else {
+                            // not a compose project
+                            return true
+                        }
+                    default:
+                        return true
                     }
                 }
             } else {
