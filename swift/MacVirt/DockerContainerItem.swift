@@ -238,6 +238,13 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             Group {
                 Button(action: {
+                    presentPopover = true
+                }) {
+                    Label("Get Info", systemImage: "terminal")
+                }
+                .disabled(!isRunning)
+
+                Button(action: {
                     openInTerminal()
                 }) {
                     Label("Open Terminal", systemImage: "terminal")
