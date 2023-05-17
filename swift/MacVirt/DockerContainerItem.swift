@@ -12,7 +12,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     var container: DKContainer
     var selection: Set<DockerContainerId>
 
-    @State private var presentPopover = false
+    @State private var presentPopoverText = false
+    @State private var presentPopoverButton = false
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
         lhs.container == rhs.container &&
@@ -39,7 +40,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     let name = nameTxt.isEmpty ? "(no name)" : nameTxt
                     Text(name)
                     .font(.body)
-                    .popover(isPresented: $presentPopover, arrowEdge: .trailing) {
+                    .popover(isPresented: $presentPopoverText, arrowEdge: .trailing) {
                         detailsView
                     }
 
@@ -55,6 +56,30 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             Spacer()
 
+            Button(action: {
+                if presentPopoverText || presentPopoverButton {
+                    return
+                }
+
+                presentPopoverButton = true
+                presentPopoverText = false
+            }) {
+                ZStack {
+                    Image(systemName: "info.circle.fill")
+
+                    // as padding to match size
+                    ProgressView()
+                            .scaleEffect(0.7)
+                            .opacity(0)
+                            .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
+                }
+            }
+                    .buttonStyle(.borderless)
+                    .help("Get info")
+                    .popover(isPresented: $presentPopoverButton, arrowEdge: .leading) {
+                        detailsView
+                    }
+
             if isRunning {
                 Button(action: {
                     finishStop()
@@ -65,8 +90,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                 .opacity(1 - opacity)
 
                         ProgressView()
-                                .scaleEffect(0.75)
+                                .scaleEffect(0.7)
                                 .opacity(opacity)
+                                .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
                     }
                 }
                         .buttonStyle(.borderless)
@@ -82,8 +108,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                 .opacity(1 - opacity)
 
                         ProgressView()
-                                .scaleEffect(0.75)
+                                .scaleEffect(0.7)
                                 .opacity(opacity)
+                                .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
                     }
                 }
                         .buttonStyle(.borderless)
@@ -100,8 +127,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .opacity(1 - opacity)
 
                     ProgressView()
-                            .scaleEffect(0.75)
+                            .scaleEffect(0.7)
                             .opacity(opacity)
+                            .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
                 }
             }
                     .buttonStyle(.borderless)
@@ -110,7 +138,12 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
         }
         .padding(.vertical, 4)
         .onDoubleClick {
-            presentPopover = true
+            if presentPopoverText || presentPopoverButton {
+                return
+            }
+
+            presentPopoverText = true
+            presentPopoverButton = false
         }
         .contextMenu {
             Group {
@@ -147,7 +180,12 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             Group {
                 Button(action: {
-                    presentPopover = true
+                    if presentPopoverText || presentPopoverButton {
+                        return
+                    }
+
+                    presentPopoverText = true
+                    presentPopoverButton = false
                 }) {
                     Label("Get Info", systemImage: "terminal")
                 }

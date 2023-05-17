@@ -78,6 +78,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                         ProgressView()
                                 .scaleEffect(0.75)
                                 .opacity(opacity)
+                                .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
                     }
                 }
                         .buttonStyle(.borderless)
@@ -95,6 +96,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                         ProgressView()
                                 .scaleEffect(0.75)
                                 .opacity(opacity)
+                                .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
                     }
                 }
                         .buttonStyle(.borderless)
@@ -113,6 +115,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                     ProgressView()
                             .scaleEffect(0.75)
                             .opacity(opacity)
+                            .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
                 }
             }
                     .buttonStyle(.borderless)
