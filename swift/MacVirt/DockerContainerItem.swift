@@ -12,8 +12,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     var container: DKContainer
     var selection: Set<DockerContainerId>
 
-    @State private var presentPopoverText = false
-    @State private var presentPopoverButton = false
+    @State private var presentPopover = false
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
         lhs.container == rhs.container &&
@@ -40,9 +39,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     let name = nameTxt.isEmpty ? "(no name)" : nameTxt
                     Text(name)
                     .font(.body)
-                    .popover(isPresented: $presentPopoverText, arrowEdge: .trailing) {
-                        detailsView
-                    }
 
                     let shortId = String(container.id.prefix(12))
                     Text("\(shortId) (\(container.image))")
@@ -57,12 +53,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Spacer()
 
             Button(action: {
-                if presentPopoverText || presentPopoverButton {
-                    return
-                }
-
-                presentPopoverButton = true
-                presentPopoverText = false
+                presentPopover = true
             }) {
                 ZStack {
                     Image(systemName: "info.circle.fill")
@@ -76,7 +67,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
                     .buttonStyle(.borderless)
                     .help("Get info")
-                    .popover(isPresented: $presentPopoverButton, arrowEdge: .leading) {
+                    .popover(isPresented: $presentPopover, arrowEdge: .leading) {
                         detailsView
                     }
 
@@ -138,12 +129,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
         }
         .padding(.vertical, 4)
         .onDoubleClick {
-            if presentPopoverText || presentPopoverButton {
-                return
-            }
-
-            presentPopoverText = true
-            presentPopoverButton = false
+            presentPopover = true
         }
         .contextMenu {
             Group {
@@ -180,12 +166,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             Group {
                 Button(action: {
-                    if presentPopoverText || presentPopoverButton {
-                        return
-                    }
-
-                    presentPopoverText = true
-                    presentPopoverButton = false
+                    presentPopover = true
                 }) {
                     Label("Get Info", systemImage: "terminal")
                 }
