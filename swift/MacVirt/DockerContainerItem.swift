@@ -170,7 +170,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }) {
                     Label("Get Info", systemImage: "terminal")
                 }
-                .disabled(!isRunning)
 
                 Button(action: {
                     openInTerminal()
