@@ -192,7 +192,6 @@ func (f *Fdx) readLoop() (err error) {
 		if ok {
 			pending.fds = fds
 			pending.err = nil
-			pending.ch <- struct{}{}
 			close(pending.ch)
 			delete(f.pendingReads, seq)
 		} else {
