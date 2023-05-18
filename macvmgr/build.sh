@@ -19,4 +19,4 @@ fi
 go build -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$VMGR_BIN" "$@"
 
 # Apple Development cert
-codesign --entitlements vmgr.entitlements -s 04B04222116BE16FC0F7DA0E8E1AD338E882A504 "$VMGR_BIN" || :
+codesign -i dev.kdrag0n.MacVirt.vmgr --entitlements vmgr.entitlements -s 04B04222116BE16FC0F7DA0E8E1AD338E882A504 "$VMGR_BIN" || :

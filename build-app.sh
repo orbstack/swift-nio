@@ -44,13 +44,13 @@ function build_one() {
     rm -f $OUT/"$VMGR_BIN"
     go generate ./conf/appver ./drm/killswitch
     EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o $OUT/"$VMGR_BIN"
-    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/"$VMGR_BIN"
+    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/"$VMGR_BIN"
     popd
 
     pushd scon
     rm -f $OUT/scon
     go build -tags release -trimpath -ldflags="-s -w" -o $OUT/scli ./cmd/scli
-    codesign -f --timestamp --options=runtime -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/scli
+    codesign -f --timestamp --options=runtime -i dev.kdrag0n.MacVirt.scli -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/scli
     popd
 
     # TODO: rebuild rootfs
