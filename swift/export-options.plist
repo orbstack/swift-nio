@@ -6,5 +6,10 @@
 	<string>HUAQ24HBR6</string>
 	<key>method</key>
 	<string>developer-id</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>dev.kdrag0n.MacVirt</key>
+		<string>OrbStack Distribution Developer ID Application</string>
+	</dict>
 </dict>
 </plist>
