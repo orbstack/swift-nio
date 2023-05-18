@@ -14,6 +14,7 @@ import (
 
 	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
 	"github.com/orbstack/macvirt/macvmgr/conf/ports"
+	"github.com/orbstack/macvirt/macvmgr/logutil"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/killswitch"
@@ -95,10 +96,10 @@ func runContainerManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
-	logrus.SetFormatter(&logrus.TextFormatter{
+	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
-	})
+	}, "📦 scon | "))
 
 	// rand seed no longer needed in go 1.20+
 

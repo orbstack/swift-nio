@@ -17,6 +17,7 @@ import (
 
 	"github.com/orbstack/macvirt/macvmgr/conf/appid"
 	"github.com/orbstack/macvirt/macvmgr/dockertypes"
+	"github.com/orbstack/macvirt/macvmgr/logutil"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/conf"
@@ -215,11 +216,11 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// now safe to init logrus
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
-		logrus.SetFormatter(&logrus.TextFormatter{
-			FullTimestamp:   true,
-			TimestampFormat: "01-02 15:04:05",
-		})
 	}
+	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "01-02 15:04:05",
+	}, "🌸 agent | "))
 
 	// make docker client if we're the docker container
 	hostname, err := os.Hostname()

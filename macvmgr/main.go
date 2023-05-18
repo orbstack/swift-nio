@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/getsentry/sentry-go"
 	"github.com/orbstack/macvirt/macvmgr/buildid"
 	"github.com/orbstack/macvirt/macvmgr/conf"
@@ -28,6 +29,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/drm/killswitch"
 	"github.com/orbstack/macvirt/macvmgr/flock"
 	"github.com/orbstack/macvirt/macvmgr/fsnotify"
+	"github.com/orbstack/macvirt/macvmgr/logutil"
 	"github.com/orbstack/macvirt/macvmgr/osver"
 	"github.com/orbstack/macvirt/macvmgr/util"
 	"github.com/orbstack/macvirt/macvmgr/vclient"
@@ -359,10 +361,11 @@ func runVmManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
-	logrus.SetFormatter(&logrus.TextFormatter{
+	logPrefix := color.New(color.FgBlue, color.Bold).Sprint("💎 vmgr | ")
+	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
-	})
+	}, logPrefix))
 
 	if !conf.Debug() {
 		err := sentry.Init(sentry.ClientOptions{
