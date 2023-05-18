@@ -17,8 +17,8 @@ require (
 	github.com/creachadair/jrpc2 v0.43.0
 	github.com/creack/pty v1.1.18
 	github.com/gliderlabs/ssh v0.3.5
-	github.com/orbstack/macvirt/scon v0.0.0-00010101000000-000000000000
 	github.com/mdlayher/vsock v1.2.0
+	github.com/orbstack/macvirt/scon v0.0.0-00010101000000-000000000000
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	golang.org/x/sys v0.6.0
 )
@@ -39,7 +39,10 @@ require (
 require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
+	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	golang.org/x/text v0.8.0 // indirect
+	k8s.io/utils v0.0.0-20230313181309-38a27ef9d749 // indirect
 )
 
 require (
