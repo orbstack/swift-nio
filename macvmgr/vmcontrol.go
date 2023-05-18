@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net"
 	"net/http"
@@ -283,7 +284,7 @@ func makeDockerClient() *dockerclient.Client {
 	return dockerclient.New(httpClient)
 }
 
-func (s *VmControlServer) Serve() (net.Listener, error) {
+func (s *VmControlServer) Serve() (func() error, error) {
 	bridge := jhttp.NewBridge(handler.Map{
 		"Ping":                handler.New(s.Ping),
 		"Stop":                handler.New(s.Stop),
@@ -338,17 +339,20 @@ func (s *VmControlServer) Serve() (net.Listener, error) {
 		}()
 	}
 
-	go func() {
-		err := http.ListenAndServe("127.0.0.1:"+str(ports.HostVmControl), mux)
-		if err != nil {
-			logrus.WithError(err).Error("listen vmcontrol failed")
-		}
-	}()
-
-	listener, err := listenAndServeUnix(conf.VmControlSocket(), mux)
+	listenerTcp, err := net.Listen("tcp", "127.0.0.1:"+str(ports.HostVmControl))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("listen vmcontrol: %w", err)
+	}
+	go http.Serve(listenerTcp, mux)
+
+	listenerUnix, err := listenAndServeUnix(conf.VmControlSocket(), mux)
+	if err != nil {
+		return nil, fmt.Errorf("listen vmcontrol: %w", err)
 	}
 
-	return listener, nil
+	return func() error {
+		listenerTcp.Close()
+		listenerUnix.Close()
+		return nil
+	}, nil
 }
