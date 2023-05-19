@@ -259,16 +259,6 @@ func (s *VmControlServer) onStop() error {
 	return nil
 }
 
-func listenAndServeUnix(addr string, handler http.Handler) (net.Listener, error) {
-	listener, err := net.Listen("unix", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	go http.Serve(listener, handler)
-	return listener, nil
-}
-
 func makeDockerClient() *dockerclient.Client {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
@@ -339,20 +329,24 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		}()
 	}
 
+	server := &http.Server{
+		Handler: mux,
+	}
 	listenerTcp, err := net.Listen("tcp", "127.0.0.1:"+str(ports.HostVmControl))
 	if err != nil {
 		return nil, fmt.Errorf("listen vmcontrol: %w", err)
 	}
-	go http.Serve(listenerTcp, mux)
+	go server.Serve(listenerTcp)
 
-	listenerUnix, err := listenAndServeUnix(conf.VmControlSocket(), mux)
+	listenerUnix, err := net.Listen("unix", conf.VmControlSocket())
 	if err != nil {
 		return nil, fmt.Errorf("listen vmcontrol: %w", err)
 	}
+	go server.Serve(listenerUnix)
 
 	return func() error {
-		listenerTcp.Close()
-		listenerUnix.Close()
+		// closes all connections and listener to allow immediate port reuse
+		server.Close()
 		return nil
 	}, nil
 }
