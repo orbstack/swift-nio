@@ -60,7 +60,7 @@ func StartUDPHostForward(s *stack.Stack, listenAddr, connectAddr4, connectAddr6 
 	}
 
 	connectFullAddr4 := tcpip.FullAddress{
-		Addr: tcpip.Address(connectUdpAddr4.IP),
+		Addr: tcpip.AddrFromSlice(connectUdpAddr4.IP),
 		Port: uint16(connectUdpAddr4.Port),
 	}
 
@@ -70,7 +70,7 @@ func StartUDPHostForward(s *stack.Stack, listenAddr, connectAddr4, connectAddr6 
 	}
 
 	connectFullAddr6 := tcpip.FullAddress{
-		Addr: tcpip.Address(connectUdpAddr6.IP),
+		Addr: tcpip.AddrFromSlice(connectUdpAddr6.IP),
 		Port: uint16(connectUdpAddr6.Port),
 	}
 

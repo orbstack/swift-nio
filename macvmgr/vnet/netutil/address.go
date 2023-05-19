@@ -2,7 +2,6 @@ package netutil
 
 import (
 	"net"
-	"strings"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -10,10 +9,10 @@ import (
 // IPv4 or IPv6, properly sized
 func ParseTcpipAddress(ip string) tcpip.Address {
 	addr := net.ParseIP(ip)
-	if strings.ContainsRune(ip, ':') {
-		return tcpip.Address(addr.To16())
+	if addr4 := addr.To4(); addr4 != nil {
+		return tcpip.AddrFrom4Slice(addr4)
 	} else {
-		return tcpip.Address(addr.To4())
+		return tcpip.AddrFrom16Slice(addr.To16())
 	}
 }
 
@@ -36,7 +35,7 @@ func GetDefaultAddress6() net.IP {
 }
 
 func ShouldForward(addr tcpip.Address) bool {
-	ip := net.IP(addr)
+	ip := net.IP(addr.AsSlice())
 	if ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() {
 		return false
 	}

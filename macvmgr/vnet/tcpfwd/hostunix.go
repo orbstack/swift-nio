@@ -36,7 +36,7 @@ func StartUnixTcpHostForward(s *stack.Stack, nicID tcpip.NICID, listenAddr, conn
 		listener: listener,
 		connectAddr: tcpip.FullAddress{
 			NIC:  nicID,
-			Addr: tcpip.Address(connectAddrPort.Addr().AsSlice()),
+			Addr: tcpip.AddrFromSlice(connectAddrPort.Addr().AsSlice()),
 			Port: uint16(connectAddrPort.Port()),
 		},
 		stack: s,
@@ -62,7 +62,7 @@ func (f *UnixTcpHostForward) handleConn(conn net.Conn) {
 	defer conn.Close()
 
 	proto := ipv4.ProtocolNumber
-	if f.connectAddr.Addr.To4() == "" {
+	if f.connectAddr.Addr.To4() == (tcpip.Address{}) {
 		proto = ipv6.ProtocolNumber
 	}
 

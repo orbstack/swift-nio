@@ -82,12 +82,12 @@ func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, hostAddr4, hostAddr6
 		requireLoopback: requireLoopback,
 		connectAddr4: tcpip.FullAddress{
 			NIC:  nicId,
-			Addr: tcpip.Address(connectAddrPort4.Addr().AsSlice()),
+			Addr: tcpip.AddrFrom4(connectAddrPort4.Addr().As4()),
 			Port: uint16(connectAddrPort4.Port()),
 		},
 		connectAddr6: tcpip.FullAddress{
 			NIC:  nicId,
-			Addr: tcpip.Address(connectAddrPort6.Addr().AsSlice()),
+			Addr: tcpip.AddrFrom16(connectAddrPort6.Addr().As16()),
 			Port: uint16(connectAddrPort6.Port()),
 		},
 		hostAddr4:  netutil.ParseTcpipAddress(hostAddr4),
@@ -143,7 +143,7 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 			srcAddr = f.hostAddr6
 		}
 	} else {
-		srcAddr = tcpip.Address(remoteAddr.IP)
+		srcAddr = tcpip.AddrFromSlice(remoteAddr.IP)
 	}
 
 	// TODO: preserve source IP and fix TIME_WAIT/FIN_WAIT_2 issue in gvisor

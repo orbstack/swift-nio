@@ -449,7 +449,7 @@ func (p *ProxyManager) DialForward(localAddress tcpip.Address, extPort int) (Ful
 	defer cancel()
 
 	extConn, err := p.dialContextTCPInternal(ctx, extAddr, extPort, localAddress)
-	if err != nil && errors.Is(err, unix.ECONNREFUSED) && altHostIP != "" {
+	if err != nil && errors.Is(err, unix.ECONNREFUSED) && altHostIP != (tcpip.Address{}) {
 		// try the other host IP
 		// do not set localAddress or icmp unreachable logic below will send wrong protocol
 		logrus.Debugf("TCP forward [%v] dial retry host", extAddr)

@@ -123,7 +123,7 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 				r.Complete(true)
 			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) || errors.Is(err, unix.ENETUNREACH) {
 				logrus.Debug("inject ICMP unreachable")
-				if localAddress.To4() == "" {
+				if localAddress.To4() == (tcpip.Address{}) {
 					if errors.Is(err, unix.ENETUNREACH) {
 						i.InjectDestUnreachable6(r.Pkt, header.ICMPv6NetworkUnreachable)
 					} else {

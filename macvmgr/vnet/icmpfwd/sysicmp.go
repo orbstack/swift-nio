@@ -30,8 +30,8 @@ const (
 func init() {
 	// set host addrs for gvisor to reply to ICMP echo
 	// TODO better API
-	ipv4.KAddrHost4 = tcpip.Address(netip.MustParseAddr(netconf.HostNatIP4).AsSlice())
-	ipv6.KAddrHost6 = tcpip.Address(netip.MustParseAddr(netconf.HostNatIP6).AsSlice())
+	ipv4.KAddrHost4 = tcpip.AddrFromSlice(netip.MustParseAddr(netconf.HostNatIP4).AsSlice())
+	ipv6.KAddrHost6 = tcpip.AddrFromSlice(netip.MustParseAddr(netconf.HostNatIP6).AsSlice())
 }
 
 type IcmpFwd struct {
@@ -158,8 +158,9 @@ func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
 
 	ipHdr := pkt.Network()
 	icmpMsg := extractPacketPayload(pkt)
+	dstAddrGv := ipHdr.DestinationAddress()
 	dstAddr := &net.UDPAddr{
-		IP: net.IP(ipHdr.DestinationAddress()),
+		IP: net.IP(dstAddrGv.AsSlice()),
 	}
 
 	// Only forward ICMP Echo Request.
@@ -305,7 +306,7 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 		switch origIpHdr.TransportProtocol() {
 		// ICMP: fix source IP
 		case header.ICMPv4ProtocolNumber:
-			if i.lastSourceAddr4 == "" {
+			if i.lastSourceAddr4 == (tcpip.Address{}) {
 				return
 			}
 			origIpHdr.SetSourceAddress(i.lastSourceAddr4)
@@ -313,9 +314,10 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 		case header.UDPProtocolNumber:
 			// Find the connection in the UDP conntrack map
 			origUdpHdr := header.UDP(origIpHdr[header.IPv4MinimumSize:])
+			localSrcAddrGv := origIpHdr.SourceAddress()
 			localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
 				// our external IP, not virtual
-				IP:   net.IP(origIpHdr.SourceAddress()),
+				IP:   net.IP(localSrcAddrGv.AsSlice()),
 				Port: int(origUdpHdr.SourcePort()),
 			})
 			if localSrcAddr == nil {
@@ -323,7 +325,7 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 			}
 
 			// UDP checksum includes IP pseudo-header with addresses. Fix it.
-			virtSrcAddr := tcpip.Address(localSrcAddr.IP.To4())
+			virtSrcAddr := tcpip.AddrFrom4Slice(localSrcAddr.IP.To4())
 			// If checksum is non-zero, update it
 			if origUdpHdr.Checksum() != 0 {
 				origUdpHdr.UpdateChecksumPseudoHeaderAddress(origIpHdr.SourceAddress(), virtSrcAddr, true)
@@ -332,9 +334,9 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 				origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
 			}
 			// Then fix original source IP
-			origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To4()))
+			origIpHdr.SetSourceAddress(tcpip.AddrFrom4Slice(localSrcAddr.IP.To4()))
 			// Fix reply IP destination
-			ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To4()))
+			ipHdr.SetDestinationAddress(tcpip.AddrFrom4Slice(localSrcAddr.IP.To4()))
 		// TCP: not supported
 		case header.TCPProtocolNumber:
 		default:
@@ -401,7 +403,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 	ipHdr.SetHopLimit(uint8(cm.HopLimit))
 	ipHdr.SetTOS(uint8(cm.TrafficClass), newFlowLabel(i.stack))
 	ipHdr.SetDestinationAddress(i.lastSourceAddr6)
-	ipHdr.SetSourceAddress(tcpip.Address(addr.(*net.UDPAddr).IP.To16()))
+	ipHdr.SetSourceAddress(tcpip.AddrFrom16Slice(addr.(*net.UDPAddr).IP.To16()))
 	ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
 
 	icmpHdr := header.ICMPv6(ipHdr.Payload())
@@ -424,7 +426,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 		switch origIpHdr.TransportProtocol() {
 		// ICMP: fix source IP
 		case header.ICMPv6ProtocolNumber:
-			if i.lastSourceAddr6 == "" {
+			if i.lastSourceAddr6 == (tcpip.Address{}) {
 				return
 			}
 			origIpHdr.SetSourceAddress(i.lastSourceAddr6)
@@ -432,9 +434,10 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 		case header.UDPProtocolNumber:
 			// Find the connection in the UDP conntrack map
 			origUdpHdr := header.UDP(origIpHdr[header.IPv6MinimumSize:])
+			localSrcAddrGv := origIpHdr.SourceAddress()
 			localSrcAddr := udpfwd.LookupExternalConn(&net.UDPAddr{
 				// our external IP, not virtual
-				IP:   net.IP(origIpHdr.SourceAddress()),
+				IP:   net.IP(localSrcAddrGv.AsSlice()),
 				Port: int(origUdpHdr.SourcePort()),
 			})
 			if localSrcAddr == nil {
@@ -442,7 +445,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 			}
 
 			// UDP checksum includes IP pseudo-header with addresses. Fix it.
-			virtSrcAddr := tcpip.Address(localSrcAddr.IP.To16())
+			virtSrcAddr := tcpip.AddrFrom16Slice(localSrcAddr.IP.To16())
 			// If checksum is non-zero, update it
 			if origUdpHdr.Checksum() != 0 {
 				origUdpHdr.UpdateChecksumPseudoHeaderAddress(origIpHdr.SourceAddress(), virtSrcAddr, true)
@@ -451,9 +454,9 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 				origUdpHdr.SetSourcePort(uint16(localSrcAddr.Port))
 			}
 			// Then fix original source IP
-			origIpHdr.SetSourceAddress(tcpip.Address(localSrcAddr.IP.To16()))
+			origIpHdr.SetSourceAddress(tcpip.AddrFrom16Slice(localSrcAddr.IP.To16()))
 			// Fix reply IP destination
-			ipHdr.SetDestinationAddress(tcpip.Address(localSrcAddr.IP.To16()))
+			ipHdr.SetDestinationAddress(tcpip.AddrFrom16Slice(localSrcAddr.IP.To16()))
 		// TCP: not supported
 		case header.TCPProtocolNumber:
 		default:
@@ -465,7 +468,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 	}
 
 	// Fix ICMP checksum for NAT
-	icmpHdr.UpdateChecksumPseudoHeaderAddress(tcpip.Address(cm.Dst), ipHdr.DestinationAddress())
+	icmpHdr.UpdateChecksumPseudoHeaderAddress(tcpip.AddrFrom16Slice(cm.Dst), ipHdr.DestinationAddress())
 
 	return i.sendReply(ipv6.ProtocolNumber, ipHdr.SourceAddress(), ipHdr.DestinationAddress(), replyMsg)
 }

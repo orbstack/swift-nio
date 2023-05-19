@@ -50,7 +50,7 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 
 		// remember: local = target (because we're acting as proxy)
 		dialDestAddr := &net.UDPAddr{
-			IP:   net.IP(localAddress),
+			IP:   net.IP(localAddress.AsSlice()),
 			Port: int(r.ID().LocalPort),
 		}
 		proxy, err := NewUDPProxy(&autoStoppingListener{UDPConn: gonet.NewUDPConn(s, &wq, ep)}, func(fromAddr *net.UDPAddr) (net.Conn, error) {

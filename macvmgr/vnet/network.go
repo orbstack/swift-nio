@@ -195,7 +195,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	if err != nil {
 		return nil, err
 	}
-	subnet4, err := tcpip.NewSubnet(tcpip.Address(ipSubnet4.IP.To4()), tcpip.AddressMask(ipSubnet4.Mask))
+	subnet4, err := tcpip.NewSubnet(tcpip.AddrFrom4Slice(ipSubnet4.IP.To4()), tcpip.MaskFromBytes(ipSubnet4.Mask))
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	if err != nil {
 		return nil, err
 	}
-	subnet6, err := tcpip.NewSubnet(tcpip.Address(ipSubnet6.IP.To16()), tcpip.AddressMask(ipSubnet6.Mask))
+	subnet6, err := tcpip.NewSubnet(tcpip.AddrFrom16Slice(ipSubnet6.IP.To16()), tcpip.MaskFromBytes(ipSubnet6.Mask))
 	if err != nil {
 		return nil, err
 	}
