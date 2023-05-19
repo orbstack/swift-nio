@@ -2,6 +2,7 @@ package netutil
 
 import (
 	"net"
+	"net/netip"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -46,4 +47,14 @@ func ShouldForward(addr tcpip.Address) bool {
 	}
 
 	return true
+}
+
+func AddrFromNetip(addr netip.Addr) tcpip.Address {
+	if addr.Is4() {
+		return tcpip.AddrFrom4(addr.As4())
+	} else if addr.Is6() {
+		return tcpip.AddrFrom16(addr.As16())
+	} else {
+		return tcpip.Address{}
+	}
 }

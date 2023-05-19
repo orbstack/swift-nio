@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/macvmgr/vnet/udpfwd"
 	"github.com/sirupsen/logrus"
 	goipv4 "golang.org/x/net/ipv4"
@@ -30,8 +31,8 @@ const (
 func init() {
 	// set host addrs for gvisor to reply to ICMP echo
 	// TODO better API
-	ipv4.KAddrHost4 = tcpip.AddrFromSlice(netip.MustParseAddr(netconf.HostNatIP4).AsSlice())
-	ipv6.KAddrHost6 = tcpip.AddrFromSlice(netip.MustParseAddr(netconf.HostNatIP6).AsSlice())
+	ipv4.KAddrHost4 = netutil.AddrFromNetip(netip.MustParseAddr(netconf.HostNatIP4))
+	ipv6.KAddrHost6 = netutil.AddrFromNetip(netip.MustParseAddr(netconf.HostNatIP6))
 }
 
 type IcmpFwd struct {

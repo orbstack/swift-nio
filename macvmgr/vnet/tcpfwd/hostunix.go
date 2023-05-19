@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/macvmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -36,7 +37,7 @@ func StartUnixTcpHostForward(s *stack.Stack, nicID tcpip.NICID, listenAddr, conn
 		listener: listener,
 		connectAddr: tcpip.FullAddress{
 			NIC:  nicID,
-			Addr: tcpip.AddrFromSlice(connectAddrPort.Addr().AsSlice()),
+			Addr: netutil.AddrFromNetip(connectAddrPort.Addr()),
 			Port: uint16(connectAddrPort.Port()),
 		},
 		stack: s,

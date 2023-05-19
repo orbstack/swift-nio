@@ -82,12 +82,12 @@ func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, hostAddr4, hostAddr6
 		requireLoopback: requireLoopback,
 		connectAddr4: tcpip.FullAddress{
 			NIC:  nicId,
-			Addr: tcpip.AddrFrom4(connectAddrPort4.Addr().As4()),
+			Addr: netutil.AddrFromNetip(connectAddrPort4.Addr()),
 			Port: uint16(connectAddrPort4.Port()),
 		},
 		connectAddr6: tcpip.FullAddress{
 			NIC:  nicId,
-			Addr: tcpip.AddrFrom16(connectAddrPort6.Addr().As16()),
+			Addr: netutil.AddrFromNetip(connectAddrPort6.Addr()),
 			Port: uint16(connectAddrPort6.Port()),
 		},
 		hostAddr4:  netutil.ParseTcpipAddress(hostAddr4),
