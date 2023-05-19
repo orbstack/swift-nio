@@ -361,7 +361,7 @@ func runVmManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
-	logPrefix := color.New(color.FgBlue, color.Bold).Sprint("💎 vmgr | ")
+	logPrefix := color.New(color.FgGreen, color.Bold).Sprint("🌲 vmgr | ")
 	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
