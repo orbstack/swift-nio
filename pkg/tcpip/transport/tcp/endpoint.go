@@ -2268,7 +2268,7 @@ func (e *endpoint) registerEndpoint(addr tcpip.FullAddress, netProto tcpip.Netwo
 				BindToDevice: bindToDevice,
 				Dest:         addr,
 			}
-			if _, err := e.stack.ReservePortLocked(e.stack.Rand(), portRes, nil /* testPort */); err != nil {
+			if _, err := e.stack.ReservePort(e.stack.Rand(), portRes, nil /* testPort */); err != nil {
 				if _, ok := err.(*tcpip.ErrPortInUse); !ok || !reuse {
 					return false, nil
 				}

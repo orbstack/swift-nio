@@ -280,10 +280,6 @@ func (pm *PortManager) incPortHint() {
 // given port is suitable for its needs and stopping when a port is found or an
 // error occurs.
 func (pm *PortManager) PickEphemeralPortStable(offset uint32, testPort PortTester) (port uint16, err tcpip.Error) {
-	// hold writer lock for the entire block. we're going to use the port and need to avoid race
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
 	pm.ephemeralMu.RLock()
 	firstEphemeral := pm.firstEphemeral
 	numEphemeral := pm.numEphemeral
@@ -328,10 +324,6 @@ func (pm *PortManager) ReservePort(rng *rand.Rand, res Reservation, testPort Por
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	return pm.ReservePortLocked(rng, res, testPort)
-}
-
-func (pm *PortManager) ReservePortLocked(rng *rand.Rand, res Reservation, testPort PortTester) (reservedPort uint16, err tcpip.Error) {
 	// If a port is specified, just try to reserve it for all network
 	// protocols.
 	if res.Port != 0 {
