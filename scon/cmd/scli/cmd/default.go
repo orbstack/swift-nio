@@ -10,6 +10,7 @@ import (
 
 func init() {
 	rootCmd.AddCommand(defaultCmd)
+	defaultCmd.Flags().StringVarP(&flagUser, "user", "u", "", "Change the default login user")
 }
 
 var defaultCmd = &cobra.Command{
@@ -20,6 +21,9 @@ var defaultCmd = &cobra.Command{
 
 You can remove the default machine by passing "none" as the machine name.
 If no default is set, the most recently-used machine will be used instead.
+
+If --user is specified, the default user will be changed.
+Otherwise, it will be reset to match your macOS username.
 `,
 	Example: "  " + appid.ShortCtl + " set-default -u root ubuntu",
 	Args:    cobra.MaximumNArgs(1),
@@ -28,12 +32,19 @@ If no default is set, the most recently-used machine will be used instead.
 
 		if len(args) == 0 {
 			// get
+			username, err := scli.Client().GetDefaultUsername()
+			checkCLI(err)
+
 			c, err := scli.Client().GetDefaultContainer()
 			checkCLI(err)
 			if c == nil || c.ID == "" {
 				cmd.PrintErrln("No default machine set. (will pick most recently-used machine)")
 			} else {
-				fmt.Println(c.Name)
+				if username != "" {
+					fmt.Printf("%s@%s\n", username, c.Name)
+				} else {
+					fmt.Println(c.Name)
+				}
 			}
 		} else {
 			// set
@@ -55,6 +66,13 @@ If no default is set, the most recently-used machine will be used instead.
 				err = scli.Client().SetDefaultContainer(c)
 				checkCLI(err)
 			}
+		}
+
+		// now set or reset username, always if we have something to mutate
+		// (i.e. if we either have a username or are changing container)
+		if flagUser != "" || len(args) > 0 {
+			err := scli.Client().SetDefaultUsername(flagUser)
+			checkCLI(err)
 		}
 
 		return nil

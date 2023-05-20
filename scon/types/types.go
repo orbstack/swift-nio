@@ -58,3 +58,7 @@ type ContainerGetLogsRequest struct {
 type InternalReportStoppedRequest struct {
 	ID string `json:"id"`
 }
+
+type SetDefaultUsernameRequest struct {
+	Username string `json:"username"`
+}

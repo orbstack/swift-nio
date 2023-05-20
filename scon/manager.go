@@ -380,11 +380,21 @@ func (m *ConManager) removeContainer(c *Container) error {
 }
 
 func (m *ConManager) defaultUser() (string, error) {
+	// use explicit default from DB if we have it
+	defaultUser, err := m.db.GetDefaultUsername()
+	if err == nil && defaultUser != "" {
+		return defaultUser, nil
+	}
+
 	hostUser, err := m.host.GetUser()
 	if err != nil {
 		return "", err
 	}
 	return hostUser.Username, nil
+}
+
+func (m *ConManager) SetDefaultUsername(username string) error {
+	return m.db.SetDefaultUsername(username)
 }
 
 func (m *ConManager) GetDefaultContainer() (*Container, bool, error) {

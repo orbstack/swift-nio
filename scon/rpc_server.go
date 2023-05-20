@@ -101,6 +101,14 @@ func (s *SconServer) SetDefaultContainer(ctx context.Context, record *types.Cont
 	return s.m.SetDefaultContainer(c)
 }
 
+func (s *SconServer) GetDefaultUsername(ctx context.Context) (string, error) {
+	return s.m.defaultUser()
+}
+
+func (s *SconServer) SetDefaultUsername(ctx context.Context, req types.SetDefaultUsernameRequest) error {
+	return s.m.SetDefaultUsername(req.Username)
+}
+
 func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
@@ -177,6 +185,8 @@ func (s *SconServer) Serve() error {
 		"GetByName":             handler.New(s.GetByName),
 		"GetDefaultContainer":   handler.New(s.GetDefaultContainer),
 		"SetDefaultContainer":   handler.New(s.SetDefaultContainer),
+		"GetDefaultUsername":    handler.New(s.GetDefaultUsername),
+		"SetDefaultUsername":    handler.New(s.SetDefaultUsername),
 		"ContainerStart":        handler.New(s.ContainerStart),
 		"ContainerStop":         handler.New(s.ContainerStop),
 		"ContainerRestart":      handler.New(s.ContainerRestart),

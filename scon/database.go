@@ -22,6 +22,7 @@ const (
 
 	ksLastContainerID    = "lastContainerID"
 	ksDefaultContainerID = "defaultContainerID"
+	ksDefaultUsername    = "defaultUsername"
 
 	containerIDLastUsed = "01GRWR24S00000000LAST0USED"
 )
@@ -253,6 +254,14 @@ func (db *Database) GetDefaultContainerID() (string, error) {
 
 func (db *Database) SetDefaultContainerID(id string) error {
 	return db.setSimpleStr(bktState, ksDefaultContainerID, id)
+}
+
+func (db *Database) GetDefaultUsername() (string, error) {
+	return db.getSimpleStr(bktState, ksDefaultUsername)
+}
+
+func (db *Database) SetDefaultUsername(username string) error {
+	return db.setSimpleStr(bktState, ksDefaultUsername, username)
 }
 
 func (db *Database) GetContainer(id string) (*types.ContainerRecord, error) {
