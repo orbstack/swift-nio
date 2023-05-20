@@ -104,6 +104,35 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 		}()
 	}
 
+	go runOne("resize fs", func() error {
+		// resize filesystem
+		logrus.Debug("resizing filesystem")
+		err := util.RunInheritOut("btrfs", "filesystem", "resize", "max", conf.C().DataFsDir)
+		if err != nil {
+			return err
+		}
+
+		// report fs ready
+		err = host.OnDataFsReady()
+		if err != nil {
+			return err
+		}
+
+		// syncfs on fd
+		fd, err := unix.Open(conf.C().DataFsDir, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return fmt.Errorf("open fs dir: %w", err)
+		}
+		defer unix.Close(fd)
+
+		err = unix.Syncfs(fd)
+		if err != nil {
+			return fmt.Errorf("syncfs: %w", err)
+		}
+
+		return nil
+	})
+
 	return nil
 }
 

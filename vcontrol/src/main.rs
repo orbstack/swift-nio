@@ -135,7 +135,6 @@ async fn main() {
 
     let app = Router::new()
         .route("/ping", get(ping))
-        .route("/flag/data_resized", get(flag_data_resized))
         .route("/usb/attach_device", post(usb_attach_device))
         .route("/usb/detach_device", post(usb_detach_device))
         .route("/sys/sync", post(sys_sync))
@@ -299,15 +298,6 @@ async fn time_sync() -> AppResult<impl IntoResponse> {
     Command::new("chronyc").arg("online")
         .output()
         .await?;
-
-    Ok(())
-}
-
-// flag_data_resized
-async fn flag_data_resized() -> AppResult<impl IntoResponse> {
-    if !Path::new("/tmp/flags/data_resized").exists() {
-        return Err(anyhow!("data not ready").into());
-    }
 
     Ok(())
 }

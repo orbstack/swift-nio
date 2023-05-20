@@ -151,6 +151,11 @@ func (c *Client) OnNfsReady() error {
 	return c.rpc.Call("hc.OnNfsReady", None{}, &none)
 }
 
+func (c *Client) OnDataFsReady() error {
+	var none None
+	return c.rpc.Call("hc.OnDataFsReady", None{}, &none)
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }

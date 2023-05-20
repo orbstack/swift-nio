@@ -344,6 +344,12 @@ done
 for cmd in osascript code orb orbctl; do
     ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/\$cmd
 done
+
+# Listeners for ssh-agent socket
+# doesn't need to be created on every boot, and this avoids showing up in mount (because same fs as /opt/orbstack-guest)
+mkdir -p /opt/orb/launchd-ssh-agent-listeners
+ln -s /opt/orbstack-guest/run/host-ssh-agent.sock /opt/orb/launchd-ssh-agent-listeners/Listeners
+
 EOT
 
 # Scripts

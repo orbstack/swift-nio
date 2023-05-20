@@ -36,8 +36,10 @@ const (
 	HcontrolSocket = Run + "/hcontrol.sock"
 	ExtraCerts     = Run + "/extra-certs.crt"
 
-	TmpSshAgentProxySocket   = "/dev/.orbstack/ssh-agent-proxy.sock"
-	LaunchdSshAgentListeners = "/tmp/launchd-ssh-agent-listeners"
+	TmpSshAgentProxySocket = "/dev/.orbstack/ssh-agent-proxy.sock"
+
+	// host paths
+	LaunchdSshAgentListeners = "/opt/orb/launchd-ssh-agent-listeners"
 )
 
 // mac

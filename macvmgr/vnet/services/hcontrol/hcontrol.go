@@ -28,6 +28,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/orbstack/macvirt/macvmgr/vnet/services/sshagent"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -56,6 +57,8 @@ type HcontrolServer struct {
 
 	NfsPort    int
 	nfsMounted bool
+
+	dataFsReady syncx.CondBool
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -306,6 +309,12 @@ func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
 	return nil
 }
 
+func (h *HcontrolServer) OnDataFsReady(_ None, _ *None) error {
+	logrus.Info("Data FS ready")
+	h.dataFsReady.Set(true)
+	return nil
+}
+
 func (h *HcontrolServer) InternalUnmountNfs() error {
 	if !h.nfsMounted {
 		return nil
@@ -323,6 +332,10 @@ func (h *HcontrolServer) InternalUnmountNfs() error {
 	return nil
 }
 
+func (h *HcontrolServer) InternalWaitDataFsReady() {
+	h.dataFsReady.Wait()
+}
+
 type None struct{}
 
 func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, error) {
@@ -330,6 +343,7 @@ func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, er
 		n:            n,
 		drmClient:    drm.Client(),
 		fsnotifyRefs: make(map[string]int),
+		dataFsReady:  syncx.NewCondBool(),
 	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)

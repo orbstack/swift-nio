@@ -33,26 +33,19 @@ sysctl -qp /etc/sysctl.conf
 mkdir -p /data/guest-state/bin/cmdlinks
 chmod 777 /data/guest-state/bin/cmdlinks
 mount --bind /data/guest-state /opt/orbstack-guest/data
-#mount -t overlay cmds -o lowerdir=/opt/orbstack-guest/data/bin/cmdlinks:/opt/orbstack-guest/bin /opt/orbstack-guest/bin
-
-# Listeners for ssh-agent socket
-mkdir -p /tmp/launchd-ssh-agent-listeners
-ln -s /opt/orbstack-guest/run/host-ssh-agent.sock /tmp/launchd-ssh-agent-listeners/Listeners
 
 #
 #
 
 # nfs root setup
-mount -t tmpfs nfstmp -o noatime,mode=700 /nfsroot-rw
+# mount name is visible in machines bind mount
+mount -t tmpfs machines -o noatime,mode=700 /nfsroot-rw
 # try to reduce nfs cpu usage
 touch /nfsroot-rw/.metadata_never_index /nfsroot-rw/.metadata-never-index /nfsroot-rw/.metadata_never_index_unless_rootfs
 # bind ro
 mount --bind -o ro /nfsroot-rw /nfsroot-ro
 # debug only
 if [[ -f /opt/orb/is_debug ]]; then
-  mkdir /nfsroot-rw/data
-  mount --bind /data /nfsroot-ro/data
-
   # root home
   mkdir -p /data/dev-root-home/.ssh
   cp -af /root/.ssh/authorized_keys /data/dev-root-home/.ssh
@@ -66,14 +59,5 @@ mount -t tracefs -o rw,nosuid,nodev,noexec,relatime tracefs /sys/kernel/tracing
 
 # scon!
 /opt/orb/scon &
-
-# resize fs
-#xfs_growfs /dev/vdb1
-btrfs filesystem resize max /data
-
-# ok to update quota/balloon now
-mkdir -p /tmp/flags
-touch /tmp/flags/data_resized
-sync -f /data
 
 echo "[END] vinit-late"

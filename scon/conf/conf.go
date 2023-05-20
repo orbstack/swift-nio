@@ -19,6 +19,7 @@ func init() {
 }
 
 type Config struct {
+	DataFsDir     string
 	SconDataDir   string
 	GuestMountSrc string
 	HostMountSrc  string
@@ -37,6 +38,7 @@ type Config struct {
 }
 
 var configVM = Config{
+	DataFsDir:     "/data",
 	SconDataDir:   "/data/scon",
 	GuestMountSrc: "/opt/orbstack-guest",
 	HostMountSrc:  "/mnt/mac",
@@ -55,6 +57,7 @@ var configVM = Config{
 }
 
 var configTest = Config{
+	DataFsDir:     "/home/dragon/code/projects/macvirt/scdata",
 	SconDataDir:   "/home/dragon/code/projects/macvirt/scdata",
 	GuestMountSrc: "/home/dragon/code/projects/macvirt/rootfs/out/rd/opt/orbstack-guest",
 	HostMountSrc:  "/ssdstore",

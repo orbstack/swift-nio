@@ -15,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/macvmgr/vnet"
 	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
+	hcsrv "github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -46,6 +47,8 @@ type VClient struct {
 	dataFile  *os.File
 	vm        *vzf.Machine
 	stopChan  chan struct{}
+
+	hcontrolServer *hcsrv.HcontrolServer
 }
 
 type diskReportStats struct {
@@ -54,7 +57,7 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport, vm *vzf.Machine) (*VClient, error) {
+func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer) (*VClient, error) {
 	httpClient := &http.Client{Transport: tr}
 	dataFile, err := os.OpenFile(conf.DataImage(), os.O_RDONLY, 0)
 	if err != nil {
@@ -62,14 +65,15 @@ func newWithTransport(tr *http.Transport, vm *vzf.Machine) (*VClient, error) {
 	}
 
 	return &VClient{
-		client:   httpClient,
-		dataFile: dataFile,
-		vm:       vm,
-		stopChan: make(chan struct{}),
+		client:         httpClient,
+		dataFile:       dataFile,
+		vm:             vm,
+		stopChan:       make(chan struct{}),
+		hcontrolServer: hcServer,
 	}, nil
 }
 
-func NewWithNetwork(n *vnet.Network, vm *vzf.Machine) (*VClient, error) {
+func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer) (*VClient, error) {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
@@ -79,7 +83,7 @@ func NewWithNetwork(n *vnet.Network, vm *vzf.Machine) (*VClient, error) {
 		},
 		MaxIdleConns: 2,
 	}
-	return newWithTransport(tr, vm)
+	return newWithTransport(tr, vm, hcServer)
 }
 
 func (vc *VClient) Get(endpoint string) (*http.Response, error) {
@@ -141,23 +145,6 @@ func (vc *VClient) WaitForReady() {
 	vc.ready = true
 }
 
-func (vc *VClient) WaitForDataReady() {
-	if vc.dataReady {
-		return
-	}
-
-	for {
-		_, err := vc.Get("flag/data_resized")
-		if err == nil {
-			break
-		}
-		time.Sleep(readyPollInterval)
-	}
-
-	logrus.Info("data ready")
-	vc.dataReady = true
-}
-
 func (vc *VClient) StartBackground() error {
 	mon, err := iokit.MonitorSleepWake()
 	if err != nil {
@@ -166,7 +153,7 @@ func (vc *VClient) StartBackground() error {
 
 	// don't want to miss the first report, or we'll have to wait
 	go func() {
-		vc.WaitForDataReady()
+		vc.hcontrolServer.InternalWaitDataFsReady()
 		vc.reportDiskStats()
 	}()
 

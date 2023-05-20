@@ -112,11 +112,21 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 		}
 		// First error handling round: try to fix it
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"name":  q.Name,
-				"type":  dns.TypeToString[q.Qtype],
-				"error": err,
-			}).Warn("DNS query failed")
+			// debug level for common errors
+			if errors.Is(err, dnssd.ErrNoSuchRecord) {
+				logrus.WithFields(logrus.Fields{
+					"name":  q.Name,
+					"type":  dns.TypeToString[q.Qtype],
+					"error": err,
+				}).Debug("DNS query failed")
+			} else {
+				logrus.WithFields(logrus.Fields{
+					"name":  q.Name,
+					"type":  dns.TypeToString[q.Qtype],
+					"error": err,
+				}).Warn("DNS query failed")
+			}
+
 			isNxdomain := (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName)
 
 			// No network? macOS returns NXDOMAIN, we return timeout
