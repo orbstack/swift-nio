@@ -213,6 +213,12 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	runtime.KeepAlive(rpcFile)
 	runtime.KeepAlive(fdxFile)
 
+	// make docker client if we're the docker container
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+
 	// now safe to init logrus
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -220,13 +226,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
-	}, "🌸 agent | "))
-
-	// make docker client if we're the docker container
-	hostname, err := os.Hostname()
-	if err != nil {
-		return err
-	}
+	}, "🌸 agent:"+hostname+" | "))
 
 	fdx := NewFdx(fdxConn)
 	server := &AgentServer{
