@@ -14,6 +14,8 @@ import (
 
 	"github.com/muja/goconfig"
 	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/conf/coredir"
+	"github.com/orbstack/macvirt/macvmgr/conf/nfsmnt"
 	"github.com/orbstack/macvirt/macvmgr/conf/ports"
 	"github.com/orbstack/macvirt/macvmgr/dockertypes"
 	"github.com/orbstack/macvirt/macvmgr/drm"
@@ -31,6 +33,19 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
 
+const (
+	nfsReadmeText = `# OrbStack file sharing
+
+When OrbStack is running, this folder contains Docker volumes and Linux machines. All Docker and Linux files can be found here.
+
+This folder is empty when OrbStack is not running. Do not put files here.
+
+For more details, see:
+    - https://docs.orbstack.dev/readme-link/docker-mount
+    - https://docs.orbstack.dev/readme-link/machine-mount
+`
+)
+
 type HcontrolServer struct {
 	n         *vnet.Network
 	drmClient *drm.DrmClient
@@ -38,6 +53,9 @@ type HcontrolServer struct {
 	fsnotifyMu   sync.Mutex
 	fsnotifyRefs map[string]int
 	FsNotifier   *fsnotify.VmNotifier
+
+	NfsPort    int
+	nfsMounted bool
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -240,6 +258,68 @@ func (h *HcontrolServer) OnDockerUIEvent(event dockertypes.UIEvent, _ *None) err
 	// notify GUI
 	logrus.WithField("event", event).Debug("sending docker UI event to GUI")
 	vzf.SwextIpcNotifyDockerEvent(string(data))
+	return nil
+}
+
+func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
+	if h.nfsMounted {
+		return nil
+	}
+
+	// prep: create nfs dir, write readme, make read-only
+	dir := coredir.NfsMountpoint()
+	// only if not mounted yet
+	if !nfsmnt.IsMountpoint(dir) {
+		// coredir.NfsMountpoint() already calls mkdir
+		err := os.WriteFile(dir+"/README.txt", []byte(nfsReadmeText), 0644)
+		// permission error is normal, that means it's already read only
+		if err != nil && !errors.Is(err, os.ErrPermission) {
+			logrus.WithError(err).Error("failed to write NFS readme")
+		}
+		err = os.Chmod(dir, 0555)
+		if err != nil {
+			logrus.WithError(err).Error("failed to chmod NFS dir")
+		}
+	}
+
+	if h.NfsPort == 0 {
+		return errors.New("nfs port forward not available")
+	}
+
+	logrus.Info("Mounting NFS...")
+	err := nfsmnt.MountNfs(h.NfsPort)
+	if err != nil {
+		// if already mounted, we'll just reuse it
+		// careful, this could hang
+		if nfsmnt.IsMountpoint(dir) {
+			logrus.Info("NFS already mounted")
+			h.nfsMounted = true
+			return nil
+		}
+
+		logrus.WithError(err).Error("NFS mount failed")
+		return err
+	}
+
+	logrus.Info("NFS mounted")
+	h.nfsMounted = true
+	return nil
+}
+
+func (h *HcontrolServer) InternalUnmountNfs() error {
+	if !h.nfsMounted {
+		return nil
+	}
+
+	logrus.Info("Unmounting NFS...")
+	err := nfsmnt.UnmountNfs()
+	if err != nil {
+		logrus.WithError(err).Error("NFS unmount failed")
+		return err
+	}
+
+	logrus.Info("NFS unmounted")
+	h.nfsMounted = false
 	return nil
 }
 

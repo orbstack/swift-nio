@@ -43,8 +43,8 @@ type ContainerSummary struct {
 	HostConfig struct {
 		NetworkMode string `json:",omitempty"`
 	}
-	//NetworkSettings *SummaryNetworkSettings
-	Mounts []MountPoint
+	NetworkSettings *SummaryNetworkSettings
+	Mounts          []MountPoint
 }
 
 // minimized version:
@@ -102,4 +102,8 @@ type Event struct {
 	Status string `json:"status"`
 	ID     string `json:"id"`
 	From   string `json:"from"`
+}
+
+type SummaryNetworkSettings struct {
+	//Networks
 }

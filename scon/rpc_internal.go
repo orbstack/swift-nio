@@ -8,7 +8,6 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/conf/ports"
 	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/scon/util"
-	"github.com/sirupsen/logrus"
 )
 
 type SconInternalServer struct {
@@ -24,11 +23,6 @@ func (s *SconInternalServer) OnDrmResult(result drmtypes.Result, _ *None) error 
 	dlog("on drm result reported")
 	s.drmMonitor.dispatchResult(&result)
 	return nil
-}
-
-func (s *SconInternalServer) OnNfsMounted(_ None, _ *None) error {
-	logrus.Debug("NFS mounted on host, binding into containers")
-	return s.m.onHostNfsMounted()
 }
 
 func ListenSconInternal(m *ConManager, drmMonitor *DrmMonitor) (*SconInternalServer, error) {

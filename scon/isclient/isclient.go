@@ -32,8 +32,3 @@ func (c *Client) OnDrmResult(result *drmtypes.Result) error {
 	var noResult None
 	return c.rpc.Call("sci.OnDrmResult", result, &noResult)
 }
-
-func (c *Client) OnNfsMounted() error {
-	var noResult None
-	return c.rpc.Call("sci.OnNfsMounted", None{}, &noResult)
-}

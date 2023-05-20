@@ -43,7 +43,7 @@ func runPprof() {
 	}
 }
 
-func doSystemInitTasks(host *hclient.Client) error {
+func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 	// get user
 	u, err := host.GetUser()
 	if err != nil {
@@ -85,6 +85,21 @@ func doSystemInitTasks(host *hclient.Client) error {
 			err := util.RunInheritOut("/opt/orb/vinit-nfs")
 			if err != nil {
 				logrus.WithError(err).Error("failed to start nfs")
+				return
+			}
+
+			// report nfs ready
+			err = host.OnNfsReady()
+			if err != nil {
+				logrus.WithError(err).Error("failed to mount nfs on host")
+				return
+			}
+
+			// bind into containers
+			err = mgr.onHostNfsMounted()
+			if err != nil {
+				logrus.WithError(err).Error("failed to bind nfs after mount")
+				return
 			}
 		}()
 	}
@@ -115,16 +130,17 @@ func runContainerManager() {
 	logrus.Debug("connecting to hcontrol")
 	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.SecureSvcHcontrol))
 	check(err)
-	hc, err := hclient.New(hcontrolConn)
+	hostClient, err := hclient.New(hcontrolConn)
+	check(err)
+
+	// create container manager
+	mgr, err := NewConManager(conf.C().SconDataDir, hostClient)
 	check(err)
 
 	// system init tasks
-	err = doSystemInitTasks(hc)
+	err = doSystemInitTasks(mgr, hostClient)
 	check(err)
 
-	// start container manager
-	mgr, err := NewConManager(conf.C().SconDataDir, hc)
-	check(err)
 	defer func() {
 		if mgr.pendingVMShutdown {
 			cmd := exec.Command("poweroff")

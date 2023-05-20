@@ -40,7 +40,6 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vnet/services"
 	"github.com/orbstack/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
-	"github.com/orbstack/macvirt/scon/isclient"
 	"github.com/orbstack/macvirt/scon/sclient"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
@@ -52,24 +51,8 @@ const (
 	useStdioConsole = false
 	useNat          = false
 
-	nfsMountTries = 10
-	nfsMountDelay = 500 * time.Millisecond
-
 	gracefulStopTimeout   = 15 * time.Second
 	sentryShutdownTimeout = 2 * time.Second
-)
-
-const (
-	nfsReadmeText = `# OrbStack file sharing
-
-When OrbStack is running, this folder contains Docker volumes and Linux machines. All Docker and Linux files can be found here.
-
-This folder is empty when OrbStack is not running. Do not put files here.
-
-For more details, see:
-    - https://docs.orbstack.dev/readme-link/docker-mount
-    - https://docs.orbstack.dev/readme-link/machine-mount
-`
 )
 
 type StopType int
@@ -184,22 +167,6 @@ func setupDockerContext() error {
 	return nil
 }
 
-func isMountpoint(path string) bool {
-	var stat unix.Stat_t
-	err := unix.Stat(path, &stat)
-	if err != nil {
-		return false
-	}
-
-	var parentStat unix.Stat_t
-	err = unix.Stat(path+"/..", &parentStat)
-	if err != nil {
-		return false
-	}
-
-	return stat.Dev != parentStat.Dev
-}
-
 func tryForceStop(vm *vzf.Machine) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -288,7 +255,7 @@ func migrateStateV1ToV2(state *vmconfig.VmgrState) error {
 	linuxDir := conf.HomeDir() + "/Linux"
 	if _, err := os.Stat(linuxDir); err == nil {
 		// unmount if it's mounted
-		if isMountpoint(linuxDir) {
+		if nfsmnt.IsMountpoint(linuxDir) {
 			err = nfsmnt.UnmountNfs()
 			if err != nil {
 				return err
@@ -666,6 +633,7 @@ func runVmManager() {
 		logrus.WithError(err).Fatal("host forward failed")
 	}
 	nfsPort := nfsFwd.(*tcpfwd.StreamVsockHostForward).TcpPort()
+	hcServer.NfsPort = nfsPort
 
 	defer os.Remove(conf.DockerSocket())
 	defer os.Remove(conf.SconRPCSocket())
@@ -693,77 +661,7 @@ func runVmManager() {
 	runAsyncInitTask("public SSH setup", setupPublicSSH)
 
 	// Mount NFS
-	nfsMounted := false
-	go func() {
-		// prep: create nfs dir, write readme, make read-only
-		dir := coredir.NfsMountpoint()
-		// only if not mounted yet
-		if !isMountpoint(dir) {
-			// coredir.NfsMountpoint() already calls mkdir
-			err := os.WriteFile(dir+"/README.txt", []byte(nfsReadmeText), 0644)
-			// permission error is normal, that means it's already read only
-			if err != nil && !errors.Is(err, os.ErrPermission) {
-				logrus.WithError(err).Error("failed to write NFS readme")
-			}
-			err = os.Chmod(dir, 0555)
-			if err != nil {
-				logrus.WithError(err).Error("failed to chmod NFS dir")
-			}
-		}
-
-		vc.WaitForDataReady()
-
-		defer func() {
-			if nfsMounted {
-				logrus.Debug("Reporting NFS to scon")
-
-				// report to scon so it can mount nfs root
-				err = drm.Client().UseSconInternalClient(func(scon *isclient.Client) error {
-					return scon.OnNfsMounted()
-				})
-				if err != nil {
-					logrus.WithError(err).Error("failed to report NFS mounted to scon")
-				}
-
-				logrus.Debug("Reporting NFS to scon done")
-			}
-		}()
-
-		// vsock fails immediately unlike tcp dialing, so try 5 times
-		for i := 0; i < nfsMountTries; i++ {
-			logrus.Info("Mounting NFS...")
-			err := nfsmnt.MountNfs(nfsPort)
-			if err != nil {
-				// if already mounted, we'll just reuse it
-				// careful, this could hang
-				if isMountpoint(dir) {
-					logrus.Info("NFS already mounted")
-					nfsMounted = true
-					return
-				}
-
-				logrus.WithError(err).Error("NFS mount failed")
-				time.Sleep(nfsMountDelay)
-				continue
-			}
-
-			logrus.Info("NFS mounted")
-			nfsMounted = true
-			break
-		}
-	}()
-	unmountNfs := func() {
-		if nfsMounted {
-			logrus.Info("Unmounting NFS...")
-			err := nfsmnt.UnmountNfs()
-			if err != nil {
-				logrus.WithError(err).Error("NFS unmount failed")
-			}
-			logrus.Info("NFS unmounted")
-			nfsMounted = false
-		}
-	}
-	defer unmountNfs()
+	defer hcServer.InternalUnmountNfs()
 
 	/*
 		logrus.Info("waiting for init tasks")
@@ -781,7 +679,7 @@ func runVmManager() {
 		case stopReq := <-stopCh:
 			logrus.Info("stop requested")
 			// unmount nfs first
-			unmountNfs()
+			hcServer.InternalUnmountNfs()
 
 			go func() {
 				switch stopReq {

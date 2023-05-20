@@ -146,6 +146,11 @@ func (c *Client) OnDockerUIEvent(event *dockertypes.UIEvent) error {
 	return c.rpc.Call("hc.OnDockerUIEvent", event, &none)
 }
 
+func (c *Client) OnNfsReady() error {
+	var none None
+	return c.rpc.Call("hc.OnNfsReady", None{}, &none)
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }
