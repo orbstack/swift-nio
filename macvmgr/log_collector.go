@@ -18,8 +18,10 @@ func NewConsoleLogPipe() (*os.File, error) {
 		return nil, err
 	}
 
-	prefix := color.New(color.FgMagenta, color.Bold).Sprint("👾 console | ")
+	kernelPrefix := color.New(color.FgMagenta, color.Bold).Sprint("👾 kernel | ")
+	consolePrefix := color.New(color.FgYellow, color.Bold).Sprint("🐧 system | ")
 	magenta := color.New(color.FgMagenta).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
 
 	go func() {
 		defer w.Close()
@@ -31,9 +33,10 @@ func NewConsoleLogPipe() (*os.File, error) {
 			// don't add console prefix if first character is already emoji
 			if len(line) > 0 && isMultibyteByte(line[0]) {
 				io.WriteString(os.Stdout, line)
+			} else if len(line) > 0 && line[0] == '[' {
+				io.WriteString(os.Stdout, kernelPrefix+magenta(line))
 			} else {
-
-				io.WriteString(os.Stdout, prefix+magenta(line))
+				io.WriteString(os.Stdout, consolePrefix+yellow(line))
 			}
 		}
 	}()
