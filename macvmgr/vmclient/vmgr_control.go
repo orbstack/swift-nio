@@ -6,11 +6,14 @@ import (
 	"net"
 	"os"
 	"path"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/orbstack/macvirt/macvmgr/conf"
 	"github.com/orbstack/macvirt/macvmgr/util"
 	"github.com/orbstack/macvirt/scon/sclient"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -45,6 +48,12 @@ func IsSconRunning() (bool, error) {
 	return true, nil
 }
 
+func isProcessRunning(pid int) bool {
+	// try sending signal 0 to the process
+	err := unix.Kill(pid, 0)
+	return err == nil
+}
+
 func FindVmgrExe() (string, error) {
 	exeDir, err := conf.ExecutableDir()
 	if err != nil {
@@ -53,11 +62,11 @@ func FindVmgrExe() (string, error) {
 	return path.Join(exeDir, "OrbStack Helper (VM)"), nil
 }
 
-func SpawnDaemon(newBuildID string) error {
+func SpawnDaemon(newBuildID string) (int, error) {
 	// start it. assume executable is next to ours, unless this is debug
 	vmgrExe, err := FindVmgrExe()
 	if err != nil {
-		return fmt.Errorf("find vmgr exe: %w", err)
+		return 0, fmt.Errorf("find vmgr exe: %w", err)
 	}
 
 	// exec self with spawn-daemon
@@ -65,17 +74,31 @@ func SpawnDaemon(newBuildID string) error {
 	if newBuildID != "" {
 		args = append(args, newBuildID)
 	}
-	_, err = util.Run(args...)
+	out, err := util.Run(args...)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	pid, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, fmt.Errorf("parse pid: %w", err)
+	}
+
+	return pid, nil
+}
+
+func readVmgrLogs() (string, error) {
+	logs, err := os.ReadFile(conf.VmgrLog())
+	if err != nil {
+		return "", fmt.Errorf("read vmgr logs: %w", err)
+	}
+
+	return string(logs), nil
 }
 
 func EnsureVM() error {
 	if !IsRunning() {
-		err := SpawnDaemon("")
+		pid, err := SpawnDaemon("")
 		if err != nil {
 			return fmt.Errorf("spawn daemon: %w", err)
 		}
@@ -83,6 +106,15 @@ func EnsureVM() error {
 		// wait for VM to start
 		before := time.Now()
 		for !IsRunning() {
+			if !isProcessRunning(pid) {
+				// process exited. let's read logs
+				logs, err := readVmgrLogs()
+				if err != nil {
+					return fmt.Errorf("VM exited unexpectedly; failed to read logs: %w", err)
+				}
+
+				return fmt.Errorf("VM exited unexpectedly; logs:\n%s", logs)
+			}
 			if time.Since(before) > startTimeout {
 				return errors.New("timed out waiting for VM to start")
 			}
@@ -98,14 +130,14 @@ func EnsureSconVM() error {
 	// ensure VM first
 	err := EnsureVM()
 	if err != nil {
-		return fmt.Errorf("ensure VM: %w", err)
+		return fmt.Errorf("start VM: %w", err)
 	}
 
 	// wait for sconrpc to start
 	before := time.Now()
 	for {
 		if time.Since(before) > startTimeout {
-			return errors.New("timed out waiting for machine manager to start")
+			return errors.New("timed out waiting for services to start")
 		}
 
 		isRunning, err := IsSconRunning()

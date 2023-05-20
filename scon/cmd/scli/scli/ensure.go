@@ -101,7 +101,7 @@ func updateVmgr() bool {
 	}
 
 	spinner := spinutil.Start("blue", "Updating machine")
-	err := vmclient.SpawnDaemon(newBuildID)
+	_, err := vmclient.SpawnDaemon(newBuildID)
 	spinner.Stop()
 	checkCLI(err)
 
