@@ -28,7 +28,7 @@ var (
 
 const (
 	diskStatsInterval = 2 * time.Minute
-	readyPollInterval = 200 * time.Millisecond
+	readyPollInterval = 250 * time.Millisecond
 
 	// arm: arch timer doesn't advance in sleep, so not needed
 	// x86: tsc advances in sleep; pausing and resuming prevents that, so monotonic clock and timeouts work as expected, and we don't get stalls

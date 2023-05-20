@@ -151,7 +151,7 @@ async fn main() {
 
     // 100.115.92.2:103
     let addr = SocketAddr::from(([198, 19, 248, 2], 103));
-    info!("listening on {}", addr);
+    info!("starting");
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
@@ -305,8 +305,6 @@ async fn time_sync() -> AppResult<impl IntoResponse> {
 
 // flag_data_resized
 async fn flag_data_resized() -> AppResult<impl IntoResponse> {
-    info!("flag_data_resized");
-
     if !Path::new("/tmp/flags/data_resized").exists() {
         return Err(anyhow!("data not ready").into());
     }
