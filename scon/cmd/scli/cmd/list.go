@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/scon/cmd/scli/cliutil"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/spf13/cobra"
@@ -15,12 +16,14 @@ import (
 var (
 	flagRunning bool
 	flagQuiet   bool
+	flagFormat  string
 )
 
 func init() {
 	rootCmd.AddCommand(listCmd)
 	listCmd.Flags().BoolVarP(&flagRunning, "running", "r", false, "only show running machines")
 	listCmd.Flags().BoolVarP(&flagQuiet, "quiet", "q", false, "only show machine names")
+	listCmd.Flags().StringVarP(&flagFormat, "format", "f", "", "output format (json)")
 }
 
 var listCmd = &cobra.Command{
@@ -51,26 +54,42 @@ var listCmd = &cobra.Command{
 			return nil
 		}
 
-		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-		defer w.Flush()
+		if flagFormat == "json" {
+			var displayContainers []types.ContainerRecord
+			for _, c := range containers {
+				if c.Builtin {
+					continue
+				}
+				if flagRunning && c.State != types.ContainerStateRunning {
+					continue
+				}
 
-		if term.IsTerminal(int(os.Stdout.Fd())) {
-			fmt.Fprintf(w, "NAME\tSTATE\tDISTRO\tVERSION\tARCH\n")
-			fmt.Fprintf(w, "----\t-----\t------\t-------\t----\n")
-		}
-		for _, c := range containers {
-			if c.Builtin {
-				continue
-			}
-			if flagRunning && c.State != types.ContainerStateRunning {
-				continue
+				displayContainers = append(displayContainers, c)
 			}
 
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Name, c.State, c.Image.Distro, c.Image.Version, c.Image.Arch)
-		}
+			cliutil.PrintJSON(displayContainers)
+		} else {
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			defer w.Flush()
 
-		if len(containers) == 0 {
-			fmt.Fprintln(os.Stderr, `\nUse "`+appid.ShortCtl+`" create to create a machine.`)
+			if term.IsTerminal(int(os.Stdout.Fd())) {
+				fmt.Fprintf(w, "NAME\tSTATE\tDISTRO\tVERSION\tARCH\n")
+				fmt.Fprintf(w, "----\t-----\t------\t-------\t----\n")
+			}
+			for _, c := range containers {
+				if c.Builtin {
+					continue
+				}
+				if flagRunning && c.State != types.ContainerStateRunning {
+					continue
+				}
+
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Name, c.State, c.Image.Distro, c.Image.Version, c.Image.Arch)
+			}
+
+			if len(containers) == 0 {
+				fmt.Fprintln(os.Stderr, `\nUse "`+appid.ShortCtl+`" create to create a machine.`)
+			}
 		}
 
 		return nil

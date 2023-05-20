@@ -4,12 +4,14 @@ import (
 	"fmt"
 
 	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/scon/cmd/scli/cliutil"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
 
 func init() {
 	rootCmd.AddCommand(infoCmd)
+	infoCmd.Flags().StringVarP(&flagFormat, "format", "f", "", "output format (json)")
 }
 
 var infoCmd = &cobra.Command{
@@ -31,16 +33,20 @@ var infoCmd = &cobra.Command{
 		}
 		checkCLI(err)
 
-		fmt.Printf("ID: %s\n", c.ID)
-		fmt.Printf("Name: %s\n", c.Name)
-		fmt.Printf("State: %s\n", c.State)
-		fmt.Printf("\n")
-		fmt.Printf("Distro: %s\n", c.Image.Distro)
-		fmt.Printf("Version: %s\n", c.Image.Version)
-		fmt.Printf("Architecture: %s\n", c.Image.Arch)
+		if flagFormat == "json" {
+			cliutil.PrintJSON(c)
+		} else {
+			fmt.Printf("ID: %s\n", c.ID)
+			fmt.Printf("Name: %s\n", c.Name)
+			fmt.Printf("State: %s\n", c.State)
+			fmt.Printf("\n")
+			fmt.Printf("Distro: %s\n", c.Image.Distro)
+			fmt.Printf("Version: %s\n", c.Image.Version)
+			fmt.Printf("Architecture: %s\n", c.Image.Arch)
 
-		if c.Builtin {
-			fmt.Printf("\nMachine is built-in.\n")
+			if c.Builtin {
+				fmt.Printf("\nMachine is built-in.\n")
+			}
 		}
 
 		return nil
