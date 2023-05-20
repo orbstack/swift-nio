@@ -16,12 +16,12 @@ echo -n 30 > /proc/fs/nfsd/nfsv4leasetime
 echo -n 1 > /proc/fs/nfsd/nfsv4gracetime
 
 #--debug
-rpc.nfsd 32 --no-udp --no-nfs-version 3
+/opt/pkg/rpc.nfsd 32 --no-udp --no-nfs-version 3
 # -v
-exportfs -r
+/opt/pkg/exportfs -r
 
 # still needed for nfs4
 #--debug all
-rpc.mountd --no-udp --no-nfs-version 2 --no-nfs-version 3
+/opt/pkg/rpc.mountd --no-udp --no-nfs-version 2 --no-nfs-version 3
 
 /opt/orb/vsocknfs > /proc/fs/nfsd/portlist

@@ -235,6 +235,18 @@ if [[ "$TYPE" == "debug" ]]; then
 fi
 EOT
 
+# extract needed nfs utils, discard the rest to reduce size (python)
+# keep required libs
+RUN <<EOT sh -eux
+mkdir /opt/pkg
+cd /opt/pkg
+
+cp $(command -v exportfs) $(command -v rpc.nfsd) $(command -v rpc.mountd) /opt/pkg/
+
+apk del nfs-utils
+apk add --no-cache libtirpc
+EOT
+
 # qemu for arm64 host
 COPY --from=pkgbuild-qemu /out/qemu-x86_64 /out/qemu-i386 /opt/orb/
 
@@ -350,6 +362,9 @@ done
 mkdir -p /opt/orb/launchd-ssh-agent-listeners
 ln -s /opt/orbstack-guest/run/host-ssh-agent.sock /opt/orb/launchd-ssh-agent-listeners/Listeners
 
+# NFS state (because we removed nfs-utils package)
+mkdir -p /var/lib/nfs /var/lib/nfs/v4recovery
+touch /var/lib/nfs/etab /var/lib/nfs/rmtab /var/lib/nfs/state
 EOT
 
 # Scripts
