@@ -225,11 +225,13 @@ struct Folders {
     static let appData = "\(home)/.orbstack"
     static let config = "\(appData)/config"
     static let run = "\(appData)/run"
+    static let log = "\(appData)/log"
 }
 
 struct Files {
     static let dockerDaemonConfig = "\(Folders.config)/docker.json"
     static let dockerSocket = "\(Folders.run)/docker.sock"
+    static let vmgrLog = "\(Folders.log)/vmgr.log"
 }
 
 struct ContainerIds {

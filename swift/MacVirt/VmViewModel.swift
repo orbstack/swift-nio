@@ -34,7 +34,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     // VM
     case spawnError(cause: Error)
     case spawnExit(status: Int32, output: String)
-    case vmgrExit(reason: ExitReason)
+    case vmgrExit(reason: ExitReason, logOutput: String)
     case wrongArch
     case virtUnsupported
     case killswitchExpired
@@ -73,7 +73,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t start helper"
         case .spawnExit(let status, _):
             return "Start failed with error \(status)"
-        case .vmgrExit(let reason):
+        case .vmgrExit(let reason, _):
             return "Stopped unexpectedly with \(reason)"
         case .wrongArch:
             return "Wrong CPU type"
@@ -151,6 +151,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .spawnError(let cause):
             return cause.localizedDescription
         case .spawnExit(_, let output):
+            return output
+        case .vmgrExit(_, let output):
             return output
 
         default:
@@ -452,13 +454,13 @@ class VmViewModel: ObservableObject {
             DispatchQueue.main.async {
                 self.state = .stopped
                 if status != 0 {
-                    self.setError(.vmgrExit(reason: reason))
+                    self.setError(self.makeVmgrExitError(reason))
                 }
             }
         default:
             DispatchQueue.main.async {
                 self.state = .stopped
-                self.setError(.vmgrExit(reason: reason))
+                self.setError(self.makeVmgrExitError(reason))
             }
         }
     }
@@ -1149,5 +1151,16 @@ class VmViewModel: ObservableObject {
 
         // or have not updated for a while
         return Date().timeIntervalSince(lastUpdatedAt) > dockerSystemDfRatelimit
+    }
+
+    private func makeVmgrExitError(_ reason: ExitReason) -> VmError {
+        // try to read logs
+        var logOutput: String
+        do {
+            logOutput = try String(contentsOf: URL(fileURLWithPath: Files.vmgrLog), encoding: .utf8)
+        } catch {
+            logOutput = "Failed to read logs: \(error)"
+        }
+        return .vmgrExit(reason: reason, logOutput: logOutput)
     }
 }

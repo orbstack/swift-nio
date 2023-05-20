@@ -12,8 +12,6 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     var composeGroup: ComposeGroup
     var selection: Set<DockerContainerId>
 
-    @State private var presentPopover = false
-
     static func == (lhs: DockerComposeGroupItem, rhs: DockerComposeGroupItem) -> Bool {
         lhs.composeGroup == rhs.composeGroup &&
                 lhs.selection == rhs.selection
@@ -36,30 +34,6 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 VStack(alignment: .leading) {
                     Text(composeGroup.project)
                             .font(.body)
-                            .popover(isPresented: $presentPopover, arrowEdge: .trailing) {
-                                VStack(alignment: .leading, spacing: 20) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Info")
-                                                .font(.headline)
-                                        HStack(spacing: 12) {
-                                            VStack(alignment: .trailing) {
-                                                Text("Status")
-                                                Text("ID")
-                                                Text("Image")
-                                            }
-
-                                            VStack(alignment: .leading) {
-                                                //Text(container.status)
-                                                //Text(String(container.id.prefix(12)))
-                                                //      .font(.body.monospaced())
-                                                //Text(container.image)
-                                            }
-                                        }
-                                                .padding(.leading, 16)
-                                    }
-                                }
-                                        .padding(20)
-                            }
                 }
             }
                     .opacity(isRunning ? 1 : 0.5)
