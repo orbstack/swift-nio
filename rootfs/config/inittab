@@ -1,6 +1,7 @@
 ::sysinit:/sbin/openrc sysinit
 ::sysinit:/sbin/openrc boot
 ::wait:/sbin/openrc default
+::shutdown:/opt/orb/vinit-stop
 ::shutdown:/sbin/openrc shutdown
 
 ::sysinit:/opt/orb/vinit-early
