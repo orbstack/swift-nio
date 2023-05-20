@@ -117,14 +117,6 @@ func (c *SconClient) ContainerDelete(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerDelete", record, &noResult)
 }
 
-func (c *SconClient) ContainerFreeze(record *types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerFreeze", record, &noResult)
-}
-
-func (c *SconClient) ContainerUnfreeze(record *types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerUnfreeze", record, &noResult)
-}
-
 func (c *SconClient) ContainerGetLogs(record *types.ContainerRecord, logType types.LogType) (string, error) {
 	var logs string
 	err := c.rpc.CallResult(context.TODO(), "ContainerGetLogs", types.ContainerGetLogsRequest{

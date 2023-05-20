@@ -137,24 +137,6 @@ func (s *SconServer) ContainerDelete(ctx context.Context, record types.Container
 	return c.Delete()
 }
 
-func (s *SconServer) ContainerFreeze(ctx context.Context, record types.ContainerRecord) error {
-	c, ok := s.m.GetByID(record.ID)
-	if !ok {
-		return errors.New("machine not found")
-	}
-
-	return c.Freeze()
-}
-
-func (s *SconServer) ContainerUnfreeze(ctx context.Context, record types.ContainerRecord) error {
-	c, ok := s.m.GetByID(record.ID)
-	if !ok {
-		return errors.New("machine not found")
-	}
-
-	return c.Unfreeze()
-}
-
 func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGetLogsRequest) (string, error) {
 	c, ok := s.m.GetByID(req.Container.ID)
 	if !ok {
@@ -199,8 +181,6 @@ func (s *SconServer) Serve() error {
 		"ContainerStop":         handler.New(s.ContainerStop),
 		"ContainerRestart":      handler.New(s.ContainerRestart),
 		"ContainerDelete":       handler.New(s.ContainerDelete),
-		"ContainerFreeze":       handler.New(s.ContainerFreeze),
-		"ContainerUnfreeze":     handler.New(s.ContainerUnfreeze),
 		"ContainerGetLogs":      handler.New(s.ContainerGetLogs),
 		"InternalReportStopped": handler.New(s.InternalReportStopped),
 		"ShutdownVM":            handler.New(s.ShutdownVM),
