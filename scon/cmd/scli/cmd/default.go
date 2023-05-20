@@ -16,40 +16,30 @@ var defaultCmd = &cobra.Command{
 	Use:     "default [NAME/ID]",
 	Aliases: []string{"set-default", "get-default"},
 	Short:   "Get or set the default machine",
-	Long: `Get or set the default machine used when running commands without specifying a machine.
+	Long: `Get or set the default machine and/or user used when running commands without specifying a machine.
 
 You can remove the default machine by passing "none" as the machine name.
 If no default is set, the most recently-used machine will be used instead.
 `,
-	Example: "  " + appid.ShortCtl + " set-default ubuntu",
+	Example: "  " + appid.ShortCtl + " set-default -u root ubuntu",
 	Args:    cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
 		if len(args) == 0 {
-			hasDefault, err := scli.Client().HasExplicitDefaultContainer()
-			checkCLI(err)
-			if !hasDefault {
-				cmd.PrintErrln("No default machine set.")
-			}
-
-			// get default
+			// get
 			c, err := scli.Client().GetDefaultContainer()
 			checkCLI(err)
-
-			if c == nil {
-				cmd.PrintErrln("No machines found.")
+			if c == nil || c.ID == "" {
+				cmd.PrintErrln("No default machine set. (will pick most recently-used machine)")
 			} else {
-				if !hasDefault {
-					cmd.PrintErr("Most recently used: ")
-				}
 				fmt.Println(c.Name)
 			}
 		} else {
-			// set default
+			// set
 			if args[0] == "none" {
 				// remove default
-				err := scli.Client().ClearDefaultContainer()
+				err := scli.Client().SetDefaultContainer(nil)
 				checkCLI(err)
 			} else {
 				// set default:

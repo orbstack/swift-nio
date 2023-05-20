@@ -125,13 +125,13 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 	}
 
 	// default container?
-	defaultContainerObj, err := sv.m.GetDefaultContainer()
+	defaultContainer, _, err := sv.m.GetDefaultContainer()
 	if err != nil {
 		return
 	}
-	defaultContainer := defaultContainerObj.Name
+	defaultContainerName := defaultContainer.Name
 	if containerName == "default" {
-		containerName = defaultContainer
+		containerName = defaultContainerName
 	}
 
 	// default user?
@@ -145,9 +145,9 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 	container, ok := sv.m.GetByName(containerName)
 	// try default container
 	if !ok && len(userParts) == 1 {
-		container, ok = sv.m.GetByName(defaultContainer)
+		container, ok = sv.m.GetByName(defaultContainerName)
 		if ok {
-			containerName = defaultContainer
+			containerName = defaultContainerName
 			user = userParts[0]
 		}
 	}

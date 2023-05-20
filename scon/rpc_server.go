@@ -75,29 +75,30 @@ func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) 
 }
 
 func (s *SconServer) GetDefaultContainer(ctx context.Context) (*types.ContainerRecord, error) {
-	c, err := s.m.GetDefaultContainer()
+	c, isExplicit, err := s.m.GetDefaultContainer()
 	if err != nil {
 		return nil, err
+	}
+
+	// no explicit default = nil
+	if !isExplicit {
+		return nil, nil
 	}
 
 	return c.toRecord(), nil
 }
 
-func (s *SconServer) SetDefaultContainer(ctx context.Context, record types.ContainerRecord) error {
+func (s *SconServer) SetDefaultContainer(ctx context.Context, record *types.ContainerRecord) error {
+	if record == nil || record.ID == "" {
+		return s.m.SetDefaultContainer(nil)
+	}
+
 	c, ok := s.m.GetByID(record.ID)
 	if !ok {
 		return errors.New("machine not found")
 	}
 
 	return s.m.SetDefaultContainer(c)
-}
-
-func (s *SconServer) ClearDefaultContainer(ctx context.Context) error {
-	return s.m.SetDefaultContainer(nil)
-}
-
-func (s *SconServer) HasExplicitDefaultContainer(ctx context.Context) (bool, error) {
-	return s.m.HasExplicitDefaultContainer()
 }
 
 func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
@@ -187,24 +188,22 @@ func (s *SconServer) ShutdownVM(ctx context.Context) error {
 
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
-		"Ping":                        handler.New(s.Ping),
-		"Create":                      handler.New(s.Create),
-		"ListContainers":              handler.New(s.ListContainers),
-		"GetByID":                     handler.New(s.GetByID),
-		"GetByName":                   handler.New(s.GetByName),
-		"GetDefaultContainer":         handler.New(s.GetDefaultContainer),
-		"SetDefaultContainer":         handler.New(s.SetDefaultContainer),
-		"ClearDefaultContainer":       handler.New(s.ClearDefaultContainer),
-		"HasExplicitDefaultContainer": handler.New(s.HasExplicitDefaultContainer),
-		"ContainerStart":              handler.New(s.ContainerStart),
-		"ContainerStop":               handler.New(s.ContainerStop),
-		"ContainerRestart":            handler.New(s.ContainerRestart),
-		"ContainerDelete":             handler.New(s.ContainerDelete),
-		"ContainerFreeze":             handler.New(s.ContainerFreeze),
-		"ContainerUnfreeze":           handler.New(s.ContainerUnfreeze),
-		"ContainerGetLogs":            handler.New(s.ContainerGetLogs),
-		"InternalReportStopped":       handler.New(s.InternalReportStopped),
-		"ShutdownVM":                  handler.New(s.ShutdownVM),
+		"Ping":                  handler.New(s.Ping),
+		"Create":                handler.New(s.Create),
+		"ListContainers":        handler.New(s.ListContainers),
+		"GetByID":               handler.New(s.GetByID),
+		"GetByName":             handler.New(s.GetByName),
+		"GetDefaultContainer":   handler.New(s.GetDefaultContainer),
+		"SetDefaultContainer":   handler.New(s.SetDefaultContainer),
+		"ContainerStart":        handler.New(s.ContainerStart),
+		"ContainerStop":         handler.New(s.ContainerStop),
+		"ContainerRestart":      handler.New(s.ContainerRestart),
+		"ContainerDelete":       handler.New(s.ContainerDelete),
+		"ContainerFreeze":       handler.New(s.ContainerFreeze),
+		"ContainerUnfreeze":     handler.New(s.ContainerUnfreeze),
+		"ContainerGetLogs":      handler.New(s.ContainerGetLogs),
+		"InternalReportStopped": handler.New(s.InternalReportStopped),
+		"ShutdownVM":            handler.New(s.ShutdownVM),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

@@ -101,20 +101,6 @@ func (c *SconClient) SetDefaultContainer(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "SetDefaultContainer", record, &noResult)
 }
 
-func (c *SconClient) ClearDefaultContainer() error {
-	return c.rpc.CallResult(context.TODO(), "ClearDefaultContainer", nil, &noResult)
-}
-
-func (c *SconClient) HasExplicitDefaultContainer() (bool, error) {
-	var has bool
-	err := c.rpc.CallResult(context.TODO(), "HasExplicitDefaultContainer", nil, &has)
-	if err != nil {
-		return false, err
-	}
-
-	return has, nil
-}
-
 func (c *SconClient) ContainerStart(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerStart", record, &noResult)
 }
