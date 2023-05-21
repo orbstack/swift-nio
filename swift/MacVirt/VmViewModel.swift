@@ -305,6 +305,9 @@ private func fmtRpc(_ error: Error) -> String {
         default:
             return "Unknown error: \(cause)"
         }
+    case is ProcessError:
+        let processError = error as! ProcessError
+        return "Exited with status \(processError.status):\n\(processError.output)"
     default:
         // prefer info, not localized "operation could not be completed"
         return "\(error)"
