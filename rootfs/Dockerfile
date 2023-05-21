@@ -241,7 +241,7 @@ RUN <<EOT sh -eux
 mkdir /opt/pkg
 cd /opt/pkg
 
-cp $(command -v exportfs rpc.nfsd rpc.mountd) /opt/pkg/
+cp $(command -v exportfs) $(command -v rpc.nfsd) $(command -v rpc.mountd) /opt/pkg/
 
 apk del nfs-utils
 apk add --no-cache libtirpc
