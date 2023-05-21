@@ -19,6 +19,11 @@ struct GeneralSettingsView: View {
             LaunchAtLogin.Toggle {
                 Text("Start at login")
             }
+            Defaults.Toggle("Show in menu bar", key: .globalShowMenubarExtra)
+                    .onChange { newValue in
+                        // propagate to publisher
+                        UserDefaults.standard.globalShowMenubarExtra = newValue
+                    }
 
             UpdaterSettingsView(updater: updaterController.updater)
 

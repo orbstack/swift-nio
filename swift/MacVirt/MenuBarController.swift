@@ -5,6 +5,9 @@
 import Foundation
 import Sparkle
 import AppKit
+import Defaults
+import Combine
+import SwiftUI
 
 private let maxQuickAccessItems = 5
 
@@ -18,12 +21,23 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private let actionTracker: ActionTracker
     private let vmModel: VmViewModel
 
+    private var cancellables = Set<AnyCancellable>()
+
     init(updaterController: SPUStandardUpdaterController,
          actionTracker: ActionTracker, vmModel: VmViewModel) {
+        print("init mc")
         self.updaterController = updaterController
         self.actionTracker = actionTracker
         self.vmModel = vmModel
         super.init()
+
+        // follow user setting
+        statusItem.isVisible = Defaults[.globalShowMenubarExtra]
+        cancellables.insert(UserDefaults.standard.publisher(for: \.globalShowMenubarExtra)
+                .sink(receiveValue: { [weak self] newValue in
+                    guard let self = self else { return }
+                    self.statusItem.isVisible = newValue
+                }))
 
         if let button = statusItem.button {
             // bold = larger, matches other menu bar icons
