@@ -161,3 +161,10 @@ struct EdgeBorder: Shape {
         return path
     }
 }
+
+extension NSWindow {
+    var isUserFacing: Bool {
+        // this ignores menu and status item windows
+        styleMask.contains(.titled)
+    }
+}

@@ -55,6 +55,7 @@ struct MacVirtApp: App {
     // with StateObject, SwiftUI and AppDelegate get different instances
     // we need singleton so use ObservedObject
     @ObservedObject var model = VmViewModel()
+    @ObservedObject var windowTracker = WindowTracker()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     private let delegate: UpdateDelegate
@@ -74,12 +75,20 @@ struct MacVirtApp: App {
     }
 
     var body: some Scene {
+        /*
+         * IMPORTANT:
+         * ALL windows MUST report to WindowTracker in .onAppear!!!
+         */
+
         WindowGroup {
             ContentView()
                     .environmentObject(model)
                     // workaround: default size uses min height on macOS 12, so this fixes default window size
                     // on macOS 13+ we can set smaller min and use windowDefaultSize
                     .frame(minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(), maxHeight: .infinity)
+                    .onAppear {
+                        windowTracker.onWindowAppear()
+                    }
         }.commands {
             CommandGroup(replacing: .newItem) {}
             SidebarCommands()
@@ -135,6 +144,9 @@ struct MacVirtApp: App {
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()
                     .environmentObject(model)
+                    .onAppear {
+                        windowTracker.onWindowAppear()
+                    }
             //.frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
         }.commands {
                     CommandGroup(replacing: .newItem) {}
@@ -145,12 +157,18 @@ struct MacVirtApp: App {
         WindowGroup("Logs", id: "docker-container-logs") {
             DockerLogsWindow()
                     .environmentObject(model)
+                    .onAppear {
+                        windowTracker.onWindowAppear()
+                    }
         }.handlesExternalEvents(matching: Set(arrayLiteral: "docker/containers/logs/", "docker/projects/logs/"))
         .windowDefaultSize(width: 750, height: 500)
 
         Settings {
             AppSettings(updaterController: updaterController)
                     .environmentObject(model)
+                    .onAppear {
+                        windowTracker.onWindowAppear()
+                    }
         }
     }
 

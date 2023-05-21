@@ -64,7 +64,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             // show extras in submenu
             if runningContainers.count > maxPreviewContainers {
                 let submenu = NSMenu()
-                let extraItem = NSMenuItem(title: "\(runningContainers.count - maxPreviewContainers) more…",
+                let extraItem = NSMenuItem(title: "\(runningContainers.count - maxPreviewContainers) more",
                         action: nil,
                         keyEquivalent: "")
                 extraItem.submenu = submenu
@@ -349,8 +349,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func actionOpenApp() {
         // open main window if needed, as if user clicked on dock
-        // this ignores menu and status item windows
-        if !NSApp.windows.contains(where: { $0.canBecomeMain }) {
+        // but always open main so users can get back to main, not e.g. logs
+        if !NSApp.windows.contains(where: { $0.isUserFacing }) {
+            NSApp.setActivationPolicy(.regular)
             NSWorkspace.shared.open(URL(string: "orbstack://main")!)
         }
         NSApp.activate(ignoringOtherApps: true)
