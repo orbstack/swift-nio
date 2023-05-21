@@ -29,6 +29,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private var isAnimating = false
     private var lastTargetIsActive = false
     var quitInitiated = false
+    var quitForce = false
 
     init(updaterController: SPUStandardUpdaterController,
          actionTracker: ActionTracker, windowTracker: WindowTracker, vmModel: VmViewModel) {
@@ -548,6 +549,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func actionQuit(_ sender: NSMenuItem) {
+        // opt = force quit
+        if CGKeyCode.optionKeyPressed {
+            quitForce = true
+        }
+
         // quick-quit logic for user-initiated menu bar quit
         quitInitiated = true
         NSApp.terminate(self)

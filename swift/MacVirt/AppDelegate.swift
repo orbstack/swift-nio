@@ -41,6 +41,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
                 NSApp.hide(nil)
                 NSApp.deactivate()
+
+                // SwiftUI .task actually still runs in this case,
+                // so no need to refresh Docker or machine lists ourselves
             }
         }
 
@@ -60,6 +63,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if menuBar.quitForce {
+            // user explicitly force quit, so just terminate
+            return .terminateNow
+        }
+
         if sender.activationPolicy() == .accessory || !Defaults[.globalShowMenubarExtra] || menuBar.quitInitiated {
             // we're already in menu bar mode, or menu bar is disabled, or user initiated quit from menu bar.
             // in all cases, we stop VM and then terminate
