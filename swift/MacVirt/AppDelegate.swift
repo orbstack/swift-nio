@@ -41,19 +41,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if sender.activationPolicy() == .accessory {
-            // we're currently in menu bar mode.
+        if sender.activationPolicy() == .accessory || !Defaults[.globalShowMenubarExtra] {
+            // we're currently in menu bar mode, or menu bar is disabled.
+            // in both cases, we stop VM and then terminate
+
             // is VM running?
             if vmModel.state == .stopped {
                 // already fully stopped, so safe to terminate now
                 return .terminateNow
             } else {
                 // VM is running, so do a graceful shutdown and terminate later
-                Task { @MainActor in
-                    // we don't care if this fails or succeeds, just give it best effort and terminate when done
-                    NSLog("preparing to terminate")
-                    await vmModel.tryStop()
-                    NSLog("terminating")
+                func finishTerminate() {
                     menuBar.hide()
                     sender.reply(toApplicationShouldTerminate: true)
 
@@ -64,31 +62,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                         sender.terminate(nil)
                     }
                 }
+                Task { @MainActor in
+                    // we don't care if this fails or succeeds, just give it best effort and terminate when done
+                    NSLog("preparing to terminate")
+                    await vmModel.tryStop()
+
+                    NSLog("terminating from stop")
+                    finishTerminate()
+                }
+                // also listen for stop events
+                Task { @MainActor in
+                    await vmModel.waitForStateEquals(.stopped)
+                    NSLog("terminating from state")
+                    finishTerminate()
+                }
 
                 return .terminateLater
             }
         } else {
-            // we're not in menu bar mode.
-            // is menu enabled?
-            if Defaults[.globalShowMenubarExtra] {
-                // enter menu bar mode by closing all windows, then cancel termination
-                for window in NSApp.windows {
-                    if window.isUserFacing {
-                        window.close()
-                    }
+            // we're not in menu bar mode, but menu bar is enabled.
+            // enter menu bar mode by closing all windows, then cancel termination
+            for window in NSApp.windows {
+                if window.isUserFacing {
+                    window.close()
                 }
-                return .terminateCancel
-            } else {
-                // menu bar is disabled
-                // TODO show warning modal and terminate later if user accepts
-                // TODO careful about open windows. e.g. if user only has logs open?
-                return .terminateNow
             }
+            return .terminateCancel
         }
-    }
-
-    func applicationWillTerminate(_ aNotification: Notification) {
-        // Insert code here to tear down your application
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

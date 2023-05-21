@@ -1139,8 +1139,8 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    private func waitForStateEquals(_ target: VmState) async {
-        for await value in $state.first(where: { $0 >= target }).values {
+    func waitForStateEquals(_ target: VmState) async {
+        for await value in $state.first(where: { $0 == target }).values {
             if value == target {
                 break
             }
