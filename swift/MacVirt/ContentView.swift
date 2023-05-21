@@ -35,6 +35,8 @@ struct ContentView: View {
     // with searchable, this breaks if it's on model, but works as state
     @State private var presentDockerFilter = false
 
+    @State private var initialDockerContainerSelection: Set<DockerContainerId> = []
+
     var body: some View {
         NavigationView {
             let selBinding = Binding<String?>(get: {
@@ -46,7 +48,7 @@ struct ContentView: View {
             })
             List(selection: selBinding) {
                 Section(header: Text("Docker")) {
-                    NavigationLink(destination: DockerContainersRootView()) {
+                    NavigationLink(destination: DockerContainersRootView(initialSelection: initialDockerContainerSelection, selection: initialDockerContainerSelection, searchQuery: "")) {
                         Label("Containers", systemImage: "shippingbox")
                     }.tag("docker")
 
@@ -75,26 +77,35 @@ struct ContentView: View {
                     }.tag("cli")
                 }
             }
-            .listStyle(.sidebar)
-            .background(SplitViewAccessor(sideCollapsed: $collapsed))
-            .toolbarMacOS13(id: "sidebar-toolbar") {
-                ToolbarItem(id: "ctl-power", placement: .automatic) {
-                    Button(action: {
-                        Task { @MainActor in
-                            self.startStopInProgress = true
-                            if model.state == .running {
-                                await model.tryStop()
-                            } else {
-                                await model.tryStartAndWait()
+                    .listStyle(.sidebar)
+                    .background(SplitViewAccessor(sideCollapsed: $collapsed))
+                    .toolbarMacOS13(id: "sidebar-toolbar") {
+                        ToolbarItem(id: "ctl-power", placement: .automatic) {
+                            Button(action: {
+                                Task { @MainActor in
+                                    self.startStopInProgress = true
+                                    if model.state == .running {
+                                        await model.tryStop()
+                                    } else {
+                                        await model.tryStartAndWait()
+                                    }
+                                    self.startStopInProgress = false
+                                }
+                            }) {
+                                Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
                             }
-                            self.startStopInProgress = false
+                                    .disabled(startStopInProgress)
+                                    .help(model.state == .running ? "Stop everything" : "Start everything")
                         }
-                    }) {
-                        Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
                     }
-                    .disabled(startStopInProgress)
-                    .help(model.state == .running ? "Stop everything" : "Start everything")
-                }
+        }
+        .onOpenURL { url in
+            // for menu bar
+            // TODO unstable
+            if url.pathComponents.count >= 2,
+               url.pathComponents[1] == "containers" || url.pathComponents[1] == "projects" {
+                initialDockerContainerSelection = [.container(id: url.pathComponents[2])]
+                selection = "docker"
             }
         }
         .environmentObject(actionTracker)

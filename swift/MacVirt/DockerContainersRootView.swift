@@ -83,8 +83,9 @@ struct DockerContainersRootView: View {
 
     @AppStorage("docker_filterShowStopped") private var settingShowStopped = true
 
-    @State private var selection: Set<DockerContainerId> = []
-    @State private var searchQuery: String = ""
+    let initialSelection: Set<DockerContainerId>
+    @State var selection: Set<DockerContainerId>
+    @State var searchQuery: String
 
     var body: some View {
         DockerStateWrapperView(
@@ -117,7 +118,9 @@ struct DockerContainersRootView: View {
                                         .foregroundColor(.secondary)
                             }
                             if let container = item.container {
-                                DockerContainerItem(container: container, selection: selection)
+                                DockerContainerItem(container: container,
+                                        selection: selection,
+                                        presentPopover: initialSelection.contains(.container(id: container.id)))
                                         .equatable()
                             }
                             if let composeGroup = item.composeGroup {

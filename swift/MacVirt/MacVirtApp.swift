@@ -138,7 +138,7 @@ struct MacVirtApp: App {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                 }
             }
-        }.handlesExternalEvents(matching: Set(arrayLiteral: "main"))
+        }.handlesExternalEvents(matching: Set(arrayLiteral: "main", "docker/containers/", "docker/projects/"))
         .windowDefaultSize(width: 750, height: 600)
 
         WindowGroup("Setup", id: "onboarding") {
@@ -160,7 +160,7 @@ struct MacVirtApp: App {
                     .onAppear {
                         windowTracker.onWindowAppear()
                     }
-        }.handlesExternalEvents(matching: Set(arrayLiteral: "docker/containers/logs/", "docker/projects/logs/"))
+        }.handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/", "docker/project-logs/"))
         .windowDefaultSize(width: 750, height: 500)
 
         Settings {

@@ -12,7 +12,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     var container: DKContainer
     var selection: Set<DockerContainerId>
 
-    @State private var presentPopover = false
+    @State var presentPopover: Bool
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
         lhs.container == rhs.container &&
@@ -178,8 +178,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }) {
                     Label("Show Logs", systemImage: "terminal")
                 }
-
-                Divider()
 
                 Button(action: {
                     container.openInTerminal()

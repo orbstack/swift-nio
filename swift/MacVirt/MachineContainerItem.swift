@@ -79,24 +79,30 @@ struct MachineContainerItem: View {
         }
         .padding(.vertical, 4)
         .contextMenu {
-            Button(action: {
-                openInTerminal()
-            }) {
-                Label("Open Terminal", systemImage: "terminal")
-            }
-            Button(action: {
-                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfs)/\(record.name)")
-            }) {
-                Label("Open Files", systemImage: "folder")
-            }
-            Button(action: {
-                Task {
-                    await vmModel.trySetDefaultContainer(record)
+            if record.running {
+                Button(action: {
+                    Task { @MainActor in
+                        actionTracker.beginMachine(record.id, action: .stop)
+                        await vmModel.tryStopContainer(record)
+                        actionTracker.endMachine(record.id)
+                    }
+                }) {
+                    Label("Stop", systemImage: "restart")
                 }
-            }) {
-                Label("Make Default", systemImage: "star")
+                .disabled(actionInProgress)
+            } else {
+                Button(action: {
+                    Task { @MainActor in
+                        actionTracker.beginMachine(record.id, action: .start)
+                        await vmModel.tryStartContainer(record)
+                        actionTracker.endMachine(record.id)
+                    }
+                }) {
+                    Label("Start", systemImage: "restart")
+                }
+                .disabled(actionInProgress)
             }
-            Divider()
+
             Button(action: {
                 Task { @MainActor in
                     actionTracker.beginMachine(record.id, action: .restart)
@@ -107,7 +113,32 @@ struct MachineContainerItem: View {
                 Label("Restart", systemImage: "restart")
             }
             .disabled(actionInProgress)
+
             Divider()
+
+            Button(action: {
+                Task {
+                    await record.openInTerminal()
+                }
+            }) {
+                Label("Open Terminal", systemImage: "terminal")
+            }
+            Button(action: {
+                record.openNfsDirectory()
+            }) {
+                Label("Open Files", systemImage: "folder")
+            }
+
+            Divider()
+
+            Button(action: {
+                Task {
+                    await vmModel.trySetDefaultContainer(record)
+                }
+            }) {
+                Label("Make Default", systemImage: "star")
+            }
+
             Button(role: .destructive, action: {
                 if CGKeyCode.optionKeyPressed {
                     finishDelete()
@@ -128,16 +159,8 @@ struct MachineContainerItem: View {
             Text("Data will be permanently lost.")
         }
         .onDoubleClick {
-            openInTerminal()
-        }
-    }
-
-    private func openInTerminal() {
-        Task {
-            do {
-                try await openTerminal(AppConfig.shellExe, ["-m", record.name])
-            } catch {
-                NSLog("Open terminal failed: \(error)")
+            Task {
+                await record.openInTerminal()
             }
         }
     }

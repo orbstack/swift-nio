@@ -6,7 +6,7 @@ import Foundation
 import Sparkle
 import AppKit
 
-private let maxPreviewContainers = 5
+private let maxQuickAccessItems = 5
 
 // must be @MainActor to access view model
 @MainActor
@@ -28,8 +28,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
         statusItem.menu = menu
         menu.delegate = self
-
-        updateMenu()
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -56,24 +54,22 @@ class MenuBarController: NSObject, NSMenuDelegate {
             // only show running in menu bar
             let runningContainers = dockerContainers.filter { $0.running }
             // limit 5
-            for container in runningContainers.prefix(maxPreviewContainers) {
+            for container in runningContainers.prefix(maxQuickAccessItems) {
                 let item = makeContainerItem(container: container)
                 menu.addItem(item)
             }
 
             // show extras in submenu
-            if runningContainers.count > maxPreviewContainers {
+            if runningContainers.count > maxQuickAccessItems {
                 let submenu = NSMenu()
-                let extraItem = NSMenuItem(title: "\(runningContainers.count - maxPreviewContainers) more",
+                let extraItem = NSMenuItem(title: "\(runningContainers.count - maxQuickAccessItems) more",
                         action: nil,
                         keyEquivalent: "")
+                extraItem.image = systemImage("ellipsis")
                 extraItem.submenu = submenu
                 menu.addItem(extraItem)
 
-                // add system image icon to extraItem
-                extraItem.image = systemImage("ellipsis")
-
-                for container in runningContainers.dropFirst(maxPreviewContainers) {
+                for container in runningContainers.dropFirst(maxQuickAccessItems) {
                     let item = makeContainerItem(container: container)
                     submenu.addItem(item)
                 }
@@ -90,38 +86,35 @@ class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(NSMenuItem.separator())
         }
 
-        // Machines
-        if let machines = vmModel.containers {
+        // Machines (exclude docker)
+        if let machines = vmModel.containers,
+           machines.contains(where: { !$0.builtin }) {
             menu.addItem(makeSectionTitleItem(title: "Machines"))
 
             // only show running in menu bar
-            let runningMachines = machines.filter { $0.running }
-            /*
+            let runningMachines = machines.filter { $0.running && !$0.builtin }
+
             // limit 5
-            for machine in runningMachines.prefix(maxPreviewContainers) {
-                let item = makeContainerItem(container: machine)
+            for machine in runningMachines.prefix(maxQuickAccessItems) {
+                let item = makeMachineItem(record: machine)
                 menu.addItem(item)
             }
 
             // show extras in submenu
-            if runningMachines.count > maxPreviewContainers {
+            if runningMachines.count > maxQuickAccessItems {
                 let submenu = NSMenu()
-                let extraItem = NSMenuItem(title: "\(runningMachines.count - maxPreviewContainers) more…",
+                let extraItem = NSMenuItem(title: "\(runningMachines.count - maxQuickAccessItems) more",
                         action: nil,
                         keyEquivalent: "")
+                extraItem.image = systemImage("ellipsis")
                 extraItem.submenu = submenu
                 menu.addItem(extraItem)
 
-                // add system image icon to extraItem
-                let icon = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: nil)
-                icon?.size = NSSize(width: 16, height: 16)
-                extraItem.image = icon
-
-                for machine in runningMachines.dropFirst(maxPreviewContainers) {
-                    let item = makeContainerItem(container: machine)
+                for machine in runningMachines.dropFirst(maxQuickAccessItems) {
+                    let item = makeMachineItem(record: machine)
                     submenu.addItem(item)
                 }
-            }*/
+            }
 
             // placeholder if no machines
             if runningMachines.isEmpty {
@@ -136,9 +129,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // check for updates
         let updateItem = NSMenuItem(title: "Check for Updates…",
-                action: #selector(updaterController.checkForUpdates),
+                action: #selector(actionCheckForUpdates),
                 keyEquivalent: "")
-        updateItem.target = updaterController
+        updateItem.target = self
         menu.addItem(updateItem)
 
         // settings
@@ -154,11 +147,14 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func makeContainerItem(container: DKContainer) -> NSMenuItem {
+        let controller = DockerContainerMenuItemController(container: container, vmModel: vmModel)
+
         let containerItem = NSMenuItem()
         containerItem.title = container.userName
+        // TODO: actionShowContainerInfo
         containerItem.target = self
-        containerItem.action = #selector(actionShowContainerInfo)
-        let controller = DockerContainerMenuItemController(container: container, vmModel: vmModel)
+        containerItem.action = #selector(actionOpenAppAtContainers)
+        // keep ref
         containerItem.representedObject = controller
 
         let submenu = NSMenu()
@@ -171,7 +167,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
         copyIDItem.representedObject = container.id
         submenu.addItem(copyIDItem)
 
-        let copyNameItem = NSMenuItem(title: "Image: \(container.image)",
+        // in case of pinned hashes
+        let truncatedImage = container.image.prefix(32) +
+                (container.image.count > 32 ? "…" : "")
+        let copyNameItem = NSMenuItem(title: "Image: \(truncatedImage)",
                 action: #selector(actionCopyString),
                 keyEquivalent: "")
         copyNameItem.target = self
@@ -296,6 +295,75 @@ class MenuBarController: NSObject, NSMenuDelegate {
         return mountsItem
     }
 
+    private func makeMachineItem(record: ContainerRecord) -> NSMenuItem {
+        let controller = MachineMenuItemController(record: record, vmModel: vmModel)
+
+        let machineItem = NSMenuItem()
+        machineItem.title = record.name
+        machineItem.target = controller
+        machineItem.action = #selector(controller.actionOpenTerminal)
+        // keep ref
+        machineItem.representedObject = controller
+
+        let submenu = NSMenu()
+        machineItem.submenu = submenu
+
+        /*
+        if let distro = Distro(rawValue: record.image.distro) {
+            let optVersion = record.image.version == "current" ? "" : " \(record.image.version)"
+            let distroItem = NSMenuItem(title: "Distro: \(distro.friendlyName)\(optVersion)",
+                    action: nil,
+                    keyEquivalent: "")
+            distroItem.isEnabled = false
+            submenu.addItem(distroItem)
+        }
+
+        submenu.addItem(NSMenuItem.separator())
+         */
+
+        if record.running {
+            let stopItem = NSMenuItem(title: "Stop",
+                    action: #selector(controller.actionStop),
+                    keyEquivalent: "")
+            stopItem.target = controller
+            stopItem.image = systemImage("stop.fill")
+            submenu.addItem(stopItem)
+        } else {
+            let startItem = NSMenuItem(title: "Start",
+                    action: #selector(controller.actionStart),
+                    keyEquivalent: "")
+            startItem.target = controller
+            startItem.image = systemImage("play.fill")
+            submenu.addItem(startItem)
+        }
+
+        let restartItem = NSMenuItem(title: "Restart",
+                action: #selector(controller.actionRestart),
+                keyEquivalent: "")
+        restartItem.target = controller
+        restartItem.image = systemImage("arrow.clockwise")
+        restartItem.isEnabled = record.running
+        submenu.addItem(restartItem)
+
+        // machine delete is too destructive for menu
+
+        submenu.addItem(NSMenuItem.separator())
+
+        let terminalItem = NSMenuItem(title: "Open Terminal",
+                action: #selector(controller.actionOpenTerminal),
+                keyEquivalent: "")
+        terminalItem.target = controller
+        submenu.addItem(terminalItem)
+
+        let filesItem = NSMenuItem(title: "Open Files",
+                action: #selector(controller.actionOpenFiles),
+                keyEquivalent: "")
+        filesItem.target = controller
+        submenu.addItem(filesItem)
+
+        return machineItem
+    }
+
     private func makeSectionTitleItem(title: String) -> NSMenuItem {
         let item = NSMenuItem()
         // use attributedTitle for emphasis
@@ -320,7 +388,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
         return nil
     }
 
-    @objc private func actionOpenApp() {
+    private func openApp(tab: String? = nil) {
+        if let tab {
+            // set UserDefaults
+            UserDefaults.standard.set(tab, forKey: "root.selectedTab")
+        }
+
         // open main window if needed, as if user clicked on dock
         // but always open main so users can get back to main, not e.g. logs
         if !NSApp.windows.contains(where: { $0.isUserFacing }) {
@@ -328,6 +401,18 @@ class MenuBarController: NSObject, NSMenuDelegate {
             NSWorkspace.shared.open(URL(string: "orbstack://main")!)
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func actionOpenApp() {
+        openApp()
+    }
+
+    @objc private func actionOpenAppAtMachines() {
+        openApp(tab: "machines")
+    }
+
+    @objc private func actionOpenAppAtContainers() {
+        openApp(tab: "docker")
     }
 
     @objc private func actionOpenSettings() {
@@ -341,17 +426,15 @@ class MenuBarController: NSObject, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func actionShowContainerInfo(_ sender: NSMenuItem) {
-        // TODO
-        if let container = sender.representedObject as? DKContainer {
-            NSApp.sendAction(Selector(("showContainerWindow:")), to: nil, from: container)
-        }
-    }
-
     @objc private func actionCopyString(_ sender: NSMenuItem) {
         if let string = sender.representedObject as? String {
             NSPasteboard.copy(string)
         }
+    }
+
+    @objc private func actionCheckForUpdates(_ sender: NSMenuItem) {
+        updaterController.checkForUpdates(updaterController)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
@@ -400,6 +483,11 @@ private class DockerContainerMenuItemController: NSObject {
             container.openInTerminal()
         }
     }
+
+    @objc func actionShowContainerInfo(_ sender: NSMenuItem) {
+        // TODO unstable: assertion failure in NSToolbar, and bad behavior with compose groups
+        NSWorkspace.shared.open(URL(string: "orbstack://docker/containers/\(container.id)")!)
+    }
 }
 
 private class DockerPortMenuItemController: NSObject {
@@ -429,5 +517,57 @@ private class DockerMountMenuItemController: NSObject {
         Task { @MainActor in
             mount.openSourceDirectory()
         }
+    }
+}
+
+private class MachineMenuItemController: NSObject {
+    private let record: ContainerRecord
+    private let vmModel: VmViewModel
+
+    init(record: ContainerRecord, vmModel: VmViewModel) {
+        self.record = record
+        self.vmModel = vmModel
+        super.init()
+    }
+
+    @objc func actionStart(_ sender: NSMenuItem) {
+        Task { @MainActor in
+            await vmModel.tryStartContainer(record)
+        }
+    }
+
+    @objc func actionStop(_ sender: NSMenuItem) {
+        Task { @MainActor in
+            await vmModel.tryStopContainer(record)
+        }
+    }
+
+    @objc func actionRestart(_ sender: NSMenuItem) {
+        Task { @MainActor in
+            await vmModel.tryRestartContainer(record)
+        }
+    }
+
+    @objc func actionDelete(_ sender: NSMenuItem) {
+        Task { @MainActor in
+            await vmModel.tryDeleteContainer(record)
+        }
+    }
+
+    @objc func actionOpenTerminal(_ sender: NSMenuItem) {
+        Task { @MainActor in
+            await record.openInTerminal()
+        }
+    }
+
+    @objc func actionOpenFiles(_ sender: NSMenuItem) {
+        Task { @MainActor in
+            record.openNfsDirectory()
+        }
+    }
+
+    @objc func actionShowMachineInfo(_ sender: NSMenuItem) {
+        // TODO unstable: assertion failure in NSToolbar
+        NSWorkspace.shared.open(URL(string: "orbstack://machines/\(record.id)")!)
     }
 }
