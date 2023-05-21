@@ -91,6 +91,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
         isAnimating = false
     }
 
+    func hide() {
+        NSStatusBar.system.removeStatusItem(statusItem)
+    }
+
     private func animationStep() {
         // pulsing animation
         NSAnimationContext.runAnimationGroup { context in

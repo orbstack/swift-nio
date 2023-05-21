@@ -43,8 +43,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if sender.activationPolicy() == .accessory {
             // we're currently in menu bar mode.
-            // TODO quit = graceful shutdown + quit
-            return .terminateNow
+            // is VM running?
+            if vmModel.state == .stopped {
+                // already fully stopped, so safe to terminate now
+                return .terminateNow
+            } else {
+                // VM is running, so do a graceful shutdown and terminate later
+                Task { @MainActor in
+                    // we don't care if this fails or succeeds, just give it best effort and terminate when done
+                    NSLog("preparing to terminate")
+                    await vmModel.tryStop()
+                    NSLog("terminating")
+                    menuBar.hide()
+                    sender.reply(toApplicationShouldTerminate: true)
+
+                    // if it's not working, just terminate now
+                    // could happen if user keeps menu open when we reply to terminate
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        NSLog("force terminating")
+                        sender.terminate(nil)
+                    }
+                }
+
+                return .terminateLater
+            }
         } else {
             // we're not in menu bar mode.
             // is menu enabled?
