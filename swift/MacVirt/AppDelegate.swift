@@ -44,6 +44,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
         }
 
+        // close any leftover log windows.
+        // TODO fix isRestorable WindowHolder flag
+        for window in NSApp.windows {
+            if window.title.hasPrefix("Project Logs: ") || window.title.hasPrefix("Logs: ") {
+                window.orderOut(nil)
+                window.close()
+            }
+        }
+
         if !AppConfig.debug {
             SentrySDK.start { options in
                 options.dsn = "https://8e78517a949a4070a56b23fc1f7b8184@o120089.ingest.sentry.io/4504665519554560"
