@@ -7,6 +7,7 @@ import AppKit
 import Sentry
 import Sparkle
 import UserNotifications
+import Defaults
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var updaterController: SPUStandardUpdaterController?
@@ -37,6 +38,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         menuBar = MenuBarController(updaterController: updaterController!,
                 actionTracker: actionTracker, windowTracker: windowTracker,
                 vmModel: vmModel)
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if sender.activationPolicy() == .accessory {
+            // we're currently in menu bar mode.
+            // TODO quit = graceful shutdown + quit
+            return .terminateNow
+        } else {
+            // we're not in menu bar mode.
+            // is menu enabled?
+            if Defaults[.globalShowMenubarExtra] {
+                // enter menu bar mode by closing all windows, then cancel termination
+                for window in NSApp.windows {
+                    if window.isUserFacing {
+                        window.close()
+                    }
+                }
+                return .terminateCancel
+            } else {
+                // menu bar is disabled
+                // TODO show warning modal and terminate later if user accepts
+                // TODO careful about open windows. e.g. if user only has logs open?
+                return .terminateNow
+            }
+        }
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {

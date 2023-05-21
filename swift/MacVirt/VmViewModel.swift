@@ -664,6 +664,26 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
+    private func isDockerRunning() -> Bool {
+        if let containers,
+           let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
+           dockerContainer.state == .running || dockerContainer.state == .starting {
+            return true
+        }
+
+        return false
+    }
+
+    @MainActor
+    func maybeTryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true, doSystemDf: Bool = false) async {
+        // will cause feedback loop if docker is stopped
+        // because querying docker engine socket will start it
+        if isDockerRunning() {
+            await tryRefreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages, doSystemDf: doSystemDf)
+        }
+    }
+
+    @MainActor
     func refreshConfig() async throws {
         try await waitForVM()
         config = try await vmgr.getConfig()

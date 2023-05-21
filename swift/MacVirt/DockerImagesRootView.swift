@@ -78,13 +78,6 @@ struct DockerImagesRootView: View {
 
     private func refresh() async {
         await vmModel.tryRefreshList()
-
-        // will cause feedback loop if docker is stopped
-        // querying this will start it
-        if let containers = vmModel.containers,
-           let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
-           dockerContainer.state != .stopped {
-            await vmModel.tryRefreshDockerList()
-        }
+        await vmModel.maybeTryRefreshDockerList()
     }
 }

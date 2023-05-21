@@ -10,6 +10,7 @@ import Combine
 import SwiftUI
 
 private let maxQuickAccessItems = 5
+private let pulseAnimationPeriod: TimeInterval = 1
 
 // must be @MainActor to access view model
 @MainActor
@@ -23,10 +24,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private let vmModel: VmViewModel
 
     private var cancellables = Set<AnyCancellable>()
+    private var isAnimating = false
+    private var lastTargetIsActive = false
 
     init(updaterController: SPUStandardUpdaterController,
          actionTracker: ActionTracker, windowTracker: WindowTracker, vmModel: VmViewModel) {
-        print("init mc")
         self.updaterController = updaterController
         self.actionTracker = actionTracker
         self.windowTracker = windowTracker
@@ -45,9 +47,71 @@ class MenuBarController: NSObject, NSMenuDelegate {
             // bold = larger, matches other menu bar icons
             // circle.hexagongrid.circle?
             button.image = systemImage("circle.circle.fill", bold: true)
+            //button.appearsDisabled = true
+            animationStep()
         }
         statusItem.menu = menu
         menu.delegate = self
+
+        // observe state
+        Task { @MainActor in
+            for await state in vmModel.$state.values {
+                // TODO if we just hit running, and Docker is enabled, trigger a docker refresh
+
+                switch state {
+                case .stopped:
+                    lastTargetIsActive = false
+                    stopAnimation()
+                case .spawning, .starting:
+                    lastTargetIsActive = true
+                    startAnimation()
+                case .running:
+                    lastTargetIsActive = true
+                    stopAnimation()
+                case .stopping:
+                    lastTargetIsActive = false
+                    startAnimation()
+                }
+            }
+        }
+    }
+
+    private func startAnimation() {
+        if isAnimating {
+            return
+        }
+
+        // opacity is handled in animation
+        statusItem.button?.appearsDisabled = false
+
+        isAnimating = true
+        animationStep()
+    }
+
+    private func stopAnimation() {
+        isAnimating = false
+    }
+
+    private func animationStep() {
+        // pulsing animation
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = pulseAnimationPeriod
+            self.statusItem.button?.animator().alphaValue = lastTargetIsActive ? 0.25 : 1
+        } completionHandler: { [self] in
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = pulseAnimationPeriod
+                self.statusItem.button?.animator().alphaValue = lastTargetIsActive ? 1 : 0.25
+            } completionHandler: { [self] in
+                // do we go for another cycle?
+                if isAnimating {
+                    self.animationStep()
+                } else {
+                    // commit target state
+                    self.statusItem.button?.animator().alphaValue = 1
+                    self.statusItem.button?.appearsDisabled = !lastTargetIsActive
+                }
+            }
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
