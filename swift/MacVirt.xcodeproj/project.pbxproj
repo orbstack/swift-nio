@@ -45,7 +45,9 @@
 		B118BD090D290FC5365B0FD9 /* Operators.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDB1897ACFEB7A47E00A /* Operators.swift */; };
 		B118BD1D4D1AB09FC67B62BD /* DockerRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB14C0008974AC0C365B /* DockerRPC.swift */; };
 		B118BD34325C70523001BE10 /* DockerContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF07EC16026428F3BB6A /* DockerContainerItem.swift */; };
+		B118BDF466B95BDF5C466B8F /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BA11897B913DE74DBB0D /* MenuBarController.swift */; };
 		B118BE19740FC7363C335980 /* FileContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7E4875DB989A26F46BA /* FileContainerItem.swift */; };
+		B118BF078F1C423FB387E85A /* DockerUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B18310C43D02D624EC44 /* DockerUI.swift */; };
 		B118BF2634CFC22342E565CF /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B39D053F0586CEFDE474 /* OnboardingCreateView.swift */; };
 		B118BF44160D1D0E5664D278 /* DockerComposeGroupItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B221A4DD9BC70D1BC05B /* DockerComposeGroupItem.swift */; };
 		B118BF4BE4D185C5A88B7A7D /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BAB379B8843568503FAA /* Images.swift */; };
@@ -149,6 +151,7 @@
 		B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
 		B118B0BF63B1073BB3FFA0CD /* DockerStateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerStateWrapperView.swift; sourceTree = "<group>"; };
 		B118B120BD6D6CB13E4E9E30 /* DoubleClick.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DoubleClick.swift; sourceTree = "<group>"; };
+		B118B18310C43D02D624EC44 /* DockerUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerUI.swift; sourceTree = "<group>"; };
 		B118B221A4DD9BC70D1BC05B /* DockerComposeGroupItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerComposeGroupItem.swift; sourceTree = "<group>"; };
 		B118B242268639C9B875CBC3 /* StateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StateWrapperView.swift; sourceTree = "<group>"; };
 		B118B2EB4C629A3B12CBF3B7 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -171,6 +174,7 @@
 		B118B95F44262A37E5CA5660 /* DockerViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerViewModel.swift; sourceTree = "<group>"; };
 		B118B967D5C4B61A7671FD0E /* Preferences.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		B118B970D1735BC66857A549 /* MachineContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineContainerItem.swift; sourceTree = "<group>"; };
+		B118BA11897B913DE74DBB0D /* MenuBarController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		B118BAB379B8843568503FAA /* Images.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
 		B118BB14C0008974AC0C365B /* DockerRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerRPC.swift; sourceTree = "<group>"; };
 		B118BB1AD712EA08896F1900 /* FilesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FilesRootView.swift; sourceTree = "<group>"; };
@@ -381,6 +385,8 @@
 				B118BDC8C60359F5F1FF9F2A /* ActionTracker.swift */,
 				B118B6CF159A5B58FB89D81C /* DockerLogsWindow.swift */,
 				B118BDFDB3332CA1204C634C /* Terminal.swift */,
+				B118BA11897B913DE74DBB0D /* MenuBarController.swift */,
+				B118B18310C43D02D624EC44 /* DockerUI.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -680,6 +686,8 @@
 				B118BA6D2796E4A3301F619A /* ActionTracker.swift in Sources */,
 				B118BBBDA2B28AA7173B8C49 /* DockerLogsWindow.swift in Sources */,
 				B118B24F6010F0EB85FE09D2 /* Terminal.swift in Sources */,
+				B118BDF466B95BDF5C466B8F /* MenuBarController.swift in Sources */,
+				B118BF078F1C423FB387E85A /* DockerUI.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

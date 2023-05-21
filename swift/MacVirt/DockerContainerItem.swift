@@ -133,19 +133,21 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
         }
         .contextMenu {
             Group {
-                Button(action: {
-                    finishStart()
-                }) {
-                    Label("Start", systemImage: "start.fill")
+                if isRunning {
+                    Button(action: {
+                        finishStop()
+                    }) {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                    .disabled(actionInProgress != nil)
+                } else {
+                    Button(action: {
+                        finishStart()
+                    }) {
+                        Label("Start", systemImage: "start.fill")
+                    }
+                    .disabled(actionInProgress != nil)
                 }
-                .disabled(actionInProgress != nil || isRunning)
-
-                Button(action: {
-                    finishStop()
-                }) {
-                    Label("Stop", systemImage: "stop.fill")
-                }
-                .disabled(actionInProgress != nil || !isRunning)
 
                 Button(action: {
                     finishRestart()
@@ -172,17 +174,19 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 Button(action: {
-                    openInTerminal()
+                    container.showLogs(vmModel: vmModel)
+                }) {
+                    Label("Show Logs", systemImage: "terminal")
+                }
+
+                Divider()
+
+                Button(action: {
+                    container.openInTerminal()
                 }) {
                     Label("Open Terminal", systemImage: "terminal")
                 }
                 .disabled(!isRunning)
-
-                Button(action: {
-                    showLogs()
-                }) {
-                    Label("Show Logs", systemImage: "terminal")
-                }
             }
 
             Divider()
@@ -196,8 +200,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 if !container.ports.isEmpty {
                     Menu("Ports") {
                         ForEach(container.ports) { port in
-                            Button(formatPort(port)) {
-                                openPort(port)
+                            Button(port.formatted) {
+                                port.openUrl()
                             }
                         }
                     }
@@ -206,8 +210,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 if !container.mounts.isEmpty {
                     Menu("Mounts") {
                         ForEach(container.mounts) { mount in
-                            Button(formatMount(mount)) {
-                                openMount(mount)
+                            Button(mount.formatted) {
+                                mount.openSourceDirectory()
                             }
                         }
                     }
@@ -219,34 +223,20 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Group {
                 Menu("Copy") {
                     Button(action: {
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.setString(container.id, forType: .string)
+                        NSPasteboard.copy(container.id)
                     }) {
                         Label("ID", systemImage: "doc.on.doc")
                     }
 
                     Button(action: {
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.setString(container.image, forType: .string)
+                        NSPasteboard.copy(container.image)
                     }) {
                         Label("Image", systemImage: "doc.on.doc")
                     }
 
                     Button(action: {
                         Task { @MainActor in
-                            do {
-                                let runCmd = try await runProcessChecked(AppConfig.dockerExe,
-                                        ["inspect", "--format", DKInspectRunCommandTemplate, container.id],
-                                        env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
-
-                                let pasteboard = NSPasteboard.general
-                                pasteboard.clearContents()
-                                pasteboard.setString(runCmd, forType: .string)
-                            } catch {
-                                NSLog("Failed to get run command: \(error)")
-                            }
+                            await container.copyRunCommand()
                         }
                     }) {
                         Label("Command", systemImage: "doc.on.doc")
@@ -255,9 +245,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     let ipAddress = container.ipAddresses.first
                     Button(action: {
                         if let ipAddress {
-                            let pasteboard = NSPasteboard.general
-                            pasteboard.clearContents()
-                            pasteboard.setString(ipAddress, forType: .string)
+                            NSPasteboard.copy(ipAddress)
                         }
                     }) {
                         Label("IP", systemImage: "doc.on.doc")
@@ -305,7 +293,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(container.ports) { port in
-                            Text(formatPort(port))
+                            Text(port.formatted)
                                     .font(.body.monospacedDigit())
                                     .foregroundColor(.blue)
                                     .onHover { inside in
@@ -316,7 +304,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                         }
                                     }
                                     .onTapGesture {
-                                        openPort(port)
+                                        port.openUrl()
                                     }
                         }
                     }
@@ -330,7 +318,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(container.mounts) { mount in
-                            Text(formatMount(mount))
+                            Text(mount.formatted)
                                     .font(.body.monospacedDigit())
                                     .foregroundColor(.blue)
                                     .onHover { inside in
@@ -341,7 +329,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                         }
                                     }
                                     .onTapGesture {
-                                        openMount(mount)
+                                        mount.openSourceDirectory()
                                     }
                         }
                     }
@@ -352,10 +340,14 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             VStack(alignment: .leading) {
                 HStack {
                     if isRunning {
-                        Button("Terminal", action: openInTerminal)
+                        Button("Terminal") {
+                            container.openInTerminal()
+                        }
                     }
 
-                    Button("Logs", action: showLogs)
+                    Button("Logs") {
+                        container.showLogs(vmModel: vmModel)
+                    }
                 }
 
                 if isRunning && container.image == "docker/getting-started" {
@@ -370,79 +362,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
         }
         .padding(20)
-    }
-
-    private func openInTerminal() {
-        Task {
-            do {
-                try await openTerminal(AppConfig.dockerExe, ["exec", "-it", container.id, "sh"])
-            } catch {
-                NSLog("Open terminal failed: \(error)")
-            }
-        }
-    }
-
-    private func showLogs() {
-        if !vmModel.openLogWindowIds.contains(container.id) {
-            NSWorkspace.shared.open(URL(string: "orbstack://docker/containers/logs/\(container.id)")!)
-        } else {
-            // find window by title and bring to front
-            for window in NSApplication.shared.windows {
-                if window.title == "Logs: \(container.userName)" {
-                    window.makeKeyAndOrderFront(nil)
-                    break
-                }
-            }
-        }
-    }
-
-    private func formatPort(_ port: DKPort) -> String {
-        let ctrPort = port.privatePort
-        let localPort = port.publicPort ?? port.privatePort
-        let protoSuffix = port.type == "tcp" ? "" : "  (\(port.type.uppercased()))"
-        let portStr = ctrPort == localPort ? "\(ctrPort)" : "\(ctrPort) → \(localPort)"
-
-        return "\(portStr)\(protoSuffix)"
-    }
-
-    private func openPort(_ port: DKPort) {
-        let ctrPort = port.privatePort
-        let localPort = port.publicPort ?? port.privatePort
-        let httpProto = (ctrPort == 443 || ctrPort == 8443 || localPort == 443 || localPort == 8443) ? "https" : "http"
-        NSWorkspace.shared.open(URL(string: "\(httpProto)://localhost:\(localPort)")!)
-    }
-
-    private func formatMount(_ mount: DKMountPoint) -> String {
-        let src = mount.source
-        let dest = mount.destination
-
-        if let volName = mount.name,
-           mount.type == .volume {
-            return "\(abbreviateMount(volName))  →  \(dest)"
-        } else {
-            let home = FileManager.default.homeDirectoryForCurrentUser.path
-            let prettySrc = src.replacingOccurrences(of: home, with: "~")
-            return "\(abbreviateMount(prettySrc))  →  \(dest)"
-        }
-    }
-
-    private func openMount(_ mount: DKMountPoint) {
-        let src = mount.source
-
-        if let volName = mount.name,
-           mount.type == .volume {
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerVolumes)/\(volName)")
-        } else {
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: src)
-        }
-    }
-
-    private func abbreviateMount(_ src: String) -> String {
-        if src.count > 45 {
-            return src.prefix(35) + "…" + src.suffix(10)
-        } else {
-            return src
-        }
     }
 
     var selfId: DockerContainerId {

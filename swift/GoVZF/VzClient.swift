@@ -446,9 +446,10 @@ func swext_ipc_notify_started() {
 @_cdecl("swext_ipc_notify_docker_event")
 func swext_ipc_notify_docker_event(eventJsonStr: UnsafePointer<CChar>) {
     let nc = DistributedNotificationCenter.default()
-    // queue in bg
+    // deliverImmediately for meneu bar app
     let eventJson = String(cString: eventJsonStr)
     nc.postNotificationName(.init("dev.orbstack.vmgr.private.DockerUIEvent"),
             object: nil,
-            userInfo: ["event_json": eventJson])
+            userInfo: ["event_json": eventJson],
+            deliverImmediately: true)
 }

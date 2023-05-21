@@ -12,6 +12,8 @@
 	<true/>
 	<key>SUEnableJavaScript</key>
 	<true/>
+	<key>LSUIElement</key>
+	<false/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

@@ -52,7 +52,9 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
 
 @main
 struct MacVirtApp: App {
-    @StateObject var model = VmViewModel()
+    // with StateObject, SwiftUI and AppDelegate get different instances
+    // we need singleton so use ObservedObject
+    @ObservedObject var model = VmViewModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     private let delegate: UpdateDelegate
@@ -62,6 +64,7 @@ struct MacVirtApp: App {
         delegate = UpdateDelegate()
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
         appDelegate.updaterController = updaterController
+        appDelegate.vmModel = model
 
         for arg in CommandLine.arguments {
             if arg == "--check-updates" {

@@ -3,16 +3,20 @@
 //
 
 import Foundation
-import Cocoa
+import AppKit
 import Sentry
 import Sparkle
 import UserNotifications
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var updaterController: SPUStandardUpdaterController?
+    var vmModel: VmViewModel!
+
+    private var menuBar: MenuBarController!
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
+        //NSApp.setActivationPolicy(.accessory)
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -26,6 +30,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 options.appHangTimeoutInterval = 60 // 1 minute
             }
         }
+
+        // Menu bar status item
+        menuBar = MenuBarController(updaterController: updaterController!,
+                vmModel: vmModel)
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {

@@ -153,7 +153,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             NSWorkspace.shared.open(URL(string: "orbstack://docker/projects/logs/\(composeGroup.project)")!)
         } else {
             // find window by title and bring to front
-            for window in NSApplication.shared.windows {
+            for window in NSApp.windows {
                 if window.title == "Project Logs: \(composeGroup.project)" {
                     window.makeKeyAndOrderFront(nil)
                     break
