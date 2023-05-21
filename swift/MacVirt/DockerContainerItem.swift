@@ -217,38 +217,51 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Divider()
 
             Group {
-                Button(action: {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(container.id, forType: .string)
-                }) {
-                    Label("Copy ID", systemImage: "doc.on.doc")
-                }
+                Menu("Copy") {
+                    Button(action: {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(container.id, forType: .string)
+                    }) {
+                        Label("ID", systemImage: "doc.on.doc")
+                    }
 
-                Button(action: {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(container.image, forType: .string)
-                }) {
-                    Label("Copy Image", systemImage: "doc.on.doc")
-                }
+                    Button(action: {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(container.image, forType: .string)
+                    }) {
+                        Label("Image", systemImage: "doc.on.doc")
+                    }
 
-                Button(action: {
-                    Task { @MainActor in
-                        do {
-                            let runCmd = try await runProcessChecked(AppConfig.dockerExe,
-                                    ["inspect", "--format", DKInspectRunCommandTemplate, container.id],
-                                    env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
+                    Button(action: {
+                        Task { @MainActor in
+                            do {
+                                let runCmd = try await runProcessChecked(AppConfig.dockerExe,
+                                        ["inspect", "--format", DKInspectRunCommandTemplate, container.id],
+                                        env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
 
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.setString(runCmd, forType: .string)
+                            } catch {
+                                NSLog("Failed to get run command: \(error)")
+                            }
+                        }
+                    }) {
+                        Label("Command", systemImage: "doc.on.doc")
+                    }
+
+                    let ipAddress = container.ipAddresses.first
+                    Button(action: {
+                        if let ipAddress {
                             let pasteboard = NSPasteboard.general
                             pasteboard.clearContents()
-                            pasteboard.setString(runCmd, forType: .string)
-                        } catch {
-                            NSLog("Failed to get run command: \(error)")
+                            pasteboard.setString(ipAddress, forType: .string)
                         }
-                    }
-                }) {
-                    Label("Copy Command", systemImage: "doc.on.doc")
+                    }) {
+                        Label("IP", systemImage: "doc.on.doc")
+                    }.disabled(ipAddress == nil)
                 }
             }
         }
@@ -262,10 +275,15 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 Text("Info")
                         .font(.headline)
                 HStack(spacing: 12) {
+                    let ipAddress = container.ipAddresses.first
+
                     VStack(alignment: .trailing) {
                         Text("Status")
                         Text("ID")
                         Text("Image")
+                        if ipAddress != nil {
+                            Text("IP")
+                        }
                     }
 
                     VStack(alignment: .leading) {
@@ -273,6 +291,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         Text(String(container.id.prefix(12)))
                                 .font(.body.monospaced())
                         Text(container.image)
+                        if let ipAddress {
+                            Text(ipAddress)
+                        }
                     }
                 }
                         .padding(.leading, 16)

@@ -25,7 +25,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
     var state: String
     var status: String
     //var hostConfig: HostConfig
-    //var networkSettings: SummaryNetworkSettings
+    var networkSettings: DKSummaryNetworkSettings?
     var mounts: [DKMountPoint]
 
     var running: Bool {
@@ -38,6 +38,13 @@ struct DKContainer: Codable, Identifiable, Hashable {
                 names.map {
                     $0.deletingPrefix("/")
                 }.joined(separator: ", ")
+    }
+
+    var ipAddresses: [String] {
+        networkSettings?.networks.values
+                .map { $0.ipAddress }
+                .filter { !$0.isEmpty }
+                ?? []
     }
 
     enum CodingKeys: String, CodingKey {
@@ -54,8 +61,57 @@ struct DKContainer: Codable, Identifiable, Hashable {
         case state = "State"
         case status = "Status"
         //case hostConfig = "HostConfig"
-        //case networkSettings = "NetworkSettings"
+        case networkSettings = "NetworkSettings"
         case mounts = "Mounts"
+    }
+}
+
+struct DKSummaryNetworkSettings: Codable, Identifiable, Hashable {
+    var networks: [String: DKNetworkEndpointSettings]
+
+    var id: String {
+        networks.keys.sorted().joined(separator: ", ")
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case networks = "Networks"
+    }
+}
+
+struct DKNetworkEndpointSettings: Codable, Identifiable, Hashable {
+    //var ipamConfig: DKEndpointIPAMConfig?
+    var links: [String]?
+    var aliases: [String]?
+    // Operational data
+    var networkId: String
+    var endpointId: String
+    var gateway: String
+    var ipAddress: String
+    var ipPrefixLen: Int
+    var ipv6Gateway: String
+    var globalIPv6Address: String
+    var globalIPv6PrefixLen: Int
+    var macAddress: String
+    var driverOpts: [String: String]?
+
+    var id: String {
+        networkId
+    }
+
+    enum CodingKeys: String, CodingKey {
+        //case ipamConfig = "IPAMConfig"
+        case links = "Links"
+        case aliases = "Aliases"
+        case networkId = "NetworkID"
+        case endpointId = "EndpointID"
+        case gateway = "Gateway"
+        case ipAddress = "IPAddress"
+        case ipPrefixLen = "IPPrefixLen"
+        case ipv6Gateway = "IPv6Gateway"
+        case globalIPv6Address = "GlobalIPv6Address"
+        case globalIPv6PrefixLen = "GlobalIPv6PrefixLen"
+        case macAddress = "MacAddress"
+        case driverOpts = "DriverOpts"
     }
 }
 

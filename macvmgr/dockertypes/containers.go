@@ -105,5 +105,29 @@ type Event struct {
 }
 
 type SummaryNetworkSettings struct {
-	//Networks
+	Networks map[string]*NetworkEndpointSettings
+}
+
+type EndpointIPAMConfig struct {
+	IPv4Address  string   `json:",omitempty"`
+	IPv6Address  string   `json:",omitempty"`
+	LinkLocalIPs []string `json:",omitempty"`
+}
+
+type NetworkEndpointSettings struct {
+	// Configurations
+	IPAMConfig *EndpointIPAMConfig
+	Links      []string
+	Aliases    []string
+	// Operational data
+	NetworkID           string
+	EndpointID          string
+	Gateway             string
+	IPAddress           string
+	IPPrefixLen         int
+	IPv6Gateway         string
+	GlobalIPv6Address   string
+	GlobalIPv6PrefixLen int
+	MacAddress          string
+	DriverOpts          map[string]string
 }
