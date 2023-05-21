@@ -8,6 +8,7 @@
 import SwiftUI
 import UserNotifications
 import Sparkle
+import Defaults
 
 func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
     Binding<Bool>(get: {
@@ -24,8 +25,8 @@ struct ContentView: View {
     @EnvironmentObject private var model: VmViewModel
 
     // SceneStorage inits too late
-    @AppStorage("root.selectedTab") private var selection = "docker"
-    @AppStorage("onboardingCompleted") private var onboardingCompleted = false
+    @Default(.selectedTab) private var selection
+    @Default(.onboardingCompleted) private var onboardingCompleted
     @State private var startStopInProgress = false
     @State private var presentError = false
     @State private var pendingClose = false

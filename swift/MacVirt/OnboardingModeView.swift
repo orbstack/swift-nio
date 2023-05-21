@@ -4,6 +4,7 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 private enum OnboardingMode {
     case docker
@@ -82,7 +83,7 @@ fileprivate struct ModeButton: View {
 struct OnboardingModeView: View {
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
     let onboardingController: OnboardingController
-    @AppStorage("root.selectedTab") private var rootSelectedTab = "docker"
+    @Default(.selectedTab) private var rootSelectedTab
 
     var body: some View {
         VStack {

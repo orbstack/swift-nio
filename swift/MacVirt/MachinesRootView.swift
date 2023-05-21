@@ -4,11 +4,12 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct MachinesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @AppStorage("root.selectedTab") private var rootSelectedTab = "docker"
+    @Default(.selectedTab) private var rootSelectedTab
     @State private var selection: String?
     @State private var creatingOpacity = 0.0
 

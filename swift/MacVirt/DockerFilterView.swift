@@ -4,9 +4,10 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct DockerFilterView: View {
-    @AppStorage("docker_filterShowStopped") private var settingShowStopped = true
+    @Default(.dockerFilterShowStopped) private var settingShowStopped
 
     var body: some View {
         VStack(alignment: .leading) {

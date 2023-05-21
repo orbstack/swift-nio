@@ -4,6 +4,7 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct ComposeGroup: Hashable, Equatable {
     let project: String
@@ -81,7 +82,7 @@ private struct GettingStartedHintBox: View {
 struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @AppStorage("docker_filterShowStopped") private var settingShowStopped = true
+    @Default(.dockerFilterShowStopped) private var settingShowStopped
 
     let initialSelection: Set<DockerContainerId>
     @State var selection: Set<DockerContainerId>

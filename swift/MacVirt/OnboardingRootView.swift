@@ -4,6 +4,7 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct VisualEffectView: NSViewRepresentable {
     let blendingMode: NSVisualEffectView.BlendingMode
@@ -39,7 +40,7 @@ protocol OnboardingController {
 struct OnboardingRootView: View, OnboardingController {
     @EnvironmentObject private var vmModel: VmViewModel
     @StateObject var onboardingModel = OnboardingViewModel()
-    @AppStorage("onboardingCompleted") var onboardingCompleted = false
+    @Default(.onboardingCompleted) var onboardingCompleted
     @StateObject private var windowHolder = WindowHolder()
 
     var body: some View {

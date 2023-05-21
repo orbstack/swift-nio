@@ -7,9 +7,10 @@ import SwiftUI
 import LaunchAtLogin
 import Combine
 import Sparkle
+import Defaults
 
 struct GeneralSettingsView: View {
-    @AppStorage("onboardingCompleted") private var onboardingCompleted = false
+    @Default(.onboardingCompleted) private var onboardingCompleted
 
     let updaterController: SPUStandardUpdaterController
 

@@ -41,7 +41,7 @@
 		B118BC2FFF41ABFFF0CA5BF3 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC445161ECC2F67ABFEF /* Utils.swift */; };
 		B118BC31190DB3854C66B353 /* MachineContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B970D1735BC66857A549 /* MachineContainerItem.swift */; };
 		B118BC98D011CF698552D55A /* DockerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B95F44262A37E5CA5660 /* DockerViewModel.swift */; };
-		B118BCBE5B1FDC9451990A90 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B967D5C4B61A7671FD0E /* Preferences.swift */; };
+		B118BCBE5B1FDC9451990A90 /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B967D5C4B61A7671FD0E /* Defaults.swift */; };
 		B118BCFEE4ABA072F6B87014 /* SwiftUIUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B34EBC61512D1B66D855 /* SwiftUIUtils.swift */; };
 		B118BD02365D5248F5ACF9C6 /* BuiltinContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BBF535EFE0072DD8B2EF /* BuiltinContainerItem.swift */; };
 		B118BD090D290FC5365B0FD9 /* Operators.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDB1897ACFEB7A47E00A /* Operators.swift */; };
@@ -176,7 +176,7 @@
 		B118B87578004F7F2FBCC7D7 /* OnboardingRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
 		B118B891235112E38B6E3E75 /* DockerInspect.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerInspect.swift; sourceTree = "<group>"; };
 		B118B95F44262A37E5CA5660 /* DockerViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerViewModel.swift; sourceTree = "<group>"; };
-		B118B967D5C4B61A7671FD0E /* Preferences.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		B118B967D5C4B61A7671FD0E /* Defaults.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Defaults.swift; sourceTree = "<group>"; };
 		B118B970D1735BC66857A549 /* MachineContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineContainerItem.swift; sourceTree = "<group>"; };
 		B118BA11897B913DE74DBB0D /* MenuBarController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		B118BAB379B8843568503FAA /* Images.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
@@ -359,7 +359,7 @@
 				B118B45D585B7BE85BF1AE40 /* OnboardingViewModel.swift */,
 				B118B0BDF5AD69FB7610FC71 /* OnboardingWelcomeView.swift */,
 				B118BDB1897ACFEB7A47E00A /* Operators.swift */,
-				B118B967D5C4B61A7671FD0E /* Preferences.swift */,
+				B118B967D5C4B61A7671FD0E /* Defaults.swift */,
 				D8A32B97296F839100E56EEF /* Preview Content */,
 				B118BF7EB971BAC66F27805D /* RPCExecutor.swift */,
 				D8694A30298F9C9D0046B6B6 /* SconRPC.swift */,
@@ -670,7 +670,7 @@
 				B118BCFEE4ABA072F6B87014 /* SwiftUIUtils.swift in Sources */,
 				B118B5CADCA44C8A25695EFF /* Updater.swift in Sources */,
 				B118BF852FE2E4976050D4B2 /* OnboardingModeView.swift in Sources */,
-				B118BCBE5B1FDC9451990A90 /* Preferences.swift in Sources */,
+				B118BCBE5B1FDC9451990A90 /* Defaults.swift in Sources */,
 				B118BF2634CFC22342E565CF /* OnboardingCreateView.swift in Sources */,
 				B118B96A6A028887CFCE7574 /* FilesRootView.swift in Sources */,
 				B118BE19740FC7363C335980 /* FileContainerItem.swift in Sources */,
