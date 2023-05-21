@@ -70,7 +70,7 @@ class WindowTracker: ObservableObject {
                 // https://ar.al/2018/09/17/workaround-for-unclickable-app-menu-bug-with-window.makekeyandorderfront-and-nsapp.activate-on-macos/
                 if NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock")
                            .first?.activate() == true {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(0)) {
                         // only activate after workaround applied
                         NSApp.activate(ignoringOtherApps: true)
                     }
@@ -79,7 +79,7 @@ class WindowTracker: ObservableObject {
                     NSApp.activate(ignoringOtherApps: true)
                 }
 
-                // also schedule a task to make sure new window is key
+                // also make sure new window is key
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     // find first userFacing window
                     let window = NSApp.windows.first { $0.isUserFacing }
