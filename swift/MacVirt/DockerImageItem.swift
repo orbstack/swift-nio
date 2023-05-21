@@ -13,7 +13,7 @@ struct DockerImageItem: View {
     var selection: Set<String>
 
     var body: some View {
-        let actionInProgress = actionTracker.ongoingForImage(image.id) != nil
+        let actionInProgress = actionTracker.ongoingFor(image: image) != nil
         let isInUse = isInUse()
 
         HStack {
@@ -80,9 +80,9 @@ struct DockerImageItem: View {
         for id in resolveActionList() {
             NSLog("remove image \(id)")
             Task { @MainActor in
-                actionTracker.beginImage(id, action: .remove)
-                await vmModel.tryDockerImageRemove(id)
-                actionTracker.endImage(id)
+                await actionTracker.with(imageId: id, action: .remove) {
+                    await vmModel.tryDockerImageRemove(id)
+                }
             }
         }
     }

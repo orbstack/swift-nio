@@ -12,7 +12,7 @@ struct BuiltinContainerItem: View {
     var record: ContainerRecord
 
     var body: some View {
-        let actionInProgress = actionTracker.ongoingForMachine(record.id) != nil
+        let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
 
         HStack {
             Image("distro_\(record.image.distro)")
@@ -36,16 +36,18 @@ struct BuiltinContainerItem: View {
                 set: { newValue in
                     Task { @MainActor in
                         if newValue {
-                            actionTracker.beginMachine(record.id, action: .start)
-                            await vmModel.tryStartContainer(record)
+                            await actionTracker.with(machine: record, action: .start) {
+                                await vmModel.tryStartContainer(record)
+                            }
                         } else {
-                            actionTracker.beginMachine(record.id, action: .stop)
-                            await vmModel.tryStopContainer(record)
+                            await actionTracker.with(machine: record, action: .stop) {
+                                await vmModel.tryStopContainer(record)
+                            }
+
                             // delete stale data
                             // cause reload next time
                             vmModel.dockerContainers = nil
                         }
-                        actionTracker.endMachine(record.id)
                     }
                 }
             )

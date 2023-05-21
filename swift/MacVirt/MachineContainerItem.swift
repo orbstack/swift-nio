@@ -14,7 +14,7 @@ struct MachineContainerItem: View {
     @State private var presentConfirmDelete = false
 
     var body: some View {
-        let actionInProgress = actionTracker.ongoingForMachine(record.id) != nil
+        let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
 
         HStack {
             Image("distro_\(record.image.distro)")
@@ -38,9 +38,9 @@ struct MachineContainerItem: View {
             if record.running {
                 Button(action: {
                     Task { @MainActor in
-                        actionTracker.beginMachine(record.id, action: .stop)
-                        await vmModel.tryStopContainer(record)
-                        actionTracker.endMachine(record.id)
+                        await actionTracker.with(machine: record, action: .stop) {
+                            await vmModel.tryStopContainer(record)
+                        }
                     }
                 }) {
                     ZStack {
@@ -58,9 +58,9 @@ struct MachineContainerItem: View {
             } else {
                 Button(action: {
                     Task { @MainActor in
-                        actionTracker.beginMachine(record.id, action: .start)
-                        await vmModel.tryStartContainer(record)
-                        actionTracker.endMachine(record.id)
+                        await actionTracker.with(machine: record, action: .start) {
+                            await vmModel.tryStartContainer(record)
+                        }
                     }
                 }) {
                     ZStack {
@@ -82,9 +82,9 @@ struct MachineContainerItem: View {
             if record.running {
                 Button(action: {
                     Task { @MainActor in
-                        actionTracker.beginMachine(record.id, action: .stop)
-                        await vmModel.tryStopContainer(record)
-                        actionTracker.endMachine(record.id)
+                        await actionTracker.with(machine: record, action: .stop) {
+                            await vmModel.tryStopContainer(record)
+                        }
                     }
                 }) {
                     Label("Stop", systemImage: "restart")
@@ -93,9 +93,9 @@ struct MachineContainerItem: View {
             } else {
                 Button(action: {
                     Task { @MainActor in
-                        actionTracker.beginMachine(record.id, action: .start)
-                        await vmModel.tryStartContainer(record)
-                        actionTracker.endMachine(record.id)
+                        await actionTracker.with(machine: record, action: .start) {
+                            await vmModel.tryStartContainer(record)
+                        }
                     }
                 }) {
                     Label("Start", systemImage: "restart")
@@ -105,9 +105,9 @@ struct MachineContainerItem: View {
 
             Button(action: {
                 Task { @MainActor in
-                    actionTracker.beginMachine(record.id, action: .restart)
-                    await vmModel.tryRestartContainer(record)
-                    actionTracker.endMachine(record.id)
+                    await actionTracker.with(machine: record, action: .restart) {
+                        await vmModel.tryRestartContainer(record)
+                    }
                 }
             }) {
                 Label("Restart", systemImage: "restart")
@@ -167,9 +167,9 @@ struct MachineContainerItem: View {
 
     private func finishDelete() {
         Task { @MainActor in
-            actionTracker.beginMachine(record.id, action: .delete)
-            await vmModel.tryDeleteContainer(record)
-            actionTracker.endMachine(record.id)
+            await actionTracker.with(machine: record, action: .delete) {
+                await vmModel.tryDeleteContainer(record)
+            }
         }
     }
 }

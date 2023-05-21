@@ -16,7 +16,7 @@ struct DockerVolumeItem: View {
     @State private var presentConfirmDelete = false
 
     var body: some View {
-        let actionInProgress = actionTracker.ongoingForVolume(volume.name) != nil
+        let actionInProgress = actionTracker.ongoingFor(volume: volume) != nil
 
         let deletionList = resolveActionList()
         let deleteConfirmMsg = deletionList.count > 1 ?
@@ -25,7 +25,7 @@ struct DockerVolumeItem: View {
 
         HStack {
             HStack {
-                let color = SystemColors.forHashable(volume.name)
+                let color = SystemColors.forString(volume.name)
                 Image(systemName: "externaldrive.fill")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -149,9 +149,9 @@ struct DockerVolumeItem: View {
         for name in resolveActionList() {
             NSLog("remove volume \(name)")
             Task { @MainActor in
-                actionTracker.beginVolume(name, action: .remove)
-                await vmModel.tryDockerVolumeRemove(name)
-                actionTracker.endVolume(name)
+                await actionTracker.with(volumeId: name, action: .remove) {
+                    await vmModel.tryDockerVolumeRemove(name)
+                }
             }
         }
     }

@@ -10,6 +10,7 @@ import UserNotifications
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var updaterController: SPUStandardUpdaterController?
+    var actionTracker: ActionTracker!
     var vmModel: VmViewModel!
 
     private var menuBar: MenuBarController!
@@ -33,6 +34,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Menu bar status item
         menuBar = MenuBarController(updaterController: updaterController!,
+                actionTracker: actionTracker,
                 vmModel: vmModel)
     }
 

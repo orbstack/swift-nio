@@ -110,10 +110,21 @@ struct SystemColors {
         Color(.systemCyan),
     ]
 
-    static func forHashable(_ hashable: AnyHashable) -> Color {
-        let index = hashable.hashValue %% all.count
-        return all[index]
+    static func forString(_ str: String) -> Color {
+        let index = Int(stableStringHash(str)) %% all.count
+        // tone down saturation
+        return all[index].opacity(0.8)
     }
+}
+
+// Swift default hashable hashValue is keyed randomly on start
+private func stableStringHash(_ str: String) -> UInt64 {
+    var result = UInt64(5381)
+    let buf = [UInt8](str.utf8)
+    for b in buf {
+        result = 127 * (result & 0x00ffffffffffffff) + UInt64(b)
+    }
+    return result
 }
 
 extension View {
@@ -165,6 +176,7 @@ struct EdgeBorder: Shape {
 extension NSWindow {
     var isUserFacing: Bool {
         // this ignores menu and status item windows
-        styleMask.contains(.titled)
+        // need isVisible check - SwiftUI windows are lazy destroyed after close
+        styleMask.contains(.titled) && isVisible
     }
 }

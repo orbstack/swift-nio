@@ -364,6 +364,7 @@ class VmViewModel: ObservableObject {
 
     // TODO move out
     var openLogWindowIds: Set<String> = []
+    var openMainWindowCount = 0
 
     // Setup
     @Published private(set) var isSshConfigWritable = true

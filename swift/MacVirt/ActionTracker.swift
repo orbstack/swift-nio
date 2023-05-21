@@ -56,16 +56,16 @@ class ActionTracker: ObservableObject {
         ongoingDockerContainerActions[cid]
     }
 
-    func ongoingForVolume(_ vid: String) -> DKVolumeAction? {
-        ongoingDockerVolumeActions[vid]
+    func ongoingFor(volume: DKVolume) -> DKVolumeAction? {
+        ongoingDockerVolumeActions[volume.id]
     }
 
-    func ongoingForImage(_ iid: String) -> DKImageAction? {
-        ongoingDockerImageActions[iid]
+    func ongoingFor(image: DKImage) -> DKImageAction? {
+        ongoingDockerImageActions[image.id]
     }
 
-    func ongoingForMachine(_ mid: String) -> MachineAction? {
-        ongoingMachineActions[mid]
+    func ongoingFor(machine: ContainerRecord) -> MachineAction? {
+        ongoingMachineActions[machine.id]
     }
 
     func begin(_ cid: DockerContainerId, action: DKContainerAction) {
@@ -98,5 +98,53 @@ class ActionTracker: ObservableObject {
 
     func endMachine(_ mid: String) {
         ongoingMachineActions[mid] = nil
+    }
+
+    func with(cid: DockerContainerId, action: DKContainerAction, _ block: () throws -> Void) rethrows {
+        begin(cid, action: action)
+        defer { end(cid) }
+        try block()
+    }
+
+    func with(cid: DockerContainerId, action: DKContainerAction, _ block: () async throws -> Void) async rethrows {
+        begin(cid, action: action)
+        defer { end(cid) }
+        try await block()
+    }
+
+    func with(volumeId: String, action: DKVolumeAction, _ block: () throws -> Void) rethrows {
+        beginVolume(volumeId, action: action)
+        defer { endVolume(volumeId) }
+        try block()
+    }
+
+    func with(volumeId: String, action: DKVolumeAction, _ block: () async throws -> Void) async rethrows {
+        beginVolume(volumeId, action: action)
+        defer { endVolume(volumeId) }
+        try await block()
+    }
+
+    func with(imageId: String, action: DKImageAction, _ block: () throws -> Void) rethrows {
+        beginImage(imageId, action: action)
+        defer { endImage(imageId) }
+        try block()
+    }
+
+    func with(imageId: String, action: DKImageAction, _ block: () async throws -> Void) async rethrows {
+        beginImage(imageId, action: action)
+        defer { endImage(imageId) }
+        try await block()
+    }
+
+    func with(machine: ContainerRecord, action: MachineAction, _ block: () throws -> Void) rethrows {
+        beginMachine(machine.id, action: action)
+        defer { endMachine(machine.id) }
+        try block()
+    }
+
+    func with(machine: ContainerRecord, action: MachineAction, _ block: () async throws -> Void) async rethrows {
+        beginMachine(machine.id, action: action)
+        defer { endMachine(machine.id) }
+        try await block()
     }
 }

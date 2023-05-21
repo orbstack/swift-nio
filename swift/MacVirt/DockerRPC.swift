@@ -47,6 +47,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
                 ?? []
     }
 
+    var cid: DockerContainerId {
+        .container(id: id)
+    }
+
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case names = "Names"

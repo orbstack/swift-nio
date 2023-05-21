@@ -12,7 +12,7 @@ struct FileContainerItem: View {
 
     var body: some View {
         HStack {
-            let color = SystemColors.forHashable(record.id)
+            let color = SystemColors.forString(record.id)
             Image(systemName: "folder.fill")
                     .resizable()
                     .aspectRatio(contentMode: .fit)

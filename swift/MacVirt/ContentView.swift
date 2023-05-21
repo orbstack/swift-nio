@@ -23,8 +23,6 @@ struct ContentView: View {
     @Environment(\.controlActiveState) var controlActiveState
     @EnvironmentObject private var model: VmViewModel
 
-    @StateObject private var actionTracker = ActionTracker()
-
     // SceneStorage inits too late
     @AppStorage("root.selectedTab") private var selection = "docker"
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
@@ -108,13 +106,12 @@ struct ContentView: View {
                 selection = "docker"
             }
         }
-        .environmentObject(actionTracker)
         .toolbar(id: "main-toolbar") {
             ToolbarItem(id: "toggle-sidebar", placement: .navigation) {
                 Button(action: toggleSidebar, label: {
                     Label("Toggle Sidebar", systemImage: "sidebar.leading")
                 })
-                .help("Toggle Sidebar")
+                        .help("Toggle Sidebar")
             }
 
             ToolbarItem(id: "macos12-power", placement: .automatic) {
@@ -138,7 +135,7 @@ struct ContentView: View {
                             .help(model.state == .running ? "Stop everything" : "Start everything")
                 }
             }
-            
+
             ToolbarItem(id: "machines-new", placement: .automatic) {
                 if selection == "machines" {
                     Button(action: {
@@ -146,13 +143,13 @@ struct ContentView: View {
                     }) {
                         Label("New Machine", systemImage: "plus")
                     }
-                    // careful: .keyboardShortcut after sheet composability applies to entire CreateContainerView (including Picker items) on macOS 12
-                    .keyboardShortcut("n", modifiers: [.command])
-                    .sheet(isPresented: $model.presentCreateMachine) {
-                        CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)
-                    }
-                    .help("New Machine")
-                    .disabled(model.state != .running)
+                            // careful: .keyboardShortcut after sheet composability applies to entire CreateContainerView (including Picker items) on macOS 12
+                            .keyboardShortcut("n", modifiers: [.command])
+                            .sheet(isPresented: $model.presentCreateMachine) {
+                                CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)
+                            }
+                            .help("New Machine")
+                            .disabled(model.state != .running)
                 }
             }
 
@@ -163,9 +160,9 @@ struct ContentView: View {
                     }) {
                         Label("New Volume", systemImage: "plus")
                     }
-                    .help("New Volume")
-                    .disabled(model.state != .running)
-                    .keyboardShortcut("n", modifiers: [.command])
+                            .help("New Volume")
+                            .disabled(model.state != .running)
+                            .keyboardShortcut("n", modifiers: [.command])
                 }
             }
 
@@ -176,18 +173,23 @@ struct ContentView: View {
                     }) {
                         Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
                     }.popover(isPresented: $presentDockerFilter, arrowEdge: .bottom) {
-                        DockerFilterView()
-                    }
-                    .help("Filter Containers")
-                    .disabled(model.state != .running)
+                                DockerFilterView()
+                            }
+                            .help("Filter Containers")
+                            .disabled(model.state != .running)
                 }
             }
         }
         .onAppear {
+            model.openMainWindowCount += 1
+
             if !onboardingCompleted {
                 pendingClose = true
                 NSWorkspace.shared.open(URL(string: "orbstack://onboarding")!)
             }
+        }
+        .onDisappear {
+            model.openMainWindowCount -= 1
         }
         .task {
             let center = UNUserNotificationCenter.current()

@@ -25,7 +25,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
         HStack {
             HStack {
-                let color = SystemColors.forHashable(container.id)
+                let color = SystemColors.forString(container.id)
                 Image(systemName: "shippingbox.fill")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -49,6 +49,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
             }
             .opacity(container.running ? 1 : 0.5)
+            // padding for expand arrow
+            .padding(.leading, 8)
 
             Spacer()
 
@@ -363,7 +365,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     }
 
     var selfId: DockerContainerId {
-        .container(id: container.id)
+        container.cid
     }
 }
 
@@ -394,18 +396,16 @@ extension BaseDockerContainerItem {
     func finishStop() {
         for item in resolveActionList() {
             Task { @MainActor in
-                actionTracker.begin(item, action: .stop)
-
-                switch item {
-                case .container(let id):
-                    await vmModel.tryDockerContainerStop(id)
-                case .compose:
-                    await vmModel.tryDockerComposeStop(item)
-                default:
-                    return
+                await actionTracker.with(cid: item, action: .stop) {
+                    switch item {
+                    case .container(let id):
+                        await vmModel.tryDockerContainerStop(id)
+                    case .compose:
+                        await vmModel.tryDockerComposeStop(item)
+                    default:
+                        return
+                    }
                 }
-
-                actionTracker.end(item)
             }
         }
     }
@@ -414,18 +414,16 @@ extension BaseDockerContainerItem {
     func finishStart() {
         for item in resolveActionList() {
             Task { @MainActor in
-                actionTracker.begin(item, action: .start)
-
-                switch item {
-                case .container(let id):
-                    await vmModel.tryDockerContainerStart(id)
-                case .compose:
-                    await vmModel.tryDockerComposeStart(item)
-                default:
-                    return
+                await actionTracker.with(cid: item, action: .start) {
+                    switch item {
+                    case .container(let id):
+                        await vmModel.tryDockerContainerStart(id)
+                    case .compose:
+                        await vmModel.tryDockerComposeStart(item)
+                    default:
+                        return
+                    }
                 }
-
-                actionTracker.end(item)
             }
         }
     }
@@ -434,18 +432,16 @@ extension BaseDockerContainerItem {
     func finishRestart() {
         Task { @MainActor in
             for item in resolveActionList() {
-                actionTracker.begin(item, action: .restart)
-
-                switch item {
-                case .container(let id):
-                    await vmModel.tryDockerContainerRestart(id)
-                case .compose:
-                    await vmModel.tryDockerComposeRestart(item)
-                default:
-                    return
+                await actionTracker.with(cid: item, action: .restart) {
+                    switch item {
+                    case .container(let id):
+                        await vmModel.tryDockerContainerRestart(id)
+                    case .compose:
+                        await vmModel.tryDockerComposeRestart(item)
+                    default:
+                        return
+                    }
                 }
-
-                actionTracker.end(item)
             }
         }
     }
@@ -454,18 +450,16 @@ extension BaseDockerContainerItem {
     func finishRemove() {
         for item in resolveActionList() {
             Task { @MainActor in
-                actionTracker.begin(item, action: .remove)
-
-                switch item {
-                case .container(let id):
-                    await vmModel.tryDockerContainerRemove(id)
-                case .compose:
-                    await vmModel.tryDockerComposeRemove(item)
-                default:
-                    return
+                await actionTracker.with(cid: item, action: .remove) {
+                    switch item {
+                    case .container(let id):
+                        await vmModel.tryDockerContainerRemove(id)
+                    case .compose:
+                        await vmModel.tryDockerComposeRemove(item)
+                    default:
+                        return
+                    }
                 }
-
-                actionTracker.end(item)
             }
         }
     }

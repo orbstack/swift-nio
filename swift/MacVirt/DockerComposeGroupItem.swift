@@ -23,7 +23,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
         HStack {
             HStack {
-                let color = SystemColors.forHashable(composeGroup.project)
+                let color = SystemColors.forString(composeGroup.project)
                 Image(systemName: "tray.full.fill")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -36,7 +36,9 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                             .font(.body)
                 }
             }
-                    .opacity(isRunning ? 1 : 0.5)
+            .opacity(isRunning ? 1 : 0.5)
+            // padding for expand arrow
+            .padding(.leading, 8)
 
             Spacer()
 

@@ -55,7 +55,9 @@ struct MacVirtApp: App {
     // with StateObject, SwiftUI and AppDelegate get different instances
     // we need singleton so use ObservedObject
     @ObservedObject var model = VmViewModel()
+    @ObservedObject var actionTracker = ActionTracker()
     @ObservedObject var windowTracker = WindowTracker()
+
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     private let delegate: UpdateDelegate
@@ -64,7 +66,9 @@ struct MacVirtApp: App {
     init() {
         delegate = UpdateDelegate()
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
+
         appDelegate.updaterController = updaterController
+        appDelegate.actionTracker = actionTracker
         appDelegate.vmModel = model
 
         for arg in CommandLine.arguments {
@@ -83,6 +87,7 @@ struct MacVirtApp: App {
         WindowGroup {
             ContentView()
                     .environmentObject(model)
+                    .environmentObject(actionTracker)
                     // workaround: default size uses min height on macOS 12, so this fixes default window size
                     // on macOS 13+ we can set smaller min and use windowDefaultSize
                     .frame(minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(), maxHeight: .infinity)
@@ -139,7 +144,7 @@ struct MacVirtApp: App {
                 }
             }
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main", "docker/containers/", "docker/projects/"))
-        .windowDefaultSize(width: 750, height: 600)
+        .windowDefaultSize(width: 725, height: 600)
 
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()

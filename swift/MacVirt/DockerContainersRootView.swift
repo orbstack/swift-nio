@@ -159,12 +159,16 @@ struct DockerContainersRootView: View {
 
                     Spacer()
 
-                    HStack {
-                        Spacer()
-                        GettingStartedHintBox()
-                        Spacer()
+                    // don't show getting started hint if empty is caused by filter
+                    let unfilteredListItems = makeListItems(dockerRecord, containers)
+                    if unfilteredListItems.isEmpty {
+                        HStack {
+                            Spacer()
+                            GettingStartedHintBox()
+                            Spacer()
+                        }
+                        .padding(.bottom, 48)
                     }
-                            .padding(.bottom, 48)
                 }
             }
             // show as overlay to avoid VisualEffectView affecting toolbar color
