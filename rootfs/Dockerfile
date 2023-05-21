@@ -256,7 +256,7 @@ COPY --from=pkgbuild-qemu /out/qemu-x86_64 /out/qemu-i386 /opt/orb/
 RUN <<EOT sh -eux
 if [[ "\$(uname -m)" == "x86_64" ]]; then
     wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/x86_64/qemu-aarch64-7.1.0-r7.apk
-    apk add --no-cache qemu-aarch64-7.1.0-r7.apk
+    apk add --no-cache --no-network ./qemu-aarch64-7.1.0-r7.apk
     rm -f qemu-aarch64-7.1.0-r7.apk
 fi
 EOT
