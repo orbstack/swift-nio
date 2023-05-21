@@ -62,7 +62,7 @@ struct DockerLogsWindow: View {
         // match terminal bg
         .background(Color(NSColor.textBackgroundColor))
         .onOpenURL { url in
-            if url.pathComponents[1] == "projects" {
+            if url.pathComponents[1] == "project-logs" {
                 composeProject = url.lastPathComponent
                 vmModel.openLogWindowIds.insert(composeProject!)
             } else {
