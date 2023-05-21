@@ -19,11 +19,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
-        //NSApp.setActivationPolicy(.accessory)
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = false
+
+        for arg in CommandLine.arguments {
+            // started by CLI as background app
+            if arg == "--background-cli" {
+                // don't steal focus
+                NSApp.setActivationPolicy(.accessory)
+
+                // close all user-facing windows, regardless of menu bar
+                // this means that w/o menubar, we'll get an empty app in the Dock
+                for window in NSApp.windows {
+                    if window.isUserFacing {
+                        window.orderOut(nil)
+                        window.close()
+                    }
+                }
+
+                NSApp.hide(nil)
+                NSApp.deactivate()
+            }
+        }
 
         if !AppConfig.debug {
             SentrySDK.start { options in
@@ -41,9 +60,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if sender.activationPolicy() == .accessory || !Defaults[.globalShowMenubarExtra] {
-            // we're currently in menu bar mode, or menu bar is disabled.
-            // in both cases, we stop VM and then terminate
+        if sender.activationPolicy() == .accessory || !Defaults[.globalShowMenubarExtra] || menuBar.quitInitiated {
+            // we're already in menu bar mode, or menu bar is disabled, or user initiated quit from menu bar.
+            // in all cases, we stop VM and then terminate
 
             // is VM running?
             if vmModel.state == .stopped {

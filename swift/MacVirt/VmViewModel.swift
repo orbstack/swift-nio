@@ -678,6 +678,15 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
+    func maybeRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true, doSystemDf: Bool = false) async throws {
+        // will cause feedback loop if docker is stopped
+        // because querying docker engine socket will start it
+        if isDockerRunning() {
+            try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages, doSystemDf: doSystemDf)
+        }
+    }
+
+    @MainActor
     func maybeTryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true, doSystemDf: Bool = false) async {
         // will cause feedback loop if docker is stopped
         // because querying docker engine socket will start it
@@ -771,11 +780,12 @@ class VmViewModel: ObservableObject {
         // this includes wait
         NSLog("refresh: start")
         // avoid feedback loop if killswitch expired
-        // HACK XXX: ignore errors here
+        // HACK XXX: ignore errors here - UI will trigger "real" ones
         do {
             try await refreshList()
+            try await maybeRefreshDockerList()
         } catch {
-            NSLog("refresh: start: refresh list: \(error)")
+            NSLog("refresh: start: refresh lists: \(error)")
         }
         do {
             try await refreshConfig()

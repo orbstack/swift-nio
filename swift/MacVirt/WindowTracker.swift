@@ -90,6 +90,7 @@ class WindowTracker: ObservableObject {
             // hide if -> accessory
             if newPolicy == .accessory {
                 NSApp.hide(nil)
+                NSApp.deactivate()
             }
         }
     }

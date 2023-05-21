@@ -28,6 +28,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var isAnimating = false
     private var lastTargetIsActive = false
+    var quitInitiated = false
 
     init(updaterController: SPUStandardUpdaterController,
          actionTracker: ActionTracker, windowTracker: WindowTracker, vmModel: VmViewModel) {
@@ -231,9 +232,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
-        menu.addItem(NSMenuItem(title: "Quit",
-                action: #selector(NSApplication.terminate),
-                keyEquivalent: "q"))
+        let quitItem = NSMenuItem(title: "Quit",
+                action: #selector(actionQuit),
+                keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
     }
 
     private func makeContainerItem(container: DKContainer) -> NSMenuItem {
@@ -542,6 +545,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func actionCheckForUpdates(_ sender: NSMenuItem) {
         updaterController.checkForUpdates(updaterController)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func actionQuit(_ sender: NSMenuItem) {
+        // quick-quit logic for user-initiated menu bar quit
+        quitInitiated = true
+        NSApp.terminate(self)
     }
 }
 
