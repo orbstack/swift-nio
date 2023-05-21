@@ -112,6 +112,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         updateMenu()
+
+        // also trigger a background machine state refresh
+        // TODO: remove when we have dynamic machine state updates
+        Task {
+            await vmModel.tryRefreshList()
+        }
     }
 
     private func updateMenu() {
