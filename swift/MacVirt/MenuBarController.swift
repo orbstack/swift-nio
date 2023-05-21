@@ -10,7 +10,9 @@ import Combine
 import SwiftUI
 
 private let maxQuickAccessItems = 5
-private let pulseAnimationPeriod: TimeInterval = 1
+private let pulseAnimationPeriod: TimeInterval = 0.75
+// close to NSStatusBarButton.opacityWhenDisabled
+private let opacityAppearsDisabled = 0.3
 
 // must be @MainActor to access view model
 @MainActor
@@ -81,9 +83,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
             return
         }
 
-        // opacity is handled in animation
-        statusItem.button?.appearsDisabled = false
-
         isAnimating = true
         animationStep()
     }
@@ -96,19 +95,16 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // pulsing animation
         NSAnimationContext.runAnimationGroup { context in
             context.duration = pulseAnimationPeriod
-            self.statusItem.button?.animator().alphaValue = lastTargetIsActive ? 0.25 : 1
+            self.statusItem.button?.animator().alphaValue = lastTargetIsActive ? opacityAppearsDisabled : 1
         } completionHandler: { [self] in
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = pulseAnimationPeriod
-                self.statusItem.button?.animator().alphaValue = lastTargetIsActive ? 1 : 0.25
+                self.statusItem.button?.animator().alphaValue = lastTargetIsActive ? 1 : opacityAppearsDisabled
             } completionHandler: { [self] in
                 // do we go for another cycle?
+                // if not, leave it at the last target opacity
                 if isAnimating {
                     self.animationStep()
-                } else {
-                    // commit target state
-                    self.statusItem.button?.animator().alphaValue = 1
-                    self.statusItem.button?.appearsDisabled = !lastTargetIsActive
                 }
             }
         }
