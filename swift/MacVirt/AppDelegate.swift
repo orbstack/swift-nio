@@ -41,9 +41,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
                 NSApp.hide(nil)
                 NSApp.deactivate()
-
-                // SwiftUI .task actually still runs in this case,
-                // so no need to refresh Docker or machine lists ourselves
             }
         }
 

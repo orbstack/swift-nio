@@ -192,16 +192,20 @@ struct ContentView: View {
         .onDisappear {
             model.openMainWindowCount -= 1
         }
-        .task {
-            let center = UNUserNotificationCenter.current()
-            do {
-                let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-                NSLog("notification request granted: \(granted)")
-            } catch {
-                NSLog("notification request failed: \(error)")
-            }
+        // DO NOT use .task{} here.
+        // start tasks should NOT be canceled
+        .onAppear {
+            Task { @MainActor in
+                let center = UNUserNotificationCenter.current()
+                do {
+                    let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                    NSLog("notification request granted: \(granted)")
+                } catch {
+                    NSLog("notification request failed: \(error)")
+                }
 
-            await model.initLaunch()
+                await model.initLaunch()
+            }
         }
         .onChange(of: controlActiveState) { state in
             if state == .key {
