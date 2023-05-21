@@ -19,15 +19,17 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     private let updaterController: SPUStandardUpdaterController
     private let actionTracker: ActionTracker
+    private let windowTracker: WindowTracker
     private let vmModel: VmViewModel
 
     private var cancellables = Set<AnyCancellable>()
 
     init(updaterController: SPUStandardUpdaterController,
-         actionTracker: ActionTracker, vmModel: VmViewModel) {
+         actionTracker: ActionTracker, windowTracker: WindowTracker, vmModel: VmViewModel) {
         print("init mc")
         self.updaterController = updaterController
         self.actionTracker = actionTracker
+        self.windowTracker = windowTracker
         self.vmModel = vmModel
         super.init()
 
@@ -427,7 +429,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         // reappear in dock
-        NSApp.setActivationPolicy(.regular)
+        windowTracker.setPolicy(.regular)
 
         // open main window if needed, as if user clicked on dock
         // but always open main so users can get back to main, not e.g. logs
@@ -436,7 +438,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
             NSLog("open main")
             NSWorkspace.shared.open(URL(string: "orbstack://main")!)
         }
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func actionOpenApp() {

@@ -69,6 +69,7 @@ struct MacVirtApp: App {
 
         appDelegate.updaterController = updaterController
         appDelegate.actionTracker = actionTracker
+        appDelegate.windowTracker = windowTracker
         appDelegate.vmModel = model
 
         for arg in CommandLine.arguments {

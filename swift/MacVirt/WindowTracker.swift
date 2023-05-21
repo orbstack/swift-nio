@@ -35,28 +35,7 @@ class WindowTracker: ObservableObject {
 
     private func updateState(closingWindow: NSWindow? = nil, isWindowAppearing: Bool = false) {
         let newPolicy = derivePolicy(closingWindow: closingWindow, isWindowAppearing: isWindowAppearing)
-        if newPolicy != lastPolicy {
-            NSLog("changing policy from \(lastPolicy) to \(newPolicy)")
-            NSApp.setActivationPolicy(newPolicy)
-            lastPolicy = newPolicy
-
-            // activate if -> regular
-            if newPolicy == .regular {
-                NSApp.activate(ignoringOtherApps: true)
-
-                // also schedule a task to make sure new window is key
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    // find first userFacing window
-                    let window = NSApp.windows.first { $0.isUserFacing }
-                    window?.makeKeyAndOrderFront(nil)
-                }
-            }
-
-            // hide if -> accessory
-            if newPolicy == .accessory {
-                NSApp.hide(nil)
-            }
-        }
+        setPolicy(newPolicy)
     }
 
     private func derivePolicy(closingWindow: NSWindow?, isWindowAppearing: Bool) -> NSApplication.ActivationPolicy {
@@ -76,6 +55,42 @@ class WindowTracker: ObservableObject {
             return .accessory
         } else {
             return .regular
+        }
+    }
+
+    func setPolicy(_ newPolicy: NSApplication.ActivationPolicy) {
+        if newPolicy != lastPolicy {
+            NSLog("changing policy from \(lastPolicy) to \(newPolicy)")
+            NSApp.setActivationPolicy(newPolicy)
+            lastPolicy = newPolicy
+
+            // activate if -> regular
+            if newPolicy == .regular {
+                // workaround for app menu bar not working after user reopens app from Dock
+                // https://ar.al/2018/09/17/workaround-for-unclickable-app-menu-bug-with-window.makekeyandorderfront-and-nsapp.activate-on-macos/
+                if NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock")
+                           .first?.activate() == true {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) {
+                        // only activate after workaround applied
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                } else {
+                    // if workaround failed, activate now
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+
+                // also schedule a task to make sure new window is key
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    // find first userFacing window
+                    let window = NSApp.windows.first { $0.isUserFacing }
+                    window?.makeKeyAndOrderFront(nil)
+                }
+            }
+
+            // hide if -> accessory
+            if newPolicy == .accessory {
+                NSApp.hide(nil)
+            }
         }
     }
 }
