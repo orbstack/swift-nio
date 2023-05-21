@@ -26,7 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         for arg in CommandLine.arguments {
             // started by CLI as background app
-            if arg == "--background-cli" {
+            if arg == "--internal-cli-background" {
                 // don't steal focus
                 NSApp.setActivationPolicy(.accessory)
 

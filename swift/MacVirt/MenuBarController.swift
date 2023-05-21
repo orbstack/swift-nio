@@ -60,7 +60,14 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // observe state
         Task { @MainActor in
             for await state in vmModel.$state.values {
-                // TODO if we just hit running, and Docker is enabled, trigger a docker refresh
+                // we don't need to trigger any Docker refreshes here.
+                // 3 cases:
+                // - already running when GUI started
+                //   - SwiftUI ContentView .onAppear will trigger list refresh
+                // - was started by GUI
+                //   - refresh also triggered by ContentView
+                // - CLI started in the background, GUI already running
+                //   - will dispatch docker UI change event
 
                 switch state {
                 case .stopped:

@@ -365,7 +365,7 @@ class VmViewModel: ObservableObject {
     @Published var dockerSystemDf: DKSystemDf?
     @Published var lastDockerSystemDfAt: Date?
 
-    // TODO move out
+    // TODO move to WindowTracker
     var openLogWindowIds: Set<String> = []
     var openMainWindowCount = 0
 

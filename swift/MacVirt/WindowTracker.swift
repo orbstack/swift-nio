@@ -40,7 +40,6 @@ class WindowTracker: ObservableObject {
 
     private func derivePolicy(closingWindow: NSWindow?, isWindowAppearing: Bool) -> NSApplication.ActivationPolicy {
         // if no menu bar app, always act like normal
-        // TODO setting
         if !Defaults[.globalShowMenubarExtra] {
             return .regular
         }

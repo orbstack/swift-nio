@@ -188,6 +188,10 @@ func (a *AgentServer) monitorDockerEvents() error {
 
 	// kick an initial refresh
 	a.dockerRefreshDebounce.Call()
+	// also kick all initial UI events for menu bar bg start
+	a.dockerTriggerUIEvent(dockertypes.UIEventContainer)
+	a.dockerTriggerUIEvent(dockertypes.UIEventVolume)
+	a.dockerTriggerUIEvent(dockertypes.UIEventImage)
 
 	dec := json.NewDecoder(req.Body)
 	for {

@@ -220,6 +220,13 @@ func (h *VmControlServer) runWithEnvReport(combinedArgs ...string) (*vmtypes.Env
 
 // func (s *VmControlServer) doPureGoSetup
 func (s *VmControlServer) onStart() error {
+	// successful VM start.
+	// open the GUI app in background mode if it's not already running
+	err := s.openGuiApp()
+	if err != nil {
+		logrus.WithError(err).Error("Failed to open GUI app")
+	}
+
 	// if setup isn't done in 10 sec, it means we don't have a GUI (or it's broken)
 	// for example, when it's CLI only
 	// in such cases, run setup ourselves
@@ -243,6 +250,21 @@ func (s *VmControlServer) onStart() error {
 			logrus.Info("CLI setup complete")
 		}
 	}()
+
+	return nil
+}
+
+func (s *VmControlServer) openGuiApp() error {
+	appBundle, err := conf.FindAppBundle()
+	if err != nil {
+		return fmt.Errorf("find app bundle: %w", err)
+	}
+
+	// -g = no foreground, -j = hidden
+	_, err = util.Run("open", "-g", "-j", "-a", appBundle, "--args", "--internal-cli-background")
+	if err != nil {
+		return fmt.Errorf("open app: %w", err)
+	}
 
 	return nil
 }

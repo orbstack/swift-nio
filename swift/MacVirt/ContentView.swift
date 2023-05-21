@@ -27,7 +27,6 @@ struct ContentView: View {
     // SceneStorage inits too late
     @Default(.selectedTab) private var selection
     @Default(.onboardingCompleted) private var onboardingCompleted
-    @State private var startStopInProgress = false
     @State private var presentError = false
     @State private var pendingClose = false
     @State private var collapsed = false
@@ -78,25 +77,6 @@ struct ContentView: View {
             }
                     .listStyle(.sidebar)
                     .background(SplitViewAccessor(sideCollapsed: $collapsed))
-                    .toolbarMacOS13(id: "sidebar-toolbar") {
-                        ToolbarItem(id: "ctl-power", placement: .automatic) {
-                            Button(action: {
-                                Task { @MainActor in
-                                    self.startStopInProgress = true
-                                    if model.state == .running {
-                                        await model.tryStop()
-                                    } else {
-                                        await model.tryStartAndWait()
-                                    }
-                                    self.startStopInProgress = false
-                                }
-                            }) {
-                                Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
-                            }
-                                    .disabled(startStopInProgress)
-                                    .help(model.state == .running ? "Stop everything" : "Start everything")
-                        }
-                    }
         }
         .onOpenURL { url in
             // for menu bar
@@ -113,28 +93,6 @@ struct ContentView: View {
                     Label("Toggle Sidebar", systemImage: "sidebar.leading")
                 })
                         .help("Toggle Sidebar")
-            }
-
-            ToolbarItem(id: "macos12-power", placement: .automatic) {
-                if #available(macOS 13.0, *) {
-                    // in sidebar instead
-                } else {
-                    Button(action: {
-                        Task { @MainActor in
-                            self.startStopInProgress = true
-                            if model.state == .running {
-                                await model.tryStop()
-                            } else {
-                                await model.tryStartAndWait()
-                            }
-                            self.startStopInProgress = false
-                        }
-                    }) {
-                        Label(model.state == .running ? "Stop" : "Start", systemImage: "power")
-                    }
-                            .disabled(startStopInProgress)
-                            .help(model.state == .running ? "Stop everything" : "Start everything")
-                }
             }
 
             ToolbarItem(id: "machines-new", placement: .automatic) {
