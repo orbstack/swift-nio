@@ -164,6 +164,31 @@ class MenuBarController: NSObject, NSMenuDelegate {
         let submenu = NSMenu()
         containerItem.submenu = submenu
 
+        let copyIDItem = NSMenuItem(title: "ID: \(container.id.prefix(12))",
+                action: #selector(actionCopyString),
+                keyEquivalent: "")
+        copyIDItem.target = self
+        copyIDItem.representedObject = container.id
+        submenu.addItem(copyIDItem)
+
+        let copyNameItem = NSMenuItem(title: "Image: \(container.image)",
+                action: #selector(actionCopyString),
+                keyEquivalent: "")
+        copyNameItem.target = self
+        copyNameItem.representedObject = container.image
+        submenu.addItem(copyNameItem)
+
+        if let ipAddress = container.ipAddresses.first {
+            let copyIpItem = NSMenuItem(title: "IP: \(ipAddress)",
+                    action: #selector(actionCopyString),
+                    keyEquivalent: "")
+            copyIpItem.target = self
+            copyIpItem.representedObject = ipAddress
+            submenu.addItem(copyIpItem)
+        }
+
+        submenu.addItem(NSMenuItem.separator())
+
         if container.running {
             let stopItem = NSMenuItem(title: "Stop",
                     action: #selector(controller.actionStop),
@@ -197,20 +222,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addItem(NSMenuItem.separator())
 
-        let detailsItem = NSMenuItem(title: "Get Info",
-                action: #selector(actionShowContainerInfo),
-                keyEquivalent: "")
-        detailsItem.target = self
-        detailsItem.representedObject = container
-        submenu.addItem(detailsItem)
-
         let logsItem = NSMenuItem(title: "Show Logs",
                 action: #selector(controller.actionShowLogs),
                 keyEquivalent: "")
         logsItem.target = controller
         submenu.addItem(logsItem)
-
-        submenu.addItem(NSMenuItem.separator())
 
         let terminalItem = NSMenuItem(title: "Open Terminal",
                 action: #selector(controller.actionOpenTerminal),
@@ -232,10 +248,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
             item.isEnabled = false
             submenu.addItem(item)
         }
-
-        submenu.addItem(NSMenuItem.separator())
-
-        submenu.addItem(makeCopyItem(container: container, controller: controller))
 
         return containerItem
     }
@@ -282,45 +294,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         return mountsItem
-    }
-
-    private func makeCopyItem(container: DKContainer, controller: DockerContainerMenuItemController) -> NSMenuItem {
-        let copyItem = NSMenuItem()
-        copyItem.title = "Copy"
-
-        let submenu = NSMenu()
-        copyItem.submenu = submenu
-
-        let copyIDItem = NSMenuItem(title: "ID",
-                action: #selector(actionCopyString),
-                keyEquivalent: "")
-        copyIDItem.target = self
-        copyIDItem.representedObject = container.id
-        submenu.addItem(copyIDItem)
-
-        let copyNameItem = NSMenuItem(title: "Image",
-                action: #selector(actionCopyString),
-                keyEquivalent: "")
-        copyNameItem.target = self
-        copyNameItem.representedObject = container.image
-        submenu.addItem(copyNameItem)
-
-        let copyCommandItem = NSMenuItem(title: "Command",
-                action: #selector(controller.actionCopyRunCommand),
-                keyEquivalent: "")
-        copyCommandItem.target = controller
-        submenu.addItem(copyCommandItem)
-
-        let copyIpItem = NSMenuItem(title: "IP",
-                action: #selector(actionCopyString),
-                keyEquivalent: "")
-        let ipAddress = container.ipAddresses.first
-        copyIpItem.target = self
-        copyIpItem.representedObject = ipAddress ?? ""
-        copyIpItem.isEnabled = ipAddress != nil
-        submenu.addItem(copyIpItem)
-
-        return copyItem
     }
 
     private func makeSectionTitleItem(title: String) -> NSMenuItem {
@@ -425,12 +398,6 @@ private class DockerContainerMenuItemController: NSObject {
     @objc func actionOpenTerminal(_ sender: NSMenuItem) {
         Task { @MainActor in
             container.openInTerminal()
-        }
-    }
-
-    @objc func actionCopyRunCommand(_ sender: NSMenuItem) {
-        Task { @MainActor in
-            await container.copyRunCommand()
         }
     }
 }

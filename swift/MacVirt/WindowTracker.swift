@@ -10,7 +10,7 @@ import Combine
 
 class WindowTracker: ObservableObject {
     private var lastPolicy = NSApplication.ActivationPolicy.regular
-    private var cancellables = Set<AnyCancellable>()
+    private var cancelables = Set<AnyCancellable>()
 
     init() {
         // monitor close notifications
@@ -22,7 +22,7 @@ class WindowTracker: ObservableObject {
                     guard let self = self else { return }
                     self.onWindowDisappear(closingWindow: notification.object as? NSWindow)
                 }
-                .store(in: &cancellables)
+                .store(in: &cancelables)
     }
 
     func onWindowAppear() {
