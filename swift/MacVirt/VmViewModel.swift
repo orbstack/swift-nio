@@ -319,17 +319,13 @@ struct AddPathsAlert {
     let paths: [String]
 }
 
-// must annotate almost everything with @MainActor
-// can't do it on entire class because MenuBarController needs to access from AppKit
+@MainActor
 class VmViewModel: ObservableObject {
-    @MainActor
     private let daemon = DaemonManager()
-    @MainActor
     private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:42506"))
-    @MainActor
     private let scon = SconService(client: newRPCClient("http://127.0.0.1:42507"))
 
-    @MainActor @Published private(set) var state = VmState.stopped {
+    @Published private(set) var state = VmState.stopped {
         didSet {
             if state == .running {
                 reachedRunning = true
@@ -338,7 +334,7 @@ class VmViewModel: ObservableObject {
     }
 
     @Published private(set) var containers: [ContainerRecord]?
-    @MainActor @Published private(set) var error: VmError? {
+    @Published private(set) var error: VmError? {
         didSet {
             if let error {
                 NSLog("Error: \(error)")
@@ -349,31 +345,31 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor @Published var creatingCount = 0
-    @MainActor @Published var configAtLastStart: VmConfig?
-    @MainActor @Published private(set) var config: VmConfig?
-    @MainActor private(set) var reachedRunning = false
+    @Published var creatingCount = 0
+    @Published var configAtLastStart: VmConfig?
+    @Published private(set) var config: VmConfig?
+    private(set) var reachedRunning = false
 
-    @MainActor @Published var presentProfileChanged: ProfileChangedAlert?
-    @MainActor @Published var presentAddPaths: AddPathsAlert?
-    @MainActor @Published var presentCreateMachine = false
-    @MainActor @Published var presentCreateVolume = false
+    @Published var presentProfileChanged: ProfileChangedAlert?
+    @Published var presentAddPaths: AddPathsAlert?
+    @Published var presentCreateMachine = false
+    @Published var presentCreateVolume = false
 
     // Docker
     @Published var dockerContainers: [DKContainer]?
     @Published var dockerVolumes: [DKVolume]?
     @Published var dockerImages: [DKImage]?
     @Published var dockerSystemDf: DKSystemDf?
-    @MainActor @Published var lastDockerSystemDfAt: Date?
+    @Published var lastDockerSystemDfAt: Date?
 
     // TODO move out
-    @MainActor var openLogWindowIds: Set<String> = []
+    var openLogWindowIds: Set<String> = []
 
     // Setup
-    @MainActor @Published private(set) var isSshConfigWritable = true
+    @Published private(set) var isSshConfigWritable = true
 
-    @MainActor @Published private(set) var dockerEnableIPv6 = false
-    @MainActor @Published var dockerConfigJson = "{\n}"
+    @Published private(set) var dockerEnableIPv6 = false
+    @Published var dockerConfigJson = "{\n}"
 
     init() {
         daemon.monitorDaemonNotifications { [self] _ in
@@ -391,14 +387,12 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     private func setStateAsync(_ state: VmState) {
         DispatchQueue.main.async {
             self.state = state
         }
     }
 
-    @MainActor
     private func setError(_ error: VmError) {
         if let cause = error.cause,
            case let cause as CancellationError = cause {
@@ -409,7 +403,6 @@ class VmViewModel: ObservableObject {
         self.error = error
     }
 
-    @MainActor
     private func spawnDaemon() throws {
         guard state == .stopped else {
             return
@@ -455,7 +448,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     private func onPidExit(_ reason: ExitReason) {
         switch reason {
         case .status(let status):
@@ -473,7 +465,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     private func waitForVM() async throws {
         // wait for at least .starting
         await waitForStateEquals(.starting)
@@ -502,7 +493,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     private func waitForScon() async throws {
         guard state < .running else {
             return
@@ -819,7 +809,6 @@ class VmViewModel: ObservableObject {
         await tryStartAndWait()
     }
 
-    @MainActor
     func stopContainer(_ record: ContainerRecord) async throws {
         try await scon.containerStop(record)
         try await refreshList()
@@ -834,13 +823,11 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func restartContainer(_ record: ContainerRecord) async throws {
         try await scon.containerRestart(record)
         try await refreshList()
     }
 
-    @MainActor
     func startContainer(_ record: ContainerRecord) async throws {
         try await scon.containerStart(record)
         try await refreshList()
@@ -864,7 +851,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func deleteContainer(_ record: ContainerRecord) async throws {
         try await scon.containerDelete(record)
         try await refreshList()
@@ -879,7 +865,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func createContainer(name: String, distro: Distro, version: String, arch: String) async throws {
         try await scon.create(name: name, image: ImageSpec(
             distro: distro.imageKey,
@@ -899,7 +884,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func patchConfig(_ patch: VmConfigPatch) async throws {
         try await vmgr.patchConfig(patch)
         try await refreshConfig()
@@ -941,42 +925,36 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func tryDockerContainerStart(_ id: String) async {
         await doTryDockerContainerAction("start", {
             try await vmgr.dockerContainerStart(id)
         })
     }
 
-    @MainActor
     func tryDockerContainerStop(_ id: String) async {
         await doTryDockerContainerAction("stop", {
             try await vmgr.dockerContainerStop(id)
         })
     }
 
-    @MainActor
     func tryDockerContainerRestart(_ id: String) async {
         await doTryDockerContainerAction("restart", {
             try await vmgr.dockerContainerRestart(id)
         })
     }
 
-    @MainActor
     func tryDockerContainerPause(_ id: String) async {
         await doTryDockerContainerAction("pause", {
             try await vmgr.dockerContainerPause(id)
         })
     }
 
-    @MainActor
     func tryDockerContainerUnpause(_ id: String) async {
         await doTryDockerContainerAction("unpause", {
             try await vmgr.dockerContainerUnpause(id)
         })
     }
 
-    @MainActor
     func tryDockerContainerRemove(_ id: String) async {
         await doTryDockerContainerAction("remove", {
             try await vmgr.dockerContainerRemove(id)
@@ -1027,22 +1005,18 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func tryDockerComposeStart(_ cid: DockerContainerId) async {
         await doTryDockerComposeAction("start", cid: cid, args: ["start"])
     }
 
-    @MainActor
     func tryDockerComposeStop(_ cid: DockerContainerId) async {
         await doTryDockerComposeAction("stop", cid: cid, args: ["stop"])
     }
 
-    @MainActor
     func tryDockerComposeRestart(_ cid: DockerContainerId) async {
         await doTryDockerComposeAction("restart", cid: cid, args: ["restart"])
     }
 
-    @MainActor
     func tryDockerComposeRemove(_ cid: DockerContainerId) async {
         await doTryDockerComposeAction("remove", cid: cid, args: ["rm", "-f", "--stop"])
     }
@@ -1056,14 +1030,12 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func tryDockerVolumeCreate(_ name: String) async {
         await doTryDockerVolumeAction("create", {
             try await vmgr.dockerVolumeCreate(DKVolumeCreateOptions(name: name, labels: nil, driver: nil, driverOpts: nil))
         })
     }
 
-    @MainActor
     func tryDockerVolumeRemove(_ name: String) async {
         await doTryDockerVolumeAction("remove", {
             try await vmgr.dockerVolumeRemove(name)
@@ -1081,14 +1053,12 @@ class VmViewModel: ObservableObject {
         await tryRefreshDockerList(doContainers: false, doVolumes: false, doImages: true)
     }
 
-    @MainActor
     func tryDockerImageRemove(_ id: String) async {
         await doTryDockerImageAction("remove", {
             try await vmgr.dockerImageRemove(id)
         })
     }
 
-    @MainActor
     func dismissError() {
         error = nil
 
@@ -1100,7 +1070,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func tryLoadDockerConfig() {
         do {
             let jsonText = try String(contentsOf: URL(fileURLWithPath: Files.dockerDaemonConfig), encoding: .utf8)
@@ -1115,7 +1084,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func trySetDockerConfig(configJson: String, enableIpv6: Bool) async {
         do {
             // parse and update the json for ipv6
@@ -1150,7 +1118,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     private func waitForStateEquals(_ target: VmState) async {
         for await value in $state.first(where: { $0 >= target }).values {
             if value == target {
@@ -1159,7 +1126,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     private func waitForStateAtLeast(_ target: VmState) async {
         for await value in $state.first(where: { $0 >= target }).values {
             if value >= target {
@@ -1168,7 +1134,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     private func shouldUpdateDockerSystemDf() -> Bool {
         guard let systemDf = dockerSystemDf,
               let lastUpdatedAt = lastDockerSystemDfAt else {
@@ -1188,7 +1153,6 @@ class VmViewModel: ObservableObject {
         return Date().timeIntervalSince(lastUpdatedAt) > dockerSystemDfRatelimit
     }
 
-    @MainActor
     private func makeVmgrExitError(_ reason: ExitReason) -> VmError {
         // try to read logs
         var logOutput: String
