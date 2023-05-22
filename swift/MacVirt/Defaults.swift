@@ -13,6 +13,7 @@ extension Defaults.Keys {
     static let onboardingCompleted = Key<Bool>("onboardingCompleted", default: false)
 
     static let globalShowMenubarExtra = Key<Bool>("global.showMenubarExtra", default: true)
+    static let globalStayInBackground = Key<Bool>("global.stayInBackground", default: false)
 }
 
 // to propagate changes to publisher

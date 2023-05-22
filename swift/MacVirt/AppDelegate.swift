@@ -47,7 +47,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // close any leftover log windows.
         // TODO fix isRestorable WindowHolder flag
         for window in NSApp.windows {
-            if window.title.hasPrefix("Project Logs: ") || window.title.hasPrefix("Logs: ") {
+            // match name to catch empty (no selection) windows only
+            if window.title == WindowTitles.logs {
                 window.orderOut(nil)
                 window.close()
             }
@@ -77,6 +78,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if sender.activationPolicy() == .accessory || !Defaults[.globalShowMenubarExtra] || menuBar.quitInitiated {
             // we're already in menu bar mode, or menu bar is disabled, or user initiated quit from menu bar.
             // in all cases, we stop VM and then terminate
+
+            // exception: if user enabled "stay in background" then don't stop VM
+            if Defaults[.globalStayInBackground] {
+                return .terminateNow
+            }
 
             // is VM running?
             if vmModel.state == .stopped {

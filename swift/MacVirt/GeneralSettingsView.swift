@@ -10,8 +10,6 @@ import Sparkle
 import Defaults
 
 struct GeneralSettingsView: View {
-    @Default(.onboardingCompleted) private var onboardingCompleted
-
     let updaterController: SPUStandardUpdaterController
 
     var body: some View {
@@ -24,12 +22,13 @@ struct GeneralSettingsView: View {
                         // propagate to publisher
                         UserDefaults.standard.globalShowMenubarExtra = newValue
                     }
+            Defaults.Toggle("Stay in background when app is closed", key: .globalStayInBackground)
 
             UpdaterSettingsView(updater: updaterController.updater)
 
             #if DEBUG
             Button(action: {
-                onboardingCompleted = false
+                Defaults[.onboardingCompleted] = false
             }) {
                 Text("reset onboarding")
             }

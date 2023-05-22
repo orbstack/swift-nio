@@ -667,7 +667,7 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    private func isDockerRunning() -> Bool {
+    func isDockerRunning() -> Bool {
         if let containers,
            let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
            dockerContainer.state == .running || dockerContainer.state == .starting {

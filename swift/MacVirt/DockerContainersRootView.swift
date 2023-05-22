@@ -10,54 +10,9 @@ struct ComposeGroup: Hashable, Equatable {
     let project: String
     let configFiles: String
     var anyRunning: Bool = false
-}
 
-private struct ListItem: Identifiable, Equatable {
-    var builtinRecord: ContainerRecord? = nil
-    var sectionLabel: String? = nil
-    var container: DKContainer? = nil
-    var composeGroup: ComposeGroup? = nil
-    var children: [ListItem]? = nil
-
-    var id: DockerContainerId {
-        if let builtinRecord {
-            return .notDocker(key: "BUI:\(builtinRecord.id)")
-        }
-        if let sectionLabel {
-            return .notDocker(key: "SEC:\(sectionLabel)")
-        }
-        if let container {
-            return .container(id: container.id)
-        }
-        if let composeGroup {
-            return .compose(project: composeGroup.project, configFiles: composeGroup.configFiles)
-        }
-        return .notDocker(key: "")
-    }
-
-    var containerName: String {
-        container?.names.first ?? composeGroup?.project ?? ""
-    }
-
-    var isGroup: Bool {
-        composeGroup != nil
-    }
-
-    init(builtinRecord: ContainerRecord) {
-        self.builtinRecord = builtinRecord
-    }
-
-    init(sectionLabel: String) {
-        self.sectionLabel = sectionLabel
-    }
-
-    init(container: DKContainer) {
-        self.container = container
-    }
-
-    init(composeGroup: ComposeGroup, children: [ListItem]) {
-        self.composeGroup = composeGroup
-        self.children = children
+    var cid: DockerContainerId {
+        .compose(project: project, configFiles: configFiles)
     }
 }
 
@@ -82,8 +37,6 @@ private struct GettingStartedHintBox: View {
 struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @Default(.dockerFilterShowStopped) private var settingShowStopped
-
     let initialSelection: Set<DockerContainerId>
     @State var selection: Set<DockerContainerId>
     @State var searchQuery: String
@@ -103,7 +56,7 @@ struct DockerContainersRootView: View {
             }
 
             // 0 spacing to fix bg color gap between list and getting started hint
-            let listItems = makeListItems(dockerRecord, filteredContainers)
+            let listItems = DockerContainerLists.makeListItems(filteredContainers: filteredContainers, dockerRecord: dockerRecord)
             VStack(spacing: 0) {
                 if !listItems.isEmpty {
                     List(listItems, id: \.id, children: \.children, selection: $selection) { item in
@@ -161,7 +114,7 @@ struct DockerContainersRootView: View {
                     Spacer()
 
                     // don't show getting started hint if empty is caused by filter
-                    let unfilteredListItems = makeListItems(dockerRecord, containers)
+                    let unfilteredListItems = DockerContainerLists.makeListItems(filteredContainers: containers, dockerRecord: dockerRecord)
                     if unfilteredListItems.isEmpty {
                         HStack {
                             Spacer()
@@ -204,79 +157,5 @@ struct DockerContainersRootView: View {
     private func refresh() async {
         await vmModel.tryRefreshList()
         await vmModel.maybeTryRefreshDockerList()
-    }
-
-    private func makeListItems(_ dockerRecord: ContainerRecord, _ filteredContainers: [DKContainer]) -> [ListItem] {
-        // TODO - workaround was to remove section headers
-        var listItems: [ListItem] = [
-            //ListItem(builtinRecord: dockerRecord),
-            //ListItem(sectionLabel: "Running"),
-        ]
-        var runningItems: [ListItem] = []
-        var stoppedItems: [ListItem] = []
-
-        // collect compose groups and remove them from containers
-        var ungroupedContainers: [DKContainer] = []
-        var composeGroups: [ComposeGroup: [DKContainer]] = [:]
-
-        for container in filteredContainers {
-            if let composeProject = container.labels[DockerLabels.composeProject],
-               let configFiles = container.labels[DockerLabels.composeConfigFiles] {
-                let group = ComposeGroup(project: composeProject, configFiles: configFiles)
-                if composeGroups[group] == nil {
-                    composeGroups[group] = [container]
-                } else {
-                    composeGroups[group]?.append(container)
-                }
-            } else {
-                ungroupedContainers.append(container)
-            }
-        }
-
-        // convert to list items
-        for (group, containers) in composeGroups {
-            let children = containers.map { ListItem(container: $0) }
-            var item = ListItem(composeGroup: group, children: children)
-            // if ANY container in the group is running, show the group as running
-            if containers.contains(where: { $0.running }) {
-                item.composeGroup?.anyRunning = true
-                runningItems.append(item)
-            } else {
-                stoppedItems.append(item)
-            }
-        }
-
-        // add ungrouped containers
-        for container in ungroupedContainers {
-            if container.running {
-                runningItems.append(ListItem(container: container))
-            } else {
-                stoppedItems.append(ListItem(container: container))
-            }
-        }
-
-        // sort by name within running/stopped sections
-        // and within each section, sort by isGroup first
-        runningItems.sort { a, b in
-            if a.isGroup != b.isGroup {
-                return a.isGroup
-            }
-            return a.containerName < b.containerName
-        }
-        stoppedItems.sort { a, b in
-            if a.isGroup != b.isGroup {
-                return a.isGroup
-            }
-            return a.containerName < b.containerName
-        }
-
-        // add running/stopped sections
-        listItems += runningItems
-        if settingShowStopped && !stoppedItems.isEmpty {
-            //listItems.append(ListItem(sectionLabel: "Stopped"))
-            listItems += stoppedItems
-        }
-
-        return listItems
     }
 }

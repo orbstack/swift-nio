@@ -48,24 +48,29 @@ struct ContentView: View {
                 Section(header: Text("Docker")) {
                     NavigationLink(destination: DockerContainersRootView(initialSelection: initialDockerContainerSelection, selection: initialDockerContainerSelection, searchQuery: "")) {
                         Label("Containers", systemImage: "shippingbox")
+                                .padding(.vertical, 3)
                     }.tag("docker")
 
                     NavigationLink(destination: DockerVolumesRootView()) {
                         Label("Volumes", systemImage: "externaldrive")
+                                .padding(.vertical, 3)
                     }.tag("docker-volumes")
 
                     NavigationLink(destination: DockerImagesRootView()) {
                         Label("Images", systemImage: "doc.zipper")
+                                .padding(.vertical, 3)
                     }.tag("docker-images")
                 }
 
                 Section(header: Text("Linux")) {
                     NavigationLink(destination: MachinesRootView()) {
                         Label("Machines", systemImage: "desktopcomputer")
+                                .padding(.vertical, 3)
                     }.tag("machines")
 
                     NavigationLink(destination: FilesRootView()) {
                         Label("Files", systemImage: "folder")
+                                .padding(.vertical, 3)
                     }.tag("files")
                 }
 

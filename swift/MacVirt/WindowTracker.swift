@@ -26,10 +26,12 @@ class WindowTracker: ObservableObject {
     }
 
     func onWindowAppear() {
+        print("appearing")
         updateState(isWindowAppearing: true)
     }
 
     private func onWindowDisappear(closingWindow: NSWindow?) {
+        print("disappearing")
         updateState(closingWindow: closingWindow)
     }
 
