@@ -351,10 +351,25 @@ class MenuBarController: NSObject, NSMenuDelegate {
         submenu.addSeparator()
 
         if !container.ports.isEmpty {
-            submenu.addItem(makePortsItem(ports: container.ports))
+            submenu.addSectionHeader("Ports")
+            submenu.addTruncatedItems(container.ports) { port in
+                newActionItem(port.formatted) {
+                    port.openUrl()
+                }
+            }
+            submenu.addSeparator()
         }
         if !container.mounts.isEmpty {
-            submenu.addItem(makeMountsItem(mounts: container.mounts))
+            submenu.addSectionHeader("Mounts")
+            submenu.addTruncatedItems(container.mounts) { mount in
+                // formatted w/ arrow is too long usually
+                let formatted = mount.formatted
+                let mountDesc = formatted.count > 30 ? mount.destination : formatted
+                return newActionItem(mountDesc) {
+                    mount.openSourceDirectory()
+                }
+            }
+            submenu.addSeparator()
         }
         if container.ports.isEmpty && container.mounts.isEmpty {
             submenu.addInfoLine("No Ports or Mounts")
@@ -415,20 +430,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         return groupItem
-    }
-
-    private func makePortsItem(ports: [DKPort]) -> NSMenuItem {
-        let portsItem = NSMenuItem()
-        portsItem.title = "Ports"
-        let submenu = portsItem.newSubmenu()
-
-        for port in ports {
-            submenu.addActionItem(port.formatted) {
-                port.openUrl()
-            }
-        }
-
-        return portsItem
     }
 
     private func makeMountsItem(mounts: [DKMountPoint]) -> NSMenuItem {
