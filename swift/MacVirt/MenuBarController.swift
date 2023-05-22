@@ -254,12 +254,36 @@ class MenuBarController: NSObject, NSMenuDelegate {
             menu.addSeparator()
         }
 
-        menu.addActionItem("Check for Updates…") { [self] in
+        let helpItem = NSMenuItem(title: "Help", action: nil, keyEquivalent: "")
+        menu.addItem(helpItem)
+        let helpMenu = helpItem.newSubmenu()
+        helpMenu.addActionItem("Documentation", icon: systemImage("book.closed.fill")) {
+            NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
+        }
+        helpMenu.addActionItem("Community", icon: systemImage("message.fill")) {
+            NSWorkspace.shared.open(URL(string: "https://chat.orbstack.dev")!)
+        }
+        helpMenu.addActionItem("Email", icon: systemImage("envelope.fill")) {
+            NSWorkspace.shared.open(URL(string: "mailto:support@orbstack.dev")!)
+        }
+
+        helpMenu.addSeparator()
+
+        helpMenu.addActionItem("Report Issue", icon: systemImage("exclamationmark.triangle.fill")) {
+            NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
+        }
+        helpMenu.addActionItem("Request Feature", icon: systemImage("lightbulb.fill")) {
+            NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
+        }
+
+        helpMenu.addSeparator()
+
+        helpMenu.addActionItem("Check for Updates…") { [self] in
             updaterController.checkForUpdates(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
 
-        menu.addActionItem("Settings…") {
+        menu.addActionItem("Settings…", shortcut: ",") {
             if #available(macOS 13, *) {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             } else {
@@ -286,7 +310,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         let actionInProgress = actionTracker.ongoingFor(container.cid) != nil
 
         // TODO: highlight container item and open popover
-        let containerItem = newActionItem(container.userName) { [self] in
+        let icon = actionInProgress ? systemImage("circle.dotted") : nil
+        let containerItem = newActionItem(container.userName, icon: icon) { [self] in
             openApp(tab: "docker")
         }
         let submenu = containerItem.newSubmenu()
@@ -383,12 +408,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func makeComposeGroupItem(group: ComposeGroup, children: [DockerListItem]) -> NSMenuItem {
-        let groupItem = newActionItem(group.project, icon: systemImage("square.stack.3d.up.fill")) { [self] in
+        let actionInProgress = actionTracker.ongoingFor(group.cid) != nil
+        let icon = actionInProgress ? systemImage("circle.dotted") : systemImage("square.stack.3d.up.fill")
+        let groupItem = newActionItem(group.project, icon: icon) { [self] in
             openApp(tab: "docker")
         }
         let submenu = groupItem.newSubmenu()
-
-        let actionInProgress = actionTracker.ongoingFor(group.cid) != nil
 
         // actions
         if group.anyRunning {
@@ -454,8 +479,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     private func makeMachineItem(record: ContainerRecord) -> NSMenuItem {
         let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
+        let icon = actionInProgress ? systemImage("circle.dotted") : nil
 
-        let machineItem = newActionItem(record.name) {
+        let machineItem = newActionItem(record.name, icon: icon) {
             await record.openInTerminal()
         }
         let submenu = machineItem.newSubmenu()
