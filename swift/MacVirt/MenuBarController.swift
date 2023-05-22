@@ -10,6 +10,8 @@ import Combine
 import SwiftUI
 
 private let maxQuickAccessItems = 5
+private let lineLimit = 32
+
 private let pulseAnimationPeriod: TimeInterval = 0.75
 // close to NSStatusBarButton.opacityWhenDisabled
 private let opacityAppearsDisabled = 0.3
@@ -294,8 +296,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         // in case of pinned hashes
-        let truncatedImage = container.image.prefix(32) +
-                (container.image.count > 32 ? "…" : "")
+        let truncatedImage = container.image.prefix(lineLimit) +
+                (container.image.count > lineLimit ? "…" : "")
         submenu.addActionItem("Image: \(truncatedImage)") {
             NSPasteboard.copy(container.image)
         }
@@ -324,10 +326,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
             }
         }
 
-        submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
-                disabled: actionInProgress || !container.running) { [self] in
-            await actionTracker.with(cid: container.cid, action: .restart) {
-                await vmModel.tryDockerContainerRestart(container.id)
+        if container.running {
+            submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
+                    disabled: actionInProgress) { [self] in
+                await actionTracker.with(cid: container.cid, action: .restart) {
+                    await vmModel.tryDockerContainerRestart(container.id)
+                }
             }
         }
 
@@ -364,7 +368,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             submenu.addTruncatedItems(container.mounts) { mount in
                 // formatted w/ arrow is too long usually
                 let formatted = mount.formatted
-                let mountDesc = formatted.count > 30 ? mount.destination : formatted
+                let mountDesc = formatted.count > lineLimit ? mount.destination : formatted
                 return newActionItem(mountDesc) {
                     mount.openSourceDirectory()
                 }
@@ -403,10 +407,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
             }
         }
 
-        submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
-                disabled: actionInProgress) { [self] in
-            await actionTracker.with(cid: group.cid, action: .restart) {
-                await vmModel.tryDockerComposeRestart(group.cid)
+        if group.anyRunning {
+            submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
+                    disabled: actionInProgress) { [self] in
+                await actionTracker.with(cid: group.cid, action: .restart) {
+                    await vmModel.tryDockerComposeRestart(group.cid)
+                }
             }
         }
 
@@ -470,10 +476,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
             }
         }
 
-        submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
-                disabled: actionInProgress || !record.running) { [self] in
-            await actionTracker.with(machine: record, action: .restart) {
-                await vmModel.tryRestartContainer(record)
+        if record.running {
+            submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
+                    disabled: actionInProgress) { [self] in
+                await actionTracker.with(machine: record, action: .restart) {
+                    await vmModel.tryRestartContainer(record)
+                }
             }
         }
 
