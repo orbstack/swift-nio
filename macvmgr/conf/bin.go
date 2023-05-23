@@ -24,7 +24,7 @@ func FindSparkleExe() (string, error) {
 }
 
 func FindGuihelperExe() (string, error) {
-	return findSiblingExe("guihelper")
+	return findSiblingExe("OrbStack Helper (UI)")
 }
 
 func FindAppBundle() (string, error) {
