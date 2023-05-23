@@ -35,10 +35,14 @@ private class FuncDebounce {
     }
 }
 
+@MainActor
 class WindowTracker: ObservableObject {
     private var lastPolicy = NSApplication.ActivationPolicy.regular
     private var cancelables = Set<AnyCancellable>()
     private let setPolicyDebounce = FuncDebounce(duration: policyDebounce)
+
+    // TODO: fix reference cycle
+    var menuBar: MenuBarController!
 
     init() {
         // monitor close notifications
@@ -111,7 +115,9 @@ class WindowTracker: ObservableObject {
 
             // hide if -> accessory
             if newPolicy == .accessory {
-                NSApp.hide(nil)
+                menuBar.onTransitionToBackground()
+
+                // don't hide - breaks popover animation, and not necessary
                 NSApp.deactivate()
             }
         }

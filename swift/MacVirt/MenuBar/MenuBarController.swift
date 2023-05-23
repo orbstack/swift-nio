@@ -19,13 +19,15 @@ private let opacityAppearsDisabled = 0.3
 // must be @MainActor to access view model
 @MainActor
 class MenuBarController: NSObject, NSMenuDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    private let menu = NSMenu()
-
     private let updaterController: SPUStandardUpdaterController
     private let actionTracker: ActionTracker
     private let windowTracker: WindowTracker
     private let vmModel: VmViewModel
+
+    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private let menu = NSMenu()
+
+    private var bgTipPopover: NSPopover?
 
     private var visibleObservation: NSKeyValueObservation?
 
@@ -203,6 +205,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         updateMenu()
+        closeBgTip()
 
         // also trigger a background machine state refresh
         // TODO: remove when we have dynamic machine state updates
@@ -576,6 +579,47 @@ class MenuBarController: NSObject, NSMenuDelegate {
             NSLog("activate main")
             NSApp.activate(ignoringOtherApps: true)
         }
+    }
+
+    func onTransitionToBackground() {
+        NSLog("onTransitionToBackground")
+        // show first-time bg tip?
+        if !Defaults[.tipsMenubarBgShown] {
+            showBgTip()
+        }
+    }
+
+    private func showBgTip() {
+        guard let button = self.statusItem.button else {
+            return
+        }
+
+        // popover
+        let popover = NSPopover()
+        popover.contentSize = NSSize(width: 400, height: 500)
+        popover.behavior = .applicationDefined
+        let contentView = MenuBarTipView(onClose: { [self] in
+            self.closeBgTip()
+        })
+        popover.contentViewController = NSHostingController(rootView: contentView)
+        self.bgTipPopover = popover
+
+        // show
+        NSLog("show tip")
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.becomeKey()
+
+        // timeout: 10 sec
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            self.closeBgTip()
+        }
+    }
+
+    private func closeBgTip() {
+        bgTipPopover?.performClose(nil)
+        bgTipPopover = nil
+
+        Defaults[.tipsMenubarBgShown] = true
     }
 }
 

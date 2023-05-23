@@ -17,7 +17,7 @@ private func getUserSettings() -> UserSettings {
     ])
 
     return UserSettings(
-        // better way to tell Go about GUI running
+        // TODO better way to tell Go about GUI running
         showMenubarExtra: defaults.bool(forKey: "global_showMenubarExtra") && !isGuiRunning()
     )
 }

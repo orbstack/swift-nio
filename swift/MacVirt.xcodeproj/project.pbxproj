@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */; };
 		B118BB2BE31023719B0991AD /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE95DD22AD1D855FBD1E /* Defaults.swift */; };
 		B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */; };
 		D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */; };
@@ -153,6 +154,7 @@
 
 /* Begin PBXFileReference section */
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
+		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
 		B118BE577DB19F2ADECF9C9F /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
 		B118BE95DD22AD1D855FBD1E /* Defaults.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Defaults.swift; sourceTree = "<group>"; };
 		D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingCreateView.swift; sourceTree = "<group>"; };
@@ -329,6 +331,7 @@
 			children = (
 				D80443BB2A1B404E00ED59C5 /* MenuBarController.swift */,
 				D80443BC2A1B404E00ED59C5 /* WindowTracker.swift */,
+				B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */,
 			);
 			path = MenuBar;
 			sourceTree = "<group>";
@@ -779,6 +782,7 @@
 				D80444152A1B404E00ED59C5 /* VmRPC.swift in Sources */,
 				D804440D2A1B404E00ED59C5 /* Updater.swift in Sources */,
 				B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */,
+				B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

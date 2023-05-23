@@ -28,6 +28,11 @@ struct GeneralSettingsView: View {
             }) {
                 Text("reset onboarding")
             }
+            Button(action: {
+                Defaults[.tipsMenubarBgShown] = false
+            }) {
+                Text("reset tips")
+            }
             #endif
         }
         .padding()

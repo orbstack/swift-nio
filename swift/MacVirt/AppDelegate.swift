@@ -60,6 +60,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         menuBar = MenuBarController(updaterController: updaterController!,
                 actionTracker: actionTracker, windowTracker: windowTracker,
                 vmModel: vmModel)
+        windowTracker.menuBar = menuBar
 
         // close any leftover log windows.
         // TODO fix isRestorable WindowHolder flag
