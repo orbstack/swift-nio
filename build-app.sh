@@ -111,7 +111,8 @@ function package_one() {
     local arch="$1"
 
     # dmg
-    create-dmg --overwrite --dmg-title="Install OrbStack $LONG_VER" $arch/OrbStack.app $arch
+    # use short ver due to 27 char limit: https://github.com/LinusU/node-alias/issues/7
+    create-dmg --overwrite --dmg-title="Install OrbStack $SHORT_VER" $arch/OrbStack.app $arch
 
     if $NOTARIZE; then
         # notarize
