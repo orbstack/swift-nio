@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import AppKit
 
 struct UserSettings: Codable {
     let showMenubarExtra: Bool
@@ -16,8 +17,16 @@ private func getUserSettings() -> UserSettings {
     ])
 
     return UserSettings(
-        showMenubarExtra: defaults.bool(forKey: "global_showMenubarExtra")
+        // better way to tell Go about GUI running
+        showMenubarExtra: defaults.bool(forKey: "global_showMenubarExtra") && !isGuiRunning()
     )
+}
+
+private func isGuiRunning() -> Bool {
+    let bundleId = "dev.kdrag0n.MacVirt"
+    let runningApps = NSWorkspace.shared.runningApplications
+    let isRunning = !runningApps.filter { $0.bundleIdentifier == bundleId }.isEmpty
+    return isRunning
 }
 
 @_cdecl("swext_defaults_get_user_settings")
