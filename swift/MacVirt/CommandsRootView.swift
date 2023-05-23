@@ -110,7 +110,7 @@ struct CommandsRootView: View {
 
                         CommandBox(
                             title: "Docker Compose",
-                            desc: "Build and run multiple containers at once..",
+                            desc: "Build and run multiple containers at once.",
                             command: "docker compose"
                         )
 
