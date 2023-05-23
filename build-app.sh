@@ -11,6 +11,7 @@ NOTARIZE=true
 PUBLISH_UPDATE=false
 
 LONG_VER=$(git describe --tags --always --dirty)
+SHORT_VER=$(git describe --tag --abbrev=0)
 COMMITS=$(git rev-list --count HEAD)
 
 VMGR_BIN="OrbStack Helper (VM)"
