@@ -73,6 +73,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // open onboarding and close other windows (e.g. main) if needed
         // vmgr will still start - onAppear already fired for main
         if !Defaults[.onboardingCompleted] {
+            // to avoid confusion, disable menu bar until onboarding is completed
+            Defaults[.globalShowMenubarExtra] = false
+
             for window in NSApp.windows {
                 if window.isUserFacing {
                     // close breaks SwiftUI, causing it to randomly reopen old windows when showing an alert

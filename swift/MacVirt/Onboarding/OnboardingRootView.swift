@@ -82,5 +82,8 @@ struct OnboardingRootView: View, OnboardingController {
         onboardingCompleted = true
         windowHolder.window?.close()
         NSWorkspace.shared.open(URL(string: "orbstack://main")!)
+
+        // ok to re-enable menu bar now
+        Defaults[.globalShowMenubarExtra] = true
     }
 }

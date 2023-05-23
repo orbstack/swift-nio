@@ -8,9 +8,37 @@ import AppKit
 import Defaults
 import Combine
 
+// helps for e.g. onboarding flow, when we sometimes momentarily have no windows
+private let policyDebounce = 0.1
+
+private class FuncDebounce {
+    private let duration: TimeInterval
+    private var lastAction: (() -> Void)?
+
+    private var timer: Timer?
+
+    init(duration: TimeInterval) {
+        self.duration = duration
+    }
+
+    func call(fn: @escaping () -> Void) {
+        timer?.invalidate()
+        lastAction = fn
+        timer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+            self?.lastAction?()
+            self?.lastAction = nil
+        }
+    }
+
+    func cancel() {
+        timer?.invalidate()
+    }
+}
+
 class WindowTracker: ObservableObject {
     private var lastPolicy = NSApplication.ActivationPolicy.regular
     private var cancelables = Set<AnyCancellable>()
+    private let setPolicyDebounce = FuncDebounce(duration: policyDebounce)
 
     init() {
         // monitor close notifications
@@ -37,7 +65,9 @@ class WindowTracker: ObservableObject {
 
     private func updateState(closingWindow: NSWindow? = nil, isWindowAppearing: Bool = false) {
         let newPolicy = derivePolicy(closingWindow: closingWindow, isWindowAppearing: isWindowAppearing)
-        setPolicy(newPolicy)
+        setPolicyDebounce.call { [self] in
+            setPolicy(newPolicy)
+        }
     }
 
     private func derivePolicy(closingWindow: NSWindow?, isWindowAppearing: Bool) -> NSApplication.ActivationPolicy {

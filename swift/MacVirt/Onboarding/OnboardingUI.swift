@@ -42,7 +42,7 @@ struct CtaButton: View {
             }
                     .padding(.vertical, 8)
                     .padding(.horizontal, 16)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: Self.radius))
+                    .background(Color(NSColor.controlAccentColor), in: RoundedRectangle(cornerRadius: Self.radius))
                     .cornerRadius(Self.radius)
                     .overlay(
                             RoundedRectangle(cornerRadius: Self.radius)

@@ -5,38 +5,17 @@
 import Foundation
 import SwiftUI
 
-fileprivate struct WelcomePoint: View {
-    let systemImage: String
-    let color: Color
-    let title: String
-
-    var body: some View {
-        HStack {
-            HStack {
-                Image(systemName: systemImage)
-                    .resizable()
-                    .frame(width: 32, height: 32)
-                    .foregroundColor(color.opacity(0.8))
-                Text(title)
-                    .font(.headline)
-                Spacer()
-            }
-            Spacer()
-        }
-        .padding(.horizontal)
-        .frame(maxWidth: .infinity)
-    }
-}
-
 struct OnboardingWelcomeView: View {
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
     let onboardingController: OnboardingController
 
     var body: some View {
         VStack {
+            Spacer()
+
             Image("AppIconUI")
                 .resizable()
-                .frame(width: 128, height: 128)
+                .frame(width: 150, height: 150)
                 .padding(.bottom, 24)
 
             Text("Welcome to OrbStack")
@@ -48,34 +27,6 @@ struct OnboardingWelcomeView: View {
                 .foregroundColor(.secondary)
                 .padding(.bottom, 8)
                 .frame(maxWidth: 450)
-
-            Spacer()
-
-            HStack(alignment: .center, spacing: 16) {
-                WelcomePoint(
-                    systemImage: "bolt.fill",
-                    color: .orange,
-                    title: "Fast"
-                )
-                if #available(macOS 13, *) {
-                    WelcomePoint(
-                        systemImage: "wind.circle.fill",
-                        color: .blue,
-                        title: "Light"
-                    )
-                } else {
-                    WelcomePoint(
-                        systemImage: "wind",
-                        color: .blue,
-                        title: "Light"
-                    )
-                }
-                WelcomePoint(
-                    systemImage: "checkmark.circle.fill",
-                    color: .green,
-                    title: "Simple"
-                )
-            }.padding(.horizontal)
 
             Spacer()
 
