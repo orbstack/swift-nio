@@ -242,6 +242,8 @@ class BridgeNetwork {
         self.ifRef = _ifRef
         //print("if param: \(ifParam)")
         let maxPacketSize = xpc_dictionary_get_uint64(ifParam, vmnet_max_packet_size_key)
+        // vnet header only if mtu = max
+        let needsVnetHdr = maxPacketSize >= 65535
 
         // pre-allocate buffers
         // theoretically: max 200 packets, but 65k*200 is big so limit it
@@ -288,7 +290,7 @@ class BridgeNetwork {
                 let pktDesc = pktDescs[i]
 
                 // sanity: never write a packet > 65535 bytes. that breaks the network, so just drop it
-                let vnetHdrSize = MemoryLayout<virtio_net_hdr>.size
+                let vnetHdrSize = needsVnetHdr ? MemoryLayout<virtio_net_hdr>.size : 0
                 guard pktDesc.vm_pkt_size + vnetHdrSize <= 65535 else {
                     //print("packet too big: \(pktDesc.vm_pkt_size + vnetHdrSize)")
                     continue
