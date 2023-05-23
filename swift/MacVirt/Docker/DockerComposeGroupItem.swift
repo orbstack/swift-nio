@@ -165,7 +165,6 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     }
 
     var selfId: DockerContainerId {
-        .compose(project: composeGroup.project,
-                configFiles: composeGroup.configFiles)
+        .compose(project: composeGroup.project)
     }
 }

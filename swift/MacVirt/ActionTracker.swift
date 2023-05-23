@@ -39,8 +39,8 @@ enum MachineAction {
 
 enum DockerContainerId: Hashable {
     case container(id: String)
-    // ID by config files + working dir to prevent duplicate project name from breaking stuff
-    case compose(project: String, configFiles: String)
+    // ID by project only, or we can break with multiple config files
+    case compose(project: String)
     case notDocker(key: String)
 }
 

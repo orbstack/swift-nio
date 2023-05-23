@@ -127,7 +127,7 @@ struct DockerListItem: Identifiable, Equatable {
             return .container(id: container.id)
         }
         if let composeGroup {
-            return .compose(project: composeGroup.project, configFiles: composeGroup.configFiles)
+            return .compose(project: composeGroup.project)
         }
         return .notDocker(key: "")
     }
@@ -175,9 +175,8 @@ struct DockerContainerLists {
         var composeGroups: [ComposeGroup: [DKContainer]] = [:]
 
         for container in filteredContainers {
-            if let composeProject = container.labels[DockerLabels.composeProject],
-               let configFiles = container.labels[DockerLabels.composeConfigFiles] {
-                let group = ComposeGroup(project: composeProject, configFiles: configFiles)
+            if let composeProject = container.labels[DockerLabels.composeProject] {
+                let group = ComposeGroup(project: composeProject)
                 if composeGroups[group] == nil {
                     composeGroups[group] = [container]
                 } else {

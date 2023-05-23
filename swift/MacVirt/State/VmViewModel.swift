@@ -997,12 +997,11 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     private func doTryDockerComposeAction(_ label: String, cid: DockerContainerId, args: [String], requiresConfig: Bool = false) async {
-        if case let .compose(project, configFiles) = cid {
+        if case let .compose(project) = cid {
             // find working dir from containers
             if let containers = dockerContainers,
                let container = containers.first(where: { container in
-                   container.labels[DockerLabels.composeProject] == project &&
-                       container.labels[DockerLabels.composeConfigFiles] == configFiles
+                   container.labels[DockerLabels.composeProject] == project
                }) {
                 // only pass configs and working dir if needed for action
                 // otherwise skip for robustness
@@ -1012,6 +1011,7 @@ class VmViewModel: ObservableObject {
                 var configArgs = [String]()
                 if requiresConfig {
                     // handle multiple compose files
+                    let configFiles = container.labels[DockerLabels.composeConfigFiles] ?? "docker-compose.yml"
                     for configFile in configFiles.split(separator: ",") {
                         configArgs.append("-f")
                         configArgs.append(String(configFile))
