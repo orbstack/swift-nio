@@ -27,3 +27,7 @@ type SwextProxySettings struct {
 
 	ExceptionsList []string `json:"exceptionsList,omitempty"`
 }
+
+type SwextUserSettings struct {
+	ShowMenubarExtra bool `json:"showMenubarExtra"`
+}

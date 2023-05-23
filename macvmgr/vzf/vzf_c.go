@@ -32,6 +32,8 @@ void swext_ipc_notify_docker_event(const char* event);
 
 struct GovzfResultCreate* swext_brnet_create(const char* config_str);
 void swext_brnet_close(void* ptr);
+
+char* swext_defaults_get_user_settings(void);
 */
 import (
 	"C"
@@ -454,4 +456,24 @@ func (brnet *BridgeNetwork) Close() error {
 	}
 
 	return nil
+}
+
+func SwextDefaultsGetUserSettings() (*SwextUserSettings, error) {
+	cStr := C.swext_defaults_get_user_settings()
+	defer C.free(unsafe.Pointer(cStr))
+	str := C.GoString(cStr)
+
+	// error?
+	if str[0] == 'E' {
+		return nil, errors.New(str[1:])
+	}
+
+	// convert to Go
+	var settings SwextUserSettings
+	err := json.Unmarshal([]byte(str), &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
 }

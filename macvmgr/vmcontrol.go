@@ -255,13 +255,25 @@ func (s *VmControlServer) onStart() error {
 }
 
 func (s *VmControlServer) openGuiApp() error {
+	// only open gui if menu bar is enabled
+	settings, err := vzf.SwextDefaultsGetUserSettings()
+	if err != nil {
+		return fmt.Errorf("get user settings: %w", err)
+	}
+
+	if !settings.ShowMenubarExtra {
+		return nil
+	}
+
+	logrus.Info("opening GUI app")
 	appBundle, err := conf.FindAppBundle()
 	if err != nil {
 		return fmt.Errorf("find app bundle: %w", err)
 	}
 
-	// -g = no foreground, -j = hidden
-	_, err = util.Run("open", "-g", "-j", "-a", appBundle, "--args", "--internal-cli-background")
+	// -g = no foreground
+	// do not use -j (hidden). it causes crash in NSToolbar when opening main window from menu bar
+	_, err = util.Run("open", "-g", "-a", appBundle, "--args", "--internal-cli-background")
 	if err != nil {
 		return fmt.Errorf("open app: %w", err)
 	}
