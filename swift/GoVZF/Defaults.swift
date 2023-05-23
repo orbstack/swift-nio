@@ -10,8 +10,14 @@ struct UserSettings: Codable {
 }
 
 private func getUserSettings() -> UserSettings {
-    // vmgr has different bundle id
-    let defaults = UserDefaults(suiteName: "dev.kdrag0n.MacVirt")!
+    // vmgr has different bundle id, depending on signing id
+    let defaults: UserDefaults
+    if Bundle.main.bundleIdentifier == "dev.kdrag0n.MacVirt" {
+        defaults = UserDefaults.standard
+    } else {
+        defaults = UserDefaults(suiteName: "dev.kdrag0n.MacVirt")!
+    }
+
     defaults.register(defaults: [
         "global_showMenubarExtra": true,
     ])
