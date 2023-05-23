@@ -68,15 +68,8 @@ class WindowTracker: ObservableObject {
             // activate if -> regular
             if newPolicy == .regular {
                 // workaround for app menu bar not working after user reopens app from Dock
-                // https://ar.al/2018/09/17/workaround-for-unclickable-app-menu-bug-with-window.makekeyandorderfront-and-nsapp.activate-on-macos/
-                if NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock")
-                           .first?.activate() == true {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(0)) {
-                        // only activate after workaround applied
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
-                } else {
-                    // if workaround failed, activate now
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(250)) {
+                    // only activate after workaround applied
                     NSApp.activate(ignoringOtherApps: true)
                 }
 

@@ -27,7 +27,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private let windowTracker: WindowTracker
     private let vmModel: VmViewModel
 
-    private var cancellables = Set<AnyCancellable>()
+    private var visibleObservation: NSKeyValueObservation?
+
     private var lastSyntheticVmState = VmState.stopped
     private var isAnimating = false
     private var lastTargetIsActive = false
@@ -43,12 +44,25 @@ class MenuBarController: NSObject, NSMenuDelegate {
         super.init()
 
         // follow user setting
+        statusItem.behavior = .removalAllowed
         statusItem.isVisible = Defaults[.globalShowMenubarExtra]
-        cancellables.insert(UserDefaults.standard.publisher(for: \.globalShowMenubarExtra)
-                .sink(receiveValue: { [weak self] newValue in
-                    guard let self = self else { return }
-                    self.statusItem.isVisible = newValue
-                }))
+        Task { @MainActor in
+            for await newValue in Defaults.updates(.globalShowMenubarExtra, initial: false) {
+                statusItem.isVisible = newValue
+            }
+        }
+
+        // change setting if user removes from menu bar
+        // by observing .isVisible with KVO
+        visibleObservation = statusItem.observe(\.isVisible, options: [.new]) { _, change in
+            if let newValue = change.newValue {
+                let settingValue = Defaults[.globalShowMenubarExtra]
+                if newValue != settingValue {
+                    NSLog("update menu bar setting from \(settingValue) to \(newValue)")
+                    Defaults[.globalShowMenubarExtra] = newValue
+                }
+            }
+        }
 
         if let button = statusItem.button {
             // bold = larger, matches other menu bar icons
@@ -208,6 +222,20 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addSeparator()
 
+        // snapshot for atomicity
+        let state = vmModel.state
+        if state != .running {
+            menu.addInfoLine("Stopped")
+        }
+
+        if state == .stopped {
+            menu.addActionItem("Start", shortcut: "s", icon: systemImage("play")) { [self] in
+                await vmModel.tryStartAndWait()
+            }
+        }
+
+        menu.addSeparator()
+
         // Docker containers
         if let dockerContainers = vmModel.dockerContainers {
             menu.addSectionHeader("Containers")
@@ -215,7 +243,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             // group by Compose
             let listItems = DockerContainerLists.makeListItems(filteredContainers: dockerContainers,
                     // menu bar never shows stopped
-                    allowShowStopped: false)
+                    showStopped: false)
             menu.addTruncatedItems(listItems) { item in
                 if let container = item.container {
                     return makeContainerItem(container: container)
@@ -306,11 +334,14 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func makeContainerItem(container: DKContainer) -> NSMenuItem {
+    private func makeContainerItem(container: DKContainer, showStatus: Bool = false) -> NSMenuItem {
         let actionInProgress = actionTracker.ongoingFor(container.cid) != nil
 
         // TODO: highlight container item and open popover
-        let icon = actionInProgress ? systemImage("circle.dotted") : nil
+        var icon = actionInProgress ? systemImage("circle.dotted") : nil
+        if showStatus {
+            //icon = container.running ? systemImage("circle.fill", small: true) : systemImage("circle", small: true)
+        }
         let containerItem = newActionItem(container.userName, icon: icon) { [self] in
             openApp(tab: "docker")
         }
@@ -456,7 +487,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
                 continue
             }
 
-            let item = makeContainerItem(container: container)
+            let item = makeContainerItem(container: container, showStatus: true)
             submenu.addItem(item)
         }
 
@@ -529,7 +560,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private func openApp(tab: String? = nil) {
         if let tab {
             // set UserDefaults
-            UserDefaults.standard.set(tab, forKey: "root.selectedTab")
+            Defaults[.selectedTab] = tab
         }
 
         // reappear in dock
@@ -539,8 +570,13 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // but always open main so users can get back to main, not e.g. logs
         // must have both because onDisappear (count) is called lazily
         if !NSApp.windows.contains(where: { $0.isUserFacing }) || vmModel.openMainWindowCount == 0 {
+            // if we just opened window, then activate later to work around focus menubar bug
             NSLog("open main")
             NSWorkspace.shared.open(URL(string: "orbstack://main")!)
+        } else {
+            // already have a window, so activate now, no workaround needed
+            NSLog("activate main")
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 }
@@ -558,10 +594,10 @@ private extension NSMenu {
         // show extras in submenu
         if items.count > maxQuickAccessItems {
             let submenu = NSMenu()
-            let extraItem = NSMenuItem(title: "\(items.count - maxQuickAccessItems) more",
+            let extraItem = NSMenuItem(title: "",
                     action: nil,
                     keyEquivalent: "")
-            extraItem.image = systemImage("ellipsis")
+            extraItem.image = systemImage("ellipsis", alt: "More")
             extraItem.submenu = submenu
             self.addItem(extraItem)
 
@@ -674,10 +710,16 @@ private class ActionItemController: NSObject {
     }
 }
 
-private func systemImage(_ name: String, bold: Bool = false) -> NSImage? {
-    if let image = NSImage(systemSymbolName: name, accessibilityDescription: nil) {
+private func systemImage(_ name: String, bold: Bool = false, small: Bool = false, alt: String? = nil) -> NSImage? {
+    if let image = NSImage(systemSymbolName: name, accessibilityDescription: alt) {
         if bold {
             let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+            return image.withSymbolConfiguration(config)
+        } else if small {
+            let config = NSImage.SymbolConfiguration(pointSize: 6, weight: .light, scale: .small)
+            // paletteColors
+            image.isTemplate = true
+
             return image.withSymbolConfiguration(config)
         } else {
             return image

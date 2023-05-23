@@ -161,7 +161,7 @@ struct DockerListItem: Identifiable, Equatable {
 struct DockerContainerLists {
     static func makeListItems(filteredContainers: [DKContainer],
                        dockerRecord: ContainerRecord? = nil,
-                       allowShowStopped: Bool = true) -> [DockerListItem] {
+                       showStopped: Bool) -> [DockerListItem] {
         // TODO - workaround was to remove section headers
         var listItems: [DockerListItem] = [
             //DockerListItem(builtinRecord: dockerRecord),
@@ -227,7 +227,7 @@ struct DockerContainerLists {
 
         // add running/stopped sections
         listItems += runningItems
-        if allowShowStopped && Defaults[.dockerFilterShowStopped] && !stoppedItems.isEmpty {
+        if showStopped && !stoppedItems.isEmpty {
             //listItems.append(DockerListItem(sectionLabel: "Stopped"))
             listItems += stoppedItems
         }

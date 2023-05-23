@@ -34,7 +34,7 @@ struct OnboardingCreateView: View {
                 .font(.largeTitle.weight(.semibold))
                 .padding(.bottom, 4)
                 .padding(.top, 16)
-            Text("This is a full Linux machine that works like a VM, including running services with systemd or OpenRC.")
+            Text("This is a Linux machine integrated seamlessly with macOS. You can use it to build code, run services, and more.")
                 .multilineTextAlignment(.center)
                 .font(.title3)
                 .foregroundColor(.secondary)

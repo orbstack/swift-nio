@@ -63,7 +63,7 @@ struct OnboardingRootView: View, OnboardingController {
             }.padding()
             Spacer()
         }
-        .frame(width: 650, height: 450)
+        .frame(width: 550, height: 550)
         .background(VisualEffectView().ignoresSafeArea())
         .background(WindowAccessor(holder: windowHolder))
         .onChange(of: windowHolder.window) { window in
@@ -81,6 +81,6 @@ struct OnboardingRootView: View, OnboardingController {
     func finish() {
         onboardingCompleted = true
         windowHolder.window?.close()
-        //NSWorkspace.shared.open(URL(string: "orbstack://main")!)
+        NSWorkspace.shared.open(URL(string: "orbstack://main")!)
     }
 }

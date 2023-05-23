@@ -146,11 +146,6 @@ struct ContentView: View {
         }
         .onAppear {
             model.openMainWindowCount += 1
-
-            if !onboardingCompleted {
-                pendingClose = true
-                NSWorkspace.shared.open(URL(string: "orbstack://onboarding")!)
-            }
         }
         .onDisappear {
             model.openMainWindowCount -= 1

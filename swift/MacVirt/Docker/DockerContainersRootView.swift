@@ -36,6 +36,7 @@ private struct GettingStartedHintBox: View {
 
 struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @Default(.dockerFilterShowStopped) private var filterShowStopped
 
     let initialSelection: Set<DockerContainerId>
     @State var selection: Set<DockerContainerId>
@@ -56,7 +57,8 @@ struct DockerContainersRootView: View {
             }
 
             // 0 spacing to fix bg color gap between list and getting started hint
-            let listItems = DockerContainerLists.makeListItems(filteredContainers: filteredContainers, dockerRecord: dockerRecord)
+            let listItems = DockerContainerLists.makeListItems(filteredContainers: filteredContainers,
+                    dockerRecord: dockerRecord, showStopped: filterShowStopped)
             VStack(spacing: 0) {
                 if !listItems.isEmpty {
                     List(listItems, id: \.id, children: \.children, selection: $selection) { item in
@@ -114,7 +116,8 @@ struct DockerContainersRootView: View {
                     Spacer()
 
                     // don't show getting started hint if empty is caused by filter
-                    let unfilteredListItems = DockerContainerLists.makeListItems(filteredContainers: containers, dockerRecord: dockerRecord)
+                    let unfilteredListItems = DockerContainerLists.makeListItems(filteredContainers: containers,
+                            dockerRecord: dockerRecord, showStopped: filterShowStopped)
                     if unfilteredListItems.isEmpty {
                         HStack {
                             Spacer()

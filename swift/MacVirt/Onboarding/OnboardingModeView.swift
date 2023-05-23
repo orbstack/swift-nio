@@ -19,6 +19,7 @@ fileprivate struct DummyButtonStyle: ButtonStyle {
 
 fileprivate struct ModeButton: View {
     private static let radius = 8.0
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
 
     let image: String
     let title: String
@@ -53,15 +54,16 @@ fileprivate struct ModeButton: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
             }
-            .padding(16)
-            .frame(width: 175, height: 175)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Self.radius))
-            .background(Color.primary.opacity(hoverOpacity * 0.1), in: RoundedRectangle(cornerRadius: Self.radius))
-            .cornerRadius(Self.radius)
-            .overlay(
+                    .padding(16)
+                    .frame(width: 175, height: 175)
+                    .background(Color.primary.opacity(hoverOpacity * 0.05), in: RoundedRectangle(cornerRadius: Self.radius))
+                    .background(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), in: RoundedRectangle(cornerRadius: Self.radius))
+                    .cornerRadius(Self.radius)
+                    /*.overlay(
                 RoundedRectangle(cornerRadius: Self.radius)
                     .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
-            )
+            )*/
+                    .shadow(color: Color.primary.opacity(0.1 + 0.15 * hoverOpacity), radius: 2, x: 0, y: 1)
         }
         .buttonStyle(.plain)
         .onHover {
@@ -87,11 +89,11 @@ struct OnboardingModeView: View {
 
     var body: some View {
         VStack {
-            Text("What do you want to run?")
+            Text("What do you want to use?")
                 .font(.largeTitle.weight(.semibold))
                 .padding(.bottom, 4)
                 .padding(.top, 16)
-            Text("Don’t worry, you can always change this later and run both Linux and Docker.")
+            Text("Don’t worry, you can always change this later and use both.")
                 .multilineTextAlignment(.center)
                 .font(.title3)
                 .foregroundColor(.secondary)
@@ -104,7 +106,7 @@ struct OnboardingModeView: View {
                 ModeButton(
                     image: "distro_docker",
                     title: "Docker",
-                    desc: "Build and run Docker containers",
+                    desc: "Build & run Docker containers",
                     action: {
                         rootSelectedTab = "docker"
                         continueWith(.docker)
@@ -114,7 +116,8 @@ struct OnboardingModeView: View {
                 ModeButton(
                     image: "distro_ubuntu",
                     title: "Linux",
-                    desc: "Run full Linux systems\n ",
+                    // match line count
+                    desc: "Use a full Linux system\n ",
                     action: {
                         rootSelectedTab = "machines"
                         continueWith(.linux)

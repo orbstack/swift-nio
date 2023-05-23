@@ -18,10 +18,6 @@ struct GeneralSettingsView: View {
                 Text("Start at login")
             }
             Defaults.Toggle("Show in menu bar", key: .globalShowMenubarExtra)
-                    .onChange { newValue in
-                        // propagate to publisher
-                        UserDefaults.standard.globalShowMenubarExtra = newValue
-                    }
             Defaults.Toggle("Stay in background when app is closed", key: .globalStayInBackground)
 
             UpdaterSettingsView(updater: updaterController.updater)

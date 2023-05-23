@@ -9,51 +9,21 @@ import Sparkle
 import UserNotifications
 import Defaults
 
+private let debugAlwaysCliBackground = false
+
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var updaterController: SPUStandardUpdaterController?
     var actionTracker: ActionTracker!
     var windowTracker: WindowTracker!
     var vmModel: VmViewModel!
 
-    private var menuBar: MenuBarController!
+    private var menuBar: MenuBarController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        NSWindow.allowsAutomaticWindowTabbing = false
-
-        for arg in CommandLine.arguments {
-            // started by CLI as background app
-            if arg == "--internal-cli-background" {
-                // don't steal focus
-                NSApp.setActivationPolicy(.accessory)
-
-                // close all user-facing windows, regardless of menu bar
-                // this means that w/o menubar, we'll get an empty app in the Dock
-                for window in NSApp.windows {
-                    if window.isUserFacing {
-                        window.orderOut(nil)
-                        window.close()
-                    }
-                }
-
-                NSApp.hide(nil)
-                NSApp.deactivate()
-            }
-        }
-
-        // close any leftover log windows.
-        // TODO fix isRestorable WindowHolder flag
-        for window in NSApp.windows {
-            // match name to catch empty (no selection) windows only
-            if window.title == WindowTitles.logs {
-                window.orderOut(nil)
-                window.close()
-            }
-        }
-
         if !AppConfig.debug {
             SentrySDK.start { options in
                 options.dsn = "https://8e78517a949a4070a56b23fc1f7b8184@o120089.ingest.sentry.io/4504665519554560"
@@ -63,19 +33,65 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
         }
 
+        NSWindow.allowsAutomaticWindowTabbing = false
+
+        for arg in CommandLine.arguments {
+            // only show menu bar if started by CLI as background app
+            // but if we haven't done onboarding, then do it now
+            // can happen if users' first-run is via CLI
+            if (arg == "--internal-cli-background" || debugAlwaysCliBackground) && Defaults[.onboardingCompleted] {
+                // don't steal focus
+                NSApp.setActivationPolicy(.accessory)
+
+                // close all user-facing windows, regardless of menu bar
+                // this means that w/o menubar, we'll get an empty app in the Dock
+                for window in NSApp.windows {
+                    if window.isUserFacing {
+                        window.close()
+                    }
+                }
+
+                NSApp.hide(nil)
+                NSApp.deactivate()
+            }
+        }
+
         // Menu bar status item
         menuBar = MenuBarController(updaterController: updaterController!,
                 actionTracker: actionTracker, windowTracker: windowTracker,
                 vmModel: vmModel)
+
+        // close any leftover log windows.
+        // TODO fix isRestorable WindowHolder flag
+        for window in NSApp.windows {
+            // match name to catch empty (no selection) windows only
+            if window.title == WindowTitles.logs {
+                window.close()
+            }
+        }
+
+        // open onboarding and close other windows (e.g. main) if needed
+        // vmgr will still start - onAppear already fired for main
+        if !Defaults[.onboardingCompleted] {
+            for window in NSApp.windows {
+                if window.isUserFacing {
+                    // close breaks SwiftUI, causing it to randomly reopen old windows when showing an alert
+                    //window.orderOut(nil)
+                    window.close()
+                }
+            }
+
+            NSWorkspace.shared.open(URL(string: "orbstack://onboarding")!)
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if menuBar.quitForce {
+        if menuBar?.quitForce == true {
             // user explicitly force quit, so just terminate
             return .terminateNow
         }
 
-        if sender.activationPolicy() == .accessory || !Defaults[.globalShowMenubarExtra] || menuBar.quitInitiated {
+        if sender.activationPolicy() == .accessory || !Defaults[.globalShowMenubarExtra] || menuBar?.quitInitiated == true {
             // we're already in menu bar mode, or menu bar is disabled, or user initiated quit from menu bar.
             // in all cases, we stop VM and then terminate
 
@@ -91,7 +107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             } else {
                 // VM is running, so do a graceful shutdown and terminate later
                 func finishTerminate() {
-                    menuBar.hide()
+                    menuBar?.hide()
                     sender.reply(toApplicationShouldTerminate: true)
 
                     // if it's not working, just terminate now

@@ -6,21 +6,12 @@ import Foundation
 import Defaults
 
 extension Defaults.Keys {
-    static let selectedTab = Key<String>("root.selectedTab", default: "docker")
+    static let selectedTab = Key<String>("root_selectedTab", default: "docker")
 
     static let dockerFilterShowStopped = Key<Bool>("docker_filterShowStopped", default: true)
 
     static let onboardingCompleted = Key<Bool>("onboardingCompleted", default: false)
 
-    static let globalShowMenubarExtra = Key<Bool>("global.showMenubarExtra", default: true)
-    static let globalStayInBackground = Key<Bool>("global.stayInBackground", default: false)
-}
-
-// to propagate changes to publisher
-// TODO: why is this needed? it's missing default value
-extension UserDefaults {
-    @objc dynamic var globalShowMenubarExtra: Bool {
-        get { bool(forKey: "global.showMenubarExtra") }
-        set { setValue(newValue, forKey: "global.showMenubarExtra") }
-    }
+    static let globalShowMenubarExtra = Key<Bool>("global_showMenubarExtra", default: true)
+    static let globalStayInBackground = Key<Bool>("global_stayInBackground", default: false)
 }
