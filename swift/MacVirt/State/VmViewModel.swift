@@ -333,6 +333,17 @@ class VmViewModel: ObservableObject {
             if state == .running {
                 reachedRunning = true
             }
+
+            if state == .stopped {
+                // clear state
+                containers = nil
+                config = nil
+                dockerContainers = nil
+                dockerVolumes = nil
+                dockerImages = nil
+                dockerSystemDf = nil
+                lastDockerSystemDfAt = nil
+            }
         }
     }
 

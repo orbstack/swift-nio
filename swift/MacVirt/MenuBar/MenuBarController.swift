@@ -225,11 +225,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // snapshot for atomicity
         let state = vmModel.state
         if state != .running {
-            menu.addInfoLine("Stopped")
+            menu.addSectionHeader("Status: Not Running")
         }
 
         if state == .stopped {
-            menu.addActionItem("Start", shortcut: "s", icon: systemImage("play")) { [self] in
+            menu.addActionItem("Start", shortcut: "s", icon: systemImage("play.fill")) { [self] in
                 await vmModel.tryStartAndWait()
             }
         }
