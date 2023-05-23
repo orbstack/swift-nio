@@ -26,6 +26,21 @@ enum VmState: Int, Comparable {
     static func <(lhs: VmState, rhs: VmState) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
+
+    var userState: String {
+        switch self {
+        case .stopped:
+            return "Not Running"
+        case .spawning:
+            return "Starting"
+        case .starting:
+            return "Starting"
+        case .running:
+            return "Running"
+        case .stopping:
+            return "Stopping"
+        }
+    }
 }
 
 private let startTimeout = 3 * 60 * 1000 * 1000 * 1000 // 3 minutes

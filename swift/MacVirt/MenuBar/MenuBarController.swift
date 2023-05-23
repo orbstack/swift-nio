@@ -226,7 +226,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // snapshot for atomicity
         let state = vmModel.state
         if state != .running {
-            menu.addSectionHeader("Status: Not Running")
+            menu.addSectionHeader("Status: \(state.userState)")
         }
 
         if state == .stopped {
