@@ -93,7 +93,7 @@ struct OnboardingModeView: View {
                 .font(.largeTitle.weight(.semibold))
                 .padding(.bottom, 4)
                 .padding(.top, 16)
-            Text("Don’t worry, you can always change this later and use both.")
+            Text("Don’t worry, you can always change this later and pick both.")
                 .multilineTextAlignment(.center)
                 .font(.title3)
                 .foregroundColor(.secondary)
