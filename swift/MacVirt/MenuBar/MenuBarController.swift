@@ -138,10 +138,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func updateSyntheticVmState(_ state: VmState) {
-        print("set synthetic state \(state)")
         if state == lastSyntheticVmState {
             return
         }
+        NSLog("synthetic state -> \(state)")
 
         switch state {
         case .stopped:
@@ -184,21 +184,19 @@ class MenuBarController: NSObject, NSMenuDelegate {
         NSStatusBar.system.removeStatusItem(statusItem)
     }
 
-    private func animationStep() {
+    private func animationStep(odd: Bool = true) {
         // pulsing animation
+        let newTarget = odd ? opacityAppearsDisabled : 1
         NSAnimationContext.runAnimationGroup { context in
             context.duration = pulseAnimationPeriod
-            self.statusItem.button?.animator().alphaValue = lastTargetIsActive ? opacityAppearsDisabled : 1
+            self.statusItem.button?.animator().alphaValue = newTarget
         } completionHandler: { [self] in
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = pulseAnimationPeriod
-                self.statusItem.button?.animator().alphaValue = lastTargetIsActive ? 1 : opacityAppearsDisabled
-            } completionHandler: { [self] in
-                // do we go for another cycle?
-                // if not, leave it at the last target opacity
-                if isAnimating {
-                    self.animationStep()
-                }
+            // if still animating, or stopped but current value is wrong, then go for another cycle
+            // otherwise we're done - set final value
+            if isAnimating || ((newTarget == 1) != lastTargetIsActive) {
+                self.animationStep(odd: !odd)
+            } else {
+                self.statusItem.button?.alphaValue = lastTargetIsActive ? 1 : opacityAppearsDisabled
             }
         }
     }
