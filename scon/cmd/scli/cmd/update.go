@@ -4,8 +4,8 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/orbstack/macvirt/macvmgr/conf"
 	"github.com/orbstack/macvirt/macvmgr/conf/appid"
-	"github.com/orbstack/macvirt/macvmgr/drm/updates"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +27,7 @@ This includes the Linux kernel, Docker, the CLI, GUI app, and other components.
 	Example: "  " + appid.ShortCtl + " update",
 	Args:    cobra.NoArgs,
 	RunE: func(_ *cobra.Command, args []string) error {
-		bundlePath, err := updates.FindBundle()
+		bundlePath, err := conf.FindAppBundle()
 		checkCLI(err)
 
 		cmd := exec.Command("open", "-a", bundlePath, appid.UrlUpdate, "--args", "--check-updates")
