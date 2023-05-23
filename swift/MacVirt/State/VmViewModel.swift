@@ -394,6 +394,7 @@ class VmViewModel: ObservableObject {
     // TODO move to WindowTracker
     var openLogWindowIds: Set<String> = []
     var openMainWindowCount = 0
+    var _forceTerminate = false
 
     // Setup
     @Published private(set) var isSshConfigWritable = true
@@ -1223,5 +1224,11 @@ class VmViewModel: ObservableObject {
             logOutput = "Failed to read logs: \(error)"
         }
         return .vmgrExit(reason: reason, logOutput: logOutput)
+    }
+
+    func terminateAppNow() {
+        // so applicationShouldTerminate doesn't do anything special
+        _forceTerminate = true
+        NSApp.terminate(nil)
     }
 }

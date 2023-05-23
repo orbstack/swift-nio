@@ -181,7 +181,7 @@ struct ContentView: View {
                 }
 
                 Button("Quit") {
-                    NSApp.terminate(nil)
+                    model.terminateAppNow()
                 }
             } else {
                 Button("OK") {
@@ -189,7 +189,7 @@ struct ContentView: View {
 
                     // quit if the error is fatal
                     if model.state == .stopped && !model.reachedRunning {
-                        NSApp.terminate(nil)
+                        model.terminateAppNow()
                     }
                 }
 
@@ -200,7 +200,7 @@ struct ContentView: View {
 
                         // quit if the error is fatal
                         if model.state == .stopped && !model.reachedRunning {
-                            NSApp.terminate(nil)
+                            model.terminateAppNow()
                         }
                     }
                 }
