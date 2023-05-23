@@ -224,7 +224,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu.addSeparator()
 
         // snapshot for atomicity
-        let state = vmModel.state
+        let state = lastSyntheticVmState
         if state != .running {
             menu.addSectionHeader("Status: \(state.userState)")
         }
