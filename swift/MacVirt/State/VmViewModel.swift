@@ -497,7 +497,7 @@ class VmViewModel: ObservableObject {
 
     private func waitForVM() async throws {
         // wait for at least .starting
-        await waitForStateEquals(.starting)
+        await waitForStateAtLeast(.starting)
 
         let deadline = DispatchTime.now() + .nanoseconds(startTimeout)
         var lastError: Error?
@@ -819,6 +819,7 @@ class VmViewModel: ObservableObject {
         } catch {
             NSLog("refresh: start: refresh config: \(error)")
         }
+        NSLog("end refresh: start")
     }
 
     @MainActor
