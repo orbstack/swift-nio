@@ -137,6 +137,18 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		// already retained by network, but doesn't hurt
 		retainFiles = append(retainFiles, gvnetFile)
 	}
+	for i := 0; i < c.NetworkHostBridges; i++ {
+		// host bridges are only reserved, not
+		file0, fd1, err := vnet.NewUnixgramPair()
+		check(err)
+
+		// use util.GetFd to preserve nonblock
+		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(file0)))
+		retainFiles = append(retainFiles, file0)
+
+		// keep fd1 for bridge management
+		vnetwork.AddHostBridgeFd(fd1)
+	}
 	if c.NetworkPairFile != nil {
 		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(c.NetworkPairFile)))
 		retainFiles = append(retainFiles, c.NetworkPairFile)

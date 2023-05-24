@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	ifBridge      = "conbr0"
-	ifVmnetDocker = "eth2"
+	ifBridge       = "conbr0"
+	ifVmnetMachine = "eth1"
+	ifVmnetDocker  = "eth2"
 
 	txQueueLen = 5000
 
@@ -193,6 +194,17 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 
 	// set up
 	err = netlink.LinkSetUp(bridge)
+	if err != nil {
+		return nil, err
+	}
+
+	// attach machine vmnet to bridge
+	vmnet, err := netlink.LinkByName(ifVmnetMachine)
+	if err != nil {
+		return nil, err
+	}
+
+	err = netlink.LinkSetMaster(vmnet, bridge)
 	if err != nil {
 		return nil, err
 	}

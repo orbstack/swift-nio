@@ -471,7 +471,7 @@ func runVmManager() {
 		DiskSwap:           conf.SwapImage(),
 		NetworkVnet:        true,
 		NetworkNat:         useNat,
-		NetworkHostBridges: 0, // machine + docker
+		NetworkHostBridges: 2, // machine + docker
 		MacAddressPrefix:   netconf.GuestMACPrefix,
 		Balloon:            true,
 		Rng:                true,
@@ -504,6 +504,10 @@ func runVmManager() {
 
 	// load proxy settings and proxy password (keychain prompt)
 	runAsyncInitTask("proxy settings", vnetwork.Proxy.Refresh)
+
+	// create scon machines host network bridge
+	go runOne("host bridge route monitor", vnetwork.MonitorHostBridgeRoute)
+	runAsyncInitTask("host bridge", vnetwork.CreateSconMachineHostBridge)
 
 	// Start DRM
 	drmClient := drm.Client()
