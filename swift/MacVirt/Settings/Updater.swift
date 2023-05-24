@@ -66,6 +66,6 @@ struct UpdaterSettingsView: View {
                     .onChange(of: automaticallyDownloadsUpdates) { newValue in
                         updater.automaticallyDownloadsUpdates = newValue
                     }
-        }.padding(.vertical)
+        }
     }
 }

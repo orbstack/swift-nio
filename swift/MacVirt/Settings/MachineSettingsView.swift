@@ -148,6 +148,5 @@ struct MachineSettingsView: View {
             }
         }
         .padding()
-        .navigationTitle("Settings")
     }
 }

@@ -78,7 +78,6 @@ struct NetworkSettingsView: View {
             }
         }
         .padding()
-        .navigationTitle("Settings")
     }
 
     private func commit() {

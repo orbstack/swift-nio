@@ -41,6 +41,14 @@ struct AppSettings: View {
                         Label("Network", systemImage: "network")
                     }
                     .tag(Tabs.network)
+
+            #if DEBUG
+            DebugSettingsView(updaterController: updaterController)
+                    .tabItem {
+                        Label("Debug", systemImage: "hammer")
+                    }
+                    .tag(Tabs.network)
+            #endif
         }
         .frame(width: 475)
         .padding(20)

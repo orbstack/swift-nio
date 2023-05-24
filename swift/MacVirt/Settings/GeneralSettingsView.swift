@@ -20,22 +20,11 @@ struct GeneralSettingsView: View {
             Defaults.Toggle("Show in menu bar", key: .globalShowMenubarExtra)
             Defaults.Toggle("Stay in background when app is closed", key: .globalStayInBackground)
 
-            UpdaterSettingsView(updater: updaterController.updater)
+            Spacer()
+                    .frame(height: 20)
 
-            #if DEBUG
-            Button(action: {
-                Defaults[.onboardingCompleted] = false
-            }) {
-                Text("reset onboarding")
-            }
-            Button(action: {
-                Defaults[.tipsMenubarBgShown] = false
-            }) {
-                Text("reset tips")
-            }
-            #endif
+            UpdaterSettingsView(updater: updaterController.updater)
         }
         .padding()
-        .navigationTitle("Settings")
     }
 }
