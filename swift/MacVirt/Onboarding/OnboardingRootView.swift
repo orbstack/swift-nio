@@ -60,10 +60,10 @@ struct OnboardingRootView: View, OnboardingController {
                 }
                         .environmentObject(onboardingModel)
                 Spacer()
-            }.padding()
+            }.padding(32)
             Spacer()
         }
-        .frame(width: 550, height: 550)
+        .frame(width: 525, height: 550)
         .background(VisualEffectView().ignoresSafeArea())
         .background(WindowAccessor(holder: windowHolder))
         .onChange(of: windowHolder.window) { window in

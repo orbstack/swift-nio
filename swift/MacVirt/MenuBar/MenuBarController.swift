@@ -290,7 +290,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
         }
         helpMenu.addActionItem("Community", icon: systemImage("message.fill")) {
-            NSWorkspace.shared.open(URL(string: "https://chat.orbstack.dev")!)
+            NSWorkspace.shared.open(URL(string: "https://orbstack.dev/chat")!)
         }
         helpMenu.addActionItem("Email", icon: systemImage("envelope.fill")) {
             NSWorkspace.shared.open(URL(string: "mailto:support@orbstack.dev")!)
