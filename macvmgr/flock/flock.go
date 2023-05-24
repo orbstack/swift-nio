@@ -33,6 +33,23 @@ func Lock(file *os.File) error {
 	return nil
 }
 
+func WaitLock(file *os.File) error {
+	flock := unix.Flock_t{
+		Type:   unix.F_WRLCK,
+		Whence: int16(unix.SEEK_SET),
+		Start:  0,
+		Len:    0,
+	}
+
+	// must use F_SETLKW to wait
+	err := unix.FcntlFlock(file.Fd(), unix.F_SETLKW, &flock)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func Unlock(file *os.File) error {
 	flock := unix.Flock_t{
 		Type:   unix.F_UNLCK,

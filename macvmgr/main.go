@@ -51,8 +51,9 @@ const (
 	useStdioConsole = false
 	useNat          = false
 
-	gracefulStopTimeout   = 15 * time.Second
-	sentryShutdownTimeout = 2 * time.Second
+	handoffWaitLockTimeout = 10 * time.Second
+	gracefulStopTimeout    = 15 * time.Second
+	sentryShutdownTimeout  = 2 * time.Second
 )
 
 type StopType int
@@ -358,8 +359,10 @@ func runVmManager() {
 	// parse args
 	var buildID string
 	var isLaunchd bool
-	flag.StringVar(&buildID, "build-id", "", "build ID")
-	flag.BoolVar(&isLaunchd, "launchd", false, "launchd")
+	var waitLock bool
+	flag.StringVar(&buildID, "build-id", "", "")
+	flag.BoolVar(&isLaunchd, "launchd", false, "")
+	flag.BoolVar(&waitLock, "handoff", false, "")
 	if len(os.Args) > 2 {
 		err := flag.CommandLine.Parse(os.Args[2:])
 		check(err)
@@ -373,9 +376,19 @@ func runVmManager() {
 	// take the lock
 	lockFile, err := flock.Open(conf.VmgrLockFile())
 	check(err)
-	err = flock.Lock(lockFile)
-	if err != nil {
-		logrus.Fatal("vmgr is already running (lock): ", err)
+	if waitLock {
+		// wait lock for spawn-daemon handoff
+		_, err = util.WithTimeout(func() (struct{}, error) {
+			return struct{}{}, flock.WaitLock(lockFile)
+		}, handoffWaitLockTimeout)
+		if err != nil {
+			logrus.Fatal("vmgr is already running (wait lock): ", err)
+		}
+	} else {
+		err = flock.Lock(lockFile)
+		if err != nil {
+			logrus.Fatal("vmgr is already running (lock): ", err)
+		}
 	}
 	defer func() {
 		err := flock.Unlock(lockFile)
