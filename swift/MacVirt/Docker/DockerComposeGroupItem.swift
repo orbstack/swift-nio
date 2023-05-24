@@ -42,61 +42,65 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
             Spacer()
 
-            if isRunning {
+            // crash on macOS 12 without nested HStack
+            // 0.7 scale also crashes - 0.75 is ok
+            HStack {
+                if isRunning {
+                    Button(action: {
+                        finishStop()
+                    }) {
+                        let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
+                        ZStack {
+                            Image(systemName: "stop.fill")
+                                    .opacity(1 - opacity)
+
+                            ProgressView()
+                                    .scaleEffect(0.75)
+                                    .opacity(opacity)
+                                    .frame(maxWidth: 24, maxHeight: 24)
+                        }
+                    }
+                            .buttonStyle(.borderless)
+                            .disabled(actionInProgress != nil)
+                            .help("Stop project")
+                } else {
+                    Button(action: {
+                        finishStart()
+                    }) {
+                        let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
+                        ZStack {
+                            Image(systemName: "play.fill")
+                                    .opacity(1 - opacity)
+
+                            ProgressView()
+                                    .scaleEffect(0.75)
+                                    .opacity(opacity)
+                                    .frame(maxWidth: 24, maxHeight: 24)
+                        }
+                    }
+                            .buttonStyle(.borderless)
+                            .disabled(actionInProgress != nil)
+                            .help("Start project")
+                }
+
                 Button(action: {
-                    finishStop()
+                    finishRemove()
                 }) {
-                    let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
+                    let opacity = actionInProgress == .remove ? 1.0 : 0.0
                     ZStack {
-                        Image(systemName: "stop.fill")
+                        Image(systemName: "trash.fill")
                                 .opacity(1 - opacity)
 
                         ProgressView()
                                 .scaleEffect(0.75)
                                 .opacity(opacity)
-                                .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
+                                .frame(maxWidth: 24, maxHeight: 24)
                     }
                 }
                         .buttonStyle(.borderless)
                         .disabled(actionInProgress != nil)
-                        .help("Stop project")
-            } else {
-                Button(action: {
-                    finishStart()
-                }) {
-                    let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
-                    ZStack {
-                        Image(systemName: "play.fill")
-                                .opacity(1 - opacity)
-
-                        ProgressView()
-                                .scaleEffect(0.75)
-                                .opacity(opacity)
-                                .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
-                    }
-                }
-                        .buttonStyle(.borderless)
-                        .disabled(actionInProgress != nil)
-                        .help("Start project")
+                        .help("Delete project")
             }
-
-            Button(action: {
-                finishRemove()
-            }) {
-                let opacity = actionInProgress == .remove ? 1.0 : 0.0
-                ZStack {
-                    Image(systemName: "trash.fill")
-                            .opacity(1 - opacity)
-
-                    ProgressView()
-                            .scaleEffect(0.75)
-                            .opacity(opacity)
-                            .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
-                }
-            }
-                    .buttonStyle(.borderless)
-                    .disabled(actionInProgress != nil)
-                    .help("Delete project")
         }
                 .padding(.vertical, 4)
                 // ideally use Introspect to expand row, but does nothing for now

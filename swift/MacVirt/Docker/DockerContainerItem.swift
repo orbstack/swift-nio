@@ -38,7 +38,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
                     let name = nameTxt.isEmpty ? "(no name)" : nameTxt
                     Text(name)
-                    .font(.body)
+                            .font(.body)
 
                     let shortId = String(container.id.prefix(12))
                     Text("\(shortId) (\(container.image))")
@@ -48,211 +48,215 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .lineLimit(1)
                 }
             }
-            .opacity(container.running ? 1 : 0.5)
-            // padding for expand arrow
-            .padding(.leading, 8)
+                    .opacity(container.running ? 1 : 0.5)
+                    // padding for expand arrow
+                    .padding(.leading, 8)
 
             Spacer()
 
-            Button(action: {
-                presentPopover = true
-            }) {
-                ZStack {
-                    Image(systemName: "info.circle.fill")
-
-                    // as padding to match size
-                    ProgressView()
-                            .scaleEffect(0.7)
-                            .opacity(0)
-                            .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
-                }
-            }
-                    .buttonStyle(.borderless)
-                    .help("Get info")
-                    .popover(isPresented: $presentPopover, arrowEdge: .leading) {
-                        detailsView
-                    }
-
-            if isRunning {
+            // crash on macOS 12 without nested HStack
+            // 0.7 scale also crashes - 0.75 is ok
+            HStack {
                 Button(action: {
-                    finishStop()
+                    presentPopover = true
                 }) {
-                    let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
                     ZStack {
-                        Image(systemName: "stop.fill")
-                                .opacity(1 - opacity)
+                        Image(systemName: "info.circle.fill")
 
+                        // as padding to match size
                         ProgressView()
-                                .scaleEffect(0.7)
-                                .opacity(opacity)
-                                .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
+                                .scaleEffect(0.75)
+                                .opacity(0)
+                                .frame(maxWidth: 24, maxHeight: 24)
                     }
                 }
                         .buttonStyle(.borderless)
-                        .disabled(actionInProgress != nil)
-                        .help("Stop container")
-            } else {
-                Button(action: {
-                    finishStart()
-                }) {
-                    let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
-                    ZStack {
-                        Image(systemName: "play.fill")
-                                .opacity(1 - opacity)
+                        .help("Get info")
+                        .popover(isPresented: $presentPopover, arrowEdge: .leading) {
+                            detailsView
+                        }
 
-                        ProgressView()
-                                .scaleEffect(0.7)
-                                .opacity(opacity)
-                                .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
-                    }
-                }
-                        .buttonStyle(.borderless)
-                        .disabled(actionInProgress != nil)
-                        .help("Start container")
-            }
-
-            Button(action: {
-                finishRemove()
-            }) {
-                let opacity = actionInProgress == .remove ? 1.0 : 0.0
-                ZStack {
-                    Image(systemName: "trash.fill")
-                            .opacity(1 - opacity)
-
-                    ProgressView()
-                            .scaleEffect(0.7)
-                            .opacity(opacity)
-                            .frame(maxWidth: 32.142857*0.7, maxHeight: 32.142857*0.7)
-                }
-            }
-                    .buttonStyle(.borderless)
-                    .disabled(actionInProgress != nil)
-                    .help("Delete container")
-        }
-        .padding(.vertical, 4)
-        .onDoubleClick {
-            presentPopover = true
-        }
-        .contextMenu {
-            Group {
                 if isRunning {
                     Button(action: {
                         finishStop()
                     }) {
-                        Label("Stop", systemImage: "stop.fill")
+                        let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
+                        ZStack {
+                            Image(systemName: "stop.fill")
+                                    .opacity(1 - opacity)
+
+                            ProgressView()
+                                    .scaleEffect(0.75)
+                                    .opacity(opacity)
+                                    .frame(maxWidth: 24, maxHeight: 24)
+                        }
                     }
-                    .disabled(actionInProgress != nil)
+                            .buttonStyle(.borderless)
+                            .disabled(actionInProgress != nil)
+                            .help("Stop container")
                 } else {
                     Button(action: {
                         finishStart()
                     }) {
-                        Label("Start", systemImage: "start.fill")
-                    }
-                    .disabled(actionInProgress != nil)
-                }
+                        let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
+                        ZStack {
+                            Image(systemName: "play.fill")
+                                    .opacity(1 - opacity)
 
-                Button(action: {
-                    finishRestart()
-                }) {
-                    Label("Restart", systemImage: "arrow.clockwise")
+                            ProgressView()
+                                    .scaleEffect(0.75)
+                                    .opacity(opacity)
+                                    .frame(maxWidth: 24, maxHeight: 24)
+                        }
+                    }
+                            .buttonStyle(.borderless)
+                            .disabled(actionInProgress != nil)
+                            .help("Start container")
                 }
-                .disabled(actionInProgress != nil || !isRunning)
 
                 Button(action: {
                     finishRemove()
                 }) {
-                    Label("Delete", systemImage: "trash.fill")
-                }
-                .disabled(actionInProgress != nil)
-            }
+                    let opacity = actionInProgress == .remove ? 1.0 : 0.0
+                    ZStack {
+                        Image(systemName: "trash.fill")
+                                .opacity(1 - opacity)
 
-            Divider()
-
-            Group {
-                Button(action: {
-                    presentPopover = true
-                }) {
-                    Label("Get Info", systemImage: "terminal")
-                }
-
-                Button(action: {
-                    container.showLogs(vmModel: vmModel)
-                }) {
-                    Label("Show Logs", systemImage: "terminal")
-                }
-
-                Button(action: {
-                    container.openInTerminal()
-                }) {
-                    Label("Open Terminal", systemImage: "terminal")
-                }
-                .disabled(!isRunning)
-            }
-
-            Divider()
-
-            Group {
-                if container.ports.isEmpty && container.mounts.isEmpty {
-                    Button("No Ports or Mounts") {}
-                    .disabled(true)
-                }
-
-                if !container.ports.isEmpty {
-                    Menu("Ports") {
-                        ForEach(container.ports) { port in
-                            Button(port.formatted) {
-                                port.openUrl()
-                            }
-                        }
+                        ProgressView()
+                                .scaleEffect(0.75)
+                                .opacity(opacity)
+                                .frame(maxWidth: 24, maxHeight: 24)
                     }
                 }
-
-                if !container.mounts.isEmpty {
-                    Menu("Mounts") {
-                        ForEach(container.mounts) { mount in
-                            Button(mount.formatted) {
-                                mount.openSourceDirectory()
-                            }
-                        }
-                    }
-                }
-            }
-
-            Divider()
-
-            Group {
-                Menu("Copy") {
-                    Button(action: {
-                        NSPasteboard.copy(container.id)
-                    }) {
-                        Label("ID", systemImage: "doc.on.doc")
-                    }
-
-                    Button(action: {
-                        NSPasteboard.copy(container.image)
-                    }) {
-                        Label("Image", systemImage: "doc.on.doc")
-                    }
-
-                    Button(action: {
-                        Task { @MainActor in
-                            await container.copyRunCommand()
-                        }
-                    }) {
-                        Label("Command", systemImage: "doc.on.doc")
-                    }
-
-                    let ipAddress = container.ipAddresses.first
-                    Button(action: {
-                        if let ipAddress {
-                            NSPasteboard.copy(ipAddress)
-                        }
-                    }) {
-                        Label("IP", systemImage: "doc.on.doc")
-                    }.disabled(ipAddress == nil)
-                }
+                        .buttonStyle(.borderless)
+                        .disabled(actionInProgress != nil)
+                        .help("Delete container")
             }
         }
+                .padding(.vertical, 4)
+                .onDoubleClick {
+                    presentPopover = true
+                }
+                .contextMenu {
+                    Group {
+                        if isRunning {
+                            Button(action: {
+                                finishStop()
+                            }) {
+                                Label("Stop", systemImage: "stop.fill")
+                            }
+                                    .disabled(actionInProgress != nil)
+                        } else {
+                            Button(action: {
+                                finishStart()
+                            }) {
+                                Label("Start", systemImage: "start.fill")
+                            }
+                                    .disabled(actionInProgress != nil)
+                        }
+
+                        Button(action: {
+                            finishRestart()
+                        }) {
+                            Label("Restart", systemImage: "arrow.clockwise")
+                        }
+                                .disabled(actionInProgress != nil || !isRunning)
+
+                        Button(action: {
+                            finishRemove()
+                        }) {
+                            Label("Delete", systemImage: "trash.fill")
+                        }
+                                .disabled(actionInProgress != nil)
+                    }
+
+                    Divider()
+
+                    Group {
+                        Button(action: {
+                            presentPopover = true
+                        }) {
+                            Label("Get Info", systemImage: "terminal")
+                        }
+
+                        Button(action: {
+                            container.showLogs(vmModel: vmModel)
+                        }) {
+                            Label("Show Logs", systemImage: "terminal")
+                        }
+
+                        Button(action: {
+                            container.openInTerminal()
+                        }) {
+                            Label("Open Terminal", systemImage: "terminal")
+                        }
+                                .disabled(!isRunning)
+                    }
+
+                    Divider()
+
+                    Group {
+                        if container.ports.isEmpty && container.mounts.isEmpty {
+                            Button("No Ports or Mounts") {}
+                                    .disabled(true)
+                        }
+
+                        if !container.ports.isEmpty {
+                            Menu("Ports") {
+                                ForEach(container.ports) { port in
+                                    Button(port.formatted) {
+                                        port.openUrl()
+                                    }
+                                }
+                            }
+                        }
+
+                        if !container.mounts.isEmpty {
+                            Menu("Mounts") {
+                                ForEach(container.mounts) { mount in
+                                    Button(mount.formatted) {
+                                        mount.openSourceDirectory()
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    Group {
+                        Menu("Copy") {
+                            Button(action: {
+                                NSPasteboard.copy(container.id)
+                            }) {
+                                Label("ID", systemImage: "doc.on.doc")
+                            }
+
+                            Button(action: {
+                                NSPasteboard.copy(container.image)
+                            }) {
+                                Label("Image", systemImage: "doc.on.doc")
+                            }
+
+                            Button(action: {
+                                Task { @MainActor in
+                                    await container.copyRunCommand()
+                                }
+                            }) {
+                                Label("Command", systemImage: "doc.on.doc")
+                            }
+
+                            let ipAddress = container.ipAddresses.first
+                            Button(action: {
+                                if let ipAddress {
+                                    NSPasteboard.copy(ipAddress)
+                                }
+                            }) {
+                                Label("IP", systemImage: "doc.on.doc")
+                            }.disabled(ipAddress == nil)
+                        }
+                    }
+                }
     }
 
     private var detailsView: some View {
@@ -361,7 +365,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
             }
         }
-        .padding(20)
+                .padding(20)
     }
 
     var selfId: DockerContainerId {
