@@ -87,15 +87,16 @@ struct MacVirtApp: App {
 
         WindowGroup {
             ContentView()
-                    .environmentObject(model)
-                    .environmentObject(actionTracker)
-                    // workaround: default size uses min height on macOS 12, so this fixes default window size
-                    // on macOS 13+ we can set smaller min and use windowDefaultSize
-                    .frame(minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(), maxHeight: .infinity)
-                    .onAppear {
-                        windowTracker.onWindowAppear()
-                    }
-        }.commands {
+            .environmentObject(model)
+            .environmentObject(actionTracker)
+            // workaround: default size uses min height on macOS 12, so this fixes default window size
+            // on macOS 13+ we can set smaller min and use windowDefaultSize
+            .frame(minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(), maxHeight: .infinity)
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
+        }
+        .commands {
             CommandGroup(replacing: .newItem) {}
             SidebarCommands()
             ToolbarCommands()
@@ -151,37 +152,41 @@ struct MacVirtApp: App {
                     openLogsFolder()
                 }
             }
-        }.handlesExternalEvents(matching: Set(arrayLiteral: "main", "docker/containers/", "docker/projects/"))
+        }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "main", "docker/containers/", "docker/projects/"))
         .windowDefaultSize(width: 725, height: 600)
 
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()
-                    .environmentObject(model)
-                    .onAppear {
-                        windowTracker.onWindowAppear()
-                    }
+            .environmentObject(model)
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
             //.frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
-        }.commands {
-                    CommandGroup(replacing: .newItem) {}
-                }.handlesExternalEvents(matching: Set(arrayLiteral: "onboarding"))
+        }
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "onboarding"))
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
         WindowGroup("Logs", id: "docker-container-logs") {
             DockerLogsWindow()
-                    .environmentObject(model)
-                    .onAppear {
-                        windowTracker.onWindowAppear()
-                    }
-        }.handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/", "docker/project-logs/"))
+            .environmentObject(model)
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
+        }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/", "docker/project-logs/"))
         .windowDefaultSize(width: 750, height: 500)
 
         Settings {
             AppSettings(updaterController: updaterController)
-                    .environmentObject(model)
-                    .onAppear {
-                        windowTracker.onWindowAppear()
-                    }
+            .environmentObject(model)
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
         }
     }
 
