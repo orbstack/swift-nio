@@ -307,6 +307,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         helpMenu.addSeparator()
 
+        helpMenu.addActionItem("Show Logs") {
+            openLogsFolder()
+        }
+
+        helpMenu.addSeparator()
+
         helpMenu.addActionItem("Check for Updates…") { [self] in
             updaterController.checkForUpdates(nil)
             NSApp.activate(ignoringOtherApps: true)
