@@ -599,6 +599,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
         guard let button = self.statusItem.button else {
             return
         }
+        // don't show duplicate
+        guard bgTipPopover == nil else {
+            return
+        }
 
         // popover
         let popover = NSPopover()

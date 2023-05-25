@@ -146,13 +146,9 @@ struct ContentView: View {
         }
         .onAppear {
             model.openMainWindowCount += 1
-        }
-        .onDisappear {
-            model.openMainWindowCount -= 1
-        }
-        // DO NOT use .task{} here.
-        // start tasks should NOT be canceled
-        .onAppear {
+
+            // DO NOT use .task{} here.
+            // start tasks should NOT be canceled
             Task { @MainActor in
                 let center = UNUserNotificationCenter.current()
                 do {
@@ -164,6 +160,9 @@ struct ContentView: View {
 
                 await model.initLaunch()
             }
+        }
+        .onDisappear {
+            model.openMainWindowCount -= 1
         }
         .onChange(of: controlActiveState) { state in
             if state == .key {

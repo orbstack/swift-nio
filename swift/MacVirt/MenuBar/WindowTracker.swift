@@ -100,13 +100,19 @@ class WindowTracker: ObservableObject {
             // activate if -> regular
             if newPolicy == .regular {
                 // workaround for app menu bar not working after user reopens app from Dock
-                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(250)) {
-                    // only activate after workaround applied
+                // if we're already active (on reopen), then give focus to dock and back
+                if NSApp.isActive {
+                    NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock")
+                            .first?.activate()
+                }
+
+                // otherwise just delay activation
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(0)) {
                     NSApp.activate(ignoringOtherApps: true)
                 }
 
                 // also make sure new window is key
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
                     // find first userFacing window
                     let window = NSApp.windows.first { $0.isUserFacing }
                     window?.makeKeyAndOrderFront(nil)

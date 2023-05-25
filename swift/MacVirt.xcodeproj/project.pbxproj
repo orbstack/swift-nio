@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */; };
+		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
 		B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */; };
 		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
 		B118BB2BE31023719B0991AD /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE95DD22AD1D855FBD1E /* Defaults.swift */; };
@@ -155,6 +156,7 @@
 
 /* Begin PBXFileReference section */
 		B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineSettingsView.swift; sourceTree = "<group>"; };
+		B118B30219F10B44000AE05A /* OnboardingManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
 		B118BE577DB19F2ADECF9C9F /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
@@ -285,6 +287,7 @@
 				D80443A32A1B404E00ED59C5 /* OnboardingModeView.swift */,
 				D80443A42A1B404E00ED59C5 /* OnboardingViewModel.swift */,
 				B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */,
+				B118B30219F10B44000AE05A /* OnboardingManager.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -787,6 +790,7 @@
 				B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */,
 				B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */,
 				B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */,
+				B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
