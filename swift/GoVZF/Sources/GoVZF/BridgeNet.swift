@@ -7,6 +7,7 @@
 
 import Foundation
 import vmnet
+import CBridge
 
 // vmnet is ok with concurrenet queue
 // gets us from 21 -> 30 Gbps

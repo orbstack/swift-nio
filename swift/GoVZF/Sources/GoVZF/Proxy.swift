@@ -5,6 +5,7 @@
 import Foundation
 import SystemConfiguration
 import Security
+import CBridge
 
 struct ProxySettings: Codable {
     var httpEnable: Bool

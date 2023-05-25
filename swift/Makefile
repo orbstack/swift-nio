@@ -1,10 +1,10 @@
-GOARCH ?= arm64
+SWIFT_ARCH ?= arm64
 
-lib: build/$(GOARCH)/libgovzf.a
+rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
-build/$(GOARCH)/libgovzf.a: $(wildcard GoVZF/*)
-	@mkdir -p build/$(GOARCH)
-	@if [ "$(GOARCH)" = "arm64" ]; then SWIFT_ARCH=arm64; else SWIFT_ARCH=x86_64; fi; \
-	  swiftc -emit-library -static -target $$SWIFT_ARCH-apple-macos12.3 -import-objc-header GoVZF/GoVZF.h GoVZF/*.swift -o build/$(GOARCH)/libgovzf.a
+lib: GoVZF/.build/$(SWIFT_ARCH)-apple-macosx/release/libgovzf.a
+
+GoVZF/.build/$(SWIFT_ARCH)-apple-macosx/release/libgovzf.a: $(call rwildcard,GoVZF,*)
+	@cd GoVZF && swift build -c release --arch $(SWIFT_ARCH)
 
 .PHONY: lib

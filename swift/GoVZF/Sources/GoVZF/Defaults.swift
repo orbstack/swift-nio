@@ -4,6 +4,7 @@
 
 import Foundation
 import AppKit
+import CBridge
 
 struct UserSettings: Codable {
     let showMenubarExtra: Bool

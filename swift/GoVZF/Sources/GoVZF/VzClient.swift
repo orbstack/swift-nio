@@ -4,6 +4,7 @@
 
 import Foundation
 import Virtualization
+import CBridge
 
 let vzQueue = DispatchQueue(label: "dev.kdrag0n.govzf")
 

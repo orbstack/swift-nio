@@ -4,6 +4,7 @@
 
 import Foundation
 import CoreServices
+import CBridge
 
 private let debugPrintEvents = false
 
