@@ -175,7 +175,8 @@ struct ContentView: View {
         }
         // error dialog
         .alert(isPresented: $presentError, error: model.error) { error in
-            if error == VmError.killswitchExpired {
+            switch error {
+            case VmError.killswitchExpired:
                 Button("Update") {
                     NSWorkspace.shared.open(URL(string: "orbstack://update")!)
                 }
@@ -183,7 +184,17 @@ struct ContentView: View {
                 Button("Quit") {
                     model.terminateAppNow()
                 }
-            } else {
+
+            case VmError.wrongArch:
+                Button("Download") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/download")!)
+                }
+
+                Button("Quit") {
+                    model.terminateAppNow()
+                }
+
+            default:
                 Button("OK") {
                     model.dismissError()
 
