@@ -102,16 +102,8 @@ struct MacVirtApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
-            CommandGroup(after: .appSettings) {
-                Button("Show Logs") {
-                    openLogsFolder()
-                }
-                Button("Invite a Friend") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/waitlist")!)
-                }
-            }
             CommandGroup(before: .systemServices) {
-                Button("Website") {
+                Button("Invite a Friend") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
                 }
                 Button("Documentation") {
@@ -130,18 +122,33 @@ struct MacVirtApp: App {
 
             CommandGroup(after: .help) {
                 Divider()
+
                 Button("Website") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
                 }
                 Button("Documentation") {
                     NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
                 }
+                Button("Community") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/chat")!)
+                }
+                Button("Email") {
+                    NSWorkspace.shared.open(URL(string: "mailto:support@orbstack.dev")!)
+                }
+
                 Divider()
+
                 Button("Report Bug") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
                 }
                 Button("Request Feature") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
+                }
+
+                Divider()
+
+                Button("Show Logs") {
+                    openLogsFolder()
                 }
             }
         }.handlesExternalEvents(matching: Set(arrayLiteral: "main", "docker/containers/", "docker/projects/"))
