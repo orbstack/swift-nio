@@ -9,14 +9,39 @@ struct OnboardingWelcomeView: View {
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
     let onboardingController: OnboardingController
 
+    // animate hue rotation
+    @State private var hueRotation = 0.0
+
+    private var repeatingAnimation: Animation {
+        Animation
+                .linear(duration: 35)
+                .repeatForever()
+    }
+
     var body: some View {
         VStack {
             Spacer()
 
-            Image("AppIconUI")
-                .resizable()
-                .frame(width: 150, height: 150)
-                .padding(.bottom, 24)
+            ZStack {
+                Image("AppIconBG")
+                        .resizable()
+                        .frame(width: 150, height: 150)
+
+                Image("AppIconFG")
+                        .resizable()
+                        .frame(width: 150, height: 150)
+                        .hueRotation(.degrees(hueRotation))
+                        .task {
+                            // delay start
+                            do {
+                                try await Task.sleep(nanoseconds: 1_000_000_000)
+                                withAnimation(repeatingAnimation) {
+                                    hueRotation = -360
+                                }
+                            } catch {}
+                        }
+            }
+            .padding(.bottom, 24)
 
             Text("Welcome to OrbStack")
                 .font(.largeTitle.weight(.semibold))

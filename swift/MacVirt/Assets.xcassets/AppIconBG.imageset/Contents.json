@@ -1,12 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "256.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "512.png",
+      "filename" : "mask-bg-512.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
