@@ -30,6 +30,7 @@ struct FilesRootView: View {
                                     Text("You can also find these files at ~/\(Folders.nfsName).")
                                             .font(.title3)
                                             .foregroundColor(.secondary)
+                                            .multilineTextAlignment(.center)
                                 }
                                         .padding(.vertical, 24)
                                 Spacer()

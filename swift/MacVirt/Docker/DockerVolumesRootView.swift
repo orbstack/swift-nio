@@ -49,6 +49,7 @@ struct DockerVolumesRootView: View {
                                     Text("You can also find these volumes at ~/\(Folders.nfsName)/docker.")
                                             .font(.title3)
                                             .foregroundColor(.secondary)
+                                            .multilineTextAlignment(.center)
                                 }
                                         .padding(.vertical, 24)
                                 Spacer()
