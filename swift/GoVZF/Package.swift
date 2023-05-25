@@ -15,23 +15,14 @@ let package = Package(
             type: .static,
             targets: ["GoVZF"]),
     ],
-    dependencies: [
-        .package(path: "../CBridge")
-    ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "GoVZF",
-            dependencies: [
-                .product(name: "CBridge", package: "CBridge")
-            ]),
-        // .target(
-        //     name: "CBridge",
-        //     cSettings: [
-        //         .headerSearchPath("include")
-        //     ]),
-        // .systemLibrary(name: "Cgovzf"),
+            dependencies: ["CBridge"]),
+        .target(
+            name: "CBridge"),
         .testTarget(
             name: "GoVZFTests",
             dependencies: ["GoVZF"]),
