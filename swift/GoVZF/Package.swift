@@ -21,7 +21,7 @@ let package = Package(
         .target(
             name: "GoVZF",
             dependencies: ["CBridge"]),
-        .target(
+        .systemLibrary(
             name: "CBridge"),
         .testTarget(
             name: "GoVZFTests",

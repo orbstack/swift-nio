@@ -1,0 +1,4 @@
+module CBridge {
+    umbrella header "CBridge.h"
+    export *
+}

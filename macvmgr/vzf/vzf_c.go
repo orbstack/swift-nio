@@ -5,7 +5,7 @@ package vzf
 #cgo LDFLAGS: -mmacosx-version-min=12.3 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx
 
 #define CGO
-#include "../../swift/GoVZF/Sources/CBridge/include/CBridge.h"
+#include "../../swift/GoVZF/Sources/CBridge/CBridge.h"
 
 struct GovzfResultCreate* govzf_run_NewMachine(uintptr_t handle, const char* params_str);
 struct GovzfResultErr* govzf_run_Machine_Start(void* ptr);
