@@ -36,7 +36,7 @@ function build_one() {
 
     # build swift lib
     pushd swift
-    make lib
+    make lib-release
     popd
 
     OUT=./
@@ -44,7 +44,7 @@ function build_one() {
     pushd macvmgr
     rm -f $OUT/"$VMGR_BIN"
     go generate ./conf/appver ./drm/killswitch
-    EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o $OUT/"$VMGR_BIN"
+    BUILD_TYPE=release EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o $OUT/"$VMGR_BIN"
     codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/"$VMGR_BIN"
     popd
 

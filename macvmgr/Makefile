@@ -5,7 +5,7 @@ run: OrbStack\ Helper\ \(VM\)
 	@"./OrbStack Helper (VM)" vmgr
 
 OrbStack\ Helper\ \(VM\):
-	@cd ../swift; make lib
+	@cd ../swift; make lib-debug
 	@./build.sh
 
 vmgr: OrbStack\ Helper\ \(VM\)

@@ -18,7 +18,7 @@ fi
 
 # force relinking if Swift lib changed
 # if modification time of Swift lib is newer than the binary, relink
-LIB_PATH="../swift/GoVZF/.build/${SWIFT_ARCH}-apple-macosx/release/libGoVZF.a"
+LIB_PATH="../swift/GoVZF/.build/${SWIFT_ARCH}-apple-macosx/debug/libGoVZF.a"
 if [[ -f "$VMGR_BIN" ]]; then
     if [[ ! -f "$LIB_PATH" ]] || [[ "$(stat -f "%m" "$LIB_PATH")" -gt "$(stat -f "%m" "$VMGR_BIN")" ]]; then
         rm -f "$VMGR_BIN"
