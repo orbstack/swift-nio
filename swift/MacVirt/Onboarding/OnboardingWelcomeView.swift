@@ -14,7 +14,7 @@ struct OnboardingWelcomeView: View {
 
     private var repeatingAnimation: Animation {
         Animation
-                .linear(duration: 35)
+                .linear(duration: 30)
                 .repeatForever()
     }
 
