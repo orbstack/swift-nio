@@ -84,7 +84,7 @@
 		D8715C522A1F2AC50047A9BE /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4C2A1F2AC40047A9BE /* Proxy.swift */; };
 		D8715C532A1F2AC50047A9BE /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4D2A1F2AC40047A9BE /* Defaults.swift */; };
 		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
-		D8715C552A1F2AC50047A9BE /* GoVZF.h in Headers */ = {isa = PBXBuildFile; fileRef = D8715C4F2A1F2AC50047A9BE /* GoVZF.h */; };
+		D8715C572A1FEF260047A9BE /* CBridge.h in Headers */ = {isa = PBXBuildFile; fileRef = D8715C562A1FEF260047A9BE /* CBridge.h */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDD299A131B00419B5C /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -236,7 +236,7 @@
 		D8715C4C2A1F2AC40047A9BE /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Proxy.swift; path = Sources/GoVZF/Proxy.swift; sourceTree = "<group>"; };
 		D8715C4D2A1F2AC40047A9BE /* Defaults.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Defaults.swift; path = Sources/GoVZF/Defaults.swift; sourceTree = "<group>"; };
 		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = BridgeNet.swift; path = Sources/GoVZF/BridgeNet.swift; sourceTree = "<group>"; };
-		D8715C4F2A1F2AC50047A9BE /* GoVZF.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GoVZF.h; path = Sources/GoVZF/GoVZF.h; sourceTree = "<group>"; };
+		D8715C562A1FEF260047A9BE /* CBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CBridge.h; path = Sources/CBridge/CBridge.h; sourceTree = "<group>"; };
 		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
 		D88F4ED9299A131B00419B5C /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = build/bins/docker; sourceTree = "<group>"; };
 		D88F4EDA299A131B00419B5C /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "build/bins/docker-compose"; sourceTree = "<group>"; };
@@ -419,9 +419,9 @@
 			isa = PBXGroup;
 			children = (
 				D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */,
+				D8715C562A1FEF260047A9BE /* CBridge.h */,
 				D8715C4D2A1F2AC40047A9BE /* Defaults.swift */,
 				D8715C4B2A1F2AC40047A9BE /* FsNotify.swift */,
-				D8715C4F2A1F2AC50047A9BE /* GoVZF.h */,
 				D8715C4C2A1F2AC40047A9BE /* Proxy.swift */,
 				D8715C4A2A1F2AC40047A9BE /* VzClient.swift */,
 			);
@@ -501,7 +501,7 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D8715C552A1F2AC50047A9BE /* GoVZF.h in Headers */,
+				D8715C572A1FEF260047A9BE /* CBridge.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
