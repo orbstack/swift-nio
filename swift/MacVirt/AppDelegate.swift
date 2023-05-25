@@ -138,7 +138,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        print("applicationShouldHandleReopen: \(hasVisibleWindows)")
         // normal behavior if hasVisibleWindows
         if hasVisibleWindows {
             return true

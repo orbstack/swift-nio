@@ -589,8 +589,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     func onTransitionToBackground() {
         NSLog("onTransitionToBackground")
-        // show first-time bg tip?
-        if !Defaults[.tipsMenubarBgShown] {
+        // show first-time bg tip? only if onboarding done
+        if Defaults[.onboardingCompleted] && !Defaults[.tipsMenubarBgShown] {
             showBgTip()
         }
     }
@@ -626,10 +626,14 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func closeBgTip() {
-        bgTipPopover?.performClose(nil)
-        bgTipPopover = nil
+        if let popover = bgTipPopover {
+            NSLog("close tip")
+            popover.close()
+            bgTipPopover = nil
 
-        Defaults[.tipsMenubarBgShown] = true
+            // only update setting if actually closed
+            Defaults[.tipsMenubarBgShown] = true
+        }
     }
 }
 
