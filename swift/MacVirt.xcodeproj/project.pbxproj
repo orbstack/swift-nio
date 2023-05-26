@@ -67,16 +67,13 @@
 		D80444152A1B404E00ED59C5 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DC2A1B404E00ED59C5 /* VmRPC.swift */; };
 		D80444162A1B404E00ED59C5 /* DockerRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */; };
 		D81E7850299CC4F200A1D8AC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E784F299CC4F200A1D8AC /* main.swift */; };
-		D81E7857299CC56800A1D8AC /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E785C29A39BF300A1D8AC /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E785B29A39BF300A1D8AC /* Utils.swift */; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D829039729D95671004D42A3 /* OrbStack Helper (VM) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D829039629D95671004D42A3 /* OrbStack Helper (VM) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D83E7B532A07C78000B2997B /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = D83E7B522A07C78000B2997B /* SwiftTerm */; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
-		D8694A44299224990046B6B6 /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8694A43299224990046B6B6 /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
 		D8715C502A1F2AC50047A9BE /* VzClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4A2A1F2AC40047A9BE /* VzClient.swift */; };
@@ -85,6 +82,9 @@
 		D8715C532A1F2AC50047A9BE /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4D2A1F2AC40047A9BE /* Defaults.swift */; };
 		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
 		D8715C572A1FEF260047A9BE /* CBridge.h in Headers */ = {isa = PBXBuildFile; fileRef = D8715C562A1FEF260047A9BE /* CBridge.h */; };
+		D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D8715CC12A208C640047A9BE /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8715CC02A208C640047A9BE /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D8715CC32A208C750047A9BE /* OrbStack Helper (VM).app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDD299A131B00419B5C /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -119,10 +119,9 @@
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
-				D829039729D95671004D42A3 /* OrbStack Helper (VM) in Copy Go executables and Swift GUI helper */,
+				D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */,
 				D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */,
-				D81E7857299CC56800A1D8AC /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */,
-				D8694A44299224990046B6B6 /* scli in Copy Go executables and Swift GUI helper */,
+				D8715CC12A208C640047A9BE /* scli in Copy Go executables and Swift GUI helper */,
 			);
 			name = "Copy Go executables and Swift GUI helper";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -139,6 +138,17 @@
 				D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */,
 			);
 			name = "Copy Docker xbin executables";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8715CBE2A2087790047A9BE /* Embed Go VM helper bundle */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				D8715CC32A208C750047A9BE /* OrbStack Helper (VM).app in Embed Go VM helper bundle */,
+			);
+			name = "Embed Go VM helper bundle";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		D88F4EB72998D61B00419B5C /* Copy assets */ = {
@@ -224,9 +234,7 @@
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D81E786429A7012900A1D8AC /* docker-buildx */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-buildx"; path = "build/bins/docker-buildx"; sourceTree = "<group>"; };
-		D829039629D95671004D42A3 /* OrbStack Helper (VM) */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "OrbStack Helper (VM)"; path = "../macvmgr/OrbStack Helper (VM)"; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		D8694A43299224990046B6B6 /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../scon/scli; sourceTree = "<group>"; };
 		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../macvmgr/xbin/docker; sourceTree = "<group>"; };
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../macvmgr/xbin/docker-compose"; sourceTree = "<group>"; };
 		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../macvmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
@@ -237,6 +245,8 @@
 		D8715C4D2A1F2AC40047A9BE /* Defaults.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Defaults.swift; path = Sources/GoVZF/Defaults.swift; sourceTree = "<group>"; };
 		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = BridgeNet.swift; path = Sources/GoVZF/BridgeNet.swift; sourceTree = "<group>"; };
 		D8715C562A1FEF260047A9BE /* CBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CBridge.h; path = Sources/CBridge/CBridge.h; sourceTree = "<group>"; };
+		D8715CC02A208C640047A9BE /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../out/scli; sourceTree = "<group>"; };
+		D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper (VM).app"; path = "../out/OrbStack Helper (VM).app"; sourceTree = "<group>"; };
 		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
 		D88F4ED9299A131B00419B5C /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = build/bins/docker; sourceTree = "<group>"; };
 		D88F4EDA299A131B00419B5C /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "build/bins/docker-compose"; sourceTree = "<group>"; };
@@ -428,20 +438,28 @@
 			path = GoVZF;
 			sourceTree = "<group>";
 		};
+		D8715CC42A208EB80047A9BE /* External */ = {
+			isa = PBXGroup;
+			children = (
+				D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */,
+				D8715CC02A208C640047A9BE /* scli */,
+				D81E786429A7012900A1D8AC /* docker-buildx */,
+				D81E7859299F059700A1D8AC /* sparkle-cli */,
+				D86F35422997A57E00DADC6F /* docker */,
+				D86F35432997A57E00DADC6F /* docker-compose */,
+				D88F4EDA299A131B00419B5C /* docker-compose */,
+				D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */,
+				D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */,
+				D88F4EB82998D81A00419B5C /* assets */,
+				D88F4ED9299A131B00419B5C /* docker */,
+			);
+			name = External;
+			sourceTree = "<group>";
+		};
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
-				D829039629D95671004D42A3 /* OrbStack Helper (VM) */,
-				D81E786429A7012900A1D8AC /* docker-buildx */,
-				D81E7859299F059700A1D8AC /* sparkle-cli */,
-				D88F4ED9299A131B00419B5C /* docker */,
-				D88F4EDA299A131B00419B5C /* docker-compose */,
-				D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */,
-				D88F4EB82998D81A00419B5C /* assets */,
-				D86F35422997A57E00DADC6F /* docker */,
-				D86F35432997A57E00DADC6F /* docker-compose */,
-				D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */,
-				D8694A43299224990046B6B6 /* scli */,
+				D8715CC42A208EB80047A9BE /* External */,
 				D8A32B90296F839100E56EEF /* MacVirt */,
 				D81E784E299CC4F200A1D8AC /* guihelper */,
 				D870292129B316A700A4CFD9 /* GoVZF */,
@@ -552,6 +570,7 @@
 				D8A32B8C296F839100E56EEF /* Resources */,
 				D8694A3B2991F3F80046B6B6 /* Copy “Launch at Login Helper” */,
 				D8694A3E2991F8C70046B6B6 /* Copy Go executables and Swift GUI helper */,
+				D8715CBE2A2087790047A9BE /* Embed Go VM helper bundle */,
 				D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */,
 				D88F4EB72998D61B00419B5C /* Copy assets */,
 				D8694A46299224F10046B6B6 /* Create symlinks */,
@@ -683,7 +702,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "cd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\nln -sf Resources/assets \"$EXECUTABLE_FOLDER_PATH/../assets\"\n";
+			shellScript = "cd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\nln -sf Resources/assets \"$EXECUTABLE_FOLDER_PATH/../assets\"\n\nln -sf \"../Helpers/OrbStack Helper (VM).app/Contents/MacOS/OrbStack Helper (VM)\" \"$EXECUTABLE_FOLDER_PATH/\"\n";
 		};
 		D86F35482997A5B700DADC6F /* Set version from Git */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1046,7 +1065,6 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = MacVirt/MacVirt.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 102;
@@ -1069,7 +1087,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = OrbStack;
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "OrbStack Development A";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -1107,7 +1124,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = OrbStack;
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "OrbStack Distribution Developer ID Application";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};

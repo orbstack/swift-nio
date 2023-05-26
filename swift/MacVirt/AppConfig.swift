@@ -14,10 +14,10 @@ struct Constants {
 struct AppConfig {
 #if DEBUG
     static let debug = true
-    static let vmgrExe = "/Users/dragon/code/projects/macvirt/macvmgr/OrbStack Helper (VM)"
-    static let shellExe = "/Users/dragon/code/projects/macvirt/macvmgr/bin/orb"
-    static let dockerExe = "/Users/dragon/code/projects/macvirt/macvmgr/xbin/docker"
-    static let dockerComposeExe = "/Users/dragon/code/projects/macvirt/macvmgr/xbin/docker-compose"
+    static let vmgrExe = "\(Folders.home)/code/projects/macvirt/macvmgr/OrbStack Helper (VM)"
+    static let shellExe = "\(Folders.home)/code/projects/macvirt/macvmgr/bin/orb"
+    static let dockerExe = "\(Folders.home)/code/projects/macvirt/macvmgr/xbin/docker"
+    static let dockerComposeExe = "\(Folders.home)/code/projects/macvirt/macvmgr/xbin/docker-compose"
 #else
     static let debug = false
     static let vmgrExe = Bundle.main.path(forAuxiliaryExecutable: "OrbStack Helper (VM)")!

@@ -15,6 +15,8 @@ SHORT_VER=$(git describe --tag --abbrev=0)
 COMMITS=$(git rev-list --count HEAD)
 
 VMGR_BIN="OrbStack Helper (VM)"
+VMGR_SIGNING_ID="dev.kdrag0n.MacVirt.vmgr"
+SIGNING_CERT="ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2"
 
 cd "$(dirname "$0")"
 
@@ -30,28 +32,45 @@ function build_one() {
         exit 1
     fi
 
+    OUT="$PWD/out"
+    rm -fr "$OUT"
+    mkdir -p "$OUT"
+
+    # build swift lib
+    pushd swift
+    SWIFT_ARCH="$arch_mac" make lib-release
+    popd
+
     # build go (vmgr and scon)
     export GOARCH=$arch_go
     export CGO_ENABLED=1
 
-    # build swift lib
-    pushd swift
-    make lib-release
-    popd
-
-    OUT=./
+    BUNDLE_OUT="$OUT/$VMGR_BIN.app"
 
     pushd macvmgr
-    rm -f $OUT/"$VMGR_BIN"
+    rm -fr "$BUNDLE_OUT"
+    BUNDLE_BIN="$BUNDLE_OUT/Contents/MacOS"
+    mkdir -p "$BUNDLE_BIN"
+
     go generate ./conf/appver ./drm/killswitch
-    BUILD_TYPE=release EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o $OUT/"$VMGR_BIN"
-    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/"$VMGR_BIN"
+    BUILD_TYPE=release EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o "$BUNDLE_BIN/$VMGR_BIN"
+
+    # make a fake app bundle for embedded.provisionprofile to work
+    # it checks CFBundleExecutable in Info.plist
+
+    # sign executable with vmgr identity and restricted entitlements
+    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i "$VMGR_SIGNING_ID" -s "$SIGNING_CERT" "$BUNDLE_BIN/$VMGR_BIN"
+    # add Info.plist, PkgInfo, and provisioning profile
+    cp -r bundle/. "$BUNDLE_OUT/Contents"
+    # sign bundle w/ resources
+    codesign -f --timestamp -i "$VMGR_SIGNING_ID" -s "$SIGNING_CERT" "$BUNDLE_OUT"
     popd
+
 
     pushd scon
     rm -f $OUT/scon
     go build -tags release -trimpath -ldflags="-s -w" -o $OUT/scli ./cmd/scli
-    codesign -f --timestamp --options=runtime -i dev.kdrag0n.MacVirt.scli -s ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2 $OUT/scli
+    codesign -f --timestamp --options=runtime -i dev.kdrag0n.MacVirt.scli -s "$SIGNING_CERT" $OUT/scli
     popd
 
     # TODO: rebuild rootfs

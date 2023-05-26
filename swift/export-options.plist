@@ -8,8 +8,8 @@
 	<string>developer-id</string>
 	<key>provisioningProfiles</key>
 	<dict>
-		<key>dev.kdrag0n.MacVirt</key>
-		<string>OrbStack Distribution Developer ID Application</string>
+		<key>dev.kdrag0n.MacVirt.vmgr</key>
+		<string>OrbStack vmgr Developer ID Application</string>
 	</dict>
 </dict>
 </plist>
