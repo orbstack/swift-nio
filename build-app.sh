@@ -58,12 +58,10 @@ function build_one() {
     # make a fake app bundle for embedded.provisionprofile to work
     # it checks CFBundleExecutable in Info.plist
 
-    # sign executable with vmgr identity and restricted entitlements
-    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i "$VMGR_SIGNING_ID" -s "$SIGNING_CERT" "$BUNDLE_BIN/$VMGR_BIN"
     # add Info.plist, PkgInfo, and provisioning profile
     cp -r bundle/. "$BUNDLE_OUT/Contents"
-    # sign bundle w/ resources
-    codesign -f --timestamp -i "$VMGR_SIGNING_ID" -s "$SIGNING_CERT" "$BUNDLE_OUT"
+    # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
+    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i "$VMGR_SIGNING_ID" -s "$SIGNING_CERT" "$BUNDLE_OUT"
     popd
 
 
