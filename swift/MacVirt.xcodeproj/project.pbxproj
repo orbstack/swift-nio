@@ -143,8 +143,8 @@
 		D8715CBE2A2087790047A9BE /* Embed Go VM helper bundle */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Helpers;
-			dstSubfolderSpec = 1;
+			dstPath = "";
+			dstSubfolderSpec = 10;
 			files = (
 				D8715CC32A208C750047A9BE /* OrbStack Helper (VM).app in Embed Go VM helper bundle */,
 			);
@@ -702,7 +702,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "cd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\nln -sf ../../../Resources/assets \"$CONTENTS_FOLDER_PATH/Helpers/OrbStack Helper (VM).app/Contents/assets\"\n\nln -sf \"../Helpers/OrbStack Helper (VM).app/Contents/MacOS/OrbStack Helper (VM)\" \"$EXECUTABLE_FOLDER_PATH/\"\n";
+			shellScript = "cd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\nln -sf ../../../Resources/assets \"$CONTENTS_FOLDER_PATH/Frameworks/OrbStack Helper (VM).app/Contents/assets\"\n\nln -sf \"../Frameworks/OrbStack Helper (VM).app/Contents/MacOS/OrbStack Helper (VM)\" \"$EXECUTABLE_FOLDER_PATH/\"\n";
 		};
 		D86F35482997A5B700DADC6F /* Set version from Git */ = {
 			isa = PBXShellScriptBuildPhase;
