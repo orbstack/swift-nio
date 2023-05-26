@@ -380,7 +380,6 @@ func (s *VmControlServer) Serve() (func() error, error) {
 
 	return func() error {
 		// closes all connections and listener to allow immediate port reuse
-		server.Close()
-		return nil
+		return server.Close()
 	}, nil
 }

@@ -398,12 +398,15 @@ func runVmManager() {
 			logrus.Fatal("vmgr is already running (lock): ", err)
 		}
 	}
-	defer func() {
-		err := flock.Unlock(lockFile)
-		if err != nil {
-			logrus.WithError(err).Error("failed to unlock")
-		}
-	}()
+	// for max safety, we never release flock. it'll be released on process exit
+	/*
+		defer func() {
+			err := flock.Unlock(lockFile)
+			if err != nil {
+				logrus.WithError(err).Error("failed to unlock")
+			}
+		}()
+	*/
 
 	// remove everything in run, sockets and pid
 	os.RemoveAll(conf.RunDir())
