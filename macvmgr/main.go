@@ -344,8 +344,16 @@ func runVmManager() {
 			logrus.WithError(err).Error("failed to init Sentry")
 		}
 		defer sentry.Flush(sentryShutdownTimeout)
-		defer sentry.Recover()
 	}
+	// sentry.Recover() suppresses panic
+	defer func() {
+		if err := recover(); err != nil {
+			hub := sentry.CurrentHub()
+			hub.Recover(err)
+
+			panic(err)
+		}
+	}()
 
 	if !osver.IsAtLeast("v12.3") {
 		logrus.Fatal("macOS too old - min 12.3")
