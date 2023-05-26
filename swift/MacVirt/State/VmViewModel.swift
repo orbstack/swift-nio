@@ -776,18 +776,11 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     func initLaunch() async {
-        await tryStartAndWait()
-
-        // do setup
-        do {
-            try await doSetup()
-        } catch {
-            setError(.setupError(cause: error))
-        }
+        await tryStartAndWait(shouldDoSetup: true)
     }
 
     @MainActor
-    func tryStartAndWait() async {
+    func tryStartAndWait(shouldDoSetup: Bool = false) async {
         do {
             try spawnDaemon()
         } catch VmError.wrongArch {
@@ -811,6 +804,14 @@ class VmViewModel: ObservableObject {
         do {
             try await refreshList()
             try await maybeRefreshDockerList()
+
+            if shouldDoSetup {
+                do {
+                    try await doSetup()
+                } catch {
+                    setError(.setupError(cause: error))
+                }
+            }
         } catch {
             NSLog("refresh: start: refresh lists: \(error)")
         }
