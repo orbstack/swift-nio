@@ -48,20 +48,12 @@ function build_one() {
     BUNDLE_OUT="$OUT/$VMGR_BIN.app"
 
     pushd macvmgr
-    rm -fr "$BUNDLE_OUT"
-    BUNDLE_BIN="$BUNDLE_OUT/Contents/MacOS"
-    mkdir -p "$BUNDLE_BIN"
-
     go generate ./conf/appver ./drm/killswitch
-    BUILD_TYPE=release EXTRA_LDFLAGS="-s -w" ./build.sh -tags release -trimpath -o "$BUNDLE_BIN/$VMGR_BIN"
-
-    # make a fake app bundle for embedded.provisionprofile to work
-    # it checks CFBundleExecutable in Info.plist
-
-    # add Info.plist, PkgInfo, and provisioning profile
-    cp -r bundle/. "$BUNDLE_OUT/Contents"
-    # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
-    codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i "$VMGR_SIGNING_ID" -s "$SIGNING_CERT" "$BUNDLE_OUT"
+    BUILD_TYPE=release \
+        EXTRA_LDFLAGS="-s -w" \
+        BUNDLE_OUT="$OUT/$VMGR_BIN.app" \
+        SIGNING_CERT="$SIGNING_CERT" \
+        ./build.sh -tags release -trimpath
     popd
 
 

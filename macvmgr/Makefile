@@ -1,14 +1,14 @@
 .PHONY: run scli app serve publish vmgr
 
-run: OrbStack\ Helper\ \(VM\)
+run: ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\)
 	@orb shutdown -f || :
 	@"./OrbStack Helper (VM)" vmgr
 
-OrbStack\ Helper\ \(VM\):
+../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib-debug
 	@./build.sh
 
-vmgr: OrbStack\ Helper\ \(VM\)
+vmgr: ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\)
 
 scli:
 	@cd ../scon; make
