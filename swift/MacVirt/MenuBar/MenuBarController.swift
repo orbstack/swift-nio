@@ -69,7 +69,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             // bold = larger, matches other menu bar icons
             // circle.hexagongrid.circle?
-            button.image = systemImage("circle.circle.fill", bold: true)
+            // systemImage gets cut off with mixed DPI external display
+            button.image = NSImage(named: "MenuBarIcon")
 
             // start in stopped state
             button.alphaValue = opacityAppearsDisabled
