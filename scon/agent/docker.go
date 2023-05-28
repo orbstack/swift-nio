@@ -186,6 +186,10 @@ func (a *AgentServer) monitorDockerEvents() error {
 		return err
 	}
 
+	if req.StatusCode < 200 || req.StatusCode >= 300 {
+		return errors.New("docker API returned " + req.Status)
+	}
+
 	// kick an initial refresh
 	a.dockerRefreshDebounce.Call()
 	// also kick all initial UI events for menu bar bg start
@@ -251,6 +255,45 @@ func (a *AgentServer) onDockerContainerStart(ctr dockertypes.ContainerSummaryMin
 	for _, m := range ctr.Mounts {
 		if m.Type == dockertypes.MountTypeBind {
 			binds = append(binds, m.Source)
+		} else if m.Type == dockertypes.MountTypeVolume && m.Driver == "local" && util.IsMountpointSimple(m.Source) {
+			// for volumes that are mount points, do "docker inspect" and check:
+			// 1. driver = local
+			// 2. o = (r)bind
+			// IsMountpointSimple is ok because this is bind mount from a different src
+			// no need to check if src is mac path because it's checked below
+			// m.Source = volume's _data path
+			// m.Name = volume name
+
+			// get volume info
+			resp, err := a.dockerClient.Get("http://docker/volumes/" + m.Name)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				logrus.WithField("status", resp.Status).WithField("cid", cid).WithField("volume", m.Name).Warn("failed to get Docker volume info")
+			}
+
+			var volInfo dockertypes.Volume
+			err = json.NewDecoder(resp.Body).Decode(&volInfo)
+			if err != nil {
+				return err
+			}
+
+			// check driver
+			if volInfo.Driver != "local" {
+				continue
+			}
+
+			// check mount options
+			opts := strings.Split(volInfo.Options["o"], ",")
+			if !slices.Contains(opts, "bind") && !slices.Contains(opts, "rbind") {
+				continue
+			}
+
+			// device = src path
+			binds = append(binds, volInfo.Options["device"])
 		}
 	}
 	a.dockerMu.Lock()
@@ -258,7 +301,7 @@ func (a *AgentServer) onDockerContainerStart(ctr dockertypes.ContainerSummaryMin
 	a.dockerMu.Unlock()
 
 	// report to host
-	logrus.WithField("cid", cid).WithField("binds", binds).Debug("reporting Docker container binds")
+	logrus.WithField("cid", cid).WithField("binds", binds).Debug("adding Docker container binds")
 	for _, path := range binds {
 		// path translation:
 		path = translateDockerPathToMac(path)
@@ -291,7 +334,7 @@ func (a *AgentServer) onDockerContainerStop(ctr dockertypes.ContainerSummaryMin)
 	a.dockerMu.Unlock()
 
 	// report to host
-	logrus.WithField("cid", cid).WithField("binds", binds).Debug("reporting Docker container binds")
+	logrus.WithField("cid", cid).WithField("binds", binds).Debug("removing Docker container binds")
 	for _, path := range binds {
 		// path translation:
 		path = translateDockerPathToMac(path)

@@ -237,6 +237,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.console.buffer.size", "auto")
 		set("lxc.console.size", "auto")
 
+		// make sure to block krpc if denylist
 		set("lxc.cgroup2.devices.deny", "a")
 		set("lxc.cgroup2.devices.allow", "b *:* m") // mknod block
 		if !c.isolated {
