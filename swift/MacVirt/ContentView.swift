@@ -217,7 +217,7 @@ struct ContentView: View {
             }
         } message: { error in
             if let msg = error.recoverySuggestion {
-                Text(msg)
+                Text(truncateError(description: msg))
             }
         }
         .onReceive(model.$error, perform: { error in
@@ -271,5 +271,13 @@ extension View {
         } else {
             return self
         }
+    }
+}
+
+private func truncateError(description: String) -> String {
+    if description.count > 2500 {
+        return String(description.prefix(2500)) + "…"
+    } else {
+        return description
     }
 }
