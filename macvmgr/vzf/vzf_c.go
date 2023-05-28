@@ -54,7 +54,7 @@ import (
 
 type Machine struct {
 	mu     sync.RWMutex
-	ptr    unsafe.Pointer
+	ptr    atomicUnsafePointer
 	handle cgo.Handle
 
 	retainFiles []*os.File
@@ -129,7 +129,7 @@ func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 	}
 
 	// set ptr
-	vm.ptr = result.ptr
+	vm.ptr.Store(result.ptr)
 	// ref ok: this just drops Go ref; Swift ref is still held if alive
 	runtime.SetFinalizer(vm, (*Machine).Close)
 
@@ -151,7 +151,7 @@ func errFromC(err *C.char) error {
 func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultErr) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	ptr := m.ptr
+	ptr := m.ptr.Load()
 	if ptr == nil {
 		return errors.New("machine closed")
 	}
@@ -163,11 +163,12 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultEr
 func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) *C.struct_GovzfResultIntErr) (int64, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if m.ptr == nil {
+	ptr := m.ptr.Load()
+	if ptr == nil {
 		return 0, errors.New("machine closed")
 	}
 
-	res := fn(m.ptr)
+	res := fn(ptr)
 	return int64(res.value), errFromC(res.err)
 }
 
@@ -220,13 +221,17 @@ func (m *Machine) ConnectVsock(port uint32) (net.Conn, error) {
 }
 
 func (m *Machine) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	// if we try to get write lock, and ConnectVsock is hanging b/c VM is frozen,
+	// then we'll wait forever. Instead, CAS the pointer.
+	// Hacky but this seems like the best solution.
+	// TODO: we could race in between when a ConnectVsock call got the pointer, and when Swift side took a ref
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	// drop our long-lived ref, but don't delete the handle until Swift deinit's
-	if m.ptr != nil {
-		C.govzf_run_Machine_finalize(m.ptr)
-		m.ptr = nil
+	ptr := m.ptr.Swap(nil)
+	if ptr != nil {
+		C.govzf_run_Machine_finalize(ptr)
 	}
 
 	if len(m.retainFiles) > 0 {
