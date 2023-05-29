@@ -29,6 +29,9 @@ import (
 
 const (
 	ProcessName = appid.AppName + "-helper"
+
+	// mitigate risk of 512k tcp buffers using too much memory: not too aggressive oom adj
+	oomScoreAdjCriticalGuest = "-750"
 )
 
 type AgentServer struct {
@@ -305,6 +308,13 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 				logrus.WithError(err).Error("docker post-start failed")
 			}
 		}()
+	}
+
+	// oom score adj
+	err = os.WriteFile("/proc/self/oom_score_adj", []byte(oomScoreAdjCriticalGuest), 0644)
+	if err != nil {
+		// could fail if distro messes up /proc
+		logrus.WithError(err).Error("failed to set oom score adj")
 	}
 
 	runtime.Goexit()

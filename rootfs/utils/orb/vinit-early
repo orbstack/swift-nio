@@ -40,6 +40,7 @@ ip link set eth1 up
 # must be after net for IP
 ip link set lo up # too early
 /opt/orb/vcontrol &
+echo -n -1000 > /proc/$!/oom_score_adj
 
 # early disk perf
 echo none > /sys/block/vda/queue/scheduler

@@ -31,6 +31,8 @@ const (
 	dhcpLeaseEnd   = 250
 	raInterval     = 8 * time.Hour
 	raLifetime     = 30 * 24 * time.Hour
+
+	oomScoreAdjCriticalHost = "-950"
 )
 
 type Network struct {
@@ -116,6 +118,13 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 	cmd.Stderr = os.Stderr
 
 	err := cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+
+	// oom score adj (can't be restarted, broken network if killed)
+	// do it before wait so pid is guaranteed to exist, even if zombie
+	err = os.WriteFile("/proc/"+strconv.Itoa(cmd.Process.Pid)+"/oom_score_adj", []byte(oomScoreAdjCriticalHost), 0644)
 	if err != nil {
 		return nil, err
 	}

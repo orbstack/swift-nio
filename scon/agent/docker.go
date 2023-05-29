@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -87,6 +88,19 @@ func (a *AgentServer) dockerPostStart() error {
 	}
 
 	a.dockerRunning.Set(true)
+
+	// now dockerd process must be running, so set oom scores:
+	// docker-init
+	err = os.WriteFile("/proc/1/oom_score_adj", []byte(oomScoreAdjCriticalGuest), 0644)
+	if err != nil {
+		return err
+	}
+
+	// dockerd (PID is guaranteed because it's exec'd from docker-entrypoint.sh, which is direct child of docker-init)
+	err = os.WriteFile("/proc/2/oom_score_adj", []byte(oomScoreAdjCriticalGuest), 0644)
+	if err != nil {
+		return err
+	}
 
 	// start docker event monitor
 	go func() {

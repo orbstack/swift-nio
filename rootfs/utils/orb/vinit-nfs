@@ -22,6 +22,8 @@ echo -n 1 > /proc/fs/nfsd/nfsv4gracetime
 
 # still needed for nfs4
 #--debug all
-/opt/pkg/rpc.mountd --no-udp --no-nfs-version 2 --no-nfs-version 3
+/opt/pkg/rpc.mountd --no-udp --no-nfs-version 2 --no-nfs-version 3 --foreground &
+# will cause nfs freeze if it exits
+echo -n -950 > /proc/$!/oom_score_adj
 
 /opt/orb/vsocknfs > /proc/fs/nfsd/portlist

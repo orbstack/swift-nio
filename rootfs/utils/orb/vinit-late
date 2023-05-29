@@ -57,7 +57,12 @@ mount --make-rshared /nfsroot-ro
 # scon prereqs
 mount -t tracefs -o rw,nosuid,nodev,noexec,relatime tracefs /sys/kernel/tracing
 
+# oom scores for critical host services that aren't supervised
+echo -n -950 > /proc/$(pidof chronyd)/oom_score_adj
+echo -n -950 > /proc/$(pidof udevd)/oom_score_adj
+
 # scon!
 /opt/orb/scon &
+echo -n -950 > /proc/$!/oom_score_adj
 
 echo "[END] vinit-late"
