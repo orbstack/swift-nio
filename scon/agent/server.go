@@ -317,13 +317,6 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		}
 	}
 
-	// oom score adj
-	err = os.WriteFile("/proc/self/oom_score_adj", []byte(oomScoreAdjCriticalGuest), 0644)
-	if err != nil {
-		// could fail if distro messes up /proc
-		logrus.WithError(err).Error("failed to set oom score adj")
-	}
-
 	runtime.Goexit()
 	return nil
 }
