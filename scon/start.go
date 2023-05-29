@@ -345,6 +345,9 @@ func (c *Container) configureLxc() error {
 		// ref: https://github.com/containerd/containerd/pull/7566
 		set("lxc.prlimit.nofile", "16384:1048576")
 
+		// reset oom_score_adj
+		set("lxc.proc.oom_score_adj", "0")
+
 		// bind mounts
 		config := conf.C()
 		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro")

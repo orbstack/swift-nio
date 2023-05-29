@@ -63,5 +63,6 @@ echo -n -950 > /proc/$(pidof -s udevd)/oom_score_adj
 
 # scon!
 /opt/orb/scon &
+echo -n -950 > /proc/$!/oom_score_adj
 
 echo "[END] vinit-late"

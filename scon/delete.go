@@ -20,7 +20,9 @@ func deleteRootfs(rootfs string) error {
 	if err != nil {
 		if errors.Is(err, unix.EPERM) {
 			// remove immutable and append-only flags
-			err = util.Run("chattr", "-R", "-ai", rootfs)
+			err = util.WithDefaultOom1(func() error {
+				return util.Run("chattr", "-R", "-ai", rootfs)
+			})
 			if err != nil {
 				return err
 			}

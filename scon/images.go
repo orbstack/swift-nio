@@ -22,6 +22,7 @@ import (
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
@@ -339,7 +340,9 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	default:
 		return fmt.Errorf("unsupported rootfs format: %v", img.RootfsFormat)
 	}
-	output, err := cmd.CombinedOutput()
+	output, err := util.WithDefaultOom2(func() ([]byte, error) {
+		return cmd.CombinedOutput()
+	})
 	if err != nil {
 		return fmt.Errorf("extract rootfs: %w\n%s", err, output)
 	}
@@ -353,7 +356,9 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 
 	// extract metadata
 	cmd = exec.Command("tar", "-xf", metaFile, "-C", metadataDir)
-	output, err = cmd.CombinedOutput()
+	output, err = util.WithDefaultOom2(func() ([]byte, error) {
+		return cmd.CombinedOutput()
+	})
 	if err != nil {
 		return fmt.Errorf("extract metadata: %w\n%s", err, output)
 	}
