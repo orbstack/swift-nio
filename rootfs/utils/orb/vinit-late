@@ -58,8 +58,8 @@ mount --make-rshared /nfsroot-ro
 mount -t tracefs -o rw,nosuid,nodev,noexec,relatime tracefs /sys/kernel/tracing
 
 # oom scores for critical host services that aren't supervised
-echo -n -950 > /proc/$(pidof chronyd)/oom_score_adj
-echo -n -950 > /proc/$(pidof udevd)/oom_score_adj
+echo -n -950 > /proc/$(pidof -s chronyd)/oom_score_adj
+echo -n -950 > /proc/$(pidof -s udevd)/oom_score_adj
 
 # scon!
 /opt/orb/scon &

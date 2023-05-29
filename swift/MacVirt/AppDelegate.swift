@@ -91,6 +91,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 return .terminateNow
             }
 
+            // also exception if option key pressed
+            if CGKeyCode.optionKeyPressed {
+                return .terminateNow
+            }
+
             // is VM running?
             if vmModel.state == .stopped {
                 // already fully stopped, so safe to terminate now
