@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/lxc/go-lxc"
@@ -553,6 +554,14 @@ func (c *Container) Start() error {
 	return c.startLocked(false /* isInternal */)
 }
 
+func (c *Container) startLxcLocked() error {
+	// no new fds in between
+	syscall.ForkLock.Lock()
+	defer syscall.ForkLock.Unlock()
+
+	return c.lxc.Start()
+}
+
 func (c *Container) startLocked(isInternal bool) (err error) {
 	if c.runningLocked() {
 		return nil
@@ -589,7 +598,7 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		}
 	}
 
-	err = c.lxc.Start()
+	err = c.startLxcLocked()
 	if err != nil {
 		return fmt.Errorf("start '%s': %w", c.Name, err)
 	}

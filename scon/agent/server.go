@@ -31,7 +31,7 @@ const (
 	ProcessName = appid.AppName + "-helper"
 
 	// mitigate risk of 512k tcp buffers using too much memory: not too aggressive oom adj
-	oomScoreAdjCriticalGuest = "-750"
+	oomScoreAdjCriticalGuest = "-500"
 )
 
 type AgentServer struct {
@@ -308,6 +308,13 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 				logrus.WithError(err).Error("docker post-start failed")
 			}
 		}()
+
+		// docker-init oom score adj
+		// dockerd's score is set via cmdline argument
+		err = os.WriteFile("/proc/1/oom_score_adj", []byte(oomScoreAdjCriticalGuest), 0644)
+		if err != nil {
+			return err
+		}
 	}
 
 	// oom score adj
