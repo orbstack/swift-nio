@@ -14,21 +14,16 @@ import (
 
 var (
 	staticDnsHosts = map[string]dnssrv.StaticHost{
-		"vm":                      {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
 		"vm.internal":             {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
 		"vm.orb.internal":         {IP4: netconf.GuestIP4, IP6: netconf.GuestIP6},
-		"host":                    {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
 		"host.internal":           {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
 		"host.orb.internal":       {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
 		"host.docker.internal":    {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
 		"host.lima.internal":      {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
-		"docker":                  {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
 		"docker.internal":         {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
 		"docker.orb.internal":     {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
-		"services":                {IP4: netconf.ServicesIP4},
 		"services.internal":       {IP4: netconf.ServicesIP4},
 		"services.orb.internal":   {IP4: netconf.ServicesIP4},
-		"gateway":                 {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
 		"gateway.internal":        {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
 		"gateway.orb.internal":    {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
 		"gateway.docker.internal": {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
