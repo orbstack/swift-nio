@@ -26,13 +26,13 @@ qemu-nbd -d /dev/nbd0
 
 # swap volume
 rm -f swap.qcow2
-qemu-img create -f qcow2 swap.qcow2 10G
+qemu-img create -f qcow2 swap.qcow2 7G
 qemu-nbd -c /dev/nbd0 swap.qcow2
-# create gpt partition table; create two 4G partitions
+# create gpt partition table; create 4G zram writeback + 2G emergency swap
 sfdisk /dev/nbd0 <<EOF
 label: gpt
 size=4G, type=L, uuid=e071c0ef-c282-439a-a621-8fbd329367dc
-size=4G, type=L, uuid=95c2fe16-bb32-478c-adda-16f43d22cffd
+size=2G, type=L, uuid=95c2fe16-bb32-478c-adda-16f43d22cffd
 EOF
 # p1 = zram writeback 1
 # p2 = emergency swap
