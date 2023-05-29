@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alessio/shellescape"
 	"github.com/orbstack/macvirt/macvmgr/conf/appid"
 	"github.com/orbstack/macvirt/macvmgr/conf/sshpath"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -15,8 +14,8 @@ import (
 )
 
 var (
-	useShell     bool
-	usePath      bool
+	flagUseShell bool
+	flagUsePath  bool
 	flagMachine  string
 	flagUser     string
 	FlagWantHelp bool
@@ -26,8 +25,8 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Use a specific machine")
 	runCmd.Flags().StringVarP(&flagUser, "user", "u", "", "Run as a specific user")
-	runCmd.Flags().BoolVarP(&useShell, "shell", "s", false, "Use the login shell instead of running command directly")
-	runCmd.Flags().BoolVarP(&usePath, "path", "p", false, "Translate absolute macOS paths to Linux paths")
+	runCmd.Flags().BoolVarP(&flagUseShell, "shell", "s", false, "Use the login shell instead of running command directly")
+	runCmd.Flags().BoolVarP(&flagUsePath, "path", "p", false, "Translate absolute macOS paths to Linux paths")
 }
 
 func ParseRunFlags(args []string) ([]string, error) {
@@ -47,10 +46,10 @@ func ParseRunFlags(args []string) ([]string, error) {
 			// 1. simple case: if this is a bool flag, set it and continue
 			switch arg {
 			case "-s", "--shell", "-shell":
-				useShell = true
+				flagUseShell = true
 				continue
 			case "-p", "--path", "-path":
-				usePath = true
+				flagUsePath = true
 				continue
 			case "-h", "--help", "-help":
 				FlagWantHelp = true
@@ -68,9 +67,9 @@ func ParseRunFlags(args []string) ([]string, error) {
 					flagUser = valuePart
 				// bools: allow true/false
 				case "-s", "--shell", "-shell":
-					useShell = valuePart == "true"
+					flagUseShell = valuePart == "true"
 				case "-p", "--path", "-path":
-					usePath = valuePart == "true"
+					flagUsePath = valuePart == "true"
 				}
 				continue
 			}
@@ -168,18 +167,16 @@ See "orb docker" for more info.
 			containerName = c.Name
 		}
 
-		if usePath {
+		if flagUsePath {
 			args = sshpath.TranslateArgs(args, sshpath.ToLinux, sshpath.ToLinuxOptions{
 				TargetContainer: containerName,
 			})
 		}
-		if useShell {
-			args = []string{shellescape.QuoteCommand(args)}
-		}
 
 		exitCode, err := shell.RunSSH(shell.CommandOpts{
-			CombinedArgs:  args,
-			UseShell:      useShell,
+			CombinedArgs: args,
+			// if use shell, then args are joined by space and passed to shell as script
+			UseShell:      flagUseShell,
 			ContainerName: containerName,
 			User:          flagUser,
 		})

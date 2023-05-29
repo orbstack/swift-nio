@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alessio/shellescape"
 	"github.com/orbstack/macvirt/macvmgr/cmd/macctl/shell"
 	"github.com/orbstack/macvirt/macvmgr/conf/sshpath"
 	"github.com/spf13/cobra"
@@ -129,13 +128,11 @@ To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac
 			opts.Relaxed = true
 		}
 		args = sshpath.TranslateArgs(args, sshpath.ToMac, opts)
-		if useShell {
-			args = []string{shellescape.QuoteCommand(args)}
-		}
 
 		exitCode, err := shell.ConnectSSH(shell.CommandOpts{
 			CombinedArgs: args,
-			UseShell:     useShell,
+			// if use shell, then args are joined by space and passed to shell as script
+			UseShell: useShell,
 		})
 		if err != nil {
 			panic(err)
