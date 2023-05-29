@@ -40,6 +40,7 @@ mount --bind /data/guest-state /opt/orbstack-guest/data
 # nfs root setup
 # mount name is visible in machines bind mount
 mount -t tmpfs machines -o noatime,mode=700 /nfsroot-rw
+cp /opt/orb/nfs-readme.txt /nfsroot-rw/README.txt
 # try to reduce nfs cpu usage
 touch /nfsroot-rw/.metadata_never_index /nfsroot-rw/.metadata-never-index /nfsroot-rw/.metadata_never_index_unless_rootfs
 # bind ro
