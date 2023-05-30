@@ -16,7 +16,7 @@ COMMITS=$(git rev-list --count HEAD)
 
 VMGR_BIN="OrbStack Helper (VM)"
 VMGR_SIGNING_ID="dev.kdrag0n.MacVirt.vmgr"
-SIGNING_CERT="ECD9A0D787DFCCDD0DB5FF21CD2F6666B9B5ADC2"
+SIGNING_CERT="Developer ID Application: Orbital Labs, LLC (U.S.) (HUAQ24HBR6)"
 
 cd "$(dirname "$0")"
 
@@ -122,7 +122,7 @@ function package_one() {
 
     # dmg
     # use short ver due to 27 char limit: https://github.com/LinusU/node-alias/issues/7
-    create-dmg --overwrite --dmg-title="Install OrbStack $SHORT_VER" $arch/OrbStack.app $arch
+    create-dmg --overwrite --identity="$SIGNING_CERT" --dmg-title="Install OrbStack $SHORT_VER" $arch/OrbStack.app $arch
 
     if $NOTARIZE; then
         # notarize
