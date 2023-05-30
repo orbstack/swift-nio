@@ -346,9 +346,14 @@ class MenuBarController: NSObject, NSMenuDelegate {
         let actionInProgress = actionTracker.ongoingFor(container.cid) != nil
 
         // TODO: highlight container item and open popover
-        var icon = actionInProgress ? systemImage("circle.dotted") : nil
-        if showStatus {
-            //icon = container.running ? systemImage("circle.fill", small: true) : systemImage("circle", small: true)
+        var icon: NSImage? = nil
+        if actionInProgress {
+            icon = systemImage("circle.dotted")
+        } else if showStatus {
+            let color = container.running ? NSColor.systemGreen : NSColor.systemRed
+            icon = NSImage(named: "MenuBarStatusDot")!
+                .tint(color: color.withAlphaComponent(0.8))
+            icon!.size = NSSize(width: 16, height: 16)
         }
         let containerItem = newActionItem(container.userName, icon: icon) { [self] in
             openApp(tab: "docker")

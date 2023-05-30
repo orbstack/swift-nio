@@ -188,7 +188,12 @@ struct DockerContainerLists {
         }
 
         // convert to list items
-        for (group, containers) in composeGroups {
+        for (group, var containers) in composeGroups {
+            // sort
+            containers.sort { a, b in
+                a.userName < b.userName
+            }
+
             let children = containers.map { DockerListItem(container: $0) }
             var item = DockerListItem(composeGroup: group, children: children)
             // if ANY container in the group is running, show the group as running
