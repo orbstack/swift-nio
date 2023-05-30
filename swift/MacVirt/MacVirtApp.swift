@@ -48,6 +48,15 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
     func allowedChannels(for updater: SPUUpdater) -> Set<String> {
         Set(["beta"])
     }
+
+    func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
+        // bypass menu bar termination hook
+        AppLifecycle.forceTerminate = true
+    }
+}
+
+struct AppLifecycle {
+    static var forceTerminate = false
 }
 
 @main

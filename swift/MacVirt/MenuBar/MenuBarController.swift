@@ -35,7 +35,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private var isAnimating = false
     private var lastTargetIsActive = false
     var quitInitiated = false
-    var quitForce = false
 
     init(updaterController: SPUStandardUpdaterController,
          actionTracker: ActionTracker, windowTracker: WindowTracker, vmModel: VmViewModel) {
@@ -333,7 +332,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu.addActionItem("Quit", shortcut: "q") { [self] in
             // opt = force quit
             if CGKeyCode.optionKeyPressed {
-                quitForce = true
+                AppLifecycle.forceTerminate = true
             }
 
             // quick-quit logic for user-initiated menu bar quit

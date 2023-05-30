@@ -77,7 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if menuBar?.quitForce == true || vmModel._forceTerminate {
+        if AppLifecycle.forceTerminate {
             // user explicitly force quit, so just terminate
             return .terminateNow
         }
