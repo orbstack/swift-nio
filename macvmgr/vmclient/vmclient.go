@@ -165,8 +165,8 @@ func (c *VmClient) GetConfig() (*vmconfig.VmConfig, error) {
 	return &config, nil
 }
 
-func (c *VmClient) PatchConfig(patch *vmconfig.VmConfigPatch) error {
-	return c.rpc.CallResult(context.TODO(), "PatchConfig", patch, &noResult)
+func (c *VmClient) SetConfig(patch *vmconfig.VmConfig) error {
+	return c.rpc.CallResult(context.TODO(), "SetConfig", patch, &noResult)
 }
 
 func (c *VmClient) ResetConfig() error {

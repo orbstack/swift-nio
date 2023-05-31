@@ -84,9 +84,9 @@ func (s *VmControlServer) GetConfig(ctx context.Context) (*vmconfig.VmConfig, er
 	return vmconfig.Get(), nil
 }
 
-func (s *VmControlServer) PatchConfig(ctx context.Context, patch *vmconfig.VmConfigPatch) error {
+func (s *VmControlServer) SetConfig(ctx context.Context, newConfig *vmconfig.VmConfig) error {
 	return vmconfig.Update(func(c *vmconfig.VmConfig) {
-		vmconfig.Apply(c, patch)
+		*c = *newConfig
 	})
 }
 
@@ -315,7 +315,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"ForceStop":           handler.New(s.ForceStop),
 		"ResetData":           handler.New(s.ResetData),
 		"GetConfig":           handler.New(s.GetConfig),
-		"PatchConfig":         handler.New(s.PatchConfig),
+		"SetConfig":           handler.New(s.SetConfig),
 		"ResetConfig":         handler.New(s.ResetConfig),
 		"StartSetup":          handler.New(s.StartSetup),
 		"FinishSetup":         handler.New(s.FinishSetup),

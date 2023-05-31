@@ -40,7 +40,7 @@ type ProxyManager struct {
 	requiresHttpProxy bool
 	httpRevProxy      *httpReverseProxy
 
-	vmconfigCh chan vmconfig.VmConfigPatch
+	vmconfigCh chan vmconfig.VmConfigChange
 	stopCh     chan struct{}
 	// for drm: the proxy url used by HTTPS connection
 	httpsProxyUrl *url.URL
@@ -86,7 +86,7 @@ func (p *ProxyManager) monitorChanges() {
 	for {
 		select {
 		case patch := <-p.vmconfigCh:
-			if patch.NetworkProxy != nil {
+			if patch.New.NetworkProxy != patch.Old.NetworkProxy {
 				err := p.Refresh()
 				if err != nil {
 					logrus.WithError(err).Error("failed to refresh proxy settings (config change)")

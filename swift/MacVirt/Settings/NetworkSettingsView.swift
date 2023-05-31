@@ -8,8 +8,8 @@ import LaunchAtLogin
 import Combine
 import Sparkle
 
-struct NetworkSettingsView: View {
-    @EnvironmentObject private var vmModel: VmViewModel
+struct NetworkSettingsView: BaseVmgrSettingsView, View {
+    @EnvironmentObject internal var vmModel: VmViewModel
     @Environment(\.controlActiveState) private var controlActiveState: ControlActiveState
     @State private var proxyText = ""
     @State private var proxyMode = "auto"
@@ -91,12 +91,7 @@ struct NetworkSettingsView: View {
             configValue = proxyText == "" ? "auto" : proxyText
         }
 
-        Task {
-            if let config = vmModel.config,
-               config.networkProxy != configValue {
-                await vmModel.tryPatchConfig(VmConfigPatch(networkProxy: configValue))
-            }
-        }
+        setConfigKey(\.networkProxy, configValue)
     }
 
     private func updateFrom(_ config: VmConfig) {

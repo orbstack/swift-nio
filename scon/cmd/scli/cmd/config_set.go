@@ -8,7 +8,6 @@ import (
 
 	"github.com/orbstack/macvirt/macvmgr/conf/appid"
 	"github.com/orbstack/macvirt/macvmgr/vmclient"
-	"github.com/orbstack/macvirt/macvmgr/vmconfig"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
@@ -29,23 +28,25 @@ Some options will only take effect after restarting the virtual machine.
 	Example: "  " + appid.ShortCtl + " set memory_mib 4096",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var patch vmconfig.VmConfigPatch
+		scli.EnsureVMWithSpinner()
+
+		config, err := vmclient.Client().GetConfig()
+		checkCLI(err)
 
 		key := args[0]
 		value := args[1]
-		var err error
 		rebootRequired := false
 		switch key {
 		case "memory_mib":
 			val, err := strconv.ParseUint(value, 10, 64)
 			checkCLI(err)
-			patch.MemoryMiB = &val
+			config.MemoryMiB = val
 			rebootRequired = true
 		case "cpu":
 			val, err := strconv.ParseUint(value, 10, 64)
 			checkCLI(err)
 			intV := int(val)
-			patch.CPU = &intV
+			config.CPU = intV
 
 			if intV < 1 {
 				checkCLI(errors.New("CPU limit must be at least 1"))
@@ -58,16 +59,19 @@ Some options will only take effect after restarting the virtual machine.
 		case "rosetta":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
-			patch.Rosetta = &val
+			config.Rosetta = val
 			rebootRequired = true
 		case "network_proxy":
-			patch.NetworkProxy = &value
+			config.NetworkProxy = value
+		case "data_dir":
+			config.DataDir = value
+			rebootRequired = true
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)
 		}
-		scli.EnsureVMWithSpinner()
-		err = vmclient.Client().PatchConfig(&patch)
+
+		err = vmclient.Client().SetConfig(config)
 		checkCLI(err)
 
 		if rebootRequired {

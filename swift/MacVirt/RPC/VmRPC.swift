@@ -16,14 +16,6 @@ struct VmConfig: Codable, Equatable {
     var mountHideShared: Bool
 }
 
-struct VmConfigPatch: Codable, Equatable {
-    var memoryMib: UInt64? = nil
-    var cpu: UInt? = nil
-    var rosetta: Bool? = nil
-    var networkProxy: String? = nil
-    var mountHideShared: Bool? = nil
-}
-
 struct SetupInfo: Codable {
     var adminShellCommand: String?
     var adminMessage: String?
@@ -54,8 +46,8 @@ class VmService: RPCService {
         try await invoke("GetConfig")
     }
 
-    func patchConfig(_ config: VmConfigPatch) async throws {
-        try await invoke("PatchConfig", params: config)
+    func setConfig(_ config: VmConfig) async throws {
+        try await invoke("SetConfig", params: config)
     }
 
     func resetConfig() async throws {

@@ -8,8 +8,23 @@ import LaunchAtLogin
 import Combine
 import Sparkle
 
-struct MachineSettingsView: View {
-    @EnvironmentObject private var vmModel: VmViewModel
+protocol BaseVmgrSettingsView {
+    var vmModel: VmViewModel { get }
+}
+
+extension BaseVmgrSettingsView {
+    func setConfigKey<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>, _ newValue: T) {
+        Task { @MainActor in
+            if var config = vmModel.config {
+                config[keyPath: keyPath] = newValue
+                await vmModel.trySetConfig(config)
+            }
+        }
+    }
+}
+
+struct MachineSettingsView: BaseVmgrSettingsView, View {
+    @EnvironmentObject internal var vmModel: VmViewModel
     @State private var memoryMib = 0.0
     @State private var cpu = 1.0
     @State private var enableRosetta = true
@@ -37,12 +52,7 @@ struct MachineSettingsView: View {
                     if #available(macOS 13, *) {
                         Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
                             .onChange(of: enableRosetta) { newValue in
-                                Task { @MainActor in
-                                    if let config = vmModel.config,
-                                       config.rosetta != newValue {
-                                        await vmModel.tryPatchConfig(VmConfigPatch(rosetta: newValue))
-                                    }
-                                }
+                                setConfigKey(\.rosetta, newValue)
                             }
                     } else {
                         Toggle("Use Rosetta to run Intel code", isOn: $enableRosettaFalse)
@@ -55,12 +65,7 @@ struct MachineSettingsView: View {
 
                     Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
                             .onChange(of: mountHideShared) { newValue in
-                                Task { @MainActor in
-                                    if let config = vmModel.config,
-                                       config.mountHideShared != newValue {
-                                        await vmModel.tryPatchConfig(VmConfigPatch(mountHideShared: newValue))
-                                    }
-                                }
+                                setConfigKey(\.mountHideShared, newValue)
                             }
 
                     Spacer()
@@ -80,12 +85,7 @@ struct MachineSettingsView: View {
                         Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
                     }
                     .onChange(of: memoryMib) { newValue in
-                        Task { @MainActor in
-                            if let config = vmModel.config,
-                               config.memoryMib != UInt64(newValue) {
-                                await vmModel.tryPatchConfig(VmConfigPatch(memoryMib: UInt64(newValue)))
-                            }
-                        }
+                        setConfigKey(\.memoryMib, UInt64(newValue))
                     }
 
                     let maxCpu = ProcessInfo.processInfo.processorCount
@@ -104,12 +104,7 @@ struct MachineSettingsView: View {
                         Text("None")
                     }
                     .onChange(of: cpu) { newValue in
-                        Task { @MainActor in
-                            if let config = vmModel.config,
-                               config.cpu != UInt64(newValue) {
-                                await vmModel.tryPatchConfig(VmConfigPatch(cpu: UInt(newValue)))
-                            }
-                        }
+                        setConfigKey(\.cpu, UInt(newValue))
                     }
                     Text("Resources are used on demand, up to these limits.")
                             .font(.subheadline)

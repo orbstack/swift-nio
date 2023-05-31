@@ -24,7 +24,7 @@ var (
 	globalConfig   *VmConfig
 	globalConfigMu sync.Mutex
 
-	diffBroadcaster = syncx.NewBroadcaster[VmConfigPatch]()
+	diffBroadcaster = syncx.NewBroadcaster[VmConfigChange]()
 )
 
 type VmConfig struct {
@@ -36,13 +36,9 @@ type VmConfig struct {
 	DataDir         string `json:"data_dir"`
 }
 
-type VmConfigPatch struct {
-	MemoryMiB       *uint64 `json:"memory_mib,omitempty"`
-	CPU             *int    `json:"cpu,omitempty"`
-	Rosetta         *bool   `json:"rosetta,omitempty"`
-	NetworkProxy    *string `json:"network_proxy,omitempty"`
-	MountHideShared *bool   `json:"mount_hide_shared,omitempty"`
-	DataDir         *string `json:"data_dir,omitempty"`
+type VmConfigChange struct {
+	Old *VmConfig `json:"old"`
+	New *VmConfig `json:"new"`
 }
 
 func (c *VmConfig) Validate() error {
@@ -133,7 +129,10 @@ func Update(cb func(*VmConfig)) error {
 
 	// generate a patch and only save the patch
 	// this allows us to change defaults without breaking existing configs
-	diffDefault := Diff(Defaults(), &newConfig)
+	diffDefault, err := diffJsonMaps(Defaults(), &newConfig)
+	if err != nil {
+		return err
+	}
 
 	data, err := json.MarshalIndent(diffDefault, "", "\t")
 	if err != nil {
@@ -146,14 +145,48 @@ func Update(cb func(*VmConfig)) error {
 		return err
 	}
 
-	// broadcast the diff from old, if anything changed
+	// broadcast the change from old, if anything changed
 	if newConfig != *oldConfig {
-		diffOld := Diff(oldConfig, &newConfig)
-		diffBroadcaster.Emit(*diffOld)
+		diffBroadcaster.Emit(VmConfigChange{
+			Old: oldConfig,
+			New: &newConfig,
+		})
 	}
 
 	globalConfig = &newConfig
 	return nil
+}
+
+func diffJsonMaps(a, b any) (map[string]any, error) {
+	aJson, err := json.Marshal(a)
+	if err != nil {
+		return nil, err
+	}
+
+	bJson, err := json.Marshal(b)
+	if err != nil {
+		return nil, err
+	}
+
+	var aMap, bMap map[string]any
+	err = json.Unmarshal(aJson, &aMap)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(bJson, &bMap)
+	if err != nil {
+		return nil, err
+	}
+
+	diff := make(map[string]any)
+	for k, v := range bMap {
+		if aMap[k] != v {
+			diff[k] = v
+		}
+	}
+
+	return diff, nil
 }
 
 func calcMemory() uint64 {
@@ -182,66 +215,10 @@ func Reset() error {
 	})
 }
 
-func Diff(a, b *VmConfig) *VmConfigPatch {
-	patch := &VmConfigPatch{}
-
-	if a.MemoryMiB != b.MemoryMiB {
-		patch.MemoryMiB = &b.MemoryMiB
-	}
-
-	if a.CPU != b.CPU {
-		patch.CPU = &b.CPU
-	}
-
-	if a.Rosetta != b.Rosetta {
-		patch.Rosetta = &b.Rosetta
-	}
-
-	if a.NetworkProxy != b.NetworkProxy {
-		patch.NetworkProxy = &b.NetworkProxy
-	}
-
-	if a.MountHideShared != b.MountHideShared {
-		patch.MountHideShared = &b.MountHideShared
-	}
-
-	if a.DataDir != b.DataDir {
-		patch.DataDir = &b.DataDir
-	}
-
-	return patch
-}
-
-func Apply(a *VmConfig, patch *VmConfigPatch) {
-	if patch.MemoryMiB != nil {
-		a.MemoryMiB = *patch.MemoryMiB
-	}
-
-	if patch.CPU != nil {
-		a.CPU = *patch.CPU
-	}
-
-	if patch.Rosetta != nil {
-		a.Rosetta = *patch.Rosetta
-	}
-
-	if patch.NetworkProxy != nil {
-		a.NetworkProxy = *patch.NetworkProxy
-	}
-
-	if patch.MountHideShared != nil {
-		a.MountHideShared = *patch.MountHideShared
-	}
-
-	if patch.DataDir != nil {
-		a.DataDir = *patch.DataDir
-	}
-}
-
-func SubscribeDiff() chan VmConfigPatch {
+func SubscribeDiff() chan VmConfigChange {
 	return diffBroadcaster.Subscribe()
 }
 
-func UnsubscribeDiff(ch chan VmConfigPatch) {
+func UnsubscribeDiff(ch chan VmConfigChange) {
 	diffBroadcaster.Unsubscribe(ch)
 }

@@ -57,7 +57,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case stopError(cause: Error)
     case setupError(cause: Error)
     case configRefresh(cause: Error)
-    case configPatchError(cause: Error)
+    case configUpdateError(cause: Error)
 
     // docker
     case dockerListError(cause: Error)
@@ -104,7 +104,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Failed to do setup"
         case .configRefresh:
             return "Can’t get settings"
-        case .configPatchError:
+        case .configUpdateError:
             return "Can’t change settings"
 
         case .dockerListError:
@@ -231,7 +231,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .configRefresh(let cause):
             return cause
-        case .configPatchError(let cause):
+        case .configUpdateError(let cause):
             return cause
 
         case .dockerListError(let cause):
@@ -946,16 +946,17 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func patchConfig(_ patch: VmConfigPatch) async throws {
-        try await vmgr.patchConfig(patch)
+    func setConfig(_ newConfig: VmConfig) async throws {
+        try await vmgr.setConfig(newConfig)
+        config = newConfig
     }
 
     @MainActor
-    func tryPatchConfig(_ patch: VmConfigPatch) async {
+    func trySetConfig(_ newConfig: VmConfig) async {
         do {
-            try await patchConfig(patch)
+            try await setConfig(newConfig)
         } catch {
-            setError(.configPatchError(cause: error))
+            setError(.configUpdateError(cause: error))
         }
     }
 
