@@ -24,16 +24,17 @@ var (
 	// generally: curl, scp
 	PackageInstallCommands = map[string][]string{
 		// we really only need scp for JetBrains Fleet, but just install openssh instead of dropbear
-		images.ImageAlpine:   {"apk add sudo curl openssh-client-common"},
-		images.ImageArch:     {"pacman --noconfirm -Sy openssh", "systemctl disable sshd"},
-		images.ImageCentos:   nil, // no need
-		images.ImageDebian:   {"apt-get update", "apt-get install -y curl"},
-		images.ImageFedora:   nil, // no need
-		images.ImageGentoo:   nil, // no need
-		images.ImageKali:     {"apt-get update", "apt-get install -y curl"},
-		images.ImageOpensuse: {"zypper install -y openssh-clients"},
-		images.ImageUbuntu:   {"apt-get update", "apt-get install -y curl"},
-		images.ImageVoid:     {"xbps-install -Sy curl"},
+		images.ImageAlpine:    {"apk add sudo curl openssh-client-common"},
+		images.ImageArch:      {"pacman --noconfirm -Sy openssh", "systemctl disable sshd"},
+		images.ImageCentos:    nil, // no need
+		images.ImageDebian:    {"apt-get update", "apt-get install -y curl"},
+		images.ImageFedora:    nil, // no need
+		images.ImageGentoo:    nil, // no need
+		images.ImageKali:      {"apt-get update", "apt-get install -y curl"},
+		images.ImageOpeneuler: nil, // no need
+		images.ImageOpensuse:  {"zypper install -y openssh-clients"},
+		images.ImageUbuntu:    {"apt-get update", "apt-get install -y curl"},
+		images.ImageVoid:      {"xbps-install -Sy curl"},
 
 		images.ImageDevuan: nil, // no need
 		images.ImageAlma:   nil, // no need

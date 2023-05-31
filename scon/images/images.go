@@ -7,16 +7,17 @@ import (
 )
 
 const (
-	ImageAlpine   = "alpine"
-	ImageArch     = "archlinux"
-	ImageCentos   = "centos"
-	ImageDebian   = "debian"
-	ImageFedora   = "fedora"
-	ImageGentoo   = "gentoo"
-	ImageKali     = "kali"
-	ImageOpensuse = "opensuse"
-	ImageUbuntu   = "ubuntu"
-	ImageVoid     = "voidlinux"
+	ImageAlpine    = "alpine"
+	ImageArch      = "archlinux"
+	ImageCentos    = "centos"
+	ImageDebian    = "debian"
+	ImageFedora    = "fedora"
+	ImageGentoo    = "gentoo"
+	ImageKali      = "kali"
+	ImageOpeneuler = "openeuler"
+	ImageOpensuse  = "opensuse"
+	ImageUbuntu    = "ubuntu"
+	ImageVoid      = "voidlinux"
 
 	ImageDevuan = "devuan"
 	ImageAlma   = "almalinux"
@@ -31,16 +32,17 @@ const (
 )
 
 const (
-	DistroAlpine   = "alpine"
-	DistroArch     = "arch"
-	DistroCentos   = "centos"
-	DistroDebian   = "debian"
-	DistroFedora   = "fedora"
-	DistroGentoo   = "gentoo"
-	DistroKali     = "kali"
-	DistroOpensuse = "opensuse"
-	DistroUbuntu   = "ubuntu"
-	DistroVoid     = "void"
+	DistroAlpine    = "alpine"
+	DistroArch      = "arch"
+	DistroCentos    = "centos"
+	DistroDebian    = "debian"
+	DistroFedora    = "fedora"
+	DistroGentoo    = "gentoo"
+	DistroKali      = "kali"
+	DistroOpeneuler = "openeuler"
+	DistroOpensuse  = "opensuse"
+	DistroUbuntu    = "ubuntu"
+	DistroVoid      = "void"
 
 	DistroDevuan = "devuan"
 	DistroAlma   = "alma"
@@ -54,16 +56,17 @@ const (
 
 var (
 	DistroToImage = map[string]string{
-		DistroAlpine:   ImageAlpine,
-		DistroArch:     ImageArch,
-		DistroCentos:   ImageCentos,
-		DistroDebian:   ImageDebian,
-		DistroFedora:   ImageFedora,
-		DistroGentoo:   ImageGentoo,
-		DistroKali:     ImageKali,
-		DistroOpensuse: ImageOpensuse,
-		DistroUbuntu:   ImageUbuntu,
-		DistroVoid:     ImageVoid,
+		DistroAlpine:    ImageAlpine,
+		DistroArch:      ImageArch,
+		DistroCentos:    ImageCentos,
+		DistroDebian:    ImageDebian,
+		DistroFedora:    ImageFedora,
+		DistroGentoo:    ImageGentoo,
+		DistroKali:      ImageKali,
+		DistroOpeneuler: ImageOpeneuler,
+		DistroOpensuse:  ImageOpensuse,
+		DistroUbuntu:    ImageUbuntu,
+		DistroVoid:      ImageVoid,
 
 		DistroDevuan: ImageDevuan,
 		DistroAlma:   ImageAlma,
@@ -77,16 +80,17 @@ var (
 	}
 
 	ImageToLatestVersion = map[string]string{
-		ImageAlpine:   "3.17",
-		ImageArch:     "current",
-		ImageCentos:   "9-Stream",
-		ImageDebian:   "bullseye",
-		ImageFedora:   "38",
-		ImageGentoo:   "current",
-		ImageKali:     "current",
-		ImageOpensuse: "15.4",
-		ImageUbuntu:   "lunar",
-		ImageVoid:     "current",
+		ImageAlpine:    "3.17",
+		ImageArch:      "current",
+		ImageCentos:    "9-Stream",
+		ImageDebian:    "bullseye",
+		ImageFedora:    "38",
+		ImageGentoo:    "current",
+		ImageKali:      "current",
+		ImageOpeneuler: "23.03",
+		ImageOpensuse:  "15.4",
+		ImageUbuntu:    "lunar",
+		ImageVoid:      "current",
 
 		ImageDevuan: "chimaera",
 		ImageAlma:   "9",

@@ -204,13 +204,8 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 	return imagesMap, nil
 }
 
-func isDistroInLxdRepo(distro string) bool {
-	switch distro {
-	case images.ImageAlpine, images.ImageArch, images.ImageCentos, images.ImageDebian, images.ImageFedora, images.ImageGentoo, images.ImageKali, images.ImageOpensuse, images.ImageUbuntu, images.ImageVoid, images.ImageDevuan, images.ImageAlma, images.ImageOracle, images.ImageRocky:
-		return true
-	}
-
-	return false
+func isImageDistroInLxdRepo(image string) bool {
+	return image != images.ImageNixos && image != images.ImageDocker
 }
 
 func downloadFile(url string, outPath string, expectSha256 string) error {
@@ -284,7 +279,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	img, ok = extraImages[spec]
 	if !ok {
 		switch {
-		case isDistroInLxdRepo(spec.Distro):
+		case isImageDistroInLxdRepo(spec.Distro):
 			logrus.Info("fetching image index")
 			images, err := fetchStreamsImages()
 			if err != nil {

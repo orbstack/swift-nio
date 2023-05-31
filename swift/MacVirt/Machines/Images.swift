@@ -26,6 +26,7 @@ enum Distro: String, CaseIterable {
     case gentoo   = "gentoo"
     case kali     = "kali"
     case nixos = "nixos"
+    case openeuler = "openeuler"
     case opensuse = "opensuse"
     case oracle = "oracle"
     case rocky  = "rocky"
@@ -44,6 +45,7 @@ enum Distro: String, CaseIterable {
         case .gentoo:   return "gentoo"
         case .kali:     return "kali"
         case .nixos: return "nixos"
+        case .openeuler: return "openeuler"
         case .opensuse: return "opensuse"
         case .oracle: return "oracle"
         case .rocky:  return "rockylinux"
@@ -64,6 +66,7 @@ enum Distro: String, CaseIterable {
         case .gentoo:   return "Gentoo"
         case .kali:     return "Kali"
         case .nixos: return "NixOS"
+        case .openeuler: return "openEuler"
         case .opensuse: return "OpenSUSE"
         case .oracle: return "Oracle"
         case .rocky:  return "Rocky"
@@ -86,6 +89,7 @@ enum Distro: String, CaseIterable {
         case .gentoo:   return [v("current", as: "latest")]
         case .kali:     return [v("current", as: "latest")]
         case .nixos: return [v("22.11")]
+        case .openeuler: return [v("20.03"), v("22.03"), v("22.09"), v("23.03")]
         case .opensuse: return [v("tumbleweed", as: "Tumbleweed"), v("15.4")]
         case .oracle: return [v("8"), v("9")]
         case .rocky:  return [v("8"), v("9")]
