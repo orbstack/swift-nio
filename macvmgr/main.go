@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -399,6 +400,8 @@ func runVmManager() {
 		}
 	}
 	// for max safety, we never release flock. it'll be released on process exit
+	// so keep fd open
+	defer runtime.KeepAlive(lockFile)
 	/*
 		defer func() {
 			err := flock.Unlock(lockFile)
