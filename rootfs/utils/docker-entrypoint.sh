@@ -46,4 +46,4 @@ ln -sf /opt/orbstack-guest/run/host-ssh-agent.sock /run/host-services/ssh-auth.s
 ip6tables -t nat -A POSTROUTING -s fd07:b51a:cc66:0001::/64 -o eth0 -j MASQUERADE
 export TMPDIR=/dockertmp
 # host-gateway-ip: fix https://github.com/orgs/orbstack/discussions/102
-exec dockerd --host=unix:///var/run/docker.sock --tls=false --host-gateway-ip=198.19.248.254 --oom-score-adjust=-500
+exec dockerd --host-gateway-ip=198.19.248.254 --oom-score-adjust=-500
