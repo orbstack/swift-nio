@@ -52,6 +52,7 @@ struct DKUIEvent: Codable {
 }
 class DaemonManager {
     private let pidsHolder = PidsHolder()
+    private var lastPid: Int?
 
     private func getPid() -> Int? {
         // read flock
@@ -102,6 +103,7 @@ class DaemonManager {
     // we do NOT check flock to get a new pid on start, because then it'll stop during spawn-daemon upgrade
     // spawn-daemon will return an existing pid so it works out
     func monitorPid(_ pid: Int, callback: @escaping (ExitReason) -> Void) async {
+        lastPid = pid
         // make sure we're not already monitoring this pid
         guard await pidsHolder.add(pid) else {
             return
@@ -161,7 +163,12 @@ class DaemonManager {
             } else {
                 reason = .status(waitStatus >> 8)
             }
-            callback(reason)
+            //TODO may not be right
+            if pid == lastPid {
+                callback(reason)
+            } else {
+                NSLog("Ignoring pid \(pid) exit (\(reason)): old pid")
+            }
             NSLog("Daemon exited: \(reason)")
 
             // remove pid
