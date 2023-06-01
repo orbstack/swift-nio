@@ -103,11 +103,11 @@ class DaemonManager {
     // we do NOT check flock to get a new pid on start, because then it'll stop during spawn-daemon upgrade
     // spawn-daemon will return an existing pid so it works out
     func monitorPid(_ pid: Int, callback: @escaping (ExitReason) -> Void) async {
-        lastPid = pid
         // make sure we're not already monitoring this pid
         guard await pidsHolder.add(pid) else {
             return
         }
+        lastPid = pid
 
         Task.detached { [self] in
             NSLog("Watching pid \(pid)")
