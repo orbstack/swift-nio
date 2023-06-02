@@ -30,10 +30,7 @@ private func getUserSettings() -> UserSettings {
 }
 
 private func isGuiRunning() -> Bool {
-    let bundleId = "dev.kdrag0n.MacVirt"
-    let runningApps = NSWorkspace.shared.runningApplications
-    let isRunning = !runningApps.filter { $0.bundleIdentifier == bundleId }.isEmpty
-    return isRunning
+    return NSRunningApplication.runningApplications(withBundleIdentifier: "dev.kdrag0n.MacVirt").count > 0
 }
 
 @_cdecl("swext_defaults_get_user_settings")
