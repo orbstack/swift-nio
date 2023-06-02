@@ -140,7 +140,16 @@ func (h *HcontrolServer) GetSSHAuthorizedKeys(_ None, reply *string) error {
 
 	authorizedKeys, err := os.ReadFile(conf.ExtraSshDir() + "/authorized_keys")
 	if err != nil {
-		logrus.WithError(err).Warn("failed to read authorized_keys")
+		if errors.Is(err, os.ErrNotExist) {
+			// if it doesn't exist, create base one
+			err = os.WriteFile(conf.ExtraSshDir()+"/authorized_keys", customKey, 0644)
+			if err != nil {
+				return err
+			}
+		} else {
+			// otherwise that's fine, just log
+			logrus.WithError(err).Warn("failed to read authorized_keys")
+		}
 	}
 
 	// concat base key with authorized
