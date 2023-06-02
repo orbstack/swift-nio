@@ -558,17 +558,44 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 		return nil
 	})
 
-	pubKeyStr, err := m.host.GetSSHPublicKey()
-	if err != nil {
-		return nil, err
-	}
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pubKeyStr))
+	pubKeysStr, err := m.host.GetSSHAuthorizedKeys()
 	if err != nil {
 		return nil, err
 	}
 
+	// parse all authorized keys
+	var pubKeys []ssh.PublicKey
+	for _, pubKeyStr := range strings.Split(pubKeysStr, "\n") {
+		// skip comments and empty lines
+		if strings.HasPrefix(pubKeyStr, "#") || pubKeyStr == "" {
+			continue
+		}
+
+		pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pubKeyStr))
+		if err != nil {
+			logrus.WithError(err).WithField("key", pubKeyStr).Error("invalid SSH authorized key")
+		}
+
+		// dedupe
+		found := false
+		for _, existing := range pubKeys {
+			if ssh.KeysEqual(existing, pubKey) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			pubKeys = append(pubKeys, pubKey)
+		}
+	}
+
 	pubKeyOpt := ssh.PublicKeyAuth(func(ctx ssh.Context, key ssh.PublicKey) bool {
-		return ssh.KeysEqual(key, pubKey)
+		for _, pubKey := range pubKeys {
+			if ssh.KeysEqual(key, pubKey) {
+				return true
+			}
+		}
+		return false
 	})
 	sshServerPub.SetOption(pubKeyOpt)
 	go runOne("public SSH server v4", func() error {

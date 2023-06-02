@@ -132,13 +132,19 @@ func (h *HcontrolServer) GetTimezone(_ *None, reply *string) error {
 	return nil
 }
 
-func (h *HcontrolServer) GetSSHPublicKey(_ None, reply *string) error {
-	data, err := os.ReadFile(conf.ExtraSshDir() + "/id_ed25519.pub")
+func (h *HcontrolServer) GetSSHAuthorizedKeys(_ None, reply *string) error {
+	customKey, err := os.ReadFile(conf.ExtraSshDir() + "/id_ed25519.pub")
 	if err != nil {
 		return err
 	}
 
-	*reply = strings.TrimSpace(string(data))
+	authorizedKeys, err := os.ReadFile(conf.ExtraSshDir() + "/authorized_keys")
+	if err != nil {
+		logrus.WithError(err).Warn("failed to read authorized_keys")
+	}
+
+	// concat base key with authorized
+	*reply = strings.TrimSpace(string(customKey) + "\n" + string(authorizedKeys))
 	return nil
 }
 

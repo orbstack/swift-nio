@@ -56,9 +56,9 @@ func (c *Client) GetTimezone() (string, error) {
 	return tz, nil
 }
 
-func (c *Client) GetSSHPublicKey() (string, error) {
+func (c *Client) GetSSHAuthorizedKeys() (string, error) {
 	var key string
-	err := c.rpc.Call("hc.GetSSHPublicKey", None{}, &key)
+	err := c.rpc.Call("hc.GetSSHAuthorizedKeys", None{}, &key)
 	if err != nil {
 		return "", err
 	}
