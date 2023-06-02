@@ -20,9 +20,14 @@ struct AppConfig {
     static let dockerComposeExe = "\(Folders.home)/code/projects/macvirt/macvmgr/xbin/docker-compose"
 #else
     static let debug = false
-    static let vmgrExe = Bundle.main.path(forAuxiliaryExecutable: "OrbStack Helper (VM)")!
-    static let shellExe = Bundle.main.path(forAuxiliaryExecutable: "bin/orb")!
-    static let dockerExe = Bundle.main.path(forAuxiliaryExecutable: "xbin/docker")!
-    static let dockerComposeExe = Bundle.main.path(forAuxiliaryExecutable: "xbin/docker-compose")!
+    static let vmgrExe = pathForAuxiliaryExecutable("OrbStack Helper (VM)")
+    static let shellExe = pathForAuxiliaryExecutable("bin/orb")
+    static let dockerExe = pathForAuxiliaryExecutable("xbin/docker")
+    static let dockerComposeExe = pathForAuxiliaryExecutable("xbin/docker-compose")
 #endif
+}
+
+// can't crash because bundlePath can't be nil
+private func pathForAuxiliaryExecutable(_ name: String) -> String {
+    return "\(Bundle.main.bundlePath)/Contents/MacOS/\(name)"
 }
