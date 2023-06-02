@@ -98,7 +98,7 @@ var (
 		ImageOracle: "9",
 		ImageRocky:  "9",
 
-		ImageNixos: "22.11",
+		ImageNixos: "23.05",
 	}
 
 	// everything else is "default"
