@@ -431,7 +431,10 @@ func runVmManager() {
 
 	// killswitch
 	err = killswitch.Check()
-	check(err)
+	if err != nil {
+		logrus.Fatal("This beta version has expired. Please update to the latest version: https://orbstack.dev/download")
+		panic(err)
+	}
 	stopCh := make(chan StopType, 1)
 	killswitch.Watch(func(err error) {
 		logrus.WithError(err).Error("build expired")
