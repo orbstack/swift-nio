@@ -18,10 +18,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var (
-	sshConfigIncludeLine = fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
-)
-
 func generatePublicSSHKey() error {
 	pk, sk, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -105,9 +101,14 @@ Host %s
 			return err
 		}
 	}
-	if !strings.Contains(string(sshConfig), sshConfigIncludeLine) {
+
+	// rel ~/path
+	sshConfigIncludeLine1 := fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
+	// abs path
+	sshConfigIncludeLine2 := fmt.Sprintf("Include %s/config", conf.ExtraSshDir())
+	if !strings.Contains(string(sshConfig), sshConfigIncludeLine1) && !strings.Contains(string(sshConfig), sshConfigIncludeLine2) {
 		// prepend, or it doesn't work
-		sshConfig = append([]byte(sshConfigIncludeLine+"\n\n"), sshConfig...)
+		sshConfig = append([]byte(sshConfigIncludeLine1+"\n\n"), sshConfig...)
 		err = os.WriteFile(userConfigPath, sshConfig, 0644)
 		// ignore permission errors and warn in case user has nix home-manager for .ssh
 		if err != nil {
