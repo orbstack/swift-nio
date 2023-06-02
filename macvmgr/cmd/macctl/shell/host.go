@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"errors"
 	"net"
+	"os"
 
 	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
 	"github.com/orbstack/macvirt/macvmgr/syncx"
@@ -16,6 +18,11 @@ func HostUser() string {
 	return onceHostUser.Do(func() string {
 		conn, err := net.Dial("unix", mounts.HcontrolSocket)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// in isolated machine or docker - fall back to $USER
+				return ""
+			}
+
 			panic(err)
 		}
 		defer conn.Close()

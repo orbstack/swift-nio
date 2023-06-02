@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -9,6 +10,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/cmd/macctl/cmd"
 	"github.com/orbstack/macvirt/macvmgr/cmd/macctl/shell"
 	"github.com/orbstack/macvirt/macvmgr/conf/sshpath"
+	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -48,10 +50,23 @@ func runBinfmtStub() (int, error) {
 	combinedArgs = sshpath.TranslateArgs(combinedArgs, sshpath.ToMac, opts)
 
 	// run the command
-	return shell.ConnectSSH(shell.CommandOpts{
+	exitCode, err := shell.ConnectSSH(shell.CommandOpts{
 		CombinedArgs: combinedArgs,
 		Argv0:        &argv0,
 	})
+	if err != nil && errors.Is(err, shell.ErrDialNotExist) {
+		// attempting binfmt in docker or isolated
+		// change err msg based on whether it's docker
+		if unix.Access("/.dockerenv", unix.F_OK) == nil {
+			fmt.Fprintf(os.Stderr, "Cannot run macOS (Mach-O) executable in Docker: Exec format error\n")
+			return 126, nil
+		} else {
+			fmt.Fprintf(os.Stderr, "Cannot run macOS (Mach-O) executable in isolated machine: Exec format error\n")
+			return 126, nil
+		}
+	}
+
+	return exitCode, err
 }
 
 func runCommandStub(cmd string) (int, error) {

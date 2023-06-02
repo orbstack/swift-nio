@@ -26,6 +26,8 @@ const (
 )
 
 var (
+	ErrDialNotExist = errors.New("dial: no such file or directory")
+
 	sshSigMap = map[os.Signal]ssh.Signal{
 		unix.SIGABRT: ssh.SIGABRT,
 		unix.SIGALRM: ssh.SIGALRM,
@@ -78,7 +80,11 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 
 	client, err := ssh.Dial("unix", mounts.HostSSHSocket, config)
 	if err != nil {
-		return 0, err
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, ErrDialNotExist
+		} else {
+			return 0, err
+		}
 	}
 	defer client.Close()
 
