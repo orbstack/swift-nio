@@ -33,9 +33,21 @@ const (
 )
 
 // static ARP/neighbors to save CPU
+// all under random block U/L block:
 const (
-	GuestMACPrefix = "86:6c:f1:2e:9e"
+	//da9bd054-66ca-48ab-8b7a-ac47d3a2698a
+	BlockMACPrefix = "da:9b:d0:54"
+
+	// we start at :e0
+	GuestMACPrefix = BlockMACPrefix + ":e0"
 	GuestMACVnet   = GuestMACPrefix + ":01"
 
-	GatewayMAC = "24:d2:f4:58:34:d7"
+	// gateway and vmnet use :e1 block
+	GatewayMAC        = BlockMACPrefix + ":e1:01"
+	SconHostBridgeMAC = BlockMACPrefix + ":e1:02"
+
+	// vlan router uses entire :e2 block
+	// lower 7 bits: vlan id / interface index
+	// upper 1 bit: 0=host 1=guest
+	VlanRouterMACPrefix = BlockMACPrefix + ":e2"
 )

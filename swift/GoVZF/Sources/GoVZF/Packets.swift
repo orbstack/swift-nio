@@ -246,7 +246,7 @@ class GuestReader {
             let n = read(guestFd, buf, Int(maxPacketSize))
             guard n > 0 else {
                 if errno != EAGAIN && errno != EWOULDBLOCK {
-                    NSLog("[brnet] tap read error: \(errno)")
+                    NSLog("[brnet] guest read error: \(errno)")
                 }
                 return
             }

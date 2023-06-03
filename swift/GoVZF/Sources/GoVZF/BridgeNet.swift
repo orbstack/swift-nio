@@ -257,7 +257,7 @@ class BridgeNetwork {
         var pktsWritten = Int32(1)
         let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
         guard ret2 == .VMNET_SUCCESS else {
-            NSLog("[brnet] vmnet write error: \(VmnetError.from(ret2))")
+            NSLog("[brnet] host write error: \(VmnetError.from(ret2))")
             return
         }
     }

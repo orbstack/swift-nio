@@ -1,6 +1,7 @@
 package vnet
 
 import (
+	"net"
 	"sync"
 	"time"
 
@@ -20,8 +21,21 @@ const (
 )
 
 var (
-	brMacSconMachine = []uint16{0x00, 0x16, 0x3e, 0x00, 0x00, 0x01}
+	brMacSconMachine []uint16
 )
+
+func init() {
+	mac, err := net.ParseMAC(netconf.SconHostBridgeMAC)
+	if err != nil {
+		panic(err)
+	}
+
+	// map to uint16 for json to swift
+	brMacSconMachine = make([]uint16, len(mac))
+	for i, b := range mac {
+		brMacSconMachine[i] = uint16(b)
+	}
+}
 
 func (n *Network) AddHostBridgeFd(fd int) {
 	n.hostBridgeMu.Lock()
