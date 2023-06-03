@@ -7,7 +7,7 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 )
 
-func findSiblingExe(name string) (string, error) {
+func findAuxiliaryExe(name string) (string, error) {
 	if conf.Debug() {
 		return "/Users/dragon/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app/Contents/MacOS/" + name, nil
 	}
@@ -20,11 +20,11 @@ func findSiblingExe(name string) (string, error) {
 }
 
 func FindSparkleExe() (string, error) {
-	return findSiblingExe("sparkle-cli")
+	return findAuxiliaryExe("sparkle-cli")
 }
 
 func FindGuihelperExe() (string, error) {
-	return findSiblingExe("OrbStack Helper (UI)")
+	return findAuxiliaryExe("OrbStack Helper (UI)")
 }
 
 func FindAppBundle() (string, error) {

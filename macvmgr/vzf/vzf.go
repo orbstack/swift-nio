@@ -27,12 +27,14 @@ type VzSpec struct {
 }
 
 type BridgeNetworkConfig struct {
-	TapFd int `json:"tapFd"`
+	GuestFd         int  `json:"guestFd"`
+	ShouldReadGuest bool `json:"shouldReadGuest"`
 
-	UUID       string `json:"uuid"`
-	Ip4Address string `json:"ip4Address"`
-	Ip4Mask    string `json:"ip4Mask"`
-	Ip6Address string `json:"ip6Address,omitempty"`
+	UUID            string   `json:"uuid"`
+	Ip4Address      string   `json:"ip4Address"`
+	Ip4Mask         string   `json:"ip4Mask"`
+	Ip6Address      string   `json:"ip6Address,omitempty"`
+	HostOverrideMAC []uint16 `json:"hostOverrideMac,omitempty"`
 
 	MaxLinkMTU int `json:"maxLinkMtu"`
 }

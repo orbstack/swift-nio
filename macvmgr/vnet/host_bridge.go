@@ -19,12 +19,20 @@ const (
 	brUuidDocker      = "8bd4b797-07cc-4118-9147-d2e349132a12"
 )
 
+var (
+	brMacSconMachine = []uint16{0x00, 0x16, 0x3e, 0x00, 0x00, 0x01}
+)
+
 func (n *Network) AddHostBridgeFd(fd int) {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
 
 	n.hostBridgeFds = append(n.hostBridgeFds, fd)
 	n.hostBridges = append(n.hostBridges, nil)
+}
+
+func (n *Network) ClearVlanRouter() error {
+	return nil
 }
 
 // TODO remove dependency on vzf
@@ -41,12 +49,14 @@ func (n *Network) CreateSconMachineHostBridge() error {
 	}
 
 	return n.createHostBridge(brIndexSconMachine, vzf.BridgeNetworkConfig{
-		TapFd: n.hostBridgeFds[brIndexSconMachine],
+		GuestFd:         n.hostBridgeFds[brIndexSconMachine],
+		ShouldReadGuest: true,
 
-		UUID:       brUuidSconMachine,
-		Ip4Address: netconf.SconHostBridgeIP4,
-		Ip4Mask:    "255.255.255.0",
-		Ip6Address: netconf.SconHostBridgeIP6,
+		UUID:            brUuidSconMachine,
+		Ip4Address:      netconf.SconHostBridgeIP4,
+		Ip4Mask:         "255.255.255.0",
+		Ip6Address:      netconf.SconHostBridgeIP6,
+		HostOverrideMAC: brMacSconMachine,
 
 		MaxLinkMTU: int(n.LinkMTU),
 	})
@@ -67,7 +77,7 @@ func (n *Network) createHostBridge(index int, config vzf.BridgeNetworkConfig) er
 // Since we don't have root, recreating the bridge is necessary to fix the route.
 //
 // Works because TCP flows, etc. don't get terminated. Just a brief ~100-200 ms of packet loss
-func (n *Network) MonitorHostBridgeRoute() error {
+func (n *Network) MonitorHostBridgeRoutes() error {
 	mon, err := bridge.NewRouteMon()
 	if err != nil {
 		return err
@@ -101,7 +111,7 @@ func (n *Network) MonitorHostBridgeRoute() error {
 
 	// TODO support stopping
 	for {
-		// monitor route changes to relevant subnet
+		// monitor route changes to relevant subnets
 		_, err := mon.Receive()
 		if err != nil {
 			return err

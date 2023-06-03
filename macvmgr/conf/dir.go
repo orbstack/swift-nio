@@ -5,9 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/orbstack/macvirt/macvmgr/conf/coredir"
 	"github.com/orbstack/macvirt/macvmgr/vmconfig"
+)
+
+const (
+	VmgrExeName = "OrbStack Helper (VM)"
 )
 
 func ensureDir(dir string) string {
@@ -65,6 +70,14 @@ func ExecutableDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve symlinks: %w", err)
 	}
+
+	// find parent app bundle if we're in a nested bundle
+	nestedBundleSuffix := "/Frameworks/" + VmgrExeName + ".app/Contents/MacOS/" + VmgrExeName
+	if strings.HasSuffix(selfExe, nestedBundleSuffix) {
+		rootBundlePath := strings.TrimSuffix(selfExe, nestedBundleSuffix)
+		return rootBundlePath + "/Contents/MacOS", nil
+	}
+
 	return filepath.Dir(selfExe), nil
 }
 

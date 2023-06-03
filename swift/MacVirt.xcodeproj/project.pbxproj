@@ -12,6 +12,7 @@
 		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
 		B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */; };
 		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
+		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
 		B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */; };
 		D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */; };
 		D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */; };
@@ -77,15 +78,16 @@
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
-		D8715C502A1F2AC50047A9BE /* VzClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4A2A1F2AC40047A9BE /* VzClient.swift */; };
-		D8715C512A1F2AC50047A9BE /* FsNotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4B2A1F2AC40047A9BE /* FsNotify.swift */; };
-		D8715C522A1F2AC50047A9BE /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4C2A1F2AC40047A9BE /* Proxy.swift */; };
-		D8715C532A1F2AC50047A9BE /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4D2A1F2AC40047A9BE /* Defaults.swift */; };
 		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
 		D8715C572A1FEF260047A9BE /* CBridge.h in Headers */ = {isa = PBXBuildFile; fileRef = D8715C562A1FEF260047A9BE /* CBridge.h */; };
 		D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8715CC12A208C640047A9BE /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8715CC02A208C640047A9BE /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8715CC32A208C750047A9BE /* OrbStack Helper (VM).app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D81F2A2B22A0002CF279 /* VzClient.swift */; };
+		D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8202A2B22A0002CF279 /* FsNotify.swift */; };
+		D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8212A2B22A0002CF279 /* Proxy.swift */; };
+		D880D8262A2B22A0002CF279 /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8222A2B22A0002CF279 /* Defaults.swift */; };
+		D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8292A2B40C7002CF279 /* VlanRouter.swift */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDD299A131B00419B5C /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -171,6 +173,7 @@
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
 		B118BABDE1F02C8A54DB011F /* NSImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NSImage.swift; sourceTree = "<group>"; };
+		B118BD52B15443D1329C832A /* Packets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
 		B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
 		D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingCreateView.swift; sourceTree = "<group>"; };
 		D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
@@ -241,14 +244,15 @@
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../macvmgr/xbin/docker-compose"; sourceTree = "<group>"; };
 		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../macvmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
 		D870292029B316A700A4CFD9 /* GoVZF.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = GoVZF.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		D8715C4A2A1F2AC40047A9BE /* VzClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VzClient.swift; path = Sources/GoVZF/VzClient.swift; sourceTree = "<group>"; };
-		D8715C4B2A1F2AC40047A9BE /* FsNotify.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = FsNotify.swift; path = Sources/GoVZF/FsNotify.swift; sourceTree = "<group>"; };
-		D8715C4C2A1F2AC40047A9BE /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Proxy.swift; path = Sources/GoVZF/Proxy.swift; sourceTree = "<group>"; };
-		D8715C4D2A1F2AC40047A9BE /* Defaults.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Defaults.swift; path = Sources/GoVZF/Defaults.swift; sourceTree = "<group>"; };
-		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = BridgeNet.swift; path = Sources/GoVZF/BridgeNet.swift; sourceTree = "<group>"; };
-		D8715C562A1FEF260047A9BE /* CBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CBridge.h; path = Sources/CBridge/CBridge.h; sourceTree = "<group>"; };
+		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BridgeNet.swift; sourceTree = "<group>"; };
+		D8715C562A1FEF260047A9BE /* CBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CBridge.h; path = ../CBridge/CBridge.h; sourceTree = "<group>"; };
 		D8715CC02A208C640047A9BE /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../out/scli; sourceTree = "<group>"; };
 		D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper (VM).app"; path = "../out/OrbStack Helper (VM).app"; sourceTree = "<group>"; };
+		D880D81F2A2B22A0002CF279 /* VzClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VzClient.swift; sourceTree = "<group>"; };
+		D880D8202A2B22A0002CF279 /* FsNotify.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FsNotify.swift; sourceTree = "<group>"; };
+		D880D8212A2B22A0002CF279 /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
+		D880D8222A2B22A0002CF279 /* Defaults.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Defaults.swift; sourceTree = "<group>"; };
+		D880D8292A2B40C7002CF279 /* VlanRouter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VlanRouter.swift; sourceTree = "<group>"; };
 		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
 		D88F4ED9299A131B00419B5C /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = build/bins/docker; sourceTree = "<group>"; };
 		D88F4EDA299A131B00419B5C /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "build/bins/docker-compose"; sourceTree = "<group>"; };
@@ -433,12 +437,15 @@
 			children = (
 				D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */,
 				D8715C562A1FEF260047A9BE /* CBridge.h */,
-				D8715C4D2A1F2AC40047A9BE /* Defaults.swift */,
-				D8715C4B2A1F2AC40047A9BE /* FsNotify.swift */,
-				D8715C4C2A1F2AC40047A9BE /* Proxy.swift */,
-				D8715C4A2A1F2AC40047A9BE /* VzClient.swift */,
+				D880D8222A2B22A0002CF279 /* Defaults.swift */,
+				D880D8202A2B22A0002CF279 /* FsNotify.swift */,
+				D880D8212A2B22A0002CF279 /* Proxy.swift */,
+				D880D8292A2B40C7002CF279 /* VlanRouter.swift */,
+				D880D81F2A2B22A0002CF279 /* VzClient.swift */,
+				B118BD52B15443D1329C832A /* Packets.swift */,
 			);
-			path = GoVZF;
+			name = GoVZF;
+			path = GoVZF/Sources/GoVZF;
 			sourceTree = "<group>";
 		};
 		D8715CC42A208EB80047A9BE /* External */ = {
@@ -742,11 +749,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D8715C502A1F2AC50047A9BE /* VzClient.swift in Sources */,
-				D8715C532A1F2AC50047A9BE /* Defaults.swift in Sources */,
+				D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */,
+				D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */,
+				D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */,
+				D880D8262A2B22A0002CF279 /* Defaults.swift in Sources */,
 				D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */,
-				D8715C522A1F2AC50047A9BE /* Proxy.swift in Sources */,
-				D8715C512A1F2AC50047A9BE /* FsNotify.swift in Sources */,
+				D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */,
+				B118BD0025A6757805924195 /* Packets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

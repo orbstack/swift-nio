@@ -266,7 +266,23 @@ func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
 	return nil
 }
 
-func (h *HcontrolServer) ClearFsnotifyRefs(_ None, _ *None) error {
+func (h *HcontrolServer) ClearDockerState(_ None, _ *None) error {
+	// fsnotify folder refs
+	err := h.clearFsnotifyRefs()
+	if err != nil {
+		return err
+	}
+
+	// vlan router bridge interfaces
+	err = h.n.ClearVlanRouter()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *HcontrolServer) clearFsnotifyRefs() error {
 	h.fsnotifyMu.Lock()
 	defer h.fsnotifyMu.Unlock()
 
