@@ -214,9 +214,9 @@ func (h *DockerHooks) PostStart(c *Container) error {
 }
 
 func (h *DockerHooks) PostStop(c *Container) error {
-	err := c.manager.host.ClearFsnotifyRefs()
+	err := c.manager.host.ClearDockerState()
 	if err != nil {
-		return fmt.Errorf("clear refs: %w", err)
+		return fmt.Errorf("clear docker state: %w", err)
 	}
 
 	return nil

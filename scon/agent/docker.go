@@ -153,6 +153,48 @@ func (a *AgentServer) dockerRefreshContainers() error {
 	return nil
 }
 
+func (a *AgentServer) dockerRefreshNetworks() error {
+	// no mu needed: synchronized by debounce
+
+	resp, err := a.dockerClient.Get("http://docker/networks")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return errors.New("docker API returned " + resp.Status)
+	}
+
+	var newNetworks []dockertypes.Network
+	err = json.NewDecoder(resp.Body).Decode(&newNetworks)
+	if err != nil {
+		return err
+	}
+
+	// diff
+	added, removed := util.DiffSlicesKey[string](a.dockerLastNetworks, newNetworks)
+
+	// add first
+	for _, n := range added {
+		err = a.onDockerNetworkAdd(n)
+		if err != nil {
+			logrus.WithError(err).Error("failed to add Docker network")
+		}
+	}
+
+	// then remove
+	for _, n := range removed {
+		err = a.onDockerNetworkRemove(n)
+		if err != nil {
+			logrus.WithError(err).Error("failed to remove Docker network")
+		}
+	}
+
+	a.dockerLastNetworks = newNetworks
+	return nil
+}
+
 func (a *AgentServer) dockerTriggerUIEvent(entity dockertypes.UIEntity) {
 	a.dockerMu.Lock()
 	defer a.dockerMu.Unlock()
@@ -191,7 +233,8 @@ func (a *AgentServer) monitorDockerEvents() error {
 	}
 
 	// kick an initial refresh
-	a.dockerRefreshDebounce.Call()
+	a.dockerContainerRefreshDebounce.Call()
+	a.dockerNetworkRefreshDebounce.Call()
 	// also kick all initial UI events for menu bar bg start
 	a.dockerTriggerUIEvent(dockertypes.UIEventContainer)
 	a.dockerTriggerUIEvent(dockertypes.UIEventVolume)
@@ -216,12 +259,21 @@ func (a *AgentServer) monitorDockerEvents() error {
 			switch event.Action {
 			case "create", "start", "die", "destroy":
 				a.dockerTriggerUIEvent(dockertypes.UIEventContainer)
-				a.dockerRefreshDebounce.Call()
+				a.dockerContainerRefreshDebounce.Call()
 			}
 
 		case "volume":
 			a.dockerTriggerUIEvent(dockertypes.UIEventVolume)
 			// there is no event for images
+
+		case "network":
+			switch event.Action {
+			case "create", "destroy":
+				// we only care about bridges
+				if event.Actor.Attributes.Type == "bridge" {
+					a.dockerNetworkRefreshDebounce.Call()
+				}
+			}
 		}
 	}
 }
@@ -348,6 +400,28 @@ func (a *AgentServer) onDockerContainerStop(ctr dockertypes.ContainerSummaryMin)
 			return err
 		}
 	}
+
+	return nil
+}
+
+func (a *AgentServer) onDockerNetworkAdd(network dockertypes.Network) error {
+	// we only care about Driver=bridge, Scope=local
+	if network.Driver != "bridge" || network.Scope != "local" {
+		return nil
+	}
+
+	logrus.WithField("name", network.Name).Debug("adding Docker network")
+
+	return nil
+}
+
+func (a *AgentServer) onDockerNetworkRemove(network dockertypes.Network) error {
+	// we only care about Driver=bridge, Scope=local
+	if network.Driver != "bridge" || network.Scope != "local" {
+		return nil
+	}
+
+	logrus.WithField("name", network.Name).Debug("removing Docker network")
 
 	return nil
 }

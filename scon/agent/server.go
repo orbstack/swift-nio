@@ -46,11 +46,13 @@ type AgentServer struct {
 	dockerMu             syncx.Mutex
 	dockerHost           *hclient.Client
 	dockerContainerBinds map[string][]string
-	dockerLastContainers []dockertypes.ContainerSummaryMin
+	dockerLastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
+	dockerLastNetworks   []dockertypes.Network
 	// refreshing w/ debounce+diff ensures consistent snapshots
-	dockerRefreshDebounce   syncx.FuncDebounce
-	dockerUIEventDebounce   syncx.FuncDebounce
-	dockerPendingUIEntities []dockertypes.UIEntity
+	dockerContainerRefreshDebounce syncx.FuncDebounce
+	dockerNetworkRefreshDebounce   syncx.FuncDebounce
+	dockerUIEventDebounce          syncx.FuncDebounce
+	dockerPendingUIEntities        []dockertypes.UIEntity
 }
 
 type ProxySpec struct {
@@ -260,10 +262,16 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 		server.dockerRunning = syncx.NewCondBool()
 		server.dockerContainerBinds = make(map[string][]string)
-		server.dockerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		server.dockerContainerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
 			err := server.dockerRefreshContainers()
 			if err != nil {
 				logrus.WithError(err).Error("failed to refresh docker containers")
+			}
+		})
+		server.dockerNetworkRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+			err := server.dockerRefreshNetworks()
+			if err != nil {
+				logrus.WithError(err).Error("failed to refresh docker networks")
 			}
 		})
 		server.dockerUIEventDebounce = syncx.NewFuncDebounce(dockerUIEventDebounce, func() {

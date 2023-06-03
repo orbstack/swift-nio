@@ -58,6 +58,9 @@ private enum VmnetError: Error {
 enum BrnetError: Error {
     case errno(Int32)
     case invalidPacket
+
+    case invalidInterface
+    case tooManyInterfaces
 }
 
 private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) throws -> (interface_ref, xpc_object_t) {
@@ -90,6 +93,7 @@ struct BridgeNetworkConfig: Codable {
     let uuid: String
     let ip4Address: String
     let ip4Mask: String
+    // always /64
     let ip6Address: String?
     let hostOverrideMac: [UInt8]
 
@@ -236,19 +240,21 @@ class BridgeNetwork {
         if config.shouldReadGuest {
             guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPacketSize,
                     onPacket: { [self] iov, len in
-                        let pkt = Packet(iov: iov, len: len)
-                        do {
-                            try processor.processToHost(pkt: pkt)
-                        } catch {
-                            NSLog("[brnet] error processing to host: \(error)")
-                            return
-                        }
                         tryWriteToHost(iov: iov, len: len)
                     })
         }
     }
 
     func tryWriteToHost(iov: UnsafeMutablePointer<iovec>, len: Int) {
+        // process packet
+        let pkt = Packet(iov: iov, len: len)
+        do {
+            try processor.processToHost(pkt: pkt)
+        } catch {
+            NSLog("[brnet] error processing to host: \(error)")
+            return
+        }
+
         // write to vmnet
         var pktDesc = vmpktdesc(vm_pkt_size: len,
                 vm_pkt_iov: iov,

@@ -22,7 +22,7 @@ private let IPPROTO_TCP: UInt8 = 6
 
 private let macAddrSize = 6
 
-typealias BrnetInterfaceIndex = Int
+typealias BrnetInterfaceIndex = UInt
 
 struct Packet {
     let data: UnsafeMutableRawPointer
@@ -83,6 +83,8 @@ class PacketProcessor {
     --------------------------
     1. rewrite destination MAC address from assigned host MAC to macOS
       - only if it equals the expected MAC for the interface
+
+    (below part is a static helper so VlanRouter can call it)
     2. map to interface
       - extract index from src MAC
         - to get vmnet interface
@@ -90,8 +92,7 @@ class PacketProcessor {
         - this covers broadcast and multicast cases: src MAC is always present
     */
     // warning: can be called concurrently!
-    @discardableResult
-    func processToHost(pkt: Packet) throws -> BrnetInterfaceIndex {
+    func processToHost(pkt: Packet) throws {
         // if we have actual host MAC...
         if let hostActualMac {
             // then check if we need to rewrite the destination MAC (Ethernet[0])
@@ -110,7 +111,9 @@ class PacketProcessor {
                 }
             }
         }
+    }
 
+    static func extractInterfaceIndexToHost(pkt: Packet) throws -> BrnetInterfaceIndex {
         // mask out and return the interface index:
         // lower 7 bits of the last octet
         let srcMacLastByte = try pkt.load(offset: 6 + 5) as UInt8
@@ -263,7 +266,7 @@ class GuestReader {
     func close() {
         // remove callbacks
         source.cancel()
-        // drop ref
+        // drop ref (breaks ref cycle to self in handler)
         source.setEventHandler(handler: nil)
     }
 

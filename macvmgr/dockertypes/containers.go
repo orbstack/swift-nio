@@ -54,7 +54,7 @@ type ContainerSummaryMin struct {
 	Mounts []MountPoint
 }
 
-// Identifiable
+// Identifiable - for scon agent
 func (c ContainerSummaryMin) Identifier() string {
 	return c.ID
 }

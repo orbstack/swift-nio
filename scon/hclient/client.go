@@ -136,9 +136,9 @@ func (c *Client) RemoveFsnotifyRef(path string) error {
 	return c.rpc.Call("hc.RemoveFsnotifyRef", path, &none)
 }
 
-func (c *Client) ClearFsnotifyRefs() error {
+func (c *Client) ClearDockerState() error {
 	var none None
-	return c.rpc.Call("hc.ClearFsnotifyRefs", None{}, &none)
+	return c.rpc.Call("hc.ClearDockerState", None{}, &none)
 }
 
 func (c *Client) OnDockerUIEvent(event *dockertypes.UIEvent) error {

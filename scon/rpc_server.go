@@ -7,7 +7,6 @@ import (
 	"math"
 	"net"
 	"net/http"
-	"reflect"
 	"strconv"
 
 	"github.com/creachadair/jrpc2"
@@ -22,9 +21,6 @@ import (
 type SconServer struct {
 	m *ConManager
 }
-
-// Never obfuscate the SconServer type (garble)
-var _ = reflect.TypeOf(SconServer{})
 
 func (s *SconServer) Ping(ctx context.Context) error {
 	return nil

@@ -30,11 +30,12 @@ const (
 	BinHiprio             = Opt + "/bin-hiprio"
 	DefaultHiprioCmdLinks = BinHiprio
 
-	Run            = Opt + "/run"
-	SshAgentSocket = Run + "/host-ssh-agent.sock"
-	HostSSHSocket  = Run + "/hostssh.sock"
-	HcontrolSocket = Run + "/hcontrol.sock"
-	ExtraCerts     = Run + "/extra-certs.crt"
+	Run             = Opt + "/run"
+	SshAgentSocket  = Run + "/host-ssh-agent.sock"
+	HostSSHSocket   = Run + "/hostssh.sock"
+	HcontrolSocket  = Run + "/hcontrol.sock"
+	SconGuestSocket = Run + "/scon-guest.sock"
+	ExtraCerts      = Run + "/extra-certs.crt"
 
 	TmpSshAgentProxySocket = "/dev/.orbstack/ssh-agent-proxy.sock"
 

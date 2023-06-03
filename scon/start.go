@@ -757,16 +757,8 @@ func findCgroup(pid int) (string, error) {
 // start monitoring inet diag netlink
 // returns netns cookie for bpf lfwd
 func (c *Container) startNetlinkMonitor(initPid int) (uint64, error) {
-	// open pidfd for netns switch
-	initPidFd, err := unix.PidfdOpen(initPid, 0)
-	if err != nil {
-		return 0, fmt.Errorf("open pid: %w", err)
-	}
-	initPidF := os.NewFile(uintptr(initPidFd), "[pidfd]")
-	defer initPidF.Close()
-
 	// open inet diag
-	nlFile, err := sysnet.WithNetns(initPidF, func() (*os.File, error) {
+	nlFile, err := withContainerNetns(c, initPid, func() (*os.File, error) {
 		return sysnet.OpenDiagNetlink()
 	})
 	if err != nil {
@@ -785,6 +777,31 @@ func (c *Container) startNetlinkMonitor(initPid int) (uint64, error) {
 	})
 
 	return netnsCookie, nil
+}
+
+// optionally use existing initPid query for performance
+func withContainerNetns[T any](c *Container, initPid int, fn func() (T, error)) (T, error) {
+	var zero T
+
+	// open pidfd for netns switch
+	var initPidF *os.File
+	var err error
+	if initPid == -1 {
+		initPidF, err = c.lxc.InitPidFd()
+		if err != nil {
+			return zero, fmt.Errorf("open pid: %w", err)
+		}
+	} else {
+		initPidFd, err := unix.PidfdOpen(initPid, 0)
+		if err != nil {
+			return zero, fmt.Errorf("open pid: %w", err)
+		}
+
+		initPidF = os.NewFile(uintptr(initPidFd), "[pidfd]")
+		defer initPidF.Close()
+	}
+
+	return sysnet.WithNetns(initPidF, fn)
 }
 
 // attach eBPF localhost reverse forward for Docker host net
