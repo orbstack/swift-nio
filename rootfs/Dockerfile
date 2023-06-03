@@ -84,7 +84,10 @@ RUN apk add --no-cache \
 		pigz
 
 # network
-COPY rootfs/config/resolv.conf /etc/resolv.conf
+COPY \
+    rootfs/config/resolv.conf \
+    rootfs/config/os-release \
+    /etc/
 COPY rootfs/config/hosts.docker /etc/hosts
 RUN <<EOT sh -eux
 echo docker > /etc/hostname
@@ -284,6 +287,7 @@ COPY \
     rootfs/config/resolv.conf \
     rootfs/config/sysctl.conf \
     rootfs/config/rc.conf \
+    rootfs/config/os-release \
     /etc/
 COPY rootfs/config/ssh_host_keys /etc/ssh
 # NTP
