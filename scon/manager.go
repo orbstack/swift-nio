@@ -196,7 +196,10 @@ func (m *ConManager) Start() error {
 	go runOne("device monitor", m.runDeviceMonitor)
 	// RPC only once other services are up
 	go runOne("RPC server", func() error {
-		return runSconServer(m)
+		return ListenScon(m)
+	})
+	go runOne("guest RPC server", func() error {
+		return ListenSconGuest(m)
 	})
 
 	// periodic tasks

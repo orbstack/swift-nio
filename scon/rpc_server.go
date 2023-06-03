@@ -203,7 +203,7 @@ func (s *SconServer) Serve() error {
 	return http.ListenAndServe(listenAddrPort, bridge)
 }
 
-func runSconServer(m *ConManager) error {
+func ListenScon(m *ConManager) error {
 	s := &SconServer{m: m}
 	return s.Serve()
 }
