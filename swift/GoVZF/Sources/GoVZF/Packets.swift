@@ -181,13 +181,9 @@ class PacketProcessor {
         // check if destination MAC matches prefix
         let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
         let dstMacBytes = dstMacPtr.bindMemory(to: UInt8.self, capacity: macAddrSize)
-        print("dst mac = " + String(format: "%02x:%02x:%02x:%02x:%02x:%02x",
-                                    dstMacBytes[0], dstMacBytes[1], dstMacBytes[2],
-                                    dstMacBytes[3], dstMacBytes[4], dstMacBytes[5]))
         if memcmp(dstMacPtr, macPrefix, macPrefix.count) == 0 {
             // extract interface index from destination MAC
             let dstMacLastByte = try pkt.load(offset: 0 + 5) as UInt8
-            print("=> [from dst] \(dstMacLastByte & 0x7f)\n")
             return BrnetInterfaceIndex(dstMacLastByte & 0x7f)
         }
 
@@ -196,7 +192,6 @@ class PacketProcessor {
         // if broadcast, then send it to everyone. we can't tell what the vlan is
         // TODO: consider ethertype top bits as vlan tag, via bpf xdp?
         if memcmp(dstMacPtr, macAddrBroadcast, macAddrBroadcast.count) == 0 {
-            print("=> all\n")
             return ifiBroadcast
         }
 
@@ -204,13 +199,11 @@ class PacketProcessor {
         // NDP multicast ends with ffXX:XXXX where XX:XXXX is last 24 bits of IPv6 address
         // we don't know the assigned IPv6, so just match the FF part with the MAC (33:33:FF:XX:XX:XX)
         if memcmp(dstMacPtr, macAddrIpv6NdpMulticastPrefix, macAddrIpv6NdpMulticastPrefix.count) == 0 {
-            print("=> all\n")
             return ifiBroadcast
         }
 
         // give up, drop packet
         // TODO support multicast?
-        print("=> give up\n")
         throw BrnetError.interfaceNotFound
     }
 
