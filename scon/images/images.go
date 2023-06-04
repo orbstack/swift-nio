@@ -80,7 +80,7 @@ var (
 	}
 
 	ImageToLatestVersion = map[string]string{
-		ImageAlpine:    "3.17",
+		ImageAlpine:    "3.18",
 		ImageArch:      "current",
 		ImageCentos:    "9-Stream",
 		ImageDebian:    "bullseye",
