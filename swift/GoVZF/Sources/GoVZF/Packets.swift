@@ -133,18 +133,7 @@ class PacketProcessor {
             return BrnetInterfaceIndex(dstMacLastByte & 0x7f)
         }
 
-        // check if source MAC matches prefix
-        let srcMacPtr = try pkt.slicePtr(offset: 6, len: macAddrSize)
-        let srcMacBytes = srcMacPtr.bindMemory(to: UInt8.self, capacity: macAddrSize)
-        print("src mac = " + String(format: "%02x:%02x:%02x:%02x:%02x:%02x",
-                                    srcMacBytes[0], srcMacBytes[1], srcMacBytes[2],
-                                    srcMacBytes[3], srcMacBytes[4], srcMacBytes[5]))
-        if memcmp(srcMacPtr, macPrefix, macPrefix.count) == 0 {
-            // extract interface index from source MAC
-            let srcMacLastByte = try pkt.load(offset: 6 + 5) as UInt8
-            print("=> [from src] \(srcMacLastByte & 0x7f)\n")
-            return BrnetInterfaceIndex(srcMacLastByte & 0x7f)
-        }
+        // no point in checking source MAC. it's either a Docker container or the Docker bridge.
 
         // if broadcast, then send it to everyone. we can't tell what the vlan is
         // TODO: consider ethertype top bits as vlan tag, via bpf xdp?
