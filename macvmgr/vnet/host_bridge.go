@@ -289,6 +289,10 @@ func (n *Network) MonitorHostBridgeRoutes() error {
 		if err != nil {
 			return err
 		}
+		// don't recreate bridge if closed
+		if n.closing {
+			return nil
+		}
 
 		// kick route check
 		recreateDebounce.Call()

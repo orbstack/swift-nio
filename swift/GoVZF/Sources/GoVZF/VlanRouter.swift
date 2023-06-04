@@ -49,7 +49,13 @@ class VlanRouter {
                             bridge.tryWriteToHost(iov: iov, len: len)
                         }
                     } catch {
-                        NSLog("[brnet/router] failed to extract pkt routing info: \(error)")
+                        switch error {
+                        case BrnetError.interfaceNotFound:
+                            // normal that some packets get dropped for no vlan match
+                            break
+                        default:
+                            NSLog("[brnet/router] failed to extract pkt routing info: \(error)")
+                        }
                     }
                 })
     }

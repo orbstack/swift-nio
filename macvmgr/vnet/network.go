@@ -77,6 +77,7 @@ type Network struct {
 	hostBridges   []HostBridge
 	vlanRouter    *vzf.VlanRouter
 	vlanIndices   map[sgtypes.DockerBridgeConfig]int
+	closing       bool
 }
 
 type NetOptions struct {
@@ -368,6 +369,7 @@ func (n *Network) stopAllHostBridges() {
 }
 
 func (n *Network) Close() error {
+	n.closing = true
 	n.stopAllForwards()
 	n.stopAllHostBridges()
 	n.icmp.Close()

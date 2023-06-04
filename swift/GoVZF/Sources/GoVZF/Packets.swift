@@ -19,9 +19,17 @@ private let ETHTYPE_ARP: UInt16 = 0x0806
 
 private let IPPROTO_UDP: UInt8 = 17
 private let IPPROTO_TCP: UInt8 = 6
+private let IPPROTO_ICMPV6: UInt8 = 58
+
+private let ICMPV6_NEIGHBOR_SOLICITATION: UInt8 = 135
+private let ICMPV6_NEIGHBOR_ADVERTISEMENT: UInt8 = 136
+
+private let ICMPV6_OPTION_SOURCE_LLADDR: UInt8 = 1
+private let ICMPV6_OPTION_TARGET_LLADDR: UInt8 = 2
 
 private let macAddrSize = 6
 private let macAddrBroadcast: [UInt8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
 
 typealias BrnetInterfaceIndex = UInt
 let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
@@ -46,6 +54,14 @@ struct Packet {
         }
 
         return data.load(fromByteOffset: offset, as: T.self)
+    }
+
+    func store<T>(offset: Int, value: T) throws {
+        if offset + MemoryLayout<T>.size > len {
+            throw BrnetError.invalidPacket
+        }
+
+        data.storeBytes(of: value, toByteOffset: offset, as: T.self)
     }
 
     func slicePtr(offset: Int, len: Int) throws -> UnsafeMutableRawPointer {
@@ -88,7 +104,7 @@ class PacketProcessor {
 
     (see below for MAC routing)
     */
-    // warning: can be called concurrently!
+    // warning: can be called concurrently! and multiple times per packet!
     func processToHost(pkt: Packet) throws {
         // if we have actual host MAC...
         if let hostActualMac {
@@ -105,6 +121,48 @@ class PacketProcessor {
                 let arpDstMacPtr = try pkt.slicePtr(offset: 14 + 18, len: macAddrSize)
                 if memcmp(arpDstMacPtr, hostOverrideMac, macAddrSize) == 0 {
                     arpDstMacPtr.copyMemory(from: hostActualMac, byteCount: macAddrSize)
+                }
+            }
+
+            // also rewrite IPv6 NDP destination MAC (Ethernet + IPv6 + NDP[8])
+            /*
+            Internet Control Message Protocol v6
+                Type: Neighbor Advertisement (136)
+                Code: 0
+                Checksum: 0x8f04 [correct]
+                [Checksum Status: Good]
+                Flags: 0x60000000, Solicited, Override
+                Target Address: fd07:b51a:cc66:1:0:242:ac11:2
+                ICMPv6 Option (Target link-layer address : 02:42:ac:11:00:02)
+                    Type: Target link-layer address (2)
+                    Length: 1 (8 bytes)
+                    Link-layer address: 02:42:ac:11:00:02 (02:42:ac:11:00:02)
+             */
+            if etherType == ETHTYPE_IPV6 {
+                let nextHeader: UInt8 = try pkt.load(offset: 14 + 6)
+                if nextHeader == IPPROTO_ICMPV6 {
+                    let icmpv6Type: UInt8 = try pkt.load(offset: 14 + 40)
+                    if icmpv6Type == ICMPV6_NEIGHBOR_SOLICITATION || icmpv6Type == ICMPV6_NEIGHBOR_ADVERTISEMENT {
+                        // ICMPv6 Option (Target link-layer address)
+                        // check for the option. not all packets have an option, and some have nonce
+                        do {
+                            let icmpv6OptionType: UInt8 = try pkt.load(offset: 14 + 40 + 24)
+                            if icmpv6OptionType == ICMPV6_OPTION_SOURCE_LLADDR || icmpv6OptionType == ICMPV6_OPTION_TARGET_LLADDR {
+                                let icmpv6DstMacPtr = try pkt.slicePtr(offset: 14 + 40 + 26, len: macAddrSize)
+                                if memcmp(icmpv6DstMacPtr, hostOverrideMac, macAddrSize) == 0 {
+                                    icmpv6DstMacPtr.copyMemory(from: hostActualMac, byteCount: macAddrSize)
+
+                                    // fix checksum incrementally
+                                    let oldChecksum = (try pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
+                                    let newChecksum = Checksum.update(oldChecksum: oldChecksum,
+                                            oldData: hostOverrideMac, newData: hostActualMac)
+                                    try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
+                                }
+                            }
+                        } catch {
+                            // ignore if option not present
+                        }
+                    }
                 }
             }
         }
@@ -137,13 +195,21 @@ class PacketProcessor {
 
         // if broadcast, then send it to everyone. we can't tell what the vlan is
         // TODO: consider ethertype top bits as vlan tag, via bpf xdp?
-        if memcmp(dstMacPtr, macAddrBroadcast, macAddrSize) == 0 {
+        if memcmp(dstMacPtr, macAddrBroadcast, macAddrBroadcast.count) == 0 {
             print("=> all\n")
             return ifiBroadcast
         }
 
-        // give up
-        // TODO support multicast
+        // also send it to everyone if it's ICMPv6 NDP multicast
+        // NDP multicast ends with ffXX:XXXX where XX:XXXX is last 24 bits of IPv6 address
+        // we don't know the assigned IPv6, so just match the FF part with the MAC (33:33:FF:XX:XX:XX)
+        if memcmp(dstMacPtr, macAddrIpv6NdpMulticastPrefix, macAddrIpv6NdpMulticastPrefix.count) == 0 {
+            print("=> all\n")
+            return ifiBroadcast
+        }
+
+        // give up, drop packet
+        // TODO support multicast?
         print("=> give up\n")
         throw BrnetError.interfaceNotFound
     }
@@ -173,6 +239,49 @@ class PacketProcessor {
         if etherType == ETHTYPE_ARP {
             let arpSrcMacPtr = try pkt.slicePtr(offset: 14 + 8, len: macAddrSize)
             arpSrcMacPtr.copyMemory(from: hostOverrideMac, byteCount: macAddrSize)
+        }
+
+        // also rewrite IPv6 NDP source MAC (Ethernet + IPv6 + NDP[8])
+        /*
+        Internet Control Message Protocol v6
+            Type: Neighbor Solicitation (135)
+            Code: 0
+            Checksum: 0x1aca [correct]
+            [Checksum Status: Good]
+            Reserved: 00000000
+            Target Address: fd07:b51a:cc66:1:0:242:ac11:2
+            ICMPv6 Option (Source link-layer address : be:d0:74:22:80:65)
+                Type: Source link-layer address (1)
+                Length: 1 (8 bytes)
+                Link-layer address: be:d0:74:22:80:65 (be:d0:74:22:80:65)
+         */
+        if etherType == ETHTYPE_IPV6 {
+            let nextHeader: UInt8 = try pkt.load(offset: 14 + 6)
+            if nextHeader == IPPROTO_ICMPV6 {
+                let icmpv6Type: UInt8 = try pkt.load(offset: 14 + 40)
+                if icmpv6Type == ICMPV6_NEIGHBOR_SOLICITATION || icmpv6Type == ICMPV6_NEIGHBOR_ADVERTISEMENT {
+                    // ICMPv6 Option (Source link-layer address)
+                    // check for the option. not all packets have an option, and some have nonce
+                    do {
+                        let icmpv6OptionType: UInt8 = try pkt.load(offset: 14 + 40 + 24)
+                        if icmpv6OptionType == ICMPV6_OPTION_SOURCE_LLADDR || icmpv6OptionType == ICMPV6_OPTION_TARGET_LLADDR {
+                            let icmpv6SrcMacPtr = try pkt.slicePtr(offset: 14 + 40 + 26, len: macAddrSize)
+                            if let hostActualMac,
+                               memcmp(icmpv6SrcMacPtr, hostActualMac, macAddrSize) == 0 {
+                                icmpv6SrcMacPtr.copyMemory(from: hostOverrideMac, byteCount: macAddrSize)
+
+                                // fix checksum incrementally
+                                let oldChecksum = (try pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
+                                let newChecksum = Checksum.update(oldChecksum: oldChecksum,
+                                        oldData: hostActualMac, newData: hostOverrideMac)
+                                try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
+                            }
+                        }
+                    } catch {
+                        // ignore if option not present
+                    }
+                }
+            }
         }
     }
 
@@ -302,5 +411,30 @@ class GuestReader {
         iovs[0].iov_base.deallocate()
         // must free after data buf, so refs are valid
         iovs.deallocate()
+    }
+}
+
+// internet checksum
+private struct Checksum {
+    // from gvisor
+    private static func combine(_ a: UInt16, _ b: UInt16) -> UInt16 {
+        let sum = UInt32(a) + UInt32(b)
+        return UInt16((sum &+ (sum >> 16)) & 0xffff)
+    }
+
+    private static func incrementalUpdate(xsum: UInt16, old: UInt16, new: UInt16) -> UInt16 {
+        combine(xsum, combine(new, ~old))
+    }
+
+    static func update(oldChecksum: UInt16, oldData: [UInt8], newData: [UInt8]) -> UInt16 {
+        var checksum = ~oldChecksum
+        var i = 0
+        while i < oldData.count {
+            checksum = incrementalUpdate(xsum: checksum,
+                    old: (UInt16(oldData[i]) << 8) &+ UInt16(oldData[i + 1]),
+                    new: (UInt16(newData[i]) << 8) &+ UInt16(newData[i + 1]))
+            i += 2
+        }
+        return ~checksum
     }
 }
