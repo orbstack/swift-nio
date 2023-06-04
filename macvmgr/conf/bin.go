@@ -7,9 +7,14 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 )
 
+const (
+	debugXcodeBundle   = "/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app"
+	debugAppCodeBundle = "/Library/Caches/JetBrains/AppCode2023.1/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app"
+)
+
 func findAuxiliaryExe(name string) (string, error) {
 	if conf.Debug() {
-		return "/Users/dragon/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app/Contents/MacOS/" + name, nil
+		return HomeDir() + debugAppCodeBundle + "/Contents/MacOS/" + name, nil
 	}
 
 	exeDir, err := ExecutableDir()
@@ -29,7 +34,7 @@ func FindGuihelperExe() (string, error) {
 
 func FindAppBundle() (string, error) {
 	if conf.Debug() {
-		return "/Users/dragon/Library/Caches/JetBrains/AppCode2023.1/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app", nil
+		return HomeDir() + debugAppCodeBundle, nil
 	}
 
 	exeDir, err := ExecutableDir()

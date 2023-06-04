@@ -35,7 +35,5 @@ go build -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "
 
 # add Info.plist, PkgInfo, and provisioning profile
 cp -r bundle/. "$BUNDLE_OUT/Contents"
-# initial assets symlink for debug (overwritten by Xcode build for release)
-ln -sf ../../../assets "$BUNDLE_OUT/Contents/assets"
 # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
 codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "${SIGNING_CERT:-F14BEB1D721604BE6C984703AF6C88E1F8F35832}" "$BUNDLE_OUT" || :

@@ -60,6 +60,11 @@ func SwapImage() string {
 }
 
 func ExecutableDir() (string, error) {
+	// TODO better debug path
+	if Debug() {
+		return HomeDir() + "/code/projects/macvirt/cli-bin", nil
+	}
+
 	selfExe, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("get exe path: %w", err)
