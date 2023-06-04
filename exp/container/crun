@@ -1,0 +1,12 @@
+❯ hyperfine 'docker run -i --rm --runtime=crun -v /:/data alpine echo' 'docker run -i --rm --runtime=io.containerd.runc.v2 -v /:/data alpine echo'
+Benchmark 1: docker run -i --rm --runtime=crun -v /:/data alpine echo
+  Time (mean ± σ):     557.0 ms ±  51.2 ms    [User: 7.3 ms, System: 5.1 ms]
+  Range (min … max):   453.5 ms … 648.1 ms    10 runs
+
+Benchmark 2: docker run -i --rm --runtime=io.containerd.runc.v2 -v /:/data alpine echo
+  Time (mean ± σ):     630.1 ms ±  58.8 ms    [User: 7.3 ms, System: 5.0 ms]
+  Range (min … max):   533.0 ms … 739.0 ms    10 runs
+
+Summary
+  'docker run -i --rm --runtime=crun -v /:/data alpine echo' ran
+    1.13 ± 0.15 times faster than 'docker run -i --rm --runtime=io.containerd.runc.v2 -v /:/data alpine echo'
