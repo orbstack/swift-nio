@@ -525,13 +525,14 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 			}
 
 			ip4Subnet = subnet
-		} else {
+		} else if n.EnableIPv6 {
+			// ignore v6 if not enabled
 			if ip6Subnet.IsValid() {
 				// duplicate v6 - not supported, could break
 				return sgtypes.DockerBridgeConfig{}, false
 			}
 
-			// must be /64
+			// must be /64 - macOS doesn't support other prefix lens for vmnet
 			if subnet.Bits() != 64 {
 				// if not, then skip v6 - we may still be able to use v4
 				continue
