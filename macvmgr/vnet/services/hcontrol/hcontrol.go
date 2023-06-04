@@ -28,6 +28,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/orbstack/macvirt/macvmgr/vnet/services/sshagent"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -263,6 +264,26 @@ func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
 		return fmt.Errorf("negative refcount for %s", path)
 	}
 
+	return nil
+}
+
+func (h *HcontrolServer) AddDockerBridge(config sgtypes.DockerBridgeConfig, reply *int) error {
+	index, err := h.n.AddVlanBridge(config)
+	if err != nil {
+		return err
+	}
+
+	*reply = index
+	return nil
+}
+
+func (h *HcontrolServer) RemoveDockerBridge(config sgtypes.DockerBridgeConfig, reply *int) error {
+	index, err := h.n.RemoveVlanBridge(config)
+	if err != nil {
+		return err
+	}
+
+	*reply = index
 	return nil
 }
 

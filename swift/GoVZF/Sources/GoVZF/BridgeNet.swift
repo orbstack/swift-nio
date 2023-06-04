@@ -11,7 +11,7 @@ import CBridge
 
 // vmnet is ok with concurrent queue
 // gets us from 21 -> 30 Gbps
-let vmnetQueue = DispatchQueue(label: "dev.kdrag0n.govzf.bridge", attributes: .concurrent)
+let vmnetQueue = DispatchQueue(label: "dev.kdrag0n.swext.bridge", attributes: .concurrent)
 
 private let dgramSockBuf = 512 * 1024
 private let maxPacketsPerRead = 64
@@ -59,7 +59,7 @@ enum BrnetError: Error {
     case errno(Int32)
     case invalidPacket
 
-    case invalidInterface
+    case interfaceNotFound
     case tooManyInterfaces
 }
 
@@ -91,11 +91,11 @@ struct BridgeNetworkConfig: Codable {
     let shouldReadGuest: Bool
 
     let uuid: String
-    let ip4Address: String
+    let ip4Address: String?
     let ip4Mask: String
     // always /64
     let ip6Address: String?
-    let hostOverrideMac: [UInt8]
+    var hostOverrideMac: [UInt8]
 
     let maxLinkMtu: Int
 }
@@ -125,8 +125,10 @@ class BridgeNetwork {
         xpc_dictionary_set_uuid(ifDesc, vmnet_interface_id_key, uuidBytes)
 
         xpc_dictionary_set_uuid(ifDesc, vmnet_network_identifier_key, uuidBytes)
-        xpc_dictionary_set_string(ifDesc, vmnet_host_ip_address_key, config.ip4Address)
-        xpc_dictionary_set_string(ifDesc, vmnet_host_subnet_mask_key, config.ip4Mask)
+        if let ip4Address = config.ip4Address {
+            xpc_dictionary_set_string(ifDesc, vmnet_host_ip_address_key, ip4Address)
+            xpc_dictionary_set_string(ifDesc, vmnet_host_subnet_mask_key, config.ip4Mask)
+        }
         if let ip6Address = config.ip6Address {
             xpc_dictionary_set_string(ifDesc, vmnet_host_ipv6_address_key, ip6Address)
         }
@@ -308,22 +310,17 @@ class BridgeNetwork {
 }
 
 @_cdecl("swext_brnet_create")
-func swext_brnet_create(configJsonStr: UnsafePointer<CChar>) -> UnsafeMutablePointer<GovzfResultCreate> {
-    let configJson = String(cString: configJsonStr)
-    let config = try! JSONDecoder().decode(BridgeNetworkConfig.self, from: configJson.data(using: .utf8)!)
-
-    let result = ResultWrapper<GovzfResultCreate>()
+func swext_brnet_create(configJsonStr: UnsafePointer<CChar>) -> GResultCreate {
+    let config: BridgeNetworkConfig = decodeJson(configJsonStr)
     do {
         let obj = try BridgeNetwork(config: config)
         // take a long-lived ref for Go
         let ptr = Unmanaged.passRetained(obj).toOpaque()
-        result.set(GovzfResultCreate(ptr: ptr, err: nil, rosetta_canceled: false))
+        return GResultCreate(ptr: ptr, err: nil, rosetta_canceled: false)
     } catch {
         let prettyError = "\(error)"
-        result.set(GovzfResultCreate(ptr: nil, err: strdup(prettyError.cString(using: .utf8)!), rosetta_canceled: false))
+        return GResultCreate(ptr: nil, err: strdup(prettyError), rosetta_canceled: false)
     }
-
-    return result.waitPtr()
 }
 
 @_cdecl("swext_brnet_close")

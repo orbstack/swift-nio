@@ -11,13 +11,13 @@ private enum OnboardingMode {
     case linux
 }
 
-fileprivate struct DummyButtonStyle: ButtonStyle {
+private struct DummyButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
     }
 }
 
-fileprivate struct ModeButton: View {
+private struct ModeButton: View {
     private static let radius = 8.0
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
 

@@ -6,7 +6,7 @@ import Foundation
 import SwiftUI
 
 // min 2 chars, disallows hidden files (^.)
-fileprivate let dockerRestrictedNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"))!
+private let dockerRestrictedNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"))!
 
 struct CreateVolumeView: View {
     @EnvironmentObject private var vmModel: VmViewModel

@@ -8,6 +8,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol/htypes"
+	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 )
 
 type Client struct {
@@ -134,6 +135,26 @@ func (c *Client) AddFsnotifyRef(path string) error {
 func (c *Client) RemoveFsnotifyRef(path string) error {
 	var none None
 	return c.rpc.Call("hc.RemoveFsnotifyRef", path, &none)
+}
+
+func (c *Client) AddDockerBridge(config sgtypes.DockerBridgeConfig) (int, error) {
+	var vlanId int
+	err := c.rpc.Call("hc.AddDockerBridge", config, &vlanId)
+	if err != nil {
+		return 0, err
+	}
+
+	return vlanId, nil
+}
+
+func (c *Client) RemoveDockerBridge(config sgtypes.DockerBridgeConfig) (int, error) {
+	var vlanId int
+	err := c.rpc.Call("hc.RemoveDockerBridge", config, &vlanId)
+	if err != nil {
+		return 0, err
+	}
+
+	return vlanId, nil
 }
 
 func (c *Client) ClearDockerState() error {

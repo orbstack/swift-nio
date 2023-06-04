@@ -161,7 +161,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         }
     }
 
-    fileprivate var errorDesc: String? {
+    private var errorDesc: String? {
         switch self {
         case .spawnError(let cause):
             return cause.localizedDescription

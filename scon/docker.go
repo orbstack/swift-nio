@@ -238,9 +238,9 @@ func (m *ConManager) startDockerProxy() error {
 		return err
 	}
 
-	c, ok := m.GetByID(ContainerIDDocker)
-	if !ok {
-		return errors.New("docker container not found")
+	c, err := m.GetByID(ContainerIDDocker)
+	if err != nil {
+		return err
 	}
 
 	proxy := &DockerProxy{

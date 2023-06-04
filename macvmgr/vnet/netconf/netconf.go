@@ -49,5 +49,6 @@ const (
 	// vlan router uses entire :e2 block
 	// lower 7 bits: vlan id / interface index
 	// upper 1 bit: 0=host 1=guest
-	VlanRouterMACPrefix = BlockMACPrefix + ":e2"
+	VlanRouterMACPrefix   = BlockMACPrefix + ":e2"
+	VlanRouterMACTemplate = VlanRouterMACPrefix + ":00"
 )

@@ -5,7 +5,7 @@
 import Foundation
 import SwiftUI
 
-fileprivate struct CommandSection<Content: View>: View {
+private struct CommandSection<Content: View>: View {
     let systemImage: String?
     let title: String?
     let desc: String?
@@ -48,7 +48,7 @@ fileprivate struct CommandSection<Content: View>: View {
     }
 }
 
-fileprivate struct CommandBox: View {
+private struct CommandBox: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     let title: String

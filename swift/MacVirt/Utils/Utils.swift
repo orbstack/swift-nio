@@ -4,7 +4,7 @@
 
 import Cocoa
 
-fileprivate let KILLSWITCH_EXPIRE_DAYS = 30.0
+private let KILLSWITCH_EXPIRE_DAYS = 30.0
 
 func processIsTranslated() -> Bool {
     var ret = Int32(0)
@@ -103,11 +103,11 @@ func runProcessChecked(_ command: String, _ args: [String], env: [String: String
     return result.output
 }
 
-fileprivate func escapeShellArg(_ arg: String) -> String {
+private func escapeShellArg(_ arg: String) -> String {
     return "'" + arg.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
-fileprivate func escapeShellArgs(_ args: [String]) -> String {
+private func escapeShellArgs(_ args: [String]) -> String {
     return args.map(escapeShellArg).joined(separator: " ")
 }
 

@@ -147,7 +147,8 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		retainFiles = append(retainFiles, file0)
 
 		// keep fd1 for bridge management
-		vnetwork.AddHostBridgeFd(fd1)
+		err = vnetwork.AddHostBridgeFd(fd1)
+		check(err)
 	}
 	if c.NetworkPairFile != nil {
 		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(c.NetworkPairFile)))

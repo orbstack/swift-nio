@@ -13,21 +13,30 @@ type HostServiceProxy struct {
 	connectAddr *net.TCPAddr
 }
 
+func listenUnixWithPerms(path string, perms os.FileMode, uid, gid int) (net.Listener, error) {
+	_ = os.Remove(path)
+
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.Chmod(path, perms)
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.Chown(path, uid, gid)
+	if err != nil {
+		return nil, err
+	}
+
+	return listener, nil
+}
+
 func NewHostServiceProxy(unixPath string, port int, socketUidGid int) (*HostServiceProxy, error) {
-	_ = os.Remove(unixPath)
-
-	listener, err := net.Listen("unix", unixPath)
-	if err != nil {
-		return nil, err
-	}
-
 	// security: chmod 600 and chown to default user uid/gid
-	err = os.Chmod(unixPath, 0600)
-	if err != nil {
-		return nil, err
-	}
-
-	err = os.Chown(unixPath, socketUidGid, socketUidGid)
+	listener, err := listenUnixWithPerms(unixPath, 0600, socketUidGid, socketUidGid)
 	if err != nil {
 		return nil, err
 	}

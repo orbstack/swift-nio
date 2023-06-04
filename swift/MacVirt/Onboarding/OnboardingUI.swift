@@ -5,7 +5,7 @@
 import Foundation
 import SwiftUI
 
-fileprivate struct CtaButtonStyle: ButtonStyle {
+private struct CtaButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
                 .padding(.vertical, 8)

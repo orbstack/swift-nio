@@ -152,10 +152,6 @@ func runContainerManager() {
 	check(err)
 
 	// connect to hcontrol (ownership taken by cmgr)
-	if conf.C().DummyHcontrol {
-		err := hclient.StartDummyServer()
-		check(err)
-	}
 	logrus.Debug("connecting to hcontrol")
 	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.SecureSvcHcontrol))
 	check(err)

@@ -1,11 +1,15 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/netip"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -14,6 +18,9 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/dockertypes"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/scon/sgclient"
+	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -21,12 +28,76 @@ import (
 
 const (
 	dockerRefreshDebounce = 100 * time.Millisecond
+	// TODO: skip debounce when GUI action in progress
 	dockerUIEventDebounce = 50 * time.Millisecond
 )
 
+type DockerAgent struct {
+	mu      syncx.Mutex
+	client  *http.Client
+	Running syncx.CondBool
+
+	host *hclient.Client
+	scon *sgclient.Client
+
+	containerBinds map[string][]string
+	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
+	lastNetworks   []dockertypes.Network
+
+	// refreshing w/ debounce+diff ensures consistent snapshots
+	containerRefreshDebounce syncx.FuncDebounce
+	networkRefreshDebounce   syncx.FuncDebounce
+	uiEventDebounce          syncx.FuncDebounce
+	pendingUIEntities        []dockertypes.UIEntity
+}
+
+func NewDockerAgent() *DockerAgent {
+	dockerAgent := &DockerAgent{
+		// use default unix socket
+		client: &http.Client{
+			// no timeout - we do event monitoring
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", "/var/run/docker.sock")
+				},
+				// idle conns are ok here because we get frozen along with docker
+				MaxIdleConns: 2,
+			},
+		},
+
+		Running:        syncx.NewCondBool(),
+		containerBinds: make(map[string][]string),
+	}
+
+	dockerAgent.containerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		err := dockerAgent.refreshContainers()
+		if err != nil {
+			logrus.WithError(err).Error("failed to refresh docker containers")
+		}
+	})
+	dockerAgent.networkRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		err := dockerAgent.refreshNetworks()
+		if err != nil {
+			logrus.WithError(err).Error("failed to refresh docker networks")
+		}
+	})
+	dockerAgent.uiEventDebounce = syncx.NewFuncDebounce(dockerUIEventDebounce, func() {
+		err := dockerAgent.doSendUIEvent()
+		if err != nil {
+			logrus.WithError(err).Error("failed to send docker UI event")
+		}
+	})
+
+	return dockerAgent
+}
+
+/*
+ * Public RPC API
+ */
+
 func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
 	// only includes running
-	resp, err := a.dockerClient.Get("http://docker/containers/json")
+	resp, err := a.docker.client.Get("http://docker/containers/json")
 	if err != nil {
 		return err
 	}
@@ -61,7 +132,7 @@ func (a *AgentServer) HandleDockerConn(fdxSeq uint64, _ *None) error {
 	defer extConn.Close()
 
 	// wait for docker
-	a.dockerRunning.Wait()
+	a.docker.Running.Wait()
 
 	// dial unix socket
 	dockerConn, err := net.Dial("unix", "/var/run/docker.sock")
@@ -75,33 +146,56 @@ func (a *AgentServer) HandleDockerConn(fdxSeq uint64, _ *None) error {
 }
 
 func (a *AgentServer) WaitForDockerStart(_ None, _ *None) error {
-	a.dockerRunning.Wait()
+	a.docker.Running.Wait()
 	return nil
 }
 
-func (a *AgentServer) dockerPostStart() error {
-	// wait for Docker API to start
-	err := util.WaitForRunPathExist("/var/run/docker.sock")
+/*
+ * Private - Docker agent
+ */
+
+func (d *DockerAgent) PostStart() error {
+	// docker-init oom score adj
+	// dockerd's score is set via cmdline argument
+	err := os.WriteFile("/proc/1/oom_score_adj", []byte(oomScoreAdjCriticalGuest), 0644)
 	if err != nil {
 		return err
 	}
 
-	a.dockerRunning.Set(true)
+	// wait for Docker API to start
+	err = util.WaitForRunPathExist("/var/run/docker.sock")
+	if err != nil {
+		return err
+	}
+
+	d.Running.Set(true)
 
 	// start docker event monitor
 	go func() {
-		conn, err := net.Dial("unix", mounts.HcontrolSocket)
+		hConn, err := net.Dial("unix", mounts.HcontrolSocket)
 		if err != nil {
 			logrus.WithError(err).Error("failed to connect to hcontrol")
 			return
 		}
-		a.dockerHost, err = hclient.New(conn)
+
+		d.host, err = hclient.New(hConn)
 		if err != nil {
 			logrus.WithError(err).Error("failed to create hclient")
 			return
 		}
 
-		err = a.monitorDockerEvents()
+		sConn, err := net.Dial("unix", mounts.SconGuestSocket)
+		if err != nil {
+			logrus.WithError(err).Error("failed to connect to scon guest")
+			return
+		}
+		d.scon, err = sgclient.New(sConn)
+		if err != nil {
+			logrus.WithError(err).Error("failed to create scon guest client")
+			return
+		}
+
+		err = d.monitorEvents()
 		if err != nil {
 			logrus.WithError(err).Error("failed to monitor Docker events")
 		}
@@ -110,11 +204,11 @@ func (a *AgentServer) dockerPostStart() error {
 	return nil
 }
 
-func (a *AgentServer) dockerRefreshContainers() error {
+func (d *DockerAgent) refreshContainers() error {
 	// no mu needed: synchronized by debounce
 
 	// only includes running
-	resp, err := a.dockerClient.Get("http://docker/containers/json")
+	resp, err := d.client.Get("http://docker/containers/json")
 	if err != nil {
 		return err
 	}
@@ -131,11 +225,11 @@ func (a *AgentServer) dockerRefreshContainers() error {
 	}
 
 	// diff
-	added, removed := util.DiffSlicesKey[string](a.dockerLastContainers, newContainers)
+	added, removed := util.DiffSlicesKey[string](d.lastContainers, newContainers)
 
 	// add first
 	for _, c := range added {
-		err = a.onDockerContainerStart(c)
+		err = d.onContainerStart(c)
 		if err != nil {
 			logrus.WithError(err).Error("failed to add Docker container")
 		}
@@ -143,20 +237,20 @@ func (a *AgentServer) dockerRefreshContainers() error {
 
 	// then remove
 	for _, c := range removed {
-		err = a.onDockerContainerStop(c)
+		err = d.onContainerStop(c)
 		if err != nil {
 			logrus.WithError(err).Error("failed to remove Docker container")
 		}
 	}
 
-	a.dockerLastContainers = newContainers
+	d.lastContainers = newContainers
 	return nil
 }
 
-func (a *AgentServer) dockerRefreshNetworks() error {
+func (d *DockerAgent) refreshNetworks() error {
 	// no mu needed: synchronized by debounce
 
-	resp, err := a.dockerClient.Get("http://docker/networks")
+	resp, err := d.client.Get("http://docker/networks")
 	if err != nil {
 		return err
 	}
@@ -173,11 +267,11 @@ func (a *AgentServer) dockerRefreshNetworks() error {
 	}
 
 	// diff
-	added, removed := util.DiffSlicesKey[string](a.dockerLastNetworks, newNetworks)
+	added, removed := util.DiffSlicesKey[string](d.lastNetworks, newNetworks)
 
 	// add first
 	for _, n := range added {
-		err = a.onDockerNetworkAdd(n)
+		err = d.onNetworkAdd(n)
 		if err != nil {
 			logrus.WithError(err).Error("failed to add Docker network")
 		}
@@ -185,45 +279,45 @@ func (a *AgentServer) dockerRefreshNetworks() error {
 
 	// then remove
 	for _, n := range removed {
-		err = a.onDockerNetworkRemove(n)
+		err = d.onNetworkRemove(n)
 		if err != nil {
 			logrus.WithError(err).Error("failed to remove Docker network")
 		}
 	}
 
-	a.dockerLastNetworks = newNetworks
+	d.lastNetworks = newNetworks
 	return nil
 }
 
-func (a *AgentServer) dockerTriggerUIEvent(entity dockertypes.UIEntity) {
-	a.dockerMu.Lock()
-	defer a.dockerMu.Unlock()
+func (d *DockerAgent) triggerUIEvent(entity dockertypes.UIEntity) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-	if !slices.Contains(a.dockerPendingUIEntities, entity) {
-		a.dockerPendingUIEntities = append(a.dockerPendingUIEntities, entity)
+	if !slices.Contains(d.pendingUIEntities, entity) {
+		d.pendingUIEntities = append(d.pendingUIEntities, entity)
 	}
-	a.dockerUIEventDebounce.Call()
+	d.uiEventDebounce.Call()
 }
 
-func (a *AgentServer) dockerDoSendUIEvent() error {
-	a.dockerMu.Lock()
-	defer a.dockerMu.Unlock()
+func (d *DockerAgent) doSendUIEvent() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	event := dockertypes.UIEvent{
-		Changed: a.dockerPendingUIEntities,
+		Changed: d.pendingUIEntities,
 	}
 	logrus.WithField("event", event).Debug("sending Docker UI event")
-	err := a.dockerHost.OnDockerUIEvent(&event)
+	err := d.host.OnDockerUIEvent(&event)
 	if err != nil {
 		return err
 	}
 
-	a.dockerPendingUIEntities = nil
+	d.pendingUIEntities = nil
 	return nil
 }
 
-func (a *AgentServer) monitorDockerEvents() error {
-	req, err := a.dockerClient.Get("http://unix/events")
+func (d *DockerAgent) monitorEvents() error {
+	req, err := d.client.Get("http://unix/events")
 	if err != nil {
 		return err
 	}
@@ -233,12 +327,12 @@ func (a *AgentServer) monitorDockerEvents() error {
 	}
 
 	// kick an initial refresh
-	a.dockerContainerRefreshDebounce.Call()
-	a.dockerNetworkRefreshDebounce.Call()
+	d.containerRefreshDebounce.Call()
+	d.networkRefreshDebounce.Call()
 	// also kick all initial UI events for menu bar bg start
-	a.dockerTriggerUIEvent(dockertypes.UIEventContainer)
-	a.dockerTriggerUIEvent(dockertypes.UIEventVolume)
-	a.dockerTriggerUIEvent(dockertypes.UIEventImage)
+	d.triggerUIEvent(dockertypes.UIEventContainer)
+	d.triggerUIEvent(dockertypes.UIEventVolume)
+	d.triggerUIEvent(dockertypes.UIEventImage)
 
 	dec := json.NewDecoder(req.Body)
 	for {
@@ -258,12 +352,12 @@ func (a *AgentServer) monitorDockerEvents() error {
 		case "container":
 			switch event.Action {
 			case "create", "start", "die", "destroy":
-				a.dockerTriggerUIEvent(dockertypes.UIEventContainer)
-				a.dockerContainerRefreshDebounce.Call()
+				d.triggerUIEvent(dockertypes.UIEventContainer)
+				d.containerRefreshDebounce.Call()
 			}
 
 		case "volume":
-			a.dockerTriggerUIEvent(dockertypes.UIEventVolume)
+			d.triggerUIEvent(dockertypes.UIEventVolume)
 			// there is no event for images
 
 		case "network":
@@ -271,7 +365,7 @@ func (a *AgentServer) monitorDockerEvents() error {
 			case "create", "destroy":
 				// we only care about bridges
 				if event.Actor.Attributes.Type == "bridge" {
-					a.dockerNetworkRefreshDebounce.Call()
+					d.networkRefreshDebounce.Call()
 				}
 			}
 		}
@@ -298,7 +392,7 @@ func translateDockerPathToMac(p string) string {
 	return ""
 }
 
-func (a *AgentServer) onDockerContainerStart(ctr dockertypes.ContainerSummaryMin) error {
+func (d *DockerAgent) onContainerStart(ctr dockertypes.ContainerSummaryMin) error {
 	cid := ctr.ID
 	logrus.WithField("cid", cid).Debug("Docker container started")
 
@@ -317,7 +411,7 @@ func (a *AgentServer) onDockerContainerStart(ctr dockertypes.ContainerSummaryMin
 			// m.Name = volume name
 
 			// get volume info
-			resp, err := a.dockerClient.Get("http://docker/volumes/" + m.Name)
+			resp, err := d.client.Get("http://docker/volumes/" + m.Name)
 			if err != nil {
 				return err
 			}
@@ -348,9 +442,9 @@ func (a *AgentServer) onDockerContainerStart(ctr dockertypes.ContainerSummaryMin
 			binds = append(binds, volInfo.Options["device"])
 		}
 	}
-	a.dockerMu.Lock()
-	a.dockerContainerBinds[cid] = binds
-	a.dockerMu.Unlock()
+	d.mu.Lock()
+	d.containerBinds[cid] = binds
+	d.mu.Unlock()
 
 	// report to host
 	logrus.WithField("cid", cid).WithField("binds", binds).Debug("adding Docker container binds")
@@ -362,7 +456,7 @@ func (a *AgentServer) onDockerContainerStart(ctr dockertypes.ContainerSummaryMin
 			continue
 		}
 
-		err := a.dockerHost.AddFsnotifyRef(path)
+		err := d.host.AddFsnotifyRef(path)
 		if err != nil {
 			return err
 		}
@@ -371,19 +465,19 @@ func (a *AgentServer) onDockerContainerStart(ctr dockertypes.ContainerSummaryMin
 	return nil
 }
 
-func (a *AgentServer) onDockerContainerStop(ctr dockertypes.ContainerSummaryMin) error {
+func (d *DockerAgent) onContainerStop(ctr dockertypes.ContainerSummaryMin) error {
 	cid := ctr.ID
 	logrus.WithField("cid", cid).Debug("Docker container stopped")
 
 	// get container bind mounts
-	a.dockerMu.Lock()
-	binds, ok := a.dockerContainerBinds[cid]
+	d.mu.Lock()
+	binds, ok := d.containerBinds[cid]
 	if !ok {
-		a.dockerMu.Unlock()
+		d.mu.Unlock()
 		return nil
 	}
-	delete(a.dockerContainerBinds, cid)
-	a.dockerMu.Unlock()
+	delete(d.containerBinds, cid)
+	d.mu.Unlock()
 
 	// report to host
 	logrus.WithField("cid", cid).WithField("binds", binds).Debug("removing Docker container binds")
@@ -395,7 +489,7 @@ func (a *AgentServer) onDockerContainerStop(ctr dockertypes.ContainerSummaryMin)
 			continue
 		}
 
-		err := a.dockerHost.RemoveFsnotifyRef(path)
+		err := d.host.RemoveFsnotifyRef(path)
 		if err != nil {
 			return err
 		}
@@ -404,24 +498,96 @@ func (a *AgentServer) onDockerContainerStop(ctr dockertypes.ContainerSummaryMin)
 	return nil
 }
 
-func (a *AgentServer) onDockerNetworkAdd(network dockertypes.Network) error {
+func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeConfig, bool) {
 	// we only care about Driver=bridge, Scope=local
-	if network.Driver != "bridge" || network.Scope != "local" {
+	if n.Driver != "bridge" || n.Scope != "local" {
+		return sgtypes.DockerBridgeConfig{}, false
+	}
+
+	// requirements:
+	//   - ipv4, ipv6, or 4+6
+	//   - ipv6 must be /64
+	//   - max 1 of each network type
+	//   - min 1 type
+	var ip4Subnet netip.Prefix
+	var ip6Subnet netip.Prefix
+	for _, ipam := range n.IPAM.Config {
+		subnet, err := netip.ParsePrefix(ipam.Subnet)
+		if err != nil {
+			logrus.WithField("subnet", ipam.Subnet).Warn("failed to parse Docker network subnet")
+			continue
+		}
+
+		if subnet.Addr().Is4() {
+			if ip4Subnet.IsValid() {
+				// duplicate v4 - not supported, could break
+				return sgtypes.DockerBridgeConfig{}, false
+			}
+
+			ip4Subnet = subnet
+		} else {
+			if ip6Subnet.IsValid() {
+				// duplicate v6 - not supported, could break
+				return sgtypes.DockerBridgeConfig{}, false
+			}
+
+			// must be /64
+			if subnet.Bits() != 64 {
+				// if not, then skip v6 - we may still be able to use v4
+				continue
+			}
+
+			ip6Subnet = subnet
+		}
+	}
+
+	// must have at least one
+	if !ip4Subnet.IsValid() && !ip6Subnet.IsValid() {
+		return sgtypes.DockerBridgeConfig{}, false
+	}
+
+	// resolve interface name
+	var ifName string
+	if n.Name == "bridge" {
+		ifName = "docker0"
+	} else {
+		ifName = "br-" + n.ID[:12]
+	}
+
+	return sgtypes.DockerBridgeConfig{
+		IP4Subnet:          ip4Subnet,
+		IP6Subnet:          ip6Subnet,
+		GuestInterfaceName: ifName,
+	}, true
+}
+
+func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
+	config, ok := dockerNetworkToBridgeConfig(network)
+	if !ok {
+		logrus.WithField("name", network.Name).Debug("ignoring Docker network")
 		return nil
 	}
 
-	logrus.WithField("name", network.Name).Debug("adding Docker network")
+	logrus.WithField("name", network.Name).WithField("config", config).Debug("adding Docker network")
+	err := d.scon.DockerAddBridge(config)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func (a *AgentServer) onDockerNetworkRemove(network dockertypes.Network) error {
-	// we only care about Driver=bridge, Scope=local
-	if network.Driver != "bridge" || network.Scope != "local" {
+func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
+	config, ok := dockerNetworkToBridgeConfig(network)
+	if !ok {
 		return nil
 	}
 
-	logrus.WithField("name", network.Name).Debug("removing Docker network")
+	logrus.WithField("name", network.Name).WithField("config", config).Debug("removing Docker network")
+	err := d.scon.DockerRemoveBridge(config)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

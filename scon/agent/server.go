@@ -1,9 +1,7 @@
 package agent
 
 import (
-	"context"
 	"net"
-	"net/http"
 	"net/rpc"
 	"os"
 	"os/exec"
@@ -16,13 +14,10 @@ import (
 	"unsafe"
 
 	"github.com/orbstack/macvirt/macvmgr/conf/appid"
-	"github.com/orbstack/macvirt/macvmgr/dockertypes"
 	"github.com/orbstack/macvirt/macvmgr/logutil"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/conf"
-	"github.com/orbstack/macvirt/scon/hclient"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -35,24 +30,12 @@ const (
 )
 
 type AgentServer struct {
-	fdx           *Fdx
-	tcpProxies    map[ProxySpec]*tcpfwd.TCPProxy
-	udpProxies    map[ProxySpec]*udpfwd.UDPProxy
-	loginManager  *LoginManager
-	containerName string
+	fdx          *Fdx
+	tcpProxies   map[ProxySpec]*tcpfwd.TCPProxy
+	udpProxies   map[ProxySpec]*udpfwd.UDPProxy
+	loginManager *LoginManager
 
-	dockerClient         *http.Client
-	dockerRunning        syncx.CondBool
-	dockerMu             syncx.Mutex
-	dockerHost           *hclient.Client
-	dockerContainerBinds map[string][]string
-	dockerLastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
-	dockerLastNetworks   []dockertypes.Network
-	// refreshing w/ debounce+diff ensures consistent snapshots
-	dockerContainerRefreshDebounce syncx.FuncDebounce
-	dockerNetworkRefreshDebounce   syncx.FuncDebounce
-	dockerUIEventDebounce          syncx.FuncDebounce
-	dockerPendingUIEntities        []dockertypes.UIEntity
+	docker *DockerAgent
 }
 
 type ProxySpec struct {
@@ -86,7 +69,7 @@ func (a *AgentServer) StartProxyTCP(args StartProxyArgs, _ *None) error {
 
 	// Docker: always prefer v4 because Docker is traditionally v4-only
 	// still try v6 in case of host net and v6-only servers
-	preferV6 := spec.IsIPv6 && a.containerName != "docker"
+	preferV6 := spec.IsIPv6 && a.docker == nil
 	proxy := tcpfwd.NewTCPProxy(listener, preferV6, spec.Port)
 	a.tcpProxies[spec] = proxy
 	go proxy.Run()
@@ -235,11 +218,10 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 	fdx := NewFdx(fdxConn)
 	server := &AgentServer{
-		fdx:           fdx,
-		tcpProxies:    make(map[ProxySpec]*tcpfwd.TCPProxy),
-		udpProxies:    make(map[ProxySpec]*udpfwd.UDPProxy),
-		loginManager:  NewLoginManager(),
-		containerName: hostname,
+		fdx:          fdx,
+		tcpProxies:   make(map[ProxySpec]*tcpfwd.TCPProxy),
+		udpProxies:   make(map[ProxySpec]*udpfwd.UDPProxy),
+		loginManager: NewLoginManager(),
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("a", server)
@@ -248,38 +230,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	}
 
 	if hostname == "docker" {
-		// use default unix socket
-		server.dockerClient = &http.Client{
-			// no timeout - we do event monitoring
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", "/var/run/docker.sock")
-				},
-				// idle conns are ok here because we get frozen along with docker
-				MaxIdleConns: 2,
-			},
-		}
-
-		server.dockerRunning = syncx.NewCondBool()
-		server.dockerContainerBinds = make(map[string][]string)
-		server.dockerContainerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
-			err := server.dockerRefreshContainers()
-			if err != nil {
-				logrus.WithError(err).Error("failed to refresh docker containers")
-			}
-		})
-		server.dockerNetworkRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
-			err := server.dockerRefreshNetworks()
-			if err != nil {
-				logrus.WithError(err).Error("failed to refresh docker networks")
-			}
-		})
-		server.dockerUIEventDebounce = syncx.NewFuncDebounce(dockerUIEventDebounce, func() {
-			err := server.dockerDoSendUIEvent()
-			if err != nil {
-				logrus.WithError(err).Error("failed to send docker UI event")
-			}
-		})
+		server.docker = NewDockerAgent()
 	}
 
 	// Go sets soft rlimit = hard. bring it back down to avoid perf issues
@@ -309,19 +260,10 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// fdx is used on-demand
 	go rpcServer.ServeConn(rpcConn)
 
-	if hostname == "docker" {
-		go func() {
-			err := server.dockerPostStart()
-			if err != nil {
-				logrus.WithError(err).Error("docker post-start failed")
-			}
-		}()
-
-		// docker-init oom score adj
-		// dockerd's score is set via cmdline argument
-		err = os.WriteFile("/proc/1/oom_score_adj", []byte(oomScoreAdjCriticalGuest), 0644)
+	if server.docker != nil {
+		err := server.docker.PostStart()
 		if err != nil {
-			return err
+			logrus.WithError(err).Error("docker post-start failed")
 		}
 	}
 

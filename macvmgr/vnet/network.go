@@ -18,6 +18,8 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/macvmgr/vnet/udpfwd"
+	"github.com/orbstack/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -73,6 +75,8 @@ type Network struct {
 	hostBridgeMu  sync.Mutex
 	hostBridgeFds []int
 	hostBridges   []HostBridge
+	vlanRouter    *vzf.VlanRouter
+	vlanIndices   map[sgtypes.DockerBridgeConfig]int
 }
 
 type NetOptions struct {
@@ -352,6 +356,10 @@ func (n *Network) stopAllHostBridges() {
 	}
 
 	n.hostBridges = nil
+
+	n.vlanRouter.Close()
+	n.vlanRouter = nil
+
 	// close fds
 	for _, fd := range n.hostBridgeFds {
 		file := os.NewFile(uintptr(fd), "host bridge fd")

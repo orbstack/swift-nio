@@ -38,17 +38,17 @@ struct ContainerRecord: Codable, Identifiable, Equatable {
     }
 }
 
-fileprivate struct CreateRequest: Codable {
+private struct CreateRequest: Codable {
     var name: String
     var image: ImageSpec
     var userPassword: String?
 }
 
-fileprivate struct GetByIDRequest: Codable {
+private struct GetByIDRequest: Codable {
     var id: String
 }
 
-fileprivate struct GetByNameRequest: Codable {
+private struct GetByNameRequest: Codable {
     var name: String
 }
 

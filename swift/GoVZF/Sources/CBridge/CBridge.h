@@ -9,17 +9,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-struct GovzfResultCreate {
+struct GResultCreate {
     void* ptr;
     char* err;
     bool rosetta_canceled;
 };
 
-struct GovzfResultErr {
+struct GResultErr {
     char* err;
 };
 
-struct GovzfResultIntErr {
+struct GResultIntErr {
     int64_t value;
     char* err;
 };

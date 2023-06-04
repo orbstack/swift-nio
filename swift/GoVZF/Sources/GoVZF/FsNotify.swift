@@ -8,7 +8,7 @@ import CBridge
 
 private let debugPrintEvents = false
 
-private let fseventsQueue = DispatchQueue(label: "dev.kdrag0n.govzf.fsevents", qos: .background)
+private let fseventsQueue = DispatchQueue(label: "dev.kdrag0n.swext.fsevents", qos: .background)
 
 private let npFlagCreate: UInt64 = 1 << 0
 private let npFlagModify: UInt64 = 1 << 1
@@ -26,6 +26,86 @@ enum SwextFseventsError: Error {
     case createFail, streamNil, startFail
 }
 
+private func printDebugEvent(path: String, flags: Int) {
+    if debugPrintEvents {
+        print("path: \(path), flags: \(flags)")
+        print("  ", terminator: "")
+        if flags & kFSEventStreamEventFlagNone != 0 {
+            print("[none] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagMustScanSubDirs != 0 {
+            print("[must scan subdirs] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagUserDropped != 0 {
+            print("[user dropped] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagKernelDropped != 0 {
+            print("[kernel dropped] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagEventIdsWrapped != 0 {
+            print("[event ids wrapped] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagHistoryDone != 0 {
+            print("[history done] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagRootChanged != 0 {
+            print("[root changed] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagMount != 0 {
+            print("[mount] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagUnmount != 0 {
+            print("[unmount] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemCreated != 0 {
+            print("[created] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemRemoved != 0 {
+            print("[removed] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemInodeMetaMod != 0 {
+            print("[inode meta mod] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemRenamed != 0 {
+            print("[renamed] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemModified != 0 {
+            print("[modified] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemFinderInfoMod != 0 {
+            print("[finder info mod] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemChangeOwner != 0 {
+            print("[change owner] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemXattrMod != 0 {
+            print("[xattr mod] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemIsFile != 0 {
+            print("[is file] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemIsDir != 0 {
+            print("[is dir] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemIsSymlink != 0 {
+            print("[is symlink] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagOwnEvent != 0 {
+            print("[own event] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemIsHardlink != 0 {
+            print("[is hardlink] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemIsLastHardlink != 0 {
+            print("[is last hardlink] ", terminator: "")
+        }
+        if flags & kFSEventStreamEventFlagItemCloned != 0 {
+            print("[cloned] ", terminator: "")
+        }
+        print("")
+    }
+}
+
 private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePointer<FSEventStreamEventFlags>, _ numEvents: Int) -> [String: FSEventStreamEventFlags] {
     if debugPrintEvents {
         print("---begin---")
@@ -40,81 +120,7 @@ private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePoint
         var flags = flags[i]
         var flagsInt = Int(flags)
         if debugPrintEvents {
-            print("path: \(path), flags: \(flags)")
-            print("  ", terminator: "")
-            if flagsInt & kFSEventStreamEventFlagNone != 0 {
-                print("[none] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagMustScanSubDirs != 0 {
-                print("[must scan subdirs] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagUserDropped != 0 {
-                print("[user dropped] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagKernelDropped != 0 {
-                print("[kernel dropped] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagEventIdsWrapped != 0 {
-                print("[event ids wrapped] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagHistoryDone != 0 {
-                print("[history done] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagRootChanged != 0 {
-                print("[root changed] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagMount != 0 {
-                print("[mount] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagUnmount != 0 {
-                print("[unmount] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemCreated != 0 {
-                print("[created] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemRemoved != 0 {
-                print("[removed] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemInodeMetaMod != 0 {
-                print("[inode meta mod] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemRenamed != 0 {
-                print("[renamed] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemModified != 0 {
-                print("[modified] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemFinderInfoMod != 0 {
-                print("[finder info mod] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemChangeOwner != 0 {
-                print("[change owner] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemXattrMod != 0 {
-                print("[xattr mod] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemIsFile != 0 {
-                print("[is file] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemIsDir != 0 {
-                print("[is dir] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemIsSymlink != 0 {
-                print("[is symlink] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagOwnEvent != 0 {
-                print("[own event] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemIsHardlink != 0 {
-                print("[is hardlink] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemIsLastHardlink != 0 {
-                print("[is last hardlink] ", terminator: "")
-            }
-            if flagsInt & kFSEventStreamEventFlagItemCloned != 0 {
-                print("[cloned] ", terminator: "")
-            }
-            print("")
+            printDebugEvent(path: path, flags: flagsInt)
         }
 
         // ignore "history done" sentinel
@@ -304,66 +310,32 @@ func swext_fsevents_VmNotifier_new() -> UnsafeMutableRawPointer? {
 }
 
 @_cdecl("swext_fsevents_VmNotifier_updatePaths")
-func swext_fsevents_VmNotifier_updatePaths(_ ptr: UnsafeMutableRawPointer?, _ paths: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?, _ numPaths: Int) -> UnsafeMutablePointer<CChar>? {
-    guard let ptr else {
-        return strdup("ptr is nil")
-    }
-
-    guard let paths else {
-        return strdup("paths is nil")
-    }
-
-    let notifier = Unmanaged<VmNotifier>.fromOpaque(ptr).takeUnretainedValue()
-
+func swext_fsevents_VmNotifier_updatePaths(ptr: UnsafeMutableRawPointer, _ paths: UnsafeMutablePointer<UnsafeMutablePointer<CChar>>, _ numPaths: Int) -> GResultErr {
     var newPaths: [String] = []
     for i in 0..<numPaths {
-        guard let path = paths[i] else {
-            return strdup("path is nil")
-        }
-
-        newPaths.append(String(cString: path))
+        newPaths.append(String(cString: paths[i]))
     }
 
-    do {
+    return doGenericErr(ptr) { (notifier: VmNotifier) in
         try notifier.updatePaths(newPaths: newPaths)
-        return strdup("")
-    } catch {
-        return strdup("updatePaths failed: \(error)")
     }
 }
 
 @_cdecl("swext_fsevents_VmNotifier_start")
-func swext_fsevents_VmNotifier_start(_ ptr: UnsafeMutableRawPointer?) -> UnsafeMutablePointer<CChar>? {
-    guard let ptr else {
-        return strdup("ptr is nil")
-    }
-
-    let notifier = Unmanaged<VmNotifier>.fromOpaque(ptr).takeUnretainedValue()
-
-    do {
+func swext_fsevents_VmNotifier_start(ptr: UnsafeMutableRawPointer) -> GResultErr {
+    return doGenericErr(ptr) { (notifier: VmNotifier) in
         try notifier.start()
-        return strdup("")
-    } catch {
-        return strdup("start failed: \(error)")
     }
 }
 
 @_cdecl("swext_fsevents_VmNotifier_stop")
-func swext_fsevents_VmNotifier_stop(_ ptr: UnsafeMutableRawPointer?) {
-    guard let ptr else {
-        return
-    }
-
+func swext_fsevents_VmNotifier_stop(ptr: UnsafeMutableRawPointer) {
     let notifier = Unmanaged<VmNotifier>.fromOpaque(ptr).takeUnretainedValue()
     notifier.stop()
 }
 
 @_cdecl("swext_fsevents_VmNotifier_finalize")
-func swext_fsevents_VmNotifier_finalize(_ ptr: UnsafeMutableRawPointer?) {
-    guard let ptr else {
-        return
-    }
-
+func swext_fsevents_VmNotifier_finalize(ptr: UnsafeMutableRawPointer) {
     let notifier = Unmanaged<VmNotifier>.fromOpaque(ptr).takeUnretainedValue()
     notifier.stop()
     Unmanaged<VmNotifier>.fromOpaque(ptr).release()

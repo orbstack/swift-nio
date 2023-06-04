@@ -23,7 +23,8 @@ import (
 )
 
 var (
-	ErrStopping = errors.New("manager is stopping")
+	ErrStopping        = errors.New("manager is stopping")
+	ErrMachineNotFound = errors.New("machine not found")
 )
 
 type ConManager struct {
@@ -316,24 +317,30 @@ func (m *ConManager) subdir(dirs ...string) string {
 	return path
 }
 
-func (m *ConManager) getByNameLocked(name string) (*Container, bool) {
+func (m *ConManager) getByNameLocked(name string) (*Container, error) {
 	c, ok := m.containersByName[name]
-	return c, ok
+	if !ok {
+		return nil, ErrMachineNotFound
+	}
+	return c, nil
 }
 
-func (m *ConManager) GetByName(name string) (*Container, bool) {
+func (m *ConManager) GetByName(name string) (*Container, error) {
 	m.containersMu.RLock()
 	defer m.containersMu.RUnlock()
 
 	return m.getByNameLocked(name)
 }
 
-func (m *ConManager) GetByID(id string) (*Container, bool) {
+func (m *ConManager) GetByID(id string) (*Container, error) {
 	m.containersMu.RLock()
 	defer m.containersMu.RUnlock()
 
 	c, ok := m.containersByID[id]
-	return c, ok
+	if !ok {
+		return nil, ErrMachineNotFound
+	}
+	return c, nil
 }
 
 func (m *ConManager) ListContainers() []*Container {
@@ -424,8 +431,8 @@ func (m *ConManager) GetDefaultContainer() (*Container, bool, error) {
 	}
 
 	// we have an ID now, so look it up
-	c, ok := m.GetByID(id)
-	if !ok && id != "" {
+	c, err := m.GetByID(id)
+	if err != nil && id != "" {
 		// ID no longer exists.
 		// pick first non-builtin container
 		isExplicit = false
@@ -438,9 +445,9 @@ func (m *ConManager) GetDefaultContainer() (*Container, bool, error) {
 			break
 		}
 
-		c, ok = m.GetByID(id)
+		c, err = m.GetByID(id)
 	}
-	if !ok {
+	if err != nil {
 		return nil, false, errors.New("no machines found")
 	}
 	// if we had a non-last-used default ID, and it no longer exists, make this the new default

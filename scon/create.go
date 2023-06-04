@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/oklog/ulid/v2"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/oklog/ulid/v2"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
@@ -44,7 +44,7 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 	if !containerNameRegex.MatchString(name) || slices.Contains(containerNameBlacklist, name) {
 		return nil, nil, fmt.Errorf("invalid machine name '%s'", name)
 	}
-	if _, ok := m.GetByName(name); ok {
+	if _, err := m.GetByName(name); err == nil {
 		return nil, nil, fmt.Errorf("machine already exists: '%s'", name)
 	}
 
@@ -219,7 +219,6 @@ func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			addr = addr.Unmap()
 
 			if addr.Is4() {
 				has4 = true

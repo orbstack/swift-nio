@@ -6,6 +6,10 @@
 //
 
 import Foundation
+import CBridge
+
+// separate queue to avoid deadlocks
+private let routerQueue = DispatchQueue(label: "dev.kdrag0n.swext.router")
 
 // a bit under macOS limit of 32
 // we can theoretically get up to 128 (7 bits)
@@ -13,9 +17,10 @@ private let maxMacvlanInterfaces = 28
 // we don't have vmnet packet size info yet here, so it's easier to just use the max possible size
 private let maxPossiblePacketSize: UInt64 = 65536 + 14
 
-// serialied by vmnetQueue barriers
+// serialied by routerQueue barriers
 class VlanRouter {
-    private var interfaces = [BridgeNetwork]()
+    // static circular array of slots
+    private var interfaces = [BridgeNetwork?](repeating: nil, count: maxMacvlanInterfaces)
     private var guestReader: GuestReader! = nil
 
     init(guestFd: Int32) {
@@ -33,58 +38,118 @@ class VlanRouter {
     }
 
     func addBridge(config: BridgeNetworkConfig) throws -> BrnetInterfaceIndex {
-        let bridge = try BridgeNetwork(config: config)
         // barrier for sync
-        return try vmnetQueue.sync(flags: .barrier) {
-            if interfaces.count >= maxMacvlanInterfaces {
-                throw BrnetError.tooManyInterfaces
-            }
+        return try routerQueue.sync(flags: .barrier) {
+            let index = try firstFreeInterfaceIndex()
 
-            interfaces.append(bridge)
-            return BrnetInterfaceIndex(interfaces.count - 1)
+            // update last octet of MAC
+            // lower 7 bits = index
+            // upper 1 bit = 0 (host)
+            var config = config
+            config.hostOverrideMac[5] = UInt8(index & 0x7f)
+
+            let bridge = try BridgeNetwork(config: config)
+            interfaces[Int(index)] = bridge
+            return index
         }
     }
 
     func removeBridge(index: BrnetInterfaceIndex) throws {
-        try vmnetQueue.sync(flags: .barrier) { [self] in
+        try routerQueue.sync(flags: .barrier) { [self] in
             let bridge = try interfaceAt(index: index)
             bridge.close()
-            interfaces.remove(at: Int(index))
+            interfaces[Int(index)] = nil
         }
     }
 
     func renewBridge(index: BrnetInterfaceIndex) throws {
-        try vmnetQueue.sync(flags: .barrier) { [self] in
+        try routerQueue.sync(flags: .barrier) { [self] in
             let bridge = try interfaceAt(index: index)
             bridge.close()
-            let config = bridge.config
-            interfaces[Int(index)] = try BridgeNetwork(config: config)
+            interfaces[Int(index)] = try BridgeNetwork(config: bridge.config)
         }
     }
 
     func clearBridges() {
-        // barrier for sync
-        vmnetQueue.sync(flags: .barrier) { [self] in
-            for bridge in interfaces {
-                bridge.close()
+        routerQueue.sync(flags: .barrier) { [self] in
+            for (i, bridge) in interfaces.enumerated() {
+                if let bridge {
+                    bridge.close()
+                    interfaces[i] = nil
+                }
             }
-            interfaces.removeAll()
         }
     }
 
     private func interfaceAt(index: BrnetInterfaceIndex) throws -> BridgeNetwork {
         // bounds check
         if index >= interfaces.count {
-            throw BrnetError.invalidInterface
+            throw BrnetError.interfaceNotFound
         }
 
-        return interfaces[Int(index)]
+        guard let bridge = interfaces[Int(index)] else {
+            throw BrnetError.interfaceNotFound
+        }
+
+        return bridge
+    }
+
+    private func firstFreeInterfaceIndex() throws -> BrnetInterfaceIndex {
+        for (i, bridge) in interfaces.enumerated() {
+            print("checking \(i) = \(bridge)")
+            if bridge == nil {
+                return BrnetInterfaceIndex(i)
+            }
+        }
+        throw BrnetError.tooManyInterfaces
     }
 
     func close() {
         // clear all bridges
         clearBridges()
-        // close guest reader (breaks ref cycle)
+        // close guest reader (breaks ref cycle by dropping handler ref)
         guestReader.close()
     }
+}
+
+@_cdecl("swext_vlanrouter_new")
+func swext_vlanrouter_new(guestFd: Int32) -> UnsafeMutableRawPointer {
+    let router = VlanRouter(guestFd: guestFd)
+    return Unmanaged.passRetained(router).toOpaque()
+}
+
+@_cdecl("swext_vlanrouter_addBridge")
+func swext_vlanrouter_addBridge(ptr: UnsafeMutableRawPointer, configJsonStr: UnsafePointer<CChar>) -> GResultIntErr {
+    let config: BridgeNetworkConfig = decodeJson(configJsonStr)
+    return doGenericErrInt(ptr) { (router: VlanRouter) in
+        return Int64(try router.addBridge(config: config))
+    }
+}
+
+@_cdecl("swext_vlanrouter_removeBridge")
+func swext_vlanrouter_removeBridge(ptr: UnsafeMutableRawPointer, index: BrnetInterfaceIndex) -> GResultErr {
+    doGenericErr(ptr) { (router: VlanRouter) in
+        try router.removeBridge(index: index)
+    }
+}
+
+@_cdecl("swext_vlanrouter_renewBridge")
+func swext_vlanrouter_renewBridge(ptr: UnsafeMutableRawPointer, index: BrnetInterfaceIndex) -> GResultErr {
+    doGenericErr(ptr) { (router: VlanRouter) in
+        try router.renewBridge(index: index)
+    }
+}
+
+@_cdecl("swext_vlanrouter_clearBridges")
+func swext_vlanrouter_clearBridges(ptr: UnsafeMutableRawPointer) {
+    doGeneric(ptr) { (router: VlanRouter) in
+        router.clearBridges()
+    }
+}
+
+@_cdecl("swext_vlanrouter_close")
+func swext_vlanrouter_close(ptr: UnsafeMutableRawPointer) {
+    // ref is dropped at the end of this function
+    let obj = Unmanaged<VlanRouter>.fromOpaque(ptr).takeRetainedValue()
+    obj.close()
 }

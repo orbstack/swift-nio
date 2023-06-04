@@ -7,33 +7,40 @@ package vzf
 #define CGO
 #include "../../swift/GoVZF/Sources/CBridge/CBridge.h"
 
-struct GovzfResultCreate* govzf_run_NewMachine(uintptr_t handle, const char* params_str);
-struct GovzfResultErr* govzf_run_Machine_Start(void* ptr);
-struct GovzfResultErr* govzf_run_Machine_Stop(void* ptr);
-struct GovzfResultErr* govzf_run_Machine_RequestStop(void* ptr);
-struct GovzfResultErr* govzf_run_Machine_Pause(void* ptr);
-struct GovzfResultErr* govzf_run_Machine_Resume(void* ptr);
-struct GovzfResultIntErr* govzf_run_Machine_ConnectVsock(void* ptr, uint32_t port);
+struct GResultCreate govzf_run_NewMachine(uintptr_t handle, const char* config_json_str);
+struct GResultErr govzf_run_Machine_Start(void* ptr);
+struct GResultErr govzf_run_Machine_Stop(void* ptr);
+struct GResultErr govzf_run_Machine_RequestStop(void* ptr);
+struct GResultErr govzf_run_Machine_Pause(void* ptr);
+struct GResultErr govzf_run_Machine_Resume(void* ptr);
+struct GResultIntErr govzf_run_Machine_ConnectVsock(void* ptr, uint32_t port);
 void govzf_run_Machine_finalize(void* ptr);
 
 char* swext_proxy_get_settings(void);
-char* swext_proxy_monitor_changes(void);
+struct GResultErr swext_proxy_monitor_changes(void);
 
 char* swext_security_get_extra_ca_certs(void);
 
 char* swext_fsevents_monitor_dirs(void);
 void* swext_fsevents_VmNotifier_new(void);
-char* swext_fsevents_VmNotifier_start(void* ptr);
-char* swext_fsevents_VmNotifier_updatePaths(void* ptr, const char** paths, int count);
-char* swext_fsevents_VmNotifier_stop(void* ptr);
+struct GResultErr swext_fsevents_VmNotifier_start(void* ptr);
+struct GResultErr swext_fsevents_VmNotifier_updatePaths(void* ptr, const char** paths, int count);
+void swext_fsevents_VmNotifier_stop(void* ptr);
 void swext_fsevents_VmNotifier_finalize(void* ptr);
 void swext_ipc_notify_started(void);
 void swext_ipc_notify_docker_event(const char* event);
 
-struct GovzfResultCreate* swext_brnet_create(const char* config_str);
+struct GResultCreate swext_brnet_create(const char* config_json_str);
 void swext_brnet_close(void* ptr);
 
 char* swext_defaults_get_user_settings(void);
+
+void* swext_vlanrouter_new(int guest_fd);
+struct GResultIntErr swext_vlanrouter_addBridge(void* ptr, const char* config_json_str);
+struct GResultErr swext_vlanrouter_removeBridge(void* ptr, int index);
+struct GResultErr swext_vlanrouter_renewBridge(void* ptr, int index, const char* config_json_str);
+void swext_vlanrouter_clearBridges(void* ptr);
+void swext_vlanrouter_close(void* ptr);
 */
 import (
 	"C"
@@ -51,6 +58,22 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
+
+func errFromC(err *C.char) error {
+	if err == nil {
+		return nil
+	}
+	defer C.free(unsafe.Pointer(err))
+	return errors.New(C.GoString(err))
+}
+
+func errFromResult(result C.struct_GResultErr) error {
+	return errFromC(result.err)
+}
+
+/*
+ * Virtual Machine
+ */
 
 type Machine struct {
 	mu     sync.RWMutex
@@ -120,7 +143,6 @@ func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 	cstr := C.CString(string(specStr))
 	defer C.free(unsafe.Pointer(cstr))
 	result := C.govzf_run_NewMachine(C.uintptr_t(handle), cstr)
-	defer C.free(unsafe.Pointer(result))
 
 	// wait for result
 	if result.err != nil {
@@ -140,15 +162,7 @@ func (m *Machine) StateChan() <-chan MachineState {
 	return m.stateChan
 }
 
-func errFromC(err *C.char) error {
-	if err == nil {
-		return nil
-	}
-	defer C.free(unsafe.Pointer(err))
-	return errors.New(C.GoString(err))
-}
-
-func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultErr) error {
+func (m *Machine) callGenericErr(fn func(unsafe.Pointer) C.struct_GResultErr) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	ptr := m.ptr.Load()
@@ -160,7 +174,7 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer) *C.struct_GovzfResultEr
 	return errFromC(res.err)
 }
 
-func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) *C.struct_GovzfResultIntErr) (int64, error) {
+func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntErr) (int64, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	ptr := m.ptr.Load()
@@ -173,37 +187,37 @@ func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) *C.struct_GovzfResul
 }
 
 func (m *Machine) Start() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Start(ptr)
 	})
 }
 
 func (m *Machine) Stop() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Stop(ptr)
 	})
 }
 
 func (m *Machine) RequestStop() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_RequestStop(ptr)
 	})
 }
 
 func (m *Machine) Pause() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Pause(ptr)
 	})
 }
 
 func (m *Machine) Resume() error {
-	return m.callGenericErr(func(ptr unsafe.Pointer) *C.struct_GovzfResultErr {
+	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Resume(ptr)
 	})
 }
 
 func (m *Machine) ConnectVsock(port uint32) (net.Conn, error) {
-	fd, err := m.callGenericErrInt(func(ptr unsafe.Pointer) *C.struct_GovzfResultIntErr {
+	fd, err := m.callGenericErrInt(func(ptr unsafe.Pointer) C.struct_GResultIntErr {
 		return C.govzf_run_Machine_ConnectVsock(ptr, C.uint32_t(port))
 	})
 	if err != nil {
@@ -244,6 +258,10 @@ func (m *Machine) Close() error {
 	return nil
 }
 
+/*
+ * Proxy
+ */
+
 func SwextProxyGetSettings() (*SwextProxySettings, error) {
 	cStr := C.swext_proxy_get_settings()
 	defer C.free(unsafe.Pointer(cStr))
@@ -269,16 +287,13 @@ func swext_proxy_cb_changed() {
 }
 
 func SwextProxyMonitorChangesOnRunLoop() error {
-	msgC := C.swext_proxy_monitor_changes()
-	defer C.free(unsafe.Pointer(msgC))
-	msgStr := C.GoString(msgC)
-
-	if msgStr != "" {
-		return errors.New(msgStr)
-	}
-
-	return nil
+	res := C.swext_proxy_monitor_changes()
+	return errFromResult(res)
 }
+
+/*
+ * Security / certs
+ */
 
 func SwextSecurityGetExtraCaCerts() ([]string, error) {
 	cStr := C.swext_security_get_extra_ca_certs()
@@ -299,6 +314,10 @@ func SwextSecurityGetExtraCaCerts() ([]string, error) {
 
 	return certs, nil
 }
+
+/*
+ * fsnotify
+ */
 
 //export swext_fsevents_cb_krpc_events
 func swext_fsevents_cb_krpc_events(ptr *C.uint8_t, len C.size_t) {
@@ -352,15 +371,8 @@ func (n *FsVmNotifier) Start() error {
 		return errors.New("FsVmNotifier closed")
 	}
 
-	msgC := C.swext_fsevents_VmNotifier_start(n.ptr)
-	defer C.free(unsafe.Pointer(msgC))
-	msgStr := C.GoString(msgC)
-
-	if msgStr != "" {
-		return errors.New(msgStr)
-	}
-
-	return nil
+	res := C.swext_fsevents_VmNotifier_start(n.ptr)
+	return errFromResult(res)
 }
 
 func (n *FsVmNotifier) Stop() error {
@@ -395,16 +407,13 @@ func (n *FsVmNotifier) UpdatePaths(paths []string) error {
 		defer C.free(unsafe.Pointer(cPaths[i]))
 	}
 
-	msgC := C.swext_fsevents_VmNotifier_updatePaths(n.ptr, &cPaths[0], C.int(len(paths)))
-	defer C.free(unsafe.Pointer(msgC))
-	msgStr := C.GoString(msgC)
-
-	if msgStr != "" {
-		return errors.New(msgStr)
-	}
-
-	return nil
+	res := C.swext_fsevents_VmNotifier_updatePaths(n.ptr, &cPaths[0], C.int(len(paths)))
+	return errFromResult(res)
 }
+
+/*
+ * Notify
+ */
 
 func SwextIpcNotifyStarted() {
 	C.swext_ipc_notify_started()
@@ -415,6 +424,34 @@ func SwextIpcNotifyDockerEvent(eventJsonStr string) {
 	defer C.free(unsafe.Pointer(cStr))
 	C.swext_ipc_notify_docker_event(cStr)
 }
+
+/*
+ * Defaults
+ */
+
+func SwextDefaultsGetUserSettings() (*SwextUserSettings, error) {
+	cStr := C.swext_defaults_get_user_settings()
+	defer C.free(unsafe.Pointer(cStr))
+	str := C.GoString(cStr)
+
+	// error?
+	if str[0] == 'E' {
+		return nil, errors.New(str[1:])
+	}
+
+	// convert to Go
+	var settings SwextUserSettings
+	err := json.Unmarshal([]byte(str), &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
+}
+
+/*
+ * BridgeNetwork
+ */
 
 type BridgeNetwork struct {
 	mu  sync.RWMutex
@@ -435,7 +472,6 @@ func SwextNewBrnet(config BridgeNetworkConfig) (*BridgeNetwork, error) {
 	cstr := C.CString(string(specStr))
 	defer C.free(unsafe.Pointer(cstr))
 	result := C.swext_brnet_create(cstr)
-	defer C.free(unsafe.Pointer(result))
 
 	// wait for result
 	if result.err != nil {
@@ -463,22 +499,99 @@ func (brnet *BridgeNetwork) Close() error {
 	return nil
 }
 
-func SwextDefaultsGetUserSettings() (*SwextUserSettings, error) {
-	cStr := C.swext_defaults_get_user_settings()
-	defer C.free(unsafe.Pointer(cStr))
-	str := C.GoString(cStr)
+/*
+ * VlanRouter
+ */
 
-	// error?
-	if str[0] == 'E' {
-		return nil, errors.New(str[1:])
+type VlanRouter struct {
+	mu  sync.RWMutex
+	ptr unsafe.Pointer
+}
+
+func SwextNewVlanRouter(guestFd int) (*VlanRouter, error) {
+	ptr := C.swext_vlanrouter_new(C.int(guestFd))
+	if ptr == nil {
+		return nil, errors.New("create failed")
 	}
 
-	// convert to Go
-	var settings SwextUserSettings
-	err := json.Unmarshal([]byte(str), &settings)
+	router := &VlanRouter{
+		ptr: ptr,
+	}
+
+	runtime.SetFinalizer(router, func(r *VlanRouter) {
+		r.Close()
+	})
+
+	return router, nil
+}
+
+func (router *VlanRouter) AddBridge(config BridgeNetworkConfig) (int, error) {
+	// encode to json
+	specStr, err := json.Marshal(config)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return &settings, nil
+	router.mu.RLock()
+	defer router.mu.RUnlock()
+
+	if router.ptr == nil {
+		return 0, errors.New("router closed")
+	}
+
+	// call cgo
+	cstr := C.CString(string(specStr))
+	defer C.free(unsafe.Pointer(cstr))
+	result := C.swext_vlanrouter_addBridge(router.ptr, cstr)
+
+	return int(result.value), errFromC(result.err)
+}
+
+func (router *VlanRouter) RemoveBridge(index int) error {
+	router.mu.RLock()
+	defer router.mu.RUnlock()
+
+	if router.ptr == nil {
+		return errors.New("router closed")
+	}
+
+	result := C.swext_vlanrouter_removeBridge(router.ptr, C.int(index))
+	return errFromC(result.err)
+}
+
+func (router *VlanRouter) RenewBridge(index int) error {
+	router.mu.RLock()
+	defer router.mu.RUnlock()
+
+	if router.ptr == nil {
+		return errors.New("router closed")
+	}
+
+	result := C.swext_vlanrouter_renewBridge(router.ptr, C.int(index), nil)
+	return errFromC(result.err)
+}
+
+func (router *VlanRouter) ClearBridges() error {
+	router.mu.RLock()
+	defer router.mu.RUnlock()
+
+	if router.ptr == nil {
+		return errors.New("router closed")
+	}
+
+	C.swext_vlanrouter_clearBridges(router.ptr)
+	return nil
+}
+
+func (router *VlanRouter) Close() error {
+	router.mu.Lock()
+	defer router.mu.Unlock()
+
+	if router.ptr != nil {
+		C.swext_vlanrouter_close(router.ptr)
+		router.ptr = nil
+		runtime.SetFinalizer(router, nil)
+	}
+
+	return nil
 }

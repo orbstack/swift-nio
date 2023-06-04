@@ -3,22 +3,14 @@ package sgclient
 import (
 	"net"
 	"net/rpc"
+
+	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 )
 
 type None struct{}
 
 type Client struct {
 	rpc *rpc.Client
-}
-
-type DockerBridgeConfig struct {
-	IP4Host string
-	IP4Mask string
-
-	IP6Host string
-	IP6Mask string
-
-	GuestInterfaceName string
 }
 
 func New(conn net.Conn) (*Client, error) {
@@ -36,7 +28,12 @@ func (c *Client) Ping() error {
 	return c.rpc.Call("scg.Ping", None{}, &noResult)
 }
 
-func (c *Client) DockerAddNetworkBridge(config DockerBridgeConfig) error {
+func (c *Client) DockerAddBridge(config sgtypes.DockerBridgeConfig) error {
 	var noResult None
-	return c.rpc.Call("scg.DockerAddNetworkBridge", config, &noResult)
+	return c.rpc.Call("scg.DockerAddBridge", config, &noResult)
+}
+
+func (c *Client) DockerRemoveBridge(config sgtypes.DockerBridgeConfig) error {
+	var noResult None
+	return c.rpc.Call("scg.DockerRemoveBridge", config, &noResult)
 }

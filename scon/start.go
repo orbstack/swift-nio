@@ -515,7 +515,7 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrit
 		c.setState(types.ContainerStateCreating)
 	}
 
-	if oldC, ok := m.getByNameLocked(c.Name); ok {
+	if oldC, err := m.getByNameLocked(c.Name); err == nil {
 		if canOverwrite {
 			// ok, but warn
 			// too dangerous to assume delete is ok

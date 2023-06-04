@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -53,18 +52,18 @@ func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerRecor
 }
 
 func (s *SconServer) GetByID(ctx context.Context, req types.GetByIDRequest) (*types.ContainerRecord, error) {
-	c, ok := s.m.GetByID(req.ID)
-	if !ok {
-		return nil, errors.New("machine not found")
+	c, err := s.m.GetByID(req.ID)
+	if err != nil {
+		return nil, err
 	}
 
 	return c.toRecord(), nil
 }
 
 func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) (*types.ContainerRecord, error) {
-	c, ok := s.m.GetByName(req.Name)
-	if !ok {
-		return nil, errors.New("machine not found")
+	c, err := s.m.GetByName(req.Name)
+	if err != nil {
+		return nil, err
 	}
 
 	return c.toRecord(), nil
@@ -89,9 +88,9 @@ func (s *SconServer) SetDefaultContainer(ctx context.Context, record *types.Cont
 		return s.m.SetDefaultContainer(nil)
 	}
 
-	c, ok := s.m.GetByID(record.ID)
-	if !ok {
-		return errors.New("machine not found")
+	c, err := s.m.GetByID(record.ID)
+	if err != nil {
+		return err
 	}
 
 	return s.m.SetDefaultContainer(c)
@@ -106,45 +105,45 @@ func (s *SconServer) SetDefaultUsername(ctx context.Context, req types.SetDefaul
 }
 
 func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
-	c, ok := s.m.GetByID(record.ID)
-	if !ok {
-		return errors.New("machine not found")
+	c, err := s.m.GetByID(record.ID)
+	if err != nil {
+		return err
 	}
 
 	return c.Start()
 }
 
 func (s *SconServer) ContainerStop(ctx context.Context, record types.ContainerRecord) error {
-	c, ok := s.m.GetByID(record.ID)
-	if !ok {
-		return errors.New("machine not found")
+	c, err := s.m.GetByID(record.ID)
+	if err != nil {
+		return err
 	}
 
 	return c.Stop()
 }
 
 func (s *SconServer) ContainerRestart(ctx context.Context, record types.ContainerRecord) error {
-	c, ok := s.m.GetByID(record.ID)
-	if !ok {
-		return errors.New("machine not found")
+	c, err := s.m.GetByID(record.ID)
+	if err != nil {
+		return err
 	}
 
 	return c.Restart()
 }
 
 func (s *SconServer) ContainerDelete(ctx context.Context, record types.ContainerRecord) error {
-	c, ok := s.m.GetByID(record.ID)
-	if !ok {
-		return errors.New("machine not found")
+	c, err := s.m.GetByID(record.ID)
+	if err != nil {
+		return err
 	}
 
 	return c.Delete()
 }
 
 func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGetLogsRequest) (string, error) {
-	c, ok := s.m.GetByID(req.Container.ID)
-	if !ok {
-		return "", errors.New("machine not found")
+	c, err := s.m.GetByID(req.Container.ID)
+	if err != nil {
+		return "", err
 	}
 
 	return c.GetLogs(req.Type)
@@ -153,13 +152,13 @@ func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGe
 func (s *SconServer) InternalReportStopped(ctx context.Context, req types.InternalReportStoppedRequest) error {
 	// lxc.Stop() blocks until hook exits, so this breaks the deadlock
 	go func() {
-		c, ok := s.m.GetByID(req.ID)
-		if !ok {
-			logrus.WithField("container", req.ID).Error("internal report: container not found")
+		c, err := s.m.GetByID(req.ID)
+		if err != nil {
+			logrus.WithField("container", req.ID).WithError(err).Error("internal report failed")
 			return
 		}
 
-		err := c.refreshState()
+		err = c.refreshState()
 		if err != nil {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh container state")
 		}

@@ -6,7 +6,7 @@ import Foundation
 import Virtualization
 import CBridge
 
-let vzQueue = DispatchQueue(label: "dev.kdrag0n.govzf")
+let vzQueue = DispatchQueue(label: "dev.kdrag0n.swext.vzf")
 
 struct ConsoleSpec: Codable {
     var readFd: Int32
@@ -160,9 +160,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     }
 }
 
-private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (VmWrapper, Bool) {
-    let spec = try JSONDecoder().decode(VzSpec.self, from: paramsStr.data(using: .utf8)!)
-
+private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrapper, Bool) {
     let minCpus = VZVirtualMachineConfiguration.minimumAllowedCPUCount
     let maxCpus = VZVirtualMachineConfiguration.maximumAllowedCPUCount
     let minMemory = VZVirtualMachineConfiguration.minimumAllowedMemorySize
@@ -314,120 +312,70 @@ private func createVm(goHandle: uintptr_t, paramsStr: String) async throws -> (V
     return (VmWrapper(goHandle: goHandle, vz: vm), rosettaCanceled)
 }
 
-class ResultWrapper<T: Any> {
-    var result: T?
-    private let sem = DispatchSemaphore(value: 0)
-    func set(_ result: T) {
-        self.result = result
-        sem.signal()
-    }
-    func wait() -> T {
-        sem.wait()
-        return result!
-    }
-    func waitPtr() -> UnsafeMutablePointer<T> {
-        let value = wait()
-        let ptr = UnsafeMutablePointer<T>.allocate(capacity: 1)
-        ptr.initialize(to: value)
-        return ptr
-    }
-}
-
 @_cdecl("govzf_run_NewMachine")
-func post_NewMachine(goHandle: uintptr_t, paramsStr: UnsafePointer<CChar>) -> UnsafeMutablePointer<GovzfResultCreate> {
-    let result = ResultWrapper<GovzfResultCreate>()
+func post_NewMachine(goHandle: uintptr_t, configJsonStr: UnsafePointer<CChar>) -> GResultCreate {
+    let config: VzSpec = decodeJson(configJsonStr)
+    let result = ResultWrapper<GResultCreate>()
     Task.detached {
         do {
-            let (wrapper, rosettaCanceled) = try await createVm(goHandle: goHandle, paramsStr: String(cString: paramsStr))
+            let (wrapper, rosettaCanceled) = try await createVm(goHandle: goHandle, spec: config)
             // take a long-lived ref for Go
             let ptr = Unmanaged.passRetained(wrapper).toOpaque()
-            result.set(GovzfResultCreate(ptr: ptr, err: nil, rosetta_canceled: rosettaCanceled))
+            result.set(GResultCreate(ptr: ptr, err: nil, rosetta_canceled: rosettaCanceled))
         } catch {
             let prettyError = "\(error)"
-            result.set(GovzfResultCreate(ptr: nil, err: strdup(prettyError.cString(using: .utf8)!), rosetta_canceled: false))
+            result.set(GResultCreate(ptr: nil, err: strdup(prettyError), rosetta_canceled: false))
         }
     }
-    return result.waitPtr()
-}
-
-func doGenericErr(_ ptr: UnsafeMutablePointer<VmWrapper>, _ block: @escaping (VmWrapper) async throws -> Void) -> UnsafeMutablePointer<GovzfResultErr> {
-    let result = ResultWrapper<GovzfResultErr>()
-    Task.detached {
-        // take a ref for Swift VZ calls
-        let wrapper = Unmanaged<VmWrapper>.fromOpaque(ptr).takeUnretainedValue()
-        do {
-            try await block(wrapper)
-            result.set(GovzfResultErr(err: nil))
-        } catch {
-            let prettyError = "\(error)"
-            result.set(GovzfResultErr(err: strdup(prettyError.cString(using: .utf8)!)))
-        }
-    }
-    return result.waitPtr()
-}
-
-func doGenericErrInt(_ ptr: UnsafeMutablePointer<VmWrapper>, _ block: @escaping (VmWrapper) async throws -> Int64) -> UnsafeMutablePointer<GovzfResultIntErr> {
-    let result = ResultWrapper<GovzfResultIntErr>()
-    Task.detached {
-        // take a ref for Swift VZ calls
-        let wrapper = Unmanaged<VmWrapper>.fromOpaque(ptr).takeUnretainedValue()
-        do {
-            let value = try await block(wrapper)
-            result.set(GovzfResultIntErr(value: value, err: nil))
-        } catch {
-            let prettyError = "\(error)"
-            result.set(GovzfResultIntErr(value: 0, err: strdup(prettyError.cString(using: .utf8)!)))
-        }
-    }
-    return result.waitPtr()
+    return result.wait()
 }
 
 @_cdecl("govzf_run_Machine_Start")
-func post_Machine_Start(ptr: UnsafeMutablePointer<VmWrapper>) -> UnsafeMutablePointer<GovzfResultErr> {
+func post_Machine_Start(ptr: UnsafeMutableRawPointer) -> GResultErr {
     NSLog("[VZF] start: begin ffi")
-    return doGenericErr(ptr) { wrapper in
+    return doGenericErr(ptr) { (wrapper: VmWrapper) in
         NSLog("[VZF] start: begin task")
         try await wrapper.start()
     }
 }
 
 @_cdecl("govzf_run_Machine_Stop")
-func run_Machine_Stop(ptr: UnsafeMutablePointer<VmWrapper>) -> UnsafeMutablePointer<GovzfResultErr> {
-    doGenericErr(ptr) { wrapper in
+func run_Machine_Stop(ptr: UnsafeMutableRawPointer) -> GResultErr {
+    doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.stop()
     }
 }
 
 @_cdecl("govzf_run_Machine_RequestStop")
-func run_Machine_RequestStop(ptr: UnsafeMutablePointer<VmWrapper>) -> UnsafeMutablePointer<GovzfResultErr> {
-    doGenericErr(ptr) { wrapper in
+func run_Machine_RequestStop(ptr: UnsafeMutableRawPointer) -> GResultErr {
+    doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.requestStop()
     }
 }
 
 @_cdecl("govzf_run_Machine_Pause")
-func run_Machine_Pause(ptr: UnsafeMutablePointer<VmWrapper>) -> UnsafeMutablePointer<GovzfResultErr> {
-    doGenericErr(ptr) { wrapper in
+func run_Machine_Pause(ptr: UnsafeMutableRawPointer) -> GResultErr {
+    doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.pause()
     }
 }
 
 @_cdecl("govzf_run_Machine_Resume")
-func run_Machine_Resume(ptr: UnsafeMutablePointer<VmWrapper>) -> UnsafeMutablePointer<GovzfResultErr> {
-    doGenericErr(ptr) { wrapper in
+func run_Machine_Resume(ptr: UnsafeMutableRawPointer) -> GResultErr {
+    doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.resume()
     }
 }
 
 @_cdecl("govzf_run_Machine_ConnectVsock")
-func run_Machine_ConnectVsock(ptr: UnsafeMutablePointer<VmWrapper>, port: UInt32) -> UnsafeMutablePointer<GovzfResultIntErr> {
-    doGenericErrInt(ptr) { wrapper in
+func run_Machine_ConnectVsock(ptr: UnsafeMutableRawPointer, port: UInt32) -> GResultIntErr {
+    doGenericErrInt(ptr) { (wrapper: VmWrapper) in
         Int64(try await wrapper.connectVsock(port))
     }
 }
 
 @_cdecl("govzf_run_Machine_finalize")
-func run_Machine_finalize(ptr: UnsafeMutablePointer<VmWrapper>) {
+func run_Machine_finalize(ptr: UnsafeMutableRawPointer) {
     // drop long-lived Go ref
     Unmanaged<VmWrapper>.fromOpaque(ptr).release()
 }

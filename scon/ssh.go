@@ -142,16 +142,16 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 		}
 	}
 
-	container, ok := sv.m.GetByName(containerName)
+	container, err = sv.m.GetByName(containerName)
 	// try default container
-	if !ok && len(userParts) == 1 {
-		container, ok = sv.m.GetByName(defaultContainerName)
-		if ok {
+	if err != nil && len(userParts) == 1 {
+		container, err = sv.m.GetByName(defaultContainerName)
+		if err == nil {
 			containerName = defaultContainerName
 			user = userParts[0]
 		}
 	}
-	if !ok {
+	if err != nil {
 		err = fmt.Errorf("machine not found: %s", containerName)
 		return
 	}

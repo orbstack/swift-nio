@@ -35,6 +35,10 @@ ip route add default via fd07:b51a:cc66:00f0::1 dev eth0
 # cannot use static neigh because macOS generates MAC addr
 ip link set eth1 mtu 1500
 ip link set eth1 up
+# vlan router
+# scon deals with the rest
+ip link set eth2 mtu 1500
+ip link set eth2 up
 
 # control server
 # must be after net for IP
