@@ -95,7 +95,10 @@ struct BridgeNetworkConfig: Codable {
     let ip4Mask: String
     // always /64
     let ip6Address: String?
+
     var hostOverrideMac: [UInt8]
+    // only for VlanRouter
+    let guestMac: [UInt8]?
 
     let maxLinkMtu: Int
 }

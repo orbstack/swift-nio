@@ -21,8 +21,10 @@ private let IPPROTO_UDP: UInt8 = 17
 private let IPPROTO_TCP: UInt8 = 6
 
 private let macAddrSize = 6
+private let macAddrBroadcast: [UInt8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
 
 typealias BrnetInterfaceIndex = UInt
+let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
 
 struct Packet {
     let data: UnsafeMutableRawPointer
@@ -84,12 +86,7 @@ class PacketProcessor {
     1. rewrite destination MAC address from assigned host MAC to macOS
       - only if it equals the expected MAC for the interface
 
-    (below part is a static helper so VlanRouter can call it)
-    2. map to interface
-      - extract index from src MAC
-        - to get vmnet interface
-        - should have DynBrnet prefix
-        - this covers broadcast and multicast cases: src MAC is always present
+    (see below for MAC routing)
     */
     // warning: can be called concurrently!
     func processToHost(pkt: Packet) throws {
@@ -113,11 +110,53 @@ class PacketProcessor {
         }
     }
 
-    static func extractInterfaceIndexToHost(pkt: Packet) throws -> BrnetInterfaceIndex {
-        // mask out and return the interface index:
-        // lower 7 bits of the last octet
-        let srcMacLastByte = try pkt.load(offset: 6 + 5) as UInt8
-        return BrnetInterfaceIndex(srcMacLastByte & 0x7f)
+    /*
+    (below part is a static helper so VlanRouter can call it)
+    2. map to interface (VlanRouter only)
+      - extract index from dest MAC
+        - should have DynBrnet prefix if unicast
+      - if broadcast (ARP) or specific IPv6 multicast (NDP), send to all interfaces (ifiBroadcast)
+      - drop other multicast. not supported - too hard to identify interface.
+      - cannot use src MAC because it's a Docker container
+     */
+    static func extractInterfaceIndexToHost(pkt: Packet, macPrefix: [UInt8]) throws -> BrnetInterfaceIndex {
+        // check if destination MAC matches prefix
+        let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
+        let dstMacBytes = dstMacPtr.bindMemory(to: UInt8.self, capacity: macAddrSize)
+        print("dst mac = " + String(format: "%02x:%02x:%02x:%02x:%02x:%02x",
+                                    dstMacBytes[0], dstMacBytes[1], dstMacBytes[2],
+                                    dstMacBytes[3], dstMacBytes[4], dstMacBytes[5]))
+        if memcmp(dstMacPtr, macPrefix, macPrefix.count) == 0 {
+            // extract interface index from destination MAC
+            let dstMacLastByte = try pkt.load(offset: 0 + 5) as UInt8
+            print("=> [from dst] \(dstMacLastByte & 0x7f)\n")
+            return BrnetInterfaceIndex(dstMacLastByte & 0x7f)
+        }
+
+        // check if source MAC matches prefix
+        let srcMacPtr = try pkt.slicePtr(offset: 6, len: macAddrSize)
+        let srcMacBytes = srcMacPtr.bindMemory(to: UInt8.self, capacity: macAddrSize)
+        print("src mac = " + String(format: "%02x:%02x:%02x:%02x:%02x:%02x",
+                                    srcMacBytes[0], srcMacBytes[1], srcMacBytes[2],
+                                    srcMacBytes[3], srcMacBytes[4], srcMacBytes[5]))
+        if memcmp(srcMacPtr, macPrefix, macPrefix.count) == 0 {
+            // extract interface index from source MAC
+            let srcMacLastByte = try pkt.load(offset: 6 + 5) as UInt8
+            print("=> [from src] \(srcMacLastByte & 0x7f)\n")
+            return BrnetInterfaceIndex(srcMacLastByte & 0x7f)
+        }
+
+        // if broadcast, then send it to everyone. we can't tell what the vlan is
+        // TODO: consider ethertype top bits as vlan tag, via bpf xdp?
+        if memcmp(dstMacPtr, macAddrBroadcast, macAddrSize) == 0 {
+            print("=> all\n")
+            return ifiBroadcast
+        }
+
+        // give up
+        // TODO support multicast
+        print("=> give up\n")
+        throw BrnetError.interfaceNotFound
     }
 
     /*

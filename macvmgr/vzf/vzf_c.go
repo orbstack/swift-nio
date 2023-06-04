@@ -35,7 +35,7 @@ void swext_brnet_close(void* ptr);
 
 char* swext_defaults_get_user_settings(void);
 
-void* swext_vlanrouter_new(int guest_fd);
+void* swext_vlanrouter_new(const char* config_json_str);
 struct GResultIntErr swext_vlanrouter_addBridge(void* ptr, const char* config_json_str);
 struct GResultErr swext_vlanrouter_removeBridge(void* ptr, int index);
 struct GResultErr swext_vlanrouter_renewBridge(void* ptr, int index, const char* config_json_str);
@@ -508,8 +508,16 @@ type VlanRouter struct {
 	ptr unsafe.Pointer
 }
 
-func SwextNewVlanRouter(guestFd int) (*VlanRouter, error) {
-	ptr := C.swext_vlanrouter_new(C.int(guestFd))
+func SwextNewVlanRouter(config VlanRouterConfig) (*VlanRouter, error) {
+	// encode to json
+	configStr, err := json.Marshal(&config)
+	if err != nil {
+		return nil, err
+	}
+
+	cstr := C.CString(string(configStr))
+	defer C.free(unsafe.Pointer(cstr))
+	ptr := C.swext_vlanrouter_new(cstr)
 	if ptr == nil {
 		return nil, errors.New("create failed")
 	}
@@ -527,7 +535,7 @@ func SwextNewVlanRouter(guestFd int) (*VlanRouter, error) {
 
 func (router *VlanRouter) AddBridge(config BridgeNetworkConfig) (int, error) {
 	// encode to json
-	specStr, err := json.Marshal(config)
+	configStr, err := json.Marshal(&config)
 	if err != nil {
 		return 0, err
 	}
@@ -540,7 +548,7 @@ func (router *VlanRouter) AddBridge(config BridgeNetworkConfig) (int, error) {
 	}
 
 	// call cgo
-	cstr := C.CString(string(specStr))
+	cstr := C.CString(string(configStr))
 	defer C.free(unsafe.Pointer(cstr))
 	result := C.swext_vlanrouter_addBridge(router.ptr, cstr)
 

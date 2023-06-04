@@ -38,3 +38,8 @@ type BridgeNetworkConfig struct {
 
 	MaxLinkMTU int `json:"maxLinkMtu"`
 }
+
+type VlanRouterConfig struct {
+	GuestFd   int      `json:"guestFd"`
+	MACPrefix []uint16 `json:"macPrefix"`
+}

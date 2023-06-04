@@ -58,7 +58,10 @@ func (n *Network) AddHostBridgeFd(fd int) error {
 
 	if len(n.hostBridgeFds)-1 == brIndexVlanRouter {
 		// fds[1] = vlan router
-		vlanRouter, err := vzf.SwextNewVlanRouter(fd)
+		vlanRouter, err := vzf.SwextNewVlanRouter(vzf.VlanRouterConfig{
+			GuestFd:   fd,
+			MACPrefix: brMacVlanRouterTemplate[:5], // prefix bytes
+		})
 		if err != nil {
 			return err
 		}

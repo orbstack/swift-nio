@@ -42,10 +42,6 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 
 	// copy MAC addr template
 	// last byte: lower 7 bits are vlan ID, upper 1 bit is 1 (guest)
-	// guest
-	guestMac := make(net.HardwareAddr, len(s.vlanMacTemplate))
-	copy(guestMac, s.vlanMacTemplate)
-	guestMac[5] = byte(vlanId&0x7f) | (1 << 7)
 	// host
 	hostMac := make(net.HardwareAddr, len(s.vlanMacTemplate))
 	copy(hostMac, s.vlanMacTemplate)
@@ -59,10 +55,11 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	defer initPidF.Close()
 
 	// create macvlan
+	// MAC of the macvlan interface doesn't matter because it's just a bridge member
+	// real Linux packets come from container and the bridge master interface
 	la := netlink.NewLinkAttrs()
 	la.Name = fmt.Sprintf(".orbmirror%d", vlanId)
 	la.ParentIndex = s.vlanRouterIfi // parent = eth2
-	la.HardwareAddr = guestMac       // MAC = by vlan ID
 	la.MTU = 1500                    // doesn't really matter because GSO
 	// move to container netns (doesn't accept pidfd as nsfd)
 	la.Namespace = netlink.NsPid(s.dockerContainer.lxc.InitPid())

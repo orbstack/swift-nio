@@ -13,24 +13,41 @@ private let routerQueue = DispatchQueue(label: "dev.kdrag0n.swext.router")
 
 // a bit under macOS limit of 32
 // we can theoretically get up to 128 (7 bits)
-private let maxMacvlanInterfaces = 28
+private let maxMacvlanInterfaces = 24
 // we don't have vmnet packet size info yet here, so it's easier to just use the max possible size
 private let maxPossiblePacketSize: UInt64 = 65536 + 14
 
+struct VlanRouterConfig: Codable {
+    let guestFd: Int32
+    let macPrefix: [UInt8]
+}
+
 // serialied by routerQueue barriers
+// host->guest = macvlan, filtered by host source MAC on Linux side
+// guest->host = destination MAC or broadcast, because src MAC will be containers or Docker bridge
 class VlanRouter {
     // static circular array of slots
     private var interfaces = [BridgeNetwork?](repeating: nil, count: maxMacvlanInterfaces)
     private var guestReader: GuestReader! = nil
 
-    init(guestFd: Int32) {
-        guestReader = GuestReader(guestFd: guestFd, maxPacketSize: maxPossiblePacketSize,
+    init(config: VlanRouterConfig) {
+        guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPossiblePacketSize,
                 onPacket: { [self] iov, len in
                     let pkt = Packet(iov: iov, len: len)
                     do {
-                        let ifi = try PacketProcessor.extractInterfaceIndexToHost(pkt: pkt)
-                        let bridge = try interfaceAt(index: ifi)
-                        bridge.tryWriteToHost(iov: iov, len: len)
+                        let ifi = try PacketProcessor.extractInterfaceIndexToHost(pkt: pkt, macPrefix: config.macPrefix)
+                        if ifi == ifiBroadcast {
+                            // broadcast to all interfaces
+                            for bridge in interfaces {
+                                if let bridge {
+                                    bridge.tryWriteToHost(iov: iov, len: len)
+                                }
+                            }
+                        } else {
+                            // unicast
+                            let bridge = try interfaceAt(index: ifi)
+                            bridge.tryWriteToHost(iov: iov, len: len)
+                        }
                     } catch {
                         NSLog("[brnet/router] failed to extract pkt routing info: \(error)")
                     }
@@ -96,7 +113,6 @@ class VlanRouter {
 
     private func firstFreeInterfaceIndex() throws -> BrnetInterfaceIndex {
         for (i, bridge) in interfaces.enumerated() {
-            print("checking \(i) = \(bridge)")
             if bridge == nil {
                 return BrnetInterfaceIndex(i)
             }
@@ -113,8 +129,9 @@ class VlanRouter {
 }
 
 @_cdecl("swext_vlanrouter_new")
-func swext_vlanrouter_new(guestFd: Int32) -> UnsafeMutableRawPointer {
-    let router = VlanRouter(guestFd: guestFd)
+func swext_vlanrouter_new(configJsonStr: UnsafePointer<CChar>) -> UnsafeMutableRawPointer {
+    let config: VlanRouterConfig = decodeJson(configJsonStr)
+    let router = VlanRouter(config: config)
     return Unmanaged.passRetained(router).toOpaque()
 }
 
