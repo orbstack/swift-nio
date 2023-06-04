@@ -86,6 +86,11 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 			}
 		}()
 
+		err = netlink.LinkSetAllmulticastOff(macvlan)
+		if err != nil {
+			return struct{}{}, fmt.Errorf("set mirror link allmulticast off: %w", err)
+		}
+
 		// add host MAC to filter
 		err = netlink.MacvlanMACAddrAdd(macvlan, hostMac)
 		if err != nil {
