@@ -61,6 +61,8 @@ enum BrnetError: Error {
 
     case interfaceNotFound
     case tooManyInterfaces
+
+    case dropPacket
 }
 
 private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) throws -> (interface_ref, xpc_object_t) {
@@ -205,7 +207,12 @@ class BridgeNetwork {
                     try processor.processToGuest(pkt: pkt)
                     vnetHdr[0] = try processor.buildVnetHdr(pkt: pkt)
                 } catch {
-                    NSLog("[brnet] error processing/building hdr: \(error)")
+                    switch error {
+                    case BrnetError.dropPacket:
+                        break
+                    default:
+                        NSLog("[brnet] error processing/building hdr: \(error)")
+                    }
                     continue
                 }
                 var iovs = [

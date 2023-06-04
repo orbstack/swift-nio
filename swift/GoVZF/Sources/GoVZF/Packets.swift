@@ -29,6 +29,8 @@ private let ICMPV6_OPTION_TARGET_LLADDR: UInt8 = 2
 
 private let macAddrSize = 6
 private let macAddrBroadcast: [UInt8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+private let macAddrIpv4MulticastPrefix: [UInt8] = [0x01, 0x00, 0x5e]
+private let macAddrIpv6MulticastPrefix: [UInt8] = [0x33, 0x33]
 private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
 
 typealias BrnetInterfaceIndex = UInt
@@ -222,6 +224,22 @@ class PacketProcessor {
         if hostActualMac == nil {
             // [concurrency] race doesn't matter - should all be the same, and ARC will free dupes
             hostActualMac = Array(UnsafeBufferPointer(start: srcMacPtr.assumingMemoryBound(to: UInt8.self), count: macAddrSize))
+        }
+
+        // allow IPv4 broadcast so ARP works
+        // drop all IPv4 multicast (to save CPU from mDNS)
+        let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
+        if memcmp(dstMacPtr, macAddrIpv4MulticastPrefix, macAddrIpv4MulticastPrefix.count) == 0 {
+            throw BrnetError.dropPacket
+        }
+
+        // allow IPv6 multicast to NDP prefix (33:33:FF:XX:XX:XX) so NDP works
+        // drop all other IPv6 multicast (to save CPU from mDNS)
+        if memcmp(dstMacPtr, macAddrIpv6MulticastPrefix, macAddrIpv6MulticastPrefix.count) == 0 {
+            let nextByte: UInt8 = try pkt.load(offset: 0 + 2)
+            if nextByte != 0xff {
+                throw BrnetError.dropPacket
+            }
         }
 
         // rewrite source MAC (Ethernet[6])
