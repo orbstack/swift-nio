@@ -1,0 +1,38 @@
+name: Daily checks
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # This will run the workflow once a day at 00:00 UTC
+  # also for testing
+  push:
+    branches:
+      - main
+
+jobs:
+  distro_versions:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Fetch distros
+      id: fetch_diff
+      run: |
+        cd scripts
+        ./fetch-distros.sh > distros.list
+        git diff || :
+
+    - name: Create pull request
+      id: cpr
+      uses: peter-evans/create-pull-request@284f54f989303d2699d373481a0cfa13ad5a6666
+      with:
+        title: 'Update distros list'
+        commit-message: Update distros list
+        delete-branch: true
+        body: |
+          Distros updated:
+
+          ```
+          ${{ steps.fetch_diff.outputs.stdout }}
+          ```
