@@ -21,6 +21,7 @@ const (
 const (
 	SconSubnet4       = "198.19.249"
 	SconSubnet4CIDR   = SconSubnet4 + ".0/24"
+	SconSubnet4Mask   = "255.255.255.0"
 	SconGatewayIP4    = SconSubnet4 + ".1"
 	SconDockerIP4     = SconSubnet4 + ".2"
 	SconHostBridgeIP4 = SconSubnet4 + ".3"

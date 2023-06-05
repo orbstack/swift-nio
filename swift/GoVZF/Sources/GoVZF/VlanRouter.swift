@@ -11,15 +11,13 @@ import CBridge
 // separate queue to avoid deadlocks
 private let routerQueue = DispatchQueue(label: "dev.kdrag0n.swext.router")
 
-// a bit under macOS limit of 32
-// we can theoretically get up to 128 (7 bits)
-private let maxMacvlanInterfaces = 24
 // we don't have vmnet packet size info yet here, so it's easier to just use the max possible size
 private let maxPossiblePacketSize: UInt64 = 65536 + 14
 
 struct VlanRouterConfig: Codable {
     let guestFd: Int32
     let macPrefix: [UInt8]
+    let maxVlanInterfaces: Int
 }
 
 // serialied by routerQueue barriers
@@ -27,10 +25,11 @@ struct VlanRouterConfig: Codable {
 // guest->host = destination MAC or broadcast, because src MAC will be containers or Docker bridge
 class VlanRouter {
     // static circular array of slots
-    private var interfaces = [BridgeNetwork?](repeating: nil, count: maxMacvlanInterfaces)
+    private var interfaces: [BridgeNetwork?]
     private var guestReader: GuestReader! = nil
 
     init(config: VlanRouterConfig) {
+        interfaces = [BridgeNetwork?](repeating: nil, count: config.maxVlanInterfaces)
         guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPossiblePacketSize,
                 onPacket: { [self] iov, len in
                     let pkt = Packet(iov: iov, len: len)

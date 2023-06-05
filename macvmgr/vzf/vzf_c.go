@@ -226,6 +226,7 @@ func (m *Machine) ConnectVsock(port uint32) (net.Conn, error) {
 
 	// unix socket
 	file := os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d", port))
+	defer file.Close() // that's a dup - we already dup'd in Swift
 	conn, err := net.FileConn(file)
 	if err != nil {
 		return nil, err

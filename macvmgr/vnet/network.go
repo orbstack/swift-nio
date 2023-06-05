@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/macvmgr/conf"
+	"github.com/orbstack/macvirt/macvmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/macvmgr/vnet/dglink"
 	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/macvmgr/vnet/icmpfwd"
@@ -21,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vzf"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
@@ -72,12 +74,12 @@ type Network struct {
 	hostForwardMu sync.Mutex
 
 	// bridges
-	hostBridgeMu  sync.Mutex
-	hostBridgeFds []int
-	hostBridges   []HostBridge
-	vlanRouter    *vzf.VlanRouter
-	vlanIndices   map[sgtypes.DockerBridgeConfig]int
-	closing       bool
+	hostBridgeMu   sync.Mutex
+	hostBridgeFds  []int
+	hostBridges    []HostBridge
+	bridgeRouteMon *bridge.RouteMon
+	vlanRouter     *vzf.VlanRouter
+	vlanIndices    map[sgtypes.DockerBridgeConfig]int
 }
 
 type NetOptions struct {
@@ -309,6 +311,11 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	// Silence gvisor logs
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
 
+	bridgeRouteMon, err := bridge.NewRouteMon()
+	if err != nil {
+		return nil, err
+	}
+
 	network := &Network{
 		Stack:        s,
 		NIC:          nicID,
@@ -321,12 +328,14 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		hostForwards: make(map[string]HostForward),
 		file0:        nil,
 		fd1:          -1,
+
+		bridgeRouteMon: bridgeRouteMon,
 	}
 
 	return network, nil
 }
 
-func (n *Network) stopAllForwards() {
+func (n *Network) stopForwards() {
 	n.hostForwardMu.Lock()
 	defer n.hostForwardMu.Unlock()
 
@@ -340,38 +349,9 @@ func (n *Network) stopAllForwards() {
 	}
 }
 
-func (n *Network) stopAllHostBridges() {
-	n.hostBridgeMu.Lock()
-	defer n.hostBridgeMu.Unlock()
-
-	for _, b := range n.hostBridges {
-		if b == nil {
-			continue
-		}
-
-		logrus.WithField("bridge", b).Debug("closing bridge")
-		err := b.Close()
-		if err != nil {
-			logrus.WithError(err).WithField("bridge", b).Warn("failed to close bridge")
-		}
-	}
-
-	n.hostBridges = nil
-
-	n.vlanRouter.Close()
-	n.vlanRouter = nil
-
-	// close fds
-	for _, fd := range n.hostBridgeFds {
-		file := os.NewFile(uintptr(fd), "host bridge fd")
-		file.Close()
-	}
-}
-
 func (n *Network) Close() error {
-	n.closing = true
-	n.stopAllForwards()
-	n.stopAllHostBridges()
+	n.stopForwards()
+	n.stopHostBridges()
 	n.icmp.Close()
 	if n.Proxy != nil {
 		n.Proxy.Close()
@@ -382,8 +362,7 @@ func (n *Network) Close() error {
 		n.file0.Close()
 	}
 	if n.fd1 != -1 {
-		file1 := os.NewFile(uintptr(n.fd1), "fd1")
-		file1.Close()
+		unix.Close(n.fd1)
 	}
 	return nil
 }

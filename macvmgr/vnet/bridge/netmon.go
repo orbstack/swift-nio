@@ -4,28 +4,27 @@
 package bridge
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"net/netip"
+	"os"
 	"sync"
 
-	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
 )
 
-var (
-	netipMachineSubnet4 = netip.MustParsePrefix(netconf.SconSubnet4CIDR)
+const (
+	// a bit under macOS limit of 32
+	// we can theoretically get up to 128 (7 bits)
+	MaxVlanInterfaces = 24
+
+	IndexSconMachine = MaxVlanInterfaces
 )
 
-const debugRouteMessages = false
-
-// unspecifiedMessage is a minimal message implementation that should not
-// be ignored. In general, OS-specific implementations should use better
-// types and avoid this if they can.
-type unspecifiedMessage struct{}
-
-type message interface{}
+const verboseDebug = false
 
 func NewRouteMon() (*RouteMon, error) {
 	fd, err := unix.Socket(unix.AF_ROUTE, unix.SOCK_RAW, 0)
@@ -33,76 +32,108 @@ func NewRouteMon() (*RouteMon, error) {
 		return nil, err
 	}
 	unix.CloseOnExec(fd)
+
+	// use netpoll so we can close and return from read loop
+	err = unix.SetNonblock(fd, true)
+	if err != nil {
+		return nil, err
+	}
+
 	return &RouteMon{
-		fd: fd,
+		file: os.NewFile(uintptr(fd), "[route]"),
 	}, nil
 }
 
 type RouteMon struct {
-	fd        int // AF_ROUTE socket
-	buf       [2 << 10]byte
-	closeOnce sync.Once
+	file *os.File // AF_ROUTE socket
+	buf  [2 << 10]byte
+
+	// pretty fast - usually not many networks and just a few mask ops, no need for LPM tree
+	subnetsMu sync.Mutex
+	// +1 for scon machines
+	// value type for fast iteration on each route packet
+	subnets [MaxVlanInterfaces + 1]MonitoredSubnet
 }
 
 func (m *RouteMon) Close() error {
-	var err error
-	m.closeOnce.Do(func() {
-		err = unix.Close(m.fd)
-	})
-	return err
+	m.ClearSubnets()
+	m.file.Close()
+	return nil
 }
 
-func (m *RouteMon) Receive() (message, error) {
+func (m *RouteMon) Monitor() error {
 	for {
-		n, err := unix.Read(m.fd, m.buf[:])
+		n, err := m.file.Read(m.buf[:])
 		if err != nil {
-			return nil, err
+			if errors.Is(err, os.ErrClosed) {
+				return nil
+			} else {
+				return err
+			}
 		}
 		msgs, err := route.ParseRIB(route.RIBTypeRoute, m.buf[:n])
 		if err != nil {
-			if debugRouteMessages {
-				logrus.Debugf("read %d bytes (% 02x), failed to parse RIB: %v", n, m.buf[:n], err)
-			}
-			return unspecifiedMessage{}, nil
+			logrus.WithError(err).Error("failed to parse route message")
+			continue
 		}
 		if len(msgs) == 0 {
-			if debugRouteMessages {
-				logrus.Debugf("read %d bytes with no messages (% 02x)", n, m.buf[:n])
-			}
 			continue
 		}
-		nSkip := 0
+
+		// onMessage needs lock, so just take it for all msgs
+		m.subnetsMu.Lock()
 		for _, msg := range msgs {
-			if !m.wantMessage(msg) {
-				nSkip++
-			}
+			m.onMessage(msg)
 		}
-		if debugRouteMessages {
-			logrus.Debugf("read %d bytes, %d messages (%d skipped)", n, len(msgs), nSkip)
-			if nSkip < len(msgs) {
-				m.logMessages(msgs)
-			}
-		}
-		if nSkip == len(msgs) {
-			continue
-		}
-		return unspecifiedMessage{}, nil
+		m.subnetsMu.Unlock()
 	}
 }
 
-func (m *RouteMon) wantMessage(msg route.Message) bool {
+func (m *RouteMon) onMessage(msg route.Message) {
 	if msg, ok := msg.(*route.RouteMessage); ok {
 		// check type
 		if msg.Type != unix.RTM_ADD && msg.Type != unix.RTM_DELETE && msg.Type != unix.RTM_CHANGE {
-			return false
+			return
 		}
 
-		// skip anything that doesn't involve our IPv4 subnet
-		ip := ipOfAddr(addrType(msg.Addrs, unix.RTAX_DST))
-		return netipMachineSubnet4.Contains(ip)
-	}
+		// check if it involves our subnets
+		addr := ipOfAddr(addrType(msg.Addrs, unix.RTAX_DST))
+		for _, subnet := range m.subnets {
+			if subnet.Match(addr) {
+				subnet.debounce.Call()
 
-	return false
+				if verboseDebug {
+					m.logMessages([]route.Message{msg})
+				}
+			}
+		}
+	}
+}
+
+func (m *RouteMon) SetSubnet(index int, prefix4 netip.Prefix, prefix6 netip.Prefix, hostIP net.IP, renewFn func() error) error {
+	m.subnetsMu.Lock()
+	defer m.subnetsMu.Unlock()
+
+	subnet := &m.subnets[index]
+	subnet.Clear()
+	*subnet = NewMonitoredSubnet(prefix4, prefix6, hostIP, renewFn)
+	return nil
+}
+
+func (m *RouteMon) ClearSubnet(index int) {
+	m.subnetsMu.Lock()
+	defer m.subnetsMu.Unlock()
+
+	m.subnets[index].Clear()
+}
+
+func (m *RouteMon) ClearSubnets() {
+	m.subnetsMu.Lock()
+	defer m.subnetsMu.Unlock()
+
+	for i := range m.subnets {
+		m.subnets[i].Clear()
+	}
 }
 
 // addrType returns addrs[rtaxType], if that (the route address type) exists,
@@ -115,36 +146,6 @@ func addrType(addrs []route.Addr, rtaxType int) route.Addr {
 		return addrs[rtaxType]
 	}
 	return nil
-}
-
-func (m *RouteMon) logMessages(msgs []route.Message) {
-	for i, msg := range msgs {
-		switch msg := msg.(type) {
-		default:
-			logrus.Debugf("  [%d] %T", i, msg)
-		case *route.InterfaceAddrMessage:
-			logrus.Debugf("  [%d] InterfaceAddrMessage: ver=%d, type=%v, flags=0x%x, idx=%v",
-				i, msg.Version, msg.Type, msg.Flags, msg.Index)
-			m.logAddrs(msg.Addrs)
-		case *route.InterfaceMulticastAddrMessage:
-			logrus.Debugf("  [%d] InterfaceMulticastAddrMessage: ver=%d, type=%v, flags=0x%x, idx=%v",
-				i, msg.Version, msg.Type, msg.Flags, msg.Index)
-			m.logAddrs(msg.Addrs)
-		case *route.RouteMessage:
-			logrus.Debugf("  [%d] RouteMessage: ver=%d, type=%v, flags=0x%x, idx=%v, id=%v, seq=%v, err=%v",
-				i, msg.Version, msg.Type, msg.Flags, msg.Index, msg.ID, msg.Seq, msg.Err)
-			m.logAddrs(msg.Addrs)
-		}
-	}
-}
-
-func (m *RouteMon) logAddrs(addrs []route.Addr) {
-	for i, a := range addrs {
-		if a == nil {
-			continue
-		}
-		logrus.Debugf("      %v = %v", rtaxName(i), fmtAddr(a))
-	}
 }
 
 // ipOfAddr returns the route.Addr (possibly nil) as a netip.Addr
@@ -161,42 +162,4 @@ func ipOfAddr(a route.Addr) netip.Addr {
 		return ip
 	}
 	return netip.Addr{}
-}
-
-func fmtAddr(a route.Addr) any {
-	if a == nil {
-		return nil
-	}
-	if ip := ipOfAddr(a); ip.IsValid() {
-		return ip
-	}
-	switch a := a.(type) {
-	case *route.LinkAddr:
-		return fmt.Sprintf("[LinkAddr idx=%v name=%q addr=%x]", a.Index, a.Name, a.Addr)
-	default:
-		return fmt.Sprintf("%T: %+v", a, a)
-	}
-}
-
-// See https://github.com/apple/darwin-xnu/blob/main/bsd/net/route.h
-func rtaxName(i int) string {
-	switch i {
-	case unix.RTAX_DST:
-		return "dst"
-	case unix.RTAX_GATEWAY:
-		return "gateway"
-	case unix.RTAX_NETMASK:
-		return "netmask"
-	case unix.RTAX_GENMASK:
-		return "genmask"
-	case unix.RTAX_IFP: // "interface name sockaddr present"
-		return "IFP"
-	case unix.RTAX_IFA: // "interface addr sockaddr present"
-		return "IFA"
-	case unix.RTAX_AUTHOR:
-		return "author"
-	case unix.RTAX_BRD:
-		return "BRD"
-	}
-	return fmt.Sprint(i)
 }

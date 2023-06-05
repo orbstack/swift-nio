@@ -295,7 +295,7 @@ func (h *HcontrolServer) ClearDockerState(_ None, _ *None) error {
 	}
 
 	// vlan router bridge interfaces
-	err = h.n.ClearVlanRouter()
+	err = h.n.ClearVlanBridges()
 	if err != nil {
 		return err
 	}

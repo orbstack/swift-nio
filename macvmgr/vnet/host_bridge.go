@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"sync"
-	"time"
 
 	"github.com/orbstack/macvirt/macvmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -21,7 +19,6 @@ const (
 	brIndexVlanRouter
 
 	brUuidSconMachine = "25ef1ee1-1ead-40fd-a97d-f9284917459b"
-	brUuidDocker      = "8bd4b797-07cc-4118-9147-d2e349132a12"
 )
 
 var (
@@ -59,8 +56,9 @@ func (n *Network) AddHostBridgeFd(fd int) error {
 	if len(n.hostBridgeFds)-1 == brIndexVlanRouter {
 		// fds[1] = vlan router
 		vlanRouter, err := vzf.SwextNewVlanRouter(vzf.VlanRouterConfig{
-			GuestFd:   fd,
-			MACPrefix: brMacVlanRouterTemplate[:5], // prefix bytes
+			GuestFd:           fd,
+			MACPrefix:         brMacVlanRouterTemplate[:5], // prefix bytes
+			MaxVlanInterfaces: bridge.MaxVlanInterfaces,
 		})
 		if err != nil {
 			return err
@@ -73,9 +71,12 @@ func (n *Network) AddHostBridgeFd(fd int) error {
 	return nil
 }
 
-func (n *Network) ClearVlanRouter() error {
+func (n *Network) ClearVlanBridges() error {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
+
+	// clear first to prevent feedback loop
+	n.bridgeRouteMon.ClearSubnets()
 
 	err := n.vlanRouter.ClearBridges()
 	if err != nil {
@@ -138,7 +139,16 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		return 0, err
 	}
 
-	//TODO add route monitor
+	// monitor route and renew when overridden
+	//TODO does ipv6 need monitoring?
+
+	n.bridgeRouteMon.SetSubnet(index, config.IP4Subnet, config.IP6Subnet, net.ParseIP(vmnetConfig.Ip4Address), func() error {
+		n.hostBridgeMu.Lock()
+		defer n.hostBridgeMu.Unlock()
+
+		logrus.WithField("config", config).Debug("renewing vlan bridge")
+		return n.vlanRouter.RenewBridge(index)
+	})
 
 	n.vlanIndices[config] = index
 	return index, nil
@@ -156,8 +166,9 @@ func (n *Network) RemoveVlanBridge(config sgtypes.DockerBridgeConfig) (int, erro
 		return 0, fmt.Errorf("vlan bridge does not exist for config %+v", config)
 	}
 
-	logrus.WithField("config", config).Debug("removing vlan bridge")
+	n.bridgeRouteMon.ClearSubnet(index)
 
+	logrus.WithField("config", config).Debug("removing vlan bridge")
 	err := n.vlanRouter.RemoveBridge(index)
 	if err != nil {
 		return 0, err
@@ -221,18 +232,30 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		oldBrnet.Close()
 	}
 
-	return n.createHostBridge(brIndexSconMachine, vzf.BridgeNetworkConfig{
+	err := n.createHostBridge(brIndexSconMachine, vzf.BridgeNetworkConfig{
 		GuestFd:         n.hostBridgeFds[brIndexSconMachine],
 		ShouldReadGuest: true,
 
 		UUID:            brUuidSconMachine,
 		Ip4Address:      netconf.SconHostBridgeIP4,
-		Ip4Mask:         "255.255.255.0",
+		Ip4Mask:         netconf.SconSubnet4Mask,
 		Ip6Address:      netconf.SconHostBridgeIP6,
 		HostOverrideMAC: brMacSconMachine,
 
 		MaxLinkMTU: int(n.LinkMTU),
 	})
+	if err != nil {
+		return err
+	}
+
+	if oldBrnet == nil {
+		// first time, so add to route monitor
+		n.bridgeRouteMon.SetSubnet(brIndexSconMachine, netip.MustParsePrefix(netconf.SconSubnet4CIDR), netip.MustParsePrefix(netconf.SconSubnet6CIDR), net.ParseIP(netconf.SconHostBridgeIP4), func() error {
+			return n.CreateSconMachineHostBridge()
+		})
+	}
+
+	return nil
 }
 
 func (n *Network) createHostBridge(index int, config vzf.BridgeNetworkConfig) error {
@@ -250,51 +273,37 @@ func (n *Network) createHostBridge(index int, config vzf.BridgeNetworkConfig) er
 // Since we don't have root, recreating the bridge is necessary to fix the route.
 //
 // Works because TCP flows, etc. don't get terminated. Just a brief ~100-200 ms of packet loss
+// -----------------------------------------
+// monitor route changes to relevant subnets
 func (n *Network) MonitorHostBridgeRoutes() error {
-	mon, err := bridge.NewRouteMon()
-	if err != nil {
-		return err
+	return n.bridgeRouteMon.Monitor()
+}
+
+func (n *Network) stopHostBridges() {
+	n.hostBridgeMu.Lock()
+	defer n.hostBridgeMu.Unlock()
+
+	n.bridgeRouteMon.Close()
+
+	for _, b := range n.hostBridges {
+		if b == nil {
+			continue
+		}
+
+		logrus.WithField("bridge", b).Debug("closing bridge")
+		err := b.Close()
+		if err != nil {
+			logrus.WithError(err).WithField("bridge", b).Warn("failed to close bridge")
+		}
 	}
-	defer mon.Close()
 
-	var recreateMu sync.Mutex
-	recreateDebounce := syncx.NewFuncDebounce(100*time.Millisecond, func() {
-		// ignore if we're already recreating
-		// to avoid feedback loop
-		if !recreateMu.TryLock() {
-			return
-		}
-		defer recreateMu.Unlock()
+	n.hostBridges = nil
 
-		// check and skip if route is OK
-		correct, err := bridge.IsMachineRouteCorrect()
-		if err != nil {
-			logrus.WithError(err).Error("failed to check machine host bridge route")
-			return
-		}
-		if correct {
-			return
-		}
+	n.vlanRouter.Close()
+	n.vlanRouter = nil
 
-		err = n.CreateSconMachineHostBridge()
-		if err != nil {
-			logrus.WithError(err).Error("failed to refresh machine host bridge")
-		}
-	})
-
-	// TODO support stopping
-	for {
-		// monitor route changes to relevant subnets
-		_, err := mon.Receive()
-		if err != nil {
-			return err
-		}
-		// don't recreate bridge if closed
-		if n.closing {
-			return nil
-		}
-
-		// kick route check
-		recreateDebounce.Call()
+	// close fds
+	for _, fd := range n.hostBridgeFds {
+		unix.Close(fd)
 	}
 }

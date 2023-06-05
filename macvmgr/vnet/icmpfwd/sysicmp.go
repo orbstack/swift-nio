@@ -76,6 +76,7 @@ func newIcmpPacketConn4() (*goipv4.PacketConn, error) {
 	}
 
 	f := os.NewFile(uintptr(s), "icmp4")
+	defer f.Close()
 	c, err := net.FilePacketConn(f)
 	if err != nil {
 		return nil, err
@@ -85,19 +86,20 @@ func newIcmpPacketConn4() (*goipv4.PacketConn, error) {
 
 // don't set STRIPHDR - we want the IP header
 func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
-	s, err := unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, unix.IPPROTO_ICMPV6)
+	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, unix.IPPROTO_ICMPV6)
 	if err != nil {
 		return nil, err
 	}
-	unix.CloseOnExec(s)
+	unix.CloseOnExec(fd)
 
 	// all zero = any
 	sa := &unix.SockaddrInet6{}
-	if err := unix.Bind(s, sa); err != nil {
+	if err := unix.Bind(fd, sa); err != nil {
 		return nil, err
 	}
 
-	f := os.NewFile(uintptr(s), "icmp6")
+	f := os.NewFile(uintptr(fd), "icmp6")
+	defer f.Close()
 	c, err := net.FilePacketConn(f)
 	if err != nil {
 		return nil, err
