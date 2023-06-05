@@ -476,7 +476,9 @@ func runVmManager() {
 	if useStdioConsole {
 		consoleMode = ConsoleStdio
 	}
-	params := &VmParams{
+
+	logrus.Info("configuring VM")
+	vnetwork, vm := CreateVm(&VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
 		Memory: vmconfig.Get().MemoryMiB,
@@ -496,10 +498,9 @@ func runVmManager() {
 		Virtiofs:           true,
 		Rosetta:            vmconfig.Get().Rosetta,
 		Sound:              false,
-	}
 
-	logrus.Info("configuring VM")
-	vnetwork, vm := CreateVm(params)
+		StopCh: stopCh,
+	})
 	defer vnetwork.Close()
 	// close in case we need to release disk flock for next start
 	defer vm.Close()

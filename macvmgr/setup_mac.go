@@ -250,13 +250,16 @@ func findExecutable(file string) error {
 	if m.IsDir() {
 		return unix.EISDIR
 	}
+	// MOD: change return value
 	err = unix.ENOSYS
+	/* // never true with mod
 	// ENOSYS means Eaccess is not available or not implemented.
 	// EPERM can be returned by Linux containers employing seccomp.
 	// In both cases, fall back to checking the permission bits.
 	if err == nil || (err != unix.ENOSYS && err != unix.EPERM) {
 		return err
 	}
+	*/
 	if m&0111 != 0 {
 		return nil
 	}

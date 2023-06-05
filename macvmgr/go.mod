@@ -69,6 +69,6 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	golang.org/x/mod v0.8.0
 	golang.org/x/net v0.8.0
-	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
+	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
 	gvisor.dev/gvisor v0.0.0-20221220191351-8ea7ab01ea4e
 )

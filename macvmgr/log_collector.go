@@ -4,15 +4,21 @@ import (
 	"bufio"
 	"io"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/fatih/color"
+)
+
+const (
+	panicShutdownDelay = 100 * time.Millisecond
 )
 
 func isMultibyteByte(firstByte byte) bool {
 	return firstByte >= 0x80
 }
 
-func NewConsoleLogPipe() (*os.File, error) {
+func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -35,6 +41,13 @@ func NewConsoleLogPipe() (*os.File, error) {
 				io.WriteString(os.Stdout, line)
 			} else if len(line) > 0 && line[0] == '[' {
 				io.WriteString(os.Stdout, kernelPrefix+magenta(line))
+
+				// shut down on kernel panic
+				if strings.Contains(line, "] Kernel panic - not syncing:") {
+					time.AfterFunc(panicShutdownDelay, func() {
+						stopCh <- StopForce
+					})
+				}
 			} else {
 				io.WriteString(os.Stdout, consolePrefix+yellow(line))
 			}

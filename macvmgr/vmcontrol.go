@@ -201,6 +201,7 @@ func (h *VmControlServer) InternalReportEnv(ctx context.Context, env *vmtypes.En
 	return nil
 }
 
+/*
 func (h *VmControlServer) runWithEnvReport(combinedArgs ...string) (*vmtypes.EnvReport, error) {
 	// start setup
 	ch := make(chan *vmtypes.EnvReport, 1)
@@ -217,6 +218,7 @@ func (h *VmControlServer) runWithEnvReport(combinedArgs ...string) (*vmtypes.Env
 	h.setupEnvChan = nil
 	return env, nil
 }
+*/
 
 // func (s *VmControlServer) doPureGoSetup
 func (s *VmControlServer) onStart() error {

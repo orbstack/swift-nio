@@ -42,6 +42,8 @@ type VmParams struct {
 	Virtiofs           bool
 	Rosetta            bool
 	Sound              bool
+
+	StopCh chan<- StopType
 }
 
 func findBestMtu() int {
@@ -110,7 +112,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		case ConsoleLog:
 			conRead, err = os.Open("/dev/null")
 			check(err)
-			conWrite, err = NewConsoleLogPipe()
+			conWrite, err = NewConsoleLogPipe(c.StopCh)
 			check(err)
 		}
 
