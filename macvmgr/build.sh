@@ -5,6 +5,9 @@ cd "$(dirname "$0")"
 
 VMGR_BIN="OrbStack Helper (VM)"
 
+# default dev signing cert
+SIGNING_CERT="${SIGNING_CERT:-"Apple Development: Danny Lin (A2LS84RQFY)"}"
+
 # translate Go to Swift arch
 if [[ "${GOARCH:-arm64}" == "arm64" ]]; then
     GOARCH="arm64"
@@ -37,4 +40,4 @@ go build -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "
 # add Info.plist, PkgInfo, and provisioning profile
 cp -r bundle/. "$BUNDLE_OUT/Contents"
 # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
-codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "${SIGNING_CERT:-F14BEB1D721604BE6C984703AF6C88E1F8F35832}" "$BUNDLE_OUT" || :
+codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
