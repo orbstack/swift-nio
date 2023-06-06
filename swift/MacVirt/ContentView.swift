@@ -77,6 +77,7 @@ struct ContentView: View {
                 Section(header: Text("Info")) {
                     NavigationLink(destination: CommandsRootView()) {
                         Label("Commands", systemImage: "terminal")
+                                .padding(.vertical, 3)
                     }.tag("cli")
                 }
             }
