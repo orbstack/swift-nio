@@ -28,6 +28,7 @@ if [[ -f "$BIN_OUT" ]]; then
     fi
 fi
 
+go generate ./conf/appver ./drm/killswitch
 go build -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
 
 # make a fake app bundle for embedded.provisionprofile to work

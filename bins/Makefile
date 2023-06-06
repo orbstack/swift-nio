@@ -1,0 +1,9 @@
+out/arm64: download-bins.sh
+	@rm -fr out/arm64
+	@mkdir -p out/arm64
+	@cd out && ../download-bins.sh arm64 aarch64
+
+out/amd64: download-bins.sh
+	@rm -fr out/amd64
+	@mkdir -p out/amd64
+	@cd out && ../download-bins.sh amd64 x86_64
