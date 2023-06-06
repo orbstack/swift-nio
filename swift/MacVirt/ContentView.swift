@@ -25,7 +25,7 @@ struct ContentView: View {
     @EnvironmentObject private var model: VmViewModel
 
     // SceneStorage inits too late
-    @Default(.selectedTab) private var selection
+    @State private var selection: String? = "docker"
     @Default(.onboardingCompleted) private var onboardingCompleted
     @State private var presentError = false
     @State private var pendingClose = false
@@ -44,7 +44,7 @@ struct ContentView: View {
                     selection = sel
                 }
             })
-            List(selection: selBinding) {
+            List(selection: $selection) {
                 Section(header: Text("Docker")) {
                     NavigationLink(destination: DockerContainersRootView(initialSelection: initialDockerContainerSelection, selection: initialDockerContainerSelection, searchQuery: "")) {
                         Label("Containers", systemImage: "shippingbox")
