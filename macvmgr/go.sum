@@ -48,8 +48,6 @@ github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a h1:eU8j/ClY2Ty3qd
 github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a/go.mod h1:v8eSC2SMp9/7FTKUncp7fH9IwPfw+ysMObcEz5FWheQ=
 github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc h1:feiXqI2b2JPrHpN/079PWov2fV8jFAi08egwqgYmBgE=
 github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc/go.mod h1:7kv47IZ5wy874g/w56YmuACXL+QvX3nM9THSAkaArx0=
-github.com/orbstack/gvisor-macvirt v0.0.0-20230519042013-f7785c29c732 h1:AM2EggORq2E+YRFW1x2cwHtqaCnMfM4KkomG+j5sGLA=
-github.com/orbstack/gvisor-macvirt v0.0.0-20230519042013-f7785c29c732/go.mod h1:sQuqOkxbfJq/GS2uSnqHphtXclHyk/ZrAGhZBxxsq6g=
 github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 h1:q2e307iGHPdTGp0hoxKjt1H5pDo6utceo3dQVK3I5XQ=
 github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5/go.mod h1:jvVRKCrJTQWu0XVbaOlby/2lO20uSCHEMzzplHXte1o=
 github.com/pingcap/errors v0.11.4 h1:lFuQV/oaUMGcD2tqt+01ROSmJs75VG1ToEOkZIZ4nE4=
