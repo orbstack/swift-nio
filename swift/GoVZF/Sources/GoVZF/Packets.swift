@@ -182,7 +182,6 @@ class PacketProcessor {
     static func extractInterfaceIndexToHost(pkt: Packet, macPrefix: [UInt8]) throws -> BrnetInterfaceIndex {
         // check if destination MAC matches prefix
         let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
-        let dstMacBytes = dstMacPtr.bindMemory(to: UInt8.self, capacity: macAddrSize)
         if memcmp(dstMacPtr, macPrefix, macPrefix.count) == 0 {
             // extract interface index from destination MAC
             let dstMacLastByte = try pkt.load(offset: 0 + 5) as UInt8
