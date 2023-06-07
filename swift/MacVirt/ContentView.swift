@@ -88,7 +88,7 @@ struct ContentView: View {
         Group {
             if #available(macOS 14, *) {
                 // use NavigationSplitView on macOS 14 to fix tab switching crash
-                // TODO: fix toggleSidebar button freezing for 500 ms - that's why we don't use this on macOS 13
+                // TODO: fix toggleSidebar button freezing for ~500 ms - that's why we don't use this on macOS 13
                 NavigationSplitView {
                     List(selection: $selection) {
                         Section(header: Text("Docker")) {
@@ -190,6 +190,7 @@ struct ContentView: View {
             }
 
             ToolbarItem(id: "machines-new", placement: .automatic) {
+                // conditional needs to be here because multiple .toolbar blocks doesn't work on macOS 12
                 if selection == "machines" {
                     Button(action: {
                         model.presentCreateMachine = true
