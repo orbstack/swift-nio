@@ -13,8 +13,10 @@ const (
 )
 
 var (
-	ErrKillswitch = errors.New("build expired")
-	ExpiryTime    = time.Unix(killswitchTimestamp, 0)
+	// not idiomatic Go, but helpful for users
+	friendlyErrMsg = "This beta build has expired. Please update to the latest version to continue using OrbStack: https://orbstack.dev/download"
+	ErrKillswitch  = errors.New(friendlyErrMsg)
+	ExpiryTime     = time.Unix(killswitchTimestamp, 0)
 )
 
 func Check() error {
