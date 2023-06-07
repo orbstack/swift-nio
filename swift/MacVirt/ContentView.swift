@@ -25,7 +25,7 @@ struct ContentView: View {
     @EnvironmentObject private var model: VmViewModel
 
     // SceneStorage inits too late
-    @State private var selection: String = "docker"
+    @Default(.selectedTab) private var selection
     @Default(.onboardingCompleted) private var onboardingCompleted
     @State private var presentError = false
     @State private var pendingClose = false
