@@ -28,7 +28,6 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
     @State private var memoryMib = 0.0
     @State private var cpu = 1.0
     @State private var enableRosetta = true
-    @State private var enableRosettaFalse = false
     @State private var mountHideShared = false
 
     var body: some View {
@@ -55,7 +54,7 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                                 setConfigKey(\.rosetta, newValue)
                             }
                     } else {
-                        Toggle("Use Rosetta to run Intel code", isOn: $enableRosettaFalse)
+                        Toggle("Use Rosetta to run Intel code", isOn: .constant(false))
                             .disabled(true)
                         Text("Requires macOS 13 or newer")
                                 .font(.subheadline)
