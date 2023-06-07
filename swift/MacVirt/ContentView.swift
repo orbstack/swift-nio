@@ -25,7 +25,7 @@ struct ContentView: View {
     @EnvironmentObject private var model: VmViewModel
 
     // SceneStorage inits too late
-    @State private var selection: String? = "docker"
+    @State private var selection: String = "docker"
     @Default(.onboardingCompleted) private var onboardingCompleted
     @State private var presentError = false
     @State private var pendingClose = false
@@ -35,54 +35,136 @@ struct ContentView: View {
 
     @State private var initialDockerContainerSelection: Set<DockerContainerId> = []
 
-    var body: some View {
-        NavigationView {
-            let selBinding = Binding<String?>(get: {
-                selection
-            }, set: {
-                if let sel = $0 {
-                    selection = sel
+    private var sidebarContents12: some View {
+        Group {
+            Section(header: Text("Docker")) {
+                NavigationLink(destination: DockerContainersRootView(initialSelection: initialDockerContainerSelection, selection: initialDockerContainerSelection, searchQuery: "")) {
+                    Label("Containers", systemImage: "shippingbox")
+                        .padding(.vertical, 3)
+                        .tag("docker")
                 }
-            })
-            List(selection: $selection) {
-                Section(header: Text("Docker")) {
-                    NavigationLink(destination: DockerContainersRootView(initialSelection: initialDockerContainerSelection, selection: initialDockerContainerSelection, searchQuery: "")) {
-                        Label("Containers", systemImage: "shippingbox")
-                                .padding(.vertical, 3)
-                    }.tag("docker")
-
-                    NavigationLink(destination: DockerVolumesRootView()) {
-                        Label("Volumes", systemImage: "externaldrive")
-                                .padding(.vertical, 3)
-                    }.tag("docker-volumes")
-
-                    NavigationLink(destination: DockerImagesRootView()) {
-                        Label("Images", systemImage: "doc.zipper")
-                                .padding(.vertical, 3)
-                    }.tag("docker-images")
+                
+                NavigationLink(destination: DockerVolumesRootView()) {
+                    Label("Volumes", systemImage: "externaldrive")
+                        .padding(.vertical, 3)
+                        .tag("docker-volumes")
                 }
-
-                Section(header: Text("Linux")) {
-                    NavigationLink(destination: MachinesRootView()) {
-                        Label("Machines", systemImage: "desktopcomputer")
-                                .padding(.vertical, 3)
-                    }.tag("machines")
-
-                    NavigationLink(destination: FilesRootView()) {
-                        Label("Files", systemImage: "folder")
-                                .padding(.vertical, 3)
-                    }.tag("files")
-                }
-
-                Section(header: Text("Info")) {
-                    NavigationLink(destination: CommandsRootView()) {
-                        Label("Commands", systemImage: "terminal")
-                                .padding(.vertical, 3)
-                    }.tag("cli")
+                
+                NavigationLink(destination: DockerImagesRootView()) {
+                    Label("Images", systemImage: "doc.zipper")
+                        .padding(.vertical, 3)
+                        .tag("docker-images")
                 }
             }
+            
+            Section(header: Text("Linux")) {
+                NavigationLink(destination: MachinesRootView()) {
+                    Label("Machines", systemImage: "desktopcomputer")
+                        .padding(.vertical, 3)
+                        .tag("machines")
+                }
+                
+                NavigationLink(destination: FilesRootView()) {
+                    Label("Files", systemImage: "folder")
+                        .padding(.vertical, 3)
+                        .tag("files")
+                }
+            }
+            
+            Section(header: Text("Info")) {
+                NavigationLink(destination: CommandsRootView()) {
+                    Label("Commands", systemImage: "terminal")
+                        .padding(.vertical, 3)
+                        .tag("cli")
+                }
+            }
+        }
+    }
+    
+    var body: some View {
+        Group {
+            if #available(macOS 14, *) {
+                // use NavigationSplitView on macOS 14 to fix tab switching crash
+                // TODO: fix toggleSidebar button freezing for 500 ms - that's why we don't use this on macOS 13
+                NavigationSplitView {
+                    List(selection: $selection) {
+                        Section(header: Text("Docker")) {
+                            NavigationLink(value: "docker") {
+                                Label("Containers", systemImage: "shippingbox")
+                                    .padding(.vertical, 3)
+                            }
+                            
+                            NavigationLink(value: "docker-volumes") {
+                                Label("Volumes", systemImage: "externaldrive")
+                                    .padding(.vertical, 3)
+                            }
+                            
+                            NavigationLink(value: "docker-images") {
+                                Label("Images", systemImage: "doc.zipper")
+                                    .padding(.vertical, 3)
+                            }
+                        }
+                        
+                        Section(header: Text("Linux")) {
+                            NavigationLink(value: "machines") {
+                                Label("Machines", systemImage: "desktopcomputer")
+                                    .padding(.vertical, 3)
+                            }
+                            
+                            NavigationLink(value: "files") {
+                                Label("Files", systemImage: "folder")
+                                    .padding(.vertical, 3)
+                            }
+                        }
+                        
+                        Section(header: Text("Info")) {
+                            NavigationLink(value: "cli") {
+                                Label("Commands", systemImage: "terminal")
+                                    .padding(.vertical, 3)
+                            }
+                        }
+                    }
                     .listStyle(.sidebar)
                     .background(SplitViewAccessor(sideCollapsed: $collapsed))
+                } detail: {
+                    switch selection {
+                    case "docker":
+                        DockerContainersRootView(initialSelection: initialDockerContainerSelection, selection: initialDockerContainerSelection, searchQuery: "")
+                    case "docker-volumes":
+                        DockerVolumesRootView()
+                    case "docker-images":
+                        DockerImagesRootView()
+                        
+                    case "machines":
+                        MachinesRootView()
+                    case "files":
+                        FilesRootView()
+                        
+                    case "cli":
+                        CommandsRootView()
+                    
+                    default:
+                        Spacer()
+                    }
+                }
+            } else {
+                // binding helps us set default on <13
+                let selBinding = Binding<String?>(get: {
+                    selection
+                }, set: {
+                    if let sel = $0 {
+                        selection = sel
+                    }
+                })
+                
+                NavigationView {
+                    List(selection: selBinding) {
+                        sidebarContents12
+                    }
+                    .listStyle(.sidebar)
+                    .background(SplitViewAccessor(sideCollapsed: $collapsed))
+                }
+            }
         }
         .onOpenURL { url in
             // for menu bar
@@ -95,10 +177,13 @@ struct ContentView: View {
         }
         .toolbar(id: "main-toolbar") {
             ToolbarItem(id: "toggle-sidebar", placement: .navigation) {
-                Button(action: toggleSidebar, label: {
-                    Label("Toggle Sidebar", systemImage: "sidebar.leading")
-                })
-                        .help("Toggle Sidebar")
+                // on macOS 14, NavigationSplitView provides this button and we can't disable it
+                if #unavailable(macOS 14) {
+                    Button(action: toggleSidebar, label: {
+                        Label("Toggle Sidebar", systemImage: "sidebar.leading")
+                    })
+                    .help("Toggle Sidebar")
+                }
             }
 
             ToolbarItem(id: "machines-new", placement: .automatic) {
