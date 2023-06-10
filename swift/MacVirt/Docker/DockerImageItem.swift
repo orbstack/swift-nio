@@ -13,7 +13,8 @@ struct DockerImageItem: View, Equatable {
     var selection: Set<String>
 
     static func == (lhs: DockerImageItem, rhs: DockerImageItem) -> Bool {
-        lhs.image.id == rhs.image.id
+        lhs.image.id == rhs.image.id &&
+                lhs.selection == rhs.selection
     }
 
     var body: some View {
