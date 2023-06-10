@@ -21,6 +21,9 @@ struct DockerLogsWindow: View {
     @State private var composeProject: String?
     @State private var terminalFrame = CGSize.zero
 
+    // persist if somehow window gets restored
+    @SceneStorage("DockerLogs_url") private var savedUrl: URL?
+
     var body: some View {
         GeometryReader { geometry in
             VStack {
@@ -62,12 +65,11 @@ struct DockerLogsWindow: View {
         // match terminal bg
         .background(Color(NSColor.textBackgroundColor))
         .onOpenURL { url in
-            if url.pathComponents[1] == "project-logs" {
-                composeProject = url.lastPathComponent
-                vmModel.openLogWindowIds.insert(composeProject!)
-            } else {
-                containerId = url.lastPathComponent
-                vmModel.openLogWindowIds.insert(containerId!)
+            onOpenURL(url)
+        }
+        .task {
+            if let savedUrl {
+                onOpenURL(savedUrl)
             }
         }
         .onDisappear {
@@ -98,5 +100,16 @@ struct DockerLogsWindow: View {
         .onReceive(sizeHolderModel.$windowSize.throttle(for: 0.25, scheduler: DispatchQueue.main, latest: true)) { newSize in
             terminalFrame = newSize
         }
+    }
+
+    private func onOpenURL(_ url: URL) {
+        if url.pathComponents[1] == "project-logs" {
+            composeProject = url.lastPathComponent
+            vmModel.openLogWindowIds.insert(composeProject!)
+        } else {
+            containerId = url.lastPathComponent
+            vmModel.openLogWindowIds.insert(containerId!)
+        }
+        savedUrl = url
     }
 }
