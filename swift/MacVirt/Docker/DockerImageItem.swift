@@ -5,12 +5,16 @@
 import Foundation
 import SwiftUI
 
-struct DockerImageItem: View {
+struct DockerImageItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
 
     var image: DKImage
     var selection: Set<String>
+
+    static func == (lhs: DockerImageItem, rhs: DockerImageItem) -> Bool {
+        lhs.image.id == rhs.image.id
+    }
 
     var body: some View {
         let actionInProgress = actionTracker.ongoingFor(image: image) != nil

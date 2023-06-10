@@ -24,23 +24,24 @@ struct DockerImagesRootView: View {
                 let totalSize = filteredImages.reduce(0) { $0 + $1.size }
                 let totalSizeFormatted = ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
 
+                let taggedImages = filteredImages.filter { $0.hasTag }
+                let untaggedImages = filteredImages.filter { !$0.hasTag }
+
                 // 0 spacing to fix bg color gap between list and getting started hint
                 VStack(spacing: 0) {
                     if !filteredImages.isEmpty {
                         List(selection: $selection) {
                             Section(header: Text("Tagged")) {
-                                ForEach(filteredImages) { image in
-                                    if image.hasTag {
-                                        DockerImageItem(image: image, selection: selection)
-                                    }
+                                ForEach(taggedImages) { image in
+                                    DockerImageItem(image: image, selection: selection)
+                                    .equatable()
                                 }
                             }
 
                             Section(header: Text("Untagged")) {
-                                ForEach(filteredImages) { image in
-                                    if !image.hasTag {
-                                        DockerImageItem(image: image, selection: selection)
-                                    }
+                                ForEach(untaggedImages) { image in
+                                    DockerImageItem(image: image, selection: selection)
+                                    .equatable()
                                 }
                             }
                         }

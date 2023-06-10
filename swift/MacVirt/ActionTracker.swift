@@ -41,7 +41,10 @@ enum DockerContainerId: Hashable {
     case container(id: String)
     // ID by project only, or we can break with multiple config files
     case compose(project: String)
-    case notDocker(key: String)
+
+    // not docker
+    case builtinRecord(String)
+    case sectionLabel(String)
 }
 
 @MainActor

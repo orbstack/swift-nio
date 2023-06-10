@@ -246,12 +246,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
                     // menu bar never shows stopped
                     showStopped: false)
             menu.addTruncatedItems(listItems) { item in
-                if let container = item.container {
+                switch item {
+                case .container(let container):
                     return makeContainerItem(container: container)
-                } else if let composeGroup = item.composeGroup {
-                    return makeComposeGroupItem(group: composeGroup, children: item.children!)
-                } else {
-                    // other types are invalid
+                case .compose(let group, let children):
+                    return makeComposeGroupItem(group: group, children: children)
+                default:
                     return nil
                 }
             }
@@ -495,7 +495,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         submenu.addSectionHeader("Services")
 
         for childItem in children {
-            guard let container = childItem.container else {
+            guard case let .container(container) = childItem else {
                 continue
             }
 

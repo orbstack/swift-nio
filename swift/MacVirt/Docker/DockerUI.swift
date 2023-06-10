@@ -109,52 +109,52 @@ struct WindowTitles {
     static let logs = "Logs" // also for empty
 }
 
-struct DockerListItem: Identifiable, Equatable {
-    var builtinRecord: ContainerRecord? = nil
-    var sectionLabel: String? = nil
-    var container: DKContainer? = nil
-    var composeGroup: ComposeGroup? = nil
-    var children: [DockerListItem]? = nil
+enum DockerListItem: Identifiable, Equatable {
+    case builtinRecord(ContainerRecord)
+    case sectionLabel(String)
+    case container(DKContainer)
+    case compose(ComposeGroup, children: [DockerListItem])
 
     var id: DockerContainerId {
-        if let builtinRecord {
-            return .notDocker(key: "BUI:\(builtinRecord.id)")
-        }
-        if let sectionLabel {
-            return .notDocker(key: "SEC:\(sectionLabel)")
-        }
-        if let container {
+        switch self {
+        case .builtinRecord(let record):
+            return .builtinRecord(record.id)
+        case .sectionLabel(let label):
+            return .sectionLabel(label)
+        case .container(let container):
             return .container(id: container.id)
+        case .compose(let group, _):
+            return .compose(project: group.project)
         }
-        if let composeGroup {
-            return .compose(project: composeGroup.project)
-        }
-        return .notDocker(key: "")
     }
 
     var containerName: String {
-        container?.names.first ?? composeGroup?.project ?? ""
+        switch self {
+        case .container(let container):
+            return container.names.first ?? ""
+        case .compose(let group, _):
+            return group.project
+        default:
+            return ""
+        }
     }
 
     var isGroup: Bool {
-        composeGroup != nil
+        switch self {
+        case .compose:
+            return true
+        default:
+            return false
+        }
     }
 
-    init(builtinRecord: ContainerRecord) {
-        self.builtinRecord = builtinRecord
-    }
-
-    init(sectionLabel: String) {
-        self.sectionLabel = sectionLabel
-    }
-
-    init(container: DKContainer) {
-        self.container = container
-    }
-
-    init(composeGroup: ComposeGroup, children: [DockerListItem]) {
-        self.composeGroup = composeGroup
-        self.children = children
+    var listChildren: [DockerListItem]? {
+        switch self {
+        case .compose(_, let children):
+            return children
+        default:
+            return nil
+        }
     }
 }
 
@@ -188,17 +188,18 @@ struct DockerContainerLists {
         }
 
         // convert to list items
-        for (group, var containers) in composeGroups {
+        for (var group, var containers) in composeGroups {
             // sort
             containers.sort { a, b in
                 a.userName < b.userName
             }
 
-            let children = containers.map { DockerListItem(container: $0) }
-            var item = DockerListItem(composeGroup: group, children: children)
+            let children = containers.map { DockerListItem.container($0) }
             // if ANY container in the group is running, show the group as running
-            if containers.contains(where: { $0.running }) {
-                item.composeGroup?.anyRunning = true
+            let anyRunning = containers.contains(where: { $0.running })
+            group.anyRunning = anyRunning
+            let item = DockerListItem.compose(group, children: children)
+            if anyRunning {
                 runningItems.append(item)
             } else {
                 stoppedItems.append(item)
@@ -208,9 +209,9 @@ struct DockerContainerLists {
         // add ungrouped containers
         for container in ungroupedContainers {
             if container.running {
-                runningItems.append(DockerListItem(container: container))
+                runningItems.append(.container(container))
             } else {
-                stoppedItems.append(DockerListItem(container: container))
+                stoppedItems.append(.container(container))
             }
         }
 
