@@ -55,82 +55,38 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Spacer()
 
             // crash on macOS 12 without nested HStack
-            // 0.7 scale also crashes - 0.75 is ok
             HStack {
-                Button(action: {
+                ProgressIconButton(systemImage: "info.circle.fill",
+                        actionInProgress: false) {
                     presentPopover = true
-                }) {
-                    ZStack {
-                        Image(systemName: "info.circle.fill")
-
-                        // as padding to match size
-                        ProgressView()
-                                .scaleEffect(0.75)
-                                .opacity(0)
-                                .frame(maxWidth: 24, maxHeight: 24)
-                    }
                 }
-                        .buttonStyle(.borderless)
-                        .help("Get info")
-                        .popover(isPresented: $presentPopover, arrowEdge: .leading) {
-                            detailsView
-                        }
+                .help("Get info")
+                .popover(isPresented: $presentPopover, arrowEdge: .leading) {
+                    detailsView
+                }
 
                 if isRunning {
-                    Button(action: {
+                    ProgressIconButton(systemImage: "stop.fill",
+                            actionInProgress: actionInProgress?.isStartStop == true) {
                         finishStop()
-                    }) {
-                        let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
-                        ZStack {
-                            Image(systemName: "stop.fill")
-                                    .opacity(1 - opacity)
-
-                            ProgressView()
-                                    .scaleEffect(0.75)
-                                    .opacity(opacity)
-                                    .frame(maxWidth: 24, maxHeight: 24)
-                        }
                     }
-                            .buttonStyle(.borderless)
-                            .disabled(actionInProgress != nil)
-                            .help("Stop container")
+                    .disabled(actionInProgress != nil)
+                    .help("Stop container")
                 } else {
-                    Button(action: {
+                    ProgressIconButton(systemImage: "play.fill",
+                            actionInProgress: actionInProgress?.isStartStop == true) {
                         finishStart()
-                    }) {
-                        let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
-                        ZStack {
-                            Image(systemName: "play.fill")
-                                    .opacity(1 - opacity)
-
-                            ProgressView()
-                                    .scaleEffect(0.75)
-                                    .opacity(opacity)
-                                    .frame(maxWidth: 24, maxHeight: 24)
-                        }
                     }
-                            .buttonStyle(.borderless)
-                            .disabled(actionInProgress != nil)
-                            .help("Start container")
+                    .disabled(actionInProgress != nil)
+                    .help("Start container")
                 }
 
-                Button(action: {
+                ProgressIconButton(systemImage: "trash.fill",
+                        actionInProgress: actionInProgress == .remove) {
                     finishRemove()
-                }) {
-                    let opacity = actionInProgress == .remove ? 1.0 : 0.0
-                    ZStack {
-                        Image(systemName: "trash.fill")
-                                .opacity(1 - opacity)
-
-                        ProgressView()
-                                .scaleEffect(0.75)
-                                .opacity(opacity)
-                                .frame(maxWidth: 24, maxHeight: 24)
-                    }
                 }
-                        .buttonStyle(.borderless)
-                        .disabled(actionInProgress != nil)
-                        .help("Delete container")
+                .disabled(actionInProgress != nil)
+                .help("Delete container")
             }
         }
                 .padding(.vertical, 4)

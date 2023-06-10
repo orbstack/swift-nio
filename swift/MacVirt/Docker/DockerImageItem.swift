@@ -31,20 +31,11 @@ struct DockerImageItem: View {
             }
             Spacer()
 
-            Button(role: .destructive, action: {
+            ProgressIconButton(systemImage: "trash.fill",
+                    actionInProgress: actionInProgress,
+                    role: .destructive) {
                 finishDelete()
-            }) {
-                let opacity = actionInProgress ? 1.0 : 0.0
-                ZStack {
-                    Image(systemName: "trash.fill")
-                            .opacity(1 - opacity)
-
-                    ProgressView()
-                            .scaleEffect(0.75)
-                            .opacity(opacity)
-                }
             }
-            .buttonStyle(.borderless)
             .disabled(actionInProgress || isInUse)
             .help(isInUse ? "Image in use" : "Delete image")
         }

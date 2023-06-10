@@ -34,46 +34,25 @@ struct MachineContainerItem: View {
 
             Spacer()
 
-            let progressOpacity = (actionInProgress || record.state == .creating) ? 1.0 : 0.0
             if record.running {
-                Button(action: {
+                ProgressIconButton(systemImage: "stop.fill",
+                        actionInProgress: actionInProgress || record.state == .creating) {
                     Task { @MainActor in
                         await actionTracker.with(machine: record, action: .stop) {
                             await vmModel.tryStopContainer(record)
                         }
                     }
-                }) {
-                    ZStack {
-                        Image(systemName: "stop.fill")
-                                .opacity(1 - progressOpacity)
-
-                        ProgressView()
-                                .scaleEffect(0.75)
-                                .opacity(progressOpacity)
-                    }
                 }
-                        .buttonStyle(.borderless)
-                        .disabled(actionInProgress)
-                        .help("Stop \(record.name)")
+                .help("Stop \(record.name)")
             } else {
-                Button(action: {
+                ProgressIconButton(systemImage: "play.fill",
+                        actionInProgress: actionInProgress || record.state == .creating) {
                     Task { @MainActor in
                         await actionTracker.with(machine: record, action: .start) {
                             await vmModel.tryStartContainer(record)
                         }
                     }
-                }) {
-                    ZStack {
-                        Image(systemName: "play.fill")
-                                .opacity(1 - progressOpacity)
-
-                        ProgressView()
-                                .scaleEffect(0.75)
-                                .opacity(progressOpacity)
-                    }
                 }
-                .buttonStyle(.borderless)
-                .disabled(actionInProgress || record.state == .creating)
                 .help("Start \(record.name)")
             }
         }

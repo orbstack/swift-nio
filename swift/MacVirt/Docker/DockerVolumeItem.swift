@@ -65,25 +65,15 @@ struct DockerVolumeItem: View {
             .disabled(actionInProgress)
             .help("Open volume")
 
-            Button(role: .destructive, action: {
+            ProgressIconButton(systemImage: "trash.fill",
+                    actionInProgress: actionInProgress) {
                 // skip confirmation if Option pressed
                 if CGKeyCode.optionKeyPressed {
                     finishDelete()
                 } else {
                     self.presentConfirmDelete = true
                 }
-            }) {
-                let opacity = actionInProgress ? 1.0 : 0.0
-                ZStack {
-                    Image(systemName: "trash.fill")
-                            .opacity(1 - opacity)
-
-                    ProgressView()
-                            .scaleEffect(0.75)
-                            .opacity(opacity)
-                }
             }
-            .buttonStyle(.borderless)
             .disabled(actionInProgress || isMounted)
             .help(isMounted ? "Volume in use" : "Delete volume\n(Option to confirm)")
         }

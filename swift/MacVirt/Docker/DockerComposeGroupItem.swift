@@ -46,60 +46,27 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             // 0.7 scale also crashes - 0.75 is ok
             HStack {
                 if isRunning {
-                    Button(action: {
+                    ProgressIconButton(systemImage: "stop.fill",
+                            actionInProgress: actionInProgress?.isStartStop == true) {
                         finishStop()
-                    }) {
-                        let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
-                        ZStack {
-                            Image(systemName: "stop.fill")
-                                    .opacity(1 - opacity)
-
-                            ProgressView()
-                                    .scaleEffect(0.75)
-                                    .opacity(opacity)
-                                    .frame(maxWidth: 24, maxHeight: 24)
-                        }
                     }
-                            .buttonStyle(.borderless)
-                            .disabled(actionInProgress != nil)
-                            .help("Stop project")
+                    .disabled(actionInProgress != nil)
+                    .help("Stop project")
                 } else {
-                    Button(action: {
+                    ProgressIconButton(systemImage: "play.fill",
+                            actionInProgress: actionInProgress?.isStartStop == true) {
                         finishStart()
-                    }) {
-                        let opacity = actionInProgress?.isStartStop == true ? 1.0 : 0.0
-                        ZStack {
-                            Image(systemName: "play.fill")
-                                    .opacity(1 - opacity)
-
-                            ProgressView()
-                                    .scaleEffect(0.75)
-                                    .opacity(opacity)
-                                    .frame(maxWidth: 24, maxHeight: 24)
-                        }
                     }
-                            .buttonStyle(.borderless)
-                            .disabled(actionInProgress != nil)
-                            .help("Start project")
+                    .disabled(actionInProgress != nil)
+                    .help("Start project")
                 }
 
-                Button(action: {
+                ProgressIconButton(systemImage: "trash.fill",
+                        actionInProgress: actionInProgress == .remove) {
                     finishRemove()
-                }) {
-                    let opacity = actionInProgress == .remove ? 1.0 : 0.0
-                    ZStack {
-                        Image(systemName: "trash.fill")
-                                .opacity(1 - opacity)
-
-                        ProgressView()
-                                .scaleEffect(0.75)
-                                .opacity(opacity)
-                                .frame(maxWidth: 24, maxHeight: 24)
-                    }
                 }
-                        .buttonStyle(.borderless)
-                        .disabled(actionInProgress != nil)
-                        .help("Delete project")
+                .disabled(actionInProgress != nil)
+                .help("Delete project")
             }
         }
                 .padding(.vertical, 4)
