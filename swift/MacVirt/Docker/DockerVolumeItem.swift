@@ -60,6 +60,8 @@ struct DockerVolumeItem: View {
                 openFolder()
             }) {
                 Image(systemName: "folder.fill")
+                // match ProgressIconButton size
+                .frame(width: 24, height: 24)
             }
             .buttonStyle(.borderless)
             .disabled(actionInProgress)
