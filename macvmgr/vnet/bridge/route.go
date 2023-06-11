@@ -2,6 +2,8 @@ package bridge
 
 import (
 	"net"
+
+	"github.com/sirupsen/logrus"
 )
 
 func isRouteCorrect(hostIP net.IP) (bool, error) {
@@ -30,5 +32,9 @@ func isRouteCorrect(hostIP net.IP) (bool, error) {
 	}
 
 	//fmt.Println("dial", hostIP, "got", srcAddr, "= XXXXXXXXXX")
+	logrus.WithFields(logrus.Fields{
+		"expected": hostIP,
+		"got":      srcAddr,
+	}).Debug("unexpected route")
 	return false, nil
 }
