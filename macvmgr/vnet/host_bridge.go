@@ -76,6 +76,7 @@ func (n *Network) ClearVlanBridges() error {
 	defer n.hostBridgeMu.Unlock()
 
 	// clear first to prevent feedback loop
+	logrus.Debug("clearing vlan bridges")
 	n.bridgeRouteMon.ClearSubnets()
 
 	err := n.vlanRouter.ClearBridges()

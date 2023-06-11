@@ -579,6 +579,7 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 }
 
 func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
+	// this works because we have the full Network object from lastNetworks diff
 	config, ok := dockerNetworkToBridgeConfig(network)
 	if !ok {
 		return nil
