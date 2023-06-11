@@ -224,7 +224,7 @@ func (n *Network) CreateSconMachineHostBridge() error {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
 
-	logrus.Debug("creating scon machine host bridge")
+	logrus.Debug("renewing scon machine host bridge")
 
 	// recreate if needed
 	oldBrnet := n.hostBridges[brIndexSconMachine]
