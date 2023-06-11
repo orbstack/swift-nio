@@ -604,3 +604,12 @@ func (router *VlanRouter) Close() error {
 
 	return nil
 }
+
+//export swext_net_cb_path_changed
+func swext_net_cb_path_changed() {
+	logrus.Debug("sys net path changed")
+	go func() {
+		// defend against blocked subscribers
+		SwextNetPathChangesChan <- struct{}{}
+	}()
+}

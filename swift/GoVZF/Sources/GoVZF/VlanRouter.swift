@@ -7,6 +7,9 @@
 
 import Foundation
 import CBridge
+import Network
+
+private let verboseDebug = false
 
 // separate queue to avoid deadlocks
 private let routerQueue = DispatchQueue(label: "dev.kdrag0n.swext.router")
@@ -27,6 +30,7 @@ class VlanRouter {
     // static circular array of slots
     private var interfaces: [BridgeNetwork?]
     private var guestReader: GuestReader! = nil
+    private let pathMonitor = NWPathMonitor()
 
     init(config: VlanRouterConfig) {
         interfaces = [BridgeNetwork?](repeating: nil, count: config.maxVlanInterfaces)
@@ -57,6 +61,18 @@ class VlanRouter {
                         }
                     }
                 })
+
+        pathMonitor.pathUpdateHandler = { path in
+            if verboseDebug {
+                print("NW path: \(path)")
+                print("  status: \(path.status)")
+                print("  availableInterfaces: \(path.availableInterfaces)")
+                print("  gateways: \(path.gateways)")
+            }
+
+            swext_net_cb_path_changed()
+        }
+        pathMonitor.start(queue: routerQueue)
     }
 
     func addBridge(config: BridgeNetworkConfig) throws -> BrnetInterfaceIndex {
@@ -126,6 +142,7 @@ class VlanRouter {
     }
 
     func close() {
+        pathMonitor.cancel()
         // clear all bridges
         clearBridges()
         // close guest reader (breaks ref cycle by dropping handler ref)

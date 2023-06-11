@@ -48,4 +48,6 @@ void govzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);
 
 void swext_proxy_cb_changed(void);
 void swext_fsevents_cb_krpc_events(uint8_t* krpc_buf, size_t krpc_buf_len);
+
+void swext_net_cb_path_changed(void);
 #endif

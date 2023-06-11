@@ -4,6 +4,8 @@ var (
 	SwextProxyChangesChan = make(chan struct{}, 1)
 
 	SwextFseventsKrpcEventsChan = make(chan []byte)
+
+	SwextNetPathChangesChan = make(chan struct{}, 1)
 )
 
 type SwextProxySettings struct {
