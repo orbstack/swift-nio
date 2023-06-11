@@ -462,7 +462,11 @@ func runVmManager() {
 		// check for apfs
 		err := verifyAPFS()
 		if err != nil {
-			logrus.Fatal("APFS is required")
+			if errors.Is(err, unix.ENOTSUP) {
+				logrus.Fatal("Data storage location must be formatted as APFS.")
+			} else {
+				logrus.WithError(err).Fatal("Failed to check for APFS")
+			}
 		}
 		extractSparse(streamObfAssetFile("data.img.tar"))
 	}
