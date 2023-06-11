@@ -314,6 +314,8 @@ else
     # release
     # remove ssh host keys
     rm -fr /etc/ssh
+    # uninstall apk
+    apk del apk-tools
 fi
 EOT
 
