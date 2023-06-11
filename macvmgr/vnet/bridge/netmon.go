@@ -59,7 +59,7 @@ func NewRouteMon() (*RouteMon, error) {
 		// wait for completion before releasing mutexes
 		wg.Wait()
 
-		logrus.Debug("renew fn completed")
+		logrus.Debug("renewal done")
 	})
 
 	return m, nil

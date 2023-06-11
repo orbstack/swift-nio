@@ -1,7 +1,6 @@
 package bridge
 
 import (
-	"fmt"
 	"net"
 	"sync"
 
@@ -28,7 +27,6 @@ func (m *MonitoredSubnet) maybeRenewAsync(wg *sync.WaitGroup) {
 	if !m.IsActive() {
 		return
 	}
-	fmt.Println("active one:", m)
 
 	// check and skip if both v4 and v6 routes are OK
 	correct4, err := isRouteCorrect(m.hostIP4)
