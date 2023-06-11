@@ -110,21 +110,12 @@ class VlanRouter {
 
     func clearBridges() {
         routerQueue.sync(flags: .barrier) { [self] in
-            let group = DispatchGroup()
-
             for (i, bridge) in interfaces.enumerated() {
                 if let bridge {
-                    // parallel close
-                    group.enter()
-                    vmnetQueue.async { [self] in
-                        bridge.close()
-                        interfaces[i] = nil
-                        group.leave()
-                    }
+                    bridge.close()
+                    interfaces[i] = nil
                 }
             }
-
-            group.wait()
         }
     }
 

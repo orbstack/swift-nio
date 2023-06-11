@@ -290,10 +290,9 @@ class BridgeNetwork {
             NSLog("[brnet] remove callback error: \(VmnetError.from(ret))")
         }
 
-        // no need for barrier to drain packets. we drop packets or get errors anyway,
-        // and we want to allow concurrent stop for renew/shutdown perf
+        // drain packets w/ barrier
         let sem = DispatchSemaphore(value: 0)
-        ret = vmnetQueue.sync {
+        ret = vmnetQueue.sync(flags: .barrier) {
             // sem still needed to wait for vmnet_stop_interface completion
             return vmnet_stop_interface(ifRef, vmnetQueue) { status in
                 if status != .VMNET_SUCCESS {
