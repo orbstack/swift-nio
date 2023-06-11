@@ -18,8 +18,9 @@ const (
 	// according to Apple docs, limit is 4 per VM and 32 globally on host
 	// we can theoretically get up to 128 (7 bits)
 	// but empirically, max for our process is 10
-	// scon machine bridge takes 1 so we can have up to 9 docker bridges
-	MaxVlanInterfaces = 9
+	// scon machine bridge takes 1 so we can have up to 9 more bridges
+	// and we're reserving one for potential future use (bridged net, NAT, etc)
+	MaxVlanInterfaces = 8
 	IndexSconMachine  = MaxVlanInterfaces
 )
 
