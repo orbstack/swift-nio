@@ -332,6 +332,18 @@ func swext_fsevents_cb_krpc_events(ptr *C.uint8_t, len C.size_t) {
 	SwextFseventsKrpcEventsChan <- data
 }
 
+func SwextFseventsMonitorDirs() error {
+	msgC := C.swext_fsevents_monitor_dirs()
+	defer C.free(unsafe.Pointer(msgC))
+	msgStr := C.GoString(msgC)
+
+	if msgStr != "" {
+		return errors.New(msgStr)
+	}
+
+	return nil
+}
+
 type FsVmNotifier struct {
 	mu  sync.Mutex
 	ptr unsafe.Pointer

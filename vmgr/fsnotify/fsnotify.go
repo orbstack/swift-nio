@@ -43,6 +43,11 @@ func (n *VmNotifier) Run() error {
 
 	client := NewKrpcClient(conn)
 
+	err = vzf.SwextFseventsMonitorDirs()
+	if err != nil {
+		return fmt.Errorf("start dir monitor: %w", err)
+	}
+
 	for {
 		select {
 		case buf := <-vzf.SwextFseventsKrpcEventsChan:
