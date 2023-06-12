@@ -44,16 +44,25 @@ func NewRouteMon() (*RouteMon, error) {
 
 		logrus.Debug("checking for renew")
 
-		if !m.renewLimiter.Allow() {
-			logrus.Debug("route renew: rate limited")
-			return
+		// only take rate limit token if we have something to renew
+		var ratelimitTaken bool
+		ratelimitPredicate := func() bool {
+			if ratelimitTaken {
+				return true
+			}
+			ratelimitTaken = true
+			return m.renewLimiter.Allow()
 		}
 
 		var wg sync.WaitGroup
 		m.subnetsMu.Lock()
 		for i := range m.subnets {
 			// value reference
-			m.subnets[i].maybeRenewAsync(&wg)
+			ratelimited := m.subnets[i].maybeRenewAsync(&wg, ratelimitPredicate)
+			if ratelimited {
+				logrus.Debug("route renew: rate limited")
+				break
+			}
 		}
 		m.subnetsMu.Unlock()
 		// wait for completion before releasing mutexes

@@ -62,6 +62,9 @@ class VlanRouter {
                     }
                 })
 
+        // monitor route for renewal
+        // more reliable per-NWConnection UDP pathUpdateHandler, which is more granular:
+        // self-feedback loop is impossible because vmnet doesn't trigger a NWPathMonitor change
         pathMonitor.pathUpdateHandler = { path in
             if verboseDebug {
                 print("NW path: \(path)")

@@ -23,7 +23,7 @@ func (m *MonitoredSubnet) Clear() {
 	m.renewFn = nil
 }
 
-func (m *MonitoredSubnet) maybeRenewAsync(wg *sync.WaitGroup) {
+func (m *MonitoredSubnet) maybeRenewAsync(wg *sync.WaitGroup, predicate func() bool) (ratelimited bool) {
 	if !m.IsActive() {
 		return
 	}
@@ -47,6 +47,11 @@ func (m *MonitoredSubnet) maybeRenewAsync(wg *sync.WaitGroup) {
 	}
 
 	// proceeding with renewal, in parallel with other subnets
+	if !predicate() {
+		// take rate limit token if needed
+		ratelimited = true
+		return
+	}
 	wg.Add(1)
 	// save renew fn reference before releasing mutex
 	renewFn := m.renewFn
@@ -59,6 +64,8 @@ func (m *MonitoredSubnet) maybeRenewAsync(wg *sync.WaitGroup) {
 			logrus.WithField("ip4", hostIP4).WithError(err).Error("failed to renew host bridge")
 		}
 	}()
+
+	return
 }
 
 // host IP for UDP dial to check route
