@@ -569,7 +569,7 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		return nil
 	}
 
-	logrus.WithField("name", network.Name).WithField("config", config).Debug("adding Docker network")
+	logrus.WithField("name", network.Name).WithField("config", config).Info("adding Docker network")
 	err := d.scon.DockerAddBridge(config)
 	if err != nil {
 		return err
@@ -585,7 +585,7 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 		return nil
 	}
 
-	logrus.WithField("name", network.Name).WithField("config", config).Debug("removing Docker network")
+	logrus.WithField("name", network.Name).WithField("config", config).Info("removing Docker network")
 	err := d.scon.DockerRemoveBridge(config)
 	if err != nil {
 		return err
