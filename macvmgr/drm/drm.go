@@ -229,9 +229,8 @@ func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
 	// (if we got here, we must be awake and must have a valid result)
 	wakeTime := iokit.LastWakeTime
 	if wakeTime != nil && /*mono*/ timex.SinceMonoSleep(*wakeTime) < sleepSyncPeriod {
-		diff := sleepSyncPeriod - /*mono*/ timex.SinceMonoSleep(*wakeTime)
-		dlog("waiting for sleep-wake time sync", diff)
-		time.Sleep(diff)
+		dlog("waiting for sleep-wake time sync")
+		time.Sleep(sleepSyncPeriod)
 	}
 
 	// after initial report, only report if state change (invalid), because
