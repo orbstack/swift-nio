@@ -9,12 +9,14 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/orbstack/macvirt/macvmgr/vmconfig"
 	"github.com/orbstack/macvirt/macvmgr/vnet/gvaddr"
 	"github.com/orbstack/macvirt/macvmgr/vnet/proxy"
 	"github.com/orbstack/macvirt/macvmgr/vnet/proxy/socks"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -25,6 +27,8 @@ const (
 	proxyProtoHttps = "https"
 	proxyProtoSocks = "socks5"
 )
+
+const settingsRefreshDebounce = 100 * time.Millisecond
 
 type ProxyManager struct {
 	hostNatIP4 tcpip.Address
@@ -83,6 +87,13 @@ func newProxyManager(hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *ProxyM
 
 func (p *ProxyManager) monitorChanges() {
 	// note: refresh can block because of keychain prompt
+	sysRefreshDebounce := syncx.NewFuncDebounce(settingsRefreshDebounce, func() {
+		err := p.Refresh()
+		if err != nil {
+			logrus.WithError(err).Error("failed to refresh proxy settings (sys settings change)")
+		}
+	})
+
 	for {
 		select {
 		case patch := <-p.vmconfigCh:
@@ -93,10 +104,7 @@ func (p *ProxyManager) monitorChanges() {
 				}
 			}
 		case <-vzf.SwextProxyChangesChan:
-			err := p.Refresh()
-			if err != nil {
-				logrus.WithError(err).Error("failed to refresh proxy settings (sys settings change)")
-			}
+			sysRefreshDebounce.Call()
 		case <-p.stopCh:
 			return
 		}
