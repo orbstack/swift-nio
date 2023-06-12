@@ -119,6 +119,23 @@ func (h *DockerHooks) PreStart(c *Container) error {
 				"com.docker.network.driver.mtu": strconv.Itoa(c.manager.net.mtu),
 			},
 		},
+
+		// change default addrs to minimize conflicts with other networks
+		"default-address-pools": []map[string]any{
+			// custom
+			// result: /23's from 192 - 239
+			{"base": "198.19.192.0/19", "size": 23},
+			{"base": "198.19.224.0/20", "size": 23},
+
+			// Docker defaults for overflow (and compat, if explicit subnet is specified for a network)
+			{"base": "172.17.0.0/16", "size": 16},
+			{"base": "172.18.0.0/16", "size": 16},
+			{"base": "172.19.0.0/16", "size": 16},
+			{"base": "172.20.0.0/14", "size": 16},
+			{"base": "172.24.0.0/14", "size": 16},
+			{"base": "172.28.0.0/14", "size": 16},
+			{"base": "192.168.0.0/16", "size": 20},
+		},
 	}
 
 	// read config overrides from host
