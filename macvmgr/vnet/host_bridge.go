@@ -251,7 +251,7 @@ func (n *Network) CreateSconMachineHostBridge() error {
 
 	if oldBrnet == nil {
 		// first time, so add to route monitor
-		n.bridgeRouteMon.SetSubnet(brIndexSconMachine, net.ParseIP(netconf.SconHostBridgeIP4), net.ParseIP(netconf.SconHostBridgeIP6), func() error {
+		n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, net.ParseIP(netconf.SconHostBridgeIP4), net.ParseIP(netconf.SconHostBridgeIP6), func() error {
 			return n.CreateSconMachineHostBridge()
 		})
 	}
