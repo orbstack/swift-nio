@@ -57,7 +57,7 @@ func (m *MonitoredSubnet) maybeRenewAsync(wg *sync.WaitGroup, predicate func() b
 	go func() {
 		defer wg.Done()
 
-		// if conflict with NetworkExtension VPN (WireGuard), we get generalFailure
+		// if conflict with wifi or NetworkExtension VPN (WireGuard), we get generalFailure
 		err := renewFn()
 		if err != nil {
 			logrus.WithField("ip4", hostIP4).WithError(err).Error("failed to renew host bridge")
