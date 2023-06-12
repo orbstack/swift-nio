@@ -114,6 +114,8 @@ class BridgeNetwork {
     private let hostReadIovs: UnsafeMutablePointer<iovec>
     private let vnetHdr: UnsafeMutablePointer<virtio_net_hdr>
 
+    private var closed = false
+
     init(config: BridgeNetworkConfig) throws {
         self.config = config
         self.processor = PacketProcessor(hostOverrideMac: config.hostOverrideMac)
@@ -281,6 +283,14 @@ class BridgeNetwork {
     }
 
     func close() {
+        // don't allow double close to prevent segfault
+        if closed {
+            return
+        }
+        defer {
+            closed = true
+        }
+
         // remove callbacks
         if let guestReader {
             guestReader.close()

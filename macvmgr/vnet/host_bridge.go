@@ -141,8 +141,6 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 	}
 
 	// monitor route and renew when overridden
-	//TODO does ipv6 need monitoring?
-
 	n.bridgeRouteMon.SetSubnet(index, net.ParseIP(vmnetConfig.Ip4Address), net.ParseIP(vmnetConfig.Ip6Address), func() error {
 		n.hostBridgeMu.Lock()
 		defer n.hostBridgeMu.Unlock()
@@ -232,6 +230,11 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		oldBrnet.Close()
 	} else {
 		logrus.Debug("creating scon machine host bridge")
+		// first time, so add to route monitor - either after adding (if OK), or after error (if not OK)
+		// if sucessful, then we don't want to add it until creation done, to avoid feedback loop
+		defer n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, net.ParseIP(netconf.SconHostBridgeIP4), net.ParseIP(netconf.SconHostBridgeIP6), func() error {
+			return n.CreateSconMachineHostBridge()
+		})
 	}
 
 	err := n.createHostBridge(brIndexSconMachine, vzf.BridgeNetworkConfig{
@@ -248,13 +251,6 @@ func (n *Network) CreateSconMachineHostBridge() error {
 	})
 	if err != nil {
 		return err
-	}
-
-	if oldBrnet == nil {
-		// first time, so add to route monitor
-		n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, net.ParseIP(netconf.SconHostBridgeIP4), net.ParseIP(netconf.SconHostBridgeIP6), func() error {
-			return n.CreateSconMachineHostBridge()
-		})
 	}
 
 	return nil

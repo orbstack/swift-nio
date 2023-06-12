@@ -105,7 +105,7 @@ func (m *RouteMon) SetSubnet(index int, hostIP4 net.IP, hostIP6 net.IP, renewFn 
 	defer m.subnetsMu.Unlock()
 
 	subnet := &m.subnets[index]
-	subnet.Clear()
+	// this clears
 	*subnet = NewMonitoredSubnet(hostIP4, hostIP6, renewFn)
 	return nil
 }
