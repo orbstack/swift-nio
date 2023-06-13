@@ -98,10 +98,10 @@ fi
 # no C because credentials are ignored
 # macOS doesn't support 32-bit anymore
 # 07 = x86
-echo -n ':mac-macho-x86_64:M:0:\xcf\xfa\xed\xfe\x07\x00\x00\x01:\xff\xff\xff\xff\xff\xff\xff\xff:[mac]:FP' > /proc/sys/fs/binfmt_misc/register
+echo -n ':mac-macho-x86_64:M:0:\xcf\xfa\xed\xfe\x07\x00\x00\x01::[mac]:FP' > /proc/sys/fs/binfmt_misc/register
 if [[ "$(uname -m)" == "aarch64" ]]; then
     # 0c = arm64
-    echo -n ':mac-macho-arm64:M:0:\xcf\xfa\xed\xfe\x0c\x00\x00\x01:\xff\xff\xff\xff\xff\xff\xff\xff:[mac]:FP' > /proc/sys/fs/binfmt_misc/register
+    echo -n ':mac-macho-arm64:M:0:\xcf\xfa\xed\xfe\x0c\x00\x00\x01::[mac]:FP' > /proc/sys/fs/binfmt_misc/register
 fi
 
 # universal
