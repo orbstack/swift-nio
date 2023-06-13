@@ -178,8 +178,8 @@ struct ContentView: View {
                 selection = "docker"
             }
         }
-        .toolbar(id: "main-toolbar") {
-            ToolbarItem(id: "toggle-sidebar", placement: .navigation) {
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
                 // on macOS 14, NavigationSplitView provides this button and we can't disable it
                 if #unavailable(macOS 14) {
                     Button(action: toggleSidebar, label: {
@@ -189,7 +189,7 @@ struct ContentView: View {
                 }
             }
 
-            ToolbarItem(id: "machines-new", placement: .automatic) {
+            ToolbarItem(placement: .automatic) {
                 // conditional needs to be here because multiple .toolbar blocks doesn't work on macOS 12
                 if selection == "machines" {
                     Button(action: {
@@ -207,7 +207,7 @@ struct ContentView: View {
                 }
             }
 
-            ToolbarItem(id: "docker-volume-new", placement: .automatic) {
+            ToolbarItem(placement: .automatic) {
                 if selection == "docker-volumes" {
                     Button(action: {
                         model.presentCreateVolume = true
@@ -220,7 +220,7 @@ struct ContentView: View {
                 }
             }
 
-            ToolbarItem(id: "docker-container-filter", placement: .automatic) {
+            ToolbarItem(placement: .automatic) {
                 if selection == "docker" {
                     Button(action: {
                         presentDockerFilter = true
