@@ -30,6 +30,8 @@ const (
 	dockerRefreshDebounce = 100 * time.Millisecond
 	// TODO: skip debounce when GUI action in progress
 	dockerUIEventDebounce = 50 * time.Millisecond
+
+	dockerDefaultBridgeNetwork = "bridge"
 )
 
 type DockerAgent struct {
@@ -247,6 +249,17 @@ func (d *DockerAgent) refreshContainers() error {
 	return nil
 }
 
+func compareNetworks(a, b dockertypes.Network) bool {
+	// always rank default bridge network first
+	if a.Name == dockerDefaultBridgeNetwork {
+		return true
+	} else if b.Name == dockerDefaultBridgeNetwork {
+		return false
+	}
+
+	return a.Name < b.Name
+}
+
 func (d *DockerAgent) refreshNetworks() error {
 	// no mu needed: synchronized by debounce
 
@@ -268,6 +281,8 @@ func (d *DockerAgent) refreshNetworks() error {
 
 	// diff
 	added, removed := util.DiffSlicesKey[string](d.lastNetworks, newNetworks)
+	slices.SortStableFunc(added, compareNetworks)
+	slices.SortStableFunc(removed, compareNetworks)
 
 	// add first
 	for _, n := range added {
