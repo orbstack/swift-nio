@@ -62,7 +62,6 @@ class LocalProcessTerminalController: NSViewController {
 
     func dismantle() {
         // cancel
-        cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
 
         // on close, kill process if still running
