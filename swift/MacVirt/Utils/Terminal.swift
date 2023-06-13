@@ -61,9 +61,6 @@ class LocalProcessTerminalController: NSViewController {
     }
 
     func dismantle() {
-        // cancel
-        cancellables.removeAll()
-
         // on close, kill process if still running
         if terminalView.process.running {
             // require SwiftTerm fork/PR to avoid crash
