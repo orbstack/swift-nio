@@ -180,7 +180,7 @@ func swext_proxy_get_settings() -> UnsafeMutablePointer<CChar> {
     return strdup(str)
 }
 
-private let scSessionName = "dev.kdrag0n.MacVirt__swext_proxy"
+private let scSessionName = "dev.kdrag0n.MacVirt__swext_sc"
 private let scKeyProxies = "State:/Network/Global/Proxies"
 
 @_cdecl("swext_proxy_monitor_changes")

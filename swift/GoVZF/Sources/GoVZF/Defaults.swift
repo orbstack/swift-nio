@@ -6,6 +6,8 @@ import Foundation
 import AppKit
 import CBridge
 
+private let guiBundleId = "dev.kdrag0n.MacVirt"
+
 struct UserSettings: Codable {
     let showMenubarExtra: Bool
 }
@@ -13,10 +15,10 @@ struct UserSettings: Codable {
 private func getUserSettings() -> UserSettings {
     // vmgr has different bundle id, depending on signing id
     let defaults: UserDefaults
-    if Bundle.main.bundleIdentifier == "dev.kdrag0n.MacVirt" {
+    if Bundle.main.bundleIdentifier == guiBundleId {
         defaults = UserDefaults.standard
     } else {
-        defaults = UserDefaults(suiteName: "dev.kdrag0n.MacVirt")!
+        defaults = UserDefaults(suiteName: guiBundleId)!
     }
 
     defaults.register(defaults: [
@@ -30,7 +32,7 @@ private func getUserSettings() -> UserSettings {
 }
 
 private func isGuiRunning() -> Bool {
-    return NSRunningApplication.runningApplications(withBundleIdentifier: "dev.kdrag0n.MacVirt").count > 0
+    return NSRunningApplication.runningApplications(withBundleIdentifier: guiBundleId).count > 0
 }
 
 @_cdecl("swext_defaults_get_user_settings")
