@@ -236,11 +236,15 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
                     VStack(alignment: .leading) {
                         Text(container.status)
+                            .textSelection(.enabled)
                         Text(String(container.id.prefix(12)))
-                                .font(.body.monospaced())
+                            .font(.body.monospaced())
+                            .textSelection(.enabled)
                         Text(container.image)
+                            .textSelection(.enabled)
                         if let ipAddress {
                             Text(ipAddress)
+                                .textSelection(.enabled)
                         }
                     }
                 }
