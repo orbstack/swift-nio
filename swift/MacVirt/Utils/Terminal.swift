@@ -43,11 +43,16 @@ class LocalProcessTerminalController: NSViewController {
         }
 
         model.clearCommand.sink { [weak view] _ in
-            print("clearing terminal")
             view?.getTerminal().resetToInitialState()
             // invalidate
             view?.setNeedsDisplay(view!.bounds)
         }.store(in: &cancellables)
+
+        model.copyAllCommand.sink { [weak view] _ in
+            guard let data = view?.getTerminal().getBufferAsData() else { return }
+            NSPasteboard.copy(data: data)
+        }.store(in: &cancellables)
+
         self.view = view
     }
 

@@ -102,6 +102,12 @@ extension NSPasteboard {
         pasteboard.clearContents()
         pasteboard.setString(string, forType: .string)
     }
+
+    static func copy(data: Data) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setData(data, forType: .string)
+    }
 }
 
 struct WindowTitles {

@@ -11,7 +11,9 @@ private let maxLines = 5000
 
 class TerminalViewModel: ObservableObject {
     @Published var windowSize = CGSize.zero
+
     let clearCommand = PassthroughSubject<(), Never>()
+    let copyAllCommand = PassthroughSubject<(), Never>()
 }
 
 struct DockerLogsWindow: View {
@@ -108,7 +110,18 @@ struct DockerLogsWindow: View {
         }
         // clear toolbar
         .toolbar {
-            ToolbarItemGroup(placement: .automatic) {
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    terminalModel.copyAllCommand.send(())
+                }) {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .disabled(containerId == nil && composeProject == nil)
+                .help("Copy")
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+            }
+
+            ToolbarItem(placement: .automatic) {
                 Button(action: {
                     terminalModel.clearCommand.send(())
                 }) {
@@ -116,6 +129,7 @@ struct DockerLogsWindow: View {
                 }
                 .disabled(containerId == nil && composeProject == nil)
                 .help("Clear")
+                .keyboardShortcut("k", modifiers: [.command])
             }
         }
     }
