@@ -60,6 +60,7 @@ RUN <<EOT sh -eux
 mkdir /out /out-guest
 gcc -O2 -Wall -o /out/switchroot /build/switchroot.c
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
+gcc -O2 -Wall -static -o /out/bk-stub-amd64 /build/bk-stub-amd64.c
 gcc -O2 -Wall -static -o /out-guest/dummy /build/dummy.c
 strip /out/* /out-guest/*
 EOT
@@ -345,7 +346,8 @@ ln -s /usr/bin/dash /bin/sh
 mkdir /data
 mkdir /mnt/mac
 mkdir /mnt/rosetta
-ln -s /mnt/rosetta/rosetta '/[rosetta]'
+ln -s /mnt/rosetta/rosetta '[rosetta]'
+ln -s /opt/orb/bk-stub-amd64 '[rosetta-bk-stub]'
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
 ln -s /usr/bin/qemu-aarch64 '[qemu-arm64]'
