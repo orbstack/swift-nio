@@ -148,6 +148,7 @@ func runContainerManager() {
 	// rand seed no longer needed in go 1.20+
 
 	// killswitch
+	logrus.Info("starting")
 	err := killswitch.Check()
 	check(err)
 
