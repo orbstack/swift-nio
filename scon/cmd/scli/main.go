@@ -13,14 +13,21 @@ import (
 )
 
 func main() {
-	// scli uses vmgr's killswitch because it's built on mac
-	err := killswitch.MonitorAndExit()
-	if err != nil {
-		panic(err)
-	}
-
 	cmd := path.Base(os.Args[0])
 	exitCode := 0
+
+	// scli uses vmgr's killswitch because it's built on mac
+	// but skip killswitch in case of updating via internal homebrew command
+	// postflight is ok because it runs afterwards, on new install
+	isBrewInternalCmd := cmd == appid.ShortCtl && len(os.Args) >= 3 && os.Args[1] == "_internal" && os.Args[2] == "brew-uninstall"
+	if !isBrewInternalCmd {
+		err := killswitch.MonitorAndExit()
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	var err error
 	switch cmd {
 	// control-only command mode
 	case appid.ShortCtl, "scli":
@@ -32,7 +39,6 @@ func main() {
 	default:
 		exitCode, err = runCommandStub(cmd)
 	}
-
 	if err != nil {
 		panic(err)
 	}
