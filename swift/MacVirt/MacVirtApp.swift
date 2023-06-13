@@ -189,6 +189,7 @@ struct MacVirtApp: App {
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/", "docker/project-logs/"))
         .windowDefaultSize(width: 750, height: 500)
+        .windowToolbarStyle(.unifiedCompact)
 
         Settings {
             AppSettings(updaterController: updaterController)

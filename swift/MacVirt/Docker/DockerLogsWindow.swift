@@ -4,18 +4,20 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 // equal to swiftterm scrollback
 private let maxLines = 5000
 
-private class SizeHolderModel: ObservableObject {
+class TerminalViewModel: ObservableObject {
     @Published var windowSize = CGSize.zero
+    let clearCommand = PassthroughSubject<(), Never>()
 }
 
 struct DockerLogsWindow: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @StateObject private var windowHolder = WindowHolder()
-    @StateObject private var sizeHolderModel = SizeHolderModel()
+    @StateObject private var terminalModel = TerminalViewModel()
 
     @State private var containerId: String?
     @State private var composeProject: String?
@@ -23,6 +25,8 @@ struct DockerLogsWindow: View {
 
     // persist if somehow window gets restored
     @SceneStorage("DockerLogs_url") private var savedUrl: URL?
+
+    private var terminal: SwiftUILocalProcessTerminal!
 
     var body: some View {
         GeometryReader { geometry in
@@ -33,18 +37,20 @@ struct DockerLogsWindow: View {
                     SwiftUILocalProcessTerminal(executable: AppConfig.dockerExe,
                             args: ["logs", "-f", "-n", String(maxLines), containerId],
                             // env is more robust, user can mess with context
-                            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
-                            .padding(8)
-                            .navigationTitle("Logs: \(container.userName)")
-                            .frame(width: terminalFrame.width, height: terminalFrame.height)
+                            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"],
+                            model: terminalModel)
+                    .padding(8)
+                    .navigationTitle("Logs: \(container.userName)")
+                    .frame(width: terminalFrame.width, height: terminalFrame.height)
                 } else if let composeProject {
                     SwiftUILocalProcessTerminal(executable: AppConfig.dockerComposeExe,
                             args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
                             // env is more robust, user can mess with context
-                            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"])
-                            .padding(8)
-                            .navigationTitle("Project Logs: \(composeProject)")
-                            .frame(width: terminalFrame.width, height: terminalFrame.height)
+                            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"],
+                            model: terminalModel)
+                    .padding(8)
+                    .navigationTitle("Project Logs: \(composeProject)")
+                    .frame(width: terminalFrame.width, height: terminalFrame.height)
                 } else {
                     Spacer()
                     HStack {
@@ -55,12 +61,12 @@ struct DockerLogsWindow: View {
                     Spacer()
                 }
             }
-                    .onAppear {
-                        sizeHolderModel.windowSize = geometry.size
-                    }
-                    .onChange(of: geometry.size) { newSize in
-                        sizeHolderModel.windowSize = newSize
-                    }
+            .onAppear {
+                terminalModel.windowSize = geometry.size
+            }
+            .onChange(of: geometry.size) { newSize in
+                terminalModel.windowSize = newSize
+            }
         }
         // match terminal bg
         .background(Color(NSColor.textBackgroundColor))
@@ -93,12 +99,24 @@ struct DockerLogsWindow: View {
         }
         .frame(minWidth: 400, minHeight: 200)
         // debounce terminal resize for perf
-        .onReceive(sizeHolderModel.$windowSize.debounce(for: 0.1, scheduler: DispatchQueue.main)) { newSize in
+        .onReceive(terminalModel.$windowSize.debounce(for: 0.1, scheduler: DispatchQueue.main)) { newSize in
             terminalFrame = newSize
         }
         // effectively make it a throttled leading edge as well
-        .onReceive(sizeHolderModel.$windowSize.throttle(for: 0.25, scheduler: DispatchQueue.main, latest: true)) { newSize in
+        .onReceive(terminalModel.$windowSize.throttle(for: 0.25, scheduler: DispatchQueue.main, latest: true)) { newSize in
             terminalFrame = newSize
+        }
+        // clear toolbar
+        .toolbar {
+            ToolbarItemGroup(placement: .automatic) {
+                Button(action: {
+                    terminalModel.clearCommand.send(())
+                }) {
+                    Label("Clear", systemImage: "clear")
+                }
+                .disabled(containerId == nil && composeProject == nil)
+                .help("Clear")
+            }
         }
     }
 

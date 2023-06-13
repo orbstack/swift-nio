@@ -38,7 +38,7 @@ private class FuncDebounce {
 @MainActor
 class WindowTracker: ObservableObject {
     private var lastPolicy = NSApplication.ActivationPolicy.regular
-    private var cancelables = Set<AnyCancellable>()
+    private var cancellables = Set<AnyCancellable>()
     private let setPolicyDebounce = FuncDebounce(duration: policyDebounce)
 
     // TODO: fix reference cycle
@@ -54,7 +54,7 @@ class WindowTracker: ObservableObject {
                     guard let self = self else { return }
                     self.onWindowDisappear(closingWindow: notification.object as? NSWindow)
                 }
-                .store(in: &cancelables)
+                .store(in: &cancellables)
     }
 
     func onWindowAppear() {

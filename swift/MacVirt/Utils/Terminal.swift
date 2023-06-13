@@ -5,13 +5,27 @@
 import Foundation
 import SwiftUI
 import SwiftTerm
+import Combine
 
-struct SwiftUILocalProcessTerminal: NSViewRepresentable {
-    let executable: String
-    let args: [String]
-    let env: [String]
+class LocalProcessTerminalController: NSViewController {
+    // we use controller so we can store cancellable state
+    private let model: TerminalViewModel
+    private var cancellables = Set<AnyCancellable>()
 
-    func makeNSView(context: Context) -> LocalProcessTerminalViewCustom {
+    private var terminalView: LocalProcessTerminalViewCustom {
+        view as! LocalProcessTerminalViewCustom
+    }
+
+    init(model: TerminalViewModel) {
+        self.model = model
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError()
+    }
+
+    override func loadView() {
         let view = LocalProcessTerminalViewCustom(frame: NSRect())
         // scrollback increased in SwiftTerm fork
         // 5000 lines, not 25000, due to poor resize performance with large windows
@@ -27,19 +41,50 @@ struct SwiftUILocalProcessTerminal: NSViewRepresentable {
                 subview.removeFromSuperview()
             }
         }
-        view.startProcess(executable: executable, args: args, environment: env)
-        return view
+
+        model.clearCommand.sink { [weak view] _ in
+            print("clearing terminal")
+            view?.getTerminal().resetToInitialState()
+            // invalidate
+            view?.setNeedsDisplay(view!.bounds)
+        }.store(in: &cancellables)
+        self.view = view
     }
 
-    func updateNSView(_ nsView: LocalProcessTerminalViewCustom, context: Context) {
+    func startProcess(executable: String, args: [String], environment: [String]) {
+        terminalView.startProcess(executable: executable, args: args, environment: environment)
     }
 
-    static func dismantleNSView(_ nsView: LocalProcessTerminalViewCustom, coordinator: ()) {
+    func dismantle() {
+        // cancel
+        cancellables.forEach { $0.cancel() }
+        cancellables.removeAll()
+
         // on close, kill process if still running
-        if nsView.process.running {
+        if terminalView.process.running {
             // require SwiftTerm fork/PR to avoid crash
-            nsView.process.terminate()
+            terminalView.process.terminate()
         }
+    }
+}
+
+struct SwiftUILocalProcessTerminal: NSViewControllerRepresentable {
+    let executable: String
+    let args: [String]
+    let env: [String]
+    let model: TerminalViewModel
+
+    func makeNSViewController(context: Context) -> LocalProcessTerminalController {
+        let controller = LocalProcessTerminalController(model: model)
+        controller.startProcess(executable: executable, args: args, environment: env)
+        return controller
+    }
+
+    func updateNSViewController(_ nsViewController: LocalProcessTerminalController, context: Context) {
+    }
+
+    static func dismantleNSViewController(_ nsViewController: LocalProcessTerminalController, coordinator: ()) {
+        nsViewController.dismantle()
     }
 }
 
