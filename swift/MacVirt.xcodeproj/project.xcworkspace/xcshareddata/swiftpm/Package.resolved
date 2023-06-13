@@ -6,7 +6,7 @@
       "location" : "https://github.com/sindresorhus/defaults",
       "state" : {
         "branch" : "main",
-        "revision" : "d71bfd8ffbf944ef08eacbca5fb96d6f69bf7696"
+        "revision" : "bd14dae265091c5fb1ba1123a52861ae9f2ede84"
       }
     },
     {
@@ -23,8 +23,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa.git",
       "state" : {
-        "revision" : "24fa90aa4ef8f81c65eb5803e40875f685de0dcd",
-        "version" : "8.1.0"
+        "revision" : "9cf7d2e514af1600cc2b3c5592e2848c6c5a76d6",
+        "version" : "8.7.3"
       }
     },
     {
@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "9d85a02fe7916caa7531847452c4933d331503a5",
-        "version" : "2.3.1"
+        "revision" : "7907f058bcef1132c9b4af6c049cac598330a5f9",
+        "version" : "2.4.1"
       }
     },
     {

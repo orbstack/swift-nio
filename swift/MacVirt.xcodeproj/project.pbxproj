@@ -76,10 +76,10 @@
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D83E7B532A07C78000B2997B /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = D83E7B522A07C78000B2997B /* SwiftTerm */; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
+		D86614182A38061700EA0995 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D86614172A38061700EA0995 /* Defaults */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
-		D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A4B2994D4FA0046B6B6 /* Defaults */; };
 		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
 		D8715C572A1FEF260047A9BE /* CBridge.h in Headers */ = {isa = PBXBuildFile; fileRef = D8715C562A1FEF260047A9BE /* CBridge.h */; };
 		D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -286,8 +286,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D86614182A38061700EA0995 /* Defaults in Frameworks */,
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
-				D8694A4C2994D4FA0046B6B6 /* Defaults in Frameworks */,
 				D83E7B532A07C78000B2997B /* SwiftTerm in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
@@ -602,9 +602,9 @@
 				D8694A352991D8160046B6B6 /* SwiftJSONRPC */,
 				D8694A392991F3C10046B6B6 /* LaunchAtLogin */,
 				D8694A48299464810046B6B6 /* Sparkle */,
-				D8694A4B2994D4FA0046B6B6 /* Defaults */,
 				D855F1EF2998B6A700B62588 /* Sentry */,
 				D83E7B522A07C78000B2997B /* SwiftTerm */,
+				D86614172A38061700EA0995 /* Defaults */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -647,9 +647,9 @@
 				D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */,
 				D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
 				D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */,
 				D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				D83E7B512A07C78000B2997B /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				D86614162A38061700EA0995 /* XCRemoteSwiftPackageReference "defaults" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -1208,6 +1208,14 @@
 				minimumVersion = 8.0.0;
 			};
 		};
+		D86614162A38061700EA0995 /* XCRemoteSwiftPackageReference "defaults" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/defaults";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kdrag0n/SwiftJSONRPC.git";
@@ -1232,14 +1240,6 @@
 				minimumVersion = 2.0.0;
 			};
 		};
-		D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sindresorhus/defaults";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1252,6 +1252,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
 			productName = Sentry;
+		};
+		D86614172A38061700EA0995 /* Defaults */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D86614162A38061700EA0995 /* XCRemoteSwiftPackageReference "defaults" */;
+			productName = Defaults;
 		};
 		D8694A352991D8160046B6B6 /* SwiftJSONRPC */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1267,11 +1272,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
-		};
-		D8694A4B2994D4FA0046B6B6 /* Defaults */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D8694A4A2994D4FA0046B6B6 /* XCRemoteSwiftPackageReference "defaults" */;
-			productName = Defaults;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
