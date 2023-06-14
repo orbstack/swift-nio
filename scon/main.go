@@ -69,6 +69,12 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 			return err
 		}
 
+		// create docker nfs volumes subdir (because it's referenced in exports below)
+		err = os.MkdirAll(conf.C().NfsRootRW+"/"+nfsDockerSubdir, 0755)
+		if err != nil {
+			return err
+		}
+
 		// we create two exports:
 		// 1. root export, for linux machines (fsid=0): squash uid to host user
 		// this makes sure copied files have correct ownership

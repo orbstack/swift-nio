@@ -32,6 +32,8 @@ const (
 	dockerFreezeDebounce = 2 * time.Second
 
 	dockerNfsDebounce = 250 * time.Millisecond
+
+	nfsDockerSubdir = "docker/volumes"
 )
 
 var (
@@ -333,14 +335,9 @@ func (p *DockerProxy) Close() error {
 }
 
 func (m *ConManager) runDockerNFS() error {
+	// create docker data volumes dir so we can watch it with inotify once docker starts first time
 	dockerVolDir := conf.C().DockerDataDir + "/volumes"
 	err := os.MkdirAll(dockerVolDir, 0755)
-	if err != nil {
-		return err
-	}
-
-	nfsSubdir := "docker/volumes"
-	err = os.MkdirAll(conf.C().NfsRootRW+"/"+nfsSubdir, 0755)
 	if err != nil {
 		return err
 	}
@@ -378,7 +375,7 @@ func (m *ConManager) runDockerNFS() error {
 		// add new volumes
 		for _, vol := range added {
 			dataSrc := dockerVolDir + "/" + vol + "/_data"
-			nfsSubDst := "docker/volumes/" + vol
+			nfsSubDst := nfsDockerSubdir + "/" + vol
 			err := mountOneNfs(dataSrc, nfsSubDst)
 			if err != nil {
 				return err
@@ -387,7 +384,7 @@ func (m *ConManager) runDockerNFS() error {
 
 		// remove old volumes
 		for _, vol := range removed {
-			nfsSubDst := "docker/volumes/" + vol
+			nfsSubDst := nfsDockerSubdir + "/" + vol
 			err := unmountOneNfs(nfsSubDst)
 			if err != nil {
 				return err
