@@ -196,6 +196,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) e
 		"internalPort": internalPort,
 		"internalAddr": internalListenIP,
 		"host":         hostForwardSpec,
+		"owner":        c.Name,
 	}).Debug("forward added")
 	return nil
 }
@@ -233,7 +234,9 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener
 			return errors.New("unknown protocol")
 		}
 	})
-	if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrUnexpectedEOF) {
+	if err != nil && !errors.Is(err, ErrMachineNotRunning) && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		// proceed with removal - worst case, we leak a socket, but still remove forward entry to allow reuse
+		logrus.WithField("container", c.Name).WithError(err).Error("failed to stop agent side of forward")
 		return err
 	}
 
@@ -280,7 +283,7 @@ func (c *Container) updateListenersNow() error {
 
 	initPid := c.lxc.InitPid()
 	if initPid < 0 {
-		return ErrNotRunning
+		return ErrMachineNotRunning
 	}
 
 	listeners, err := sysnet.ReadAllProcNet(strconv.Itoa(initPid))

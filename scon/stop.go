@@ -100,7 +100,13 @@ func (c *Container) onStopLocked() error {
 
 	// stop forwards
 	for _, listener := range c.lastListeners {
-		c.manager.removeForwardCLocked(c, listener)
+		err := c.manager.removeForwardCLocked(c, listener)
+		if err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"container": c.Name,
+				"listener":  listener,
+			}).Error("failed to remove forward after stop")
+		}
 	}
 	c.lastListeners = nil
 

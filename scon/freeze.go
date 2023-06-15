@@ -9,7 +9,7 @@ func (c *Container) IsFrozen() bool {
 // locks removed to prevent issues with freezer's locks
 func (c *Container) Freeze() error {
 	if !c.Running() {
-		return ErrNotRunning
+		return ErrMachineNotRunning
 	}
 
 	return c.lxc.Freeze()

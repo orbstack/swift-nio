@@ -8,19 +8,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/lxc/go-lxc"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
-	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
 var (
-	ErrAgentDead  = errors.New("agent not running")
-	ErrNotRunning = errors.New("machine not running")
+	ErrAgentDead         = errors.New("agent not running")
+	ErrMachineNotRunning = errors.New("machine not running")
 )
 
 type containerConfigMethods struct {
@@ -229,7 +229,7 @@ func (c *Container) acquireAgent(needFreezerRef bool, needLock bool) (*Freezer, 
 	}
 
 	if !c.Running() {
-		return nil, nil, ErrNotRunning
+		return nil, nil, ErrMachineNotRunning
 	}
 
 	// we want it to be unfrozen - or call will hang
