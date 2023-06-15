@@ -83,7 +83,10 @@ func filterListeners(listeners []sysnet.ProcListener) []sysnet.ProcListener {
 }
 
 func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) error {
-	logrus.WithField("spec", spec).Info("add forward")
+	logrus.WithFields(logrus.Fields{
+		"container": c.Name,
+		"spec":      spec,
+	}).Info("add forward")
 
 	m.forwardsMu.Lock()
 	defer m.forwardsMu.Unlock()

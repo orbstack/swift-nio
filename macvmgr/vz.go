@@ -60,6 +60,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		"init=/opt/orb/preinit",
 		// userspace
 		"orb.data_size=" + strconv.FormatUint(conf.DiskSize(), 10),
+		"orb.host_major_version=" + osver.Major(),
 		// Kernel tuning
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",

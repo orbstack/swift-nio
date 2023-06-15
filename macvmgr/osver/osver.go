@@ -1,6 +1,8 @@
 package osver
 
 import (
+	"strings"
+
 	"github.com/orbstack/macvirt/macvmgr/syncx"
 	"golang.org/x/mod/semver"
 	"golang.org/x/sys/unix"
@@ -32,4 +34,8 @@ func Get() string {
 
 func IsAtLeast(v string) bool {
 	return semver.Compare(Get(), v) >= 0
+}
+
+func Major() string {
+	return strings.TrimPrefix(semver.Major(Get()), "v")
 }
