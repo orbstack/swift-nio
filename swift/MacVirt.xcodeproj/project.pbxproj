@@ -74,9 +74,9 @@
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E785C29A39BF300A1D8AC /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E785B29A39BF300A1D8AC /* Utils.swift */; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D83E7B532A07C78000B2997B /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = D83E7B522A07C78000B2997B /* SwiftTerm */; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D86614182A38061700EA0995 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D86614172A38061700EA0995 /* Defaults */; };
+		D866141B2A3AB81900EA0995 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = D866141A2A3AB81900EA0995 /* SwiftTerm */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
@@ -288,7 +288,7 @@
 			files = (
 				D86614182A38061700EA0995 /* Defaults in Frameworks */,
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
-				D83E7B532A07C78000B2997B /* SwiftTerm in Frameworks */,
+				D866141B2A3AB81900EA0995 /* SwiftTerm in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
 				D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */,
@@ -603,8 +603,8 @@
 				D8694A392991F3C10046B6B6 /* LaunchAtLogin */,
 				D8694A48299464810046B6B6 /* Sparkle */,
 				D855F1EF2998B6A700B62588 /* Sentry */,
-				D83E7B522A07C78000B2997B /* SwiftTerm */,
 				D86614172A38061700EA0995 /* Defaults */,
+				D866141A2A3AB81900EA0995 /* SwiftTerm */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -648,8 +648,8 @@
 				D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
 				D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
-				D83E7B512A07C78000B2997B /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				D86614162A38061700EA0995 /* XCRemoteSwiftPackageReference "defaults" */,
+				D86614192A3AB81900EA0995 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -1192,14 +1192,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		D83E7B512A07C78000B2997B /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kdrag0n/SwiftTerm.git";
-			requirement = {
-				kind = revision;
-				revision = b38996dcc58a57af910afdd7b3035bd2f589d527;
-			};
-		};
 		D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
@@ -1214,6 +1206,14 @@
 			requirement = {
 				branch = main;
 				kind = branch;
+			};
+		};
+		D86614192A3AB81900EA0995 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/orbstack/SwiftTerm.git";
+			requirement = {
+				kind = revision;
+				revision = 8b670d4869316238778bad3cdc6b0abb8a9d086e;
 			};
 		};
 		D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */ = {
@@ -1243,11 +1243,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		D83E7B522A07C78000B2997B /* SwiftTerm */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D83E7B512A07C78000B2997B /* XCRemoteSwiftPackageReference "SwiftTerm" */;
-			productName = SwiftTerm;
-		};
 		D855F1EF2998B6A700B62588 /* Sentry */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
@@ -1257,6 +1252,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D86614162A38061700EA0995 /* XCRemoteSwiftPackageReference "defaults" */;
 			productName = Defaults;
+		};
+		D866141A2A3AB81900EA0995 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D86614192A3AB81900EA0995 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 		D8694A352991D8160046B6B6 /* SwiftJSONRPC */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -47,9 +47,9 @@
     {
       "identity" : "swiftterm",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kdrag0n/SwiftTerm.git",
+      "location" : "https://github.com/orbstack/SwiftTerm.git",
       "state" : {
-        "revision" : "b38996dcc58a57af910afdd7b3035bd2f589d527"
+        "revision" : "8b670d4869316238778bad3cdc6b0abb8a9d086e"
       }
     }
   ],
