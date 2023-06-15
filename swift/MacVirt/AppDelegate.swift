@@ -21,6 +21,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
+
+        // don't allow opening duplicate app instance - just activate old one
+        if let existingApp = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
+                .first(where: { $0 != NSRunningApplication.current }) {
+            print("App is already running")
+            existingApp.activate(options: .activateIgnoringOtherApps)
+            // NSApp.terminate doesn't work until applicationDidFinishLaunching,
+            // but we want to avoid creating SwiftUI windows at all in order to avoid triggering .onAppear initLaunch
+            exit(0)
+        }
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
