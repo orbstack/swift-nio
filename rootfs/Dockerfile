@@ -71,12 +71,10 @@ EOT
 # Docker container rootfs
 # ref: https://github.com/docker-library/docker/blob/master/20.10/dind/Dockerfile
 FROM base AS docker
-# change to trigger update
-RUN echo docker=v23.0.6
 
 # removed: xfsprogs e2fsprogs btrfs-progs
 RUN apk add --no-cache \
-        docker-engine \
+        docker-engine=24.0.2-r0 \
 		ip6tables \
 		iptables \
 		openssl \
