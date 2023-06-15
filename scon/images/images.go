@@ -88,7 +88,7 @@ var (
 		ImageGentoo:    "current",
 		ImageKali:      "current",
 		ImageOpeneuler: "23.03",
-		ImageOpensuse:  "15.4",
+		ImageOpensuse:  "15.5",
 		ImageUbuntu:    "lunar",
 		ImageVoid:      "current",
 
