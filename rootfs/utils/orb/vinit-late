@@ -62,8 +62,8 @@ mount -t tracefs -o rw,nosuid,nodev,noexec,relatime tracefs /sys/kernel/tracing
 echo -n -950 > /proc/$(pidof -s chronyd)/oom_score_adj
 echo -n -950 > /proc/$(pidof -s udevd)/oom_score_adj
 
-# scon!
-/opt/orb/scon &
+# scon! (pass cmdline args for console)
+/opt/orb/scon mgr $(cat /proc/cmdline) &
 echo -n -950 > /proc/$!/oom_score_adj
 
 echo "[END] vinit-late"

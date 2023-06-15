@@ -20,13 +20,14 @@ import (
 	"github.com/orbstack/macvirt/scon/killswitch"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 
 const (
 	AppName = "scon"
 
-	cmdContainerManager = "container-manager"
+	cmdContainerManager = "mgr"
 	cmdLxcHook          = "lxc-hook"
 )
 
@@ -149,6 +150,7 @@ func runContainerManager() {
 	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
+		DisableColors:   slices.Contains(os.Args[1:], "orb.console_is_pipe"),
 	}, "📦 scon | "))
 
 	// rand seed no longer needed in go 1.20+

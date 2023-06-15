@@ -13,6 +13,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vzf"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/term"
 )
 
 type ConsoleMode int
@@ -79,6 +80,10 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 	}
 	if c.Console != ConsoleNone {
 		cmdline = append(cmdline, "console=hvc0")
+		// disable colors if logging to file
+		if c.Console == ConsoleLog && !term.IsTerminal(int(os.Stdout.Fd())) {
+			cmdline = append(cmdline, "orb.console_is_pipe")
+		}
 	}
 	logrus.Debug("cmdline", cmdline)
 
