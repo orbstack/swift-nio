@@ -310,6 +310,9 @@ func migrateState() error {
 		ver = vmconfig.CurrentVersion
 		state.Version = ver
 
+		// update current architecture (can migrate w/o changes)
+		state.Arch = runtime.GOARCH
+
 		return nil
 	})
 	if err != nil {

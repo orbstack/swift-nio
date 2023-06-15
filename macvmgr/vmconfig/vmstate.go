@@ -30,11 +30,12 @@ func (c *VmgrState) Validate() error {
 	}
 
 	if c.Version < 0 {
-		return fmt.Errorf("vmgr state version %d is invalid", c.Version)
+		return fmt.Errorf("invalid vmgr state version %d", c.Version)
 	}
 
-	if c.Arch != runtime.GOARCH {
-		return fmt.Errorf("vmgr state architecture %s is different from current architecture %s", c.Arch, runtime.GOARCH)
+	// we allow migrating between architectures thanks to emulation
+	if c.Arch != "arm64" && c.Arch != "amd64" {
+		return fmt.Errorf("invalid vmgr state arch %q", c.Arch)
 	}
 
 	return nil
