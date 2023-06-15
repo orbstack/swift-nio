@@ -14,8 +14,8 @@ const (
 func (s ContainerState) CanTransitionTo(other ContainerState, isInternal bool) bool {
 	switch s {
 	case ContainerStateCreating:
-		// only internal!
-		return (isInternal && other == ContainerStateStarting) || other == ContainerStateDeleting
+		// only internal transitions allowed!
+		return isInternal && (other == ContainerStateStarting || other == ContainerStateDeleting)
 	case ContainerStateStarting:
 		// stopped: if failed to start (users cannot trigger this state)
 		return other == ContainerStateRunning || other == ContainerStateStopped

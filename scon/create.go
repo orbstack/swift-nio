@@ -94,7 +94,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 
 	defer func() {
 		if err != nil {
-			err2 := c.Delete()
+			err2 := c.deleteInternal()
 			if err2 != nil {
 				logrus.WithError(err2).Error("failed to clean up failed container creation")
 			}

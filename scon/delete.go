@@ -68,7 +68,7 @@ func (c *Container) deleteDockerLocked() error {
 	return nil
 }
 
-func (c *Container) deleteLocked() error {
+func (c *Container) deleteLocked(isInternal bool) error {
 	// exception for builtin: docker can be deleted (data only)
 	if c.ID == ContainerIDDocker {
 		return c.deleteDockerLocked()
@@ -87,7 +87,7 @@ func (c *Container) deleteLocked() error {
 		return err
 	}
 
-	oldState, err := c.transitionStateLocked(types.ContainerStateDeleting)
+	oldState, err := c.transitionStateInternalLocked(types.ContainerStateDeleting, isInternal)
 	if err != nil {
 		return err
 	}
@@ -119,5 +119,12 @@ func (c *Container) Delete() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.deleteLocked()
+	return c.deleteLocked(false)
+}
+
+func (c *Container) deleteInternal() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.deleteLocked(false)
 }
