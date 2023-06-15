@@ -41,8 +41,9 @@ A matching Linux user will be created for your macOS user. Pass "--set-password"
 Supported distros: ` + strings.Join(images.Distros(), ", ") + `
 Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
 `,
-	Example: "  " + appid.ShortCtl + " create ubuntu:kinetic -a arm64",
-	Args:    cobra.RangeArgs(1, 2),
+	Example: `  orb create ubuntu:kinetic -a arm64
+  orb create fedora -a amd64`,
+	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// validate arch
 		arch := images.NativeArch()

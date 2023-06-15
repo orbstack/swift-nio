@@ -47,7 +47,10 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 			cmd.PrintErr("Continue [y/N]? ")
 			var resp string
 			_, err := fmt.Scanln(&resp)
-			checkCLI(err)
+			if err != nil {
+				cmd.PrintErrln("Aborted")
+				os.Exit(1)
+			}
 			lower := strings.ToLower(resp)
 			if lower != "y" && lower != "yes" {
 				cmd.PrintErrln("Aborted")
