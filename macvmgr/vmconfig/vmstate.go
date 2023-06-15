@@ -26,7 +26,7 @@ type VmgrState struct {
 
 func (c *VmgrState) Validate() error {
 	if c.Version > CurrentVersion {
-		return fmt.Errorf("vmgr state version %d is newer than current version %d", c.Version, CurrentVersion)
+		return fmt.Errorf("last-used version %d is newer than current version %d. Downgrades are not supported; please update OrbStack", c.Version, CurrentVersion)
 	}
 
 	if c.Version < 0 {
