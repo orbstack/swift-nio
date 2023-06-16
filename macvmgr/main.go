@@ -341,7 +341,7 @@ func runVmManager() {
 
 	if !conf.Debug() {
 		err := sentry.Init(sentry.ClientOptions{
-			Dsn:     "https://dd291d184e7941fbb20071f90b09792b@o120089.ingest.sentry.io/4504665519554560",
+			Dsn:     "https://a53ef16741c54b099bf5e149345a4bd5@o120089.ingest.sentry.io/4504665519554560",
 			Release: appver.Get().Short,
 		})
 		if err != nil {

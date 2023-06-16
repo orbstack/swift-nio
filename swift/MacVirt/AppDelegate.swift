@@ -36,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         if !AppConfig.debug {
             SentrySDK.start { options in
-                options.dsn = "https://dd291d184e7941fbb20071f90b09792b@o120089.ingest.sentry.io/4504665519554560"
+                options.dsn = "https://a53ef16741c54b099bf5e149345a4bd5@o120089.ingest.sentry.io/4504665519554560"
                 options.tracesSampleRate = 0.0
                 options.enableAppHangTracking = false
                 options.appHangTimeoutInterval = 60 // 1 minute
