@@ -75,6 +75,7 @@ func parseShellLine(output string) string {
 }
 
 func getUserDetails() (*UserDetails, error) {
+	logrus.Info("reading user account info")
 	u, err := user.Current()
 	if err != nil {
 		return nil, err
@@ -101,6 +102,7 @@ func getUserDetails() (*UserDetails, error) {
 	// force -i (interactive) in case user put PATH in .zshrc/.bashrc
 	// use single quotes to avoid expansion in zsh
 	// nu shell doesn't like combining short args (-lic) so split them
+	logrus.Info("reading shell PATH")
 	out, err := util.RunLoginShell(shell, "-i", "-c", `sh -c 'echo "$PATH"'`)
 	if err != nil {
 		return nil, err
