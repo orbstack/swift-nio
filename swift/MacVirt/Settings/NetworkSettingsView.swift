@@ -21,7 +21,7 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
                 switch vmModel.state {
                 case .stopped:
                     VStack {
-                        Text("Machine must be running to change settings.")
+                        Text("Service must be running to change settings.")
                         Button(action: {
                             Task {
                                 await vmModel.tryStartAndWait()
