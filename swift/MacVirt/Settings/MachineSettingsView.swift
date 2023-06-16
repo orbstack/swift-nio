@@ -126,21 +126,22 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
             }
             .onChange(of: vmModel.config) { config in
                 if let config {
-                    memoryMib = Double(config.memoryMib)
-                    cpu = Double(config.cpu)
-                    enableRosetta = config.rosetta
-                    mountHideShared = config.mountHideShared
+                    updateFrom(config)
                 }
             }
             .onAppear {
                 if let config = vmModel.config {
-                    memoryMib = Double(config.memoryMib)
-                    cpu = Double(config.cpu)
-                    enableRosetta = config.rosetta
-                    mountHideShared = config.mountHideShared
+                    updateFrom(config)
                 }
             }
         }
         .padding()
+    }
+
+    private func updateFrom(_ config: VmConfig) {
+        memoryMib = Double(config.memoryMib)
+        cpu = Double(config.cpu)
+        enableRosetta = config.rosetta
+        mountHideShared = config.mountHideShared
     }
 }

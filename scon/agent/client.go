@@ -4,6 +4,8 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+
+	"github.com/orbstack/macvirt/scon/types"
 )
 
 type Client struct {
@@ -157,7 +159,7 @@ func (c *Client) WaitPid(pid int) (int, error) {
 	return status, nil
 }
 
-func (c *Client) HandleDockerConn(conn net.Conn) error {
+func (c *Client) DockerHandleConn(conn net.Conn) error {
 	file, err := conn.(*net.TCPConn).File()
 	if err != nil {
 		return err
@@ -170,7 +172,7 @@ func (c *Client) HandleDockerConn(conn net.Conn) error {
 	}
 
 	var none None
-	err = c.rpc.Call("a.HandleDockerConn", seq, &none)
+	err = c.rpc.Call("a.DockerHandleConn", seq, &none)
 	if err != nil {
 		return err
 	}
@@ -178,9 +180,9 @@ func (c *Client) HandleDockerConn(conn net.Conn) error {
 	return nil
 }
 
-func (c *Client) CheckDockerIdle() (bool, error) {
+func (c *Client) DockerCheckIdle() (bool, error) {
 	var idle bool
-	err := c.rpc.Call("a.CheckDockerIdle", None{}, &idle)
+	err := c.rpc.Call("a.DockerCheckIdle", None{}, &idle)
 	if err != nil {
 		return false, err
 	}
@@ -188,9 +190,19 @@ func (c *Client) CheckDockerIdle() (bool, error) {
 	return idle, nil
 }
 
-func (c *Client) WaitForDockerStart() error {
+func (c *Client) DockerWaitStart() error {
 	var none None
-	err := c.rpc.Call("a.WaitForDockerStart", None{}, &none)
+	err := c.rpc.Call("a.DockerWaitStart", None{}, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) DockerRefreshNetworks(req types.InternalRefreshDockerNetworksRequest) error {
+	var none None
+	err := c.rpc.Call("a.DockerRefreshNetworks", req, &none)
 	if err != nil {
 		return err
 	}

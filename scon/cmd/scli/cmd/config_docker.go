@@ -10,6 +10,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vmclient"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/spf13/cobra"
 )
 
@@ -57,7 +58,7 @@ If changes are made, the Docker engine will be restarted.
 			scli.EnsureSconVMWithSpinner()
 
 			// restart docker
-			record, err := scli.Client().GetByName("docker")
+			record, err := scli.Client().GetByID(types.ContainerIDDocker)
 			checkCLI(err)
 			spinner := spinutil.Start("green", "Restarting Docker")
 			err = scli.Client().ContainerRestart(record)

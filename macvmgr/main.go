@@ -532,7 +532,13 @@ func runVmManager() {
 
 	// create scon machines host network bridge
 	go runOne("host bridge route monitor", vnetwork.MonitorHostBridgeRoutes)
-	runAsyncInitTask("host bridge", vnetwork.CreateSconMachineHostBridge)
+	go runOne("host bridge setting monitor", func() error {
+		vnetwork.MonitorHostBridgeSetting()
+		return nil
+	})
+	if vmconfig.Get().NetworkBridge {
+		runAsyncInitTask("scon host bridge", vnetwork.CreateSconMachineHostBridge)
+	}
 
 	// Start DRM
 	drmClient := drm.Client()

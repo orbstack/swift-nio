@@ -13,6 +13,7 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
     @Environment(\.controlActiveState) private var controlActiveState: ControlActiveState
     @State private var proxyText = ""
     @State private var proxyMode = "auto"
+    @State private var networkBridge = true
 
     var body: some View {
         Form {
@@ -31,6 +32,28 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
                     }
 
                 case .running:
+                    Toggle("Connect to Docker and machine networks", isOn: $networkBridge)
+                        .onChange(of: networkBridge) { newValue in
+                            setConfigKey(\.networkBridge, newValue)
+
+                            // restart Docker if running
+                            if newValue != vmModel.config?.networkBridge {
+                                if vmModel.state == .running,
+                                   let machines = vmModel.containers,
+                                   let dockerRecord = machines.first(where: { $0.builtin && $0.id == ContainerIds.docker }),
+                                   dockerRecord.state == .starting || dockerRecord.state == .running {
+                                    Task { @MainActor in
+                                        await vmModel.tryRestartContainer(dockerRecord)
+                                    }
+                                }
+                            }
+                        }
+                    Text("Use Docker container IPs and machines without port forwarding.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    Spacer().frame(height: 32)
+
                     Picker("Proxy", selection: $proxyMode) {
                         Text("Automatic (system)").tag("auto")
                         Text("Custom").tag("custom")
@@ -81,17 +104,17 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
     }
 
     private func commit() {
-        var configValue: String
+        var proxyValue: String
         switch proxyMode {
         case "auto":
-            configValue = "auto"
+            proxyValue = "auto"
         case "none":
-            configValue = "none"
+            proxyValue = "none"
         default:
-            configValue = proxyText == "" ? "auto" : proxyText
+            proxyValue = proxyText == "" ? "auto" : proxyText
         }
 
-        setConfigKey(\.networkProxy, configValue)
+        setConfigKey(\.networkProxy, proxyValue)
     }
 
     private func updateFrom(_ config: VmConfig) {
@@ -106,5 +129,7 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
             proxyMode = "custom"
             proxyText = config.networkProxy
         }
+
+        networkBridge = config.networkBridge
     }
 }

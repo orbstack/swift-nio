@@ -21,6 +21,7 @@ import (
 	"github.com/orbstack/macvirt/scon/sgclient"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -97,7 +98,7 @@ func NewDockerAgent() *DockerAgent {
  * Public RPC API
  */
 
-func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
+func (a *AgentServer) DockerCheckIdle(_ None, reply *bool) error {
 	// only includes running
 	resp, err := a.docker.client.Get("http://docker/containers/json")
 	if err != nil {
@@ -119,7 +120,7 @@ func (a *AgentServer) CheckDockerIdle(_ None, reply *bool) error {
 	return nil
 }
 
-func (a *AgentServer) HandleDockerConn(fdxSeq uint64, _ *None) error {
+func (a *AgentServer) DockerHandleConn(fdxSeq uint64, _ *None) error {
 	// receive fd
 	file, err := a.fdx.RecvFile(fdxSeq)
 	if err != nil {
@@ -147,9 +148,12 @@ func (a *AgentServer) HandleDockerConn(fdxSeq uint64, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) WaitForDockerStart(_ None, _ *None) error {
+func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 	a.docker.Running.Wait()
 	return nil
+}
+
+func (a *AgentServer) DockerRefreshNetworks(req types.InternalRefreshDockerNetworksRequest, _ *None) error {
 }
 
 /*

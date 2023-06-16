@@ -1,5 +1,9 @@
 package types
 
+const (
+	ContainerIDDocker = "01GQQVF6C60000000000DOCKER"
+)
+
 type LogType string
 
 const (
@@ -57,6 +61,10 @@ type ContainerGetLogsRequest struct {
 
 type InternalReportStoppedRequest struct {
 	ID string `json:"id"`
+}
+
+type InternalRefreshDockerNetworksRequest struct {
+	BridgeEnabled bool `json:"bridge_enabled"`
 }
 
 type SetDefaultUsernameRequest struct {

@@ -9,6 +9,8 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/conf/appid"
 	"github.com/orbstack/macvirt/macvmgr/vmclient"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/spf13/cobra"
 )
 
@@ -63,6 +65,10 @@ Some options will only take effect after restarting the virtual machine.
 			rebootRequired = true
 		case "network_proxy":
 			config.NetworkProxy = value
+		case "network_bridge":
+			val, err := strconv.ParseBool(value)
+			checkCLI(err)
+			config.NetworkBridge = val
 		case "data_dir":
 			config.DataDir = value
 			rebootRequired = true
@@ -76,6 +82,18 @@ Some options will only take effect after restarting the virtual machine.
 
 		if rebootRequired {
 			cmd.Println(`Restart OrbStack with "` + appid.ShortCtl + ` shutdown" to apply changes.`)
+		}
+		if key == "network_bridge" {
+			// restart docker machine if changed and already running
+			scli.EnsureSconVMWithSpinner()
+			record, err := scli.Client().GetByID(types.ContainerIDDocker)
+			checkCLI(err)
+			if record.State == types.ContainerStateStarting || record.State == types.ContainerStateRunning {
+				spinner := spinutil.Start("green", "Restarting Docker")
+				err = scli.Client().ContainerRestart(record)
+				spinner.Stop()
+				checkCLI(err)
+			}
 		}
 
 		return nil

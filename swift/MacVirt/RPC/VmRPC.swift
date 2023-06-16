@@ -13,7 +13,9 @@ struct VmConfig: Codable, Equatable {
     var cpu: UInt
     var rosetta: Bool
     var networkProxy: String
+    var networkBridge: Bool
     var mountHideShared: Bool
+    var dataDir: String?
 }
 
 struct SetupInfo: Codable {

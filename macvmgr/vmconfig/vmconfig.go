@@ -32,8 +32,9 @@ type VmConfig struct {
 	CPU             int    `json:"cpu"`
 	Rosetta         bool   `json:"rosetta"`
 	NetworkProxy    string `json:"network_proxy"`
+	NetworkBridge   bool   `json:"network_bridge"`
 	MountHideShared bool   `json:"mount_hide_shared"`
-	DataDir         string `json:"data_dir"`
+	DataDir         string `json:"data_dir,omitempty"`
 }
 
 type VmConfigChange struct {
@@ -204,6 +205,7 @@ func Defaults() *VmConfig {
 		CPU:             runtime.NumCPU(),
 		Rosetta:         true,
 		NetworkProxy:    ProxyAuto,
+		NetworkBridge:   true,
 		MountHideShared: false,
 		DataDir:         "",
 	}

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/orbstack/macvirt/macvmgr/vmconfig"
 	"github.com/orbstack/macvirt/macvmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
@@ -88,6 +89,58 @@ func (n *Network) ClearVlanBridges() error {
 	return nil
 }
 
+func (n *Network) enableHostBridges() error {
+	// create scon machine host bridge
+	err := n.CreateSconMachineHostBridge()
+	if err != nil {
+		return err
+	}
+
+	// caller will restart docker machine
+	return nil
+}
+
+func (n *Network) disableHostBridges() error {
+	// close scon machine host bridge
+	err := n.closeSconMachineHostBridge()
+	if err != nil {
+		return err
+	}
+
+	// clear vlan bridges
+	err = n.ClearVlanBridges()
+	if err != nil {
+		return err
+	}
+
+	// caller will restart docker machine
+	return nil
+}
+
+func (n *Network) MonitorHostBridgeSetting() {
+	diffCh := vmconfig.SubscribeDiff()
+	for diff := range diffCh {
+		if diff.New.NetworkBridge != diff.Old.NetworkBridge {
+			logrus.WithFields(logrus.Fields{
+				"old": diff.Old.NetworkBridge,
+				"new": diff.New.NetworkBridge,
+			}).Debug("network bridge setting changed")
+
+			if diff.New.NetworkBridge {
+				err := n.enableHostBridges()
+				if err != nil {
+					logrus.WithError(err).Error("failed to enable host bridges")
+				}
+			} else {
+				err := n.disableHostBridges()
+				if err != nil {
+					logrus.WithError(err).Error("failed to disable host bridges")
+				}
+			}
+		}
+	}
+}
+
 func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
@@ -96,7 +149,11 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 	config.GuestInterfaceName = ""
 
 	if _, ok := n.vlanIndices[config]; ok {
-		return 0, fmt.Errorf("vlan bridge already exists for config %+v", config)
+		return 0, fmt.Errorf("bridge already exists for config %+v", config)
+	}
+
+	if !vmconfig.Get().NetworkBridge {
+		return 0, fmt.Errorf("bridges disabled")
 	}
 
 	vmnetConfig := vzf.BridgeNetworkConfig{
@@ -168,7 +225,7 @@ func (n *Network) RemoveVlanBridge(config sgtypes.DockerBridgeConfig) (int, erro
 
 	index, ok := n.vlanIndices[config]
 	if !ok {
-		return 0, fmt.Errorf("vlan bridge does not exist for config %+v", config)
+		return 0, fmt.Errorf("bridge does not exist for config %+v", config)
 	}
 
 	n.bridgeRouteMon.ClearSubnet(index)
@@ -259,6 +316,28 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		return err
 	}
 
+	return nil
+}
+
+func (n *Network) closeSconMachineHostBridge() error {
+	n.hostBridgeMu.Lock()
+	defer n.hostBridgeMu.Unlock()
+
+	brnet := n.hostBridges[brIndexSconMachine]
+	if brnet == nil {
+		return nil
+	}
+
+	// remove from route monitor
+	n.bridgeRouteMon.ClearSubnet(bridge.IndexSconMachine)
+
+	logrus.Debug("closing scon machine host bridge")
+	err := brnet.Close()
+	if err != nil {
+		return err
+	}
+
+	n.hostBridges[brIndexSconMachine] = nil
 	return nil
 }
 

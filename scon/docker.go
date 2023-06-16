@@ -216,7 +216,7 @@ func (h *DockerHooks) PostStart(c *Container) error {
 		// freezer operates under container lock
 		err := c.useAgentInternal(func(a *agent.Client) error {
 			var err error
-			isIdle, err = a.CheckDockerIdle()
+			isIdle, err = a.DockerCheckIdle()
 			return err
 		}, /*needFreezerRef*/ false /*needLock*/, false)
 		if err != nil {
@@ -277,7 +277,7 @@ func (p *DockerProxy) kickStart(freezer *Freezer) {
 	logrus.Debug("waiting for docker start")
 	// this fails if agent socket is closed
 	err := p.container.UseAgent(func(a *agent.Client) error {
-		return a.WaitForDockerStart()
+		return a.DockerWaitStart()
 	})
 	if err != nil {
 		logrus.WithError(err).Error("failed to wait for docker start")
@@ -320,7 +320,7 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 	// UseAgent holds freezer ref
 	// this also waits for docker start on the agent side, so no need to call waitStart
 	err := p.container.UseAgent(func(a *agent.Client) error {
-		return a.HandleDockerConn(conn)
+		return a.DockerHandleConn(conn)
 	})
 	if err != nil {
 		return err
