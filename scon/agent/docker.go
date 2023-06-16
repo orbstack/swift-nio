@@ -153,9 +153,6 @@ func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) DockerRefreshNetworks(req types.InternalRefreshDockerNetworksRequest, _ *None) error {
-}
-
 /*
  * Private - Docker agent
  */

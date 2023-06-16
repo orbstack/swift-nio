@@ -200,16 +200,6 @@ func (c *Client) DockerWaitStart() error {
 	return nil
 }
 
-func (c *Client) DockerRefreshNetworks(req types.InternalRefreshDockerNetworksRequest) error {
-	var none None
-	err := c.rpc.Call("a.DockerRefreshNetworks", req, &none)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
 	seq, err := c.fdx.SendFile(socket)
 	if err != nil {

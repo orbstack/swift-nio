@@ -63,10 +63,6 @@ type InternalReportStoppedRequest struct {
 	ID string `json:"id"`
 }
 
-type InternalRefreshDockerNetworksRequest struct {
-	BridgeEnabled bool `json:"bridge_enabled"`
-}
-
 type SetDefaultUsernameRequest struct {
 	Username string `json:"username"`
 }

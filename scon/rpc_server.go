@@ -167,22 +167,6 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 	return nil
 }
 
-func (s *SconServer) InternalRefreshDockerNetworks(ctx context.Context, req types.InternalRefreshDockerNetworksRequest) error {
-	c, err := s.m.GetByID(ContainerIDDocker)
-	if err != nil {
-		return err
-	}
-
-	// no need to refresh if docker isn't running
-	if !c.Running() {
-		return nil
-	}
-
-	return c.UseAgent(func(a *agent.Client) error {
-		return a.DockerHandleConn()
-	})
-}
-
 func (s *SconServer) ShutdownVM(ctx context.Context) error {
 	s.m.pendingVMShutdown = true
 	return s.m.Close()
@@ -205,7 +189,6 @@ func (s *SconServer) Serve() error {
 		"ContainerDelete":               handler.New(s.ContainerDelete),
 		"ContainerGetLogs":              handler.New(s.ContainerGetLogs),
 		"InternalReportStopped":         handler.New(s.InternalReportStopped),
-		"InternalRefreshDockerNetworks": handler.New(s.InternalRefreshDockerNetworks),
 		"ShutdownVM":                    handler.New(s.ShutdownVM),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
