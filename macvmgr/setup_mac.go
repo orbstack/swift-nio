@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -80,21 +79,13 @@ func getUserDetails() (*UserDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	gids, err := u.GroupIds()
+	// get current process supplementary groups to avoid querying server for network accounts
+	gids, err := unix.Getgroups()
 	if err != nil {
 		return nil, err
 	}
 	// check if admin
-	isAdmin := false
-	gidAdminStr := strconv.Itoa(gidAdmin)
-	for _, gid := range gids {
-		// querying group info can take a long time with active directory
-		// so just check for gid 80
-		if gid == gidAdminStr {
-			isAdmin = true
-			break
-		}
-	}
+	isAdmin := slices.Contains(gids, gidAdmin)
 
 	// look up the user's shell
 	// until Go os/user supports shell, use cgo getpwuid_r instead of dscl
