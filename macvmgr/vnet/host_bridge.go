@@ -115,6 +115,10 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		ip := net.IP(config.IP4Subnet.Addr().AsSlice())
 		// last IP - to avoid conflict with containers or gateway
 		ip = lastIPInSubnet(ip, mask)
+		// if it conflicts with the Linux-side host/gateway IP (bip), subtract 1 more from last octet
+		if ip.Equal(config.IP4Gateway.AsSlice()) {
+			ip[len(ip)-1]--
+		}
 		vmnetConfig.Ip4Address = ip.String()
 		vmnetConfig.Ip4Mask = net.IP(mask).String()
 	}
@@ -123,6 +127,8 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		mask := prefixToMask(config.IP6Subnet)
 		ip := net.IP(config.IP6Subnet.Addr().AsSlice())
 		// last IP - to avoid conflict with containers or gateway
+		// this has basically no chance of conflicting with a user-selected or SLAAC IP,
+		// and Docker doesn't provide gateway IP for, so we don't check for v6 bip conflict
 		ip = lastIPInSubnet(ip, mask)
 		vmnetConfig.Ip6Address = ip.String()
 	}

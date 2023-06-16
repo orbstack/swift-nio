@@ -525,6 +525,7 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 	//   - max 1 of each network type
 	//   - min 1 type
 	var ip4Subnet netip.Prefix
+	var ip4Gateway netip.Addr
 	var ip6Subnet netip.Prefix
 	for _, ipam := range n.IPAM.Config {
 		subnet, err := netip.ParsePrefix(ipam.Subnet)
@@ -540,6 +541,11 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 			}
 
 			ip4Subnet = subnet
+			ip4Gateway, err = netip.ParseAddr(ipam.Gateway)
+			if err != nil {
+				logrus.WithField("gateway", ipam.Gateway).Warn("failed to parse Docker network gateway")
+				return sgtypes.DockerBridgeConfig{}, false
+			}
 		} else if n.EnableIPv6 {
 			// ignore v6 if not enabled
 			if ip6Subnet.IsValid() {
@@ -572,6 +578,7 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 
 	return sgtypes.DockerBridgeConfig{
 		IP4Subnet:          ip4Subnet,
+		IP4Gateway:         ip4Gateway,
 		IP6Subnet:          ip6Subnet,
 		GuestInterfaceName: ifName,
 	}, true
