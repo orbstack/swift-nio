@@ -4,8 +4,6 @@ import (
 	"net"
 	"net/rpc"
 	"os"
-
-	"github.com/orbstack/macvirt/scon/types"
 )
 
 type Client struct {
