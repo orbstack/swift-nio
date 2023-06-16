@@ -58,6 +58,11 @@ kprobe:virtio_fs_request_complete
     printf("%s\n", @opcodes[$req->in.h.opcode]);
 }
 
+kprobe:fuse_queue_forget
+{
+    printf("forget\n");
+}
+
 END
 {
     clear(@opcodes);
