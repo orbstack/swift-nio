@@ -56,7 +56,7 @@ func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 				// shut down on kernel panic
 				// "Unable to handle kernel" is for null deref/segfault, in which case stack trace is printed before kernel panic
 				// we only search for that prefix because on arm64 it's "Unable to handle kernel %s"
-				if strings.Contains(line, "] Kernel panic - not syncing:") || strings.Contains(line, "] Unable to handle kernel ") {
+				if strings.Contains(line, "] Kernel panic - not syncing:") || strings.Contains(line, "] Unable to handle kernel ") || strings.Contains(line, "] ------------[ cut here ]------------") {
 					// start recording panic lines
 					panicBuffer = new(bytes.Buffer)
 
