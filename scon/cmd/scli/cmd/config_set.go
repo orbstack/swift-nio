@@ -34,6 +34,7 @@ Some options will only take effect after restarting the virtual machine.
 
 		config, err := vmclient.Client().GetConfig()
 		checkCLI(err)
+		oldConfig := *config
 
 		key := args[0]
 		value := args[1]
@@ -83,7 +84,7 @@ Some options will only take effect after restarting the virtual machine.
 		if rebootRequired {
 			cmd.Println(`Restart OrbStack with "` + appid.ShortCtl + ` shutdown" to apply changes.`)
 		}
-		if key == "network_bridge" {
+		if key == "network_bridge" && config.NetworkBridge != oldConfig.NetworkBridge {
 			// restart docker machine if changed and already running
 			scli.EnsureSconVMWithSpinner()
 			record, err := scli.Client().GetByID(types.ContainerIDDocker)

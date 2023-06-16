@@ -11,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/buildid"
 	"github.com/orbstack/macvirt/macvmgr/conf"
 	"github.com/orbstack/macvirt/macvmgr/drm/killswitch"
+	"github.com/orbstack/macvirt/macvmgr/syncx"
 	"github.com/orbstack/macvirt/macvmgr/vmclient"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"golang.org/x/term"
@@ -29,6 +30,8 @@ const (
     ╰───────────────────────────────────────────────────────╯
 `
 )
+
+var ensureOnce syncx.Once[bool]
 
 func checkCLI(err error) {
 	if err != nil {
@@ -109,10 +112,18 @@ func updateVmgr() bool {
 }
 
 func EnsureVMWithSpinner() {
-	if vmclient.IsRunning() {
-		if !updateVmgr() {
-			return
+	// true = early return
+	shouldReturn := ensureOnce.Do(func() bool {
+		if vmclient.IsRunning() {
+			if !updateVmgr() {
+				return true
+			}
 		}
+
+		return false
+	})
+	if shouldReturn {
+		return
 	}
 
 	spinner := spinutil.Start("green", "Starting machine")
@@ -123,10 +134,17 @@ func EnsureVMWithSpinner() {
 
 func EnsureSconVMWithSpinner() {
 	// good enough. delay is short and this is much faster
-	if vmclient.IsRunning() {
-		if !updateVmgr() {
-			return
+	shouldReturn := ensureOnce.Do(func() bool {
+		if vmclient.IsRunning() {
+			if !updateVmgr() {
+				return true
+			}
 		}
+
+		return false
+	})
+	if shouldReturn {
+		return
 	}
 
 	spinner := spinutil.Start("green", "Starting machine")
