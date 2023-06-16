@@ -180,7 +180,10 @@ func ListenSconGuest(m *ConManager) error {
 		vlanMacTemplate: vlanMacTemplate,
 	}
 	rpcServer := rpc.NewServer()
-	rpcServer.RegisterName("scg", server)
+	err = rpcServer.RegisterName("scg", server)
+	if err != nil {
+		return err
+	}
 
 	// perms: root only (it's only for docker agent)
 	listener, err := listenUnixWithPerms(mounts.SconGuestSocket, 0600, 0, 0)

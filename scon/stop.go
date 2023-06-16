@@ -118,7 +118,10 @@ func (c *Container) onStopLocked() error {
 
 	// stop bpf
 	if c.bpfCleanupFunc != nil {
-		c.bpfCleanupFunc()
+		err := c.bpfCleanupFunc()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to clean up bpf")
+		}
 		c.bpfCleanupFunc = nil
 	}
 

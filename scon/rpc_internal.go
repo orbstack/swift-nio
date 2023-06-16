@@ -31,7 +31,10 @@ func ListenSconInternal(m *ConManager, drmMonitor *DrmMonitor) (*SconInternalSer
 		drmMonitor: drmMonitor,
 	}
 	rpcServer := rpc.NewServer()
-	rpcServer.RegisterName("sci", server)
+	err := rpcServer.RegisterName("sci", server)
+	if err != nil {
+		return nil, err
+	}
 
 	listener, err := net.Listen("tcp", net.JoinHostPort(util.DefaultAddress4().String(), strconv.Itoa(ports.GuestSconRPCInternal)))
 	if err != nil {

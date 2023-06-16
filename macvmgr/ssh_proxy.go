@@ -28,11 +28,12 @@ func runSshProxyFdpass() {
 	// nonblock is ok, ssh sets it anyway
 	rawConn, err := conn.(*net.TCPConn).SyscallConn()
 	check(err)
-	rawConn.Control(func(fd uintptr) {
+	err = rawConn.Control(func(fd uintptr) {
 		oob := unix.UnixRights(int(fd))
 		_, _, err := sshSock.(*net.UnixConn).WriteMsgUnix(nil, oob, nil)
 		check(err)
 	})
+	check(err)
 
 	os.Exit(0)
 }

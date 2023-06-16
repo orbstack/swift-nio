@@ -372,13 +372,13 @@ func (s *VmControlServer) Serve() (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen vmcontrol: %w", err)
 	}
-	go server.Serve(listenerTcp)
+	go func() { _ = server.Serve(listenerTcp) }()
 
 	listenerUnix, err := net.Listen("unix", conf.VmControlSocket())
 	if err != nil {
 		return nil, fmt.Errorf("listen vmcontrol: %w", err)
 	}
-	go server.Serve(listenerUnix)
+	go func() { _ = server.Serve(listenerUnix) }()
 
 	return func() error {
 		// closes all connections and listener to allow immediate port reuse

@@ -142,7 +142,7 @@ func runOne(what string, fn func() error) {
 func (m *ConManager) Start() error {
 	// delete leftover image cache
 	// TODO actually cache images
-	os.RemoveAll(m.subdir("images"))
+	_ = os.RemoveAll(m.subdir("images"))
 
 	// network
 	err := m.net.Start()
@@ -284,8 +284,8 @@ func (m *ConManager) Close() error {
 	m.agentExe.Close()
 	m.host.Close()
 	m.net.Close()
-	close(m.stopChan)      // this acts as broadcast
-	os.RemoveAll(m.tmpDir) // seccomp and lxc
+	close(m.stopChan)          // this acts as broadcast
+	_ = os.RemoveAll(m.tmpDir) // seccomp and lxc
 	return nil
 }
 
@@ -379,7 +379,7 @@ func (m *ConManager) removeContainer(c *Container) error {
 
 	delete(c.manager.seccompCookies, c.seccompCookie)
 	runtime.SetFinalizer(c, nil)
-	c.lxc.Release()
+	_ = c.lxc.Release()
 
 	err := c.manager.db.DeleteContainer(c.ID)
 	if err != nil {

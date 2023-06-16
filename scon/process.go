@@ -59,7 +59,7 @@ func (c *LxcCommand) Start(container *Container) error {
 
 		// copy stdin to pipe
 		go func() {
-			io.Copy(w, c.Stdin)
+			_, _ = io.Copy(w, c.Stdin)
 			w.Close()
 		}()
 	}
@@ -78,7 +78,7 @@ func (c *LxcCommand) Start(container *Container) error {
 
 		// copy pipe to stdout
 		go func() {
-			io.Copy(c.Stdout, r)
+			_, _ = io.Copy(c.Stdout, r)
 			r.Close()
 		}()
 	}
@@ -97,7 +97,7 @@ func (c *LxcCommand) Start(container *Container) error {
 
 		// copy pipe to stderr
 		go func() {
-			io.Copy(c.Stderr, r)
+			_, _ = io.Copy(c.Stderr, r)
 			r.Close()
 		}()
 	}

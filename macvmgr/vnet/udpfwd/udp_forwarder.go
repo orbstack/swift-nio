@@ -171,7 +171,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 					if err != nil {
 						logrus.Error("UDP set TTL failed ", err)
 					} else {
-						rawConn.Control(func(fd uintptr) {
+						err = rawConn.Control(func(fd uintptr) {
 							var err error
 							if extConn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
 								err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, int(newTtl))
@@ -182,6 +182,9 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 								logrus.Error("UDP set TTL failed ", err)
 							}
 						})
+						if err != nil {
+							logrus.Error("UDP set TTL failed ", err)
+						}
 					}
 					// if setting it this time failed, it probably won't work next time
 					lastTtl = newTtl

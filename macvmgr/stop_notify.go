@@ -26,7 +26,7 @@ func WatchCriticalFiles(stopCh chan<- StopType) error {
 	if err != nil {
 		return err
 	}
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 
 	err = watcher.AddWithEvents(conf.DataImage(), unix.NOTE_DELETE)
 	if err != nil {

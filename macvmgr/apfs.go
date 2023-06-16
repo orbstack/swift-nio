@@ -16,14 +16,14 @@ func verifyAPFS() error {
 	if err != nil {
 		return err
 	}
-	f.Close()
-	defer os.Remove(testPath)
+	_ = f.Close()
+	defer func() { _ = os.Remove(testPath) }()
 
 	err = unix.Clonefile(testPath, testPath2, 0)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(testPath2)
+	defer func() { _ = os.Remove(testPath2) }()
 
 	return nil
 }

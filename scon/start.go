@@ -154,18 +154,27 @@ func (c *Container) configureLxc() error {
 	// logging
 	logPath := m.subdir("logs") + "/" + c.ID + ".log"
 	lc.ClearConfig()
-	lc.SetLogFile(logPath)
+	err := lc.SetLogFile(logPath)
+	if err != nil {
+		return err
+	}
 	if conf.Debug() {
 		lc.SetVerbosity(lxc.Verbose)
-		lc.SetLogLevel(lxc.TRACE)
+		err = lc.SetLogLevel(lxc.TRACE)
+		if err != nil {
+			return err
+		}
 	} else {
 		lc.SetVerbosity(lxc.Quiet)
-		lc.SetLogLevel(lxc.NOTICE)
+		err = lc.SetLogLevel(lxc.NOTICE)
+		if err != nil {
+			return err
+		}
 	}
 
 	// configs
 	rootfs := path.Join(c.dir, "rootfs")
-	err := os.MkdirAll(rootfs, 0755)
+	err = os.MkdirAll(rootfs, 0755)
 	if err != nil {
 		return err
 	}

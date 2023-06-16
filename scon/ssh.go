@@ -298,10 +298,13 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 		go func() {
 			for win := range winCh {
-				pty.Setsize(ptyF, &pty.Winsize{
+				err := pty.Setsize(ptyF, &pty.Winsize{
 					Rows: uint16(win.Height),
 					Cols: uint16(win.Width),
 				})
+				if err != nil {
+					logrus.WithError(err).Error("set pty size failed")
+				}
 			}
 		}()
 
@@ -424,8 +427,8 @@ func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string
 	}
 
 	// make socketpair nonblocking
-	unix.SetNonblock(socketFds[0], true)
-	unix.SetNonblock(socketFds[1], true)
+	_ = unix.SetNonblock(socketFds[0], true)
+	_ = unix.SetNonblock(socketFds[1], true)
 
 	// wrap them in files
 	socketF0 := os.NewFile(uintptr(socketFds[0]), "sftp-socket0")
@@ -440,11 +443,11 @@ func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string
 	// will cause sftp server to exit
 	go func() {
 		defer conn0.Close()
-		io.Copy(s, conn0)
+		_, _ = io.Copy(s, conn0)
 	}()
 	go func() {
 		defer conn0.Close()
-		io.Copy(conn0, s)
+		_, _ = io.Copy(conn0, s)
 	}()
 
 	exitCode, err := UseAgentRet(container, func(a *agent.Client) (int, error) {
@@ -502,12 +505,12 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 	go func() {
 		defer sshCh.Close()
 		defer dstConn.Close()
-		io.Copy(sshCh, dstConn)
+		_, _ = io.Copy(sshCh, dstConn)
 	}()
 	go func() {
 		defer sshCh.Close()
 		defer dstConn.Close()
-		io.Copy(dstConn, sshCh)
+		_, _ = io.Copy(dstConn, sshCh)
 	}()
 }
 

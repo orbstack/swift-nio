@@ -120,7 +120,10 @@ func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int
 	// critical section
 	if extraFd != 0 {
 		// clear cloexec
-		unix.FcntlInt(uintptr(extraFd), unix.F_SETFD, 0)
+		_, err := unix.FcntlInt(uintptr(extraFd), unix.F_SETFD, 0)
+		if err != nil {
+			return 0, err
+		}
 		defer unix.CloseOnExec(extraFd)
 	}
 	return c.lxc.RunCommandNoWait(cmd, opts)

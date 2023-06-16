@@ -85,23 +85,29 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 	if err != nil {
 		return
 	}
-	rawConn.Control(func(fd uintptr) {
+	err = rawConn.Control(func(fd uintptr) {
 		err := sockets.SetLargeBuffers(int(fd))
 		if err != nil {
 			logrus.Error("failed to set buffers ", err)
 		}
 	})
+	if err != nil {
+		return
+	}
 
 	rawConn, _ = conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return
 	}
-	rawConn.Control(func(fd uintptr) {
+	err = rawConn.Control(func(fd uintptr) {
 		err := sockets.SetLargeBuffers(int(fd))
 		if err != nil {
 			logrus.Error("failed to set buffers ", err)
 		}
 	})
+	if err != nil {
+		return
+	}
 
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
 		otherPort := 0 // vsock port is not considered

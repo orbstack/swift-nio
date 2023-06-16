@@ -415,7 +415,7 @@ func runVmManager() {
 	*/
 
 	// remove everything in run, sockets and pid
-	os.RemoveAll(conf.RunDir())
+	_ = os.RemoveAll(conf.RunDir())
 	// then recreate because RunDir only ensures once
 	err = os.MkdirAll(conf.RunDir(), 0755)
 	check(err)
@@ -717,7 +717,7 @@ func runVmManager() {
 		case stopReq := <-stopCh:
 			logrus.Info("stop requested")
 			// unmount nfs first
-			hcServer.InternalUnmountNfs()
+			_ = hcServer.InternalUnmountNfs()
 
 			go func() {
 				switch stopReq {

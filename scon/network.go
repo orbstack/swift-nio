@@ -148,15 +148,24 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 
 func (n *Network) Close() error {
 	if n.bridge != nil {
-		netlink.LinkDel(n.bridge)
+		err := netlink.LinkDel(n.bridge)
+		if err != nil {
+			logrus.WithError(err).Error("failed to delete bridge")
+		}
 		n.bridge = nil
 	}
 	if n.cleanupNAT != nil {
-		n.cleanupNAT()
+		err := n.cleanupNAT()
+		if err != nil {
+			logrus.WithError(err).Error("failed to cleanup NAT")
+		}
 		n.cleanupNAT = nil
 	}
 	if n.dnsmasqProcess != nil {
-		n.dnsmasqProcess.Kill()
+		err := n.dnsmasqProcess.Kill()
+		if err != nil {
+			logrus.WithError(err).Error("failed to kill dnsmasq")
+		}
 		n.dnsmasqProcess = nil
 	}
 	return nil

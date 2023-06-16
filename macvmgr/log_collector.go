@@ -43,7 +43,7 @@ func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 	var panicBuffer *bytes.Buffer
 
 	go func() {
-		defer w.Close()
+		defer func() { _ = w.Close() }()
 		// copy each line and prefix it
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
@@ -51,7 +51,7 @@ func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 
 			// don't add console prefix if first character is already emoji
 			if len(line) > 0 && isMultibyteByte(line[0]) {
-				io.WriteString(os.Stdout, line)
+				_, _ = io.WriteString(os.Stdout, line)
 			} else if len(line) > 0 && line[0] == '[' {
 				// shut down on kernel panic
 				// "Unable to handle kernel" is for null deref/segfault, in which case stack trace is printed before kernel panic
@@ -70,13 +70,13 @@ func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 					})
 				}
 
-				io.WriteString(os.Stdout, kernelPrefix+magenta(line))
+				_, _ = io.WriteString(os.Stdout, kernelPrefix+magenta(line))
 
 				if panicBuffer != nil {
 					panicBuffer.WriteString(line)
 				}
 			} else {
-				io.WriteString(os.Stdout, consolePrefix+yellow(line))
+				_, _ = io.WriteString(os.Stdout, consolePrefix+yellow(line))
 			}
 		}
 	}()

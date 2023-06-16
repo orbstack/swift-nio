@@ -132,7 +132,10 @@ func setupEnv() error {
 		return err
 	}
 
-	os.Setenv("PATH", details.Path)
+	err = os.Setenv("PATH", details.Path)
+	if err != nil {
+		return err
+	}
 
 	// also set DOCKER_CONFIG
 	err = readDockerConfigEnv(details.Shell)
@@ -251,8 +254,8 @@ func findExecutable(file string) error {
 		return unix.EISDIR
 	}
 	// MOD: change return value
-	err = unix.ENOSYS
 	/* // never true with mod
+	err = unix.ENOSYS
 	// ENOSYS means Eaccess is not available or not implemented.
 	// EPERM can be returned by Linux containers employing seccomp.
 	// In both cases, fall back to checking the permission bits.
@@ -338,7 +341,7 @@ func symlinkIfNotExists(src, dest string) error {
 	}
 
 	// link it
-	os.Remove(dest)
+	_ = os.Remove(dest)
 	err := os.Symlink(src, dest)
 	if err != nil {
 		return err
@@ -400,7 +403,10 @@ func readDockerConfigEnv(shell string) error {
 			value = ""
 		}
 
-		os.Setenv("DOCKER_CONFIG", value)
+		err = os.Setenv("DOCKER_CONFIG", value)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
