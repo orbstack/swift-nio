@@ -447,20 +447,41 @@ fn start_services(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+struct BootTracker {
+    last_stage_start: Instant,
+}
+
+impl BootTracker {
+    fn new() -> BootTracker {
+        BootTracker {
+            last_stage_start: Instant::now(),
+        }
+    }
+
+    fn begin(&mut self, stage: &str) {
+        let now = Instant::now();
+        let diff = now.duration_since(self.last_stage_start);
+        println!(" [*] {}  (+{}ms)", stage, diff.as_millis());
+        self.last_stage_start = now;
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    println!(" [*] OrbStack booting");
+    let mut tracker = BootTracker::new();
+
+    tracker.begin("OrbStack booting");
 
     // set basic environment
-    println!(" [*] Setting basic environment");
+    tracker.begin("Setting basic environment");
     set_basic_env()?;
 
     // pivot to overlayfs
-    println!(" [*] Pivoting to overlayfs");
+    tracker.begin("Pivoting to overlayfs");
     setup_overlayfs()?;
 
     // mount basic filesystems
-    println!(" [*] Mounting pseudo filesystems");
+    tracker.begin("Mounting pseudo filesystems");
     mount_pseudo_fs()?;
 
     // system info
@@ -472,33 +493,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // TODO: start udev/smdev
 
-    println!(" [*] Applying system settings");
+    tracker.begin("Applying system settings");
     apply_system_settings()?;
 
-    println!(" [*] Setting up network");
+    tracker.begin("Setting up network");
     setup_network().await?;
 
-    println!(" [*] Starting control server");
+    tracker.begin("Starting control server");
     tokio::spawn(vcontrol::server_main());
 
     // TODO: resize data partition
 
-    println!(" [*] Mounting data");
+    tracker.begin("Mounting data");
     mount_data_fs()?;
 
-    println!(" [*] Initializing data");
+    tracker.begin("Initializing data");
     init_data()?;
 
-    println!(" [*] Setting up binfmt");
+    tracker.begin("Setting up binfmt");
     setup_binfmt(&sys_info)?;
 
-    println!(" [*] Setting up memory");
+    tracker.begin("Setting up memory");
     setup_memory()?;
 
-    println!(" [*] Starting services");
+    tracker.begin("Starting services");
     start_services(&sys_info)?;
 
-    println!(" [*] Booted!");
+    tracker.begin("Booted!");
 
     // reap children
     loop {
