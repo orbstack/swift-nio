@@ -32,8 +32,7 @@ fn get_system_info() -> Result<SystemInfo, Box<dyn Error>> {
 }
 
 fn set_basic_env() -> Result<(), Box<dyn Error>> {
-    // umask
-    // TODO: 077?
+    // umask: self write, others read
     umask(Mode::from_bits_truncate(0o022));
 
     // environment variables
@@ -48,7 +47,6 @@ fn set_basic_env() -> Result<(), Box<dyn Error>> {
 
     // rlimit
     setrlimit(Resource::RLIMIT_NOFILE, 1048576, 1048576)?;
-    //setrlimit(Resource::RLIMIT_NPROC, 1048576, 1048576)?;
     setrlimit(Resource::RLIMIT_MEMLOCK, RLIM_INFINITY, RLIM_INFINITY)?;
 
     Ok(())
@@ -71,8 +69,11 @@ fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> Result<(), Bo
 }
 
 fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
-    // TODO: security
-    let flags = MsFlags::MS_NOATIME;
+    let mut flags = MsFlags::MS_NOATIME;
+    if !DEBUG {
+        // secure flags in release
+        flags |= MsFlags::MS_NODEV | MsFlags::MS_NOSUID | MsFlags::MS_NOEXEC;
+    }
     mount("tmpfs", "/run", "tmpfs", flags, None)?;
     // create directories
     fs::create_dir_all("/run/overlay/root")?;
@@ -132,12 +133,11 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     mount("tmpfs", "/run", "tmpfs", secure_flags, Some("mode=0755"))?;
     mount("tmpfs", "/tmp", "tmpfs", secure_flags, Some("mode=0755"))?;
 
-    // cgroup
-    // TODO: what's nsdelegate?
+    // cgroup2 (nsdelegate for delegation/confinement)
     mount("cgroup", "/sys/fs/cgroup", "cgroup2", secure_flags, Some("nsdelegate"))?;
 
-    // TODO: nfs
-    //mount("nfsd"), "/proc/fs/nfsd", Some("nfsd"), secure_flags, None)?;
+    // nfsd
+    mount("nfsd", "/proc/fs/nfsd", "nfsd", secure_flags, None)?;
 
     Ok(())
 }
@@ -217,7 +217,6 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
 
     // connect to rtnetlink
     let (conn, handle, _) = rtnetlink::new_connection()?;
-    // TODO why?
     tokio::spawn(conn);
     let mut ip_link = handle.link();
     let ip_addr = handle.address();
