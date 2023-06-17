@@ -144,7 +144,7 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
 }
 
 fn apply_system_settings() -> Result<(), Box<dyn Error>> {
-    // idle cpu
+    // reduce idle cpu usage
     sysctl("vm.compaction_proactiveness", "0")?;
     sysctl("vm.stat_interval", "30")?;
 
@@ -190,9 +190,17 @@ fn apply_system_settings() -> Result<(), Box<dyn Error>> {
     sysctl("fs.protected_symlinks", "1")?;
 
     // block - disk performance tuning
-    fs::write("/sys/block/vda/queue/scheduler", "none")?;
-    fs::write("/sys/block/vdb/queue/scheduler", "none")?;
-    fs::write("/sys/block/vdc/queue/scheduler", "none")?;
+    // this is slow (80 ms per disk), so do it in parallel
+    let mut handles = vec![];
+    for disk in ["vda", "vdb", "vdc"].iter() {
+        let disk = disk.to_string();
+        handles.push(std::thread::spawn(move || {
+            fs::write(format!("/sys/block/{}/queue/scheduler", disk), "none").unwrap();
+        }));
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
 
     Ok(())
 }
@@ -474,7 +482,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut tracker = BootTracker::new();
     let boot_start = Instant::now();
 
-    tracker.begin("OrbStack booting");
+    tracker.begin("Booting OrbStack");
 
     // set basic environment
     tracker.begin("Setting basic environment");
