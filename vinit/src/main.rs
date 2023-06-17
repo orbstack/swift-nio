@@ -11,6 +11,9 @@ mod vcontrol;
 // debug flag
 static DEBUG: bool = true;
 
+// da:9b:d0:64:e1:01
+const VNET_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x01];
+
 struct SystemInfo {
     kernel_version: String,
     cmdline: Vec<String>,
@@ -204,6 +207,13 @@ fn apply_system_settings() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+async fn add_vnet_neighbor(ip_neigh: &rtnetlink::NeighbourHandle, eth0_index: u32, ip_addr: &str) -> Result<(), Box<dyn Error>> {
+    ip_neigh.add(eth0_index, ip_addr.parse()?)
+        .link_local_address(VNET_LLADDR)
+        .execute().await?;
+    Ok(())
+}
+
 async fn setup_network() -> Result<(), Box<dyn Error>> {
     // don't send IPv6 router solicitations
     sysctl("net.ipv6.conf.all.accept_ra", "0")?;
@@ -221,23 +231,34 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     let mut ip_link = handle.link();
     let ip_addr = handle.address();
     let ip_route = handle.route();
-
-    // TODO static neigh
+    let ip_neigh = handle.neighbours();
 
     // loopback: set lo up
     let lo = ip_link.get().match_name("lo".into()).execute().try_next().await?.unwrap();
     ip_link.set(lo.header.index).up().execute().await?;
 
-    // main gvisor NAT network: set eth0 mtu, up
+    // main gvisor NAT network
     let eth0 = ip_link.get().match_name("eth0".into()).execute().try_next().await?.unwrap();
-    ip_link.set(eth0.header.index)
+    let eth0_index = eth0.header.index;
+
+    // static neighbors to reduce ARP CPU usage
+    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.1").await?;
+    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.200").await?;
+    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.201").await?;
+    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.253").await?;
+    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.254").await?;
+    // only one IPv6: others are on ext subnet (to avoid NDP)
+    add_vnet_neighbor(&ip_neigh, eth0_index, "fd07:b51a:cc66:00f0::1").await?;
+
+    // set eth0 mtu, up
+    ip_link.set(eth0_index)
         .mtu(1500)
         .up()
         .execute().await?;
 
     // add IP addresses
-    ip_addr.add(eth0.header.index, "198.19.248.2".parse()?, 24).execute().await?;
-    ip_addr.add(eth0.header.index, "fd07:b51a:cc66:00f0::2".parse()?, 64).execute().await?;
+    ip_addr.add(eth0_index, "198.19.248.2".parse()?, 24).execute().await?;
+    ip_addr.add(eth0_index, "fd07:b51a:cc66:00f0::2".parse()?, 64).execute().await?;
 
     // add default routes
     ip_route.add().v4().gateway("198.19.248.1".parse()?).execute().await?;
