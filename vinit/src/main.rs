@@ -254,7 +254,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn mount_data_fs() -> Result<(), Box<dyn Error>> {
+fn mount_data() -> Result<(), Box<dyn Error>> {
     // virtiofs share
     mount("mac", "/mnt/mac", "virtiofs", MsFlags::MS_RELATIME, None)?;
 
@@ -320,7 +320,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     if let Ok(_) = mount("rosetta", "/mnt/rosetta", "virtiofs", MsFlags::empty(), None) {
         // rosetta
-        println!(" ?  Using Rosetta");
+        println!("  ?  Using Rosetta");
 
         // TODO: add preserve-argv0 flag on Sonoma
         let rosetta_flags = "CF@";
@@ -333,7 +333,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         add_binfmt("bk-stub-amd64", r#"\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\xe0\x11\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x38\x00\x03\x00\x40\x00\x06\x00\x05\x00\x01\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x0c\x01\x00\x00\x00\x00\x00\x00\x0c\x01\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x05\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x70\x00\x00\x00\x00\x00\x00\x00\x70\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x04\x00\x00\x00\xe8\x00\x00\x00\x00\x00\x00\x00\xe8\x00\x40\x00\x00\x00\x00\x00\xe8\x00\x40\x00\x00\x00\x00\x00\x24\x00\x00\x00\x00\x00\x00\x00\x24\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x14\x00\x00\x00\x03\x00\x00\x00\x47\x4e\x55\x00\x65\xa5\xb7\x39\xd6\xa8\xe5\x56"#, None, "[rosetta-bk-stub]", "CF")?;
     } else {
         // qemu
-        println!(" ?  Using QEMU");
+        println!("  ?  Using QEMU");
 
         add_binfmt("qemu-x86_64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", "POCF")?;
     }
@@ -469,6 +469,7 @@ impl BootTracker {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let mut tracker = BootTracker::new();
+    let boot_start = Instant::now();
 
     tracker.begin("OrbStack booting");
 
@@ -491,10 +492,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("  ?  Command line: {}", sys_info.cmdline.join(" "));
     println!();
 
-    // TODO: start udev/smdev
+    tracker.begin("Setting up binfmt");
+    setup_binfmt(&sys_info)?;
 
-    tracker.begin("Applying system settings");
-    apply_system_settings()?;
+    // TODO: start udev/smdev
 
     tracker.begin("Setting up network");
     setup_network().await?;
@@ -504,22 +505,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // TODO: resize data partition
 
-    tracker.begin("Mounting data");
-    mount_data_fs()?;
+    // do the following 3 slow stages in parallel
+    // speedup: 300-400 ms -> 250 ms
+    tracker.begin("Late tasks");
+    let mut tasks = vec![];
+    tasks.push(std::thread::spawn(|| { // 150 ms
+        println!("     [*] Applying system settings");
+        apply_system_settings().unwrap();
+    }));
+    tasks.push(std::thread::spawn(|| { // 50 ms
+        println!("     [*] Mounting data");
+        mount_data().unwrap();
+    }));
+    tasks.push(std::thread::spawn(|| { // 70 ms
+        println!("     [*] Setting up memory");
+        setup_memory().unwrap();
+    }));
+    for task in tasks {
+        task.join().unwrap();
+    }
 
     tracker.begin("Initializing data");
     init_data()?;
-
-    tracker.begin("Setting up binfmt");
-    setup_binfmt(&sys_info)?;
-
-    tracker.begin("Setting up memory");
-    setup_memory()?;
 
     tracker.begin("Starting services");
     start_services(&sys_info)?;
 
     tracker.begin("Booted!");
+
+    println!(" ?  Total boot time: {}ms", boot_start.elapsed().as_millis());
 
     // reap children
     loop {
