@@ -20,7 +20,10 @@ fn get_system_info() -> Result<SystemInfo, Box<dyn Error>> {
     // trim newline
     let kernel_version = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_string();
     let cmdline = fs::read_to_string("/proc/cmdline")?.trim()
-        .split(' ').map(|s| s.to_string()).collect();
+        .split(' ')
+        .map(|s| s.to_string())
+        .filter(|s| s.starts_with("orb."))
+        .collect();
 
     Ok(SystemInfo {
         kernel_version,
