@@ -55,7 +55,7 @@ var configVM = Config{
 }
 
 func VM() bool {
-	return hostname == "orb"
+	return hostname == "orbhost"
 }
 
 func C() *Config {

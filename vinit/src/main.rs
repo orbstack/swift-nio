@@ -44,8 +44,7 @@ fn set_basic_env() -> Result<(), Box<dyn Error>> {
     env::set_var("LC_COLLATE", "C");
 
     // hostname
-    // TODO change to orbhost
-    unistd::sethostname("orb")?;
+    unistd::sethostname("orbhost")?;
 
     // rlimit
     setrlimit(Resource::RLIMIT_NOFILE, 1048576, 1048576)?;
@@ -521,16 +520,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracker.begin("Late tasks");
     let mut tasks = vec![];
     tasks.push(std::thread::spawn(|| { // 150 ms
+        //let stage_start = Instant::now();
         println!("     [*] Applying system settings");
         apply_system_settings().unwrap();
+        //println!("     ... Applying system settings: +{}ms", stage_start.elapsed().as_millis());
     }));
     tasks.push(std::thread::spawn(|| { // 50 ms
+        //let stage_start = Instant::now();
         println!("     [*] Mounting data");
         mount_data().unwrap();
+        //println!("     ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
     }));
     tasks.push(std::thread::spawn(|| { // 70 ms
+        //let stage_start = Instant::now();
         println!("     [*] Setting up memory");
         setup_memory().unwrap();
+        //println!("     ... Setting up memory: +{}ms", stage_start.elapsed().as_millis());
     }));
     for task in tasks {
         task.join().unwrap();
