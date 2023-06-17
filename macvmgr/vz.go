@@ -58,7 +58,7 @@ func findBestMtu() int {
 func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 	cmdline := []string{
 		// boot
-		"init=/opt/orb/preinit",
+		"init=/opt/orb/vinit",
 		// userspace
 		"orb.data_size=" + strconv.FormatUint(conf.DiskSize(), 10),
 		"orb.host_major_version=" + osver.Major(),

@@ -52,6 +52,22 @@ mkdir /out
 cp target/release/vcontrol /out/vcontrol
 EOT
 
+# Build Rust - vinit
+FROM base AS rust-build2
+RUN apk add --no-cache cargo
+COPY vinit /build/vinit
+ARG ARCH=arm64
+# Rust can't deal with arch change in target/
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/build/vinit/target,id=${ARCH} \
+<<EOT sh -eux
+cd /build/vinit
+cargo build #--release
+mkdir /out
+#cp target/release/vinit /out/vinit
+cp target/debug/vinit /out/vinit
+EOT
+
 # Build C - switchroot, vsocknfs
 FROM base AS c-build
 RUN apk add --no-cache alpine-sdk linux-headers
@@ -383,6 +399,8 @@ COPY --from=c-build /out/* /opt/orb/
 COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vcontrol
 COPY --from=rust-build /out/vcontrol /opt/orb/
+# vinit
+COPY --from=rust-build2 /out/vinit /opt/orb/
 # macctl
 COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/
 # scon
