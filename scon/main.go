@@ -5,10 +5,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strconv"
-	"time"
 
 	_ "net/http/pprof"
 
@@ -177,19 +175,12 @@ func runContainerManager() {
 
 	defer func() {
 		if mgr.pendingVMShutdown {
-			cmd := exec.Command("poweroff")
-			err := cmd.Start()
+			// poweroff: send SIGUSR2 to init
+			logrus.Info("requesting poweroff")
+			err := unix.Kill(1, unix.SIGUSR2)
 			if err != nil {
-				logrus.WithError(err).Error("failed to run poweroff")
+				logrus.WithError(err).Error("failed to request poweroff")
 			}
-
-			go func() {
-				time.Sleep(2 * time.Minute)
-				err := util.Run("poweroff", "-f")
-				if err != nil {
-					logrus.WithError(err).Error("failed to force poweroff (fallback)")
-				}
-			}()
 		}
 	}()
 	defer mgr.Close()
