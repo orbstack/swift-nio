@@ -1,21 +1,24 @@
-use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instant, Duration, SystemTime}, os::{unix::{prelude::PermissionsExt, fs::chroot}}, process::{Command, Stdio}, collections::BTreeMap, io::Write, net::UdpSocket};
+use std::{env, error::Error, fs::{self, Permissions, OpenOptions, DirEntry}, time::{Instant, Duration}, os::{unix::{prelude::PermissionsExt, fs::chroot}, fd::AsRawFd}, process::{Command, Stdio, ExitStatus}, collections::BTreeMap, io::{Write, self}, net::UdpSocket, sync::Arc, path::Path};
 
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link};
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}, time::TimeSpec}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self, timespec}, time::{clock_settime, ClockId}};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}, time::TimeSpec, signal::{kill, Signal}, reboot::{reboot, RebootMode}, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags, umount2, MntFlags}, unistd::{sethostname, Pid, self, getpid}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId}, errno::Errno};
 use futures_util::TryStreamExt;
 
 mod helpers;
 use helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK};
-use service::PROCESS_WAIT_LOCK;
-use tokio::signal::unix::{signal, SignalKind};
+use service::{PROCESS_WAIT_LOCK, ServiceTracker, Service};
+use tokio::{signal::unix::{signal, SignalKind}, sync::{Mutex, mpsc::{self, Sender}}};
 
 use crate::ethtool::ETHTOOL_STSO;
 
+mod action;
+use action::SystemAction;
 mod vcontrol;
 mod service;
 mod blockdev;
 mod ethtool;
+mod loopback;
 
 // debug flag
 #[cfg(debug_assertions)]
@@ -34,6 +37,26 @@ const VNET_NEIGHBORS: &[&str] = &[
     // only one IPv6: others are on ext subnet (to avoid NDP)
     "fd07:b51a:cc66:00f0::1",
 ];
+
+// only includes root namespace
+const UNMOUNT_ITERATION_LIMIT: usize = 10;
+const DATA_FILESYSTEM_TYPES: &[&str] = &[
+    "virtiofs",
+    "btrfs",
+    "nfsd",
+];
+
+#[derive(thiserror::Error, Debug)]
+pub enum InitError {
+    #[error("not pid 1")]
+    NotPid1,
+    #[error("failed to mount {} to {}: {}", .source, .dest, .error)]
+    Mount { source: String, dest: String, #[source] error: nix::Error },
+    #[error("failed to resize data filesystem: {}", .0)]
+    ResizeDataFs(ExitStatus),
+    #[error("failed to waitpid: {}", .0)]
+    Waitpid(nix::Error),
+}
 
 #[derive(Clone)]
 struct SystemInfo {
@@ -90,7 +113,11 @@ fn set_basic_env() -> Result<(), Box<dyn Error>> {
 
 fn mount_common(source: &str, dest: &str, fstype: Option<&str>, flags: MsFlags, data: Option<&str>) -> Result<(), Box<dyn Error>> {
     if let Err(e) = nix::mount::mount(Some(source), dest, fstype, flags, data) {
-        return Err(format!("Failed to mount {} to {}: {}", source, dest, e).into());
+        return Err(InitError::Mount {
+            source: source.to_string(),
+            dest: dest.to_string(),
+            error: e,
+        }.into());
     }
 
     Ok(())
@@ -260,7 +287,7 @@ fn maybe_disable_tso(name: &str, link: &LinkMessage) -> Result<(), Box<dyn Error
         }
     }) {
         if mtu == 1500 {
-            println!("  - Disabling TSO on {}", name);
+            //println!("  - Disabling TSO on {}", name);
             ethtool::set(name, ETHTOOL_STSO, 0)?;
         }
     }
@@ -372,7 +399,7 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
             process.stdin.take().unwrap().write_all(script.as_bytes())?;
             let status = process.wait()?;
             if !status.success() {
-                return Err(format!("Failed to resize data partition: {}", status).into());
+                return Err(InitError::ResizeDataFs(status).into());
             }
         } else if new_size_mib < old_size_mib {
             println!("WARNING: Attempted to shrink data partition from {} MiB to {} MiB", old_size_mib, new_size_mib);
@@ -553,53 +580,43 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn start_services(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
-    // chronyd
-    let chrony_process = Command::new("/usr/sbin/chronyd")
+async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+    let mut service_tracker = service_tracker.lock().await;
+
+    // chrony
+    service_tracker.spawn(Service::CHRONY, &mut Command::new("/usr/sbin/chronyd")
         .arg("-n") // foreground (-d for log-to-stderr)
         .arg("-f") // config file
-        .arg("/etc/chrony/chrony.conf")
-        .spawn()?;
-    // set OOM score adj for critical service
-    let chrony_pid = chrony_process.id();
-    fs::write(format!("/proc/{}/oom_score_adj", chrony_pid), "-950")?;
+        .arg("/etc/chrony/chrony.conf"))?;
 
-    // udevd
+    // udev
     // this is only for USB devices, nbd, etc. so no need to wait for it to settle
-    let udev_process = Command::new("/sbin/udevd")
-        .spawn()?;
-    // set OOM score adj for critical service
-    let udev_pid = udev_process.id();
-    fs::write(format!("/proc/{}/oom_score_adj", udev_pid), "-950")?;
+    service_tracker.spawn(Service::UDEV, &mut Command::new("/sbin/udevd"))?;
 
     // scon
-    let scon_process = Command::new("/opt/orb/scon")
+    service_tracker.spawn(Service::SCON, &mut Command::new("/opt/orb/scon")
         .arg("mgr")
-        .args(&sys_info.cmdline) // pass cmdline args for console
-        .spawn()?;
-    // set OOM score adj for critical service
-    let scon_pid = scon_process.id();
-    fs::write(format!("/proc/{}/oom_score_adj", scon_pid), "-950")?;
+        // pass cmdline for console detection
+        .args(&sys_info.cmdline))?;
 
-    // sshd
+    // ssh
     if DEBUG {
         // must use absolute path
-        Command::new("/usr/sbin/sshd")
+        service_tracker.spawn(Service::SSH, &mut Command::new("/usr/sbin/sshd")
             .arg("-D") // foreground
-            .arg("-e") // log to stderr
-            .spawn()?;
+            .arg("-e"))?; // log to stderr
     }
 
     Ok(())
 }
 
-struct BootTracker {
+struct TimeTracker {
     last_stage_start: Instant,
 }
 
-impl BootTracker {
-    fn new() -> BootTracker {
-        BootTracker {
+impl TimeTracker {
+    fn new() -> TimeTracker {
+        TimeTracker {
             last_stage_start: Instant::now(),
         }
     }
@@ -612,15 +629,48 @@ impl BootTracker {
     }
 }
 
-async fn reap_zombies() -> Result<(), Box<dyn Error>> {
+async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: Sender<SystemAction>) -> Result<(), Box<dyn Error>> {
     loop {
-        let _ = PROCESS_WAIT_LOCK.lock().await;
-        let res = waitpid(None, Some(WaitPidFlag::WNOHANG))?;
-        match res {
+        let _guard = PROCESS_WAIT_LOCK.lock().await;
+        let mut service_tracker = service_tracker.lock().await;
+        let wstatus = match waitpid(None, Some(WaitPidFlag::WNOHANG)) {
+            Ok(wstatus) => wstatus,
+            Err(Errno::ECHILD) => {
+                // no children
+                break;
+            },
+            Err(Errno::EINTR) => {
+                // interrupted by signal
+                continue;
+            },
+            Err(e) => {
+                return Err(InitError::Waitpid(e).into());
+            },
+        };
+        match wstatus {
             WaitStatus::Exited(pid, status) => {
-                println!("  -  Untracked process {} exited: status {}", pid, status);
+                match service_tracker.on_pid_exit(pid.as_raw() as u32) {
+                    Some(service) => {
+                        if service.restartable {
+                            // restart the service
+                            println!("  -  Service {} exited: status {}, restarting", service, status);
+                            service_tracker.restart(service).await?;
+                        } else if service.critical {
+                            // service is critical and not restartable!
+                            // shut down immediately
+                            println!("  -  Critical service {} exited: shutting down", service);
+                            action_tx.send(SystemAction::Shutdown).await?;
+                        } else {
+                            println!("  -  Service {} exited: status {}", service, status);
+                        }
+                    },
+                    None => {
+                        println!("  -  Untracked process {} exited: status {}", pid, status);
+                    },
+                }
             },
             WaitStatus::Signaled(pid, signal, _) => {
+                service_tracker.on_pid_exit(pid.as_raw() as u32);
                 println!("  -  Untracked process {} exited: signal {}", pid, signal);
             },
             _ => {
@@ -632,23 +682,219 @@ async fn reap_zombies() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn broadcast_signal(signal: Signal) -> nix::Result<()> {
+    kill(Pid::from_raw(-1), Signal::SIGSTOP)?;
+    kill(Pid::from_raw(-1), signal)?;
+    kill(Pid::from_raw(-1), Signal::SIGCONT)?;
+    Ok(())
+}
+
+fn unmount_one_loopback(entry: Result<DirEntry, io::Error>) -> Result<bool, Box<dyn Error>> {
+    let filename = entry?.file_name();
+    let bdev = filename.to_str().unwrap();
+    if bdev.starts_with("loop") {
+        // check if it has a loop/backing_file
+        if Path::new(&format!("/sys/block/{}/loop/backing_file", bdev)).exists() {
+            // ioctl LOOP_CLR_FD
+            let fd = fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(format!("/dev/{}", bdev))?;
+            loopback::clear_fd(fd.as_raw_fd())?;
+
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+fn unmount_all_loopback() -> Result<bool, Box<dyn Error>> {
+    let mut made_progress = false;
+
+    // loopback
+    let bdevs = fs::read_dir("/sys/block")?;
+    for entry in bdevs {
+        match unmount_one_loopback(entry) {
+            Ok(true) => {
+                made_progress = true;
+            },
+            Err(e) => {
+                println!(" !!! Failed to unmount loopback: {}", e);
+            },
+            _ => {},
+        }
+    }
+
+    Ok(made_progress)
+}
+
+fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
+    let mut made_progress = false;
+
+    // filesystems
+    let mounts = fs::read_to_string("/proc/mounts")?;
+    // unmount in reverse order - more likely to succeed
+    for line in mounts.lines().rev() {
+        let mut parts = line.split_whitespace();
+        let _ = parts.next().unwrap();
+        let target = parts.next().unwrap();
+        let fstype = parts.next().unwrap();
+
+        // only unmount data filesystems
+        if DATA_FILESYSTEM_TYPES.contains(&fstype) {
+            // unmount
+            println!("  -  Unmounting {}", target);
+            // TODO: MNT_DETACH?
+            if let Err(e) = umount2(target, MntFlags::MNT_FORCE) {
+                println!(" !!! Failed to unmount {}: {}", target, e);
+            } else {
+                made_progress = true;
+            }
+        }
+    }
+
+    Ok(made_progress)
+}
+
+fn unmount_all_round() -> Result<bool, Box<dyn Error>> {
+    let mut made_progress = false;
+
+    // loop
+    if unmount_all_loopback()? {
+        made_progress = true;
+    }
+
+    // filesystems (data only, to save time)
+    if unmount_all_filesystems()? {
+        made_progress = true;
+    }
+
+    Ok(made_progress)
+}
+
+async fn stop_nfs() -> Result<(), Box<dyn Error>> {
+    let _guard = PROCESS_WAIT_LOCK.lock().await;
+
+    tokio::process::Command::new("/opt/pkg/exportfs")
+        .arg("-uav")
+        .status()
+        .await?;
+    tokio::process::Command::new("/opt/pkg/rpc.nfsd")
+        .arg("0")
+        .status()
+        .await?;
+
+    Ok(())
+}
+
+async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box<dyn Error>> {
+    let mut tracker = TimeTracker::new();
+    tracker.begin("Shutting down");
+
+    // lock self in memory
+    mlockall(MlockAllFlags::MCL_CURRENT | MlockAllFlags::MCL_FUTURE)?;
+
+    // disable core dump to avoid slow kills
+    fs::write("/proc/sys/kernel/core_pattern", "|/bin/false")?;
+
+    // kill services that need clean shutdown
+    tracker.begin("Stop services");
+    service_tracker.lock().await.shutdown(Signal::SIGTERM)?;
+
+    // stop NFS
+    // rpc.mountd will be killed below
+    tracker.begin("Stop NFS");
+    stop_nfs().await?;
+
+    // wait for the services to exit
+    // TODO! 15 sec
+    tracker.begin("Wait for services to exit");
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    // kill all processes (these don't need clean shutdown)
+    // freeze and unfreeze to prevent thrashing
+    tracker.begin("Kill all processes");
+    broadcast_signal(Signal::SIGKILL)?;
+
+    // remove binfmts
+    // in case user added custom binfmts from data with F (open file) flag
+    tracker.begin("Clear binfmt_misc");
+    fs::write("/proc/sys/fs/binfmt_misc/status", "-1")?;
+
+    // unmount loop and data filesystems, which means virtiofs and btrfs
+    // we don't need to worry about tmpfs, etc.
+    // so to speed up shutdown, we only umount anything that has to do with /dev/vd*
+    // and we don't support device-mapper (dm) or md
+    tracker.begin("Unmount filesystems");
+    let mut i = 0;
+    loop {
+        println!("  [round {}]", i + 1);
+        let made_progress = unmount_all_round()?;
+        if !made_progress {
+            break;
+        }
+
+        i += 1;
+        if i > UNMOUNT_ITERATION_LIMIT {
+            println!("  -  Giving up");
+            break;
+        }
+    }
+
+    if DEBUG {
+        let mounts = fs::read_to_string("/proc/mounts")?;
+        println!("\nEnding with mounts:\n{}\n", mounts);
+
+        println!("\nEnding with processes:");
+        let _guard = PROCESS_WAIT_LOCK.lock().await;
+        tokio::process::Command::new("/bin/ps")
+            .arg("awux")
+            .status()
+            .await?;
+        println!();
+
+        println!("\nEnding with fds:");
+        tokio::process::Command::new("/bin/ls")
+            .arg("-l")
+            .arg("/proc/1/fd")
+            .status()
+            .await?;
+        println!();
+    }
+
+    // sync
+    tracker.begin("Sync data");
+    unistd::sync();
+
+    // power off
+    tracker.begin("Power off");
+    reboot(RebootMode::RB_POWER_OFF)?;
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mut tracker = BootTracker::new();
+    let mut tracker = TimeTracker::new();
     let boot_start = Instant::now();
+
+    if getpid() != Pid::from_raw(1) {
+        return Err(InitError::NotPid1.into());
+    }
 
     tracker.begin("Booting OrbStack");
 
     // set basic environment
-    tracker.begin("Setting basic environment");
+    tracker.begin("Set basic environment");
     set_basic_env()?;
 
     // pivot to overlayfs
-    tracker.begin("Pivoting to overlayfs");
+    tracker.begin("Pivot to overlayfs");
     setup_overlayfs()?;
 
     // mount basic filesystems
-    tracker.begin("Mounting pseudo filesystems");
+    tracker.begin("Mount pseudo filesystems");
     mount_pseudo_fs()?;
 
     // system info
@@ -656,16 +902,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let sys_info = get_system_info()?;
     println!("  -  Kernel version: {}", sys_info.kernel_version);
 
-    tracker.begin("Setting up binfmt");
+    let (action_tx, mut action_rx) = mpsc::channel::<SystemAction>(1);
+    let service_tracker = Arc::new(Mutex::new(ServiceTracker::new()));
+
+    tracker.begin("Set up binfmt");
     setup_binfmt(&sys_info)?;
 
-    tracker.begin("Setting up network");
+    tracker.begin("Set up network");
     setup_network().await?;
 
-    tracker.begin("Starting control server");
-    tokio::spawn(vcontrol::server_main());
+    tracker.begin("Start control server");
+    tokio::spawn(vcontrol::server_main(action_tx.clone()));
 
-    tracker.begin("Setting clock");
+    tracker.begin("Set clock");
     sync_clock()?;
 
     // do the following 3 slow stages in parallel
@@ -674,7 +923,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut tasks = vec![];
     tasks.push(std::thread::spawn(|| { // 150 ms (w/o kernel hack to default to "none" iosched)
         //let stage_start = Instant::now();
-        println!("     [*] Applying system settings");
+        println!("     [*] Apply system settings");
         apply_system_settings().unwrap();
         //println!("     ... Applying system settings: +{}ms", stage_start.elapsed().as_millis());
     }));
@@ -683,14 +932,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         //let stage_start = Instant::now();
         resize_data(&sys_info_clone).unwrap();
 
-        println!("     [*] Mounting data");
+        println!("     [*] Mount data");
         mount_data().unwrap();
         //println!("     ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
     }));
     // async, no need to wait for this
     std::thread::spawn(|| { // 70 ms
         //let stage_start = Instant::now();
-        println!("     [*] Setting up memory");
+        println!("     [*] Set up memory");
         setup_memory().unwrap();
         //println!("     ... Setting up memory: +{}ms", stage_start.elapsed().as_millis());
     });
@@ -698,20 +947,58 @@ async fn main() -> Result<(), Box<dyn Error>> {
         task.join().unwrap();
     }
 
-    tracker.begin("Initializing data");
+    tracker.begin("Initialize data");
     init_data()?;
 
-    tracker.begin("Starting services");
-    start_services(&sys_info)?;
+    tracker.begin("Start services");
+    start_services(service_tracker.clone(), &sys_info).await?;
 
     tracker.begin("Booted!");
 
     println!("  -  Total boot time: {}ms", boot_start.elapsed().as_millis());
 
-    // reap children
+    // reap children, orphans, and zombies
     let mut sigchld_stream = signal(SignalKind::child())?;
+    let action_tx_clone = action_tx.clone();
+    let service_tracker_clone = service_tracker.clone();
+    tokio::spawn(async move {
+        loop {
+            sigchld_stream.recv().await;
+            reap_children(service_tracker_clone.clone(), action_tx_clone.clone()).await.unwrap();
+        }
+    });
+
+    // listen for poweroff requests (SIGUSR2)
+    let mut sigusr2_stream = signal(SignalKind::user_defined2())?;
+    let action_tx_clone = action_tx.clone();
+    tokio::spawn(async move {
+        loop {
+            sigusr2_stream.recv().await;
+            println!("  -  Received poweroff request");
+            action_tx_clone.send(SystemAction::Shutdown).await.unwrap();
+        }
+    });
+
+    // wait for action on mpsc
     loop {
-        sigchld_stream.recv().await;
-        reap_zombies().await?;
+        match action_rx.recv().await {
+            Some(action) => {
+                match action {
+                    SystemAction::Shutdown => {
+                        println!("  -  Shutting down");
+                        break;
+                    },
+                }
+            },
+            None => {
+                println!("  -  Channel closed");
+                break;
+            },
+        }
     }
+
+    // proceed with shutdown
+    do_shutdown(service_tracker.clone()).await?;
+
+    Ok(())
 }

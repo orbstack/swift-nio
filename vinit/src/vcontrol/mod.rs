@@ -5,14 +5,14 @@ use axum::{
 };
 use chrony_candm::{request::{RequestBody, Offline, Online}, common::ChronyAddr};
 use error::AppResult;
-use nix::{sys::{statvfs, stat::Mode, reboot::{self, RebootMode}}, fcntl::OFlag, unistd};
+use nix::{sys::{statvfs, reboot::{self, RebootMode}}, unistd};
 use serde::{Deserialize, Serialize};
-use tokio::{process::Command, sync::Mutex};
+use tokio::{sync::{Mutex, mpsc::Sender}};
 use tower::ServiceBuilder;
 use tracing::{info, debug};
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, fs::File, os::fd::AsRawFd};
 
-use crate::service::PROCESS_WAIT_LOCK;
+use crate::{action::SystemAction};
 
 mod error;
 mod btrfs;
@@ -39,7 +39,7 @@ impl DiskManager {
     }
 
     async fn update_quota(&mut self, new_size: u64) -> AppResult<()> {
-        let dir_fd = nix::fcntl::open("/data", OFlag::O_DIRECTORY, Mode::empty())?;
+        let dir_file = File::open("/data")?;
 
         // sets top-level dir quota
         let mut args = btrfs::btrfs_ioctl_qgroup_limit_args {
@@ -53,14 +53,14 @@ impl DiskManager {
             },
         };
         unsafe {
-            btrfs::ioctl::qgroup_limit(dir_fd, &mut args)?;
-        }
+            btrfs::ioctl::qgroup_limit(dir_file.as_raw_fd(), &mut args)?;
+        };
 
         Ok(())
     }
 }
 
-pub async fn server_main() {
+pub async fn server_main(action_tx: Sender<SystemAction>) {
     tracing_subscriber::fmt::init();
 
     let state = State {};
@@ -76,6 +76,7 @@ pub async fn server_main() {
             ServiceBuilder::new()
                 .layer(Extension(state))
                 .layer(Extension(Arc::new(Mutex::new(disk_manager))))
+                .layer(Extension(action_tx))
         );
 
     // 100.115.92.2:103
@@ -92,18 +93,11 @@ async fn ping() -> impl IntoResponse {
 }
 
 // shutdown system
-async fn sys_shutdown() -> AppResult<impl IntoResponse> {
+async fn sys_shutdown(
+    Extension(action_tx): Extension<Sender<SystemAction>>,
+) -> AppResult<impl IntoResponse> {
     info!("sys_shutdown");
-
-    tokio::spawn(async {
-        // don't cut off connection
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-        let _ = PROCESS_WAIT_LOCK.lock().await;
-        // shutdown
-        Command::new("poweroff").spawn().unwrap();
-    });
-
+    action_tx.send(SystemAction::Shutdown).await?;
     Ok(())
 }
 
@@ -113,7 +107,6 @@ async fn sys_emergency_shutdown() -> AppResult<impl IntoResponse> {
 
     // sync
     unistd::sync();
-
     // shutdown, bypass init (connection may be cut off)
     reboot::reboot(RebootMode::RB_POWER_OFF)?;
 
@@ -158,8 +151,6 @@ async fn disk_report_stats(
 // sync time
 async fn time_sync() -> AppResult<impl IntoResponse> {
     debug!("time_sync");
-
-    let _ = PROCESS_WAIT_LOCK.lock().await;
 
     // chronyc offline
     chrony_candm::blocking_query_uds(RequestBody::Offline(Offline {

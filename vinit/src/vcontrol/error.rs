@@ -10,8 +10,6 @@ pub struct Error(anyhow::Error);
 
 #[derive(thiserror::Error, Debug)]
 pub enum HttpError {
-    #[error("not found")]
-    NotFound,
     #[error("bad request")]
     BadRequest,
 }
@@ -26,7 +24,6 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let msg_str = self.0.to_string();
         let (status, message) = match self.0.downcast_ref() {
-            Some(HttpError::NotFound) => (StatusCode::NOT_FOUND, "not found"),
             Some(HttpError::BadRequest) => (StatusCode::BAD_REQUEST, "bad request"),
             _ => {
                 error!("Request failed: {}", msg_str);
