@@ -1,16 +1,17 @@
-use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::Instant, os::unix::{prelude::PermissionsExt, fs::chroot}};
+use std::{env, error::Error, fs::{self, Permissions, OpenOptions, File}, time::Instant, os::{unix::{prelude::PermissionsExt, fs::chroot}, fd::AsRawFd}, process::{Command, Stdio}, collections::BTreeMap, io::Write};
 
 use mkswap::SwapWriter;
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self}};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self, size_t}};
 use futures_util::TryStreamExt;
 
 mod helpers;
 use helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK};
 use service::PROCESS_WAIT_LOCK;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::{signal::unix::{signal, SignalKind}};
 
 mod vcontrol;
 mod service;
+mod blockdev;
 
 // debug flag
 #[cfg(debug_assertions)]
@@ -30,23 +31,35 @@ const VNET_NEIGHBORS: &[&str] = &[
     "fd07:b51a:cc66:00f0::1",
 ];
 
+#[derive(Clone)]
 struct SystemInfo {
     kernel_version: String,
     cmdline: Vec<String>,
+    seed_configs: BTreeMap<String, String>,
 }
 
 fn get_system_info() -> Result<SystemInfo, Box<dyn Error>> {
     // trim newline
     let kernel_version = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_string();
-    let cmdline = fs::read_to_string("/proc/cmdline")?.trim()
+    let cmdline: Vec<_> = fs::read_to_string("/proc/cmdline")?.trim()
         .split(' ')
         .map(|s| s.to_string())
+        .collect();
+    let seed_configs = cmdline
+        .iter()
         .filter(|s| s.starts_with("orb."))
+        .map(|s| {
+            let mut parts = s.splitn(2, '=');
+            let key = parts.next().unwrap().strip_prefix("orb.").unwrap().to_string();
+            let value = parts.next().unwrap_or("").to_string();
+            (key, value)
+        })
         .collect();
 
     Ok(SystemInfo {
         kernel_version,
         cmdline,
+        seed_configs,
     })
 }
 
@@ -288,6 +301,36 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+    // resize data partition
+    // scon resizes the filesystem
+    if let Some(value) = sys_info.seed_configs.get("data_size") {
+        let new_size_mib = value.parse::<u64>()?;
+        // get existing size
+        let old_size_mib = blockdev::getsize64("/dev/vdb1")? / 1024 / 1024;
+        // for safety, only allow increasing size
+        if new_size_mib > old_size_mib {
+            // resize
+            println!("  - Resizing data to {} MiB", new_size_mib);
+            let script = format!(",{}M\n", new_size_mib);
+            let mut process = Command::new("sfdisk")
+                .arg("--force")
+                .arg("/dev/vdb")
+                .stdin(Stdio::piped())
+                .spawn()?;
+            process.stdin.take().unwrap().write_all(script.as_bytes())?;
+            let status = process.wait()?;
+            if !status.success() {
+                return Err(format!("Failed to resize data partition: {}", status).into());
+            }
+        } else if new_size_mib < old_size_mib {
+            println!("WARNING: Attempted to shrink data partition from {} MiB to {} MiB", old_size_mib, new_size_mib);
+        }
+    }
+
+    Ok(())
+}
+
 fn mount_data() -> Result<(), Box<dyn Error>> {
     // virtiofs share
     mount("mac", "/mnt/mac", "virtiofs", MsFlags::MS_RELATIME, None)?;
@@ -356,9 +399,15 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         // rosetta
         println!("  -  Using Rosetta");
 
-        // TODO: add preserve-argv0 flag on Sonoma
-        let rosetta_flags = "CF@";
-        add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", rosetta_flags)?;
+        let mut rosetta_flags = "CF@".to_string();
+        // add preserve-argv0 flag on Sonoma
+        if let Some(value) = sys_info.seed_configs.get("host_major_version") {
+            let version = value.parse::<u32>()?;
+            if version >= 14 {
+                rosetta_flags += "P";
+            }
+        }
+        add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags)?;
 
         // Buildkit Rosetta amd64 stub workaround
         // register after rosetta to rank before it in binfmt_misc entries list (since rosetta matches this too)
@@ -473,7 +522,7 @@ fn start_services(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     fs::write(format!("/proc/{}/oom_score_adj", udev_pid), "-950")?;
 
     // scon
-    let scon_process = std::process::Command::new("/opt/orb/scon")
+    let scon_process = Command::new("/opt/orb/scon")
         .arg("mgr")
         .args(&sys_info.cmdline) // pass cmdline args for console
         .spawn()?;
@@ -483,7 +532,8 @@ fn start_services(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 
     // sshd
     if DEBUG {
-        std::process::Command::new("/usr/sbin/sshd")
+        // must use absolute path
+        Command::new("/usr/sbin/sshd")
             .arg("-D") // foreground
             .arg("-e") // log to stderr
             .spawn()?;
@@ -517,10 +567,10 @@ async fn reap_zombies() -> Result<(), Box<dyn Error>> {
         let res = waitpid(None, Some(WaitPidFlag::WNOHANG))?;
         match res {
             WaitStatus::Exited(pid, status) => {
-                println!("  -  Reaped child {} with status {}", pid, status);
+                println!("  -  Untracked process {} exited: status {}", pid, status);
             },
             WaitStatus::Signaled(pid, signal, _) => {
-                println!("  -  Reaped child {} with signal {}", pid, signal);
+                println!("  -  Untracked process {} exited: signal {}", pid, signal);
             },
             _ => {
                 break;
@@ -566,8 +616,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracker.begin("Starting control server");
     tokio::spawn(vcontrol::server_main());
 
-    // TODO: resize data partition
-
     // do the following 3 slow stages in parallel
     // speedup: 300-400 ms -> 250 ms
     tracker.begin("Late tasks");
@@ -578,8 +626,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         apply_system_settings().unwrap();
         //println!("     ... Applying system settings: +{}ms", stage_start.elapsed().as_millis());
     }));
-    tasks.push(std::thread::spawn(|| { // 50 ms
+    let sys_info_clone = sys_info.clone();
+    tasks.push(std::thread::spawn(move || { // 50 ms
         //let stage_start = Instant::now();
+        resize_data(&sys_info_clone).unwrap();
+
         println!("     [*] Mounting data");
         mount_data().unwrap();
         //println!("     ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
