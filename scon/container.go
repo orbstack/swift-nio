@@ -21,6 +21,7 @@ import (
 var (
 	ErrAgentDead         = errors.New("agent not running")
 	ErrMachineNotRunning = errors.New("machine not running")
+	ErrNoMachines        = errors.New("no machines found")
 )
 
 type containerConfigMethods struct {

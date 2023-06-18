@@ -448,7 +448,7 @@ func (m *ConManager) GetDefaultContainer() (*Container, bool, error) {
 		c, err = m.GetByID(id)
 	}
 	if err != nil {
-		return nil, false, errors.New("no machines found")
+		return nil, false, ErrNoMachines
 	}
 	// if we had a non-last-used default ID, and it no longer exists, make this the new default
 	if defaultID != "" && defaultID != containerIDLastUsed {

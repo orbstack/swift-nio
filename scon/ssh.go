@@ -43,6 +43,17 @@ TzmdsUzXZjqytDS6OrigAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
 -----END OPENSSH PRIVATE KEY-----`
 )
 
+const (
+	noMachinesMsg = `No Linux machines found.
+
+To create a machine:
+    orb create ubuntu
+See "orb create --help" for supported distros and options.
+
+This is not needed if you only want to use Docker.
+See "orb docker" for more info.`
+)
+
 var (
 	sshSigMap = map[ssh.Signal]os.Signal{
 		ssh.SIGABRT: unix.SIGABRT,
@@ -127,6 +138,9 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 	// default container?
 	defaultContainer, _, err := sv.m.GetDefaultContainer()
 	if err != nil {
+		if errors.Is(err, ErrNoMachines) {
+			err = fmt.Errorf("%s", noMachinesMsg)
+		}
 		return
 	}
 	defaultContainerName := defaultContainer.Name
