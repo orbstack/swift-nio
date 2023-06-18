@@ -884,22 +884,42 @@ async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), 
 
     // kill services that need clean shutdown
     tracker.begin("Stop services");
-    let service_pids = service_tracker.lock().await.shutdown(Signal::SIGTERM)?;
+    let service_pids = service_tracker.lock().await.shutdown(Signal::SIGTERM)
+        .unwrap_or_else(|e| {
+            eprintln!(" !!! Failed to stop service: {}", e);
+            vec![]
+        });
 
     // stop NFS
     // rpc.mountd will be killed below
     tracker.begin("Stop NFS");
-    stop_nfs().await?;
+    stop_nfs().await
+        .unwrap_or_else(|e| {
+            eprintln!(" !!! Failed to stop NFS: {}", e);
+            ()
+        });
 
     // wait for the services to exit
     tracker.begin("Wait for services to exit");
     //TODO: more efficient because these are children
-    wait_for_pids_exit(service_pids, SERVICE_SIGTERM_TIMEOUT).await?;
+    wait_for_pids_exit(service_pids, SERVICE_SIGTERM_TIMEOUT).await
+        .unwrap_or_else(|e| {
+            eprintln!(" !!! Failed to wait for services to stop: {}", e);
+            ()
+        });
 
     // kill all processes (these don't need clean shutdown)
     tracker.begin("Kill all processes");
-    let all_pids = broadcast_signal(Signal::SIGKILL)?;
-    wait_for_pids_exit(all_pids, PROCESS_SIGKILL_TIMEOUT).await?;
+    let all_pids = broadcast_signal(Signal::SIGKILL)
+        .unwrap_or_else(|e| {
+            eprintln!(" !!! Failed to kill all processes: {}", e);
+            vec![]
+        });
+    wait_for_pids_exit(all_pids, PROCESS_SIGKILL_TIMEOUT).await
+        .unwrap_or_else(|e| {
+            eprintln!(" !!! Failed to wait for processes to exit: {}", e);
+            ()
+        });
 
     // remove binfmts
     // in case user added custom binfmts from data with F (open file) flag
@@ -914,7 +934,11 @@ async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), 
     let mut i = 0;
     loop {
         println!("  [round {}]", i + 1);
-        let made_progress = unmount_all_round()?;
+        let made_progress = unmount_all_round()
+            .unwrap_or_else(|e| {
+                eprintln!(" !!! Failed to unmount filesystems: {}", e);
+                false
+            });
         if !made_progress {
             break;
         }
