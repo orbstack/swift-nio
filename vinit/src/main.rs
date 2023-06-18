@@ -9,7 +9,6 @@ mod helpers;
 use helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK};
 use service::PROCESS_WAIT_LOCK;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::{log::{info, warn, error}, debug};
 
 use crate::ethtool::ETHTOOL_STSO;
 
@@ -261,7 +260,7 @@ fn maybe_disable_tso(name: &str, link: &LinkMessage) -> Result<(), Box<dyn Error
         }
     }) {
         if mtu == 1500 {
-            debug!("- Disabling TSO on {}", name);
+            println!("  - Disabling TSO on {}", name);
             ethtool::set(name, ETHTOOL_STSO, 0)?;
         }
     }
@@ -349,7 +348,7 @@ fn sync_clock() -> Result<(), Box<dyn Error>> {
     let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;
     clock_settime(ClockId::CLOCK_REALTIME, TimeSpec::new(sec, nsec))?;
 
-    info!("- System time updated");
+    println!("  - System time updated");
     Ok(())
 }
 
@@ -363,7 +362,7 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         // for safety, only allow increasing size
         if new_size_mib > old_size_mib {
             // resize
-            info!("- Resizing data to {} MiB", new_size_mib);
+            println!("  - Resizing data to {} MiB", new_size_mib);
             let script = format!(",{}M\n", new_size_mib);
             let mut process = Command::new("sfdisk")
                 .arg("--force")
@@ -376,7 +375,7 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
                 return Err(format!("Failed to resize data partition: {}", status).into());
             }
         } else if new_size_mib < old_size_mib {
-            warn!("Attempted to shrink data partition from {} MiB to {} MiB", old_size_mib, new_size_mib);
+            println!("WARNING: Attempted to shrink data partition from {} MiB to {} MiB", old_size_mib, new_size_mib);
         }
     }
 
@@ -392,8 +391,8 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     let data_flags = MsFlags::MS_NOATIME;
     // TODO: fix duplicate flags
     if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some("discard=async,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs")) {
-        error!("Failed to mount data: {}", e);
-        info!("Attempting to recover data");
+        println!(" !!! Failed to mount data: {}", e);
+        println!(" [*] Attempting to recover data");
         mount("/dev/vdb1", "/data", "btrfs", data_flags, Some("discard=async,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs,usebackuproot"))?;
     }
 
@@ -449,7 +448,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     if let Ok(_) = mount("rosetta", "/mnt/rosetta", "virtiofs", MsFlags::empty(), None) {
         // rosetta
-        info!("- Using Rosetta");
+        println!("  -  Using Rosetta");
 
         let mut rosetta_flags = "CF@".to_string();
         // add preserve-argv0 flag on Sonoma
@@ -468,7 +467,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         add_binfmt("bk-stub-amd64", r#"\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\xe0\x11\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x38\x00\x03\x00\x40\x00\x06\x00\x05\x00\x01\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x0c\x01\x00\x00\x00\x00\x00\x00\x0c\x01\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x05\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x70\x00\x00\x00\x00\x00\x00\x00\x70\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x04\x00\x00\x00\xe8\x00\x00\x00\x00\x00\x00\x00\xe8\x00\x40\x00\x00\x00\x00\x00\xe8\x00\x40\x00\x00\x00\x00\x00\x24\x00\x00\x00\x00\x00\x00\x00\x24\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x14\x00\x00\x00\x03\x00\x00\x00\x47\x4e\x55\x00\x65\xa5\xb7\x39\xd6\xa8\xe5\x56"#, None, "[rosetta-bk-stub]", "CF")?;
     } else {
         // qemu
-        info!("- Using QEMU");
+        println!("  -  Using QEMU");
 
         add_binfmt("qemu-x86_64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", "POCF")?;
     }
@@ -608,7 +607,7 @@ impl BootTracker {
     fn begin(&mut self, stage: &str) {
         let now = Instant::now();
         let diff = now.duration_since(self.last_stage_start);
-        info!("[*] {}  (+{}ms)", stage, diff.as_millis());
+        println!(" [*] {}  (+{}ms)", stage, diff.as_millis());
         self.last_stage_start = now;
     }
 }
@@ -619,10 +618,10 @@ async fn reap_zombies() -> Result<(), Box<dyn Error>> {
         let res = waitpid(None, Some(WaitPidFlag::WNOHANG))?;
         match res {
             WaitStatus::Exited(pid, status) => {
-                debug!("  -  Untracked process {} exited: status {}", pid, status);
+                println!("  -  Untracked process {} exited: status {}", pid, status);
             },
             WaitStatus::Signaled(pid, signal, _) => {
-                debug!("  -  Untracked process {} exited: signal {}", pid, signal);
+                println!("  -  Untracked process {} exited: signal {}", pid, signal);
             },
             _ => {
                 break;
@@ -635,8 +634,6 @@ async fn reap_zombies() -> Result<(), Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    tracing_subscriber::fmt::init();
-
     let mut tracker = BootTracker::new();
     let boot_start = Instant::now();
 
@@ -657,7 +654,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // system info
     // only works after pseudo-fs mounted
     let sys_info = get_system_info()?;
-    info!("- Kernel version: {}", sys_info.kernel_version);
+    println!("  -  Kernel version: {}", sys_info.kernel_version);
 
     tracker.begin("Setting up binfmt");
     setup_binfmt(&sys_info)?;
@@ -677,25 +674,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut tasks = vec![];
     tasks.push(std::thread::spawn(|| { // 150 ms (w/o kernel hack to default to "none" iosched)
         //let stage_start = Instant::now();
-        info!("   [*] Applying system settings");
+        println!("     [*] Applying system settings");
         apply_system_settings().unwrap();
-        //info!("   ... Applying system settings: +{}ms", stage_start.elapsed().as_millis());
+        //println!("     ... Applying system settings: +{}ms", stage_start.elapsed().as_millis());
     }));
     let sys_info_clone = sys_info.clone();
     tasks.push(std::thread::spawn(move || { // 50 ms
         //let stage_start = Instant::now();
         resize_data(&sys_info_clone).unwrap();
 
-        info!("   [*] Mounting data");
+        println!("     [*] Mounting data");
         mount_data().unwrap();
-        //info!("   ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
+        //println!("     ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
     }));
     // async, no need to wait for this
     std::thread::spawn(|| { // 70 ms
         //let stage_start = Instant::now();
-        info!("   [*] Setting up memory");
+        println!("     [*] Setting up memory");
         setup_memory().unwrap();
-        //info!("   ... Setting up memory: +{}ms", stage_start.elapsed().as_millis());
+        //println!("     ... Setting up memory: +{}ms", stage_start.elapsed().as_millis());
     });
     for task in tasks {
         task.join().unwrap();
@@ -709,7 +706,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     tracker.begin("Booted!");
 
-    info!("- Total boot time: {}ms", boot_start.elapsed().as_millis());
+    println!("  -  Total boot time: {}ms", boot_start.elapsed().as_millis());
 
     // reap children
     let mut sigchld_stream = signal(SignalKind::child())?;
