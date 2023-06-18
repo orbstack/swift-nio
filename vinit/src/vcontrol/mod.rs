@@ -61,8 +61,6 @@ impl DiskManager {
 }
 
 pub async fn server_main() {
-    tracing_subscriber::fmt::init();
-
     let state = State {};
     let disk_manager = DiskManager::new().unwrap();
 
