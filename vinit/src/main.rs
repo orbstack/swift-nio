@@ -2,7 +2,7 @@ use std::{env, error::Error, fs::{self, Permissions, OpenOptions, DirEntry}, tim
 
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link};
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}, time::TimeSpec, signal::{kill, Signal}, reboot::{reboot, RebootMode}, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags, umount2, MntFlags}, unistd::{sethostname, Pid, self, getpid}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId}, errno::Errno};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}, time::TimeSpec, signal::{kill, Signal}, reboot::{reboot, RebootMode}, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags, umount2, MntFlags}, unistd::{sethostname, Pid, self, getpid}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId}, errno::Errno, fcntl::readlink};
 use futures_util::TryStreamExt;
 
 mod helpers;
@@ -43,8 +43,10 @@ const UNMOUNT_ITERATION_LIMIT: usize = 10;
 const DATA_FILESYSTEM_TYPES: &[&str] = &[
     "virtiofs",
     "btrfs",
-    "nfsd",
 ];
+
+const SERVICE_SIGTERM_TIMEOUT: Duration = Duration::from_secs(15);
+const PROCESS_SIGKILL_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(thiserror::Error, Debug)]
 pub enum InitError {
@@ -56,6 +58,10 @@ pub enum InitError {
     ResizeDataFs(ExitStatus),
     #[error("failed to waitpid: {}", .0)]
     Waitpid(nix::Error),
+    #[error("failed to kill: {}", .0)]
+    Kill(nix::Error),
+    #[error("timeout")]
+    Timeout,
 }
 
 #[derive(Clone)]
@@ -682,11 +688,58 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
     Ok(())
 }
 
-fn broadcast_signal(signal: Signal) -> nix::Result<()> {
+fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<Option<i32>, Box<dyn Error>> {
+    let filename = entry?.file_name();
+    if let Ok(pid) =  filename.to_str().unwrap().parse::<i32>() {
+        // skip pid 1
+        if pid == 1 {
+            return Ok(None);
+        }
+        
+        // skip kthreads - they have no executable
+        match readlink(Path::new(&format!("/proc/{}/exe", pid))) {
+            Err(Errno::ENOENT) => {
+                return Ok(None);
+            },
+            _ => {},
+        }
+
+        kill(Pid::from_raw(pid), signal)?;
+        Ok(Some(pid))
+    } else {
+        Ok(None)
+    }
+}
+
+fn broadcast_signal(signal: Signal) -> nix::Result<Vec<i32>> {
+    // freeze to get consistent snapshot and avoid thrashing
     kill(Pid::from_raw(-1), Signal::SIGSTOP)?;
-    kill(Pid::from_raw(-1), signal)?;
+
+    // can't use kill(-1) because we need to know which PIDs to wait for exit
+    // otherwise unmount returns EBUSY
+    let mut pids = Vec::new();
+    match fs::read_dir("/proc") {
+        Ok(entries) => {
+            for entry in entries {
+                match kill_one_entry(entry, signal) {
+                    Ok(Some(pid)) => {
+                        pids.push(pid);
+                    },
+                    Err(e) => {
+                        println!(" !!! Failed to read /proc entry: {}", e);
+                    },
+                    _ => {},
+                }
+            }
+        },
+        Err(e) => {
+            println!(" !!! Failed to read /proc: {}", e);
+        },
+    }
+
+    // always make sure to unfreeze
     kill(Pid::from_raw(-1), Signal::SIGCONT)?;
-    Ok(())
+    Ok(pids)
 }
 
 fn unmount_one_loopback(entry: Result<DirEntry, io::Error>) -> Result<bool, Box<dyn Error>> {
@@ -788,6 +841,37 @@ async fn stop_nfs() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+async fn wait_for_pids_exit(pids: Vec<i32>, timeout: Duration) -> Result<(), Box<dyn Error>> {
+    // easiest way is to just poll
+    let start = Instant::now();
+    loop {
+        let mut all_exited = true;
+        for pid in &pids {
+            match kill(Pid::from_raw(*pid), None) {
+                Ok(_) => {
+                    all_exited = false;
+                    break;
+                },
+                Err(Errno::ESRCH) => {},
+                Err(e) => {
+                    return Err(InitError::Kill(e).into());
+                },
+            }
+        }
+
+        if all_exited {
+            break;
+        }
+        if start.elapsed() > timeout {
+            return Err(InitError::Timeout.into());
+        }
+
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+
+    Ok(())
+}
+
 async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box<dyn Error>> {
     let mut tracker = TimeTracker::new();
     tracker.begin("Shutting down");
@@ -800,7 +884,7 @@ async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), 
 
     // kill services that need clean shutdown
     tracker.begin("Stop services");
-    service_tracker.lock().await.shutdown(Signal::SIGTERM)?;
+    let service_pids = service_tracker.lock().await.shutdown(Signal::SIGTERM)?;
 
     // stop NFS
     // rpc.mountd will be killed below
@@ -808,14 +892,14 @@ async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), 
     stop_nfs().await?;
 
     // wait for the services to exit
-    // TODO! 15 sec
     tracker.begin("Wait for services to exit");
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    //TODO: more efficient because these are children
+    wait_for_pids_exit(service_pids, SERVICE_SIGTERM_TIMEOUT).await?;
 
     // kill all processes (these don't need clean shutdown)
-    // freeze and unfreeze to prevent thrashing
     tracker.begin("Kill all processes");
-    broadcast_signal(Signal::SIGKILL)?;
+    let all_pids = broadcast_signal(Signal::SIGKILL)?;
+    wait_for_pids_exit(all_pids, PROCESS_SIGKILL_TIMEOUT).await?;
 
     // remove binfmts
     // in case user added custom binfmts from data with F (open file) flag
