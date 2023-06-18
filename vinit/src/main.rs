@@ -1,17 +1,21 @@
-use std::{env, error::Error, fs::{self, Permissions, OpenOptions, File}, time::Instant, os::{unix::{prelude::PermissionsExt, fs::chroot}, fd::AsRawFd}, process::{Command, Stdio}, collections::BTreeMap, io::Write};
+use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::Instant, os::{unix::{prelude::PermissionsExt, fs::chroot}}, process::{Command, Stdio}, collections::BTreeMap, io::Write};
 
 use mkswap::SwapWriter;
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self, size_t}};
+use netlink_packet_route::{LinkMessage, link};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self}};
 use futures_util::TryStreamExt;
 
 mod helpers;
 use helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK};
 use service::PROCESS_WAIT_LOCK;
-use tokio::{signal::unix::{signal, SignalKind}};
+use tokio::signal::unix::{signal, SignalKind};
+
+use crate::ethtool::ETHTOOL_STSO;
 
 mod vcontrol;
 mod service;
 mod blockdev;
+mod ethtool;
 
 // debug flag
 #[cfg(debug_assertions)]
@@ -234,6 +238,36 @@ fn apply_system_settings() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn maybe_disable_tso(name: &str, link: &LinkMessage) -> Result<(), Box<dyn Error>> {
+    // disable TSO if mtu == 1500
+    // this is for vmnet bridge interfaces:
+    /*
+    eth0 = gvisor (which doesn't care about MTU and packet size)
+        * macOS 12 doesn't let us set MTU on virtio-net
+        * it rejects big packets from host
+        * but allows guest to send big packets out
+        * so we abuse this for fast asymmetrical network
+    eth1, eth2, ... = vmnet bridge interfaces or vlan router
+        * vmnet only supports symmetrical MTU and rejects packets bigger than
+          MTU with packetTooBig, so we can't stuff 65K packets through from
+          guest->host and limit to 1500 from host->guest
+    */
+    if let Some(mtu) = link.nlas.iter().find_map(|nla| {
+        if let link::nlas::Nla::Mtu(mtu) = nla {
+            Some(*mtu)
+        } else {
+            None
+        }
+    }) {
+        if mtu == 1500 {
+            println!("  - Disabling TSO on {}", name);
+            ethtool::set(name, ETHTOOL_STSO, 0)?;
+        }
+    }
+
+    Ok(())
+}
+
 async fn setup_network() -> Result<(), Box<dyn Error>> {
     // don't send IPv6 router solicitations
     sysctl("net.ipv6.conf.all.accept_ra", "0")?;
@@ -285,6 +319,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     // scon deals with the rest
     // cannot use static neigh because macOS generates MAC addr
     let eth1 = ip_link.get().match_name("eth1".into()).execute().try_next().await?.unwrap();
+    maybe_disable_tso("eth1", &eth1)?;
     ip_link.set(eth1.header.index)
         .mtu(1500)
         .up()
@@ -293,6 +328,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     // docker vlan router
     // scon deals with the rest
     let eth2 = ip_link.get().match_name("eth2".into()).execute().try_next().await?.unwrap();
+    maybe_disable_tso("eth2", &eth2)?;
     ip_link.set(eth2.header.index)
         .mtu(1500)
         .up()
