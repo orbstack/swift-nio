@@ -1,13 +1,16 @@
-use std::{env, error::Error, fs::{self, Permissions, File, OpenOptions}, time::Instant, os::unix::{prelude::PermissionsExt, fs::chroot}};
+use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::Instant, os::unix::{prelude::PermissionsExt, fs::chroot}};
 
 use mkswap::SwapWriter;
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, self, wait::waitpid}, mount::{MsFlags}, unistd::{self, sethostname}, libc::{RLIM_INFINITY, swapon, self}};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self}};
 use futures_util::TryStreamExt;
 
 mod helpers;
 use helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK};
+use service::PROCESS_WAIT_LOCK;
+use tokio::signal::unix::{signal, SignalKind};
 
 mod vcontrol;
+mod service;
 
 // debug flag
 #[cfg(debug_assertions)]
@@ -17,6 +20,15 @@ static DEBUG: bool = false;
 
 // da:9b:d0:64:e1:01
 const VNET_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x01];
+const VNET_NEIGHBORS: &[&str] = &[
+    "198.19.248.1",
+    "198.19.248.200",
+    "198.19.248.201",
+    "198.19.248.253",
+    "198.19.248.254",
+    // only one IPv6: others are on ext subnet (to avoid NDP)
+    "fd07:b51a:cc66:00f0::1",
+];
 
 struct SystemInfo {
     kernel_version: String,
@@ -209,13 +221,6 @@ fn apply_system_settings() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn add_vnet_neighbor(ip_neigh: &rtnetlink::NeighbourHandle, eth0_index: u32, ip_addr: &str) -> Result<(), Box<dyn Error>> {
-    ip_neigh.add(eth0_index, ip_addr.parse()?)
-        .link_local_address(VNET_LLADDR)
-        .execute().await?;
-    Ok(())
-}
-
 async fn setup_network() -> Result<(), Box<dyn Error>> {
     // don't send IPv6 router solicitations
     sysctl("net.ipv6.conf.all.accept_ra", "0")?;
@@ -241,26 +246,23 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
 
     // main gvisor NAT network
     let eth0 = ip_link.get().match_name("eth0".into()).execute().try_next().await?.unwrap();
-    let eth0_index = eth0.header.index;
 
     // static neighbors to reduce ARP CPU usage
-    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.1").await?;
-    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.200").await?;
-    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.201").await?;
-    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.253").await?;
-    add_vnet_neighbor(&ip_neigh, eth0_index, "198.19.248.254").await?;
-    // only one IPv6: others are on ext subnet (to avoid NDP)
-    add_vnet_neighbor(&ip_neigh, eth0_index, "fd07:b51a:cc66:00f0::1").await?;
+    for ip_addr in VNET_NEIGHBORS {
+        ip_neigh.add(eth0.header.index, ip_addr.parse()?)
+            .link_local_address(VNET_LLADDR)
+            .execute().await?;
+    }
 
     // set eth0 mtu, up
-    ip_link.set(eth0_index)
+    ip_link.set(eth0.header.index)
         .mtu(1500)
         .up()
         .execute().await?;
 
     // add IP addresses
-    ip_addr.add(eth0_index, "198.19.248.2".parse()?, 24).execute().await?;
-    ip_addr.add(eth0_index, "fd07:b51a:cc66:00f0::2".parse()?, 64).execute().await?;
+    ip_addr.add(eth0.header.index, "198.19.248.2".parse()?, 24).execute().await?;
+    ip_addr.add(eth0.header.index, "fd07:b51a:cc66:00f0::2".parse()?, 64).execute().await?;
 
     // add default routes
     ip_route.add().v4().gateway("198.19.248.1".parse()?).execute().await?;
@@ -509,6 +511,26 @@ impl BootTracker {
     }
 }
 
+async fn reap_zombies() -> Result<(), Box<dyn Error>> {
+    loop {
+        let _ = PROCESS_WAIT_LOCK.lock().await;
+        let res = waitpid(None, Some(WaitPidFlag::WNOHANG))?;
+        match res {
+            WaitStatus::Exited(pid, status) => {
+                println!("  -  Reaped child {} with status {}", pid, status);
+            },
+            WaitStatus::Signaled(pid, signal, _) => {
+                println!("  -  Reaped child {} with signal {}", pid, signal);
+            },
+            _ => {
+                break;
+            },
+        }
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let mut tracker = BootTracker::new();
@@ -584,8 +606,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("  -  Total boot time: {}ms", boot_start.elapsed().as_millis());
 
     // reap children
+    let mut sigchld_stream = signal(SignalKind::child())?;
     loop {
-        let res = waitpid(None, None);
-        println!("  -  Reaped child: {:?}", res);
+        sigchld_stream.recv().await;
+        reap_zombies().await?;
     }
 }

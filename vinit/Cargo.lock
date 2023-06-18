@@ -916,6 +916,7 @@ dependencies = [
  "futures-util",
  "mkswap",
  "nix",
+ "once_cell",
  "rtnetlink",
  "serde",
  "serde_json",

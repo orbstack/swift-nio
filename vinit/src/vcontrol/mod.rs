@@ -1,16 +1,17 @@
-use anyhow::anyhow;
 use axum::{
     routing::{get, post},
     response::IntoResponse,
     Json, Router, Extension,
 };
 use error::AppResult;
-use nix::{sys::{statvfs, stat::Mode}, fcntl::OFlag};
+use nix::{sys::{statvfs, stat::Mode, reboot::{self, RebootMode}}, fcntl::OFlag, unistd};
 use serde::{Deserialize, Serialize};
 use tokio::{process::Command, sync::Mutex};
 use tower::ServiceBuilder;
 use tracing::{info, debug};
 use std::{net::SocketAddr, sync::Arc};
+
+use crate::service::PROCESS_WAIT_LOCK;
 
 mod error;
 mod btrfs;
@@ -66,7 +67,6 @@ pub async fn server_main() {
 
     let app = Router::new()
         .route("/ping", get(ping))
-        .route("/sys/sync", post(sys_sync))
         .route("/sys/shutdown", post(sys_shutdown))
         .route("/sys/emergency_shutdown", post(sys_emergency_shutdown))
         .route("/disk/report_stats", post(disk_report_stats))
@@ -87,14 +87,7 @@ pub async fn server_main() {
 }
 
 async fn ping() -> impl IntoResponse {
-    "pong"
-}
-
-// sync system
-async fn sys_sync() -> AppResult<impl IntoResponse> {
-    info!("sys_sync");
-    Command::new("sync").arg("-f").arg("/data").output().await?;
-    Ok(())
+    ""
 }
 
 // shutdown system
@@ -104,8 +97,10 @@ async fn sys_shutdown() -> AppResult<impl IntoResponse> {
     tokio::spawn(async {
         // don't cut off connection
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let _ = PROCESS_WAIT_LOCK.lock().await;
         // shutdown
-        let _ = Command::new("poweroff").spawn();
+        Command::new("poweroff").spawn().unwrap();
     });
 
     Ok(())
@@ -116,10 +111,10 @@ async fn sys_emergency_shutdown() -> AppResult<impl IntoResponse> {
     info!("sys_emergency_shutdown");
 
     // sync
-    Command::new("sync").output().await?;
+    unistd::sync();
 
     // shutdown, bypass init (connection may be cut off)
-    Command::new("poweroff").arg("-f").spawn()?;
+    reboot::reboot(RebootMode::RB_POWER_OFF)?;
 
     Ok(())
 }
@@ -162,6 +157,8 @@ async fn disk_report_stats(
 // sync time
 async fn time_sync() -> AppResult<impl IntoResponse> {
     debug!("time_sync");
+
+    let _ = PROCESS_WAIT_LOCK.lock().await;
 
     Command::new("chronyc").arg("offline")
         .output()
