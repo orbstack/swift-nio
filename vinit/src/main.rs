@@ -541,7 +541,7 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
 fn start_services(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // chronyd
     let chrony_process = std::process::Command::new("/usr/sbin/chronyd")
-        .arg("-d") // foreground, log to stderr
+        .arg("-n") // foreground (-d for log-to-stderr)
         .arg("-f") // config file
         .arg("/etc/chrony/chrony.conf")
         .spawn()?;
@@ -640,8 +640,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // only works after pseudo-fs mounted
     let sys_info = get_system_info()?;
     println!("  -  Kernel version: {}", sys_info.kernel_version);
-    println!("  -  Command line: {}", sys_info.cmdline.join(" "));
-    println!();
 
     tracker.begin("Setting up binfmt");
     setup_binfmt(&sys_info)?;

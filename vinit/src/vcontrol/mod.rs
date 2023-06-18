@@ -3,6 +3,7 @@ use axum::{
     response::IntoResponse,
     Json, Router, Extension,
 };
+use chrony_candm::{request::{RequestBody, Offline, Online}, common::ChronyAddr};
 use error::AppResult;
 use nix::{sys::{statvfs, stat::Mode, reboot::{self, RebootMode}}, fcntl::OFlag, unistd};
 use serde::{Deserialize, Serialize};
@@ -160,13 +161,17 @@ async fn time_sync() -> AppResult<impl IntoResponse> {
 
     let _ = PROCESS_WAIT_LOCK.lock().await;
 
-    Command::new("chronyc").arg("offline")
-        .output()
-        .await?;
+    // chronyc offline
+    chrony_candm::blocking_query_uds(RequestBody::Offline(Offline {
+        mask: ChronyAddr::Unspec,
+        address: ChronyAddr::Unspec,
+    }), Default::default())?;
 
-    Command::new("chronyc").arg("online")
-        .output()
-        .await?;
+    // chronyc online
+    chrony_candm::blocking_query_uds(RequestBody::Online(Online {
+        mask: ChronyAddr::Unspec,
+        address: ChronyAddr::Unspec,
+    }), Default::default())?;
 
     Ok(())
 }
