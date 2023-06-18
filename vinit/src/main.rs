@@ -1,6 +1,7 @@
-use std::{env, error::Error, fs::{self, Permissions}, time::Instant, os::unix::prelude::PermissionsExt};
+use std::{env, error::Error, fs::{self, Permissions, File, OpenOptions}, time::Instant, os::unix::{prelude::PermissionsExt, fs::chroot}};
 
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, self, wait::waitpid}, mount::{MsFlags}, unistd, libc::{RLIM_INFINITY, swapon, self}};
+use mkswap::SwapWriter;
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, self, wait::waitpid}, mount::{MsFlags}, unistd::{self, sethostname}, libc::{RLIM_INFINITY, swapon, self}};
 use futures_util::TryStreamExt;
 
 mod helpers;
@@ -9,7 +10,10 @@ use helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT,
 mod vcontrol;
 
 // debug flag
+#[cfg(debug_assertions)]
 static DEBUG: bool = true;
+#[cfg(not(debug_assertions))]
+static DEBUG: bool = false;
 
 // da:9b:d0:64:e1:01
 const VNET_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x01];
@@ -46,9 +50,9 @@ fn set_basic_env() -> Result<(), Box<dyn Error>> {
     env::set_var("LC_COLLATE", "C");
 
     // hostname
-    unistd::sethostname("orbhost")?;
+    sethostname("orbhost")?;
 
-    // rlimit
+    // ulimit
     setrlimit(Resource::RLIMIT_NOFILE, 1048576, 1048576)?;
     setrlimit(Resource::RLIMIT_MEMLOCK, RLIM_INFINITY, RLIM_INFINITY)?;
 
@@ -72,12 +76,12 @@ fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> Result<(), Bo
 }
 
 fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
-    let mut flags = MsFlags::MS_NOATIME;
-    if !DEBUG {
-        // secure flags in release
-        flags |= MsFlags::MS_NODEV | MsFlags::MS_NOSUID | MsFlags::MS_NOEXEC;
-    }
-    mount("tmpfs", "/run", "tmpfs", flags, None)?;
+    let merged_flags = MsFlags::MS_NOATIME;
+    // secure flags for overlay
+    // this is used for Docker rootfs so don't pass "noexec". or people can't install packages in Docker machine
+    // also don't pass nodev or overlayfs whiteouts won't work
+    let upper_flags = merged_flags | MsFlags::MS_NOSUID;
+    mount("tmpfs", "/run", "tmpfs", upper_flags, None)?;
     // create directories
     fs::create_dir_all("/run/overlay/root")?;
     fs::create_dir_all("/run/overlay/upper")?;
@@ -86,7 +90,7 @@ fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
     // bind mount root
     bind_mount("/", "/run/overlay/root", None)?;
     // mount overlayfs - with vanity name for "df"
-    mount("orbstack", "/run/overlay/merged", "overlay", flags, Some("lowerdir=/run/overlay/root,upperdir=/run/overlay/upper,workdir=/run/overlay/work"))?;
+    mount("orbstack", "/run/overlay/merged", "overlay", merged_flags, Some("lowerdir=/run/overlay/root,upperdir=/run/overlay/upper,workdir=/run/overlay/work"))?;
 
     // make original fs available for debugging
     if DEBUG {
@@ -99,15 +103,13 @@ fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
     // switch root
     /*
     equivalent to:
-        cd $1
+        cd /run/overlay/merged
         mount --move . /
         chroot .
-        exec /sbin/init "$@"
     */
     env::set_current_dir("/run/overlay/merged")?;
     mount_common(".", "/", None, MsFlags::MS_MOVE, None)?;
-    unistd::chroot(".")?;
-    env::set_current_dir("/")?; // TOOD needed?
+    chroot(".")?;
 
     Ok(())
 }
@@ -350,7 +352,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     if let Ok(_) = mount("rosetta", "/mnt/rosetta", "virtiofs", MsFlags::empty(), None) {
         // rosetta
-        println!("  ?  Using Rosetta");
+        println!("  -  Using Rosetta");
 
         // TODO: add preserve-argv0 flag on Sonoma
         let rosetta_flags = "CF@";
@@ -363,7 +365,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         add_binfmt("bk-stub-amd64", r#"\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\xe0\x11\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x38\x00\x03\x00\x40\x00\x06\x00\x05\x00\x01\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x0c\x01\x00\x00\x00\x00\x00\x00\x0c\x01\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x05\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x70\x00\x00\x00\x00\x00\x00\x00\x70\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x04\x00\x00\x00\xe8\x00\x00\x00\x00\x00\x00\x00\xe8\x00\x40\x00\x00\x00\x00\x00\xe8\x00\x40\x00\x00\x00\x00\x00\x24\x00\x00\x00\x00\x00\x00\x00\x24\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x14\x00\x00\x00\x03\x00\x00\x00\x47\x4e\x55\x00\x65\xa5\xb7\x39\xd6\xa8\xe5\x56"#, None, "[rosetta-bk-stub]", "CF")?;
     } else {
         // qemu
-        println!("  ?  Using QEMU");
+        println!("  -  Using QEMU");
 
         add_binfmt("qemu-x86_64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", "POCF")?;
     }
@@ -434,13 +436,16 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
     fs::write("/sys/block/zram0/disksize", format!("{}", mem_total_kib * 1024))?;
     fs::write("/sys/block/zram0/writeback", "huge_idle")?;
     // create swap
-    std::process::Command::new("/sbin/mkswap")
-        .arg("/dev/zram0")
-        .output()?;
+    let zram_dev = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/zram0")?;
+    SwapWriter::new()
+        .write(zram_dev)?;
     // enable
     enable_swap("/dev/zram0", 32767)?;
 
-    // emergency disk swap (1 GiB)
+    // emergency disk swap (2 GiB)
     enable_swap("/dev/vdc2", 1)?;
 
     Ok(())
@@ -456,6 +461,14 @@ fn start_services(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // set OOM score adj for critical service
     let chrony_pid = chrony_process.id();
     fs::write(format!("/proc/{}/oom_score_adj", chrony_pid), "-950")?;
+
+    // udevd
+    // this is only for USB devices, nbd, etc. so no need to wait for it to settle
+    let udev_process = std::process::Command::new("/sbin/udevd")
+        .spawn()?;
+    // set OOM score adj for critical service
+    let udev_pid = udev_process.id();
+    fs::write(format!("/proc/{}/oom_score_adj", udev_pid), "-950")?;
 
     // scon
     let scon_process = std::process::Command::new("/opt/orb/scon")
@@ -518,14 +531,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // system info
     // only works after pseudo-fs mounted
     let sys_info = get_system_info()?;
-    println!("  ?  Kernel version: {}", sys_info.kernel_version);
-    println!("  ?  Command line: {}", sys_info.cmdline.join(" "));
+    println!("  -  Kernel version: {}", sys_info.kernel_version);
+    println!("  -  Command line: {}", sys_info.cmdline.join(" "));
     println!();
 
     tracker.begin("Setting up binfmt");
     setup_binfmt(&sys_info)?;
-
-    // TODO: start udev/smdev
 
     tracker.begin("Setting up network");
     setup_network().await?;
@@ -539,7 +550,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // speedup: 300-400 ms -> 250 ms
     tracker.begin("Late tasks");
     let mut tasks = vec![];
-    tasks.push(std::thread::spawn(|| { // 150 ms
+    tasks.push(std::thread::spawn(|| { // 150 ms (w/o kernel hack to default to "none" iosched)
         //let stage_start = Instant::now();
         println!("     [*] Applying system settings");
         apply_system_settings().unwrap();
@@ -551,12 +562,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         mount_data().unwrap();
         //println!("     ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
     }));
-    tasks.push(std::thread::spawn(|| { // 70 ms
+    // async, no need to wait for this
+    std::thread::spawn(|| { // 70 ms
         //let stage_start = Instant::now();
         println!("     [*] Setting up memory");
         setup_memory().unwrap();
         //println!("     ... Setting up memory: +{}ms", stage_start.elapsed().as_millis());
-    }));
+    });
     for task in tasks {
         task.join().unwrap();
     }
@@ -569,11 +581,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     tracker.begin("Booted!");
 
-    println!(" ?  Total boot time: {}ms", boot_start.elapsed().as_millis());
+    println!("  -  Total boot time: {}ms", boot_start.elapsed().as_millis());
 
     // reap children
     loop {
         let res = waitpid(None, None);
-        println!(" !!! Reaped child: {:?}", res);
+        println!("  -  Reaped child: {:?}", res);
     }
 }

@@ -57,15 +57,19 @@ FROM base AS rust-build2
 RUN apk add --no-cache cargo
 COPY vinit /build/vinit
 ARG ARCH=arm64
+ARG TYPE=release
 # Rust can't deal with arch change in target/
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/build/vinit/target,id=${ARCH} \
 <<EOT sh -eux
 cd /build/vinit
-cargo build #--release
+if [[ "$TYPE" == "debug" ]]; then
+    cargo build
+else
+    cargo build --release
+fi
 mkdir /out
-#cp target/release/vinit /out/vinit
-cp target/debug/vinit /out/vinit
+cp target/${TYPE}/vinit /out/vinit
 EOT
 
 # Build C - switchroot, vsocknfs

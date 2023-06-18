@@ -5,7 +5,7 @@ use axum::{
     Json, Router, Extension,
 };
 use error::AppResult;
-use nix::sys::statvfs;
+use nix::{sys::{statvfs, stat::Mode}, fcntl::OFlag};
 use serde::{Deserialize, Serialize};
 use tokio::{process::Command, sync::Mutex};
 use tower::ServiceBuilder;
@@ -13,6 +13,7 @@ use tracing::{info, debug};
 use std::{net::SocketAddr, sync::Arc};
 
 mod error;
+mod btrfs;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -36,13 +37,21 @@ impl DiskManager {
     }
 
     async fn update_quota(&mut self, new_size: u64) -> AppResult<()> {
-        let output = Command::new("btrfs")
-            .arg("qgroup").arg("limit")
-            .arg(format!("{}", new_size))
-            .arg("/data")
-            .output().await?;
-        if !output.status.success() {
-            return Err(anyhow!("failed to update quota: {}", String::from_utf8_lossy(&output.stderr)).into());
+        let dir_fd = nix::fcntl::open("/data", OFlag::O_DIRECTORY, Mode::empty())?;
+
+        // sets top-level dir quota
+        let mut args = btrfs::btrfs_ioctl_qgroup_limit_args {
+            qgroupid: 0,
+            lim: btrfs::btrfs_qgroup_limit {
+                flags: btrfs::BTRFS_QGROUP_LIMIT_MAX_RFER as u64,
+                max_rfer: new_size,
+                max_excl: 0,
+                rsv_rfer: 0,
+                rsv_excl: 0,
+            },
+        };
+        unsafe {
+            btrfs::ioctl::qgroup_limit(dir_fd, &mut args)?;
         }
 
         Ok(())
