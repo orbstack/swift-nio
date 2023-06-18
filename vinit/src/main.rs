@@ -1,8 +1,8 @@
-use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::Instant, os::{unix::{prelude::PermissionsExt, fs::chroot}}, process::{Command, Stdio}, collections::BTreeMap, io::Write};
+use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instant, Duration, SystemTime}, os::{unix::{prelude::PermissionsExt, fs::chroot}}, process::{Command, Stdio}, collections::BTreeMap, io::Write, net::UdpSocket};
 
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link};
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self}};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, wait::{waitpid, WaitPidFlag, WaitStatus}, time::TimeSpec}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self, timespec}, time::{clock_settime, ClockId}};
 use futures_util::TryStreamExt;
 
 mod helpers;
@@ -337,6 +337,21 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn sync_clock() -> Result<(), Box<dyn Error>> {
+    // sync clock immediately at boot (if RTC is wrong) or on wake (until chrony kicks in)
+    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    socket.set_read_timeout(Some(Duration::from_secs(5)))?;
+    let host_time = sntpc::simple_get_time("198.19.248.200:123", socket)
+        .map_err(|e| format!("Failed to get time: {:?}", e))?;
+    
+    let sec = host_time.sec() as i64;
+    let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;
+    clock_settime(ClockId::CLOCK_REALTIME, TimeSpec::new(sec, nsec))?;
+
+    println!("  - System time updated");
+    Ok(())
+}
+
 fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // resize data partition
     // scon resizes the filesystem
@@ -540,7 +555,7 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
 
 fn start_services(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // chronyd
-    let chrony_process = std::process::Command::new("/usr/sbin/chronyd")
+    let chrony_process = Command::new("/usr/sbin/chronyd")
         .arg("-n") // foreground (-d for log-to-stderr)
         .arg("-f") // config file
         .arg("/etc/chrony/chrony.conf")
@@ -551,7 +566,7 @@ fn start_services(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 
     // udevd
     // this is only for USB devices, nbd, etc. so no need to wait for it to settle
-    let udev_process = std::process::Command::new("/sbin/udevd")
+    let udev_process = Command::new("/sbin/udevd")
         .spawn()?;
     // set OOM score adj for critical service
     let udev_pid = udev_process.id();
@@ -649,6 +664,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     tracker.begin("Starting control server");
     tokio::spawn(vcontrol::server_main());
+
+    tracker.begin("Setting clock");
+    sync_clock()?;
 
     // do the following 3 slow stages in parallel
     // speedup: 300-400 ms -> 250 ms
