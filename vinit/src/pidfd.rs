@@ -16,7 +16,7 @@ impl PidFd {
         Ok(Self(fd))
     }
 
-    fn kill(&self, signal: Signal) -> nix::Result<()> {
+    pub fn kill(&self, signal: Signal) -> nix::Result<()> {
         let res = unsafe { syscall(SYS_pidfd_send_signal, self.as_raw_fd(), signal, std::ptr::null::<*const siginfo_t>(), 0) };
         if res < 0 {
             return Err(nix::Error::last());
