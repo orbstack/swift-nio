@@ -36,7 +36,7 @@ fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<
 
         // open a pidfd before killing, then use the pidfd to kill it, and make it pollable
         let pidfd = PidFd::open(pid)?;
-        pidfd.send_signal(signal)?;
+        pidfd.kill(signal)?;
         Ok(Some(pidfd))
     } else {
         Ok(None)

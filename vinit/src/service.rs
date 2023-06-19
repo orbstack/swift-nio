@@ -109,7 +109,7 @@ impl ServiceTracker {
         for (pid, service) in self.pids.iter() {
             if service.needs_clean_shutdown {
                 let pidfd = PidFd::open(*pid as i32)?;
-                pidfd.send_signal(signal)?;
+                pidfd.kill(signal)?;
                 pidfds.push(pidfd);
             }
         }
