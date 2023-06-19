@@ -17,6 +17,7 @@ import (
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/killswitch"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/btrfs"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -112,7 +113,7 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 	go runOne("resize fs", func() error {
 		// resize filesystem
 		logrus.Debug("resizing filesystem")
-		err := util.RunInheritOut("btrfs", "filesystem", "resize", "max", conf.C().DataFsDir)
+		err := btrfs.FilesystemResize(conf.C().DataFsDir, "max")
 		if err != nil {
 			return err
 		}
