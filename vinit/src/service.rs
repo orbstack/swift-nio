@@ -61,6 +61,7 @@ impl Display for Service {
 pub struct ServiceTracker {
     pids: BTreeMap<u32, Service>,
     command_specs: BTreeMap<Service, CommandSpec>,
+    pub shutting_down: bool,
 }
 
 impl ServiceTracker {
@@ -68,6 +69,7 @@ impl ServiceTracker {
         Self {
             pids: BTreeMap::new(),
             command_specs: BTreeMap::new(),
+            shutting_down: false,
         }
     }
 
@@ -90,6 +92,10 @@ impl ServiceTracker {
     }
     
     pub async fn restart(&mut self, service: Service) -> std::io::Result<()> {
+        if !service.restartable || self.shutting_down {
+            return Ok(());
+        }
+
         // delay
         tokio::time::sleep(Duration::from_secs(RESTART_DELAY)).await;
 
@@ -98,7 +104,7 @@ impl ServiceTracker {
             .args(&spec.args))
     }
 
-    pub fn shutdown(&mut self, signal: Signal) -> std::io::Result<Vec<PidFd>> {
+    pub fn stop_for_shutdown(&mut self, signal: Signal) -> std::io::Result<Vec<PidFd>> {
         let mut pidfds = Vec::new();
         for (pid, service) in self.pids.iter() {
             if service.needs_clean_shutdown {
@@ -108,6 +114,7 @@ impl ServiceTracker {
             }
         }
 
+        self.shutting_down = true;
         Ok(pidfds)
     }
 

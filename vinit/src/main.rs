@@ -39,6 +39,8 @@ pub enum InitError {
     Timeout,
     #[error("failed to poll pidfd: {}", .0)]
     PollPidFd(tokio::io::Error),
+    #[error("failed to get time from ntp: {:?}", .0)]
+    NtpGetTime(sntpc::Error),
 }
 
 #[derive(Clone)]
@@ -97,7 +99,6 @@ impl Timeline {
 async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: Sender<SystemAction>) -> Result<(), Box<dyn Error>> {
     loop {
         let _guard = PROCESS_WAIT_LOCK.lock().await;
-        let mut service_tracker = service_tracker.lock().await;
         let wstatus = match waitpid(None, Some(WaitPidFlag::WNOHANG)) {
             Ok(wstatus) => wstatus,
             Err(Errno::ECHILD) => {
@@ -112,31 +113,33 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
                 return Err(InitError::Waitpid(e).into());
             },
         };
+        let mut service_tracker = service_tracker.lock().await;
         match wstatus {
             WaitStatus::Exited(pid, status) => {
-                match service_tracker.on_pid_exit(pid.as_raw() as u32) {
-                    Some(service) => {
-                        if service.restartable {
-                            // restart the service
-                            println!("  -  Service {} exited: status {}, restarting", service, status);
-                            service_tracker.restart(service).await?;
-                        } else if service.critical {
-                            // service is critical and not restartable!
-                            // shut down immediately
-                            println!("  -  Critical service {} exited: shutting down", service);
-                            action_tx.send(SystemAction::Shutdown).await?;
-                        } else {
-                            println!("  -  Service {} exited: status {}", service, status);
-                        }
-                    },
-                    None => {
-                        println!("  -  Untracked process {} exited: status {}", pid, status);
-                    },
+                if let Some(service) = service_tracker.on_pid_exit(pid.as_raw() as u32) {
+                    if service.restartable && !service_tracker.shutting_down {
+                        // restart the service
+                        println!("  !  Service {} exited: status {}, restarting", service, status);
+                        service_tracker.restart(service).await?;
+                    } else if service.critical && !service_tracker.shutting_down {
+                        // service is critical and not restartable!
+                        // shut down immediately
+                        println!("  !  Critical service {} exited: shutting down", service);
+                        action_tx.send(SystemAction::Shutdown).await?;
+                    } else {
+                        println!("  !  Service {} exited: status {}", service, status);
+                    }
+                } else {
+                    println!("  !  Untracked process {} exited: status {}", pid, status);
                 }
             },
             WaitStatus::Signaled(pid, signal, _) => {
-                service_tracker.on_pid_exit(pid.as_raw() as u32);
-                println!("  -  Untracked process {} exited: signal {}", pid, signal);
+                if let Some(service) = service_tracker.on_pid_exit(pid.as_raw() as u32) {
+                    // don't restart on kill. kill must be intentional
+                    println!("  !  Service {} exited: signal {}", service, signal);
+                } else {
+                    println!("  !  Untracked process {} exited: signal {}", pid, signal);
+                }
             },
             _ => {
                 break;
@@ -199,6 +202,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
+    // close channel to avoid hang in ServiceTracker lock (in reap_children)
+    drop(action_rx);
     // proceed with shutdown
     shutdown::main(service_tracker.clone()).await?;
 

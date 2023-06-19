@@ -202,7 +202,7 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
 
     // kill services that need clean shutdown
     timeline.begin("Stop services");
-    let service_pids = service_tracker.lock().await.shutdown(Signal::SIGTERM)
+    let service_pids = service_tracker.lock().await.stop_for_shutdown(Signal::SIGTERM)
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to stop service: {}", e);
             vec![]
@@ -271,18 +271,19 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
         println!("\nEnding with mounts:\n{}\n", mounts);
 
         println!("\nEnding with processes:");
-        let _ = tokio::process::Command::new("/bin/ps")
+        let _guard = PROCESS_WAIT_LOCK.lock().await;
+        tokio::process::Command::new("/bin/ps")
             .arg("awux")
             .status()
-            .await;
+            .await?;
         println!();
 
         println!("\nEnding with fds:");
-        let _ = tokio::process::Command::new("/bin/ls")
+        tokio::process::Command::new("/bin/ls")
             .arg("-l")
             .arg("/proc/1/fd")
             .status()
-            .await;
+            .await?;
         println!();
     }
 

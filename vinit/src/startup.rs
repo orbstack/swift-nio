@@ -23,6 +23,15 @@ const VNET_NEIGHBORS: &[&str] = &[
     "fd07:b51a:cc66:00f0::1",
 ];
 
+const FS_CORRUPTED_MSG: &str = r#"
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! DATA IS LIKELY CORRUPTED.
+!! Please make a backup, consider reporting this issue at https://orbstack.dev/issues/bug, and delete OrbStack data to continue.
+!!
+!! Giving up and shutting down now.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+"#;
+
 fn set_basic_env() -> Result<(), Box<dyn Error>> {
     // umask: self write, others read
     umask(Mode::from_bits_truncate(0o022));
@@ -244,7 +253,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
 
     // connect to rtnetlink
     let (conn, handle, _) = rtnetlink::new_connection()?;
-    tokio::spawn(conn);
+    let conn_task = tokio::spawn(conn);
     let mut ip_link = handle.link();
     let ip_addr = handle.address();
     let ip_route = handle.route();
@@ -297,6 +306,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
         .up()
         .execute().await?;
 
+    conn_task.abort();
     Ok(())
 }
 
@@ -305,7 +315,7 @@ fn sync_clock() -> Result<(), Box<dyn Error>> {
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_read_timeout(Some(Duration::from_secs(5)))?;
     let host_time = sntpc::simple_get_time("198.19.248.200:123", socket)
-        .map_err(|e| format!("Failed to get time: {:?}", e))?;
+        .map_err(|e| InitError::NtpGetTime(e))?;
     
     let sec = host_time.sec() as i64;
     let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;
@@ -338,7 +348,7 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
                 return Err(InitError::ResizeDataFs(status).into());
             }
         } else if new_size_mib < old_size_mib {
-            println!("WARNING: Attempted to shrink data partition from {} MiB to {} MiB", old_size_mib, new_size_mib);
+            eprintln!("WARNING: Attempted to shrink data partition from {} MiB to {} MiB", old_size_mib, new_size_mib);
         }
     }
 
@@ -352,11 +362,14 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     // data
     // first try with regular mount, then try usebackuproot
     let data_flags = MsFlags::MS_NOATIME;
-    // TODO: fix duplicate flags
-    if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some("discard=async,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs")) {
-        println!(" !!! Failed to mount data: {}", e);
+    let fs_options = "discard=async,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs";
+    if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(fs_options)) {
+        eprintln!(" !!! Failed to mount data: {}", e);
         println!(" [*] Attempting to recover data");
-        mount("/dev/vdb1", "/data", "btrfs", data_flags, Some("discard=async,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs,usebackuproot"))?;
+        if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(format!("{},usebackuproot", fs_options).as_str())) {
+            eprintln!(" !!! Failed to recover data: {}", e);
+            eprintln!("{}", FS_CORRUPTED_MSG);
+        }
     }
 
     Ok(())
