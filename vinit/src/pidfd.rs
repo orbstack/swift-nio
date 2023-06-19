@@ -16,7 +16,7 @@ impl PidFd {
         Ok(Self(fd))
     }
 
-    fn send_signal(&self, signal: i32) -> nix::Result<()> {
+    fn kill(&self, signal: Signal) -> nix::Result<()> {
         let res = unsafe { syscall(SYS_pidfd_send_signal, self.as_raw_fd(), signal, std::ptr::null::<*const siginfo_t>(), 0) };
         if res < 0 {
             return Err(nix::Error::last());
@@ -25,37 +25,8 @@ impl PidFd {
         Ok(())
     }
 
-    pub fn kill(&self, signal: Signal) -> nix::Result<()> {
-        self.send_signal(signal as i32)
-    }
-
-    pub fn is_alive(&self) -> std::io::Result<bool> {
-        match self.send_signal(0) {
-            // success = process is alive
-            Ok(_) => Ok(true),
-            Err(e) => {
-                if e == nix::errno::Errno::ESRCH {
-                    // ESRCH = process is dead
-                    Ok(false)
-                } else {
-                    // shouldn't get other errors
-                    Err(std::io::Error::from(e))
-                }
-            },
-        }
-    }
-
-    pub async fn wait(&self) -> tokio::io::Result<()> {
-        loop {
-            let mut guard = self.0.readable().await?;
-            // test process by sending signal 0
-            match guard.try_io(|_| self.is_alive()) {
-                Ok(Ok(false)) => return Ok(()),
-                Ok(Ok(true)) => continue,
-                Ok(Err(e)) => return Err(e),
-                Err(_would_block) => continue,
-            }
-        }
+    pub async fn wait(&self) -> tokio::io::Result<AsyncFdReadyGuard<OwnedFd>> {
+        self.0.readable().await
     }
 }
 
