@@ -151,7 +151,3 @@ func (c *SconClient) InternalReportStopped(id string) error {
 		ID: id,
 	}, &noResult)
 }
-
-func (c *SconClient) ShutdownVM() error {
-	return c.rpc.CallResult(context.TODO(), "ShutdownVM", nil, &noResult)
-}

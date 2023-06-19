@@ -115,8 +115,4 @@ class SconService: RPCService {
     func containerUnfreeze(_ record: ContainerRecord) async throws {
         try await invoke("ContainerUnfreeze", params: record)
     }
-
-    func stopServerVm() async throws {
-        try await invoke("StopServerVM")
-    }
 }

@@ -41,7 +41,6 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vnet/services"
 	"github.com/orbstack/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
-	"github.com/orbstack/macvirt/scon/sclient"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -200,42 +199,17 @@ func tryGracefulStop(vm *vzf.Machine, vc *vclient.VClient) (err error) {
 		}
 	}()
 
-	// 1. try scon
-	logrus.Debug("trying to stop VM via scon")
-	sclient, err := sclient.New("unix", conf.SconRPCSocket())
-	if err == nil {
-		defer sclient.Close()
-
-		err = sclient.ShutdownVM()
-		if err == nil {
-			return
-		} else {
-			logrus.WithError(err).Error("failed to stop via scon")
-		}
-	} else {
-		logrus.WithError(err).Error("failed to stop via scon")
-	}
-
-	// 2. try vcontrol
-	logrus.Debug("trying to stop VM via vcontrol")
+	// 1. vinit
+	logrus.Debug("trying to stop VM via vinit")
 	err = vc.Shutdown()
 	if err == nil {
+		//TODO what about conn closed
 		return
 	} else {
-		logrus.WithError(err).Error("failed to stop via vcontrol")
+		logrus.WithError(err).Error("failed to stop via vinit")
 	}
 
-	// 3. try vz
-	/*
-		logrus.Debug("trying to stop VM via vz")
-		stopped, err := vm.RequestStop()
-		if stopped && err == nil {
-			return
-		} else {
-			logrus.WithError(err).Error("failed to stop via vz")
-		}*/
-
-	// 4. try force
+	// 2. force
 	logrus.Debug("trying to stop VM via force vz")
 	err = tryForceStop(vm)
 	if err == nil {

@@ -173,16 +173,6 @@ func runContainerManager() {
 	err = doSystemInitTasks(mgr, hostClient)
 	check(err)
 
-	defer func() {
-		if mgr.pendingVMShutdown {
-			// poweroff: send SIGUSR2 to init
-			logrus.Info("requesting poweroff")
-			err := unix.Kill(1, unix.SIGUSR2)
-			if err != nil {
-				logrus.WithError(err).Error("failed to request poweroff")
-			}
-		}
-	}()
 	defer mgr.Close()
 	err = mgr.Start()
 	check(err)

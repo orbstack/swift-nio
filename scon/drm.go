@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"time"
 
 	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
@@ -8,6 +9,7 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/killswitch"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -43,8 +45,7 @@ func (m *DrmMonitor) Start() error {
 	killswitch.Watch(func(err error) {
 		dlog("killswitch triggered", err)
 		logrus.WithError(err).Error("build expired")
-		m.conManager.pendingVMShutdown = true
-		m.conManager.Close()
+		requestSystemPoweroff()
 	})
 
 	// set deadline
@@ -57,8 +58,7 @@ func (m *DrmMonitor) dispatchResult(result *drmtypes.Result) {
 	dlog("dispatching result:", result)
 	if !m.verifyResult(result) {
 		logrus.Error("dispatch result - power off")
-		m.conManager.pendingVMShutdown = true
-		m.conManager.Close()
+		requestSystemPoweroff()
 		return
 	}
 
@@ -77,8 +77,7 @@ func (m *DrmMonitor) dispatchResult(result *drmtypes.Result) {
 func (m *DrmMonitor) onDeadlineReached() {
 	dlog("deadline reached")
 	logrus.Error("deadline reached - power off")
-	m.conManager.pendingVMShutdown = true
-	m.conManager.Close()
+	requestSystemPoweroff()
 }
 
 func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
@@ -112,3 +111,13 @@ func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 }
 
 type None struct{}
+
+func requestSystemPoweroff() {
+	// poweroff: send SIGUSR2 to init
+	logrus.Info("requesting poweroff")
+	err := unix.Kill(1, unix.SIGUSR2)
+	if err != nil {
+		logrus.WithError(err).Error("failed to request poweroff")
+		os.Exit(1)
+	}
+}

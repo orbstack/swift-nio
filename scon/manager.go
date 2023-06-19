@@ -59,7 +59,6 @@ type ConManager struct {
 	// stop
 	stopChan          chan struct{}
 	earlyStopChan     chan struct{}
-	pendingVMShutdown bool
 
 	// network
 	net *Network
