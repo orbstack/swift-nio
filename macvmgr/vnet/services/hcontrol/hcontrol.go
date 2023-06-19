@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/muja/goconfig"
 	"github.com/orbstack/macvirt/macvmgr/conf"
@@ -23,6 +24,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/fsnotify"
 	"github.com/orbstack/macvirt/macvmgr/guihelper"
 	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/macvmgr/util"
 	"github.com/orbstack/macvirt/macvmgr/vnet"
 	"github.com/orbstack/macvirt/macvmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol/htypes"
@@ -34,6 +36,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
+
+const nfsUnmountTimeout = 10 * time.Second
 
 const (
 	nfsReadmeText = `# OrbStack file sharing
@@ -390,7 +394,9 @@ func (h *HcontrolServer) InternalUnmountNfs() error {
 	}
 
 	logrus.Info("Unmounting NFS...")
-	err := nfsmnt.UnmountNfs()
+	_, err := util.WithTimeout(func() (struct{}, error) {
+		return struct{}{}, nfsmnt.UnmountNfs()
+	}, nfsUnmountTimeout)
 	if err != nil {
 		logrus.WithError(err).Error("NFS unmount failed")
 		return err
