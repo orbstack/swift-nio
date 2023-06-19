@@ -32,7 +32,7 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
                     }
 
                 case .running:
-                    Toggle("Connect to Docker and machine networks", isOn: $networkBridge)
+                    Toggle("Allow access to Docker container IPs", isOn: $networkBridge)
                         .onChange(of: networkBridge) { newValue in
                             setConfigKey(\.networkBridge, newValue)
 
@@ -48,7 +48,10 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
                                 }
                             }
                         }
-                    Text("Use Docker container IPs and machines without port forwarding.")
+                    Text("Connect to container IP addresses from Mac, without port forwarding.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Text("This also includes Linux machine IPs.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
