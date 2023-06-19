@@ -75,13 +75,13 @@ impl SystemInfo {
     }
 }
 
-struct TimeTracker {
+struct Timeline {
     last_stage_start: Instant,
 }
 
-impl TimeTracker {
-    fn new() -> TimeTracker {
-        TimeTracker {
+impl Timeline {
+    fn new() -> Timeline {
+        Timeline {
             last_stage_start: Instant::now(),
         }
     }

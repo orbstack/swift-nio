@@ -6,7 +6,7 @@ use crate::pidfd::PidFd;
 use crate::service::{PROCESS_WAIT_LOCK, ServiceTracker};
 use tokio::{sync::{Mutex}};
 
-use crate::{loopback, TimeTracker, InitError, DEBUG};
+use crate::{loopback, Timeline, InitError, DEBUG};
 
 // only includes root namespace
 const UNMOUNT_ITERATION_LIMIT: usize = 10;
@@ -194,14 +194,14 @@ async fn wait_for_pidfds_exit(pidfds: Vec<PidFd>, timeout: Duration) -> Result<(
 }
 
 pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box<dyn Error>> {
-    let mut tracker = TimeTracker::new();
-    tracker.begin("Shutting down");
+    let mut timeline = Timeline::new();
+    timeline.begin("Shutting down");
 
     // disable core dump to avoid slow kills
     fs::write("/proc/sys/kernel/core_pattern", "|/bin/false")?;
 
     // kill services that need clean shutdown
-    tracker.begin("Stop services");
+    timeline.begin("Stop services");
     let service_pids = service_tracker.lock().await.shutdown(Signal::SIGTERM)
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to stop service: {}", e);
@@ -210,7 +210,7 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
 
     // stop NFS
     // rpc.mountd will be killed below
-    tracker.begin("Stop NFS");
+    timeline.begin("Stop NFS");
     stop_nfs().await
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to stop NFS: {}", e);
@@ -218,7 +218,7 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
         });
 
     // wait for the services to exit
-    tracker.begin("Wait for services to exit");
+    timeline.begin("Wait for services to exit");
     wait_for_pidfds_exit(service_pids, SERVICE_SIGTERM_TIMEOUT).await
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to wait for services to exit: {}", e);
@@ -226,7 +226,7 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
         });
 
     // kill all processes (these don't need clean shutdown)
-    tracker.begin("Kill all processes");
+    timeline.begin("Kill all processes");
     let all_pids = broadcast_signal(Signal::SIGKILL)
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to kill all processes: {}", e);
@@ -246,7 +246,7 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
     // we don't need to worry about tmpfs, etc.
     // so to speed up shutdown, we only umount anything that has to do with /dev/vd*
     // and we don't support device-mapper (dm) or md
-    tracker.begin("Unmount filesystems");
+    timeline.begin("Unmount filesystems");
     let mut i = 0;
     loop {
         println!("  [round {}]", i + 1);
@@ -287,11 +287,11 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
     }
 
     // sync
-    tracker.begin("Sync data");
+    timeline.begin("Sync data");
     unistd::sync();
 
     // power off
-    tracker.begin("Power off");
+    timeline.begin("Power off");
     reboot(RebootMode::RB_POWER_OFF)?;
 
     Ok(())

@@ -5,7 +5,7 @@ use netlink_packet_route::{LinkMessage, link};
 use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags}, unistd::{sethostname}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId}};
 use futures_util::TryStreamExt;
 
-use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, TimeTracker, vcontrol, action::SystemAction};
+use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, Timeline, vcontrol, action::SystemAction};
 use crate::service::{ServiceTracker, Service};
 use tokio::{sync::{Mutex, mpsc::{Sender}}};
 
@@ -550,21 +550,21 @@ pub async fn main(
     service_tracker: Arc<Mutex<ServiceTracker>>,
     action_tx: Sender<SystemAction>,
 ) -> Result<(), Box<dyn Error>> {
-    let mut tracker = TimeTracker::new();
+    let mut timeline = Timeline::new();
     let boot_start = Instant::now();
 
-    tracker.begin("Booting OrbStack");
+    timeline.begin("Booting OrbStack");
 
     // set basic environment
-    tracker.begin("Set basic environment");
+    timeline.begin("Set basic environment");
     set_basic_env()?;
 
     // pivot to overlayfs
-    tracker.begin("Pivot to overlayfs");
+    timeline.begin("Pivot to overlayfs");
     setup_overlayfs()?;
 
     // mount basic filesystems
-    tracker.begin("Mount pseudo filesystems");
+    timeline.begin("Mount pseudo filesystems");
     mount_pseudo_fs()?;
 
     // system info
@@ -572,21 +572,21 @@ pub async fn main(
     let sys_info = SystemInfo::read()?;
     println!("  -  Kernel version: {}", sys_info.kernel_version);
 
-    tracker.begin("Set up binfmt");
+    timeline.begin("Set up binfmt");
     setup_binfmt(&sys_info)?;
 
-    tracker.begin("Set up network");
+    timeline.begin("Set up network");
     setup_network().await?;
 
-    tracker.begin("Start control server");
+    timeline.begin("Start control server");
     tokio::spawn(vcontrol::server_main(action_tx.clone()));
 
-    tracker.begin("Set clock");
+    timeline.begin("Set clock");
     sync_clock()?;
 
     // do the following 3 slow stages in parallel
     // speedup: 300-400 ms -> 250 ms
-    tracker.begin("Late tasks");
+    timeline.begin("Late tasks");
     let mut tasks = vec![];
     tasks.push(std::thread::spawn(|| { // 150 ms (w/o kernel hack to default to "none" iosched)
         //let stage_start = Instant::now();
@@ -614,13 +614,13 @@ pub async fn main(
         task.join().unwrap();
     }
 
-    tracker.begin("Initialize data");
+    timeline.begin("Initialize data");
     init_data()?;
 
-    tracker.begin("Start services");
+    timeline.begin("Start services");
     start_services(service_tracker.clone(), &sys_info).await?;
 
-    tracker.begin("Booted!");
+    timeline.begin("Booted!");
 
     println!("  -  Total boot time: {}ms", boot_start.elapsed().as_millis());
 
