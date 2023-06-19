@@ -1,9 +1,9 @@
 use std::os::fd::{OwnedFd, FromRawFd, AsRawFd, RawFd};
 
 use nix::{libc::{syscall, SYS_pidfd_open, PIDFD_NONBLOCK, SYS_pidfd_send_signal, siginfo_t}, sys::signal::Signal};
-use tokio::io::unix::AsyncFd;
+use tokio::io::unix::{AsyncFd, AsyncFdReadyGuard};
 
-pub struct PidFd(pub AsyncFd<OwnedFd>);
+pub struct PidFd(AsyncFd<OwnedFd>);
 
 impl PidFd {
     pub fn open(pid: i32) -> std::io::Result<Self> {
@@ -23,6 +23,10 @@ impl PidFd {
         }
 
         Ok(())
+    }
+
+    pub async fn wait(&self) -> tokio::io::Result<AsyncFdReadyGuard<OwnedFd>> {
+        self.0.readable().await
     }
 }
 

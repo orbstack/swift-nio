@@ -64,6 +64,8 @@ pub enum InitError {
     Kill(nix::Error),
     #[error("timeout")]
     Timeout,
+    #[error("failed to poll pidfd: {}", .0)]
+    PollPidFd(tokio::io::Error),
 }
 
 #[derive(Clone)]
@@ -849,23 +851,20 @@ async fn wait_for_pidfds_exit(pidfds: Vec<PidFd>, timeout: Duration) -> Result<(
     let futures = pidfds.into_iter()
         .map(|pidfd| {
             async move {
-                pidfd.0.readable().await?;
+                let _guard = pidfd.wait().await?;
                 Ok::<(), tokio::io::Error>(())
             }
         })
         .collect::<Vec<_>>();
-    let timeout_future = tokio::time::timeout(timeout, futures::future::join_all(futures));
-    match timeout_future.await {
-        Ok(results) => {
-            for result in results {
-                if let Err(err) = result {
-                    return Err(err.into());
-                }
-            }
-            Ok(())
+
+    let results = tokio::time::timeout(timeout, futures::future::join_all(futures)).await?;
+    for result in results {
+        if let Err(err) = result {
+            return Err(InitError::PollPidFd(err).into());
         }
-        Err(_) => Err(InitError::Timeout.into()),
     }
+
+    Ok(())
 }
 
 async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box<dyn Error>> {
