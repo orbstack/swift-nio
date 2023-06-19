@@ -50,9 +50,6 @@ fn set_basic_env() -> Result<(), Box<dyn Error>> {
     setrlimit(Resource::RLIMIT_NOFILE, 1048576, 1048576)?;
     setrlimit(Resource::RLIMIT_MEMLOCK, RLIM_INFINITY, RLIM_INFINITY)?;
 
-    // prevent us from getting swapped out in case of memory pressure
-    mlockall(MlockAllFlags::MCL_CURRENT | MlockAllFlags::MCL_FUTURE)?;
-
     Ok(())
 }
 
@@ -491,6 +488,10 @@ fn enable_swap(path: &str, priority: i32) -> Result<(), Box<dyn Error>> {
 }
 
 fn setup_memory() -> Result<(), Box<dyn Error>> {
+    // prevent us from getting swapped out in case of memory pressure
+    // (~8 ms, so it's in this async task)
+    mlockall(MlockAllFlags::MCL_CURRENT | MlockAllFlags::MCL_FUTURE)?;
+
     // sysctls
     sysctl("vm.overcommit_memory", "1")?;
     sysctl("vm.swappiness", "20")?;
