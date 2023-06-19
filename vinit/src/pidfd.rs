@@ -16,8 +16,7 @@ impl PidFd {
         Ok(Self(fd))
     }
 
-    fn send_signal(&self, signal: Option<Signal>) -> nix::Result<()> {
-        let signal = signal.map_or(0, |s| s as i32);
+    fn send_signal(&self, signal: i32) -> nix::Result<()> {
         let res = unsafe { syscall(SYS_pidfd_send_signal, self.as_raw_fd(), signal, std::ptr::null::<*const siginfo_t>(), 0) };
         if res < 0 {
             return Err(nix::Error::last());
@@ -27,11 +26,11 @@ impl PidFd {
     }
 
     pub fn kill(&self, signal: Signal) -> nix::Result<()> {
-        self.send_signal(Some(signal))
+        self.send_signal(signal as i32)
     }
 
     pub fn is_alive(&self) -> std::io::Result<bool> {
-        match self.send_signal(None) {
+        match self.send_signal(0) {
             // success = process is alive
             Ok(_) => Ok(true),
             Err(e) => {
