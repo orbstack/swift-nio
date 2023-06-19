@@ -2,7 +2,7 @@ use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instan
 
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link};
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec}, mount::{MsFlags}, unistd::{sethostname}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId}};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags}, unistd::{sethostname}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId}};
 use futures_util::TryStreamExt;
 
 use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, TimeTracker, vcontrol, action::SystemAction};
@@ -40,6 +40,9 @@ fn set_basic_env() -> Result<(), Box<dyn Error>> {
     // ulimit
     setrlimit(Resource::RLIMIT_NOFILE, 1048576, 1048576)?;
     setrlimit(Resource::RLIMIT_MEMLOCK, RLIM_INFINITY, RLIM_INFINITY)?;
+
+    // prevent us from getting swapped out in case of memory pressure
+    mlockall(MlockAllFlags::MCL_CURRENT | MlockAllFlags::MCL_FUTURE)?;
 
     Ok(())
 }

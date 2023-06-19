@@ -1,6 +1,6 @@
 use std::{error::Error, fs::{self, DirEntry}, time::Duration, os::{fd::{AsRawFd}}, io::{self}, sync::Arc, path::Path};
 
-use nix::{sys::{signal::{kill, Signal}, reboot::{reboot, RebootMode}, mman::{mlockall, MlockAllFlags}}, mount::{umount2, MntFlags}, unistd::{Pid, self}, errno::Errno, fcntl::readlink};
+use nix::{sys::{signal::{kill, Signal}, reboot::{reboot, RebootMode}}, mount::{umount2, MntFlags}, unistd::{Pid, self}, errno::Errno, fcntl::readlink};
 
 use crate::pidfd::PidFd;
 use crate::service::{PROCESS_WAIT_LOCK, ServiceTracker};
@@ -197,9 +197,6 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
     let mut tracker = TimeTracker::new();
     tracker.begin("Shutting down");
 
-    // lock self in memory
-    mlockall(MlockAllFlags::MCL_CURRENT | MlockAllFlags::MCL_FUTURE)?;
-
     // disable core dump to avoid slow kills
     fs::write("/proc/sys/kernel/core_pattern", "|/bin/false")?;
 
@@ -222,7 +219,6 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
 
     // wait for the services to exit
     tracker.begin("Wait for services to exit");
-    //TODO: more efficient because these are children
     wait_for_pidfds_exit(service_pids, SERVICE_SIGTERM_TIMEOUT).await
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to wait for services to exit: {}", e);
@@ -244,7 +240,6 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
 
     // remove binfmts
     // in case user added custom binfmts from data with F (open file) flag
-    tracker.begin("Clear binfmt_misc");
     fs::write("/proc/sys/fs/binfmt_misc/status", "-1")?;
 
     // unmount loop and data filesystems, which means virtiofs and btrfs
