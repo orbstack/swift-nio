@@ -1,10 +1,10 @@
-use std::{collections::{BTreeMap}, process::Command, fs, fmt::{Display, Formatter}, time::Duration};
+use std::{collections::{BTreeMap}, process::Command, fs, fmt::{Display, Formatter}, time::Duration, error::Error};
 
 use nix::{sys::signal::{Signal}};
 use once_cell::sync::Lazy;
 use tokio::sync::{Mutex};
 
-use crate::pidfd::PidFd;
+use crate::{pidfd::PidFd, InitError};
 
 pub static PROCESS_WAIT_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
@@ -73,8 +73,10 @@ impl ServiceTracker {
         }
     }
 
-    pub fn spawn(&mut self, service: Service, cmd: &mut Command) -> std::io::Result<()> {
-        let pid = cmd.spawn()?.id();
+    pub fn spawn(&mut self, service: Service, cmd: &mut Command) -> Result<(), Box<dyn Error>> {
+        let pid = cmd.spawn()
+            .map_err(|e| InitError::SpawnService { service, error: e })?
+            .id();
 
         // set OOM score adj for critical services
         if service.critical {
@@ -91,7 +93,7 @@ impl ServiceTracker {
         Ok(())
     }
     
-    pub async fn restart(&mut self, service: Service) -> std::io::Result<()> {
+    pub async fn restart(&mut self, service: Service) -> Result<(), Box<dyn Error>> {
         if !service.restartable || self.shutting_down {
             return Ok(());
         }

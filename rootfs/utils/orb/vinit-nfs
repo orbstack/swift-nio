@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 #
 # Copyright 2023 Orbital Labs, LLC. All rights reserved.

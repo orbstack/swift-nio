@@ -37,23 +37,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     mkdir -p /out && ./build-release.sh /out ${TYPE}
 EOT
 
-# Build Rust - vcontrol
-FROM base AS rust-build
-RUN apk add --no-cache cargo
-COPY vcontrol /build/vcontrol
-ARG ARCH=arm64
-# Rust can't deal with arch change in target/
-RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/build/vcontrol/target,id=${ARCH} \
-<<EOT sh -eux
-cd /build/vcontrol
-cargo build --release
-mkdir /out
-cp target/release/vcontrol /out/vcontrol
-EOT
-
 # Build Rust - vinit
-FROM base AS rust-build2
+FROM base AS rust-build
 RUN apk add --no-cache cargo
 COPY vinit /build/vinit
 ARG ARCH=arm64
@@ -72,13 +57,12 @@ mkdir /out
 cp target/${TYPE}/vinit /out/vinit
 EOT
 
-# Build C - switchroot, vsocknfs
+# Build C - vsocknfs
 FROM base AS c-build
 RUN apk add --no-cache alpine-sdk linux-headers
 COPY rootfs/utils/*.c /build/
 RUN <<EOT sh -eux
 mkdir /out /out-guest
-gcc -O2 -Wall -o /out/switchroot /build/switchroot.c
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
 gcc -O2 -Wall -static -o /out/bk-stub-amd64 /build/bk-stub-amd64.c
 gcc -O2 -Wall -static -o /out-guest/dummy /build/dummy.c
@@ -240,20 +224,17 @@ FROM base AS rootfs
 # Dependencies
 RUN apk add --no-cache \
     # basic
-    openrc bash dash chrony eudev \
+    chrony eudev \
     # disk
-    # util-linux to fix "/dev/vda: Can't open blockdev" for btrfs mount
-    sfdisk nfs-utils btrfs-progs util-linux \
+    sfdisk nfs-utils \
     # scon deps
-    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz \
-    # needed for static ip neigh
-    iproute2-minimal
+    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz
 
 # debug deps
 ARG TYPE=release
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
-    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk socat llvm clang linux-headers libbpf-dev
+    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk socat llvm clang linux-headers libbpf-dev btrfs-progs
 fi
 EOT
 
@@ -286,26 +267,10 @@ EOT
 # Docker container rootfs
 COPY --from=docker / /opt/docker-rootfs
 
-# services
-RUN <<EOT sh -eux
-rc-update add devfs
-rc-update add sysfs
-rc-update add cgroups default
-rc-update add networking default
-rc-update add udev default
-rc-update add chronyd default
-touch /etc/network/interfaces
-EOT
-
 # configs
 COPY \
-    rootfs/config/inittab \
-    rootfs/config/fstab \
-    rootfs/config/hostname \
     rootfs/config/hosts \
     rootfs/config/resolv.conf \
-    rootfs/config/sysctl.conf \
-    rootfs/config/rc.conf \
     rootfs/config/os-release \
     /etc/
 COPY rootfs/config/ssh_host_keys /etc/ssh
@@ -315,11 +280,7 @@ COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf
 # debug services
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
-    mkdir -p /opt/orb
-    touch /opt/orb/is_debug
-
     chown 0600 /etc/ssh/*key*
-    rc-update add sshd default
     sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
 
     mkdir /root/.ssh
@@ -348,17 +309,7 @@ rm -f /etc/motd
 mkdir -p /usr/lib/lxc/rootfs
 
 # NFS
-# 32 threads for perf
-echo 'OPTS_RPC_NFSD="32"' >> /etc/conf.d/nfs
-# fix fd hang
-echo 'OPTS_NFSD="nfsv4leasetime=30 nfsv4gracetime=1"' >> /etc/conf.d/nfs
 mkdir /nfsroot-ro /nfsroot-rw
-
-# speed up boot
-echo 'rc_need="localmount"' >> /etc/conf.d/sshd
-# dash is slightly faster
-rm -f /bin/sh
-ln -s /usr/bin/dash /bin/sh
 
 # Mountpoints
 mkdir /data
@@ -388,7 +339,7 @@ done
 mkdir -p /opt/orb/launchd-ssh-agent-listeners
 ln -s /opt/orbstack-guest/run/host-ssh-agent.sock /opt/orb/launchd-ssh-agent-listeners/Listeners
 
-# NFS state (because we removed nfs-utils package)
+# NFS state (need to create because we removed nfs-utils package)
 mkdir -p /var/lib/nfs /var/lib/nfs/v4recovery
 touch /var/lib/nfs/etab /var/lib/nfs/rmtab /var/lib/nfs/state
 EOT
@@ -401,10 +352,8 @@ COPY LICENSE /
 # Compiled binaries (in order of most likely to change)
 COPY --from=c-build /out/* /opt/orb/
 COPY --from=c-build /out-guest/* /opt/orbstack-guest/
-# vcontrol
-COPY --from=rust-build /out/vcontrol /opt/orb/
 # vinit
-COPY --from=rust-build2 /out/vinit /opt/orb/
+COPY --from=rust-build /out/vinit /opt/orb/
 # macctl
 COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/
 # scon

@@ -3,7 +3,7 @@ use std::{error::Error, fs::{self}, time::{Instant}, process::{ExitStatus}, coll
 use nix::{sys::{wait::{waitpid, WaitPidFlag, WaitStatus}}, unistd::{Pid, getpid}, errno::Errno};
 
 mod helpers;
-use service::{PROCESS_WAIT_LOCK, ServiceTracker};
+use service::{PROCESS_WAIT_LOCK, ServiceTracker, Service};
 use tokio::{signal::unix::{signal, SignalKind}, sync::{Mutex, mpsc::{self, Sender}}};
 
 mod action;
@@ -43,6 +43,8 @@ pub enum InitError {
     NtpGetTime(sntpc::Error),
     #[error("failed to parse proc stat for pid {}", .0)]
     ParseProcStat(i32),
+    #[error("failed to spawn service {}: {}", .service, .error)]
+    SpawnService { service: Service, #[source] error: std::io::Error },
 }
 
 #[derive(Clone)]
