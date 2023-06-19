@@ -42,12 +42,21 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 	}()
 
 	// must unfreeze so agent responds
-	err = c.lxc.Unfreeze()
-	if err != nil && err != lxc.ErrNotFrozen {
-		return oldState, err
+	freezer := c.Freezer()
+	if freezer != nil {
+		freezer.incRefCLocked()
 	}
 
-	// ignore failure
+	// tell agent to prepare for stop
+	agent := c.agent.Load()
+	if agent != nil {
+		err := agent.SyntheticWarnStop()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to send stop warning to agent")
+		}
+	}
+
+	// graceful attempt first; ignore failure
 	err = c.lxc.Shutdown(gracefulShutdownTimeout)
 	if err != nil {
 		logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")

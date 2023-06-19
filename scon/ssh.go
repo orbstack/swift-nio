@@ -419,7 +419,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	// don't wait for fds to close, we close them
 	// read-side pipes will be closed after start
 	// write-side pipes will be closed on EOF
-	status, err := cmd.Process.Wait()
+	status, err := cmd.Process.WaitStatus()
 	if err != nil {
 		logrus.Error("wait err: ", err)
 		return

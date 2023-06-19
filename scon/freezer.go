@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/lxc/go-lxc"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 )
 

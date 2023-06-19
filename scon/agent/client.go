@@ -1,22 +1,35 @@
 package agent
 
 import (
+	"errors"
 	"net"
 	"net/rpc"
 	"os"
+	"sync/atomic"
+
+	"golang.org/x/sys/unix"
+)
+
+const (
+	stopWarningSignal = unix.SIGPWR
 )
 
 type Client struct {
-	process *os.Process
-	rpc     *rpc.Client
-	fdx     *Fdx
+	// process before double fork
+	initialProcess *os.Process
+	// pidfd of real agent process, after double fork
+	// CAREFUL: agent is nil so we can't WaitStatus on it, only signal
+	process atomic.Pointer[PidfdProcess]
+
+	rpc *rpc.Client
+	fdx *Fdx
 }
 
-func NewClient(process *os.Process, rpcConn net.Conn, fdxConn net.Conn) *Client {
+func NewClient(initialProcess *os.Process, rpcConn net.Conn, fdxConn net.Conn) *Client {
 	return &Client{
-		process: process,
-		rpc:     rpc.NewClient(rpcConn),
-		fdx:     NewFdx(fdxConn),
+		initialProcess: initialProcess,
+		rpc:            rpc.NewClient(rpcConn),
+		fdx:            NewFdx(fdxConn),
 	}
 }
 
@@ -25,7 +38,12 @@ func (c *Client) Close() error {
 	c.fdx.Close()
 
 	// err doesn't matter, should already be dead from container stop
-	_ = c.process.Kill()
+	_ = c.initialProcess.Kill()
+	process := c.process.Load()
+	if process != nil {
+		_ = process.Kill()
+		process.Release()
+	}
 	return nil
 }
 
@@ -276,4 +294,35 @@ func (c *Client) EndUserSession(user string) error {
 	}
 
 	return nil
+}
+
+func (c *Client) GetAgentPidFd() error {
+	if c.process.Load() != nil {
+		return errors.New("agent pidfd already set")
+	}
+
+	var seq uint64
+	err := c.rpc.Call("a.GetAgentPidFd", None{}, &seq)
+	if err != nil {
+		return err
+	}
+
+	file, err := c.fdx.RecvFile(seq)
+	if err != nil {
+		return err
+	}
+
+	// update own process reference
+	// agent=nil: doesn't make sense to ask agent to wait on itself
+	c.process.Store(wrapPidfdProcess(file, 0, nil))
+	return nil
+}
+
+func (c *Client) SyntheticWarnStop() error {
+	process := c.process.Load()
+	if process == nil {
+		return errors.New("no agent pidfd process")
+	}
+
+	return process.Signal(stopWarningSignal)
 }

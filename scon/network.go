@@ -132,7 +132,7 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 	go func() {
 		err := cmd.Wait()
 		if err != nil {
-			// ignore SIGKILL
+			// ignore signals
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				if exitErr.ExitCode() == -1 {
 					return

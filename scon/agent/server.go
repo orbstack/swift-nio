@@ -54,75 +54,6 @@ func (a *AgentServer) Ping(_ None, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) StartProxyTCP(args StartProxyArgs, _ *None) error {
-	spec := args.ProxySpec
-	listenerFd, err := a.fdx.RecvFile(args.FdxSeq)
-	if err != nil {
-		return err
-	}
-
-	listener, err := net.FileListener(listenerFd)
-	if err != nil {
-		return err
-	}
-	listenerFd.Close()
-
-	// Docker: always prefer v4 because Docker is traditionally v4-only
-	// still try v6 in case of host net and v6-only servers
-	preferV6 := spec.IsIPv6 && a.docker == nil
-	proxy := tcpfwd.NewTCPProxy(listener, preferV6, spec.Port)
-	a.tcpProxies[spec] = proxy
-	go proxy.Run()
-
-	return nil
-}
-
-func (a *AgentServer) StartProxyUDP(args StartProxyArgs, _ *None) error {
-	spec := args.ProxySpec
-	listenerFd, err := a.fdx.RecvFile(args.FdxSeq)
-	if err != nil {
-		return err
-	}
-
-	udpConn, err := net.FilePacketConn(listenerFd)
-	if err != nil {
-		return err
-	}
-
-	proxy, err := udpfwd.NewUDPLocalProxy(udpConn, spec.IsIPv6, spec.Port)
-	if err != nil {
-		return err
-	}
-	a.udpProxies[spec] = proxy
-	go proxy.Run()
-
-	return nil
-}
-
-func (a *AgentServer) StopProxyTCP(args ProxySpec, _ *None) error {
-	proxy, ok := a.tcpProxies[args]
-	if !ok {
-		return nil
-	}
-
-	proxy.Close()
-	delete(a.tcpProxies, args)
-
-	return nil
-}
-
-func (a *AgentServer) StopProxyUDP(args ProxySpec, _ *None) error {
-	proxy, ok := a.udpProxies[args]
-	if !ok {
-		return nil
-	}
-
-	proxy.Close()
-	delete(a.udpProxies, args)
-
-	return nil
-}
-
 // TODO fix zeroing: https://source.chromium.org/chromium/chromium/src/+/main:content/common/set_process_title_linux.cc
 func setProcessCmdline(name string) error {
 	argv0str := (*reflect.StringHeader)(unsafe.Pointer(&os.Args[0]))
@@ -172,16 +103,6 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if err != nil {
 		return err
 	}
-
-	// catch and ignore signals, so children exit first
-	// so rpc wait works better
-	sigCh := make(chan os.Signal, 1)
-	// TODO: catch SIGTERM and kill child processes so scon ssh can call wait() and read exit codes
-	signal.Notify(sigCh, unix.SIGINT, unix.SIGQUIT)
-	go func() {
-		for range sigCh {
-		}
-	}()
 
 	rpcConn, err := net.FileConn(rpcFile)
 	if err != nil {
@@ -241,6 +162,25 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if err != nil {
 		return err
 	}
+
+	// catch and ignore signals, so children exit first and rpc wait works better
+	sigCh := make(chan os.Signal, 1)
+	// TODO: catch SIGTERM and kill child processes so scon ssh can call wait() and read exit codes
+	signal.Notify(sigCh, unix.SIGINT, unix.SIGQUIT, stopWarningSignal)
+	go func() {
+		for signal := range sigCh {
+			switch signal {
+			case stopWarningSignal:
+				// warn docker about stop
+				if server.docker != nil {
+					err := server.docker.OnStop()
+					if err != nil {
+						logrus.WithError(err).Error("docker on-stop failed")
+					}
+				}
+			}
+		}
+	}()
 
 	// in NixOS, we need to wait for systemd before we do anything else (including running /bin/sh)
 	waitForNixBoot()

@@ -51,6 +51,8 @@ type DockerAgent struct {
 	networkRefreshDebounce   syncx.FuncDebounce
 	uiEventDebounce          syncx.FuncDebounce
 	pendingUIEntities        []dockertypes.UIEntity
+
+	eventsConn io.Closer
 }
 
 func NewDockerAgent() *DockerAgent {
@@ -206,6 +208,15 @@ func (d *DockerAgent) PostStart() error {
 	return nil
 }
 
+func (d *DockerAgent) OnStop() error {
+	logrus.Debug("stopping docker event monitor")
+	if d.eventsConn != nil {
+		d.eventsConn.Close()
+	}
+
+	return nil
+}
+
 func (d *DockerAgent) refreshContainers() error {
 	// no mu needed: synchronized by debounce
 
@@ -336,6 +347,8 @@ func (d *DockerAgent) monitorEvents() error {
 	if err != nil {
 		return err
 	}
+	defer req.Body.Close()
+	d.eventsConn = req.Body
 
 	if req.StatusCode < 200 || req.StatusCode >= 300 {
 		return errors.New("docker API returned " + req.Status)
@@ -354,8 +367,8 @@ func (d *DockerAgent) monitorEvents() error {
 		var event dockertypes.Event
 		err := dec.Decode(&event)
 		if err != nil {
-			// EOF = Docker daemon stopped
-			if errors.Is(err, io.ErrUnexpectedEOF) {
+			// EOF = Docker daemon stopped, or conn closed by PreStop
+			if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) {
 				return nil
 			} else {
 				return fmt.Errorf("decode json: %w", err)

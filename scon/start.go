@@ -879,6 +879,12 @@ func (c *Container) postStartAsync(a *agent.Client) error {
 	// kick listener update in case we missed any before agent start
 	c.triggerListenersUpdate()
 
+	// get agent's pidfd
+	err = a.GetAgentPidFd()
+	if err != nil {
+		return fmt.Errorf("get agent pidfd: %w", err)
+	}
+
 	// ssh agent proxy (vscode workaround)
 	hostUser, err := c.manager.host.GetUser()
 	if err != nil {

@@ -53,6 +53,22 @@ type ResolveSSHDirArgs struct {
 	Dir  string
 }
 
+func (a *AgentServer) GetAgentPidFd(_ None, reply *uint64) error {
+	pidfd, err := unix.PidfdOpen(os.Getpid(), 0)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(pidfd)
+
+	seq, err := a.fdx.SendFdInt(pidfd)
+	if err != nil {
+		return err
+	}
+
+	*reply = seq
+	return nil
+}
+
 func (a *AgentServer) ResolveSSHDir(args ResolveSSHDirArgs, reply *string) (err error) {
 	cwd := args.Dir
 	if cwd == "" {
@@ -491,8 +507,7 @@ func (p *PidfdProcess) Signal(sig os.Signal) error {
 	return unix.PidfdSendSignal(int(p.f.Fd()), sig.(unix.Signal), nil, 0)
 }
 
-func (p *PidfdProcess) Wait() (int, error) {
-	// poll first, only call RPC when necessary
+func (p *PidfdProcess) Wait() error {
 	for {
 		fds := [1]unix.PollFd{
 			{
@@ -507,7 +522,21 @@ func (p *PidfdProcess) Wait() (int, error) {
 		if err == unix.EINTR {
 			continue
 		}
+		return err
+	}
+
+	return nil
+}
+
+func (p *PidfdProcess) WaitStatus() (int, error) {
+	// poll first, only call RPC when necessary
+	err := p.Wait()
+	if err != nil {
 		return 0, err
+	}
+
+	if p.a == nil {
+		return 0, errors.New("pidfd process has no agent")
 	}
 
 	// call wait to get the status
