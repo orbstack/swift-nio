@@ -126,5 +126,5 @@ func (c *Container) deleteInternal() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.deleteLocked(false)
+	return c.deleteLocked(true)
 }
