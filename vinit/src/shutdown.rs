@@ -1,6 +1,6 @@
 use std::{error::Error, fs::{self, DirEntry}, time::Duration, os::{fd::{AsRawFd}}, io::{self}, sync::Arc, path::Path};
 
-use nix::{sys::{signal::{kill, Signal}, reboot::{reboot, RebootMode}}, mount::{umount2, MntFlags}, unistd::{Pid, self}, errno::Errno, fcntl::readlink};
+use nix::{sys::{signal::{kill, Signal}, reboot::{reboot, RebootMode}}, mount::{umount2, MntFlags}, unistd::{Pid, self}};
 
 use crate::pidfd::PidFd;
 use crate::service::{PROCESS_WAIT_LOCK, ServiceTracker};
@@ -18,6 +18,30 @@ const DATA_FILESYSTEM_TYPES: &[&str] = &[
 const SERVICE_SIGTERM_TIMEOUT: Duration = Duration::from_secs(20);
 const PROCESS_SIGKILL_TIMEOUT: Duration = Duration::from_secs(5);
 
+const PF_KTHREAD: u32 = 0x00200000;
+
+fn is_process_kthread(pid: i32) -> Result<bool, Box<dyn Error>> {
+    // check for PF_KTHREAD flag in /proc/<pid>/stat
+    // checking readlink(/proc/<pid>/exe) == ENOENT is unreliable, sometimes skips exiting processes
+    // we shouldn't kill them because they won't exit
+    let stat = fs::read_to_string(format!("/proc/{}/stat", pid))?;
+
+    // entire line: 420 (kworker/5:2) I 2 0 0 0 -1 69238880 0 0 0 0 0 0 0 0 20 0 1 0 96 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 1 0 0 17 5 0 0 0 0 0 0 0 0 0 0 0 0 0
+    // there can be spaces in the comm field, so parse after the last ')'
+    let (_, numbers_part) = stat.rsplit_once(')')
+        .ok_or_else(|| InitError::ParseProcStat(pid))?;
+    // " I 2 0 0 0 -1 69238880 0 0 0 0 0 0 0 0 20 0 1 0 96 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 1 0 0 17 5 0 0 0 0 0 0 0 0 0 0 0 0 0"
+    let mut fields = numbers_part.split_whitespace();
+    // flags is the 9th field (index 8) from start, so with two removed it's index 6
+    // Rust split_whitespace ignores leading space
+    let flags = fields.nth(6)
+        .ok_or_else(|| InitError::ParseProcStat(pid))?;
+    // now parse the flags
+    let flags = flags.parse::<u32>()?;
+    // check for PF_KTHREAD
+    Ok((flags & PF_KTHREAD) != 0)
+}
+
 fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<Option<PidFd>, Box<dyn Error>> {
     let filename = entry?.file_name();
     if let Ok(pid) =  filename.to_str().unwrap().parse::<i32>() {
@@ -26,15 +50,12 @@ fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<
             return Ok(None);
         }
         
-        // skip kthreads - they have no executable
-        match readlink(Path::new(&format!("/proc/{}/exe", pid))) {
-            Err(Errno::ENOENT) => {
-                return Ok(None);
-            },
-            _ => {},
+        // skip kthreads (they won't exit)
+        if is_process_kthread(pid)? {
+            return Ok(None);
         }
 
-        // open a pidfd before killing, then use the pidfd to kill it, and make it pollable
+        // open a pidfd before killing, then kill via pidfd for safety
         let pidfd = PidFd::open(pid)?;
         pidfd.kill(signal)?;
         Ok(Some(pidfd))

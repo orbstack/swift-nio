@@ -41,6 +41,8 @@ pub enum InitError {
     PollPidFd(tokio::io::Error),
     #[error("failed to get time from ntp: {:?}", .0)]
     NtpGetTime(sntpc::Error),
+    #[error("failed to parse proc stat for pid {}", .0)]
+    ParseProcStat(i32),
 }
 
 #[derive(Clone)]

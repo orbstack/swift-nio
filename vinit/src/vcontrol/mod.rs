@@ -81,7 +81,6 @@ pub async fn server_main(action_tx: Sender<SystemAction>) {
 
     // 100.115.92.2:103
     let addr = SocketAddr::from(([198, 19, 248, 2], 103));
-    info!("starting");
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
