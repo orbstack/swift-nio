@@ -4,6 +4,8 @@ use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use once_cell::sync::Lazy;
 use tokio::sync::{Mutex};
 
+use crate::pidfd::PidFd;
+
 pub static PROCESS_WAIT_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 const OOM_SCORE_CRITICAL: i32 = -950;
@@ -96,16 +98,17 @@ impl ServiceTracker {
             .args(&spec.args))
     }
 
-    pub fn shutdown(&mut self, signal: Signal) -> nix::Result<Vec<i32>> {
-        let mut pids = Vec::new();
+    pub fn shutdown(&mut self, signal: Signal) -> std::io::Result<Vec<PidFd>> {
+        let mut pidfds = Vec::new();
         for (pid, service) in self.pids.iter() {
             if service.needs_clean_shutdown {
-                kill(Pid::from_raw(*pid as i32), signal)?;
-                pids.push(*pid as i32);
+                let pidfd = PidFd::open(*pid as i32)?;
+                pidfd.send_signal(signal)?;
+                pidfds.push(pidfd);
             }
         }
 
-        Ok(pids)
+        Ok(pidfds)
     }
 
     pub fn on_pid_exit(&mut self, pid: u32) -> Option<Service> {

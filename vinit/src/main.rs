@@ -1,4 +1,4 @@
-use std::{env, error::Error, fs::{self, Permissions, OpenOptions, DirEntry}, time::{Instant, Duration}, os::{unix::{prelude::PermissionsExt, fs::chroot}, fd::AsRawFd}, process::{Command, Stdio, ExitStatus}, collections::BTreeMap, io::{Write, self}, net::UdpSocket, sync::Arc, path::Path};
+use std::{env, error::Error, fs::{self, Permissions, OpenOptions, DirEntry}, time::{Instant, Duration}, os::{unix::{prelude::PermissionsExt, fs::chroot}, fd::{AsRawFd, OwnedFd}}, process::{Command, Stdio, ExitStatus}, collections::BTreeMap, io::{Write, self}, net::UdpSocket, sync::Arc, path::Path};
 
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link};
@@ -7,8 +7,9 @@ use futures_util::TryStreamExt;
 
 mod helpers;
 use helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK};
+use pidfd::PidFd;
 use service::{PROCESS_WAIT_LOCK, ServiceTracker, Service};
-use tokio::{signal::unix::{signal, SignalKind}, sync::{Mutex, mpsc::{self, Sender}}};
+use tokio::{signal::unix::{signal, SignalKind}, sync::{Mutex, mpsc::{self, Sender}}, io::unix::AsyncFd};
 
 use crate::ethtool::ETHTOOL_STSO;
 
@@ -19,6 +20,7 @@ mod service;
 mod blockdev;
 mod ethtool;
 mod loopback;
+pub mod pidfd;
 
 // debug flag
 #[cfg(debug_assertions)]
@@ -45,7 +47,7 @@ const DATA_FILESYSTEM_TYPES: &[&str] = &[
     "btrfs",
 ];
 
-const SERVICE_SIGTERM_TIMEOUT: Duration = Duration::from_secs(15);
+const SERVICE_SIGTERM_TIMEOUT: Duration = Duration::from_secs(20);
 const PROCESS_SIGKILL_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(thiserror::Error, Debug)]
@@ -688,7 +690,7 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
     Ok(())
 }
 
-fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<Option<i32>, Box<dyn Error>> {
+fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<Option<PidFd>, Box<dyn Error>> {
     let filename = entry?.file_name();
     if let Ok(pid) =  filename.to_str().unwrap().parse::<i32>() {
         // skip pid 1
@@ -704,14 +706,16 @@ fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<
             _ => {},
         }
 
-        kill(Pid::from_raw(pid), signal)?;
-        Ok(Some(pid))
+        // open a pidfd before killing, then use the pidfd to kill it, and make it pollable
+        let pidfd = PidFd::open(pid)?;
+        pidfd.send_signal(signal)?;
+        Ok(Some(pidfd))
     } else {
         Ok(None)
     }
 }
 
-fn broadcast_signal(signal: Signal) -> nix::Result<Vec<i32>> {
+fn broadcast_signal(signal: Signal) -> nix::Result<Vec<PidFd>> {
     // freeze to get consistent snapshot and avoid thrashing
     kill(Pid::from_raw(-1), Signal::SIGSTOP)?;
 
@@ -841,35 +845,27 @@ async fn stop_nfs() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn wait_for_pids_exit(pids: Vec<i32>, timeout: Duration) -> Result<(), Box<dyn Error>> {
-    // easiest way is to just poll
-    let start = Instant::now();
-    loop {
-        let mut all_exited = true;
-        for pid in &pids {
-            match kill(Pid::from_raw(*pid), None) {
-                Ok(_) => {
-                    all_exited = false;
-                    break;
-                },
-                Err(Errno::ESRCH) => {},
-                Err(e) => {
-                    return Err(InitError::Kill(e).into());
-                },
+async fn wait_for_pidfds_exit(pidfds: Vec<PidFd>, timeout: Duration) -> Result<(), Box<dyn Error>> {
+    let futures = pidfds.into_iter()
+        .map(|pidfd| {
+            async move {
+                pidfd.0.readable().await?;
+                Ok::<(), tokio::io::Error>(())
             }
+        })
+        .collect::<Vec<_>>();
+    let timeout_future = tokio::time::timeout(timeout, futures::future::join_all(futures));
+    match timeout_future.await {
+        Ok(results) => {
+            for result in results {
+                if let Err(err) = result {
+                    return Err(err.into());
+                }
+            }
+            Ok(())
         }
-
-        if all_exited {
-            break;
-        }
-        if start.elapsed() > timeout {
-            return Err(InitError::Timeout.into());
-        }
-
-        tokio::time::sleep(Duration::from_millis(25)).await;
+        Err(_) => Err(InitError::Timeout.into()),
     }
-
-    Ok(())
 }
 
 async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box<dyn Error>> {
@@ -902,9 +898,9 @@ async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), 
     // wait for the services to exit
     tracker.begin("Wait for services to exit");
     //TODO: more efficient because these are children
-    wait_for_pids_exit(service_pids, SERVICE_SIGTERM_TIMEOUT).await
+    wait_for_pidfds_exit(service_pids, SERVICE_SIGTERM_TIMEOUT).await
         .unwrap_or_else(|e| {
-            eprintln!(" !!! Failed to wait for services to stop: {}", e);
+            eprintln!(" !!! Failed to wait for services to exit: {}", e);
             ()
         });
 
@@ -915,7 +911,7 @@ async fn do_shutdown(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), 
             eprintln!(" !!! Failed to kill all processes: {}", e);
             vec![]
         });
-    wait_for_pids_exit(all_pids, PROCESS_SIGKILL_TIMEOUT).await
+    wait_for_pidfds_exit(all_pids, PROCESS_SIGKILL_TIMEOUT).await
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to wait for processes to exit: {}", e);
             ()
