@@ -44,7 +44,7 @@ fn is_process_kthread(pid: i32) -> Result<bool, Box<dyn Error>> {
 
 fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<Option<PidFd>, Box<dyn Error>> {
     let filename = entry?.file_name();
-    if let Ok(pid) =  filename.to_str().unwrap().parse::<i32>() {
+    if let Ok(pid) = filename.to_str().unwrap().parse::<i32>() {
         // skip pid 1
         if pid == 1 {
             return Ok(None);
@@ -195,12 +195,10 @@ async fn stop_nfs() -> Result<(), Box<dyn Error>> {
 }
 
 async fn wait_for_pidfds_exit(pidfds: Vec<PidFd>, timeout: Duration) -> Result<(), Box<dyn Error>> {
-    let futures = pidfds.into_iter()
-        .map(|pidfd| {
-            async move {
-                let _guard = pidfd.wait().await?;
-                Ok::<(), tokio::io::Error>(())
-            }
+    let futures = pidfds.iter()
+        .map(|pidfd| async move {
+            let _guard = pidfd.wait().await?;
+            Ok::<(), tokio::io::Error>(())
         })
         .collect::<Vec<_>>();
 
