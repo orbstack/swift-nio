@@ -1,0 +1,24 @@
+XFS_IOC_DIOINFO failed, guessing alignment
+memory DMA alignment:    512
+disk DMA alignment:      512
+filesystem block size:   4096
+context switch per write io (size-changing, append, blocksize 4096, iodepth 1): 0.0068 (GOOD)
+context switch per write io (size-changing, append, blocksize 4096, iodepth 3): 0.0757 (GOOD)
+context switch per write io (size-unchanging, append, blocksize 4096, iodepth 3): 0 (GOOD)
+context switch per write io (size-unchanging, append, blocksize 4096, iodepth 7): 0 (GOOD)
+context switch per write io (size-unchanging, append, blocksize 512, iodepth 1): 1.8412 (BAD)
+context switch per write io (size-unchanging, overwrite, blocksize 512, iodepth 1): 2.0005 (BAD)
+context switch per write io (size-unchanging, overwrite, blocksize 512, O_DSYNC, iodepth 1): 2.0154 (BAD)
+context switch per write io (size-unchanging, overwrite, blocksize 512, O_DSYNC, iodepth 3): 2.0121 (BAD)
+context switch per write io (size-unchanging, overwrite, blocksize 512, O_DSYNC, iodepth 3): 2.0105 (BAD)
+context switch per write io (size-changing, append, blocksize 4096, iodepth 1): 0.0064 (GOOD)
+context switch per write io (size-changing, append, blocksize 4096, iodepth 3): 0.108 (BAD)
+context switch per write io (size-unchanging, append, blocksize 4096, iodepth 3): 0 (GOOD)
+context switch per write io (size-unchanging, append, blocksize 4096, iodepth 7): 0 (GOOD)
+context switch per write io (size-unchanging, append, blocksize 512, iodepth 1): 1.8541 (BAD)
+context switch per write io (size-unchanging, overwrite, blocksize 512, iodepth 1): 2.0006 (BAD)
+context switch per write io (size-unchanging, overwrite, blocksize 512, O_DSYNC, iodepth 1): 2.0332 (BAD)
+context switch per write io (size-unchanging, overwrite, blocksize 512, O_DSYNC, iodepth 3): 2.0597 (BAD)
+Seen data in page cache (BAD)
+context switch per read io (size-changing, append, blocksize 512, iodepth 30): 0.0003 (GOOD)
+Seen data in page cache (BAD)
