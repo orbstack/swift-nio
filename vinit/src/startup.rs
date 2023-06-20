@@ -117,8 +117,9 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     let dev_flags = MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_RELATIME;
 
     // essential
-    mount("proc", "/proc", "proc", secure_flags, None)?;
     mount("sysfs", "/sys", "sysfs", secure_flags, None)?;
+    apply_perf_tuning_early()?;
+    mount("proc", "/proc", "proc", secure_flags, None)?;
     mount("devtmpfs", "/dev", "devtmpfs", dev_flags, Some("mode=0755"))?;
     // extra
     fs::create_dir_all("/dev/pts")?;
@@ -130,6 +131,7 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     mount("fusectl", "/sys/fs/fuse/connections", "fusectl", secure_flags, None)?;
     mount("binfmt_misc", "/proc/sys/fs/binfmt_misc", "binfmt_misc", secure_flags, None)?;
     mount("tracefs", "/sys/kernel/tracing", "tracefs", secure_flags, None)?;
+    mount("bpf", "/sys/fs/bpf", "bpf", secure_flags, Some("mode=0700"))?;
     // tmp
     fs::create_dir_all("/dev/shm")?;
     mount("shm", "/dev/shm", "tmpfs", secure_flags, Some("mode=1777"))?;
@@ -145,7 +147,17 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn apply_system_settings() -> Result<(), Box<dyn Error>> {
+fn apply_perf_tuning_early() -> Result<(), Box<dyn Error>> {
+    // expedited RCU
+    // speeds up container startup ~2x:
+    // machine startup 4x: 260 -> 40 ms
+    // low cost in practice (no IPI for idle CPUs): https://docs.kernel.org/RCU/Design/Expedited-Grace-Periods/Expedited-Grace-Periods.html
+    // do it here instead of kernel to make it less obvious. as early as possible in userspace
+    fs::write("/sys/kernel/rcu_expedited", "1")?;
+    Ok(())
+}
+
+fn apply_perf_tuning_late() -> Result<(), Box<dyn Error>> {
     // reduce idle cpu usage
     sysctl("vm.compaction_proactiveness", "0")?;
     sysctl("vm.stat_interval", "30")?;
@@ -605,7 +617,7 @@ pub async fn main(
     tasks.push(std::thread::spawn(|| { // 150 ms (w/o kernel hack to default to "none" iosched)
         //let stage_start = Instant::now();
         println!("     [*] Apply system settings");
-        apply_system_settings().unwrap();
+        apply_perf_tuning_late().unwrap();
         //println!("     ... Applying system settings: +{}ms", stage_start.elapsed().as_millis());
     }));
     let sys_info_clone = sys_info.clone();
