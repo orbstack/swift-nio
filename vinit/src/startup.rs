@@ -2,8 +2,9 @@ use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instan
 
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link};
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags}, unistd::{sethostname}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId}};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags}, unistd::{sethostname}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId, clock_gettime}};
 use futures_util::TryStreamExt;
+use tracing::log::debug;
 
 use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, Timeline, vcontrol, action::SystemAction};
 use crate::service::{ServiceTracker, Service};
@@ -319,7 +320,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn sync_clock() -> Result<(), Box<dyn Error>> {
+pub fn sync_clock(allow_backward: bool) -> Result<(), Box<dyn Error>> {
     // sync clock immediately at boot (if RTC is wrong) or on wake (until chrony kicks in)
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_read_timeout(Some(Duration::from_secs(5)))?;
@@ -328,7 +329,16 @@ fn sync_clock() -> Result<(), Box<dyn Error>> {
     
     let sec = host_time.sec() as i64;
     let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;
-    clock_settime(ClockId::CLOCK_REALTIME, TimeSpec::new(sec, nsec))?;
+
+    let new_time = TimeSpec::new(sec, nsec);
+    let current_time = clock_gettime(ClockId::CLOCK_REALTIME)?;
+    // never go back in time after boot
+    if !allow_backward && new_time < current_time {
+        debug!("Skipping clock step: would go back in time");
+        return Ok(());
+    }
+
+    clock_settime(ClockId::CLOCK_REALTIME, new_time)?;
 
     println!("  - System time updated");
     Ok(())
@@ -608,7 +618,7 @@ pub async fn main(
     tokio::spawn(vcontrol::server_main(action_tx.clone()));
 
     timeline.begin("Set clock");
-    sync_clock()?;
+    sync_clock(true)?;
 
     // do the following 3 slow stages in parallel
     // speedup: 300-400 ms -> 250 ms

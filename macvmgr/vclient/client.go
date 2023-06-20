@@ -129,22 +129,6 @@ func (vc *VClient) Post(endpoint string, body any) (*http.Response, error) {
 	return resp, nil
 }
 
-func (vc *VClient) WaitForReady() {
-	if vc.ready {
-		return
-	}
-
-	for {
-		_, err := vc.Get("ping")
-		if err == nil {
-			break
-		}
-		time.Sleep(readyPollInterval)
-	}
-
-	vc.ready = true
-}
-
 func (vc *VClient) StartBackground() error {
 	mon, err := iokit.MonitorSleepWake()
 	if err != nil {
@@ -187,18 +171,9 @@ func (vc *VClient) StartBackground() error {
 					}
 				}
 				go func() {
-					// For some reason, we have to sync *twice* in order for chrony to step the clock after suspend.
-					// Running it twice back-to-back doesn't work, and neither does "chronyc makestep"
-					_, err := vc.Post("time/sync", nil)
+					_, err := vc.Post("sys/wake", nil)
 					if err != nil {
-						logrus.Error("sync err", err)
-					}
-
-					// 2 sec per iburst check * 4 = 8 sec, plus margin
-					time.Sleep(10 * time.Second)
-					_, err = vc.Post("time/sync", nil)
-					if err != nil {
-						logrus.Error("sync err", err)
+						logrus.WithError(err).Error("failed to notify VM of wakeup")
 					}
 				}()
 

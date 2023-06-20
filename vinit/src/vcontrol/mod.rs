@@ -1,9 +1,10 @@
+use anyhow::anyhow;
 use axum::{
     routing::{get, post},
     response::IntoResponse,
     Json, Router, Extension,
 };
-use chrony_candm::{request::{RequestBody, Offline, Online}, common::ChronyAddr};
+use chrony_candm::{request::{RequestBody, Offline, Online, Burst}, common::ChronyAddr};
 use error::AppResult;
 use nix::{sys::{statvfs, reboot::{self, RebootMode}}, unistd};
 use serde::{Deserialize, Serialize};
@@ -12,7 +13,7 @@ use tower::ServiceBuilder;
 use tracing::{info, debug};
 use std::{net::SocketAddr, sync::Arc, fs::File, os::fd::AsRawFd};
 
-use crate::{action::SystemAction};
+use crate::{action::SystemAction, startup};
 
 mod error;
 mod btrfs;
@@ -69,9 +70,9 @@ pub async fn server_main(action_tx: Sender<SystemAction>) {
     let app = Router::new()
         .route("/ping", get(ping))
         .route("/sys/shutdown", post(sys_shutdown))
+        .route("/sys/wake", post(sys_wake))
         .route("/sys/emergency_shutdown", post(sys_emergency_shutdown))
         .route("/disk/report_stats", post(disk_report_stats))
-        .route("/time/sync", post(time_sync))
         .layer(
             ServiceBuilder::new()
                 .layer(Extension(state))
@@ -95,7 +96,7 @@ async fn ping() -> impl IntoResponse {
 async fn sys_shutdown(
     Extension(action_tx): Extension<Sender<SystemAction>>,
 ) -> AppResult<impl IntoResponse> {
-    info!("sys_shutdown");
+    debug!("sys_shutdown");
     action_tx.send(SystemAction::Shutdown).await?;
     Ok(())
 }
@@ -147,20 +148,23 @@ async fn disk_report_stats(
     Ok(())
 }
 
-// sync time
-async fn time_sync() -> AppResult<impl IntoResponse> {
-    debug!("time_sync");
+// host wake from sleep
+async fn sys_wake() -> AppResult<impl IntoResponse> {
+    debug!("sys_wake");
 
-    // chronyc offline
-    chrony_candm::blocking_query_uds(RequestBody::Offline(Offline {
+    // fix the time immediately by stepping
+    // chrony doesn't like massive time difference
+    startup::sync_clock(false)
+        .map_err(|e| anyhow!("failed to step clock: {}", e))?;
+
+    // then ask chrony to do a more precise fix
+    // #chronyc -m 'burst 4/4' 'makestep 3.0 -1'
+    // chronyc 'burst 4/4'
+    chrony_candm::blocking_query_uds(RequestBody::Burst(Burst {
         mask: ChronyAddr::Unspec,
         address: ChronyAddr::Unspec,
-    }), Default::default())?;
-
-    // chronyc online
-    chrony_candm::blocking_query_uds(RequestBody::Online(Online {
-        mask: ChronyAddr::Unspec,
-        address: ChronyAddr::Unspec,
+        n_good_samples: 4,
+        n_total_samples: 4,
     }), Default::default())?;
 
     Ok(())
