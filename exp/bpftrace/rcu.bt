@@ -1,0 +1,9 @@
+kprobe:synchronize_rcu
+{
+printf("sync rcu\n");
+}
+
+kprobe:synchronize_srcu
+{
+printf("sync SRCU\n");
+}
