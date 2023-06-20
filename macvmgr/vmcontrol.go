@@ -381,7 +381,10 @@ func (s *VmControlServer) Serve() (func() error, error) {
 	go func() { _ = server.Serve(listenerUnix) }()
 
 	return func() error {
-		// closes all connections and listener to allow immediate port reuse
-		return server.Close()
+		// to prevent race, leave open conns open until process exit, like flock
+		// just close listeners. Go already sets SO_REUSEADDR
+		_ = listenerTcp.Close()
+		_ = listenerUnix.Close()
+		return nil
 	}, nil
 }
