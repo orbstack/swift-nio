@@ -381,7 +381,7 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     // data
     // first try with regular mount, then try usebackuproot
     let data_flags = MsFlags::MS_NOATIME;
-    let fs_options = "discard=async,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs";
+    let fs_options = "discard,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs";
     if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(fs_options)) {
         eprintln!(" !!! Failed to mount data: {}", e);
         println!(" [*] Attempting to recover data");
