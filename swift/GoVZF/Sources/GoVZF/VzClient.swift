@@ -216,7 +216,7 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
     // 1. rootfs
     if let diskRootfs = spec.diskRootfs {
         let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: diskRootfs),
-                readOnly: true, cachingMode: .cached, synchronizationMode: .fsync)
+                readOnly: true, cachingMode: .cached, synchronizationMode: .none)
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
