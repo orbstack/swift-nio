@@ -99,7 +99,8 @@ struct SystemColors {
         Color(.systemGreen),
         Color(.systemBlue),
         Color(.systemOrange),
-        Color(.systemYellow),
+        // removed due to poor contrast on light
+        //Color(.systemYellow),
         Color(.systemBrown),
         Color(.systemPink),
         Color(.systemPurple),
