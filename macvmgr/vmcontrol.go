@@ -8,10 +8,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/alessio/shellescape"
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
@@ -20,13 +22,13 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/dockerclient"
 	"github.com/orbstack/macvirt/macvmgr/dockertypes"
 	"github.com/orbstack/macvirt/macvmgr/drm"
+	"github.com/orbstack/macvirt/macvmgr/syncx"
 	"github.com/orbstack/macvirt/macvmgr/syssetup"
 	"github.com/orbstack/macvirt/macvmgr/util"
 	"github.com/orbstack/macvirt/macvmgr/vclient"
 	"github.com/orbstack/macvirt/macvmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/macvmgr/vmconfig"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 
 	_ "net/http/pprof"
@@ -35,6 +37,7 @@ import (
 const (
 	pprofExtra       = false
 	initSetupTimeout = 10 * time.Second
+	envReportTimeout = 10 * time.Second
 )
 
 type VmControlServer struct {
@@ -46,10 +49,15 @@ type VmControlServer struct {
 	dockerClient     *dockerclient.Client
 	drm              *drm.DrmClient
 
-	setupDone    bool
-	setupMu      sync.Mutex
-	setupEnvChan chan *vmtypes.EnvReport
-	setupReady   syncx.CondBool
+	setupDone            bool
+	setupMu              sync.Mutex
+	setupEnvChan         chan *vmtypes.EnvReport
+	setupUserDetailsOnce syncx.Once[Result[*UserDetails]]
+}
+
+type Result[T any] struct {
+	Value T
+	Err   error
 }
 
 func (s *VmControlServer) Ping(ctx context.Context) error {
@@ -201,24 +209,44 @@ func (h *VmControlServer) InternalReportEnv(ctx context.Context, env *vmtypes.En
 	return nil
 }
 
-/*
-func (h *VmControlServer) runWithEnvReport(combinedArgs ...string) (*vmtypes.EnvReport, error) {
+func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmtypes.EnvReport, error) {
+	exePath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("find executable: %w", err)
+	}
+
 	// start setup
 	ch := make(chan *vmtypes.EnvReport, 1)
 	h.setupEnvChan = ch
+	defer func() { h.setupEnvChan = nil }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), envReportTimeout)
+	defer cancel()
+
+	// prepare env report command
+	shellCmd := `sh -c ` + shellescape.Quote(shellescape.QuoteCommand([]string{exePath, "report-env"}))
+	// for zsh, also include ZDOTDIR, which may not necessarily be exported
+	if path.Base(shell) == "zsh" {
+		shellCmd = "export ZDOTDIR; " + shellCmd
+	}
 
 	// run command
-	_, err := util.Run(combinedArgs...)
+	args := []string{shell}
+	args = append(args, extraArgs...)
+	args = append(args, "-c", shellCmd)
+	err = util.RunLoginShell(ctx, args...)
 	if err != nil {
 		return nil, err
 	}
 
 	// wait for report
-	env := <-ch
-	h.setupEnvChan = nil
-	return env, nil
+	select {
+	case env := <-ch:
+		return env, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("env report timeout")
+	}
 }
-*/
 
 // func (s *VmControlServer) doPureGoSetup
 func (s *VmControlServer) onStart() error {

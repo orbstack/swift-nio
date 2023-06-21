@@ -8,8 +8,7 @@ type SetupInfo struct {
 }
 
 type EnvReport struct {
-	Path    string `json:"PATH"`
-	Zdotdir string `json:"ZDOTDIR"`
+	Environ []string `json:"environ"`
 }
 
 type IDRequest struct {

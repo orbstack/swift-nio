@@ -20,8 +20,8 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/macvmgr/setup/userutil"
 	"github.com/orbstack/macvirt/macvmgr/syssetup"
-	"github.com/orbstack/macvirt/macvmgr/util"
 	"github.com/orbstack/macvirt/macvmgr/vmclient/vmtypes"
+	"github.com/orbstack/macvirt/scon/agent/envutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -50,8 +50,11 @@ For more details, see https://docs.orbstack.dev/readme-link/data-img
 type UserDetails struct {
 	IsAdmin bool
 	Shell   string
-	Path    string
 	Home    string
+
+	EnvPATH          string
+	EnvDOCKER_CONFIG string
+	EnvZDOTDIR       string
 }
 
 type PathInfo struct {
@@ -66,15 +69,7 @@ var (
 	// consider: docker-buildx hub-tool docker-index
 )
 
-func parseShellLine(output string) string {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	if len(lines) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(lines[len(lines)-1])
-}
-
-func getUserDetails() (*UserDetails, error) {
+func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
 	logrus.Info("reading user account info")
 	u, err := user.Current()
 	if err != nil {
@@ -96,47 +91,76 @@ func getUserDetails() (*UserDetails, error) {
 		return nil, err
 	}
 
-	// look up the user's PATH
+	// look up the user's PATH and other environment vars
 	// run login shell first to get profile
 	// then run sh in case of fish
 	// force -i (interactive) in case user put PATH in .zshrc/.bashrc
 	// use single quotes to avoid expansion in zsh
 	// nu shell doesn't like combining short args (-lic) so split them
-	logrus.Info("reading shell PATH")
-	out, err := util.RunLoginShell(shell, "-i", "-c", `sh -c 'echo "$PATH"'`)
+	logrus.Info("reading user environment variables")
+	envReport, err := s.runEnvReport(shell, "-i")
 	if err != nil {
-		return nil, err
+		logrus.WithError(err).Warn("failed to read user environment variables, retrying without interactive")
+		envReport, err = s.runEnvReport(shell)
+		if err != nil {
+			// proceed with empty report
+			logrus.WithError(err).Error("failed to read user environment variables w/o interactive")
+			envReport = &vmtypes.EnvReport{
+				Environ: []string{},
+			}
+		}
 	}
-	logrus.WithField("path", out).WithField("shell", shell).Debug("user path")
-	path := parseShellLine(out)
+
+	envMap := envutil.ToMap(envReport.Environ)
 
 	return &UserDetails{
 		IsAdmin: isAdmin,
 		Shell:   shell,
-		Path:    path,
 		Home:    u.HomeDir,
+
+		EnvPATH:          envMap["PATH"],
+		EnvDOCKER_CONFIG: envMap["DOCKER_CONFIG"],
+		EnvZDOTDIR:       envMap["ZDOTDIR"],
 	}, nil
 }
 
 // we're started under launchd with only this PATH: /usr/bin:/bin:/usr/sbin:/sbin
-func setupEnv() error {
-	details, err := getUserDetails()
+func (s *VmControlServer) doGetUserDetailsAndSetupEnv() (*UserDetails, error) {
+	details, err := s.doGetUserDetails()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	err = os.Setenv("PATH", details.Path)
+	logrus.WithFields(logrus.Fields{
+		"admin": details.IsAdmin,
+		"shell": details.Shell,
+		"home":  details.Home,
+
+		"envPATH":          details.EnvPATH,
+		"envDOCKER_CONFIG": details.EnvDOCKER_CONFIG,
+		"envZDOTDIR":       details.EnvZDOTDIR,
+	}).Debug("user details")
+
+	err = os.Setenv("PATH", details.EnvPATH)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// also set DOCKER_CONFIG
-	err = readDockerConfigEnv(details.Shell)
+	err = setDockerConfigEnv(details.EnvDOCKER_CONFIG)
 	if err != nil {
-		logrus.WithError(err).Warn("failed to read DOCKER_CONFIG env")
+		logrus.WithError(err).Warn("failed to set DOCKER_CONFIG env")
 	}
 
-	return nil
+	return details, nil
+}
+
+func (s *VmControlServer) getUserDetailsAndSetupEnv() (*UserDetails, error) {
+	result := s.setupUserDetailsOnce.Do(func() Result[*UserDetails] {
+		details, err := s.doGetUserDetailsAndSetupEnv()
+		return Result[*UserDetails]{details, err}
+	})
+	return result.Value, result.Err
 }
 
 /*
@@ -378,12 +402,7 @@ func writeDataReadme() error {
 	return os.WriteFile(conf.DataDir()+"/README.txt", []byte(dataReadmeText), 0644)
 }
 
-func readDockerConfigEnv(shell string) error {
-	out, err := util.RunLoginShell(shell, "-i", "-c", `sh -c 'echo "$DOCKER_CONFIG"'`)
-	if err != nil {
-		return err
-	}
-	value := parseShellLine(out)
+func setDockerConfigEnv(value string) error {
 	if value != "" && strings.HasPrefix(value, "/") {
 		logrus.WithField("path", value).Info("detected DOCKER_CONFIG")
 
@@ -416,8 +435,6 @@ for docker sock:
 /var/run/docker.sock IF root
 */
 func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr error) {
-	s.setupReady.Wait()
-
 	s.setupMu.Lock()
 	defer s.setupMu.Unlock()
 
@@ -432,18 +449,12 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		}
 	}()
 
-	details, err := getUserDetails()
+	details, err := s.getUserDetailsAndSetupEnv()
 	if err != nil {
 		return nil, err
 	}
-	logrus.WithFields(logrus.Fields{
-		"admin": details.IsAdmin,
-		"shell": details.Shell,
-		"path":  details.Path,
-		"home":  details.Home,
-	}).Debug("user details")
 	// split path
-	pathItems := strings.Split(details.Path, ":")
+	pathItems := strings.Split(details.EnvPATH, ":")
 
 	// link docker sock?
 	var adminCommands []string
@@ -527,11 +538,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		case "zsh":
 			// what's the ZDOTDIR?
 			// no need for -i (interactive), ZDOTDIR must be in .zshenv
-			out, err := util.RunLoginShell(details.Shell, "-c", `echo "$ZDOTDIR"`)
-			if err != nil {
-				return nil, err
-			}
-			zdotdir := parseShellLine(out)
+			zdotdir := details.EnvZDOTDIR
 			if zdotdir == "" {
 				zdotdir = details.Home
 			}

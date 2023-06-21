@@ -34,6 +34,4 @@ func runSshProxyFdpass() {
 		check(err)
 	})
 	check(err)
-
-	os.Exit(0)
 }

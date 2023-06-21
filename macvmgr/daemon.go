@@ -120,5 +120,4 @@ func runSpawnDaemon() {
 
 	// print pid
 	fmt.Println(cmd.Process.Pid)
-	os.Exit(0)
 }

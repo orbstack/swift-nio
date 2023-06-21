@@ -41,7 +41,6 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/vnet/services"
 	"github.com/orbstack/macvirt/macvmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/macvmgr/vzf"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -609,7 +608,6 @@ func runVmManager() {
 		drm:          drm.Client(),
 
 		setupEnvChan: nil,
-		setupReady:   syncx.NewCondBool(),
 	}
 	vmcontrolCleanup, err := controlServer.Serve()
 	check(err)
@@ -661,11 +659,10 @@ func runVmManager() {
 	runAsyncInitTask("Docker context", func() error {
 		// PATH for hostssh, DOCKER_CONFIG for docker cli
 		// blocking here because docker depends on it
-		err := setupEnv()
+		_, err := controlServer.getUserDetailsAndSetupEnv()
 		if err != nil {
 			logrus.WithError(err).Error("failed to set up environment")
 		}
-		controlServer.setupReady.Set(true)
 
 		err = setupDockerContext()
 		if err != nil {

@@ -11,11 +11,8 @@ import (
 func runReportEnv() {
 	client := vmclient.Client()
 	report := &vmtypes.EnvReport{
-		Path:    os.Getenv("PATH"),
-		Zdotdir: os.Getenv("ZDOTDIR"),
+		Environ: os.Environ(),
 	}
 	err := client.InternalReportEnv(report)
 	check(err)
-
-	os.Exit(0)
 }
