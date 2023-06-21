@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -115,12 +114,14 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		"storage-driver": "overlay2",
 		// match our MTU
 		"mtu": c.manager.net.mtu,
-		// TODO: merge with user object
-		"default-network-opts": map[string]any{
-			"bridge": map[string]any{
-				"com.docker.network.driver.mtu": strconv.Itoa(c.manager.net.mtu),
+		// compat issue with docker-compose v1 / Lando: https://github.com/orbstack/orbstack/issues/376
+		/*
+			"default-network-opts": map[string]any{
+				"bridge": map[string]any{
+					"com.docker.network.driver.mtu": strconv.Itoa(c.manager.net.mtu),
+				},
 			},
-		},
+		*/
 
 		// change default addrs to minimize conflicts with other networks
 		"default-address-pools": []map[string]any{
