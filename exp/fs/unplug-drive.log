@@ -1,0 +1,68 @@
+[  135.916956] I/O error, dev vdb, sector 5087296 op 0x1:(WRITE) flags 0x100000 phys_seg 2 prio class 2
+[  135.918216] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 1, rd 0, flush 0, corrupt 0, gen 0
+[  135.919070] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 2, rd 0, flush 0, corrupt 0, gen 0
+[  135.919659] I/O error, dev vdb, sector 5087312 op 0x1:(WRITE) flags 0x100000 phys_seg 1 prio class 2
+[  135.921957] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 3, rd 0, flush 0, corrupt 0, gen 0
+[  135.922473] I/O error, dev vdb, sector 5087320 op 0x1:(WRITE) flags 0x100000 phys_seg 1 prio class 2
+[  135.922959] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 4, rd 0, flush 0, corrupt 0, gen 0
+[  135.923409] I/O error, dev vdb, sector 29144 op 0x1:(WRITE) flags 0x100000 phys_seg 1 prio class 2
+[  135.923874] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 5, rd 0, flush 0, corrupt 0, gen 0
+[  135.924290] I/O error, dev vdb, sector 29152 op 0x1:(WRITE) flags 0x800 phys_seg 1 prio class 2
+[  135.924832] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 6, rd 0, flush 0, corrupt 0, gen 0
+[  135.925239] I/O error, dev vdb, sector 135640 op 0x1:(WRITE) flags 0x800 phys_seg 1 prio class 2
+[  135.925648] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 7, rd 0, flush 0, corrupt 0, gen 0
+[  135.926059] I/O error, dev vdb, sector 135592 op 0x1:(WRITE) flags 0x800 phys_seg 1 prio class 2
+[  135.927184] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 8, rd 0, flush 0, corrupt 0, gen 0
+[  135.927930] I/O error, dev vdb, sector 135552 op 0x1:(WRITE) flags 0x800 phys_seg 2 prio class 2
+[  135.929011] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 9, rd 0, flush 0, corrupt 0, gen 0
+[  135.929491] I/O error, dev vdb, sector 135512 op 0x1:(WRITE) flags 0x800 phys_seg 1 prio class 2
+[  135.934794] BTRFS error (device vdb1): bdev /dev/vdb1 errs: wr 10, rd 0, flush 0, corrupt 0, gen 0
+[  135.935027] I/O error, dev vdb, sector 135456 op 0x1:(WRITE) flags 0x800 phys_seg 1 prio class 2
+[  135.935571] systemd-journald[141]: /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f/system.journal: Journal file corrupted, rotating.
+[  135.935580] systemd-journald[141]: Failed to write entry to /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f/system.journal (10 items, 323 bytes), rotating before retrying: Bad message
+[  135.935609] systemd-journald[141]: Failed to rotate /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f/system.journal: Input/output error
+[  135.936149] BTRFS: error (device vdb1: state A) in __btrfs_update_delayed_inode:1065: errno=-5 IO failure
+[  135.938952] systemd-journald[141]: Failed to enumerate /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f, ignoring: Input/output error
+[  135.939048] BTRFS info (device vdb1: state EA): forced readonly
+[  135.939054] BTRFS: error (device vdb1: state EA) in __btrfs_run_delayed_items:1158: errno=-5 IO failure
+[  135.939072] systemd-journald[141]: Failed to vacuum /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f, ignoring: Input/output error
+[  135.939282] BTRFS warning (device vdb1: state EA): Skipping commit of aborted transaction.
+[  135.939290] BTRFS: error (device vdb1: state EA) in cleanup_transaction:1984: errno=-5 IO failure
+[  135.939510] systemd-journald[141]: Failed to write entry to /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f/system.journal (10 items, 323 bytes) despite vacuuming, ignoring: Input/output error
+[  135.939550] ------------[ cut here ]------------
+[  135.939860] WARNING: CPU: 5 PID: 2770 at fs/btrfs/transaction.c:144 btrfs_put_transaction+0x15c/0x170
+[  135.939878] Modules linked in:
+[  135.939882] CPU: 5 PID: 2770 Comm: sync Not tainted 6.3.8-orbstack-00165-g566e633b2e67-dirty #1
+[  135.939893] pstate: 61400005 (nZCv daif +PAN -UAO -TCO +DIT -SSBS BTYPE=--)
+[  135.939897] pc : btrfs_put_transaction+0x15c/0x170
+[  135.939900] lr : btrfs_commit_transaction+0x488/0xed0
+[  135.939902] sp : ffff2386629bfca0
+[  135.939903] x29: ffff2386629bfca0 x28: ffffcafeb05a8cd0 x27: ffffcafeaf5d7bc0
+[  135.939907] x26: ffff238649913000 x25: ffff2386421f6e90 x24: 00000000fffffffb
+[  135.939910] x23: ffff238649913428 x22: ffff238696da1a28 x21: ffff238696da1a00
+[  135.939913] x20: ffff2386421f6e38 x19: ffff238696da1a00 x18: ffffffffffffffff
+[  135.939915] x17: 343839313a6e6f69 x16: 746361736e617274 x15: 5f70756e61656c63
+[  135.939918] x14: 0000000000000000 x13: ffffffffffffc000 x12: 0000000000000000
+[  135.939921] x11: ffff23866423b4a0 x10: ffff23866423b478 x9 : ffffcafeae7e2e40
+[  135.939924] x8 : 0000000000000230
+[  135.939923] systemd-journald[141]: /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f/system.journal uses an outdated header, suggesting rotation.
+[  135.939925]  x7 : 0000000000004000 x6 : ffff238696da1a68
+[  135.939928] x5 : ffff2386629bfc00 x4 : 0000000000000000
+[  135.939929] systemd-journald[141]: /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f/system.journal: Journal header limits reached or header out-of-date, rotating.
+[  135.939930]  x3 : ffff238649913428
+[  135.939932] x2 : 0000000000000001 x1 : ffff238696da1a28 x0 : ffff2386598de700
+[  135.939935] Call trace:
+[  135.939937]  btrfs_put_transaction+0x15c/0x170
+[  135.939939]  btrfs_commit_transaction+0x488/0xed0
+[  135.939942]  btrfs_sync_fs+0x5c/0x1b0
+[  135.939944] systemd-journald[141]: Failed to rotate /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f/system.journal: Read-only file system
+[  135.939944]  sync_fs_one_sb+0x34/0x48
+[  135.940133]  iterate_supers+0xc4/0x1e8
+[  135.940139]  ksys_sync+0x64/0xb8
+[  135.940145]  __arm64_sys_sync+0x14/0x28
+[  135.940150]  do_el0_svc+0x74/0x110
+[  135.940153] systemd-journald[141]: Failed to enumerate /var/log/journal/2640b3d0c4a24b7cb2cfdfe1e0cd3b8f, ignoring: Input/output error
+[  135.940154]  el0_svc+0x24/0xa8
+[  135.940166]  el0t_64_sync_handler+0x10c/0x118
+[  135.940169]  el0t_64_sync+0x14c/0x150
+[  135.940172] ---[ end trace 0000000000000000 ]---
