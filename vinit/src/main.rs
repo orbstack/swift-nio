@@ -1,6 +1,6 @@
 use std::{error::Error, fs::{self}, time::{Instant}, process::{ExitStatus}, collections::BTreeMap, sync::Arc};
 
-use nix::{sys::{wait::{waitpid, WaitPidFlag, WaitStatus}}, unistd::{Pid, getpid}, errno::Errno};
+use nix::{sys::{wait::{waitpid, WaitPidFlag, WaitStatus}, reboot::{reboot, RebootMode}}, unistd::{Pid, getpid}, errno::Errno};
 
 mod helpers;
 use service::{PROCESS_WAIT_LOCK, ServiceTracker, Service};
@@ -154,8 +154,7 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main_wrapped() -> Result<(), Box<dyn Error>> {
     if getpid() != Pid::from_raw(1) {
         return Err(InitError::NotPid1.into());
     }
@@ -212,4 +211,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     shutdown::main(service_tracker.clone()).await?;
 
     Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+    let result = main_wrapped().await;
+    if let Err(e) = result {
+        println!(" !!! Init failed: {}", e);
+        reboot(RebootMode::RB_POWER_OFF).unwrap();
+        std::process::exit(1);
+    }
 }
