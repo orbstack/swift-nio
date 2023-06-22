@@ -323,7 +323,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
 pub fn sync_clock(allow_backward: bool) -> Result<(), Box<dyn Error>> {
     // sync clock immediately at boot (if RTC is wrong) or on wake (until chrony kicks in)
     let socket = UdpSocket::bind("0.0.0.0:0")?;
-    socket.set_read_timeout(Some(Duration::from_secs(5)))?;
+    socket.set_read_timeout(Some(Duration::from_secs(10)))?;
     let host_time = sntpc::simple_get_time("198.19.248.200:123", socket)
         .map_err(|e| InitError::NtpGetTime(e))?;
     
