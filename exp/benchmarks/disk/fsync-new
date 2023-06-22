@@ -1,0 +1,7 @@
+IOPS:
+(all cached mode, btrfs)
+
+fsync full = 45, 60
+fsync weak = 3112, 3275
+fsync none = 3904, 3520
+fsync full deferred 1sec: 4557, 4625, 4348, 5386
