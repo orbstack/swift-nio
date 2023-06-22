@@ -286,6 +286,8 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
     }
 
     if DEBUG {
+        timeline.begin("Dumping debug info");
+        
         let mounts = fs::read_to_string("/proc/mounts")?;
         println!("\nEnding with mounts:\n{}\n", mounts);
 

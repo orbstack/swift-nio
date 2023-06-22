@@ -385,7 +385,7 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(fs_options)) {
         eprintln!(" !!! Failed to mount data: {}", e);
         println!(" [*] Attempting to recover data");
-        if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(format!("{},rescue=all", fs_options).as_str())) {
+        if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(format!("{},rescue=usebackuproot", fs_options).as_str())) {
             eprintln!(" !!! Failed to recover data: {}", e);
             eprintln!("{}", FS_CORRUPTED_MSG);
             return Err(e);
@@ -558,7 +558,7 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
 
     // chrony
     service_tracker.spawn(Service::CHRONY, &mut Command::new("/usr/sbin/chronyd")
-        .arg("-n") // foreground (-d for log-to-stderr)
+        .arg(if DEBUG { "-d" } else { "-n" }) // foreground (-d for log-to-stderr)
         .arg("-f") // config file
         .arg("/etc/chrony/chrony.conf"))?;
 
