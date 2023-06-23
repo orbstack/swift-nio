@@ -107,7 +107,7 @@ func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
 			// proceed with empty report
 			logrus.WithError(err).Error("failed to read user environment variables w/o interactive")
 			envReport = &vmtypes.EnvReport{
-				Environ: []string{},
+				Environ: []string{"PATH=" + os.Getenv("PATH")},
 			}
 		}
 	}
@@ -359,6 +359,7 @@ func symlinkIfNotExists(src, dest string) error {
 	}
 
 	// link it
+	logrus.WithField("dest", dest).Debug("symlinking")
 	_ = os.Remove(dest)
 	err := os.Symlink(src, dest)
 	if err != nil {
@@ -741,6 +742,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	}).Debug("prepare setup info done")
 
 	s.setupDone = true
+	logrus.Info("setup done")
 	return info, nil
 }
 
