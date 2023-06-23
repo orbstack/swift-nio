@@ -11,6 +11,7 @@ import (
 	"path"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alessio/shellescape"
@@ -51,7 +52,7 @@ type VmControlServer struct {
 
 	setupDone            bool
 	setupMu              sync.Mutex
-	setupEnvChan         chan *vmtypes.EnvReport
+	setupEnvChan         atomic.Pointer[chan *vmtypes.EnvReport]
 	setupUserDetailsOnce syncx.Once[Result[*UserDetails]]
 }
 
@@ -200,12 +201,12 @@ func (h *VmControlServer) IsSshConfigWritable(ctx context.Context) (bool, error)
 }
 
 func (h *VmControlServer) InternalReportEnv(ctx context.Context, env *vmtypes.EnvReport) error {
-	ch := h.setupEnvChan
+	ch := h.setupEnvChan.Swap(nil)
 	if ch == nil {
 		return errors.New("no active env report request")
 	}
 
-	ch <- env
+	*ch <- env
 	return nil
 }
 
@@ -217,8 +218,8 @@ func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmty
 
 	// start setup
 	ch := make(chan *vmtypes.EnvReport, 1)
-	h.setupEnvChan = ch
-	defer func() { h.setupEnvChan = nil }()
+	h.setupEnvChan.Store(&ch)
+	defer func() { h.setupEnvChan.CompareAndSwap(&ch, nil) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), envReportTimeout)
 	defer cancel()
