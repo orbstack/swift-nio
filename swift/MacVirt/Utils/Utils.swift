@@ -226,6 +226,7 @@ struct Folders {
     static let config = "\(appData)/config"
     static let run = "\(appData)/run"
     static let log = "\(appData)/log"
+    static let userData = "\(appData)/data"
 }
 
 struct Files {

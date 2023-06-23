@@ -3,6 +3,7 @@ package vmconfig
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"runtime"
@@ -11,6 +12,8 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/conf/coredir"
 	"github.com/orbstack/macvirt/macvmgr/conf/mem"
 	"github.com/orbstack/macvirt/macvmgr/syncx"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -42,12 +45,31 @@ type VmConfigChange struct {
 	New *VmConfig `json:"new"`
 }
 
-func (c *VmConfig) Validate() error {
-	err := c.validatePlatform()
-	if err != nil {
-		return err
-	}
+func validateAPFS(dataDir string) error {
+	testPath := dataDir + "/.orbstack-test"
+	testPath2 := testPath + ".2"
 
+	f, err := os.Create(testPath)
+	if err != nil {
+		return fmt.Errorf("create test file: %w", err)
+	}
+	_ = f.Close()
+	defer func() { _ = os.Remove(testPath) }()
+
+	err = unix.Clonefile(testPath, testPath2, 0)
+	if err != nil {
+		if errors.Is(err, unix.ENOTSUP) {
+			return errors.New("data storage location must be formatted as APFS")
+		} else {
+			return fmt.Errorf("check for APFS: %w", err)
+		}
+	}
+	defer func() { _ = os.Remove(testPath2) }()
+
+	return nil
+}
+
+func (c *VmConfig) Validate() error {
 	// clamp cpus
 	if c.CPU < 1 {
 		c.CPU = 1
@@ -74,6 +96,18 @@ func (c *VmConfig) Validate() error {
 		case "http", "https", "socks5":
 		default:
 			return errors.New("invalid proxy. supported: 'auto', 'none', or protocols: http, https, socks5")
+		}
+	}
+
+	if c.DataDir != "" {
+		err := os.MkdirAll(c.DataDir, 0755)
+		if err != nil {
+			return fmt.Errorf("create data dir: %w", err)
+		}
+
+		err = validateAPFS(c.DataDir)
+		if err != nil {
+			return fmt.Errorf("validate data dir: %w", err)
 		}
 	}
 
@@ -107,7 +141,9 @@ func Get() *VmConfig {
 	check(err)
 
 	err = config.Validate()
-	check(err)
+	if err != nil {
+		logrus.WithError(err).Fatal("Invalid config")
+	}
 
 	globalConfig = config
 	return globalConfig
