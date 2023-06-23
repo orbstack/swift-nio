@@ -442,11 +442,14 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 
 #[cfg(target_arch = "aarch64")]
 fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+    // we always register qemu, but flags change if using Rosetta
+    let mut qemu_flags = "POCF".to_string();
+
     if let Ok(_) = mount("rosetta", "/mnt/rosetta", "virtiofs", MsFlags::empty(), None) {
         // rosetta
         println!("  -  Using Rosetta");
 
-        let mut rosetta_flags = "CF@".to_string();
+        let mut rosetta_flags = "CF@(".to_string();
         // add preserve-argv0 flag on Sonoma
         if let Some(value) = sys_info.seed_configs.get("host_major_version") {
             let version = value.parse::<u32>()?;
@@ -454,19 +457,31 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
                 rosetta_flags += "P";
             }
         }
-        add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags)?;
 
-        // Buildkit Rosetta amd64 stub workaround
-        // register after rosetta to rank before it in binfmt_misc entries list (since rosetta matches this too)
-        // first 256 bytes = BINPRM_BUF_SIZE
-        // big, must be in one write to binfmt_misc
-        add_binfmt("bk-stub-amd64", r#"\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\xe0\x11\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x38\x00\x03\x00\x40\x00\x06\x00\x05\x00\x01\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x0c\x01\x00\x00\x00\x00\x00\x00\x0c\x01\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x05\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x00\x10\x40\x00\x00\x00\x00\x00\x70\x00\x00\x00\x00\x00\x00\x00\x70\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x04\x00\x00\x00\xe8\x00\x00\x00\x00\x00\x00\x00\xe8\x00\x40\x00\x00\x00\x00\x00\xe8\x00\x40\x00\x00\x00\x00\x00\x24\x00\x00\x00\x00\x00\x00\x00\x24\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x14\x00\x00\x00\x03\x00\x00\x00\x47\x4e\x55\x00\x65\xa5\xb7\x39\xd6\xa8\xe5\x56"#, None, "[rosetta-bk-stub]", "CF")?;
+        // if we're using Rosetta, we'll do it through the RVFS wrapper.
+        // add flag to register qemu-x86_64 as a hidden handler that the RVFS wrapper can use, via comm=rvk2
+        qemu_flags += ")"; // MISC_FMT_ORBRVK2
+
+        // register RVFS wrapper first
+        // entries added later take priority, so MUST register first to avoid infinite loop
+        // WARNING: NOT THREAD SAFE! this uses chdir.
+        //          luckily init doesn't care about cwd during early boot (but later, it matters for spawned processes)
+        env::set_current_dir("/opt/orb/extra-links")?;
+        let rvfs_res = add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", "POCF");
+        env::set_current_dir("/")?;
+        rvfs_res?;
+
+        // then register real rosetta with comm=rvk1 key '('
+        add_binfmt("rosetta1", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags)?;
     } else {
         // qemu
         println!("  -  Using QEMU");
-
-        add_binfmt("qemu-x86_64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", "POCF")?;
     }
+
+    // always register qemu x86_64
+    // if Rosetta mode: RVFS wrapper may choose to invoke it via task comm=rvk2 key (we add ')' flag)
+    // if QEMU mode: it will always be used
+    add_binfmt("qemu-x86_64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", &qemu_flags)?;
 
     // always use qemu for i386 (32-bit)
     // Rosetta doesn't support 32-bit

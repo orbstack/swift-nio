@@ -64,7 +64,7 @@ COPY rootfs/utils/*.c /build/
 RUN <<EOT sh -eux
 mkdir /out /out-guest
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
-gcc -O2 -Wall -static -o /out/bk-stub-amd64 /build/bk-stub-amd64.c
+gcc -O2 -Wall -static -o /out/rvfs-wrapper /build/rvfs-wrapper.c
 gcc -O2 -Wall -static -o /out-guest/dummy /build/dummy.c
 strip /out/* /out-guest/*
 EOT
@@ -315,12 +315,18 @@ mkdir /nfsroot-ro /nfsroot-rw
 mkdir /data
 mkdir /mnt/mac
 mkdir /mnt/rosetta
+
+# binfmt vanity links
 ln -s /mnt/rosetta/rosetta '[rosetta]'
-ln -s /opt/orb/bk-stub-amd64 '[rosetta-bk-stub]'
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
 ln -s /usr/bin/qemu-aarch64 '[qemu-arm64]'
 ln -s /opt/orbstack-guest/bin/macctl '[mac]'
+# name conflict
+mkdir /opt/orb/extra-links
+cd /opt/orb/extra-links
+ln -s /opt/orb/rvfs-wrapper '[rosetta]'
+cd /
 
 # Guest tools
 mkdir -p /opt/orbstack-guest/bin /opt/orbstack-guest/bin-hiprio /opt/orbstack-guest/run /opt/orbstack-guest/data
