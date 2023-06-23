@@ -173,10 +173,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
+            guard url.scheme == "orbstack" else {
+                continue
+            }
+
             // CLI, to trigger GUI to update
             // orbstack://update
-            if url.scheme == "orbstack" && url.host == "update" {
+            switch url.host {
+            case "update":
                 updaterController?.updater.checkForUpdates()
+            case "settings":
+                if #available(macOS 13, *) {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                } else {
+                    NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                }
+            default:
+                break
             }
         }
     }

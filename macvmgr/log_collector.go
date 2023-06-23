@@ -6,15 +6,23 @@ import (
 	"errors"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/getsentry/sentry-go"
+	"github.com/orbstack/macvirt/macvmgr/guihelper"
+	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
+	"github.com/sirupsen/logrus"
 )
 
 const (
 	panicShutdownDelay = 100 * time.Millisecond
+)
+
+var (
+	oomKillRegex = regexp.MustCompile(`Out of memory: Killed process \d+ \((.+)\)`)
 )
 
 type KernelPanicError struct {
@@ -68,6 +76,22 @@ func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 							Err: errors.New("kernel panic:\n" + panicBuffer.String()),
 						})
 					})
+				} else if strings.Contains(line, "] Out of memory: Killed process") {
+					// notify OOM kill
+					// format:
+					// [ 1041.081213] Out of memory: Killed process 225788 (stress-ng-shm) total-vm:195656kB, anon-rss:5100kB, file-rss:512kB, shmem-rss:0kB, UID:501 pgtables:136kB oom_score_adj:1000
+					processName := oomKillRegex.FindStringSubmatch(line)[1]
+					// this takes 100 ms, don't block the console reader
+					go func() {
+						err := guihelper.Notify(guitypes.Notification{
+							Title:   "Out of memory: “" + processName + "”",
+							Message: "Stopped task to save memory. Consider increasing memory limit in Settings.",
+							URL:     "orbstack://settings",
+						})
+						if err != nil {
+							logrus.WithError(err).Error("failed to send OOM kill notification")
+						}
+					}()
 				}
 
 				_, _ = io.WriteString(os.Stdout, kernelPrefix+magenta(line))

@@ -9,15 +9,18 @@ import Sparkle
 struct AppSettings: View {
     let updaterController: SPUStandardUpdaterController
 
+    @State private var selectedTab: Tabs = .general
+
     private enum Tabs: Hashable {
         case general
         case machine
         case docker
         case network
+        case debug
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             GeneralSettingsView(updaterController: updaterController)
                     .tabItem {
                         Label("General", systemImage: "gear")
@@ -47,7 +50,7 @@ struct AppSettings: View {
                     .tabItem {
                         Label("Debug", systemImage: "hammer")
                     }
-                    .tag(Tabs.network)
+                    .tag(Tabs.debug)
             #endif
         }
         .frame(width: 475)
