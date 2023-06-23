@@ -108,9 +108,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 
     func start() async throws {
         try await asyncifyResult { [self] fn in
-            NSLog("[VZF] start: begin dispatch call")
             vz.start(completionHandler: { result in
-                NSLog("[VZF] start: completed \(result)")
                 fn(result)
             })
         }
@@ -332,9 +330,7 @@ func post_NewMachine(goHandle: uintptr_t, configJsonStr: UnsafePointer<CChar>) -
 
 @_cdecl("govzf_run_Machine_Start")
 func post_Machine_Start(ptr: UnsafeMutableRawPointer) -> GResultErr {
-    NSLog("[VZF] start: begin ffi")
     return doGenericErr(ptr) { (wrapper: VmWrapper) in
-        NSLog("[VZF] start: begin task")
         try await wrapper.start()
     }
 }
