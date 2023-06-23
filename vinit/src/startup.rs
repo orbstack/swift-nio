@@ -441,6 +441,30 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
+fn prepare_rosetta_bin() -> Result<(), Box<dyn Error>> {
+    use crate::rosetta;
+
+    // create tmpfs that allows exec
+    mount("tmpfs", "/mnt/rvfs", "tmpfs", MsFlags::MS_NOATIME, None)?;
+
+    // copy rosetta binary
+    fs::copy("/mnt/rosetta/rosetta", "/mnt/rvfs/rosetta")?;
+    fs::set_permissions("/mnt/rvfs/rosetta", Permissions::from_mode(0o755))?;
+
+    // remount readonly
+    mount("tmpfs", "/mnt/rvfs", "tmpfs", MsFlags::MS_REMOUNT | MsFlags::MS_NOATIME | MsFlags::MS_RDONLY, None)?;
+
+    // redirect ioctls to real rosetta virtiofs
+    let real_rosetta_file = fs::File::open("/mnt/rosetta/rosetta")?;
+    let new_file = fs::File::open("/mnt/rvfs/rosetta")?;
+    rosetta::adopt_rvfs_files(real_rosetta_file, new_file)?;
+
+    // we're done setting up the new rosetta.
+    // wrapper doesn't need any special treatment because it uses comm=rvk1/rvk2 keys
+    Ok(())
+}
+
+#[cfg(target_arch = "aarch64")]
 fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // we always register qemu, but flags change if using Rosetta
     let mut qemu_flags = "POCF".to_string();
@@ -448,6 +472,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     if let Ok(_) = mount("rosetta", "/mnt/rosetta", "virtiofs", MsFlags::empty(), None) {
         // rosetta
         println!("  -  Using Rosetta");
+        prepare_rosetta_bin()?;
 
         let mut rosetta_flags = "CF@(".to_string();
         // add preserve-argv0 flag on Sonoma
@@ -624,9 +649,6 @@ pub async fn main(
     let sys_info = SystemInfo::read()?;
     println!("  -  Kernel version: {}", sys_info.kernel_version);
 
-    timeline.begin("Set up binfmt");
-    setup_binfmt(&sys_info)?;
-
     timeline.begin("Set up network");
     setup_network().await?;
 
@@ -636,15 +658,18 @@ pub async fn main(
     timeline.begin("Set clock");
     sync_clock(true)?;
 
+    // very fast w/ kernel hack to default to "none" iosched for virtio-blk (150 ms without)
+    timeline.begin("Apply system settings");
+    apply_perf_tuning_late().unwrap();
+
     // do the following 3 slow stages in parallel
     // speedup: 300-400 ms -> 250 ms
     timeline.begin("Late tasks");
     let mut tasks = vec![];
-    tasks.push(std::thread::spawn(|| { // 150 ms (w/o kernel hack to default to "none" iosched)
-        //let stage_start = Instant::now();
-        println!("     [*] Apply system settings");
-        apply_perf_tuning_late().unwrap();
-        //println!("     ... Applying system settings: +{}ms", stage_start.elapsed().as_millis());
+    let sys_info_clone = sys_info.clone();
+    tasks.push(std::thread::spawn(move || {
+        println!("     [*] Set up binfmt");
+        setup_binfmt(&sys_info_clone).unwrap();
     }));
     let sys_info_clone = sys_info.clone();
     tasks.push(std::thread::spawn(move || { // 50 ms

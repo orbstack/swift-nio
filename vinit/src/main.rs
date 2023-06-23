@@ -16,6 +16,7 @@ mod loopback;
 mod pidfd;
 mod startup;
 mod shutdown;
+mod rosetta;
 
 // debug flag
 #[cfg(debug_assertions)]

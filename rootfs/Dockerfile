@@ -315,9 +315,10 @@ mkdir /nfsroot-ro /nfsroot-rw
 mkdir /data
 mkdir /mnt/mac
 mkdir /mnt/rosetta
+mkdir /mnt/rvfs
 
 # binfmt vanity links
-ln -s /mnt/rosetta/rosetta '[rosetta]'
+ln -s /mnt/rvfs/rosetta '[rosetta]'
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
 ln -s /usr/bin/qemu-aarch64 '[qemu-arm64]'
