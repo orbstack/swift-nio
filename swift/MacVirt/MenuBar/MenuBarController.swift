@@ -12,7 +12,7 @@ import SwiftUI
 private let maxQuickAccessItems = 5
 private let lineLimit = 32
 
-private let pulseAnimationPeriod: TimeInterval = 0.75
+private let pulseAnimationPeriod: TimeInterval = 0.5
 // close to NSStatusBarButton.opacityWhenDisabled
 private let opacityAppearsDisabled = 0.3
 
