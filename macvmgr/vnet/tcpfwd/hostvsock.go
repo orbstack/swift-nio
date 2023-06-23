@@ -116,7 +116,7 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 		}
 		err = setExtNodelay(tcpConn, otherPort)
 		if err != nil {
-			logrus.Errorf("set ext opts failed ", err)
+			logrus.WithError(err).Error("set ext opts failed")
 			return
 		}
 	}

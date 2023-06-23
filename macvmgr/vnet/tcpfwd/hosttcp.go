@@ -176,7 +176,7 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 	// other port doesn't matter, only service does (client port should be ephemeral)
 	err = setExtNodelay(conn.(*net.TCPConn), 0)
 	if err != nil {
-		logrus.Errorf("set ext opts failed ", err)
+		logrus.WithError(err).Error("set ext opts failed")
 		return
 	}
 
