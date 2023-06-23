@@ -861,7 +861,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt.guihelper;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = "OrbStack Helper (UI)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -884,7 +884,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt.guihelper;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = "OrbStack Helper (UI)";
 				SWIFT_VERSION = 5.0;
 			};
