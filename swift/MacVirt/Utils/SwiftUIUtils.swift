@@ -178,6 +178,6 @@ extension NSWindow {
     var isUserFacing: Bool {
         // this ignores menu and status item windows
         // need isVisible check - SwiftUI windows are lazy destroyed after close
-        styleMask.contains(.titled) && isVisible
+        styleMask.contains(.titled) && (isVisible || isMiniaturized)
     }
 }
