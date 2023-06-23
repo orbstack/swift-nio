@@ -32,8 +32,3 @@ func Notify(n guitypes.Notification) error {
 	_, err := run("notify", n.Title, n.Message, n.Subtitle, soundArg, n.URL)
 	return err
 }
-
-func RunAsAdmin(script, prompt string) error {
-	_, err := run("run-admin", script, prompt)
-	return err
-}

@@ -41,6 +41,8 @@ struct GResultErr swext_vlanrouter_removeBridge(void* ptr, int index);
 struct GResultErr swext_vlanrouter_renewBridge(void* ptr, int index, const char* config_json_str);
 void swext_vlanrouter_clearBridges(void* ptr);
 void swext_vlanrouter_close(void* ptr);
+
+struct GResultErr swext_gui_run_as_admin(char* shell_script, char* prompt);
 */
 import (
 	"C"
@@ -612,4 +614,16 @@ func swext_net_cb_path_changed() {
 		// defend against blocked subscribers
 		SwextNetPathChangesChan <- struct{}{}
 	}()
+}
+
+/*
+ * GUI
+ */
+func SwextGuiRunAsAdmin(shellScript string, prompt string) error {
+	cShellScript := C.CString(shellScript)
+	defer C.free(unsafe.Pointer(cShellScript))
+	cPrompt := C.CString(prompt)
+	defer C.free(unsafe.Pointer(cPrompt))
+	res := C.swext_gui_run_as_admin(cShellScript, cPrompt)
+	return errFromResult(res)
 }

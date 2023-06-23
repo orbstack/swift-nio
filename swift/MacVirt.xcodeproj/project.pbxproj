@@ -11,6 +11,7 @@
 		B118B05969CAC4497636F8DE /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF90FB580B56419D1472 /* FFI.swift */; };
 		B118B3B76CA225F4062B10D1 /* NSImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BABDE1F02C8A54DB011F /* NSImage.swift */; };
 		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
+		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
 		B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */; };
 		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
 		B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B300D94CA37572036935 /* Buttons.swift */; };
@@ -72,7 +73,6 @@
 		D80444162A1B404E00ED59C5 /* DockerRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */; };
 		D81E7850299CC4F200A1D8AC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E784F299CC4F200A1D8AC /* main.swift */; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D81E785C29A39BF300A1D8AC /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E785B29A39BF300A1D8AC /* Utils.swift */; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D86614182A38061700EA0995 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D86614172A38061700EA0995 /* Defaults */; };
@@ -173,6 +173,7 @@
 		B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineSettingsView.swift; sourceTree = "<group>"; };
 		B118B300D94CA37572036935 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		B118B30219F10B44000AE05A /* OnboardingManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
+		B118B4A5DDC711F7EF2AE61B /* GUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
 		B118BABDE1F02C8A54DB011F /* NSImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NSImage.swift; sourceTree = "<group>"; };
@@ -238,7 +239,6 @@
 		D81E784F299CC4F200A1D8AC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		D81E7858299CD27F00A1D8AC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
-		D81E785B29A39BF300A1D8AC /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
 		D81E785E29A4CEEF00A1D8AC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
@@ -421,7 +421,6 @@
 			isa = PBXGroup;
 			children = (
 				D81E784F299CC4F200A1D8AC /* main.swift */,
-				D81E785B29A39BF300A1D8AC /* Utils.swift */,
 				D81E7858299CD27F00A1D8AC /* Info.plist */,
 			);
 			path = guihelper;
@@ -449,6 +448,7 @@
 				D880D81F2A2B22A0002CF279 /* VzClient.swift */,
 				B118BD52B15443D1329C832A /* Packets.swift */,
 				B118BF90FB580B56419D1472 /* FFI.swift */,
+				B118B4A5DDC711F7EF2AE61B /* GUI.swift */,
 			);
 			name = GoVZF;
 			path = GoVZF/Sources/GoVZF;
@@ -747,7 +747,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				D81E7850299CC4F200A1D8AC /* main.swift in Sources */,
-				D81E785C29A39BF300A1D8AC /* Utils.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -763,6 +762,7 @@
 				D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */,
 				B118BD0025A6757805924195 /* Packets.swift in Sources */,
 				B118B05969CAC4497636F8DE /* FFI.swift in Sources */,
+				B118B53B9175CE61544C8B2A /* GUI.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

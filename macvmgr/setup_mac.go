@@ -21,6 +21,7 @@ import (
 	"github.com/orbstack/macvirt/macvmgr/setup/userutil"
 	"github.com/orbstack/macvirt/macvmgr/syssetup"
 	"github.com/orbstack/macvirt/macvmgr/vmclient/vmtypes"
+	"github.com/orbstack/macvirt/macvmgr/vzf"
 	"github.com/orbstack/macvirt/scon/agent/envutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -779,7 +780,7 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 			prompt = *info.AdminMessage
 		}
 
-		err := guihelper.RunAsAdmin(*info.AdminShellCommand, "OrbStack wants to "+prompt+". This is optional.")
+		err := vzf.SwextGuiRunAsAdmin(*info.AdminShellCommand, "OrbStack wants to "+prompt+". This is optional.")
 		if err != nil {
 			return err
 		}
