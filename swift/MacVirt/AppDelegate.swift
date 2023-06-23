@@ -31,12 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
             // send reopen event to open main window if necessary
             let targetDescriptor = NSAppleEventDescriptor(processIdentifier: existingApp.processIdentifier)
-            let event = NSAppleEventDescriptor.appleEvent(withEventClass: kCoreEventClass,
-                    eventID: kAEReopenApplication,
-                    targetDescriptor: targetDescriptor,
-                    returnID: AEReturnID(kAutoGenerateReturnID),
-                    transactionID: AETransactionID(kAnyTransactionID))
-            AESendMessage(event.aeDesc, nil, AESendMode(kAENoReply), kAEDefaultTimeout)
+            AppleEvents.sendReopen(targetDescriptor: targetDescriptor)
 
             // NSApp.terminate doesn't work until applicationDidFinishLaunching,
             // but we want to avoid creating SwiftUI windows at all in order to avoid triggering .onAppear initLaunch

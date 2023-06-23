@@ -237,3 +237,14 @@ struct Files {
 struct ContainerIds {
     static let docker = "01GQQVF6C60000000000DOCKER"
 }
+
+struct AppleEvents {
+    static func sendReopen(targetDescriptor: NSAppleEventDescriptor) {
+        let event = NSAppleEventDescriptor.appleEvent(withEventClass: kCoreEventClass,
+                eventID: kAEReopenApplication,
+                targetDescriptor: targetDescriptor,
+                returnID: AEReturnID(kAutoGenerateReturnID),
+                transactionID: AETransactionID(kAnyTransactionID))
+        AESendMessage(event.aeDesc, nil, AESendMode(kAENoReply), kAEDefaultTimeout)
+    }
+}
