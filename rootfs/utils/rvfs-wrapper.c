@@ -14,9 +14,10 @@
 #include <sys/sendfile.h>
 #include <sys/mman.h>
 #include <limits.h>
+#include <stdbool.h>
 
-#define DEBUG 0
-#define PASSTHROUGH 0
+#define DEBUG false
+#define PASSTHROUGH false
 
 // new in kernel 6.3
 #define MFD_EXEC		0x0010U
@@ -115,7 +116,7 @@ static ssize_t read_elf_size(int fd) {
     return elf_hdr.e_shoff + (elf_hdr.e_shnum * elf_hdr.e_shentsize);
 }
 
-static int read_interp(int fd, char interp_buf[PATH_MAX]) {
+static int read_interp(int fd, char interp_buf[PATH_MAX], bool *pt_interp_after_load) {
     Elf64_Ehdr ehdr;
     if (pread(fd, &ehdr, sizeof(ehdr), 0) != sizeof(ehdr)) {
         perror("pread ehdr");
@@ -123,6 +124,7 @@ static int read_interp(int fd, char interp_buf[PATH_MAX]) {
     }
 
     Elf64_Phdr phdr;
+    bool seen_pt_load = false;
     for (int i = 0; i < ehdr.e_phnum; i++) {
         off_t offset = ehdr.e_phoff + i * ehdr.e_phentsize;
         if (pread(fd, &phdr, sizeof(phdr), offset) != sizeof(phdr)) {
@@ -141,10 +143,16 @@ static int read_interp(int fd, char interp_buf[PATH_MAX]) {
                 return -1;
             }
 
+            if (DEBUG) fprintf(stderr, "interp: %s\n", interp_buf);
             // null terminate
             interp_buf[phdr.p_filesz] = '\0';
-            if (DEBUG) fprintf(stderr, "interp: %s\n", interp_buf);
+            // set flag for PT_INTERP after LOAD
+            if (seen_pt_load) {
+                *pt_interp_after_load = true;
+            }
             return 0;
+        } else if (phdr.p_type == PT_LOAD) {
+            seen_pt_load = true;
         }
     }
 
@@ -229,7 +237,7 @@ int main(int argc, char **argv) {
 
     // assume preserve-argv0 ('P'). no point in checking auxv
     char *exe_path = argv[1];
-    //char *exe_argv0 = argv[2];
+    char *exe_argv0 = argv[2];
     char *exe_name = get_basename(exe_path);
 
     // select emulator
@@ -261,10 +269,11 @@ int main(int argc, char **argv) {
     fcntl(execfd, F_SETFD, FD_CLOEXEC);
 
     // detect missing interpreter
-    char interp_buf[PATH_MAX];
-    if (read_interp(execfd, interp_buf) == 0) {
+    char interpreter[PATH_MAX];
+    bool pt_interp_after_load = false;
+    if (read_interp(execfd, interpreter, &pt_interp_after_load) == 0) {
         // check for interp if ELF parser succeeded
-        if (access(interp_buf, F_OK) != 0) {
+        if (access(interpreter, F_OK) != 0) {
             // missing interpreter
             fprintf(stderr, "OrbStack ERROR: Dynamic loader not found: %s\n"
                             "\n"
@@ -274,7 +283,7 @@ int main(int argc, char **argv) {
                             "  2. Install multi-arch libraries in this container or machine.\n"
                             "\n"
                             "For more details and instructions, see https://docs.orbstack.dev/readme-link/multiarch\n"
-                            "", interp_buf);
+                            "", interpreter);
             return 255;
         }
     }
@@ -317,9 +326,24 @@ int main(int argc, char **argv) {
         }
     }
 
+    // patchelf workaround: Rosetta segfaults if PT_INTERP is after PT_LOAD
+    // as a workaround, we invoke the dynamic linker directly instead
+    if (emu == EMU_ROSETTA && pt_interp_after_load) {
+        // create new argv: [exe_argv0, exe_path, ...&argv[3]]
+        char *new_argv[argc+1];
+        new_argv[0] = exe_argv0;
+        new_argv[1] = exe_path;
+        memcpy(&new_argv[2], &argv[3], (argc-3+1) * sizeof(char*));
+
+        if (execve(interpreter, new_argv, environ) != 0) {
+            orb_perror("execve");
+            return 255;
+        }
+    }
+
     // execute by fd
     // execveat helps preserve both filename and fd
-    if (syscall(SYS_execveat, execfd, exe_path, &argv[2], environ, AT_EMPTY_PATH) != 0) {
+    if (syscall(SYS_execveat, execfd, exe_path, &argv[2] /* &exe_argv0 */, environ, AT_EMPTY_PATH) != 0) {
         orb_perror("execveat");
         return 255;
     }
