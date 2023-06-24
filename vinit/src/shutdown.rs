@@ -145,7 +145,7 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
     // unmount in reverse order - more likely to succeed
     for line in mounts.lines().rev() {
         let mut parts = line.split_whitespace();
-        let _ = parts.next().unwrap();
+        let source = parts.next().unwrap();
         let target = parts.next().unwrap();
         let fstype = parts.next().unwrap();
 
@@ -153,7 +153,7 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
         if DATA_FILESYSTEM_TYPES.contains(&fstype) {
             // HACK: exclude Rosetta virtiofs
             // unnecessary, and I'm not confident about krpc/rvfs code handling it correctly
-            if fstype == "virtiofs" && target == ROSETTA_VIRTIOFS_TAG {
+            if fstype == "virtiofs" && source == ROSETTA_VIRTIOFS_TAG {
                 continue;
             }
 
