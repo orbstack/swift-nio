@@ -30,6 +30,12 @@ enum emu_provider {
     EMU_OVERRIDE_RUNC,
 };
 
+static char *orb_perror(const char *what) {
+    fprintf(stderr, "OrbStack ERROR: %s failed: %s\n", what, strerror(errno));
+    fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+    return NULL;
+}
+
 static char *get_basename(char *path) {
     char *base = strrchr(path, '/');
     if (base == NULL) {
@@ -93,8 +99,7 @@ static ssize_t read_elf_size(int fd) {
 
     // read ELF header
     if (pread(fd, &elf_hdr, sizeof(elf_hdr), 0) != sizeof(elf_hdr)) {
-        fprintf(stderr, "OrbStack ERROR: pread failed: %s\n", strerror(errno));
-        fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+        orb_perror("pread");
         return -1;
     }
 
@@ -108,16 +113,14 @@ static int run_override_runc(char **argv) {
     // open our own executable
     int exefd = open("/proc/self/exe", O_RDONLY|O_CLOEXEC);
     if (exefd == -1) {
-        fprintf(stderr, "OrbStack ERROR: open failed: %s\n", strerror(errno));
-        fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+        orb_perror("open");
         return 255;
     }
 
     // create memfd
     int memfd = memfd_create("runc", MFD_EXEC);
     if (memfd == -1) {
-        fprintf(stderr, "OrbStack ERROR: memfd_create failed: %s\n", strerror(errno));
-        fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+        orb_perror("memfd_create");
         close(exefd);
         return 255;
     }
@@ -140,8 +143,7 @@ static int run_override_runc(char **argv) {
 
     // seek to end of ELF
     if (lseek(exefd, elf_size, SEEK_SET) == -1) {
-        fprintf(stderr, "OrbStack ERROR: lseek failed: %s\n", strerror(errno));
-        fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+        orb_perror("lseek");
         close(exefd);
         close(memfd);
         return 255;
@@ -152,8 +154,7 @@ static int run_override_runc(char **argv) {
     while (remaining > 0) {
         ssize_t ret = sendfile(memfd, exefd, NULL, remaining);
         if (ret == -1) {
-            fprintf(stderr, "OrbStack ERROR: sendfile failed: %s\n", strerror(errno));
-            fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+            orb_perror("sendfile");
             close(exefd);
             close(memfd);
             return 255;
@@ -164,15 +165,13 @@ static int run_override_runc(char **argv) {
     // start runc from memfd
     // don't need to close exefd - it's CLOEXEC
     if (syscall(SYS_execveat, memfd, "", &argv[2], environ, AT_EMPTY_PATH) != 0) {
-        fprintf(stderr, "OrbStack ERROR: execveat failed: %s\n", strerror(errno));
-        fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+        orb_perror("evecveat");
         close(memfd);
         return 255;
     }
 
     // should never get here
-    fprintf(stderr, "OrbStack ERROR: execveat returned unexpectedly\n");
-    fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+    orb_perror("execveat returned unexpectedly");
     close(memfd);
     return 255;
 }
@@ -203,8 +202,7 @@ int main(int argc, char **argv) {
     // get execfd
     int execfd = getauxval(AT_EXECFD);
     if (execfd == 0) {
-        fprintf(stderr, "OrbStack ERROR: getauxval failed: %s\n", strerror(errno));
-        fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+        orb_perror("getauxval");
         return 255;
     }
 
@@ -227,8 +225,7 @@ int main(int argc, char **argv) {
     // do this last to minimize time window with garbage in comm
     const char *rvk_data = emu == EMU_ROSETTA ? rvk1_data : rvk2_data;
     if (prctl(PR_SET_NAME, rvk_data, 0, 0, 0) != 0) {
-        fprintf(stderr, "OrbStack ERROR: prctl failed: %s\n", strerror(errno));
-        fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+        orb_perror("prctl");
         return 255;
     }
 
@@ -253,13 +250,11 @@ int main(int argc, char **argv) {
     // execute by fd
     // execveat helps preserve both filename and fd
     if (syscall(SYS_execveat, execfd, exe_path, &argv[2], environ, AT_EMPTY_PATH) != 0) {
-        fprintf(stderr, "OrbStack ERROR: execveat failed: %s\n", strerror(errno));
-        fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+        orb_perror("execveat");
         return 255;
     }
 
     // should never get here
-    fprintf(stderr, "OrbStack ERROR: execveat returned unexpectedly\n");
-    fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
+    orb_perror("execveat returned unexpectedly");
     return 255;
 }
