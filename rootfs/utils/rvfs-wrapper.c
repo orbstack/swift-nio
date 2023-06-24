@@ -208,9 +208,7 @@ static int run_override_runc(char **argv) {
     }
 
     // should never get here
-    orb_perror("execveat returned unexpectedly");
-    close(memfd);
-    return 255;
+    __builtin_unreachable();
 }
 
 // our wrapper's purpose is to make a decision about which emulator to use
@@ -312,6 +310,5 @@ int main(int argc, char **argv) {
     }
 
     // should never get here
-    orb_perror("execveat returned unexpectedly");
-    return 255;
+    __builtin_unreachable();
 }
