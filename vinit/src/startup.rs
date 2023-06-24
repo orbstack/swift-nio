@@ -412,7 +412,7 @@ fn init_data() -> Result<(), Box<dyn Error>> {
 
     // set up NFS root for scon
     // mount name is visible in machines bind mount, so use vanity name
-    mount("machines", "/nfsroot-rw", "tmpfs", MsFlags::MS_NOATIME, Some("mode=0755"))?;
+    mount("machines", "/nfsroot-rw", "tmpfs", MsFlags::MS_NOATIME | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID, Some("mode=0755"))?;
     fs::copy("/opt/orb/nfs-readme.txt", "/nfsroot-rw/README.txt")?;
     // attempt to reduce NFS CPU usage from macOS indexing
     fs::write("/nfsroot-rw/.metadata_never_index", "")?;
