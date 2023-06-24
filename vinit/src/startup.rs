@@ -445,18 +445,18 @@ fn prepare_rosetta_bin() -> Result<(), Box<dyn Error>> {
     use crate::rosetta;
 
     // create tmpfs that allows exec
-    mount("tmpfs", "/mnt/rvfs", "tmpfs", MsFlags::MS_NOATIME, None)?;
+    mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_NOATIME, None)?;
 
     // copy rosetta binary
-    fs::copy("/mnt/rosetta/rosetta", "/mnt/rvfs/rosetta")?;
-    fs::set_permissions("/mnt/rvfs/rosetta", Permissions::from_mode(0o755))?;
+    fs::copy("/mnt/rosetta/rosetta", "/mnt/rv/[rosetta]")?;
+    fs::set_permissions("/mnt/rv/[rosetta]", Permissions::from_mode(0o755))?;
 
     // remount readonly
-    mount("tmpfs", "/mnt/rvfs", "tmpfs", MsFlags::MS_REMOUNT | MsFlags::MS_NOATIME | MsFlags::MS_RDONLY, None)?;
+    mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_REMOUNT | MsFlags::MS_NOATIME | MsFlags::MS_RDONLY, None)?;
 
     // redirect ioctls to real rosetta virtiofs
     let real_rosetta_file = fs::File::open("/mnt/rosetta/rosetta")?;
-    let new_file = fs::File::open("/mnt/rvfs/rosetta")?;
+    let new_file = fs::File::open("/mnt/rv/[rosetta]")?;
     rosetta::adopt_rvfs_files(real_rosetta_file, new_file)?;
 
     // we're done setting up the new rosetta.
@@ -482,6 +482,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
                 rosetta_flags += "P";
             }
         }
+        rosetta_flags += "P";
 
         // if we're using Rosetta, we'll do it through the RVFS wrapper.
         // add flag to register qemu-x86_64 as a hidden handler that the RVFS wrapper can use, via comm=rvk2
@@ -491,13 +492,13 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         // entries added later take priority, so MUST register first to avoid infinite loop
         // WARNING: NOT THREAD SAFE! this uses chdir.
         //          luckily init doesn't care about cwd during early boot (but later, it matters for spawned processes)
-        env::set_current_dir("/opt/orb/extra-links")?;
-        let rvfs_res = add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", "POCF");
-        env::set_current_dir("/")?;
-        rvfs_res?;
+        add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", "POCF")?;
 
         // then register real rosetta with comm=rvk1 key '('
-        add_binfmt("rosetta1", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags)?;
+        env::set_current_dir("/mnt/rv")?;
+        let real_res = add_binfmt("rosetta1", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags);
+        env::set_current_dir("/")?;
+        real_res?;
     } else {
         // qemu
         println!("  -  Using QEMU");

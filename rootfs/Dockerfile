@@ -343,19 +343,14 @@ mkdir /nfsroot-ro /nfsroot-rw
 mkdir /data
 mkdir /mnt/mac
 mkdir /mnt/rosetta
-mkdir /mnt/rvfs
+mkdir /mnt/rv
 
 # binfmt vanity links
-ln -s /mnt/rvfs/rosetta '[rosetta]'
+ln -s /opt/orb/rvfs-wrapper '[rosetta]' # (real rosetta is in rvfs)
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
 ln -s /usr/bin/qemu-aarch64 '[qemu-arm64]'
 ln -s /opt/orbstack-guest/bin/macctl '[mac]'
-# name conflict
-mkdir /opt/orb/extra-links
-cd /opt/orb/extra-links
-ln -s /opt/orb/rvfs-wrapper '[rosetta]'
-cd /
 
 # Guest tools
 mkdir -p /opt/orbstack-guest/bin /opt/orbstack-guest/bin-hiprio /opt/orbstack-guest/run /opt/orbstack-guest/data
