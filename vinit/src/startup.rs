@@ -322,6 +322,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
 
 pub fn sync_clock(allow_backward: bool) -> Result<(), Box<dyn Error>> {
     // sync clock immediately at boot (if RTC is wrong) or on wake (until chrony kicks in)
+    // RTC can supposedly be wrong at boot: https://news.ycombinator.com/item?id=36185786
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_read_timeout(Some(Duration::from_secs(10)))?;
     let host_time = sntpc::simple_get_time("198.19.248.200:123", socket)
@@ -434,7 +435,7 @@ fn add_binfmt(name: &str, magic: &str, mask: Option<&str>, interpreter: &str, fl
 }
 
 #[cfg(target_arch = "x86_64")]
-fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+fn setup_emulators(_sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // arm64 qemu
     add_binfmt("qemu-aarch64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu-arm64]", "POCF")?;
     Ok(())
