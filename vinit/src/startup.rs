@@ -441,8 +441,8 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn prepare_rosetta_bin() -> Result<(), Box<dyn Error>> {
-    use crate::rosetta;
+fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
+    use crate::rosetta::{self, RosettaError};
 
     // create tmpfs that allows exec
     mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_NOATIME, None)?;
@@ -450,6 +450,20 @@ fn prepare_rosetta_bin() -> Result<(), Box<dyn Error>> {
     // copy rosetta binary
     fs::copy("/mnt/rosetta/rosetta", "/mnt/rv/[rosetta]")?;
     fs::set_permissions("/mnt/rv/[rosetta]", Permissions::from_mode(0o755))?;
+
+    // apply patch
+    let mut patched = false;
+    let source_data = fs::read("/mnt/rv/[rosetta]")?;
+    match rosetta::find_and_apply_patch(&source_data, "/mnt/rv/[rosetta]") {
+        Ok(_) => {
+            patched = true;
+        },
+        Err(RosettaError::UnknownBuild(fingerprint)) => {
+            // allow proceeding
+            eprintln!("  !  Unknown Rosetta version: {}", fingerprint);
+        },
+        Err(e) => return Err(InitError::RosettaUpdate(e).into()),
+    }
 
     // remount readonly
     mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_REMOUNT | MsFlags::MS_NOATIME | MsFlags::MS_RDONLY, None)?;
@@ -461,7 +475,7 @@ fn prepare_rosetta_bin() -> Result<(), Box<dyn Error>> {
 
     // we're done setting up the new rosetta.
     // wrapper doesn't need any special treatment because it uses comm=rvk1/rvk2 keys
-    Ok(())
+    Ok(patched)
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -472,15 +486,18 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     if let Ok(_) = mount("rosetta", "/mnt/rosetta", "virtiofs", MsFlags::empty(), None) {
         // rosetta
         println!("  -  Using Rosetta");
-        prepare_rosetta_bin()?;
 
+        // copy to rvfs and apply delta
+        let patched = prepare_rosetta_bin()?;
+
+        // add preserve-argv0 flag on Sonoma Rosetta 309+
         let mut rosetta_flags = "CF@(".to_string();
-        // add preserve-argv0 flag on Sonoma
-        if let Some(value) = sys_info.seed_configs.get("host_major_version") {
-            let version = value.parse::<u32>()?;
-            if version >= 14 {
-                rosetta_flags += "P";
-            }
+        let host_major_version = match sys_info.seed_configs.get("host_major_version") {
+            Some(value) => value.parse::<u32>()?,
+            None => 0,
+        };
+        if patched || host_major_version >= 14 {
+            rosetta_flags += "P"
         }
 
         // if we're using Rosetta, we'll do it through the RVFS wrapper.
@@ -667,9 +684,11 @@ pub async fn main(
     timeline.begin("Late tasks");
     let mut tasks = vec![];
     let sys_info_clone = sys_info.clone();
-    tasks.push(std::thread::spawn(move || {
+    tasks.push(std::thread::spawn(move || { // 55 ms
+        //let stage_start = Instant::now();
         println!("     [*] Set up binfmt");
         setup_binfmt(&sys_info_clone).unwrap();
+        //println!("     ... Set up binfmt: +{}ms", stage_start.elapsed().as_millis());
     }));
     let sys_info_clone = sys_info.clone();
     tasks.push(std::thread::spawn(move || { // 50 ms

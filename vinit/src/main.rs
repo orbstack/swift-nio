@@ -16,6 +16,7 @@ mod loopback;
 mod pidfd;
 mod startup;
 mod shutdown;
+#[cfg(target_arch = "aarch64")]
 mod rosetta;
 
 // debug flag
@@ -46,6 +47,9 @@ pub enum InitError {
     ParseProcStat(i32),
     #[error("failed to spawn service {}: {}", .service, .error)]
     SpawnService { service: Service, #[source] error: std::io::Error },
+    #[cfg(target_arch = "aarch64")]
+    #[error("failed to update Rosetta: {}", .0)]
+    RosettaUpdate(#[from] rosetta::RosettaError),
 }
 
 #[derive(Clone)]

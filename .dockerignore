@@ -3,6 +3,7 @@ rootfs/out/
 rootfs/rd-compile*
 rootfs/rdc2
 rootfs/live/
+rootfs/rosetta-deltas/.gitignore
 scon/bpf/*bpfel*
 *.o
 *.pcap
