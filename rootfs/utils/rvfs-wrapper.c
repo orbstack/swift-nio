@@ -231,9 +231,18 @@ int main(int argc, char **argv) {
         return 255;
     }
 
+    // execveat with fd fails with ENOTDIR if path is relative.
+    // resolve to absolute path
+    // doesn't 100% match kernel default binfmt_misc behavior, but shouldn't matter
+    char *exe_realpath = realpath(exe_path, NULL);
+    if (exe_realpath == NULL) {
+        // fall back to empty string, meaning that exe path becomes /dev/fd/<execfd>
+        exe_realpath = "";
+    }
+
     // execute by fd
     // execveat helps preserve both filename and fd
-    if (syscall(SYS_execveat, execfd, exe_path, &argv[2], environ, AT_EMPTY_PATH) != 0) {
+    if (syscall(SYS_execveat, execfd, exe_realpath, &argv[2], environ, AT_EMPTY_PATH) != 0) {
         fprintf(stderr, "OrbStack ERROR: execveat failed: %s\n", strerror(errno));
         fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
         return 255;
