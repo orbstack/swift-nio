@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
     Json, Router, Extension,
 };
-use chrony_candm::{request::{RequestBody, Offline, Online, Burst}, common::ChronyAddr};
+use chrony_candm::{request::{RequestBody, Burst}, common::ChronyAddr};
 use error::AppResult;
 use nix::{sys::{statvfs, reboot::{self, RebootMode}}, unistd};
 use serde::{Deserialize, Serialize};

@@ -11,6 +11,7 @@ pub struct Error(anyhow::Error);
 #[derive(thiserror::Error, Debug)]
 pub enum HttpError {
     #[error("bad request")]
+    #[allow(dead_code)]
     BadRequest,
 }
 
