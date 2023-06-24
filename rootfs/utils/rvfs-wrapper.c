@@ -236,17 +236,17 @@ int main(int argc, char **argv) {
     // otherwise execveat with fd fails with ENOTDIR
     // doesn't 100% match kernel default binfmt_misc behavior, but shouldn't matter
     // can't use realpath because it resolves symlinks, breaking busybox w/o preserve-argv0
+    char new_path_buf[PATH_MAX];
     if (exe_path[0] != '/') {
         char cwd[PATH_MAX];
         if (getcwd(cwd, sizeof(cwd)) == NULL) {
             // fall back to empty string, meaning that exe path becomes /dev/fd/<execfd>
             exe_path = "";
         } else {
-            char *new_path = malloc(strlen(cwd) + 1 + strlen(exe_path) + 1);
-            strcpy(new_path, cwd);
-            strcat(new_path, "/");
-            strcat(new_path, exe_path);
-            exe_path = new_path;
+            strcpy(new_path_buf, cwd);
+            strcat(new_path_buf, "/");
+            strcat(new_path_buf, exe_path);
+            exe_path = new_path_buf;
         }
     }
 
