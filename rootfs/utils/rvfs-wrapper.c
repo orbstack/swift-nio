@@ -223,7 +223,7 @@ static int run_override_runc(char **argv) {
 // our wrapper's purpose is to make a decision about which emulator to use
 int main(int argc, char **argv) {
     if (argc == 1) {
-        fprintf(stderr, "Having fun? Say hi at secret@orbstack.dev :)\n");
+        fprintf(stderr, "Please be mindful of the end-user license agreement.\nhttps://docs.orbstack.dev/legal/terms\nCopyright 2023 Orbital Labs, LLC. All rights reserved.\n\nHaving fun? Say hi at secret@orbstack.dev :)\n");
         return 0;
     }
 
