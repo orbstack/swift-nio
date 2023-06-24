@@ -41,10 +41,16 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 EOT
 
 # Build Rust - vinit
-# workaround for Rosetta bug: use Rust image to avoid patchelf
 FROM rust-base AS rust-build
 # dep needed with rust image
-RUN apk add --no-cache musl-dev
+RUN apk add --no-cache musl-dev scudo-malloc patchelf
+# we have to use rust base image to produce static binary for debian, so add back scudo like alpine for +30% perf
+# https://github.com/alpinelinux/aports/blob/master/community/rust/APKBUILD
+RUN <<EOT sh -eux
+if [[ "\$(uname -m)" != "aarch64" ]]; then
+    patchelf --add-needed libscudo.so \$(which cargo) \$(which rustc)
+fi
+EOT
 COPY vinit /build/vinit
 ARG ARCH=arm64
 ARG TYPE=release
