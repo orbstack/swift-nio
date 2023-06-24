@@ -1,11 +1,10 @@
 use std::{fs::{File, self}, error::Error, os::fd::AsRawFd};
 use qbsdiff::Bspatch;
-use sha2::{Sha256, Digest};
 
 const KRPC_IOC: u8 = 0xDA;
 
 const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orbrosettafp";
-const ROSETTA_BUFFER: usize = 131072;
+const ROSETTA_BUFFER: usize = 524288;
 
 #[derive(thiserror::Error, Debug)]
 pub enum RosettaError {
@@ -41,7 +40,7 @@ pub fn adopt_rvfs_files(real_rosetta: File, new_file: File) -> Result<(), Box<dy
 }
 
 fn hash_with_salt(salt: &[u8], data: &[u8]) -> Result<[u8; 32], Box<dyn Error>> {
-    let mut hasher = Sha256::new();
+    let mut hasher = blake3::Hasher::new();
     hasher.update(salt);
     hasher.update(data);
 
