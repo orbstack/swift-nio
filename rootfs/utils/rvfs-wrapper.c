@@ -219,6 +219,11 @@ int main(int argc, char **argv) {
     //char *exe_argv0 = argv[2];
     char *exe_name = get_basename(exe_path);
 
+    if (argc == 1) {
+        fprintf(stderr, "Having fun? Say hi at secret@orbstack.dev :)\n");
+        return 0;
+    }
+
     // select emulator
     enum emu_provider emu = PASSTHROUGH ? EMU_ROSETTA : select_emulator(argc, argv, exe_name);
 
