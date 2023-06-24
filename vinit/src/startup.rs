@@ -482,7 +482,6 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
                 rosetta_flags += "P";
             }
         }
-        rosetta_flags += "P";
 
         // if we're using Rosetta, we'll do it through the RVFS wrapper.
         // add flag to register qemu-x86_64 as a hidden handler that the RVFS wrapper can use, via comm=rvk2
