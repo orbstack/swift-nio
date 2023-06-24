@@ -1,5 +1,5 @@
 diff --git a/libcontainer/configs/config.go b/libcontainer/configs/config.go
-index c1b4a004..bd2f2111 100644
+index c1b4a004..1223052a 100644
 --- a/libcontainer/configs/config.go
 +++ b/libcontainer/configs/config.go
 @@ -4,7 +4,10 @@ import (
@@ -28,7 +28,7 @@ index c1b4a004..bd2f2111 100644
 +			return err
 +		}
 +
-+		if filepath.Base(dest) == "rosetta" {
++		if filepath.Base(dest) == "[rosetta]" {
 +			// get real executable path from cmdline
 +			cmdline, err := os.ReadFile("/proc/" + parts[2] + "/cmdline")
 +			if err != nil {
