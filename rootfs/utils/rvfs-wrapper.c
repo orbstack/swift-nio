@@ -106,6 +106,43 @@ static ssize_t read_elf_size(int fd) {
     return elf_hdr.e_shoff + (elf_hdr.e_shnum * elf_hdr.e_shentsize);
 }
 
+static int read_interp(int fd, char interp_buf[PATH_MAX]) {
+    Elf64_Ehdr ehdr;
+    if (pread(fd, &ehdr, sizeof(ehdr), 0) != sizeof(ehdr)) {
+        perror("pread ehdr");
+        return -1;
+    }
+
+    Elf64_Phdr phdr;
+    for (int i = 0; i < ehdr.e_phnum; i++) {
+        off_t offset = ehdr.e_phoff + i * ehdr.e_phentsize;
+        if (pread(fd, &phdr, sizeof(phdr), offset) != sizeof(phdr)) {
+            perror("pread phdr");
+            return -1;
+        }
+
+        if (phdr.p_type == PT_INTERP) {
+            if (phdr.p_filesz > PATH_MAX) {
+                if (DEBUG) fprintf(stderr, "interp path too long\n");
+                return -1;
+            }
+
+            if (pread(fd, interp_buf, phdr.p_filesz, phdr.p_offset) != phdr.p_filesz) {
+                perror("pread interp");
+                return -1;
+            }
+
+            // null terminate
+            interp_buf[phdr.p_filesz] = '\0';
+            if (DEBUG) fprintf(stderr, "interp: %s\n", interp_buf);
+            return 0;
+        }
+    }
+
+    // not found - could be static
+    return -1;
+}
+
 // static arm64 build of runc is appended to our wrapper's ELF executable.
 // this is OK for performance because it's mmapped and usually not touched.
 // TODO: use miniz in the future if we add more appended files
@@ -207,7 +244,27 @@ int main(int argc, char **argv) {
     }
 
     // no cloexec = duplicate fd leaked to process
+    // TODO: what if this is BINPRM_FLAGS_PATH_INACCESSIBLE?
     fcntl(execfd, F_SETFD, FD_CLOEXEC);
+
+    // detect missing interpreter
+    char interp_buf[PATH_MAX];
+    if (read_interp(execfd, interp_buf) == 0) {
+        // check for interp if ELF parser succeeded
+        if (faccessat(execfd, interp_buf, F_OK, 0) != 0) {
+            // missing interpreter
+            fprintf(stderr, "OrbStack ERROR: Dynamic loader not found: %s\n"
+                            "\n"
+                            "This usually means that you're running an x86 program on an arm64 OS without multi-arch libraries.\n"
+                            "To fix this, you can:\n"
+                            "  1. Run the program in an Intel (amd64) container or machine instead.\n"
+                            "  2. Install multi-arch libraries in this container or machine.\n"
+                            "\n"
+                            "For more details and instructions, see https://docs.orbstack.dev/readme-link/multiarch\n"
+                            "", interp_buf);
+            return 255;
+        }
+    }
 
     // exec overrides instead
     if (emu == EMU_OVERRIDE_RUNC) {
