@@ -391,7 +391,7 @@ COPY rootfs/utils/guest/etc /opt/orbstack-guest/etc
 COPY LICENSE /
 
 # Rosetta deltas
-COPY --from=rosetta-deltas /out/ /opt/orb/rvdelta
+COPY --from=rosetta-deltas /out/ /opt/orb/delta
 
 # Compiled binaries (in order of most likely to change)
 COPY --from=c-build /out/* /opt/orb/

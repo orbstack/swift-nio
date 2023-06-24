@@ -71,7 +71,7 @@ pub fn find_and_apply_patch(source_data: &[u8], dest_path: &str) -> Result<(), R
     let fingerprint: [u8; 32] = hasher.finalize().into();
 
     // find and read patch file
-    let mut patch = fs::read(format!("/opt/orb/rvdelta/{}", hex::encode(fingerprint)))
+    let mut patch = fs::read(format!("/opt/orb/delta/{}", hex::encode(fingerprint)))
         .map_err(|_| RosettaError::UnknownBuild(hex::encode(fingerprint)))?;
 
     // empty file = no patch needed
