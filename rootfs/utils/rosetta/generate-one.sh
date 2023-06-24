@@ -20,3 +20,5 @@ if [[ "$from_exe" == "$to_exe" ]]; then
 fi
 
 bsdiff "$from_exe" "$to_exe" "/out/$file_fp"
+# encrypt
+/work/b3enc "$from_exe" "/out/$file_fp" "/out/$file_fp"

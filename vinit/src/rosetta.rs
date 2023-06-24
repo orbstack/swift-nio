@@ -39,27 +39,48 @@ pub fn adopt_rvfs_files(real_rosetta: File, new_file: File) -> Result<(), Box<dy
     Ok(())
 }
 
-fn hash_with_salt(salt: &[u8], data: &[u8]) -> Result<[u8; 32], Box<dyn Error>> {
+fn start_hash(salt: &[u8], data: &[u8]) -> blake3::Hasher {
     let mut hasher = blake3::Hasher::new();
     hasher.update(salt);
     hasher.update(data);
+    hasher
+}
 
-    Ok(hasher.finalize().into())
+fn apply_xof(hasher: &mut blake3::Hasher, patch: &mut [u8]) {
+    let mut xof = hasher.finalize_xof();
+    let mut buf = [0u8; ROSETTA_BUFFER];
+    let mut offset = 0;
+
+    // skip hash (first block)
+    xof.set_position(64);
+
+    while offset < patch.len() {
+        let len = std::cmp::min(ROSETTA_BUFFER, patch.len() - offset);
+        xof.fill(&mut buf);
+        // XOR
+        for i in 0..len {
+            patch[offset + i] ^= buf[i];
+        }
+        offset += len;
+    }
 }
 
 pub fn find_and_apply_patch(source_data: &[u8], dest_path: &str) -> Result<(), RosettaError> {
     // hash with salt to get fingerprint
-    let fingerprint = hash_with_salt(ROSETTA_FINGERPRINT_SALT, source_data)
-        .map_err(|e| RosettaError::ApplyFailed(e.into()))?;
+    let mut hasher = start_hash(ROSETTA_FINGERPRINT_SALT, source_data);
+    let fingerprint: [u8; 32] = hasher.finalize().into();
 
     // find and read patch file
-    let patch = fs::read(format!("/opt/orb/rvdelta/{}", hex::encode(fingerprint)))
+    let mut patch = fs::read(format!("/opt/orb/rvdelta/{}", hex::encode(fingerprint)))
         .map_err(|_| RosettaError::UnknownBuild(hex::encode(fingerprint)))?;
 
     // empty file = no patch needed
     if patch.is_empty() {
         return Ok(());
     }
+
+    // decrypt patch (~1 ms in release, 20 ms debug)
+    apply_xof(&mut hasher, &mut patch);
 
     // apply patch
     let mut target = File::create(dest_path)

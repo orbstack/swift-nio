@@ -59,7 +59,7 @@ else
     cargo build --release
 fi
 mkdir /out
-cp target/${TYPE}/vinit /out/vinit
+cp target/${TYPE}/vinit target/${TYPE}/b3enc /out/
 EOT
 
 # Build Rosetta runc override
@@ -106,6 +106,7 @@ RUN apt-get update && \
     apt-get install -y curl python3 bsdiff b3sum 7zip
 COPY rootfs/utils/rosetta /work/
 WORKDIR /work
+COPY --from=rust-build /out/b3enc /work/
 RUN --mount=type=cache,target=/work/cache \
     ./generate-deltas.sh
 
