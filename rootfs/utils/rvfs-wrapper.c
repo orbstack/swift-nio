@@ -47,8 +47,16 @@ static char *get_basename(char *path) {
 
 static enum emu_provider select_emulator(int argc, char **argv, char *exe_name) {
     // if running "apk", use qemu to avoid futex bug
-    // vsce-sign also breaks in qemu so no point in switching
     if (strcmp(exe_name, "apk") == 0) {
+        if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
+        return EMU_QEMU;
+    }
+
+    // vsce-sign also breaks in qemu so no point in switching
+
+    // fix "build-script-build" getting stuck on futex during cargo build
+    // ex: /build/vinit/target/release/build/bzip2-sys-7a5f3f458c874dc9/build-script-build
+    if (strcmp(exe_name, "build-script-build") == 0) {
         if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
         return EMU_QEMU;
     }
