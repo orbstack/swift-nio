@@ -11,9 +11,11 @@ use crate::{loopback, Timeline, InitError, DEBUG};
 // only includes root namespace
 const UNMOUNT_ITERATION_LIMIT: usize = 10;
 const DATA_FILESYSTEM_TYPES: &[&str] = &[
+    // unmount data-share virtiofs to sync changes and forget fds
     "virtiofs",
     "btrfs",
 ];
+const ROSETTA_VIRTIOFS_TAG: &str = "rosetta";
 
 const SERVICE_SIGTERM_TIMEOUT: Duration = Duration::from_secs(20);
 const PROCESS_SIGKILL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -149,6 +151,12 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
 
         // only unmount data filesystems
         if DATA_FILESYSTEM_TYPES.contains(&fstype) {
+            // HACK: exclude Rosetta virtiofs
+            // unnecessary, and I'm not confident about krpc/rvfs code handling it correctly
+            if fstype == "virtiofs" && target == ROSETTA_VIRTIOFS_TAG {
+                continue;
+            }
+
             // unmount
             println!("  -  Unmounting {}", target);
             // TODO: MNT_DETACH?
