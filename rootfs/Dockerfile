@@ -100,7 +100,14 @@ strip /out/* /out-guest/*
 cat /build/runc >> /out/rvfs-wrapper
 EOT
 
-
+# Generate Rosetta deltas (need Debian for bsdiff)
+FROM debian as rosetta-deltas
+RUN apt-get update && \
+    apt-get install -y curl python3 bsdiff b3sum 7zip
+COPY rootfs/utils/rosetta /work/
+WORKDIR /work
+RUN --mount=type=cache,target=/work/cache \
+    ./generate-deltas.sh
 
 ##########################################################################
 # Docker container rootfs
@@ -383,7 +390,7 @@ COPY rootfs/utils/guest/etc /opt/orbstack-guest/etc
 COPY LICENSE /
 
 # Rosetta deltas
-COPY rootfs/rosetta-deltas /opt/orb/rvdelta
+COPY --from=rosetta-deltas /out/ /opt/orb/rvdelta
 
 # Compiled binaries (in order of most likely to change)
 COPY --from=c-build /out/* /opt/orb/
