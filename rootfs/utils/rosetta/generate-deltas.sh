@@ -1,7 +1,14 @@
 #!/bin/bash
 
 set -euo pipefail
+
 mkdir -p cache
+mkdir -p /out
+
+if [[ "$(uname -m)" != "aarch64" ]]; then
+    echo "skip"
+    exit
+fi
 
 curl -L https://swscan.apple.com/content/catalogs/others/index-rosettaupdateauto-1.sucatalog.gz | gunzip | python3 parse-catalog.py > catalog
 
@@ -15,7 +22,6 @@ cat catalog | xargs -P 8 -n 1 ./download-one.sh > src_pkgs
 target_exe="Library/Apple/usr/libexec/oah/RosettaLinux/rosetta"
 
 echo -n 'orbrosettafp' > header
-mkdir -p /out
 
 for from_pkg in $(cat src_pkgs); do
     ./generate-one.sh "cache/$from_pkg" "$target_exe"
