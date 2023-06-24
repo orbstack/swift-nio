@@ -302,6 +302,21 @@ func runOne(what string, fn func() error) {
 	}
 }
 
+func flushDisk() error {
+	fd, err := unix.Open(conf.DataImage(), unix.O_RDWR|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open: %w", err)
+	}
+	defer unix.Close(fd)
+
+	_, err = unix.FcntlInt(uintptr(fd), unix.F_FULLFSYNC, 0)
+	if err != nil {
+		return fmt.Errorf("fsync: %w", err)
+	}
+
+	return nil
+}
+
 func runVmManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -472,6 +487,7 @@ func runVmManager() {
 		StopCh: stopCh,
 	})
 	defer vnetwork.Close()
+	defer runOne("flush disk", flushDisk)
 	// close in case we need to release disk flock for next start
 	defer vm.Close()
 
