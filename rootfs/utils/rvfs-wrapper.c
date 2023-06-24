@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
     char interp_buf[PATH_MAX];
     if (read_interp(execfd, interp_buf) == 0) {
         // check for interp if ELF parser succeeded
-        if (faccessat(execfd, interp_buf, F_OK, 0) != 0) {
+        if (access(interp_buf, F_OK) != 0) {
             // missing interpreter
             fprintf(stderr, "OrbStack ERROR: Dynamic loader not found: %s\n"
                             "\n"
