@@ -492,7 +492,7 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         let patched = prepare_rosetta_bin()?;
 
         // add preserve-argv0 flag on Sonoma Rosetta 309+
-        let mut rosetta_flags = "CF@(".to_string();
+        let mut rosetta_flags = "CF(".to_string();
         let host_major_version = match sys_info.seed_configs.get("host_major_version") {
             Some(value) => value.parse::<u32>()?,
             None => 0,
