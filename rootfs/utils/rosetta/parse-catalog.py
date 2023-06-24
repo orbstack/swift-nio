@@ -7,6 +7,7 @@ src_version_prefixes = [
     # 13.x
     '22',
 ]
+# macOS 14 Developer Beta 2
 target_version = '23A5276g'
 
 for product in catalog['Products'].values():
