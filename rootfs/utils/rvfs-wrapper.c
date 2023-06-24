@@ -214,15 +214,15 @@ static int run_override_runc(char **argv) {
 
 // our wrapper's purpose is to make a decision about which emulator to use
 int main(int argc, char **argv) {
-    // assume preserve-argv0 ('P'). no point in checking auxv
-    char *exe_path = argv[1];
-    //char *exe_argv0 = argv[2];
-    char *exe_name = get_basename(exe_path);
-
     if (argc == 1) {
         fprintf(stderr, "Having fun? Say hi at secret@orbstack.dev :)\n");
         return 0;
     }
+
+    // assume preserve-argv0 ('P'). no point in checking auxv
+    char *exe_path = argv[1];
+    //char *exe_argv0 = argv[2];
+    char *exe_name = get_basename(exe_path);
 
     // select emulator
     enum emu_provider emu = PASSTHROUGH ? EMU_ROSETTA : select_emulator(argc, argv, exe_name);
