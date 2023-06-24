@@ -11,4 +11,6 @@ if [[ -f "cache/$cache_key" ]]; then
     exit
 fi
 
-curl -L "$url" > "cache/$cache_key"
+# only move on successful download
+curl -L "$url" > "/tmp/$cache_key"
+mv "/tmp/$cache_key" "cache/$cache_key"
