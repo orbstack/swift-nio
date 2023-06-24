@@ -4,7 +4,6 @@
 ARG HOST_ARCH=amd64
 FROM alpine:20230329 AS base
 FROM debian:sid-slim AS debian
-FROM rust:1.70-alpine3.18 AS rust-base
 
 
 
@@ -41,10 +40,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 EOT
 
 # Build Rust - vinit
-# workaround for Rosetta bug: use Rust image to avoid patchelf
-FROM rust-base AS rust-build
-# dep needed with rust image
-RUN apk add --no-cache musl-dev
+FROM base AS rust-build
+RUN apk add --no-cache cargo
 COPY vinit /build/vinit
 ARG ARCH=arm64
 ARG TYPE=release
