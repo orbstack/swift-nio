@@ -9,9 +9,11 @@ FROM debian:sid-slim AS debian
 
 ##########################################################################
 # Build Go and eBPF (C) - scon + eBPF, macctl
-FROM base AS go-build
+FROM base AS go-base
 RUN apk add --no-cache go alpine-sdk lxc-dev bash \
     llvm clang linux-headers libbpf-dev
+# must build vmgr and scon together because they depend on each other
+FROM go-base AS go-build
 COPY vendor /build/vendor
 COPY scon /build/scon
 COPY macvmgr /build/macvmgr
@@ -57,16 +59,42 @@ mkdir /out
 cp target/${TYPE}/vinit /out/vinit
 EOT
 
-# Build C - vsocknfs
+# Build Rosetta runc override
+FROM go-base AS runc-build
+RUN apk add --no-cache libseccomp-dev libseccomp-static
+COPY rootfs/pkgs/runc.patch /build/
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/root/go/pkg \
+<<EOT sh -eux
+mkdir /out
+if [[ "\$(uname -m)" != "aarch64" ]]; then
+    echo "skip"
+    touch /out/runc
+    exit
+fi
+
+cd /build
+git clone --depth 1 -b v1.1.7 https://github.com/opencontainers/runc
+cd runc
+patch -p1 < ../runc.patch
+EXTRA_LDFLAGS="-s -w" make static
+mv runc /out/
+EOT
+
+# Build C - vsocknfs, rvfs-wrapper
 FROM base AS c-build
 RUN apk add --no-cache alpine-sdk linux-headers
 COPY rootfs/utils/*.c /build/
+COPY --from=runc-build /out/runc /build/
 RUN <<EOT sh -eux
 mkdir /out /out-guest
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
 gcc -O2 -Wall -static -o /out/rvfs-wrapper /build/rvfs-wrapper.c
 gcc -O2 -Wall -static -o /out-guest/dummy /build/dummy.c
 strip /out/* /out-guest/*
+
+# append runc.arm64 to rvfs-wrapper
+cat /build/runc >> /out/rvfs-wrapper
 EOT
 
 

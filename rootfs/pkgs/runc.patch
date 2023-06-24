@@ -1,0 +1,51 @@
+diff --git a/libcontainer/configs/config.go b/libcontainer/configs/config.go
+index c1b4a004..bd2f2111 100644
+--- a/libcontainer/configs/config.go
++++ b/libcontainer/configs/config.go
+@@ -4,7 +4,10 @@ import (
+ 	"bytes"
+ 	"encoding/json"
+ 	"fmt"
++	"os"
+ 	"os/exec"
++	"path/filepath"
++	"strings"
+ 	"time"
+ 
+ 	"github.com/sirupsen/logrus"
+@@ -377,9 +380,34 @@ func (c Command) Run(s *specs.State) error {
+ 	if err != nil {
+ 		return err
+ 	}
++
++	// HACK: detect Rosetta /proc/<pid>/exe and run the actual binary instead
++	path := c.Path
++	parts := strings.Split(path, "/")
++	var dest string
++	if len(parts) == 4 && parts[0] == "" && parts[1] == "proc" && parts[3] == "exe" {
++		dest, err = os.Readlink(path)
++		if err != nil {
++			return err
++		}
++
++		if filepath.Base(dest) == "rosetta" {
++			// get real executable path from cmdline
++			cmdline, err := os.ReadFile("/proc/" + parts[2] + "/cmdline")
++			if err != nil {
++				return err
++			}
++			parts = strings.Split(string(cmdline), "\x00")
++			if len(parts) >= 2 {
++				// [rosetta] /usr/bin/dockerd ...
++				path = parts[1]
++			}
++		}
++	}
++
+ 	var stdout, stderr bytes.Buffer
+ 	cmd := exec.Cmd{
+-		Path:   c.Path,
++		Path:   path,
+ 		Args:   c.Args,
+ 		Env:    c.Env,
+ 		Stdin:  bytes.NewReader(b),
