@@ -13,6 +13,7 @@
 #include <sys/syscall.h>
 #include <sys/sendfile.h>
 #include <sys/mman.h>
+#include <limits.h>
 
 #define DEBUG 0
 
@@ -231,18 +232,27 @@ int main(int argc, char **argv) {
         return 255;
     }
 
-    // execveat with fd fails with ENOTDIR if path is relative.
-    // resolve to absolute path
+    // resolve to absolute path, if relative
+    // otherwise execveat with fd fails with ENOTDIR
     // doesn't 100% match kernel default binfmt_misc behavior, but shouldn't matter
-    char *exe_realpath = realpath(exe_path, NULL);
-    if (exe_realpath == NULL) {
-        // fall back to empty string, meaning that exe path becomes /dev/fd/<execfd>
-        exe_realpath = "";
+    // can't use realpath because it resolves symlinks, breaking busybox w/o preserve-argv0
+    if (exe_path[0] != '/') {
+        char cwd[PATH_MAX];
+        if (getcwd(cwd, sizeof(cwd)) == NULL) {
+            // fall back to empty string, meaning that exe path becomes /dev/fd/<execfd>
+            exe_path = "";
+        } else {
+            char *new_path = malloc(strlen(cwd) + 1 + strlen(exe_path) + 1);
+            strcpy(new_path, cwd);
+            strcat(new_path, "/");
+            strcat(new_path, exe_path);
+            exe_path = new_path;
+        }
     }
 
     // execute by fd
     // execveat helps preserve both filename and fd
-    if (syscall(SYS_execveat, execfd, exe_realpath, &argv[2], environ, AT_EMPTY_PATH) != 0) {
+    if (syscall(SYS_execveat, execfd, exe_path, &argv[2], environ, AT_EMPTY_PATH) != 0) {
         fprintf(stderr, "OrbStack ERROR: execveat failed: %s\n", strerror(errno));
         fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
         return 255;
