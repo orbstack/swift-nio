@@ -16,6 +16,7 @@
 #include <limits.h>
 
 #define DEBUG 0
+#define PASSTHROUGH 0
 
 // new in kernel 6.3
 #define MFD_EXEC		0x0010U
@@ -219,7 +220,7 @@ int main(int argc, char **argv) {
     char *exe_name = get_basename(exe_path);
 
     // select emulator
-    enum emu_provider emu = select_emulator(argc, argv, exe_name);
+    enum emu_provider emu = PASSTHROUGH ? EMU_ROSETTA : select_emulator(argc, argv, exe_name);
 
     // ok, decision made.
     // prepare to execute.
@@ -227,7 +228,8 @@ int main(int argc, char **argv) {
 
     // if using Rosetta and running "node" or "nvim", set UV_USE_IO_URING=0 if not already set in environ
     // this is a crude way to detect libuv and avoid 100% CPU on io_uring: https://github.com/orbstack/orbstack/issues/377
-    if (emu == EMU_ROSETTA &&
+    if (!PASSTHROUGH &&
+            emu == EMU_ROSETTA &&
             (strcmp(exe_name, "node") == 0 || strcmp(exe_name, "nvim") == 0) &&
             getenv("UV_USE_IO_URING") == NULL) {
         if (DEBUG) fprintf(stderr, "setting UV_USE_IO_URING=0\n");
