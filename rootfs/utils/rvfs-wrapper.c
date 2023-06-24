@@ -329,11 +329,14 @@ int main(int argc, char **argv) {
     // patchelf workaround: Rosetta segfaults if PT_INTERP is after PT_LOAD
     // as a workaround, we invoke the dynamic linker directly instead
     if (emu == EMU_ROSETTA && pt_interp_after_load) {
-        // create new argv: [exe_argv0, exe_path, ...&argv[3]]
-        char *new_argv[argc+1];
+        // create new argv: [exe_argv0, exe_path, --argv0, exe_argv0, ...&argv[3]]
+        char *new_argv[4 + (argc - 3) + 1];
         new_argv[0] = exe_argv0;
         new_argv[1] = exe_path;
-        memcpy(&new_argv[2], &argv[3], (argc-3+1) * sizeof(char*));
+        new_argv[2] = "--argv0";
+        new_argv[3] = exe_argv0;
+        memcpy(&new_argv[4], &argv[3], (argc - 3) * sizeof(char *));
+        new_argv[4 + (argc - 3)] = NULL;
 
         if (execve(interpreter, new_argv, environ) != 0) {
             orb_perror("execve");
