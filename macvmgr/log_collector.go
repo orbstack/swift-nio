@@ -12,6 +12,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/getsentry/sentry-go"
+	"github.com/orbstack/macvirt/macvmgr/conf"
 	"github.com/orbstack/macvirt/macvmgr/guihelper"
 	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
 	"github.com/sirupsen/logrus"
@@ -35,6 +36,30 @@ func (e *KernelPanicError) Error() string {
 
 func isMultibyteByte(firstByte byte) bool {
 	return firstByte >= 0x80
+}
+
+func tryReadLogHistory(path string, numLines int) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+
+	// read last 100 lines
+	scanner := bufio.NewScanner(file)
+	// circular buffer
+	lines := make([]string, 0, numLines)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+		if len(lines) > numLines {
+			lines = lines[1:]
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	return strings.Join(lines, "\n"), nil
 }
 
 func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
@@ -72,8 +97,16 @@ func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 						stopCh <- StopForce
 
 						// report panic lines to sentry
+						// if possible we read the last 100 lines of the log file
+						var panicLog string
+						if logHistory, err := tryReadLogHistory(conf.VmgrLog(), 100); err == nil {
+							panicLog = logHistory
+						} else {
+							panicLog = panicBuffer.String()
+						}
+
 						sentry.CaptureException(&KernelPanicError{
-							Err: errors.New("kernel panic:\n" + panicBuffer.String()),
+							Err: errors.New("kernel panic:\n" + panicLog),
 						})
 					})
 				} else if strings.Contains(line, "] Out of memory: Killed process") {
