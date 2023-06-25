@@ -299,15 +299,6 @@ int main(int argc, char **argv) {
         emu = EMU_ROSETTA;
     }
 
-    // set task comm key
-    // this indicates to kernel (binfmt_misc) which handler to use
-    // do this last to minimize time window with garbage in comm
-    const char *rvk_data = emu == EMU_ROSETTA ? rvk1_data : rvk2_data;
-    if (prctl(PR_SET_NAME, rvk_data, 0, 0, 0) != 0) {
-        orb_perror("prctl");
-        return 255;
-    }
-
     // resolve to absolute path, if relative
     // otherwise execveat with fd fails with ENOTDIR
     // doesn't 100% match kernel default binfmt_misc behavior, but shouldn't matter
@@ -324,6 +315,15 @@ int main(int argc, char **argv) {
             strcat(new_path_buf, exe_path);
             exe_path = new_path_buf;
         }
+    }
+
+    // set task comm key
+    // this indicates to kernel (binfmt_misc) which handler to use
+    // do this last to minimize time window with garbage in comm
+    const char *rvk_data = emu == EMU_ROSETTA ? rvk1_data : rvk2_data;
+    if (prctl(PR_SET_NAME, rvk_data, 0, 0, 0) != 0) {
+        orb_perror("prctl");
+        return 255;
     }
 
     // patchelf workaround: Rosetta segfaults if PT_INTERP is after PT_LOAD
