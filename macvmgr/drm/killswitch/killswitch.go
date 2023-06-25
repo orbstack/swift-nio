@@ -14,7 +14,7 @@ const (
 
 var (
 	// not idiomatic Go, but helpful for users
-	friendlyErrMsg = "This beta build has expired. Please update to the latest version to continue using OrbStack: https://orbstack.dev/download"
+	friendlyErrMsg = "Update required: This beta version of OrbStack is too old. Please update to continue using OrbStack: https://orbstack.dev/download"
 	ErrKillswitch  = errors.New(friendlyErrMsg)
 	ExpiryTime     = time.Unix(killswitchTimestamp, 0)
 )

@@ -44,7 +44,7 @@ func (m *DrmMonitor) Start() error {
 	// killswitch
 	killswitch.Watch(func(err error) {
 		dlog("killswitch triggered", err)
-		logrus.WithError(err).Error("build expired")
+		logrus.Error(err.Error)
 		requestSystemPoweroff()
 	})
 

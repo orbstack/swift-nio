@@ -95,7 +95,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .virtUnsupported:
             return "Virtualization not supported"
         case .killswitchExpired:
-            return "Build expired"
+            return "Update required"
         case .startTimeout:
             return "Timed out waiting for start"
         case .stopError:
@@ -190,7 +190,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .virtUnsupported:
             return "OrbStack cannot run because your computer does not support virtualization."
         case .killswitchExpired:
-            return "Preview builds expire after 30 days.\n\nPlease update OrbStack to continue."
+            return "This beta version of OrbStack is too old. Please update to continue."
 
         default:
             return nil
