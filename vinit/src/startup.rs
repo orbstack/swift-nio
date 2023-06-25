@@ -463,7 +463,7 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
             // allow proceeding
             eprintln!("  !  Unknown Rosetta version: {}", fingerprint);
         },
-        Err(e) => return Err(InitError::RosettaUpdate(e).into()),
+        Err(e) => return Err(e.into()),
     }
 
     // remount readonly

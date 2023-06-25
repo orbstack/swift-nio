@@ -3,15 +3,15 @@ use qbsdiff::Bspatch;
 
 const KRPC_IOC: u8 = 0xDA;
 
-const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orbrosettafp";
+const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orb\x00rosetta\x00fp";
 const ROSETTA_BUFFER: usize = 524288;
 
 #[derive(thiserror::Error, Debug)]
 pub enum RosettaError {
     #[error("unknown build: {}", .0)]
     UnknownBuild(String),
-    #[error("apply failed: {}", .0)]
-    ApplyFailed(#[from] Box<dyn Error>),
+    #[error("other error: {}", .0)]
+    Other(#[from] Box<dyn Error>),
 }
 
 /*
@@ -84,13 +84,13 @@ pub fn find_and_apply_patch(source_data: &[u8], dest_path: &str) -> Result<(), R
 
     // apply patch
     let mut target = File::create(dest_path)
-        .map_err(|e| RosettaError::ApplyFailed(e.into()))?;
+        .map_err(|e| RosettaError::Other(e.into()))?;
     Bspatch::new(&patch)
-        .map_err(|e| RosettaError::ApplyFailed(e.into()))?
+        .map_err(|e| RosettaError::Other(e.into()))?
         .buffer_size(ROSETTA_BUFFER)
         .delta_min(ROSETTA_BUFFER)
         .apply(&source_data, &mut target)
-        .map_err(|e| RosettaError::ApplyFailed(e.into()))?;
+        .map_err(|e| RosettaError::Other(e.into()))?;
 
     Ok(())
 }

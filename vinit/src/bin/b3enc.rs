@@ -1,6 +1,6 @@
 use std::{time::Instant, fs, error::Error};
 
-const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orbrosettafp";
+const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orb\x00rosetta\x00fp";
 const ROSETTA_BUFFER: usize = 524288;
 
 fn start_hash(salt: &[u8], data: &[u8]) -> blake3::Hasher {

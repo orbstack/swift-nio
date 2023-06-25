@@ -21,7 +21,7 @@ cat catalog | xargs -P 8 -n 1 ./download-one.sh > src_pkgs
 7z.7zip x -y "Payload~"
 target_exe="Library/Apple/usr/libexec/oah/RosettaLinux/rosetta"
 
-echo -n 'orbrosettafp' > header
+echo -ne 'orb\x00rosetta\x00fp' > header
 
 for from_pkg in $(cat src_pkgs); do
     ./generate-one.sh "cache/$from_pkg" "$target_exe"
