@@ -78,14 +78,6 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                     Spacer()
                     .frame(height: 32)
 
-                    Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
-                            .onChange(of: mountHideShared) { newValue in
-                                setConfigKey(\.mountHideShared, newValue)
-                            }
-
-                    Spacer()
-                            .frame(height: 32)
-
                     Group {
                         let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
                         Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
@@ -150,6 +142,10 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                         }
                     }
 
+                    Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
+                    .onChange(of: mountHideShared) { newValue in
+                        setConfigKey(\.mountHideShared, newValue)
+                    }
                     VStack {
                         Picker(selection: selBinding, label: Text("Data location")) {
                             Text("Default").tag(DirItem.def)
