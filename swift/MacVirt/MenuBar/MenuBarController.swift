@@ -575,11 +575,20 @@ class MenuBarController: NSObject, NSMenuDelegate {
             Defaults[.selectedTab] = tab
         }
 
+        // reappear in dock
+        windowTracker.setPolicy(.regular)
+
         // open main window if needed, as if user clicked on dock
-        NSApp.activate(ignoringOtherApps: true)
-        // avoid blocking menu anim
-        DispatchQueue.main.async {
-            AppleEvents.sendReopen(targetDescriptor: NSAppleEventDescriptor.currentProcess())
+        // but always open main so users can get back to main, not e.g. logs
+        // must have both because onDisappear (count) is called lazily
+        if !NSApp.windows.contains(where: { $0.isUserFacing }) || vmModel.openMainWindowCount == 0 {
+            // if we just opened window, then activate later to work around focus menubar bug
+            NSLog("open main")
+            NSWorkspace.shared.open(URL(string: "orbstack://main")!)
+        } else {
+            // already have a window, so activate now, no workaround needed
+            NSLog("activate main")
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 
