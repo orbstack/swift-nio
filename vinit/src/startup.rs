@@ -382,7 +382,7 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     // data
     // first try with regular mount, then try usebackuproot
     let data_flags = MsFlags::MS_NOATIME;
-    let fs_options = "discard,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs";
+    let fs_options = "discard=async,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs";
     if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(fs_options)) {
         eprintln!(" !!! Failed to mount data: {}", e);
         println!(" [*] Attempting to recover data");
@@ -390,6 +390,20 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
             eprintln!(" !!! Failed to recover data: {}", e);
             eprintln!("{}", FS_CORRUPTED_MSG);
             return Err(e);
+        }
+    }
+
+    // find fs uuid
+    for entry in fs::read_dir("/sys/fs/btrfs")? {
+        // recognize uuid by 5 components
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            let name = entry.file_name().into_string().unwrap();
+            let parts = name.split('-').count();
+            if parts == 5 {
+                fs::write(format!("/sys/fs/btrfs/{}/discard/iops_limit", name), "0")?;
+                break;
+            }
         }
     }
 
