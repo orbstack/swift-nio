@@ -4,7 +4,7 @@
 package bridge
 
 import (
-	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -44,6 +44,13 @@ func NewRouteMon() (*RouteMon, error) {
 
 		logrus.Debug("checking for renew")
 
+		// get routing table once (full table needed to make accurate decision)
+		routingTable, err := getRoutingTable()
+		if err != nil {
+			logrus.WithError(err).Error("failed to get routing table")
+			return
+		}
+
 		// only take rate limit token if we have something to renew
 		var ratelimitTaken bool
 		ratelimitPredicate := func() bool {
@@ -58,7 +65,7 @@ func NewRouteMon() (*RouteMon, error) {
 		m.subnetsMu.Lock()
 		for i := range m.subnets {
 			// value reference
-			ratelimited := m.subnets[i].maybeRenewAsync(&wg, ratelimitPredicate)
+			ratelimited := m.subnets[i].maybeRenewAsync(&wg, routingTable, ratelimitPredicate)
 			if ratelimited {
 				logrus.Debug("route renew: rate limited")
 				break
@@ -88,7 +95,8 @@ type RouteMon struct {
 
 func (m *RouteMon) Close() error {
 	close(vzf.SwextNetPathChangesChan)
-	m.ClearSubnets()
+	m.ClearVlanSubnets()
+	m.ClearSubnet(IndexSconMachine)
 	return nil
 }
 
@@ -100,13 +108,13 @@ func (m *RouteMon) Monitor() error {
 	return nil
 }
 
-func (m *RouteMon) SetSubnet(index int, hostIP4 net.IP, hostIP6 net.IP, renewFn func() error) error {
+func (m *RouteMon) SetSubnet(index int, prefix4 netip.Prefix, prefix6 netip.Prefix, renewFn func() error) error {
 	m.subnetsMu.Lock()
 	defer m.subnetsMu.Unlock()
 
 	subnet := &m.subnets[index]
 	// this clears
-	*subnet = NewMonitoredSubnet(hostIP4, hostIP6, renewFn)
+	*subnet = NewMonitoredSubnet(prefix4, prefix6, renewFn)
 	return nil
 }
 
@@ -117,11 +125,15 @@ func (m *RouteMon) ClearSubnet(index int) {
 	m.subnets[index].Clear()
 }
 
-func (m *RouteMon) ClearSubnets() {
+func (m *RouteMon) ClearVlanSubnets() {
 	m.subnetsMu.Lock()
 	defer m.subnetsMu.Unlock()
 
 	for i := range m.subnets {
+		if i == IndexSconMachine {
+			continue
+		}
+
 		m.subnets[i].Clear()
 	}
 }

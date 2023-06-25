@@ -2,6 +2,7 @@ package vnet
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -78,7 +79,7 @@ func (n *Network) ClearVlanBridges() error {
 
 	// clear first to prevent feedback loop
 	logrus.Debug("clearing vlan bridges")
-	n.bridgeRouteMon.ClearSubnets()
+	n.bridgeRouteMon.ClearVlanSubnets()
 
 	err := n.vlanRouter.ClearBridges()
 	if err != nil {
@@ -198,13 +199,23 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		"mac":     vmnetConfig.HostOverrideMAC,
 	}).Debug("adding vlan bridge")
 
+	// before actually adding the bridge, let's check for an existing VPN/LAN route.
+	// if so, let's not fight with it, just effectively disable our bridge
+	hasRoutes, err := bridge.HasAnyValidRoutes(nil, config.IP4Subnet, config.IP6Subnet)
+	if err != nil {
+		return 0, fmt.Errorf("check routes: %w", err)
+	}
+	if hasRoutes {
+		return 0, errors.New("conflict with existing route")
+	}
+
 	index, err := n.vlanRouter.AddBridge(vmnetConfig)
 	if err != nil {
 		return 0, err
 	}
 
 	// monitor route and renew when overridden
-	n.bridgeRouteMon.SetSubnet(index, net.ParseIP(vmnetConfig.Ip4Address), net.ParseIP(vmnetConfig.Ip6Address), func() error {
+	n.bridgeRouteMon.SetSubnet(index, config.IP4Subnet, config.IP6Subnet, func() error {
 		n.hostBridgeMu.Lock()
 		defer n.hostBridgeMu.Unlock()
 
@@ -281,7 +292,6 @@ func lastIPInSubnet(addr net.IP, mask net.IPMask) net.IP {
 	return addr
 }
 
-// TODO remove dependency on vzf
 func (n *Network) CreateSconMachineHostBridge() error {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
@@ -293,11 +303,27 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		oldBrnet.Close()
 	} else {
 		logrus.Debug("creating scon machine host bridge")
+
 		// first time, so add to route monitor - either after adding (if OK), or after error (if not OK)
 		// if sucessful, then we don't want to add it until creation done, to avoid feedback loop
-		defer n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, net.ParseIP(netconf.SconHostBridgeIP4), net.ParseIP(netconf.SconHostBridgeIP6), func() error {
+		prefix4 := netip.MustParsePrefix(netconf.SconSubnet4CIDR)
+		prefix6 := netip.MustParsePrefix(netconf.SconSubnet6CIDR)
+		defer n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, prefix4, prefix6, func() error {
 			return n.CreateSconMachineHostBridge()
 		})
+
+		// if this is the first time, check if there's an existing VPN or LAN route.
+		// if so, let's not fight with it, just effectively disable our bridge
+		hasRoutes, err := bridge.HasAnyValidRoutes(nil, prefix4, prefix6)
+		if err != nil {
+			return fmt.Errorf("check routes: %w", err)
+		}
+		if hasRoutes {
+			return errors.New("conflict with existing route")
+		}
+
+		// we still register the subnet monitor via defer,
+		// so we'll try again later if the VPN is turned off
 	}
 
 	err := n.createHostBridge(brIndexSconMachine, vzf.BridgeNetworkConfig{
