@@ -70,12 +70,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
 <<EOT sh -eux
 mkdir /out
-if [[ "\$(uname -m)" != "aarch64" ]]; then
-    echo "skip"
-    touch /out/runc
-    exit
-fi
-
 cd /build
 git clone --depth 1 -b v1.1.7 https://github.com/opencontainers/runc
 cd runc
@@ -167,11 +161,6 @@ RUN apk add --no-cache \
     alpine-sdk git \
     meson bash alsa-lib-dev bison capstone-dev curl-dev flex glib-dev glib-static gnutls-dev gtk+3.0-dev libaio-dev libcap-dev libcap-ng-dev libjpeg-turbo-dev libnfs-dev libpng-dev libseccomp-dev libslirp-dev libssh-dev liburing-dev libusb-dev libxml2-dev linux-headers lzo-dev ncurses-dev numactl-dev perl pulseaudio-dev python3 py3-sphinx py3-sphinx_rtd_theme sdl2-dev snappy-dev spice-dev texinfo usbredir-dev util-linux-dev vde2-dev virglrenderer-dev vte3-dev xfsprogs-dev zlib-dev zlib-static zstd-dev
 RUN <<EOT sh -eux
-if [[ "\$(uname -m)" != "aarch64" ]]; then
-    echo "skip"
-    exit
-fi
-
 mkdir /work
 cd /work
 curl -LO https://wiki.qemu-project.org/download/qemu-7.1.0.tar.xz
@@ -186,11 +175,6 @@ EOT
 
 COPY rootfs/pkgs/qemu/*.patch /work/patches/
 RUN <<EOT sh -eux
-if [[ "\$(uname -m)" != "aarch64" ]]; then
-    echo "skip"
-    exit
-fi
-
 cd /work/qemu
 for p in /work/patches/*.patch; do
     patch -p1 < \$p
@@ -200,11 +184,6 @@ EOT
 # TODO fix cache
 RUN --mount=type=cache,target=/work/qemu/build2 \
 <<EOT sh -eux
-if [[ "\$(uname -m)" != "aarch64" ]]; then
-    echo "skip"
-    exit
-fi
-
 cd /work/qemu
 export CFLAGS="-O2 -flto=auto"
 ./configure \

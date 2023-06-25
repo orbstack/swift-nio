@@ -5,11 +5,6 @@ set -euo pipefail
 mkdir -p cache
 mkdir -p /out
 
-if [[ "$(uname -m)" != "aarch64" ]]; then
-    echo "skip"
-    exit
-fi
-
 curl -L https://swscan.apple.com/content/catalogs/others/index-rosettaupdateauto-1.sucatalog.gz | gunzip | python3 parse-catalog.py > catalog
 
 # download
