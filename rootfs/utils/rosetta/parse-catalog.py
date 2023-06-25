@@ -6,6 +6,8 @@ catalog = plistlib.loads(sys.stdin.buffer.read())
 src_version_prefixes = [
     # 13.x
     '22',
+    # 14.x
+    '23',
 ]
 # macOS 14 Developer Beta 2
 target_version = '23A5276g'
