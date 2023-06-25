@@ -63,6 +63,9 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                             .onChange(of: enableRosetta) { newValue in
                                 setConfigKey(\.rosetta, newValue)
                             }
+                        Text("Faster. Only disable if you run into compatibility issues.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                     } else {
                         Toggle("Use Rosetta to run Intel code", isOn: .constant(false))
                             .disabled(true)
@@ -72,6 +75,9 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                     }
                     #endif
 
+                    Spacer()
+                    .frame(height: 32)
+
                     Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
                             .onChange(of: mountHideShared) { newValue in
                                 setConfigKey(\.mountHideShared, newValue)
@@ -80,44 +86,46 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                     Spacer()
                             .frame(height: 32)
 
-                    let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
-                    Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
-                        VStack(alignment: .trailing) {
-                            Text("Memory limit")
-                            Text("\(memoryMib / 1024, specifier: "%.0f") GiB")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(.secondary)
+                    Group {
+                        let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
+                        Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
+                            VStack(alignment: .trailing) {
+                                Text("Memory limit")
+                                Text("\(memoryMib / 1024, specifier: "%.0f") GiB")
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.secondary)
+                            }
+                        } minimumValueLabel: {
+                            Text("1 GiB")
+                        } maximumValueLabel: {
+                            Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
                         }
-                    } minimumValueLabel: {
-                        Text("1 GiB")
-                    } maximumValueLabel: {
-                        Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
-                    }
-                    .onChange(of: memoryMib) { newValue in
-                        setConfigKey(\.memoryMib, UInt64(newValue))
-                    }
+                        .onChange(of: memoryMib) { newValue in
+                            setConfigKey(\.memoryMib, UInt64(newValue))
+                        }
 
-                    let maxCpu = ProcessInfo.processInfo.processorCount
-                    Slider(value: $cpu, in: 1...Double(maxCpu), step: 1) {
-                        VStack(alignment: .trailing) {
-                            Text("CPU limit")
-                            let intCpu = Int(cpu + 0.5)
-                            let label = (intCpu == maxCpu) ? "None" : "\(intCpu)00%"
-                            Text(label)
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(.secondary)
+                        let maxCpu = ProcessInfo.processInfo.processorCount
+                        Slider(value: $cpu, in: 1...Double(maxCpu), step: 1) {
+                            VStack(alignment: .trailing) {
+                                Text("CPU limit")
+                                let intCpu = Int(cpu + 0.5)
+                                let label = (intCpu == maxCpu) ? "None" : "\(intCpu)00%"
+                                Text(label)
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.secondary)
+                            }
+                        } minimumValueLabel: {
+                            Text("100%")
+                        } maximumValueLabel: {
+                            Text("None")
                         }
-                    } minimumValueLabel: {
-                        Text("100%")
-                    } maximumValueLabel: {
-                        Text("None")
+                        .onChange(of: cpu) { newValue in
+                            setConfigKey(\.cpu, UInt(newValue))
+                        }
+                        Text("Resources are used on demand, up to these limits.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                     }
-                    .onChange(of: cpu) { newValue in
-                        setConfigKey(\.cpu, UInt(newValue))
-                    }
-                    Text("Resources are used on demand, up to these limits.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
 
                     Spacer()
                         .frame(height: 32)
@@ -141,16 +149,19 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                             selectFolder()
                         }
                     }
-                    Picker(selection: selBinding, label: Text("Data location")) {
-                        Text("Default").tag(DirItem.def)
-                        Divider()
-                        if let dataDir {
-                            Text(dataDir.split(separator: "/").last ?? "Custom")
+
+                    VStack {
+                        Picker(selection: selBinding, label: Text("Data location")) {
+                            Text("Default").tag(DirItem.def)
+                            Divider()
+                            if let dataDir {
+                                Text(dataDir.split(separator: "/").last ?? "Custom")
                                 .tag(DirItem.custom(dataDir))
+                            }
+                            Divider()
+                            Text("Other…").tag(DirItem.other)
                         }
-                        Divider()
-                        Text("Other…").tag(DirItem.other)
-                    }
+                    }.frame(maxWidth: 256)
 
                     Spacer()
                         .frame(height: 32)
