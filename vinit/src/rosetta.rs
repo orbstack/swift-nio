@@ -1,4 +1,4 @@
-use std::{fs::{File, self}, error::Error, os::fd::AsRawFd};
+use std::{fs::{File, self}, error::Error, os::fd::AsRawFd, process::Command};
 use qbsdiff::Bspatch;
 
 const KRPC_IOC: u8 = 0xDA;
@@ -93,4 +93,26 @@ pub fn find_and_apply_patch(source_data: &[u8], dest_path: &str) -> Result<(), R
         .map_err(|e| RosettaError::Other(e.into()))?;
 
     Ok(())
+}
+
+pub fn get_version(rosetta_path: &str) -> Result<String, Box<dyn Error>> {
+    // run it to get the version
+    let output = Command::new(rosetta_path)
+        .output()?;
+
+    // get last line
+    let output = String::from_utf8(output.stderr)?;
+    let last_line = output
+        .trim()
+        .lines()
+        .last()
+        .ok_or("no output")?;
+
+    // parse version: last field
+    let version = last_line
+        .split_whitespace()
+        .last()
+        .ok_or("no version")?;
+
+    Ok(version.into())
 }

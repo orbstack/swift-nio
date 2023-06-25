@@ -474,8 +474,11 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
             patched = true;
         },
         Err(RosettaError::UnknownBuild(fingerprint)) => {
-            // allow proceeding
-            eprintln!("  !  Unknown Rosetta version: {}", fingerprint);
+            // allow proceeding, but try to print the version
+            // rvfs isn't ready yet so run from virtiofs
+            let version = rosetta::get_version("/mnt/rosetta/rosetta")
+                .unwrap_or_else(|e| format!("unknown ({}) ({})", &fingerprint[..8], e));
+            eprintln!("  !  Unknown Rosetta version: {}", version);
         },
         Err(e) => return Err(e.into()),
     }
