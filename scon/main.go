@@ -10,14 +10,14 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
-	"github.com/orbstack/macvirt/macvmgr/conf/ports"
-	"github.com/orbstack/macvirt/macvmgr/logutil"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/killswitch"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/btrfs"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"

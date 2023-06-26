@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/appid"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

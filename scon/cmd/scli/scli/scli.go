@@ -1,9 +1,9 @@
 package scli
 
 import (
-	"github.com/orbstack/macvirt/macvmgr/syncx"
-	"github.com/orbstack/macvirt/macvmgr/vmclient"
 	"github.com/orbstack/macvirt/scon/sclient"
+	"github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/vmclient"
 )
 
 var (

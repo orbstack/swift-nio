@@ -2,7 +2,7 @@ module github.com/orbstack/macvirt/scon
 
 go 1.19
 
-replace github.com/orbstack/macvirt/macvmgr => ../macvmgr
+replace github.com/orbstack/macvirt/vmgr => ../vmgr
 
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
@@ -11,7 +11,7 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/gliderlabs/ssh v0.3.5
 	github.com/lxc/go-lxc v0.0.0-20230621012608-be98af2b8b9f
-	github.com/orbstack/macvirt/macvmgr v0.0.0-00010101000000-000000000000
+	github.com/orbstack/macvirt/vmgr v0.0.0-00010101000000-000000000000
 	github.com/sirupsen/logrus v1.9.3
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/sys v0.9.0

@@ -244,9 +244,9 @@
 		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D81E786429A7012900A1D8AC /* docker-buildx */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-buildx"; path = "build/bins/docker-buildx"; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../macvmgr/xbin/docker; sourceTree = "<group>"; };
-		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../macvmgr/xbin/docker-compose"; sourceTree = "<group>"; };
-		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../macvmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
+		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../vmgr/xbin/docker; sourceTree = "<group>"; };
+		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../vmgr/xbin/docker-compose"; sourceTree = "<group>"; };
+		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../vmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
 		D870292029B316A700A4CFD9 /* GoVZF.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = GoVZF.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BridgeNet.swift; sourceTree = "<group>"; };
 		D8715C562A1FEF260047A9BE /* CBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CBridge.h; path = ../CBridge/CBridge.h; sourceTree = "<group>"; };

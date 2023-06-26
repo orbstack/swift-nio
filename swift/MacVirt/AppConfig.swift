@@ -14,7 +14,7 @@ struct Constants {
 struct AppConfig {
 #if DEBUG
     static let debug = true
-    static let vmgrExe = "\(Folders.home)/code/projects/macvirt/macvmgr/OrbStack Helper (VM)"
+    static let vmgrExe = "\(Folders.home)/code/projects/macvirt/vmgr/OrbStack Helper (VM)"
 #else
     static let debug = false
     static let vmgrExe = pathForAuxiliaryExecutable("OrbStack Helper (VM)")

@@ -5,10 +5,10 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/appid"
 	"github.com/orbstack/macvirt/scon/cmd/scli/cliutil"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

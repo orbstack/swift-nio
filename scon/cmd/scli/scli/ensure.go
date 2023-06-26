@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/orbstack/macvirt/macvmgr/buildid"
-	"github.com/orbstack/macvirt/macvmgr/conf"
-	"github.com/orbstack/macvirt/macvmgr/drm/killswitch"
-	"github.com/orbstack/macvirt/macvmgr/syncx"
-	"github.com/orbstack/macvirt/macvmgr/vmclient"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/vmgr/buildid"
+	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
+	"github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"golang.org/x/term"
 )
 

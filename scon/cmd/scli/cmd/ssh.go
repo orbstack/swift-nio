@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/orbstack/macvirt/macvmgr/conf"
-	"github.com/orbstack/macvirt/macvmgr/conf/appid"
-	"github.com/orbstack/macvirt/macvmgr/syssetup"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
+	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/spf13/cobra"
 )
 

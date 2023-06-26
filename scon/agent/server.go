@@ -13,11 +13,11 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/appid"
-	"github.com/orbstack/macvirt/macvmgr/logutil"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
+	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

@@ -5,10 +5,10 @@ import (
 	"net"
 	"net/rpc"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
-	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )

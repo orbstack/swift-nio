@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/appid"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 

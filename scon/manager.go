@@ -9,15 +9,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
-	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
-	"github.com/orbstack/macvirt/macvmgr/drm/sjwt"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/agent/common"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
@@ -57,8 +57,8 @@ type ConManager struct {
 	nfsMu syncx.Mutex
 
 	// stop
-	stopChan          chan struct{}
-	earlyStopChan     chan struct{}
+	stopChan      chan struct{}
+	earlyStopChan chan struct{}
 
 	// network
 	net *Network

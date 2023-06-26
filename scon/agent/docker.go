@@ -14,14 +14,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
-	"github.com/orbstack/macvirt/macvmgr/dockertypes"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/sgclient"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )

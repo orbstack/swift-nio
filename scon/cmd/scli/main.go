@@ -6,10 +6,10 @@ import (
 	"path"
 
 	"github.com/fatih/color"
-	"github.com/orbstack/macvirt/macvmgr/conf/appid"
-	"github.com/orbstack/macvirt/macvmgr/drm/killswitch"
 	"github.com/orbstack/macvirt/scon/cmd/scli/cmd"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
+	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
 )
 
 func main() {

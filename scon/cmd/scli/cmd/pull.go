@@ -4,10 +4,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/appid"
-	"github.com/orbstack/macvirt/macvmgr/conf/sshpath"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
+	"github.com/orbstack/macvirt/vmgr/conf/sshpath"
 	"github.com/spf13/cobra"
 )
 

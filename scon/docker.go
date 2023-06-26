@@ -10,15 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
-	"github.com/orbstack/macvirt/macvmgr/conf/ports"
-	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"k8s.io/utils/inotify"
 )

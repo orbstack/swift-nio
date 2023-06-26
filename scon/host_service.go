@@ -4,8 +4,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/orbstack/macvirt/macvmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 )
 
 type HostServiceProxy struct {

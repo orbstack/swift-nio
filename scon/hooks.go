@@ -4,9 +4,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/ports"
 	"github.com/orbstack/macvirt/scon/sclient"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
 )
 
 const (

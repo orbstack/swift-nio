@@ -17,11 +17,11 @@ RUN apk add --no-cache go alpine-sdk lxc-dev bash \
 FROM go-base AS go-build
 COPY vendor /build/vendor
 COPY scon /build/scon
-COPY macvmgr /build/macvmgr
+COPY vmgr /build/vmgr
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
 <<EOT sh -eux
-cd /build/macvmgr
+cd /build/vmgr
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/macctl ./cmd/macctl
 EOT
 ARG TYPE=release

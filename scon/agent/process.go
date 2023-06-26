@@ -13,8 +13,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
 	"github.com/orbstack/macvirt/scon/agent/envutil"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"

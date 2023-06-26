@@ -5,9 +5,9 @@ import (
 	"net/rpc"
 	"strconv"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/ports"
-	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 )
 
 type SconInternalServer struct {

@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/rpc"
 
-	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 )
 
 type None struct{}

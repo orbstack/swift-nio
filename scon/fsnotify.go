@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/ports"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

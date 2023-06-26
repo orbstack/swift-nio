@@ -47,7 +47,7 @@ function build_one() {
 
     BUNDLE_OUT="$OUT/$VMGR_BIN.app"
 
-    pushd macvmgr
+    pushd vmgr
     go generate ./conf/appver ./drm/killswitch
     BUILD_TYPE=release \
         EXTRA_LDFLAGS="-s -w" \

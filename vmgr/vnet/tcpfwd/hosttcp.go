@@ -1,0 +1,192 @@
+package tcpfwd
+
+import (
+	"context"
+	"net"
+	"net/netip"
+	"strconv"
+	"time"
+
+	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
+	"github.com/sirupsen/logrus"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
+	"gvisor.dev/gvisor/pkg/tcpip/stack"
+)
+
+type TcpHostForward struct {
+	listener        net.Listener
+	requireLoopback bool
+	connectAddr4    tcpip.FullAddress
+	connectAddr6    tcpip.FullAddress
+	hostAddr4       tcpip.Address
+	hostAddr6       tcpip.Address
+	stack           *stack.Stack
+	nicId           tcpip.NICID
+	// whether this port forward is an internal implementation detail
+	// if so, spoof gateway ip for localhost, not external ip
+	isInternal bool
+}
+
+func ListenTCP(addr string) (net.Listener, bool, error) {
+	addrPort, err := netip.ParseAddrPort(addr)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// disable tcp46 for IPv4-only. we only do 4-6 for v6 listeners
+	network := "tcp4"
+	if addrPort.Addr().Is6() {
+		network = "tcp"
+	}
+
+	// port 0 must not be 0.0.0.0
+	if addrPort.Addr().IsLoopback() && addrPort.Port() < 1024 && addrPort.Port() != 0 {
+		// Bypass privileged ports by listening on 0.0.0.0
+		addr := net.IPv4zero
+		if addrPort.Addr().Is6() {
+			addr = net.IPv6zero
+			// disable 4-in-6. if we intended to bind to localhost, then we only want v6.
+			// there's no 4-in-6 for non-0000 addresses.
+			network = "tcp6"
+		}
+
+		l, err := net.Listen(network, net.JoinHostPort(addr.String(), strconv.Itoa(int(addrPort.Port()))))
+		return l, true, err
+	}
+
+	l, err := net.Listen(network, addr)
+	return l, false, err
+}
+
+func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, hostAddr4, hostAddr6, listenAddr, connectAddr4, connectAddr6 string, isInternal bool) (*TcpHostForward, error) {
+	listener, requireLoopback, err := ListenTCP(listenAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	connectAddrPort4, err := netip.ParseAddrPort(connectAddr4)
+	if err != nil {
+		return nil, err
+	}
+
+	connectAddrPort6, err := netip.ParseAddrPort(connectAddr6)
+	if err != nil {
+		return nil, err
+	}
+
+	f := &TcpHostForward{
+		listener:        listener,
+		requireLoopback: requireLoopback,
+		connectAddr4: tcpip.FullAddress{
+			NIC:  nicId,
+			Addr: netutil.AddrFromNetip(connectAddrPort4.Addr()),
+			Port: uint16(connectAddrPort4.Port()),
+		},
+		connectAddr6: tcpip.FullAddress{
+			NIC:  nicId,
+			Addr: netutil.AddrFromNetip(connectAddrPort6.Addr()),
+			Port: uint16(connectAddrPort6.Port()),
+		},
+		hostAddr4:  netutil.ParseTcpipAddress(hostAddr4),
+		hostAddr6:  netutil.ParseTcpipAddress(hostAddr6),
+		stack:      s,
+		nicId:      nicId,
+		isInternal: isInternal,
+	}
+
+	go f.listen()
+	return f, nil
+}
+
+func (f *TcpHostForward) listen() {
+	for {
+		conn, err := f.listener.Accept()
+		if err != nil {
+			return
+		}
+
+		go f.handleConn(conn)
+	}
+}
+
+func (f *TcpHostForward) handleConn(conn net.Conn) {
+	defer conn.Close()
+
+	// Check remote address if using 0.0.0.0 to bypass privileged ports for loopback
+	remoteAddr := conn.RemoteAddr().(*net.TCPAddr)
+	if f.requireLoopback && !remoteAddr.IP.IsLoopback() {
+		logrus.Debug("rejecting connection from non-loopback address", remoteAddr)
+		return
+	}
+
+	// Detect IPv4 or IPv6
+	proto := ipv4.ProtocolNumber
+	connectAddr := f.connectAddr4
+	// 4-in-6 means the listener is v6, so the other side must be v6
+	is4in6 := remoteAddr.AddrPort().Addr().Is4In6()
+	if is4in6 || remoteAddr.IP.To4() == nil {
+		proto = ipv6.ProtocolNumber
+		connectAddr = f.connectAddr6
+	}
+
+	// Spoof source address
+	var srcAddr tcpip.Address
+	//TODO fix source addr
+	if true {
+		// Can't spoof loopback source. Use the machine host NAT IP
+		if proto == ipv4.ProtocolNumber {
+			srcAddr = f.hostAddr4
+		} else {
+			srcAddr = f.hostAddr6
+		}
+	} else {
+		srcAddr = tcpip.AddrFromSlice(remoteAddr.IP)
+	}
+
+	// TODO: preserve source IP and fix TIME_WAIT/FIN_WAIT_2 issue in gvisor
+	// git stash in gvisor and here for more debugging
+	// https://github.com/orbstack/orbstack/issues/165
+	_ = srcAddr
+	virtSrcAddr := tcpip.FullAddress{
+		/*
+			NIC:  f.nicId,
+			Addr: srcAddr,
+			Port: uint16(remoteAddr.Port),
+		*/
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"src":     virtSrcAddr,
+		"dst":     connectAddr,
+		"proto":   proto,
+		"timeout": tcpConnectTimeout,
+	}).Trace("dial")
+	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(tcpConnectTimeout))
+	defer cancel()
+	virtConn, err := gonet.DialTCPWithBind(ctx, f.stack, virtSrcAddr, connectAddr, proto)
+	if err != nil {
+		logrus.WithError(err).WithField("addr", connectAddr).Error("host-tcp forward: dial failed")
+		return
+	}
+	defer virtConn.Close()
+
+	// other port doesn't matter, only service does (client port should be ephemeral)
+	err = setExtNodelay(conn.(*net.TCPConn), 0)
+	if err != nil {
+		logrus.WithError(err).Error("set ext opts failed")
+		return
+	}
+
+	pump2SpTcpGv(conn.(*net.TCPConn), virtConn)
+}
+
+func (f *TcpHostForward) Close() error {
+	return f.listener.Close()
+}
+
+func (f *TcpHostForward) TcpPort() int {
+	return f.listener.Addr().(*net.TCPAddr).Port
+}

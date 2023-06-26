@@ -4,8 +4,8 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/orbstack/macvirt/macvmgr/conf"
-	"github.com/orbstack/macvirt/macvmgr/conf/appid"
+	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 

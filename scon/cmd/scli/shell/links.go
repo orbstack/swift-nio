@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/orbstack/macvirt/macvmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 )
 
 func LinkCmd(name string) error {

@@ -4,11 +4,11 @@ import (
 	"net"
 	"net/rpc"
 
-	"github.com/orbstack/macvirt/macvmgr/dockertypes"
-	"github.com/orbstack/macvirt/macvmgr/drm/drmtypes"
-	"github.com/orbstack/macvirt/macvmgr/guihelper/guitypes"
-	"github.com/orbstack/macvirt/macvmgr/vnet/services/hcontrol/htypes"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 )
 
 type Client struct {
