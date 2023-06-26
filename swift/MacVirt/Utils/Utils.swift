@@ -135,12 +135,14 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
 
     // try iterm2
     do {
-        try await runProcessChecked("/usr/bin/open", ["-a", "iTerm"])
-        try openViaAppleEvent(tmpFileURL, bundleId: "com.googlecode.iterm2")
+        try await openViaAppleEvent(tmpFileURL, bundleId: "com.googlecode.iterm2") {
+            try await runProcessChecked("/usr/bin/open", ["-a", "iTerm"])
+        }
     } catch {
         // try terminal
-        try await runProcessChecked("/usr/bin/open", ["-a", "Terminal"])
-        try openViaAppleEvent(tmpFileURL, bundleId: "com.apple.Terminal")
+        try await openViaAppleEvent(tmpFileURL, bundleId: "com.apple.Terminal") {
+            try await runProcessChecked("/usr/bin/open", ["-a", "Terminal"])
+        }
     }
 }
 
@@ -162,9 +164,19 @@ func runAsAdmin(script shellScript: String, prompt: String = "") throws {
 
 // Workaround for macOS 13 bug (FB11745075): https://developer.apple.com/forums/thread/723842
 // this doesn't require apple event privileges because it's just open
-private func openViaAppleEvent(_ url: URL, bundleId: String) throws {
-    guard let terminal = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first else {
-        return
+private func openViaAppleEvent(_ url: URL, bundleId: String, openFn: () async throws -> Void) async throws {
+    var terminal: NSRunningApplication
+    if let existingTerminal = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
+        terminal = existingTerminal
+    } else {
+        // opening terminal app this way causes it to open a default window, so we get two windows
+        // so only open it if not already running
+        try await openFn()
+        if let newTerminal = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
+            terminal = newTerminal
+        } else {
+            return
+        }
     }
 
     // Create a 'aevt' / 'odoc' Apple event.
