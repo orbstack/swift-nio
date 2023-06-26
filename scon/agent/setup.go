@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -72,22 +73,33 @@ type BasicGitConfigs struct {
 }
 
 func selectShell() (string, error) {
-	if shell, err := exec.LookPath("bash"); err == nil {
-		return shell, nil
-	}
-
-	if shell, err := exec.LookPath("sh"); err == nil {
-		return shell, nil
-	}
-
-	// first line of /etc/shells
+	// parse /etc/shells instead of looking up preferred shell in PATH
+	// if path we get is not in /etc/shells, e.g. /usr/sbin/bash, then chsh fails
 	shells, err := os.ReadFile("/etc/shells")
 	if err != nil {
 		return "", err
 	}
+	lines := strings.Split(string(shells), "\n")
+	if len(lines) == 0 {
+		return "", errors.New("no shells found")
+	}
 
-	shell := strings.Split(string(shells), "\n")[0]
-	return shell, nil
+	// find bash
+	for _, line := range lines {
+		if filepath.Base(line) == "bash" {
+			return line, nil
+		}
+	}
+
+	// then find sh
+	for _, line := range lines {
+		if filepath.Base(line) == "sh" {
+			return line, nil
+		}
+	}
+
+	// last resort: first line
+	return lines[0], nil
 }
 
 func selectAdminGroups() []string {
@@ -376,7 +388,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
-	// delete default users to avoid conflict
+	// delete default lxd image users to avoid conflict
 	err = deleteDefaultUsers()
 	if err != nil {
 		return err
