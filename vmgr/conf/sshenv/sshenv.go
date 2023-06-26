@@ -22,6 +22,10 @@ var (
 		// warp
 		"LaunchInstanceID",
 
+		// vs code
+		// otherwise running wrapper "code" shell script from linux opens cli.js
+		"ELECTRON_RUN_AS_NODE",
+
 		// mac
 		"__CF_USER_TEXT_ENCODING",
 		"__CFBundleIdentifier",
