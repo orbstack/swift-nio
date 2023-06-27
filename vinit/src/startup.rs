@@ -121,6 +121,8 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     mount("sysfs", "/sys", "sysfs", secure_flags, None)?;
     apply_perf_tuning_early()?;
     mount("proc", "/proc", "proc", secure_flags, None)?;
+    // disable quiet after kernel boot completed
+    fs::write("/proc/sys/kernel/printk", "7")?;
     mount("devtmpfs", "/dev", "devtmpfs", dev_flags, Some("mode=0755"))?;
     // extra
     fs::create_dir_all("/dev/pts")?;

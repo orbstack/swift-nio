@@ -79,7 +79,9 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
 	}
 	if c.Console != ConsoleNone {
-		cmdline = append(cmdline, "console=hvc0")
+		// quiet kernel boot to reduce log spam when truncated in sentry and GUI
+		// disabled once init starts to preserve any debug info
+		cmdline = append(cmdline, "console=hvc0", "quiet")
 		// disable colors if logging to file
 		if c.Console == ConsoleLog && !term.IsTerminal(int(os.Stdout.Fd())) {
 			cmdline = append(cmdline, "orb.console_is_pipe")
