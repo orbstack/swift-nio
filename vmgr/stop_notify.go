@@ -21,7 +21,7 @@ func doUninstallCleanup() error {
 	return err
 }
 
-func WatchCriticalFiles(stopCh chan<- StopType) error {
+func WatchCriticalFiles(stopCh chan<- StopRequest) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func WatchCriticalFiles(stopCh chan<- StopType) error {
 				}
 
 				// force is ok - data doesn't matter anymore
-				stopCh <- StopForce
+				stopCh <- StopRequest{Type: StopTypeForce, Reason: StopReasonUninstall}
 				return nil
 			}
 		case err := <-watcher.Errors:

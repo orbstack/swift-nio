@@ -63,7 +63,7 @@ func tryReadLogHistory(path string, numLines int) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
+func NewConsoleLogPipe(stopCh chan<- StopRequest) (*os.File, error) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 					panicBuffer = new(bytes.Buffer)
 
 					time.AfterFunc(panicShutdownDelay, func() {
-						stopCh <- StopForce
+						stopCh <- StopRequest{Type: StopTypeForce, Reason: StopReasonPanic}
 
 						// report panic lines to sentry
 						// if possible we read the last lines of the log file

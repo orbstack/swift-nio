@@ -37,8 +37,6 @@ const (
 
 	// allow non-explicit (i.e. network error) failures up to this long after startup
 	startGracePeriod = 15 * time.Minute
-	// wait this long for VM to stop if DRM failed
-	FailStopTimeout = 2 * time.Minute
 
 	// after VM wakes up from sleep, wait this long for time/clock sync before reporting
 	// this ensures host and VM clock are synced again

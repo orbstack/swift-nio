@@ -45,7 +45,7 @@ type VmControlServer struct {
 	vm               *vzf.Machine
 	vc               *vclient.VClient
 	doneCh           chan struct{}
-	stopCh           chan StopType
+	stopCh           chan<- StopRequest
 	pendingResetData bool
 	dockerClient     *dockerclient.Client
 	drm              *drm.DrmClient
@@ -67,7 +67,7 @@ func (s *VmControlServer) Ping(ctx context.Context) error {
 
 func (s *VmControlServer) Stop(ctx context.Context) error {
 	// signal stop
-	s.stopCh <- StopGraceful
+	s.stopCh <- StopRequest{Type: StopTypeGraceful, Reason: StopReasonAPI}
 
 	// wait for main loop to exit
 	<-s.doneCh
@@ -76,7 +76,7 @@ func (s *VmControlServer) Stop(ctx context.Context) error {
 
 func (s *VmControlServer) ForceStop(ctx context.Context) error {
 	// signal stop
-	s.stopCh <- StopForce
+	s.stopCh <- StopRequest{Type: StopTypeForce, Reason: StopReasonAPI}
 
 	// wait for main loop to exit
 	<-s.doneCh

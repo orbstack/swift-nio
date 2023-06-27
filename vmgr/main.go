@@ -59,9 +59,32 @@ const (
 type StopType int
 
 const (
-	StopForce StopType = iota
-	StopGraceful
+	StopTypeForce StopType = iota
+	StopTypeGraceful
 )
+
+type StopReason int
+
+const (
+	// normal reasons
+	StopReasonSignal StopReason = iota
+	StopReasonAPI
+	StopReasonUninstall
+	StopReasonKillswitch
+
+	_startUnexpectedStopReasons
+
+	// unexpected reasons
+	StopReasonPanic
+	StopReasonDrm
+)
+
+type StopRequest struct {
+	Type   StopType
+	Reason StopReason
+}
+
+const stopExitCodeBase = 100
 
 var (
 	// host -> guest
@@ -319,6 +342,14 @@ func flushDisk() error {
 }
 
 func runVmManager() {
+	// propagate stop reason via exit code
+	var lastStopReason StopReason
+	defer func() {
+		if lastStopReason > _startUnexpectedStopReasons {
+			os.Exit(stopExitCodeBase + int(lastStopReason-_startUnexpectedStopReasons))
+		}
+	}()
+
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
@@ -427,15 +458,10 @@ func runVmManager() {
 		logrus.Fatal(err.Error())
 		panic(err)
 	}
-	stopCh := make(chan StopType, 1)
+	stopCh := make(chan StopRequest, 1)
 	killswitch.Watch(func(err error) {
 		logrus.WithError(err).Error(err.Error())
-		stopCh <- StopGraceful
-
-		go func() {
-			time.Sleep(drm.FailStopTimeout)
-			os.Exit(1)
-		}()
+		stopCh <- StopRequest{Type: StopTypeGraceful, Reason: StopReasonKillswitch}
 	})
 
 	// Rosetta check
@@ -530,13 +556,7 @@ func runVmManager() {
 			select {
 			case <-ch:
 				logrus.Error("fail - shutdown")
-				stopCh <- StopGraceful
-
-				go func() {
-					time.Sleep(drm.FailStopTimeout)
-					logrus.Error("fail - force shutdown")
-					os.Exit(1)
-				}()
+				stopCh <- StopRequest{Type: StopTypeGraceful, Reason: StopReasonDrm}
 				return
 			case <-doneCh:
 				return
@@ -596,10 +616,10 @@ func runVmManager() {
 			if sigints >= 2 {
 				// two SIGINT = force stop
 				logrus.Info("Received SIGINT twice, forcing stop")
-				stopCh <- StopForce
+				stopCh <- StopRequest{Type: StopTypeForce, Reason: StopReasonSignal}
 			} else {
 				logrus.Info("Received signal, requesting stop")
-				stopCh <- StopGraceful
+				stopCh <- StopRequest{Type: StopTypeGraceful, Reason: StopReasonSignal}
 			}
 		}
 	}()
@@ -698,18 +718,19 @@ func runVmManager() {
 			return
 		case stopReq := <-stopCh:
 			logrus.Info("stop requested")
+			lastStopReason = stopReq.Reason
 			// unmount nfs first
 			_ = hcServer.InternalUnmountNfs()
 
 			go func() {
-				switch stopReq {
-				case StopForce:
+				switch stopReq.Type {
+				case StopTypeForce:
 					err := tryForceStop(vm)
 					if err != nil {
 						logrus.WithError(err).Error("VM force stop failed")
 						returnCh <- struct{}{}
 					}
-				case StopGraceful:
+				case StopTypeGraceful:
 					err := tryGracefulStop(vm, vc)
 					if err != nil {
 						logrus.WithError(err).Error("VM graceful stop failed")

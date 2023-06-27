@@ -44,7 +44,7 @@ type VmParams struct {
 	Rosetta            bool
 	Sound              bool
 
-	StopCh chan<- StopType
+	StopCh chan<- StopRequest
 }
 
 func findBestMtu() int {
