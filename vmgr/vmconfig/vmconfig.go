@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
@@ -82,6 +83,14 @@ func (c *VmConfig) Validate() error {
 	if c.DataDir != "" {
 		err := os.MkdirAll(c.DataDir, 0755)
 		if err != nil {
+			// is this an external drive? if so, can we stat it?
+			if errors.Is(err, os.ErrPermission) && strings.HasPrefix(c.DataDir, "/Volumes/") {
+				volumeDir := strings.Split(c.DataDir, "/")[2]
+				if _, err := os.Stat("/Volumes/" + volumeDir); err != nil {
+					return fmt.Errorf("external data drive is not accessible: %w", err)
+				}
+			}
+
 			return fmt.Errorf("create data dir: %w", err)
 		}
 
