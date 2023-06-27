@@ -12,10 +12,13 @@ enum ExitReason: CustomStringConvertible {
     case status(Int)
     case signal(Int)
 
-    // from signal
+    // from exit code
     case goPanic
     case kernelPanic
     case drm
+
+    // from signal
+    case killed
 
     case unknown
 
@@ -32,6 +35,9 @@ enum ExitReason: CustomStringConvertible {
             return "kernel panic"
         case .drm:
             return "license check failed"
+
+        case .killed:
+            return "killed (SIGKILL)"
 
         case .unknown:
             return "unknown status"
@@ -177,7 +183,13 @@ class DaemonManager {
             // extract status or signal
             var reason: ExitReason
             if waitStatus & 0x7f != 0 {
-                reason = .signal(waitStatus & 0x7f)
+                let signal = waitStatus & 0x7f
+                switch signal {
+                case 9: // SIGKILL
+                    reason = .killed
+                default:
+                    reason = .signal(signal)
+                }
             } else {
                 let status = waitStatus >> 8
                 switch status {
