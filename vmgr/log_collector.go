@@ -20,6 +20,7 @@ import (
 
 const (
 	panicShutdownDelay = 100 * time.Millisecond
+	panicLogLines      = 75
 )
 
 var (
@@ -45,7 +46,7 @@ func tryReadLogHistory(path string, numLines int) (string, error) {
 	}
 	defer func() { _ = file.Close() }()
 
-	// read last 100 lines
+	// read last lines
 	scanner := bufio.NewScanner(file)
 	// circular buffer
 	lines := make([]string, 0, numLines)
@@ -97,9 +98,9 @@ func NewConsoleLogPipe(stopCh chan<- StopType) (*os.File, error) {
 						stopCh <- StopForce
 
 						// report panic lines to sentry
-						// if possible we read the last 100 lines of the log file
+						// if possible we read the last lines of the log file
 						var panicLog string
-						if logHistory, err := tryReadLogHistory(conf.VmgrLog(), 100); err == nil {
+						if logHistory, err := tryReadLogHistory(conf.VmgrLog(), panicLogLines); err == nil {
 							panicLog = logHistory
 						} else {
 							panicLog = panicBuffer.String()
