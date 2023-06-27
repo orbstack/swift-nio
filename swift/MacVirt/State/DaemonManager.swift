@@ -4,9 +4,19 @@
 
 import Foundation
 
+private let stopExitCodeGoPanic = 2
+private let stopExitCodeKernelPanic = 101
+private let stopExitCodeDrm = 102
+
 enum ExitReason: CustomStringConvertible {
     case status(Int)
     case signal(Int)
+
+    // from signal
+    case goPanic
+    case kernelPanic
+    case drm
+
     case unknown
 
     var description: String {
@@ -15,6 +25,14 @@ enum ExitReason: CustomStringConvertible {
             return "status \(status)"
         case .signal(let signal):
             return "signal \(signal)"
+
+        case .goPanic:
+            return "fatal error"
+        case .kernelPanic:
+            return "kernel panic"
+        case .drm:
+            return "license check failed"
+
         case .unknown:
             return "unknown status"
         }
@@ -161,7 +179,17 @@ class DaemonManager {
             if waitStatus & 0x7f != 0 {
                 reason = .signal(waitStatus & 0x7f)
             } else {
-                reason = .status(waitStatus >> 8)
+                let status = waitStatus >> 8
+                switch status {
+                case stopExitCodeGoPanic:
+                    reason = .goPanic
+                case stopExitCodeKernelPanic:
+                    reason = .kernelPanic
+                case stopExitCodeDrm:
+                    reason = .drm
+                default:
+                    reason = .status(status)
+                }
             }
             //TODO may not be right
             if pid == lastPid {
