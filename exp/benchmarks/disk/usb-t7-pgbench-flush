@@ -1,0 +1,132 @@
+Block until postgres accepts connections...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+psql: error: connection to server at "postgres" (172.17.0.2), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+Postgres is unavailable () - sleeping...
+dropping old tables...
+NOTICE:  table "pgbench_accounts" does not exist, skipping
+NOTICE:  table "pgbench_branches" does not exist, skipping
+NOTICE:  table "pgbench_history" does not exist, skipping
+NOTICE:  table "pgbench_tellers" does not exist, skipping
+creating tables...
+generating data (client-side)...
+5000000 of 5000000 tuples (100%) done (elapsed 5.13 s, remaining 0.00 s)
+vacuuming...
+creating primary keys...
+done in 7.54 s (drop tables 0.00 s, create tables 0.03 s, client-side generate 5.33 s, vacuum 0.11 s, primary keys 2.07 s).
+pgbench (15.3 (Debian 15.3-1.pgdg120+1))
+starting vacuum...end.
+progress: 1.0 s, 408.9 tps, lat 18.826 ms stddev 8.782, 0 failed
+progress: 2.0 s, 404.9 tps, lat 19.814 ms stddev 6.388, 0 failed
+progress: 3.0 s, 369.1 tps, lat 21.714 ms stddev 6.565, 0 failed
+progress: 4.0 s, 350.9 tps, lat 22.795 ms stddev 8.064, 0 failed
+progress: 5.0 s, 371.4 tps, lat 21.369 ms stddev 6.115, 0 failed
+progress: 6.0 s, 364.7 tps, lat 22.006 ms stddev 10.524, 0 failed
+progress: 7.0 s, 364.6 tps, lat 21.709 ms stddev 6.500, 0 failed
+progress: 8.0 s, 372.1 tps, lat 21.581 ms stddev 6.506, 0 failed
+progress: 9.0 s, 367.3 tps, lat 21.804 ms stddev 7.874, 0 failed
+progress: 10.0 s, 350.6 tps, lat 22.705 ms stddev 7.625, 0 failed
+progress: 11.0 s, 369.7 tps, lat 21.504 ms stddev 11.611, 0 failed
+progress: 12.0 s, 359.6 tps, lat 22.271 ms stddev 7.868, 0 failed
+progress: 13.0 s, 367.8 tps, lat 21.798 ms stddev 6.760, 0 failed
+progress: 14.0 s, 364.6 tps, lat 21.898 ms stddev 7.421, 0 failed
+progress: 15.0 s, 375.4 tps, lat 21.469 ms stddev 6.651, 0 failed
+progress: 16.0 s, 344.0 tps, lat 23.069 ms stddev 13.300, 0 failed
+progress: 17.0 s, 351.2 tps, lat 22.597 ms stddev 7.766, 0 failed
+progress: 18.0 s, 372.1 tps, lat 21.701 ms stddev 6.399, 0 failed
+progress: 19.0 s, 369.8 tps, lat 21.322 ms stddev 7.877, 0 failed
+progress: 20.0 s, 392.2 tps, lat 20.618 ms stddev 6.080, 0 failed
+progress: 21.0 s, 390.0 tps, lat 20.391 ms stddev 6.088, 0 failed
+progress: 22.0 s, 358.7 tps, lat 22.272 ms stddev 12.192, 0 failed
+progress: 23.0 s, 363.3 tps, lat 21.888 ms stddev 7.417, 0 failed
+progress: 24.0 s, 364.0 tps, lat 22.048 ms stddev 7.094, 0 failed
+progress: 25.0 s, 362.7 tps, lat 21.694 ms stddev 6.744, 0 failed
+progress: 26.0 s, 361.3 tps, lat 22.529 ms stddev 8.774, 0 failed
+progress: 27.0 s, 379.8 tps, lat 20.762 ms stddev 12.262, 0 failed
+progress: 28.0 s, 383.4 tps, lat 20.603 ms stddev 8.605, 0 failed
+progress: 29.0 s, 370.2 tps, lat 21.766 ms stddev 10.401, 0 failed
+progress: 30.0 s, 388.6 tps, lat 20.592 ms stddev 10.230, 0 failed
+progress: 31.0 s, 371.8 tps, lat 21.693 ms stddev 8.628, 0 failed
+progress: 32.0 s, 364.2 tps, lat 22.127 ms stddev 10.522, 0 failed
+progress: 33.0 s, 393.7 tps, lat 20.142 ms stddev 14.251, 0 failed
+progress: 34.0 s, 419.3 tps, lat 19.055 ms stddev 8.447, 0 failed
+progress: 35.0 s, 376.2 tps, lat 21.160 ms stddev 10.197, 0 failed
+progress: 36.0 s, 381.8 tps, lat 21.049 ms stddev 8.934, 0 failed
+progress: 37.0 s, 392.9 tps, lat 20.329 ms stddev 8.822, 0 failed
+progress: 38.0 s, 376.0 tps, lat 21.287 ms stddev 8.773, 0 failed
+progress: 39.0 s, 372.6 tps, lat 21.006 ms stddev 16.502, 0 failed
+progress: 40.0 s, 378.2 tps, lat 21.408 ms stddev 7.999, 0 failed
+progress: 41.0 s, 411.2 tps, lat 19.533 ms stddev 8.075, 0 failed
+progress: 42.0 s, 389.9 tps, lat 20.519 ms stddev 8.767, 0 failed
+progress: 43.0 s, 391.9 tps, lat 20.342 ms stddev 8.435, 0 failed
+progress: 44.0 s, 378.0 tps, lat 21.277 ms stddev 14.224, 0 failed
+progress: 45.0 s, 396.8 tps, lat 19.986 ms stddev 8.387, 0 failed
+progress: 46.0 s, 404.3 tps, lat 19.877 ms stddev 9.666, 0 failed
+progress: 47.0 s, 384.0 tps, lat 20.863 ms stddev 10.157, 0 failed
+progress: 48.0 s, 395.9 tps, lat 20.055 ms stddev 8.231, 0 failed
+progress: 49.0 s, 386.3 tps, lat 20.056 ms stddev 7.564, 0 failed
+progress: 50.0 s, 399.8 tps, lat 20.535 ms stddev 16.796, 0 failed
+progress: 51.0 s, 403.1 tps, lat 19.835 ms stddev 7.783, 0 failed
+progress: 52.0 s, 398.8 tps, lat 19.863 ms stddev 7.526, 0 failed
+progress: 53.0 s, 414.2 tps, lat 19.503 ms stddev 7.225, 0 failed
+progress: 54.0 s, 381.0 tps, lat 20.804 ms stddev 9.049, 0 failed
+progress: 55.0 s, 392.9 tps, lat 20.491 ms stddev 8.678, 0 failed
+progress: 56.0 s, 368.9 tps, lat 21.699 ms stddev 14.863, 0 failed
+progress: 57.0 s, 416.3 tps, lat 19.025 ms stddev 9.037, 0 failed
+progress: 58.0 s, 405.2 tps, lat 19.853 ms stddev 7.601, 0 failed
+progress: 59.0 s, 384.7 tps, lat 20.789 ms stddev 8.773, 0 failed
+progress: 60.0 s, 395.8 tps, lat 19.705 ms stddev 7.999, 0 failed
+progress: 61.0 s, 401.5 tps, lat 20.000 ms stddev 7.902, 0 failed
+progress: 62.0 s, 435.8 tps, lat 18.602 ms stddev 16.307, 0 failed
+progress: 63.0 s, 411.7 tps, lat 19.322 ms stddev 7.738, 0 failed
+progress: 64.0 s, 403.8 tps, lat 19.543 ms stddev 7.925, 0 failed
+progress: 65.0 s, 402.1 tps, lat 20.231 ms stddev 8.587, 0 failed
+progress: 66.0 s, 373.3 tps, lat 21.388 ms stddev 9.796, 0 failed
+progress: 67.0 s, 393.9 tps, lat 20.354 ms stddev 9.260, 0 failed
+progress: 68.0 s, 386.1 tps, lat 20.678 ms stddev 8.174, 0 failed
+progress: 69.0 s, 387.0 tps, lat 20.631 ms stddev 12.742, 0 failed
+progress: 70.0 s, 398.0 tps, lat 20.126 ms stddev 8.603, 0 failed
+progress: 71.0 s, 418.0 tps, lat 18.973 ms stddev 8.104, 0 failed
+progress: 72.0 s, 462.5 tps, lat 17.171 ms stddev 12.503, 0 failed
+progress: 73.0 s, 402.5 tps, lat 20.139 ms stddev 8.328, 0 failed
+progress: 74.0 s, 394.4 tps, lat 20.141 ms stddev 9.063, 0 failed
+progress: 75.0 s, 366.5 tps, lat 21.861 ms stddev 18.723, 0 failed
+transaction type: <builtin: TPC-B (sort of)>
+scaling factor: 50
+query mode: simple
+number of clients: 8
+number of threads: 2
+maximum number of tries: 1
+duration: 75 s
+number of transactions actually processed: 28884
+number of failed transactions: 0 (0.000%)
+latency average = 20.741 ms
+latency stddev = 9.686 ms
+initial connection time = 21.375 ms
+tps = 385.128653 (without initial connection time)
