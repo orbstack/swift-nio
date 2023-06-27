@@ -26,6 +26,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/nfsmnt"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
 	"github.com/orbstack/macvirt/vmgr/flock"
@@ -329,13 +330,13 @@ func runVmManager() {
 
 	if !conf.Debug() {
 		err := sentry.Init(sentry.ClientOptions{
-			Dsn:     "https://a53ef16741c54b099bf5e149345a4bd5@o120089.ingest.sentry.io/4504665519554560",
+			Dsn:     sentryconf.DSN,
 			Release: appver.Get().Short,
 		})
 		if err != nil {
 			logrus.WithError(err).Error("failed to init Sentry")
 		}
-		defer sentry.Flush(sentryShutdownTimeout)
+		defer sentry.Flush(sentryconf.FlushTimeout)
 	}
 	// sentry.Recover() suppresses panic
 	defer func() {

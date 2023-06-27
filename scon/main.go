@@ -10,13 +10,16 @@ import (
 
 	_ "net/http/pprof"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/killswitch"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/btrfs"
+	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -152,10 +155,29 @@ func runContainerManager() {
 		DisableColors:   slices.Contains(os.Args[1:], "orb.console_is_pipe"),
 	}, "📦 scon | "))
 
-	// rand seed no longer needed in go 1.20+
+	logrus.Info("starting")
+
+	if !conf.Debug() {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn:     sentryconf.DSN,
+			Release: appver.Get().Short,
+		})
+		if err != nil {
+			logrus.WithError(err).Error("failed to init Sentry")
+		}
+		defer sentry.Flush(sentryconf.FlushTimeout)
+	}
+	// sentry.Recover() suppresses panic
+	defer func() {
+		if err := recover(); err != nil {
+			hub := sentry.CurrentHub()
+			hub.Recover(err)
+
+			panic(err)
+		}
+	}()
 
 	// killswitch
-	logrus.Info("starting")
 	err := killswitch.Check()
 	check(err)
 
