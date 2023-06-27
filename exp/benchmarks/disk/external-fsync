@@ -1,0 +1,15 @@
+PC ext4 Samsung 980 PRO: 164 txn/s, 113 iops
+PC ext4 EX950: 1200 txn/s, 2400 iops
+PC ext4 USB T7: 535 txn/s, 864 iops
+PC ext4 nobarrier USB T7: 10996 iops
+PC btrfs(cow) USB T7: 220 txn/s, 433 iops
+
+Mac APFS USB T7 weak: (no txns), 12369 iops 
+Mac APFS USB T7 full: 155 txn/s, 330 iops
+Mac Linux btrfs USB T7 defer: 1700 txn/s, 4200 iops
+Mac Linux btrfs USB T7 full: 65 txn/s, 107 iops
+Mac Linux ext4 USB T7 defer: 7800 txn/s, 20000 iops
+Mac Linux ext4 USB T7 full: 140 txn/s, 149 iops
+
+T7 unplug is OK w/o defer
+test w/ bolt db
