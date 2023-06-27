@@ -73,7 +73,7 @@ func (n *Network) AddHostBridgeFd(fd int) error {
 	return nil
 }
 
-func (n *Network) ClearVlanBridges() error {
+func (n *Network) ClearVlanBridges(includeScon bool) error {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
 
@@ -84,6 +84,13 @@ func (n *Network) ClearVlanBridges() error {
 	err := n.vlanRouter.ClearBridges()
 	if err != nil {
 		return err
+	}
+
+	if includeScon {
+		err = n.closeSconMachineHostBridgeLocked()
+		if err != nil {
+			return err
+		}
 	}
 
 	n.vlanIndices = make(map[sgtypes.DockerBridgeConfig]int)
@@ -102,14 +109,8 @@ func (n *Network) enableHostBridges() error {
 }
 
 func (n *Network) disableHostBridges() error {
-	// close scon machine host bridge
-	err := n.closeSconMachineHostBridge()
-	if err != nil {
-		return err
-	}
-
 	// clear vlan bridges
-	err = n.ClearVlanBridges()
+	err := n.ClearVlanBridges(true /* includeScon */)
 	if err != nil {
 		return err
 	}
@@ -345,10 +346,7 @@ func (n *Network) CreateSconMachineHostBridge() error {
 	return nil
 }
 
-func (n *Network) closeSconMachineHostBridge() error {
-	n.hostBridgeMu.Lock()
-	defer n.hostBridgeMu.Unlock()
-
+func (n *Network) closeSconMachineHostBridgeLocked() error {
 	brnet := n.hostBridges[brIndexSconMachine]
 	if brnet == nil {
 		return nil

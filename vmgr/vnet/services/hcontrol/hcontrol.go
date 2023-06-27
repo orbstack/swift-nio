@@ -291,7 +291,7 @@ func (h *HcontrolServer) RemoveDockerBridge(config sgtypes.DockerBridgeConfig, r
 	return nil
 }
 
-func (h *HcontrolServer) ClearDockerState(_ None, _ *None) error {
+func (h *HcontrolServer) ClearDockerState(async bool, _ *None) error {
 	// fsnotify folder refs
 	err := h.clearFsnotifyRefs()
 	if err != nil {
@@ -299,9 +299,20 @@ func (h *HcontrolServer) ClearDockerState(_ None, _ *None) error {
 	}
 
 	// vlan router bridge interfaces
-	err = h.n.ClearVlanBridges()
-	if err != nil {
-		return err
+	// vmnet is slow (250 ms per bridge!) so do async if manager is stopping
+	if async {
+		go func() {
+			// if stopping then we also know scon bridge will be closed
+			err := h.n.ClearVlanBridges(true /*includeScon*/)
+			if err != nil {
+				logrus.WithError(err).Error("failed to clear docker bridges before stop")
+			}
+		}()
+	} else {
+		err = h.n.ClearVlanBridges(false /*includeScon*/)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

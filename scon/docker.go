@@ -217,7 +217,9 @@ func (h *DockerHooks) PostStart(c *Container) error {
 }
 
 func (h *DockerHooks) PostStop(c *Container) error {
-	err := c.manager.host.ClearDockerState()
+	// slow, so use async if stopping (b/c we know it doesn't matter at that point)
+	isAsync := c.manager.stopping
+	err := c.manager.host.ClearDockerState(isAsync)
 	if err != nil {
 		return fmt.Errorf("clear docker state: %w", err)
 	}
