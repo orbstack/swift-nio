@@ -4,6 +4,7 @@
 
 import Foundation
 
+private let stopExitCodeLogFatal = 1
 private let stopExitCodeGoPanic = 2
 private let stopExitCodeKernelPanic = 101
 private let stopExitCodeDrm = 102
@@ -13,6 +14,7 @@ enum ExitReason: CustomStringConvertible {
     case signal(Int)
 
     // from exit code
+    case logFatal
     case goPanic
     case kernelPanic
     case drm
@@ -29,6 +31,8 @@ enum ExitReason: CustomStringConvertible {
         case .signal(let signal):
             return "signal \(signal)"
 
+        case .logFatal:
+            return "failed to start"
         case .goPanic:
             return "fatal error"
         case .kernelPanic:
@@ -193,6 +197,8 @@ class DaemonManager {
             } else {
                 let status = waitStatus >> 8
                 switch status {
+                case stopExitCodeLogFatal:
+                    reason = .logFatal
                 case stopExitCodeGoPanic:
                     reason = .goPanic
                 case stopExitCodeKernelPanic:
