@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	minMemoryMib     = 500                    // 500 MiB
 	maxDefaultMemory = 8 * 1024 * 1024 * 1024 // 8 GiB
 
 	ProxyNone = "none"
@@ -45,6 +46,10 @@ type VmConfigChange struct {
 }
 
 func (c *VmConfig) Validate() error {
+	if c.MemoryMiB < minMemoryMib {
+		return fmt.Errorf("memory must be at least %d MiB", minMemoryMib)
+	}
+
 	// clamp cpus
 	if c.CPU < 1 {
 		c.CPU = 1
