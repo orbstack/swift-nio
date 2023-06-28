@@ -456,6 +456,12 @@ func (c *AgentCommand) Start(agent *Client) error {
 		}()
 	}
 
+	// take them all out of nonblock now
+	// for some reason, reading from stdin with a big file piped in can return EAGAIN if agent does it in StartProcess
+	stdin.Fd()
+	stdout.Fd()
+	stderr.Fd()
+
 	var err error
 	c.Process, err = agent.SpawnProcess(SpawnProcessArgs{
 		CombinedArgs: c.CombinedArgs,
