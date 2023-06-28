@@ -235,6 +235,9 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		delete(env, sshenv.KeyMeta)
 	} else {
 		meta = defaultMeta
+		meta.PtyStdin = isPty
+		meta.PtyStdout = isPty
+		meta.PtyStderr = isPty
 	}
 
 	logrus.WithFields(logrus.Fields{
