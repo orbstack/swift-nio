@@ -127,9 +127,9 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
                         // restart the service
                         println!("  !  Service {} exited: status {}, restarting", service, status);
                         service_tracker.restart(service).await?;
-                    } else if service.critical && !service_tracker.shutting_down {
+                    } else if service.critical && !service_tracker.shutting_down && !DEBUG {
                         // service is critical and not restartable!
-                        // shut down immediately
+                        // shut down immediately; in debug, allow manually replacing scon
                         println!("  !  Critical service {} exited: shutting down", service);
                         action_tx.send(SystemAction::Shutdown).await?;
                     } else {
