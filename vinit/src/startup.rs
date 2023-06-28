@@ -164,6 +164,7 @@ fn apply_perf_tuning_late() -> Result<(), Box<dyn Error>> {
     // reduce idle cpu usage
     sysctl("vm.compaction_proactiveness", "0")?;
     sysctl("vm.stat_interval", "30")?;
+    sysctl("vm.dirty_writeback_centisecs", "1500")?;
 
     // res limits
     sysctl("kernel.pid_max", "4194304")?;
