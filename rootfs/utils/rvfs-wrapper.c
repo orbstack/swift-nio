@@ -46,6 +46,15 @@ static char *get_basename(char *path) {
     return base + 1;
 }
 
+static bool argv_contains(char **argv, char *what) {
+    for (int i = 0; argv[i] != NULL; i++) {
+        if (strcmp(argv[i], what) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static enum emu_provider select_emulator(int argc, char **argv, char *exe_name) {
     // if running "apk", use qemu to avoid futex bug
     if (strcmp(exe_name, "apk") == 0) {
@@ -89,13 +98,15 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name) 
     //
     // dockerd doesn't work at all under qemu b/c iptables and nftables.
     //
-    // we intercept two commands:
+    // we intercept 3 commands:
     //    runc init
     //      * because of #1 and #2
     //    runc --root /var/run/docker/runtime-runc/moby --log /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c/log.json --log-format json --systemd-cgroup create --bundle /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c --pid-file /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c/init.pid --console-socket /tmp/pty1310364487/pty.sock 31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c
     //      * because of #3
+    //   runc --log /var/lib/docker/buildkit/executor/runc-log.json --log-format json run --bundle /var/lib/docker/buildkit/executor/m66aufx3xv7s2yq91dzxtemvm m66aufx3xv7s2yq91dzxtemvm
+    //      * because of #3, when building docker image
     if (argc >= 1+1+2 && strcmp(exe_name, "runc") == 0 &&
-        (strcmp(argv[3], "init") == 0 || strcmp(argv[3], "--root") == 0)) {
+        (strcmp(argv[3], "init") == 0 || argv_contains(argv, "--bundle"))) {
         if (DEBUG) fprintf(stderr, "selecting runc override\n");
         return EMU_OVERRIDE_RUNC;
     }
