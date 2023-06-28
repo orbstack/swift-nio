@@ -350,7 +350,7 @@ for cmd in open; do
     ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin-hiprio/\$cmd
 done
 # control from mac
-for cmd in osascript code orb orbctl; do
+for cmd in caffeinate code mdfind mdls open osascript pbcopy pbpaste pmset qlmanage screencapture softwareupdate system_profiler orb orbctl; do
     ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/\$cmd
 done
 

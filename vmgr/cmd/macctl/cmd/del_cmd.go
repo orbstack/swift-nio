@@ -16,11 +16,6 @@ var unlinkCmd = &cobra.Command{
 	Aliases: []string{"rm-cmd"},
 	Short:   "Unlink a macOS command",
 	Long: `Remove a link to a command that runs on macOS.
-
-The following commands are linked by default and cannot be unlinked:
-  - open
-  - osascript
-  - code
 `,
 	Example: "  macctl unlink-cmd code",
 	Args:    cobra.ExactArgs(1),

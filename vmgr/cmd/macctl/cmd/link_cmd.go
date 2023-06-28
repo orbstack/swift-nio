@@ -21,9 +21,19 @@ This makes a specific macOS command available to run directly from Linux, withou
 To remove a linked command, use "macctl unlink".
 
 The following commands are linked by default and cannot be unlinked:
+  - caffeinate
+  - code
+  - mdfind
+  - mdls
   - open
   - osascript
-  - code
+  - pbcopy
+  - pbpaste
+  - pmset
+  - qlmanage
+  - screencapture
+  - softwareupdate
+  - system_profiler
 `,
 	Example: "  macctl link-cmd code; code .",
 	Args:    cobra.ExactArgs(1),
