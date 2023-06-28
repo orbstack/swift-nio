@@ -285,16 +285,18 @@ int main(int argc, char **argv) {
     if (read_interp(execfd, interpreter, &pt_interp_after_load) == 0) {
         // check for interp if ELF parser succeeded
         if (access(interpreter, F_OK) != 0) {
+            // Docker container or scon/LXC machine?
+            const char* env_type = access("/.dockerenv", F_OK) == 0 ? "container" : "machine";
             // missing interpreter
             fprintf(stderr, "OrbStack ERROR: Dynamic loader not found: %s\n"
                             "\n"
                             "This usually means that you're running an x86 program on an arm64 OS without multi-arch libraries.\n"
                             "To fix this, you can:\n"
-                            "  1. Run the program in an Intel (amd64) container or machine instead.\n"
-                            "  2. Install multi-arch libraries in this container or machine.\n"
+                            "  1. Use an Intel (amd64) %s to run this program; or\n"
+                            "  2. Install multi-arch libraries in this %s.\n"
                             "\n"
                             "For more details and instructions, see https://docs.orbstack.dev/readme-link/multiarch\n"
-                            "", interpreter);
+                            "", interpreter, env_type, env_type);
             return 255;
         }
     }
