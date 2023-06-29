@@ -14,9 +14,9 @@ scli:
 	@cd ../scon; make
 
 sync:
-	@scp pc:~/code/android/kvm/linux/out/arch/arm64/boot/Image ../assets/debug/arm64/kernel
+	@scp pc:~/code/projects/orbstack/linux/out/arch/arm64/boot/Image ../assets/debug/arm64/kernel
 	@cp ../assets/debug/arm64/kernel ../assets/release/arm64/kernel
-	@scp pc:~/code/android/kvm/linux/out86/arch/x86/boot/bzImage ../assets/release/amd64/kernel
+	@scp pc:~/code/projects/orbstack/linux/out86/arch/x86/boot/bzImage ../assets/release/amd64/kernel
 
 
 

@@ -69,13 +69,5 @@ copy_file() {
 }
 
 copy_file out/rootfs.img rootfs.img
-# only on linux host - we don't do kernel on mac
-if [[ "$(uname)" == "Linux" ]]; then
-    if [[ "$ARCH" == "arm64" ]]; then
-        copy_file ~/code/android/kvm/linux/out/arch/arm64/boot/Image kernel
-    else
-        copy_file ~/code/android/kvm/linux/out86/arch/x86/boot/bzImage kernel
-    fi
-fi
 copy_file out/data.img.tar data.img.tar
 copy_file out/swap.img.tar swap.img.tar
