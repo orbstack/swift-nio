@@ -122,6 +122,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 				},
 			},
 		*/
+
+		// in 0.12.0 we changed bip to benchmarking net (198.19.192.1/23)
+		// if we don't specify bip explicitly, it stays like that for old users
+		"bip": "172.17.0.1/16",
 	}
 
 	// read config overrides from host
