@@ -118,7 +118,11 @@ RUN apk add --no-cache \
     shadow-uidmap \
     xz \
     pigz \
-    crun
+    # slightly lower CPU usage (e.g. for healthcheck), ~10 ms speed difference, smaller
+    crun \
+    # support Docker build from git repos
+    git \
+    openssh-client-default
 
 # network
 COPY \
