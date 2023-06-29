@@ -111,13 +111,14 @@ FROM base AS docker
 
 # removed: xfsprogs e2fsprogs btrfs-progs
 RUN apk add --no-cache \
-        docker-engine=24.0.2-r0 \
-		ip6tables \
-		iptables \
-		openssl \
-		shadow-uidmap \
-		xz \
-		pigz
+    docker-engine=24.0.2-r0 \
+    ip6tables \
+    iptables \
+    openssl \
+    shadow-uidmap \
+    xz \
+    pigz \
+    crun
 
 # network
 COPY \
@@ -129,6 +130,10 @@ RUN <<EOT sh -eux
 echo docker > /etc/hostname
 # for daemon.json generation
 mkdir -p /etc/docker
+
+# replace runc with crun
+rm /usr/bin/runc
+ln -s /usr/bin/crun /usr/bin/runc
 
 # set up subuid/subgid so that "--userns-remap=default" works out-of-the-box
 addgroup -S dockremap
