@@ -1,0 +1,15 @@
+#include <linux/socket.h>
+
+kprobe:queue_delayed_work_on
+{
+    $wq = (struct workqueue_struct *)arg0;
+    $delay = arg3;
+    printf("queue_delayed_work on %s - %d jiffies - %s\n", $wq->name, $delay, kstack(2));
+}
+
+kprobe:mod_timer
+{
+    $expires = arg1;
+    printf("timer - %d jiffies - %s", $expires, kstack(2));
+}
+

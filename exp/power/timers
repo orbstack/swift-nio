@@ -1,0 +1,19 @@
+idle CPU Power
+1 sample = avg mW over 5 sec
+median over ~1m30s
+
+command: sudo powermetrics -i 5000 -a --samplers cpu_power 2>/dev/null | rg  -e "CPU Power"
+
+1000hz, lo res
+  magento       237
+  supabase      138
+  singlestore   92
+
+1000hz, hi res
+  magento       264
+  supabase      145
+  singlestore   1375
+
+500hz, lo res
+  singlestore   89.5
+    * baseline cpu 13.5%

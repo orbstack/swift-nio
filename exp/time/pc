@@ -1,0 +1,13 @@
+sleep duration: 1ns average delta: 223ns
+sleep duration: 250ns average delta: 3.725µs
+sleep duration: 1µs average delta: 4.302µs
+sleep duration: 250µs average delta: 804.012µs
+sleep duration: 500µs average delta: 552.629µs
+sleep duration: 1ms average delta: 52.689µs
+sleep duration: 2ms average delta: 105.377µs
+sleep duration: 5ms average delta: 108.657µs
+sleep duration: 10ms average delta: 142.594µs
+sleep duration: 25ms average delta: 352.962µs
+sleep duration: 37ms average delta: 327.409µs
+sleep duration: 250ms average delta: 589.105µs
+sleep duration: 1s average delta: 30.237µs
