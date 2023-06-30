@@ -67,7 +67,8 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 	// setup and start nfs uid
 	if conf.C().StartNfs {
 		// chown nfs root (perm mode = 700)
-		err = os.Chown(conf.C().NfsRootRW, u.Uid, u.Uid)
+		// we use correct gid here to avoid wrong "macports" group on Mac: https://github.com/orbstack/orbstack/issues/404
+		err = os.Chown(conf.C().NfsRootRW, u.Uid, u.Gid)
 		if err != nil {
 			return err
 		}
