@@ -95,7 +95,8 @@ extension CGKeyCode {
 
 struct SystemColors {
     private static let all = [
-        Color(.systemRed),
+        // removed due to semantic meaning
+        //Color(.systemRed),
         Color(.systemGreen),
         Color(.systemBlue),
         Color(.systemOrange),
