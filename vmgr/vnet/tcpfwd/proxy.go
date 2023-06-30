@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/gvaddr"
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy"
@@ -419,6 +420,7 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 			return nil, err
 		}
 
+		netx.SetLongKeepalive(conn)
 		return conn.(*net.TCPConn), nil
 	}
 
@@ -426,9 +428,11 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 	if err != nil {
 		return nil, &ProxyDialError{err}
 	}
+	netx.SetLongKeepalive(conn)
 
 	// unwrap SOCKS connection
 	if socksConn, ok := conn.(*socks.Conn); ok {
+		netx.SetLongKeepalive(socksConn.TCPConn)
 		return socksConn.TCPConn, nil
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/agent/envutil"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
@@ -532,17 +533,17 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 }
 
 func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, error) {
-	listenerInternal, err := net.Listen("tcp", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSH)))
+	listenerInternal, err := netx.Listen("tcp", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSH)))
 	if err != nil {
 		return nil, err
 	}
 
-	listenerPublic4, err := net.Listen("tcp4", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSHPublic)))
+	listenerPublic4, err := netx.Listen("tcp4", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSHPublic)))
 	if err != nil {
 		return nil, err
 	}
 
-	listenerPublic6, err := net.Listen("tcp6", net.JoinHostPort(listenIP6, strconv.Itoa(ports.GuestSconSSHPublic)))
+	listenerPublic6, err := netx.Listen("tcp6", net.JoinHostPort(listenIP6, strconv.Itoa(ports.GuestSconSSHPublic)))
 	if err != nil {
 		return nil, err
 	}

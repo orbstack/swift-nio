@@ -13,6 +13,7 @@ import (
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/sirupsen/logrus"
 )
@@ -193,7 +194,16 @@ func (s *SconServer) Serve() error {
 
 	listenIP := util.DefaultAddress4()
 	listenAddrPort := net.JoinHostPort(listenIP.String(), strconv.Itoa(ports.GuestScon))
-	return http.ListenAndServe(listenAddrPort, bridge)
+	// need to use netx listener to disable keepalive
+	listener, err := netx.Listen("tcp", listenAddrPort)
+	if err != nil {
+		return err
+	}
+	server := &http.Server{
+		Addr:    listenAddrPort,
+		Handler: bridge,
+	}
+	return server.Serve(listener)
 }
 
 func ListenScon(m *ConManager) error {

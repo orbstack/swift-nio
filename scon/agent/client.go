@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync/atomic"
 
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"golang.org/x/sys/unix"
 )
 
@@ -54,7 +55,7 @@ func (c *Client) Ping() error {
 
 func (c *Client) StartProxyTCP(spec ProxySpec, listener net.Listener) error {
 	// send fd
-	file, err := listener.(*net.TCPListener).File()
+	file, err := listener.(*netx.TCPListener).File()
 	if err != nil {
 		return err
 	}

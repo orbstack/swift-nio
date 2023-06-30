@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
@@ -53,11 +54,11 @@ func ListenTCP(addr string) (net.Listener, bool, error) {
 			network = "tcp6"
 		}
 
-		l, err := net.Listen(network, net.JoinHostPort(addr.String(), strconv.Itoa(int(addrPort.Port()))))
+		l, err := netx.Listen(network, net.JoinHostPort(addr.String(), strconv.Itoa(int(addrPort.Port()))))
 		return l, true, err
 	}
 
-	l, err := net.Listen(network, addr)
+	l, err := netx.Listen(network, addr)
 	return l, false, err
 }
 

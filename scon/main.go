@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/scon/killswitch"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/btrfs"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
@@ -184,7 +184,7 @@ func runContainerManager() {
 
 	// connect to hcontrol (ownership taken by cmgr)
 	logrus.Debug("connecting to hcontrol")
-	hcontrolConn, err := net.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.SecureSvcHcontrol))
+	hcontrolConn, err := netx.Dial("tcp", conf.C().HcontrolIP+":"+strconv.Itoa(ports.SecureSvcHcontrol))
 	check(err)
 	hostClient, err := hclient.New(hcontrolConn)
 	check(err)

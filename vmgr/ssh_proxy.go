@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"golang.org/x/sys/unix"
@@ -18,7 +19,7 @@ func runSshProxyFdpass() {
 
 	// dial tcp; unix causes following error:
 	// setsockopt TCP_NODELAY: Operation not supported on socket
-	conn, err := net.Dial("tcp", "127.0.0.1:"+str(ports.HostSconSSHPublic))
+	conn, err := netx.Dial("tcp", "127.0.0.1:"+str(ports.HostSconSSHPublic))
 	check(err)
 
 	// send fd

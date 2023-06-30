@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 )
 
@@ -67,7 +68,7 @@ func (p *HostServiceProxy) Serve() error {
 			defer conn.Close()
 
 			// TODO: isolated should be blocked
-			extConn, err := net.DialTCP("tcp4", nil, p.connectAddr)
+			extConn, err := netx.DialTCP("tcp4", nil, p.connectAddr)
 			if err != nil {
 				return
 			}

@@ -12,6 +12,7 @@ import (
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -111,7 +112,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) e
 	switch spec.Proto {
 	case sysnet.ProtoTCP:
 		// listen
-		listener, err := net.ListenTCP("tcp", &net.TCPAddr{
+		listener, err := netx.ListenTCP("tcp", &net.TCPAddr{
 			IP:   internalListenIP, // only on NIC
 			Port: 0,                // random
 		})

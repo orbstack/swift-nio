@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 )
@@ -36,7 +37,7 @@ func ListenSconInternal(m *ConManager, drmMonitor *DrmMonitor) (*SconInternalSer
 		return nil, err
 	}
 
-	listener, err := net.Listen("tcp", net.JoinHostPort(util.DefaultAddress4().String(), strconv.Itoa(ports.GuestSconRPCInternal)))
+	listener, err := netx.Listen("tcp", net.JoinHostPort(util.DefaultAddress4().String(), strconv.Itoa(ports.GuestSconRPCInternal)))
 	if err != nil {
 		return nil, err
 	}

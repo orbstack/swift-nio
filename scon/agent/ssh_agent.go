@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/orbstack/macvirt/scon/util/netx"
 )
 
 const (
@@ -95,6 +97,7 @@ func (a *AgentServer) DialTCPContext(args *DialTCPContextArgs, reply *uint64) er
 		return err
 	}
 	defer conn.Close()
+	netx.DisableKeepalive(conn)
 
 	file, err := conn.(*net.TCPConn).File()
 	if err != nil {

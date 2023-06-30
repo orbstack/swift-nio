@@ -8,6 +8,7 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util/netx"
 )
 
 type SconClient struct {
@@ -21,7 +22,7 @@ func New(network, addr string) (*SconClient, error) {
 		Transport: &http.Transport{
 			MaxIdleConns: 2,
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial(network, addr)
+				return netx.Dial(network, addr)
 			},
 		},
 	}

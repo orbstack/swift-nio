@@ -18,6 +18,7 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
@@ -397,7 +398,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 	server := &http.Server{
 		Handler: mux,
 	}
-	listenerTcp, err := net.Listen("tcp", "127.0.0.1:"+str(ports.HostVmControl))
+	listenerTcp, err := netx.Listen("tcp", "127.0.0.1:"+str(ports.HostVmControl))
 	if err != nil {
 		return nil, fmt.Errorf("listen vmcontrol: %w", err)
 	}

@@ -3,6 +3,7 @@ package tcpfwd
 import (
 	"net"
 
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/sirupsen/logrus"
 )
 
@@ -51,7 +52,7 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 		otherIP = net.IPv6loopback
 	}
 
-	dialConn, err := net.DialTCP("tcp", nil, &dialAddr)
+	dialConn, err := netx.DialTCP("tcp", nil, &dialAddr)
 	if err != nil {
 		logrus.WithError(err).Error("failed to dial local (1)")
 
@@ -59,7 +60,7 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 		// try dialing the other v4/v6 protocol
 		dialAddr.IP = otherIP
 		logrus.WithField("dialAddr", dialAddr).Debug("retrying with other protocol")
-		dialConn, err = net.DialTCP("tcp", nil, &dialAddr)
+		dialConn, err = netx.DialTCP("tcp", nil, &dialAddr)
 		if err != nil {
 			logrus.WithError(err).Error("failed to dial local (2)")
 			return

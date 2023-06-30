@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -16,7 +17,7 @@ const (
 )
 
 func RunKrpcInitiator() error {
-	listener, err := net.Listen("tcp", util.DefaultAddress4().String()+":"+strconv.Itoa(ports.GuestKrpc))
+	listener, err := netx.Listen("tcp", util.DefaultAddress4().String()+":"+strconv.Itoa(ports.GuestKrpc))
 	if err != nil {
 		return err
 	}
