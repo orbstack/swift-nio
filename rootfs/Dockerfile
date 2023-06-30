@@ -229,7 +229,7 @@ RUN --mount=type=cache,target=/work/qemu/build2 \
 if [[ "\$(uname -m)" != "aarch64" ]]; then
     echo "skip"
     mkdir /out
-    touch /out/qemu-x86_64 /out/qemu-i386
+    touch /out/qemu-x86_64 /out/qemu-i386 /out/qemu-arm
     exit
 fi
 
@@ -237,9 +237,10 @@ cd /work/qemu
 export CFLAGS="-O2 -flto=auto"
 make -j\$(nproc) ARFLAGS="rc" qemu-x86_64
 make -j\$(nproc) ARFLAGS="rc" qemu-i386
+make -j\$(nproc) ARFLAGS="rc" qemu-arm
 
 mkdir /out
-cp /work/qemu/build/qemu-x86_64 /work/qemu/build/qemu-i386 /out/
+cp /work/qemu/build/qemu-x86_64 /work/qemu/build/qemu-i386 /work/qemu/build/qemu-arm /out/
 EOT
 
 
@@ -278,7 +279,7 @@ apk add --no-cache libtirpc
 EOT
 
 # qemu for arm64 host
-COPY --from=pkgbuild-qemu /out/qemu-x86_64 /out/qemu-i386 /opt/orb/
+COPY --from=pkgbuild-qemu /out/* /opt/orb/
 
 # qemu for x86_64 host
 # 7.2 breaks openssl rsa verification (for x86_64 on arm64)
@@ -348,6 +349,7 @@ mkdir /mnt/rv
 ln -s /opt/orb/rvfs-wrapper '[rosetta]' # (real rosetta is in rvfs)
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
+ln -s /opt/orb/qemu-arm '[qemu-arm32]'
 ln -s /usr/bin/qemu-aarch64 '[qemu-arm64]'
 ln -s /opt/orbstack-guest/bin/macctl '[mac]'
 
