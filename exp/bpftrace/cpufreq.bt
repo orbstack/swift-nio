@@ -1,0 +1,12 @@
+kprobe:orb_cpufreq_set_target
+{
+    $index = arg1;
+    printf("-> %s\n", $index ? "PERF" : "powersave");
+}
+
+kprobe:orb_cpufreq_fast_switch
+{
+    $index = arg1;
+    printf("-> %s\n", $index == 2000000 ? "PERF" : "powersave");
+}
+
