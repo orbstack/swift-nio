@@ -143,6 +143,15 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
 
     // cgroup2 (nsdelegate for delegation/confinement)
     mount("cgroup", "/sys/fs/cgroup", "cgroup2", secure_flags, Some("nsdelegate"))?;
+    // enable all controllers for subgroups
+    let subtree_controllers = fs::read_to_string("/sys/fs/cgroup/cgroup.controllers")?
+        .trim()
+        .split(' ')
+        // prepend '+' to each controller
+        .map(|s| "+".to_string() + s)
+        .collect::<Vec<String>>()
+        .join(" ");
+    fs::write("/sys/fs/cgroup/cgroup.subtree_control", subtree_controllers)?;
 
     // nfsd
     mount("nfsd", "/proc/fs/nfsd", "nfsd", secure_flags, None)?;
