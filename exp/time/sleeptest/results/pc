@@ -1,0 +1,13 @@
+sleep duration: 1 ns, average delta: 52 us
+sleep duration: 250 ns, average delta: 51 us
+sleep duration: 1 us, average delta: 51 us
+sleep duration: 250 us, average delta: 52 us
+sleep duration: 500 us, average delta: 52 us
+sleep duration: 1 ms, average delta: 52 us
+sleep duration: 2 ms, average delta: 51 us
+sleep duration: 5 ms, average delta: 56 us
+sleep duration: 10 ms, average delta: 68 us
+sleep duration: 25 ms, average delta: 68 us
+sleep duration: 37 ms, average delta: 69 us
+sleep duration: 250 ms, average delta: 70 us
+sleep duration: 1 s, average delta: 71 us
