@@ -18,7 +18,7 @@ struct GeneralSettingsView: View {
                 Text("Start at login")
             }
             Defaults.Toggle("Show in menu bar", key: .globalShowMenubarExtra)
-            Defaults.Toggle("Stay in background when app is closed", key: .globalStayInBackground)
+            Defaults.Toggle("Stay in background when app is quit", key: .globalStayInBackground)
 
             Spacer()
                     .frame(height: 20)
