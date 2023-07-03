@@ -352,7 +352,8 @@ func (c *Container) configureLxc() error {
 		// lower soft limit to avoid slowing down programs that iterate through and close full fd range, but not so low (1024)
 		// high hard limit so users can set what they want
 		// ref: https://github.com/containerd/containerd/pull/7566
-		set("lxc.prlimit.nofile", "16384:1048576")
+		// oceanbase db wants >=20000
+		set("lxc.prlimit.nofile", "20480:1048576")
 
 		// reset oom_score_adj
 		set("lxc.proc.oom_score_adj", "0")
