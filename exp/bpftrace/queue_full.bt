@@ -1,0 +1,7 @@
+kretprobe:virtio_fs_enqueue_req
+{
+    if (retval < 0) {
+    printf("queue full: %d\n", retval);
+    }
+}
+

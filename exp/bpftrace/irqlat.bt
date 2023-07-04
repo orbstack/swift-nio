@@ -1,0 +1,11 @@
+//kretprobe:virtio_fs_enqueue_req
+kretprobe:virtqueue_notify
+{
+    @last_notify = nsecs;
+}
+
+kprobe:vp_vring_interrupt
+{
+    $now = nsecs;
+    @total_usecs = lhist(($now - @last_notify) / 1000, 0, 1000, 15);
+}

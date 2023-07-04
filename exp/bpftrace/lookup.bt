@@ -1,0 +1,5 @@
+kprobe:fuse_lookup_name
+{
+    printf("lookup %s", kstack(2));
+}
+

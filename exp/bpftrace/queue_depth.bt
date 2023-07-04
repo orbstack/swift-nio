@@ -1,0 +1,7 @@
+kprobe:virtio_fs_enqueue_req
+{
+    $fsvq = (struct virtio_fs_vq *) arg0;
+    $inflight = $fsvq->in_flight;
+    @qdepth = lhist($inflight + 1, 0, 16, 1);
+}
+

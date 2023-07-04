@@ -1,0 +1,6 @@
+kprobe:fuse_file_put
+{
+    $sync = arg1;
+    printf("sync = %d\n", $sync);
+}
+

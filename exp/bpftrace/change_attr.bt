@@ -1,0 +1,6 @@
+kprobe:fuse_change_attributes
+{
+    $attr_valid = arg2;
+    printf("change->%d | %s", $attr_valid, kstack(2));
+}
+
