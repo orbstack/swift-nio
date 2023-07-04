@@ -269,8 +269,10 @@ int main(int argc, char **argv) {
     }
 
     // get execfd
+    // this errno trick works even if execfd=0
+    errno = 0;
     int execfd = getauxval(AT_EXECFD);
-    if (execfd == 0) {
+    if (errno != 0) {
         orb_perror("getauxval");
         return 255;
     }
