@@ -97,7 +97,7 @@ EOT
 # Generate Rosetta deltas (need Debian for bsdiff)
 FROM debian as rosetta-deltas
 RUN apt-get update && \
-    apt-get install -y curl python3 bsdiff b3sum 7zip
+    apt-get install -y curl python3.10 bsdiff b3sum 7zip
 COPY rootfs/utils/rosetta /work/
 WORKDIR /work
 COPY --from=rust-build /out/b3enc /work/

@@ -5,7 +5,7 @@ set -euo pipefail
 mkdir -p cache
 mkdir -p /out
 
-curl -L https://swscan.apple.com/content/catalogs/others/index-rosettaupdateauto-1.sucatalog.gz | gunzip | python3 parse-catalog.py > catalog
+curl -L https://swscan.apple.com/content/catalogs/others/index-rosettaupdateauto-1.sucatalog.gz | gunzip | python3.10 parse-catalog.py > catalog
 
 # download
 target_pkg="$(./download-one.sh "$(cat target)")"
