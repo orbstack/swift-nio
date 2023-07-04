@@ -111,7 +111,7 @@ FROM base AS docker
 
 # removed: xfsprogs e2fsprogs btrfs-progs
 RUN apk add --no-cache \
-    docker-engine=24.0.2-r2 \
+    docker-engine \
     ip6tables \
     iptables \
     openssl \
