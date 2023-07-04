@@ -8,6 +8,7 @@ import CBridge
 
 private let debugPrintEvents = false
 
+// background QoS throttles very hard - consider utility?
 private let fseventsQueue = DispatchQueue(label: "dev.kdrag0n.swext.fsevents", qos: .background)
 
 private let npFlagCreate: UInt64 = 1 << 0
@@ -17,6 +18,13 @@ private let npFlagRemove: UInt64 = 1 << 3
 private let npFlagDirChange: UInt64 = 1 << 4
 
 private let krpcMsgNotifyproxyInject: UInt32 = 1
+
+// up to 1 sec is ok because that's virtiofs entry_valid
+// to be safe, use 500 ms
+private let dirChangeDebounce: Double = 0.5
+// for explicit Docker bind mount fsnotify, send events faster
+// this also acts as a faster cache invalidation in such cases
+private let fileWatchDebounce: Double = 0.1
 
 private let virtiofsMountpoint = "/mnt/mac"
 
@@ -200,7 +208,9 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
             npFlags |= npFlagStatAttr
         }
 
-        // dir events normally have flags=0
+        // dir-only watcher's events normally have flags=0
+        // we *could* send dir change events for explicit file watchers too,
+        // but it's unnecessary when we have granular notifications for every file in the dir
         if isDirChange {
             npFlags |= npFlagDirChange
         }
@@ -234,11 +244,12 @@ func swext_fsevents_monitor_dirs() -> UnsafeMutablePointer<CChar> {
         buf.deallocate()
     }
 
-    // up to 1 sec is ok because that's virtiofs entry_valid
-    let latency = 1.0
+    // we must always watch all dirs.
+    // otherwise docker bind mounted dir could disappear, then we'd have problems for 2 hours (until cache expiry)
+    // not to mention machines
     let paths = ["/"] as CFArray
     let stream = FSEventStreamCreate(nil, callback, nil, paths,
-            UInt64(kFSEventStreamEventIdSinceNow), latency,
+            UInt64(kFSEventStreamEventIdSinceNow), dirChangeDebounce,
             UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer))
     guard let stream else {
         return strdup("FSEventStreamCreate failed")
@@ -284,9 +295,8 @@ private class VmNotifier {
             buf.deallocate()
         }
 
-        let latency = 0.1
         let stream = FSEventStreamCreate(nil, callback, nil, paths as CFArray,
-                lastEventId, latency,
+                lastEventId, fileWatchDebounce,
                 UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer |
                         kFSEventStreamCreateFlagFileEvents))
         guard let stream else {
