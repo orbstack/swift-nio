@@ -1,0 +1,17 @@
+kprobe:virtio_fs_enqueue_req
+{
+    @start[tid] = nsecs;
+}
+
+kretprobe:virtio_fs_enqueue_req
+{
+    $time = (nsecs - @start[tid]) / 1000;
+    @latency = stats($time);
+    @hist = hist($time);
+    delete(@start[tid]);
+}
+
+END
+{
+    clear(@start);
+}
