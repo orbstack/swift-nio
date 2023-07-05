@@ -353,7 +353,6 @@ pub fn sync_clock(allow_backward: bool) -> Result<(), Box<dyn Error>> {
 
     clock_settime(ClockId::CLOCK_REALTIME, new_time)?;
 
-    println!("  - System time updated");
     Ok(())
 }
 
