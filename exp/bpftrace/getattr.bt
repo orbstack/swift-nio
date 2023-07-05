@@ -1,5 +1,5 @@
 kprobe:fuse_do_getattr
 {
-    printf("getattr %s", kstack(2));
+    printf("getattr %s", kstack());
 }
 

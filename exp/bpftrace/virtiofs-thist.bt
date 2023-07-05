@@ -52,40 +52,29 @@ BEGIN
     @opcodes[51] = "tmpfile";
 }
 
-kprobe:queue_request_and_unlock
+kprobe:fuse_simple_request
 {
-    $req = (struct fuse_req *)arg1;
-    $unique = $req->in.h.unique;
+    $args = (struct fuse_args *)arg1;
 
-    @start[$unique] = nsecs;
+    @start[tid] = nsecs;
+    @opc[tid] = $args->opcode;
 }
 
-kprobe:virtio_fs_request_complete
+kretprobe:fuse_simple_request
 {
-    $req = (struct fuse_req *)arg0;
-    $unique = $req->in.h.unique;
-    $opcode = $req->in.h.opcode;
+    $opcode = @opc[tid];
     $opc_str = @opcodes[$opcode];
 
     $now = nsecs;
-    $usec = ($now - @start[$unique]) / 1000;
-    /*if ($opcode == 1) { // lookup
-        @lookup = hist($usec);
-    } else if ($opcode == 3) { // getattr
-        @getattr = hist($usec);
-    } else if ($opcode == 14) { // open
-        @open = hist($usec);
-    } else if ($opcode == 15) { // read
-        @read = hist($usec);
-    } else if ($opcode == 16) { // write
-        @write = hist($usec);
-    }*/
+    $usec = ($now - @start[tid]) / 1000;
 
     @time[$opc_str] = hist($usec);
     @count[$opc_str] = count();
     @avg[@opcodes[$opcode]] = avg($usec);
     @avg_all = avg($usec);
-    delete(@start[$unique]);
+
+    delete(@start[tid]);
+    delete(@opc[tid]);
 }
 
 END

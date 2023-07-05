@@ -1,0 +1,5 @@
+kprobe:fuse_getxattr
+{
+    printf("getxattr %s", kstack());
+}
+
