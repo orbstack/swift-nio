@@ -248,7 +248,8 @@ int main(int argc, char **argv) {
 
     // assume preserve-argv0 ('P'). no point in checking auxv
     char *exe_path = argv[1];
-    char *exe_argv0 = argv[2];
+    char **exe_argv = &argv[2];
+    int exe_argc = argc - 2; /* our argv[0] + exe_path */
     char *exe_name = get_basename(exe_path);
 
     // select emulator
@@ -314,6 +315,24 @@ int main(int argc, char **argv) {
         emu = EMU_ROSETTA;
     }
 
+    // add arguments:
+    // Fix Node.js programs hanging
+    // "pnpm install" with large packages.json/pkgs, e.g. TypeScript, locks up with TurboFan JIT
+    // webpack also freezes so it could be anything, really: https://github.com/orbstack/orbstack/issues/390
+    // this is still way faster than qemu without TurboFan, and we still have Sparkplug compiler
+    // --jitless works too but disables expose-wasm and requires Node 12+
+    char *node_argv_buf[(exe_argc + 1) + 1];
+    if (strcmp(exe_name, "node") == 0) {
+        if (DEBUG) fprintf(stderr, "disabling Node.js TurboFan JIT\n");
+
+        // need to insert an argument
+        node_argv_buf[0] = exe_argv[0];
+        node_argv_buf[1] = "--no-opt";
+        memcpy(&node_argv_buf[2], &exe_argv[1], (exe_argc - 1) * sizeof(char*));
+        node_argv_buf[exe_argc + 1] = NULL;
+        exe_argv = node_argv_buf;
+    }
+
     // resolve to absolute path, if relative
     // otherwise execveat with fd fails with ENOTDIR
     // doesn't 100% match kernel default binfmt_misc behavior, but shouldn't matter
@@ -344,9 +363,9 @@ int main(int argc, char **argv) {
     // patchelf workaround: Rosetta segfaults if PT_INTERP is after PT_LOAD
     // as a workaround, we invoke the dynamic linker directly instead
     if (emu == EMU_ROSETTA && pt_interp_after_load) {
-        // create new argv: [exe_argv0, exe_path, ...&argv[3]]
+        // create new argv: [exe_argv[0], exe_path, ...&argv[3]]
         char *new_argv[2 + (argc - 3) + 1];
-        new_argv[0] = exe_argv0;
+        new_argv[0] = exe_argv[0];
         new_argv[1] = exe_path;
         memcpy(&new_argv[2], &argv[3], (argc - 3) * sizeof(char*));
         new_argv[2 + (argc - 3)] = NULL;
@@ -359,7 +378,7 @@ int main(int argc, char **argv) {
 
     // execute by fd
     // execveat helps preserve both filename and fd
-    if (syscall(SYS_execveat, execfd, exe_path, &argv[2] /* &exe_argv0 */, environ, AT_EMPTY_PATH) != 0) {
+    if (syscall(SYS_execveat, execfd, exe_path, exe_argv, environ, AT_EMPTY_PATH) != 0) {
         orb_perror("execveat");
         return 255;
     }
