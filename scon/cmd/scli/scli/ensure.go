@@ -41,7 +41,7 @@ func checkCLI(err error) {
 }
 
 func shouldUpdateVmgr() (string, bool) {
-	oldVersion, err := os.ReadFile(conf.VmgrTimestampFile())
+	oldVersion, err := os.ReadFile(conf.VmgrVersionFile())
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", true
