@@ -38,8 +38,8 @@ To remove a machine, use "` + appid.ShortCtl + ` delete".
 
 A matching Linux user will be created for your macOS user. Pass "--set-password" to set a password for this Linux user, as well as the root user.
 
-Supported distros: ` + strings.Join(images.Distros(), ", ") + `
-Supported CPU architectures: ` + strings.Join(images.Archs(), ", ") + `
+Supported distros: ` + strings.Join(images.Distros(), "  ") + `
+Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 `,
 	Example: `  orb create ubuntu:kinetic -a arm64
   orb create fedora -a amd64`,
