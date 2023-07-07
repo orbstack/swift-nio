@@ -263,10 +263,9 @@ int main(int argc, char **argv) {
     // this is a crude way to detect libuv and avoid 100% CPU on io_uring: https://github.com/orbstack/orbstack/issues/377
     if (!PASSTHROUGH &&
             emu == EMU_ROSETTA &&
-            (strcmp(exe_name, "node") == 0 || strcmp(exe_name, "nvim") == 0) &&
-            getenv("UV_USE_IO_URING") == NULL) {
+            (strcmp(exe_name, "node") == 0 || strcmp(exe_name, "nvim") == 0)) {
         if (DEBUG) fprintf(stderr, "setting UV_USE_IO_URING=0\n");
-        setenv("UV_USE_IO_URING", "0", 0);
+        setenv("UV_USE_IO_URING", "0", /*overwrite*/ 0);
     }
 
     // get execfd
