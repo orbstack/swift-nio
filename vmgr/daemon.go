@@ -53,7 +53,7 @@ func maybeStopOld(canRecurse bool) (string, error) {
 			return "", err
 		}
 
-		runningBuildID, err := os.ReadFile(conf.VmgrTimestampFile())
+		runningBuildID, err := os.ReadFile(conf.VmgrVersionFile())
 		if err == nil && buildID == string(runningBuildID) {
 			// we found an existing one and it's the same version
 			// return the pid and use it

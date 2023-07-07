@@ -134,8 +134,17 @@ func VmgrLog() string {
 	return LogDir() + "/vmgr.log"
 }
 
-func VmgrTimestampFile() string {
+func VmgrVersionFile() string {
 	return RunDir() + "/vmgr.version"
+}
+
+// for QueueDirectories trigger
+func StatusDir() string {
+	return ensureDir(RunDir() + "/status")
+}
+
+func StatusFileRunning() string {
+	return StatusDir() + "/running"
 }
 
 // in tmpdir to persist even if ~/.orbstack is deleted
