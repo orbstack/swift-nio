@@ -327,3 +327,21 @@ func (c *Client) SyntheticWarnStop() error {
 
 	return process.Signal(stopWarningSignal)
 }
+
+type UpdateHostnameArgs struct {
+	OldName string
+	NewName string
+}
+
+func (c *Client) UpdateHostname(oldName string, newName string) error {
+	var none None
+	err := c.rpc.Call("a.UpdateHostname", UpdateHostnameArgs{
+		OldName: oldName,
+		NewName: newName,
+	}, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -112,6 +112,35 @@ func lookupShell(user string) (string, error) {
 	return "", errors.New("user not found")
 }
 
+func parseShellKvLine(line string) (string, string, bool) {
+	// empty line
+	if line == "" {
+		return "", "", false
+	}
+	// comment
+	if line[0] == '#' {
+		return "", "", false
+	}
+	// shell compat: "export "
+	line = strings.TrimPrefix(line, "export ")
+	// split kv
+	k, v, ok := strings.Cut(line, "=")
+	if !ok {
+		return "", "", false
+	}
+	// quotes
+	if len(v) > 0 {
+		if v[0] == '"' && v[len(v)-1] == '"' {
+			v = v[1 : len(v)-1]
+		}
+		if v[0] == '\'' && v[len(v)-1] == '\'' {
+			v = v[1 : len(v)-1]
+		}
+	}
+
+	return k, v, true
+}
+
 func parsePamEnv() ([]string, bool, error) {
 	envBytes, err := os.ReadFile("/etc/environment")
 	if err != nil {
@@ -124,29 +153,9 @@ func parsePamEnv() ([]string, bool, error) {
 	envs := make([]string, 0)
 	foundPath := false
 	for _, line := range lines {
-		// empty line
-		if line == "" {
-			continue
-		}
-		// comment
-		if line[0] == '#' {
-			continue
-		}
-		// shell compat: "export "
-		line = strings.TrimPrefix(line, "export ")
-		// split kv
-		k, v, ok := strings.Cut(line, "=")
+		k, v, ok := parseShellKvLine(line)
 		if !ok {
 			continue
-		}
-		// quotes
-		if len(v) > 0 {
-			if v[0] == '"' && v[len(v)-1] == '"' {
-				v = v[1 : len(v)-1]
-			}
-			if v[0] == '\'' && v[len(v)-1] == '\'' {
-				v = v[1 : len(v)-1]
-			}
 		}
 		envs = append(envs, k+"="+v)
 		if k == "PATH" {

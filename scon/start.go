@@ -509,9 +509,17 @@ func (m *ConManager) restoreContainers() ([]*Container, error) {
 	return pendingStarts, nil
 }
 
-func (m *ConManager) insertContainerLocked(c *Container) {
+func (m *ConManager) insertContainerLocked(c *Container) error {
+	if _, ok := m.containersByID[c.ID]; ok {
+		return fmt.Errorf("machine '%q' already exists", c.ID)
+	}
+	if _, ok := m.containersByName[c.Name]; ok {
+		return fmt.Errorf("machine '%q' already exists", c.Name)
+	}
+
 	m.containersByID[c.ID] = c
 	m.containersByName[c.Name] = c
+	return nil
 }
 
 func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrite bool) (*Container, bool, error) {
@@ -525,20 +533,10 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrit
 		c.setState(types.ContainerStateCreating)
 	}
 
-	if oldC, err := m.getByNameLocked(c.Name); err == nil {
-		if canOverwrite {
-			// ok, but warn
-			// too dangerous to assume delete is ok
-			logrus.WithFields(logrus.Fields{
-				"container": c.Name,
-				"old":       oldC.ID,
-				"new":       c.ID,
-			}).Warn("overwriting existing container")
-		} else {
-			return nil, false, fmt.Errorf("machine %q already exists", c.Name)
-		}
+	err = m.insertContainerLocked(c)
+	if err != nil {
+		return nil, false, err
 	}
-	m.insertContainerLocked(c)
 
 	shouldStart := record.State == types.ContainerStateRunning
 	if record.State == types.ContainerStateDeleting {

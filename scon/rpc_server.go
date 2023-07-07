@@ -141,6 +141,15 @@ func (s *SconServer) ContainerDelete(ctx context.Context, record types.Container
 	return c.Delete()
 }
 
+func (s *SconServer) ContainerRename(ctx context.Context, req types.ContainerRenameRequest) error {
+	c, err := s.m.GetByID(req.Container.ID)
+	if err != nil {
+		return err
+	}
+
+	return c.Rename(req.NewName)
+}
+
 func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGetLogsRequest) (string, error) {
 	c, err := s.m.GetByID(req.Container.ID)
 	if err != nil {
@@ -182,6 +191,7 @@ func (s *SconServer) Serve() error {
 		"ContainerStop":         handler.New(s.ContainerStop),
 		"ContainerRestart":      handler.New(s.ContainerRestart),
 		"ContainerDelete":       handler.New(s.ContainerDelete),
+		"ContainerRename":       handler.New(s.ContainerRename),
 		"ContainerGetLogs":      handler.New(s.ContainerGetLogs),
 		"InternalReportStopped": handler.New(s.InternalReportStopped),
 	}, &jhttp.BridgeOptions{

@@ -66,3 +66,8 @@ type InternalReportStoppedRequest struct {
 type SetDefaultUsernameRequest struct {
 	Username string `json:"username"`
 }
+
+type ContainerRenameRequest struct {
+	Container *ContainerRecord `json:"record"`
+	NewName   string           `json:"new_name"`
+}

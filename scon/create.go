@@ -33,6 +33,13 @@ type CreateParams struct {
 	UserPassword string
 }
 
+func validateContainerName(name string) error {
+	if !containerNameRegex.MatchString(name) || slices.Contains(containerNameBlacklist, name) {
+		return fmt.Errorf("invalid machine name '%s'", name)
+	}
+	return nil
+}
+
 func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpec, error) {
 	if m.stopping {
 		return nil, nil, errors.New("machine manager is stopping")
@@ -41,8 +48,9 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 	// checks
 	name := args.Name
 	image := args.Image
-	if !containerNameRegex.MatchString(name) || slices.Contains(containerNameBlacklist, name) {
-		return nil, nil, fmt.Errorf("invalid machine name '%s'", name)
+	err := validateContainerName(name)
+	if err != nil {
+		return nil, nil, err
 	}
 	if _, err := m.GetByName(name); err == nil {
 		return nil, nil, fmt.Errorf("machine already exists: '%s'", name)

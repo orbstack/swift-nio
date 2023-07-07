@@ -134,6 +134,13 @@ func (c *SconClient) ContainerDelete(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerDelete", record, &noResult)
 }
 
+func (c *SconClient) ContainerRename(record *types.ContainerRecord, newName string) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerRename", types.ContainerRenameRequest{
+		Container: record,
+		NewName:   newName,
+	}, &noResult)
+}
+
 func (c *SconClient) ContainerGetLogs(record *types.ContainerRecord, logType types.LogType) (string, error) {
 	var logs string
 	err := c.rpc.CallResult(context.TODO(), "ContainerGetLogs", types.ContainerGetLogsRequest{
