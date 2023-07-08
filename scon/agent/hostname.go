@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func WriteHostnameFiles(rootfs string, oldName string, newName string) error {
+func WriteHostnameFiles(rootfs string, oldName string, newName string, runCommands bool) error {
 	readFile := func(path string) (string, error) {
 		fPath, err := securejoin.SecureJoin(rootfs, path)
 		if err != nil {
@@ -97,12 +97,14 @@ func WriteHostnameFiles(rootfs string, oldName string, newName string) error {
 		}
 
 		// now rebuild in background to avoid hanging api
-		go func() {
-			err := rebuildNixos()
-			if err != nil {
-				logrus.WithError(err).Error("failed to rebuild nixos for hostname change")
-			}
-		}()
+		if runCommands {
+			go func() {
+				err := rebuildNixos()
+				if err != nil {
+					logrus.WithError(err).Error("failed to rebuild nixos for hostname change")
+				}
+			}()
+		}
 	}
 
 	// [Rocky, openEuler, Alma] /etc/sysconfig/network-scripts/ifcfg-eth0
@@ -143,7 +145,7 @@ func (a *AgentServer) UpdateHostname(args UpdateHostnameArgs, reply *None) error
 
 	// 2. update files
 	// common function to be used by scon when container is not running
-	err = WriteHostnameFiles("/", args.OldName, args.NewName)
+	err = WriteHostnameFiles("/", args.OldName, args.NewName, true)
 	if err != nil {
 		return err
 	}

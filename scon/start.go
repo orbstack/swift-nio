@@ -208,6 +208,7 @@ func (c *Container) configureLxc() error {
 
 		set := func(key, value string) {
 			if err := c.setLxcConfig(key, value); err != nil {
+				// hide config values in release
 				if conf.Debug() {
 					panic(fmt.Errorf("set %s=%s: %w", key, value, err))
 				} else {

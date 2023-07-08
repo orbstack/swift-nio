@@ -7,36 +7,36 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (c *Container) renameInternal(newName string, needLock bool) (string, error) {
+func (c *Container) renameInternalLocked(newName string) (retS string, retErr error) {
 	m := c.manager
-	m.containersMu.Lock()
-	defer c.manager.containersMu.Unlock()
-
 	if _, ok := m.containersByName[newName]; ok {
 		return "", fmt.Errorf("machine '%q' already exists", newName)
-	}
-
-	if needLock {
-		// take c.mu here for lock ordering: containersMu > c.mu
-		c.mu.Lock()
-		/* leave locked */
 	}
 
 	delete(m.containersByID, c.ID)
 	delete(m.containersByName, c.Name)
 	oldName := c.Name
 	c.Name = newName
+	// past this point we need to recover from errors by reverting
+	defer func() {
+		if retErr != nil {
+			c.Name = oldName
+			c.manager.insertContainerLocked(c)
+		}
+	}()
 	err := c.manager.insertContainerLocked(c)
 	if err != nil {
-		c.Name = oldName
-		c.manager.insertContainerLocked(c)
 		return "", err
 	}
 
 	err = c.persist()
 	if err != nil {
-		c.Name = oldName
-		c.manager.insertContainerLocked(c)
+		return "", err
+	}
+
+	// update UTS name
+	err = c.setLxcConfig("lxc.uts.name", newName)
+	if err != nil {
 		return "", err
 	}
 
@@ -53,8 +53,11 @@ func (c *Container) Rename(newName string) error {
 	}
 
 	// take all locks and rename the actual container first
-	oldName, err := c.renameInternal(newName, true /* needLock */)
+	c.manager.containersMu.Lock()
+	c.mu.Lock()
 	defer c.mu.Unlock()
+	oldName, err := c.renameInternalLocked(newName)
+	c.manager.containersMu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -68,16 +71,18 @@ func (c *Container) Rename(newName string) error {
 		})
 	} else {
 		// if not running, it's safe to update files from our side w/o chroot
-		err = agent.WriteHostnameFiles(c.rootfsDir, oldName, newName)
+		err = agent.WriteHostnameFiles(c.rootfsDir, oldName, newName, false /*runCommands*/)
 	}
 	if err != nil {
 		// hmm, try to rename back
-		if _, err2 := c.renameInternal(oldName, false /*needLock*/); err2 != nil {
+		c.manager.containersMu.Lock() // c.mu is already locked
+		_, err2 := c.renameInternalLocked(oldName)
+		c.manager.containersMu.Unlock()
+		if err2 != nil {
 			logrus.WithError(err2).Error("failed to rename back after agent error")
 		}
 		return err
 	}
-	c.mu.Unlock()
 
 	return nil
 }
