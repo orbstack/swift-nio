@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/images"
@@ -164,12 +163,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		return err
 	}
 	rootfs := conf.C().DockerRootfs
-	// prevent symlink escape
-	daemonJsonPath, err := securejoin.SecureJoin(rootfs, "/etc/docker/daemon.json")
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(daemonJsonPath, configBytes, 0644)
+	err = os.WriteFile(rootfs+"/etc/docker/daemon.json", configBytes, 0644)
 	if err != nil {
 		return err
 	}
@@ -179,10 +173,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
-	certsDLink, err := securejoin.SecureJoin(rootfs, "/etc/docker/certs.d")
-	if err != nil {
-		return err
-	}
+	certsDLink := rootfs + "/etc/docker/certs.d"
 	_ = os.Remove(certsDLink)
 	err = os.Symlink(mounts.Virtiofs+hostUser.HomeDir+"/.docker/certs.d", certsDLink)
 	if err != nil {
@@ -190,10 +181,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	}
 
 	// write certs
-	certsDir, err := securejoin.SecureJoin(rootfs, "/etc/ssl/certs")
-	if err != nil {
-		return err
-	}
+	certsDir := rootfs + "/etc/ssl/certs"
 	err = c.manager.getAndWriteCerts(certsDir)
 	if err != nil {
 		return fmt.Errorf("write certs: %w", err)
