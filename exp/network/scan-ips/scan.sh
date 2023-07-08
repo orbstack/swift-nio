@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -eufo pipefail
+
+SCAN_NETS=()
+
+# add 192.168.1. - 192.168.254. to array
+# for i in $(seq 157 254); do
+#     SCAN_NETS+=("192.168.$i.")
+# done
+
+# # add 172.16. - 172.31. to array
+# # avoid 172.30 because earthly
+# for i in $(seq 16 31); do
+#     SCAN_NETS+=("172.$i.")
+# done
+
+# add 10.1. - 10.254. to array
+for i in $(seq 244 254); do
+    SCAN_NETS+=("10.$i.")
+done
+
+# search them all
+for subnet in "${SCAN_NETS[@]}"; do
+    echo -n "$subnet,"
+    curl -s -L "https://github.com/search/blackbird_count?saved_searches=&q=%22$subnet%22" \
+  -H 'authority: github.com' \
+  -H 'accept: application/json' \
+  -H 'accept-language: en-US,en;q=0.9' \
+  -H 'cache-control: no-cache' \
+  -H 'cookie: XXXXXX' \
+  -H 'dnt: 1' \
+  -H 'pragma: no-cache' \
+  -H "referer: https://github.com/search?q=%22$subnet%22&type=code" \
+  -H 'sec-ch-ua: "Not.A/Brand";v="8", "Chromium";v="114"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "macOS"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: same-origin' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36' \
+  -H 'x-requested-with: XMLHttpRequest' \
+  --compressed | jq .count
+    # rate limit...
+    sleep 30
+done
