@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 )
@@ -214,9 +213,8 @@ with lib;
 	}
 
 	// rebuild
-	// must run in shell to get the right env vars
 	logrus.Debug("Rebuilding system")
-	err = util.Run("sh", "-lc", "nixos-rebuild switch")
+	err = rebuildNixos()
 	if err != nil {
 		return err
 	}

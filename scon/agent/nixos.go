@@ -32,3 +32,8 @@ func waitForNixBoot() {
 		return
 	}
 }
+
+func rebuildNixos() error {
+	// must run in shell to get the right env vars
+	return util.Run("sh", "-lc", "nixos-rebuild switch")
+}
