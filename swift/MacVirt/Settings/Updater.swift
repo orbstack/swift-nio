@@ -41,31 +41,19 @@ struct CheckForUpdatesView: View {
 // Upon user changes to these, the updater's properties are set. These are backed by NSUserDefaults.
 // Note the updater properties should *only* be set when the user changes the state.
 struct UpdaterSettingsView: View {
-    private let updater: SPUUpdater
+    let updater: SPUUpdater
 
-    @State private var automaticallyChecksForUpdates: Bool
-    @State private var automaticallyDownloadsUpdates: Bool
-
-    init(updater: SPUUpdater) {
-        self.updater = updater
-        self.automaticallyChecksForUpdates = updater.automaticallyChecksForUpdates
-        self.automaticallyDownloadsUpdates = updater.automaticallyDownloadsUpdates
-    }
+    @State private var automaticallyDownloadsUpdates = false
 
     var body: some View {
         VStack {
-            /*
-            Toggle("Automatically check for updates", isOn: $automaticallyChecksForUpdates)
-                    .onChange(of: automaticallyChecksForUpdates) { newValue in
-                        updater.automaticallyChecksForUpdates = newValue
-                    }
-             */
-
             Toggle("Automatically download updates", isOn: $automaticallyDownloadsUpdates)
-                    .disabled(!automaticallyChecksForUpdates)
-                    .onChange(of: automaticallyDownloadsUpdates) { newValue in
-                        updater.automaticallyDownloadsUpdates = newValue
-                    }
+            .onAppear {
+                automaticallyDownloadsUpdates = updater.automaticallyDownloadsUpdates
+            }
+            .onChange(of: automaticallyDownloadsUpdates) { newValue in
+                updater.automaticallyDownloadsUpdates = newValue
+            }
         }
     }
 }
