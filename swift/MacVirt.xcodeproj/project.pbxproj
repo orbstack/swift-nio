@@ -1104,7 +1104,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = "0.14.0-rc1";
+				MARKETING_VERSION = "0.14.0-rc2";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = OrbStack;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1141,7 +1141,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
-				MARKETING_VERSION = "0.14.0-rc1";
+				MARKETING_VERSION = "0.14.0-rc2";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt;
 				PRODUCT_NAME = OrbStack;
 				PROVISIONING_PROFILE_SPECIFIER = "";
