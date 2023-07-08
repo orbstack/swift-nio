@@ -21,7 +21,8 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	defer func() {
 		if retErr != nil {
 			c.Name = oldName
-			c.manager.insertContainerLocked(c)
+			_ = c.manager.insertContainerLocked(c)
+			_ = c.persist()
 		}
 	}()
 	err := c.manager.insertContainerLocked(c)
@@ -30,6 +31,26 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	}
 
 	err = c.persist()
+	if err != nil {
+		return "", err
+	}
+
+	// update NFS bind mount: unmount old, mount new
+	err = unmountOneNfs(oldName)
+	if err != nil {
+		return "", err
+	}
+	// past this point, recover by remounting old name
+	defer func() {
+		if retErr != nil {
+			_ = unmountOneNfs(newName)
+			err2 := mountOneNfs(c.rootfsDir, oldName)
+			if err2 != nil {
+				logrus.WithError(err2).Error("failed to remount old name after error")
+			}
+		}
+	}()
+	err = mountOneNfs(c.rootfsDir, newName)
 	if err != nil {
 		return "", err
 	}
