@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -96,6 +97,24 @@ func readProcEnv(path string) (map[string]string, error) {
 	return env, nil
 }
 
+func dialAsUidGid(uid, gid uint32, network, address string) (net.Conn, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	oldUid, err := unix.SetfsuidRetUid(int(uid))
+	if err != nil {
+		return nil, err
+	}
+	oldGid, err := unix.SetfsgidRetGid(int(uid))
+	if err != nil {
+		return nil, err
+	}
+	defer unix.Setfsuid(oldUid)
+	defer unix.Setfsgid(oldGid)
+
+	return net.Dial(network, address)
+}
+
 func handleSshAgentProxyConn(conn *net.UnixConn) error {
 	defer conn.Close()
 
@@ -138,16 +157,8 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 		sockPath = path.Join(cwd, sockPath)
 	}
 
-	// check permissions
-	if cred.Uid != 0 {
-		err := util.CheckPermsRW(sockPath, int(cred.Uid), int(cred.Gid))
-		if err != nil {
-			return err
-		}
-	}
-
-	// connect to the real ssh agent
-	realConn, err := net.Dial("unix", sockPath)
+	// connect to the real ssh agent (w/ uid and gid, race-free)
+	realConn, err := dialAsUidGid(cred.Uid, cred.Gid, "unix", sockPath)
 	if err != nil {
 		return err
 	}
