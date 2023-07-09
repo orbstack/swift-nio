@@ -21,8 +21,8 @@ require (
 	github.com/briandowns/spinner v1.20.0
 	github.com/cilium/ebpf v0.10.0
 	github.com/creachadair/jrpc2 v1.0.1
-	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/fatih/color v1.15.0
+	github.com/getsentry/sentry-go v0.22.0
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/pkg/sftp v1.13.5
 	github.com/sasha-s/go-deadlock v0.3.1
@@ -38,7 +38,6 @@ require (
 require (
 	github.com/creachadair/mds v0.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/getsentry/sentry-go v0.22.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
