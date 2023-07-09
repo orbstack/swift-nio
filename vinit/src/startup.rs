@@ -156,9 +156,11 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     // nfsd
     mount("nfsd", "/proc/fs/nfsd", "nfsd", secure_flags, None)?;
 
-    // seal /opt as read-only for security
+    // seal /opt/orb as read-only for security
     // prevents machines from reopening /proc/<agent>/exe as writable. CVE-2019-5736
-    bind_mount("/opt", "/opt", Some(MsFlags::MS_RDONLY))?;
+    bind_mount("/opt/orb", "/opt/orb", None)?;
+    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
+    bind_mount("/opt/orb", "/opt/orb", Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
 
     Ok(())
 }
