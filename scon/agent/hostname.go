@@ -2,24 +2,24 @@ package agent
 
 import (
 	"errors"
-	"os"
 	"regexp"
 	"strings"
 
-	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
 func WriteHostnameFiles(rootfs string, oldName string, newName string, runCommands bool) error {
-	readFile := func(path string) (string, error) {
-		fPath, err := securejoin.SecureJoin(rootfs, path)
-		if err != nil {
-			return "", err
-		}
+	fs, err := securefs.NewFS(rootfs)
+	if err != nil {
+		return err
+	}
+	defer fs.Close()
 
-		bytes, err := os.ReadFile(fPath)
+	readFile := func(path string) (string, error) {
+		bytes, err := fs.ReadFile(path)
 		if err != nil {
 			return "", err
 		}
@@ -27,12 +27,7 @@ func WriteHostnameFiles(rootfs string, oldName string, newName string, runComman
 		return string(bytes), nil
 	}
 	writeFile := func(path string, content string) error {
-		fPath, err := securejoin.SecureJoin(rootfs, path)
-		if err != nil {
-			return err
-		}
-
-		err = os.WriteFile(fPath, []byte(content), 0644)
+		err = fs.WriteFile(path, []byte(content), 0644)
 		// a lot of files are read-only on NixOS
 		// and user could've also made FS readonly
 		if err != nil && !errors.Is(err, unix.EROFS) {
@@ -71,7 +66,7 @@ func WriteHostnameFiles(rootfs string, oldName string, newName string, runComman
 	}
 
 	// update /etc/hostname (trailing LF is standard)
-	err := writeFile("/etc/hostname", newName+"\n")
+	err = writeFile("/etc/hostname", newName+"\n")
 	if err != nil {
 		return err
 	}

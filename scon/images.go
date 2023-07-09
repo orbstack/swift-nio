@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
@@ -389,6 +389,12 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	}
 	logrus.WithField("metadata", meta).Debug("loaded metadata")
 
+	fs, err := securefs.NewFS(rootfsDir)
+	if err != nil {
+		return err
+	}
+	defer fs.Close()
+
 	// apply templates
 	logrus.Info("applying templates")
 	for relPath, templateSpec := range meta.Templates {
@@ -407,16 +413,12 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 		// TODO proper templating
 		tmpl = strings.ReplaceAll(tmpl, "{{ container.name }}", containerName)
 
-		writePath, err := securejoin.SecureJoin(rootfsDir, strings.TrimPrefix(relPath, "/"))
-		if err != nil {
-			return err
-		}
 		// make dirs
-		err = os.MkdirAll(path.Dir(writePath), 0755)
+		err = fs.MkdirAll(path.Dir(relPath), 0755)
 		if err != nil {
 			return err
 		}
-		err = os.WriteFile(writePath, []byte(tmpl), 0644)
+		err = fs.WriteFile(relPath, []byte(tmpl), 0644)
 		if err != nil {
 			return err
 		}

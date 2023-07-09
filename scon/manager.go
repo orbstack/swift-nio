@@ -13,6 +13,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent/common"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -166,7 +167,7 @@ func (m *ConManager) Start() error {
 	if err != nil {
 		logrus.WithError(err).Error("Failed to get extra certs")
 	}
-	err = common.WriteCaCerts("/etc/ssl/certs", extraCerts)
+	err = common.WriteCaCerts(securefs.Default(), "/etc/ssl/certs", extraCerts)
 	if err != nil {
 		return fmt.Errorf("write certs: %w", err)
 	}
@@ -508,13 +509,13 @@ func (m *ConManager) onHostNfsMounted() error {
 	})
 }
 
-func (m *ConManager) getAndWriteCerts(destDir string) error {
+func (m *ConManager) getAndWriteCerts(fs *securefs.FS, destDir string) error {
 	extraCaCerts, err := m.host.GetExtraCaCertificates()
 	if err != nil {
 		return fmt.Errorf("get: %w", err)
 	}
 
-	err = common.WriteCaCerts(destDir, extraCaCerts)
+	err = common.WriteCaCerts(fs, destDir, extraCaCerts)
 	if err != nil {
 		return fmt.Errorf("write: %w", err)
 	}

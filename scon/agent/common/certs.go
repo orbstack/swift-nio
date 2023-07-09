@@ -4,22 +4,23 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"strings"
+
+	"github.com/orbstack/macvirt/scon/securefs"
 )
 
 const (
 	certPrefix = "orb-extra-"
 )
 
-func WriteCaCerts(dir string, certs []string) error {
-	certFiles, err := os.ReadDir(dir)
+func WriteCaCerts(fs *securefs.FS, dir string, certs []string) error {
+	certFiles, err := fs.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("read certs dir: %w", err)
 	}
 	for _, f := range certFiles {
 		if strings.HasPrefix(f.Name(), certPrefix) {
-			err = os.Remove(dir + "/" + f.Name())
+			err = fs.Remove(dir + "/" + f.Name())
 			if err != nil {
 				return fmt.Errorf("remove cert: %w", err)
 			}
@@ -34,7 +35,7 @@ func WriteCaCerts(dir string, certs []string) error {
 
 		// write cert
 		certPath := dir + "/" + certPrefix + hash + ".crt"
-		err = os.WriteFile(certPath, []byte(cert), 0644)
+		err = fs.WriteFile(certPath, []byte(cert), 0644)
 		if err != nil {
 			return fmt.Errorf("write cert: %w", err)
 		}
