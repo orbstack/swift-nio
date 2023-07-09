@@ -58,25 +58,27 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
 
                 case .running:
                     #if arch(arm64)
-                    if #available(macOS 13, *) {
-                        Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
+                    Group {
+                        if #available(macOS 13, *) {
+                            Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
                             .onChange(of: enableRosetta) { newValue in
                                 setConfigKey(\.rosetta, newValue)
                             }
-                        Text("Faster. Only disable if you run into compatibility issues.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    } else {
-                        Toggle("Use Rosetta to run Intel code", isOn: .constant(false))
+                            Text("Faster. Only disable if you run into compatibility issues.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        } else {
+                            Toggle("Use Rosetta to run Intel code", isOn: .constant(false))
                             .disabled(true)
-                        Text("Requires macOS 13 or newer")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            Text("Requires macOS 13 or newer")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+                        .frame(height: 32)
                     }
                     #endif
-
-                    Spacer()
-                    .frame(height: 32)
 
                     Group {
                         let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
