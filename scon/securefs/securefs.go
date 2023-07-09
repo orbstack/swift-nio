@@ -1,6 +1,7 @@
 package securefs
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -160,7 +161,7 @@ func (fs *FS) MkdirAll(path string, perm os.FileMode) error {
 
 	// try first
 	err := fs.Mkdir(path, perm)
-	if err == nil {
+	if err == nil || errors.Is(err, unix.EEXIST) {
 		return nil
 	}
 
