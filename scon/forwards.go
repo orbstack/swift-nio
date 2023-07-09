@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	autoForwardGCInterval  = 2 * time.Minute
+	// match chrony ntp polling interval
+	autoForwardGCInterval  = 128 * time.Second
 	autoForwardGCThreshold = 1 * time.Minute
 	autoForwardDebounce    = 250 * time.Millisecond
 
