@@ -125,9 +125,50 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			},
 		*/
 
-		// in 0.12.0 we changed bip to benchmarking net (198.19.192.1/23)
-		// if we don't specify bip explicitly, it stays like that for old users
-		"bip": "172.17.0.1/16",
+		// 192.168 tends to be least used according to GitHub Code Search scraping
+		// here, we optimize for both the .0 and .1 /23 pair between low
+		// first two are flipped: for the default net, we prioritize the .0 (base) part being lower. 60% weight for first, 40% total
+		// our logic: 172.x will prob conflict anyway
+		//
+		"bip": "192.168.228.1/23",
+		// change default addrs to minimize conflicts with other networks
+		"default-address-pools": []map[string]any{
+			// custom: first 24
+			// result: /23's from 192 - 239
+			{"base": "192.168.228.0/23", "size": 23},
+			{"base": "192.168.214.0/23", "size": 23},
+			{"base": "192.168.242.0/23", "size": 23},
+			{"base": "192.168.166.0/23", "size": 23},
+			{"base": "192.168.194.0/23", "size": 23},
+			{"base": "192.168.164.0/23", "size": 23},
+			{"base": "192.168.236.0/23", "size": 23},
+			{"base": "192.168.154.0/23", "size": 23},
+			{"base": "192.168.138.0/23", "size": 23},
+			{"base": "192.168.182.0/23", "size": 23},
+			{"base": "192.168.212.0/23", "size": 23},
+			{"base": "192.168.246.0/23", "size": 23},
+			{"base": "192.168.216.0/23", "size": 23},
+			{"base": "192.168.186.0/23", "size": 23},
+			{"base": "192.168.162.0/23", "size": 23},
+			{"base": "192.168.172.0/23", "size": 23},
+			{"base": "192.168.108.0/23", "size": 23},
+			{"base": "192.168.206.0/23", "size": 23},
+			{"base": "192.168.106.0/23", "size": 23},
+			{"base": "192.168.116.0/23", "size": 23},
+			{"base": "192.168.190.0/23", "size": 23},
+			{"base": "192.168.184.0/23", "size": 23},
+			{"base": "192.168.134.0/23", "size": 23},
+			{"base": "192.168.146.0/23", "size": 23},
+
+			// Docker defaults for overflow (and compat, if explicit subnet is specified for a network)
+			{"base": "172.17.0.0/16", "size": 16},
+			{"base": "172.18.0.0/16", "size": 16},
+			{"base": "172.19.0.0/16", "size": 16},
+			{"base": "172.20.0.0/14", "size": 16},
+			{"base": "172.24.0.0/14", "size": 16},
+			{"base": "172.28.0.0/14", "size": 16},
+			{"base": "192.168.0.0/16", "size": 20},
+		},
 	}
 
 	// read config overrides from host
