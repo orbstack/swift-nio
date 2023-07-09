@@ -116,6 +116,8 @@ fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
 fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     let secure_flags = MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_RELATIME;
     let dev_flags = MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_RELATIME;
+    // easier for dev to allow exec
+    let tmp_flags = MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_RELATIME;
 
     // essential
     mount("sysfs", "/sys", "sysfs", secure_flags, None)?;
@@ -139,7 +141,7 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all("/dev/shm")?;
     mount("shm", "/dev/shm", "tmpfs", secure_flags, Some("mode=1777"))?;
     mount("tmpfs", "/run", "tmpfs", secure_flags, Some("mode=0755"))?;
-    mount("tmpfs", "/tmp", "tmpfs", secure_flags, Some("mode=0755"))?;
+    mount("tmpfs", "/tmp", "tmpfs", tmp_flags, Some("mode=0755"))?;
 
     // cgroup2 (nsdelegate for delegation/confinement)
     mount("cgroup", "/sys/fs/cgroup", "cgroup2", secure_flags, Some("nsdelegate"))?;
