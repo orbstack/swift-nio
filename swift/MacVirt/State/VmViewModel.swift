@@ -76,6 +76,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case containerRestartError(cause: Error)
     case containerDeleteError(cause: Error)
     case containerCreateError(cause: Error)
+    case containerRenameError(cause: Error)
 
     var errorUserInfo: [String : Any] {
         // debug desc gives most info for sentry
@@ -136,6 +137,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t delete machine"
         case .containerCreateError:
             return "Can’t create machine"
+        case .containerRenameError:
+            return "Can’t rename machine"
         }
     }
 
@@ -262,6 +265,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .containerDeleteError(let cause):
             return cause
         case .containerCreateError(let cause):
+            return cause
+        case .containerRenameError(let cause):
             return cause
         }
     }
@@ -943,6 +948,20 @@ class VmViewModel: ObservableObject {
             try await createContainer(name: name, distro: distro, version: version, arch: arch)
         } catch {
             setError(.containerCreateError(cause: error))
+        }
+    }
+
+    func renameContainer(_ record: ContainerRecord, newName: String) async throws {
+        try await scon.containerRename(record, newName: newName)
+        try await refreshList()
+    }
+
+    @MainActor
+    func tryRenameContainer(_ record: ContainerRecord, newName: String) async {
+        do {
+            try await renameContainer(record, newName: newName)
+        } catch {
+            setError(.containerRenameError(cause: error))
         }
     }
 

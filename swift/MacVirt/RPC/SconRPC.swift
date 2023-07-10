@@ -52,6 +52,11 @@ private struct GetByNameRequest: Codable {
     var name: String
 }
 
+private struct ContainerRenameRequest: Codable {
+    var container: ContainerRecord
+    var newName: String
+}
+
 class SconService: RPCService {
     static let shared = SconService(client: RPCClient(url: URL(string: "http://127.0.0.1:42507")!))
 
@@ -106,5 +111,9 @@ class SconService: RPCService {
 
     func containerDelete(_ record: ContainerRecord) async throws {
         try await invoke("ContainerDelete", params: record)
+    }
+
+    func containerRename(_ record: ContainerRecord, newName: String) async throws {
+        try await invoke("ContainerRename", params: ContainerRenameRequest(container: record, newName: newName))
     }
 }

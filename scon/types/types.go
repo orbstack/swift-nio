@@ -68,6 +68,6 @@ type SetDefaultUsernameRequest struct {
 }
 
 type ContainerRenameRequest struct {
-	Container *ContainerRecord `json:"record"`
+	Container *ContainerRecord `json:"container"`
 	NewName   string           `json:"new_name"`
 }

@@ -12,6 +12,7 @@ struct MachineContainerItem: View {
     var record: ContainerRecord
 
     @State private var presentConfirmDelete = false
+    @State private var presentRename = false
 
     var body: some View {
         let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
@@ -118,6 +119,10 @@ struct MachineContainerItem: View {
                 Label("Make Default", systemImage: "star")
             }
 
+            Button("Rename") {
+                self.presentRename = true
+            }
+
             Button(role: .destructive, action: {
                 if CGKeyCode.optionKeyPressed {
                     finishDelete()
@@ -136,6 +141,9 @@ struct MachineContainerItem: View {
             }
         } message: {
             Text("Data will be permanently lost.")
+        }
+        .sheet(isPresented: $presentRename) {
+            RenameContainerView(name: record.name, record: record, isPresented: $presentRename)
         }
         .onDoubleClick {
             Task {
