@@ -640,7 +640,9 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 				"src": src,
 				"dst": dest,
 			}).Info("[request admin] linking command (as root)")
-			adminCommands = append(adminCommands, shellescape.QuoteCommand([]string{"ln", "-sf", src, dest}))
+			adminCommands = append(adminCommands,
+				shellescape.QuoteCommand([]string{"mkdir", "-p", filepath.Dir(dest)}),
+				shellescape.QuoteCommand([]string{"ln", "-sf", src, dest}))
 			adminLinkCommands = true
 			return nil
 		}
