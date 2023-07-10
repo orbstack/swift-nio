@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -59,7 +58,7 @@ func FindVmgrExe() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return path.Join(exeDir, conf.VmgrExeName), nil
+	return fmt.Sprintf("%s/../Frameworks/%s.app/Contents/MacOS/%s", exeDir, conf.VmgrExeName, conf.VmgrExeName), nil
 }
 
 func SpawnDaemon(newBuildID string) (int, error) {
