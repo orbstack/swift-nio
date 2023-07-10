@@ -454,7 +454,7 @@ fn add_binfmt(name: &str, magic: &str, mask: Option<&str>, interpreter: &str, fl
 }
 
 #[cfg(target_arch = "x86_64")]
-fn setup_emulators(_sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+fn setup_arch_emulators(_sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // arm64 qemu
     add_binfmt("qemu-aarch64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu-arm64]", "POCF")?;
     Ok(())
@@ -502,7 +502,7 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // we always register qemu, but flags change if using Rosetta
     let mut qemu_flags = "POCF".to_string();
 
@@ -553,15 +553,16 @@ fn setup_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // Rosetta doesn't support 32-bit
     add_binfmt("qemu-i386", r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu32]", "POCF")?;
 
-    // qemu for 32-bit ARM
-    // all our qemus use standard names to avoid distro conflicts in case user tries to install them
-    add_binfmt("qemu-arm", r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu-arm32]", "POCF")?;
-
     Ok(())
 }
 
 fn setup_binfmt(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
-    setup_emulators(sys_info)?;
+    setup_arch_emulators(sys_info)?;
+
+    // qemu for 32-bit ARM
+    // must be emulated on both x86 and arm64
+    // all our qemus use standard names to avoid distro conflicts in case user tries to install them
+    add_binfmt("qemu-arm", r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu-arm32]", "POCF")?;
 
     // Mach-O
     // no O because fds can't cross OS boundary

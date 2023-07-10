@@ -229,7 +229,7 @@ RUN --mount=type=cache,target=/work/qemu/build2 \
 if [[ "\$(uname -m)" != "aarch64" ]]; then
     echo "skip"
     mkdir /out
-    touch /out/qemu-x86_64 /out/qemu-i386 /out/qemu-arm
+    touch /out/qemu-x86_64 /out/qemu-i386
     exit
 fi
 
@@ -287,8 +287,11 @@ COPY --from=pkgbuild-qemu /out/* /opt/orb/
 RUN <<EOT sh -eux
 if [[ "\$(uname -m)" == "x86_64" ]]; then
     wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/x86_64/qemu-aarch64-7.1.0-r7.apk
-    apk add --no-cache --no-network ./qemu-aarch64-7.1.0-r7.apk
-    rm -f qemu-aarch64-7.1.0-r7.apk
+    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/x86_64/qemu-arm-7.1.0-r7.apk
+    apk add --no-cache --no-network ./qemu-aarch64-7.1.0-r7.apk ./qemu-arm-7.1.0-r7.apk
+    rm -f qemu-aarch64-7.1.0-r7.apk qemu-arm-7.1.0-r7.apk
+
+    ln -s /usr/bin/qemu-arm /opt/orb/qemu-arm
 fi
 EOT
 
