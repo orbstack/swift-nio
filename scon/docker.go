@@ -129,38 +129,40 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// here, we optimize for both the .0 and .1 /23 pair between low
 		// first two are flipped: for the default net, we prioritize the .0 (base) part being lower. 60% weight for first, 40% total
 		// our logic: 172.x will prob conflict anyway
-		//
-		"bip": "192.168.215.1/23",
+		// let's go with /24 to optimize for min conflicts in common case (<255 containers).
+		// useres can change if needed. this is also simpler for devs
+		"bip": "192.168.215.1/24",
 		// change default addrs to minimize conflicts with other networks
 		"default-address-pools": []map[string]any{
-			// custom: first 24 from script (25 minus reserved)
-			// result: /23's from 192 - 239
-			{"base": "192.168.215.0/23", "size": 23},
-			{"base": "192.168.228.0/23", "size": 23},
-			// this one is reserved for possible future machines use
-			//{"base": "192.168.243.0/23", "size": 23},
-			{"base": "192.168.167.0/23", "size": 23},
-			{"base": "192.168.237.0/23", "size": 23},
-			{"base": "192.168.165.0/23", "size": 23},
-			{"base": "192.168.247.0/23", "size": 23},
-			{"base": "192.168.155.0/23", "size": 23},
-			{"base": "192.168.194.0/23", "size": 23},
-			{"base": "192.168.207.0/23", "size": 23},
-			{"base": "192.168.107.0/23", "size": 23},
-			{"base": "192.168.183.0/23", "size": 23},
-			{"base": "192.168.117.0/23", "size": 23},
-			{"base": "192.168.138.0/23", "size": 23},
-			{"base": "192.168.147.0/23", "size": 23},
-			{"base": "192.168.163.0/23", "size": 23},
-			{"base": "192.168.212.0/23", "size": 23},
-			{"base": "192.168.181.0/23", "size": 23},
-			{"base": "192.168.216.0/23", "size": 23},
-			{"base": "192.168.186.0/23", "size": 23},
-			{"base": "192.168.153.0/23", "size": 23},
-			{"base": "192.168.172.0/23", "size": 23},
-			{"base": "192.168.108.0/23", "size": 23},
-			{"base": "192.168.245.0/23", "size": 23},
-			{"base": "192.168.135.0/23", "size": 23},
+			// custom: first 24 from script (25 - 2)
+			{"base": "192.168.215.0/24", "size": 24},
+			{"base": "192.168.228.0/24", "size": 24},
+			// reserved for possible future machines use
+			//{"base": "192.168.243.0/24", "size": 24},
+			{"base": "192.168.247.0/24", "size": 24},
+			{"base": "192.168.207.0/24", "size": 24},
+			{"base": "192.168.167.0/24", "size": 24},
+			{"base": "192.168.107.0/24", "size": 24},
+			{"base": "192.168.237.0/24", "size": 24},
+			{"base": "192.168.148.0/24", "size": 24},
+			{"base": "192.168.214.0/24", "size": 24},
+			{"base": "192.168.165.0/24", "size": 24},
+			{"base": "192.168.227.0/24", "size": 24},
+			{"base": "192.168.181.0/24", "size": 24},
+			{"base": "192.168.158.0/24", "size": 24},
+			{"base": "192.168.117.0/24", "size": 24},
+			{"base": "192.168.155.0/24", "size": 24},
+			{"base": "192.168.194.0/24", "size": 24},
+			{"base": "192.168.147.0/24", "size": 24},
+			{"base": "192.168.229.0/24", "size": 24},
+			{"base": "192.168.183.0/24", "size": 24},
+			{"base": "192.168.156.0/24", "size": 24},
+			{"base": "192.168.97.0/24", "size": 24},
+			{"base": "192.168.171.0/24", "size": 24},
+			{"base": "192.168.186.0/24", "size": 24},
+			// removed: < 100 even number is prob common
+			//{"base": "192.168.94.0/24", "size": 24},
+			{"base": "192.168.216.0/24", "size": 24},
 
 			// Docker defaults for overflow (and compat, if explicit subnet is specified for a network)
 			{"base": "172.17.0.0/16", "size": 16},
