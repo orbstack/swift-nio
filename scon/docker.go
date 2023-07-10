@@ -167,7 +167,8 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			{"base": "172.20.0.0/14", "size": 16},
 			{"base": "172.24.0.0/14", "size": 16},
 			{"base": "172.28.0.0/14", "size": 16},
-			{"base": "192.168.0.0/16", "size": 20},
+			// remove the 192.168 pool to avoid conflicts
+			//{"base": "192.168.0.0/16", "size": 20},
 		},
 	}
 
