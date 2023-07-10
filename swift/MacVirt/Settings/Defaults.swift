@@ -16,5 +16,6 @@ extension Defaults.Keys {
     static let tipsMenubarBgShown = Key<Bool>("tips_menubarBgShown2", default: false)
 
     static let globalShowMenubarExtra = Key<Bool>("global_showMenubarExtra", default: true)
-    static let globalStayInBackground = Key<Bool>("global_stayInBackground", default: false)
+    // changed key in v0.14.0: setting was renamed and people enabled it due to misunderstanding in prev versions
+    static let globalStayInBackground = Key<Bool>("global_stayInBackground2", default: false)
 }
