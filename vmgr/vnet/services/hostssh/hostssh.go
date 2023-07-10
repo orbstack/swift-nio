@@ -238,7 +238,6 @@ func handleSshConn(s ssh.Session) error {
 
 	// forward signals
 	fwdSigChan := make(chan ssh.Signal, 1)
-	defer close(fwdSigChan)
 	s.Signals(fwdSigChan)
 	go func() {
 		for {
