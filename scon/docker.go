@@ -130,7 +130,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// first two are flipped: for the default net, we prioritize the .0 (base) part being lower. 60% weight for first, 40% total
 		// our logic: 172.x will prob conflict anyway
 		// let's go with /24 to optimize for min conflicts in common case (<255 containers).
-		// useres can change if needed. this is also simpler for devs
+		// users can change if needed. this is also simpler for devs
 		"bip": "192.168.215.1/24",
 		// change default addrs to minimize conflicts with other networks
 		"default-address-pools": []map[string]any{
