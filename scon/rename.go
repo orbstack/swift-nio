@@ -77,6 +77,11 @@ func (c *Container) Rename(newName string) error {
 	c.manager.containersMu.Lock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if newName == c.Name {
+		// don't bother to rename if name is same
+		c.manager.containersMu.Unlock()
+		return nil
+	}
 	oldName, err := c.renameInternalLocked(newName)
 	c.manager.containersMu.Unlock()
 	if err != nil {
