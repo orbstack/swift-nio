@@ -23,8 +23,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         UNUserNotificationCenter.current().delegate = self
 
         // don't allow opening duplicate app instance - just activate old one
+        // skip vmgr executables because there used to be a bug where it would open with same bundle id as GUI
+        // need to keep the fix around for a long time due to update
         if let existingApp = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
-                .first(where: { $0 != NSRunningApplication.current }) {
+                .first(where: { $0 != NSRunningApplication.current && $0.executableURL?.lastPathComponent != AppConfig.vmgrExeName }) {
             print("App is already running")
             // activate first
             existingApp.activate(options: .activateIgnoringOtherApps)

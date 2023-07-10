@@ -12,12 +12,14 @@ struct Constants {
 }
 
 struct AppConfig {
+    static let vmgrExeName = "OrbStack Helper (VM)"
 #if DEBUG
     static let debug = true
-    static let vmgrExe = "\(Folders.home)/code/projects/macvirt/vmgr/OrbStack Helper (VM)"
+    static let vmgrExe = "\(Folders.home)/code/projects/macvirt/vmgr/\(vmgrExeName)"
 #else
     static let debug = false
-    static let vmgrExe = pathForAuxiliaryExecutable("OrbStack Helper (VM)")
+    // must launch from bundle path. symlink causes macOS to use our app bundle ID for NSRunningApplication instead
+    static let vmgrExe = "\(Bundle.main.bundlePath)/Contents/Frameworks/\(vmgrExeName).app/Contents/MacOS/\(vmgrExeName)"
 #endif
     static let shellExe = pathForAuxiliaryExecutable("bin/orb")
     static let dockerExe = pathForAuxiliaryExecutable("xbin/docker")
