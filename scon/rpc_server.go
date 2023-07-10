@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -142,6 +143,10 @@ func (s *SconServer) ContainerDelete(ctx context.Context, record types.Container
 }
 
 func (s *SconServer) ContainerRename(ctx context.Context, req types.ContainerRenameRequest) error {
+	if req.Container == nil {
+		return errors.New("container is nil")
+	}
+
 	c, err := s.m.GetByID(req.Container.ID)
 	if err != nil {
 		return err
@@ -151,6 +156,10 @@ func (s *SconServer) ContainerRename(ctx context.Context, req types.ContainerRen
 }
 
 func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGetLogsRequest) (string, error) {
+	if req.Container == nil {
+		return "", errors.New("container is nil")
+	}
+
 	c, err := s.m.GetByID(req.Container.ID)
 	if err != nil {
 		return "", err
