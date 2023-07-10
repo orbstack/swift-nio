@@ -130,35 +130,37 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// first two are flipped: for the default net, we prioritize the .0 (base) part being lower. 60% weight for first, 40% total
 		// our logic: 172.x will prob conflict anyway
 		//
-		"bip": "192.168.228.1/23",
+		"bip": "192.168.215.1/23",
 		// change default addrs to minimize conflicts with other networks
 		"default-address-pools": []map[string]any{
-			// custom: first 24
+			// custom: first 24 from script (25 minus reserved)
 			// result: /23's from 192 - 239
+			{"base": "192.168.215.0/23", "size": 23},
 			{"base": "192.168.228.0/23", "size": 23},
-			{"base": "192.168.214.0/23", "size": 23},
-			{"base": "192.168.242.0/23", "size": 23},
-			{"base": "192.168.166.0/23", "size": 23},
+			// this one is reserved for possible future machines use
+			//{"base": "192.168.243.0/23", "size": 23},
+			{"base": "192.168.167.0/23", "size": 23},
+			{"base": "192.168.237.0/23", "size": 23},
+			{"base": "192.168.165.0/23", "size": 23},
+			{"base": "192.168.247.0/23", "size": 23},
+			{"base": "192.168.155.0/23", "size": 23},
 			{"base": "192.168.194.0/23", "size": 23},
-			{"base": "192.168.164.0/23", "size": 23},
-			{"base": "192.168.236.0/23", "size": 23},
-			{"base": "192.168.154.0/23", "size": 23},
+			{"base": "192.168.207.0/23", "size": 23},
+			{"base": "192.168.107.0/23", "size": 23},
+			{"base": "192.168.183.0/23", "size": 23},
+			{"base": "192.168.117.0/23", "size": 23},
 			{"base": "192.168.138.0/23", "size": 23},
-			{"base": "192.168.182.0/23", "size": 23},
+			{"base": "192.168.147.0/23", "size": 23},
+			{"base": "192.168.163.0/23", "size": 23},
 			{"base": "192.168.212.0/23", "size": 23},
-			{"base": "192.168.246.0/23", "size": 23},
+			{"base": "192.168.181.0/23", "size": 23},
 			{"base": "192.168.216.0/23", "size": 23},
 			{"base": "192.168.186.0/23", "size": 23},
-			{"base": "192.168.162.0/23", "size": 23},
+			{"base": "192.168.153.0/23", "size": 23},
 			{"base": "192.168.172.0/23", "size": 23},
 			{"base": "192.168.108.0/23", "size": 23},
-			{"base": "192.168.206.0/23", "size": 23},
-			{"base": "192.168.106.0/23", "size": 23},
-			{"base": "192.168.116.0/23", "size": 23},
-			{"base": "192.168.190.0/23", "size": 23},
-			{"base": "192.168.184.0/23", "size": 23},
-			{"base": "192.168.134.0/23", "size": 23},
-			{"base": "192.168.146.0/23", "size": 23},
+			{"base": "192.168.245.0/23", "size": 23},
+			{"base": "192.168.135.0/23", "size": 23},
 
 			// Docker defaults for overflow (and compat, if explicit subnet is specified for a network)
 			{"base": "172.17.0.0/16", "size": 16},
