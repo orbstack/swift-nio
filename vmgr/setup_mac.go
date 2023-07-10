@@ -359,7 +359,7 @@ func symlinkIfNotExists(src, dest string) error {
 	}
 
 	// link it
-	logrus.WithField("dest", dest).Debug("symlinking")
+	logrus.WithField("dest", dest).Info("symlinking")
 	_ = os.Remove(dest)
 	err := os.Symlink(src, dest)
 	if err != nil {
@@ -475,7 +475,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		}
 		wantDest := conf.DockerSocket()
 		if sockDest != wantDest {
-			logrus.Debug("[request admin] link docker socket")
+			logrus.Info("[request admin] link docker socket")
 			adminCommands = append(adminCommands, "rm -f /var/run/docker.sock; ln -sf "+wantDest+" /var/run/docker.sock")
 			adminLinkDocker = true
 		}
@@ -487,12 +487,12 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		return nil, err
 	}
 	if targetCmdPath == nil {
-		logrus.Debug("target command path is nil")
+		logrus.Info("no target command path, using ~/.orbstack/bin")
 	} else {
 		logrus.WithFields(logrus.Fields{
 			"dir":          targetCmdPath.Dir,
 			"requiresRoot": targetCmdPath.RequiresRoot,
-		}).Debug("target command path")
+		}).Info("target command path")
 	}
 
 	// first, always put them in ~/.orbstack/bin
@@ -594,14 +594,14 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 						relProfilePath := syssetup.MakeHomeRelative(profilePath)
 						alertProfileChangedPath = &relProfilePath
 					}
-					logrus.Debug("modified profile")
+					logrus.Info("modified shell profile")
 				}
 			}
 		default:
 			// we don't know how to deal with this.
 			// just ask the user to add it to their path
 			if shellPathRequired {
-				logrus.Debug("unknown shell, asking user to add to path")
+				logrus.Info("unknown shell, asking user to add bins to PATH")
 				askAddPath = true
 			}
 			// if shell path isn't required, it's ok, let it slide. not important
@@ -639,7 +639,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 			logrus.WithFields(logrus.Fields{
 				"src": src,
 				"dst": dest,
-			}).Debug("[request admin] linking command (as root)")
+			}).Info("[request admin] linking command (as root)")
 			adminCommands = append(adminCommands, shellescape.QuoteCommand([]string{"ln", "-sf", src, dest}))
 			adminLinkCommands = true
 			return nil
