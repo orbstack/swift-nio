@@ -52,6 +52,16 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
     func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
         // bypass menu bar termination hook
         AppLifecycle.forceTerminate = true
+
+        // run post-update script if needed to repair
+        if let script = Bundle.main.path(forAuxiliaryExecutable: "hooks/_postupdate") {
+            do {
+                let task = try Process.run(URL(fileURLWithPath: script), arguments: [Bundle.main.bundlePath])
+                task.waitUntilExit()
+            } catch {
+                print("Failed to run post-update script: \(error)")
+            }
+        }
     }
 }
 
