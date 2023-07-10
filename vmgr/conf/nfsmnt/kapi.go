@@ -19,7 +19,7 @@ import (
 var (
 	initializeNFSOnce sync.Once
 
-	macOSBuildVersionPattern = regexp.MustCompile("^([0-9]+)([A-Z])([0-9]+)")
+	macOSBuildVersionPattern = regexp.MustCompile("^([0-9]+)([A-Z]+)([0-9]+).*")
 )
 
 func toNfstime32(d time.Duration) *nfs_sys_prot.Nfstime32 {
