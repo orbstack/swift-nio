@@ -547,11 +547,19 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // always register qemu x86_64
     // if Rosetta mode: RVFS wrapper may choose to invoke it via task comm=rvk2 key (we add ')' flag)
     // if QEMU mode: it will always be used
+    // this also helps occupy the name so that distros don't try to install it
     add_binfmt("qemu-x86_64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", &qemu_flags)?;
 
     // always use qemu for i386 (32-bit)
     // Rosetta doesn't support 32-bit
     add_binfmt("qemu-i386", r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu32]", "POCF")?;
+
+    // install a dummy to prevent the native architecture from being emulated
+    // this is the name used by ubuntu binfmt
+    // also happens with: docker run --rm --privileged multiarch/qemu-user-static:register
+    add_binfmt("qemu-aarch64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", "POCF")?;
+    // then disable the entry. it's just there to take the name
+    fs::write("/proc/sys/fs/binfmt_misc/qemu-aarch64", "0")?;
 
     Ok(())
 }
