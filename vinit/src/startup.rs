@@ -164,6 +164,10 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
     bind_mount("/opt/orb", "/opt/orb", Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
 
+    // early race-free emulator setup on arm64
+    #[cfg(target_arch = "aarch64")]
+    setup_arch_emulators_early()?;
+
     Ok(())
 }
 
@@ -502,6 +506,19 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
+fn setup_arch_emulators_early() -> Result<(), Box<dyn Error>> {
+    // install a dummy to prevent the native architecture from being emulated
+    // MUST BE EARLY, or we could break execs sometimes when racing with other steps
+    // this is the name used by ubuntu binfmt
+    // also happens with: docker run --rm --privileged multiarch/qemu-user-static:register
+    add_binfmt("qemu-aarch64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", "POCF")?;
+    // then disable the entry. it's just there to take the name
+    fs::write("/proc/sys/fs/binfmt_misc/qemu-aarch64", "0")?;
+
+    Ok(())
+}
+
+#[cfg(target_arch = "aarch64")]
 fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // we always register qemu, but flags change if using Rosetta
     let mut qemu_flags = "POCF".to_string();
@@ -553,13 +570,6 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // always use qemu for i386 (32-bit)
     // Rosetta doesn't support 32-bit
     add_binfmt("qemu-i386", r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu32]", "POCF")?;
-
-    // install a dummy to prevent the native architecture from being emulated
-    // this is the name used by ubuntu binfmt
-    // also happens with: docker run --rm --privileged multiarch/qemu-user-static:register
-    add_binfmt("qemu-aarch64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", "POCF")?;
-    // then disable the entry. it's just there to take the name
-    fs::write("/proc/sys/fs/binfmt_misc/qemu-aarch64", "0")?;
 
     Ok(())
 }
