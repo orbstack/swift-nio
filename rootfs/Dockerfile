@@ -118,8 +118,6 @@ RUN apk add --no-cache \
     shadow-uidmap \
     xz \
     pigz \
-    # slightly lower CPU usage (e.g. for healthcheck), ~10 ms speed difference, smaller
-    crun \
     # support Docker build from git repos
     git \
     openssh-client-default
@@ -134,10 +132,6 @@ RUN <<EOT sh -eux
 echo docker > /etc/hostname
 # for daemon.json generation
 mkdir -p /etc/docker
-
-# replace runc with crun
-rm /usr/bin/runc
-ln -s /usr/bin/crun /usr/bin/runc
 
 # set up subuid/subgid so that "--userns-remap=default" works out-of-the-box
 addgroup -S dockremap
