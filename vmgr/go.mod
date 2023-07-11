@@ -21,7 +21,7 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/gliderlabs/ssh v0.3.5
 	github.com/orbstack/macvirt/scon v0.0.0-00010101000000-000000000000
-	golang.org/x/sys v0.9.0
+	golang.org/x/sys v0.10.0
 )
 
 require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
