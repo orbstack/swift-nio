@@ -186,8 +186,6 @@ with lib;
   systemd.services."systemd-hostnamed".serviceConfig.WatchdogSec = 0;
   systemd.services."systemd-homed".serviceConfig.WatchdogSec = 0;
 
-  # package installation: not needed
-
   # ssh config
   programs.ssh.extraConfig = ''
     Include /opt/orbstack-guest/etc/ssh_config
@@ -197,6 +195,9 @@ with lib;
   security.pki.certificateFiles = [
     "%s"
   ];
+
+  # indicate builder support for emulated architectures
+  nix.extraOptions = "extra-platforms = x86_64-linux i686-linux";
 }
 `, args.Username, args.Timezone, mounts.ExtraCerts)
 
