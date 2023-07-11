@@ -2,6 +2,7 @@ package securefs
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -190,6 +191,17 @@ func (fs *FS) ReadDir(name string) ([]os.DirEntry, error) {
 	return f.ReadDir(0)
 }
 
+func (fs *FS) ResolvePath(name string) (string, error) {
+	file, err := fs.OpenFile(name, unix.O_PATH, 0)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// from magic link
+	return os.Readlink(fmt.Sprintf("/proc/self/fd/%d", file.Fd()))
+}
+
 // quick functions
 func OpenFile(at string, name string, flag int, perm os.FileMode) (*os.File, error) {
 	fs, err := NewFS(at)
@@ -289,4 +301,14 @@ func ReadDir(at string, name string) ([]os.DirEntry, error) {
 	defer fs.Close()
 
 	return fs.ReadDir(name)
+}
+
+func ResolvePath(at string, name string) (string, error) {
+	fs, err := NewFS(at)
+	if err != nil {
+		return "", err
+	}
+	defer fs.Close()
+
+	return fs.ResolvePath(name)
 }
