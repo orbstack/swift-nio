@@ -134,7 +134,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		"bip": "192.168.215.1/24",
 		// change default addrs to minimize conflicts with other networks
 		"default-address-pools": []map[string]any{
-			// custom: first 24 from script (25 - 2)
+			// custom: first 32 from script (25 - 2)
 			{"base": "192.168.215.0/24", "size": 24},
 			{"base": "192.168.228.0/24", "size": 24},
 			// reserved for possible future machines use
@@ -163,6 +163,14 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			// removed: < 100 even number is prob common
 			//{"base": "192.168.94.0/24", "size": 24},
 			{"base": "192.168.216.0/24", "size": 24},
+			{"base": "192.168.242.0/24", "size": 24},
+			{"base": "192.168.166.0/24", "size": 24},
+			{"base": "192.168.239.0/24", "size": 24},
+			{"base": "192.168.223.0/24", "size": 24},
+			{"base": "192.168.164.0/24", "size": 24},
+			{"base": "192.168.163.0/24", "size": 24},
+			{"base": "192.168.172.0/24", "size": 24},
+			{"base": "192.168.138.0/24", "size": 24},
 
 			// Docker defaults for overflow (and compat, if explicit subnet is specified for a network)
 			{"base": "172.17.0.0/16", "size": 16},
