@@ -424,24 +424,5 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 		}
 	}
 
-	// WORKAROUND: ubuntu image is broken, missing templates
-	// write basic /etc/hostname and /etc/hosts
-	if len(meta.Templates) == 0 && spec.Distro == images.ImageUbuntu {
-		err = fs.WriteFile("/etc/hostname", []byte(containerName+"\n"), 0644)
-		if err != nil {
-			return err
-		}
-
-		err = fs.WriteFile("/etc/hosts", []byte(fmt.Sprintf(`127.0.1.1	%s
-127.0.0.1	localhost
-::1		localhost ip6-localhost ip6-loopback
-ff02::1		ip6-allnodes
-ff02::2		ip6-allrouters
-`, containerName)), 0644)
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
