@@ -227,7 +227,8 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	if bip, ok := config["bip"].(string); ok && bip != "" {
 		conflictNet, err := dockerdb.CheckBipNetworkConflict(conf.C().DockerDataDir+"/network/files/local-kv.db", bip)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("check bip conflict: %w", err)
+			logrus.WithError(err).Error("failed to check docker bip conflict")
+			conflictNet = nil
 		}
 
 		// to prevent infinite loop: if flag exists, delete it and bail out
