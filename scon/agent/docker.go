@@ -266,6 +266,13 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 		return fmt.Errorf("get networks: %w", err)
 	}
 
+	// get all containers
+	var allContainers []dockertypes.ContainerSummary
+	err = d.client.Call("GET", "/containers/json?all=true", nil, &allContainers)
+	if err != nil {
+		return fmt.Errorf("get containers: %w", err)
+	}
+
 	// find ones that conflict with bip prefix, and deal with them
 	for _, minNet := range networks {
 		// we only look at local bridges with IPv4 that conflicts w/ bip, and default IPAM driver
@@ -292,9 +299,28 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 			return fmt.Errorf("get network: %w", err)
 		}
 
+		// filter for containers
+		// fullNet.Containers only includes running, so must look at allContainers
+		netContainers := make(map[string]*dockertypes.ContainerSummary)
+		for _, c := range allContainers {
+			if c.NetworkSettings == nil {
+				continue
+			}
+			if c.NetworkSettings.Networks == nil {
+				continue
+			}
+			// don't trust the name, look through IDs
+			for _, cnet := range c.NetworkSettings.Networks {
+				if cnet.NetworkID == minNet.ID {
+					netContainers[c.ID] = &c
+					break
+				}
+			}
+		}
+
 		// disconnect all containers
-		logrus.WithField("network", minNet.Name).WithField("count", len(fullNet.Containers)).Info("disconnecting containers")
-		for cid := range fullNet.Containers {
+		logrus.WithField("network", minNet.Name).WithField("count", len(netContainers)).Info("disconnecting containers")
+		for cid := range netContainers {
 			logrus.WithField("cid", cid).Debug("disconnecting container")
 			err = d.client.Call("POST", "/networks/"+minNet.ID+"/disconnect", map[string]any{
 				"Container": cid,
@@ -353,8 +379,8 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 		}
 
 		// reconnect all containers
-		logrus.WithField("network", minNet.Name).WithField("count", len(fullNet.Containers)).Info("reconnecting containers")
-		for cid := range fullNet.Containers {
+		logrus.WithField("network", minNet.Name).WithField("count", len(netContainers)).Info("reconnecting containers")
+		for cid := range netContainers {
 			logrus.WithField("cid", cid).Debug("reconnecting container")
 			err = d.client.Call("POST", "/networks/"+newNetResp.ID+"/connect", map[string]any{
 				"Container": cid,
