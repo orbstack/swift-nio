@@ -12,9 +12,19 @@ import (
 var (
 	ensuredDirsMu sync.Mutex
 	ensuredDirs   = make(map[string]string)
+
+	overrideHomeDir string
 )
 
+func SetOverrideHomeDir(dir string) {
+	overrideHomeDir = dir
+}
+
 func HomeDir() string {
+	if overrideHomeDir != "" {
+		return overrideHomeDir
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)

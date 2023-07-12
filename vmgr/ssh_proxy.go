@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"golang.org/x/sys/unix"
@@ -12,6 +13,9 @@ import (
 
 // this is in here instead of orbctl because we're the one writing ssh config
 func runSshProxyFdpass() {
+	// Nix build user doesn't have a $HOME
+	coredir.SetOverrideHomeDir(os.Args[2])
+
 	err := vmclient.EnsureSconVM()
 	check(err)
 

@@ -93,16 +93,6 @@ var (
 		"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
 		"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
 	}
-	essentialForwards = map[string]string{
-		// for Swift
-		"tcp:127.0.0.1:" + str(ports.HostSconRPC): "tcp:" + str(ports.GuestScon),
-		"tcp:[::1]:" + str(ports.HostSconRPC):     "tcp:" + str(ports.GuestScon),
-		// unix sockets
-		"unix:" + conf.DockerSocket():  "tcp:" + str(ports.GuestDocker),
-		"unix:" + conf.SconSSHSocket(): "tcp:" + str(ports.GuestSconSSH),
-		"unix:" + conf.SconRPCSocket(): "tcp:" + str(ports.GuestScon),
-		// NFS is special, handled below
-	}
 )
 
 func init() {
@@ -639,6 +629,16 @@ func runVmManager() {
 	defer vmcontrolCleanup()
 
 	// Host forwards (setup vsock)
+	essentialForwards := map[string]string{
+		// for Swift
+		"tcp:127.0.0.1:" + str(ports.HostSconRPC): "tcp:" + str(ports.GuestScon),
+		"tcp:[::1]:" + str(ports.HostSconRPC):     "tcp:" + str(ports.GuestScon),
+		// unix sockets
+		"unix:" + conf.DockerSocket():  "tcp:" + str(ports.GuestDocker),
+		"unix:" + conf.SconSSHSocket(): "tcp:" + str(ports.GuestSconSSH),
+		"unix:" + conf.SconRPCSocket(): "tcp:" + str(ports.GuestScon),
+		// NFS is special, handled below
+	}
 	vnetwork.VsockDialer = func(port uint32) (net.Conn, error) {
 		conn, err := vm.ConnectVsock(port)
 		if err != nil {
