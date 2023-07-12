@@ -211,7 +211,7 @@ private func openViaAppleEvent(_ url: URL, bundleId: String, openFn: () async th
 }
 
 extension String {
-    func replaceNSRegex(_ regex: NSRegularExpression, with: (NSTextCheckingResult) -> String) -> String {
+    func replaceNSRegex(_ regex: NSRegularExpression, with: (NSTextCheckingResult) -> String) -> (String, Bool) {
         let nsString = self as NSString
         let matches = regex.matches(in: self, options: [], range: NSRange(location: 0, length: nsString.length))
         var result = self
@@ -219,10 +219,10 @@ extension String {
             let replacement = with(match)
             result = (result as NSString).replacingCharacters(in: match.range, with: replacement)
         }
-        return result
+        return (result, !matches.isEmpty)
     }
 
-    func replaceNSRegex(_ regex: NSRegularExpression, with: String) -> String {
+    func replaceNSRegex(_ regex: NSRegularExpression, with: String) -> (String, Bool) {
         return replaceNSRegex(regex) { _ in with }
     }
 }

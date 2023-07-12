@@ -9,11 +9,6 @@ import Sentry
 import Virtualization
 
 private let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
-private let jsonIpv6Regex = try! NSRegularExpression(pattern: """
-                                                              ("ipv6"\\s*:\\s*)(true|false)\\b
-                                                              """)
-private let jsonClosingBracketRegex = try! NSRegularExpression(pattern: "(\\}\\s*)$")
-
 private let dockerSystemDfRatelimit = 1.0 * 60 * 60 // 1 hour
 
 enum VmState: Int, Comparable {
@@ -1168,31 +1163,16 @@ class VmViewModel: ObservableObject {
     func trySetDockerConfig(configJson: String, enableIpv6: Bool) async {
         do {
             // parse and update the json for ipv6
-            // we do this with crude regex to avoid messing with whitespace
-            let matches = jsonIpv6Regex.matches(in: configJson, range: NSRange(location: 0, length: configJson.utf16.count))
-            var finalConfig = configJson
-            if let range = matches.last?.range(at: 2),
-               let strRange = Range(range, in: configJson) {
-                let oldValue = configJson[strRange] == "true"
-
-                if enableIpv6 != oldValue {
-                    // replace it
-                    finalConfig = finalConfig.replacingCharacters(in: strRange, with: "\(enableIpv6)")
-                }
-            } else {
-                let oldValue = false
-
-                if enableIpv6 != oldValue {
-                    // no old value. need to add it
-                    finalConfig = finalConfig.replaceNSRegex(jsonClosingBracketRegex, with: "    \"ipv6\": \(enableIpv6)\n}")
-                }
-            }
+            // this breaks formatting, but better than regex
+            var json = try JSONSerialization.jsonObject(with: configJson.data(using: .utf8)!, options: []) as! [String: Any]
+            json["ipv6"] = enableIpv6
+            let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
 
             // write it back out
-            try finalConfig.write(to: URL(fileURLWithPath: Files.dockerDaemonConfig), atomically: true, encoding: .utf8)
+            try data.write(to: URL(fileURLWithPath: Files.dockerDaemonConfig), options: .atomic)
 
             // update state
-            dockerConfigJson = finalConfig
+            dockerConfigJson = String(data: data, encoding: .utf8)!
             dockerEnableIPv6 = enableIpv6
         } catch {
             setError(.dockerConfigSaveError(cause: error))
