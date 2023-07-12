@@ -191,6 +191,16 @@ func (fs *FS) ReadDir(name string) ([]os.DirEntry, error) {
 	return f.ReadDir(0)
 }
 
+func (fs *FS) Stat(name string) (os.FileInfo, error) {
+	f, err := fs.OpenFile(name, unix.O_PATH, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return f.Stat()
+}
+
 func (fs *FS) ResolvePath(name string) (string, error) {
 	file, err := fs.OpenFile(name, unix.O_PATH, 0)
 	if err != nil {
@@ -311,4 +321,14 @@ func ResolvePath(at string, name string) (string, error) {
 	defer fs.Close()
 
 	return fs.ResolvePath(name)
+}
+
+func Stat(at string, name string) (os.FileInfo, error) {
+	fs, err := NewFS(at)
+	if err != nil {
+		return nil, err
+	}
+	defer fs.Close()
+
+	return fs.Stat(name)
 }

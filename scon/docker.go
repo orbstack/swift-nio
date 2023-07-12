@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/netip"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/dockerdb"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/syncx"
@@ -213,10 +215,6 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		}
 	}
 
-	configBytes, err := json.Marshal(&config)
-	if err != nil {
-		return err
-	}
 	rootfs := conf.C().DockerRootfs
 	// prevent symlink escape
 	fs, err := securefs.NewFS(rootfs)
@@ -224,6 +222,67 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		return err
 	}
 	defer fs.Close()
+
+	// check for possible conflict between user-created bridge nets and default (bip)
+	if bip, ok := config["bip"].(string); ok && bip != "" {
+		conflictNet, err := dockerdb.CheckBipNetworkConflict(conf.C().DockerDataDir+"/network/files/local-kv.db", bip)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("check bip conflict: %w", err)
+		}
+
+		// to prevent infinite loop: if flag exists, delete it and bail out
+		// we already tried once and it must've failed
+		delErr := fs.Remove(agent.DockerMigrationFlag)
+		if conflictNet != nil && errors.Is(delErr, os.ErrNotExist) {
+			// migration needed
+			logrus.WithField("bip", bip).WithField("conflictNet", conflictNet).Warn("docker bip conflict detected, migrating")
+
+			// create flag file with orig config
+			origConfig := config
+			origConfigBytes, err := json.Marshal(&origConfig)
+			if err != nil {
+				return err
+			}
+			err = fs.WriteFile(agent.DockerMigrationFlag, []byte(origConfigBytes), 0644)
+			if err != nil {
+				return err
+			}
+
+			// use temporary bip to avoid conflict so we can start dockerd
+			config["bip"] = agent.DockerMigrationBip
+
+			bipPrefix, err := netip.ParsePrefix(bip)
+			if err != nil {
+				return err
+			}
+
+			// remove conflicting pools so we don't migrate to those and cause more conflicts
+			if pools, ok := config["default-address-pools"].([]map[string]any); ok {
+				var newPools []map[string]any
+				for _, pool := range pools {
+					// parse base
+					if base, ok := pool["base"].(string); ok {
+						basePrefix, err := netip.ParsePrefix(base)
+						if err != nil {
+							return err
+						}
+
+						// add if not conflict
+						if !basePrefix.Overlaps(bipPrefix) {
+							newPools = append(newPools, pool)
+						}
+					}
+				}
+
+				config["default-address-pools"] = newPools
+			}
+		}
+	}
+
+	configBytes, err := json.Marshal(&config)
+	if err != nil {
+		return err
+	}
 	err = fs.WriteFile("/etc/docker/daemon.json", configBytes, 0644)
 	if err != nil {
 		return err

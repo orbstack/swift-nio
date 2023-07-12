@@ -68,3 +68,22 @@ func (c *Client) Call(method, path string, body any, out any) error {
 
 	return nil
 }
+
+func (c *Client) Stream(method, path string) (io.ReadCloser, error) {
+	req, err := http.NewRequest(method, "http://docker"+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %s", err)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %s", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		resp.Body.Close()
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	return resp.Body, nil
+}

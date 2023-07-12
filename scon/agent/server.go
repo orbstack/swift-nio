@@ -204,6 +204,9 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		err := server.docker.PostStart()
 		if err != nil {
 			logrus.WithError(err).Error("docker post-start failed")
+			// well, docker won't work...
+			// just kill everything
+			unix.Kill(1, unix.SIGTERM)
 		}
 	}
 

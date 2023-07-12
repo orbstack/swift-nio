@@ -14,7 +14,7 @@ require (
 	github.com/orbstack/macvirt/vmgr v0.0.0-00010101000000-000000000000
 	github.com/sirupsen/logrus v1.9.3
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/sys v0.9.0
+	golang.org/x/sys v0.10.0
 )
 
 require (
@@ -36,8 +36,10 @@ require (
 )
 
 require (
+	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/docker/libkv v0.2.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

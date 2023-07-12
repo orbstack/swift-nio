@@ -21,9 +21,11 @@ import (
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -32,11 +34,15 @@ const (
 	dockerUIEventDebounce = 50 * time.Millisecond
 
 	dockerDefaultBridgeNetwork = "bridge"
+
+	// from documentation test net 2
+	DockerMigrationBip  = "203.0.113.97/24"
+	DockerMigrationFlag = "/etc/docker/.orb_migrate_networks"
 )
 
 type DockerAgent struct {
 	mu      syncx.Mutex
-	client  *http.Client
+	client  *dockerclient.Client
 	Running syncx.CondBool
 
 	host *hclient.Client
@@ -58,7 +64,7 @@ type DockerAgent struct {
 func NewDockerAgent() *DockerAgent {
 	dockerAgent := &DockerAgent{
 		// use default unix socket
-		client: &http.Client{
+		client: dockerclient.New(&http.Client{
 			// no timeout - we do event monitoring
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -67,7 +73,7 @@ func NewDockerAgent() *DockerAgent {
 				// idle conns are ok here because we get frozen along with docker
 				MaxIdleConns: 2,
 			},
-		},
+		}),
 
 		Running:        syncx.NewCondBool(),
 		containerBinds: make(map[string][]string),
@@ -101,18 +107,8 @@ func NewDockerAgent() *DockerAgent {
 
 func (a *AgentServer) DockerCheckIdle(_ None, reply *bool) error {
 	// only includes running
-	resp, err := a.docker.client.Get("http://docker/containers/json")
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New("docker API returned " + resp.Status)
-	}
-
 	var containers []dockertypes.ContainerSummaryMin
-	err = json.NewDecoder(resp.Body).Decode(&containers)
+	err := a.docker.client.Call("GET", "/containers/json", nil, &containers)
 	if err != nil {
 		return err
 	}
@@ -172,6 +168,19 @@ func (d *DockerAgent) PostStart() error {
 		return err
 	}
 
+	// check for migration flag
+	if origConfigJson, err := os.ReadFile(DockerMigrationFlag); err == nil {
+		// this is the signal that we need to migrate
+		err = d.migrateConflictNetworks(origConfigJson)
+		if err != nil {
+			return err
+		}
+
+		// great, migration successful, flag deleted to prevent recursion.
+		// enter PostStart again to continue
+		return d.PostStart()
+	}
+
 	d.Running.Set(true)
 
 	// start docker event monitor
@@ -217,22 +226,187 @@ func (d *DockerAgent) OnStop() error {
 	return nil
 }
 
+func checkIPAMConflict(ipam dockertypes.IPAM, target netip.Prefix) (bool, error) {
+	for _, config := range ipam.Config {
+		logrus.WithField("config", config).Debug("checking IPAM config")
+		subnet, err := netip.ParsePrefix(config.Subnet)
+		if err != nil {
+			return false, err
+		}
+
+		if subnet.Overlaps(target) {
+			// we have a conflict
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
+	var origConfig map[string]any
+	err := json.Unmarshal(origConfigJson, &origConfig)
+	if err != nil {
+		return err
+	}
+
+	targetBipStr := origConfig["bip"].(string)
+	logrus.WithField("targetBip", targetBipStr).Info("migrating networks")
+
+	// the bip we want. not the current temp one
+	targetBip, err := netip.ParsePrefix(targetBipStr)
+	if err != nil {
+		return err
+	}
+
+	// get all networks
+	var networks []dockertypes.Network
+	err = d.client.Call("GET", "/networks", nil, &networks)
+	if err != nil {
+		return fmt.Errorf("get networks: %w", err)
+	}
+
+	// find ones that conflict with bip prefix, and deal with them
+	for _, minNet := range networks {
+		// we only look at local bridges with IPv4 that conflicts w/ bip, and default IPAM driver
+		if minNet.Scope != "local" || minNet.Driver != "bridge" || minNet.IPAM.Driver != "default" {
+			continue
+		}
+		// check if conflict
+		logrus.WithField("network", minNet.Name).Debug("checking network")
+		hasConflict, err := checkIPAMConflict(minNet.IPAM, targetBip)
+		if err != nil {
+			return fmt.Errorf("check IPAM conflict: %w", err)
+		}
+		if !hasConflict {
+			continue
+		}
+
+		// need to migrate this one
+		logrus.WithField("network", minNet.Name).Info("migrating network")
+
+		// fetch full info
+		var fullNet dockertypes.Network
+		err = d.client.Call("GET", "/networks/"+minNet.ID, nil, &fullNet)
+		if err != nil {
+			return fmt.Errorf("get network: %w", err)
+		}
+
+		// disconnect all containers
+		logrus.WithField("network", minNet.Name).WithField("count", len(fullNet.Containers)).Info("disconnecting containers")
+		for cid := range fullNet.Containers {
+			logrus.WithField("cid", cid).Debug("disconnecting container")
+			err = d.client.Call("POST", "/networks/"+minNet.ID+"/disconnect", map[string]any{
+				"Container": cid,
+				"Force":     true,
+			}, nil)
+			if err != nil {
+				// fatal. can't proceed if stuck
+				return fmt.Errorf("disconnect container: %w", err)
+			}
+		}
+
+		// delete the network
+		err = d.client.Call("DELETE", "/networks/"+minNet.ID, nil, nil)
+		if err != nil {
+			return fmt.Errorf("delete network: %w", err)
+		}
+
+		// create new network with the same flags
+		logrus.WithField("network", minNet.Name).Info("recreating network")
+		var newNetResp dockertypes.NetworkCreateResponse
+		newNetReq := fullNet
+		newNetReq.ID = ""
+		newNetReq.Created = ""
+		newNetReq.Scope = ""
+		newNetReq.Containers = nil
+		newNetReq.CheckDuplicate = false // make sure it succeeds
+		// discard conflicting IPv4 IPAM entries
+		var newIPAMConfig []dockertypes.IPAMConfig
+		for _, config := range newNetReq.IPAM.Config {
+			subnet, err := netip.ParsePrefix(config.Subnet)
+			if err != nil {
+				return fmt.Errorf("parse subnet: %w", err)
+			}
+
+			if subnet.Overlaps(targetBip) {
+				// we have a conflict
+				continue
+			}
+
+			newIPAMConfig = append(newIPAMConfig, config)
+		}
+		newNetReq.IPAM.Config = newIPAMConfig
+		err = d.client.Call("POST", "/networks/create", &newNetReq, &newNetResp)
+		if err != nil {
+			// oops, we probably ran out of pools...
+			// try to restore the old one
+			logrus.WithError(err).WithField("network", minNet.Name).Error("failed to recreate network, restoring")
+			err = d.client.Call("POST", "/networks/create", &fullNet, &newNetResp)
+			if err != nil {
+				// fatal: if can't restore then it's broken
+				return fmt.Errorf("restore network: %w", err)
+			}
+
+			// successfully restored. proceed to reconnect back, knowing that the migration failed to resolve conflicts
+			// it's better than destroying data
+		}
+
+		// reconnect all containers
+		logrus.WithField("network", minNet.Name).WithField("count", len(fullNet.Containers)).Info("reconnecting containers")
+		for cid := range fullNet.Containers {
+			logrus.WithField("cid", cid).Debug("reconnecting container")
+			err = d.client.Call("POST", "/networks/"+newNetResp.ID+"/connect", map[string]any{
+				"Container": cid,
+			}, nil)
+			if err != nil {
+				// not fatal but unexpected. too late to revert
+				logrus.WithError(err).WithField("cid", cid).Error("failed to reconnect container")
+			}
+		}
+
+		// fetch new full net to see where it went (for debug)
+		var newFullNet dockertypes.Network
+		err = d.client.Call("GET", "/networks/"+newNetResp.ID, nil, &newFullNet)
+		if err != nil {
+			return fmt.Errorf("get new network: %w", err)
+		}
+
+		logrus.WithField("from", minNet.IPAM.Config).WithField("to", newFullNet.IPAM.Config).Info("moved network")
+	}
+
+	// migration complete. remove flag, rewrite config, and restart dockerd
+	logrus.Info("migration complete, restarting")
+	err = os.Remove(DockerMigrationFlag)
+	if err != nil {
+		return err
+	}
+
+	// restore orig config to set correct bip & pools
+	err = os.WriteFile("/etc/docker/daemon.json", origConfigJson, 0644)
+	if err != nil {
+		return err
+	}
+
+	// restart dockerd:
+	// tini > simplevisor > dockerd
+	// first delete socket to prevent race when PreStart is called again
+	_ = os.Remove("/var/run/docker.sock")
+	// kill tini with SIGUSR2. it'll forward
+	err = unix.Kill(1, unix.SIGUSR2)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (d *DockerAgent) refreshContainers() error {
 	// no mu needed: synchronized by debounce
 
 	// only includes running
-	resp, err := d.client.Get("http://docker/containers/json")
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New("docker API returned " + resp.Status)
-	}
-
 	var newContainers []dockertypes.ContainerSummaryMin
-	err = json.NewDecoder(resp.Body).Decode(&newContainers)
+	err := d.client.Call("GET", "/containers/json", nil, &newContainers)
 	if err != nil {
 		return err
 	}
@@ -274,18 +448,8 @@ func compareNetworks(a, b dockertypes.Network) bool {
 func (d *DockerAgent) refreshNetworks() error {
 	// no mu needed: synchronized by debounce
 
-	resp, err := d.client.Get("http://docker/networks")
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return errors.New("docker API returned " + resp.Status)
-	}
-
 	var newNetworks []dockertypes.Network
-	err = json.NewDecoder(resp.Body).Decode(&newNetworks)
+	err := d.client.Call("GET", "/networks", nil, &newNetworks)
 	if err != nil {
 		return err
 	}
@@ -343,16 +507,12 @@ func (d *DockerAgent) doSendUIEvent() error {
 }
 
 func (d *DockerAgent) monitorEvents() error {
-	req, err := d.client.Get("http://unix/events")
+	eventsConn, err := d.client.Stream("GET", "/events")
 	if err != nil {
 		return err
 	}
-	defer req.Body.Close()
-	d.eventsConn = req.Body
-
-	if req.StatusCode < 200 || req.StatusCode >= 300 {
-		return errors.New("docker API returned " + req.Status)
-	}
+	defer eventsConn.Close()
+	d.eventsConn = eventsConn
 
 	// kick an initial refresh
 	d.containerRefreshDebounce.Call()
@@ -362,7 +522,7 @@ func (d *DockerAgent) monitorEvents() error {
 	d.triggerUIEvent(dockertypes.UIEventVolume)
 	d.triggerUIEvent(dockertypes.UIEventImage)
 
-	dec := json.NewDecoder(req.Body)
+	dec := json.NewDecoder(eventsConn)
 	for {
 		var event dockertypes.Event
 		err := dec.Decode(&event)
@@ -439,20 +599,11 @@ func (d *DockerAgent) onContainerStart(ctr dockertypes.ContainerSummaryMin) erro
 			// m.Name = volume name
 
 			// get volume info
-			resp, err := d.client.Get("http://docker/volumes/" + m.Name)
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				logrus.WithField("status", resp.Status).WithField("cid", cid).WithField("volume", m.Name).Warn("failed to get Docker volume info")
-			}
-
 			var volInfo dockertypes.Volume
-			err = json.NewDecoder(resp.Body).Decode(&volInfo)
+			err := d.client.Call("GET", "/volumes/"+m.Name, nil, &volInfo)
 			if err != nil {
-				return err
+				logrus.WithError(err).WithField("cid", cid).WithField("volume", m.Name).Warn("failed to get volume info")
+				continue
 			}
 
 			// check driver

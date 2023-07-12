@@ -59,7 +59,7 @@ else
     cargo build --release
 fi
 mkdir /out
-cp target/${TYPE}/vinit target/${TYPE}/b3enc /out/
+cp target/${TYPE}/vinit target/${TYPE}/b3enc target/${TYPE}/simplevisor /out/
 EOT
 
 # Build Rosetta runc override
@@ -385,6 +385,7 @@ COPY --from=c-build /out/* /opt/orb/
 COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vinit
 COPY --from=rust-build /out/vinit /opt/orb/
+COPY --from=rust-build /out/simplevisor /opt/orbstack-guest/
 # macctl
 COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/
 # scon

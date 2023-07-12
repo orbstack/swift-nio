@@ -79,7 +79,6 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 		return oldState, err
 	}
 
-	logrus.WithField("container", c.Name).Info("stopped container")
 	return oldState, nil
 }
 
@@ -156,5 +155,6 @@ func (c *Container) onStopLocked() error {
 		}
 	}
 
+	logrus.WithField("container", c.Name).Info("container stopped")
 	return nil
 }
