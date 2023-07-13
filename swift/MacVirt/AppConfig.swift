@@ -22,6 +22,7 @@ struct AppConfig {
     static let vmgrExe = "\(Bundle.main.bundlePath)/Contents/Frameworks/\(vmgrExeName).app/Contents/MacOS/\(vmgrExeName)"
 #endif
     static let shellExe = pathForAuxiliaryExecutable("bin/orb")
+    static let ctlExe = pathForAuxiliaryExecutable("bin/orbctl")
     static let dockerExe = pathForAuxiliaryExecutable("xbin/docker")
     static let dockerComposeExe = pathForAuxiliaryExecutable("xbin/docker-compose")
 }

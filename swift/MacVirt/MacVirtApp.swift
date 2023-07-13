@@ -167,8 +167,8 @@ struct MacVirtApp: App {
 
                 Divider()
 
-                Button("Show Logs") {
-                    openLogsFolder()
+                Button("Collect Diagnostics") {
+                    openDiagReporter()
                 }
             }
         }
@@ -201,6 +201,20 @@ struct MacVirtApp: App {
         .windowDefaultSize(width: 750, height: 500)
         .windowToolbarStyle(.unifiedCompact)
 
+        WindowGroup("Diagnostic Report", id: "diagreport") {
+            DiagReporterView()
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
+            //.frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
+        }
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "diagreport"))
+        .windowStyle(.hiddenTitleBar)
+        .windowResizabilityContentSize()
+
         Settings {
             AppSettings(updaterController: updaterController)
             .environmentObject(model)
@@ -224,12 +238,12 @@ func getConfigDir() -> String {
     return home + "/.orbstack"
 }
 
-func openLogsFolder() {
-    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: getConfigDir() + "/log")
+func openDiagReporter() {
+    NSWorkspace.shared.open(URL(string: "orbstack://diagreport")!)
 }
 
 func openReportWindows() {
-    openLogsFolder()
+    openDiagReporter()
     // open github
     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
 }

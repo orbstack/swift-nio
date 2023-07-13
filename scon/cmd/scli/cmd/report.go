@@ -9,7 +9,9 @@ import (
 	"runtime"
 
 	"github.com/fatih/color"
+	"github.com/orbstack/macvirt/scon/cmd/scli/bugreport"
 	"github.com/orbstack/macvirt/scon/cmd/scli/osutil"
+	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/spf13/cobra"
@@ -50,9 +52,18 @@ Issue tracker: https://github.com/orbstack/orbstack/issues
 		fmt.Fprintf(writer, "  CPU model: %s\n", cpuModel)
 		fmt.Fprintln(writer, "")
 
-		// TODO: settings
+		// generate zip w/ spinner
+		spinner := spinutil.Start("green", "Generating diagnostic report...")
+		downloadURL, err := bugreport.BuildAndUpload(buffer.Bytes())
+		spinner.Stop()
+		if err != nil {
+			fmt.Fprintln(writer, "Diagnostic report failed:", err)
+		} else {
+			fmt.Fprintf(writer, "Diagnostic report: %s\n", downloadURL)
+		}
 
 		// stop writing to buffer after this point
+		fmt.Fprintln(writer, "")
 		writer = os.Stdout
 
 		fmt.Fprintln(writer, "---------------- [ cut here ] ----------------")

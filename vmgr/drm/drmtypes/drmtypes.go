@@ -117,3 +117,13 @@ type EntitlementResponse struct {
 	RefreshToken     string    `json:"refresh_token"`
 	CheckedAt        time.Time `json:"checked_at"`
 }
+
+type UploadDiagReportRequest struct {
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
+
+type UploadDiagReportResponse struct {
+	UploadURL   string `json:"upload_url"`
+	DownloadURL string `json:"download_url"`
+}

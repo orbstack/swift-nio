@@ -97,6 +97,7 @@
 		D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
 		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
+		D8BAAFBE2A60583A00E5637F /* DiagReporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -267,6 +268,7 @@
 		D8A32B95296F839100E56EEF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D8A32B98296F839100E56EEF /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		D8A32B9A296F839100E56EEF /* MacVirt.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacVirt.entitlements; sourceTree = "<group>"; };
+		D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DiagReporterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -500,6 +502,7 @@
 		D8A32B90296F839100E56EEF /* MacVirt */ = {
 			isa = PBXGroup;
 			children = (
+				D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */,
 				D80443D72A1B404E00ED59C5 /* ActionTracker.swift */,
 				D80443B32A1B404E00ED59C5 /* AppConfig.swift */,
 				D80443CE2A1B404E00ED59C5 /* AppDelegate.swift */,
@@ -835,6 +838,7 @@
 				B118B3B76CA225F4062B10D1 /* NSImage.swift in Sources */,
 				B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */,
 				B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */,
+				D8BAAFBE2A60583A00E5637F /* DiagReporterView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

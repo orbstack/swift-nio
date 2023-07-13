@@ -307,8 +307,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         helpMenu.addSeparator()
 
-        helpMenu.addActionItem("Show Logs") {
-            openLogsFolder()
+        helpMenu.addActionItem("Collect Diagnostics") {
+            openDiagReporter()
         }
 
         helpMenu.addSeparator()
