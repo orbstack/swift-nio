@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	//apiBaseURL      = "https://api-misc.orbstack.dev"
-	apiBaseURL = "http://localhost:8400"
+	apiBaseURL = "https://api-misc.orbstack.dev"
+	// apiBaseURL = "http://localhost:8400"
 )
 
 type ReportPackage struct {
