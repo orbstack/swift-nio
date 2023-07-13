@@ -83,7 +83,7 @@ var (
 		ImageAlpine:    "3.18",
 		ImageArch:      "current",
 		ImageCentos:    "9-Stream",
-		ImageDebian:    "bullseye",
+		ImageDebian:    "bookworm",
 		ImageFedora:    "38",
 		ImageGentoo:    "current",
 		ImageKali:      "current",

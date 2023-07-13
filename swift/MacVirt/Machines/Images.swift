@@ -83,7 +83,7 @@ enum Distro: String, CaseIterable {
         case .alpine:   return [v("edge"), v("3.14"), v("3.15"), v("3.16"), v("3.17"), v("3.18")]
         case .arch:     return [v("current", as: "latest")]
         case .centos:   return [/*v("7"),*/ v("8-Stream", as: "8 (Stream)"), v("9-Stream", as: "9 (Stream)")]
-        case .debian:   return [v("buster", as: "10 (Buster)"), v("bookworm", as: "12 (Bookworm, testing)"), v("sid", as: "Sid (unstable)"), v("bullseye", as: "11 (Bullseye)")]
+        case .debian:   return [v("buster", as: "10 (Buster)"), v("bullseye", as: "11 (Bullseye)"), v("sid", as: "Sid (unstable)"), v("bookworm", as: "12 (Bookworm)")]
         case .devuan: return [v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera")]
         case .fedora:   return [v("36"), v("37"), v("Rawhide"), v("38")]
         case .gentoo:   return [v("current", as: "latest")]
