@@ -11,6 +11,7 @@ const (
 )
 
 const (
-	UrlPrefix = "macvirt://"
-	UrlUpdate = UrlPrefix + "update"
+	UrlPrefix   = "orbstack://"
+	UrlUpdate   = UrlPrefix + "update"
+	UrlSettings = UrlPrefix + "settings"
 )

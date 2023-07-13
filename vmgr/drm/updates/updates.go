@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
@@ -164,7 +165,7 @@ func (u *Updater) MaybeNotify() error {
 	err := guihelper.Notify(guitypes.Notification{
 		Title:   "OrbStack Update Ready",
 		Message: "A new version of OrbStack is available. Click to install.",
-		URL:     "orbstack://update",
+		URL:     appid.UrlUpdate,
 	})
 	if err != nil {
 		return err

@@ -13,6 +13,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/getsentry/sentry-go"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/sirupsen/logrus"
@@ -120,7 +121,7 @@ func NewConsoleLogPipe(stopCh chan<- StopRequest) (*os.File, error) {
 						err := guihelper.Notify(guitypes.Notification{
 							Title:   "Out of memory: “" + processName + "”",
 							Message: "Stopped task to save memory. Consider increasing memory limit in Settings.",
-							URL:     "orbstack://settings",
+							URL:     appid.UrlSettings,
 						})
 						if err != nil {
 							logrus.WithError(err).Error("failed to send OOM kill notification")
