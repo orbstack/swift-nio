@@ -346,6 +346,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.net.0.link", ifBridge)
 		set("lxc.net.0.mtu", strconv.Itoa(m.net.mtu))
 		set("lxc.net.0.hwaddr", mac)
+		set("lxc.net.0.flags", "up")
 		// faster ipv6 config
 		set("lxc.sysctl.net.ipv6.conf.eth0.accept_dad", "0")
 
