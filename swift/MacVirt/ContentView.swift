@@ -296,7 +296,7 @@ struct ContentView: View {
                 if error.shouldShowLogs {
                     Button("Report") {
                         model.dismissError()
-                        openReportWindows()
+                        openBugReport()
 
                         // quit if the error is fatal
                         if model.state == .stopped && !model.reachedRunning {

@@ -131,7 +131,7 @@ struct MacVirtApp: App {
                 }
                 Divider()
                 Button("Report Bug") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
+                    openBugReport()
                 }
                 Button("Request Feature") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
@@ -159,7 +159,7 @@ struct MacVirtApp: App {
                 Divider()
 
                 Button("Report Bug") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
+                    openBugReport()
                 }
                 Button("Request Feature") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
@@ -202,16 +202,28 @@ struct MacVirtApp: App {
         .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup("Diagnostic Report", id: "diagreport") {
-            DiagReporterView()
+            DiagReporterView(isBugReport: false)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
-            //.frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "diagreport"))
+        .windowStyle(.hiddenTitleBar)
+        .windowResizabilityContentSize()
+
+        WindowGroup("Report Bug", id: "bugreport") {
+            DiagReporterView(isBugReport: true)
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
+        }
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "bugreport"))
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
@@ -242,8 +254,6 @@ func openDiagReporter() {
     NSWorkspace.shared.open(URL(string: "orbstack://diagreport")!)
 }
 
-func openReportWindows() {
-    openDiagReporter()
-    // open github
-    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
+func openBugReport() {
+    NSWorkspace.shared.open(URL(string: "orbstack://bugreport")!)
 }

@@ -20,6 +20,8 @@ struct DiagReporterView: View {
     @StateObject private var diagModel = DiagReporterViewModel()
     @StateObject private var windowHolder = WindowHolder()
 
+    let isBugReport: Bool
+
     var body: some View {
         VStack {
             switch diagModel.state {
@@ -55,8 +57,19 @@ struct DiagReporterView: View {
         .frame(width: 300, height: 300)
         .task {
             do {
-                try await runProcessChecked(AppConfig.ctlExe, ["report"])
-                diagModel.state = .done
+                // quiet mode: don't copy to clipboard or print extra stuff
+                let output = try await runProcessChecked(AppConfig.ctlExe, isBugReport ? ["report", "-q"] : ["report"])
+                if isBugReport {
+                    // open bug report and close immediately
+                    var urlComps = URLComponents(string: "https://orbstack.dev/issues/bug")!
+                    urlComps.queryItems = [URLQueryItem(name: "diag", value: output)]
+                    NSWorkspace.shared.open(urlComps.url!)
+
+                    windowHolder.window?.close()
+                } else {
+                    // show success and close later
+                    diagModel.state = .done
+                }
             } catch let processError as ProcessError {
                 diagModel.state = .error("(status \(processError.status))\n\(processError.output)")
             } catch {

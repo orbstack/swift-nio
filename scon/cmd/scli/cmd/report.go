@@ -19,6 +19,8 @@ import (
 
 func init() {
 	rootCmd.AddCommand(reportCmd)
+	// quiet is for GUI bug report flow
+	reportCmd.Flags().BoolVarP(&flagQuiet, "quiet", "q", false, "Quiet mode")
 }
 
 var reportCmd = &cobra.Command{
@@ -59,30 +61,32 @@ Issue tracker: https://github.com/orbstack/orbstack/issues
 		if err != nil {
 			fmt.Fprintln(writer, "Diagnostic report failed:", err)
 		} else {
-			fmt.Fprintf(writer, "Diagnostic report: %s\n", downloadURL)
+			fmt.Fprintf(writer, "Full report: %s\n", downloadURL)
 		}
 
 		// stop writing to buffer after this point
-		fmt.Fprintln(writer, "")
 		writer = os.Stdout
 
-		fmt.Fprintln(writer, "---------------- [ cut here ] ----------------")
-		fmt.Fprintln(writer, "")
-		fmt.Fprintln(writer, "Please copy and paste the above information into your bug report.")
-		fmt.Fprintln(writer, "Open an issue here: https://github.com/orbstack/orbstack/issues/new/choose")
-		fmt.Fprintln(writer, "")
+		if !flagQuiet {
+			fmt.Fprintln(writer, "")
+			fmt.Fprintln(writer, "---------------- [ cut here ] ----------------")
+			fmt.Fprintln(writer, "")
+			fmt.Fprintln(writer, "Please copy and paste this into your bug report.")
+			fmt.Fprintln(writer, "Open an issue here: https://github.com/orbstack/orbstack/issues/new/choose")
+			fmt.Fprintln(writer, "")
 
-		// copy to clipboard
-		copyCmd := exec.Command("pbcopy")
-		copyCmd.Stdin = &buffer
-		err = copyCmd.Run()
-		if err != nil {
-			fmt.Fprintln(writer, "Failed to copy to clipboard:", err)
+			// copy to clipboard
+			copyCmd := exec.Command("pbcopy")
+			copyCmd.Stdin = &buffer
+			err = copyCmd.Run()
+			if err != nil {
+				fmt.Fprintln(writer, "Failed to copy to clipboard:", err)
+			}
+
+			// print copied
+			greenBold := color.New(color.FgGreen, color.Bold).SprintFunc()
+			fmt.Fprintln(writer, greenBold("✅ Copied to clipboard!"))
 		}
-
-		// print copied
-		greenBold := color.New(color.FgGreen, color.Bold).SprintFunc()
-		fmt.Fprintln(writer, greenBold("✅ Copied to clipboard!"))
 
 		return nil
 	},

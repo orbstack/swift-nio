@@ -299,7 +299,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         helpMenu.addSeparator()
 
         helpMenu.addActionItem("Report Bug", icon: systemImage("exclamationmark.triangle.fill")) {
-            NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/bug")!)
+            openBugReport()
         }
         helpMenu.addActionItem("Request Feature", icon: systemImage("lightbulb.fill")) {
             NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
