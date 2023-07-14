@@ -25,6 +25,10 @@ COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-fi
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ updates/pub/arm64
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ updates/pub/amd64
 
+# post-process appcasts
+scripts/update-appcast.py updates/pub/arm64/appcast.xml
+scripts/update-appcast.py updates/pub/amd64/appcast.xml
+
 mkdir -p updates/old/{arm64,amd64}
 mv updates/pub/arm64/old_updates/* updates/old/arm64/ || :
 mv updates/pub/amd64/old_updates/* updates/old/amd64/ || :
