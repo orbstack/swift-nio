@@ -136,6 +136,9 @@ struct MacVirtApp: App {
                 Button("Request Feature") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                 }
+                Button("Send Feedback") {
+                    openFeedbackWindow()
+                }
                 Divider()
             }
             //TODO command to create container
@@ -158,11 +161,16 @@ struct MacVirtApp: App {
 
                 Divider()
 
-                Button("Report Bug") {
-                    openBugReport()
-                }
-                Button("Request Feature") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
+                Group {
+                    Button("Report Bug") {
+                        openBugReport()
+                    }
+                    Button("Request Feature") {
+                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
+                    }
+                    Button("Send Feedback") {
+                        openFeedbackWindow()
+                    }
                 }
 
                 Divider()
@@ -227,6 +235,19 @@ struct MacVirtApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
+        WindowGroup("Send Feedback", id: "feedback") {
+            FeedbackView()
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
+        }
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "feedback"))
+        .windowStyle(.hiddenTitleBar)
+        .windowResizabilityContentSize()
+
         Settings {
             AppSettings(updaterController: updaterController)
             .environmentObject(model)
@@ -256,4 +277,8 @@ func openDiagReporter() {
 
 func openBugReport() {
     NSWorkspace.shared.open(URL(string: "orbstack://bugreport")!)
+}
+
+func openFeedbackWindow() {
+    NSWorkspace.shared.open(URL(string: "orbstack://feedback")!)
 }

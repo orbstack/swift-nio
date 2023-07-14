@@ -304,6 +304,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
         helpMenu.addActionItem("Request Feature", icon: systemImage("lightbulb.fill")) {
             NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
         }
+        helpMenu.addActionItem("Send Feedback", icon: systemImage("paperplane.fill")) {
+            openFeedbackWindow()
+        }
 
         helpMenu.addSeparator()
 

@@ -103,7 +103,7 @@ func (r *ReportPackage) getPresignedURL(httpClient *http.Client) (*drmtypes.Uplo
 	if err != nil {
 		return nil, err
 	}
-	req, err := httpClient.Post(apiBaseURL+"/api/v1/debug/upload_diag_report", "application/json", bytes.NewReader(uploadReqBytes))
+	req, err := httpClient.Post(apiBaseURL+"/api/v1/debug/diag_reports", "application/json", bytes.NewReader(uploadReqBytes))
 	if err != nil {
 		return nil, err
 	}
