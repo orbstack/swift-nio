@@ -3,6 +3,7 @@
 # Base image versions
 ARG HOST_ARCH=amd64
 FROM alpine:20230329 AS base
+FROM alpine:3.18 AS stable-base
 FROM debian:sid-slim AS debian
 FROM rust:1.70-alpine3.18 AS rust-base
 
@@ -157,7 +158,7 @@ COPY rootfs/utils/docker-entrypoint.sh /
 ##########################################################################
 # Patched qemu for arm64
 # newer qemu 7.2 breaks openssl rsa verification
-FROM base as pkgbuild-qemu
+FROM stable-base as pkgbuild-qemu
 
 # deps for build, qemu
 RUN apk add --no-cache \
