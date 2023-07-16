@@ -2,20 +2,10 @@ package dmigrate
 
 import (
 	"fmt"
-	"net"
-	"net/url"
-	"strings"
 
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
-)
-
-const (
-	// TODO: build custom image (amd64 and arm64) with all this included
-	//cmdImage = "ghcr.io/orbstack/dmigrate-helper"
-	cmdImage      = "alpine:20230329"
-	registryImage = "registry:2"
 )
 
 type Migrator struct {
@@ -51,202 +41,22 @@ func (m *Migrator) Close() {
 	m.destClient.Close()
 }
 
-func findFreeTCPPort() (int, error) {
-	// zero-port listener
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-	defer listener.Close()
-
-	// get port
-	addr := listener.Addr().(*net.TCPAddr)
-	return addr.Port, nil
-}
-
-func splitRepoTag(repoTag string) (string, string) {
-	// last index, to deal with "localhost:5000/myimage:latest"
-	sepPos := strings.LastIndex(repoTag, ":")
-	if sepPos == -1 {
-		return repoTag, "latest"
-	}
-
-	repoPart := repoTag[:sepPos]
-	tagPart := repoTag[sepPos+1:]
-	return repoPart, tagPart
-}
-
-func (m *Migrator) createAndStartContainer(client *dockerclient.Client, req *dockertypes.ContainerCreateRequest) (string, error) {
-	// need to pull image first
-	repoPart, tagPart := splitRepoTag(req.Image)
-	err := client.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
-	if err != nil {
-		return "", fmt.Errorf("pull image: %w", err)
-	}
-
-	// create --rm container
-	var containerResp dockertypes.ContainerCreateResponse
-	err = client.Call("POST", "/containers/create", req, &containerResp)
-	if err != nil {
-		return "", fmt.Errorf("create container: %w", err)
-	}
-
-	// start container
-	err = client.Call("POST", "/containers/"+containerResp.ID+"/start", nil, nil)
-	if err != nil {
-		return "", fmt.Errorf("start container: %w", err)
-	}
-
-	return containerResp.ID, nil
-}
-
-func (m *Migrator) runCommandAs(client *dockerclient.Client, command ...string) error {
-	// create --rm container
-	cid, err := m.createAndStartContainer(client, &dockertypes.ContainerCreateRequest{
-		Image: cmdImage,
-		Cmd:   command,
-		HostConfig: &dockertypes.ContainerHostConfig{
-			Privileged:  true,
-			AutoRemove:  true,
-			NetworkMode: "host",
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("create and start container: %w", err)
-	}
-
-	// wait for container to exit
-	err = client.Call("POST", "/containers/"+cid+"/wait", nil, nil)
-	if err != nil {
-		// TODO does not exist = already exited
-		return fmt.Errorf("wait for container: %w", err)
-	}
-
-	return nil
-}
-
 func (m *Migrator) migrateImages(images []dockertypes.Image) error {
-	// find a free localhost TCP port on Mac
-	logrus.Info("finding free TCP port on localhost")
-	localRegistryPort, err := findFreeTCPPort()
-	if err != nil {
-		return fmt.Errorf("find free TCP port: %w", err)
-	}
-	logrus.Infof("found free TCP port on localhost: %d", localRegistryPort)
-
-	// [dest] start local registry server
-	logrus.Info("starting local registry server")
-	registryCID, err := m.createAndStartContainer(m.destClient, &dockertypes.ContainerCreateRequest{
-		Image: registryImage,
-		HostConfig: &dockertypes.ContainerHostConfig{
-			AutoRemove: true,
-			PortBindings: map[string][]dockertypes.PortBinding{
-				"5000/tcp": {
-					{
-						HostIP:   "127.0.0.1",
-						HostPort: fmt.Sprintf("%d", localRegistryPort),
-					},
-				},
-			},
-		},
-	})
-	//TODO prevent race- wait for registry to be ready
-	if err != nil {
-		return fmt.Errorf("create registry container: %w", err)
-	}
-	// defer: [dest] kill&delete local registry server
-	defer func() {
-		logrus.Info("killing local registry server")
-		err = m.destClient.Call("POST", "/containers/"+registryCID+"/kill", nil, nil)
-		if err != nil {
-			logrus.WithError(err).Warn("[cleanup] failed to kill local registry server")
-		}
-		// we have auto-remove
-	}()
-
-	// [src] add iptables forward
-	// avoid having to add insecure-registries=host.docker.internal and restart dockerd
-	logrus.Info("adding iptables forward on src")
-	err = m.runCommandAs(m.srcClient, "sh", "-c", fmt.Sprintf(`
-		set -eufo pipefail
-		apk add --no-cache iptables
-		sysctl net.ipv4.conf.eth0.route_localnet=1
-		iptables -t nat -A OUTPUT -o lo -p tcp -m tcp --dport %d -j DNAT --to-destination $(getent hosts host.docker.internal | cut -d' ' -f1)
-		iptables -t nat -A POSTROUTING -o eth0 -m addrtype --src-type LOCAL --dst-type UNICAST -j MASQUERADE
-	`, localRegistryPort))
-	if err != nil {
-		return fmt.Errorf("add src iptables forward: %w", err)
-	}
-	// defer: [src] remove iptables forward
-	defer func() {
-		logrus.Info("removing iptables forward on src")
-		err = m.runCommandAs(m.srcClient, "sh", "-c", fmt.Sprintf(`
-			set -eufo pipefail
-			apk add --no-cache iptables
-			sysctl net.ipv4.conf.eth0.route_localnet=0
-			iptables -t nat -D OUTPUT -o lo -p tcp -m tcp --dport %d -j DNAT --to-destination $(getent hosts host.docker.internal | cut -d' ' -f1)
-			iptables -t nat -D POSTROUTING -o eth0 -m addrtype --src-type LOCAL --dst-type UNICAST -j MASQUERADE
-		`, localRegistryPort))
-		if err != nil {
-			logrus.WithError(err).Warn("[cleanup] failed to remove iptables forward")
-		}
-	}()
-
-	// one by one:
-	// 1. [src] add temp tag
-	// 2. [src] push image
-	// 3. [dest] pull image
-	// 4. [dest] add real tag
-	// 5. [dest] remove temp tag
-	// TODO 6. [dest] delete image from registry
-	// 7. [deferred] [src] remove temp tag
-	// make sure we use 127.0.0.1. only ipv4 localnet can be redirected
-	imgTagPrefix := fmt.Sprintf("127.0.0.1:%d/orbdmigrate", localRegistryPort)
+	// one by one
 	migrateOneImage := func(idx int, img dockertypes.Image, userImageName string) error {
-		// [src] add temp tag
-		logrus.Infof("adding temp tag to image %s", userImageName)
-		tempTag := fmt.Sprintf("%s%d", imgTagPrefix, idx)
-		err = m.srcClient.Call("POST", "/images/"+img.ID+"/tag?repo="+url.QueryEscape(tempTag), nil, nil)
+		// open export conn
+		logrus.Infof("Exporting image %s (%d/%d)", userImageName, idx+1, len(images))
+		exportConn, err := m.srcClient.Stream("GET", "/images/"+img.ID+"/get")
 		if err != nil {
-			return fmt.Errorf("add temp tag: %w", err)
+			return fmt.Errorf("open export conn: %w", err)
 		}
-		// defer: [src] remove temp tag
-		defer func() {
-			logrus.Infof("removing temp tag from image %s", userImageName)
-			err = m.srcClient.Call("DELETE", "/images/"+url.PathEscape(tempTag), nil, nil)
-			if err != nil {
-				logrus.WithError(err).Warn("[cleanup] failed to remove temp tag")
-			}
-		}()
+		defer exportConn.Close()
 
-		// [src] push image
-		logrus.Infof("pushing image %s", userImageName)
-		err = m.srcClient.Call("POST", "/images/"+url.PathEscape(tempTag)+"/push", nil, nil)
+		// open import conn and copy
+		logrus.Infof("Importing image %s (%d/%d)", userImageName, idx+1, len(images))
+		err = m.destClient.StreamWrite("POST", "/images/load", exportConn)
 		if err != nil {
-			return fmt.Errorf("push image: %w", err)
-		}
-
-		// [dest] pull image
-		logrus.Infof("pulling image %s", userImageName)
-		err = m.destClient.Call("POST", "/images/create?fromImage="+url.QueryEscape(tempTag), nil, nil)
-		if err != nil {
-			return fmt.Errorf("pull image: %w", err)
-		}
-
-		// [dest] add real tags
-		logrus.Infof("adding real tags to image %s", userImageName)
-		for _, repoTag := range img.RepoTags {
-			repoPart, tagPart := splitRepoTag(repoTag)
-			err = m.destClient.Call("POST", "/images/"+img.ID+"/tag?repo="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
-			if err != nil {
-				return fmt.Errorf("add real tag: %w", err)
-			}
-		}
-		// [dest] remove temp tag
-		logrus.Infof("removing temp tag from image %s", userImageName)
-		err = m.destClient.Call("DELETE", "/images/"+url.PathEscape(tempTag), nil, nil)
-		if err != nil {
-			return fmt.Errorf("remove temp tag: %w", err)
+			return fmt.Errorf("open import conn: %w", err)
 		}
 
 		return nil
@@ -259,15 +69,12 @@ func (m *Migrator) migrateImages(images []dockertypes.Image) error {
 			userImageName = img.ID
 		}
 
-		err = migrateOneImage(idx, img, userImageName)
+		err := migrateOneImage(idx, img, userImageName)
 		if err != nil {
 			return fmt.Errorf("image %s: %w", userImageName, err)
 		}
 	}
 
-	// deferred:
-	// [dest] stop&delete local registry server
-	// [src] remove iptables forward
 	return nil
 }
 
