@@ -64,7 +64,7 @@ type DockerAgent struct {
 func NewDockerAgent() *DockerAgent {
 	dockerAgent := &DockerAgent{
 		// use default unix socket
-		client: dockerclient.New(&http.Client{
+		client: dockerclient.NewWithHTTP(&http.Client{
 			// no timeout - we do event monitoring
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
