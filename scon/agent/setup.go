@@ -394,6 +394,15 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		return err
 	}
 
+	// Alpine: install shadow early for standard "useradd" tool. Busybox checks uid <= 256000
+	if args.Distro == images.ImageAlpine {
+		// keep cache for other pkg installation
+		err = util.Run("apk", "add", "shadow")
+		if err != nil {
+			return err
+		}
+	}
+
 	// create user group
 	logrus.Debug("Creating group")
 	uidStr := strconv.Itoa(args.Uid)
@@ -410,7 +419,8 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// create user
 	// uid = host, gid = 1000+
 	logrus.WithField("user", args.Username).WithField("uid", args.Uid).Debug("Creating user")
-	err = util.Run("useradd", "--uid", uidStr, "--gid", uidStr, "--no-user-group", "--create-home", "--shell", shell, args.Username)
+	// badname: Void rejects usernames with '.'
+	err = util.Run("useradd", "--uid", uidStr, "--gid", uidStr, "--badname", "--no-user-group", "--create-home", "--shell", shell, args.Username)
 	if err != nil {
 		// Busybox: add user + user group
 		if errors.Is(err, exec.ErrNotFound) {
