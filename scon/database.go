@@ -119,10 +119,13 @@ func (db *Database) migrate1to2() error {
 			}
 
 			containerV2 := types.ContainerRecord{
-				ID:       containerV1.ID,
-				Name:     containerV1.Name,
-				Image:    containerV1.Image,
-				Isolated: containerV1.Isolated,
+				ID:    containerV1.ID,
+				Name:  containerV1.Name,
+				Image: containerV1.Image,
+
+				Config: types.MachineConfig{
+					Isolated: containerV1.Isolated,
+				},
 
 				Builtin: containerV1.Builtin,
 				State:   types.ContainerStateStopped,
