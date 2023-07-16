@@ -233,6 +233,10 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
+//    let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: "/Users/dragon/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw"),
+//            readOnly: false, cachingMode: .cached, synchronizationMode: .full)
+//    let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
+//    disks.append(device)
     config.storageDevices = disks
 
     // Balloon

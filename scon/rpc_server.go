@@ -194,7 +194,7 @@ func (s *SconServer) InternalDockerStreamImage(ctx context.Context, req types.In
 
 	err = c.UseAgent(func(a *agent.Client) error {
 		return a.DockerStreamImage(agent.DockerStreamImageParams{
-			RemoteImageID: req.RemoteImageID,
+			RemoteImageNames: req.RemoteImageNames,
 		})
 	})
 	if err != nil {

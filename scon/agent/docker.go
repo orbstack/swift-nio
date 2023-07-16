@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -156,7 +157,7 @@ func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 }
 
 type DockerStreamImageParams struct {
-	RemoteImageID string
+	RemoteImageNames []string
 }
 
 func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None) error {
@@ -167,7 +168,10 @@ func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None)
 	defer remoteConn.Close()
 
 	// make the request, then splice between /var/run/docker.sock and host rctx tcp
-	req, err := http.NewRequest("GET", "/images/"+params.RemoteImageID+"/get", nil)
+	query := url.Values{
+		"names": params.RemoteImageNames,
+	}
+	req, err := http.NewRequest("GET", "/images/get?"+query.Encode(), nil)
 	if err != nil {
 		return err
 	}

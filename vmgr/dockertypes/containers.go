@@ -148,6 +148,7 @@ type ContainerHostConfig struct {
 	AutoRemove   bool
 	NetworkMode  string
 	PortBindings map[string][]PortBinding
+	Binds        []string
 }
 
 type PortBinding struct {

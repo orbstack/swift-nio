@@ -38,3 +38,9 @@ type SystemDf struct {
 	//Containers, etc
 	Volumes []Volume
 }
+
+type VolumeCreateRequest struct {
+	Name       string
+	DriverOpts map[string]string `json:",omitempty"`
+	Labels     map[string]string `json:",omitempty"`
+}
