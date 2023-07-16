@@ -120,8 +120,30 @@ func (c *Client) Stream(method, path string) (io.ReadCloser, error) {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		resp.Body.Close()
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("HTTP %s", resp.Status)
 	}
 
 	return resp.Body, nil
+}
+
+func (c *Client) StreamWrite(method, path string, body io.Reader) error {
+	req, err := http.NewRequest(method, "http://docker"+path, body)
+	if err != nil {
+		return fmt.Errorf("create request: %s", err)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("do request: %s", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		resp.Body.Close()
+		return fmt.Errorf("HTTP %s", resp.Status)
+	}
+
+	// read body
+	io.Copy(io.Discard, resp.Body)
+
+	return nil
 }
