@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
@@ -159,7 +160,7 @@ type DockerStreamImageParams struct {
 }
 
 func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None) error {
-	remoteConn, err := net.Dial("tcp", netconf.ServicesIP4+":"+strconv.Itoa(ports.ServiceDockerRemoteCtx))
+	remoteConn, err := netx.Dial("tcp", netconf.ServicesIP4+":"+strconv.Itoa(ports.ServiceDockerRemoteCtx))
 	if err != nil {
 		return err
 	}
@@ -187,7 +188,7 @@ func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None)
 	}
 
 	// open local conn
-	localConn, err := net.Dial("unix", "/var/run/docker.sock")
+	localConn, err := netx.Dial("unix", "/var/run/docker.sock")
 	if err != nil {
 		return err
 	}
@@ -212,6 +213,11 @@ func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None)
 	// check status
 	if resp2.StatusCode != http.StatusOK {
 		return fmt.Errorf("bad status from remote: %s", resp2.Status)
+	}
+
+	// disable nodelay
+	if tcpConn, ok := remoteConn.(*net.TCPConn); ok {
+		tcpConn.SetNoDelay(false)
 	}
 
 	// splice
