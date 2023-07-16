@@ -131,3 +131,26 @@ type NetworkEndpointSettings struct {
 	MacAddress          string
 	DriverOpts          map[string]string
 }
+
+type ContainerCreateRequest struct {
+	Image      string
+	Cmd        []string
+	HostConfig *ContainerHostConfig
+}
+
+type ContainerCreateResponse struct {
+	ID       string `json:"Id"`
+	Warnings []string
+}
+
+type ContainerHostConfig struct {
+	Privileged   bool
+	AutoRemove   bool
+	NetworkMode  string
+	PortBindings map[string][]PortBinding
+}
+
+type PortBinding struct {
+	HostIP   string
+	HostPort string
+}
