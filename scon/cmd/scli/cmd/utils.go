@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/fatih/color"
 )
 
 func check(err error) {
@@ -13,7 +14,8 @@ func check(err error) {
 
 func checkCLI(err error) {
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		red := color.New(color.FgRed).FprintlnFunc()
+		red(os.Stderr, err)
 		os.Exit(1)
 	}
 }
