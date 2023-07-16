@@ -171,6 +171,9 @@ func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None)
 	if err != nil {
 		return err
 	}
+	// force close after chunked, so we can splice
+	// Docker won't give us anything but chunked (identity = not implemented)
+	req.Header.Set("Connection", "close")
 	err = req.Write(remoteConn)
 	if err != nil {
 		return err
@@ -194,34 +197,50 @@ func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None)
 	}
 	defer localConn.Close()
 
-	// make local req
-	localReq, err := http.NewRequest("POST", "/images/load", nil)
-	if err != nil {
-		return err
-	}
-	err = localReq.Write(localConn)
-	if err != nil {
-		return err
-	}
-
-	// read response
-	resp2, err := http.ReadResponse(bufio.NewReader(localConn), localReq)
-	if err != nil {
-		return err
-	}
-
-	// check status
-	if resp2.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status from remote: %s", resp2.Status)
-	}
-
 	// disable nodelay
 	if tcpConn, ok := remoteConn.(*net.TCPConn); ok {
 		tcpConn.SetNoDelay(false)
 	}
 
-	// splice
+	// make local req
+	// raw data to get control over headers
+	_, err = localConn.Write([]byte(`POST /images/load HTTP/1.1
+Host: docker
+User-Agent: orb-agent
+Accept: */*
+Content-Type: application/x-tar
+Transfer-Encoding: chunked
+Expect: 100-continue
+
+`))
+	if err != nil {
+		return err
+	}
+
+	// read response
+	localResp1, err := http.ReadResponse(bufio.NewReader(localConn), nil)
+	if err != nil {
+		return err
+	}
+
+	// check status
+	if localResp1.StatusCode != http.StatusContinue {
+		return fmt.Errorf("bad status from local: %s", localResp1.Status)
+	}
+
+	// splice chunked data
 	io.Copy(localConn, remoteConn)
+
+	// read response
+	localResp2, err := http.ReadResponse(bufio.NewReader(localConn), nil)
+	if err != nil {
+		return err
+	}
+
+	// check status
+	if localResp2.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status from local: %s", localResp2.Status)
+	}
 
 	return nil
 }
