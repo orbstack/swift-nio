@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"github.com/alitto/pond"
+	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
@@ -53,21 +55,12 @@ func (m *Migrator) migrateImages(images []dockertypes.Image) error {
 	// one by one
 	migrateOneImage := func(idx int, img dockertypes.Image, userImageName string) error {
 		// open export conn
-		logrus.Infof("Exporting image %s (%d/%d)", userImageName, idx+1, len(images))
-		exportConn, err := m.srcClient.Stream("GET", "/images/"+img.ID+"/get")
-		if err != nil {
-			return fmt.Errorf("open export conn: %w", err)
-		}
-		defer exportConn.Close()
+		logrus.Infof("Migrating image %s (%d/%d)", userImageName, idx+1, len(images))
+		err := scli.Client().InternalDockerStreamImage(types.InternalDockerStreamImageRequest{
+			RemoteImageID: img.ID,
+		})
 
-		// open import conn and copy
-		logrus.Infof("Importing image %s (%d/%d)", userImageName, idx+1, len(images))
-		err = m.destClient.StreamWrite("POST", "/images/load", exportConn)
-		if err != nil {
-			return fmt.Errorf("open import conn: %w", err)
-		}
-
-		return nil
+		return err
 	}
 
 	errs := &errorTracker{}

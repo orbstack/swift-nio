@@ -68,6 +68,10 @@ type InternalReportStoppedRequest struct {
 	ID string `json:"id"`
 }
 
+type InternalDockerStreamImageRequest struct {
+	RemoteImageID string `json:"remote_image_id"`
+}
+
 type SetDefaultUsernameRequest struct {
 	Username string `json:"username"`
 }

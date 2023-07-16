@@ -12,6 +12,7 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
+	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -185,24 +186,43 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 	return nil
 }
 
+func (s *SconServer) InternalDockerStreamImage(ctx context.Context, req types.InternalDockerStreamImageRequest) error {
+	c, err := s.m.GetByID(ContainerIDDocker)
+	if err != nil {
+		return err
+	}
+
+	err = c.UseAgent(func(a *agent.Client) error {
+		return a.DockerStreamImage(agent.DockerStreamImageParams{
+			RemoteImageID: req.RemoteImageID,
+		})
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
-		"Ping":                  handler.New(s.Ping),
-		"Create":                handler.New(s.Create),
-		"ListContainers":        handler.New(s.ListContainers),
-		"GetByID":               handler.New(s.GetByID),
-		"GetByName":             handler.New(s.GetByName),
-		"GetDefaultContainer":   handler.New(s.GetDefaultContainer),
-		"SetDefaultContainer":   handler.New(s.SetDefaultContainer),
-		"GetDefaultUsername":    handler.New(s.GetDefaultUsername),
-		"SetDefaultUsername":    handler.New(s.SetDefaultUsername),
-		"ContainerStart":        handler.New(s.ContainerStart),
-		"ContainerStop":         handler.New(s.ContainerStop),
-		"ContainerRestart":      handler.New(s.ContainerRestart),
-		"ContainerDelete":       handler.New(s.ContainerDelete),
-		"ContainerRename":       handler.New(s.ContainerRename),
-		"ContainerGetLogs":      handler.New(s.ContainerGetLogs),
-		"InternalReportStopped": handler.New(s.InternalReportStopped),
+		"Ping":                      handler.New(s.Ping),
+		"Create":                    handler.New(s.Create),
+		"ListContainers":            handler.New(s.ListContainers),
+		"GetByID":                   handler.New(s.GetByID),
+		"GetByName":                 handler.New(s.GetByName),
+		"GetDefaultContainer":       handler.New(s.GetDefaultContainer),
+		"SetDefaultContainer":       handler.New(s.SetDefaultContainer),
+		"GetDefaultUsername":        handler.New(s.GetDefaultUsername),
+		"SetDefaultUsername":        handler.New(s.SetDefaultUsername),
+		"ContainerStart":            handler.New(s.ContainerStart),
+		"ContainerStop":             handler.New(s.ContainerStop),
+		"ContainerRestart":          handler.New(s.ContainerRestart),
+		"ContainerDelete":           handler.New(s.ContainerDelete),
+		"ContainerRename":           handler.New(s.ContainerRename),
+		"ContainerGetLogs":          handler.New(s.ContainerGetLogs),
+		"InternalReportStopped":     handler.New(s.InternalReportStopped),
+		"InternalDockerStreamImage": handler.New(s.InternalDockerStreamImage),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -101,7 +102,8 @@ func (c *Client) Call(method, path string, body any, out any) error {
 		}
 	} else {
 		// otherwise image pull doesn't work properly?
-		io.Copy(io.Discard, resp.Body)
+		//io.Copy(io.Discard, resp.Body)
+		io.Copy(os.Stderr, resp.Body)
 	}
 
 	return nil

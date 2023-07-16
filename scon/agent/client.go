@@ -217,6 +217,16 @@ func (c *Client) DockerWaitStart() error {
 	return nil
 }
 
+func (c *Client) DockerStreamImage(params DockerStreamImageParams) error {
+	var none None
+	err := c.rpc.Call("a.DockerStreamImage", params, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
 	seq, err := c.fdx.SendFile(socket)
 	if err != nil {

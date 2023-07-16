@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kevinburke/ssh_config"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/sirupsen/logrus"
@@ -56,7 +57,10 @@ func ListenHostSSHAgent(stack *stack.Stack, address tcpip.Address) error {
 	agentSock := GetAgentSockets().Preferred
 	logrus.WithField("sock", agentSock).Info("forwarding SSH agent")
 
-	_, err := tcpfwd.ListenUnixNATForward(stack, address, agentSock)
+	_, err := tcpfwd.ListenUnixNATForward(stack, tcpip.FullAddress{
+		Addr: address,
+		Port: ports.SecureSvcHostSSHAgent,
+	}, agentSock)
 	if err != nil {
 		return err
 	}

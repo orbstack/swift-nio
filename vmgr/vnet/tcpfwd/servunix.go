@@ -3,7 +3,6 @@ package tcpfwd
 import (
 	"net"
 
-	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -16,11 +15,8 @@ type UnixNATForward struct {
 	connectAddr string
 }
 
-func ListenUnixNATForward(s *stack.Stack, listenAddr tcpip.Address, connectAddr string) (*UnixNATForward, error) {
-	listener, err := gonet.ListenTCP(s, tcpip.FullAddress{
-		Addr: listenAddr,
-		Port: ports.SecureSvcHostSSHAgent,
-	}, ipv4.ProtocolNumber)
+func ListenUnixNATForward(s *stack.Stack, listenAddr tcpip.FullAddress, connectAddr string) (*UnixNATForward, error) {
+	listener, err := gonet.ListenTCP(s, listenAddr, ipv4.ProtocolNumber)
 	if err != nil {
 		return nil, err
 	}

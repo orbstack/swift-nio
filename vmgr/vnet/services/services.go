@@ -1,6 +1,8 @@
 package services
 
 import (
+	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
@@ -9,7 +11,10 @@ import (
 	sshsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hostssh"
 	ntpsrv "github.com/orbstack/macvirt/vmgr/vnet/services/ntp"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/sshagent"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/sirupsen/logrus"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 var (
@@ -77,6 +82,13 @@ func StartNetServices(n *vnet.Network) *hcsrv.HcontrolServer {
 		logrus.Error("Failed to start SSH agent server", err)
 	}
 
+	// Docker remote ctx (2376)
+	// TODO move to secure
+	err = ListenHostDockerRemoteCtx(n.Stack, addr)
+	if err != nil {
+		logrus.Error("Failed to start Docker remote ctx server", err)
+	}
+
 	// SFTP (22323): Android file sharing
 	/*
 		err := sftpsrv.ListenSFTP(n.Stack, secureAddr)
@@ -86,4 +98,16 @@ func StartNetServices(n *vnet.Network) *hcsrv.HcontrolServer {
 	*/
 
 	return hcServer
+}
+
+func ListenHostDockerRemoteCtx(stack *stack.Stack, address tcpip.Address) error {
+	_, err := tcpfwd.ListenUnixNATForward(stack, tcpip.FullAddress{
+		Addr: address,
+		Port: ports.ServiceDockerRemoteCtx,
+	}, conf.DockerRemoteCtxSocket())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

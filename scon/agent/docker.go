@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,8 +23,10 @@ import (
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -147,6 +151,72 @@ func (a *AgentServer) DockerHandleConn(fdxSeq uint64, _ *None) error {
 
 func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 	a.docker.Running.Wait()
+	return nil
+}
+
+type DockerStreamImageParams struct {
+	RemoteImageID string
+}
+
+func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None) error {
+	remoteConn, err := net.Dial("tcp", netconf.ServicesIP4+":"+strconv.Itoa(ports.ServiceDockerRemoteCtx))
+	if err != nil {
+		return err
+	}
+	defer remoteConn.Close()
+
+	// make the request, then splice between /var/run/docker.sock and host rctx tcp
+	req, err := http.NewRequest("GET", "/images/"+params.RemoteImageID+"/get", nil)
+	if err != nil {
+		return err
+	}
+	err = req.Write(remoteConn)
+	if err != nil {
+		return err
+	}
+
+	// read response
+	resp, err := http.ReadResponse(bufio.NewReader(remoteConn), req)
+	if err != nil {
+		return err
+	}
+
+	// check status
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status from local: %s", resp.Status)
+	}
+
+	// open local conn
+	localConn, err := net.Dial("unix", "/var/run/docker.sock")
+	if err != nil {
+		return err
+	}
+	defer localConn.Close()
+
+	// make local req
+	localReq, err := http.NewRequest("POST", "/images/load", nil)
+	if err != nil {
+		return err
+	}
+	err = localReq.Write(localConn)
+	if err != nil {
+		return err
+	}
+
+	// read response
+	resp2, err := http.ReadResponse(bufio.NewReader(localConn), localReq)
+	if err != nil {
+		return err
+	}
+
+	// check status
+	if resp2.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status from remote: %s", resp2.Status)
+	}
+
+	// splice
+	io.Copy(localConn, remoteConn)
+
 	return nil
 }
 

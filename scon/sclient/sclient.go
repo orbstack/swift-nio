@@ -159,3 +159,7 @@ func (c *SconClient) InternalReportStopped(id string) error {
 		ID: id,
 	}, &noResult)
 }
+
+func (c *SconClient) InternalDockerStreamImage(req types.InternalDockerStreamImageRequest) error {
+	return c.rpc.CallResult(context.TODO(), "InternalDockerStreamImage", req, &noResult)
+}
