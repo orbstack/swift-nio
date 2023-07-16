@@ -76,7 +76,7 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		Name:     record.Name,
 		Image:    record.Image,
 		builtin:  record.Builtin,
-		isolated: record.Isolated,
+		isolated: record.Config.Isolated,
 		dir:      dir,
 		manager:  m,
 	}

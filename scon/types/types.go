@@ -31,13 +31,18 @@ type ContainerRecordV1 struct {
 
 // v2
 type ContainerRecord struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Image    ImageSpec `json:"image"`
-	Isolated bool      `json:"isolated"`
+	ID    string    `json:"id"`
+	Name  string    `json:"name"`
+	Image ImageSpec `json:"image"`
+
+	Config MachineConfig `json:"config"`
 
 	Builtin bool           `json:"builtin"`
 	State   ContainerState `json:"state"`
+}
+
+type MachineConfig struct {
+	Isolated bool `json:"isolated"`
 }
 
 type CreateRequest struct {
