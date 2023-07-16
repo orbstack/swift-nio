@@ -1,8 +1,11 @@
 package dmigrate
 
 import (
+	"errors"
 	"fmt"
+	"sync"
 
+	"github.com/alitto/pond"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
@@ -18,6 +21,11 @@ type MigrateParams struct {
 	IncludeVolumes    bool
 	IncludeImages     bool
 	/* networks are implicit by containers */
+}
+
+type errorTracker struct {
+	mu     sync.Mutex
+	errors []error
 }
 
 func NewMigratorWithUnixSockets(fromSocket, toSocket string) (*Migrator, error) {
@@ -61,6 +69,18 @@ func (m *Migrator) migrateImages(images []dockertypes.Image) error {
 
 		return nil
 	}
+
+	errs := &errorTracker{}
+
+	// 3 workers parallel
+	pool := pond.New(3, 1000, pond.PanicHandler(func(p any) {
+		errs.mu.Lock()
+		errs.errors = append(errs.errors, p.(error))
+		errs.mu.Unlock()
+	}))
+	// deferred stop and wait
+	defer pool.StopAndWait()
+
 	for idx, img := range images {
 		var userImageName string
 		if len(img.RepoTags) > 0 {
@@ -69,13 +89,20 @@ func (m *Migrator) migrateImages(images []dockertypes.Image) error {
 			userImageName = img.ID
 		}
 
-		err := migrateOneImage(idx, img, userImageName)
-		if err != nil {
-			return fmt.Errorf("image %s: %w", userImageName, err)
-		}
+		idx := idx
+		img := img
+		pool.Submit(func() {
+			err := migrateOneImage(idx, img, userImageName)
+			if err != nil {
+				err2 := fmt.Errorf("image %s: %w", userImageName, err)
+				logrus.Error(err2)
+				panic(err2)
+			}
+		})
 	}
 
-	return nil
+	pool.StopAndWait()
+	return errors.Join(errs.errors...)
 }
 
 func (m *Migrator) MigrateNetworks() error {

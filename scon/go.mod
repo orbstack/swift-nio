@@ -18,9 +18,11 @@ require (
 )
 
 require (
+	github.com/alitto/pond v1.8.3
 	github.com/briandowns/spinner v1.20.0
 	github.com/cilium/ebpf v0.10.0
 	github.com/creachadair/jrpc2 v1.0.1
+	github.com/docker/libkv v0.2.1
 	github.com/fatih/color v1.15.0
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/oklog/ulid/v2 v2.1.0
@@ -39,7 +41,6 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/libkv v0.2.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
