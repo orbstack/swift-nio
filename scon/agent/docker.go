@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -160,6 +161,30 @@ type DockerStreamImageParams struct {
 	RemoteImageNames []string
 }
 
+func readUntilResponseEnd(conn io.Reader) (io.Reader, error) {
+	var respBuf bytes.Buffer
+	var chBuf [1]byte
+	for {
+		// read byte-by-byte
+		n, err := conn.Read(chBuf[:])
+		if err != nil {
+			return nil, err
+		}
+		if n != 1 {
+			return nil, fmt.Errorf("short read")
+		}
+
+		// write to buffer
+		respBuf.Write(chBuf[:])
+
+		// check for end: '\r\n\r\n'
+		rawBuf := respBuf.Bytes()
+		if len(rawBuf) >= 4 && string(rawBuf[len(rawBuf)-4:]) == "\r\n\r\n" {
+			return &respBuf, nil
+		}
+	}
+}
+
 func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None) error {
 	remoteConn, err := netx.Dial("tcp", netconf.ServicesIP4+":"+strconv.Itoa(ports.ServiceDockerRemoteCtx))
 	if err != nil {
@@ -183,15 +208,27 @@ func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None)
 		return err
 	}
 
+	// make a fake reader that stops at \r\n\r\n, so we don't cut into the chunked data
+	// http.ReadResponse only takes bufio reader
+	remoteRespBuf, err := readUntilResponseEnd(remoteConn)
+	if err != nil {
+		return fmt.Errorf("read & buffer response: %w", err)
+	}
+
 	// read response
-	resp, err := http.ReadResponse(bufio.NewReader(remoteConn), req)
+	remoteResp, err := http.ReadResponse(bufio.NewReader(remoteRespBuf), req)
 	if err != nil {
 		return err
 	}
 
 	// check status
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status from local: %s", resp.Status)
+	if remoteResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status from remote: %s", remoteResp.Status)
+	}
+
+	// disable nodelay now that http part is over
+	if tcpConn, ok := remoteConn.(*net.TCPConn); ok {
+		tcpConn.SetNoDelay(false)
 	}
 
 	// open local conn
@@ -201,19 +238,15 @@ func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None)
 	}
 	defer localConn.Close()
 
-	// disable nodelay
-	if tcpConn, ok := remoteConn.(*net.TCPConn); ok {
-		tcpConn.SetNoDelay(false)
-	}
-
 	// make local req
 	// raw data to get control over headers
 	_, err = localConn.Write([]byte(`POST /images/load HTTP/1.1
 Host: docker
-User-Agent: orb-agent
+User-Agent: orb-agent/1
 Accept: */*
 Content-Type: application/x-tar
 Transfer-Encoding: chunked
+Connection: close
 Expect: 100-continue
 
 `))
