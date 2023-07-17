@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 
 	_ "net/http/pprof"
 
@@ -92,17 +93,22 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 			return err
 		}
 		go func() {
-			err := util.RunInheritOut("/opt/orb/vinit-nfs")
-			if err != nil {
-				logrus.WithError(err).Error("failed to start nfs")
-				return
-			}
+			// don't init nfs more than once. causes issues with exports
+			if data, err := os.ReadFile("/proc/fs/nfsd/portlist"); err == nil && len(strings.TrimSpace(string(data))) > 0 {
+				logrus.Debug("nfs already initialized")
+			} else {
+				err := util.RunInheritOut("/opt/orb/vinit-nfs")
+				if err != nil {
+					logrus.WithError(err).Error("failed to start nfs")
+					return
+				}
 
-			// report nfs ready
-			err = host.OnNfsReady()
-			if err != nil {
-				logrus.WithError(err).Error("failed to mount nfs on host")
-				return
+				// report nfs ready
+				err = host.OnNfsReady()
+				if err != nil {
+					logrus.WithError(err).Error("failed to mount nfs on host")
+					return
+				}
 			}
 
 			// bind into containers
