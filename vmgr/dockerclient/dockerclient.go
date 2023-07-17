@@ -61,7 +61,7 @@ func (c *Client) Call(method, path string, body any, out any) error {
 		"out":    out,
 	}).Info("docker call")
 
-	req, err := http.NewRequest(method, "http://docker"+path, reader)
+	req, err := http.NewRequest(method, "http://docker/v1.43"+path, reader)
 	if err != nil {
 		return fmt.Errorf("create request: %s", err)
 	}
