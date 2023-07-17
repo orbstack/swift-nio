@@ -28,7 +28,8 @@ struct ContainerRecord: Codable, Identifiable, Equatable {
     var id: String
     var name: String
     var image: ImageSpec
-    var isolated: Bool
+
+    var config: MachineConfig
 
     var builtin: Bool
     var state: ContainerState
@@ -36,6 +37,10 @@ struct ContainerRecord: Codable, Identifiable, Equatable {
     var running: Bool {
         state == .running
     }
+}
+
+struct MachineConfig: Codable, Equatable {
+    var isolated: Bool
 }
 
 private struct CreateRequest: Codable {
