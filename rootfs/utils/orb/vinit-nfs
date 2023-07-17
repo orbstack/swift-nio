@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # mount and set opts first to avoid EBUSY
-echo -n 30 > /proc/fs/nfsd/nfsv4leasetime
+echo -n 3600 > /proc/fs/nfsd/nfsv4leasetime
 echo -n 1 > /proc/fs/nfsd/nfsv4gracetime
 
 #--debug
