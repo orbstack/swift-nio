@@ -422,7 +422,8 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
 fn init_data() -> Result<(), Box<dyn Error>> {
     // guest tools
     fs::create_dir_all("/data/guest-state/bin/cmdlinks")?;
-    fs::set_permissions("/data/guest-state/bin", Permissions::from_mode(0o777))?;
+    fs::set_permissions("/data/guest-state/bin", Permissions::from_mode(0o755))?;
+    fs::set_permissions("/data/guest-state/bin/cmdlinks", Permissions::from_mode(0o755))?;
     bind_mount("/data/guest-state", "/opt/orbstack-guest/data", None)?;
 
     // debug root home

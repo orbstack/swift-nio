@@ -65,6 +65,12 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 		return RunHostServiceProxy(mounts.SshAgentSocket, ports.SecureSvcHostSSHAgent, u.Uid)
 	})
 
+	// perms for cmdlinks
+	err = os.Chown(conf.C().CmdLinksDir, u.Uid, u.Gid)
+	if err != nil {
+		return err
+	}
+
 	// setup and start nfs uid
 	if conf.C().StartNfs {
 		// chown nfs root (perm mode = 700)

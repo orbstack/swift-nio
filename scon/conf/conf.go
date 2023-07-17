@@ -33,6 +33,7 @@ type Config struct {
 	NfsRootRO     string
 	NfsRootRW     string
 	EtcExports    string
+	CmdLinksDir   string
 	StartNfs      bool
 }
 
@@ -51,6 +52,7 @@ var configVM = Config{
 	NfsRootRO:     "/nfsroot-ro",
 	NfsRootRW:     "/nfsroot-rw",
 	EtcExports:    "/etc/exports",
+	CmdLinksDir:   "/data/guest-state/bin/cmdlinks",
 	StartNfs:      true,
 }
 
