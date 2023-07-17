@@ -60,7 +60,7 @@ struct FeedbackView: View {
             .font(.title)
             .fontWeight(.bold)
             .padding(.bottom, 8)
-            Text("What's on your mind? Please describe your issue or suggestion.")
+            Text("What's on your mind? An issue, suggestion, or a nice note?")
             .foregroundColor(.secondary)
             .padding(.bottom, 16)
 
