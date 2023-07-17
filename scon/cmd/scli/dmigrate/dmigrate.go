@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/alitto/pond"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -19,13 +21,18 @@ import (
 )
 
 const (
-	//migrationAgentImage = "ghcr.io/orbstack/dmigrate-agent"
+	//migrationAgentImage = "ghcr.io/orbstack/dmigrate-agent:1"
 	migrationAgentImage = "alpine:20230329"
+
+	maxUnusedContainerAge = 6 * 30 * 24 * time.Hour // 6 months
 )
 
 type Migrator struct {
 	srcClient  *dockerclient.Client
 	destClient *dockerclient.Client
+
+	mu           sync.Mutex
+	networkIDMap map[string]string
 }
 
 type MigrateParams struct {
@@ -60,6 +67,8 @@ func NewMigratorWithUnixSockets(fromSocket, toSocket string) (*Migrator, error) 
 	return &Migrator{
 		srcClient:  srcClient,
 		destClient: destClient,
+
+		networkIDMap: make(map[string]string),
 	}, nil
 }
 
@@ -117,34 +126,37 @@ func (m *Migrator) createAndStartContainer(client *dockerclient.Client, req *doc
 	return containerResp.ID, nil
 }
 
-func (m *Migrator) migrateOneImage(idx int, img dockertypes.Image, userImageName string) error {
+func (m *Migrator) migrateOneImage(idx int, img dockertypes.Image, userName string) error {
 	names := []string{img.ID}
 	names = append(names, img.RepoTags...)
 
 	// open export conn
-	logrus.Infof("Migrating image %s", userImageName)
+	logrus.Infof("Migrating image %s", userName)
 	err := scli.Client().InternalDockerStreamImage(types.InternalDockerStreamImageRequest{
 		RemoteImageNames: names,
 	})
+	if err != nil {
+		return fmt.Errorf("stream image: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 func (m *Migrator) submitImages(group *pond.TaskGroup, images []dockertypes.Image) error {
 	for idx, img := range images {
-		var userImageName string
+		var userName string
 		if len(img.RepoTags) > 0 {
-			userImageName = img.RepoTags[0]
+			userName = img.RepoTags[0]
 		} else {
-			userImageName = img.ID
+			userName = img.ID
 		}
 
 		idx := idx
 		img := img
 		group.Submit(func() {
-			err := m.migrateOneImage(idx, img, userImageName)
+			err := m.migrateOneImage(idx, img, userName)
 			if err != nil {
-				panic(fmt.Errorf("image %s: %w", userImageName, err))
+				panic(fmt.Errorf("image %s: %w", userName, err))
 			}
 		})
 	}
@@ -154,6 +166,7 @@ func (m *Migrator) submitImages(group *pond.TaskGroup, images []dockertypes.Imag
 
 func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
 	// create volume on dest
+	logrus.Infof("Migrating volume %s", vol.Name)
 	err := m.destClient.Call("POST", "/volumes/create", dockertypes.VolumeCreateRequest{
 		Name:       vol.Name,
 		DriverOpts: vol.Options,
@@ -215,7 +228,10 @@ func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
 		}
 	}()
 
+	// output
+
 	// TODO wait for server to become available
+	time.Sleep(1 * time.Second)
 
 	// start and connect on dest
 	destBinds := []string{vol.Name + ":/voldata:ro"}
@@ -263,11 +279,139 @@ func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []dockertypes.Vo
 	return nil
 }
 
+func (m *Migrator) migrateOneNetwork(n dockertypes.Network) error {
+	// create network on dest, mostly same flags
+	var newNetResp dockertypes.NetworkCreateResponse
+	newNetReq := n
+	newNetReq.ID = ""
+	newNetReq.Created = ""
+	newNetReq.Scope = ""
+	newNetReq.Containers = nil
+	newNetReq.CheckDuplicate = false // make sure it succeeds
+
+	// if it's default Compose, then we can discard ipv4 net and use more-compatible net
+	if n.Labels["com.docker.compose.network"] == "default" {
+		var newIPAMConfig []dockertypes.IPAMConfig
+		for _, config := range newNetReq.IPAM.Config {
+			subnet, err := netip.ParsePrefix(config.Subnet)
+			if err != nil {
+				continue
+			}
+
+			// discard ipv4
+			if subnet.Addr().Is4() {
+				continue
+			}
+
+			newIPAMConfig = append(newIPAMConfig, config)
+		}
+		newNetReq.IPAM.Config = newIPAMConfig
+	}
+
+	err := m.destClient.Call("POST", "/networks/create", newNetReq, &newNetResp)
+	if err != nil {
+		return fmt.Errorf("create network: %w", err)
+	}
+
+	// save ID
+	m.mu.Lock()
+	m.networkIDMap[n.ID] = newNetResp.ID
+	m.mu.Unlock()
+
+	return nil
+}
+
 func (m *Migrator) submitNetworks(group *pond.TaskGroup, networks []dockertypes.Network) error {
+	for _, n := range networks {
+		n := n
+		group.Submit(func() {
+			err := m.migrateOneNetwork(n)
+			if err != nil {
+				panic(fmt.Errorf("network %s: %w", n.Name, err))
+			}
+		})
+	}
+
+	return nil
+}
+
+func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary) error {
+	// TODO start long-lived Go migration agent on src?
+
+	// [src] fetch full info
+	var fullCtr dockertypes.ContainerJSON
+	err := m.srcClient.Call("GET", "/containers/"+ctr.ID+"/json", nil, &fullCtr)
+	if err != nil {
+		return fmt.Errorf("get src container: %w", err)
+	}
+
+	// [dest] create container
+	var newCtrResp dockertypes.ContainerCreateResponse
+	newCtrReq := dockertypes.FullContainerCreateRequest{
+		ContainerConfig: fullCtr.Config,
+		HostConfig:      fullCtr.HostConfig,
+		NetworkingConfig: &dockertypes.NetworkNetworkingConfig{
+			EndpointsConfig: fullCtr.NetworkSettings.Networks,
+		},
+	}
+	// translate network IDs
+	m.mu.Lock()
+	for _, n := range newCtrReq.NetworkingConfig.EndpointsConfig {
+		n.NetworkID = m.networkIDMap[n.NetworkID]
+	}
+	m.mu.Unlock()
+	err = m.destClient.Call("POST", "/containers/create?name="+url.QueryEscape(fullCtr.Name)+"&platform="+url.QueryEscape(fullCtr.Platform), newCtrReq, &newCtrResp)
+	if err != nil {
+		return fmt.Errorf("create container: %w", err)
+	}
+
+	// [dest] get new full info
+	var newFullCtr dockertypes.ContainerJSON
+	err = m.destClient.Call("GET", "/containers/"+newCtrResp.ID+"/json", nil, &newFullCtr)
+	if err != nil {
+		return fmt.Errorf("get dest container: %w", err)
+	}
+
+	// [src] pause container
+	if ctr.State == "running" {
+		err := m.srcClient.Call("POST", "/containers/"+ctr.ID+"/pause", nil, nil)
+		if err != nil {
+			return fmt.Errorf("pause container: %w", err)
+		}
+		defer func() {
+			// [src] unpause container
+			err := m.srcClient.Call("POST", "/containers/"+ctr.ID+"/unpause", nil, nil)
+			if err != nil {
+				logrus.Warnf("unpause container: %v", err)
+			}
+		}()
+	}
+
+	// TODO [src] tar the upper dir
+
+	// deferred: [src] unpause container
+
 	return nil
 }
 
 func (m *Migrator) submitContainers(group *pond.TaskGroup, containers []dockertypes.ContainerSummary) error {
+	for _, ctr := range containers {
+		var userName string
+		if len(ctr.Names) > 0 {
+			userName = ctr.Names[0]
+		} else {
+			userName = ctr.ID
+		}
+
+		ctr := ctr
+		group.Submit(func() {
+			err := m.migrateOneContainer(ctr)
+			if err != nil {
+				panic(fmt.Errorf("container %s: %w", userName, err))
+			}
+		})
+	}
+
 	return nil
 }
 
@@ -295,21 +439,57 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	volumes := volumesResp.Volumes
 
+	// FILTER CONTAINERS
+	var filteredContainers []dockertypes.ContainerSummary
+	for _, c := range containers {
+		// skip migration image ones (won't work b/c migration img is excluded)
+		if c.Image == migrationAgentImage {
+			continue
+		}
+
+		// skip naturally exited containers, unless they're in a compose group
+		if _, ok := c.Labels["com.docker.compose.project"]; !ok {
+			if c.State == "exited" {
+				continue
+			}
+		}
+
+		// skip containers not used for >6 months (need to fetch full info)
+		var fullCtr dockertypes.ContainerJSON
+		err := m.srcClient.Call("GET", "/containers/"+c.ID+"/json", nil, &fullCtr)
+		if err != nil {
+			return fmt.Errorf("get src container: %w", err)
+		}
+
+		startedAt, err := time.Parse(time.RFC3339Nano, fullCtr.State.StartedAt)
+		if err != nil {
+			return fmt.Errorf("parse startedAt: %w", err)
+		}
+		finishedAt, err := time.Parse(time.RFC3339Nano, fullCtr.State.FinishedAt)
+		if err != nil {
+			return fmt.Errorf("parse finishedAt: %w", err)
+		}
+		if time.Since(startedAt) > maxUnusedContainerAge && time.Since(finishedAt) > maxUnusedContainerAge {
+			logrus.WithField("container", c.ID).Debug("Skipping container: old and unused")
+			continue
+		}
+
+		filteredContainers = append(filteredContainers, c)
+	}
+
 	// FILTER NETWORKS: must be Scope="local" Driver="bridge" and referenced by container
 	// 1. build map of container-referenced networks
 	containerUsedNets := make(map[string]struct{})
-	if params.IncludeContainers {
-		for _, c := range containers {
-			if c.NetworkSettings == nil {
-				continue
-			}
-			if c.NetworkSettings.Networks == nil {
-				continue
-			}
-			// don't trust the name, look through IDs
-			for _, cnet := range c.NetworkSettings.Networks {
-				containerUsedNets[cnet.NetworkID] = struct{}{}
-			}
+	for _, c := range filteredContainers {
+		if c.NetworkSettings == nil {
+			continue
+		}
+		if c.NetworkSettings.Networks == nil {
+			continue
+		}
+		// don't trust the name, look through IDs
+		for _, cnet := range c.NetworkSettings.Networks {
+			containerUsedNets[cnet.NetworkID] = struct{}{}
 		}
 	}
 	// 2. filter networks
@@ -327,18 +507,16 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// FILTER VOLUMES: exclude anonymous volumes not referenced by any containers; local only
 	// 1. build map of container-referenced volumes
 	containerUsedVolumes := make(map[string]struct{})
-	if params.IncludeContainers {
-		for _, c := range containers {
-			if c.Mounts == nil {
+	for _, c := range filteredContainers {
+		if c.Mounts == nil {
+			continue
+		}
+		for _, m := range c.Mounts {
+			// volume mounts only
+			if m.Type != "volume" || m.Driver != "local" {
 				continue
 			}
-			for _, m := range c.Mounts {
-				// volume mounts only
-				if m.Type != "volume" || m.Driver != "local" {
-					continue
-				}
-				containerUsedVolumes[m.Name] = struct{}{}
-			}
+			containerUsedVolumes[m.Name] = struct{}{}
 		}
 	}
 	// 2. filter volumes
@@ -360,7 +538,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// FILTER IMAGES: either referenced by a container, OR (tagged AND not-pushed)
 	// 1. build map of container-referenced images
 	containerUsedImages := make(map[string]struct{})
-	for _, c := range containers {
+	for _, c := range filteredContainers {
 		containerUsedImages[c.ImageID] = struct{}{}
 	}
 	// 2. filter images
@@ -384,11 +562,8 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		}
 	}
 
-	// FILTER CONTAINERS: for now, include all, we don't know.
-	// TODO: exclude Compose ones where project files still exist?
-	filteredContainers := containers
-
 	// 4 workers parallel
+	// TODO based on num_pcpus - 1
 	errTracker := &errorTracker{}
 	pool := pond.New(4, 1000, pond.PanicHandler(func(p any) {
 		var err error
@@ -410,7 +585,6 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// let's migrate in order
 
 	// 1. images
-	//TODO uncomment
 	err = m.submitImages(preContainerGroup, filteredImages)
 	if err != nil {
 		return err
@@ -430,7 +604,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		return err
 	}
 
-	// TODO 3. networks
+	// 3. networks
 	err = m.submitNetworks(preContainerGroup, filteredNetworks)
 	if err != nil {
 		return err
@@ -447,7 +621,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		return err
 	}
 
-	// TODO 4. containers (depends on all above)
+	// 4. containers (depends on all above)
 	err = m.submitContainers(preContainerGroup, filteredContainers)
 	if err != nil {
 		return err
