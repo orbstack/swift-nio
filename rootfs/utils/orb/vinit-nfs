@@ -15,13 +15,13 @@ echo -n 3600 > /proc/fs/nfsd/nfsv4leasetime
 echo -n 1 > /proc/fs/nfsd/nfsv4gracetime
 
 #--debug
-/opt/pkg/rpc.nfsd 32 --no-udp --no-nfs-version 3
+/opt/pkg/rpc.nfsd 32 --no-udp --no-nfs-version 3 --debug
 # -v
-/opt/pkg/exportfs -r
+/opt/pkg/exportfs -r -v
 
 # still needed for nfs4
 #--debug all
-/opt/pkg/rpc.mountd --no-udp --no-nfs-version 2 --no-nfs-version 3 --foreground > /dev/null 2>&1 &
+/opt/pkg/rpc.mountd --no-udp --no-nfs-version 2 --no-nfs-version 3 --debug all --foreground &
 # will cause nfs freeze if it exits
 echo -n -950 > /proc/$!/oom_score_adj
 
