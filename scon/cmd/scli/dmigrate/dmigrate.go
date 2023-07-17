@@ -1,11 +1,14 @@
 package dmigrate
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -164,6 +167,36 @@ func (m *Migrator) submitImages(group *pond.TaskGroup, images []dockertypes.Imag
 	return nil
 }
 
+func (m *Migrator) readOutput(client *dockerclient.Client, cid string, w io.Writer) error {
+	conn, err := client.Stream("POST", "/containers/"+cid+"/attach?stream=true&stdout=true&stderr=true")
+	if err != nil {
+		return fmt.Errorf("attach dest container: %w", err)
+	}
+
+	// decode multiplexed
+	for {
+		hdr := make([]byte, 8)
+		_, err := conn.Read(hdr)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			} else {
+				return fmt.Errorf("read header: %w", err)
+			}
+		}
+		// big endian uint32 from last 4 bytes
+		size := binary.BigEndian.Uint32(hdr[4:8])
+		// read that amount
+		buf := make([]byte, size)
+		_, err = conn.Read(buf)
+		if err != nil {
+			return fmt.Errorf("read body: %w", err)
+		}
+		// write out
+		os.Stderr.Write(buf)
+	}
+}
+
 func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
 	// create volume on dest
 	logrus.Infof("Migrating volume %s", vol.Name)
@@ -201,11 +234,15 @@ func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
 	srcCid, err := m.createAndStartContainer(m.srcClient, &dockertypes.ContainerCreateRequest{
 		Image: migrationAgentImage,
 		Cmd:   srcCommand,
+		// PortBindings doesn't work without this
+		ExposedPorts: map[string]struct{}{
+			"1024/tcp": {},
+		},
 		HostConfig: &dockertypes.ContainerHostConfig{
-			Privileged:  true,
-			AutoRemove:  true,
-			NetworkMode: "host",
-			Binds:       srcBinds,
+			Privileged: true,
+			AutoRemove: true,
+			// no net=host
+			Binds: srcBinds,
 			PortBindings: map[string][]dockertypes.PortBinding{
 				"1024/tcp": {
 					{
@@ -227,14 +264,21 @@ func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
 			logrus.Warnf("kill src container: %v", err)
 		}
 	}()
-
-	// output
+	// stream output
+	go func() {
+		/*
+			err := m.readOutput(m.srcClient, srcCid, os.Stderr)
+			if err != nil {
+				logrus.Warnf("stream src container: %v", err)
+			}
+		*/
+	}()
 
 	// TODO wait for server to become available
-	time.Sleep(1 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 
 	// start and connect on dest
-	destBinds := []string{vol.Name + ":/voldata:ro"}
+	destBinds := []string{vol.Name + ":/voldata"}
 	destCommand := []string{"sh", "-c", fmt.Sprintf(`
 		set -eufo pipefail
 		apk add --no-cache tar socat
@@ -254,6 +298,15 @@ func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
 	if err != nil {
 		return fmt.Errorf("run dest command: %w", err)
 	}
+	// stream output
+	go func() {
+		/*
+			err := m.readOutput(m.destClient, destCid, os.Stderr)
+			if err != nil {
+				logrus.Warnf("stream dest container: %v", err)
+			}
+		*/
+	}()
 
 	// wait for exit
 	err = m.destClient.Call("POST", "/containers/"+destCid+"/wait", nil, nil)
@@ -585,17 +638,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// let's migrate in order
 
 	// 1. images
-	err = m.submitImages(preContainerGroup, filteredImages)
-	if err != nil {
-		return err
-	}
-	err = errTracker.Check()
-	if err != nil {
-		return err
-	}
-
-	// 2. volumes
-	// err = m.submitVolumes(preContainerGroup, filteredVolumes)
+	// err = m.submitImages(preContainerGroup, filteredImages)
 	// if err != nil {
 	// 	return err
 	// }
@@ -604,11 +647,21 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		return err
 	}
 
-	// 3. networks
-	err = m.submitNetworks(preContainerGroup, filteredNetworks)
+	// 2. volumes
+	err = m.submitVolumes(preContainerGroup, filteredVolumes)
 	if err != nil {
 		return err
 	}
+	err = errTracker.Check()
+	if err != nil {
+		return err
+	}
+
+	// 3. networks
+	// err = m.submitNetworks(preContainerGroup, filteredNetworks)
+	// if err != nil {
+	// 	return err
+	// }
 	err = errTracker.Check()
 	if err != nil {
 		return err
@@ -622,10 +675,10 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 
 	// 4. containers (depends on all above)
-	err = m.submitContainers(preContainerGroup, filteredContainers)
-	if err != nil {
-		return err
-	}
+	// err = m.submitContainers(preContainerGroup, filteredContainers)
+	// if err != nil {
+	// 	return err
+	// }
 	err = errTracker.Check()
 	if err != nil {
 		return err

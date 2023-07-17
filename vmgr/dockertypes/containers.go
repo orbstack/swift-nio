@@ -135,9 +135,10 @@ type NetworkEndpointSettings struct {
 }
 
 type ContainerCreateRequest struct {
-	Image      string
-	Cmd        []string
-	HostConfig *ContainerHostConfig
+	Image        string
+	Cmd          []string
+	ExposedPorts map[string]struct{}
+	HostConfig   *ContainerHostConfig
 }
 
 type ContainerCreateResponse struct {
