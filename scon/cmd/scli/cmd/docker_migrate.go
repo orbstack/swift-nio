@@ -34,7 +34,17 @@ var dockerMigrateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
+		// start docker desktop if needed
+		err := util.Run("open", "-g" /*don't activate*/, "-b", "com.docker.docker")
+		checkCLI(err)
+
+		// prefer to skip a proxy layer if possible, for perf
 		srcSocket := coredir.HomeDir() + "/.docker/run/docker.sock"
+		rawDockerSock := coredir.HomeDir() + "/Library/Containers/com.docker.docker/Data/docker.raw.sock"
+		if _, err := os.Stat(rawDockerSock); err == nil {
+			srcSocket = rawDockerSock
+		}
+
 		destSocket := conf.DockerSocket()
 
 		migrator, err := dmigrate.NewMigratorWithUnixSockets(srcSocket, destSocket)
