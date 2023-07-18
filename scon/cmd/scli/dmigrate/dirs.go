@@ -121,6 +121,13 @@ loop:
 		WorkingDir:   srcs[0],
 	})
 	if err != nil {
+		// if it failed, then we may not have connected to the TCP server, so dest will hang.
+		// make an attempt to unfreeze it
+		conn, err := netx.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if err == nil {
+			conn.Close()
+		}
+
 		return fmt.Errorf("exec src sync: %w", err)
 	}
 

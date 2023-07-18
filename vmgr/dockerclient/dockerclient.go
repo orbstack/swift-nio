@@ -11,8 +11,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 type Client struct {
@@ -76,11 +74,13 @@ func newRequest(method, path string, body any) (*http.Request, error) {
 		}
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"method": method,
-		"path":   path,
-		"body":   body,
-	}).Info("docker call")
+	/*
+		logrus.WithFields(logrus.Fields{
+			"method": method,
+			"path":   path,
+			"body":   body,
+		}).Debug("docker call")
+	*/
 
 	req, err := http.NewRequest(method, "http://docker/v1.43"+path, reader)
 	if err != nil {

@@ -245,6 +245,10 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		if n.Scope != "local" || n.Driver != "bridge" {
 			continue
 		}
+		// skip default bridge
+		if n.Name == "bridge" {
+			continue
+		}
 		if _, ok := containerUsedNets[n.ID]; !ok {
 			continue
 		}
@@ -412,6 +416,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 
 	// wait for container deps
+	logrus.Info("Waiting for container dependencies...")
 	preContainerGroup.Wait()
 	err = errTracker.Check()
 	if err != nil {
