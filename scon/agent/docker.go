@@ -308,6 +308,11 @@ func (a *AgentServer) DockerMigrationSyncDirs(params DockerMigrationSyncDirsPara
 	if err != nil {
 		return err
 	}
+	// unset nodelay
+	err = conn.(*net.TCPConn).SetNoDelay(false)
+	if err != nil {
+		return err
+	}
 	// this is a dup
 	connFile, err := conn.(*net.TCPConn).File()
 	if err != nil {
