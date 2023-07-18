@@ -293,6 +293,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// 2. filter volumes
 	var filteredVolumes []dockertypes.Volume
 	for _, v := range volumes {
+		// TODO include non-local volumes
 		if v.Driver != "local" || v.Scope != "local" {
 			continue
 		}
@@ -427,6 +428,8 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	if err != nil {
 		return err
 	}
+
+	// TODO plugins?
 
 	// wait for container deps
 	preContainerGroup.Wait()

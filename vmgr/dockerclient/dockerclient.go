@@ -66,7 +66,7 @@ func readError(resp *http.Response) error {
 		return fmt.Errorf("decode error: %s (%s)", err, resp.Status)
 	}
 
-	return fmt.Errorf("[Docker] %s (%d)", jsonError.Message, resp.StatusCode)
+	return fmt.Errorf("[Docker] %s", jsonError.Message)
 }
 
 func newRequest(method, path string, body any) (*http.Request, error) {
