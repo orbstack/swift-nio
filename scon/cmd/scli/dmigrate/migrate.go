@@ -36,6 +36,9 @@ type Migrator struct {
 	mu           sync.Mutex
 	networkIDMap map[string]string
 	srcAgentCid  string
+
+	finishedEntities int
+	totalEntities    int
 }
 
 type MigrateParams struct {
@@ -164,6 +167,19 @@ func demuxOutput(r io.Reader, w io.Writer) error {
 		// write out
 		w.Write(buf)
 	}
+}
+
+func (m *Migrator) finishOneEntity() {
+	m.mu.Lock()
+	m.finishedEntities++
+	m.mu.Unlock()
+
+	progress := float64(m.finishedEntities) / float64(m.totalEntities)
+	m.sendProgressEvent(progress)
+}
+
+func (m *Migrator) sendProgressEvent(progress float64) {
+	logrus.Infof("Progress = %.1f%%", progress*100)
 }
 
 func (m *Migrator) MigrateAll(params MigrateParams) error {
@@ -317,6 +333,10 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		}
 	}
 
+	// prep for progress
+	m.finishedEntities = 0
+	m.totalEntities = /*daemon config*/ 1 + len(filteredImages) + len(filteredVolumes) + len(filteredNetworks) + len(filteredContainers)
+
 	// docker daemon config first
 	err = m.migrateDaemonConfig(dockerconf.DockerDesktopDaemonConfig())
 	if err != nil {
@@ -353,9 +373,10 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		Image: migrationAgentImage,
 		Cmd:   []string{"sleep", "inf"},
 		HostConfig: &dockertypes.ContainerHostConfig{
+			// perf: secccomp overhead
 			Privileged: true,
 			AutoRemove: true,
-			// net=host for perf
+			// perf: net=host
 			NetworkMode: "host",
 			Binds: []string{
 				"/var/lib/docker:/var/lib/docker:rshared",
@@ -394,17 +415,9 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	if err != nil {
 		return err
 	}
-	err = errTracker.Check()
-	if err != nil {
-		return err
-	}
 
 	// 2. volumes
 	err = m.submitVolumes(preContainerGroup, filteredVolumes)
-	if err != nil {
-		return err
-	}
-	err = errTracker.Check()
 	if err != nil {
 		return err
 	}
@@ -414,40 +427,31 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	if err != nil {
 		return err
 	}
-	err = errTracker.Check()
-	if err != nil {
-		return err
-	}
 
 	// wait for container deps
-	logrus.Info("Waiting for container dependencies...")
 	preContainerGroup.Wait()
-	err = errTracker.Check()
-	if err != nil {
-		return err
-	}
 
 	// 4. containers (depends on all above)
 	err = m.submitContainers(preContainerGroup, filteredContainers)
 	if err != nil {
 		return err
 	}
-	err = errTracker.Check()
-	if err != nil {
-		return err
-	}
 
 	// end
 	pool.StopAndWait()
-	err = errTracker.Check()
-	if err != nil {
-		return err
-	}
 
 	// restore ~/.docker/config.json credStore again if changed by starting Docker Desktop
 	err = dockerconf.FixDockerCredsStore()
 	if err != nil {
 		return fmt.Errorf("fix docker creds store: %w", err)
+	}
+
+	// TODO change context back
+
+	// dispatch any earlier errors
+	err = errTracker.Check()
+	if err != nil {
+		return err
 	}
 
 	// deferred: [src] kill agent

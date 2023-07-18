@@ -38,6 +38,8 @@ func (m *Migrator) submitImages(group *pond.TaskGroup, images []dockertypes.Imag
 		idx := idx
 		img := img
 		group.Submit(func() {
+			defer m.finishOneEntity()
+
 			err := m.migrateOneImage(idx, img, userName)
 			if err != nil {
 				panic(fmt.Errorf("image %s: %w", userName, err))

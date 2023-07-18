@@ -9,7 +9,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary) error {
+func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary, userName string) error {
+	logrus.Infof("Migrating container %s", userName)
+
 	// [src] fetch full info
 	var fullCtr dockertypes.ContainerJSON
 	err := m.srcClient.Call("GET", "/containers/"+ctr.ID+"/json", nil, &fullCtr)
@@ -89,7 +91,9 @@ func (m *Migrator) submitContainers(group *pond.TaskGroup, containers []dockerty
 
 		ctr := ctr
 		group.Submit(func() {
-			err := m.migrateOneContainer(ctr)
+			defer m.finishOneEntity()
+
+			err := m.migrateOneContainer(ctr, userName)
 			if err != nil {
 				panic(fmt.Errorf("container %s: %w", userName, err))
 			}

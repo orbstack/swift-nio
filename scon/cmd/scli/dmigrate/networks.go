@@ -6,9 +6,12 @@ import (
 
 	"github.com/alitto/pond"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/sirupsen/logrus"
 )
 
 func (m *Migrator) migrateOneNetwork(n dockertypes.Network) error {
+	logrus.Infof("Migrating network %s", n.Name)
+
 	// create network on dest, mostly same flags
 	var newNetResp dockertypes.NetworkCreateResponse
 	newNetReq := n
@@ -16,7 +19,7 @@ func (m *Migrator) migrateOneNetwork(n dockertypes.Network) error {
 	newNetReq.Created = ""
 	newNetReq.Scope = ""
 	newNetReq.Containers = nil
-	newNetReq.CheckDuplicate = false // make sure it succeeds
+	newNetReq.CheckDuplicate = true // don't want dupe nets
 
 	// if it's default Compose, then we can discard ipv4 net and use more-compatible net
 	if n.Labels["com.docker.compose.network"] == "default" {
@@ -54,6 +57,8 @@ func (m *Migrator) submitNetworks(group *pond.TaskGroup, networks []dockertypes.
 	for _, n := range networks {
 		n := n
 		group.Submit(func() {
+			defer m.finishOneEntity()
+
 			err := m.migrateOneNetwork(n)
 			if err != nil {
 				panic(fmt.Errorf("network %s: %w", n.Name, err))

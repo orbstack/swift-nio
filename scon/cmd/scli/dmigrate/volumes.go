@@ -39,6 +39,8 @@ func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []dockertypes.Vo
 	for _, vol := range volumes {
 		vol := vol
 		group.Submit(func() {
+			defer m.finishOneEntity()
+
 			err := m.migrateOneVolume(vol)
 			if err != nil {
 				panic(fmt.Errorf("volume %s: %w", vol.Name, err))
