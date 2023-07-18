@@ -420,6 +420,13 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		}
 	}()
 
+	// for dev+docker: keep a freezer ref
+	freezer := container.Freezer()
+	if freezer != nil {
+		freezer.IncRef()
+		defer freezer.DecRef()
+	}
+
 	// don't wait for fds to close, we close them
 	// read-side pipes will be closed after start
 	// write-side pipes will be closed on EOF

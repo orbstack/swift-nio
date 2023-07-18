@@ -62,6 +62,13 @@ func (f *Freezer) incRefCLocked() {
 	}
 }
 
+func (f *Freezer) IncRef() {
+	f.container.mu.Lock()
+	defer f.container.mu.Unlock()
+
+	f.incRefCLocked()
+}
+
 func (f *Freezer) decRefCLocked() {
 	debounce := f.debounce.Load()
 	if debounce == nil {
