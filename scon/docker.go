@@ -184,6 +184,9 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			// remove the 192.168 pool to avoid conflicts
 			//{"base": "192.168.0.0/16", "size": 20},
 		},
+
+		// fast shutdown. people usually don't care
+		"shutdown-timeout": 1,
 	}
 
 	// read config overrides from host
