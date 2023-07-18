@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -66,6 +67,15 @@ type DockerAgent struct {
 	pendingUIEntities        []dockertypes.UIEntity
 
 	eventsConn io.Closer
+}
+
+type DockerMigrationLoadImageParams struct {
+	RemoteImageNames []string
+}
+
+type DockerMigrationSyncDirsParams struct {
+	Port int
+	Dirs []string
 }
 
 func NewDockerAgent() *DockerAgent {
@@ -157,10 +167,6 @@ func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 	return nil
 }
 
-type DockerStreamImageParams struct {
-	RemoteImageNames []string
-}
-
 func readUntilResponseEnd(conn io.Reader) (io.Reader, error) {
 	var respBuf bytes.Buffer
 	var chBuf [1]byte
@@ -185,7 +191,7 @@ func readUntilResponseEnd(conn io.Reader) (io.Reader, error) {
 	}
 }
 
-func (a *AgentServer) DockerStreamImage(params DockerStreamImageParams, _ *None) error {
+func (a *AgentServer) DockerMigrationLoadImage(params DockerMigrationLoadImageParams, _ *None) error {
 	remoteConn, err := netx.Dial("tcp", netconf.ServicesIP4+":"+strconv.Itoa(ports.ServiceDockerRemoteCtx))
 	if err != nil {
 		return err
@@ -277,6 +283,62 @@ Expect: 100-continue
 	// check status
 	if localResp2.StatusCode != http.StatusOK {
 		return fmt.Errorf("bad status from local: %s", localResp2.Status)
+	}
+
+	return nil
+}
+
+func (a *AgentServer) DockerMigrationSyncDirs(params DockerMigrationSyncDirsParams, _ *None) error {
+	// start the listener to get proxied to mac
+	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(params.Port))
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	// take the first connection for polling purposes
+	conn, err := listener.Accept()
+	if err != nil {
+		return err
+	}
+	conn.Close()
+
+	// next conn: pass socket fd to tar and wait for it
+	conn, err = listener.Accept()
+	if err != nil {
+		return err
+	}
+	// this is a dup
+	connFile, err := conn.(*net.TCPConn).File()
+	if err != nil {
+		conn.Close()
+		return err
+	}
+	conn.Close()
+	defer connFile.Close()
+
+	// disable nonblock to avoid issues with tar
+	connFile.Fd()
+
+	// currently only supports one dest
+	if len(params.Dirs) != 1 {
+		return errors.New("only one dir supported")
+	}
+	dest := params.Dirs[0]
+
+	// ensure dest exists
+	err = os.MkdirAll(dest, 0755)
+	if err != nil {
+		return err
+	}
+
+	// spawn tar
+	cmd := exec.Command("tar", "--numeric-owner", "--xattrs", "--xattrs-include=*", "-xf", "-")
+	cmd.Dir = dest
+	cmd.Stdin = connFile
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("extract tar: %w; output: %s", err, string(output))
 	}
 
 	return nil
@@ -665,7 +727,7 @@ func (d *DockerAgent) doSendUIEvent() error {
 }
 
 func (d *DockerAgent) monitorEvents() error {
-	eventsConn, err := d.client.Stream("GET", "/events")
+	eventsConn, err := d.client.StreamRead("GET", "/events", nil)
 	if err != nil {
 		return err
 	}

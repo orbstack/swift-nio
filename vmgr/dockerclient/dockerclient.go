@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -45,31 +44,62 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) Call(method, path string, body any, out any) error {
+func readError(resp *http.Response) error {
+	if resp.StatusCode == 304 { // Not Modified
+		return nil
+	}
+
+	// read error message
+	var jsonError struct {
+		Message string `json:"message"`
+	}
+	err := json.NewDecoder(resp.Body).Decode(&jsonError)
+	if err != nil {
+		return fmt.Errorf("decode error: %s (%s)", err, resp.Status)
+	}
+
+	return fmt.Errorf("[Docker] %s (%d)", jsonError.Message, resp.StatusCode)
+}
+
+func newRequest(method, path string, body any) (*http.Request, error) {
 	var reader io.Reader
 	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return fmt.Errorf("encode body: %s", err)
+		// use it if it's already a reader
+		if r, ok := body.(io.Reader); ok {
+			reader = r
+		} else {
+			b, err := json.Marshal(body)
+			if err != nil {
+				return nil, fmt.Errorf("encode body: %s", err)
+			}
+			reader = bytes.NewReader(b)
 		}
-		reader = bytes.NewReader(b)
 	}
+
 	logrus.WithFields(logrus.Fields{
 		"method": method,
 		"path":   path,
 		"body":   body,
-		"out":    out,
 	}).Info("docker call")
 
 	req, err := http.NewRequest(method, "http://docker/v1.43"+path, reader)
 	if err != nil {
-		return fmt.Errorf("create request: %s", err)
+		return nil, fmt.Errorf("create request: %s", err)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if strings.HasPrefix(path, "/images/") {
 		req.Header.Set("X-Registry-Auth", base64.URLEncoding.EncodeToString([]byte("{}")))
+	}
+
+	return req, nil
+}
+
+func (c *Client) Call(method, path string, body any, out any) error {
+	req, err := newRequest(method, path, body)
+	if err != nil {
+		return err
 	}
 
 	resp, err := c.http.Do(req)
@@ -79,20 +109,7 @@ func (c *Client) Call(method, path string, body any, out any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode == 304 { // Not Modified
-			return nil
-		}
-
-		// read error message
-		var jsonError struct {
-			Message string `json:"message"`
-		}
-		err = json.NewDecoder(resp.Body).Decode(&jsonError)
-		if err != nil {
-			return fmt.Errorf("decode error: %s (%s)", err, resp.Status)
-		}
-
-		return fmt.Errorf("[Docker] %s", jsonError.Message)
+		return readError(resp)
 	}
 
 	if out != nil {
@@ -101,18 +118,17 @@ func (c *Client) Call(method, path string, body any, out any) error {
 			return fmt.Errorf("decode resp: %s", err)
 		}
 	} else {
-		// otherwise image pull doesn't work properly?
-		//io.Copy(io.Discard, resp.Body)
-		io.Copy(os.Stderr, resp.Body)
+		// image pull doesn't work if we don't read the body
+		io.Copy(io.Discard, resp.Body)
 	}
 
 	return nil
 }
 
-func (c *Client) Stream(method, path string) (io.ReadCloser, error) {
-	req, err := http.NewRequest(method, "http://docker"+path, nil)
+func (c *Client) StreamRead(method, path string, body any) (io.ReadCloser, error) {
+	req, err := newRequest(method, path, body)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %s", err)
+		return nil, err
 	}
 
 	resp, err := c.http.Do(req)
@@ -121,17 +137,17 @@ func (c *Client) Stream(method, path string) (io.ReadCloser, error) {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		resp.Body.Close()
-		return nil, fmt.Errorf("HTTP %s", resp.Status)
+		defer resp.Body.Close()
+		return nil, readError(resp)
 	}
 
 	return resp.Body, nil
 }
 
 func (c *Client) StreamWrite(method, path string, body io.Reader) error {
-	req, err := http.NewRequest(method, "http://docker"+path, body)
+	req, err := newRequest(method, path, body)
 	if err != nil {
-		return fmt.Errorf("create request: %s", err)
+		return err
 	}
 
 	resp, err := c.http.Do(req)
@@ -141,7 +157,7 @@ func (c *Client) StreamWrite(method, path string, body io.Reader) error {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		resp.Body.Close()
-		return fmt.Errorf("HTTP %s", resp.Status)
+		return readError(resp)
 	}
 
 	// read body

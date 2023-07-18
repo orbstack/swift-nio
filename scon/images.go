@@ -342,7 +342,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	var cmd *exec.Cmd
 	switch img.RootfsFormat {
 	case ImageFormatTarXz:
-		cmd = exec.Command("tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs-include=*")
+		cmd = exec.Command("tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs", "--xattrs-include=*")
 	case ImageFormatSquashfs:
 		// limit parallelism
 		procs := runtime.NumCPU()

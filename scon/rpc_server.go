@@ -186,15 +186,34 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 	return nil
 }
 
-func (s *SconServer) InternalDockerStreamImage(ctx context.Context, req types.InternalDockerStreamImageRequest) error {
+func (s *SconServer) InternalDockerMigrationLoadImage(ctx context.Context, req types.InternalDockerMigrationLoadImageRequest) error {
 	c, err := s.m.GetByID(ContainerIDDocker)
 	if err != nil {
 		return err
 	}
 
 	err = c.UseAgent(func(a *agent.Client) error {
-		return a.DockerStreamImage(agent.DockerStreamImageParams{
+		return a.DockerMigrationLoadImage(agent.DockerMigrationLoadImageParams{
 			RemoteImageNames: req.RemoteImageNames,
+		})
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *SconServer) InternalDockerMigrationSyncDirs(ctx context.Context, req types.InternalDockerMigrationSyncDirsRequest) error {
+	c, err := s.m.GetByID(ContainerIDDocker)
+	if err != nil {
+		return err
+	}
+
+	err = c.UseAgent(func(a *agent.Client) error {
+		return a.DockerMigrationSyncDirs(agent.DockerMigrationSyncDirsParams{
+			Port: req.Port,
+			Dirs: req.Dirs,
 		})
 	})
 	if err != nil {
@@ -206,23 +225,24 @@ func (s *SconServer) InternalDockerStreamImage(ctx context.Context, req types.In
 
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
-		"Ping":                      handler.New(s.Ping),
-		"Create":                    handler.New(s.Create),
-		"ListContainers":            handler.New(s.ListContainers),
-		"GetByID":                   handler.New(s.GetByID),
-		"GetByName":                 handler.New(s.GetByName),
-		"GetDefaultContainer":       handler.New(s.GetDefaultContainer),
-		"SetDefaultContainer":       handler.New(s.SetDefaultContainer),
-		"GetDefaultUsername":        handler.New(s.GetDefaultUsername),
-		"SetDefaultUsername":        handler.New(s.SetDefaultUsername),
-		"ContainerStart":            handler.New(s.ContainerStart),
-		"ContainerStop":             handler.New(s.ContainerStop),
-		"ContainerRestart":          handler.New(s.ContainerRestart),
-		"ContainerDelete":           handler.New(s.ContainerDelete),
-		"ContainerRename":           handler.New(s.ContainerRename),
-		"ContainerGetLogs":          handler.New(s.ContainerGetLogs),
-		"InternalReportStopped":     handler.New(s.InternalReportStopped),
-		"InternalDockerStreamImage": handler.New(s.InternalDockerStreamImage),
+		"Ping":                             handler.New(s.Ping),
+		"Create":                           handler.New(s.Create),
+		"ListContainers":                   handler.New(s.ListContainers),
+		"GetByID":                          handler.New(s.GetByID),
+		"GetByName":                        handler.New(s.GetByName),
+		"GetDefaultContainer":              handler.New(s.GetDefaultContainer),
+		"SetDefaultContainer":              handler.New(s.SetDefaultContainer),
+		"GetDefaultUsername":               handler.New(s.GetDefaultUsername),
+		"SetDefaultUsername":               handler.New(s.SetDefaultUsername),
+		"ContainerStart":                   handler.New(s.ContainerStart),
+		"ContainerStop":                    handler.New(s.ContainerStop),
+		"ContainerRestart":                 handler.New(s.ContainerRestart),
+		"ContainerDelete":                  handler.New(s.ContainerDelete),
+		"ContainerRename":                  handler.New(s.ContainerRename),
+		"ContainerGetLogs":                 handler.New(s.ContainerGetLogs),
+		"InternalReportStopped":            handler.New(s.InternalReportStopped),
+		"InternalDockerMigrationLoadImage": handler.New(s.InternalDockerMigrationLoadImage),
+		"InternalDockerMigrationSyncDirs":  handler.New(s.InternalDockerMigrationSyncDirs),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

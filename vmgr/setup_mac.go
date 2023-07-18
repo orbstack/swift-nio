@@ -1,12 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -17,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
+	"github.com/orbstack/macvirt/vmgr/dockerconf"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/setup/userutil"
@@ -207,49 +206,6 @@ func findTargetCmdPath(details *UserDetails, pathItems []string) (*PathInfo, err
 
 	// fall back to our path
 	return nil, nil
-}
-
-func fixDockerCredsStore() error {
-	dockerConfigPath := conf.UserDockerDir() + "/config.json"
-	if _, err := os.Stat(dockerConfigPath); err == nil {
-		// read the file
-		data, err := os.ReadFile(dockerConfigPath)
-		if err != nil {
-			return err
-		}
-
-		// parse it
-		var config map[string]interface{}
-		err = json.Unmarshal(data, &config)
-		if err != nil {
-			return err
-		}
-
-		// check if it's set to desktop
-		if config["credsStore"] == "desktop" {
-			// does it exist? if so, keep it
-			if _, err := exec.LookPath("docker-credential-desktop"); err == nil {
-				logrus.Debug("docker-credential-desktop exists, keeping credsStore=desktop")
-			} else {
-				// otherwise, change it
-				logrus.Debug("docker-credential-desktop doesn't exist, changing credsStore to osxkeychain")
-				// change it to osxkeychain
-				config["credsStore"] = "osxkeychain"
-
-				// write it back
-				data, err := json.MarshalIndent(config, "", "  ")
-				if err != nil {
-					return err
-				}
-				err = os.WriteFile(dockerConfigPath, data, 0644)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 func filterSlice[T comparable](s []T, f func(T) bool) []T {
@@ -707,7 +663,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	// need to fix docker creds store?
 	// in case user uninstalled Docker Desktop, we need to change it
 	// we don't consider this critical, so ignore errors
-	err = fixDockerCredsStore()
+	err = dockerconf.FixDockerCredsStore()
 	if err != nil {
 		logrus.WithError(err).Warn("failed to fix docker creds store")
 	}

@@ -68,8 +68,13 @@ type InternalReportStoppedRequest struct {
 	ID string `json:"id"`
 }
 
-type InternalDockerStreamImageRequest struct {
+type InternalDockerMigrationLoadImageRequest struct {
 	RemoteImageNames []string `json:"remote_image_id"`
+}
+
+type InternalDockerMigrationSyncDirsRequest struct {
+	Port int      `json:"port"`
+	Dirs []string `json:"dirs"`
 }
 
 type SetDefaultUsernameRequest struct {

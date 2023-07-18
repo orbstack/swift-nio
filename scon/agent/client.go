@@ -217,9 +217,19 @@ func (c *Client) DockerWaitStart() error {
 	return nil
 }
 
-func (c *Client) DockerStreamImage(params DockerStreamImageParams) error {
+func (c *Client) DockerMigrationLoadImage(params DockerMigrationLoadImageParams) error {
 	var none None
-	err := c.rpc.Call("a.DockerStreamImage", params, &none)
+	err := c.rpc.Call("a.DockerMigrationLoadImage", params, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) DockerMigrationSyncDirs(params DockerMigrationSyncDirsParams) error {
+	var none None
+	err := c.rpc.Call("a.DockerMigrationSyncDirs", params, &none)
 	if err != nil {
 		return err
 	}

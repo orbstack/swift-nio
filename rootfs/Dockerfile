@@ -121,7 +121,9 @@ RUN apk add --no-cache \
     pigz \
     # support Docker build from git repos
     git \
-    openssh-client-default
+    openssh-client-default \
+    # for migration xattrs
+    tar
 
 # network
 COPY \

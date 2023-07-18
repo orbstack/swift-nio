@@ -160,6 +160,10 @@ func (c *SconClient) InternalReportStopped(id string) error {
 	}, &noResult)
 }
 
-func (c *SconClient) InternalDockerStreamImage(req types.InternalDockerStreamImageRequest) error {
-	return c.rpc.CallResult(context.TODO(), "InternalDockerStreamImage", req, &noResult)
+func (c *SconClient) InternalDockerMigrationLoadImage(req types.InternalDockerMigrationLoadImageRequest) error {
+	return c.rpc.CallResult(context.TODO(), "InternalDockerMigrationLoadImage", req, &noResult)
+}
+
+func (c *SconClient) InternalDockerMigrationSyncDirs(req types.InternalDockerMigrationSyncDirsRequest) error {
+	return c.rpc.CallResult(context.TODO(), "InternalDockerMigrationSyncDirs", req, &noResult)
 }
