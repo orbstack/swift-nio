@@ -67,6 +67,10 @@ func NewMigratorWithUnixSockets(fromSocket, toSocket string) (*Migrator, error) 
 		return nil, err
 	}
 
+	return NewMigratorWithClients(srcClient, destClient)
+}
+
+func NewMigratorWithClients(srcClient, destClient *dockerclient.Client) (*Migrator, error) {
 	return &Migrator{
 		srcClient:  srcClient,
 		destClient: destClient,
