@@ -23,18 +23,28 @@ func NewWithHTTP(httpC *http.Client) *Client {
 	}
 }
 
-func NewWithUnixSocket(path string) (*Client, error) {
+func NewWithDialer(dialer func(ctx context.Context, network, addr string) (net.Conn, error)) (*Client, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", path)
-			},
+			DialContext: dialer,
 			// idle conns ok usually
 			MaxIdleConns:    3,
 			IdleConnTimeout: 5 * time.Second,
 		},
 	}
 	return NewWithHTTP(httpClient), nil
+}
+
+func NewWithUnixSocket(path string) (*Client, error) {
+	return NewWithDialer(func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return net.Dial("unix", path)
+	})
+}
+
+func NewWithTCP(addr string) (*Client, error) {
+	return NewWithDialer(func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return net.Dial("tcp", addr)
+	})
 }
 
 func (c *Client) Close() error {
