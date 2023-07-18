@@ -406,7 +406,14 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// create user group
 	logrus.Debug("Creating group")
 	uidStr := strconv.Itoa(args.Uid)
-	err = util.Run("groupadd", "--gid", uidStr, args.Username)
+	gid := args.Uid
+	gidStr := strconv.Itoa(gid)
+	groupName := args.Username
+	// if it's all numeric, add a prefix. groupadd rejects numeric names
+	if _, err := strconv.Atoi(groupName); err == nil {
+		groupName = "g" + groupName
+	}
+	err = util.Run("groupadd", "--gid", gidStr, groupName)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			// Busybox: this is ok, do nothing.
@@ -420,7 +427,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// uid = host, gid = 1000+
 	logrus.WithField("user", args.Username).WithField("uid", args.Uid).Debug("Creating user")
 	// badname: Void rejects usernames with '.'
-	err = util.Run("useradd", "--uid", uidStr, "--gid", uidStr, "--badname", "--no-user-group", "--create-home", "--shell", shell, args.Username)
+	err = util.Run("useradd", "--uid", uidStr, "--gid", gidStr, "--badname", "--no-user-group", "--create-home", "--shell", shell, args.Username)
 	if err != nil {
 		// Busybox: add user + user group
 		if errors.Is(err, exec.ErrNotFound) {
@@ -457,7 +464,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		if err != nil {
 			return err
 		}
-		err = os.Chown(home+"/.ssh", args.Uid, args.Uid)
+		err = os.Chown(home+"/.ssh", args.Uid, gid)
 		if err != nil {
 			return err
 		}
@@ -465,7 +472,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		if err != nil {
 			return err
 		}
-		err = os.Chown(home+"/.ssh/authorized_keys", args.Uid, args.Uid)
+		err = os.Chown(home+"/.ssh/authorized_keys", args.Uid, gid)
 		if err != nil {
 			return err
 		}
@@ -487,7 +494,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		}
 
 		// chown
-		err = os.Chown(home+"/.gitconfig", args.Uid, args.Uid)
+		err = os.Chown(home+"/.gitconfig", args.Uid, gid)
 		if err != nil {
 			return err
 		}
@@ -508,7 +515,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 				if err != nil {
 					return err
 				}
-				err = os.Chown(home+"/.ssh", args.Uid, args.Uid)
+				err = os.Chown(home+"/.ssh", args.Uid, gid)
 				if err != nil {
 					return err
 				}
@@ -516,7 +523,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 				if err != nil {
 					return err
 				}
-				err = os.Chown(home+"/.ssh/"+sshFile.Name(), args.Uid, args.Uid)
+				err = os.Chown(home+"/.ssh/"+sshFile.Name(), args.Uid, gid)
 				if err != nil {
 					return err
 				}
