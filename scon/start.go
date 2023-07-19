@@ -182,10 +182,6 @@ func (c *Container) configureLxc() error {
 	if err != nil {
 		return err
 	}
-	cookieStr, cookieU64, err := makeSeccompCookie()
-	if err != nil {
-		return err
-	}
 	mac := deriveMacAddress(c.ID)
 
 	exePath, err := os.Executable()
@@ -335,9 +331,7 @@ func (c *Container) configureLxc() error {
 		 */
 		// seccomp
 		set("lxc.seccomp.allow_nesting", "1")
-		set("lxc.seccomp.notify.proxy", "unix:"+m.seccompProxySock)
 		set("lxc.seccomp.profile", m.seccompPolicyPath)
-		set("lxc.seccomp.notify.cookie", cookieStr)
 
 		// network
 		set("lxc.net.0.type", "veth")
@@ -420,7 +414,6 @@ func (c *Container) configureLxc() error {
 		return err
 	}
 
-	c.seccompCookie = cookieU64
 	c.rootfsDir = rootfs
 
 	return nil

@@ -267,22 +267,6 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener
 	return nil
 }
 
-func (m *ConManager) checkForward(c *Container, spec sysnet.ProcListener) bool {
-	m.forwardsMu.Lock()
-	defer m.forwardsMu.Unlock()
-
-	// check owner
-	state, ok := m.forwards[spec]
-	if !ok {
-		return false
-	}
-	if state.Owner != c {
-		return false
-	}
-
-	return true
-}
-
 func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	var out []N
 	for _, v := range s {
@@ -293,7 +277,7 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	return out
 }
 
-// triggered on seccomp notify or inet diag
+// triggered by bpf ptrack
 func (c *Container) updateListenersNow() error {
 	// this is to prevent stopping while we're updating listeners
 	c.mu.Lock()

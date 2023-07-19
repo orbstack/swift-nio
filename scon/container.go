@@ -57,7 +57,6 @@ type Container struct {
 	manager *ConManager
 	mu      syncx.RWMutex
 
-	seccompCookie     uint64
 	lastListeners     []sysnet.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
@@ -89,7 +88,6 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 	}
 
 	// create lxc
-	// fills in c and seccomp cookie
 	err := c.initLxc()
 	if err != nil {
 		return nil, err
@@ -107,7 +105,6 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
 		}
 	})
-	m.seccompCookies[c.seccompCookie] = c
 
 	return c, nil
 }

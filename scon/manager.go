@@ -34,14 +34,12 @@ type ConManager struct {
 	tmpDir            string
 	lxcDir            string
 	seccompPolicyPath string
-	seccompProxySock  string
 	agentExe          *os.File
 
 	// state
 	containersByID   map[string]*Container
 	containersByName map[string]*Container
 	containersMu     syncx.RWMutex
-	seccompCookies   map[uint64]*Container
 	stopping         bool
 	dockerProxy      *DockerProxy
 
@@ -74,7 +72,6 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 
 	// extract seccomp policy
 	seccompPolicyPath := path.Join(tmpDir, "seccomp.policy")
-	seccompProxySock := path.Join(tmpDir, "seccomp.sock")
 	err = os.WriteFile(seccompPolicyPath, []byte(seccompPolicy), 0644)
 	if err != nil {
 		return nil, err
@@ -112,12 +109,10 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		tmpDir:            tmpDir,
 		lxcDir:            lxcDir,
 		seccompPolicyPath: seccompPolicyPath,
-		seccompProxySock:  seccompProxySock,
 		agentExe:          agentExe,
 
 		containersByID:   make(map[string]*Container),
 		containersByName: make(map[string]*Container),
-		seccompCookies:   make(map[uint64]*Container),
 
 		db:   db,
 		host: hc,
@@ -149,9 +144,6 @@ func (m *ConManager) Start() error {
 	if err != nil {
 		return err
 	}
-
-	// essential services for starting containers
-	go runOne("seccomp server", m.serveSeccomp)
 
 	// restore first
 	pendingStarts, err := m.restoreContainers()
@@ -377,7 +369,6 @@ func (m *ConManager) removeContainer(c *Container) error {
 	delete(m.containersByID, c.ID)
 	delete(m.containersByName, c.Name)
 
-	delete(c.manager.seccompCookies, c.seccompCookie)
 	runtime.SetFinalizer(c, nil)
 	_ = c.lxc.Release()
 
