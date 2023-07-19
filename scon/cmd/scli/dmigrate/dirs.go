@@ -88,9 +88,9 @@ loop:
 			conn.Close()
 			err = nil
 			break loop
-		case <-destErrC:
+		case destErr := <-destErrC:
 			// server failed to start
-			err = fmt.Errorf("start server: %w", err)
+			err = fmt.Errorf("start server: %w", destErr)
 			break loop
 		case <-timeout.C:
 			// timeout

@@ -60,6 +60,16 @@ struct {
 	__type(value, struct fwd_meta);
 } sk_meta_map SEC(".maps");
 
+// block listener-forwarded ports to prevent loop
+// race cond: if attempt to connect to forward right when it was stopped, then it creates an infinite loop between localhost listener on host, and agent trying to dial localhost going through bpf lfwd
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __type(key, __be16);
+    __type(value, struct fwd_meta);
+    __uint(max_entries, 65536);
+} blocked_ports SEC(".maps");
+
 static bool check_netns(struct bpf_sock_addr *ctx) {
     __u64 cur_netns = bpf_get_netns_cookie(ctx);
     if (config_netns_cookie != cur_netns) {
@@ -97,6 +107,12 @@ static bool check_listener4(struct bpf_sock_addr *ctx, __be32 udp_src_ip4) {
             .dport = ctx->user_port,
         },
     };
+
+    // check if port is blocked
+    if (bpf_map_lookup_elem(&blocked_ports, &tuple.ipv4.dport) != NULL) {
+        bpf_printk("blocked port %d", bpf_ntohs(tuple.ipv4.dport));
+        return false;
+    }
 
     struct bpf_sock *sk;
     if (ctx->type == SOCK_STREAM) {
@@ -243,6 +259,13 @@ static __always_inline bool check_listener6(struct bpf_sock_addr *ctx, const __b
             .dport = ctx->user_port,
         },
     };
+
+    // check if port is blocked
+    if (bpf_map_lookup_elem(&blocked_ports, &tuple.ipv6.dport) != NULL) {
+        bpf_printk("blocked port %d", bpf_ntohs(tuple.ipv6.dport));
+        return false;
+    }
+
     // copy daddr (verifier doesn't like memcpy)
     copy4(tuple.ipv6.daddr, ctx->user_ip6);
 

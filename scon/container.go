@@ -10,6 +10,7 @@ import (
 
 	"github.com/lxc/go-lxc"
 	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
@@ -61,7 +62,7 @@ type Container struct {
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
 	inetDiagFile      *os.File
-	bpfCleanupFunc    func() error
+	bpf               *bpf.BpfManager
 
 	// docker
 	freezer atomic.Pointer[Freezer]

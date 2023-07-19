@@ -815,7 +815,7 @@ func withContainerNetns[T any](c *Container, initPid int, fn func() (T, error)) 
 }
 
 // attach eBPF localhost reverse forward for Docker host net
-func (c *Container) attachBpfLfwd(initPid int, netnsCookie uint64) error {
+func (c *Container) attachBpf(initPid int, netnsCookie uint64) error {
 	// find cgroup
 	cgGroup, err := findCgroup(initPid)
 	if err != nil {
@@ -825,12 +825,12 @@ func (c *Container) attachBpfLfwd(initPid int, netnsCookie uint64) error {
 	cgPath := "/sys/fs/cgroup/" + strings.Split(cgGroup, "/")[1]
 
 	// attach bpf
-	cleanupFunc, err := bpf.AttachLfwd(cgPath, netnsCookie)
+	bpfMgr, err := bpf.AttachLfwd(cgPath, netnsCookie)
 	if err != nil {
 		return fmt.Errorf("attach bpf: %w", err)
 	}
 	// keep finalizers alive
-	c.bpfCleanupFunc = cleanupFunc
+	c.bpf = bpfMgr
 
 	return nil
 }
@@ -859,11 +859,11 @@ func (c *Container) initNetPostStart() error {
 
 	// attach bpf localhost reverse forward for Docker
 	if c.ID == ContainerIDDocker {
-		err = c.attachBpfLfwd(initPid, netnsCookie)
+		err = c.attachBpf(initPid, netnsCookie)
 		if err != nil {
 			return fmt.Errorf("attach bpf: %w", err)
 		}
-		logrus.WithField("container", c.Name).Debug("attached bpf lfwd")
+		logrus.WithField("container", c.Name).Debug("attached bpf")
 	}
 
 	return nil

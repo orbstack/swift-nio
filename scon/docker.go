@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/libkv/store"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/dockerdb"
@@ -229,7 +230,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	// check for possible conflict between user-created bridge nets and default (bip)
 	if bip, ok := config["bip"].(string); ok && bip != "" {
 		conflictNet, err := dockerdb.CheckBipNetworkConflict(conf.C().DockerDataDir+"/network/files/local-kv.db", bip)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, store.ErrKeyNotFound) {
 			logrus.WithError(err).Error("failed to check docker bip conflict")
 			conflictNet = nil
 		}

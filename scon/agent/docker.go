@@ -289,6 +289,12 @@ Expect: 100-continue
 }
 
 func (a *AgentServer) DockerMigrationSyncDirs(params DockerMigrationSyncDirsParams, _ *None) error {
+	// currently only supports one dest
+	if len(params.Dirs) != 1 {
+		return errors.New("only one dir supported")
+	}
+	dest := params.Dirs[0]
+
 	// start the listener to get proxied to mac
 	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(params.Port))
 	if err != nil {
@@ -308,6 +314,7 @@ func (a *AgentServer) DockerMigrationSyncDirs(params DockerMigrationSyncDirsPara
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 	// unset nodelay
 	err = conn.(*net.TCPConn).SetNoDelay(false)
 	if err != nil {
@@ -316,20 +323,14 @@ func (a *AgentServer) DockerMigrationSyncDirs(params DockerMigrationSyncDirsPara
 	// this is a dup
 	connFile, err := conn.(*net.TCPConn).File()
 	if err != nil {
-		conn.Close()
 		return err
 	}
+	// close early to avoid issue with disabling nonblock
 	conn.Close()
 	defer connFile.Close()
 
 	// disable nonblock to avoid issues with tar
 	connFile.Fd()
-
-	// currently only supports one dest
-	if len(params.Dirs) != 1 {
-		return errors.New("only one dir supported")
-	}
-	dest := params.Dirs[0]
 
 	// ensure dest exists
 	err = os.MkdirAll(dest, 0755)
@@ -368,7 +369,7 @@ func (d *DockerAgent) PostStart() error {
 	}
 
 	// check for migration flag
-	if origConfigJson, err := os.ReadFile(DockerMigrationFlag); err == nil {
+	if origConfigJson, err := os.ReadFile(DockerNetMigrationFlag); err == nil {
 		// this is the signal that we need to migrate
 		err = d.migrateConflictNetworks(origConfigJson)
 		if err != nil {

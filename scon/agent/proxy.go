@@ -13,12 +13,12 @@ func (a *AgentServer) StartProxyTCP(args StartProxyArgs, _ *None) error {
 	if err != nil {
 		return err
 	}
+	defer listenerFd.Close()
 
 	listener, err := net.FileListener(listenerFd)
 	if err != nil {
 		return err
 	}
-	listenerFd.Close()
 
 	// Docker: always prefer v4 because Docker is traditionally v4-only
 	// still try v6 in case of host net and v6-only servers
@@ -36,6 +36,7 @@ func (a *AgentServer) StartProxyUDP(args StartProxyArgs, _ *None) error {
 	if err != nil {
 		return err
 	}
+	defer listenerFd.Close()
 
 	udpConn, err := net.FilePacketConn(listenerFd)
 	if err != nil {

@@ -11,7 +11,35 @@ import (
 
 //go:generate ./build-bpf.sh
 
-func AttachLfwd(cgPath string, netnsCookie uint64) (func() error, error) {
+type BpfManager struct {
+	closers         []io.Closer
+	blockedPortsMap *ebpf.Map
+}
+
+func (b *BpfManager) BlockPort(port uint16) error {
+	// swap to big endian
+	port = (port&0xff)<<8 | (port&0xff00)>>8
+	return b.blockedPortsMap.Put(port, byte(1))
+}
+
+func (b *BpfManager) UnblockPort(port uint16) error {
+	// swap to big endian
+	port = (port&0xff)<<8 | (port&0xff00)>>8
+	return b.blockedPortsMap.Delete(port)
+}
+
+func (b *BpfManager) Close() error {
+	var errs []error
+	for _, c := range b.closers {
+		err := c.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func AttachLfwd(cgPath string, netnsCookie uint64) (*BpfManager, error) {
 	var closers []io.Closer
 
 	// must load a new instance to set a different netns cookie in config map
@@ -81,14 +109,8 @@ func AttachLfwd(cgPath string, netnsCookie uint64) (func() error, error) {
 		return nil, err
 	}
 
-	return func() error {
-		var errs []error
-		for _, c := range closers {
-			err := c.Close()
-			if err != nil {
-				errs = append(errs, err)
-			}
-		}
-		return errors.Join(errs...)
+	return &BpfManager{
+		closers:         closers,
+		blockedPortsMap: objs.lfwdMaps.BlockedPorts,
 	}, nil
 }

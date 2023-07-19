@@ -84,7 +84,7 @@ func filterListeners(listeners []sysnet.ProcListener) []sysnet.ProcListener {
 	return filtered
 }
 
-func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) error {
+func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (retErr error) {
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
 		"spec":      spec,
@@ -96,6 +96,19 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) e
 	// already there?
 	if _, ok := m.forwards[spec]; ok {
 		return errors.New("forward already exists")
+	}
+
+	// block port on container side
+	if c.bpf != nil {
+		err := c.bpf.BlockPort(spec.Port)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if retErr != nil {
+				c.bpf.UnblockPort(spec.Port)
+			}
+		}()
 	}
 
 	targetPort := spec.Port // container and external macOS port are the same
@@ -240,6 +253,14 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener
 		// proceed with removal - worst case, we leak a socket, but still remove forward entry to allow reuse
 		logrus.WithField("container", c.Name).WithError(err).Error("failed to stop agent side of forward")
 		return err
+	}
+
+	// unblock port on container side
+	if c.bpf != nil {
+		err := c.bpf.UnblockPort(spec.Port)
+		if err != nil {
+			logrus.WithField("container", c.Name).WithError(err).Error("failed to unblock port")
+		}
 	}
 
 	delete(m.forwards, spec)
