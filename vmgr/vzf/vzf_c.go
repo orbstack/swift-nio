@@ -16,7 +16,7 @@ struct GResultErr govzf_run_Machine_Resume(void* ptr);
 struct GResultIntErr govzf_run_Machine_ConnectVsock(void* ptr, uint32_t port);
 void govzf_run_Machine_finalize(void* ptr);
 
-char* swext_proxy_get_settings(void);
+char* swext_proxy_get_settings(bool need_auth);
 struct GResultErr swext_proxy_monitor_changes(void);
 
 char* swext_security_get_extra_ca_certs(void);
@@ -265,8 +265,8 @@ func (m *Machine) Close() error {
  * Proxy
  */
 
-func SwextProxyGetSettings() (*SwextProxySettings, error) {
-	cStr := C.swext_proxy_get_settings()
+func SwextProxyGetSettings(needAuth bool) (*SwextProxySettings, error) {
+	cStr := C.swext_proxy_get_settings(C.bool(needAuth))
 	defer C.free(unsafe.Pointer(cStr))
 	str := C.GoString(cStr)
 

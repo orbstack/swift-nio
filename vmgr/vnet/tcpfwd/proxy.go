@@ -126,6 +126,7 @@ func (p *ProxyManager) excludeProxyHost(hostPort string) error {
 		}
 	}
 
+	logrus.WithField("host", host).Debug("adding host to proxy exclusion list")
 	p.perHostFilter.AddFromString(host)
 
 	// now we have to resolve the IPs because we usually don't use hostname for filter
@@ -161,6 +162,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 	// build exceptions list
 	p.perHostFilter = proxy.NewPerHost(nil, nil)
 	for _, host := range settings.ExceptionsList {
+		logrus.WithField("host", host).Debug("adding host to proxy exclusion list")
 		p.perHostFilter.AddFromString(host)
 	}
 
@@ -351,7 +353,10 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 }
 
 func (p *ProxyManager) Refresh() error {
-	settings, err := vzf.SwextProxyGetSettings()
+	// don't read from keychain if not needed
+	// it can trigger keychain permission prompt
+	needAuth := vmconfig.Get().NetworkProxy == vmconfig.ProxyAuto
+	settings, err := vzf.SwextProxyGetSettings(needAuth)
 	if err != nil {
 		return fmt.Errorf("get proxy settings: %w", err)
 	}

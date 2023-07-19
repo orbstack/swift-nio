@@ -29,7 +29,7 @@ struct ProxySettings: Codable {
     var exceptionsList: [String]
 }
 
-private func readProxySettings() -> ProxySettings {
+private func readProxySettings(needAuth: Bool) -> ProxySettings {
     var settings = ProxySettings(
         httpEnable: false,
         httpProxy: nil,
@@ -50,7 +50,7 @@ private func readProxySettings() -> ProxySettings {
             settings.httpProxy = dict["HTTPProxy"] as? String
             settings.httpPort = dict["HTTPPort"] as? Int
             settings.httpUser = dict["HTTPUser"] as? String
-            if let server = settings.httpProxy, let port = settings.httpPort {
+            if needAuth, let server = settings.httpProxy, let port = settings.httpPort {
                 settings.httpPassword = getProxyPassword(proto: "htpx", server: server, port: port)
             }
         }
@@ -61,7 +61,7 @@ private func readProxySettings() -> ProxySettings {
             settings.httpsProxy = dict["HTTPSProxy"] as? String
             settings.httpsPort = dict["HTTPSPort"] as? Int
             settings.httpsUser = dict["HTTPSUser"] as? String
-            if let server = settings.httpsProxy, let port = settings.httpsPort {
+            if needAuth, let server = settings.httpsProxy, let port = settings.httpsPort {
                 settings.httpsPassword = getProxyPassword(proto: "htsx", server: server, port: port)
             }
         }
@@ -72,7 +72,7 @@ private func readProxySettings() -> ProxySettings {
             settings.socksProxy = dict["SOCKSProxy"] as? String
             settings.socksPort = dict["SOCKSPort"] as? Int
             settings.socksUser = dict["SOCKSUser"] as? String
-            if let server = settings.socksProxy, let port = settings.socksPort {
+            if needAuth, let server = settings.socksProxy, let port = settings.socksPort {
                 settings.socksPassword = getProxyPassword(proto: "sox ", server: server, port: port)
             }
         }
@@ -172,8 +172,8 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
 }
 
 @_cdecl("swext_proxy_get_settings")
-func swext_proxy_get_settings() -> UnsafeMutablePointer<CChar> {
-    let settings = readProxySettings()
+func swext_proxy_get_settings(needAuth: Bool) -> UnsafeMutablePointer<CChar> {
+    let settings = readProxySettings(needAuth: needAuth)
     let data = try! JSONEncoder().encode(settings)
     let str = String(data: data, encoding: .utf8)!
     // go frees the copy
