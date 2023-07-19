@@ -26,42 +26,6 @@ type Auth struct {
 	User, Password string
 }
 
-// FromEnvironment returns the dialer specified by the proxy-related
-// variables in the environment and makes underlying connections
-// directly.
-func FromEnvironment() Dialer {
-	return FromEnvironmentUsing(Direct)
-}
-
-// FromEnvironmentUsing returns the dialer specify by the proxy-related
-// variables in the environment and makes underlying connections
-// using the provided forwarding Dialer (for instance, a *net.Dialer
-// with desired configuration).
-func FromEnvironmentUsing(forward Dialer) Dialer {
-	allProxy := allProxyEnv.Get()
-	if len(allProxy) == 0 {
-		return forward
-	}
-
-	proxyURL, err := url.Parse(allProxy)
-	if err != nil {
-		return forward
-	}
-	proxy, err := FromURL(proxyURL, forward)
-	if err != nil {
-		return forward
-	}
-
-	noProxy := noProxyEnv.Get()
-	if len(noProxy) == 0 {
-		return proxy
-	}
-
-	perHost := NewPerHost(proxy, forward)
-	perHost.AddFromString(noProxy)
-	return perHost
-}
-
 // proxySchemes is a map from URL schemes to a function that creates a Dialer
 // from a URL with such a scheme.
 var proxySchemes map[string]func(*url.URL, Dialer) (Dialer, error)

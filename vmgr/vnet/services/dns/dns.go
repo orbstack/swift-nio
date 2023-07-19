@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strings"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
@@ -21,6 +23,9 @@ import (
 
 var (
 	verboseTrace = conf.Debug()
+
+	// can be pretty small b/c clients don't usually cache DNS
+	ipToNameLruSize = 100
 )
 
 type StaticHost struct {
@@ -32,7 +37,9 @@ type ReverseHost struct {
 	Name string
 }
 
-type dnsHandler struct{}
+type DnsServer struct {
+	ipToName *lru.Cache[netip.Addr, string]
+}
 
 func sendReply(w dns.ResponseWriter, req *dns.Msg, msg *dns.Msg, isUdp bool) {
 	// EDNS and truncation
@@ -85,7 +92,7 @@ func mapFallbackQtype(qtype uint16) uint16 {
 	}
 }
 
-func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool) {
+func (h *DnsServer) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool) {
 	msg := new(dns.Msg)
 	msg.SetReply(req)
 	msg.RecursionAvailable = true
@@ -218,19 +225,41 @@ func (h *dnsHandler) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool
 				continue
 			}
 			msg.Answer = append(msg.Answer, rr)
+
+			// record A and AAAA responses for proxy resolution
+			if q.Qtype == dns.TypeA || q.Qtype == dns.TypeAAAA {
+				if addr, ok := netip.AddrFromSlice(a.Data); ok {
+					// save reverse ip->name mapping
+					h.ipToName.Add(addr, q.Name)
+				}
+			}
 		}
 	}
 
 	sendReply(w, req, msg, isUdp)
 }
 
-func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string]StaticHost, reverseHosts map[string]ReverseHost) error {
+func (h *DnsServer) ReverseNameForAddr(addr netip.Addr) string {
+	if name, ok := h.ipToName.Get(addr); ok {
+		if verboseTrace {
+			logrus.WithFields(logrus.Fields{
+				"addr": addr,
+				"name": name,
+			}).Trace("found reverse name")
+		}
+		return strings.TrimSuffix(name, ".")
+	} else {
+		return ""
+	}
+}
+
+func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string]StaticHost, reverseHosts map[string]ReverseHost) (*DnsServer, error) {
 	udpConn, err := gonet.DialUDP(stack, &tcpip.FullAddress{
 		Addr: address,
 		Port: ports.ServiceDNS,
 	}, nil, ipv4.ProtocolNumber)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tcpListener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
@@ -238,7 +267,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 		Port: ports.ServiceDNS,
 	}, ipv4.ProtocolNumber)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	staticRrs := map[string][]dns.RR{}
@@ -246,14 +275,14 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 		if staticHost.IP4 != "" {
 			rr, err := dns.NewRR(fmt.Sprintf("%s. IN A %s", host, staticHost.IP4))
 			if err != nil {
-				return err
+				return nil, err
 			}
 			staticRrs[host] = append(staticRrs[host], rr)
 		}
 		if staticHost.IP6 != "" {
 			rr, err := dns.NewRR(fmt.Sprintf("%s. IN AAAA %s", host, staticHost.IP6))
 			if err != nil {
-				return err
+				return nil, err
 			}
 			staticRrs[host] = append(staticRrs[host], rr)
 		}
@@ -262,7 +291,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 		// parse ip
 		ip := net.ParseIP(ipAddr)
 		if ip == nil {
-			return fmt.Errorf("invalid IP: %s", ipAddr)
+			return nil, fmt.Errorf("invalid IP: %s", ipAddr)
 		}
 
 		// create PTR record
@@ -282,13 +311,19 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 
 		rr, err := dns.NewRR(fmt.Sprintf("%s. IN PTR %s.", ptrName, reverseHost.Name))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		staticRrs[ptrName] = append(staticRrs[ptrName], rr)
 	}
 
-	handler := &dnsHandler{}
+	ipToName, err := lru.New[netip.Addr, string](ipToNameLruSize)
+	if err != nil {
+		return nil, err
+	}
+	handler := &DnsServer{
+		ipToName: ipToName,
+	}
 
 	makeDnsMux := func(isUdp bool) *dns.ServeMux {
 		mux := dns.NewServeMux()
@@ -340,7 +375,7 @@ func ListenDNS(stack *stack.Stack, address tcpip.Address, staticHosts map[string
 		}
 	}()
 
-	return nil
+	return handler, nil
 }
 
 func mapErrorcode(err error) int {

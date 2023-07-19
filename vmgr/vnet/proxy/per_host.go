@@ -5,17 +5,15 @@
 package proxy
 
 import (
-	"context"
-	"net"
 	"net/netip"
 	"strings"
+
+	dnssrv "github.com/orbstack/macvirt/vmgr/vnet/services/dns"
 )
 
 // A PerHost directs connections to a default Dialer unless the host name
 // requested matches one of a number of exceptions.
 type PerHost struct {
-	def, bypass Dialer
-
 	bypassNetworks []netip.Prefix
 	bypassIPs      []netip.Addr
 	bypassZones    []string
@@ -25,39 +23,11 @@ type PerHost struct {
 // NewPerHost returns a PerHost Dialer that directs connections to either
 // defaultDialer or bypass, depending on whether the connection matches one of
 // the configured rules.
-func NewPerHost(defaultDialer, bypass Dialer) *PerHost {
-	return &PerHost{
-		def:    defaultDialer,
-		bypass: bypass,
-	}
+func NewPerHost() *PerHost {
+	return &PerHost{}
 }
 
-// Dial connects to the address addr on the given network through either
-// defaultDialer or bypass.
-func (p *PerHost) Dial(network, addr string) (c net.Conn, err error) {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.dialerForRequest(host).Dial(network, addr)
-}
-
-// DialContext connects to the address addr on the given network through either
-// defaultDialer or bypass.
-func (p *PerHost) DialContext(ctx context.Context, network, addr string) (c net.Conn, err error) {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
-	}
-	d := p.dialerForRequest(host)
-	if x, ok := d.(ContextDialer); ok {
-		return x.DialContext(ctx, network, addr)
-	}
-	return dialContext(ctx, d, network, addr)
-}
-
-func (p *PerHost) TestBypass(host string) bool {
+func (p *PerHost) TestBypass(host string, dnsServer *dnssrv.DnsServer) bool {
 	if ip, err := netip.ParseAddr(host); err == nil {
 		for _, net := range p.bypassNetworks {
 			if net.Contains(ip) {
@@ -69,7 +39,13 @@ func (p *PerHost) TestBypass(host string) bool {
 				return true
 			}
 		}
-		return false
+
+		// keep matching if we have a DNS name for this host
+		host = dnsServer.ReverseNameForAddr(ip)
+		if host == "" {
+			// no host found = stop matching
+			return false
+		}
 	}
 
 	for _, zone := range p.bypassZones {
@@ -88,13 +64,6 @@ func (p *PerHost) TestBypass(host string) bool {
 		}
 	}
 	return false
-}
-
-func (p *PerHost) dialerForRequest(host string) Dialer {
-	if p.TestBypass(host) {
-		return p.bypass
-	}
-	return p.def
 }
 
 // "lazy" CIDR = 10/8, 169.254/16, etc.

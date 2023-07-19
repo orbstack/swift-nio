@@ -53,49 +53,42 @@ func StartNetServices(n *vnet.Network) *hcsrv.HcontrolServer {
 	secureAddr := netutil.ParseTcpipAddress(netconf.SecureSvcIP4)
 
 	// DNS (53): using system resolver
-	err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts, reverseDnsHosts)
+	dnsServer, err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts, reverseDnsHosts)
 	if err != nil {
-		logrus.Error("Failed to start DNS server", err)
+		logrus.Error("Failed to start DNS server: ", err)
 	}
+	n.Proxy.DnsServer = dnsServer
 
 	// NTP (123): using system time
 	err = ntpsrv.ListenNTP(n.Stack, addr)
 	if err != nil {
-		logrus.Error("Failed to start NTP server", err)
+		logrus.Error("Failed to start NTP server: ", err)
 	}
 
 	// SSH (22): for commands
 	err = sshsrv.ListenHostSSH(n.Stack, secureAddr)
 	if err != nil {
-		logrus.Error("Failed to start SSH server", err)
+		logrus.Error("Failed to start SSH server: ", err)
 	}
 
 	// Host control (8300): HTTP API
 	hcServer, err := hcsrv.ListenHcontrol(n, secureAddr)
 	if err != nil {
-		logrus.Error("Failed to start host control server", err)
+		logrus.Error("Failed to start host control server: ", err)
 	}
 
 	// SSH agent (23): for SSH keys
 	err = sshagent.ListenHostSSHAgent(n.Stack, secureAddr)
 	if err != nil {
-		logrus.Error("Failed to start SSH agent server", err)
+		logrus.Error("Failed to start SSH agent server: ", err)
 	}
 
 	// Docker remote ctx (2376)
 	// TODO move to secure
 	err = ListenHostDockerRemoteCtx(n.Stack, addr)
 	if err != nil {
-		logrus.Error("Failed to start Docker remote ctx server", err)
+		logrus.Error("Failed to start Docker remote ctx server: ", err)
 	}
-
-	// SFTP (22323): Android file sharing
-	/*
-		err := sftpsrv.ListenSFTP(n.Stack, secureAddr)
-		if err != nil {
-			logrus.Error("Failed to start SFTP server", err)
-		}
-	*/
 
 	return hcServer
 }

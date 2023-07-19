@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/netip"
 	"net/url"
 	"strconv"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/gvaddr"
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy"
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy/socks"
+	dnssrv "github.com/orbstack/macvirt/vmgr/vnet/services/dns"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -50,6 +50,8 @@ type ProxyManager struct {
 	stopCh     chan struct{}
 	// for drm: the proxy url used by HTTPS connection
 	httpsProxyUrl *url.URL
+
+	DnsServer *dnssrv.DnsServer
 }
 
 type ProxyDialError struct {
@@ -130,19 +132,6 @@ func (p *ProxyManager) excludeProxyHost(hostPort string) error {
 	logrus.WithField("host", host).Debug("adding host to proxy exclusion list")
 	p.perHostFilter.AddFromString(host)
 
-	// now we have to resolve the IPs because we usually don't use hostname for filter
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return err
-	}
-
-	for _, ip := range ips {
-		logrus.WithField("ip", ip).Debug("adding ip to proxy exclusion list")
-		if addr, ok := netip.AddrFromSlice(ip); ok {
-			p.perHostFilter.AddIP(addr)
-		}
-	}
-
 	return nil
 }
 
@@ -163,7 +152,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 	p.httpsProxyUrl = nil
 
 	// build exceptions list
-	p.perHostFilter = proxy.NewPerHost(nil, nil)
+	p.perHostFilter = proxy.NewPerHost()
 	for _, host := range settings.ExceptionsList {
 		logrus.WithField("host", host).Debug("adding host to proxy exclusion list")
 		p.perHostFilter.AddFromString(host)
@@ -379,7 +368,7 @@ func (p *ProxyManager) Refresh() error {
 		defer p.dialerMu.Unlock()
 
 		oldHttpRevProxy := p.httpRevProxy
-		p.httpRevProxy = newHttpReverseProxy(proxyUrl, p.perHostFilter)
+		p.httpRevProxy = newHttpReverseProxy(proxyUrl, p.perHostFilter, p)
 		if oldHttpRevProxy != nil {
 			oldHttpRevProxy.Close()
 		}
@@ -413,7 +402,7 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 				return nil, err
 			}
 
-			if p.perHostFilter != nil && p.perHostFilter.TestBypass(host) {
+			if p.perHostFilter != nil && p.perHostFilter.TestBypass(host, p.DnsServer) {
 				// bypass
 				logrus.Debugf("bypassing proxy for %s (dial)", host)
 				dialer = nil

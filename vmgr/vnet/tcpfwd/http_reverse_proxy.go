@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy"
@@ -64,7 +65,7 @@ func (h *httpReverseProxy) Close() error {
 	return h.server.Close()
 }
 
-func newHttpReverseProxy(proxyUrl *url.URL, perHostFilter *proxy.PerHost) *httpReverseProxy {
+func newHttpReverseProxy(proxyUrl *url.URL, perHostFilter *proxy.PerHost, p *ProxyManager) *httpReverseProxy {
 	// do we need auth?
 	authHeader := ""
 	if proxyUrl.User != nil {
@@ -78,14 +79,20 @@ func newHttpReverseProxy(proxyUrl *url.URL, perHostFilter *proxy.PerHost) *httpR
 			host := r.In.Host
 			if host == "" {
 				// get it from our gvisor side of the request (IP) if Host header is not set
-				localAddr := r.In.Context().Value(http.LocalAddrContextKey)
-				if localAddr != nil {
-					host = localAddr.(net.Addr).String()
+				localAddr := r.In.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+				// try to match the IP to a DNS name
+				// don't care about port - this proxy is only for port 80
+				if addr, ok := netip.AddrFromSlice(localAddr.IP); ok {
+					host = p.DnsServer.ReverseNameForAddr(addr)
+				}
+				// fallback = IP
+				if host == "" {
+					host = localAddr.IP.String()
 				}
 			}
 
 			// this is our only chance to test per-host against a real domain name
-			if perHostFilter != nil && perHostFilter.TestBypass(host) {
+			if perHostFilter != nil && perHostFilter.TestBypass(host, p.DnsServer) {
 				logrus.Debugf("bypassing proxy for %s (http)", host)
 				// bypass proxy
 				r.SetURL(&url.URL{

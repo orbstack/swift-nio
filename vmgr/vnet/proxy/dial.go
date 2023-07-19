@@ -14,22 +14,6 @@ type ContextDialer interface {
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 }
 
-// Dial works like DialContext on net.Dialer but using a dialer returned by FromEnvironment.
-//
-// The passed ctx is only used for returning the Conn, not the lifetime of the Conn.
-//
-// Custom dialers (registered via RegisterDialerType) that do not implement ContextDialer
-// can leak a goroutine for as long as it takes the underlying Dialer implementation to timeout.
-//
-// A Conn returned from a successful Dial after the context has been cancelled will be immediately closed.
-func Dial(ctx context.Context, network, address string) (net.Conn, error) {
-	d := FromEnvironment()
-	if xd, ok := d.(ContextDialer); ok {
-		return xd.DialContext(ctx, network, address)
-	}
-	return dialContext(ctx, d, network, address)
-}
-
 // WARNING: this can leak a goroutine for as long as the underlying Dialer implementation takes to timeout
 // A Conn returned from a successful Dial after the context has been cancelled will be immediately closed.
 func dialContext(ctx context.Context, d Dialer, network, address string) (net.Conn, error) {

@@ -39,6 +39,7 @@ require (
 
 require (
 	github.com/creachadair/mds v0.0.1 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.4 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/petermattis/goid v0.0.0-20230518223814-80aa455d8761 // indirect
