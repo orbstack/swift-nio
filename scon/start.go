@@ -813,7 +813,6 @@ func (c *Container) attachBpf(initPid int) error {
 
 	go runOne("ptrack monitor for "+c.Name, func() error {
 		return c.bpf.MonitorPtrack(func() error {
-			logrus.Debug("trigger update")
 			c.triggerListenersUpdate()
 			return nil
 		})
