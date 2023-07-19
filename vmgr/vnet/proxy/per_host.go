@@ -96,6 +96,29 @@ func (p *PerHost) dialerForRequest(host string) Dialer {
 	return p.def
 }
 
+// "lazy" CIDR = 10/8, 169.254/16, etc.
+func convertLazyCidr(str string) string {
+	ipPart, maskPart, ok := strings.Cut(str, "/")
+	if !ok {
+		return str
+	}
+
+	// skip IPv6
+	if strings.ContainsAny(ipPart, ":abcdef") {
+		return str
+	}
+
+	inOctets := strings.Split(ipPart, ".")
+	var octets [4]string
+	copy(octets[:], inOctets)
+	// pad it with "0"
+	for i := len(inOctets); i < 4; i++ {
+		octets[i] = "0"
+	}
+
+	return strings.Join(octets[:], ".") + "/" + maskPart
+}
+
 // AddFromString parses a string that contains comma-separated values
 // specifying hosts that should use the bypass proxy. Each value is either an
 // IP address, a CIDR range, a zone (*.example.com) or a host name
@@ -110,6 +133,7 @@ func (p *PerHost) AddFromString(s string) {
 		}
 		if strings.Contains(host, "/") {
 			// We assume that it's a CIDR address like 127.0.0.0/8
+			host = convertLazyCidr(host)
 			if _, net, err := net.ParseCIDR(host); err == nil {
 				p.AddNetwork(net)
 			}
