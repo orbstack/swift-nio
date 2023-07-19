@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"sync"
@@ -137,7 +138,9 @@ func (p *ProxyManager) excludeProxyHost(hostPort string) error {
 
 	for _, ip := range ips {
 		logrus.WithField("ip", ip).Debug("adding ip to proxy exclusion list")
-		p.perHostFilter.AddIP(ip)
+		if addr, ok := netip.AddrFromSlice(ip); ok {
+			p.perHostFilter.AddIP(addr)
+		}
 	}
 
 	return nil

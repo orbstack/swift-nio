@@ -7,6 +7,7 @@ package proxy
 import (
 	"context"
 	"net"
+	"net/netip"
 	"strings"
 )
 
@@ -15,8 +16,8 @@ import (
 type PerHost struct {
 	def, bypass Dialer
 
-	bypassNetworks []*net.IPNet
-	bypassIPs      []net.IP
+	bypassNetworks []netip.Prefix
+	bypassIPs      []netip.Addr
 	bypassZones    []string
 	bypassHosts    []string
 }
@@ -57,14 +58,14 @@ func (p *PerHost) DialContext(ctx context.Context, network, addr string) (c net.
 }
 
 func (p *PerHost) TestBypass(host string) bool {
-	if ip := net.ParseIP(host); ip != nil {
+	if ip, err := netip.ParseAddr(host); err == nil {
 		for _, net := range p.bypassNetworks {
 			if net.Contains(ip) {
 				return true
 			}
 		}
 		for _, bypassIP := range p.bypassIPs {
-			if bypassIP.Equal(ip) {
+			if bypassIP == ip {
 				return true
 			}
 		}
@@ -134,12 +135,12 @@ func (p *PerHost) AddFromString(s string) {
 		if strings.Contains(host, "/") {
 			// We assume that it's a CIDR address like 127.0.0.0/8
 			host = convertLazyCidr(host)
-			if _, net, err := net.ParseCIDR(host); err == nil {
+			if net, err := netip.ParsePrefix(host); err == nil {
 				p.AddNetwork(net)
 			}
 			continue
 		}
-		if ip := net.ParseIP(host); ip != nil {
+		if ip, err := netip.ParseAddr(host); err == nil {
 			p.AddIP(ip)
 			continue
 		}
@@ -154,14 +155,14 @@ func (p *PerHost) AddFromString(s string) {
 // AddIP specifies an IP address that will use the bypass proxy. Note that
 // this will only take effect if a literal IP address is dialed. A connection
 // to a named host will never match an IP.
-func (p *PerHost) AddIP(ip net.IP) {
+func (p *PerHost) AddIP(ip netip.Addr) {
 	p.bypassIPs = append(p.bypassIPs, ip)
 }
 
 // AddNetwork specifies an IP range that will use the bypass proxy. Note that
 // this will only take effect if a literal IP address is dialed. A connection
 // to a named host will never match.
-func (p *PerHost) AddNetwork(net *net.IPNet) {
+func (p *PerHost) AddNetwork(net netip.Prefix) {
 	p.bypassNetworks = append(p.bypassNetworks, net)
 }
 
