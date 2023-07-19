@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alessio/shellescape"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -107,10 +108,7 @@ loop:
 	srcAgentCid := m.srcAgentCid
 	m.mu.Unlock()
 
-	// we're trying to get a direct connection with minimal copying
-	// socat directly hooks up fds
-	// xattrs needed to preserve overlayfs opaque dirs
-	_, err = execAs(srcClient, srcAgentCid, &dockertypes.ContainerExecCreateRequest{
+	execReq := &dockertypes.ContainerExecCreateRequest{
 		Cmd: []string{
 			"socat",
 			fmt.Sprintf("TCP4:host.docker.internal:%d", port),
@@ -119,7 +117,18 @@ loop:
 		AttachStdout: true,
 		AttachStderr: true,
 		WorkingDir:   srcs[0],
-	})
+	}
+
+	// multi-source
+	if len(srcs) > 1 {
+		execReq.Cmd[2] = "EXEC:tar --numeric-owner --xattrs --xattrs-include=* -cf - " + shellescape.QuoteCommand(srcs)
+		execReq.WorkingDir = "/"
+	}
+
+	// we're trying to get a direct connection with minimal copying
+	// socat directly hooks up fds
+	// xattrs needed to preserve overlayfs opaque dirs
+	_, err = execAs(srcClient, srcAgentCid, execReq)
 	if err != nil {
 		// if it failed, then we may not have connected to the TCP server, so dest will hang.
 		// make an attempt to unfreeze it
