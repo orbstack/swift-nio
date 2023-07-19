@@ -764,27 +764,6 @@ func findCgroup(pid int) (string, error) {
 	return "", fmt.Errorf("no cgroup found")
 }
 
-// start monitoring inet diag netlink
-// returns netns cookie for bpf lfwd
-func (c *Container) startNetlinkMonitor(initPid int) (uint64, error) {
-	// open inet diag
-	nlFile, err := withContainerNetns(c, initPid, func() (*os.File, error) {
-		return sysnet.OpenDiagNetlink()
-	})
-	if err != nil {
-		return 0, fmt.Errorf("open nl: %w", err)
-	}
-	c.inetDiagFile = nlFile
-
-	// get netns cookie
-	netnsCookie, err := sysnet.GetNetnsCookie(nlFile)
-	if err != nil {
-		return 0, fmt.Errorf("get cookie: %w", err)
-	}
-
-	return netnsCookie, nil
-}
-
 // optionally use existing initPid query for performance
 func withContainerNetns[T any](c *Container, initPid int, fn func() (T, error)) (T, error) {
 	var zero T
@@ -810,8 +789,15 @@ func withContainerNetns[T any](c *Container, initPid int, fn func() (T, error)) 
 	return sysnet.WithNetns(initPidF, fn)
 }
 
-// attach eBPF localhost reverse forward for Docker host net
-func (c *Container) attachBpf(initPid int, netnsCookie uint64) error {
+func (c *Container) attachBpf(initPid int) error {
+	// netns cookie
+	netnsCookie, err := withContainerNetns(c, initPid, func() (uint64, error) {
+		return sysnet.GetNetnsCookie()
+	})
+	if err != nil {
+		return fmt.Errorf("get netns cookie: %w", err)
+	}
+
 	// find cgroup
 	cgGroup, err := findCgroup(initPid)
 	if err != nil {
@@ -867,14 +853,8 @@ func (c *Container) initNetPostStart() error {
 		return fmt.Errorf("no init pid")
 	}
 
-	// start netlink monitor
-	netnsCookie, err := c.startNetlinkMonitor(initPid)
-	if err != nil {
-		return fmt.Errorf("start netlink: %w", err)
-	}
-
 	// attach bpf localhost reverse forward for Docker
-	err = c.attachBpf(initPid, netnsCookie)
+	err := c.attachBpf(initPid)
 	if err != nil {
 		return fmt.Errorf("attach bpf: %w", err)
 	}

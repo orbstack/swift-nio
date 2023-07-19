@@ -118,12 +118,6 @@ func (c *Container) onStopLocked() error {
 	}
 	c.lastListeners = nil
 
-	// stop netlink diag
-	if c.inetDiagFile != nil {
-		c.inetDiagFile.Close()
-		c.inetDiagFile = nil
-	}
-
 	// stop bpf
 	if c.bpf != nil {
 		err := c.bpf.Close()

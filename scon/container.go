@@ -61,7 +61,6 @@ type Container struct {
 	lastListeners     []sysnet.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
-	inetDiagFile      *os.File
 	bpf               *bpf.BpfManager
 
 	// docker

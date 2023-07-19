@@ -33,22 +33,17 @@ func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 }
 
 // used for eBPF
-func GetNetnsCookie(socketFile *os.File) (uint64, error) {
-	rawConn, err := socketFile.SyscallConn()
-	if err != nil {
-		return 0, err
-	}
-	var cookie uint64
-	var err2 error
-	err = rawConn.Control(func(fd uintptr) {
-		cookie, err2 = unix.GetsockoptUint64(int(fd), unix.SOL_SOCKET, unix.SO_NETNS_COOKIE)
-	})
-	if err != nil {
-		return 0, err
-	}
-	if err2 != nil {
-		return 0, err2
-	}
+func GetNetnsCookieFd(fd int) (uint64, error) {
+	return unix.GetsockoptUint64(int(fd), unix.SOL_SOCKET, unix.SO_NETNS_COOKIE)
+}
 
-	return cookie, nil
+func GetNetnsCookie() (uint64, error) {
+	// cloexec safe
+	fd, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer unix.Close(fd)
+
+	return GetNetnsCookieFd(fd)
 }
