@@ -14,7 +14,6 @@ import (
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
-	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,10 +30,7 @@ const (
 
 var (
 	netipIPv4Loopback = netip.AddrFrom4([4]byte{127, 0, 0, 1})
-	netipIPv6Loopback = netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
-
-	netipSubnet4 = netip.MustParsePrefix(netconf.SconSubnet4CIDR)
-	netipSubnet6 = netip.MustParsePrefix(netconf.SconSubnet6CIDR)
+	netipIPv6Loopback = netip.IPv6Loopback()
 )
 
 type ForwardState struct {
@@ -56,22 +52,9 @@ func filterListener(l sysnet.ProcListener) bool {
 		return false
 	}
 
-	// for systemd-resolved: loopback only if it's 127.0.0.1 / ::1
-	if l.Addr == netipIPv4Loopback || l.Addr == netipIPv6Loopback {
-		return true
-	}
-
-	// 0.0.0.0 / :: is also ok
-	if l.Addr.IsUnspecified() {
-		return true
-	}
-
-	// otherwise, require that it matches our subnet
-	if l.Addr.Is4() {
-		return netipSubnet4.Contains(l.Addr)
-	} else {
-		return netipSubnet6.Contains(l.Addr)
-	}
+	// only forward 0.0.0.0/:: and 127.0.0.1/::1
+	// so this excludes systemd-resolved, bridge-only, etc.
+	return l.Addr == netipIPv4Loopback || l.Addr == netipIPv6Loopback || l.Addr.IsUnspecified()
 }
 
 func filterListeners(listeners []sysnet.ProcListener) []sysnet.ProcListener {
