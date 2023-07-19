@@ -17,7 +17,7 @@ import (
 type BpfManager struct {
 	closers          []io.Closer
 	lfwdBlockedPorts *ebpf.Map
-	ptrackNotify     *ebpf.Map
+	ptrackNotify     *ringbuf.Reader
 }
 
 func NewBpfManager() (*BpfManager, error) {
@@ -180,20 +180,20 @@ func (b *BpfManager) AttachPtrack(cgPath string, netnsCookie uint64) error {
 		return err
 	}
 
-	b.ptrackNotify = objs.ptrackMaps.NotifyRing
+	reader, err := ringbuf.NewReader(objs.ptrackMaps.NotifyRing)
+	if err != nil {
+		return fmt.Errorf("create reader: %w", err)
+	}
+	b.closers = append(b.closers, reader)
+	b.ptrackNotify = reader
+
 	return nil
 }
 
 func (b *BpfManager) MonitorPtrack(fn func() error) error {
-	reader, err := ringbuf.NewReader(b.ptrackNotify)
-	if err != nil {
-		return fmt.Errorf("create reader: %w", err)
-	}
-	defer reader.Close()
-
 	for {
 		// read one event
-		_, err := reader.Read()
+		_, err := b.ptrackNotify.Read()
 		if err != nil {
 			if errors.Is(err, os.ErrClosed) {
 				return nil
