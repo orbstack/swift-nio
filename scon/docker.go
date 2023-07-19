@@ -236,7 +236,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 		// to prevent infinite loop: if flag exists, delete it and bail out
 		// we already tried once and it must've failed
-		delErr := fs.Remove(agent.DockerMigrationFlag)
+		delErr := fs.Remove(agent.DockerNetMigrationFlag)
 		if conflictNet != nil && errors.Is(delErr, os.ErrNotExist) {
 			// migration needed
 			logrus.WithField("bip", bip).WithField("conflictNet", conflictNet).Warn("docker bip conflict detected, migrating")
@@ -247,13 +247,13 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			if err != nil {
 				return err
 			}
-			err = fs.WriteFile(agent.DockerMigrationFlag, []byte(origConfigBytes), 0644)
+			err = fs.WriteFile(agent.DockerNetMigrationFlag, []byte(origConfigBytes), 0644)
 			if err != nil {
 				return err
 			}
 
 			// use temporary bip to avoid conflict so we can start dockerd
-			config["bip"] = agent.DockerMigrationBip
+			config["bip"] = agent.DockerNetMigrationBip
 
 			bipPrefix, err := netip.ParsePrefix(bip)
 			if err != nil {

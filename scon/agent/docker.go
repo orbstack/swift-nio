@@ -44,8 +44,8 @@ const (
 	dockerDefaultBridgeNetwork = "bridge"
 
 	// from documentation test net 2
-	DockerMigrationBip  = "203.0.113.97/24"
-	DockerMigrationFlag = "/etc/docker/.orb_migrate_networks"
+	DockerNetMigrationBip  = "203.0.113.97/24"
+	DockerNetMigrationFlag = "/etc/docker/.orb_migrate_networks"
 )
 
 type DockerAgent struct {
@@ -602,7 +602,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 
 	// migration complete. remove flag, rewrite config, and restart dockerd
 	logrus.Info("migration complete, restarting")
-	err = os.Remove(DockerMigrationFlag)
+	err = os.Remove(DockerNetMigrationFlag)
 	if err != nil {
 		return err
 	}
