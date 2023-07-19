@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	dnssrv "github.com/orbstack/macvirt/vmgr/vnet/services/dns"
+	"github.com/sirupsen/logrus"
 )
 
 // A PerHost directs connections to a default Dialer unless the host name
@@ -94,31 +95,30 @@ func convertLazyCidr(str string) string {
 // IP address, a CIDR range, a zone (*.example.com) or a host name
 // (localhost). A best effort is made to parse the string and errors are
 // ignored.
-func (p *PerHost) AddFromString(s string) {
-	hosts := strings.Split(s, ",")
-	for _, host := range hosts {
-		host = strings.TrimSpace(host)
-		if len(host) == 0 {
-			continue
-		}
-		if strings.Contains(host, "/") {
-			// We assume that it's a CIDR address like 127.0.0.0/8
-			host = convertLazyCidr(host)
-			if net, err := netip.ParsePrefix(host); err == nil {
-				p.AddNetwork(net)
-			}
-			continue
-		}
-		if ip, err := netip.ParseAddr(host); err == nil {
-			p.AddIP(ip)
-			continue
-		}
-		if strings.HasPrefix(host, "*.") {
-			p.AddZone(host[1:])
-			continue
-		}
-		p.AddHost(host)
+func (p *PerHost) AddFromString(host string) {
+	host = strings.TrimSpace(host)
+	if len(host) == 0 {
+		return
 	}
+	if strings.Contains(host, "/") {
+		// We assume that it's a CIDR address like 127.0.0.0/8
+		host = convertLazyCidr(host)
+		if net, err := netip.ParsePrefix(host); err == nil {
+			p.AddNetwork(net)
+		} else {
+			logrus.WithError(err).WithField("host", host).Warn("failed to parse proxy exclusion CIDR")
+		}
+		return
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		p.AddIP(ip)
+		return
+	}
+	if strings.HasPrefix(host, "*.") {
+		p.AddZone(host[1:])
+		return
+	}
+	p.AddHost(host)
 }
 
 // AddIP specifies an IP address that will use the bypass proxy. Note that
