@@ -100,13 +100,13 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 
 	// block port on container side
 	if c.bpf != nil {
-		err := c.bpf.BlockPort(spec.Port)
+		err := c.bpf.LfwdBlockPort(spec.Port)
 		if err != nil {
 			return err
 		}
 		defer func() {
 			if retErr != nil {
-				c.bpf.UnblockPort(spec.Port)
+				c.bpf.LfwdUnblockPort(spec.Port)
 			}
 		}()
 	}
@@ -257,7 +257,7 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener
 
 	// unblock port on container side
 	if c.bpf != nil {
-		err := c.bpf.UnblockPort(spec.Port)
+		err := c.bpf.LfwdUnblockPort(spec.Port)
 		if err != nil {
 			logrus.WithField("container", c.Name).WithError(err).Error("failed to unblock port")
 		}

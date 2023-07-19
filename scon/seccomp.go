@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -20,7 +19,6 @@ const (
 // TODO better fix for btrfs quota
 const seccompPolicy = `2
 denylist
-bind notify
 ioctl errno 1 [1,3222311976,SCMP_CMP_EQ]
 init_module errno 38
 finit_module errno 38
@@ -125,12 +123,9 @@ func readSeccompProxyMsg(conn *net.UnixConn) (*scmpNotifyProxyMsg, error) {
 		return nil, fmt.Errorf("expected 3 fds, got %d", len(fds))
 	}
 
-	procF := os.NewFile(uintptr(fds[0]), "proc")
-	memF := os.NewFile(uintptr(fds[1]), "mem")
-	notifyF := os.NewFile(uintptr(fds[2]), "notify")
-	defer procF.Close()
-	defer memF.Close()
-	defer notifyF.Close()
+	defer unix.Close(fds[0])
+	defer unix.Close(fds[1])
+	defer unix.Close(fds[2])
 
 	// parse scmpNotifyProxyMsg
 	msg := &scmpNotifyProxyMsg{}
@@ -153,7 +148,7 @@ func (m *ConManager) handleSeccompMsg(msg *scmpNotifyProxyMsg) {
 		return
 	}
 
-	container.triggerListenersUpdate()
+	_ = container
 }
 
 func (m *ConManager) serveSeccomp() error {

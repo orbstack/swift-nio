@@ -782,10 +782,6 @@ func (c *Container) startNetlinkMonitor(initPid int) (uint64, error) {
 		return 0, fmt.Errorf("get cookie: %w", err)
 	}
 
-	go runOne("netlink monitor for "+c.Name, func() error {
-		return monitorInetDiag(c, nlFile)
-	})
-
 	return netnsCookie, nil
 }
 
@@ -824,13 +820,33 @@ func (c *Container) attachBpf(initPid int, netnsCookie uint64) error {
 	// only take the first part ("lxc") in case systemd created init.scope
 	cgPath := "/sys/fs/cgroup/" + strings.Split(cgGroup, "/")[1]
 
-	// attach bpf
-	bpfMgr, err := bpf.AttachLfwd(cgPath, netnsCookie)
+	bpfMgr, err := bpf.NewBpfManager()
 	if err != nil {
-		return fmt.Errorf("attach bpf: %w", err)
+		return fmt.Errorf("new bpf: %w", err)
 	}
-	// keep finalizers alive
 	c.bpf = bpfMgr
+
+	// attach ptrack
+	err = bpfMgr.AttachPtrack(cgPath, netnsCookie)
+	if err != nil {
+		return fmt.Errorf("attach bpf ptrack: %w", err)
+	}
+
+	go runOne("ptrack monitor for "+c.Name, func() error {
+		return c.bpf.MonitorPtrack(func() error {
+			logrus.Debug("trigger update")
+			c.triggerListenersUpdate()
+			return nil
+		})
+	})
+
+	// attach lfwd for docker
+	if c.ID == ContainerIDDocker {
+		err := bpfMgr.AttachLfwd(cgPath, netnsCookie)
+		if err != nil {
+			return fmt.Errorf("attach bpf lfwd: %w", err)
+		}
+	}
 
 	return nil
 }
@@ -858,13 +874,11 @@ func (c *Container) initNetPostStart() error {
 	}
 
 	// attach bpf localhost reverse forward for Docker
-	if c.ID == ContainerIDDocker {
-		err = c.attachBpf(initPid, netnsCookie)
-		if err != nil {
-			return fmt.Errorf("attach bpf: %w", err)
-		}
-		logrus.WithField("container", c.Name).Debug("attached bpf")
+	err = c.attachBpf(initPid, netnsCookie)
+	if err != nil {
+		return fmt.Errorf("attach bpf: %w", err)
 	}
+	logrus.WithField("container", c.Name).Debug("attached bpf")
 
 	return nil
 }

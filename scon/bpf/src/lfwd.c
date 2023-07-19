@@ -1,4 +1,4 @@
-// Copyright 2023 Danny Lin / OrbStack
+// Copyright 2023 Orbital Labs, LLC
 // License: proprietary and confidential.
 
 // Redirects connect() calls to localhost (127.0.0.1 or ::1) to host NAT
