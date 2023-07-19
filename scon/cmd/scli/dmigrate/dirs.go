@@ -123,8 +123,8 @@ loop:
 	if err != nil {
 		// if it failed, then we may not have connected to the TCP server, so dest will hang.
 		// make an attempt to unfreeze it
-		conn, err := netx.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-		if err == nil {
+		conn, err2 := netx.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if err2 == nil {
 			conn.Close()
 		}
 
