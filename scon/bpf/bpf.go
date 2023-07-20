@@ -14,17 +14,23 @@ import (
 
 //go:generate ./build-bpf.sh
 
-type BpfManager struct {
+type ContainerBpfManager struct {
+	cgPath      string
+	netnsCookie uint64
+
 	closers          []io.Closer
 	lfwdBlockedPorts *ebpf.Map
 	ptrackNotify     *ringbuf.Reader
 }
 
-func NewBpfManager() (*BpfManager, error) {
-	return &BpfManager{}, nil
+func NewContainerBpfManager(cgPath string, netnsCookie uint64) (*ContainerBpfManager, error) {
+	return &ContainerBpfManager{
+		cgPath:      cgPath,
+		netnsCookie: netnsCookie,
+	}, nil
 }
 
-func (b *BpfManager) Close() error {
+func (b *ContainerBpfManager) Close() error {
 	var errs []error
 	for _, c := range b.closers {
 		err := c.Close()
@@ -35,7 +41,7 @@ func (b *BpfManager) Close() error {
 	return errors.Join(errs...)
 }
 
-func (b *BpfManager) LfwdBlockPort(port uint16) error {
+func (b *ContainerBpfManager) LfwdBlockPort(port uint16) error {
 	if b.lfwdBlockedPorts == nil {
 		return nil
 	}
@@ -45,7 +51,7 @@ func (b *BpfManager) LfwdBlockPort(port uint16) error {
 	return b.lfwdBlockedPorts.Put(port, byte(1))
 }
 
-func (b *BpfManager) LfwdUnblockPort(port uint16) error {
+func (b *ContainerBpfManager) LfwdUnblockPort(port uint16) error {
 	if b.lfwdBlockedPorts == nil {
 		return nil
 	}
@@ -55,7 +61,20 @@ func (b *BpfManager) LfwdUnblockPort(port uint16) error {
 	return b.lfwdBlockedPorts.Delete(port)
 }
 
-func (b *BpfManager) AttachLfwd(cgPath string, netnsCookie uint64) error {
+func (b *ContainerBpfManager) attachOneCg(typ ebpf.AttachType, prog *ebpf.Program) error {
+	l, err := link.AttachCgroup(link.CgroupOptions{
+		Path:    b.cgPath,
+		Attach:  typ,
+		Program: prog,
+	})
+	if err != nil {
+		return fmt.Errorf("attach: %w", err)
+	}
+	b.closers = append(b.closers, l)
+	return nil
+}
+
+func (b *ContainerBpfManager) AttachLfwd() error {
 	// must load a new instance to set a different netns cookie in config map
 	// maps are per-program instance
 	// and this is an unpinned program (no ref in /sys/fs/bpf), so it'll be destroyed
@@ -67,7 +86,7 @@ func (b *BpfManager) AttachLfwd(cgPath string, netnsCookie uint64) error {
 
 	// set netns cookie filter
 	err = spec.RewriteConstants(map[string]any{
-		"config_netns_cookie": netnsCookie,
+		"config_netns_cookie": b.netnsCookie,
 	})
 	if err != nil {
 		return fmt.Errorf("configure: %w", err)
@@ -80,45 +99,32 @@ func (b *BpfManager) AttachLfwd(cgPath string, netnsCookie uint64) error {
 	}
 	b.closers = append(b.closers, &objs)
 
-	attachOne := func(typ ebpf.AttachType, prog *ebpf.Program) error {
-		l, err := link.AttachCgroup(link.CgroupOptions{
-			Path:    cgPath,
-			Attach:  typ,
-			Program: prog,
-		})
-		if err != nil {
-			return fmt.Errorf("attach: %w", err)
-		}
-		b.closers = append(b.closers, l)
-		return nil
-	}
-
-	err = attachOne(ebpf.AttachCGroupInet4Connect, objs.LfwdConnect4)
+	err = b.attachOneCg(ebpf.AttachCGroupInet4Connect, objs.LfwdConnect4)
 	if err != nil {
 		return err
 	}
 
-	err = attachOne(ebpf.AttachCGroupUDP4Sendmsg, objs.LfwdSendmsg4)
+	err = b.attachOneCg(ebpf.AttachCGroupUDP4Sendmsg, objs.LfwdSendmsg4)
 	if err != nil {
 		return err
 	}
 
-	err = attachOne(ebpf.AttachCgroupInet4GetPeername, objs.LfwdGetpeername4)
+	err = b.attachOneCg(ebpf.AttachCgroupInet4GetPeername, objs.LfwdGetpeername4)
 	if err != nil {
 		return err
 	}
 
-	err = attachOne(ebpf.AttachCGroupInet6Connect, objs.LfwdConnect6)
+	err = b.attachOneCg(ebpf.AttachCGroupInet6Connect, objs.LfwdConnect6)
 	if err != nil {
 		return err
 	}
 
-	err = attachOne(ebpf.AttachCGroupUDP6Sendmsg, objs.LfwdSendmsg6)
+	err = b.attachOneCg(ebpf.AttachCGroupUDP6Sendmsg, objs.LfwdSendmsg6)
 	if err != nil {
 		return err
 	}
 
-	err = attachOne(ebpf.AttachCgroupInet6GetPeername, objs.LfwdGetpeername6)
+	err = b.attachOneCg(ebpf.AttachCgroupInet6GetPeername, objs.LfwdGetpeername6)
 	if err != nil {
 		return err
 	}
@@ -127,7 +133,7 @@ func (b *BpfManager) AttachLfwd(cgPath string, netnsCookie uint64) error {
 	return nil
 }
 
-func (b *BpfManager) AttachPtrack(cgPath string, netnsCookie uint64) error {
+func (b *ContainerBpfManager) AttachPtrack() error {
 	// must load a new instance to set a different netns cookie in config map
 	// maps are per-program instance
 	// and this is an unpinned program (no ref in /sys/fs/bpf), so it'll be destroyed
@@ -139,7 +145,7 @@ func (b *BpfManager) AttachPtrack(cgPath string, netnsCookie uint64) error {
 
 	// set netns cookie filter
 	err = spec.RewriteConstants(map[string]any{
-		"config_netns_cookie": netnsCookie,
+		"config_netns_cookie": b.netnsCookie,
 	})
 	if err != nil {
 		return fmt.Errorf("configure: %w", err)
@@ -152,30 +158,17 @@ func (b *BpfManager) AttachPtrack(cgPath string, netnsCookie uint64) error {
 	}
 	b.closers = append(b.closers, &objs)
 
-	attachOne := func(typ ebpf.AttachType, prog *ebpf.Program) error {
-		l, err := link.AttachCgroup(link.CgroupOptions{
-			Path:    cgPath,
-			Attach:  typ,
-			Program: prog,
-		})
-		if err != nil {
-			return fmt.Errorf("attach: %w", err)
-		}
-		b.closers = append(b.closers, l)
-		return nil
-	}
-
-	err = attachOne(ebpf.AttachCGroupInet4Bind, objs.PtrackBind4)
+	err = b.attachOneCg(ebpf.AttachCGroupInet4Bind, objs.PtrackBind4)
 	if err != nil {
 		return err
 	}
 
-	err = attachOne(ebpf.AttachCGroupInet6Bind, objs.PtrackBind6)
+	err = b.attachOneCg(ebpf.AttachCGroupInet6Bind, objs.PtrackBind6)
 	if err != nil {
 		return err
 	}
 
-	err = attachOne(ebpf.AttachCgroupInetSockRelease, objs.PtrackSockRelease)
+	err = b.attachOneCg(ebpf.AttachCgroupInetSockRelease, objs.PtrackSockRelease)
 	if err != nil {
 		return err
 	}
@@ -190,7 +183,7 @@ func (b *BpfManager) AttachPtrack(cgPath string, netnsCookie uint64) error {
 	return nil
 }
 
-func (b *BpfManager) MonitorPtrack(fn func() error) error {
+func (b *ContainerBpfManager) MonitorPtrack(fn func() error) error {
 	var rec ringbuf.Record
 	for {
 		// read one event

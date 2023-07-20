@@ -60,7 +60,7 @@ type Container struct {
 	lastListeners     []sysnet.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
-	bpf               *bpf.BpfManager
+	bpf               *bpf.ContainerBpfManager
 
 	// docker
 	freezer atomic.Pointer[Freezer]

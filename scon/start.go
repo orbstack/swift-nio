@@ -799,14 +799,14 @@ func (c *Container) attachBpf(initPid int) error {
 	// only take the first part ("lxc") in case systemd created init.scope
 	cgPath := "/sys/fs/cgroup/" + strings.Split(cgGroup, "/")[1]
 
-	bpfMgr, err := bpf.NewBpfManager()
+	bpfMgr, err := bpf.NewContainerBpfManager(cgPath, netnsCookie)
 	if err != nil {
 		return fmt.Errorf("new bpf: %w", err)
 	}
 	c.bpf = bpfMgr
 
 	// attach ptrack
-	err = bpfMgr.AttachPtrack(cgPath, netnsCookie)
+	err = bpfMgr.AttachPtrack()
 	if err != nil {
 		return fmt.Errorf("attach bpf ptrack: %w", err)
 	}
@@ -818,9 +818,15 @@ func (c *Container) attachBpf(initPid int) error {
 		})
 	})
 
+	// atatch sctl
+	err = c.manager.bpf.AttachSctl(bpfMgr)
+	if err != nil {
+		return fmt.Errorf("attach bpf sctl: %w", err)
+	}
+
 	// attach lfwd for docker
 	if c.ID == ContainerIDDocker {
-		err := bpfMgr.AttachLfwd(cgPath, netnsCookie)
+		err := bpfMgr.AttachLfwd()
 		if err != nil {
 			return fmt.Errorf("attach bpf lfwd: %w", err)
 		}

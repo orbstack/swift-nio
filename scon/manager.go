@@ -11,6 +11,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/agent/common"
+	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/securefs"
@@ -47,6 +48,7 @@ type ConManager struct {
 	db             *Database
 	host           *hclient.Client
 	hostNfsMounted bool
+	bpf            *bpf.GlobalBpfManager
 
 	// auto forward
 	forwards   map[sysnet.ProcListener]ForwardState
@@ -104,6 +106,11 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		return nil, err
 	}
 
+	bpfMgr, err := bpf.NewGlobalBpfManager()
+	if err != nil {
+		return nil, err
+	}
+
 	mgr := &ConManager{
 		dataDir:           dataDir,
 		tmpDir:            tmpDir,
@@ -116,6 +123,7 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 
 		db:   db,
 		host: hc,
+		bpf:  bpfMgr,
 
 		forwards: make(map[sysnet.ProcListener]ForwardState),
 
@@ -141,6 +149,12 @@ func (m *ConManager) Start() error {
 
 	// network
 	err := m.net.Start()
+	if err != nil {
+		return err
+	}
+
+	// bpf
+	err = m.bpf.Load()
 	if err != nil {
 		return err
 	}
@@ -276,6 +290,7 @@ func (m *ConManager) Close() error {
 	m.agentExe.Close()
 	m.host.Close()
 	m.net.Close()
+	m.bpf.Close()
 	close(m.stopChan)          // this acts as broadcast
 	_ = os.RemoveAll(m.tmpDir) // seccomp and lxc
 	return nil
