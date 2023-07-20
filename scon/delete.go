@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/types"
@@ -15,8 +16,45 @@ import (
 func deleteRootfs(rootfs string) error {
 	logrus.WithField("rootfs", rootfs).Debug("deleting rootfs")
 
+	// list and delete btrfs subvolumes first
+	// lxd can leave read-only subvols: 
+	rawList, err := util.WithDefaultOom2(func() (string, error) {
+		// -o excludes volumes after it
+		return util.RunWithOutput("btrfs", "subvolume", "list", rootfs)
+	})
+	if err != nil {
+		return fmt.Errorf("list subvolumes: %w", err)
+	}
+
+	// delete any that fall under this path
+	lines := strings.Split(rawList, "\n")
+	// iterate in reverse order so the order is naturally correct
+	deleteArgs := []string{"btrfs", "subvolume", "delete"}
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := lines[i]
+		if !strings.HasPrefix(line, "ID") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		subvolPath := conf.C().DataFsDir + "/" + fields[8]
+		if strings.HasPrefix(subvolPath, rootfs+"/") {
+			deleteArgs = append(deleteArgs, subvolPath)
+		}
+	}
+
+	if len(deleteArgs) > 3 {
+		logrus.WithField("subvols", deleteArgs[3:]).Debug("deleting subvolumes")
+		err = util.WithDefaultOom1(func() error {
+			return util.Run(deleteArgs...)
+		})
+		if err != nil {
+			return fmt.Errorf("delete subvolumes: %w", err)
+		}
+	}
+
 	// delete the entire directory
-	err := os.RemoveAll(rootfs)
+	err = os.RemoveAll(rootfs)
 	if err != nil {
 		if errors.Is(err, unix.EPERM) {
 			// remove immutable and append-only flags
