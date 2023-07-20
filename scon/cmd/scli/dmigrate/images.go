@@ -1,8 +1,13 @@
 package dmigrate
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/alessio/shellescape"
 	"github.com/alitto/pond"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
@@ -10,13 +15,117 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	errUnsupported = errors.New("unsupported")
+)
+
+type imageV2Manifest struct {
+	Config   string   `json:"Config"`
+	RepoTags []string `json:"RepoTags"`
+	Layers   []string `json:"Layers"`
+}
+
+func (m *Migrator) sendImageFastpath(img dockertypes.Image) error {
+	// [src] get full image info
+	var fullImg dockertypes.FullImage
+	err := m.srcClient.Call("GET", "/images/"+img.ID+"/json", nil, &fullImg)
+	if err != nil {
+		return fmt.Errorf("get full image info: %w", err)
+	}
+
+	// compat checks
+	if fullImg.GraphDriver.Name != "overlay2" {
+		return fmt.Errorf("unsupported graph driver: %s (%w)", fullImg.GraphDriver.Name, errUnsupported)
+	}
+	if !strings.HasPrefix(fullImg.ID, "sha256:") {
+		return fmt.Errorf("unsupported image ID: %s (%w)", fullImg.ID, errUnsupported)
+	}
+	if fullImg.RootFS.Type != "layers" || len(fullImg.RootFS.Layers) == 0 {
+		return fmt.Errorf("unsupported rootfs type: %s (%w)", fullImg.RootFS.Type, errUnsupported)
+	}
+
+	lowerDirStr := fullImg.GraphDriver.Data["LowerDir"]
+	upperDir := fullImg.GraphDriver.Data["UpperDir"]
+	if upperDir == "" {
+		return fmt.Errorf("missing lower/upper dir (%w)", errUnsupported)
+	}
+	// no lower dirs is fine. it means there's only 1 layer
+	lowerDirs := strings.Split(lowerDirStr, ":")
+	if lowerDirStr == "" {
+		lowerDirs = nil
+	}
+	// prepend upper dir
+	overlayDirs := append([]string{upperDir}, lowerDirs...)
+	// sanity check: validate dirs
+	for _, dir := range overlayDirs {
+		if !strings.HasPrefix(dir, "/var/lib/docker/overlay2/") || !strings.HasSuffix(dir, "/diff") {
+			return fmt.Errorf("invalid lower dir: %s (%w)", dir, errUnsupported)
+		}
+	}
+
+	// [src] extract layer info and construct commands
+	// manifest Layers order: top = last
+	// overlay order: Upper = top, then top = first, ... in LowerDir. (reversed)
+	// so first, iterate through LowerDir in reverse order
+	// these are technically wrong
+	tmpDir := "/tmp/" + img.ID
+	var cmds []string
+	var layerTars []string
+	for i := len(overlayDirs) - 1; i >= 0; i-- {
+		overlayDir := overlayDirs[i]
+		layerTar := fmt.Sprintf("layer%d.tar", i)
+		diffIdIdx := len(layerTars)
+		layerDiffId := fullImg.RootFS.Layers[diffIdIdx]
+		cmds = append(cmds, fmt.Sprintf("GODEBUG=asyncpreemptoff=1 ocitar %s/%s %s %s", tmpDir, layerTar, layerDiffId, shellescape.Quote(overlayDir)))
+		layerTars = append(layerTars, layerTar)
+	}
+
+	// create manifest
+	manifest := []imageV2Manifest{
+		{
+			Config:   "config.json",
+			RepoTags: fullImg.RepoTags,
+			Layers:   layerTars,
+		},
+	}
+	// json
+	manifestBytes, err := json.Marshal(manifest)
+	if err != nil {
+		return fmt.Errorf("marshal manifest: %w", err)
+	}
+
+	rawImageID := strings.TrimPrefix(img.ID, "sha256:")
+
+	cmdBuilder := func(port int) []string {
+		imgScript := fmt.Sprintf(`
+			set -eo pipefail
+			mkdir -p %s
+			trap "rm -rf %s" EXIT
+			cd %s
+			%s
+			cp /var/lib/docker/image/overlay2/imagedb/content/sha256/%s config.json
+			echo %s | base64 -d > manifest.json
+			tar -cf - . > /dev/tcp/host.docker.internal/%d
+		`, tmpDir, tmpDir, tmpDir, strings.Join(cmds, "\n"), rawImageID, shellescape.Quote(base64.StdEncoding.EncodeToString(manifestBytes)), port)
+		return []string{"bash", "-c", imgScript}
+	}
+	return m.syncDirsGeneric(m.srcClient, cmdBuilder, "/", m.destClient, types.DockerMigrationSyncDirImageLoad)
+}
+
 func (m *Migrator) migrateOneImage(idx int, img dockertypes.Image, userName string) error {
-	names := []string{img.ID}
-	names = append(names, img.RepoTags...)
+	logrus.Infof("Migrating image %s", userName)
+
+	// try fastpath
+	err := m.sendImageFastpath(img)
+	if err == nil {
+		return nil
+	}
+	logrus.Warnf("fastpath failed: %s", err)
 
 	// open export conn
-	logrus.Infof("Migrating image %s", userName)
-	err := scli.Client().InternalDockerMigrationLoadImage(types.InternalDockerMigrationLoadImageRequest{
+	names := []string{img.ID}
+	names = append(names, img.RepoTags...)
+	err = scli.Client().InternalDockerMigrationLoadImage(types.InternalDockerMigrationLoadImageRequest{
 		RemoteImageNames: names,
 	})
 	if err != nil {

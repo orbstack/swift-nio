@@ -24,6 +24,7 @@ import (
 	"github.com/orbstack/macvirt/scon/sgclient"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -320,6 +321,17 @@ func (a *AgentServer) DockerMigrationSyncDirs(params DockerMigrationSyncDirsPara
 	if err != nil {
 		return err
 	}
+
+	// is this a Docker connection?
+	if dest == types.DockerMigrationSyncDirImageLoad {
+		err = a.docker.client.StreamWrite("POST", "/images/load", conn)
+		if err != nil {
+			return fmt.Errorf("load image: %w", err)
+		}
+
+		return nil
+	}
+
 	// this is a dup
 	connFile, err := conn.(*net.TCPConn).File()
 	if err != nil {

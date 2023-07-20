@@ -382,6 +382,8 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 			Binds: []string{
 				"/var/lib/docker:/var/lib/docker:rshared",
 				"/var/run/docker.sock:/var/run/docker.sock",
+				// anonymous volume for image packing
+				"/tmp",
 			},
 		},
 	})
@@ -401,7 +403,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 
 	// TODO remove this once we build custom image
 	_, err = execAs(m.srcClient, srcAgentCid, &dockertypes.ContainerExecCreateRequest{
-		Cmd:          []string{"apk", "add", "tar", "bash"},
+		Cmd:          []string{"sh", "-c", "apk add tar bash curl; curl http://host.docker.internal:8000/ocitar > /usr/local/bin/ocitar; chmod +x /usr/local/bin/ocitar"},
 		AttachStdout: true,
 		AttachStderr: true,
 	})

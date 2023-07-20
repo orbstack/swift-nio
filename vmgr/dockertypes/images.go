@@ -17,4 +17,8 @@ type FullImage struct {
 	ID          string `json:"Id"`
 	RepoTags    []string
 	GraphDriver *GraphDriverData `json:",omitempty"`
+	RootFS      struct {
+		Type   string
+		Layers []string
+	}
 }
