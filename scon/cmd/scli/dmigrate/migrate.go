@@ -401,7 +401,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 
 	// TODO remove this once we build custom image
 	_, err = execAs(m.srcClient, srcAgentCid, &dockertypes.ContainerExecCreateRequest{
-		Cmd:          []string{"apk", "add", "tar", "socat"},
+		Cmd:          []string{"apk", "add", "tar", "bash"},
 		AttachStdout: true,
 		AttachStderr: true,
 	})

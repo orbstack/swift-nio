@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alessio/shellescape"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -56,6 +55,23 @@ func execAs(client *dockerclient.Client, cid string, execReq *dockertypes.Contai
 }
 
 func (m *Migrator) syncDirs(srcClient *dockerclient.Client, srcs []string, destClient *dockerclient.Client, dest string) error {
+	if len(srcs) != 1 {
+		return fmt.Errorf("must have exactly 1 src dir")
+	}
+
+	cmdBuilder := func(port int) []string {
+		return []string{
+			"bash",
+			"-c",
+			// /dev/tcp is raw socket fd
+			fmt.Sprintf("set -e; tar --numeric-owner -cf - . > /dev/tcp/host.docker.internal/%d", port),
+		}
+	}
+
+	return m.syncDirsGeneric(srcClient, cmdBuilder, srcs[0], destClient, dest)
+}
+
+func (m *Migrator) syncDirsGeneric(srcClient *dockerclient.Client, cmdBuilder func(int) []string, srcCwd string, destClient *dockerclient.Client, dest string) error {
 	// TODO check for conflict on docker machine side
 	port, err := findFreeTCPPort()
 	if err != nil {
@@ -109,24 +125,13 @@ loop:
 	m.mu.Unlock()
 
 	execReq := &dockertypes.ContainerExecCreateRequest{
-		Cmd: []string{
-			"socat",
-			fmt.Sprintf("TCP4:host.docker.internal:%d", port),
-			"EXEC:tar --numeric-owner --xattrs --xattrs-include=* -cf - .",
-		},
+		Cmd:          cmdBuilder(port),
 		AttachStdout: true,
 		AttachStderr: true,
-		WorkingDir:   srcs[0],
-	}
-
-	// multi-source
-	if len(srcs) > 1 {
-		execReq.Cmd[2] = "EXEC:tar --numeric-owner --xattrs --xattrs-include=* -cf - " + shellescape.QuoteCommand(srcs)
-		execReq.WorkingDir = "/"
+		WorkingDir:   srcCwd,
 	}
 
 	// we're trying to get a direct connection with minimal copying
-	// socat directly hooks up fds
 	// xattrs needed to preserve overlayfs opaque dirs
 	_, err = execAs(srcClient, srcAgentCid, execReq)
 	if err != nil {
