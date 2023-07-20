@@ -12,3 +12,9 @@ type Image struct {
 	Size        int64
 	VirtualSize int64
 }
+
+type FullImage struct {
+	ID          string `json:"Id"`
+	RepoTags    []string
+	GraphDriver *GraphDriverData `json:",omitempty"`
+}
