@@ -191,9 +191,10 @@ func (b *BpfManager) AttachPtrack(cgPath string, netnsCookie uint64) error {
 }
 
 func (b *BpfManager) MonitorPtrack(fn func() error) error {
+	var rec ringbuf.Record
 	for {
 		// read one event
-		_, err := b.ptrackNotify.Read()
+		err := b.ptrackNotify.ReadInto(&rec)
 		if err != nil {
 			if errors.Is(err, os.ErrClosed) {
 				return nil
