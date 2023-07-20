@@ -818,12 +818,6 @@ func (c *Container) attachBpf(initPid int) error {
 		})
 	})
 
-	// atatch sctl
-	err = c.manager.bpf.AttachSctl(bpfMgr)
-	if err != nil {
-		return fmt.Errorf("attach bpf sctl: %w", err)
-	}
-
 	// attach lfwd for docker
 	if c.ID == ContainerIDDocker {
 		err := bpfMgr.AttachLfwd()

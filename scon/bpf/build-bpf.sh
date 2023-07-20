@@ -11,8 +11,3 @@ go run ../cmd/btfstrip lfwd_bpfel.o
 go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel ptrack src/ptrack.c
 # strip source line info
 go run ../cmd/btfstrip ptrack_bpfel.o
-
-go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel sctl src/sctl.c
-# strip source line info
-go run ../cmd/btfstrip sctl_bpfel.o
-
