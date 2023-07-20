@@ -3,7 +3,6 @@ package sysnet
 import (
 	"os"
 	"runtime"
-	"strconv"
 
 	"golang.org/x/sys/unix"
 )
@@ -15,11 +14,11 @@ func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 	defer runtime.UnlockOSThread()
 
 	// get current ns
-	currentNs, err := os.Open("/proc/self/task/" + strconv.Itoa(unix.Gettid()) + "/ns/net")
+	currentNsFd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return zero, err
 	}
-	defer currentNs.Close()
+	defer unix.Close(currentNsFd)
 
 	// set ns
 	err = unix.Setns(int(newNsF.Fd()), unix.CLONE_NEWNET)
@@ -27,7 +26,7 @@ func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 	if err != nil {
 		return zero, err
 	}
-	defer unix.Setns(int(currentNs.Fd()), unix.CLONE_NEWNET)
+	defer unix.Setns(currentNsFd, unix.CLONE_NEWNET)
 
 	return fn()
 }

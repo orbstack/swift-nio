@@ -776,8 +776,8 @@ func withContainerNetns[T any](c *Container, initPid int, fn func() (T, error)) 
 		}
 
 		initPidF = os.NewFile(uintptr(initPidFd), "[pidfd]")
-		defer initPidF.Close()
 	}
+	defer initPidF.Close()
 
 	return sysnet.WithNetns(initPidF, fn)
 }
