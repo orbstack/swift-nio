@@ -63,7 +63,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     // Go side debounces and reads /proc/net
-    __uint(max_entries, 1<<12);
+    __uint(max_entries, 4096); // min - can't go lower
 } notify_ring SEC(".maps");
 // emit struct BTF
 const struct notify_event *unused __attribute__((unused));
