@@ -131,22 +131,36 @@ func main() {
 		}
 	}
 
+	// zero out the line info offset and len
+	btfExtHdr.LineInfoOff = 0
+	btfExtHdr.LineInfoLen = 0
+	// write to btfExtData
+	btfExtWriter := bytes.NewBuffer(btfExtData)
+	err = binary.Write(btfExtWriter, binary.LittleEndian, &btfExtHdr)
+	check(err)
+
 	// save
 	secF, err := os.CreateTemp("", "btfsec")
 	check(err)
 	defer secF.Close()
+	defer os.Remove(secF.Name())
 
 	_, err = secF.Write(btfData)
 	check(err)
 
-	// replace and delete the .BTF.ext section
-	cmd := exec.Command("llvm-objcopy", "--remove-section=.BTF.ext", "--update-section=.BTF="+secF.Name(), path)
+	// save .BTF.ext
+	secFE, err := os.CreateTemp("", "btfEsec")
+	check(err)
+	defer secFE.Close()
+	defer os.Remove(secFE.Name())
+
+	_, err = secFE.Write(btfExtWriter.Bytes())
+	check(err)
+
+	// replace .BTF, keep .BTF.ext with func_info for timer callbacks
+	cmd := exec.Command("llvm-objcopy", "--update-section=.BTF.ext="+secFE.Name(), "--update-section=.BTF="+secF.Name(), path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
-	check(err)
-
-	// cleanup
-	err = os.Remove(secF.Name())
 	check(err)
 }

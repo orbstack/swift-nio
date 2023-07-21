@@ -158,7 +158,7 @@ func (b *ContainerBpfManager) AttachPtrack() error {
 	}
 	b.closers = append(b.closers, &objs)
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet4Bind, objs.PtrackBind4)
+	err = b.attachOneCg(ebpf.AttachCGroupInet4PostBind, objs.PtrackPostBind4)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,12 @@ func (b *ContainerBpfManager) AttachPtrack() error {
 		return err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet6Bind, objs.PtrackBind6)
+	err = b.attachOneCg(ebpf.AttachCGroupUDP4Sendmsg, objs.PtrackSendmsg4)
+	if err != nil {
+		return err
+	}
+
+	err = b.attachOneCg(ebpf.AttachCGroupInet6PostBind, objs.PtrackPostBind6)
 	if err != nil {
 		return err
 	}
@@ -184,6 +189,11 @@ func (b *ContainerBpfManager) AttachPtrack() error {
 	}
 
 	err = b.attachOneCg(ebpf.AttachCGroupUDP6Recvmsg, objs.PtrackRecvmsg6)
+	if err != nil {
+		return err
+	}
+
+	err = b.attachOneCg(ebpf.AttachCGroupUDP6Sendmsg, objs.PtrackSendmsg6)
 	if err != nil {
 		return err
 	}
