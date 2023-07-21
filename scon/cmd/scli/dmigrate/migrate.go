@@ -27,8 +27,7 @@ import (
 )
 
 const (
-	//migrationAgentImage = "ghcr.io/orbstack/dmigrate-agent:1"
-	migrationAgentImage = "alpine:20230329"
+	migrationAgentImage = "ghcr.io/orbstack/dmigrate-agent:1"
 
 	maxUnusedContainerAge = 6 * 30 * 24 * time.Hour // 6 months
 
@@ -466,16 +465,6 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 			logrus.Warnf("kill src container: %v", err)
 		}
 	}()
-
-	// TODO remove this once we build custom image
-	_, err = execAs(m.srcClient, srcAgentCid, &dockertypes.ContainerExecCreateRequest{
-		Cmd:          []string{"sh", "-c", "apk add tar bash curl; curl http://host.docker.internal:8000/ocitar > /usr/local/bin/ocitar; chmod +x /usr/local/bin/ocitar"},
-		AttachStdout: true,
-		AttachStderr: true,
-	})
-	if err != nil {
-		return fmt.Errorf("install deps: %w", err)
-	}
 
 	// [dest] start sync server
 	err = m.startSyncServer()
