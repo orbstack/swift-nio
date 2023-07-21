@@ -337,7 +337,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 
 	// FILTER VOLUMES: exclude anonymous volumes not referenced by any containers; local only
 	// 1. build map of container-referenced volumes
-	containerUsedVolumes := make(map[string]struct{})
+	containerUsedVolumes := make(map[string][]*dockertypes.ContainerSummary)
 	for _, c := range filteredContainers {
 		if c.Mounts == nil {
 			continue
@@ -347,7 +347,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 			if m.Type != "volume" || m.Driver != "local" {
 				continue
 			}
-			containerUsedVolumes[m.Name] = struct{}{}
+			containerUsedVolumes[m.Name] = append(containerUsedVolumes[m.Name], &c)
 		}
 	}
 	// 2. filter volumes
@@ -482,7 +482,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 
 	// 2. volumes
-	err = m.submitVolumes(preContainerGroup, filteredVolumes)
+	err = m.submitVolumes(preContainerGroup, filteredVolumes, containerUsedVolumes)
 	if err != nil {
 		return err
 	}

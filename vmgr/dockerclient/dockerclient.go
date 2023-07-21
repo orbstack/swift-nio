@@ -222,7 +222,7 @@ func ReadStream(body io.Reader) error {
 		}
 
 		if record.Error != "" {
-			return fmt.Errorf("read stream: %s", record.Error)
+			return fmt.Errorf("(remote) %s", record.Error)
 		}
 	}
 }

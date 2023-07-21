@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
+func (m *Migrator) migrateOneVolume(vol dockertypes.Volume, depContainers []*dockertypes.ContainerSummary) error {
 	// create volume on dest
 	logrus.Infof("Migrating volume %s", vol.Name)
 	var newVol dockertypes.Volume
@@ -26,6 +26,15 @@ func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
 		return nil
 	}
 
+	// freeze containers
+	for _, ctr := range depContainers {
+		err := m.incContainerPauseRef(ctr)
+		if err != nil {
+			return fmt.Errorf("inc container pause ref: %w", err)
+		}
+		defer m.decContainerPauseRef(ctr)
+	}
+
 	// sync data dirs
 	err = m.syncDirs(m.srcClient, []string{vol.Mountpoint}, m.destClient, newVol.Mountpoint)
 	if err != nil {
@@ -35,13 +44,13 @@ func (m *Migrator) migrateOneVolume(vol dockertypes.Volume) error {
 	return nil
 }
 
-func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []dockertypes.Volume) error {
+func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []dockertypes.Volume, containerUsedVolumes map[string][]*dockertypes.ContainerSummary) error {
 	for _, vol := range volumes {
 		vol := vol
 		group.Submit(func() {
 			defer m.finishOneEntity()
 
-			err := m.migrateOneVolume(vol)
+			err := m.migrateOneVolume(vol, containerUsedVolumes[vol.Name])
 			if err != nil {
 				panic(fmt.Errorf("volume %s: %w", vol.Name, err))
 			}
