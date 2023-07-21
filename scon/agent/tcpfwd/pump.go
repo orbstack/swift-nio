@@ -9,7 +9,7 @@ import (
 
 const (
 	//TODO
-	bufferSize = 256 * 1024
+	BufferSize = 256 * 1024
 )
 
 type FullDuplexConn interface {
@@ -19,7 +19,7 @@ type FullDuplexConn interface {
 }
 
 func pump1(errC chan<- error, src, dst FullDuplexConn) {
-	buf := make([]byte, bufferSize)
+	buf := make([]byte, BufferSize)
 	_, err := io.CopyBuffer(dst, src, buf)
 
 	// half-close to allow graceful shutdown
