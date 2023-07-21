@@ -4,6 +4,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/orbstack/macvirt/scon/util/netx"
 )
@@ -18,6 +19,7 @@ type localTCPListener struct {
 	net.Listener
 	ch       chan *net.TCPConn
 	registry *LocalTCPRegistry
+	closed   atomic.Bool
 }
 
 func (l *localTCPListener) Accept() (net.Conn, error) {
@@ -30,6 +32,10 @@ func (l *localTCPListener) Accept() (net.Conn, error) {
 }
 
 func (l *localTCPListener) Close() error {
+	if !l.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+
 	// close the channel
 	close(l.ch)
 	l.registry.mu.Lock()
