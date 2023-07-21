@@ -25,7 +25,7 @@ var shutdownCmd = &cobra.Command{
 
 In the future, this will be done automatically if OrbStack hasn't been used for a while.
 `,
-	Example: "  " + appid.ShortCtl + " shutdown",
+	Example: "  " + appid.ShortCmd + " shutdown",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !vmclient.IsRunning() {

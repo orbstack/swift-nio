@@ -19,7 +19,7 @@ var dockerCmd = &cobra.Command{
 	Long: `Show commands and instructions for using Docker.
 This includes building and running Docker containers, as well as using Docker Compose.
 `,
-	Example: "  " + appid.ShortCtl + " ssh",
+	Example: "  " + appid.ShortCmd + " ssh",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

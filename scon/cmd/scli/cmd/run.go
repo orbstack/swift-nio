@@ -116,7 +116,7 @@ You can also prefix commands with "` + appid.ShortCmd + `" to run them on Linux.
     ` + appid.ShortCmd + ` uname -a
 will run "uname -a" on Linux, and is equivalent to: ` + appid.ShortCtl + ` run uname -a
 
-If you prefer SSH, use "` + appid.ShortCtl + ` ssh" for details.
+If you prefer SSH, use "` + appid.ShortCmd + ` ssh" for details.
 
 To run a command on macOS from Linux, use "macctl run" instead.
 
@@ -126,7 +126,7 @@ To pass environment variables, set ORBENV to a colon-separated list of variables
 Paths are translated automatically when safe.
 To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac.
 `,
-	Example: "  " + appid.ShortCtl + " run ls",
+	Example: "  " + appid.ShortCmd + " run ls",
 	Args:    cobra.ArbitraryArgs,
 
 	// custom flag parsing - so we don't rely on --

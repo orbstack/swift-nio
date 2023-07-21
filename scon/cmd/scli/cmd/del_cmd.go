@@ -21,7 +21,7 @@ var unlinkCmd = &cobra.Command{
 
 No commands are linked by default.
 `,
-	Example: "  " + appid.ShortCtl + " unlink-cmd code",
+	Example: "  " + appid.ShortCmd + " unlink-cmd code",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := shell.UnlinkCmd(args[0])

@@ -21,7 +21,7 @@ var logsCmd = &cobra.Command{
 	Short:   "Show logs for a Linux machine",
 	Long: `Show the unified logs for the specified Linux machine, by ID or name.
 `,
-	Example: "  " + appid.ShortCtl + " logs ubuntu",
+	Example: "  " + appid.ShortCmd + " logs ubuntu",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

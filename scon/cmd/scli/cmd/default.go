@@ -25,7 +25,7 @@ If no default is set, the most recently-used machine will be used instead.
 If --user is specified, the default user will be changed.
 Otherwise, it will be reset to match your macOS username.
 `,
-	Example: "  " + appid.ShortCtl + " set-default -u root ubuntu",
+	Example: "  " + appid.ShortCmd + " set-default -u root ubuntu",
 	Args:    cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

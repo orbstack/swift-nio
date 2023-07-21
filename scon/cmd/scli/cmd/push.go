@@ -25,10 +25,10 @@ Destination path is relative to the Linux user's home directory.
 If destination is not specified, the home directory is used.
 
 This is provided for convenience, but you can also use shared folders. For example:
-    ` + appid.ShortCtl + ` push example.txt code/
+    ` + appid.ShortCmd + ` push example.txt code/
 is equivalent to:
 	cp example.txt ~/OrbStack/ubuntu/home/$USER/code/`,
-	Example: "  " + appid.ShortCtl + " push example.txt Desktop/",
+	Example: "  " + appid.ShortCmd + " push example.txt Desktop/",
 	Args:    cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

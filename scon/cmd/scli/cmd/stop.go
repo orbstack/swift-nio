@@ -21,7 +21,7 @@ var stopCmd = &cobra.Command{
 
 If no arguments are provided, this command will stop the entire OrbStack service, including Docker and all machines.
 `,
-	Example: "  " + appid.ShortCtl + " stop ubuntu",
+	Example: "  " + appid.ShortCmd + " stop ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !vmclient.IsRunning() {

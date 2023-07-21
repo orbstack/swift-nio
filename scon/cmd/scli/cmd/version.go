@@ -17,7 +17,7 @@ var versionCmd = &cobra.Command{
 	Short: "Show OrbStack version",
 	Long: `Show OrbStack version information.
 `,
-	Example: "  " + appid.ShortCtl + " version",
+	Example: "  " + appid.ShortCmd + " version",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ver := appver.Get()

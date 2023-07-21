@@ -34,7 +34,7 @@ var createCmd = &cobra.Command{
 	Long: `Create a new Linux machine with the specified distribution.
 
 Version is optional; the latest stable version will be used if not specified.
-To remove a machine, use "` + appid.ShortCtl + ` delete".
+To remove a machine, use "` + appid.ShortCmd + ` delete".
 
 A matching Linux user will be created for your macOS user. Pass "--set-password" to set a password for this Linux user, as well as the root user.
 

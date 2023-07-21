@@ -23,11 +23,11 @@ var configSetCmd = &cobra.Command{
 	Short: "Set a config option",
 	Long: `Set a single configuration option for the Linux virtual machine.
 
-See "orbctl config show" for a list of options.
+See "orb config show" for a list of options.
 
 Some options will only take effect after restarting the virtual machine.
 `,
-	Example: "  " + appid.ShortCtl + " set memory_mib 4096",
+	Example: "  " + appid.ShortCmd + " set memory_mib 4096",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureVMWithSpinner()
@@ -82,7 +82,7 @@ Some options will only take effect after restarting the virtual machine.
 		checkCLI(err)
 
 		if rebootRequired {
-			cmd.Println(`Restart OrbStack with "` + appid.ShortCtl + ` shutdown" to apply changes.`)
+			cmd.Println(`Restart OrbStack with "` + appid.ShortCmd + ` shutdown" to apply changes.`)
 		}
 		if key == "network_bridge" && config.NetworkBridge != oldConfig.NetworkBridge {
 			// restart docker machine if changed and already running

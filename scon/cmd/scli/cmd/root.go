@@ -6,7 +6,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   appid.ShortCtl,
+	Use:   appid.ShortCmd,
 	Short: "Linux integration utilities for " + appid.UserAppName,
 	Long: `Use and manage ` + appid.UserAppName + ` and its Linux machines.
 

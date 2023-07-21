@@ -25,10 +25,10 @@ Source paths are relative to the Linux user's home directory.
 If destination is not specified, the current directory is used.
 
 This is provided for convenience, but you can also use shared folders. For example:
-    ` + appid.ShortCtl + ` pull code/example.txt .
+    ` + appid.ShortCmd + ` pull code/example.txt .
 is equivalent to:
 	cp ~/OrbStack/ubuntu/home/$USER/code/example.txt .`,
-	Example: "  " + appid.ShortCtl + " pull code/example.txt .",
+	Example: "  " + appid.ShortCmd + " pull code/example.txt .",
 	Args:    cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

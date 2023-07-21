@@ -31,7 +31,7 @@ var listCmd = &cobra.Command{
 	Short: "List all Linux machines",
 	Long: `List all Linux machines and their statuses.
 `,
-	Example: "  " + appid.ShortCtl + " list",
+	Example: "  " + appid.ShortCmd + " list",
 	Args:    cobra.NoArgs,
 	// no "ps" alias because of conflict with short cmd
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -89,7 +89,7 @@ var listCmd = &cobra.Command{
 			}
 
 			if len(containers) == 0 {
-				fmt.Fprintln(os.Stderr, `\nUse "`+appid.ShortCtl+`" create to create a machine.`)
+				fmt.Fprintln(os.Stderr, `\nUse "`+appid.ShortCmd+`" create to create a machine.`)
 			}
 		}
 

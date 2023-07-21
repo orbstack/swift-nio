@@ -32,7 +32,7 @@ var dockerMigrateCmd = &cobra.Command{
 	Short: "Migrate containers, images, and volumes from Docker Desktop",
 	Long: `Migrate containers, images, volumes, and other data from Docker Desktop to OrbStack.
 `,
-	Example: "  " + appid.ShortCtl + " docker migrate",
+	Example: "  " + appid.ShortCmd + " docker migrate",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

@@ -20,7 +20,7 @@ var restartCmd = &cobra.Command{
 	Short: "Restart a Linux machine",
 	Long: `Restart the specified Linux machine(s), by ID or name.
 `,
-	Example: "  " + appid.ShortCtl + " restart ubuntu",
+	Example: "  " + appid.ShortCmd + " restart ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !vmclient.IsRunning() {

@@ -15,7 +15,7 @@ var renameCmd = &cobra.Command{
 	Short: "Rename a Linux machine",
 	Long: `Rename the specified Linux machine. The old 
 `,
-	Example: "  " + appid.ShortCtl + " rename ubuntu testubuntu",
+	Example: "  " + appid.ShortCmd + " rename ubuntu testubuntu",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

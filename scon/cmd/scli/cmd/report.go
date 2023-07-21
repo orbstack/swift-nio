@@ -30,7 +30,7 @@ var reportCmd = &cobra.Command{
 
 Issue tracker: https://github.com/orbstack/orbstack/issues
 `,
-	Example: "  " + appid.ShortCtl + " report",
+	Example: "  " + appid.ShortCmd + " report",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var buffer bytes.Buffer

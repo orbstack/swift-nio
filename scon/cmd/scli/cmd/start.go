@@ -24,7 +24,7 @@ var startCmd = &cobra.Command{
 
 If no machines are specified, the command will start all machines that were running when it was last stopped.
 `,
-	Example: "  " + appid.ShortCtl + " start ubuntu",
+	Example: "  " + appid.ShortCmd + " start ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var containerNames []string

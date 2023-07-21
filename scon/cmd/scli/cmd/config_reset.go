@@ -18,14 +18,14 @@ var configResetCmd = &cobra.Command{
 
 Some options will only take effect after restarting the virtual machine.
 `,
-	Example: "  " + appid.ShortCtl + " reset",
+	Example: "  " + appid.ShortCmd + " reset",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureVMWithSpinner()
 		err := vmclient.Client().ResetConfig()
 		checkCLI(err)
 
-		cmd.Println(`Restart OrbStack with "` + appid.ShortCtl + ` shutdown" to apply all changes.`)
+		cmd.Println(`Restart OrbStack with "` + appid.ShortCmd + ` shutdown" to apply all changes.`)
 
 		return nil
 	},

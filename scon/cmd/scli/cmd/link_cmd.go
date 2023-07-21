@@ -19,12 +19,12 @@ var linkCmd = &cobra.Command{
 	Short:   "Link a command to macOS",
 	Long: `Create a link to a command that runs on macOS.
 
-This makes a specific macOS command available to run directly from Linux, without prefixing it with ` + appid.ShortCtl + ` or ` + appid.ShortCmd + `.
-To remove a linked command, use "` + appid.ShortCtl + ` unlink".
+This makes a specific macOS command available to run directly from Linux, without prefixing it with ` + appid.ShortCmd + ` or ` + appid.ShortCmd + `.
+To remove a linked command, use "` + appid.ShortCmd + ` unlink".
 
 No commands are linked by default.
 `,
-	Example: "  " + appid.ShortCtl + " link-cmd code; code .",
+	Example: "  " + appid.ShortCmd + " link-cmd code; code .",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := shell.LinkCmd(args[0])

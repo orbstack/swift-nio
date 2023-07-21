@@ -20,7 +20,7 @@ var infoCmd = &cobra.Command{
 	Short:   "Get information about a Linux machine",
 	Long: `Get information about the specified Linux machine, by ID or name.
 `,
-	Example: "  " + appid.ShortCtl + " list",
+	Example: "  " + appid.ShortCmd + " list",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

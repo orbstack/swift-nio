@@ -27,7 +27,7 @@ var deleteCmd = &cobra.Command{
 The machine will be stopped if it is running.
 All files stored in the machine will be PERMANENTLY LOST without warning!
 `,
-	Example: "  " + appid.ShortCtl + " delete ubuntu",
+	Example: "  " + appid.ShortCmd + " delete ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// confirm

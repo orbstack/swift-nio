@@ -23,7 +23,7 @@ Returns one of the following statuses and exit codes:
   Starting: status 2
   Stopped: status 1
 `,
-	Example: "  " + appid.ShortCtl + " status",
+	Example: "  " + appid.ShortCmd + " status",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if vmclient.IsRunning() {

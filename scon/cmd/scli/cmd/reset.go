@@ -29,7 +29,7 @@ var resetCmd = &cobra.Command{
 This resets OrbStack to its initial state, but configuration is preserved.
 All machines will be stopped immediately.
 `,
-	Example: "  " + appid.ShortCtl + " reset",
+	Example: "  " + appid.ShortCmd + " reset",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// confirm
