@@ -297,7 +297,7 @@ func (a *AgentServer) DockerMigrationSyncDirs(params DockerMigrationSyncDirsPara
 	dest := params.Dirs[0]
 
 	// start the listener to get proxied to mac
-	listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(params.Port))
+	listener, err := a.localTCPRegistry.Listen(uint16(params.Port))
 	if err != nil {
 		return err
 	}

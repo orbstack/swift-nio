@@ -3,6 +3,7 @@ package tcpfwd
 import (
 	"net"
 
+	"github.com/orbstack/macvirt/scon/agent/registry"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/sirupsen/logrus"
 )
@@ -15,13 +16,15 @@ type TCPProxy struct {
 	listener net.Listener
 	preferV6 bool
 	port     uint16
+	registry *registry.LocalTCPRegistry
 }
 
-func NewTCPProxy(listener net.Listener, preferV6 bool, port uint16) *TCPProxy {
+func NewTCPProxy(listener net.Listener, preferV6 bool, port uint16, registry *registry.LocalTCPRegistry) *TCPProxy {
 	return &TCPProxy{
 		listener: listener,
 		preferV6: preferV6,
 		port:     port,
+		registry: registry,
 	}
 }
 
@@ -37,6 +40,12 @@ func (p *TCPProxy) Run() error {
 }
 
 func (p *TCPProxy) handleConn(conn net.Conn) {
+	// try bypass -> local registry
+	if p.registry.TakeConn(p.port, conn) {
+		logrus.WithField("port", p.port).Debug("bypassing local registry")
+		return
+	}
+
 	defer conn.Close()
 
 	// dial

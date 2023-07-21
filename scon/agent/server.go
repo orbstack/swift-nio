@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/orbstack/macvirt/scon/agent/registry"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/conf"
@@ -34,6 +35,8 @@ type AgentServer struct {
 	tcpProxies   map[ProxySpec]*tcpfwd.TCPProxy
 	udpProxies   map[ProxySpec]*udpfwd.UDPProxy
 	loginManager *LoginManager
+
+	localTCPRegistry *registry.LocalTCPRegistry
 
 	docker *DockerAgent
 }
@@ -139,10 +142,11 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 	fdx := NewFdx(fdxConn)
 	server := &AgentServer{
-		fdx:          fdx,
-		tcpProxies:   make(map[ProxySpec]*tcpfwd.TCPProxy),
-		udpProxies:   make(map[ProxySpec]*udpfwd.UDPProxy),
-		loginManager: NewLoginManager(),
+		fdx:              fdx,
+		tcpProxies:       make(map[ProxySpec]*tcpfwd.TCPProxy),
+		udpProxies:       make(map[ProxySpec]*udpfwd.UDPProxy),
+		localTCPRegistry: registry.NewLocalTCPRegistry(),
+		loginManager:     NewLoginManager(),
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("a", server)
