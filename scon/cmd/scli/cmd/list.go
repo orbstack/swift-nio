@@ -55,7 +55,8 @@ var listCmd = &cobra.Command{
 		}
 
 		if flagFormat == "json" {
-			var displayContainers []types.ContainerRecord
+			// don't print "null" for empty array
+			displayContainers := []types.ContainerRecord{}
 			for _, c := range containers {
 				if c.Builtin {
 					continue
