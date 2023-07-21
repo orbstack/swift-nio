@@ -294,8 +294,9 @@ Expect: 100-continue
 
 func (a *AgentServer) DockerMigrationRunSyncServer(params types.InternalDockerMigrationRunSyncServerRequest, _ *None) error {
 	a.docker.dirSyncMu.Lock()
-	if a.docker.dirSyncListener != nil {
-		return errors.New("already running")
+	oldListener := a.docker.dirSyncListener
+	if oldListener != nil {
+		oldListener.Close()
 	}
 
 	// start the listener to get proxied to mac

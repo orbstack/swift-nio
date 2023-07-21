@@ -64,12 +64,18 @@ func readError(resp *http.Response) error {
 	}
 
 	// read error message
+	errBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read error body: %s", err)
+	}
 	var jsonError struct {
 		Message string `json:"message"`
 	}
-	err := json.NewDecoder(resp.Body).Decode(&jsonError)
+	// try json
+	err = json.Unmarshal(errBody, &jsonError)
 	if err != nil {
-		return fmt.Errorf("decode error: %s (%s)", err, resp.Status)
+		// fallback: plain text
+		return fmt.Errorf("[Docker] %s (%s)", string(errBody), resp.Status)
 	}
 
 	return fmt.Errorf("[Docker] %s", jsonError.Message)

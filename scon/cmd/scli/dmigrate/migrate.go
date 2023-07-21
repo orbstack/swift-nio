@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	_ "net/http/pprof"
 
 	"github.com/alitto/pond"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -396,6 +399,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	m.finishedEntities = 0
 	m.totalEntities = /*daemon config*/ 1 + len(filteredImages) + len(filteredVolumes) + len(filteredNetworks) + len(filteredContainers)
 
+	go http.ListenAndServe("localhost:6061", nil)
 	// docker daemon config first
 	err = m.migrateDaemonConfig(dockerconf.DockerDesktopDaemonConfig())
 	if err != nil {

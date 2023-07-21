@@ -13,6 +13,9 @@ import (
 )
 
 func main() {
+	// clean exit on panic
+	defer cmd.RecoverCLI()
+
 	cmd := path.Base(os.Args[0])
 	exitCode := 0
 

@@ -37,14 +37,18 @@ var dockerMigrateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
+		srcSocket := coredir.HomeDir() + "/.docker/run/docker.sock"
+		remoteWasRunning := dmigrate.RemoteIsRunning(srcSocket)
+
 		// start docker desktop if needed
 		err := util.Run("open", "-g" /*don't activate*/, "-b", "com.docker.docker")
 		checkCLI(err)
 
-		// TODO wait for start
+		// wait for start
+		err = dmigrate.WaitForRemote(srcSocket)
+		checkCLI(err)
 
 		// prefer to skip a proxy layer if possible, for perf
-		srcSocket := coredir.HomeDir() + "/.docker/run/docker.sock"
 		rawDockerSock := coredir.HomeDir() + "/Library/Containers/com.docker.docker/Data/docker.raw.sock"
 		if _, err := os.Stat(rawDockerSock); err == nil {
 			srcSocket = rawDockerSock
@@ -62,9 +66,11 @@ var dockerMigrateCmd = &cobra.Command{
 		})
 		checkCLI(err)
 
-		// TODO: if we started docker desktop, quit it
-		// err = util.Run("osascript", "-e", `quit app "Docker Desktop"`)
-		// checkCLI(err)
+		// if we started remote, quit it
+		if !remoteWasRunning {
+			err = util.Run("osascript", "-e", `quit app "Docker Desktop"`)
+			checkCLI(err)
+		}
 
 		return nil
 	},
