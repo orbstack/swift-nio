@@ -337,8 +337,4 @@ int ptrack_sendmsg6(struct bpf_sock_addr *ctx) {
     return sendmsg_common(ctx);
 }
 
-#ifdef DEBUG
 char _license[] SEC("license") = "GPL";
-#else
-char _license[] SEC("license") = "Proprietary";
-#endif
