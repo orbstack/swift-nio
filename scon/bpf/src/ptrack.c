@@ -6,6 +6,10 @@
 //   - bind -> sendmsg: consider client, don't notify
 //   - bind -> recvmsg: consider server, notify
 //   - bind -> (nothing): debounce 20 ms, then notify and assume server
+// Test cases:
+//   - socat (uses select, no recv): socat STDIO UDP-LISTEN:11112
+//   - Traefik + CoreDNS in Docker Compose net=host
+//   - dig and curl DNS clients
 
 #include <string.h>
 #include <stdbool.h>
@@ -128,6 +132,63 @@ int ptrack_sock_release(struct bpf_sock *sk) {
     return VERDICT_PROCEED;
 }
 
+static int udp_timer_cb(void *map, int *key, struct udp_meta *val) {
+    bpf_printk("udp debounce fired");
+    send_notify();
+
+    // delete self to clear timer
+    int ret = bpf_map_delete_elem(map, key);
+    if (ret != 0) {
+        bpf_printk("failed to delete udp meta");
+    }
+
+    return 0;
+}
+
+// returns: whether conditions were met
+static bool postbind_common(struct bpf_sock *sk) {
+    // only intended netns
+    if (!check_netns(sk)) {
+        return false;
+    }
+    // only TCP or UDP
+    if (sk->type != SOCK_STREAM && sk->type != SOCK_DGRAM) {
+        bpf_printk("not tcp or udp");
+        return false;
+    }
+
+    // save to map
+    struct fwd_meta init_meta = {};
+    struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, sk, &init_meta, BPF_SK_STORAGE_GET_F_CREATE);
+    if (meta == NULL) {
+        bpf_printk("failed to save meta");
+        return true;
+    }
+
+    // notify (TCP). UDP delayed until first recvmsg
+    if (sk->type == SOCK_STREAM) {
+        send_notify();
+    } else {
+        meta->udp_notify_pending = true;
+
+        // start timer
+        struct udp_meta init_udp = {};
+        __u64 cookie = bpf_get_socket_cookie(sk);
+        bpf_map_update_elem(&udp_meta_map, &cookie, &init_udp, BPF_ANY);
+        struct udp_meta *udp = bpf_map_lookup_elem(&udp_meta_map, &cookie);
+        if (udp == NULL) {
+            bpf_printk("failed to lookup udp meta");
+            return true;
+        }
+
+        bpf_timer_init(&udp->notify_timer, &udp_meta_map, CLOCK_MONOTONIC);
+        bpf_timer_set_callback(&udp->notify_timer, udp_timer_cb);
+        bpf_timer_start(&udp->notify_timer, UDP_BIND_DEBOUNCE * 1000 * 1000, 0);
+    }
+
+    return true;
+}
+
 static int recvmsg_common(struct bpf_sock_addr *ctx) {
     struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, ctx->sk, NULL, 0);
     if (meta == NULL) {
@@ -167,17 +228,22 @@ static int sendmsg_common(struct bpf_sock_addr *ctx) {
     return VERDICT_PROCEED;
 }
 
-static int udp_timer_cb(void *map, int *key, struct udp_meta *val) {
-    bpf_printk("udp debounce fired");
-    send_notify();
-
-    // delete self to clear timer
-    int ret = bpf_map_delete_elem(map, key);
-    if (ret != 0) {
-        bpf_printk("failed to delete udp meta");
+// returns: whether conditions were met
+static bool connect_common(struct bpf_sock_addr *ctx) {
+    struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, ctx->sk, NULL, 0);
+    if (meta == NULL) {
+        return false;
     }
 
-    return 0;
+    // delete timer
+    if (meta->udp_notify_pending) {
+        __u64 cookie = bpf_get_socket_cookie(ctx);
+        bpf_map_delete_elem(&udp_meta_map, &cookie);
+        // no need to set udp_notify_pending - it's being deleted
+    }
+
+    bpf_sk_storage_delete(&sk_meta_map, ctx->sk);
+    return true;
 }
 
 /*
@@ -198,65 +264,18 @@ int ptrack_post_bind4(struct bpf_sock *sk) {
     if (!check_ip4(sk)) {
         return VERDICT_PROCEED;
     }
-    // only intended netns
-    if (!check_netns(sk)) {
-        return VERDICT_PROCEED;
+
+    if (postbind_common(sk)) {
+        bpf_printk("post_bind4: %x:%d", bpf_ntohl(sk->src_ip4), sk->src_port);
     }
-    // only TCP or UDP
-    if (sk->type != SOCK_STREAM && sk->type != SOCK_DGRAM) {
-        bpf_printk("not tcp or udp");
-        return VERDICT_PROCEED;
-    }
-
-    // save to map
-    struct fwd_meta init_meta = {};
-    struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, sk, &init_meta, BPF_SK_STORAGE_GET_F_CREATE);
-    if (meta == NULL) {
-        bpf_printk("failed to save meta");
-        return VERDICT_PROCEED;
-    }
-
-    // notify (TCP). UDP delayed until first recvmsg
-    if (sk->type == SOCK_STREAM) {
-        send_notify();
-    } else {
-        meta->udp_notify_pending = true;
-
-        // start timer
-        struct udp_meta init_udp = {};
-        __u64 cookie = bpf_get_socket_cookie(sk);
-        bpf_map_update_elem(&udp_meta_map, &cookie, &init_udp, BPF_ANY);
-        struct udp_meta *udp = bpf_map_lookup_elem(&udp_meta_map, &cookie);
-        if (udp == NULL) {
-            bpf_printk("failed to lookup udp meta");
-            return VERDICT_PROCEED;
-        }
-
-        bpf_timer_init(&udp->notify_timer, &udp_meta_map, CLOCK_MONOTONIC);
-        bpf_timer_set_callback(&udp->notify_timer, udp_timer_cb);
-        bpf_timer_start(&udp->notify_timer, UDP_BIND_DEBOUNCE * 1000 * 1000, 0);
-    }
-
-    bpf_printk("post_bind4: %x:%d", bpf_ntohl(sk->src_ip4), sk->src_port);
     return VERDICT_PROCEED;
 }
 
 SEC("cgroup/connect4")
 int ptrack_connect4(struct bpf_sock_addr *ctx) {
-    struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, ctx->sk, NULL, 0);
-    if (meta == NULL) {
-        return VERDICT_PROCEED;
+    if (connect_common(ctx)) {
+        bpf_printk("connect4: delete sk %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
     }
-
-    // delete timer
-    if (meta->udp_notify_pending) {
-        __u64 cookie = bpf_get_socket_cookie(ctx);
-        bpf_map_delete_elem(&udp_meta_map, &cookie);
-    }
-
-    bpf_printk("connect4: delete sk %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
-    bpf_sk_storage_delete(&sk_meta_map, ctx->sk);
-
     return VERDICT_PROCEED;
 }
 
@@ -290,41 +309,18 @@ int ptrack_post_bind6(struct bpf_sock *sk) {
     if (!check_ip6(sk)) {
         return VERDICT_PROCEED;
     }
-    // only intended netns
-    if (!check_netns(sk)) {
-        return VERDICT_PROCEED;
-    }
-    // only TCP or UDP
-    if (sk->type != SOCK_STREAM && sk->type != SOCK_DGRAM) {
-        bpf_printk("not tcp or udp");
-        return VERDICT_PROCEED;
-    }
 
-    // save to map
-    struct fwd_meta meta = {};
-    struct fwd_meta *ret = bpf_sk_storage_get(&sk_meta_map, sk, &meta, BPF_SK_STORAGE_GET_F_CREATE);
-    if (ret == NULL) {
-        bpf_printk("failed to save meta");
-        return VERDICT_REJECT;
+    if (postbind_common(sk)) {
+        bpf_printk("post_bind6: %08x%08x%08x%08x:%d", bpf_ntohl(sk->src_ip6[0]), bpf_ntohl(sk->src_ip6[1]), bpf_ntohl(sk->src_ip6[2]), bpf_ntohl(sk->src_ip6[3]), sk->src_port);
     }
-
-    // notify (TCP). UDP delayed until first recvmsg
-    if (sk->type == SOCK_STREAM) {
-        send_notify();
-    } else {
-        ret->udp_notify_pending = true;
-    }
-
-    bpf_printk("post_bind6: %08x%08x%08x%08x:%d", bpf_ntohl(sk->src_ip6[0]), bpf_ntohl(sk->src_ip6[1]), bpf_ntohl(sk->src_ip6[2]), bpf_ntohl(sk->src_ip6[3]), sk->src_port);
     return VERDICT_PROCEED;
 }
 
 SEC("cgroup/connect6")
 int ptrack_connect6(struct bpf_sock_addr *ctx) {
-    if (bpf_sk_storage_delete(&sk_meta_map, ctx->sk) == 0) {
+    if (connect_common(ctx)) {
         bpf_printk("connect6: deleted sk %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     }
-
     return VERDICT_PROCEED;
 }
 
