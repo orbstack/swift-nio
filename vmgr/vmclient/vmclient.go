@@ -187,6 +187,10 @@ func (c *VmClient) FinishSetup() error {
 	return c.rpc.CallResult(context.TODO(), "FinishSetup", nil, &noResult)
 }
 
+func (c *VmClient) SetDockerContext() error {
+	return c.rpc.CallResult(context.TODO(), "SetDockerContext", nil, &noResult)
+}
+
 func (c *VmClient) DockerContainerList() ([]dockertypes.ContainerSummary, error) {
 	var containers []dockertypes.ContainerSummary
 	err := c.rpc.CallResult(context.TODO(), "DockerContainerList", nil, &containers)

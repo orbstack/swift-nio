@@ -119,6 +119,11 @@ func (s *VmControlServer) FinishSetup(ctx context.Context) error {
 	return nil
 }
 
+// for post-migration
+func (s *VmControlServer) SetDockerContext(ctx context.Context) error {
+	return setupDockerContext()
+}
+
 func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertypes.ContainerSummary, error) {
 	// includes stopped
 	var containers []dockertypes.ContainerSummary
@@ -351,6 +356,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"ResetConfig":         handler.New(s.ResetConfig),
 		"StartSetup":          handler.New(s.StartSetup),
 		"FinishSetup":         handler.New(s.FinishSetup),
+		"SetDockerContext":    handler.New(s.SetDockerContext),
 		"IsSshConfigWritable": handler.New(s.IsSshConfigWritable),
 		"InternalReportEnv":   handler.New(s.InternalReportEnv),
 

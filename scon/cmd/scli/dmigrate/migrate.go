@@ -15,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockerconf"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
@@ -451,7 +452,12 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		return fmt.Errorf("fix docker creds store: %w", err)
 	}
 
-	// TODO change context back
+	// restore Docker context if changed
+	// this uses same DOCKER_CONFIG and docker exe as vmgr
+	err = vmclient.Client().SetDockerContext()
+	if err != nil {
+		return fmt.Errorf("set docker context: %w", err)
+	}
 
 	// dispatch any earlier errors
 	err = errTracker.Check()
