@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -245,6 +244,7 @@ loop:
 
 func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// grab everything
+	logrus.Info("Gathering info")
 	var images []dockertypes.Image
 	err := m.srcClient.Call("GET", "/images/json", nil, &images)
 	if err != nil {
@@ -399,7 +399,6 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	m.finishedEntities = 0
 	m.totalEntities = /*daemon config*/ 1 + len(filteredImages) + len(filteredVolumes) + len(filteredNetworks) + len(filteredContainers)
 
-	go http.ListenAndServe("localhost:6061", nil)
 	// docker daemon config first
 	err = m.migrateDaemonConfig(dockerconf.DockerDesktopDaemonConfig())
 	if err != nil {

@@ -150,6 +150,26 @@ func (c *Client) Call(method, path string, body any, out any) error {
 	return nil
 }
 
+func (c *Client) CallDiscard(method, path string, body any) error {
+	req, err := newRequest(method, path, body)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("do request: %s", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return readError(resp)
+	}
+
+	io.Copy(io.Discard, resp.Body)
+	return nil
+}
+
 func (c *Client) StreamRead(method, path string, body any) (io.ReadCloser, error) {
 	req, err := newRequest(method, path, body)
 	if err != nil {

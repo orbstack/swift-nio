@@ -9,6 +9,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +38,7 @@ var dockerMigrateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
+		logrus.Info("Starting Docker Desktop")
 		srcSocket := coredir.HomeDir() + "/.docker/run/docker.sock"
 		remoteWasRunning := dmigrate.RemoteIsRunning(srcSocket)
 
@@ -68,6 +70,7 @@ var dockerMigrateCmd = &cobra.Command{
 
 		// if we started remote, quit it
 		if !remoteWasRunning {
+			logrus.Info("Stopping Docker Desktop")
 			err = util.Run("osascript", "-e", `quit app "Docker Desktop"`)
 			checkCLI(err)
 		}
