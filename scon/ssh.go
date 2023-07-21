@@ -45,14 +45,13 @@ TzmdsUzXZjqytDS6OrigAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
 )
 
 const (
-	noMachinesMsg = `No Linux machines found.
+	noMachinesMsg = `To use Docker:
+    docker run ...
+See "orb docker" for more info.
 
-To create a machine:
+To create a Linux machine:
     orb create ubuntu
-See "orb create --help" for supported distros and options.
-
-This is not needed if you only want to use Docker.
-See "orb docker" for more info.`
+See "orb create --help" for supported distros and options.`
 )
 
 var (
