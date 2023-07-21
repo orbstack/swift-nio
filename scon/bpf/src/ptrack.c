@@ -230,6 +230,7 @@ static int sendmsg_common(struct bpf_sock_addr *ctx) {
 
 // returns: whether conditions were met
 static bool connect_common(struct bpf_sock_addr *ctx) {
+    // be careful of connect(AF_UNSPEC)
     struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, ctx->sk, NULL, 0);
     if (meta == NULL) {
         return false;
