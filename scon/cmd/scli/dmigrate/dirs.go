@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	serverPollInterval = 50 * time.Millisecond
+	serverPollInterval = 15 * time.Millisecond
 	serverStartTimeout = 10 * time.Second
 )
 

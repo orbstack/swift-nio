@@ -21,7 +21,7 @@ const (
 	// match chrony ntp polling interval
 	autoForwardGCInterval  = 128 * time.Second
 	autoForwardGCThreshold = 1 * time.Minute
-	autoForwardDebounce    = 250 * time.Millisecond
+	autoForwardDebounce    = 25 * time.Millisecond
 
 	// special case for systemd-network DHCP client, and Debian's LLMNR
 	portDHCPClient = 68

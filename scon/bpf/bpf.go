@@ -163,7 +163,27 @@ func (b *ContainerBpfManager) AttachPtrack() error {
 		return err
 	}
 
+	err = b.attachOneCg(ebpf.AttachCGroupInet4Connect, objs.PtrackConnect4)
+	if err != nil {
+		return err
+	}
+
+	err = b.attachOneCg(ebpf.AttachCGroupUDP4Recvmsg, objs.PtrackRecvmsg4)
+	if err != nil {
+		return err
+	}
+
 	err = b.attachOneCg(ebpf.AttachCGroupInet6Bind, objs.PtrackBind6)
+	if err != nil {
+		return err
+	}
+
+	err = b.attachOneCg(ebpf.AttachCGroupInet6Connect, objs.PtrackConnect6)
+	if err != nil {
+		return err
+	}
+
+	err = b.attachOneCg(ebpf.AttachCGroupUDP6Recvmsg, objs.PtrackRecvmsg6)
 	if err != nil {
 		return err
 	}

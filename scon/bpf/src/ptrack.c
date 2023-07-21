@@ -43,8 +43,8 @@ static const __be32 UNSPEC_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 0);
 const volatile __u64 config_netns_cookie = 0;
 
 struct fwd_meta {
-    // value size can't be 0
-    __u8 unused;
+    // UDP notification is delayed until first recvmsg
+    bool udp_notify_pending;
 };
 
 struct notify_event {
@@ -105,6 +105,22 @@ int ptrack_sock_release(struct bpf_sock *sk) {
     return VERDICT_PROCEED;
 }
 
+static int recvmsg_common(struct bpf_sock_addr *ctx) {
+    struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, ctx->sk, NULL, 0);
+    if (meta == NULL) {
+        return VERDICT_PROCEED;
+    }
+
+    // if connect() called as client socket, sk storage will already be deleted
+    if (meta->udp_notify_pending) {
+        bpf_printk("recvmsg: first udp notify");
+        send_notify();
+        meta->udp_notify_pending = false;
+    }
+
+    return VERDICT_PROCEED;
+}
+
 /*
  * v4
  */
@@ -134,18 +150,36 @@ int ptrack_bind4(struct bpf_sock_addr *ctx) {
     }
 
     // save to map
-    struct fwd_meta meta = {};
-    struct fwd_meta *ret = bpf_sk_storage_get(&sk_meta_map, ctx->sk, &meta, BPF_SK_STORAGE_GET_F_CREATE);
-    if (ret == NULL) {
+    struct fwd_meta init_meta = {};
+    struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, ctx->sk, &init_meta, BPF_SK_STORAGE_GET_F_CREATE);
+    if (meta == NULL) {
         bpf_printk("failed to save meta");
-        return VERDICT_REJECT;
+        return VERDICT_PROCEED;
     }
 
-    // notify
-    send_notify();
+    // notify (TCP). UDP delayed until first recvmsg
+    if (ctx->type == SOCK_STREAM) {
+        send_notify();
+    } else {
+        meta->udp_notify_pending = true;
+    }
 
-    bpf_printk("bind tcp4/udp4: %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
+    bpf_printk("bind4: %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
     return VERDICT_PROCEED;
+}
+
+SEC("cgroup/connect4")
+int ptrack_connect4(struct bpf_sock_addr *ctx) {
+    if (bpf_sk_storage_delete(&sk_meta_map, ctx->sk) == 0) {
+        bpf_printk("connect4: deleted sk %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
+    }
+
+    return VERDICT_PROCEED;
+}
+
+SEC("cgroup/recvmsg4")
+int ptrack_recvmsg4(struct bpf_sock_addr *ctx) {
+    return recvmsg_common(ctx);
 }
 
 /*
@@ -184,11 +218,29 @@ int ptrack_bind6(struct bpf_sock_addr *ctx) {
         return VERDICT_REJECT;
     }
 
-    // notify
-    send_notify();
+    // notify (TCP). UDP delayed until first recvmsg
+    if (ctx->type == SOCK_STREAM) {
+        send_notify();
+    } else {
+        ret->udp_notify_pending = true;
+    }
 
-    bpf_printk("bind tcp6/udp6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
+    bpf_printk("bind6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return VERDICT_PROCEED;
+}
+
+SEC("cgroup/connect6")
+int ptrack_connect6(struct bpf_sock_addr *ctx) {
+    if (bpf_sk_storage_delete(&sk_meta_map, ctx->sk) == 0) {
+        bpf_printk("connect6: deleted sk %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
+    }
+
+    return VERDICT_PROCEED;
+}
+
+SEC("cgroup/recvmsg6")
+int ptrack_recvmsg6(struct bpf_sock_addr *ctx) {
+    return recvmsg_common(ctx);
 }
 
 #ifdef DEBUG
