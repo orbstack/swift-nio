@@ -15,6 +15,7 @@ EOT
 
 FROM base AS final
 RUN apk add --no-cache tar bash
+RUN apk del apk-tools
 COPY --from=build /out/ocitar /usr/local/bin/ocitar
 
 # flatten
