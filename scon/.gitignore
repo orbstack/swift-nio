@@ -5,6 +5,7 @@
 /scon-agent
 /scli
 /scon-forksftp
+/ocitar
 
 /killswitch/ksconst_release.go
 
