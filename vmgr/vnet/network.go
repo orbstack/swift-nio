@@ -80,6 +80,9 @@ type Network struct {
 	bridgeRouteMon *bridge.RouteMon
 	vlanRouter     *vzf.VlanRouter
 	vlanIndices    map[sgtypes.DockerBridgeConfig]int
+
+	// services we need references to
+	DockerRemoteCtxForward *tcpfwd.UnixNATForward
 }
 
 type NetOptions struct {

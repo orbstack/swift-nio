@@ -623,6 +623,7 @@ func runVmManager() {
 		stopCh:       stopCh,
 		dockerClient: makeDockerClient(),
 		drm:          drm.Client(),
+		network:      vnetwork,
 	}
 	vmcontrolCleanup, err := controlServer.Serve()
 	check(err)

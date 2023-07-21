@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +16,11 @@ import (
 
 type Client struct {
 	http *http.Client
+}
+
+type statusRecord struct {
+	Error  string `json:"error"`
+	Stream string `json:"stream"`
 }
 
 func NewWithHTTP(httpC *http.Client) *Client {
@@ -129,7 +135,10 @@ func (c *Client) Call(method, path string, body any, out any) error {
 		}
 	} else {
 		// image pull doesn't work if we don't read the body
-		io.Copy(io.Discard, resp.Body)
+		err = ReadStream(resp.Body)
+		if err != nil {
+			return fmt.Errorf("read resp: %s", err)
+		}
 	}
 
 	return nil
@@ -164,14 +173,30 @@ func (c *Client) StreamWrite(method, path string, body io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("do request: %s", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		resp.Body.Close()
 		return readError(resp)
 	}
 
 	// read body
-	io.Copy(io.Discard, resp.Body)
+	return ReadStream(resp.Body)
+}
 
-	return nil
+func ReadStream(body io.Reader) error {
+	for {
+		var record statusRecord
+		err := json.NewDecoder(body).Decode(&record)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+
+			return fmt.Errorf("decode status record: %s", err)
+		}
+
+		if record.Error != "" {
+			return fmt.Errorf("read stream: %s", record.Error)
+		}
+	}
 }

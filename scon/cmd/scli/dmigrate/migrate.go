@@ -12,6 +12,10 @@ import (
 	"time"
 
 	"github.com/alitto/pond"
+	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockerconf"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -36,7 +40,12 @@ type Migrator struct {
 
 	mu           sync.Mutex
 	networkIDMap map[string]string
-	srcAgentCid  string
+
+	ctrPauseRefsMu sync.Mutex
+	ctrPauseRefs   map[string]int
+
+	srcAgentCid string
+	syncPort    int
 
 	finishedEntities int
 	totalEntities    int
@@ -80,6 +89,7 @@ func NewMigratorWithClients(srcClient, destClient *dockerclient.Client) (*Migrat
 		destClient: destClient,
 
 		networkIDMap: make(map[string]string),
+		ctrPauseRefs: make(map[string]int),
 	}, nil
 }
 
@@ -181,6 +191,53 @@ func (m *Migrator) finishOneEntity() {
 
 func (m *Migrator) sendProgressEvent(progress float64) {
 	logrus.Infof("Progress = %.1f%%", progress*100)
+}
+
+func (m *Migrator) startSyncServer() error {
+	syncPort, err := findFreeTCPPort()
+	if err != nil {
+		return fmt.Errorf("find free port: %w", err)
+	}
+	m.syncPort = syncPort
+
+	// start server
+	err = scli.Client().InternalDockerMigrationRunSyncServer(types.InternalDockerMigrationRunSyncServerRequest{
+		Port: syncPort,
+	})
+	if err != nil {
+		return fmt.Errorf("start sync server: %w", err)
+	}
+
+	// wait for mac proxy to start. server will always be running
+	pollTicker := time.NewTicker(serverPollInterval)
+	timeout := time.NewTimer(serverStartTimeout)
+loop:
+	for {
+		select {
+		case <-pollTicker.C:
+			// check if server is running
+			conn, err := netx.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", syncPort))
+			if err != nil {
+				continue
+			}
+
+			// connected = fwd running
+			conn.Close()
+			err = nil
+			break loop
+		case <-timeout.C:
+			// timeout
+			err = fmt.Errorf("start server: timeout")
+			break loop
+		}
+	}
+	pollTicker.Stop()
+	timeout.Stop()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *Migrator) MigrateAll(params MigrateParams) error {
@@ -345,6 +402,13 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		return fmt.Errorf("migrate daemon config: %w", err)
 	}
 
+	// start docker remote ctx socket proxy
+	err = vmclient.Client().InternalSetDockerRemoteCtxAddr(conf.DockerRemoteCtxSocket())
+	if err != nil {
+		return fmt.Errorf("set docker remote ctx addr: %w", err)
+	}
+	defer vmclient.Client().InternalSetDockerRemoteCtxAddr("")
+
 	// parallel workers
 	workerCount := getPcpuCount() - 1
 	if workerCount < minWorkers {
@@ -391,9 +455,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	if err != nil {
 		return fmt.Errorf("run src agent: %w", err)
 	}
-	m.mu.Lock()
 	m.srcAgentCid = srcAgentCid
-	m.mu.Unlock()
 	defer func() {
 		// [src] kill agent
 		err := m.srcClient.Call("POST", "/containers/"+srcAgentCid+"/kill", nil, nil)
@@ -411,6 +473,13 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	if err != nil {
 		return fmt.Errorf("install deps: %w", err)
 	}
+
+	// [dest] start sync server
+	err = m.startSyncServer()
+	if err != nil {
+		return fmt.Errorf("start sync server: %w", err)
+	}
+	defer scli.Client().InternalDockerMigrationStopSyncServer()
 
 	// all ready. migrate in order
 

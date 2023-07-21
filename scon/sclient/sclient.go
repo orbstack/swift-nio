@@ -164,6 +164,14 @@ func (c *SconClient) InternalDockerMigrationLoadImage(req types.InternalDockerMi
 	return c.rpc.CallResult(context.TODO(), "InternalDockerMigrationLoadImage", req, &noResult)
 }
 
-func (c *SconClient) InternalDockerMigrationSyncDirs(req types.InternalDockerMigrationSyncDirsRequest) error {
-	return c.rpc.CallResult(context.TODO(), "InternalDockerMigrationSyncDirs", req, &noResult)
+func (c *SconClient) InternalDockerMigrationRunSyncServer(req types.InternalDockerMigrationRunSyncServerRequest) error {
+	return c.rpc.CallResult(context.TODO(), "InternalDockerMigrationRunSyncServer", req, &noResult)
+}
+
+func (c *SconClient) InternalDockerMigrationWaitSync(req types.InternalDockerMigrationWaitSyncRequest) error {
+	return c.rpc.CallResult(context.TODO(), "InternalDockerMigrationWaitSync", req, &noResult)
+}
+
+func (c *SconClient) InternalDockerMigrationStopSyncServer() error {
+	return c.rpc.CallResult(context.TODO(), "InternalDockerMigrationStopSyncServer", nil, &noResult)
 }

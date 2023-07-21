@@ -74,9 +74,17 @@ type InternalDockerMigrationLoadImageRequest struct {
 	RemoteImageNames []string `json:"remote_image_id"`
 }
 
+type InternalDockerMigrationRunSyncServerRequest struct {
+	Port int `json:"port"`
+}
+
+type InternalDockerMigrationWaitSyncRequest struct {
+	JobID uint64 `json:"job_id"`
+}
+
 type InternalDockerMigrationSyncDirsRequest struct {
-	Port int      `json:"port"`
-	Dirs []string `json:"dirs"`
+	JobID uint64   `json:"job_id"`
+	Dirs  []string `json:"dirs"`
 }
 
 type SetDefaultUsernameRequest struct {

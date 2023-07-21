@@ -2,6 +2,7 @@ package tcpfwd
 
 import (
 	"net"
+	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
@@ -12,6 +13,7 @@ import (
 
 type UnixNATForward struct {
 	listener    net.Listener
+	mu          sync.Mutex
 	connectAddr string
 }
 
@@ -41,12 +43,26 @@ func (f *UnixNATForward) listen() {
 	}
 }
 
+func (f *UnixNATForward) SetAddr(addr string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.connectAddr = addr
+}
+
 func (f *UnixNATForward) handleConn(conn net.Conn) {
 	defer conn.Close()
 
-	unixConn, err := net.Dial("unix", f.connectAddr)
+	f.mu.Lock()
+	connectAddr := f.connectAddr
+	f.mu.Unlock()
+	if connectAddr == "" {
+		return
+	}
+
+	unixConn, err := net.Dial("unix", connectAddr)
 	if err != nil {
-		logrus.WithError(err).WithField("addr", f.connectAddr).Error("unix-nat forward: dial failed")
+		logrus.WithError(err).WithField("addr", connectAddr).Error("unix-nat forward: dial failed")
 		return
 	}
 	defer unixConn.Close()

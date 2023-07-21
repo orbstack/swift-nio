@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 
 	"github.com/alessio/shellescape"
@@ -96,6 +97,15 @@ func (m *Migrator) sendImageFastpath(img dockertypes.Image) error {
 
 	rawImageID := strings.TrimPrefix(img.ID, "sha256:")
 
+	dirSyncReq := types.InternalDockerMigrationSyncDirsRequest{
+		JobID: rand.Uint64(),
+		Dirs:  []string{types.DockerMigrationSyncDirImageLoad},
+	}
+	dirSyncReqBytes, err := json.Marshal(&dirSyncReq)
+	if err != nil {
+		return fmt.Errorf("marshal dir sync req: %w", err)
+	}
+
 	cmdBuilder := func(port int) []string {
 		imgScript := fmt.Sprintf(`
 			set -eo pipefail
@@ -105,11 +115,11 @@ func (m *Migrator) sendImageFastpath(img dockertypes.Image) error {
 			%s
 			cp /var/lib/docker/image/overlay2/imagedb/content/sha256/%s config.json
 			echo %s | base64 -d > manifest.json
-			tar -cf - . > /dev/tcp/host.docker.internal/%d
-		`, tmpDir, tmpDir, tmpDir, strings.Join(cmds, "\n"), rawImageID, shellescape.Quote(base64.StdEncoding.EncodeToString(manifestBytes)), port)
+			(echo %s; tar -cf - .) > /dev/tcp/host.docker.internal/%d
+		`, tmpDir, tmpDir, tmpDir, strings.Join(cmds, "\n"), rawImageID, shellescape.Quote(base64.StdEncoding.EncodeToString(manifestBytes)), shellescape.Quote(string(dirSyncReqBytes)), port)
 		return []string{"bash", "-c", imgScript}
 	}
-	return m.syncDirsGeneric(m.srcClient, cmdBuilder, "/", m.destClient, types.DockerMigrationSyncDirImageLoad)
+	return m.syncDirsGeneric(m.srcClient, cmdBuilder, "/", m.destClient, &dirSyncReq)
 }
 
 func (m *Migrator) migrateOneImage(idx int, img dockertypes.Image, userName string) error {

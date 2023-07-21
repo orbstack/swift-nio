@@ -12,6 +12,7 @@ import (
 
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -252,62 +253,51 @@ func setupAllNat() (func() error, error) {
 	}, nil
 }
 
-func setupOneNat(proto iptables.Protocol, netmask string, servicesIP string) (func() error, error) {
-	ipt, err := iptables.New(iptables.IPFamily(proto), iptables.Timeout(5))
+func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string) (func() error, error) {
+	ipt, err := iptables.New(iptables.IPFamily(proto), iptables.Timeout(10))
 	if err != nil {
 		return nil, err
 	}
 
+	// NAT
 	// TODO interface?
-	err = ipt.AppendUnique("nat", "POSTROUTING", "-s", netmask, "!", "-d", netmask, "-j", "MASQUERADE")
-	if err != nil {
-		return nil, err
+	rules := [][]string{{"nat", "POSTROUTING", "-s", netmask, "!", "-d", netmask, "-j", "MASQUERADE"}}
+
+	if secureSvcIP != "" {
+		// allow secureSvcIP:SecureSvcDockerRemoteCtx from docker
+		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-s", netconf.SconDockerIP4, "-d", secureSvcIP, "--dport", strconv.Itoa(ports.SecureSvcDockerRemoteCtx), "-j", "ACCEPT"})
+
+		// block other secure svc
+		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", secureSvcIP, "-j", "REJECT", "--reject-with", "tcp-reset"})
 	}
 
-	if servicesIP != "" {
-		err = ipt.AppendUnique("filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", servicesIP, "-j", "REJECT", "--reject-with", "tcp-reset")
+	// first, accept related/established
+	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
+
+	// then block machines from accessing VM init-net servesr that are intended for host vmgr to connect to
+	// blocked on both guest IP (198.19.248.2) and bridge gateway (198.19.249.1)
+	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"})
+
+	// add rules
+	for _, rule := range rules {
+		err = ipt.AppendUnique(rule[0], rule[1], rule[2:]...)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// first, accept related/established
-	err = ipt.AppendUnique("filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT")
-	if err != nil {
-		return nil, err
-	}
-
-	// then block scon from accessing our guest (VM) services that are intended for host
-	// blocked on both guest IP (198.19.248.2) and bridge gateway (198.19.249.1)
-	err = ipt.AppendUnique("filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset")
-	if err != nil {
-		return nil, err
-	}
-
 	return func() error {
-		err = ipt.DeleteIfExists("nat", "POSTROUTING", "-s", netmask, "!", "-d", netmask, "-j", "MASQUERADE")
-		if err != nil {
-			return err
-		}
-
-		if servicesIP != "" {
-			err = ipt.DeleteIfExists("filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", servicesIP, "-j", "REJECT", "--reject-with", "tcp-reset")
+		// iterate in reverse order
+		var errs []error
+		for i := len(rules) - 1; i >= 0; i-- {
+			rule := rules[i]
+			err = ipt.Delete(rule[0], rule[1], rule[2:]...)
 			if err != nil {
-				return err
+				errs = append(errs, err)
 			}
 		}
 
-		err = ipt.DeleteIfExists("filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT")
-		if err != nil {
-			return err
-		}
-
-		err = ipt.DeleteIfExists("filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset")
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return errors.Join(errs...)
 	}, nil
 }
 

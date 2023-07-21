@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -84,23 +83,18 @@ func StartNetServices(n *vnet.Network) *hcsrv.HcontrolServer {
 	}
 
 	// Docker remote ctx (2376)
-	// TODO move to secure
-	err = ListenHostDockerRemoteCtx(n.Stack, addr)
+	dockerCtxForward, err := ListenHostDockerRemoteCtx(n.Stack, secureAddr)
 	if err != nil {
 		logrus.Error("Failed to start Docker remote ctx server: ", err)
 	}
 
+	n.DockerRemoteCtxForward = dockerCtxForward
 	return hcServer
 }
 
-func ListenHostDockerRemoteCtx(stack *stack.Stack, address tcpip.Address) error {
-	_, err := tcpfwd.ListenUnixNATForward(stack, tcpip.FullAddress{
+func ListenHostDockerRemoteCtx(stack *stack.Stack, address tcpip.Address) (*tcpfwd.UnixNATForward, error) {
+	return tcpfwd.ListenUnixNATForward(stack, tcpip.FullAddress{
 		Addr: address,
-		Port: ports.ServiceDockerRemoteCtx,
-	}, conf.DockerRemoteCtxSocket())
-	if err != nil {
-		return err
-	}
-
-	return nil
+		Port: ports.SecureSvcDockerRemoteCtx,
+	}, "") // start in disabled state
 }

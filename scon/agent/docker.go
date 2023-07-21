@@ -68,15 +68,10 @@ type DockerAgent struct {
 	pendingUIEntities        []dockertypes.UIEntity
 
 	eventsConn io.Closer
-}
 
-type DockerMigrationLoadImageParams struct {
-	RemoteImageNames []string
-}
-
-type DockerMigrationSyncDirsParams struct {
-	Port int
-	Dirs []string
+	dirSyncMu       syncx.Mutex
+	dirSyncListener net.Listener
+	dirSyncJobs     map[uint64]chan error
 }
 
 func NewDockerAgent() *DockerAgent {
@@ -95,6 +90,7 @@ func NewDockerAgent() *DockerAgent {
 
 		Running:        syncx.NewCondBool(),
 		containerBinds: make(map[string][]string),
+		dirSyncJobs:    make(map[uint64]chan error),
 	}
 
 	dockerAgent.containerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
@@ -168,7 +164,7 @@ func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 	return nil
 }
 
-func readUntilResponseEnd(conn io.Reader) (io.Reader, error) {
+func readUntilResponseEnd(conn io.Reader, trailer string) (io.Reader, error) {
 	var respBuf bytes.Buffer
 	var chBuf [1]byte
 	for {
@@ -186,14 +182,14 @@ func readUntilResponseEnd(conn io.Reader) (io.Reader, error) {
 
 		// check for end: '\r\n\r\n'
 		rawBuf := respBuf.Bytes()
-		if len(rawBuf) >= 4 && string(rawBuf[len(rawBuf)-4:]) == "\r\n\r\n" {
+		if len(rawBuf) >= len(trailer) && string(rawBuf[len(rawBuf)-len(trailer):]) == trailer {
 			return &respBuf, nil
 		}
 	}
 }
 
-func (a *AgentServer) DockerMigrationLoadImage(params DockerMigrationLoadImageParams, _ *None) error {
-	remoteConn, err := netx.Dial("tcp", netconf.ServicesIP4+":"+strconv.Itoa(ports.ServiceDockerRemoteCtx))
+func (a *AgentServer) DockerMigrationLoadImage(params types.InternalDockerMigrationLoadImageRequest, _ *None) error {
+	remoteConn, err := netx.Dial("tcp", netconf.SecureSvcIP4+":"+strconv.Itoa(ports.SecureSvcDockerRemoteCtx))
 	if err != nil {
 		return err
 	}
@@ -217,7 +213,7 @@ func (a *AgentServer) DockerMigrationLoadImage(params DockerMigrationLoadImagePa
 
 	// make a fake reader that stops at \r\n\r\n, so we don't cut into the chunked data
 	// http.ReadResponse only takes bufio reader
-	remoteRespBuf, err := readUntilResponseEnd(remoteConn)
+	remoteRespBuf, err := readUntilResponseEnd(remoteConn, "\r\n\r\n")
 	if err != nil {
 		return fmt.Errorf("read & buffer response: %w", err)
 	}
@@ -273,7 +269,8 @@ Expect: 100-continue
 	}
 
 	// splice chunked data
-	io.Copy(localConn, remoteConn)
+	buf := make([]byte, tcpfwd.BufferSize)
+	io.CopyBuffer(localConn, remoteConn, buf)
 
 	// read response
 	localResp2, err := http.ReadResponse(bufio.NewReader(localConn), nil)
@@ -286,80 +283,152 @@ Expect: 100-continue
 		return fmt.Errorf("bad status from local: %s", localResp2.Status)
 	}
 
+	// read body
+	err = dockerclient.ReadStream(localResp2.Body)
+	if err != nil {
+		return fmt.Errorf("read body: %w", err)
+	}
+
 	return nil
 }
 
-func (a *AgentServer) DockerMigrationSyncDirs(params DockerMigrationSyncDirsParams, _ *None) error {
-	// currently only supports one dest
-	if len(params.Dirs) != 1 {
-		return errors.New("only one dir supported")
+func (a *AgentServer) DockerMigrationRunSyncServer(params types.InternalDockerMigrationRunSyncServerRequest, _ *None) error {
+	a.docker.dirSyncMu.Lock()
+	if a.docker.dirSyncListener != nil {
+		return errors.New("already running")
 	}
-	dest := params.Dirs[0]
 
 	// start the listener to get proxied to mac
 	listener, err := a.localTCPRegistry.Listen(uint16(params.Port))
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	a.docker.dirSyncListener = listener
+	a.docker.dirSyncJobs = make(map[uint64]chan error)
+	a.docker.dirSyncMu.Unlock()
 
-	// take the first connection for polling purposes
-	conn, err := listener.Accept()
-	if err != nil {
-		return err
-	}
-	conn.Close()
+	go func() {
+		defer listener.Close()
 
-	// next conn: pass socket fd to tar and wait for it
-	conn, err = listener.Accept()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	// unset nodelay
-	err = conn.(*net.TCPConn).SetNoDelay(false)
-	if err != nil {
-		return err
-	}
+		for {
+			// next conn: pass socket fd to tar and wait for it
+			conn, err := listener.Accept()
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					logrus.WithError(err).Error("failed to accept sync connection")
+				}
+				return
+			}
 
-	// is this a Docker connection?
-	if dest == types.DockerMigrationSyncDirImageLoad {
-		err = a.docker.client.StreamWrite("POST", "/images/load", conn)
-		if err != nil {
-			return fmt.Errorf("load image: %w", err)
+			go func(conn net.Conn) {
+				var jobID uint64
+				err := func() error {
+					defer conn.Close()
+
+					// read
+					reqReader, err := readUntilResponseEnd(conn, "\n")
+					if err != nil {
+						return fmt.Errorf("read request: %w", err)
+					}
+
+					// decode json
+					var req types.InternalDockerMigrationSyncDirsRequest
+					err = json.NewDecoder(reqReader).Decode(&req)
+					if err != nil {
+						return fmt.Errorf("decode request: %w", err)
+					}
+					jobID = req.JobID
+					ch := make(chan error, 1)
+					a.docker.dirSyncMu.Lock()
+					a.docker.dirSyncJobs[jobID] = ch
+					a.docker.dirSyncMu.Unlock()
+
+					// currently only supports one dest
+					if len(req.Dirs) != 1 {
+						return errors.New("only one dir supported")
+					}
+					dest := req.Dirs[0]
+
+					// unset nodelay
+					err = conn.(*net.TCPConn).SetNoDelay(false)
+					if err != nil {
+						return err
+					}
+
+					// is this a Docker connection?
+					if dest == types.DockerMigrationSyncDirImageLoad {
+						err = a.docker.client.StreamWrite("POST", "/images/load", conn)
+						if err != nil {
+							return fmt.Errorf("load image: %w", err)
+						}
+
+						return nil
+					}
+
+					// this is a dup
+					connFile, err := conn.(*net.TCPConn).File()
+					if err != nil {
+						return err
+					}
+					// close early to avoid issue with disabling nonblock
+					conn.Close()
+					defer connFile.Close()
+
+					// disable nonblock to avoid issues with tar
+					connFile.Fd()
+
+					// ensure dest exists
+					err = os.MkdirAll(dest, 0755)
+					if err != nil {
+						return err
+					}
+
+					// spawn tar
+					cmd := exec.Command("tar", "--numeric-owner", "--xattrs", "--xattrs-include=*", "-xf", "-")
+					cmd.Dir = dest
+					cmd.Stdin = connFile
+					output, err := cmd.CombinedOutput()
+					if err != nil {
+						return fmt.Errorf("extract tar: %w; output: %s", err, string(output))
+					}
+
+					return nil
+				}()
+				if err != nil {
+					logrus.WithError(err).Error("failed to sync dir")
+				}
+
+				a.docker.dirSyncMu.Lock()
+				if ch, ok := a.docker.dirSyncJobs[jobID]; ok {
+					ch <- err
+				}
+				a.docker.dirSyncMu.Unlock()
+			}(conn)
 		}
-
-		return nil
-	}
-
-	// this is a dup
-	connFile, err := conn.(*net.TCPConn).File()
-	if err != nil {
-		return err
-	}
-	// close early to avoid issue with disabling nonblock
-	conn.Close()
-	defer connFile.Close()
-
-	// disable nonblock to avoid issues with tar
-	connFile.Fd()
-
-	// ensure dest exists
-	err = os.MkdirAll(dest, 0755)
-	if err != nil {
-		return err
-	}
-
-	// spawn tar
-	cmd := exec.Command("tar", "--numeric-owner", "--xattrs", "--xattrs-include=*", "-xf", "-")
-	cmd.Dir = dest
-	cmd.Stdin = connFile
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("extract tar: %w; output: %s", err, string(output))
-	}
+	}()
 
 	return nil
+}
+
+func (a *AgentServer) DockerMigrationWaitSync(params types.InternalDockerMigrationWaitSyncRequest, _ *None) error {
+	a.docker.dirSyncMu.Lock()
+	ch, ok := a.docker.dirSyncJobs[params.JobID]
+	a.docker.dirSyncMu.Unlock()
+	if !ok {
+		return errors.New("not running")
+	}
+
+	return <-ch
+}
+
+func (a *AgentServer) DockerMigrationStopSyncServer(_ None, _ *None) error {
+	listener := a.docker.dirSyncListener
+	if listener == nil {
+		return errors.New("not running")
+	}
+
+	a.docker.dirSyncListener = nil
+	return listener.Close()
 }
 
 /*

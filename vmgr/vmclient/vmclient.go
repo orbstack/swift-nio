@@ -214,3 +214,9 @@ func (c *VmClient) IsSshConfigWritable() (bool, error) {
 func (c *VmClient) InternalReportEnv(report *vmtypes.EnvReport) error {
 	return c.rpc.CallResult(context.TODO(), "InternalReportEnv", report, &noResult)
 }
+
+func (c *VmClient) InternalSetDockerRemoteCtxAddr(addr string) error {
+	return c.rpc.CallResult(context.TODO(), "InternalSetDockerRemoteCtxAddr", &vmtypes.InternalSetDockerRemoteCtxAddrRequest{
+		Addr: addr,
+	}, &noResult)
+}

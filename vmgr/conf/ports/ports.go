@@ -24,11 +24,10 @@ const (
 	ServiceDNS  = 53
 	ServiceNTP  = 123
 	ServiceSFTP = 22323
-	//TODO move to secure
-	ServiceDockerRemoteCtx = 2376
 
 	// secure services for guest (danger)
-	SecureSvcHostSSH      = 22
-	SecureSvcHostSSHAgent = 23
-	SecureSvcHcontrol     = 8300
+	SecureSvcHostSSH         = 22
+	SecureSvcHostSSHAgent    = 23
+	SecureSvcHcontrol        = 8300
+	SecureSvcDockerRemoteCtx = 2376
 )

@@ -14,3 +14,7 @@ type EnvReport struct {
 type IDRequest struct {
 	ID string `json:"id"`
 }
+
+type InternalSetDockerRemoteCtxAddrRequest struct {
+	Addr string `json:"addr"`
+}

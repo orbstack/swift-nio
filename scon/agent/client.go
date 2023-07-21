@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync/atomic"
 
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"golang.org/x/sys/unix"
 )
@@ -217,7 +218,7 @@ func (c *Client) DockerWaitStart() error {
 	return nil
 }
 
-func (c *Client) DockerMigrationLoadImage(params DockerMigrationLoadImageParams) error {
+func (c *Client) DockerMigrationLoadImage(params types.InternalDockerMigrationLoadImageRequest) error {
 	var none None
 	err := c.rpc.Call("a.DockerMigrationLoadImage", params, &none)
 	if err != nil {
@@ -227,9 +228,29 @@ func (c *Client) DockerMigrationLoadImage(params DockerMigrationLoadImageParams)
 	return nil
 }
 
-func (c *Client) DockerMigrationSyncDirs(params DockerMigrationSyncDirsParams) error {
+func (c *Client) DockerMigrationRunSyncServer(params types.InternalDockerMigrationRunSyncServerRequest) error {
 	var none None
-	err := c.rpc.Call("a.DockerMigrationSyncDirs", params, &none)
+	err := c.rpc.Call("a.DockerMigrationRunSyncServer", params, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) DockerMigrationWaitSync(params types.InternalDockerMigrationWaitSyncRequest) error {
+	var none None
+	err := c.rpc.Call("a.DockerMigrationWaitSync", params, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) DockerMigrationStopSyncServer() error {
+	var none None
+	err := c.rpc.Call("a.DockerMigrationStopSyncServer", None{}, &none)
 	if err != nil {
 		return err
 	}

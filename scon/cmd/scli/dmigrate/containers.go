@@ -9,6 +9,38 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func (m *Migrator) incContainerPauseRef(ctr *dockertypes.ContainerSummary) error {
+	m.ctrPauseRefsMu.Lock()
+	defer m.ctrPauseRefsMu.Unlock()
+
+	m.ctrPauseRefs[ctr.ID]++
+	newCount := m.ctrPauseRefs[ctr.ID]
+	if newCount == 1 && ctr.State == "running" {
+		err := m.srcClient.Call("POST", "/containers/"+ctr.ID+"/pause", nil, nil)
+		if err != nil {
+			return fmt.Errorf("pause container: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (m *Migrator) decContainerPauseRef(ctr *dockertypes.ContainerSummary) error {
+	m.ctrPauseRefsMu.Lock()
+	defer m.ctrPauseRefsMu.Unlock()
+
+	m.ctrPauseRefs[ctr.ID]--
+	newCount := m.ctrPauseRefs[ctr.ID]
+	if newCount == 0 && ctr.State == "running" {
+		err := m.srcClient.Call("POST", "/containers/"+ctr.ID+"/unpause", nil, nil)
+		if err != nil {
+			logrus.Warnf("unpause container: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary, userName string) error {
 	logrus.Infof("Migrating container %s", userName)
 
@@ -47,19 +79,11 @@ func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary, userNam
 	}
 
 	// [src] pause container
-	if ctr.State == "running" {
-		err := m.srcClient.Call("POST", "/containers/"+ctr.ID+"/pause", nil, nil)
-		if err != nil {
-			return fmt.Errorf("pause container: %w", err)
-		}
-		defer func() {
-			// [src] unpause container
-			err := m.srcClient.Call("POST", "/containers/"+ctr.ID+"/unpause", nil, nil)
-			if err != nil {
-				logrus.Warnf("unpause container: %v", err)
-			}
-		}()
+	err = m.incContainerPauseRef(&ctr)
+	if err != nil {
+		return fmt.Errorf("inc container pause ref: %w", err)
 	}
+	defer m.decContainerPauseRef(&ctr)
 
 	// if not overlay2, then we're done, can't transfer
 	if fullCtr.GraphDriver.Name != "overlay2" {
@@ -74,8 +98,6 @@ func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary, userNam
 	if err != nil {
 		return fmt.Errorf("sync upper dir: %w", err)
 	}
-
-	// deferred: [src] unpause container
 
 	return nil
 }

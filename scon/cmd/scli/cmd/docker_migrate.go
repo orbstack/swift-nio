@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/orbstack/macvirt/scon/cmd/scli/dmigrate"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
@@ -38,6 +41,8 @@ var dockerMigrateCmd = &cobra.Command{
 		err := util.Run("open", "-g" /*don't activate*/, "-b", "com.docker.docker")
 		checkCLI(err)
 
+		// TODO wait for start
+
 		// prefer to skip a proxy layer if possible, for perf
 		srcSocket := coredir.HomeDir() + "/.docker/run/docker.sock"
 		rawDockerSock := coredir.HomeDir() + "/Library/Containers/com.docker.docker/Data/docker.raw.sock"
@@ -56,6 +61,10 @@ var dockerMigrateCmd = &cobra.Command{
 			IncludeVolumes:    flagVolumes,
 		})
 		checkCLI(err)
+
+		// TODO: if we started docker desktop, quit it
+		// err = util.Run("osascript", "-e", `quit app "Docker Desktop"`)
+		// checkCLI(err)
 
 		return nil
 	},

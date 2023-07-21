@@ -30,6 +30,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 
@@ -48,8 +49,10 @@ type VmControlServer struct {
 	doneCh           chan struct{}
 	stopCh           chan<- StopRequest
 	pendingResetData bool
-	dockerClient     *dockerclient.Client
-	drm              *drm.DrmClient
+
+	dockerClient *dockerclient.Client
+	drm          *drm.DrmClient
+	network      *vnet.Network
 
 	setupDone            bool
 	setupMu              sync.Mutex
@@ -216,6 +219,11 @@ func (h *VmControlServer) InternalReportEnv(ctx context.Context, env *vmtypes.En
 	return nil
 }
 
+func (h *VmControlServer) InternalSetDockerRemoteCtxAddr(ctx context.Context, req *vmtypes.InternalSetDockerRemoteCtxAddrRequest) error {
+	h.network.DockerRemoteCtxForward.SetAddr(req.Addr)
+	return nil
+}
+
 func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmtypes.EnvReport, error) {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -347,18 +355,20 @@ func makeDockerClient() *dockerclient.Client {
 
 func (s *VmControlServer) Serve() (func() error, error) {
 	bridge := jhttp.NewBridge(handler.Map{
-		"Ping":                handler.New(s.Ping),
-		"Stop":                handler.New(s.Stop),
-		"ForceStop":           handler.New(s.ForceStop),
-		"ResetData":           handler.New(s.ResetData),
-		"GetConfig":           handler.New(s.GetConfig),
-		"SetConfig":           handler.New(s.SetConfig),
-		"ResetConfig":         handler.New(s.ResetConfig),
-		"StartSetup":          handler.New(s.StartSetup),
-		"FinishSetup":         handler.New(s.FinishSetup),
-		"SetDockerContext":    handler.New(s.SetDockerContext),
-		"IsSshConfigWritable": handler.New(s.IsSshConfigWritable),
-		"InternalReportEnv":   handler.New(s.InternalReportEnv),
+		"Ping":        handler.New(s.Ping),
+		"Stop":        handler.New(s.Stop),
+		"ForceStop":   handler.New(s.ForceStop),
+		"ResetData":   handler.New(s.ResetData),
+		"GetConfig":   handler.New(s.GetConfig),
+		"SetConfig":   handler.New(s.SetConfig),
+		"ResetConfig": handler.New(s.ResetConfig),
+
+		"StartSetup":                     handler.New(s.StartSetup),
+		"FinishSetup":                    handler.New(s.FinishSetup),
+		"SetDockerContext":               handler.New(s.SetDockerContext),
+		"IsSshConfigWritable":            handler.New(s.IsSshConfigWritable),
+		"InternalReportEnv":              handler.New(s.InternalReportEnv),
+		"InternalSetDockerRemoteCtxAddr": handler.New(s.InternalSetDockerRemoteCtxAddr),
 
 		"DockerContainerList":    handler.New(s.DockerContainerList),
 		"DockerContainerStart":   handler.New(s.DockerContainerStart),
