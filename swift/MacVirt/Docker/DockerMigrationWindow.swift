@@ -4,10 +4,6 @@
 
 import Foundation
 import SwiftUI
-import Combine
-
-// equal to swiftterm scrollback
-private let maxLines = 5000
 
 private class MigrationViewModel: ObservableObject {
     @Published var statusLine = "Preparing"
@@ -29,7 +25,7 @@ private class MigrationViewModel: ObservableObject {
                 let status = process.terminationStatus
                 DispatchQueue.main.async { [self] in
                     if status != 0 {
-                        errors = errors + ["Migration failed with status \(status)"]
+                        errors = errors + ["Failed with status \(status)"]
                     }
                     self.done = true
                 }
@@ -51,7 +47,7 @@ private class MigrationViewModel: ObservableObject {
                             statusLine = msg
                         }
                     } else {
-                        errors = errors + ["Unexpected output: \(line)"]
+                        errors = errors + [line]
                     }
                 }
             } catch {

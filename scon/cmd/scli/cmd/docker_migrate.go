@@ -9,7 +9,6 @@ import (
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
-	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -45,7 +44,7 @@ var dockerMigrateCmd = &cobra.Command{
 		scli.EnsureSconVMWithSpinner()
 
 		logrus.Info("Starting Docker Desktop")
-		srcSocket := coredir.HomeDir() + "/.docker/run/docker.sock"
+		srcSocket := conf.DockerRemoteCtxSocket()
 		remoteWasRunning := dmigrate.RemoteIsRunning(srcSocket)
 
 		// start docker desktop if needed
@@ -58,15 +57,16 @@ var dockerMigrateCmd = &cobra.Command{
 			checkCLI(err)
 		}
 
-		// prefer to skip a proxy layer if possible, for perf
-		rawDockerSock := coredir.HomeDir() + "/Library/Containers/com.docker.docker/Data/docker.raw.sock"
-		if _, err := os.Stat(rawDockerSock); err == nil {
-			srcSocket = rawDockerSock
+		// image slowpath: skip a proxy layer, for perf
+		rawDockerSock := conf.DockerRemoteCtxSocketRaw()
+		if _, err := os.Stat(rawDockerSock); err != nil {
+			rawDockerSock = conf.DockerRemoteCtxSocket()
 		}
 
 		destSocket := conf.DockerSocket()
 
 		migrator, err := dmigrate.NewMigratorWithUnixSockets(srcSocket, destSocket)
+		migrator.SetRawSrcSocket(rawDockerSock)
 		checkCLI(err)
 
 		err = migrator.MigrateAll(dmigrate.MigrateParams{

@@ -16,7 +16,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
-	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockerconf"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -39,8 +38,9 @@ var (
 )
 
 type Migrator struct {
-	srcClient  *dockerclient.Client
-	destClient *dockerclient.Client
+	srcClient    *dockerclient.Client
+	destClient   *dockerclient.Client
+	rawSrcSocket string
 
 	mu           sync.Mutex
 	networkIDMap map[string]string
@@ -110,6 +110,10 @@ func NewMigratorWithClients(srcClient, destClient *dockerclient.Client) (*Migrat
 func (m *Migrator) Close() {
 	m.srcClient.Close()
 	m.destClient.Close()
+}
+
+func (m *Migrator) SetRawSrcSocket(rawSrcSocket string) {
+	m.rawSrcSocket = rawSrcSocket
 }
 
 func findFreeTCPPort() (int, error) {
@@ -288,6 +292,8 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	volumes := volumesResp.Volumes
 
+	return fmt.Errorf("not enough disk space")
+
 	// FILTER CONTAINERS
 	var filteredContainers []*dockertypes.ContainerSummary
 	containerDeps := make(map[string][]entitySpec)
@@ -431,7 +437,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 
 	// start docker remote ctx socket proxy
-	err = vmclient.Client().InternalSetDockerRemoteCtxAddr(conf.DockerRemoteCtxSocket())
+	err = vmclient.Client().InternalSetDockerRemoteCtxAddr(m.rawSrcSocket) // skip proxy
 	if err != nil {
 		return fmt.Errorf("set docker remote ctx addr: %w", err)
 	}
@@ -475,8 +481,6 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 			Binds: []string{
 				"/var/lib/docker:/var/lib/docker:rshared",
 				"/var/run/docker.sock:/var/run/docker.sock",
-				// anonymous volume for image packing
-				"/tmp",
 			},
 		},
 	})

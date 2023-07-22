@@ -110,6 +110,10 @@ func DockerRemoteCtxSocket() string {
 	return coredir.HomeDir() + "/.docker/run/docker.sock"
 }
 
+func DockerRemoteCtxSocketRaw() string {
+	return coredir.HomeDir() + "/Library/Containers/com.docker.docker/Data/docker.raw.sock"
+}
+
 func SconSSHSocket() string {
 	return RunDir() + "/sconssh.sock"
 }
