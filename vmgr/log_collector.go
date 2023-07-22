@@ -122,6 +122,7 @@ func NewConsoleLogPipe(stopCh chan<- StopRequest) (*os.File, error) {
 							Title:   "Out of memory: “" + processName + "”",
 							Message: "Stopped task to save memory. Consider increasing memory limit in Settings.",
 							URL:     appid.UrlSettings,
+							Silent:  true,
 						})
 						if err != nil {
 							logrus.WithError(err).Error("failed to send OOM kill notification")
