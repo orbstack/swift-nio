@@ -62,7 +62,7 @@ func diffAddedChangedRecursive(old, new map[string]any) map[string]any {
 }
 
 func (m *Migrator) migrateDaemonConfig(path string) error {
-	defer m.finishOneEntity()
+	defer m.finishOneEntity(nil)
 
 	// read src config
 	var srcConfig map[string]any

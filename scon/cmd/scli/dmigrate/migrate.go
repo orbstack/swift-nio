@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
-
-	_ "net/http/pprof"
 
 	"github.com/alitto/pond"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -48,11 +47,13 @@ type Migrator struct {
 
 	ctrPauseRefsMu sync.Mutex
 	ctrPauseRefs   map[string]int
+	entityFinishCh chan struct{}
 
 	srcAgentCid string
 	syncPort    int
 
 	finishedEntities int
+	finishedDeps     []entitySpec // regardless of whether they succeeded
 	totalEntities    int
 }
 
@@ -61,6 +62,13 @@ type MigrateParams struct {
 	IncludeVolumes    bool
 	IncludeImages     bool
 	/* networks are implicit by containers */
+}
+
+type entitySpec struct {
+	containerID string
+	volumeName  string
+	networkID   string
+	imageID     string
 }
 
 type errorTracker struct {
@@ -93,8 +101,9 @@ func NewMigratorWithClients(srcClient, destClient *dockerclient.Client) (*Migrat
 		srcClient:  srcClient,
 		destClient: destClient,
 
-		networkIDMap: make(map[string]string),
-		ctrPauseRefs: make(map[string]int),
+		networkIDMap:   make(map[string]string),
+		ctrPauseRefs:   make(map[string]int),
+		entityFinishCh: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -185,9 +194,18 @@ func demuxOutput(r io.Reader, w io.Writer) error {
 	}
 }
 
-func (m *Migrator) finishOneEntity() {
+func (m *Migrator) finishOneEntity(spec *entitySpec) {
 	m.mu.Lock()
 	m.finishedEntities++
+	if spec != nil {
+		// works as adaptive notifications w/ non-blocking send + 1 buf
+		m.finishedDeps = append(m.finishedDeps, *spec)
+
+		select {
+		case m.entityFinishCh <- struct{}{}:
+		default:
+		}
+	}
 	m.mu.Unlock()
 
 	progress := float64(m.finishedEntities) / float64(m.totalEntities)
@@ -253,7 +271,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	if err != nil {
 		return fmt.Errorf("get images: %w", err)
 	}
-	var containers []dockertypes.ContainerSummary
+	var containers []*dockertypes.ContainerSummary
 	err = m.srcClient.Call("GET", "/containers/json?all=true", nil, &containers)
 	if err != nil {
 		return fmt.Errorf("get containers: %w", err)
@@ -271,7 +289,8 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	volumes := volumesResp.Volumes
 
 	// FILTER CONTAINERS
-	var filteredContainers []dockertypes.ContainerSummary
+	var filteredContainers []*dockertypes.ContainerSummary
+	containerDeps := make(map[string][]entitySpec)
 	for _, c := range containers {
 		// skip migration image ones (won't work b/c migration img is excluded)
 		if c.Image == migrationAgentImage {
@@ -321,6 +340,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		// don't trust the name, look through IDs
 		for _, cnet := range c.NetworkSettings.Networks {
 			containerUsedNets[cnet.NetworkID] = struct{}{}
+			containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{networkID: cnet.NetworkID})
 		}
 	}
 	// 2. filter networks
@@ -351,7 +371,8 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 			if m.Type != "volume" || m.Driver != "local" {
 				continue
 			}
-			containerUsedVolumes[m.Name] = append(containerUsedVolumes[m.Name], &c)
+			containerUsedVolumes[m.Name] = append(containerUsedVolumes[m.Name], c)
+			containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{volumeName: m.Name})
 		}
 	}
 	// 2. filter volumes
@@ -376,6 +397,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	containerUsedImages := make(map[string]struct{})
 	for _, c := range filteredContainers {
 		containerUsedImages[c.ImageID] = struct{}{}
+		containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{imageID: c.ImageID})
 	}
 	// 2. filter images
 	var filteredImages []dockertypes.Image
@@ -438,7 +460,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		errTracker.mu.Unlock()
 	}))
 	defer pool.StopAndWait()
-	preContainerGroup := pool.Group()
+	group := pool.Group()
 
 	// [src] start agent
 	srcAgentCid, err := m.createAndStartContainer(m.srcClient, &dockertypes.ContainerCreateRequest{
@@ -478,34 +500,63 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	defer scli.Client().InternalDockerMigrationStopSyncServer()
 
 	// all ready. migrate in order
+	go http.ListenAndServe("localhost:6061", nil)
 
 	// 1. images
-	err = m.submitImages(preContainerGroup, filteredImages)
+	err = m.submitImages(group, filteredImages)
 	if err != nil {
 		return err
 	}
 
 	// 2. volumes
-	err = m.submitVolumes(preContainerGroup, filteredVolumes, containerUsedVolumes)
+	err = m.submitVolumes(group, filteredVolumes, containerUsedVolumes)
 	if err != nil {
 		return err
 	}
 
 	// 3. networks
-	err = m.submitNetworks(preContainerGroup, filteredNetworks)
+	err = m.submitNetworks(group, filteredNetworks)
 	if err != nil {
 		return err
 	}
 
 	// TODO plugins?
 
-	// wait for container deps
-	preContainerGroup.Wait()
-
 	// 4. containers (depends on all above)
-	err = m.submitContainers(preContainerGroup, filteredContainers)
-	if err != nil {
-		return err
+	remainingContainers := filteredContainers
+	for range m.entityFinishCh {
+		// try to submit more containers
+		var deferredContainers []*dockertypes.ContainerSummary // didn't make it into this round
+		for _, c := range remainingContainers {
+			// check if all deps are satisfied
+			satisfied := true
+			m.mu.Lock()
+			for _, dep := range containerDeps[c.ID] {
+				if !slices.Contains(m.finishedDeps, dep) {
+					satisfied = false
+					break
+				}
+			}
+			m.mu.Unlock()
+
+			if satisfied {
+				// satisfied, submit
+				err = m.submitOneContainer(group, c)
+				if err != nil {
+					return err
+				}
+			} else {
+				deferredContainers = append(deferredContainers, c)
+			}
+		}
+
+		// update remaining
+		remainingContainers = deferredContainers
+
+		// stop when everything has been submitted and all entities have finished
+		if len(remainingContainers) == 0 && m.finishedEntities == m.totalEntities {
+			break
+		}
 	}
 
 	// end

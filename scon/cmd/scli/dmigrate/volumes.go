@@ -48,7 +48,7 @@ func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []dockertypes.Vo
 	for _, vol := range volumes {
 		vol := vol
 		group.Submit(func() {
-			defer m.finishOneEntity()
+			defer m.finishOneEntity(&entitySpec{volumeName: vol.Name})
 
 			err := m.migrateOneVolume(vol, containerUsedVolumes[vol.Name])
 			if err != nil {

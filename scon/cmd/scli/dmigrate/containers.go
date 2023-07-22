@@ -41,7 +41,7 @@ func (m *Migrator) decContainerPauseRef(ctr *dockertypes.ContainerSummary) error
 	return nil
 }
 
-func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary, userName string) error {
+func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerSummary, userName string) error {
 	logrus.Infof("Migrating container %s", userName)
 
 	// [src] fetch full info
@@ -79,11 +79,11 @@ func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary, userNam
 	}
 
 	// [src] pause container
-	err = m.incContainerPauseRef(&ctr)
+	err = m.incContainerPauseRef(ctr)
 	if err != nil {
 		return fmt.Errorf("inc container pause ref: %w", err)
 	}
-	defer m.decContainerPauseRef(&ctr)
+	defer m.decContainerPauseRef(ctr)
 
 	// if not overlay2, then we're done, can't transfer
 	if fullCtr.GraphDriver.Name != "overlay2" {
@@ -102,25 +102,22 @@ func (m *Migrator) migrateOneContainer(ctr dockertypes.ContainerSummary, userNam
 	return nil
 }
 
-func (m *Migrator) submitContainers(group *pond.TaskGroup, containers []dockertypes.ContainerSummary) error {
-	for _, ctr := range containers {
-		var userName string
-		if len(ctr.Names) > 0 {
-			userName = ctr.Names[0]
-		} else {
-			userName = ctr.ID
-		}
-
-		ctr := ctr
-		group.Submit(func() {
-			defer m.finishOneEntity()
-
-			err := m.migrateOneContainer(ctr, userName)
-			if err != nil {
-				panic(fmt.Errorf("container %s: %w", userName, err))
-			}
-		})
+func (m *Migrator) submitOneContainer(group *pond.TaskGroup, ctr *dockertypes.ContainerSummary) error {
+	var userName string
+	if len(ctr.Names) > 0 {
+		userName = ctr.Names[0]
+	} else {
+		userName = ctr.ID
 	}
+
+	group.Submit(func() {
+		defer m.finishOneEntity(&entitySpec{containerID: ctr.ID})
+
+		err := m.migrateOneContainer(ctr, userName)
+		if err != nil {
+			panic(fmt.Errorf("container %s: %w", userName, err))
+		}
+	})
 
 	return nil
 }

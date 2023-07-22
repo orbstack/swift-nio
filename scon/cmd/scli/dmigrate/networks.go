@@ -57,7 +57,7 @@ func (m *Migrator) submitNetworks(group *pond.TaskGroup, networks []dockertypes.
 	for _, n := range networks {
 		n := n
 		group.Submit(func() {
-			defer m.finishOneEntity()
+			defer m.finishOneEntity(&entitySpec{networkID: n.ID})
 
 			err := m.migrateOneNetwork(n)
 			if err != nil {
