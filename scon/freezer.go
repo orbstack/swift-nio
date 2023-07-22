@@ -51,7 +51,9 @@ func (f *Freezer) incRefCLocked() {
 
 	debounce.Cancel()
 	newCount := f.count.Add(1)
-	logrus.WithField("count", newCount).Debug("freezer inc ref")
+	if verboseDebug {
+		logrus.WithField("count", newCount).Debug("freezer inc ref")
+	}
 
 	if newCount == 1 {
 		logrus.Debug("freezer first ref, unfreezing")
@@ -76,7 +78,9 @@ func (f *Freezer) decRefCLocked() {
 	}
 
 	newCount := f.count.Add(-1)
-	logrus.WithField("count", newCount).Debug("freezer dec ref")
+	if verboseDebug {
+		logrus.WithField("count", newCount).Debug("freezer dec ref")
+	}
 	if newCount == 0 {
 		logrus.Debug("freezer last ref, freezing")
 		debounce.Call()

@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	ErrEntitiesFailed = errors.New("some entities failed to migrate")
+	ErrEntitiesFailed = errors.New("some data failed to migrate")
 )
 
 type Migrator struct {
