@@ -102,22 +102,25 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerSummary, userNa
 	return nil
 }
 
-func (m *Migrator) submitOneContainer(group *pond.TaskGroup, ctr *dockertypes.ContainerSummary) error {
-	var userName string
-	if len(ctr.Names) > 0 {
-		userName = ctr.Names[0]
-	} else {
-		userName = ctr.ID
-	}
-
-	group.Submit(func() {
-		defer m.finishOneEntity(&entitySpec{containerID: ctr.ID})
-
-		err := m.migrateOneContainer(ctr, userName)
-		if err != nil {
-			panic(fmt.Errorf("container %s: %w", userName, err))
+func (m *Migrator) submitContainers(group *pond.TaskGroup, ctrs []*dockertypes.ContainerSummary) error {
+	for _, ctr := range ctrs {
+		var userName string
+		if len(ctr.Names) > 0 {
+			userName = ctr.Names[0]
+		} else {
+			userName = ctr.ID
 		}
-	})
+
+		ctr := ctr
+		group.Submit(func() {
+			defer m.finishOneEntity(&entitySpec{containerID: ctr.ID})
+
+			err := m.migrateOneContainer(ctr, userName)
+			if err != nil {
+				panic(fmt.Errorf("container %s: %w", userName, err))
+			}
+		})
+	}
 
 	return nil
 }

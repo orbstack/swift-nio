@@ -292,8 +292,6 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	volumes := volumesResp.Volumes
 
-	return fmt.Errorf("not enough disk space")
-
 	// FILTER CONTAINERS
 	var filteredContainers []*dockertypes.ContainerSummary
 	containerDeps := make(map[string][]entitySpec)
@@ -526,41 +524,12 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 
 	// TODO plugins?
 
+	group.Wait()
+
 	// 4. containers (depends on all above)
-	remainingContainers := filteredContainers
-	for range m.entityFinishCh {
-		// try to submit more containers
-		var deferredContainers []*dockertypes.ContainerSummary // didn't make it into this round
-		for _, c := range remainingContainers {
-			// check if all deps are satisfied
-			satisfied := true
-			m.mu.Lock()
-			for _, dep := range containerDeps[c.ID] {
-				if !slices.Contains(m.finishedDeps, dep) {
-					satisfied = false
-					break
-				}
-			}
-			m.mu.Unlock()
-
-			if satisfied {
-				// satisfied, submit
-				err = m.submitOneContainer(group, c)
-				if err != nil {
-					return err
-				}
-			} else {
-				deferredContainers = append(deferredContainers, c)
-			}
-		}
-
-		// update remaining
-		remainingContainers = deferredContainers
-
-		// stop when everything has been submitted and all entities have finished
-		if len(remainingContainers) == 0 && m.finishedEntities == m.totalEntities {
-			break
-		}
+	err = m.submitContainers(group, filteredContainers)
+	if err != nil {
+		return err
 	}
 
 	// end
