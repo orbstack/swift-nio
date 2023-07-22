@@ -470,15 +470,15 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
     use crate::rosetta::{self, RosettaError};
 
     // create tmpfs that allows exec
-    mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_NOATIME, None)?;
+    mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_NOATIME, None).unwrap();
 
     // copy rosetta binary
-    fs::copy("/mnt/rosetta/rosetta", "/mnt/rv/[rosetta]")?;
-    fs::set_permissions("/mnt/rv/[rosetta]", Permissions::from_mode(0o755))?;
+    fs::copy("/mnt/rosetta/rosetta", "/mnt/rv/[rosetta]").unwrap();
+    fs::set_permissions("/mnt/rv/[rosetta]", Permissions::from_mode(0o755)).unwrap();
 
     // apply patch
     let mut patched = false;
-    let source_data = fs::read("/mnt/rv/[rosetta]")?;
+    let source_data = fs::read("/mnt/rv/[rosetta]").unwrap();
     match rosetta::find_and_apply_patch(&source_data, "/mnt/rv/[rosetta]") {
         Ok(_) => {
             patched = true;
@@ -494,12 +494,12 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
     }
 
     // remount readonly
-    mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_REMOUNT | MsFlags::MS_NOATIME | MsFlags::MS_RDONLY, None)?;
+    mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_REMOUNT | MsFlags::MS_NOATIME | MsFlags::MS_RDONLY, None).unwrap();
 
     // redirect ioctls to real rosetta virtiofs
-    let real_rosetta_file = fs::File::open("/mnt/rosetta/rosetta")?;
-    let new_file = fs::File::open("/mnt/rv/[rosetta]")?;
-    rosetta::adopt_rvfs_files(real_rosetta_file, new_file)?;
+    let real_rosetta_file = fs::File::open("/mnt/rosetta/rosetta").unwrap();
+    let new_file = fs::File::open("/mnt/rv/[rosetta]").unwrap();
+    rosetta::adopt_rvfs_files(real_rosetta_file, new_file).unwrap();
 
     // we're done setting up the new rosetta.
     // wrapper doesn't need any special treatment because it uses comm=rvk1/rvk2 keys
@@ -529,7 +529,7 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         println!("  -  Using Rosetta");
 
         // copy to rvfs and apply delta
-        let patched = prepare_rosetta_bin()?;
+        let patched = prepare_rosetta_bin().unwrap();
 
         // add preserve-argv0 flag on Sonoma Rosetta 309+
         let mut rosetta_flags = "CF(".to_string();
@@ -549,14 +549,14 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         // entries added later take priority, so MUST register first to avoid infinite loop
         // WARNING: NOT THREAD SAFE! this uses chdir.
         //          luckily init doesn't care about cwd during early boot (but later, it matters for spawned processes)
-        add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", "POCF")?;
+        add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", "POCF").unwrap();
 
         // then register real rosetta with comm=rvk1 key '('
         // '.' to make it hidden
-        env::set_current_dir("/mnt/rv")?;
+        env::set_current_dir("/mnt/rv").unwrap();
         let real_res = add_binfmt(".rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags);
-        env::set_current_dir("/")?;
-        real_res?;
+        env::set_current_dir("/").unwrap();
+        real_res.unwrap();
     } else {
         // qemu
         println!("  -  Using QEMU");
