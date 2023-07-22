@@ -164,7 +164,7 @@ func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 	return nil
 }
 
-func readUntilResponseEnd(conn io.Reader, trailer string) (io.Reader, error) {
+func readUntilResponseEnd(conn io.Reader, trailer string) (io.ReadWriter, error) {
 	var respBuf bytes.Buffer
 	var chBuf [1]byte
 	for {
@@ -226,7 +226,9 @@ func (a *AgentServer) DockerMigrationLoadImage(params types.InternalDockerMigrat
 
 	// check status
 	if remoteResp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status from remote: %s", remoteResp.Status)
+		// add the rest of the response body for reading error
+		io.Copy(remoteRespBuf, remoteConn)
+		return fmt.Errorf("(remote) %w", dockerclient.ReadError(remoteResp))
 	}
 
 	// disable nodelay now that http part is over
@@ -265,7 +267,7 @@ Expect: 100-continue
 
 	// check status
 	if localResp1.StatusCode != http.StatusContinue {
-		return fmt.Errorf("bad status from local: %s", localResp1.Status)
+		return fmt.Errorf("(local) %w", dockerclient.ReadError(localResp1))
 	}
 
 	// splice chunked data
@@ -280,7 +282,7 @@ Expect: 100-continue
 
 	// check status
 	if localResp2.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status from local: %s", localResp2.Status)
+		return fmt.Errorf("(local) %w", dockerclient.ReadError(localResp2))
 	}
 
 	// read body

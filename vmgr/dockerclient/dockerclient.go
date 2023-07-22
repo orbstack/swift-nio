@@ -58,7 +58,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func readError(resp *http.Response) error {
+func ReadError(resp *http.Response) error {
 	if resp.StatusCode == 304 { // Not Modified
 		return nil
 	}
@@ -66,7 +66,7 @@ func readError(resp *http.Response) error {
 	// read error message
 	errBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("read error body: %s", err)
+		return fmt.Errorf("read error body: %s (%s)", err, resp.Status)
 	}
 	var jsonError struct {
 		Message string `json:"message"`
@@ -131,7 +131,7 @@ func (c *Client) Call(method, path string, body any, out any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return readError(resp)
+		return ReadError(resp)
 	}
 
 	if out != nil {
@@ -163,7 +163,7 @@ func (c *Client) CallDiscard(method, path string, body any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return readError(resp)
+		return ReadError(resp)
 	}
 
 	io.Copy(io.Discard, resp.Body)
@@ -183,7 +183,7 @@ func (c *Client) StreamRead(method, path string, body any) (io.ReadCloser, error
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
-		return nil, readError(resp)
+		return nil, ReadError(resp)
 	}
 
 	return resp.Body, nil
@@ -202,7 +202,7 @@ func (c *Client) StreamWrite(method, path string, body io.Reader) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return readError(resp)
+		return ReadError(resp)
 	}
 
 	// read body

@@ -291,7 +291,7 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string) (f
 		var errs []error
 		for i := len(rules) - 1; i >= 0; i-- {
 			rule := rules[i]
-			err = ipt.Delete(rule[0], rule[1], rule[2:]...)
+			err = ipt.DeleteIfExists(rule[0], rule[1], rule[2:]...)
 			if err != nil {
 				errs = append(errs, err)
 			}

@@ -35,6 +35,10 @@ const (
 	maxWorkers = 5
 )
 
+var (
+	ErrEntitiesFailed = errors.New("some entities failed to migrate")
+)
+
 type Migrator struct {
 	srcClient  *dockerclient.Client
 	destClient *dockerclient.Client
@@ -191,7 +195,7 @@ func (m *Migrator) finishOneEntity() {
 }
 
 func (m *Migrator) sendProgressEvent(progress float64) {
-	logrus.Infof("Progress = %.1f%%", progress*100)
+	logrus.WithField("progress", progress*100).Info("")
 }
 
 func (m *Migrator) startSyncServer() error {
@@ -523,7 +527,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// dispatch any earlier errors
 	err = errTracker.Check()
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrEntitiesFailed, err)
 	}
 
 	// deferred: [src] kill agent

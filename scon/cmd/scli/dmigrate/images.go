@@ -139,7 +139,7 @@ func (m *Migrator) migrateOneImage(idx int, img dockertypes.Image, userName stri
 		RemoteImageNames: names,
 	})
 	if err != nil {
-		return fmt.Errorf("stream image: %w", err)
+		return fmt.Errorf("load image: %w", err)
 	}
 
 	return nil
