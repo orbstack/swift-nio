@@ -39,7 +39,7 @@ struct DockerLogsWindow: View {
                     SwiftUILocalProcessTerminal(executable: AppConfig.dockerExe,
                             args: ["logs", "-f", "-n", String(maxLines), containerId],
                             // env is more robust, user can mess with context
-                            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"],
+                            env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"],
                             model: terminalModel)
                     .padding(8)
                     .navigationTitle("Logs: \(container.userName)")
@@ -48,7 +48,7 @@ struct DockerLogsWindow: View {
                     SwiftUILocalProcessTerminal(executable: AppConfig.dockerComposeExe,
                             args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
                             // env is more robust, user can mess with context
-                            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"],
+                            env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"],
                             model: terminalModel)
                     .padding(8)
                     .navigationTitle("Project Logs: \(composeProject)")

@@ -72,12 +72,26 @@ class LocalProcessTerminalController: NSViewController {
 struct SwiftUILocalProcessTerminal: NSViewControllerRepresentable {
     let executable: String
     let args: [String]
-    let env: [String]
+    let env: [String: String]?
     let model: TerminalViewModel
 
     func makeNSViewController(context: Context) -> LocalProcessTerminalController {
+        // construct env
+        var fullEnv = ProcessInfo.processInfo.environment
+        fullEnv["TERM"] = "xterm-256color"
+        fullEnv["COLORTERM"] = "truecolor"
+        fullEnv["LANG"] = "en_US.UTF-8"
+        if let env {
+            fullEnv.merge(env) { (_, new) in new }
+        }
+        // to kv pairs
+        var envKV = [String]()
+        for (key, value) in fullEnv {
+            envKV.append("\(key)=\(value)")
+        }
+
         let controller = LocalProcessTerminalController(model: model)
-        controller.startProcess(executable: executable, args: args, environment: env)
+        controller.startProcess(executable: executable, args: args, environment: envKV)
         return controller
     }
 

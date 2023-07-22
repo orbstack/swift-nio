@@ -112,6 +112,19 @@ private func escapeShellArgs(_ args: [String]) -> String {
 }
 
 func openTerminal(_ command: String, _ args: [String]) async throws {
+    let terminalBundle = InstalledApps.lastUsedTerminal
+    // exception: Alacritty doesn't support opening .sh
+    if terminalBundle.id == InstalledApps.alacritty {
+        // if already running
+        do {
+            try await runProcessChecked("\(terminalBundle.url.path)/Contents/MacOS/alacritty", ["msg", "create-window", "-e", command] + args)
+        } catch {
+            // if not running, open new window
+            try await runProcessChecked("/usr/bin/open", ["-n", "-b", terminalBundle.id, "--args", "-e", command] + args)
+        }
+        return
+    }
+
     // make tmp file
     let tmpDir = FileManager.default.temporaryDirectory
     let uuid = UUID().uuidString.prefix(8)
@@ -133,16 +146,8 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
     // make tmp file executable
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmpFileURL.path)
 
-    // try iterm2
-    do {
-        try await openViaAppleEvent(tmpFileURL, bundleId: "com.googlecode.iterm2") {
-            try await runProcessChecked("/usr/bin/open", ["-a", "iTerm"])
-        }
-    } catch {
-        // try terminal
-        try await openViaAppleEvent(tmpFileURL, bundleId: "com.apple.Terminal") {
-            try await runProcessChecked("/usr/bin/open", ["-a", "Terminal"])
-        }
+    try await openViaAppleEvent(tmpFileURL, bundleId: terminalBundle.id) {
+        try await runProcessChecked("/usr/bin/open", ["-b", terminalBundle.id])
     }
 }
 
@@ -260,4 +265,58 @@ struct AppleEvents {
                 transactionID: AETransactionID(kAnyTransactionID))
         AESendMessage(event.aeDesc, nil, AESendMode(kAENoReply), kAEDefaultTimeout)
     }
+}
+
+struct InstalledApps {
+    // lazy init
+    static let docker = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.docker.docker") != nil
+
+    static let alacritty = "org.alacritty"
+
+    private static let terminals = [
+        "com.googlecode.iterm2", // iTerm
+        "com.apple.Terminal", // Terminal.app
+        alacritty, // Alacritty
+        "net.kovidgoyal.kitty", // kitty
+        // doesn't support opening
+        //"dev.warp.Warp-Stable", // Warp
+        //"dev.warp.Warp-Preview", // WarpPreview (guess)
+        "com.github.wez.wezterm", // WezTerm
+        "co.zeit.hyper", // Hyper
+    ]
+
+    // cached: lookup takes ~50 ms
+    static let lastUsedTerminal = selectTerminal()
+    static func selectTerminal() -> BundleInfo {
+        terminals
+            .compactMap { bundleId in
+                if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first,
+                   let launchDate = runningApp.launchDate,
+                   let bundleURL = runningApp.bundleURL {
+                    return (BundleInfo(id: bundleId, url: bundleURL), true, launchDate)
+                }
+
+                if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                    let attributes = NSMetadataItem(url: bundleUrl)
+                    if let date = attributes?.value(forAttribute: kMDItemLastUsedDate as String) as? Date {
+                        return (BundleInfo(id: bundleId, url: bundleUrl), false, date)
+                    }
+                }
+
+                return nil
+            }
+            // sort by running first, then by last used
+            .sorted { a, b in
+                if a.1 != b.1 {
+                    return a.1
+                }
+                return a.2 > b.2
+            }
+            .first?.0 ?? BundleInfo(id: "com.apple.Terminal", url: URL(fileURLWithPath: ""))
+    }
+}
+
+struct BundleInfo {
+    let id: String
+    let url: URL
 }

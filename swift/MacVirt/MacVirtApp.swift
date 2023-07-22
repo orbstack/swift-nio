@@ -141,6 +141,11 @@ struct MacVirtApp: App {
                 }
                 Divider()
             }
+            CommandMenu("File") {
+                Button("Migrate from Docker Desktop") {
+                    NSWorkspace.shared.open(URL(string: "orbstack://docker/migration")!)
+                }
+            }
             //TODO command to create container
 
             CommandGroup(after: .help) {
@@ -208,6 +213,17 @@ struct MacVirtApp: App {
         .handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/", "docker/project-logs/"))
         .windowDefaultSize(width: 750, height: 500)
         .windowToolbarStyle(.unifiedCompact)
+
+        WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {
+            DockerMigrationWindow()
+            .environmentObject(model)
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
+        }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "docker/migration"))
+        .windowStyle(.hiddenTitleBar)
+        .windowResizabilityContentSize()
 
         WindowGroup("Diagnostic Report", id: "diagreport") {
             DiagReporterView(isBugReport: false)

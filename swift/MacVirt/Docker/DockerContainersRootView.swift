@@ -33,6 +33,26 @@ private struct GettingStartedHintBox: View {
     }
 }
 
+private struct MigrationHintBox: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("Migrate from Docker Desktop")
+            .font(.title3)
+            .bold()
+            Text("Copy your existing containers, images, and volumes to OrbStack.")
+            .font(.body)
+            .textSelection(.enabled)
+            Text("Then open [localhost](http://localhost) in your browser.")
+            .font(.body)
+            .foregroundColor(.secondary)
+        }
+        .overlay(alignment: .topTrailing) {
+        }
+        .padding(16)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 // need another view to fix type error
 private struct DockerContainerListItemView: View {
     let item: DockerListItem

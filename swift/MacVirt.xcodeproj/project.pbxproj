@@ -11,6 +11,7 @@
 		B118B05969CAC4497636F8DE /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF90FB580B56419D1472 /* FFI.swift */; };
 		B118B076E8CB7033926025A7 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1DCE616676E483BB2BB /* FeedbackView.swift */; };
 		B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE46918C0AB595ADE247 /* RenameContainerView.swift */; };
+		B118B209F240A8036216EC04 /* DockerMigrationWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */; };
 		B118B3B76CA225F4062B10D1 /* NSImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BABDE1F02C8A54DB011F /* NSImage.swift */; };
 		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
 		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
@@ -178,6 +179,7 @@
 		B118B300D94CA37572036935 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		B118B30219F10B44000AE05A /* OnboardingManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
 		B118B4A5DDC711F7EF2AE61B /* GUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
+		B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerMigrationWindow.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
 		B118BABDE1F02C8A54DB011F /* NSImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NSImage.swift; sourceTree = "<group>"; };
@@ -387,6 +389,7 @@
 				D80443CB2A1B404E00ED59C5 /* DockerUI.swift */,
 				D80443CC2A1B404E00ED59C5 /* DockerContainersRootView.swift */,
 				D80443CD2A1B404E00ED59C5 /* DockerInspect.swift */,
+				B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */,
 			);
 			path = Docker;
 			sourceTree = "<group>";
@@ -843,6 +846,7 @@
 				B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */,
 				D8BAAFBE2A60583A00E5637F /* DiagReporterView.swift in Sources */,
 				B118B076E8CB7033926025A7 /* FeedbackView.swift in Sources */,
+				B118B209F240A8036216EC04 /* DockerMigrationWindow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
