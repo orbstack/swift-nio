@@ -3,7 +3,8 @@
 all: proto scli
 
 scli:
-	@go build ./cmd/scli
+	@mkdir -p ../out
+	@go build -o ../out/scli ./cmd/scli
 
 bpf/lfwd_%: bpf/src/lfwd.c
 	@go generate ./bpf
