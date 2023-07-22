@@ -80,12 +80,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 vmModel: vmModel)
         windowTracker.menuBar = menuBar
 
-        // close any leftover log windows.
-        // TODO fix isRestorable WindowHolder flag
-        for window in NSApp.windows {
-            // match name to catch empty (no selection) windows only
-            if window.title == WindowTitles.logs {
-                window.close()
+        // launch at login: close all windows. works with SMAppService
+        // only if menu bar enabled. otherwise there will be no windows
+        let launchEvent = NSAppleEventManager.shared().currentAppleEvent
+        if launchEvent?.eventID == kAEOpenApplication &&
+                   launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem &&
+                   Defaults[.globalShowMenubarExtra] {
+            for window in NSApp.windows {
+                if window.isUserFacing {
+                    window.close()
+                }
             }
         }
 
