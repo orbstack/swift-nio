@@ -24,7 +24,7 @@ import (
 const (
 	migrationAgentImage = "ghcr.io/orbstack/dmigrate-agent:1"
 
-	maxUnusedContainerAge = 6 * 30 * 24 * time.Hour // 6 months
+	maxUnusedContainerAge = 1 * 30 * 24 * time.Hour // 1 month
 
 	minWorkers = 1
 	maxWorkers = 5
@@ -296,19 +296,13 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	var filteredContainers []*dockertypes.ContainerSummary
 	containerDeps := make(map[string][]entitySpec)
 	for _, c := range manifest.Containers {
+		fmt.Println("consider", c.Names[0])
 		// skip migration image ones (won't work b/c migration img is excluded)
 		if c.Image == migrationAgentImage {
 			continue
 		}
 
-		// skip naturally exited containers, unless they're in a compose group
-		if _, ok := c.Labels["com.docker.compose.project"]; !ok {
-			if c.State == "exited" {
-				continue
-			}
-		}
-
-		// skip containers not used for >6 months (need to fetch full info)
+		// skip containers not used for >1 month (need to fetch full info)
 		var fullCtr dockertypes.ContainerJSON
 		err := m.srcClient.Call("GET", "/containers/"+c.ID+"/json", nil, &fullCtr)
 		if err != nil {
