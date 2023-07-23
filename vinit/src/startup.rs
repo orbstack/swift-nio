@@ -446,7 +446,9 @@ fn init_data() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all("/nfsroot-rw/.fseventsd")?;
     fs::write("/nfsroot-rw/.fseventsd/no_log", "")?;
     // read-only bind (+ rshared, for scon bind mounts)
-    bind_mount("/nfsroot-rw", "/nfsroot-ro", Some(MsFlags::MS_RDONLY | MsFlags::MS_REC | MsFlags::MS_SHARED))?;
+    bind_mount("/nfsroot-rw", "/nfsroot-ro", Some(MsFlags::MS_REC | MsFlags::MS_SHARED))?;
+    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
+    bind_mount("/nfsroot-ro", "/nfsroot-ro", Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY | MsFlags::MS_SHARED))?;
 
     Ok(())
 }
