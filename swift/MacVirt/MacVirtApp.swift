@@ -143,7 +143,7 @@ struct MacVirtApp: App {
                 Divider()
             }
             CommandGroup(before: .importExport) {
-                Button("Migrate Docker Data") {
+                Button("Migrate Docker Data…") {
                     NSWorkspace.shared.open(URL(string: "orbstack://docker/migration")!)
                 }
             }
