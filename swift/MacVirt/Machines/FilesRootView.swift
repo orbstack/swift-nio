@@ -41,12 +41,7 @@ struct FilesRootView: View {
 
                         HStack {
                             Spacer()
-                            VStack {
-                                Text("No Linux machines")
-                                        .font(.title)
-                                        .foregroundColor(.secondary)
-                            }
-                                    .padding(.top, 32)
+                            ContentUnavailableViewCompat("No Linux machines", systemImage: "desktopcomputer")
                             Spacer()
                         }
 

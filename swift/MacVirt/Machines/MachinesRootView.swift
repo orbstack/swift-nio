@@ -29,9 +29,8 @@ struct MachinesRootView: View {
                         HStack {
                             Spacer()
                             VStack {
-                                Text("No Linux machines")
-                                        .font(.title)
-                                        .foregroundColor(.secondary)
+                                ContentUnavailableViewCompat("No Linux machines", systemImage: "desktopcomputer")
+
                                 Button(action: {
                                     vmModel.presentCreateMachine = true
                                 }) {
@@ -41,7 +40,6 @@ struct MachinesRootView: View {
                                 .controlSize(.large)
                                 .keyboardShortcut(.defaultAction)
                             }
-                            .padding(.top, 32)
                             Spacer()
                         }
                         Spacer()
@@ -62,7 +60,8 @@ struct MachinesRootView: View {
                                 }
                                 .controlSize(.large)
                             }
-                            .padding(24)
+                            .padding(.vertical, 24)
+                            .padding(.horizontal, 48)
                             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                             Spacer()
                         }

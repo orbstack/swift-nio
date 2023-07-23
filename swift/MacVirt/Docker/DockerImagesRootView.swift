@@ -51,12 +51,7 @@ struct DockerImagesRootView: View {
 
                         HStack {
                             Spacer()
-                            VStack {
-                                Text("No images")
-                                        .font(.title)
-                                        .foregroundColor(.secondary)
-                            }
-                                    .padding(.top, 32)
+                            ContentUnavailableViewCompat("No Images", systemImage: "doc.zipper")
                             Spacer()
                         }
 

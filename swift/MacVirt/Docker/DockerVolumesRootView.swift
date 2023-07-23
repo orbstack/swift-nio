@@ -60,12 +60,7 @@ struct DockerVolumesRootView: View {
 
                         HStack {
                             Spacer()
-                            VStack {
-                                Text("No volumes")
-                                        .font(.title)
-                                        .foregroundColor(.secondary)
-                            }
-                                    .padding(.top, 32)
+                            ContentUnavailableViewCompat("No Volumes", systemImage: "externaldrive")
                             Spacer()
                         }
 

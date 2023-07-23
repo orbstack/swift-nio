@@ -28,7 +28,8 @@ private struct GettingStartedHintBox: View {
                 .font(.body)
                 .foregroundColor(.secondary)
         }
-        .padding(24)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 48)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -53,7 +54,8 @@ private struct MigrationHintBox: View {
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
         }
-        .padding(24)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 48)
         .overlay(alignment: .topTrailing) {
             Button(action: {
                 Defaults[.dockerMigrationDismissed] = true
@@ -98,15 +100,17 @@ private struct DockerContainerListItemView: View {
 private struct DockerContainersList: View {
     @Default(.dockerMigrationDismissed) private var dockerMigrationDismissed
 
-    let vmModel: VmViewModel
-
     let filterShowStopped: Bool
+    let filterIsSearch: Bool
     let runningCount: Int
     let containers: [DKContainer]
     let dockerRecord: ContainerRecord
     let listItems: [DockerListItem]
     let selection: Binding<Set<DockerContainerId>>
     let initialSelection: Set<DockerContainerId>
+
+    let dockerImages: [DKImage]?
+    let dockerVolumes: [DKVolume]?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -135,12 +139,11 @@ private struct DockerContainersList: View {
 
                 HStack {
                     Spacer()
-                    VStack {
-                        Text("No containers")
-                        .font(.title)
-                        .foregroundColor(.secondary)
+                    if filterIsSearch {
+                        ContentUnavailableViewCompat.search
+                    } else {
+                        ContentUnavailableViewCompat("No Containers", systemImage: "shippingbox")
                     }
-                    .padding(.top, 32)
                     Spacer()
                 }
 
@@ -158,8 +161,8 @@ private struct DockerContainersList: View {
                                 InstalledApps.dockerDesktopRecentlyUsed &&
                                 // containers, images, volumes all empty
                                 containers.isEmpty &&
-                                vmModel.dockerImages?.isEmpty == true &&
-                                vmModel.dockerVolumes?.isEmpty == true
+                                dockerImages?.isEmpty == true &&
+                                dockerVolumes?.isEmpty == true
                         if isMigration {
                             MigrationHintBox()
                         } else {
@@ -220,14 +223,17 @@ struct DockerContainersRootView: View {
             let listItems = DockerContainerLists.makeListItems(filteredContainers: filteredContainers,
                     dockerRecord: dockerRecord, showStopped: filterShowStopped)
             DockerContainersList(
-                    vmModel: vmModel,
                     filterShowStopped: filterShowStopped,
+                    filterIsSearch: !searchQuery.isEmpty,
                     runningCount: runningCount,
                     containers: containers,
                     dockerRecord: dockerRecord,
                     listItems: listItems,
                     selection: $selection,
-                    initialSelection: initialSelection
+                    initialSelection: initialSelection,
+
+                    dockerImages: vmModel.dockerImages,
+                    dockerVolumes: vmModel.dockerVolumes
             )
         }
         .navigationTitle("Containers")
