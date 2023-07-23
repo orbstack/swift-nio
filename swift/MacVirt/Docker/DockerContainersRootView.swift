@@ -160,7 +160,8 @@ private struct DockerContainersList: View {
                                 // containers, images, volumes all empty
                                 allContainers.isEmpty &&
                                 dockerImages?.isEmpty == true &&
-                                dockerVolumes?.isEmpty == true
+                                dockerVolumes?.isEmpty == true &&
+                                !filterIsSearch // not searching
                         if isMigration {
                             MigrationHintBox()
                         } else {
