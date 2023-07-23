@@ -4,11 +4,13 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 private class MigrationViewModel: ObservableObject {
     @Published var statusLine = "Preparing"
     @Published var progress: Double = 0
     @Published var errors = [String]()
+    @Published var entityMigrationStarted = false
     @Published var done = false
 
     func start() {
@@ -41,6 +43,8 @@ private class MigrationViewModel: ObservableObject {
                         let msg = json["msg"] as? String ?? ""
                         if let progress = json["progress"] as? Double {
                             self.progress = progress / 100
+                        } else if let started = json["started"] as? Bool, started {
+                            entityMigrationStarted = true
                         } else if level == "error" {
                             errors = errors + [msg]
                         } else if level == "info" {
@@ -90,6 +94,8 @@ struct DockerMigrationWindow: View {
         .onChange(of: model.done) { done in
             if done {
                 if model.errors.isEmpty {
+                    // successful migration counts as dismissed
+                    Defaults[.dockerMigrationDismissed] = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         windowHolder.window?.close()
                     }
@@ -98,7 +104,8 @@ struct DockerMigrationWindow: View {
                 }
             }
         }
-        .alert("Some data couldn’t be migrated", isPresented: $presentErrors) {
+        .alert(model.entityMigrationStarted ? "Some data couldn’t be migrated" : "Failed to start migration",
+                isPresented: $presentErrors) {
             Button("OK", role: .cancel) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     windowHolder.window?.close()

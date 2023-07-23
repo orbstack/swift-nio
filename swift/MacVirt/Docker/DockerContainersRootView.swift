@@ -37,18 +37,28 @@ private struct MigrationHintBox: View {
     var body: some View {
         VStack(spacing: 8) {
             Text("Migrate from Docker Desktop")
-            .font(.title3)
-            .bold()
-            Text("Copy your existing containers, images, and volumes to OrbStack.")
-            .font(.body)
-            .textSelection(.enabled)
-            Text("Then open [localhost](http://localhost) in your browser.")
-            .font(.body)
-            .foregroundColor(.secondary)
-        }
-        .overlay(alignment: .topTrailing) {
+                .font(.title3)
+                .bold()
+            Text("Copy your existing containers, volumes, and images to OrbStack.")
+                .font(.body)
+                .padding(.bottom, 8)
+            Button(action: {
+                NSWorkspace.shared.open(URL(string: "orbstack://docker/migration")!)
+            }) {
+                Text("Migrate")
+            }
         }
         .padding(16)
+        .overlay(alignment: .topTrailing) {
+            Button(action: {
+                Defaults[.dockerMigrationDismissed] = true
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+            .padding(8)
+        }
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -80,6 +90,10 @@ private struct DockerContainerListItemView: View {
 }
 
 private struct DockerContainersList: View {
+    @Default(.dockerMigrationDismissed) private var dockerMigrationDismissed
+
+    let vmModel: VmViewModel
+
     let filterShowStopped: Bool
     let runningCount: Int
     let containers: [DKContainer]
@@ -132,7 +146,19 @@ private struct DockerContainersList: View {
                 if unfilteredListItems.isEmpty {
                     HStack {
                         Spacer()
-                        GettingStartedHintBox()
+                        // migration not previously done or dismissed
+                        let isMigration = !dockerMigrationDismissed &&
+                                // docker desktop recently used
+                                InstalledApps.dockerDesktopRecentlyUsed &&
+                                // containers, images, volumes all empty
+                                containers.isEmpty &&
+                                vmModel.dockerImages?.isEmpty == true &&
+                                vmModel.dockerVolumes?.isEmpty == true
+                        if isMigration {
+                            MigrationHintBox()
+                        } else {
+                            GettingStartedHintBox()
+                        }
                         Spacer()
                     }
                     .padding(.bottom, 48)
@@ -188,6 +214,7 @@ struct DockerContainersRootView: View {
             let listItems = DockerContainerLists.makeListItems(filteredContainers: filteredContainers,
                     dockerRecord: dockerRecord, showStopped: filterShowStopped)
             DockerContainersList(
+                    vmModel: vmModel,
                     filterShowStopped: filterShowStopped,
                     runningCount: runningCount,
                     containers: containers,

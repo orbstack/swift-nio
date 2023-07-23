@@ -119,6 +119,7 @@ struct MacVirtApp: App {
             CommandGroup(replacing: .newItem) {}
             SidebarCommands()
             ToolbarCommands()
+            TextEditingCommands()
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
@@ -141,8 +142,8 @@ struct MacVirtApp: App {
                 }
                 Divider()
             }
-            CommandMenu("File") {
-                Button("Migrate from Docker Desktop") {
+            CommandGroup(before: .importExport) {
+                Button("Migrate Docker Data") {
                     NSWorkspace.shared.open(URL(string: "orbstack://docker/migration")!)
                 }
             }

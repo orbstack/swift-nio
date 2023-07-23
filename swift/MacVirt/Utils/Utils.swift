@@ -267,9 +267,20 @@ struct AppleEvents {
     }
 }
 
+private let dockerDesktopLastUsedThreshold: TimeInterval = 1 * 30 * 24 * 60 * 60 // 1 month
+
 struct InstalledApps {
     // lazy init
-    static let docker = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.docker.docker") != nil
+    static let dockerDesktopRecentlyUsed = isDockedDesktopRecentlyUsed()
+    static func isDockedDesktopRecentlyUsed() -> Bool {
+        if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.docker.docker") {
+            let attributes = NSMetadataItem(url: bundleUrl)
+            if let date = attributes?.value(forAttribute: kMDItemLastUsedDate as String) as? Date {
+                return abs(date.timeIntervalSinceNow) < dockerDesktopLastUsedThreshold
+            }
+        }
+        return false
+    }
 
     static let alacritty = "org.alacritty"
 

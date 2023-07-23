@@ -45,7 +45,7 @@ struct DockerImagesRootView: View {
                                 }
                             }
                         }
-                        .navigationSubtitle("\(totalSizeFormatted) used")
+                        .navigationSubtitle("\(totalSizeFormatted) total")
                     } else {
                         Spacer()
 

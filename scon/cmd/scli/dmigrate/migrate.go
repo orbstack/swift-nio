@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -292,8 +291,6 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	volumes := volumesResp.Volumes
 
-	return fmt.Errorf("not enough disk space")
-
 	// FILTER CONTAINERS
 	var filteredContainers []*dockertypes.ContainerSummary
 	containerDeps := make(map[string][]entitySpec)
@@ -504,8 +501,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	defer scli.Client().InternalDockerMigrationStopSyncServer()
 
 	// all ready. migrate in order
-	go http.ListenAndServe("localhost:6061", nil)
-
+	logrus.WithField("started", true).Info("Migration started")
 	// 1. images
 	err = m.submitImages(group, filteredImages)
 	if err != nil {

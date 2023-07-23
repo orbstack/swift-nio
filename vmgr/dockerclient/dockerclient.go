@@ -218,7 +218,9 @@ func ReadStream(body io.Reader) error {
 				return nil
 			}
 
-			return fmt.Errorf("decode status record: %s", err)
+			// failed to decode = probably not error record
+			// eg. images-rm array
+			return nil
 		}
 
 		if record.Error != "" {

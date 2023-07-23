@@ -9,6 +9,7 @@ extension Defaults.Keys {
     static let selectedTab = Key<String>("root_selectedTab", default: "docker")
 
     static let dockerFilterShowStopped = Key<Bool>("docker_filterShowStopped", default: true)
+    static let dockerMigrationDismissed = Key<Bool>("docker_migrationDismissed", default: false)
 
     static let onboardingCompleted = Key<Bool>("onboardingCompleted", default: false)
 
