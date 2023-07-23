@@ -46,6 +46,12 @@ private class MigrationViewModel: ObservableObject {
                             self.progress = progress / 100
                         } else if let started = json["started"] as? Bool, started {
                             entityMigrationStarted = true
+
+                            // try to refocus us and hide docker desktop window
+                            if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.electron.dockerdesktop").first {
+                                runningApp.hide()
+                            }
+                            NSApp.activate(ignoringOtherApps: true)
                         } else if level == "error" {
                             errors = errors + [msg]
                         } else if level == "info" {
