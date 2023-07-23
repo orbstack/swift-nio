@@ -26,6 +26,8 @@ const (
 var (
 	brMacSconMachine        []uint16
 	brMacVlanRouterTemplate []uint16
+
+	zeroNetIPv4 = netip.MustParsePrefix("0.0.0.0/8")
 )
 
 func init() {
@@ -190,6 +192,17 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		// and Docker doesn't provide gateway IP for, so we don't check for v6 bip conflict
 		ip = lastIPInSubnet(ip, mask)
 		vmnetConfig.Ip6Address = ip.String()
+	}
+
+	// if addr part of the prefix == 0, then macOS will add RTF_GLOBAL to the routing entry
+	// since we skip RTF_GLOBAL, it creates an infinite loop.
+	// to be more conservative, exclude all 0.0.0.0/8. they don't work anyway on macOS; only Linux allows them
+	if zeroNetIPv4.Contains(config.IP4Subnet.Addr()) {
+		return 0, fmt.Errorf("0.0.0.0/8 not allowed on macOS: %s", config.IP4Subnet)
+	}
+	// for IPv6, just check for all zeros like macOS
+	if config.IP6Subnet.Addr().IsUnspecified() {
+		return 0, fmt.Errorf("'::' route not allowed on macOS: %s", config.IP6Subnet)
 	}
 
 	logrus.WithFields(logrus.Fields{
