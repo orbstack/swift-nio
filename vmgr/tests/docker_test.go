@@ -317,6 +317,8 @@ func TestDockerSystemInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// TODO replace default-address-pools with netconf
+
 	// remove any keys not in expected
 	for k := range obj {
 		if _, ok := expect[k]; !ok {
