@@ -32,6 +32,8 @@ func NewContainerBpfManager(cgPath string, netnsCookie uint64) (*ContainerBpfMan
 	return &ContainerBpfManager{
 		cgPath:      cgPath,
 		netnsCookie: netnsCookie,
+
+		blockedPortRefs: make(map[uint16]int),
 	}, nil
 }
 
