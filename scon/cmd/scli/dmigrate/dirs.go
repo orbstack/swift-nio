@@ -1,7 +1,6 @@
 package dmigrate
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -20,43 +19,6 @@ const (
 	serverPollInterval = 25 * time.Millisecond
 	serverStartTimeout = 10 * time.Second
 )
-
-func execAs(client *dockerclient.Client, cid string, execReq *dockertypes.ContainerExecCreateRequest) (string, error) {
-	var execResp dockertypes.ContainerExecCreateResponse
-	err := client.Call("POST", "/containers/"+cid+"/exec", execReq, &execResp)
-	if err != nil {
-		return "", fmt.Errorf("create exec: %w", err)
-	}
-
-	// run the tar
-	reader, err := client.StreamRead("POST", "/exec/"+execResp.ID+"/start", dockertypes.ContainerExecStartRequest{
-		Detach: false,
-	})
-	if err != nil {
-		return "", fmt.Errorf("start exec: %w", err)
-	}
-	defer reader.Close()
-
-	var output bytes.Buffer
-	err = demuxOutput(reader, &output)
-	if err != nil {
-		return "", fmt.Errorf("demux output: %w", err)
-	}
-
-	// check exec exit status
-	var execInspect dockertypes.ContainerExecInspect
-	err = client.Call("GET", "/exec/"+execResp.ID+"/json", nil, &execInspect)
-	if err != nil {
-		return "", fmt.Errorf("inspect exec: %w", err)
-	}
-
-	if execInspect.ExitCode != 0 {
-		return "", fmt.Errorf("exec exit code: %d; output: %s", execInspect.ExitCode, output.String())
-	}
-
-	// success
-	return output.String(), nil
-}
 
 func findFreeTCPPort() (int, error) {
 	// zero-port listener
@@ -153,7 +115,7 @@ func (m *Migrator) syncDirsGeneric(srcClient *dockerclient.Client, cmdBuilder fu
 	}
 
 	// we're trying to get a direct connection with minimal copying
-	_, err := execAs(srcClient, m.srcAgentCid, execReq)
+	_, err := srcClient.Exec(m.srcAgentCid, execReq)
 	if err != nil {
 		// if it failed, then we may not have connected to the TCP server, so dest will hang.
 		// make an attempt to unfreeze it

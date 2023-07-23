@@ -32,14 +32,15 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/google/uuid v1.3.0
+	github.com/hashicorp/golang-lru/v2 v2.0.4
 	github.com/kevinburke/ssh_config v1.2.0
 	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 )
 
 require (
+	github.com/briandowns/spinner v1.20.0 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.4 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/petermattis/goid v0.0.0-20230518223814-80aa455d8761 // indirect
@@ -69,6 +70,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/mod v0.11.0
 	golang.org/x/net v0.11.0
-	golang.org/x/time v0.3.0
+	golang.org/x/time v0.3.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20221220191351-8ea7ab01ea4e
 )

@@ -45,8 +45,7 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerSummary, userNa
 	logrus.Infof("Migrating container %s", userName)
 
 	// [src] fetch full info
-	var fullCtr dockertypes.ContainerJSON
-	err := m.srcClient.Call("GET", "/containers/"+ctr.ID+"/json", nil, &fullCtr)
+	fullCtr, err := m.srcClient.InspectContainer(ctr.ID)
 	if err != nil {
 		return fmt.Errorf("get src container: %w", err)
 	}

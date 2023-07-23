@@ -1,11 +1,8 @@
 package dmigrate
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,75 +112,6 @@ func (m *Migrator) SetRawSrcSocket(rawSrcSocket string) {
 	m.rawSrcSocket = rawSrcSocket
 }
 
-func splitRepoTag(repoTag string) (string, string) {
-	// last index, to deal with "localhost:5000/myimage:latest"
-	sepPos := strings.LastIndex(repoTag, ":")
-	if sepPos == -1 {
-		return repoTag, "latest"
-	}
-
-	repoPart := repoTag[:sepPos]
-	tagPart := repoTag[sepPos+1:]
-	return repoPart, tagPart
-}
-
-func (m *Migrator) createAndStartContainer(client *dockerclient.Client, req *dockertypes.ContainerCreateRequest) (string, error) {
-	// need to pull image first
-	repoPart, tagPart := splitRepoTag(req.Image)
-	err := client.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
-	if err != nil {
-		return "", fmt.Errorf("pull image: %w", err)
-	}
-
-	// create --rm container
-	var containerResp dockertypes.ContainerCreateResponse
-	err = client.Call("POST", "/containers/create", req, &containerResp)
-	if err != nil {
-		return "", fmt.Errorf("create container: %w", err)
-	}
-
-	// start container
-	err = client.Call("POST", "/containers/"+containerResp.ID+"/start", nil, nil)
-	if err != nil {
-		return "", fmt.Errorf("start container: %w", err)
-	}
-
-	return containerResp.ID, nil
-}
-
-func demuxOutput(r io.Reader, w io.Writer) error {
-	// decode multiplexed
-	for {
-		hdr := make([]byte, 8)
-		_, err := r.Read(hdr)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			} else {
-				return fmt.Errorf("read header: %w", err)
-			}
-		}
-		// big endian uint32 from last 4 bytes
-		size := binary.BigEndian.Uint32(hdr[4:8])
-		// read that amount
-		buf := make([]byte, size)
-		n := 0
-		for n < int(size) {
-			nr, err := r.Read(buf[n:])
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				} else {
-					return fmt.Errorf("read body: %w", err)
-				}
-			}
-			n += nr
-		}
-		// write out
-		w.Write(buf)
-	}
-}
-
 func (m *Migrator) finishOneEntity(spec *entitySpec) {
 	m.mu.Lock()
 	m.finishedEntities++
@@ -214,30 +142,25 @@ type engineManifest struct {
 }
 
 func enumerateSource(client *dockerclient.Client) (*engineManifest, error) {
-	var images []dockertypes.Image
-	err := client.Call("GET", "/images/json", nil, &images)
+	images, err := client.ListImages()
 	if err != nil {
 		return nil, fmt.Errorf("get images: %w", err)
 	}
 
-	var containers []*dockertypes.ContainerSummary
-	err = client.Call("GET", "/containers/json?all=true", nil, &containers)
+	containers, err := client.ListContainers(true)
 	if err != nil {
 		return nil, fmt.Errorf("get containers: %w", err)
 	}
 
-	var networks []dockertypes.Network
-	err = client.Call("GET", "/networks", nil, &networks)
+	networks, err := client.ListNetworks()
 	if err != nil {
 		return nil, fmt.Errorf("get networks: %w", err)
 	}
 
-	var volumesResp dockertypes.VolumeListResponse
-	err = client.Call("GET", "/volumes", nil, &volumesResp)
+	volumes, err := client.ListVolumes()
 	if err != nil {
 		return nil, fmt.Errorf("get volumes: %w", err)
 	}
-	volumes := volumesResp.Volumes
 
 	return &engineManifest{
 		Images:     images,
@@ -313,8 +236,7 @@ outer:
 		}
 
 		// skip containers not used for >1 month (need to fetch full info)
-		var fullCtr dockertypes.ContainerJSON
-		err := m.srcClient.Call("GET", "/containers/"+c.ID+"/json", nil, &fullCtr)
+		fullCtr, err := m.srcClient.InspectContainer(c.ID)
 		if err != nil {
 			return fmt.Errorf("get src container: %w", err)
 		}
@@ -498,7 +420,7 @@ outer:
 	group := pool.Group()
 
 	// [src] start agent
-	srcAgentCid, err := m.createAndStartContainer(m.srcClient, &dockertypes.ContainerCreateRequest{
+	srcAgentCid, err := m.srcClient.RunContainer(&dockertypes.ContainerCreateRequest{
 		Image: migrationAgentImage,
 		Cmd:   []string{"sleep", "1h"},
 		HostConfig: &dockertypes.ContainerHostConfig{
@@ -519,14 +441,14 @@ outer:
 	m.srcAgentCid = srcAgentCid
 	defer func() {
 		// [src] kill agent (+ auto-remove)
-		err := m.srcClient.Call("POST", "/containers/"+srcAgentCid+"/kill", nil, nil)
+		err := m.srcClient.KillContainer(srcAgentCid)
 		if err != nil {
 			logrus.Warnf("kill src container: %v", err)
 		}
 	}()
 
 	// [src] check for free disk space for temp image saving
-	srcStatfs, err := execAs(m.srcClient, srcAgentCid, &dockertypes.ContainerExecCreateRequest{
+	srcStatfs, err := m.srcClient.Exec(srcAgentCid, &dockertypes.ContainerExecCreateRequest{
 		Cmd:          []string{"stat", "-f", "-c", "%f %S", "/"},
 		AttachStdout: true,
 		AttachStderr: true,
