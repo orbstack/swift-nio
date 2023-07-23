@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -558,12 +559,46 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	m.srcAgentCid = srcAgentCid
 	defer func() {
-		// [src] kill agent
+		// [src] kill agent (+ auto-remove)
 		err := m.srcClient.Call("POST", "/containers/"+srcAgentCid+"/kill", nil, nil)
 		if err != nil {
 			logrus.Warnf("kill src container: %v", err)
 		}
 	}()
+
+	// [src] check for free disk space for temp image saving
+	srcStatfs, err := execAs(m.srcClient, srcAgentCid, &dockertypes.ContainerExecCreateRequest{
+		Cmd:          []string{"stat", "-f", "-c", "%f %S", "/"},
+		AttachStdout: true,
+		AttachStderr: true,
+	})
+	if err != nil {
+		return fmt.Errorf("statfs: %w", err)
+	}
+	srcFsBlocks, srcFsBlockSize, ok := strings.Cut(strings.TrimSpace(srcStatfs), " ")
+	if !ok {
+		return fmt.Errorf("parse statfs: %w", err)
+	}
+	srcFsBlocksInt, err := strconv.ParseInt(srcFsBlocks, 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse statfs: %w", err)
+	}
+	srcFsBlockSizeInt, err := strconv.ParseInt(srcFsBlockSize, 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse statfs: %w", err)
+	}
+	srcFsBytes := srcFsBlocksInt * srcFsBlockSizeInt
+	var maxImageSize int64
+	for _, i := range filteredImages {
+		if i.Size > maxImageSize {
+			maxImageSize = i.Size
+		}
+	}
+	// min = 2x max image size, due to parallelism
+	minFreeBytes := 2 * maxImageSize
+	if srcFsBytes < minFreeBytes {
+		return fmt.Errorf("%s: %d GB required. %s", "Not enough free disk space in Docker Desktop", minFreeBytes/(1000*1000*1000), "Please free up space or increase virtual disk size in Docker Desktop settings.")
+	}
 
 	// [dest] start sync server
 	err = m.startSyncServer()

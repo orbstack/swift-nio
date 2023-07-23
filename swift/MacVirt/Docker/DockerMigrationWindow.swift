@@ -28,7 +28,7 @@ private class MigrationViewModel: ObservableObject {
                 let status = process.terminationStatus
                 DispatchQueue.main.async { [self] in
                     if status != 0 {
-                        errors = errors + ["Failed with status \(status)"]
+                        errors = errors + ["\nFailed with status \(status)"]
                     }
                     self.done = true
                 }
