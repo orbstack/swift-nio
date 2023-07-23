@@ -21,7 +21,7 @@ function upload_dsyms() {
 upload_dsyms swift/out/*/dsym/OrbStack.app.dSYM &
 
 # generate appcast
-COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-files --delta-compression lzfse --release-notes-url-prefix 'https://cdn-updates.orbstack.dev/release-notes.html#' --full-release-notes-url 'https://docs.orbstack.dev/release-notes' --maximum-versions 2 --maximum-deltas 3)
+COMMON_FLAGS=(--channel beta --critical-update-version '' --auto-prune-update-files --delta-compression lzfse --release-notes-url-prefix 'https://cdn-updates.orbstack.dev/release-notes.html#' --full-release-notes-url 'https://docs.orbstack.dev/release-notes' --maximum-versions 2 --maximum-deltas 4)
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/arm64/ updates/pub/arm64
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix https://cdn-updates.orbstack.dev/amd64/ updates/pub/amd64
 
