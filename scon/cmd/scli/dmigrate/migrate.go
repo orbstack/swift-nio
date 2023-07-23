@@ -66,7 +66,7 @@ type MigrateParams struct {
 type entitySpec struct {
 	containerID string
 	volumeName  string
-	networkID   string
+	networkName string
 	imageID     string
 }
 
@@ -292,11 +292,21 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		return fmt.Errorf("enumerate src: %w", err)
 	}
 
+	// early network filtering for dependency pruning
+	// we do network deps by *NAME* b/c ID of default none/host/bridge can differ
+	eligibleNetworkNames := []string{"bridge", "host", "none"}
+	for _, n := range manifest.Networks {
+		if n.Scope != "local" || n.Driver != "bridge" {
+			continue
+		}
+		eligibleNetworkNames = append(eligibleNetworkNames, n.Name)
+	}
+
 	// FILTER CONTAINERS
 	var filteredContainers []*dockertypes.ContainerSummary
 	containerDeps := make(map[string][]entitySpec)
+outer:
 	for _, c := range manifest.Containers {
-		fmt.Println("consider", c.Names[0])
 		// skip migration image ones (won't work b/c migration img is excluded)
 		if c.Image == migrationAgentImage {
 			continue
@@ -322,6 +332,16 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 			continue
 		}
 
+		// it's not possible to depend on a non-existent image or volume, but it *IS* possible to depend on a non-existent network. skip if so, otherwise migration gets stuck
+		if c.NetworkSettings != nil && c.NetworkSettings.Networks != nil {
+			for cnetName := range c.NetworkSettings.Networks {
+				if !slices.Contains(eligibleNetworkNames, cnetName) {
+					logrus.WithField("container", c.ID).Debug("Skipping container: depends on non-existent network")
+					continue outer
+				}
+			}
+		}
+
 		filteredContainers = append(filteredContainers, c)
 	}
 
@@ -336,9 +356,17 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 			continue
 		}
 		// don't trust the name, look through IDs
-		for _, cnet := range c.NetworkSettings.Networks {
+		for cnetName, cnet := range c.NetworkSettings.Networks {
+			// if we won't be migrating it, then skip it as a dependency or we'll get deadlock
+			if !slices.Contains(eligibleNetworkNames, cnetName) {
+				continue
+			}
+			if cnetName == "bridge" || cnetName == "host" || cnetName == "none" {
+				continue
+			}
+
 			containerUsedNets[cnet.NetworkID] = struct{}{}
-			containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{networkID: cnet.NetworkID})
+			containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{networkName: cnetName})
 		}
 	}
 	// 2. filter networks
@@ -347,8 +375,8 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		if n.Scope != "local" || n.Driver != "bridge" {
 			continue
 		}
-		// skip default bridge
-		if n.Name == "bridge" {
+		// skip default networks
+		if n.Name == "bridge" || n.Name == "host" || n.Name == "none" {
 			continue
 		}
 		if _, ok := containerUsedNets[n.ID]; !ok {
@@ -365,7 +393,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 			continue
 		}
 		for _, m := range c.Mounts {
-			// volume mounts only
+			// volume mounts only (skip dep if we're not migrating it)
 			if m.Type != "volume" || m.Driver != "local" {
 				continue
 			}
@@ -561,6 +589,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// TODO plugins?
 
 	// 4. containers (depends on all above)
+	totalContainers := len(filteredContainers)
 	remainingContainers := filteredContainers
 	// make sure there's always one iteration, in case there are no containers
 	// non-blocking send in case it's already filled
@@ -597,8 +626,14 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		// update remaining
 		remainingContainers = deferredContainers
 
-		// stop when everything has been submitted and all entities have finished
-		if len(remainingContainers) == 0 && m.finishedEntities == m.totalEntities {
+		// stop when everything has been submitted
+		if len(remainingContainers) == 0 {
+			break
+		}
+
+		// if there are no non-container entities left, there must be a missing dependency.
+		// break to avoid deadlock
+		if m.finishedEntities >= (m.totalEntities - totalContainers) {
 			break
 		}
 	}
