@@ -21,6 +21,11 @@ type ContainerBpfManager struct {
 	closers          []io.Closer
 	lfwdBlockedPorts *ebpf.Map
 	ptrackNotify     *ringbuf.Reader
+
+	// refcount ports to block
+	// keep a port blocked if ANY listeners, v4 OR v6, are using it
+	// protected by ctr.mu
+	blockedPortRefs map[uint16]int
 }
 
 func NewContainerBpfManager(cgPath string, netnsCookie uint64) (*ContainerBpfManager, error) {
@@ -46,9 +51,16 @@ func (b *ContainerBpfManager) LfwdBlockPort(port uint16) error {
 		return nil
 	}
 
-	// swap to big endian
-	port = (port&0xff)<<8 | (port&0xff00)>>8
-	return b.lfwdBlockedPorts.Put(port, byte(1))
+	// refcount
+	b.blockedPortRefs[port]++
+	// first ref?
+	if b.blockedPortRefs[port] == 1 {
+		// swap to big endian
+		port = (port&0xff)<<8 | (port&0xff00)>>8
+		return b.lfwdBlockedPorts.Put(port, byte(1))
+	}
+
+	return nil
 }
 
 func (b *ContainerBpfManager) LfwdUnblockPort(port uint16) error {
@@ -56,9 +68,16 @@ func (b *ContainerBpfManager) LfwdUnblockPort(port uint16) error {
 		return nil
 	}
 
-	// swap to big endian
-	port = (port&0xff)<<8 | (port&0xff00)>>8
-	return b.lfwdBlockedPorts.Delete(port)
+	// refcount
+	b.blockedPortRefs[port]--
+	// last ref?
+	if b.blockedPortRefs[port] == 0 {
+		// swap to big endian
+		port = (port&0xff)<<8 | (port&0xff00)>>8
+		return b.lfwdBlockedPorts.Delete(port)
+	}
+
+	return nil
 }
 
 func (b *ContainerBpfManager) attachOneCg(typ ebpf.AttachType, prog *ebpf.Program) error {
