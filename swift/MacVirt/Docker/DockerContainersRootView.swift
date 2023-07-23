@@ -151,7 +151,7 @@ private struct DockerContainersList: View {
 
                 // don't show getting started hint if empty is caused by filter
                 let unfilteredListItems = DockerContainerLists.makeListItems(filteredContainers: containers,
-                        dockerRecord: dockerRecord, showStopped: filterShowStopped)
+                        dockerRecord: dockerRecord, showStopped: true) // incl. stopped containers
                 if unfilteredListItems.isEmpty {
                     HStack {
                         Spacer()
