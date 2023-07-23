@@ -68,7 +68,7 @@ struct ContentView: View {
                 .tag("machines")
             }
             
-            Section(header: Text("Info")) {
+            Section(header: Text("Help")) {
                 NavigationLink(destination: CommandsRootView()) {
                     Label("Commands", systemImage: "terminal")
                         .padding(.vertical, 3)
@@ -109,7 +109,7 @@ struct ContentView: View {
                             }
                         }
                         
-                        Section(header: Text("Info")) {
+                        Section(header: Text("Help")) {
                             NavigationLink(value: "cli") {
                                 Label("Commands", systemImage: "terminal")
                                     .padding(.vertical, 3)
