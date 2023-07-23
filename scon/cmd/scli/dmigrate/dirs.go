@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net"
 	"time"
 
 	"github.com/alessio/shellescape"
@@ -55,6 +56,66 @@ func execAs(client *dockerclient.Client, cid string, execReq *dockertypes.Contai
 
 	// success
 	return output.String(), nil
+}
+
+func findFreeTCPPort() (int, error) {
+	// zero-port listener
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer listener.Close()
+
+	// get port
+	addr := listener.Addr().(*net.TCPAddr)
+	return addr.Port, nil
+}
+
+func (m *Migrator) startSyncServer() error {
+	syncPort, err := findFreeTCPPort()
+	if err != nil {
+		return fmt.Errorf("find free port: %w", err)
+	}
+	m.syncPort = syncPort
+
+	// start server
+	err = scli.Client().InternalDockerMigrationRunSyncServer(types.InternalDockerMigrationRunSyncServerRequest{
+		Port: syncPort,
+	})
+	if err != nil {
+		return fmt.Errorf("start sync server: %w", err)
+	}
+
+	// wait for mac proxy to start. server will always be running
+	pollTicker := time.NewTicker(serverPollInterval)
+	timeout := time.NewTimer(serverStartTimeout)
+loop:
+	for {
+		select {
+		case <-pollTicker.C:
+			// check if server is running
+			conn, err := netx.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", syncPort))
+			if err != nil {
+				continue
+			}
+
+			// connected = fwd running
+			conn.Close()
+			err = nil
+			break loop
+		case <-timeout.C:
+			// timeout
+			err = fmt.Errorf("start server: timeout")
+			break loop
+		}
+	}
+	pollTicker.Stop()
+	timeout.Stop()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *Migrator) syncDirs(srcClient *dockerclient.Client, srcs []string, destClient *dockerclient.Client, dest string) error {
