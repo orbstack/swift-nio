@@ -24,6 +24,8 @@ struct DockerVolumesRootView: View {
                 // 0 spacing to fix bg color gap between list and getting started hint
                 VStack(spacing: 0) {
                     if !filteredVolumes.isEmpty {
+                        let totalSizeFormatted = calcTotalSize(filteredVolumes)
+
                         List(selection: $selection) {
                             Section(header: Text("In Use")) {
                                 ForEach(filteredVolumes, id: \.name) { volume in
@@ -54,6 +56,9 @@ struct DockerVolumesRootView: View {
                                         .padding(.vertical, 24)
                                 Spacer()
                             }
+                        }
+                        .if(totalSizeFormatted != nil) { list in
+                            list.navigationSubtitle(totalSizeFormatted ?? "")
                         }
                     } else {
                         Spacer()
@@ -101,5 +106,23 @@ struct DockerVolumesRootView: View {
                     mount.name == volume.name
             }
         } != nil
+    }
+
+    private func calcTotalSize(_ filteredVolumes: [DKVolume]) -> String? {
+        if let dockerDf = vmModel.dockerSystemDf {
+            let totalSize = filteredVolumes.reduce(Int64(0)) { acc, vol in
+                if let dfVolume = dockerDf.volumes.first(where: { $0.name == vol.name }),
+                   let usageData = dfVolume.usageData {
+                    return acc + usageData.size
+                } else {
+                    return acc
+                }
+            }
+            let totalSizeFormatted = ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
+
+            return "\(totalSizeFormatted) total"
+        }
+
+        return nil
     }
 }
