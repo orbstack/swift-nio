@@ -26,7 +26,10 @@ func init() {
 	dockerMigrateCmd.Flags().BoolVarP(&flagImages, "images", "i", true, "Migrate images")
 	dockerMigrateCmd.Flags().BoolVarP(&flagContainers, "containers", "c", true, "Migrate containers")
 	dockerMigrateCmd.Flags().BoolVarP(&flagVolumes, "volumes", "v", true, "Migrate volumes")
-	dockerMigrateCmd.Flags().StringVarP(&flagFormat, "format", "f", "text", "Output format")
+	dockerMigrateCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force migration even if OrbStack already has data")
+	// no shorthand, only for gui use
+	dockerMigrateCmd.Flags().StringVar(&flagFormat, "format", "text", "Output format")
+	dockerMigrateCmd.Flags().MarkHidden("format")
 }
 
 var dockerMigrateCmd = &cobra.Command{
@@ -73,6 +76,8 @@ var dockerMigrateCmd = &cobra.Command{
 			IncludeImages:     flagImages,
 			IncludeContainers: flagContainers,
 			IncludeVolumes:    flagVolumes,
+
+			ForceIfExisting: flagForce,
 		})
 		if err != nil {
 			if flagFormat == "json" && errors.Is(err, dmigrate.ErrEntitiesFailed) {

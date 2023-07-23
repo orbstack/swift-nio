@@ -17,7 +17,8 @@ private class MigrationViewModel: ObservableObject {
         Task.detached { @MainActor [self] in
             let task = Process()
             task.launchPath = AppConfig.ctlExe
-            task.arguments = ["docker", "migrate", "-f", "json"]
+            // force: we do existing-data check in GUI
+            task.arguments = ["docker", "migrate", "--format", "json", "--force"]
 
             let pipe = Pipe()
             task.standardOutput = pipe
@@ -64,10 +65,12 @@ private class MigrationViewModel: ObservableObject {
 
 struct DockerMigrationWindow: View {
     @EnvironmentObject private var vmModel: VmViewModel
+
     @StateObject private var windowHolder = WindowHolder()
     @StateObject private var model = MigrationViewModel()
 
     @State private var presentErrors = false
+    @State private var presentConfirmExisting = false
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -83,7 +86,15 @@ struct DockerMigrationWindow: View {
                 window.isRestorable = false
             }
 
-            model.start()
+            if vmModel.dockerContainers?.isEmpty ?? true,
+               vmModel.dockerImages?.isEmpty ?? true,
+               vmModel.dockerVolumes?.isEmpty ?? true {
+                // empty = OK to start
+                model.start()
+            } else {
+                // not empty - ask for confirmation
+                presentConfirmExisting = true
+            }
         }
         .onChange(of: windowHolder.window) { window in
             if let window {
@@ -113,6 +124,19 @@ struct DockerMigrationWindow: View {
             }
         } message: {
             Text(truncateError(description: model.errors.joined(separator: "\n")))
+        }
+        .alert("Replace existing data?", isPresented: $presentConfirmExisting) {
+            Button("Cancel", role: .cancel) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    windowHolder.window?.close()
+                }
+            }
+            Button("Migrate", role: .destructive) {
+                model.start()
+                presentConfirmExisting = false
+            }
+        } message: {
+            Text("You already have Docker containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results.")
         }
         .frame(width: 450)
     }

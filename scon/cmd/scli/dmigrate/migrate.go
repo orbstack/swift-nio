@@ -61,6 +61,8 @@ type MigrateParams struct {
 	IncludeVolumes    bool
 	IncludeImages     bool
 	/* networks are implicit by containers */
+
+	ForceIfExisting bool
 }
 
 type entitySpec struct {
@@ -266,35 +268,96 @@ loop:
 	return nil
 }
 
+type engineManifest struct {
+	Images     []dockertypes.Image
+	Containers []*dockertypes.ContainerSummary
+	Networks   []dockertypes.Network
+	Volumes    []dockertypes.Volume
+}
+
+func enumerateSource(client *dockerclient.Client) (*engineManifest, error) {
+	var images []dockertypes.Image
+	err := client.Call("GET", "/images/json", nil, &images)
+	if err != nil {
+		return nil, fmt.Errorf("get images: %w", err)
+	}
+
+	var containers []*dockertypes.ContainerSummary
+	err = client.Call("GET", "/containers/json?all=true", nil, &containers)
+	if err != nil {
+		return nil, fmt.Errorf("get containers: %w", err)
+	}
+
+	var networks []dockertypes.Network
+	err = client.Call("GET", "/networks", nil, &networks)
+	if err != nil {
+		return nil, fmt.Errorf("get networks: %w", err)
+	}
+
+	var volumesResp dockertypes.VolumeListResponse
+	err = client.Call("GET", "/volumes", nil, &volumesResp)
+	if err != nil {
+		return nil, fmt.Errorf("get volumes: %w", err)
+	}
+	volumes := volumesResp.Volumes
+
+	return &engineManifest{
+		Images:     images,
+		Containers: containers,
+		Networks:   networks,
+		Volumes:    volumes,
+	}, nil
+}
+
+func (m *Migrator) checkDestEntities() error {
+	manifest, err := enumerateSource(m.destClient)
+	if err != nil {
+		return fmt.Errorf("enumerate dest: %w", err)
+	}
+
+	if len(manifest.Images) > 0 {
+		return errors.New("images")
+	}
+
+	if len(manifest.Containers) > 0 {
+		return errors.New("containers")
+	}
+
+	if len(manifest.Volumes) > 0 {
+		return errors.New("volumes")
+	}
+
+	// need to filter out defaults
+	var filteredNetworks []dockertypes.Network
+	for _, n := range manifest.Networks {
+		if n.Scope != "local" || n.Driver != "bridge" {
+			continue
+		}
+		// skip default bridge
+		if n.Name == "bridge" {
+			continue
+		}
+		filteredNetworks = append(filteredNetworks, n)
+	}
+	if len(filteredNetworks) > 0 {
+		return errors.New("networks")
+	}
+
+	return nil
+}
+
 func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// grab everything
 	logrus.Info("Gathering info")
-	var images []dockertypes.Image
-	err := m.srcClient.Call("GET", "/images/json", nil, &images)
+	manifest, err := enumerateSource(m.srcClient)
 	if err != nil {
-		return fmt.Errorf("get images: %w", err)
+		return fmt.Errorf("enumerate src: %w", err)
 	}
-	var containers []*dockertypes.ContainerSummary
-	err = m.srcClient.Call("GET", "/containers/json?all=true", nil, &containers)
-	if err != nil {
-		return fmt.Errorf("get containers: %w", err)
-	}
-	var networks []dockertypes.Network
-	err = m.srcClient.Call("GET", "/networks", nil, &networks)
-	if err != nil {
-		return fmt.Errorf("get networks: %w", err)
-	}
-	var volumesResp dockertypes.VolumeListResponse
-	err = m.srcClient.Call("GET", "/volumes", nil, &volumesResp)
-	if err != nil {
-		return fmt.Errorf("get volumes: %w", err)
-	}
-	volumes := volumesResp.Volumes
 
 	// FILTER CONTAINERS
 	var filteredContainers []*dockertypes.ContainerSummary
 	containerDeps := make(map[string][]entitySpec)
-	for _, c := range containers {
+	for _, c := range manifest.Containers {
 		// skip migration image ones (won't work b/c migration img is excluded)
 		if c.Image == migrationAgentImage {
 			continue
@@ -348,7 +411,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	// 2. filter networks
 	var filteredNetworks []dockertypes.Network
-	for _, n := range networks {
+	for _, n := range manifest.Networks {
 		if n.Scope != "local" || n.Driver != "bridge" {
 			continue
 		}
@@ -380,7 +443,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	// 2. filter volumes
 	var filteredVolumes []dockertypes.Volume
-	for _, v := range volumes {
+	for _, v := range manifest.Volumes {
 		// TODO include non-local volumes
 		if v.Driver != "local" || v.Scope != "local" {
 			continue
@@ -404,7 +467,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	// 2. filter images
 	var filteredImages []dockertypes.Image
-	for _, i := range images {
+	for _, i := range manifest.Images {
 		// exclude agent image
 		if slices.Contains(i.RepoTags, migrationAgentImage) {
 			continue
@@ -420,6 +483,15 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 		if len(i.RepoTags) > 0 && len(i.RepoDigests) == 0 {
 			filteredImages = append(filteredImages, i)
 			continue
+		}
+	}
+
+	// check if dest has any entities
+	if !params.ForceIfExisting {
+		err = m.checkDestEntities()
+		if err != nil {
+			// bypass lint
+			return fmt.Errorf("%s: %w. %s", "OrbStack's Docker engine already has data", err, "Use '-f' to force migration or 'orb delete docker' to clear existing data.")
 		}
 	}
 
