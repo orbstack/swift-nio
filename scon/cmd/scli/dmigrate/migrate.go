@@ -172,7 +172,7 @@ func demuxOutput(r io.Reader, w io.Writer) error {
 			nr, err := r.Read(buf[n:])
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					return nil
+					break
 				} else {
 					return fmt.Errorf("read body: %w", err)
 				}
@@ -514,7 +514,7 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 	srcFsBlocks, srcFsBlockSize, ok := strings.Cut(strings.TrimSpace(srcStatfs), " ")
 	if !ok {
-		return fmt.Errorf("parse statfs: %w", err)
+		return fmt.Errorf("parse statfs: invalid output '%s'", srcStatfs)
 	}
 	srcFsBlocksInt, err := strconv.ParseInt(srcFsBlocks, 10, 64)
 	if err != nil {
@@ -568,6 +568,8 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 
 	// 4. containers (depends on all above)
 	remainingContainers := filteredContainers
+	// make sure there's always one iteration, in case there are no containers
+	m.entityFinishCh <- struct{}{}
 	for range m.entityFinishCh {
 		// try to submit more containers
 		var deferredContainers []*dockertypes.ContainerSummary // didn't make it into this round

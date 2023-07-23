@@ -14,9 +14,19 @@ import (
 const (
 	refConfigDockerDesktop = `
 	{
-		"builder": { "gc": { "defaultKeepStorage": "20GB", "enabled": true } },
+		"builder": {
+			"features": {
+				"buildkit": true
+			},
+			"gc": {
+				"defaultKeepStorage": "20GB",
+				"enabled": true
+			}
+		},
 		"experimental": false,
-		"features": { "buildkit": true }
+		"features": {
+			"buildkit": true
+		}
 	}
 	`
 )
@@ -89,8 +99,6 @@ func (m *Migrator) migrateDaemonConfig(path string) error {
 		return nil
 	}
 
-	logrus.Infof("Migrating daemon config: %v", diff)
-
 	// user changed it. write out the new config
 	newConfigData, err := json.MarshalIndent(diff, "", "  ")
 	if err != nil {
@@ -100,6 +108,7 @@ func (m *Migrator) migrateDaemonConfig(path string) error {
 	if err != nil {
 		return fmt.Errorf("write new config: %w", err)
 	}
+	logrus.Infof("Migrating daemon config: %s", string(newConfigData))
 
 	// restart docker machine
 	c, err := scli.Client().GetByID(types.ContainerIDDocker)
