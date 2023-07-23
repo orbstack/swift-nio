@@ -1,3 +1,7 @@
+.PHONY: all
+
+all: out/arm64 out/amd64
+
 out/arm64: download-bins.sh
 	@rm -fr out/arm64
 	@mkdir -p out/arm64
