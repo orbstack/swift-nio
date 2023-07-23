@@ -35,6 +35,17 @@ struct MachineContainerItem: View {
 
             Spacer()
 
+            Button(action: {
+                record.openNfsDirectory()
+            }) {
+                Image(systemName: "folder.fill")
+                        // match ProgressIconButton size
+                .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .disabled(actionInProgress)
+            .help("Open Files")
+
             if record.running {
                 ProgressIconButton(systemImage: "stop.fill",
                         actionInProgress: actionInProgress || record.state == .creating) {

@@ -66,12 +66,6 @@ struct ContentView: View {
                         .padding(.vertical, 3)
                 }
                 .tag("machines")
-                
-                NavigationLink(destination: FilesRootView()) {
-                    Label("Files", systemImage: "folder")
-                        .padding(.vertical, 3)
-                }
-                .tag("files")
             }
             
             Section(header: Text("Info")) {
@@ -113,11 +107,6 @@ struct ContentView: View {
                                 Label("Machines", systemImage: "desktopcomputer")
                                     .padding(.vertical, 3)
                             }
-                            
-                            NavigationLink(value: "files") {
-                                Label("Files", systemImage: "folder")
-                                    .padding(.vertical, 3)
-                            }
                         }
                         
                         Section(header: Text("Info")) {
@@ -140,8 +129,6 @@ struct ContentView: View {
                         
                     case "machines":
                         MachinesRootView()
-                    case "files":
-                        FilesRootView()
                         
                     case "cli":
                         CommandsRootView()
