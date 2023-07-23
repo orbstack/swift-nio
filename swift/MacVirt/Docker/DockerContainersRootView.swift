@@ -60,7 +60,7 @@ private struct MigrationHintBox: View {
             Button(action: {
                 Defaults[.dockerMigrationDismissed] = true
             }) {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
