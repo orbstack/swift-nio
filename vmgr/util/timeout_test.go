@@ -12,6 +12,8 @@ var (
 )
 
 func TestTimeoutOk(t *testing.T) {
+	t.Parallel()
+
 	fn := func() (string, error) {
 		return "ok", nil
 	}
@@ -25,6 +27,8 @@ func TestTimeoutOk(t *testing.T) {
 }
 
 func TestTimeoutExceeded(t *testing.T) {
+	t.Parallel()
+
 	fn := func() (string, error) {
 		time.Sleep(2 * time.Second)
 		return "ok", nil
@@ -36,6 +40,8 @@ func TestTimeoutExceeded(t *testing.T) {
 }
 
 func TestTimeoutError(t *testing.T) {
+	t.Parallel()
+
 	fn := func() (string, error) {
 		return "", errTest
 	}
@@ -46,6 +52,8 @@ func TestTimeoutError(t *testing.T) {
 }
 
 func TestTimeoutErrorAfterTimeout(t *testing.T) {
+	t.Parallel()
+
 	fn := func() (string, error) {
 		time.Sleep(2 * time.Second)
 		return "", errTest
