@@ -134,6 +134,16 @@ type NetworkEndpointSettings struct {
 	DriverOpts          map[string]string
 }
 
+type NetworkDisconnectRequest struct {
+	Container string
+	Force     bool
+}
+
+type NetworkConnectRequest struct {
+	Container      string
+	EndpointConfig *NetworkEndpointSettings
+}
+
 type ContainerCreateRequest struct {
 	Image        string
 	Cmd          []string

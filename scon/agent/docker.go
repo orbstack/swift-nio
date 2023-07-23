@@ -551,7 +551,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 	}
 
 	// get all containers
-	var allContainers []dockertypes.ContainerSummary
+	var allContainers []*dockertypes.ContainerSummary
 	err = d.client.Call("GET", "/containers/json?all=true", nil, &allContainers)
 	if err != nil {
 		return fmt.Errorf("get containers: %w", err)
@@ -585,7 +585,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 
 		// filter for containers
 		// fullNet.Containers only includes running, so must look at allContainers
-		netContainers := make(map[string]*dockertypes.ContainerSummary)
+		netContainers := make(map[string]*dockertypes.NetworkEndpointSettings)
 		for _, c := range allContainers {
 			if c.NetworkSettings == nil {
 				continue
@@ -596,7 +596,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 			// don't trust the name, look through IDs
 			for _, cnet := range c.NetworkSettings.Networks {
 				if cnet.NetworkID == minNet.ID {
-					netContainers[c.ID] = &c
+					netContainers[c.ID] = cnet
 					break
 				}
 			}
@@ -606,9 +606,9 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 		logrus.WithField("network", minNet.Name).WithField("count", len(netContainers)).Info("disconnecting containers")
 		for cid := range netContainers {
 			logrus.WithField("cid", cid).Debug("disconnecting container")
-			err = d.client.Call("POST", "/networks/"+minNet.ID+"/disconnect", map[string]any{
-				"Container": cid,
-				"Force":     true,
+			err = d.client.Call("POST", "/networks/"+minNet.ID+"/disconnect", dockertypes.NetworkDisconnectRequest{
+				Container: cid,
+				Force:     true,
 			}, nil)
 			if err != nil {
 				// fatal. can't proceed if stuck
@@ -664,10 +664,16 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 
 		// reconnect all containers
 		logrus.WithField("network", minNet.Name).WithField("count", len(netContainers)).Info("reconnecting containers")
-		for cid := range netContainers {
+		for cid, endpointConfig := range netContainers {
 			logrus.WithField("cid", cid).Debug("reconnecting container")
-			err = d.client.Call("POST", "/networks/"+newNetResp.ID+"/connect", map[string]any{
-				"Container": cid,
+			err = d.client.Call("POST", "/networks/"+newNetResp.ID+"/connect", dockertypes.NetworkConnectRequest{
+				Container: cid,
+				EndpointConfig: &dockertypes.NetworkEndpointSettings{
+					// only a few fields, exclude anything IP-related
+					Links: endpointConfig.Links,
+					// for Docker Compose sandbox DNS resolver
+					Aliases: endpointConfig.Aliases,
+				},
 			}, nil)
 			if err != nil {
 				// not fatal but unexpected. too late to revert
