@@ -65,7 +65,11 @@ struct DockerVolumesRootView: View {
 
                         HStack {
                             Spacer()
-                            ContentUnavailableViewCompat("No Volumes", systemImage: "externaldrive")
+                            if searchQuery.isEmpty {
+                                ContentUnavailableViewCompat("No Volumes", systemImage: "externaldrive")
+                            } else {
+                                ContentUnavailableViewCompat.search
+                            }
                             Spacer()
                         }
 

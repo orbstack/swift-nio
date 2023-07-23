@@ -51,7 +51,11 @@ struct DockerImagesRootView: View {
 
                         HStack {
                             Spacer()
-                            ContentUnavailableViewCompat("No Images", systemImage: "doc.zipper")
+                            if searchQuery.isEmpty {
+                                ContentUnavailableViewCompat("No Images", systemImage: "doc.zipper")
+                            } else {
+                                ContentUnavailableViewCompat.search
+                            }
                             Spacer()
                         }
 

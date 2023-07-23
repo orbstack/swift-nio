@@ -103,7 +103,7 @@ private struct DockerContainersList: View {
     let filterShowStopped: Bool
     let filterIsSearch: Bool
     let runningCount: Int
-    let containers: [DKContainer]
+    let allContainers: [DKContainer]
     let dockerRecord: ContainerRecord
     let listItems: [DockerListItem]
     let selection: Binding<Set<DockerContainerId>>
@@ -150,9 +150,7 @@ private struct DockerContainersList: View {
                 Spacer()
 
                 // don't show getting started hint if empty is caused by filter
-                let unfilteredListItems = DockerContainerLists.makeListItems(filteredContainers: containers,
-                        dockerRecord: dockerRecord, showStopped: true) // incl. stopped containers
-                if unfilteredListItems.isEmpty {
+                if allContainers.isEmpty {
                     HStack {
                         Spacer()
                         // migration not previously done or dismissed
@@ -160,7 +158,7 @@ private struct DockerContainersList: View {
                                 // docker desktop recently used
                                 InstalledApps.dockerDesktopRecentlyUsed &&
                                 // containers, images, volumes all empty
-                                containers.isEmpty &&
+                                allContainers.isEmpty &&
                                 dockerImages?.isEmpty == true &&
                                 dockerVolumes?.isEmpty == true
                         if isMigration {
@@ -226,7 +224,7 @@ struct DockerContainersRootView: View {
                     filterShowStopped: filterShowStopped,
                     filterIsSearch: !searchQuery.isEmpty,
                     runningCount: runningCount,
-                    containers: containers,
+                    allContainers: containers,
                     dockerRecord: dockerRecord,
                     listItems: listItems,
                     selection: $selection,

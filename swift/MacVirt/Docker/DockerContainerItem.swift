@@ -27,11 +27,15 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             HStack {
                 let color = SystemColors.forString(container.id)
                 Image(systemName: "shippingbox.fill")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
-                        .padding(.trailing, 8)
-                        .foregroundColor(color)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .padding(8)
+                    .foregroundColor(Color(hex: 0xfafafa))
+                    .background(Circle().fill(color))
+                    // rasterize so opacity works on it as one big image
+                    .drawingGroup(opaque: true)
+                    .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
                     let nameTxt = container.userName

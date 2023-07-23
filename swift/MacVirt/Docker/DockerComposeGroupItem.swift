@@ -24,7 +24,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
         HStack {
             HStack {
                 let color = SystemColors.forString(composeGroup.project)
-                Image(systemName: "tray.full.fill")
+                Image(systemName: "square.stack.3d.up.fill")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 32, height: 32)
