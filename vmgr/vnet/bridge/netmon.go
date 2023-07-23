@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/vmgr/util/simplerate"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -30,8 +30,8 @@ const routeChangeDebounce = 100 * time.Millisecond
 func NewRouteMon() (*RouteMon, error) {
 	m := &RouteMon{
 		// rate limit to break infinite loop if we're fighting with VPN
-		// avg 2 req/s, burst 3 (so effectively we can exhaust quota within 1 sec)
-		renewLimiter: rate.NewLimiter(3, 3),
+		// 10 req in 8 sec
+		renewLimiter: simplerate.NewLimiter(10, 8*time.Second),
 	}
 	m.renewDebounce = syncx.NewFuncDebounce(routeChangeDebounce, func() {
 		// we have 2 anti-feedback-loop precautions:
@@ -89,7 +89,7 @@ type RouteMon struct {
 	subnets [MaxVlanInterfaces + 1]MonitoredSubnet
 
 	renewMu       sync.Mutex // separate mutex to prevent deadlock
-	renewLimiter  *rate.Limiter
+	renewLimiter  *simplerate.Limiter
 	renewDebounce syncx.FuncDebounce
 }
 
