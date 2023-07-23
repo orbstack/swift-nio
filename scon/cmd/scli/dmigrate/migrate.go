@@ -569,7 +569,11 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// 4. containers (depends on all above)
 	remainingContainers := filteredContainers
 	// make sure there's always one iteration, in case there are no containers
-	m.entityFinishCh <- struct{}{}
+	// non-blocking send in case it's already filled
+	select {
+	case m.entityFinishCh <- struct{}{}:
+	default:
+	}
 	for range m.entityFinishCh {
 		// try to submit more containers
 		var deferredContainers []*dockertypes.ContainerSummary // didn't make it into this round
