@@ -527,6 +527,27 @@ func checkIPAMConflict(ipam dockertypes.IPAM, target netip.Prefix) (bool, error)
 	return false, nil
 }
 
+func (d *DockerAgent) getFullContainers() ([]*dockertypes.ContainerJSON, error) {
+	var minContainers []*dockertypes.ContainerSummaryMin
+	err := d.client.Call("GET", "/containers/json?all=true", nil, &minContainers)
+	if err != nil {
+		return nil, fmt.Errorf("get containers: %w", err)
+	}
+
+	var containers []*dockertypes.ContainerJSON
+	for _, c := range minContainers {
+		var full dockertypes.ContainerJSON
+		err = d.client.Call("GET", "/containers/"+c.ID+"/json", nil, &full)
+		if err != nil {
+			return nil, fmt.Errorf("get container: %w", err)
+		}
+
+		containers = append(containers, &full)
+	}
+
+	return containers, nil
+}
+
 func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 	var origConfig map[string]any
 	err := json.Unmarshal(origConfigJson, &origConfig)
@@ -550,9 +571,8 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 		return fmt.Errorf("get networks: %w", err)
 	}
 
-	// get all containers
-	var allContainers []*dockertypes.ContainerSummary
-	err = d.client.Call("GET", "/containers/json?all=true", nil, &allContainers)
+	// get all containers. need full info to get network aliases
+	allContainers, err := d.getFullContainers()
 	if err != nil {
 		return fmt.Errorf("get containers: %w", err)
 	}
