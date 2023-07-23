@@ -106,7 +106,8 @@ func (sv *SshServer) handleConn(s ssh.Session) {
 		} else {
 			logrus.Error("SSH error: ", err)
 			if printErr {
-				s.Stderr().Write([]byte(err.Error() + "\r\n"))
+				// terminal is in raw mode
+				s.Stderr().Write([]byte(strings.Replace(err.Error(), "\n", "\r\n", -1) + "\r\n"))
 			}
 			s.Exit(1)
 		}
