@@ -67,7 +67,7 @@ func NewRouteMon() (*RouteMon, error) {
 			// value reference
 			ratelimited := m.subnets[i].maybeRenewAsync(&wg, routingTable, ratelimitPredicate)
 			if ratelimited {
-				logrus.Debug("route renew: rate limited")
+				logrus.WithField("subnet", m.subnets[i]).Warn("giving up on bridge: rate limit exceeded")
 				break
 			}
 		}
