@@ -240,12 +240,7 @@ func handleSshConn(s ssh.Session) error {
 	fwdSigChan := make(chan ssh.Signal, 1)
 	s.Signals(fwdSigChan)
 	go func() {
-		for {
-			sig, ok := <-fwdSigChan
-			if !ok {
-				return
-			}
-
+		for sig := range fwdSigChan {
 			err := cmd.Process.Signal(sshSigMap[sig])
 			if err != nil {
 				logrus.Error("SSH signal forward failed: ", err)

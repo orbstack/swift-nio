@@ -228,6 +228,7 @@ func (vc *VClient) Shutdown() error {
 func (vc *VClient) Close() error {
 	vc.client.CloseIdleConnections()
 	vc.dataFile.Close()
+	// close OK: used to signal select loop
 	close(vc.stopChan)
 	return nil
 }

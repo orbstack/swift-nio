@@ -98,6 +98,7 @@ func (n *VmNotifier) Remove(path string) error {
 }
 
 func (n *VmNotifier) Close() error {
+	// close OK: signal select loop
 	close(n.stopCh)
 	n.swext.Close()
 	return nil

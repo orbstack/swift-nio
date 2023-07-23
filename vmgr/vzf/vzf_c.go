@@ -283,10 +283,11 @@ func SwextProxyGetSettings(needAuth bool) (*SwextProxySettings, error) {
 //export swext_proxy_cb_changed
 func swext_proxy_cb_changed() {
 	logrus.Debug("sys proxy settings changed")
-	go func() {
-		// defend against blocked subscribers
-		SwextProxyChangesChan <- struct{}{}
-	}()
+	// non-blocking send w/ adaptive 1-buf
+	select {
+	case SwextProxyChangesChan <- struct{}{}:
+	default:
+	}
 }
 
 func SwextProxyMonitorChangesOnRunLoop() error {
@@ -622,10 +623,11 @@ func (router *VlanRouter) Close() error {
 //export swext_net_cb_path_changed
 func swext_net_cb_path_changed() {
 	logrus.Debug("sys net path changed")
-	go func() {
-		// defend against blocked subscribers
-		SwextNetPathChangesChan <- struct{}{}
-	}()
+	// non-blocking send w/ adaptive 1-buf
+	select {
+	case SwextNetPathChangesChan <- struct{}{}:
+	default:
+	}
 }
 
 /*

@@ -94,7 +94,6 @@ type RouteMon struct {
 }
 
 func (m *RouteMon) Close() error {
-	close(vzf.SwextNetPathChangesChan)
 	m.ClearVlanSubnets()
 	m.ClearSubnet(IndexSconMachine)
 	return nil

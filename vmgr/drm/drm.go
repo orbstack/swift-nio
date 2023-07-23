@@ -169,6 +169,7 @@ func (c *DrmClient) setState(state drmtypes.State) {
 	dlog("set state: ", state)
 	if state == drmtypes.StateInvalid {
 		dlog("invalid state, dispatching fail event")
+		// close OK: signal select loop
 		close(c.failChan)
 	}
 }

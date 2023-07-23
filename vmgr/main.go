@@ -376,6 +376,7 @@ func runVmManager() {
 	// done signal for shutdown process
 	// must close this after all cleanup so next start works (incl. closing listeners)
 	doneCh := make(chan struct{})
+	// close OK: signal select loop
 	defer close(doneCh)
 
 	// parse args

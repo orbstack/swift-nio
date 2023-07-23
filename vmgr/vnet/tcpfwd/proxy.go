@@ -503,6 +503,7 @@ func (p *ProxyManager) Close() error {
 		p.httpRevProxy = nil
 	}
 
+	// close OK: used to signal select loop
 	close(p.stopCh)
 	vmconfig.UnsubscribeDiff(p.vmconfigCh)
 
