@@ -19,36 +19,41 @@ private struct GettingStartedHintBox: View {
     var body: some View {
         VStack(spacing: 8) {
             Text("Get started with an example")
-                    .font(.title3)
-                    .bold()
+                .font(.title2)
+                .bold()
             Text("docker run -it -p 80:80 docker/getting-started")
-                    .font(.body.monospaced())
-                    .textSelection(.enabled)
+                .font(.body.monospaced())
+                .textSelection(.enabled)
             Text("Then open [localhost](http://localhost) in your browser.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
+                .font(.body)
+                .foregroundColor(.secondary)
         }
-        .padding(16)
+        .padding(24)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
 private struct MigrationHintBox: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         VStack(spacing: 8) {
             Text("Migrate from Docker Desktop")
-                .font(.title3)
+                .font(.title2)
                 .bold()
             Text("Copy your existing containers, volumes, and images to OrbStack.")
                 .font(.body)
-                .padding(.bottom, 8)
+                .padding(.bottom, 12)
             Button(action: {
                 NSWorkspace.shared.open(URL(string: "orbstack://docker/migration")!)
             }) {
                 Text("Migrate")
+                    .padding(6)
             }
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
         }
-        .padding(16)
+        .padding(24)
         .overlay(alignment: .topTrailing) {
             Button(action: {
                 Defaults[.dockerMigrationDismissed] = true
@@ -59,7 +64,8 @@ private struct MigrationHintBox: View {
             .buttonStyle(.plain)
             .padding(8)
         }
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .background(colorScheme == .dark ? .ultraThickMaterial : .thickMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .background(Color(.systemPurple), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

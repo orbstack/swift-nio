@@ -21,6 +21,7 @@ struct DebugSettingsView: View {
             }
             Button(action: {
                 Defaults[.tipsMenubarBgShown] = false
+                Defaults[.dockerMigrationDismissed] = false
             }) {
                 Text("reset tips")
             }

@@ -36,7 +36,9 @@ struct MachinesRootView: View {
                                     vmModel.presentCreateMachine = true
                                 }) {
                                     Text("New Machine")
+                                        .padding(6)
                                 }
+                                .controlSize(.large)
                                 .keyboardShortcut(.defaultAction)
                             }
                             .padding(.top, 32)
@@ -58,9 +60,10 @@ struct MachinesRootView: View {
                                 }) {
                                     Text("Go to Docker")
                                 }
+                                .controlSize(.large)
                             }
-                                    .padding(16)
-                                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            .padding(24)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                             Spacer()
                         }
                         .padding(.bottom, 48)
