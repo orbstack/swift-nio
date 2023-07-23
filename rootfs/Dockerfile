@@ -253,13 +253,13 @@ RUN apk add --no-cache \
     # disk
     sfdisk nfs-utils \
     # scon deps
-    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz
+    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz btrfs-progs
 
 # debug deps
 ARG TYPE=release
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
-    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk socat llvm clang linux-headers libbpf-dev btrfs-progs
+    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk socat llvm clang linux-headers libbpf-dev
 fi
 EOT
 
