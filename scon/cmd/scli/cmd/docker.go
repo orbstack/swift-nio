@@ -37,6 +37,9 @@ Then visit http://localhost in your browser.
 Docker Compose and buildx are also included:
     docker compose
     docker buildx
+
+To migrate containers, volumes, and images from Docker Desktop:
+    orb docker migrate
 `, "<HOST>", appid.AppName, -1))
 
 		return nil

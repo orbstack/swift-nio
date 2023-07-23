@@ -34,8 +34,8 @@ func init() {
 
 var dockerMigrateCmd = &cobra.Command{
 	Use:   "migrate",
-	Short: "Migrate containers, images, and volumes from Docker Desktop",
-	Long: `Migrate containers, images, volumes, and other data from Docker Desktop to OrbStack.
+	Short: "Migrate containers, volumes, and images from Docker Desktop",
+	Long: `Migrate containers, volumes, images, and other data from Docker Desktop to OrbStack.
 `,
 	Example: "  " + appid.ShortCmd + " docker migrate",
 	Args:    cobra.NoArgs,
