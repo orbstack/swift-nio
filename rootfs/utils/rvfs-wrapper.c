@@ -138,67 +138,57 @@ static ssize_t read_elf_size(int fd) {
 }
 
 static int read_elf_info(int fd, struct elf_info *out) {
-    Elf64_Ehdr ehdr;
-    if (pread(fd, &ehdr, sizeof(ehdr), 0) != sizeof(ehdr)) {
-        return orb_perror("pread");
+    // get file size
+    off_t total_size = lseek(fd, 0, SEEK_END);
+    if (total_size == -1) {
+        return orb_perror("lseek");
     }
 
-    bool seen_pt_load = false;
-    for (int i = 0; i < ehdr.e_phnum; i++) {
-        Elf64_Phdr phdr;
-        off_t offset = ehdr.e_phoff + i * ehdr.e_phentsize;
-        if (pread(fd, &phdr, sizeof(phdr), offset) != sizeof(phdr)) {
-            return orb_perror("pread");
-        }
+    // mmap entire file
+    // don't bother to unmap - we're about to exec anyway
+    void *file = mmap(NULL, total_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (file == MAP_FAILED) {
+        return orb_perror("mmap");
+    }
 
-        if (phdr.p_type == PT_INTERP) {
-            if (phdr.p_filesz > PATH_MAX) {
+    Elf64_Ehdr *ehdr = file;
+    bool seen_pt_load = false;
+    for (int i = 0; i < ehdr->e_phnum; i++) {
+        Elf64_Phdr *phdr = file + (ehdr->e_phoff + i * ehdr->e_phentsize); //TODO check bounds
+        if (phdr->p_type == PT_INTERP) {
+            if (phdr->p_filesz > sizeof(out->interpreter)) {
                 return orb_perror("interp path too long");
             }
 
-            if (pread(fd, out->interpreter, phdr.p_filesz, phdr.p_offset) != phdr.p_filesz) {
-                return orb_perror("pread");
-            }
-
-            // null terminate
+            // copy & null terminate
+            memcpy(out->interpreter, file + phdr->p_offset, phdr->p_filesz);//TODO check bounds
             out->has_interp = true;
-            out->interpreter[phdr.p_filesz] = '\0';
+            out->interpreter[phdr->p_filesz] = '\0';
             // set flag for PT_INTERP after LOAD
             if (seen_pt_load) {
                 out->pt_interp_after_load = true;
             }
             if (DEBUG) fprintf(stderr, "interp: %s\n", out->interpreter);
-        } else if (phdr.p_type == PT_DYNAMIC) {
+        } else if (phdr->p_type == PT_DYNAMIC) {
             // find string table (STRTAB)
-            Elf64_Dyn dyn;
-            off_t strtab_offset = -1;
-            for (int j = 0; j < phdr.p_filesz / sizeof(dyn); j++) {
-                offset = phdr.p_offset + j * sizeof(dyn);
-                if (pread(fd, &dyn, sizeof(dyn), offset) != sizeof(dyn)) {
-                    return orb_perror("pread");
-                }
-
-                if (dyn.d_tag == DT_STRTAB) {
-                    strtab_offset = dyn.d_un.d_ptr;
+            char *strtab = NULL;
+            for (int j = 0; j < phdr->p_filesz / sizeof(Elf64_Dyn); j++) {
+                Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); //TODO check bounds
+                if (dyn->d_tag == DT_STRTAB) {
+                    strtab = file + dyn->d_un.d_ptr; //TODO check bounds
                     break;
                 }
             }
-            if (strtab_offset == -1) {
+            if (strtab == NULL) {
                 return orb_perror("missing DT_STRTAB");
             }
 
             // check DT_NEEDED tags
-            for (int j = 0; j < phdr.p_filesz / sizeof(dyn); j++) {
-                offset = phdr.p_offset + j * sizeof(dyn);
-                if (pread(fd, &dyn, sizeof(dyn), offset) != sizeof(dyn)) {
-                    return orb_perror("pread");
-                }
-
-                if (dyn.d_tag == DT_NEEDED) {
+            for (int j = 0; j < phdr->p_filesz / sizeof(Elf64_Dyn); j++) {
+                Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn));
+                if (dyn->d_tag == DT_NEEDED) {
                     char libname[PATH_MAX];
-                    if (pread(fd, libname, sizeof(libname), strtab_offset + dyn.d_un.d_val) < 0) {
-                        return orb_perror("pread");
-                    }
+                    strncpy(libname, strtab + dyn->d_un.d_val, sizeof(libname) - 1);
                     if (DEBUG) fprintf(stderr, "needed: %s\n", libname);
 
                     // is it libuv?
@@ -208,7 +198,7 @@ static int read_elf_info(int fd, struct elf_info *out) {
                     }
                 }
             }
-        } else if (phdr.p_type == PT_LOAD) {
+        } else if (phdr->p_type == PT_LOAD) {
             seen_pt_load = true;
         }
     }
