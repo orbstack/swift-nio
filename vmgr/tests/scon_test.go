@@ -34,7 +34,7 @@ func checkT(t *testing.T, err error) {
 	}
 }
 
-func forEachDistroArch(t *testing.T, f func(distro, arch, machineName string)) {
+func forEachDistroArchVer(t *testing.T, f func(distro, ver, arch, machineName string)) {
 	t.Helper()
 	for _, distro := range images.Distros() {
 		// short test: only test alpine
@@ -46,35 +46,48 @@ func forEachDistroArch(t *testing.T, f func(distro, arch, machineName string)) {
 		t.Run(distro, func(t *testing.T) {
 			t.Parallel()
 
-			for _, arch := range images.Archs() {
-				// short test: only test host arch
-				if testing.Short() && arch != runtime.GOARCH {
-					continue
-				}
+			// version combos in non-short
+			testVersions := []string{"" /*default latest*/}
+			if oldestVer, ok := images.ImageToOldestVersion[distro]; !testing.Short() && ok {
+				testVersions = append(testVersions, oldestVer)
+			}
 
-				// skip unsupported combo: nixos amd64 on arm64 host
-				if distro == "nixos" && arch == "amd64" && runtime.GOARCH == "arm64" {
-					continue
-				}
-
-				arch := arch
-				t.Run(arch, func(t *testing.T) {
+			for _, ver := range testVersions {
+				ver := ver
+				t.Run(ver, func(t *testing.T) {
 					t.Parallel()
 
-					f(distro, arch, fmt.Sprintf("%s_%s_%s", testPrefix(), distro, arch))
+					for _, arch := range images.Archs() {
+						// short test: only test host arch
+						if testing.Short() && arch != runtime.GOARCH {
+							continue
+						}
+
+						// skip unsupported combo: nixos amd64 on arm64 host
+						if distro == "nixos" && arch == "amd64" && runtime.GOARCH == "arm64" {
+							continue
+						}
+
+						arch := arch
+						t.Run(arch, func(t *testing.T) {
+							t.Parallel()
+
+							machineName := fmt.Sprintf("%s_%s_%s_%s", testPrefix(), distro, ver, arch)
+							f(distro, ver, arch, machineName)
+						})
+					}
 				})
 			}
 		})
 	}
 }
 
-func forEachDistroArchGet(t *testing.T, f func(distro, arch, machineName string, c *types.ContainerRecord)) {
-	//
-	forEachDistroArch(t, func(distro, arch, machineName string) {
+func forEachDistroArchVerGet(t *testing.T, f func(distro, ver, arch, machineName string, c *types.ContainerRecord)) {
+	forEachDistroArchVer(t, func(distro, ver, arch, machineName string) {
 		c, err := scli.Client().GetByName(machineName)
 		checkT(t, err)
 
-		f(distro, arch, machineName, c)
+		f(distro, ver, arch, machineName, c)
 	})
 }
 
@@ -84,12 +97,13 @@ func TestSconPing(t *testing.T) {
 }
 
 func TestSconCreate(t *testing.T) {
-	forEachDistroArch(t, func(distro, arch, machineName string) {
+	forEachDistroArchVer(t, func(distro, ver, arch, machineName string) {
 		_, err := scli.Client().Create(types.CreateRequest{
 			Name: machineName,
 			Image: types.ImageSpec{
-				Distro: distro,
-				Arch:   arch,
+				Distro:  distro,
+				Arch:    arch,
+				Version: ver,
 			},
 		})
 		checkT(t, err)
@@ -100,7 +114,7 @@ func TestSconList(t *testing.T) {
 	containers, err := scli.Client().ListContainers()
 	checkT(t, err)
 
-	forEachDistroArch(t, func(distro, arch, machineName string) {
+	forEachDistroArchVer(t, func(distro, ver, arch, machineName string) {
 		for _, c := range containers {
 			if c.Name == machineName {
 				//TODO validate image info
@@ -113,7 +127,7 @@ func TestSconList(t *testing.T) {
 }
 
 func TestSconGetByName(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		if c.Name != machineName {
 			t.Fatalf("expected %s, got %s", machineName, c.Name)
 		}
@@ -121,7 +135,7 @@ func TestSconGetByName(t *testing.T) {
 }
 
 func TestSconGetByID(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		c2, err := scli.Client().GetByID(c.ID)
 		checkT(t, err)
 
@@ -132,28 +146,28 @@ func TestSconGetByID(t *testing.T) {
 }
 
 func TestSconStop(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		err := scli.Client().ContainerStop(c)
 		checkT(t, err)
 	})
 }
 
 func TestSconStart(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		err := scli.Client().ContainerStart(c)
 		checkT(t, err)
 	})
 }
 
 func TestSconRestart(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		err := scli.Client().ContainerRestart(c)
 		checkT(t, err)
 	})
 }
 
 func TestSconRename(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		err := scli.Client().ContainerRename(c, machineName+"_renamed")
 		checkT(t, err)
 
@@ -166,7 +180,7 @@ func TestSconRename(t *testing.T) {
 }
 
 func TestSconGetRuntimeLogs(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		lxcLogs, err := scli.Client().ContainerGetLogs(c, types.LogRuntime)
 		checkT(t, err)
 		if len(lxcLogs) == 0 {
@@ -178,7 +192,7 @@ func TestSconGetRuntimeLogs(t *testing.T) {
 }
 
 func TestSconGetConsoleLogs(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		lxcLogs, err := scli.Client().ContainerGetLogs(c, types.LogRuntime)
 		checkT(t, err)
 		if len(lxcLogs) == 0 {
@@ -190,7 +204,7 @@ func TestSconGetConsoleLogs(t *testing.T) {
 }
 
 func TestSconDelete(t *testing.T) {
-	forEachDistroArchGet(t, func(distro, arch, machineName string, c *types.ContainerRecord) {
+	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
 		err := scli.Client().ContainerDelete(c)
 		checkT(t, err)
 	})
@@ -200,7 +214,7 @@ func TestSconListAfterDelete(t *testing.T) {
 	containers, err := scli.Client().ListContainers()
 	checkT(t, err)
 
-	forEachDistroArch(t, func(distro, arch, machineName string) {
+	forEachDistroArchVer(t, func(distro, ver, arch, machineName string) {
 		for _, c := range containers {
 			if c.Name == machineName {
 				t.Fatalf("container %s still exists", machineName)

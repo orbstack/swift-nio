@@ -79,26 +79,44 @@ var (
 		DistroNixos: ImageNixos,
 	}
 
+	// for testing only
+	ImageToOldestVersion = map[string]string{
+		ImageAlma:      "8",
+		ImageAlpine:    "3.14",
+		ImageArch:      "current",
+		ImageCentos:    "8-Stream",
+		ImageDebian:    "buster",
+		ImageDevuan:    "beowulf",
+		ImageFedora:    "36",
+		ImageGentoo:    "current",
+		ImageKali:      "current",
+		ImageNixos:     "22.11",
+		ImageOpeneuler: "20.03",
+		ImageOpensuse:  "15.4",
+		ImageOracle:    "8",
+		ImageRocky:     "8",
+		ImageUbuntu:    "bionic",
+		ImageVoid:      "current",
+	}
+
 	ImageToLatestVersion = map[string]string{
+		//ImageAmazon: "current",
+		ImageAlma:      "9",
 		ImageAlpine:    "3.18",
 		ImageArch:      "current",
 		ImageCentos:    "9-Stream",
 		ImageDebian:    "bookworm",
+		ImageDevuan:    "chimaera",
 		ImageFedora:    "38",
 		ImageGentoo:    "current",
 		ImageKali:      "current",
+		ImageNixos:     "23.05",
 		ImageOpeneuler: "23.03",
 		ImageOpensuse:  "15.5",
+		ImageOracle:    "9",
+		ImageRocky:     "9",
 		ImageUbuntu:    "lunar",
 		ImageVoid:      "current",
-
-		ImageDevuan: "chimaera",
-		ImageAlma:   "9",
-		//ImageAmazon: "current",
-		ImageOracle: "9",
-		ImageRocky:  "9",
-
-		ImageNixos: "23.05",
 	}
 
 	// everything else is "default"

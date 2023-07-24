@@ -78,16 +78,17 @@ enum Distro: String, CaseIterable {
     // last version is latest stable default
     // systemd cgroupv1 excluded: centos 7, ubuntu bionic, oracle 7
     var versions: [DistroVersion] {
+        // DON'T FORGET TO UPDATE scon/images/images.go!
         switch self {
         case .alma:   return [v("8"), v("9")]
         case .alpine:   return [v("edge"), v("3.14"), v("3.15"), v("3.16"), v("3.17"), v("3.18")]
-        case .arch:     return [v("current", as: "latest")]
+        case .arch:     return [v("current", as: "Latest")]
         case .centos:   return [/*v("7"),*/ v("8-Stream", as: "8 (Stream)"), v("9-Stream", as: "9 (Stream)")]
         case .debian:   return [v("buster", as: "10 (Buster)"), v("bullseye", as: "11 (Bullseye)"), v("sid", as: "Sid (unstable)"), v("bookworm", as: "12 (Bookworm)")]
         case .devuan: return [v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera")]
         case .fedora:   return [v("36"), v("37"), v("Rawhide"), v("38")]
-        case .gentoo:   return [v("current", as: "latest")]
-        case .kali:     return [v("current", as: "latest")]
+        case .gentoo:   return [v("current", as: "Latest")]
+        case .kali:     return [v("current", as: "Latest")]
         case .nixos: return [v("22.11"), v("23.05")]
         case .openeuler: return [v("20.03"), v("22.03"), v("23.03")]
         case .opensuse: return [v("tumbleweed", as: "Tumbleweed"), v("15.4"), v("15.5")]
@@ -101,7 +102,7 @@ enum Distro: String, CaseIterable {
             //v("mantic", as: "23.10 (Mantic Minotaur, future)"),
             v("lunar", as: "23.04 (Lunar Lobster)")
         ]
-        case .void:     return [v("current", as: "latest")]
+        case .void:     return [v("current", as: "Latest")]
         }
     }
 }
