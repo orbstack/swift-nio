@@ -62,6 +62,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case dockerComposeActionError(action: String, cause: Error)
     case dockerConfigSaveError(cause: Error)
 
+    // migration
+    case dockerMigrationError(status: Int, output: String)
+
     // scon
     case startError(cause: Error)
     case listRefresh(cause: Error)

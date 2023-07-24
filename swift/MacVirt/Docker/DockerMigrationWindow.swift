@@ -6,6 +6,7 @@ import Foundation
 import SwiftUI
 import Defaults
 
+import Sentry
 private class MigrationViewModel: ObservableObject {
     @Published var statusLine = "Preparing"
     @Published var progress: Double = 0
@@ -15,6 +16,13 @@ private class MigrationViewModel: ObservableObject {
 
     func start() {
         Task.detached { @MainActor [self] in
+            var exitStatus = -1
+            defer {
+                if done && !errors.isEmpty {
+                    SentrySDK.capture(error: VmError.dockerMigrationError(status: exitStatus, output: errors.joined(separator: "\n")))
+                }
+            }
+
             let task = Process()
             task.launchPath = AppConfig.ctlExe
             // force: we do existing-data check in GUI
@@ -30,6 +38,7 @@ private class MigrationViewModel: ObservableObject {
                     if status != 0 {
                         errors = errors + ["\nFailed with status \(status)"]
                     }
+                    exitStatus = Int(status)
                     self.done = true
                 }
             }
