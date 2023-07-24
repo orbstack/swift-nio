@@ -8,7 +8,9 @@ import (
 
 // leading debounce: call immediately, then ignore calls for duration. DO not reset the timer
 type LeadingFuncDebounce struct {
+	// avoid blocking callers if func is slow
 	mu       sync.Mutex
+	funcMu   sync.Mutex
 	fn       func()
 	duration time.Duration
 	timer    *time.Timer
@@ -27,7 +29,7 @@ func (d *LeadingFuncDebounce) Trigger() {
 	defer d.mu.Unlock()
 
 	if d.timer == nil {
-		d.fn()
+		go d.invoke()
 		d.timer = time.AfterFunc(d.duration, func() {
 			d.mu.Lock()
 			// reset
@@ -35,10 +37,16 @@ func (d *LeadingFuncDebounce) Trigger() {
 			d.mu.Unlock()
 			// call if needed
 			if d.pending.CompareAndSwap(true, false) {
-				d.fn()
+				d.invoke()
 			}
 		})
 	} else {
 		d.pending.Store(true)
 	}
+}
+
+func (d *LeadingFuncDebounce) invoke() {
+	d.funcMu.Lock()
+	defer d.funcMu.Unlock()
+	d.fn()
 }
