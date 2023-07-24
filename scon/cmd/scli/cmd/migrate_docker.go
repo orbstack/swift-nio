@@ -21,19 +21,19 @@ var (
 )
 
 func init() {
-	dockerCmd.AddCommand(dockerMigrateCmd)
-	//dockerMigrateCmd.Flags().StringVar(&flagFromContext, "from-context", "desktop-linux", "Context to migrate from")
-	dockerMigrateCmd.Flags().BoolVarP(&flagImages, "images", "i", true, "Migrate images")
-	dockerMigrateCmd.Flags().BoolVarP(&flagContainers, "containers", "c", true, "Migrate containers")
-	dockerMigrateCmd.Flags().BoolVarP(&flagVolumes, "volumes", "v", true, "Migrate volumes")
-	dockerMigrateCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force migration even if OrbStack already has data")
+	migrateCmd.AddCommand(migrateDockerCmd)
+	//migrateDockerCmd.Flags().StringVar(&flagFromContext, "from-context", "desktop-linux", "Context to migrate from")
+	migrateDockerCmd.Flags().BoolVarP(&flagImages, "images", "i", true, "Migrate images")
+	migrateDockerCmd.Flags().BoolVarP(&flagContainers, "containers", "c", true, "Migrate containers")
+	migrateDockerCmd.Flags().BoolVarP(&flagVolumes, "volumes", "v", true, "Migrate volumes")
+	migrateDockerCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force migration even if OrbStack already has data")
 	// no shorthand, only for gui use
-	dockerMigrateCmd.Flags().StringVar(&flagFormat, "format", "text", "Output format")
-	dockerMigrateCmd.Flags().MarkHidden("format")
+	migrateDockerCmd.Flags().StringVar(&flagFormat, "format", "text", "Output format")
+	migrateDockerCmd.Flags().MarkHidden("format")
 }
 
-var dockerMigrateCmd = &cobra.Command{
-	Use:   "migrate",
+var migrateDockerCmd = &cobra.Command{
+	Use:   "docker",
 	Short: "Migrate containers, volumes, and images from Docker Desktop",
 	Long: `Migrate containers, volumes, images, and other data from Docker Desktop to OrbStack.
 `,
