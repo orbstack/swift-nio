@@ -2,6 +2,7 @@ package syncx
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -11,7 +12,7 @@ type LeadingFuncDebounce struct {
 	fn       func()
 	duration time.Duration
 	timer    *time.Timer
-	pending  bool
+	pending  atomic.Bool
 }
 
 func NewLeadingFuncDebounce(fn func(), duration time.Duration) *LeadingFuncDebounce {
@@ -29,16 +30,15 @@ func (d *LeadingFuncDebounce) Trigger() {
 		d.fn()
 		d.timer = time.AfterFunc(d.duration, func() {
 			d.mu.Lock()
-			defer d.mu.Unlock()
 			// reset
 			d.timer = nil
+			d.mu.Unlock()
 			// call if needed
-			if d.pending {
+			if d.pending.CompareAndSwap(true, false) {
 				d.fn()
-				d.pending = false
 			}
 		})
 	} else {
-		d.pending = true
+		d.pending.Store(true)
 	}
 }
