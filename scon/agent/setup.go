@@ -429,14 +429,18 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// badname: Void rejects usernames with '.'
 	err = util.Run("useradd", "--uid", uidStr, "--gid", gidStr, "--badname", "--no-user-group", "--create-home", "--shell", shell, args.Username)
 	if err != nil {
-		// Busybox: add user + user group
-		if errors.Is(err, exec.ErrNotFound) {
-			err = util.Run("adduser", "-u", uidStr, "-D", "-s", shell, args.Username)
-			if err != nil {
+		// older versions of shadow didn't have --badname (Rocky 8, etc.)
+		err = util.Run("useradd", "--uid", uidStr, "--gid", gidStr, "--no-user-group", "--create-home", "--shell", shell, args.Username)
+		if err != nil {
+			// Busybox: add user + user group
+			if errors.Is(err, exec.ErrNotFound) {
+				err = util.Run("adduser", "-u", uidStr, "-D", "-s", shell, args.Username)
+				if err != nil {
+					return err
+				}
+			} else {
 				return err
 			}
-		} else {
-			return err
 		}
 	}
 
