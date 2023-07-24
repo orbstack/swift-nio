@@ -1,10 +1,12 @@
 package dmigrate
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -33,6 +35,9 @@ func WaitForRemote(sock string) error {
 		err := tryConnectRemote(sock)
 		if err == nil {
 			return nil
+		}
+		if !errors.Is(err, unix.ECONNREFUSED) && !errors.Is(err, unix.ENOENT) {
+			return err
 		}
 
 		if time.Since(start) > remoteStartTimeout {
