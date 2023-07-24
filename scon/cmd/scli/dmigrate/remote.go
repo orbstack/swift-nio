@@ -9,7 +9,7 @@ import (
 
 const (
 	remoteStartTimeout = 30 * time.Second
-	remoteStartPoll    = 150 * time.Millisecond
+	remoteStartPoll    = 200 * time.Millisecond
 )
 
 func RemoteIsRunning(sock string) bool {

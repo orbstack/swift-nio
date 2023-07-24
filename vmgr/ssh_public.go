@@ -71,10 +71,11 @@ Host %s
   #   ubuntu@%s: container "ubuntu", user matching your macOS user
   #   root@fedora@%s: container "fedora", user "root"
   User default
-  IdentityFile %s/id_ed25519
+  IdentityFile %s/id_ed25519 # replace or symlink %s/id_ed25519 file to change the key
+  IdentitiesOnly yes # only use this key
   ProxyCommand %s
   ProxyUseFdpass yes
-`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, relHome, quotedCmd)
+`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, relHome, relHome, quotedCmd)
 
 	// write extra config
 	err = os.WriteFile(conf.ExtraSshDir()+"/config", []byte(sshConfigSection), 0644)

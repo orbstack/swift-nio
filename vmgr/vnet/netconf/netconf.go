@@ -65,7 +65,7 @@ const (
 const DockerBIP = "192.168.215.1/24"
 
 // change default addrs to minimize conflicts with other networks
-var DockerDefaultAddresPools = []map[string]any{
+var DockerDefaultAddressPools = []map[string]any{
 	// custom: first 32 from script (25 - 2)
 	{"base": "192.168.215.0/24", "size": 24},
 	{"base": "192.168.228.0/24", "size": 24},

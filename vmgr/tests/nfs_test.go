@@ -16,10 +16,11 @@ const (
 	singleTestMachine = "ubuntu"
 )
 
-func hostUsername() string {
+func hostUsername(t *testing.T) string {
+	t.Helper()
 	u, err := user.Current()
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	return u.Username
 }
@@ -45,13 +46,13 @@ func TestNfsMachineRootPermissions(t *testing.T) {
 func TestNfsMachineUserPermissions(t *testing.T) {
 	t.Parallel()
 
-	err := os.WriteFile(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.NfsMountpoint(), singleTestMachine, hostUsername()), []byte("test"), 0644)
+	err := os.WriteFile(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.NfsMountpoint(), singleTestMachine, hostUsername(t)), []byte("test"), 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// delete file
-	err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.NfsMountpoint(), singleTestMachine, hostUsername()))
+	err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.NfsMountpoint(), singleTestMachine, hostUsername(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
