@@ -21,7 +21,7 @@ type FS struct {
 }
 
 func NewFS(root string) (*FS, error) {
-	dfd, err := unix.Open(root, unix.O_DIRECTORY|unix.O_PATH, 0)
+	dfd, err := unix.Open(root, unix.O_DIRECTORY|unix.O_PATH|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +175,9 @@ func (fs *FS) MkdirAll(path string, perm os.FileMode) error {
 	// try again
 	err = fs.Mkdir(path, perm)
 	if err != nil {
+		if errors.Is(err, unix.EEXIST) {
+			return nil
+		}
 		return err
 	}
 
