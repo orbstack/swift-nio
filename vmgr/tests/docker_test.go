@@ -331,3 +331,22 @@ func TestDockerSystemInfo(t *testing.T) {
 		t.Fatalf("got: %+v\nwant: %+v", obj, expect)
 	}
 }
+
+func TestDockerEngineVersion(t *testing.T) {
+	t.Parallel()
+
+	// match CLI
+	expectedVersion := readExpectedBinVersion(t, "DOCKER")
+
+	// ask server
+	var obj map[string]any
+	err := dockerClient().Call("GET", "/version", nil, &obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// compare
+	if obj["Version"] != expectedVersion {
+		t.Fatalf("Docker CLI and engine version mismatch. got: %+v\nwant: %+v", obj["Version"], expectedVersion)
+	}
+}
