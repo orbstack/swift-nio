@@ -127,15 +127,8 @@ func (s *VmControlServer) SetDockerContext(ctx context.Context) error {
 	return setupDockerContext()
 }
 
-func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]dockertypes.ContainerSummary, error) {
-	// includes stopped
-	var containers []dockertypes.ContainerSummary
-	err := s.dockerClient.Call("GET", "/containers/json?all=true", nil, &containers)
-	if err != nil {
-		return nil, err
-	}
-
-	return containers, nil
+func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]*dockertypes.ContainerSummary, error) {
+	return s.dockerClient.ListContainers(true)
 }
 
 func (s *VmControlServer) DockerContainerStart(ctx context.Context, req vmtypes.IDRequest) error {
@@ -180,14 +173,8 @@ func (s *VmControlServer) DockerVolumeRemove(ctx context.Context, params vmtypes
 	return s.dockerClient.Call("DELETE", "/volumes/"+params.ID, nil, nil)
 }
 
-func (s *VmControlServer) DockerImageList(ctx context.Context) ([]dockertypes.Image, error) {
-	var images []dockertypes.Image
-	err := s.dockerClient.Call("GET", "/images/json", nil, &images)
-	if err != nil {
-		return nil, err
-	}
-
-	return images, nil
+func (s *VmControlServer) DockerImageList(ctx context.Context) ([]*dockertypes.Image, error) {
+	return s.dockerClient.ListImages()
 }
 
 func (s *VmControlServer) DockerImageRemove(ctx context.Context, params vmtypes.IDRequest) error {

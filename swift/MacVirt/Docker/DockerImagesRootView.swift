@@ -21,7 +21,8 @@ struct DockerImagesRootView: View {
                             image.id.localizedCaseInsensitiveContains(searchQuery) ||
                             image.repoTags?.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
                 }
-                let totalSize = filteredImages.reduce(0) { $0 + $1.size }
+                // exclude size of layers shared w/ other images
+                let totalSize = filteredImages.reduce(0) { $0 + $1.size - $1.sharedSize }
                 let totalSizeFormatted = ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
 
                 let taggedImages = filteredImages.filter { $0.hasTag }
