@@ -26,16 +26,27 @@
 static const char rvk1_data[16] = "\x03\x47\x20\xe0\xe4\x79\x3f\xbe\xae\xeb\xc7\xd6\x66\xe9\x09\x00";
 static const char rvk2_data[16] = "\x20\xc2\xdc\x2b\xc5\x1f\xfe\x6b\x73\x73\x96\xee\x69\x1a\x93\x00";
 
+struct elf_info {
+    // interpreter (dynamic linker) path
+    bool has_interp; // false = static
+    char interpreter[PATH_MAX];
+    // patchelf?
+    bool pt_interp_after_load;
+
+    // links against libuv?
+    bool needs_libuv;
+};
+
 enum emu_provider {
     EMU_ROSETTA,
     EMU_QEMU,
     EMU_OVERRIDE_RUNC,
 };
 
-static char *orb_perror(const char *what) {
+static int orb_perror(const char *what) {
     fprintf(stderr, "OrbStack ERROR: %s failed: %s\n", what, strerror(errno));
     fprintf(stderr, "OrbStack ERROR: Please report this bug at https://orbstack.dev/issues/bug\n");
-    return NULL;
+    return 255;
 }
 
 static char *get_basename(char *path) {
@@ -120,55 +131,89 @@ static ssize_t read_elf_size(int fd) {
 
     // read ELF header
     if (pread(fd, &elf_hdr, sizeof(elf_hdr), 0) != sizeof(elf_hdr)) {
-        orb_perror("pread");
-        return -1;
+        return orb_perror("pread");
     }
 
     return elf_hdr.e_shoff + (elf_hdr.e_shnum * elf_hdr.e_shentsize);
 }
 
-static int read_interp(int fd, char interp_buf[PATH_MAX], bool *pt_interp_after_load) {
+static int read_elf_info(int fd, struct elf_info *out) {
     Elf64_Ehdr ehdr;
     if (pread(fd, &ehdr, sizeof(ehdr), 0) != sizeof(ehdr)) {
-        perror("pread ehdr");
-        return -1;
+        return orb_perror("pread");
     }
 
-    Elf64_Phdr phdr;
     bool seen_pt_load = false;
     for (int i = 0; i < ehdr.e_phnum; i++) {
+        Elf64_Phdr phdr;
         off_t offset = ehdr.e_phoff + i * ehdr.e_phentsize;
         if (pread(fd, &phdr, sizeof(phdr), offset) != sizeof(phdr)) {
-            perror("pread phdr");
-            return -1;
+            return orb_perror("pread");
         }
 
         if (phdr.p_type == PT_INTERP) {
             if (phdr.p_filesz > PATH_MAX) {
-                if (DEBUG) fprintf(stderr, "interp path too long\n");
-                return -1;
+                return orb_perror("interp path too long");
             }
 
-            if (pread(fd, interp_buf, phdr.p_filesz, phdr.p_offset) != phdr.p_filesz) {
-                perror("pread interp");
-                return -1;
+            if (pread(fd, out->interpreter, phdr.p_filesz, phdr.p_offset) != phdr.p_filesz) {
+                return orb_perror("pread");
             }
 
-            if (DEBUG) fprintf(stderr, "interp: %s\n", interp_buf);
             // null terminate
-            interp_buf[phdr.p_filesz] = '\0';
+            out->has_interp = true;
+            out->interpreter[phdr.p_filesz] = '\0';
             // set flag for PT_INTERP after LOAD
             if (seen_pt_load) {
-                *pt_interp_after_load = true;
+                out->pt_interp_after_load = true;
             }
-            return 0;
+            if (DEBUG) fprintf(stderr, "interp: %s\n", out->interpreter);
+        } else if (phdr.p_type == PT_DYNAMIC) {
+            // find string table (STRTAB)
+            Elf64_Dyn dyn;
+            off_t strtab_offset = -1;
+            for (int j = 0; j < phdr.p_filesz / sizeof(dyn); j++) {
+                offset = phdr.p_offset + j * sizeof(dyn);
+                if (pread(fd, &dyn, sizeof(dyn), offset) != sizeof(dyn)) {
+                    return orb_perror("pread");
+                }
+
+                if (dyn.d_tag == DT_STRTAB) {
+                    strtab_offset = dyn.d_un.d_ptr;
+                    break;
+                }
+            }
+            if (strtab_offset == -1) {
+                return orb_perror("missing DT_STRTAB");
+            }
+
+            // check DT_NEEDED tags
+            for (int j = 0; j < phdr.p_filesz / sizeof(dyn); j++) {
+                offset = phdr.p_offset + j * sizeof(dyn);
+                if (pread(fd, &dyn, sizeof(dyn), offset) != sizeof(dyn)) {
+                    return orb_perror("pread");
+                }
+
+                if (dyn.d_tag == DT_NEEDED) {
+                    char libname[PATH_MAX];
+                    if (pread(fd, libname, sizeof(libname), strtab_offset + dyn.d_un.d_val) < 0) {
+                        return orb_perror("pread");
+                    }
+                    if (DEBUG) fprintf(stderr, "needed: %s\n", libname);
+
+                    // is it libuv?
+                    if (strstr(libname, "libuv.so") != NULL) {
+                        if (DEBUG) fprintf(stderr, "needs libuv\n");
+                        out->needs_libuv = true;
+                    }
+                }
+            }
         } else if (phdr.p_type == PT_LOAD) {
             seen_pt_load = true;
         }
     }
 
-    // not found - could be static
-    return -1;
+    return 0;
 }
 
 // static arm64 build of runc is appended to our wrapper's ELF executable.
@@ -178,16 +223,14 @@ static int run_override_runc(char **argv) {
     // open our own executable
     int exefd = open("/proc/self/exe", O_RDONLY|O_CLOEXEC);
     if (exefd == -1) {
-        orb_perror("open");
-        return 255;
+        return orb_perror("open");
     }
 
     // create memfd
     int memfd = memfd_create("runc", MFD_EXEC);
     if (memfd == -1) {
-        orb_perror("memfd_create");
         close(exefd);
-        return 255;
+        return orb_perror("memfd_create");
     }
 
     // read ELF size
@@ -208,10 +251,9 @@ static int run_override_runc(char **argv) {
 
     // seek to end of ELF
     if (lseek(exefd, elf_size, SEEK_SET) == -1) {
-        orb_perror("lseek");
         close(exefd);
         close(memfd);
-        return 255;
+        return orb_perror("lseek");
     }
 
     // use sendfile to copy rest of file to memfd
@@ -219,10 +261,9 @@ static int run_override_runc(char **argv) {
     while (remaining > 0) {
         ssize_t ret = sendfile(memfd, exefd, NULL, remaining);
         if (ret == -1) {
-            orb_perror("sendfile");
             close(exefd);
             close(memfd);
-            return 255;
+            return orb_perror("sendfile");
         }
         remaining -= ret;
     }
@@ -230,9 +271,8 @@ static int run_override_runc(char **argv) {
     // start runc from memfd
     // don't need to close exefd - it's CLOEXEC
     if (syscall(SYS_execveat, memfd, "", &argv[2], environ, AT_EMPTY_PATH) != 0) {
-        orb_perror("evecveat");
         close(memfd);
-        return 255;
+        return orb_perror("evecveat");
     }
 
     // should never get here
@@ -259,22 +299,12 @@ int main(int argc, char **argv) {
     // prepare to execute.
     if (DEBUG) fprintf(stderr, "using %s for '%s'\n", emu == EMU_ROSETTA ? "rosetta" : "qemu", exe_name);
 
-    // if using Rosetta and running "node" or "nvim", set UV_USE_IO_URING=0 if not already set in environ
-    // this is a crude way to detect libuv and avoid 100% CPU on io_uring: https://github.com/orbstack/orbstack/issues/377
-    if (!PASSTHROUGH &&
-            emu == EMU_ROSETTA &&
-            (strcmp(exe_name, "node") == 0 || strcmp(exe_name, "nvim") == 0)) {
-        if (DEBUG) fprintf(stderr, "setting UV_USE_IO_URING=0\n");
-        setenv("UV_USE_IO_URING", "0", /*overwrite*/ 0);
-    }
-
     // get execfd
     // this errno trick works even if execfd=0
     errno = 0;
     int execfd = getauxval(AT_EXECFD);
     if (errno != 0) {
-        orb_perror("getauxval");
-        return 255;
+        return orb_perror("getauxval");
     }
 
     // no cloexec = duplicate fd leaked to process
@@ -282,11 +312,10 @@ int main(int argc, char **argv) {
     fcntl(execfd, F_SETFD, FD_CLOEXEC);
 
     // detect missing interpreter
-    char interpreter[PATH_MAX];
-    bool pt_interp_after_load = false;
-    if (read_interp(execfd, interpreter, &pt_interp_after_load) == 0) {
+    struct elf_info elf_info = {0};
+    if (read_elf_info(execfd, &elf_info) == 0) {
         // check for interp if ELF parser succeeded
-        if (access(interpreter, F_OK) != 0) {
+        if (elf_info.has_interp && access(elf_info.interpreter, F_OK) != 0) {
             // Docker container or scon/LXC machine?
             const char* env_type = access("/.dockerenv", F_OK) == 0 ? "container" : "machine";
             // missing interpreter
@@ -298,8 +327,16 @@ int main(int argc, char **argv) {
                             "  2. Install multi-arch libraries in this %s.\n"
                             "\n"
                             "For more details and instructions, see https://docs.orbstack.dev/readme-link/multiarch\n"
-                            "", interpreter, env_type, env_type);
+                            "", elf_info.interpreter, env_type, env_type);
             return 255;
+        }
+
+        // if using Rosetta and running "node" or "nvim", set UV_USE_IO_URING=0 if not already set in environ
+        // we check DT_NEEDED libraries but node.js might be statically linked
+        // this is a crude way to detect libuv and avoid 100% CPU on io_uring: https://github.com/orbstack/orbstack/issues/377
+        if (!PASSTHROUGH && emu == EMU_ROSETTA && (elf_info.needs_libuv || !strcmp(exe_name, "node"))) {
+            if (DEBUG) fprintf(stderr, "setting UV_USE_IO_URING=0\n");
+            setenv("UV_USE_IO_URING", "0", /*overwrite*/ 0);
         }
     }
 
@@ -321,7 +358,7 @@ int main(int argc, char **argv) {
     // this is still way faster than qemu without TurboFan, and we still have Sparkplug compiler
     // --jitless works too but disables expose-wasm and requires Node 12+
     char *node_argv_buf[(exe_argc + 1) + 1];
-    if (strcmp(exe_name, "node") == 0) {
+    if (!PASSTHROUGH && strcmp(exe_name, "node") == 0) {
         if (DEBUG) fprintf(stderr, "disabling Node.js TurboFan JIT\n");
 
         // need to insert an argument
@@ -355,13 +392,12 @@ int main(int argc, char **argv) {
     // do this last to minimize time window with garbage in comm
     const char *rvk_data = emu == EMU_ROSETTA ? rvk1_data : rvk2_data;
     if (prctl(PR_SET_NAME, rvk_data, 0, 0, 0) != 0) {
-        orb_perror("prctl");
-        return 255;
+        return orb_perror("prctl");
     }
 
     // patchelf workaround: Rosetta segfaults if PT_INTERP is after PT_LOAD
     // as a workaround, we invoke the dynamic linker directly instead
-    if (emu == EMU_ROSETTA && pt_interp_after_load) {
+    if (emu == EMU_ROSETTA && elf_info.pt_interp_after_load) {
         // create new argv: [exe_argv[0], exe_path, ...&argv[3]]
         char *new_argv[2 + (argc - 3) + 1];
         new_argv[0] = exe_argv[0];
@@ -369,17 +405,15 @@ int main(int argc, char **argv) {
         memcpy(&new_argv[2], &argv[3], (argc - 3) * sizeof(char*));
         new_argv[2 + (argc - 3)] = NULL;
 
-        if (execve(interpreter, new_argv, environ) != 0) {
-            orb_perror("execve");
-            return 255;
+        if (execve(elf_info.interpreter, new_argv, environ) != 0) {
+            return orb_perror("execve");
         }
     }
 
     // execute by fd
     // execveat helps preserve both filename and fd
     if (syscall(SYS_execveat, execfd, exe_path, exe_argv, environ, AT_EMPTY_PATH) != 0) {
-        orb_perror("execveat");
-        return 255;
+        return orb_perror("execveat");
     }
 
     // should never get here
