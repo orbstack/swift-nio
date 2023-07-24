@@ -1,38 +1,42 @@
 package dmigrate
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 )
 
 const (
-	remoteStartTimeout = 30 * time.Second
-	remoteStartPoll    = 200 * time.Millisecond
+	remoteStartTimeout = 45 * time.Second
+	remoteStartPoll    = 250 * time.Millisecond
 )
 
-func RemoteIsRunning(sock string) bool {
-	// must do this b/c docker desktop creates socket immediately
+func tryConnectRemote(sock string) error {
+	// must use ping test b/c docker desktop creates socket immediately
 	srcClient, err := dockerclient.NewWithUnixSocket(sock)
 	if err != nil {
-		return false
+		return err
 	}
 	defer srcClient.Close()
 
-	err = srcClient.CallDiscard("GET", "/_ping", nil)
-	return err == nil
+	return srcClient.CallDiscard("GET", "/_ping", nil)
+}
+
+func RemoteIsRunning(sock string) bool {
+	return tryConnectRemote(sock) == nil
 }
 
 func WaitForRemote(sock string) error {
 	start := time.Now()
 	for {
-		if RemoteIsRunning(sock) {
+		err := tryConnectRemote(sock)
+		if err == nil {
 			return nil
 		}
 
 		if time.Since(start) > remoteStartTimeout {
-			return errors.New("timeout waiting for remote")
+			return fmt.Errorf("timeout waiting for remote: %w", err)
 		}
 		time.Sleep(remoteStartPoll)
 	}
