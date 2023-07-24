@@ -35,6 +35,7 @@ func (d *LeadingFuncDebounce) Trigger() {
 			// call if needed
 			if d.pending {
 				d.fn()
+				d.pending = false
 			}
 		})
 	} else {
