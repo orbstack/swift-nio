@@ -175,7 +175,21 @@ static int read_elf_info(int fd, struct elf_info *out) {
             for (int j = 0; j < phdr->p_filesz / sizeof(Elf64_Dyn); j++) {
                 Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); //TODO check bounds
                 if (dyn->d_tag == DT_STRTAB) {
-                    strtab = file + dyn->d_un.d_ptr; //TODO check bounds
+                    // dyn->d_un.d_ptr is the loaded virtual address, not file offset
+                    // find PT_LOAD segment to translate it
+                    Elf64_Phdr *load_phdr = NULL;
+                    for (int k = 0; k < ehdr->e_phnum; k++) {
+                        Elf64_Phdr *tmp_phdr = file + (ehdr->e_phoff + k * ehdr->e_phentsize);
+                        if (tmp_phdr->p_type == PT_LOAD && dyn->d_un.d_ptr >= tmp_phdr->p_vaddr && dyn->d_un.d_ptr < (tmp_phdr->p_vaddr + tmp_phdr->p_memsz)) {
+                            load_phdr = tmp_phdr;
+                            break;
+                        }
+                    }
+                    if (load_phdr == NULL) {
+                        return orb_perror("missing LOAD segment for STRTAB");
+                    }
+
+                    strtab = file + load_phdr->p_offset + (dyn->d_un.d_ptr - load_phdr->p_vaddr);
                     break;
                 }
             }
@@ -185,7 +199,7 @@ static int read_elf_info(int fd, struct elf_info *out) {
 
             // check DT_NEEDED tags
             for (int j = 0; j < phdr->p_filesz / sizeof(Elf64_Dyn); j++) {
-                Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn));
+                Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); //TODO check bounds
                 if (dyn->d_tag == DT_NEEDED) {
                     char libname[PATH_MAX];
                     strncpy(libname, strtab + dyn->d_un.d_val, sizeof(libname) - 1);
