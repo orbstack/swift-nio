@@ -15,7 +15,8 @@ import (
 )
 
 type Client struct {
-	http *http.Client
+	http    *http.Client
+	baseURL string
 }
 
 type statusRecord struct {
@@ -23,13 +24,25 @@ type statusRecord struct {
 	Stream string `json:"stream"`
 }
 
-func NewWithHTTP(httpC *http.Client) *Client {
+type Options struct {
+	Unversioned bool
+}
+
+func NewWithHTTP(httpC *http.Client, options *Options) *Client {
+	baseURL := "http://docker/v1.43"
+	if options != nil {
+		if options.Unversioned {
+			baseURL = "http://docker"
+		}
+	}
+
 	return &Client{
-		http: httpC,
+		http:    httpC,
+		baseURL: baseURL,
 	}
 }
 
-func NewWithDialer(dialer func(ctx context.Context, network, addr string) (net.Conn, error)) (*Client, error) {
+func NewWithDialer(dialer func(ctx context.Context, network, addr string) (net.Conn, error), options *Options) (*Client, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			DialContext: dialer,
@@ -38,19 +51,13 @@ func NewWithDialer(dialer func(ctx context.Context, network, addr string) (net.C
 			IdleConnTimeout: 5 * time.Second,
 		},
 	}
-	return NewWithHTTP(httpClient), nil
+	return NewWithHTTP(httpClient, options), nil
 }
 
-func NewWithUnixSocket(path string) (*Client, error) {
+func NewWithUnixSocket(path string, options *Options) (*Client, error) {
 	return NewWithDialer(func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return net.Dial("unix", path)
-	})
-}
-
-func NewWithTCP(addr string) (*Client, error) {
-	return NewWithDialer(func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return net.Dial("tcp", addr)
-	})
+	}, options)
 }
 
 func (c *Client) Close() error {
@@ -81,7 +88,7 @@ func ReadError(resp *http.Response) error {
 	return fmt.Errorf("[Docker] %s", jsonError.Message)
 }
 
-func newRequest(method, path string, body any) (*http.Request, error) {
+func (c *Client) newRequest(method, path string, body any) (*http.Request, error) {
 	var reader io.Reader
 	if body != nil {
 		// use it if it's already a reader
@@ -104,7 +111,7 @@ func newRequest(method, path string, body any) (*http.Request, error) {
 		}).Debug("docker call")
 	*/
 
-	req, err := http.NewRequest(method, "http://docker/v1.43"+path, reader)
+	req, err := http.NewRequest(method, c.baseURL+path, reader)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %s", err)
 	}
@@ -119,7 +126,7 @@ func newRequest(method, path string, body any) (*http.Request, error) {
 }
 
 func (c *Client) Call(method, path string, body any, out any) error {
-	req, err := newRequest(method, path, body)
+	req, err := c.newRequest(method, path, body)
 	if err != nil {
 		return err
 	}
@@ -151,7 +158,7 @@ func (c *Client) Call(method, path string, body any, out any) error {
 }
 
 func (c *Client) CallDiscard(method, path string, body any) error {
-	req, err := newRequest(method, path, body)
+	req, err := c.newRequest(method, path, body)
 	if err != nil {
 		return err
 	}
@@ -171,7 +178,7 @@ func (c *Client) CallDiscard(method, path string, body any) error {
 }
 
 func (c *Client) StreamRead(method, path string, body any) (io.ReadCloser, error) {
-	req, err := newRequest(method, path, body)
+	req, err := c.newRequest(method, path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +197,7 @@ func (c *Client) StreamRead(method, path string, body any) (io.ReadCloser, error
 }
 
 func (c *Client) StreamWrite(method, path string, body io.Reader) error {
-	req, err := newRequest(method, path, body)
+	req, err := c.newRequest(method, path, body)
 	if err != nil {
 		return err
 	}

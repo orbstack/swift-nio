@@ -86,7 +86,7 @@ func NewDockerAgent() *DockerAgent {
 				// idle conns are ok here because we get frozen along with docker
 				MaxIdleConns: 2,
 			},
-		}),
+		}, nil),
 
 		Running:        syncx.NewCondBool(),
 		containerBinds: make(map[string][]string),

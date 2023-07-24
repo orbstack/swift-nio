@@ -16,7 +16,9 @@ const (
 
 func tryConnectRemote(sock string) error {
 	// must use ping test b/c docker desktop creates socket immediately
-	srcClient, err := dockerclient.NewWithUnixSocket(sock)
+	srcClient, err := dockerclient.NewWithUnixSocket(sock, &dockerclient.Options{
+		Unversioned: true,
+	})
 	if err != nil {
 		return err
 	}

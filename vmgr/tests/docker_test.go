@@ -293,7 +293,7 @@ var expectDockerSystemInfo = `
 `
 
 func dockerClient() *dockerclient.Client {
-	client, err := dockerclient.NewWithUnixSocket(conf.DockerSocket())
+	client, err := dockerclient.NewWithUnixSocket(conf.DockerSocket(), nil)
 	if err != nil {
 		panic(err)
 	}

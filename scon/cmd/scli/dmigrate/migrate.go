@@ -10,6 +10,7 @@ import (
 
 	"github.com/alitto/pond"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/util/slicesx"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockerconf"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -80,11 +81,16 @@ func (e *errorTracker) Check() error {
 }
 
 func NewMigratorWithUnixSockets(fromSocket, toSocket string) (*Migrator, error) {
-	srcClient, err := dockerclient.NewWithUnixSocket(fromSocket)
+	// use unversioned API client for source.
+	// it could be old: 20.10=v1.41, 24=v1.43
+	// best-effort to make it work. old engine rejects new client version
+	srcClient, err := dockerclient.NewWithUnixSocket(fromSocket, &dockerclient.Options{
+		Unversioned: true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	destClient, err := dockerclient.NewWithUnixSocket(toSocket)
+	destClient, err := dockerclient.NewWithUnixSocket(toSocket, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +141,7 @@ func (m *Migrator) sendProgressEvent(progress float64) {
 }
 
 type engineManifest struct {
-	Images     []dockertypes.Image
+	Images     []*dockertypes.Image
 	Containers []*dockertypes.ContainerSummary
 	Networks   []dockertypes.Network
 	Volumes    []dockertypes.Volume
@@ -348,7 +354,7 @@ outer:
 		containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{imageID: c.ImageID})
 	}
 	// 2. filter images
-	var filteredImages []dockertypes.Image
+	var filteredImages []*dockertypes.Image
 	for _, i := range manifest.Images {
 		// exclude agent image
 		if slices.Contains(i.RepoTags, migrationAgentImage) {
@@ -359,6 +365,14 @@ outer:
 			filteredImages = append(filteredImages, i)
 			continue
 		}
+
+		// post-processing for API <1.43: remove '<none>:<none>' from RepoTags and '<none>@<none>' from RepoDigests
+		i.RepoTags = slicesx.Filter(i.RepoTags, func(s string) bool {
+			return s != "<none>:<none>"
+		})
+		i.RepoDigests = slicesx.Filter(i.RepoDigests, func(s string) bool {
+			return s != "<none>@<none>"
+		})
 
 		// not referenced by a container
 		// check if tagged and not pushed
