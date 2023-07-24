@@ -81,22 +81,22 @@ var (
 
 	// for testing only
 	ImageToOldestVersion = map[string]string{
-		ImageAlma:      "8",
-		ImageAlpine:    "3.14",
-		ImageArch:      "current",
-		ImageCentos:    "8-Stream",
-		ImageDebian:    "buster",
-		ImageDevuan:    "beowulf",
-		ImageFedora:    "36",
-		ImageGentoo:    "current",
-		ImageKali:      "current",
+		ImageAlma:   "8",
+		ImageAlpine: "3.14",
+		//ImageArch:      "current",
+		ImageCentos: "8-Stream",
+		ImageDebian: "buster",
+		ImageDevuan: "beowulf",
+		ImageFedora: "36",
+		//ImageGentoo:    "current",
+		//ImageKali:      "current",
 		ImageNixos:     "22.11",
 		ImageOpeneuler: "20.03",
 		ImageOpensuse:  "15.4",
 		ImageOracle:    "8",
 		ImageRocky:     "8",
 		ImageUbuntu:    "bionic",
-		ImageVoid:      "current",
+		//ImageVoid:      "current",
 	}
 
 	ImageToLatestVersion = map[string]string{

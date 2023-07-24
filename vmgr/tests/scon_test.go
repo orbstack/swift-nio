@@ -48,7 +48,7 @@ func forEachDistroArchVer(t *testing.T, f func(distro, ver, arch, machineName st
 
 			// version combos in non-short
 			testVersions := []string{"" /*default latest*/}
-			if oldestVer, ok := images.ImageToOldestVersion[distro]; !testing.Short() && ok {
+			if oldestVer, ok := images.ImageToOldestVersion[distro]; ok && !testing.Short() {
 				testVersions = append(testVersions, oldestVer)
 			}
 
