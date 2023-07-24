@@ -110,6 +110,12 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	baseFeatures := map[string]any{
 		"buildkit": true,
 	}
+	baseBuilderGC := map[string]any{
+		"enabled": true,
+	}
+	baseBuilder := map[string]any{
+		"gc": baseBuilderGC,
+	}
 	config := map[string]any{
 		// just to be safe with legacy clients
 		"features": baseFeatures,
@@ -127,6 +133,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 				},
 			},
 		*/
+
+		// buildkit builder cache GC
+		// default rules are pretty good: https://docs.docker.com/build/cache/garbage-collection/
+		"builder": baseBuilder,
 
 		"bip":                   netconf.DockerBIP,
 		"default-address-pools": netconf.DockerDefaultAddressPools,
@@ -155,6 +165,22 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		baseFeatures[k] = v
 	}
 	config["features"] = baseFeatures
+
+	// merge builder map
+	newBuilder := config["builder"].(map[string]any)
+	for k, v := range newBuilder {
+		// merge GC map
+		if k == "gc" {
+			newBuilderGC := v.(map[string]any)
+			for k, v := range newBuilderGC {
+				baseBuilderGC[k] = v
+			}
+			v = baseBuilderGC
+		}
+
+		baseBuilder[k] = v
+	}
+	config["builder"] = baseBuilder
 
 	// iff IPv6 is enabled and user did not set a CIDR, set our default
 	// otherwise keep it unset to avoid adding IPv6 to bridge IPAM
