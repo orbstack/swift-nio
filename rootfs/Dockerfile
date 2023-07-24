@@ -87,12 +87,12 @@ COPY --from=runc-build /out/runc /build/
 RUN <<EOT sh -eux
 mkdir /out /out-guest
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
-gcc -O2 -Wall -static -o /out/rvfs-wrapper /build/rvfs-wrapper.c
+gcc -O2 -Wall -static -o /out/rstub /build/rvfs-wrapper.c
 gcc -O2 -Wall -static -o /out-guest/dummy /build/dummy.c
 strip /out/* /out-guest/*
 
 # append runc.arm64 to rvfs-wrapper
-cat /build/runc >> /out/rvfs-wrapper
+cat /build/runc >> /out/rstub
 EOT
 
 # Generate Rosetta deltas (need Debian for bsdiff)
@@ -346,7 +346,7 @@ mkdir /mnt/rosetta
 mkdir /mnt/rv
 
 # binfmt vanity links
-ln -s /opt/orb/rvfs-wrapper '[rosetta]' # (real rosetta is in rvfs)
+ln -s /opt/orb/rstub '[rosetta]' # (real rosetta is in rvfs)
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
 ln -s /opt/orb/qemu-arm '[qemu-arm32]'
