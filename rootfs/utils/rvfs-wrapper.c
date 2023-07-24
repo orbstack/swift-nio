@@ -35,6 +35,9 @@ struct elf_info {
 
     // links against libuv?
     bool needs_libuv;
+
+    // compressed by UPX?
+    bool is_upx;
 };
 
 enum emu_provider {
@@ -66,7 +69,7 @@ static bool argv_contains(char **argv, char *what) {
     return false;
 }
 
-static enum emu_provider select_emulator(int argc, char **argv, char *exe_name) {
+static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, struct elf_info *elf_info) {
     // if running "apk", use qemu to avoid futex bug
     if (strcmp(exe_name, "apk") == 0) {
         if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
@@ -120,6 +123,19 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name) 
         (strcmp(argv[3], "init") == 0 || argv_contains(argv, "--bundle"))) {
         if (DEBUG) fprintf(stderr, "selecting runc override\n");
         return EMU_OVERRIDE_RUNC;
+    }
+
+    // use QEMU for UPX-packed exes
+    // QEMU can handle it, Rosetta segfaults on new UPX bins and fails with "bss_size overflow" on old ones
+    // these executables are really weird: only PT_LOAD, no sections
+    // 3 options:
+    //   1. custom loader for PT_LOAD-only bins
+    //   2. append upx+runc to our wrapper exe as zip, then extract upx as memfd, and "upx -d -f -o /proc/self/fd/# <exepath>" to new memfd. (extraction = ~11 ms)
+    //   3. use qemu
+    // we're going with the last one for simplicity, unless it turns out to be an issue
+    if (elf_info->is_upx) {
+        if (DEBUG) fprintf(stderr, "selecting qemu: UPX\n");
+        return EMU_QEMU;
     }
 
     // default
@@ -217,6 +233,12 @@ static int read_elf_info(int fd, struct elf_info *out) {
         }
     }
 
+    // check for UPX magic "UPX!"
+    if (total_size >= 256 && memmem(file, 256, "UPX!", 4) != NULL) {
+        if (DEBUG) fprintf(stderr, "UPX detected\n");
+        out->is_upx = true;
+    }
+
     return 0;
 }
 
@@ -296,13 +318,6 @@ int main(int argc, char **argv) {
     int exe_argc = argc - 2; /* our argv[0] + exe_path */
     char *exe_name = get_basename(exe_path);
 
-    // select emulator
-    enum emu_provider emu = PASSTHROUGH ? EMU_ROSETTA : select_emulator(argc, argv, exe_name);
-
-    // ok, decision made.
-    // prepare to execute.
-    if (DEBUG) fprintf(stderr, "using %s for '%s'\n", emu == EMU_ROSETTA ? "rosetta" : "qemu", exe_name);
-
     // get execfd
     // this errno trick works even if execfd=0
     errno = 0;
@@ -338,11 +353,18 @@ int main(int argc, char **argv) {
         // if using Rosetta and running "node" or "nvim", set UV_USE_IO_URING=0 if not already set in environ
         // we check DT_NEEDED libraries but node.js might be statically linked
         // this is a crude way to detect libuv and avoid 100% CPU on io_uring: https://github.com/orbstack/orbstack/issues/377
-        if (!PASSTHROUGH && emu == EMU_ROSETTA && (elf_info.needs_libuv || !strcmp(exe_name, "node"))) {
+        if (!PASSTHROUGH && (elf_info.needs_libuv || !strcmp(exe_name, "node"))) {
             if (DEBUG) fprintf(stderr, "setting UV_USE_IO_URING=0\n");
             setenv("UV_USE_IO_URING", "0", /*overwrite*/ 0);
         }
     }
+
+    // select emulator
+    enum emu_provider emu = PASSTHROUGH ? EMU_ROSETTA : select_emulator(argc, argv, exe_name, &elf_info);
+
+    // ok, decision made.
+    // prepare to execute.
+    if (DEBUG) fprintf(stderr, "using %s for '%s'\n", emu == EMU_ROSETTA ? "rosetta" : "qemu", exe_name);
 
     // exec overrides instead
     if (emu == EMU_OVERRIDE_RUNC) {
