@@ -91,7 +91,8 @@ func NewConsoleLogPipe(stopCh chan<- StopRequest) (*os.File, error) {
 				// shut down on kernel panic
 				// "Unable to handle kernel" is for null deref/segfault, in which case stack trace is printed before kernel panic
 				// we only search for that prefix because on arm64 it's "Unable to handle kernel %s"
-				if strings.Contains(line, "] Kernel panic - not syncing:") && panicBuffer == nil {
+				// also shut down on eth0 (main interface) tx timeout. it won't recover, everything frozen
+				if (strings.Contains(line, "] Kernel panic - not syncing:") || strings.Contains(line, "] NETDEV WATCHDOG: eth0 (virtio_net): transmit queue 0 timed out")) && panicBuffer == nil {
 					// start recording panic lines
 					panicBuffer = new(bytes.Buffer)
 
