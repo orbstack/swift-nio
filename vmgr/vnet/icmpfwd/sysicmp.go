@@ -258,7 +258,7 @@ func (i *IcmpFwd) forwardReplies4() error {
 		n, _, _, err := i.conn4.ReadFrom(fullBuf)
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
-				logrus.Error("error reading from icmp4 socket ", err)
+				logrus.WithError(err).Error("icmp4 socket read failed")
 			}
 			return err
 		}
@@ -266,7 +266,7 @@ func (i *IcmpFwd) forwardReplies4() error {
 
 		err = i.handleReply4(msg)
 		if err != nil {
-			logrus.Error("error handling icmp4 reply ", err)
+			logrus.WithError(err).Error("icmp4 reply failed")
 		}
 	}
 }
@@ -382,7 +382,7 @@ func (i *IcmpFwd) forwardReplies6() error {
 
 		err = i.handleReply6(msg, cm, addr)
 		if err != nil {
-			logrus.Error("error handling icmp6 reply ", err)
+			logrus.WithError(err).Error("failed to handle icmp6 reply")
 		}
 	}
 }
