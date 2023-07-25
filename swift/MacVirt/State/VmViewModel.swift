@@ -119,6 +119,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .dockerConfigSaveError:
             return "Can’t apply Docker config"
 
+        case .dockerMigrationError:
+            return "Can’t migrate Docker data"
+
         case .startError:
             return "Failed to start machine manager"
         case .listRefresh:
@@ -247,6 +250,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .dockerConfigSaveError(let cause):
             return cause
+
+        case .dockerMigrationError:
+            return nil
 
         case .startError(let cause):
             return cause
