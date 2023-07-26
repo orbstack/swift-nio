@@ -63,10 +63,10 @@ type PathInfo struct {
 }
 
 var (
-	binCommands   = []string{"orbctl", "orb"}
-	xbinCommands  = []string{"docker", "docker-buildx", "docker-compose", "docker-credential-osxkeychain"}
+	binCommands = []string{"orbctl", "orb"}
+	// some people run "docker-compose"
+	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain"}
 	dockerPlugins = []string{"docker-buildx", "docker-compose"}
-	// consider: docker-buildx hub-tool docker-index
 )
 
 func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
