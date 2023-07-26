@@ -174,8 +174,8 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
     // console
     if let consoleSpec = spec.console {
         let attachment = VZFileHandleSerialPortAttachment(
-                fileHandleForReading: FileHandle(fileDescriptor: consoleSpec.readFd),
-                fileHandleForWriting: FileHandle(fileDescriptor: consoleSpec.writeFd))
+                fileHandleForReading: FileHandle(fileDescriptor: consoleSpec.readFd, closeOnDealloc: false),
+                fileHandleForWriting: FileHandle(fileDescriptor: consoleSpec.writeFd, closeOnDealloc: false))
         let console = VZVirtioConsoleDeviceSerialPortConfiguration()
         console.attachment = attachment
         config.serialPorts = [console]
@@ -191,7 +191,8 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
         netDevices.append(device)
     }
     for (index, networkVnetFd) in spec.networkFds.enumerated() {
-        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: networkVnetFd))
+        // Go keeps ownership
+        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: networkVnetFd, closeOnDealloc: false))
         if #available(macOS 13, *) {
             attachment.maximumTransmissionUnit = spec.mtu
         }
