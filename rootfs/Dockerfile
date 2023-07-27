@@ -304,6 +304,10 @@ COPY \
 COPY rootfs/config/ssh_host_keys /etc/ssh
 # NTP
 COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf
+# kernel modules
+ARG ARCH=arm64
+# 0.0.0 = temp name for busybox depmod
+COPY rootfs/kernel/${ARCH} /opt/orbstack-guest/lib/modules/0.0.0
 
 # debug services
 RUN <<EOT sh -eux
@@ -373,6 +377,10 @@ ln -s /opt/orbstack-guest/run/host-ssh-agent.sock /opt/orb/launchd-ssh-agent-lis
 # NFS state (need to create because we removed nfs-utils package)
 mkdir -p /var/lib/nfs /var/lib/nfs/v4recovery
 touch /var/lib/nfs/etab /var/lib/nfs/rmtab /var/lib/nfs/state
+
+# kernel module info for modprobe
+depmod -b /opt/orbstack-guest 0.0.0
+mv /opt/orbstack-guest/lib/modules/0.0.0 /opt/orbstack-guest/lib/modules/current
 EOT
 
 # Scripts

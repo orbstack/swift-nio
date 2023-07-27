@@ -14,9 +14,12 @@ scli:
 	@cd ../scon; make
 
 sync:
-	@scp pc:~/code/projects/orbstack/linux/out/arch/arm64/boot/Image ../assets/debug/arm64/kernel
-	@cp ../assets/debug/arm64/kernel ../assets/release/arm64/kernel
+	@scp pc:~/code/projects/orbstack/linux/out/arch/arm64/boot/Image ../assets/release/arm64/kernel
+	@scp pc:~/code/projects/orbstack/linux/out/modules.builtin ../rootfs/kernel/arm64/modules.builtin
 	@scp pc:~/code/projects/orbstack/linux/out86/arch/x86/boot/bzImage ../assets/release/amd64/kernel
+	@scp pc:~/code/projects/orbstack/linux/out86/modules.builtin ../rootfs/kernel/amd64/modules.builtin
+	@cp ../assets/release/arm64/kernel ../assets/debug/arm64/kernel
+	@cp ../assets/release/amd64/kernel ../assets/debug/amd64/kernel
 
 
 

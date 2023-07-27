@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path"
@@ -194,6 +195,13 @@ func (c *Container) configureLxc() error {
 		return err
 	}
 
+	var uname unix.Utsname
+	err = unix.Uname(&uname)
+	if err != nil {
+		return err
+	}
+	kernelVersion := string(uname.Release[:bytes.IndexByte(uname.Release[:], 0)])
+
 	// set configs!
 	err = func() (err error) {
 		defer func() {
@@ -357,6 +365,8 @@ func (c *Container) configureLxc() error {
 		// bind mounts
 		config := conf.C()
 		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro")
+		// kernel module info
+		bind(config.GuestMountSrc+"/lib/modules/current", "/lib/modules/"+kernelVersion, "ro")
 
 		// isolated containers don't get bind mounts
 		if !c.isolated {
