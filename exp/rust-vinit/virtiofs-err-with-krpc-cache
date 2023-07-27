@@ -1,0 +1,291 @@
+error[E0463]: can't find crate for `futures`
+ --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/netlink-sys-0.8.5/src/tokio.rs:9:5
+  |
+9 | use futures::ready;
+  |     ^^^^^^^ can't find crate
+
+error[E0463]: can't find crate for `tokio`
+  --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/netlink-sys-0.8.5/src/tokio.rs:11:5
+   |
+11 | use tokio::io::unix::AsyncFd;
+   |     ^^^^^ can't find crate
+
+error: cannot determine resolution for the macro `ready`
+  --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/netlink-sys-0.8.5/src/tokio.rs:59:29
+   |
+59 |             let mut guard = ready!(self.0.poll_write_ready(cx))?;
+   |                             ^^^^^
+   |
+   = note: import resolution is stuck, try simplifying macro imports
+
+error: cannot determine resolution for the macro `ready`
+  --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/netlink-sys-0.8.5/src/tokio.rs:75:29
+   |
+75 |             let mut guard = ready!(self.0.poll_write_ready(cx))?;
+   |                             ^^^^^
+   |
+   = note: import resolution is stuck, try simplifying macro imports
+
+error: cannot determine resolution for the macro `ready`
+  --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/netlink-sys-0.8.5/src/tokio.rs:97:29
+   |
+97 |             let mut guard = ready!(self.0.poll_read_ready(cx))?;
+   |                             ^^^^^
+   |
+   = note: import resolution is stuck, try simplifying macro imports
+
+error: cannot determine resolution for the macro `ready`
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/netlink-sys-0.8.5/src/tokio.rs:116:29
+    |
+116 |             let mut guard = ready!(self.0.poll_read_ready(cx))?;
+    |                             ^^^^^
+    |
+    = note: import resolution is stuck, try simplifying macro imports
+
+error: cannot determine resolution for the macro `ready`
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/netlink-sys-0.8.5/src/tokio.rs:138:29
+    |
+138 |             let mut guard = ready!(self.0.poll_read_ready(cx))?;
+    |                             ^^^^^
+    |
+    = note: import resolution is stuck, try simplifying macro imports
+
+For more information about this error, try `rustc --explain E0463`.
+error: could not compile `netlink-sys` (lib) due to 7 previous errors
+warning: build failed, waiting for other jobs to finish...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+error[E0463]: can't find crate for `futures_util`
+ --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-executor-0.3.28/src/local_pool.rs:7:5
+  |
+7 | use futures_util::pin_mut;
+  |     ^^^^^^^^^^^^ can't find crate
+
+error[E0463]: can't find crate for `futures_util`
+ --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-executor-0.3.28/src/local_pool.rs:8:5
+  |
+8 | use futures_util::stream::FuturesUnordered;
+  |     ^^^^^^^^^^^^ can't find crate
+
+error[E0463]: can't find crate for `futures_util`
+ --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-executor-0.3.28/src/local_pool.rs:9:5
+  |
+9 | use futures_util::stream::StreamExt;
+  |     ^^^^^^^^^^^^ can't find crate
+
+error: cannot determine resolution for the macro `pin_mut`
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-executor-0.3.28/src/local_pool.rs:158:9
+    |
+158 |         pin_mut!(future);
+    |         ^^^^^^^
+    |
+    = note: import resolution is stuck, try simplifying macro imports
+
+error: cannot determine resolution for the macro `pin_mut`
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-executor-0.3.28/src/local_pool.rs:316:5
+    |
+316 |     pin_mut!(f);
+    |     ^^^^^^^
+    |
+    = note: import resolution is stuck, try simplifying macro imports
+
+error[E0599]: no method named `as_mut` found for type parameter `F` in the current scope
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-executor-0.3.28/src/local_pool.rs:163:37
+    |
+157 |     pub fn run_until<F: Future>(&mut self, future: F) -> F::Output {
+    |                      - method `as_mut` not found for this type parameter
+...
+163 |                 let result = future.as_mut().poll(cx);
+    |                                     ^^^^^^ method not found in `F`
+   --> /rustc/8ede3aae28fe6e4d52b38157d7bfe0d3bceef225/library/core/src/convert/mod.rs:371:8
+    |
+    = note: the method is available for `Box<F>` here
+    |
+    = note: the method is available for `Box<&mut F>` here
+    |
+    = note: the method is available for `Box<&F>` here
+   --> /rustc/8ede3aae28fe6e4d52b38157d7bfe0d3bceef225/library/core/src/pin.rs:724:12
+    |
+    = note: the method is available for `Pin<&mut F>` here
+    |
+help: consider wrapping the receiver expression with the appropriate type
+    |
+163 |                 let result = Box::new(future).as_mut().poll(cx);
+    |                              +++++++++      +
+help: consider wrapping the receiver expression with the appropriate type
+    |
+163 |                 let result = Box::new(&mut future).as_mut().poll(cx);
+    |                              +++++++++++++       +
+help: consider wrapping the receiver expression with the appropriate type
+    |
+163 |                 let result = Pin::new(&mut future).as_mut().poll(cx);
+    |                              +++++++++++++       +
+help: consider wrapping the receiver expression with the appropriate type
+    |
+163 |                 let result = Box::new(&future).as_mut().poll(cx);
+    |                              ++++++++++      +
+
+error[E0599]: no method named `as_mut` found for type parameter `F` in the current scope
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-executor-0.3.28/src/local_pool.rs:317:25
+    |
+315 | pub fn block_on<F: Future>(f: F) -> F::Output {
+    |                 - method `as_mut` not found for this type parameter
+316 |     pin_mut!(f);
+317 |     run_executor(|cx| f.as_mut().poll(cx))
+    |                         ^^^^^^ method not found in `F`
+   --> /rustc/8ede3aae28fe6e4d52b38157d7bfe0d3bceef225/library/core/src/convert/mod.rs:371:8
+    |
+    = note: the method is available for `Box<F>` here
+    |
+    = note: the method is available for `Box<&mut F>` here
+    |
+    = note: the method is available for `Box<&F>` here
+   --> /rustc/8ede3aae28fe6e4d52b38157d7bfe0d3bceef225/library/core/src/pin.rs:724:12
+    |
+    = note: the method is available for `Pin<&mut F>` here
+    |
+help: consider wrapping the receiver expression with the appropriate type
+    |
+317 |     run_executor(|cx| Box::new(f).as_mut().poll(cx))
+    |                       +++++++++ +
+help: consider wrapping the receiver expression with the appropriate type
+    |
+317 |     run_executor(|cx| Box::new(&mut f).as_mut().poll(cx))
+    |                       +++++++++++++  +
+help: consider wrapping the receiver expression with the appropriate type
+    |
+317 |     run_executor(|cx| Pin::new(&mut f).as_mut().poll(cx))
+    |                       +++++++++++++  +
+help: consider wrapping the receiver expression with the appropriate type
+    |
+317 |     run_executor(|cx| Box::new(&f).as_mut().poll(cx))
+    |                       ++++++++++ +
+
+error[E0599]: no method named `next` found for type parameter `S` in the current scope
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/futures-executor-0.3.28/src/local_pool.rs:358:48
+    |
+354 | impl<S: Stream + Unpin> Iterator for BlockingStream<S> {
+    |      - method `next` not found for this type parameter
+...
+358 |         LocalPool::new().run_until(self.stream.next())
+    |                                                ^^^^ method not found in `S`
+    |
+    = help: items from traits can only be used if the type parameter is bounded by the trait
+help: the following trait defines an item `next`, perhaps you need to restrict type parameter `S` with it:
+    |
+354 | impl<S: Stream + Unpin + Iterator> Iterator for BlockingStream<S> {
+    |                        ++++++++++
+
+Some errors have detailed explanations: E0463, E0599.
+For more information about an error, try `rustc --explain E0463`.
+error: could not compile `futures-executor` (lib) due to 8 previous errors
+warning: build failed, waiting for other jobs to finish...
+
+
+
+
+
+
+
+
+
+error[E0463]: can't find crate for `rand_core`
+  --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/rand_chacha-0.3.1/src/lib.rs:21:9
+   |
+21 | pub use rand_core;
+   |         ^^^^^^^^^ can't find crate
+
+error[E0463]: can't find crate for `rand_core`
+  --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/rand_chacha-0.3.1/src/chacha.rs:16:5
+   |
+16 | use rand_core::block::{BlockRng, BlockRngCore};
+   |     ^^^^^^^^^ can't find crate
+
+error[E0463]: can't find crate for `rand_core`
+  --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/rand_chacha-0.3.1/src/chacha.rs:17:5
+   |
+17 | use rand_core::{CryptoRng, Error, RngCore, SeedableRng};
+   |     ^^^^^^^^^ can't find crate
+
+error[E0463]: can't find crate for `rand_core`
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/rand_chacha-0.3.1/src/chacha.rs:332:25
+    |
+332 |                     use rand_core::SeedableRng;
+    |                         ^^^^^^^^^ can't find crate
+
+For more information about this error, try `rustc --explain E0463`.
+error: could not compile `rand_chacha` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+
+
+
+
+
+
+
+
+
+
+
+error[E0460]: found possibly newer version of crate `libc` which `num_cpus` depends on
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/rayon-core-1.11.0/src/lib.rs:473:45
+    |
+473 |                 Some(x) if x == 0 => return num_cpus::get(),
+    |                                             ^^^^^^^^
+    |
+    = note: perhaps that crate needs to be recompiled?
+    = note: the following crate versions were found:
+            crate `libc`: /usr/local/rustup/toolchains/1.71.0-aarch64-unknown-linux-musl/lib/rustlib/aarch64-unknown-linux-musl/lib/liblibc-36fd5f7a03507dca.rlib
+            crate `num_cpus`: /data/vinit/target/debug/deps/libnum_cpus-61a836921e8d2a7d.rmeta
+
+error[E0463]: can't find crate for `num_cpus`
+   --> /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/rayon-core-1.11.0/src/lib.rs:483:22
+    |
+483 |                 _ => num_cpus::get(),
+    |                      ^^^^^^^^ can't find crate
+
+   Compiling axum v0.6.18
+   Compiling blake3 v1.4.0
+Some errors have detailed explanations: E0460, E0463.
+For more information about an error, try `rustc --explain E0460`.
+error: could not compile `rayon-core` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

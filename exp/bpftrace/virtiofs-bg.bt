@@ -1,0 +1,12 @@
+kprobe:fuse_simple_background
+{
+    @start[tid] = nsecs;
+}
+
+kretprobe:fuse_simple_background
+/@start[tid]/
+{
+    $diff = nsecs - @start[tid];
+    @qbg = hist($diff);
+    delete(@start[tid]);
+}
