@@ -10,6 +10,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
@@ -88,6 +89,17 @@ func BuildZip(infoTxt []byte) (*ReportPackage, error) {
 					logrus.WithError(err).Errorf("failed to add logs for %s", c.Name)
 				}
 			}
+		}
+	}
+
+	// add netstat -rn
+	netstat, err := util.RunWithOutput("netstat", "-rn")
+	if err != nil {
+		logrus.WithError(err).Error("failed to get netstat -rn")
+	} else {
+		err = r.addFileBytes("netstat_rn.txt", []byte(netstat))
+		if err != nil {
+			logrus.WithError(err).Error("failed to add netstat -rn")
 		}
 	}
 
