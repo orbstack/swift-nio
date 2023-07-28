@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -36,6 +38,7 @@ type ConManager struct {
 	lxcDir            string
 	seccompPolicyPath string
 	agentExe          *os.File
+	kernelVersion     string
 
 	// state
 	containersByID   map[string]*Container
@@ -111,12 +114,20 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		return nil, err
 	}
 
+	var uname unix.Utsname
+	err = unix.Uname(&uname)
+	if err != nil {
+		return nil, err
+	}
+	kernelVersion := string(uname.Release[:bytes.IndexByte(uname.Release[:], 0)])
+
 	mgr := &ConManager{
 		dataDir:           dataDir,
 		tmpDir:            tmpDir,
 		lxcDir:            lxcDir,
 		seccompPolicyPath: seccompPolicyPath,
 		agentExe:          agentExe,
+		kernelVersion:     kernelVersion,
 
 		containersByID:   make(map[string]*Container),
 		containersByName: make(map[string]*Container),

@@ -253,7 +253,9 @@ RUN apk add --no-cache \
     # disk
     sfdisk nfs-utils \
     # scon deps
-    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz btrfs-progs
+    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz btrfs-progs \
+    # modprobe metadata
+    kmod
 
 # debug deps
 ARG TYPE=release
@@ -306,11 +308,15 @@ COPY rootfs/config/ssh_host_keys /etc/ssh
 COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf
 # kernel modules
 ARG ARCH=arm64
-# 0.0.0 = temp name for busybox depmod
+# 0.0.0 = temp name for depmod
 COPY rootfs/kernel/${ARCH} /opt/orbstack-guest/lib/modules/0.0.0
 
 # debug services
 RUN <<EOT sh -eux
+# kernel module info for modprobe
+depmod -b /opt/orbstack-guest 0.0.0
+mv /opt/orbstack-guest/lib/modules/0.0.0 /opt/orbstack-guest/lib/modules/current
+
 if [[ "$TYPE" == "debug" ]]; then
     chown 0600 /etc/ssh/*key*
     sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
@@ -327,7 +333,7 @@ else
     # remove ssh host keys
     rm -fr /etc/ssh
     # uninstall apk
-    apk del apk-tools
+    apk del apk-tools kmod
 fi
 EOT
 
@@ -377,10 +383,6 @@ ln -s /opt/orbstack-guest/run/host-ssh-agent.sock /opt/orb/launchd-ssh-agent-lis
 # NFS state (need to create because we removed nfs-utils package)
 mkdir -p /var/lib/nfs /var/lib/nfs/v4recovery
 touch /var/lib/nfs/etab /var/lib/nfs/rmtab /var/lib/nfs/state
-
-# kernel module info for modprobe
-depmod -b /opt/orbstack-guest 0.0.0
-mv /opt/orbstack-guest/lib/modules/0.0.0 /opt/orbstack-guest/lib/modules/current
 EOT
 
 # Scripts

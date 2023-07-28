@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path"
@@ -17,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -195,13 +195,6 @@ func (c *Container) configureLxc() error {
 		return err
 	}
 
-	var uname unix.Utsname
-	err = unix.Uname(&uname)
-	if err != nil {
-		return err
-	}
-	kernelVersion := string(uname.Release[:bytes.IndexByte(uname.Release[:], 0)])
-
 	// set configs!
 	err = func() (err error) {
 		defer func() {
@@ -365,8 +358,6 @@ func (c *Container) configureLxc() error {
 		// bind mounts
 		config := conf.C()
 		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro")
-		// kernel module info
-		bind(config.GuestMountSrc+"/lib/modules/current", "/lib/modules/"+kernelVersion, "ro")
 
 		// isolated containers don't get bind mounts
 		if !c.isolated {
@@ -578,6 +569,26 @@ func (c *Container) startLxcLocked() error {
 	return c.lxc.Start()
 }
 
+func (c *Container) prepareFsStart() error {
+	fs, err := securefs.NewFS(c.rootfsDir)
+	if err != nil {
+		return err
+	}
+	defer fs.Close()
+
+	// create /lib/modules/<version> symlink
+	err = fs.MkdirAll("/lib/modules", 0755)
+	if err != nil {
+		return err
+	}
+	err = fs.Symlink("/opt/orbstack-guest/lib/modules/current", "/lib/modules/"+c.manager.kernelVersion)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Container) startLocked(isInternal bool) (err error) {
 	if c.runningLocked() {
 		return nil
@@ -605,6 +616,13 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		return fmt.Errorf("truncate log: %w", err)
 	}
 	_ = os.Remove(c.logPath() + "-console")
+
+	// fs
+	err = c.prepareFsStart()
+	if err != nil {
+		logrus.WithError(err).WithField("container", c.Name).Error("failed to prepare fs")
+		// ignore, not critical
+	}
 
 	// hook
 	if c.hooks != nil {
