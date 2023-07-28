@@ -51,7 +51,7 @@ const (
 	useStdioConsole = false
 	useNat          = false
 
-	handoffWaitLockTimeout = 10 * time.Second
+	handoffWaitLockTimeout = 10 * time.Second // also applies to data.img flock
 	gracefulStopTimeout    = 15 * time.Second
 	sentryShutdownTimeout  = 2 * time.Second
 )
@@ -331,6 +331,28 @@ func flushDisk() error {
 	return nil
 }
 
+// VirtualMachineService uses flock and returns "invalid storage device attachment" if not locked
+// since we're under main vmgr flock, it's guaranteed that the lock is free after we get it and unlock it
+// must do it before creating VM config, or storage config/attachment is reported as invalid on vm.Start()
+// --
+// this deals with cases like vmgr force stop + VMM cleaning up a lot of fds before exiting
+func ensureDataLock() error {
+	dataImg, err := os.OpenFile(conf.DataImage(), os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("open: %w", err)
+	}
+	defer dataImg.Close()
+
+	_, err = util.WithTimeout(func() (struct{}, error) {
+		return struct{}{}, flock.WaitLock(dataImg)
+	}, handoffWaitLockTimeout)
+	if err != nil {
+		return fmt.Errorf("wait data lock: %w", err)
+	}
+
+	return nil
+}
+
 func runVmManager() {
 	// propagate stop reason via exit code
 	var lastStopReason StopReason
@@ -479,6 +501,11 @@ func runVmManager() {
 	if useStdioConsole {
 		consoleMode = ConsoleStdio
 	}
+
+	// wait for data.img flock
+	logrus.Debug("waiting for data lock")
+	err = ensureDataLock()
+	check(err)
 
 	logrus.Info("configuring VM")
 	vnetwork, vm := CreateVm(&VmParams{
