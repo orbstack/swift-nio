@@ -25,6 +25,10 @@ struct DockerSettingsView: View {
                 .frame(height: 32)
 
             Group {
+                Text("Advanced engine config")
+                        .font(.headline)
+                        .padding(.bottom, 4)
+
                 TextEditor(text: $configJson)
                         .font(.body.monospaced())
                         .frame(minHeight: 150)

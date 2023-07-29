@@ -32,13 +32,14 @@ var (
 )
 
 type VmConfig struct {
-	MemoryMiB       uint64 `json:"memory_mib"`
-	CPU             int    `json:"cpu"`
-	Rosetta         bool   `json:"rosetta"`
-	NetworkProxy    string `json:"network_proxy"`
-	NetworkBridge   bool   `json:"network_bridge"`
-	MountHideShared bool   `json:"mount_hide_shared"`
-	DataDir         string `json:"data_dir,omitempty"`
+	MemoryMiB        uint64 `json:"memory_mib"`
+	CPU              int    `json:"cpu"`
+	Rosetta          bool   `json:"rosetta"`
+	NetworkProxy     string `json:"network_proxy"`
+	NetworkBridge    bool   `json:"network_bridge"`
+	MountHideShared  bool   `json:"mount_hide_shared"`
+	DataDir          string `json:"data_dir,omitempty"`
+	DockerSetContext bool   `json:"docker.set_context"`
 }
 
 type VmConfigChange struct {
@@ -226,13 +227,14 @@ func calcMemory() uint64 {
 
 func Defaults() *VmConfig {
 	return &VmConfig{
-		MemoryMiB:       calcMemory() / 1024 / 1024,
-		CPU:             runtime.NumCPU(),
-		Rosetta:         true,
-		NetworkProxy:    ProxyAuto,
-		NetworkBridge:   true,
-		MountHideShared: false,
-		DataDir:         "",
+		MemoryMiB:        calcMemory() / 1024 / 1024,
+		CPU:              runtime.NumCPU(),
+		Rosetta:          true,
+		NetworkProxy:     ProxyAuto,
+		NetworkBridge:    true,
+		MountHideShared:  false,
+		DataDir:          "",
+		DockerSetContext: true,
 	}
 }
 

@@ -73,6 +73,10 @@ Some options will only take effect after restarting the virtual machine.
 		case "data_dir":
 			config.DataDir = value
 			rebootRequired = true
+		case "docker.set_context":
+			val, err := strconv.ParseBool(value)
+			checkCLI(err)
+			config.DockerSetContext = val
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)

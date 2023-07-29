@@ -12,9 +12,11 @@ replace gvisor.dev/gvisor => ../../../vm/gvisor
 
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
-replace github.com/fsnotify/fsnotify => github.com/kdrag0n/fsnotify-macvirt v0.0.0-20230311084904-3a09ec342ff5
+replace github.com/fsnotify/fsnotify => github.com/orbstack/fsnotify-macvirt v0.0.0-20230311084904-3a09ec342ff5
 
 replace github.com/buildbarn/go-xdr => github.com/kdrag0n/go-xdr-macvirt v0.0.0-20230326123001-605de85becc7
+
+replace github.com/kevinburke/ssh_config => github.com/orbstack/ssh_config v0.0.0-20230729012050-8a1a6b8fcffd
 
 require (
 	github.com/creachadair/jrpc2 v1.0.1

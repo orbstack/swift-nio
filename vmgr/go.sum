@@ -32,12 +32,8 @@ github.com/hashicorp/golang-lru/v2 v2.0.4/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyf
 github.com/inconshreveable/mousetrap v1.0.1/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/kdrag0n/fsnotify-macvirt v0.0.0-20230311084904-3a09ec342ff5 h1:1ZFdA2nktWZLrxtv7dsy7edy2wUbWmSk0pFMRfmX/sA=
-github.com/kdrag0n/fsnotify-macvirt v0.0.0-20230311084904-3a09ec342ff5/go.mod h1:40Bi/Hjc2AVfZrqy+aj+yEI+/bRxZnMJyTJwOpGvigM=
 github.com/kdrag0n/go-xdr-macvirt v0.0.0-20230326123001-605de85becc7 h1:GTmxZAKwbSuaW0uCE75022fKe0fl+QQAE8knSMwzWQc=
 github.com/kdrag0n/go-xdr-macvirt v0.0.0-20230326123001-605de85becc7/go.mod h1:VwInghBSUyPtNBhl7o2oCUnxOCTGgySJnRTO1Kh7XuI=
-github.com/kevinburke/ssh_config v1.2.0 h1:x584FjTGwHzMwvHx18PXxbBVzfnxogHaAReU4gf13a4=
-github.com/kevinburke/ssh_config v1.2.0/go.mod h1:CT57kijsi8u/K/BOFA39wgDQJ9CxiF4nAY/ojJ6r6mM=
 github.com/mattn/go-colorable v0.1.2/go.mod h1:U0ppj6V5qS13XJ6of8GYAs25YV2eR4EVcfRqFIhoBtE=
 github.com/mattn/go-colorable v0.1.13 h1:fFA4WZxdEF4tXPZVKMLwD8oUnCTTo08duU7wxecdEvA=
 github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovkB8vQcUbaXHg=
@@ -51,6 +47,10 @@ github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a h1:eU8j/ClY2Ty3qd
 github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a/go.mod h1:v8eSC2SMp9/7FTKUncp7fH9IwPfw+ysMObcEz5FWheQ=
 github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc h1:feiXqI2b2JPrHpN/079PWov2fV8jFAi08egwqgYmBgE=
 github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc/go.mod h1:7kv47IZ5wy874g/w56YmuACXL+QvX3nM9THSAkaArx0=
+github.com/orbstack/fsnotify-macvirt v0.0.0-20230311084904-3a09ec342ff5 h1:q1BV46m1D2wCr7I6UmwR2HYmY+5g+uTZuYziQ95ixV4=
+github.com/orbstack/fsnotify-macvirt v0.0.0-20230311084904-3a09ec342ff5/go.mod h1:40Bi/Hjc2AVfZrqy+aj+yEI+/bRxZnMJyTJwOpGvigM=
+github.com/orbstack/ssh_config v0.0.0-20230729012050-8a1a6b8fcffd h1:d9ovvs3yRQzVq0r+zukWnSvLeuYFpkXY5tDbOfeUnME=
+github.com/orbstack/ssh_config v0.0.0-20230729012050-8a1a6b8fcffd/go.mod h1:q2RIzfka+BXARoNexmF9gkxEX7DmvbW9P4hIVx2Kg4M=
 github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5/go.mod h1:jvVRKCrJTQWu0XVbaOlby/2lO20uSCHEMzzplHXte1o=
 github.com/petermattis/goid v0.0.0-20230518223814-80aa455d8761 h1:W04oB3d0J01W5jgYRGKsV8LCM6g9EkCvPkZcmFuy0OE=
 github.com/petermattis/goid v0.0.0-20230518223814-80aa455d8761/go.mod h1:pxMtw7cyUw6B2bRH0ZBANSPg+AoSud1I1iyJHI69jH4=

@@ -16,6 +16,19 @@ struct VmConfig: Codable, Equatable {
     var networkBridge: Bool
     var mountHideShared: Bool
     var dataDir: String?
+    var dockerSetContext: Bool
+
+    // due to keyDecodingStrategy
+    enum CodingKeys: String, CodingKey {
+        case memoryMib = "memoryMib"
+        case cpu = "cpu"
+        case rosetta = "rosetta"
+        case networkProxy = "networkProxy"
+        case networkBridge = "networkBridge"
+        case mountHideShared = "mountHideShared"
+        case dataDir = "dataDir"
+        case dockerSetContext = "docker.setContext"
+    }
 }
 
 struct SetupInfo: Codable {

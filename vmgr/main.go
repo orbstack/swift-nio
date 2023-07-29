@@ -153,6 +153,11 @@ func streamObfAssetFile(name string) io.ReadCloser {
 }
 
 func setupDockerContext() error {
+	if !vmconfig.Get().DockerSetContext {
+		logrus.Debug("not setting Docker context")
+		return nil
+	}
+
 	// use our builtin docker client so it always works
 	dockerBin := conf.FindXbin("docker")
 

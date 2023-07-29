@@ -39,6 +39,7 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
     @State private var enableRosetta = true
     @State private var mountHideShared = false
     @State private var dataDir: String?
+    @State private var dockerSetContext = true
 
     var body: some View {
         Form {
@@ -164,12 +165,21 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                     Spacer()
                         .frame(height: 32)
 
+                    Toggle("Switch Docker context automatically", isOn: $dockerSetContext)
+                    .onChange(of: dockerSetContext) { newValue in
+                        setConfigKey(\.dockerSetContext, newValue)
+                    }
+
+                    Spacer()
+                    .frame(height: 32)
+
                     Button(action: {
                         Task {
                             await vmModel.tryRestart()
                         }
                     }) {
                         Text("Apply")
+                        // TODO: dockerSetContext doesn't require restart
                     }.disabled(vmModel.configAtLastStart == vmModel.config)
 
                 default:
@@ -221,5 +231,6 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
         enableRosetta = config.rosetta
         mountHideShared = config.mountHideShared
         dataDir = config.dataDir
+        dockerSetContext = config.dockerSetContext
     }
 }

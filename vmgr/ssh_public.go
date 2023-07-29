@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/alessio/shellescape"
+	"github.com/kevinburke/ssh_config"
 	"github.com/mikesmitty/edkey"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
@@ -93,24 +93,31 @@ Host %s
 		}
 	}
 
-	// add include if necessary
-	userConfigPath := conf.UserSshDir() + "/config"
-	sshConfig, err := os.ReadFile(userConfigPath)
+	// check for existing "orb" host
+	// incl. Include and empty Host blocks
+	oldHostname, err := ssh_config.GetStrict(appid.ShortAppName, "Hostname")
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			sshConfig = []byte{}
-		} else {
-			return err
-		}
+		logrus.WithError(err).Warn("failed to parse SSH config")
+		return err
 	}
+	logrus.WithField("oldHostname", oldHostname).Debug("oldHostname")
+	fmt.Println("parsed = ", oldHostname)
 
-	// rel ~/path
-	sshConfigIncludeLine1 := fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
-	// abs path
-	sshConfigIncludeLine2 := fmt.Sprintf("Include %s/config", conf.ExtraSshDir())
-	if !strings.Contains(string(sshConfig), sshConfigIncludeLine1) && !strings.Contains(string(sshConfig), sshConfigIncludeLine2) {
+	if oldHostname == "" {
+		// add include if necessary
+		userConfigPath := conf.UserSshDir() + "/config"
+		sshConfig, err := os.ReadFile(userConfigPath)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				sshConfig = []byte{}
+			} else {
+				return err
+			}
+		}
+
 		// prepend, or it doesn't work
-		sshConfig = append([]byte(sshConfigIncludeLine1+"\n\n"), sshConfig...)
+		includeLine := fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
+		sshConfig = append([]byte(includeLine+"\n\n"), sshConfig...)
 		err = os.WriteFile(userConfigPath, sshConfig, 0644)
 		// ignore permission errors and warn in case user has nix home-manager for .ssh
 		if err != nil {
