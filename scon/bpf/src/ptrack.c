@@ -108,6 +108,24 @@ static void send_notify() {
     }
 }
 
+static bool cancel_udp_notify(struct fwd_meta *meta, void *ctx) {
+    if (meta->udp_notify_pending) {
+        __u64 cookie = bpf_get_socket_cookie(ctx);
+        // workaround for kernel bug: cancel timer first, then delete, to avoid deadlock
+        // between timer_cb deleting self from map, and another thread deleting timer from map and waiting for cancel
+        struct udp_meta *udp = bpf_map_lookup_elem(&udp_meta_map, &cookie);
+        if (udp != NULL) {
+            // WA for deadlock: cancel while not under map lock
+            bpf_timer_cancel(&udp->notify_timer);
+        }
+        bpf_map_delete_elem(&udp_meta_map, &cookie);
+        meta->udp_notify_pending = false;
+        return true; // canceled
+    }
+
+    return false;
+}
+
 SEC("cgroup/sock_release")
 int ptrack_sock_release(struct bpf_sock *sk) {
     // only intended netns
@@ -123,10 +141,7 @@ int ptrack_sock_release(struct bpf_sock *sk) {
     }
 
     bpf_printk("sock_release");
-    if (meta->udp_notify_pending) {
-        __u64 cookie = bpf_get_socket_cookie(sk);
-        bpf_map_delete_elem(&udp_meta_map, &cookie);
-    }
+    cancel_udp_notify(meta, sk);
     send_notify();
 
     return VERDICT_PROCEED;
@@ -196,15 +211,10 @@ static int recvmsg_common(struct bpf_sock_addr *ctx) {
     }
 
     // if connect() called as client socket, sk storage will already be deleted
-    if (meta->udp_notify_pending) {
-        bpf_printk("recvmsg: first udp notify");
-        __u64 cookie = bpf_get_socket_cookie(ctx);
-        int ret = bpf_map_delete_elem(&udp_meta_map, &cookie);
-        if (ret == 0) {
-            // if delete failed, timer already fired, so no need to notify again
-            send_notify();
-        }
-        meta->udp_notify_pending = false;
+    if (cancel_udp_notify(meta, ctx)) {
+        bpf_printk("recvmsg: first udp notify (is server)");
+        // if delete failed, timer already fired, so no need to notify again
+        send_notify();
     }
 
     return VERDICT_PROCEED;
@@ -218,11 +228,8 @@ static int sendmsg_common(struct bpf_sock_addr *ctx) {
 
     // if sendmsg() called before first recvmsg(), then this is probably a client socket, not server
     // leave the sk storage. this could still be a server socket if this isn't the first sendmsg
-    if (meta->udp_notify_pending) {
-        bpf_printk("sendmsg: clear pending");
-        __u64 cookie = bpf_get_socket_cookie(ctx);
-        bpf_map_delete_elem(&udp_meta_map, &cookie);
-        meta->udp_notify_pending = false;
+    if (cancel_udp_notify(meta, ctx)) {
+        bpf_printk("sendmsg: clear pending (is client)");
     }
 
     return VERDICT_PROCEED;
@@ -237,11 +244,7 @@ static bool connect_common(struct bpf_sock_addr *ctx) {
     }
 
     // delete timer
-    if (meta->udp_notify_pending) {
-        __u64 cookie = bpf_get_socket_cookie(ctx);
-        bpf_map_delete_elem(&udp_meta_map, &cookie);
-        // no need to set udp_notify_pending - it's being deleted
-    }
+    cancel_udp_notify(meta, ctx);
 
     bpf_sk_storage_delete(&sk_meta_map, ctx->sk);
     return true;
