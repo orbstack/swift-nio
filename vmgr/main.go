@@ -34,6 +34,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/util"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
@@ -344,7 +345,11 @@ func flushDisk() error {
 func ensureDataLock() error {
 	dataImg, err := os.OpenFile(conf.DataImage(), os.O_RDWR, 0644)
 	if err != nil {
-		return fmt.Errorf("open: %w", err)
+		if errors.Is(err, os.ErrPermission) {
+			return fmt.Errorf("%s. (%w)", `Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/.orbstack/data"`, err)
+		} else {
+			return err
+		}
 	}
 	defer dataImg.Close()
 
@@ -395,9 +400,12 @@ func runVmManager() {
 			panic(err)
 		}
 	}()
+	// recover from fatal-log panic:
+	// before sentry, so we don't report dummy CLI panic error to sentry
+	defer errorx.RecoverCLI()
 
 	if !osver.IsAtLeast("v12.3") {
-		logrus.Fatal("macOS too old - min 12.3")
+		errorx.Fatalf("macOS too old - min 12.3")
 	}
 
 	// done signal for shutdown process
@@ -420,7 +428,7 @@ func runVmManager() {
 
 	// ensure it's not running
 	if vmclient.IsRunning() {
-		logrus.Fatal("vmgr is already running (socket)")
+		errorx.Fatalf("vmgr is already running (socket)")
 	}
 
 	// take the lock
@@ -432,12 +440,12 @@ func runVmManager() {
 			return struct{}{}, flock.WaitLock(lockFile)
 		}, handoffWaitLockTimeout)
 		if err != nil {
-			logrus.Fatal("vmgr is already running (wait lock): ", err)
+			errorx.Fatalf("vmgr is already running (wait lock): %w", err)
 		}
 	} else {
 		err = flock.Lock(lockFile)
 		if err != nil {
-			logrus.Fatal("vmgr is already running (lock): ", err)
+			errorx.Fatalf("vmgr is already running (lock): %w", err)
 		}
 	}
 	// for max safety, we never release flock. it'll be released on process exit
@@ -473,8 +481,7 @@ func runVmManager() {
 	// killswitch
 	err = killswitch.Check()
 	if err != nil {
-		logrus.Fatal(err.Error())
-		panic(err)
+		errorx.Fatalf("%w", err)
 	}
 	stopCh := make(chan StopRequest, 1)
 	killswitch.Watch(func(err error) {
@@ -485,7 +492,7 @@ func runVmManager() {
 	// Rosetta check
 	err = verifyRosetta()
 	if err != nil {
-		logrus.Fatal(err)
+		errorx.Fatalf("%w", err)
 	}
 
 	// state migration
@@ -510,7 +517,9 @@ func runVmManager() {
 	// wait for data.img flock
 	logrus.Debug("waiting for data lock")
 	err = ensureDataLock()
-	check(err)
+	if err != nil {
+		errorx.Fatalf("failed to lock data: %w", err)
+	}
 
 	logrus.Info("configuring VM")
 	vnetwork, vm := CreateVm(&VmParams{
@@ -685,7 +694,7 @@ func runVmManager() {
 		spec := vnet.ForwardSpec{Host: fromSpec, Guest: toSpec}
 		_, err := vnetwork.StartForward(spec)
 		if err != nil {
-			logrus.WithError(err).WithField("spec", spec).Fatal("host forward failed")
+			errorx.Fatalf("host forward failed: spec=%v err=%w", spec, err)
 		}
 	}
 	for fromSpec, toSpec := range optionalForwards {
@@ -705,7 +714,7 @@ func runVmManager() {
 	}
 	nfsFwd, err := vnetwork.StartForward(nfsFwdSpec)
 	if err != nil {
-		logrus.WithError(err).Fatal("host forward failed")
+		errorx.Fatalf("host forward failed: ", err)
 	}
 	nfsPort := nfsFwd.(*tcpfwd.StreamVsockHostForward).TcpPort()
 	hcServer.NfsPort = nfsPort

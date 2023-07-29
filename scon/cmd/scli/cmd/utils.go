@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrCLIPanic = errors.New("cli panic")
+	errCLIPanic = errors.New("cli panic")
 )
 
 func check(err error) {
@@ -23,13 +23,13 @@ func checkCLI(err error) {
 		red(os.Stderr, err)
 
 		// may need to do cleanup, so don't exit
-		panic(ErrCLIPanic)
+		panic(errCLIPanic)
 	}
 }
 
 func RecoverCLI() {
 	if r := recover(); r != nil {
-		if r == ErrCLIPanic {
+		if r == errCLIPanic {
 			// exit after panic propagation
 			os.Exit(1)
 		} else {

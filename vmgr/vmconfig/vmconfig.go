@@ -13,7 +13,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/mem"
 	"github.com/orbstack/macvirt/vmgr/syncx"
-	"github.com/sirupsen/logrus"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 )
 
 const (
@@ -132,7 +132,7 @@ func Get() *VmConfig {
 
 	err = config.Validate()
 	if err != nil {
-		logrus.WithError(err).Fatal("Invalid config")
+		errorx.Fatalf("Invalid config: %w", err)
 	}
 
 	globalConfig = config
