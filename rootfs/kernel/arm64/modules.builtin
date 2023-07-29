@@ -49,7 +49,6 @@ kernel/fs/autofs/autofs4.ko
 kernel/fs/fuse/fuse.ko
 kernel/fs/fuse/cuse.ko
 kernel/fs/fuse/virtiofs.ko
-kernel/fs/fuse/orbfs-cust.ko
 kernel/fs/overlayfs/overlay.ko
 kernel/fs/udf/udf.ko
 kernel/fs/xfs/xfs.ko
