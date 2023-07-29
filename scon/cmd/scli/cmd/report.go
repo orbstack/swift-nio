@@ -29,6 +29,9 @@ var reportCmd = &cobra.Command{
 	Long: `Gather OrbStack and system information for reporting bugs.
 
 Issue tracker: https://github.com/orbstack/orbstack/issues
+Privacy policy (including what info is collected): https://docs.orbstack.dev/legal/privacy#diagnostic-reports
+
+You can review the generated report at ~/.orbstack/diag.
 `,
 	Example: "  " + appid.ShortCmd + " report",
 	Args:    cobra.ArbitraryArgs,
@@ -68,6 +71,7 @@ Issue tracker: https://github.com/orbstack/orbstack/issues
 		writer = os.Stdout
 
 		if !flagQuiet {
+			fmt.Fprintln(writer, "(To inspect the generated report, check ~/.orbstack/diag)")
 			fmt.Fprintln(writer, "")
 			fmt.Fprintln(writer, "---------------- [ cut here ] ----------------")
 			fmt.Fprintln(writer, "")

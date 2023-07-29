@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -26,6 +27,52 @@ const (
 type ReportPackage struct {
 	Name string
 	Data []byte
+}
+
+func addSconParts(r *ReportWriter) {
+	// this part may panic if VM is locked up (panic: timed out waiting for services)
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic: %v", r)
+			logrus.WithError(err).Error("failed to get scon info")
+		}
+	}()
+
+	// try to get machine logs from vmgr:
+	// list all machines, then get all logs for each machine
+	containers, err := scli.Client().ListContainers()
+	if err != nil {
+		logrus.WithError(err).Error("failed to list containers")
+	} else {
+		// add container list
+		err = r.AddFileJson("machines.json", containers)
+		if err != nil {
+			logrus.WithError(err).Error("failed to add machines.json")
+		}
+	}
+
+	// add machine logs
+	for _, c := range containers {
+		logTxt, err := scli.Client().ContainerGetLogs(&c, types.LogConsole)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to get logs for %s", c.Name)
+		} else {
+			err = r.addFileBytes(fmt.Sprintf("machine_logs/%s.%s.console.log", c.Name, c.ID), []byte(logTxt))
+			if err != nil {
+				logrus.WithError(err).Errorf("failed to add logs for %s", c.Name)
+			}
+		}
+
+		logTxt, err = scli.Client().ContainerGetLogs(&c, types.LogRuntime)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to get logs for %s", c.Name)
+		} else {
+			err = r.addFileBytes(fmt.Sprintf("machine_logs/%s.%s.runtime.log", c.Name, c.ID), []byte(logTxt))
+			if err != nil {
+				logrus.WithError(err).Errorf("failed to add logs for %s", c.Name)
+			}
+		}
+	}
 }
 
 func BuildZip(infoTxt []byte) (*ReportPackage, error) {
@@ -55,41 +102,7 @@ func BuildZip(infoTxt []byte) (*ReportPackage, error) {
 	}
 
 	if vmclient.IsRunning() {
-		// try to get machine logs from vmgr:
-		// list all machines, then get all logs for each machine
-		containers, err := scli.Client().ListContainers()
-		if err != nil {
-			logrus.WithError(err).Error("failed to list containers")
-		} else {
-			// add container list
-			err = r.AddFileJson("machines.json", containers)
-			if err != nil {
-				logrus.WithError(err).Error("failed to add machines.json")
-			}
-		}
-
-		// add machine logs
-		for _, c := range containers {
-			logTxt, err := scli.Client().ContainerGetLogs(&c, types.LogConsole)
-			if err != nil {
-				logrus.WithError(err).Errorf("failed to get logs for %s", c.Name)
-			} else {
-				err = r.addFileBytes(fmt.Sprintf("machine_logs/%s.%s.console.log", c.Name, c.ID), []byte(logTxt))
-				if err != nil {
-					logrus.WithError(err).Errorf("failed to add logs for %s", c.Name)
-				}
-			}
-
-			logTxt, err = scli.Client().ContainerGetLogs(&c, types.LogRuntime)
-			if err != nil {
-				logrus.WithError(err).Errorf("failed to get logs for %s", c.Name)
-			} else {
-				err = r.addFileBytes(fmt.Sprintf("machine_logs/%s.%s.runtime.log", c.Name, c.ID), []byte(logTxt))
-				if err != nil {
-					logrus.WithError(err).Errorf("failed to add logs for %s", c.Name)
-				}
-			}
-		}
+		addSconParts(r)
 	}
 
 	// add netstat -rn
@@ -185,6 +198,22 @@ func (r *ReportPackage) Upload() (string, error) {
 
 func BuildAndUpload(infoTxt []byte) (string, error) {
 	pkg, err := BuildZip(infoTxt)
+	if err != nil {
+		return "", err
+	}
+
+	// clear saved dir
+	err = os.RemoveAll(conf.DiagDir())
+	if err != nil {
+		return "", err
+	}
+
+	// save to disk
+	err = os.MkdirAll(conf.DiagDir(), 0755)
+	if err != nil {
+		return "", err
+	}
+	err = os.WriteFile(conf.DiagDir()+"/"+pkg.Name, pkg.Data, 0644)
 	if err != nil {
 		return "", err
 	}

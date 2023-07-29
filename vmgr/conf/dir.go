@@ -39,6 +39,10 @@ func LogDir() string {
 	return ensureDir(AppDir() + "/log")
 }
 
+func DiagDir() string {
+	return ensureDir(AppDir() + "/diag")
+}
+
 func DataDir() string {
 	dir := vmconfig.Get().DataDir
 	if dir != "" {
