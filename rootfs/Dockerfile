@@ -238,6 +238,7 @@ make -j\$(nproc) ARFLAGS="rc" qemu-arm
 
 mkdir /out
 cp /work/qemu/build/qemu-x86_64 /work/qemu/build/qemu-i386 /work/qemu/build/qemu-arm /out/
+strip /out/*
 EOT
 
 
