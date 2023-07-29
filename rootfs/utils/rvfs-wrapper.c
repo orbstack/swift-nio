@@ -71,7 +71,8 @@ static bool argv_contains(char **argv, char *what) {
 
 static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, struct elf_info *elf_info) {
     // if running "apk", use qemu to avoid futex bug
-    if (strcmp(exe_name, "apk") == 0) {
+    // milvusdb assumes AVX. QEMU 7.2+ supports AVX, but not Rosetta. https://github.com/orbstack/orbstack/issues/482
+    if (strcmp(exe_name, "apk") == 0 || strcmp(exe_name, "milvus") == 0) {
         if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
         return EMU_QEMU;
     }
