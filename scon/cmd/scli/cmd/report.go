@@ -66,12 +66,12 @@ You can review the generated report at ~/.orbstack/diag.
 		} else {
 			fmt.Fprintf(writer, "Full report: %s\n", downloadURL)
 		}
+		fmt.Fprintln(writer, "<!-- (To review the report, check ~/.orbstack/diag) -->")
 
 		// stop writing to buffer after this point
 		writer = os.Stdout
 
 		if !flagQuiet {
-			fmt.Fprintln(writer, "(To inspect the generated report, check ~/.orbstack/diag)")
 			fmt.Fprintln(writer, "")
 			fmt.Fprintln(writer, "---------------- [ cut here ] ----------------")
 			fmt.Fprintln(writer, "")
