@@ -101,7 +101,6 @@ Host %s
 		return err
 	}
 	logrus.WithField("oldHostname", oldHostname).Debug("oldHostname")
-	fmt.Println("parsed = ", oldHostname)
 
 	if oldHostname == "" {
 		// add include if necessary
