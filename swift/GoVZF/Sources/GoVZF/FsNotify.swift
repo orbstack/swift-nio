@@ -22,7 +22,7 @@ private let krpcMsgNotifyproxyInject: UInt32 = 1
 
 // up to 1 sec is ok because that's virtiofs entry_valid
 // to be safe, use 500 ms
-private let dirChangeDebounce: Double = 0
+private let dirChangeDebounce: Double = 0.5
 // for explicit Docker bind mount fsnotify, send events faster
 // this also acts as a faster cache invalidation in such cases
 private let fileWatchDebounce: Double = 0.1
