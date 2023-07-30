@@ -180,7 +180,9 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                     }) {
                         Text("Apply")
                         // TODO: dockerSetContext doesn't require restart
-                    }.disabled(vmModel.configAtLastStart == vmModel.config)
+                    }
+                    .disabled(vmModel.configAtLastStart == vmModel.config)
+                    .keyboardShortcut("s")
 
                 default:
                     ProgressView()

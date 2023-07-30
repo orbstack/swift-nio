@@ -50,7 +50,9 @@ struct DockerSettingsView: View {
                                 await vmModel.tryRestartContainer(dockerRecord)
                             }
                         }
-                    }.disabled(!hasChanges())
+                    }
+                    .disabled(!hasChanges())
+                    .keyboardShortcut("s")
                 }
             }
         }
