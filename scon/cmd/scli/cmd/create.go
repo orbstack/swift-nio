@@ -36,7 +36,7 @@ var createCmd = &cobra.Command{
 Version is optional; the latest stable version will be used if not specified.
 To remove a machine, use "` + appid.ShortCmd + ` delete".
 
-A matching Linux user will be created for your macOS user. Pass "--set-password" to set a password for this Linux user, as well as the root user.
+A Linux user will be created to match your macOS user. Use "--set-password" to set a password for both this user and root.
 
 Supported distros: ` + strings.Join(images.Distros(), "  ") + `
 Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
