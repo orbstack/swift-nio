@@ -6,7 +6,7 @@ import Foundation
 import SwiftUI
 
 // min 2 chars, disallows hidden files (^.)
-private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$")
+private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9.-]+$")
 // .orb.internal domains, plus "default" special ssh name
 private let containerNameBlacklist = ["default", "vm", "host", "services", "gateway"]
 

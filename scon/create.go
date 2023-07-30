@@ -21,7 +21,8 @@ const (
 
 var (
 	// min 2 chars, disallows hidden files (^.)
-	containerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`)
+	// hostname rules: can't contain _, can't start with -
+	containerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.-]+$`)
 	// .orb.internal domains, plus "default" special ssh name
 	containerNameBlacklist = []string{"default", "vm", "host", "services", "gateway"}
 )

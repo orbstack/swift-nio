@@ -23,7 +23,7 @@ func init() {
 
 func testPrefix() string {
 	return onceTestPrefix.Do(func() string {
-		return fmt.Sprintf("itest_%d", rand.Uint64())
+		return fmt.Sprintf("itest-%d", rand.Uint64())
 	})
 }
 
@@ -72,7 +72,7 @@ func forEachDistroArchVer(t *testing.T, f func(distro, ver, arch, machineName st
 						t.Run(arch, func(t *testing.T) {
 							t.Parallel()
 
-							machineName := fmt.Sprintf("%s_%s_%s_%s", testPrefix(), distro, ver, arch)
+							machineName := fmt.Sprintf("%s-%s-%s-%s", testPrefix(), distro, ver, arch)
 							f(distro, ver, arch, machineName)
 						})
 					}
