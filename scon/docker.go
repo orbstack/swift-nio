@@ -119,17 +119,20 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	}
 	baseBuilderGC := map[string]any{
 		"enabled": true,
+		// no defaultKeepStorage. that's only for user default
 		// default policies are broken:
 		//   - durations are microsecs b/c it assumes seconds unit
 		//   - all policies after that are basically the same b/c keepBytes
 		// "until" = alias for deprecated "unused-for" (which makes more sense..)
 		"policy": []map[string]any{
 			// remove cache mounts after 10 days, unless it's really small
-			// default includes source.local but that's really small
+			// default includes source.local but that's negligible
 			// filters are OR, but until= is special and gets translated to KeepDuration
-			{"filter": []any{"until=240h" /*10d*/, "type=exec.cachemount"}, "keepStorage": "3GB"},
-			// remove unused cache after 45 days, unless it's really small
-			{"filter": []any{"until=1080h" /*45d*/}, "keepStorage": "3GB"},
+			{"filter": []any{"until=240h" /*10d*/, "type=exec.cachemount"}, "keepStorage": "5GB"},
+
+			// remove unused cache after 30 days (avoid size threshold for perf)
+			// this is kinda broken - it doesn't clear all that match, only some. need to re-trigger gc to make it go again
+			{"all": true, "filter": []any{"until=620h" /*30d*/}, "keepStorage": "0"},
 			// global limit = 13% of disk *available to linux*
 			{"all": true, "keepStorage": strconv.FormatUint(diskSize*13/100, 10)},
 		},
