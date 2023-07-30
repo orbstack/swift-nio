@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -72,7 +73,7 @@ func forEachDistroArchVer(t *testing.T, f func(distro, ver, arch, machineName st
 						t.Run(arch, func(t *testing.T) {
 							t.Parallel()
 
-							machineName := fmt.Sprintf("%s-%s-%s-%s", testPrefix(), distro, ver, arch)
+							machineName := fmt.Sprintf("%s-%s-%s-%s", testPrefix(), distro, strings.Replace(ver, ".", "d", -1), arch)
 							f(distro, ver, arch, machineName)
 						})
 					}
