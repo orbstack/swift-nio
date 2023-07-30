@@ -97,7 +97,7 @@ func (c *Client) newRequest(method, path string, body any) (*http.Request, error
 		} else {
 			b, err := json.Marshal(body)
 			if err != nil {
-				return nil, fmt.Errorf("encode body: %s", err)
+				return nil, fmt.Errorf("encode body: %w", err)
 			}
 			reader = bytes.NewReader(b)
 		}
@@ -113,7 +113,7 @@ func (c *Client) newRequest(method, path string, body any) (*http.Request, error
 
 	req, err := http.NewRequest(method, c.baseURL+path, reader)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %s", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -133,7 +133,7 @@ func (c *Client) Call(method, path string, body any, out any) error {
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("do request: %s", err)
+		return fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -144,13 +144,13 @@ func (c *Client) Call(method, path string, body any, out any) error {
 	if out != nil {
 		err = json.NewDecoder(resp.Body).Decode(out)
 		if err != nil {
-			return fmt.Errorf("decode resp: %s", err)
+			return fmt.Errorf("decode resp: %w", err)
 		}
 	} else {
 		// image pull doesn't work if we don't read the body
 		err = ReadStream(resp.Body)
 		if err != nil {
-			return fmt.Errorf("read resp: %s", err)
+			return fmt.Errorf("read resp: %w", err)
 		}
 	}
 
@@ -165,7 +165,7 @@ func (c *Client) CallDiscard(method, path string, body any) error {
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("do request: %s", err)
+		return fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -185,7 +185,7 @@ func (c *Client) StreamRead(method, path string, body any) (io.ReadCloser, error
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %s", err)
+		return nil, fmt.Errorf("do request: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -204,7 +204,7 @@ func (c *Client) StreamWrite(method, path string, body io.Reader) error {
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("do request: %s", err)
+		return fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
