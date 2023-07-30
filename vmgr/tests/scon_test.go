@@ -101,7 +101,7 @@ func TestSconCreate(t *testing.T) {
 		_, err := scli.Client().Create(types.CreateRequest{
 			Name: machineName,
 			Image: types.ImageSpec{
-				Distro:  distro,
+				Distro:  images.DistroToImage[distro],
 				Arch:    arch,
 				Version: ver,
 			},
