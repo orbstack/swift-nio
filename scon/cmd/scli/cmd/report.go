@@ -29,7 +29,7 @@ var reportCmd = &cobra.Command{
 	Long: `Gather OrbStack and system information for reporting bugs.
 
 Issue tracker: https://github.com/orbstack/orbstack/issues
-Privacy policy (including what info is collected): https://docs.orbstack.dev/legal/privacy#diagnostic-reports
+Privacy policy (including what info is collected): https://orbstack.dev/privacy#diagnostic-reports
 
 You can review the generated report at ~/.orbstack/diag.
 `,
