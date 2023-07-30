@@ -41,8 +41,8 @@ A matching Linux user will be created for your macOS user. Pass "--set-password"
 Supported distros: ` + strings.Join(images.Distros(), "  ") + `
 Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 `,
-	Example: `  orb create ubuntu:kinetic -a arm64
-  orb create fedora -a amd64`,
+	Example: `  orb create -a arm64 ubuntu:kinetic
+  orb create -a amd64 fedora foo`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// validate arch
