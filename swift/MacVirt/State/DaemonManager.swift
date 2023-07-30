@@ -9,7 +9,7 @@ private let stopExitCodeGoPanic = 2
 private let stopExitCodeKernelPanic = 101
 private let stopExitCodeDrm = 102
 
-enum ExitReason: CustomStringConvertible {
+enum ExitReason: Equatable, CustomStringConvertible {
     case status(Int)
     case signal(Int)
 

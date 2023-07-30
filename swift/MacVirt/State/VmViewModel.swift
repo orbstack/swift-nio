@@ -171,8 +171,18 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause.localizedDescription
         case .spawnExit(_, let output):
             return output
-        case .vmgrExit(_, let output):
-            return output
+        case .vmgrExit(let reason, let output):
+            if reason == .drm {
+                return """
+                       To fix this:
+                           • Check your internet connection
+                           • Make sure api-license.orbstack.dev isn't blocked
+                           • Check your proxy in Settings > Network
+                           • Make sure your date and time are correct
+                       """
+            } else {
+                return output
+            }
 
         default:
             if let cause {
@@ -1231,6 +1241,7 @@ class VmViewModel: ObservableObject {
         } catch {
             logOutput = "Failed to read logs: \(error)"
         }
+
         return .vmgrExit(reason: reason, logOutput: logOutput)
     }
 
