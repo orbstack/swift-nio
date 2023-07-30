@@ -79,6 +79,51 @@ kretprobe:fuse_simple_request
     delete(@opc[tid]);
 }
 
+kprobe:fuse_simple_background
+{
+    $args = (struct fuse_args *)arg1;
+
+    @start[tid] = nsecs;
+    @opc[tid] = $args->opcode;
+}
+
+kretprobe:fuse_simple_background
+{
+    $opcode = @opc[tid];
+    $opc_str = @opcodes[$opcode];
+
+    $now = nsecs;
+    $usec = ($now - @start[tid]) / 1000;
+
+    @stats_bg[$opc_str] = stats($usec);
+    @time_bg[$opc_str] = hist($usec);
+    @avg_all_bg = avg($usec);
+
+    if ((int32)retval < 0) {
+        @errors[retval] = count();
+    }
+
+    delete(@start[tid]);
+    delete(@opc[tid]);
+}
+
+kprobe:fuse_queue_forget
+{
+    @start[tid] = nsecs;
+}
+
+kretprobe:fuse_queue_forget
+{
+    $now = nsecs;
+    $usec = ($now - @start[tid]) / 1000;
+
+    @stats_bg["forget"] = stats($usec);
+    @time_bg["forget"] = hist($usec);
+    @avg_all_bg = avg($usec);
+
+    delete(@start[tid]);
+}
+
 END
 {
     clear(@start);
