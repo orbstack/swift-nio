@@ -185,7 +185,8 @@ async fn main_wrapped() -> Result<(), Box<dyn Error>> {
         loop {
             sigusr2_stream.recv().await;
             println!("  -  Received poweroff request");
-            action_tx_clone.send(SystemAction::Shutdown).await.unwrap();
+            // ignore send error: already shutting down = action channel closed
+            let _ = action_tx_clone.send(SystemAction::Shutdown).await;
         }
     });
 
