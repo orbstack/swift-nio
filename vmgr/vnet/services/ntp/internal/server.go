@@ -193,7 +193,7 @@ func (s *Server) Respond(r *ServerReq) {
 
 	pkt, err := resp.MarshalBinary()
 	if err != nil {
-		logrus.Error("create NTP packet failed: %v", err)
+		logrus.Errorf("create NTP packet failed: %v", err)
 		return
 	}
 

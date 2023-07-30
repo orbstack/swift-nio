@@ -714,7 +714,7 @@ func runVmManager() {
 	}
 	nfsFwd, err := vnetwork.StartForward(nfsFwdSpec)
 	if err != nil {
-		errorx.Fatalf("host forward failed: ", err)
+		errorx.Fatalf("host forward failed: %w", err)
 	}
 	nfsPort := nfsFwd.(*tcpfwd.StreamVsockHostForward).TcpPort()
 	hcServer.NfsPort = nfsPort
