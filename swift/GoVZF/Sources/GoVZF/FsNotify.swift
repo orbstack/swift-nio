@@ -16,6 +16,7 @@ private let npFlagModify: UInt64 = 1 << 1
 private let npFlagStatAttr: UInt64 = 1 << 2
 private let npFlagRemove: UInt64 = 1 << 3
 private let npFlagDirChange: UInt64 = 1 << 4
+private let npFlagRename: UInt64 = 1 << 5
 
 private let krpcMsgNotifyproxyInject: UInt32 = 1
 
@@ -198,6 +199,10 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
         if fseFlags & kFSEventStreamEventFlagItemCreated != 0 {
             npFlags |= npFlagCreate
         }
+        if fseFlags & kFSEventStreamEventFlagItemRenamed != 0 {
+            // mainly important for atomic save
+            npFlags |= npFlagRename
+        }
         if fseFlags & kFSEventStreamEventFlagItemModified != 0 {
             npFlags |= npFlagModify
         }
@@ -205,6 +210,11 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
         // ignore ChangeOwner, virtiofs doesn't use real owner
         // ignore XattrMod, linux usually doesn't care about that
         if fseFlags & kFSEventStreamEventFlagItemInodeMetaMod != 0 {
+            // note: a minor behavior difference:
+            // on Linux, open+write+close sends OPEN, MODIFY, CLOSE_WRITE
+            // on macOS, open+write+close sends Modified, InodeMetaMod
+            //    -> which we translate as: MODIFY, ATTRIB, CLOSE_WRITE
+            // necessary, as we can't tell InodeMetaMod+Modified apart frm other attribute changes
             npFlags |= npFlagStatAttr
         }
 
@@ -214,6 +224,8 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
         if isDirChange {
             npFlags |= npFlagDirChange
         }
+
+        // TODO filter out zero flags
 
         var desc = UInt64(npFlags) | (UInt64(path.utf8.count) << 32)
         memcpy(buf.advanced(by: offset), &desc, 8)
