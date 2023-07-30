@@ -6,7 +6,7 @@ func (c *Container) Restart() error {
 	logrus.WithField("container", c.Name).Info("restarting container")
 
 	// stop
-	err := c.Stop()
+	err := c.Stop(StopOptions{})
 	if err != nil {
 		return err
 	}

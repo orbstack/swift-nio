@@ -122,7 +122,9 @@ func (s *SconServer) ContainerStop(ctx context.Context, record types.ContainerRe
 		return err
 	}
 
-	return c.Stop()
+	return c.Stop(StopOptions{
+		Force: false,
+	})
 }
 
 func (s *SconServer) ContainerRestart(ctx context.Context, record types.ContainerRecord) error {

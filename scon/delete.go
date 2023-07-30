@@ -17,7 +17,7 @@ func deleteRootfs(rootfs string) error {
 	logrus.WithField("rootfs", rootfs).Debug("deleting rootfs")
 
 	// list and delete btrfs subvolumes first
-	// lxd can leave read-only subvols: 
+	// lxd can leave read-only subvols:
 	rawList, err := util.WithDefaultOom2(func() (string, error) {
 		// -o excludes volumes after it
 		return util.RunWithOutput("btrfs", "subvolume", "list", rootfs)
@@ -83,7 +83,9 @@ func (c *Container) deleteDockerLocked() error {
 		return ErrStopping
 	}
 
-	_, err := c.stopLocked(false /* internalStop */)
+	_, err := c.stopLocked(StopOptions{
+		Force: true, // don't care about data
+	})
 	if err != nil {
 		return err
 	}
@@ -120,7 +122,9 @@ func (c *Container) deleteLocked(isInternal bool) error {
 		return ErrStopping
 	}
 
-	_, err := c.stopLocked(false /* internalStop */)
+	_, err := c.stopLocked(StopOptions{
+		Force: true, // don't care about data
+	})
 	if err != nil {
 		return err
 	}

@@ -18,13 +18,18 @@ var (
 	ErrTimeout = errors.New("timeout")
 )
 
-func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState, err error) {
+type StopOptions struct {
+	Force    bool
+	Internal bool
+}
+
+func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState, err error) {
 	oldState = c.State()
 	if !c.runningLocked() {
 		return oldState, nil
 	}
 
-	if !internalStop && c.manager.stopping {
+	if !opts.Internal && c.manager.stopping {
 		return oldState, ErrStopping
 	}
 
@@ -57,9 +62,11 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 	}
 
 	// graceful attempt first; ignore failure
-	err = c.lxc.Shutdown(gracefulShutdownTimeout)
-	if err != nil {
-		logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
+	if !opts.Force {
+		err = c.lxc.Shutdown(gracefulShutdownTimeout)
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
+		}
 	}
 
 	if c.lxc.Running() {
@@ -82,11 +89,11 @@ func (c *Container) stopLocked(internalStop bool) (oldState types.ContainerState
 	return oldState, nil
 }
 
-func (c *Container) Stop() error {
+func (c *Container) Stop(opts StopOptions) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, err := c.stopLocked(false /* internalStop */)
+	_, err := c.stopLocked(opts)
 	return err
 }
 
@@ -94,7 +101,9 @@ func (c *Container) stopForManagerShutdown() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	_, err := c.stopLocked(true /* internalStop */)
+	_, err := c.stopLocked(StopOptions{
+		Internal: true,
+	})
 	return err
 }
 
