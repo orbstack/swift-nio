@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -582,7 +583,7 @@ func (c *Container) prepareFsStart() error {
 		return err
 	}
 	err = fs.Symlink("/opt/orbstack-guest/lib/modules/current", "/lib/modules/"+c.manager.kernelVersion)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
 

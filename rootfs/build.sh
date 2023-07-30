@@ -48,6 +48,7 @@ if [[ "$(uname -m)" == "aarch64" ]] || [[ "$(uname -m)" == "arm64" ]]; then
 fi
 
 # build packer and images
+# TODO: migrate to buildx bake
 docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH --build-arg HOST_ARCH=$HOST_ARCH \
     --platform "$platform" \
     -f Dockerfile --target images .. -t orb/images:$BTYPE
@@ -58,6 +59,7 @@ trap "docker rm $CID" EXIT
 docker cp -q $CID:/images out
 
 # data and swap images
+# can't be part of build due to privileged requirement for mounting images
 docker run -i --rm --privileged --platform "$platform" -v $PWD/out:/out -v /dev:/hostdev orb/images:$BTYPE < make-preseed.sh
 
 copy_file() {

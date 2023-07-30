@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -106,12 +107,32 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 }
 
 func (h *DockerHooks) PreStart(c *Container) error {
+	// get disk size for calculating GC policy
+	diskSize, err := util.GetDiskSizeBytes(c.manager.dataDir) // rootfs is on overlayfs
+	if err != nil {
+		return fmt.Errorf("get disk size: %w", err)
+	}
+
 	// generate base docker daemon config
 	baseFeatures := map[string]any{
 		"buildkit": true,
 	}
 	baseBuilderGC := map[string]any{
 		"enabled": true,
+		// default policies are broken:
+		//   - durations are microsecs b/c it assumes seconds unit
+		//   - all policies after that are basically the same b/c keepBytes
+		// "until" = alias for deprecated "unused-for" (which makes more sense..)
+		"policy": []map[string]any{
+			// remove cache mounts after 10 days, unless it's really small
+			// default includes source.local but that's really small
+			// filters are OR, but until= is special and gets translated to KeepDuration
+			{"filter": []any{"until=240h" /*10d*/, "type=exec.cachemount"}, "keepStorage": "3GB"},
+			// remove unused cache after 45 days, unless it's really small
+			{"filter": []any{"until=1080h" /*45d*/}, "keepStorage": "3GB"},
+			// global limit = 13% of disk *available to linux*
+			{"all": true, "keepStorage": strconv.FormatUint(diskSize*13/100, 10)},
+		},
 	}
 	baseBuilder := map[string]any{
 		"gc": baseBuilderGC,
