@@ -1,0 +1,147 @@
+BEGIN
+{
+    // from the enum above
+    @opcodes[1] = "lookup";
+    @opcodes[2] = "forget";
+    @opcodes[3] = "getattr";
+    @opcodes[4] = "setattr";
+    @opcodes[5] = "readlink";
+    @opcodes[6] = "symlink";
+    @opcodes[8] = "mknod";
+    @opcodes[9] = "mkdir";
+    @opcodes[10] = "unlink";
+    @opcodes[11] = "rmdir";
+    @opcodes[12] = "rename";
+    @opcodes[13] = "link";
+    @opcodes[14] = "open";
+    @opcodes[15] = "read";
+    @opcodes[16] = "write";
+    @opcodes[17] = "statfs";
+    @opcodes[18] = "release";
+    @opcodes[20] = "fsync";
+    @opcodes[21] = "setxattr";
+    @opcodes[22] = "getxattr";
+    @opcodes[23] = "listxattr";
+    @opcodes[24] = "removexattr";
+    @opcodes[25] = "flush";
+    @opcodes[26] = "init";
+    @opcodes[27] = "opendir";
+    @opcodes[28] = "readdir";
+    @opcodes[29] = "releasedir";
+    @opcodes[30] = "fsyncdir";
+    @opcodes[31] = "getlk";
+    @opcodes[32] = "setlk";
+    @opcodes[33] = "setlkw";
+    @opcodes[34] = "access";
+    @opcodes[35] = "create";
+    @opcodes[36] = "interrupt";
+    @opcodes[37] = "bmap";
+    @opcodes[38] = "destroy";
+    @opcodes[39] = "ioctl";
+    @opcodes[40] = "poll";
+    @opcodes[41] = "notify_reply";
+    @opcodes[42] = "batch_forget";
+    @opcodes[43] = "fallocate";
+    @opcodes[44] = "readdirplus";
+    @opcodes[45] = "rename2";
+    @opcodes[46] = "lseek";
+    @opcodes[47] = "copy_file_range";
+    @opcodes[48] = "setupmapping";
+    @opcodes[49] = "removemapping";
+    @opcodes[50] = "syncfs";
+    @opcodes[51] = "tmpfile";
+}
+
+kprobe:queue_request_and_unlock
+{
+    $req = (struct fuse_req *)arg1;
+    $unique = $req->in.h.unique;
+
+    printf("%s\t\t%s\n%s\n", @opcodes[$req->in.h.opcode], comm, kstack());
+}
+
+/*
+kprobe:virtio_fs_request_complete
+{
+    $req = (struct fuse_req *)arg0;
+    printf("%s\t\t%s\n", @opcodes[$req->in.h.opcode], comm);
+}
+*/
+
+kprobe:fuse_queue_forget
+{
+    printf("forget\t\t%s\n%s\n", comm, kstack());
+}
+
+kprobe:fuse_simple_background
+{
+    @start[tid] = nsecs;
+    //printf("qbg\t\t%s\n", comm);
+}
+
+kretprobe:fuse_simple_background
+/@start[tid]/
+{
+    printf("qbg\t\t%s = %d\n", comm, nsecs - @start[tid]);
+    delete(@start[tid]);
+
+}
+
+kprobe:__d_lookup
+{
+    $parent = (struct dentry *)arg0;
+    $name = (struct qstr *)arg1;
+    printf("dcache lookup: %s / %s\n", str($parent->d_name.name), str($name->name));
+}
+
+kretprobe:__d_lookup
+{
+    printf("dcache lookup => %s\n", retval ? "OK" : "not found");
+}
+
+kprobe:__lookup_slow
+{
+    $parent = (struct dentry *)arg1;
+    $name = (struct qstr *)arg0;
+    if (!strcontains(comm, "systemd")) {
+        printf("dcache lookup(slow): %s / %s\n", str($parent->d_name.name), str($name->name));
+    }
+}
+
+kretprobe:__lookup_slow
+{
+    if (!strcontains(comm, "systemd")) {
+        if (retval != 0) {
+            $dentry = (struct dentry *)retval;
+            $inode = $dentry->d_inode;
+            printf("dcache lookup(slow) => %s (%d)\n", str($dentry->d_name.name), $inode->i_ino);
+        } else {
+            printf("dcache lookup(slow) => not found\n");
+        }
+    }
+}
+
+kprobe:___d_drop
+{
+    $dentry = (struct dentry *)arg0;
+    $parent = $dentry->d_parent;
+
+    if (!strcontains(comm, "systemd")) {
+    printf("dcache DROP: %s / %s\n", str($parent->d_name.name), str($dentry->d_name.name));
+    }
+}
+
+kprobe:__dentry_kill
+{
+    $dentry = (struct dentry *)arg0;
+    $inode = $dentry->d_inode;
+
+    if (!strcontains(comm, "systemd")) {
+    printf("dcache -kill-: %s (%d)\n", str($dentry->d_name.name), $inode->i_ino);
+    }
+}
+
+END
+{
+    clear(@opcodes);
+}
