@@ -31,7 +31,7 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// confirm
-		if !flagForce {
+		if !flagForce && (flagAll || len(args) > 0) {
 			red := color.New(color.FgRed)
 			if flagAll {
 				red.Fprintln(os.Stderr, "WARNING: This will PERMANENTLY DELETE ALL DATA in ALL machines!")
