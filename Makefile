@@ -12,4 +12,4 @@ pub:
 	@./publish-update.sh
 
 r2:
-	rclone sync -P updates/pub r2:orbstack-updates
+	rclone sync -P updates/pub --order-by modtime,ascending r2:orbstack-updates
