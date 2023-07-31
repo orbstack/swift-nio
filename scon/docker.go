@@ -121,9 +121,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	}
 
 	// generate base docker daemon config
-	baseFeatures := map[string]any{
-		"buildkit": true,
-	}
+	baseFeatures := map[string]any{}
 	baseBuilderGC := map[string]any{
 		"enabled": true,
 		// no defaultKeepStorage. that's only for user default
