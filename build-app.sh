@@ -15,10 +15,9 @@ SHORT_VER=$(git describe --tag --abbrev=0)
 COMMITS=$(git rev-list --count HEAD)
 
 VMGR_BIN="OrbStack Helper (VM)"
-VMGR_SIGNING_ID="dev.kdrag0n.MacVirt.vmgr"
-SIGNING_CERT="Developer ID Application: Orbital Labs, LLC (U.S.) (HUAQ24HBR6)"
 
 cd "$(dirname "$0")"
+source config.sh
 
 function build_one() {
     local arch_go="$1"
