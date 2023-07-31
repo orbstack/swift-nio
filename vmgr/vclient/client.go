@@ -206,13 +206,20 @@ func (vc *VClient) StartBackground() error {
 	return nil
 }
 
+func matchTimeoutError(err error) bool {
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		return true
+	}
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, unix.ETIMEDOUT) || strings.Contains(err.Error(), "operation timed out") /* tcpip.ErrTimeout */
+}
+
 func (vc *VClient) healthCheck() {
 	err := vc.doCheckin()
 	if err != nil {
 		logrus.WithError(err).Error("health check failed")
 
 		// if it was because of a timeout, then we should shut down. vm is dead
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, unix.ETIMEDOUT) || strings.Contains(err.Error(), "operation timed out") /* tcpip.ErrTimeout */ {
+		if matchTimeoutError(err) {
 			vc.requestStopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonHealthCheck}
 		}
 	}
@@ -248,7 +255,8 @@ func (vc *VClient) doCheckin() error {
 		logrus.Debug("report stats:", stats)
 		err := vc.Post("disk/report_stats", stats, nil)
 		if err != nil {
-			return fmt.Errorf("report stats: %w", err)
+			// do NOT wrap. need to match net error for timeout
+			return err
 		}
 	} else {
 		logrus.Debug("stats unchanged, not reporting")
@@ -264,9 +272,10 @@ func (vc *VClient) Shutdown() error {
 }
 
 func (vc *VClient) Close() error {
-	vc.client.CloseIdleConnections()
-	vc.dataFile.Close()
 	// close OK: used to signal select loop
 	close(vc.signalStopCh)
+
+	vc.client.CloseIdleConnections()
+	vc.dataFile.Close()
 	return nil
 }

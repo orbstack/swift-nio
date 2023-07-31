@@ -30,3 +30,12 @@ func RecoverCLI() {
 		}
 	}
 }
+
+func PrintRecursive(err error) {
+	if err == nil {
+		return
+	}
+
+	fmt.Println(err)
+	PrintRecursive(errors.Unwrap(err))
+}
