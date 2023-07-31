@@ -287,12 +287,19 @@ struct DKImage: Codable, Identifiable {
         }
     }
 
-    var userTag: String {
+    var _userTag: String {
         if let tag = repoTags?.first, tag != "<none>:<none>" {
             return tag
         } else {
             return userId.prefix(12).description
         }
+    }
+
+    var userTag: String {
+        // containerd image store returns these; old docker didn't
+        _userTag
+            .replacingOccurrences(of: "docker.io/library/", with: "")
+            .replacingOccurrences(of: "docker.io/", with: "")
     }
 
     var formattedSize: String {
