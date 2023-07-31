@@ -11,7 +11,7 @@ import CBridge
 
 // vmnet is ok with concurrent queue
 // gets us from 21 -> 30 Gbps
-let vmnetQueue = DispatchQueue(label: "dev.kdrag0n.swext.bridge", attributes: .concurrent)
+let vmnetQueue = DispatchQueue(label: "dev.orbstack.swext.bridge", attributes: .concurrent)
 
 private let dgramSockBuf = 512 * 1024
 private let maxPacketsPerRead = 64

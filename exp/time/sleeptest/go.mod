@@ -1,3 +1,3 @@
-module github.com/kdrag0n/sleeptest
+module github.com/orbstack/sleeptest
 
 go 1.20

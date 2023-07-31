@@ -12,7 +12,7 @@ import Network
 private let verboseDebug = false
 
 // separate queue to avoid deadlocks
-private let routerQueue = DispatchQueue(label: "dev.kdrag0n.swext.router")
+private let routerQueue = DispatchQueue(label: "dev.orbstack.swext.router")
 
 // we don't have vmnet packet size info yet here, so it's easier to just use the max possible size
 private let maxPossiblePacketSize: UInt64 = 65536 + 14

@@ -928,7 +928,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt.GoVZF;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.orbstack.OrbStack.GoVZF;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -965,7 +965,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = dev.kdrag0n.MacVirt.GoVZF;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.orbstack.OrbStack.GoVZF;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1230,7 +1230,7 @@
 		};
 		D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kdrag0n/SwiftJSONRPC.git";
+			repositoryURL = "https://github.com/orbstack/SwiftJSONRPC.git";
 			requirement = {
 				kind = revision;
 				revision = 0f198bdcd82ffacb97188422b3b68fea4b453cd8;

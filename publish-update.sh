@@ -16,7 +16,7 @@ cp swift/out/amd64/*.dmg updates/pub/amd64/ || :
 
 # upload dsyms
 function upload_dsyms() {
-    sentry-cli upload-dif --org kdrag0n --project orbstack "$@"
+    sentry-cli upload-dif --org orbital-labs --project orbstack "$@"
 }
 upload_dsyms swift/out/*/dsym/OrbStack.app.dSYM &
 

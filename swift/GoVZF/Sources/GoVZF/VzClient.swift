@@ -6,7 +6,7 @@ import Foundation
 import Virtualization
 import CBridge
 
-let vzQueue = DispatchQueue(label: "dev.kdrag0n.swext.vzf")
+let vzQueue = DispatchQueue(label: "dev.orbstack.swext.vzf")
 
 struct ConsoleSpec: Codable {
     var readFd: Int32

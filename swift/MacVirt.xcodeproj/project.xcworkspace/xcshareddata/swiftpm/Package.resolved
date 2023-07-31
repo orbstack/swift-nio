@@ -39,7 +39,7 @@
     {
       "identity" : "swiftjsonrpc",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kdrag0n/SwiftJSONRPC.git",
+      "location" : "https://github.com/orbstack/SwiftJSONRPC.git",
       "state" : {
         "revision" : "0f198bdcd82ffacb97188422b3b68fea4b453cd8"
       }

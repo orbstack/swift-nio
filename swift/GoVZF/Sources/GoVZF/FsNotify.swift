@@ -9,7 +9,7 @@ import CBridge
 private let debugPrintEvents = false
 
 // background QoS throttles very hard - consider utility?
-private let fseventsQueue = DispatchQueue(label: "dev.kdrag0n.swext.fsevents", qos: .background)
+private let fseventsQueue = DispatchQueue(label: "dev.orbstack.swext.fsevents", qos: .background)
 
 private let npFlagCreate: UInt64 = 1 << 0
 private let npFlagModify: UInt64 = 1 << 1
