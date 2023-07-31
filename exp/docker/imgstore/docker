@@ -1,0 +1,106 @@
+❯ time docker run -d logstash:8.8.1
+Unable to find image 'logstash:8.8.1' locally
+8.8.1: Pulling from library/logstash
+2378679266ac: Pull complete
+a2958547e89c: Pull complete
+843a52dd13cc: Pull complete
+eeaf01ee68aa: Pull complete
+4f4fb700ef54: Pull complete
+bdc4ecf4ffab: Pull complete
+ec698c9862a2: Pull complete
+b1c580ef57ea: Pull complete
+6749414a16da: Pull complete
+78935f5a7917: Pull complete
+9dd4bbac7156: Pull complete
+6b2ca2f70924: Pull complete
+5bb7d3503079: Pull complete
+Digest: sha256:1f6fd12b762d79cbefadb23f0efbaa785d10c58fdecbedacae7ff3324d5d294c
+Status: Downloaded newer image for logstash:8.8.1
+3b3fdcc3e1f156e64fee6ae240b23417c7fcd02e8d5860d84f294569a4a41bd9
+docker run -d logstash:8.8.1  0.03s user 0.03s system 0% cpu 18.196 total
+
+~/code/projects/macvirt main* ⇡ 18s
+❯ time docker run -d postgres
+Unable to find image 'postgres:latest' locally
+latest: Pulling from library/postgres
+90524f7dc01b: Pull complete
+ef7240014a47: Pull complete
+e4d2c856d784: Pull complete
+885c9ba4e584: Pull complete
+7f003c5d3c77: Pull complete
+9c86f7fa2874: Pull complete
+fa86bc459ff8: Pull complete
+5bd6da0c1c54: Pull complete
+0bd6bd462f7c: Pull complete
+470986c63b92: Pull complete
+703ecfe64e45: Pull complete
+d1e8339d5d0b: Pull complete
+412759686ffd: Pull complete
+Digest: sha256:8775adb39f0db45cf4cdb3601380312ee5e9c4f53af0f89b7dc5cd4c9a78e4e8
+Status: Downloaded newer image for postgres:latest
+735efc34cf986594e6d01a005c7599dd2b7470189014a7e20c0a0332f2a58f8e
+docker run -d postgres  0.02s user 0.02s system 0% cpu 9.784 total
+
+~/code/projects/macvirt main* ⇡ 10s
+❯ time docker run -d --platform linux/amd64 ghcr.io/singlestore-labs/singlestoredb-dev
+Unable to find image 'ghcr.io/singlestore-labs/singlestoredb-dev:latest' locally
+latest: Pulling from singlestore-labs/singlestoredb-dev
+9589bd88d106: Pull complete
+b44779dd0379: Pull complete
+9c74ec520ef0: Pull complete
+bae4ab8b48c5: Pull complete
+d76fb515ce9c: Pull complete
+37911e5ca8b6: Pull complete
+ad6cec05d3f2: Pull complete
+3666e89a305c: Pull complete
+faf694163f57: Pull complete
+4f4fb700ef54: Pull complete
+51cdb51c4bf7: Pull complete
+2c5d5c410c15: Pull complete
+3a6a1f99f93d: Pull complete
+91b0c964ed69: Pull complete
+4040fa1c7409: Pull complete
+4d12b06c212a: Pull complete
+701d7fa550bf: Pull complete
+a7dbc830bd77: Pull complete
+fa5f16307f07: Pull complete
+97d8ce5190d2: Pull complete
+7ebcf0a917e7: Pull complete
+44b2a5ac9be5: Pull complete
+cf0f7e674b2b: Pull complete
+3881346695a2: Pull complete
+c3f863d9686b: Pull complete
+Digest: sha256:c5ea7ec78a025d04b9a07bfac88f5d11d276c0c84fbe9c462b674cb61cbd6c9b
+Status: Downloaded newer image for ghcr.io/singlestore-labs/singlestoredb-dev:latest
+c9bd3d70414ea64b9a00b7257fea81c38fc44e7ba4779a264eac93bc189b84a5
+docker run -d --platform linux/amd64   0.05s user 0.04s system 0% cpu 25.436 total
+
+~/code/projects/macvirt main* ⇡ 25s
+❯ time docker run -d wordpress
+Unable to find image 'wordpress:latest' locally
+latest: Pulling from library/wordpress
+795b5d192ab1: Pulling fs layer
+77ebd80c26ad: Pulling fs layer
+53013de15d2e: Pulling fs layer
+da357509dc3f: Pull complete
+592f5b0a2e9e: Pull complete
+ab3051dd8f0a: Pull complete
+11ba1950c142: Pull complete
+d951bd2e1a2f: Pull complete
+3f4b5ad14176: Pull complete
+cde30d4bdb57: Pull complete
+3325e0e2a5fa: Pull complete
+f8efd8cca3c9: Pull complete
+3a4b9381f01a: Pull complete
+71aed404ccdb: Pull complete
+ff8677958db9: Pull complete
+8f56e45d0b9b: Pull complete
+0cdf359f5415: Pull complete
+8b4c5e9c08dc: Pull complete
+6e8ae7aeae5c: Pull complete
+1993615e84d8: Pull complete
+2022a264d6fd: Pull complete
+Digest: sha256:8a252da491a86d065a0cecc78cd1bac43d24a19c91f578f9eef74d00749925d8
+Status: Downloaded newer image for wordpress:latest
+6a340da7db7d8ecc86de68718f60ab42ad98feb3f40eb2e687569c0962ff1436
+docker run -d wordpress  0.03s user 0.03s system 0% cpu 13.098 total

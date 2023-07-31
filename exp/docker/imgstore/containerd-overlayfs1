@@ -1,0 +1,114 @@
+❯ time docker run -d logstash:8.8.1
+Unable to find image 'logstash:8.8.1' locally
+1f6fd12b762d: Download complete
+fb7fd51c942f: Download complete
+81af7c2c8e33: Download complete
+78935f5a7917: Download complete
+5bb7d3503079: Download complete
+6b2ca2f70924: Download complete
+9dd4bbac7156: Download complete
+2378679266ac: Download complete
+6749414a16da: Download complete
+4f4fb700ef54: Download complete
+eeaf01ee68aa: Download complete
+a2958547e89c: Download complete
+b1c580ef57ea: Download complete
+843a52dd13cc: Download complete
+ec698c9862a2: Download complete
+bdc4ecf4ffab: Download complete
+f50557b43cf6ca4b5e33e247afb51cd1cfd621944aef639a2e459b7f96e7a870
+docker run -d logstash:8.8.1  0.04s user 0.03s system 0% cpu 18.741 total
+
+~/code/projects/macvirt main* ⇡ 18s
+❯ time docker run -d postgres
+Unable to find image 'postgres:latest' locally
+8775adb39f0d: Download complete
+51273c6af006: Download complete
+7317fa7ddf4f: Download complete
+90524f7dc01b: Download complete
+885c9ba4e584: Download complete
+0bd6bd462f7c: Download complete
+412759686ffd: Download complete
+9c86f7fa2874: Download complete
+fa86bc459ff8: Download complete
+5bd6da0c1c54: Download complete
+470986c63b92: Download complete
+703ecfe64e45: Download complete
+e4d2c856d784: Download complete
+7f003c5d3c77: Download complete
+d1e8339d5d0b: Download complete
+ef7240014a47: Download complete
+17415c85716d695998a162a0c773119084c21eb349b5f83cb53acdcea1ae0cfa
+docker run -d postgres  0.03s user 0.02s system 0% cpu 15.182 total
+
+~/code/projects/macvirt main* ⇡ 15s
+❯ time docker run -d ghcr.io/singlestore-labs/singlestoredb-dev
+Unable to find image 'ghcr.io/singlestore-labs/singlestoredb-dev:latest' locally
+c5ea7ec78a02: Download complete
+docker: no match for platform in manifest: not found.
+See 'docker run --help'.
+docker run -d ghcr.io/singlestore-labs/singlestoredb-dev  0.02s user 0.01s system 2% cpu 1.080 total
+
+~/code/projects/macvirt main* ⇡
+❯ time docker run -d --platform linux/amd64 ghcr.io/singlestore-labs/singlestoredb-dev
+Unable to find image 'ghcr.io/singlestore-labs/singlestoredb-dev:latest' locally
+c5ea7ec78a02: Download complete
+2ece85a82419: Download complete
+3735c955ec3f: Download complete
+bae4ab8b48c5: Download complete
+701d7fa550bf: Download complete
+9589bd88d106: Download complete
+4d12b06c212a: Download complete
+faf694163f57: Download complete
+4f4fb700ef54: Already exists
+c3f863d9686b: Download complete
+3881346695a2: Download complete
+44b2a5ac9be5: Download complete
+97d8ce5190d2: Download complete
+d76fb515ce9c: Download complete
+91b0c964ed69: Download complete
+3666e89a305c: Download complete
+4040fa1c7409: Download complete
+9c74ec520ef0: Download complete
+a7dbc830bd77: Download complete
+fa5f16307f07: Download complete
+ad6cec05d3f2: Download complete
+2c5d5c410c15: Download complete
+37911e5ca8b6: Download complete
+3a6a1f99f93d: Download complete
+7ebcf0a917e7: Download complete
+cf0f7e674b2b: Download complete
+b44779dd0379: Download complete
+51cdb51c4bf7: Download complete
+ee373c9fa0a2cf05e956691f8cdaf8d6e1025a5aae0a894e5962ae3e69a64bb8
+docker run -d --platform linux/amd64   0.05s user 0.04s system 0% cpu 27.436 total
+
+~/code/projects/macvirt main* ⇡ 28s
+❯ time docker run -d wordpress
+Unable to find image 'wordpress:latest' locally
+8a252da491a8: Download complete
+29e7e6bd23e6: Download complete
+2b5691e73f15: Download complete
+ab3051dd8f0a: Download complete
+cde30d4bdb57: Download complete
+592f5b0a2e9e: Download complete
+ff8677958db9: Download complete
+71aed404ccdb: Download complete
+3f4b5ad14176: Download complete
+795b5d192ab1: Download complete
+8f56e45d0b9b: Download complete
+3a4b9381f01a: Download complete
+f8efd8cca3c9: Download complete
+11ba1950c142: Download complete
+77ebd80c26ad: Download complete
+2022a264d6fd: Download complete
+d951bd2e1a2f: Download complete
+8b4c5e9c08dc: Download complete
+53013de15d2e: Download complete
+1993615e84d8: Download complete
+da357509dc3f: Download complete
+6e8ae7aeae5c: Download complete
+3325e0e2a5fa: Download complete
+0cdf359f5415: Download complete
+1ad03b7cc8779ddc727b2df5e839af05458c26963241f485cf0bc86d0e9f3733
+docker run -d wordpress  0.03s user 0.02s system 0% cpu 10.460 total
