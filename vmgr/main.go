@@ -336,6 +336,14 @@ func ensureDataLock() error {
 	return nil
 }
 
+type VmManager struct {
+	stopCh chan<- types.StopRequest
+}
+
+func (m *VmManager) Stop(typ types.StopType, reason types.StopReason) {
+	m.stopCh <- types.StopRequest{Type: typ, Reason: reason}
+}
+
 func runVmManager() {
 	// propagate stop reason via exit code
 	var lastStopReason types.StopReason
@@ -724,11 +732,6 @@ func runVmManager() {
 
 	// Mount NFS
 	defer hcServer.InternalUnmountNfs()
-
-	/*
-		logrus.Info("waiting for init tasks")
-		startWg.Wait()
-	*/
 
 	logrus.Debug("waiting for VM to start")
 	returnCh := make(chan struct{}, 1)
