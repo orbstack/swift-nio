@@ -151,7 +151,8 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// disable IPv6 by default
 		"ipv6": false,
 		// most reliable, and fast on btrfs due to reflinks
-		"storage-driver": "overlay2",
+		// no need to set this - it's default since v23, and setting it explicitly breaks containerd snapshotter
+		//"storage-driver": "overlay2",
 		// match our MTU
 		"mtu": c.manager.net.mtu,
 		// compat issue with docker-compose v1 / Lando: https://github.com/orbstack/orbstack/issues/376
