@@ -39,6 +39,8 @@ const (
 	dockerNfsDebounce = 250 * time.Millisecond
 
 	nfsDockerSubdir = "docker/volumes"
+
+	maxBuildCacheSize = 80 * 1024 * 1024 * 1024 // 80 GiB
 )
 
 var (
@@ -113,6 +115,11 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		return fmt.Errorf("get disk size: %w", err)
 	}
 
+	globalLimit := diskSize * 12 / 100
+	if globalLimit > maxBuildCacheSize {
+		globalLimit = maxBuildCacheSize
+	}
+
 	// generate base docker daemon config
 	baseFeatures := map[string]any{
 		"buildkit": true,
@@ -132,9 +139,9 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 			// remove unused cache after 30 days (avoid size threshold for perf)
 			// this is kinda broken - it doesn't clear all that match, only some. need to re-trigger gc to make it go again
-			{"all": true, "filter": []any{"until=620h" /*30d*/}, "keepStorage": "0"},
-			// global limit = 13% of disk *available to linux*
-			{"all": true, "keepStorage": strconv.FormatUint(diskSize*13/100, 10)},
+			{"all": true, "filter": []any{"until=720h" /*30d*/}, "keepStorage": "0"},
+			// global limit = 12% of disk *available to linux*, max 80 GB
+			{"all": true, "keepStorage": strconv.FormatUint(globalLimit, 10)},
 		},
 	}
 	baseBuilder := map[string]any{
