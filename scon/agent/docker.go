@@ -501,12 +501,7 @@ func (d *DockerAgent) PostStart() error {
 	return nil
 }
 
-func (d *DockerAgent) OnStop() error {
-	logrus.Debug("stopping docker event monitor")
-	if d.eventsConn != nil {
-		d.eventsConn.Close()
-	}
-
+func (d *DockerAgent) killContainers() error {
 	// kill containers for faster shutdown. min docker shutdown timeout = 6s (1 + 5s)
 	// good programs should be safe to kill in case of power loss anyway, as long as we do it atomically like this
 	// let docker daemon shut down cleanly due to bolt DBs and image db
@@ -532,6 +527,20 @@ func (d *DockerAgent) OnStop() error {
 				return err
 			}
 		}
+	}
+
+	return nil
+}
+
+func (d *DockerAgent) OnStop() error {
+	logrus.Debug("stopping docker event monitor")
+	if d.eventsConn != nil {
+		d.eventsConn.Close()
+	}
+
+	err := d.killContainers()
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -757,6 +766,12 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 	_ = os.Remove("/var/run/docker.sock")
 	// kill tini with SIGUSR2. it'll forward
 	err = unix.Kill(1, unix.SIGUSR2)
+	if err != nil {
+		return err
+	}
+
+	// kill containers to speed it up
+	err = d.killContainers()
 	if err != nil {
 		return err
 	}
