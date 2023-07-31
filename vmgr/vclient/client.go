@@ -4,14 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
@@ -30,6 +34,8 @@ var (
 const (
 	// match chrony ntp polling interval
 	diskStatsInterval = 128 * time.Second
+	// very liberal to avoid false positive
+	requestTimeout = 30 * time.Second
 
 	// arm: arch timer doesn't advance in sleep, so not needed
 	// x86: tsc advances in sleep; pausing and resuming prevents that, so monotonic clock and timeouts work as expected, and we don't get stalls
@@ -44,7 +50,9 @@ type VClient struct {
 	lastStats diskReportStats
 	dataFile  *os.File
 	vm        *vzf.Machine
-	stopChan  chan struct{}
+
+	signalStopCh  chan struct{}
+	requestStopCh chan<- types.StopRequest
 
 	hcontrolServer *hcsrv.HcontrolServer
 }
@@ -55,8 +63,11 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer) (*VClient, error) {
-	httpClient := &http.Client{Transport: tr}
+func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer, requestStopCh chan<- types.StopRequest) (*VClient, error) {
+	httpClient := &http.Client{
+		Transport: tr,
+		Timeout:   requestTimeout,
+	}
 	dataFile, err := os.OpenFile(conf.DataImage(), os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
@@ -66,12 +77,13 @@ func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.Hcont
 		client:         httpClient,
 		dataFile:       dataFile,
 		vm:             vm,
-		stopChan:       make(chan struct{}),
+		signalStopCh:   make(chan struct{}),
+		requestStopCh:  requestStopCh,
 		hcontrolServer: hcServer,
 	}, nil
 }
 
-func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer) (*VClient, error) {
+func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer, requestStopCh chan<- types.StopRequest) (*VClient, error) {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
@@ -79,9 +91,9 @@ func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolSe
 				Port: ports.GuestVcontrol,
 			}, ipv4.ProtocolNumber)
 		},
-		MaxIdleConns: 2,
+		MaxIdleConns: 3,
 	}
-	return newWithTransport(tr, vm, hcServer)
+	return newWithTransport(tr, vm, hcServer, requestStopCh)
 }
 
 func (vc *VClient) Get(endpoint string) (*http.Response, error) {
@@ -102,29 +114,39 @@ func (vc *VClient) Get(endpoint string) (*http.Response, error) {
 	return resp, nil
 }
 
-func (vc *VClient) Post(endpoint string, body any) (*http.Response, error) {
+func (vc *VClient) Post(endpoint string, body any, out any) error {
 	msg, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	reader := bytes.NewReader(msg)
 	req, err := http.NewRequest("POST", baseUrl+"/"+endpoint, reader)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := vc.client.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	return resp, nil
+	if out != nil {
+		err = json.NewDecoder(resp.Body).Decode(out)
+		if err != nil {
+			return err
+		}
+	} else {
+		io.Copy(io.Discard, resp.Body)
+	}
+
+	return nil
 }
 
 func (vc *VClient) StartBackground() error {
@@ -136,7 +158,7 @@ func (vc *VClient) StartBackground() error {
 	// don't want to miss the first report, or we'll have to wait
 	go func() {
 		vc.hcontrolServer.InternalWaitDataFsReady()
-		vc.reportDiskStats()
+		vc.healthCheck()
 	}()
 
 	// Report disk stats periodically, sync time on wake
@@ -146,7 +168,7 @@ func (vc *VClient) StartBackground() error {
 
 		for {
 			select {
-			case <-vc.stopChan:
+			case <-vc.signalStopCh:
 				return
 
 			case <-mon.SleepChan:
@@ -169,14 +191,14 @@ func (vc *VClient) StartBackground() error {
 					}
 				}
 				go func() {
-					_, err := vc.Post("sys/wake", nil)
+					err := vc.Post("sys/wake", nil, nil)
 					if err != nil {
 						logrus.WithError(err).Error("failed to notify VM of wakeup")
 					}
 				}()
 
 			case <-ticker.C:
-				vc.reportDiskStats()
+				vc.healthCheck()
 			}
 		}
 	}()
@@ -184,19 +206,34 @@ func (vc *VClient) StartBackground() error {
 	return nil
 }
 
-func (vc *VClient) reportDiskStats() {
+func (vc *VClient) healthCheck() {
+	err := vc.doCheckin()
+	if err != nil {
+		logrus.WithError(err).Error("health check failed")
+
+		// if it was because of a timeout, then we should shut down. vm is dead
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, unix.ETIMEDOUT) || strings.Contains(err.Error(), "operation timed out") /* tcpip.ErrTimeout */ {
+			vc.requestStopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonHealthCheck}
+		}
+	}
+}
+
+// for CPU, we combine healthcheck with stats report
+func (vc *VClient) doCheckin() error {
+	if iokit.IsAsleep() {
+		return nil
+	}
+
 	var statFs unix.Statfs_t
 	err := unix.Fstatfs(int(vc.dataFile.Fd()), &statFs)
 	if err != nil {
-		logrus.WithError(err).Error("statfs failed")
-		return
+		return fmt.Errorf("statfs: %w", err)
 	}
 
 	var imgStat unix.Stat_t
 	err = unix.Fstat(int(vc.dataFile.Fd()), &imgStat)
 	if err != nil {
-		logrus.WithError(err).Error("stat failed")
-		return
+		return fmt.Errorf("fstat: %w", err)
 	}
 
 	stats := diskReportStats{
@@ -209,19 +246,20 @@ func (vc *VClient) reportDiskStats() {
 
 	if stats != vc.lastStats {
 		logrus.Debug("report stats:", stats)
-		_, err := vc.Post("disk/report_stats", stats)
+		err := vc.Post("disk/report_stats", stats, nil)
 		if err != nil {
-			logrus.WithError(err).Error("report stats err")
+			return fmt.Errorf("report stats: %w", err)
 		}
 	} else {
 		logrus.Debug("stats unchanged, not reporting")
 	}
 
 	vc.lastStats = stats
+	return nil
 }
 
 func (vc *VClient) Shutdown() error {
-	_, err := vc.Post("sys/shutdown", nil)
+	err := vc.Post("sys/shutdown", nil, nil)
 	return err
 }
 
@@ -229,6 +267,6 @@ func (vc *VClient) Close() error {
 	vc.client.CloseIdleConnections()
 	vc.dataFile.Close()
 	// close OK: used to signal select loop
-	close(vc.stopChan)
+	close(vc.signalStopCh)
 	return nil
 }

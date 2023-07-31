@@ -9,6 +9,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/osver"
+	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vzf"
@@ -44,7 +45,7 @@ type VmParams struct {
 	Rosetta            bool
 	Sound              bool
 
-	StopCh chan<- StopRequest
+	StopCh chan<- types.StopRequest
 }
 
 func findBestMtu() int {

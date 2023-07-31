@@ -5,6 +5,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -21,7 +22,7 @@ func doUninstallCleanup() error {
 	return err
 }
 
-func WatchCriticalFiles(stopCh chan<- StopRequest) error {
+func WatchCriticalFiles(stopCh chan<- types.StopRequest) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -47,7 +48,7 @@ func WatchCriticalFiles(stopCh chan<- StopRequest) error {
 				}
 
 				// force is ok - data doesn't matter anymore
-				stopCh <- StopRequest{Type: StopTypeForce, Reason: StopReasonUninstall}
+				stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonUninstall}
 				return nil
 			}
 		case err := <-watcher.Errors:

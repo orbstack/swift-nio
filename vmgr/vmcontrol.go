@@ -26,6 +26,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
+	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
@@ -47,7 +48,7 @@ type VmControlServer struct {
 	vm               *vzf.Machine
 	vc               *vclient.VClient
 	doneCh           chan struct{}
-	stopCh           chan<- StopRequest
+	stopCh           chan<- types.StopRequest
 	pendingResetData bool
 
 	dockerClient *dockerclient.Client
@@ -71,7 +72,7 @@ func (s *VmControlServer) Ping(ctx context.Context) error {
 
 func (s *VmControlServer) Stop(ctx context.Context) error {
 	// signal stop
-	s.stopCh <- StopRequest{Type: StopTypeGraceful, Reason: StopReasonAPI}
+	s.stopCh <- types.StopRequest{Type: types.StopTypeGraceful, Reason: types.StopReasonAPI}
 
 	// wait for main loop to exit
 	<-s.doneCh
@@ -80,7 +81,7 @@ func (s *VmControlServer) Stop(ctx context.Context) error {
 
 func (s *VmControlServer) ForceStop(ctx context.Context) error {
 	// signal stop
-	s.stopCh <- StopRequest{Type: StopTypeForce, Reason: StopReasonAPI}
+	s.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonAPI}
 
 	// wait for main loop to exit
 	<-s.doneCh

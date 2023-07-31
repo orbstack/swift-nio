@@ -33,6 +33,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/osver"
+	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"github.com/orbstack/macvirt/vmgr/vclient"
@@ -56,34 +57,6 @@ const (
 	gracefulStopTimeout    = 15 * time.Second
 	sentryShutdownTimeout  = 2 * time.Second
 )
-
-type StopType int
-
-const (
-	StopTypeForce StopType = iota
-	StopTypeGraceful
-)
-
-type StopReason int
-
-const (
-	// normal reasons
-	StopReasonSignal StopReason = iota
-	StopReasonAPI
-	StopReasonUninstall
-	StopReasonKillswitch
-
-	_startUnexpectedStopReasons
-
-	// unexpected reasons
-	StopReasonPanic
-	StopReasonDrm
-)
-
-type StopRequest struct {
-	Type   StopType
-	Reason StopReason
-}
 
 const stopExitCodeBase = 100
 
@@ -365,10 +338,10 @@ func ensureDataLock() error {
 
 func runVmManager() {
 	// propagate stop reason via exit code
-	var lastStopReason StopReason
+	var lastStopReason types.StopReason
 	defer func() {
-		if lastStopReason > _startUnexpectedStopReasons {
-			os.Exit(stopExitCodeBase + int(lastStopReason-_startUnexpectedStopReasons))
+		if lastStopReason > types.Start_UnexpectedStopReasons {
+			os.Exit(stopExitCodeBase + int(lastStopReason-types.Start_UnexpectedStopReasons))
 		}
 	}()
 
@@ -483,10 +456,10 @@ func runVmManager() {
 	if err != nil {
 		errorx.Fatalf("%w", err)
 	}
-	stopCh := make(chan StopRequest, 1)
+	stopCh := make(chan types.StopRequest, 1)
 	killswitch.Watch(func(err error) {
 		logrus.WithError(err).Error(err.Error())
-		stopCh <- StopRequest{Type: StopTypeGraceful, Reason: StopReasonKillswitch}
+		stopCh <- types.StopRequest{Type: types.StopTypeGraceful, Reason: types.StopReasonKillswitch}
 	})
 
 	// Rosetta check
@@ -588,7 +561,7 @@ func runVmManager() {
 			select {
 			case <-ch:
 				logrus.Error("fail - shutdown")
-				stopCh <- StopRequest{Type: StopTypeGraceful, Reason: StopReasonDrm}
+				stopCh <- types.StopRequest{Type: types.StopTypeGraceful, Reason: types.StopReasonDrm}
 				return
 			case <-doneCh:
 				return
@@ -600,7 +573,7 @@ func runVmManager() {
 	hcServer := services.StartNetServices(vnetwork)
 
 	// VM control server client
-	vc, err := vclient.NewWithNetwork(vnetwork, vm, hcServer)
+	vc, err := vclient.NewWithNetwork(vnetwork, vm, hcServer, stopCh)
 	check(err)
 	defer vc.Close()
 	err = vc.StartBackground()
@@ -648,10 +621,10 @@ func runVmManager() {
 			if sigints >= 2 {
 				// two SIGINT = force stop
 				logrus.Info("Received SIGINT twice, forcing stop")
-				stopCh <- StopRequest{Type: StopTypeForce, Reason: StopReasonSignal}
+				stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonSignal}
 			} else {
 				logrus.Info("Received signal, requesting stop")
-				stopCh <- StopRequest{Type: StopTypeGraceful, Reason: StopReasonSignal}
+				stopCh <- types.StopRequest{Type: types.StopTypeGraceful, Reason: types.StopReasonSignal}
 			}
 		}
 	}()
@@ -765,21 +738,22 @@ func runVmManager() {
 		select {
 		case <-returnCh:
 			return
+
 		case stopReq := <-stopCh:
-			logrus.Info("stop requested")
+			logrus.WithField("reason", stopReq.Reason).Info("stop requested")
 			lastStopReason = stopReq.Reason
 			// unmount nfs first
 			_ = hcServer.InternalUnmountNfs()
 
 			go func() {
 				switch stopReq.Type {
-				case StopTypeForce:
+				case types.StopTypeForce:
 					err := tryForceStop(vm)
 					if err != nil {
 						logrus.WithError(err).Error("VM force stop failed")
 						returnCh <- struct{}{}
 					}
-				case StopTypeGraceful:
+				case types.StopTypeGraceful:
 					err := tryGracefulStop(vm, vc)
 					if err != nil {
 						logrus.WithError(err).Error("VM graceful stop failed")
@@ -821,6 +795,7 @@ func runVmManager() {
 			case vzf.MachineStatePausing:
 				logrus.Debug("[VM] pausing")
 			}
+
 		case err := <-errCh:
 			logrus.WithError(err).Error("error received")
 			return

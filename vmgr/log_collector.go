@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -16,12 +17,31 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	panicShutdownDelay = 100 * time.Millisecond
+	panicShutdownDelay = 250 * time.Millisecond
 	panicLogLines      = 75
+)
+
+const kernelWarnRecordDuration = 500 * time.Millisecond
+
+var (
+	// this is just informational. we rely on health check (vcontrol client) to detect real VM freeze
+	// in case of false-positive during sleep on x86
+	kernelWarnPatterns = []string{
+		// WARN (incl. btrfs i/o error, e.g. on disk img disappear)
+		"] ------------[ cut here ]------------",
+		// no need for BUG - we panic on oops
+		// "] BUG: ",
+		// netdev watchdog: ] NETDEV WATCHDOG: eth0 (virtio_net): transmit queue 0 timed out
+		"] NETDEV WATCHDOG:",
+		// RCU stall
+		"] rcu: INFO:",
+		// TODO: add NFS broken conn?
+	}
 )
 
 var (
@@ -34,6 +54,73 @@ type KernelPanicError struct {
 
 func (e *KernelPanicError) Error() string {
 	return e.Err.Error()
+}
+
+type KernelWarning struct {
+	Err error
+}
+
+func (e *KernelWarning) Error() string {
+	return e.Err.Error()
+}
+
+type KernelLogRecorder struct {
+	mu     sync.Mutex
+	buf    bytes.Buffer
+	active bool
+}
+
+func (r *KernelLogRecorder) Write(p []byte) (n int, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if !r.active {
+		return len(p), nil
+	}
+	return r.buf.Write(p)
+}
+
+func (r *KernelLogRecorder) WriteString(s string) (n int, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if !r.active {
+		return len(s), nil
+	}
+	return r.buf.WriteString(s)
+}
+
+func (r *KernelLogRecorder) Start(duration time.Duration, callback func(output string)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.active {
+		return
+	}
+
+	r.active = true
+	r.buf.Reset()
+
+	time.AfterFunc(duration, func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+
+		if !r.active {
+			return
+		}
+
+		r.active = false
+		callback(r.buf.String())
+	})
+}
+
+func matchWarnPattern(line string) bool {
+	for _, pattern := range kernelWarnPatterns {
+		if strings.Contains(line, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 func isMultibyteByte(firstByte byte) bool {
@@ -64,7 +151,7 @@ func tryReadLogHistory(path string, numLines int) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func NewConsoleLogPipe(stopCh chan<- StopRequest) (*os.File, error) {
+func NewConsoleLogPipe(stopCh chan<- types.StopRequest) (*os.File, error) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -75,7 +162,9 @@ func NewConsoleLogPipe(stopCh chan<- StopRequest) (*os.File, error) {
 	magenta := color.New(color.FgMagenta).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()
 
-	var panicBuffer *bytes.Buffer
+	panicRecorder := &KernelLogRecorder{}
+	warnRecorder := &KernelLogRecorder{}
+	kernelLogWriter := io.MultiWriter(panicRecorder, warnRecorder)
 
 	go func() {
 		defer func() { _ = w.Close() }()
@@ -92,24 +181,28 @@ func NewConsoleLogPipe(stopCh chan<- StopRequest) (*os.File, error) {
 				// "Unable to handle kernel" is for null deref/segfault, in which case stack trace is printed before kernel panic
 				// we only search for that prefix because on arm64 it's "Unable to handle kernel %s"
 				// also shut down on eth0 (main interface) tx timeout. it won't recover, everything frozen
-				if (strings.Contains(line, "] Kernel panic - not syncing:") || strings.Contains(line, "] NETDEV WATCHDOG: eth0 (virtio_net): transmit queue 0 timed out")) && panicBuffer == nil {
-					// start recording panic lines
-					panicBuffer = new(bytes.Buffer)
-
-					time.AfterFunc(panicShutdownDelay, func() {
-						stopCh <- StopRequest{Type: StopTypeForce, Reason: StopReasonPanic}
+				if strings.Contains(line, "] Kernel panic - not syncing:") {
+					// record panic log
+					panicRecorder.Start(panicShutdownDelay, func(output string) {
+						stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonPanic}
 
 						// report panic lines to sentry
 						// if possible we read the last lines of the log file
-						var panicLog string
+						panicLog := output
 						if logHistory, err := tryReadLogHistory(conf.VmgrLog(), panicLogLines); err == nil {
 							panicLog = logHistory
-						} else {
-							panicLog = panicBuffer.String()
 						}
 
 						sentry.CaptureException(&KernelPanicError{
-							Err: errors.New("kernel panic:\n" + panicLog),
+							// no new line - sentry preview only shows first line
+							Err: errors.New("kernel panic: " + panicLog),
+						})
+					})
+				} else if matchWarnPattern(line) {
+					// record warning log
+					warnRecorder.Start(kernelWarnRecordDuration, func(output string) {
+						sentry.CaptureException(&KernelWarning{
+							Err: errors.New("kernel warning: " + output),
 						})
 					})
 				} else if strings.Contains(line, "] Out of memory: Killed process") {
@@ -131,11 +224,9 @@ func NewConsoleLogPipe(stopCh chan<- StopRequest) (*os.File, error) {
 					}()
 				}
 
+				// continue to write the log
 				_, _ = io.WriteString(os.Stdout, kernelPrefix+magenta(line))
-
-				if panicBuffer != nil {
-					panicBuffer.WriteString(line)
-				}
+				_, _ = io.WriteString(kernelLogWriter, line)
 			} else {
 				_, _ = io.WriteString(os.Stdout, consolePrefix+yellow(line))
 			}

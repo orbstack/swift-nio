@@ -53,7 +53,7 @@ func (n *VmNotifier) Run() error {
 		case buf := <-vzf.SwextFseventsKrpcEventsChan:
 			err := client.WriteRaw(buf)
 			if err != nil {
-				logrus.WithError(err).Error("Failed to inject fsnotify events (krpc)")
+				logrus.WithError(err).Error("failed to send fsnotify events")
 			}
 		case <-n.stopCh:
 			return nil
