@@ -521,7 +521,7 @@ func runVmManager() {
 		errorx.Fatalf("failed to lock data: %w", err)
 	}
 
-	logrus.Info("configuring VM")
+	logrus.Debug("configuring VM")
 	vnetwork, vm := CreateVm(&VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
@@ -757,7 +757,7 @@ func runVmManager() {
 		startWg.Wait()
 	*/
 
-	logrus.Info("waiting for VM to start")
+	logrus.Debug("waiting for VM to start")
 	returnCh := make(chan struct{}, 1)
 	errCh := make(chan error, 1)
 	vmHasStarted := false

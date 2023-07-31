@@ -700,15 +700,10 @@ pub async fn main(
     timeline.begin("Booting OrbStack");
 
     // set basic environment
-    timeline.begin("Set basic environment");
     set_basic_env()?;
-
     // pivot to overlayfs
-    timeline.begin("Pivot to overlayfs");
     setup_overlayfs()?;
-
     // mount basic filesystems
-    timeline.begin("Mount pseudo filesystems");
     mount_pseudo_fs()?;
 
     // system info
@@ -716,17 +711,16 @@ pub async fn main(
     let sys_info = SystemInfo::read()?;
     println!("  -  Kernel version: {}", sys_info.kernel_version);
 
-    timeline.begin("Set up network");
+    timeline.begin("Network");
     setup_network().await?;
-
-    timeline.begin("Start control server");
+    // start control server
     tokio::spawn(vcontrol::server_main(action_tx.clone()));
-
-    timeline.begin("Set clock");
-    sync_clock(true)?;
 
     // very fast w/ kernel hack to default to "none" iosched for virtio-blk (150 ms without)
     timeline.begin("Apply system settings");
+    // set clock
+    sync_clock(true)?;
+    // tune perf
     apply_perf_tuning_late().unwrap();
 
     // do the following 3 slow stages in parallel
@@ -736,7 +730,7 @@ pub async fn main(
     let sys_info_clone = sys_info.clone();
     tasks.push(std::thread::spawn(move || { // 55 ms
         //let stage_start = Instant::now();
-        println!("     [*] Set up binfmt");
+        println!("     [*] Emulation");
         setup_binfmt(&sys_info_clone).unwrap();
         //println!("     ... Set up binfmt: +{}ms", stage_start.elapsed().as_millis());
     }));
@@ -745,14 +739,14 @@ pub async fn main(
         //let stage_start = Instant::now();
         resize_data(&sys_info_clone).unwrap();
 
-        println!("     [*] Mount data");
+        println!("     [*] Data");
         mount_data().unwrap();
         //println!("     ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
     }));
     // async, no need to wait for this
     std::thread::spawn(|| { // 70 ms
         //let stage_start = Instant::now();
-        println!("     [*] Set up memory");
+        println!("     [*] Memory");
         setup_memory().unwrap();
         //println!("     ... Setting up memory: +{}ms", stage_start.elapsed().as_millis());
     });
@@ -766,7 +760,7 @@ pub async fn main(
     timeline.begin("Start services");
     start_services(service_tracker.clone(), &sys_info).await?;
 
-    timeline.begin("Booted!");
+    timeline.begin("Done!");
 
     println!("  -  Total boot time: {}ms", boot_start.elapsed().as_millis());
 

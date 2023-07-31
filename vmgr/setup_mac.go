@@ -70,7 +70,7 @@ var (
 )
 
 func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
-	logrus.Info("reading user account info")
+	logrus.Debug("reading user account info")
 	u, err := user.Current()
 	if err != nil {
 		return nil, err
