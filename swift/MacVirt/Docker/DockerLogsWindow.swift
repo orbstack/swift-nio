@@ -7,6 +7,7 @@ import SwiftUI
 import Combine
 
 private let maxLines = 5000
+private let urlRegex = try! NSRegularExpression(pattern: #"http(s)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}(\.[a-z]{2,6})?\b([-a-zA-Z0-9@:%_\+.~#?&\/\/=]*)"#)
 
 private class LogsViewModel: ObservableObject {
     private var seq = 0
@@ -21,6 +22,7 @@ private class LogsViewModel: ObservableObject {
         print("start: \(args)")
         Task.detached { @MainActor [self] in
             print("running: \(args)")
+            self.exited = false
             let task = Process()
             task.launchPath = isCompose ? AppConfig.dockerComposeExe : AppConfig.dockerExe
             // force: we do existing-data check in GUI
@@ -36,7 +38,6 @@ private class LogsViewModel: ObservableObject {
             task.standardOutput = pipe
             task.standardError = pipe
 
-            //TODO terminate on disappear
             task.terminationHandler = { process in
                 print("term = \(process.terminationStatus)")
                 let status = process.terminationStatus
@@ -71,20 +72,26 @@ private class LogsViewModel: ObservableObject {
     }
 
     private func addOutputLine(text: String) {
-        var str = AttributedString(text)
+        let str = NSMutableAttributedString(string: text + "\n")
 
         // TODO parse colors
-        // TODO parse links
+
+        // parse links
+        let matches = urlRegex.matches(in: text, range: NSRange(location: 0, length: text.utf16.count))
+        for match in matches {
+            let url = (text as NSString).substring(with: match.range)
+            str.addAttribute(.link, value: url, range: match.range)
+        }
 
         addLine(text: str)
     }
 
-    private func addLine(text: AttributedString) {
+    private func addLine(text: NSMutableAttributedString) {
         seq += 1
-        let tmp = NSMutableAttributedString(text + "\n")
         // font
-        tmp.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular), range: NSRange(location: 0, length: tmp.length))
-        contents.append(tmp)
+        text.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
+                range: NSRange(location: 0, length: text.length))
+        contents.append(text)
         // publish
         contents = contents
     }
@@ -93,7 +100,7 @@ private class LogsViewModel: ObservableObject {
         var str = AttributedString(text)
         str.foregroundColor = .red
         str.font = .system(size: 12).bold()
-        addLine(text: str)
+        addLine(text: NSMutableAttributedString(str))
     }
 
     func clear() {
@@ -101,7 +108,6 @@ private class LogsViewModel: ObservableObject {
     }
 
     func copyAll() {
-        //TODO Excl time
         NSPasteboard.copy(contents.string)
     }
 }
@@ -139,16 +145,7 @@ private struct LogsTextView: NSViewRepresentable {
         .sink { [weak textView] newContents in
             guard let textView else { return }
             textView.textStorage?.setAttributedString(newContents)
-            // scroll to bottom
-//            NSAnimationContext.beginGrouping()
-//            NSAnimationContext.current.duration = 0
-//            textView.scrollToEndOfDocument(nil)
-//            NSAnimationContext.endGrouping()
             textView.scrollToEndOfDocument(nil)
-//            if let scrollView = textView.enclosingScrollView {
-//                let point = NSPoint(x: 0, y: textView.frame.height - scrollView.contentSize.height)
-//                scrollView.contentView.scroll(to: point)
-//            }
         }.store(in: &context.coordinator.cancellables)
 
         model.searchCommand.sink { [weak textView] query in
