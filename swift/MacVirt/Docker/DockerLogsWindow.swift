@@ -12,7 +12,8 @@ private let urlRegex = try! NSRegularExpression(pattern: #"http(s)?:\/\/(www\.)?
 private class LogsViewModel: ObservableObject {
     private var seq = 0
 
-    @Published var contents = NSMutableAttributedString()
+    var contents = NSMutableAttributedString()
+    let updateEvent = PassthroughSubject<(), Never>()
     let searchCommand = PassthroughSubject<(), Never>()
 
     private var process: Process?
@@ -93,7 +94,7 @@ private class LogsViewModel: ObservableObject {
                 range: NSRange(location: 0, length: text.length))
         contents.append(text)
         // publish
-        contents = contents
+        updateEvent.send()
     }
 
     private func addError(_ text: String) {
@@ -140,11 +141,11 @@ private struct LogsTextView: NSViewRepresentable {
         textView.isEditable = false
         textView.usesFindBar = true
 
-        model.$contents
-        .throttle(for: 0.05, scheduler: DispatchQueue.main, latest: true)
-        .sink { [weak textView] newContents in
+        model.updateEvent
+        .throttle(for: 0.035, scheduler: DispatchQueue.main, latest: true)
+        .sink { [weak textView] _ in
             guard let textView else { return }
-            textView.textStorage?.setAttributedString(newContents)
+            textView.textStorage?.setAttributedString(model.contents)
             textView.scrollToEndOfDocument(nil)
         }.store(in: &context.coordinator.cancellables)
 
