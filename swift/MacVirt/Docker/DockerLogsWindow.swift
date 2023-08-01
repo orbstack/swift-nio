@@ -8,6 +8,7 @@ import Combine
 
 private let maxLines = 5000
 private let maxChars = 5000 * 150 // avg line len - easier to do it like this
+private let bottomScrollThreshold = 256.0
 private let urlRegex = try! NSRegularExpression(pattern: #"http(s)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}(\.[a-z]{2,6})?\b([-a-zA-Z0-9@:%_\+.~#?&\/\/=]*)"#)
 
 private class LogsViewModel: ObservableObject {
@@ -111,6 +112,7 @@ private class LogsViewModel: ObservableObject {
 
     func clear() {
         contents = NSMutableAttributedString()
+        updateEvent.send()
     }
 
     func copyAll() {
@@ -150,8 +152,14 @@ private struct LogsTextView: NSViewRepresentable {
         .throttle(for: 0.035, scheduler: DispatchQueue.main, latest: true)
         .sink { [weak textView] _ in
             guard let textView else { return }
+            // TODO only scroll if at bottom
+            //let shouldScroll = abs(textView.visibleRect.maxY - textView.bounds.maxY) < bottomScrollThreshold
             textView.textStorage?.setAttributedString(model.contents)
+
+            NSAnimationContext.beginGrouping()
+            NSAnimationContext.current.duration = 0
             textView.scrollToEndOfDocument(nil)
+            NSAnimationContext.endGrouping()
         }.store(in: &context.coordinator.cancellables)
 
         model.searchCommand.sink { [weak textView] query in
