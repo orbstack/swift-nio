@@ -278,6 +278,15 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string) (f
 	// blocked on both guest IP (198.19.248.2) and bridge gateway (198.19.249.1)
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"})
 
+	if proto == iptables.ProtocolIPv4 {
+		// Docker compat: if Docker machine is trying to NAT out to 172.17.0.1 (default), redirect back to docker machine ip
+		// it's best to do it here:
+		//   - if user adds any 172.17 network (bip, default-address-pools, explicit subnet), it effectively gets disabled, and we don't occupy addr so they have no problem adding networks like that
+		//   - no need to make assumptions about bridge source subnets
+		// only slight problem is wrong dest addr after NAT, but it should not matter - it's wrong anyway b/c it would've been 172.17.0.1 originally
+		rules = append(rules, []string{"nat", "PREROUTING", "-s", netconf.SconDockerIP4, "-d", "172.17.0.1", "-j", "DNAT", "--to-destination", netconf.SconDockerIP4})
+	}
+
 	// add rules
 	for _, rule := range rules {
 		err = ipt.AppendUnique(rule[0], rule[1], rule[2:]...)
