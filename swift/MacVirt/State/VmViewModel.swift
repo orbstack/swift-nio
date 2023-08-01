@@ -1184,7 +1184,11 @@ class VmViewModel: ObservableObject {
             // parse and update the json for ipv6
             // this breaks formatting, but better than regex
             var json = try JSONSerialization.jsonObject(with: configJson.data(using: .utf8)!, options: []) as! [String: Any]
-            json["ipv6"] = enableIpv6
+            // don't add "ipv6" key if not needed
+            let oldIpv6 = json["ipv6"] as? Bool ?? false
+            if oldIpv6 != enableIpv6 {
+                json["ipv6"] = enableIpv6
+            }
             let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
 
             // write it back out
