@@ -45,7 +45,8 @@ type VmParams struct {
 	Rosetta            bool
 	Sound              bool
 
-	StopCh chan<- types.StopRequest
+	StopCh        chan<- types.StopRequest
+	HealthCheckCh chan<- struct{}
 }
 
 func findBestMtu() int {
@@ -122,7 +123,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		case ConsoleLog:
 			conRead, err = os.Open("/dev/null")
 			check(err)
-			conWrite, err = NewConsoleLogPipe(c.StopCh)
+			conWrite, err = NewConsoleLogPipe(c.StopCh, c.HealthCheckCh)
 			check(err)
 		}
 

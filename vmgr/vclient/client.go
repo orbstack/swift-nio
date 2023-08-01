@@ -51,8 +51,9 @@ type VClient struct {
 	dataFile  *os.File
 	vm        *vzf.Machine
 
-	signalStopCh  chan struct{}
-	requestStopCh chan<- types.StopRequest
+	signalStopCh     chan struct{}
+	requestStopCh    chan<- types.StopRequest
+	healthCheckReqCh <-chan struct{}
 
 	hcontrolServer *hcsrv.HcontrolServer
 }
@@ -63,7 +64,7 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer, requestStopCh chan<- types.StopRequest) (*VClient, error) {
+func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
 	httpClient := &http.Client{
 		Transport: tr,
 		Timeout:   requestTimeout,
@@ -74,16 +75,17 @@ func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.Hcont
 	}
 
 	return &VClient{
-		client:         httpClient,
-		dataFile:       dataFile,
-		vm:             vm,
-		signalStopCh:   make(chan struct{}),
-		requestStopCh:  requestStopCh,
-		hcontrolServer: hcServer,
+		client:           httpClient,
+		dataFile:         dataFile,
+		vm:               vm,
+		signalStopCh:     make(chan struct{}),
+		requestStopCh:    requestStopCh,
+		healthCheckReqCh: healthCheckReqCh,
+		hcontrolServer:   hcServer,
 	}, nil
 }
 
-func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer, requestStopCh chan<- types.StopRequest) (*VClient, error) {
+func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
@@ -93,7 +95,7 @@ func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolSe
 		},
 		MaxIdleConns: 3,
 	}
-	return newWithTransport(tr, vm, hcServer, requestStopCh)
+	return newWithTransport(tr, vm, hcServer, requestStopCh, healthCheckReqCh)
 }
 
 func (vc *VClient) Get(endpoint string) (*http.Response, error) {
@@ -198,6 +200,9 @@ func (vc *VClient) StartBackground() error {
 				}()
 
 			case <-ticker.C:
+				vc.healthCheck()
+
+			case <-vc.healthCheckReqCh:
 				vc.healthCheck()
 			}
 		}

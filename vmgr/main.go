@@ -503,6 +503,7 @@ func runVmManager() {
 	}
 
 	logrus.Debug("configuring VM")
+	healthCheckCh := make(chan struct{}, 1)
 	vnetwork, vm := CreateVm(&VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
@@ -524,7 +525,8 @@ func runVmManager() {
 		Rosetta:            vmconfig.Get().Rosetta,
 		Sound:              false,
 
-		StopCh: stopCh,
+		StopCh:        stopCh,
+		HealthCheckCh: healthCheckCh,
 	})
 	defer vnetwork.Close()
 	defer runOne("flush disk", flushDisk)
@@ -581,7 +583,7 @@ func runVmManager() {
 	hcServer := services.StartNetServices(vnetwork)
 
 	// VM control server client
-	vc, err := vclient.NewWithNetwork(vnetwork, vm, hcServer, stopCh)
+	vc, err := vclient.NewWithNetwork(vnetwork, vm, hcServer, stopCh, healthCheckCh)
 	check(err)
 	defer vc.Close()
 	err = vc.StartBackground()

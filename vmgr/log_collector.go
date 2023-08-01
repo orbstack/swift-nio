@@ -151,7 +151,7 @@ func tryReadLogHistory(path string, numLines int) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func NewConsoleLogPipe(stopCh chan<- types.StopRequest) (*os.File, error) {
+func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- struct{}) (*os.File, error) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -205,6 +205,12 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest) (*os.File, error) {
 							Err: errors.New("kernel warning: " + output),
 						})
 					})
+
+					// trigger a health check in case of RCU stall / netdev watchdog
+					select {
+					case healthCheckCh <- struct{}{}:
+					default:
+					}
 				} else if strings.Contains(line, "] Out of memory: Killed process") {
 					// notify OOM kill
 					// format:
