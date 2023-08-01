@@ -69,6 +69,11 @@ func EnsureDir(dir string) (string, error) {
 
 // TODO: migrate to /config
 func VmConfigFile() string {
+	env := os.Getenv("ORB_VMGR_CONFIG")
+	if env != "" {
+		return env
+	}
+
 	return AppDir() + "/vmconfig.json"
 }
 
