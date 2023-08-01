@@ -8,15 +8,6 @@ import Combine
 
 private let maxLines = 5000
 
-private struct LogLine: Identifiable {
-    var id: Int
-
-    var date: Date
-    var formattedDate: AttributedString
-    var container: String?
-    var text: AttributedString
-}
-
 private class LogsViewModel: ObservableObject {
     private var seq = 0
 
@@ -25,14 +16,6 @@ private class LogsViewModel: ObservableObject {
 
     private var process: Process?
     private var exited = false
-
-    private let timeFormatter = DateFormatter()
-    private let dateFormatter = DateFormatter()
-
-    init() {
-        timeFormatter.timeStyle = .medium
-        dateFormatter.dateStyle = .short
-    }
 
     func start(isCompose: Bool, args: [String]) {
         print("start: \(args)")
@@ -45,6 +28,7 @@ private class LogsViewModel: ObservableObject {
 
             // env is more robust, user can mess with context
             var newEnv = ProcessInfo.processInfo.environment
+            newEnv["TERM"] = "xterm" // 16 color only
             newEnv["DOCKER_HOST"] = "unix://\(Files.dockerSocket)"
             task.environment = newEnv
 
@@ -65,27 +49,12 @@ private class LogsViewModel: ObservableObject {
             }
             process = task
 
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZZZZZ"
-
             do {
                 print("begin")
                 try task.run()
                 print("r..")
                 for try await line in pipe.fileHandleForReading.bytes.lines {
-                    //print("line: \(line)")
-                    if isCompose {
-
-                    } else {
-                        // format: [iso8601] [space] ...text
-                        // split at first space
-                        let parts = line.split(separator: " ", maxSplits: 1)
-                        let date = formatter.date(from: String(parts[0])) ?? Date()
-                        // empty line?
-                        let text = parts.count == 2 ? String(parts[1]) : ""
-                        addOutputLine(date: date, container: nil, text: text)
-                    }
+                    addOutputLine(text: line)
                 }
             } catch {
                 addError("Failed to run migration: \(error)")
@@ -101,37 +70,17 @@ private class LogsViewModel: ObservableObject {
         process = nil
     }
 
-    private func addOutputLine(date: Date, container: String?, text: String) {
+    private func addOutputLine(text: String) {
         var str = AttributedString(text)
-        //str.font = .system(size: 12).monospaced()
 
         // TODO parse colors
         // TODO parse links
 
-        addLine(date: date, container: container, text: str)
+        addLine(text: str)
     }
 
-    private func addLine(date: Date, container: String?, text: AttributedString) {
-        var formattedDate: String
-        // check if same day as today
-        let now = Date()
-        if Calendar.current.isDate(date, inSameDayAs: now) {
-            formattedDate = timeFormatter.string(from: date)
-        } else {
-            formattedDate = dateFormatter.string(from: date)
-        }
-
-        var dateStr = AttributedString(formattedDate)
-        dateStr.foregroundColor = .secondary
-        //dateStr.font = .system(size: 12).monospaced()
-
+    private func addLine(text: AttributedString) {
         seq += 1
-//        lines.append(LogLine(id: seq, date: date, formattedDate: dateStr, container: container, text: text))
-//        if lines.count > maxLines {
-//            lines.removeFirst(lines.count - maxLines)
-//        }
-//        // trigger publish
-//        lines = lines
         let tmp = NSMutableAttributedString(text + "\n")
         // font
         tmp.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular), range: NSRange(location: 0, length: tmp.length))
@@ -144,7 +93,7 @@ private class LogsViewModel: ObservableObject {
         var str = AttributedString(text)
         str.foregroundColor = .red
         str.font = .system(size: 12).bold()
-        addLine(date: Date(), container: nil, text: str)
+        addLine(text: str)
     }
 
     func clear() {
@@ -253,12 +202,12 @@ struct DockerLogsWindow: View {
                let containers = vmModel.dockerContainers,
                let container = containers.first(where: { $0.id == containerId }) {
                 LogsView(isCompose: false,
-                        args: ["logs", "-f", "-t", "-n", String(maxLines), containerId],
+                        args: ["logs", "-f", "-n", String(maxLines), containerId],
                         model: model)
                 .navigationTitle("Logs: \(container.userName)")
             } else if let composeProject {
                 LogsView(isCompose: true,
-                        args: ["-p", composeProject, "logs", "-t", "-f", "-n", String(maxLines)],
+                        args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
                         model: model)
                 .navigationTitle("Project Logs: \(composeProject)")
             }
