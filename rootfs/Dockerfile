@@ -169,12 +169,12 @@ RUN apk add --no-cache \
 RUN <<EOT sh -eux
 mkdir /work
 cd /work
-curl -LO https://wiki.qemu-project.org/download/qemu-8.0.3.tar.xz
-echo "ecf4d32cbef9d397bfc8cc50e4d1e92a1b30253bf32e8ee73c7a8dcf9a232b09 qemu-8.0.3.tar.xz" > checksum
-sha256sum -c checksum
+curl -LO https://wiki.qemu-project.org/download/qemu-7.1.0.tar.xz
+echo "c60c5ff8ec99b7552e485768908920658fdd8035ff7a6fa370fb6881957dc8b7e5f18ff1a8f49bd6aa22909ede2a7c084986d8244f12074ccd33ebe40a0c411f  qemu-7.1.0.tar.xz" > checksum
+sha512sum -c checksum
 
-tar xf qemu-8.0.3.tar.xz
-mv qemu-8.0.3 qemu
+tar xf qemu-7.1.0.tar.xz
+mv qemu-7.1.0 qemu
 
 mkdir patches
 EOT
@@ -286,10 +286,10 @@ COPY --from=pkgbuild-qemu /out/* /opt/orb/
 # 8.0 segfaults in rustc/cargo like rosetta vmtracker
 RUN <<EOT sh -eux
 if [[ "\$(uname -m)" == "x86_64" ]]; then
-    wget https://dl-cdn.alpinelinux.org/alpine/v3.18/community/x86_64/qemu-aarch64-8.0.3-r1.apk
-    wget https://dl-cdn.alpinelinux.org/alpine/v3.18/community/x86_64/qemu-arm-8.0.3-r1.apk
-    apk add --no-cache --no-network ./qemu-aarch64-8.0.3-r1.apk ./qemu-arm-8.0.3-r1.apk
-    rm -f qemu-aarch64-8.0.3-r1.apk qemu-arm-8.0.3-r1.apk
+    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/x86_64/qemu-aarch64-7.1.0-r7.apk
+    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/x86_64/qemu-arm-7.1.0-r7.apk
+    apk add --no-cache --no-network ./qemu-aarch64-7.1.0-r7.apk ./qemu-arm-7.1.0-r7.apk
+    rm -f qemu-aarch64-7.1.0-r7.apk qemu-arm-7.1.0-r7.apk
 
     ln -s /usr/bin/qemu-arm /opt/orb/qemu-arm
 fi
