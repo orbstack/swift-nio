@@ -55,6 +55,7 @@ type UserDetails struct {
 	EnvPATH          string
 	EnvDOCKER_CONFIG string
 	EnvZDOTDIR       string
+	EnvSSH_AUTH_SOCK string
 }
 
 type PathInfo struct {
@@ -121,6 +122,7 @@ func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
 		EnvPATH:          envMap["PATH"],
 		EnvDOCKER_CONFIG: envMap["DOCKER_CONFIG"],
 		EnvZDOTDIR:       envMap["ZDOTDIR"],
+		EnvSSH_AUTH_SOCK: envMap["SSH_AUTH_SOCK"],
 	}, nil
 }
 
@@ -139,9 +141,14 @@ func (s *VmControlServer) doGetUserDetailsAndSetupEnv() (*UserDetails, error) {
 		"envPATH":          details.EnvPATH,
 		"envDOCKER_CONFIG": details.EnvDOCKER_CONFIG,
 		"envZDOTDIR":       details.EnvZDOTDIR,
+		"envSSH_AUTH_SOCK": details.EnvSSH_AUTH_SOCK,
 	}).Debug("user details")
 
 	err = os.Setenv("PATH", details.EnvPATH)
+	if err != nil {
+		return nil, err
+	}
+	err = os.Setenv("SSH_AUTH_SOCK", details.EnvSSH_AUTH_SOCK)
 	if err != nil {
 		return nil, err
 	}
