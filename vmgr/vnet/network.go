@@ -3,6 +3,7 @@ package vnet
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net"
@@ -386,7 +387,7 @@ func (n *Network) DialGuestTCPRetry(port uint16) (net.Conn, error) {
 			return conn, nil
 		}
 		if time.Since(start) > guestDialRetryTimeout {
-			return nil, err
+			return nil, fmt.Errorf("retries exhausted: %w", err)
 		}
 		time.Sleep(guestDialRetryInterval)
 	}
