@@ -7,6 +7,7 @@ import SwiftUI
 import Combine
 
 private let maxLines = 5000
+private let maxChars = 5000 * 150 // avg line len - easier to do it like this
 private let urlRegex = try! NSRegularExpression(pattern: #"http(s)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}(\.[a-z]{2,6})?\b([-a-zA-Z0-9@:%_\+.~#?&\/\/=]*)"#)
 
 private class LogsViewModel: ObservableObject {
@@ -93,6 +94,10 @@ private class LogsViewModel: ObservableObject {
         text.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
                 range: NSRange(location: 0, length: text.length))
         contents.append(text)
+        // truncate if needed
+        if contents.length > maxChars {
+            contents.deleteCharacters(in: NSRange(location: 0, length: contents.length - maxChars))
+        }
         // publish
         updateEvent.send()
     }
