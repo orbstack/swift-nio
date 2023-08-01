@@ -123,6 +123,13 @@ private struct LogsTextView: NSViewRepresentable {
         textView.usesAdaptiveColorMappingForDarkAppearance = true
         textView.isAutomaticDataDetectionEnabled = false
         textView.isIncrementalSearchingEnabled = true
+        // doesn't work
+        //textView.isAutomaticLinkDetectionEnabled = true
+
+        // char, not word wrap
+        let paragraphStyle = NSMutableParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
+        paragraphStyle.lineBreakMode = .byCharWrapping
+        textView.defaultParagraphStyle = paragraphStyle
 
         textView.isEditable = false
         textView.usesFindBar = true
