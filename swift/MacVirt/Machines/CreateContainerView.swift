@@ -89,6 +89,7 @@ struct CreateContainerView: View {
                 }) {
                     Text("Cancel")
                 }
+                .keyboardShortcut(.cancelAction)
 
                 Button(action: {
                     create()

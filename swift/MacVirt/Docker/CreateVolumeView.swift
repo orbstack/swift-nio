@@ -50,6 +50,7 @@ struct CreateVolumeView: View {
                 }) {
                     Text("Cancel")
                 }
+                .keyboardShortcut(.cancelAction)
 
                 Button(action: {
                     submit()

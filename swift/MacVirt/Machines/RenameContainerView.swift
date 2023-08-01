@@ -58,6 +58,7 @@ struct RenameContainerView: View {
                 }) {
                     Text("Cancel")
                 }
+                .keyboardShortcut(.cancelAction)
 
                 Button(action: {
                     create()
