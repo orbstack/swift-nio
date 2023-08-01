@@ -5,8 +5,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/kevinburke/ssh_config"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/util/sshconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/sirupsen/logrus"
@@ -26,8 +27,8 @@ func GetAgentSockets() htypes.SSHAgentSockets {
 	}
 
 	// get config
-	configSock, err := ssh_config.GetStrict("*", "IdentityAgent")
-	if err == nil {
+	configSock, err := sshconfig.ReadKeyForHost(appid.ShortAppName, "IdentityAgent")
+	if err == nil && configSock != "" {
 		// the parser sucks... fix quotes and ~/ for 1password
 		// TODO parse it ourselves
 		configSock = strings.Trim(configSock, "\"")
@@ -41,6 +42,8 @@ func GetAgentSockets() htypes.SSHAgentSockets {
 		}
 
 		socks.SshConfig = configSock
+	} else if err != nil {
+		logrus.WithError(err).Warn("failed to read ssh config")
 	}
 
 	// prefer IdentityAgent for 1Password agent

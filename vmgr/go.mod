@@ -16,8 +16,6 @@ replace github.com/fsnotify/fsnotify => github.com/orbstack/fsnotify-macvirt v0.
 
 replace github.com/buildbarn/go-xdr => github.com/kdrag0n/go-xdr-macvirt v0.0.0-20230326123001-605de85becc7
 
-replace github.com/kevinburke/ssh_config => github.com/orbstack/ssh_config v0.0.0-20230729012050-8a1a6b8fcffd
-
 require (
 	github.com/creachadair/jrpc2 v1.0.1
 	github.com/creack/pty v1.1.18
@@ -35,7 +33,6 @@ require (
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/golang-lru/v2 v2.0.4
-	github.com/kevinburke/ssh_config v1.2.0
 	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 )

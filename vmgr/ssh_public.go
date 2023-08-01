@@ -8,13 +8,13 @@ import (
 	"os"
 
 	"github.com/alessio/shellescape"
-	"github.com/kevinburke/ssh_config"
 	"github.com/mikesmitty/edkey"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
+	"github.com/orbstack/macvirt/vmgr/util/sshconfig"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -95,14 +95,15 @@ Host %s
 
 	// check for existing "orb" host
 	// incl. Include and empty Host blocks
-	oldHostname, err := ssh_config.GetStrict(appid.ShortAppName, "Hostname")
+	oldHostname, err := sshconfig.ReadKeyForHost(appid.ShortAppName, "Hostname")
 	if err != nil {
 		logrus.WithError(err).Warn("failed to parse SSH config")
 		return err
 	}
 	logrus.WithField("oldHostname", oldHostname).Debug("oldHostname")
 
-	if oldHostname == "" {
+	// default = same as we provided
+	if oldHostname == appid.ShortAppName {
 		// add include if necessary
 		userConfigPath := conf.UserSshDir() + "/config"
 		sshConfig, err := os.ReadFile(userConfigPath)
