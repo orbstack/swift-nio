@@ -47,6 +47,8 @@ pub enum InitError {
     ParseProcStat(i32),
     #[error("failed to spawn service {}: {}", .service, .error)]
     SpawnService { service: Service, #[source] error: std::io::Error },
+    #[error("missing data partition: {}", .0)]
+    MissingDataPartition(Box<dyn Error>),
 }
 
 #[derive(Clone)]

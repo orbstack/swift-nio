@@ -374,7 +374,8 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     if let Some(value) = sys_info.seed_configs.get("data_size") {
         let new_size_mib = value.parse::<u64>()?;
         // get existing size
-        let old_size_mib = blockdev::getsize64("/dev/vdb1")? / 1024 / 1024;
+        let old_size_mib = blockdev::getsize64("/dev/vdb1")
+            .map_err(InitError::MissingDataPartition)? / 1024 / 1024;
         // for safety, only allow increasing size
         if new_size_mib > old_size_mib {
             // resize

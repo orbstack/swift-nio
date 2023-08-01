@@ -5,8 +5,8 @@
 import Foundation
 import SwiftUI
 import Defaults
-
 import Sentry
+
 private class MigrationViewModel: ObservableObject {
     @Published var statusLine = "Preparing"
     @Published var progress: Double = 0
