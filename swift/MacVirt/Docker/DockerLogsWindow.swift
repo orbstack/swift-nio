@@ -72,14 +72,14 @@ private class PtyPipe: Pipe {
             close(masterFd)
             // fallback = pipe
             let pipe = Pipe()
-            self._fileHandleForReading = pipe.fileHandleForReading
-            self._fileHandleForWriting = pipe.fileHandleForWriting
+            _fileHandleForReading = pipe.fileHandleForReading
+            _fileHandleForWriting = pipe.fileHandleForWriting
             return
         }
 
         // use FileHandle immediately
-        self._fileHandleForReading = FileHandle(fileDescriptor: masterFd, closeOnDealloc: true)
-        self._fileHandleForWriting = FileHandle(fileDescriptor: slaveFd, closeOnDealloc: true)
+        _fileHandleForReading = FileHandle(fileDescriptor: masterFd, closeOnDealloc: true)
+        _fileHandleForWriting = FileHandle(fileDescriptor: slaveFd, closeOnDealloc: true)
     }
 
     override var fileHandleForReading: FileHandle {
@@ -105,7 +105,7 @@ private class LogsViewModel: ObservableObject {
 
     func start(isCompose: Bool, args: [String]) {
         Task.detached { [self] in
-            self.exited = false
+            exited = false
             lastAnsiState = AnsiState()
             let task = Process()
             task.launchPath = isCompose ? AppConfig.dockerComposeExe : AppConfig.dockerExe
@@ -129,7 +129,7 @@ private class LogsViewModel: ObservableObject {
                     if status != 0 {
                         add(error: "Failed with status \(status)")
                     }
-                    self.exited = true
+                    exited = true
                 }
             }
             process = task
@@ -153,7 +153,7 @@ private class LogsViewModel: ObservableObject {
                 }
             } catch {
                 await add(error: "Failed to start log stream: \(error)")
-                self.exited = true
+                exited = true
             }
         }
     }
