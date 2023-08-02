@@ -55,9 +55,20 @@ private class PtyPipe: Pipe {
     private let _fileHandleForWriting: FileHandle
 
     override init() {
-        var master: Int32 = 0
-        var slave: Int32 = 0
-        if openpty(&master, &slave, nil, nil, nil) != 0 {
+        let masterFd = posix_openpt(O_CLOEXEC)
+        if masterFd == -1 {
+            // fallback = pipe
+            let pipe = Pipe()
+            self._fileHandleForReading = pipe.fileHandleForReading
+            self._fileHandleForWriting = pipe.fileHandleForWriting
+            return
+        }
+        grantpt(masterFd)
+        unlockpt(masterFd)
+
+        let slaveFd = open(ptsname(masterFd), O_RDWR | O_NOCTTY | O_CLOEXEC)
+        guard slaveFd != -1 else {
+            close(masterFd)
             // fallback = pipe
             let pipe = Pipe()
             self._fileHandleForReading = pipe.fileHandleForReading
@@ -66,8 +77,8 @@ private class PtyPipe: Pipe {
         }
 
         // use FileHandle immediately
-        self._fileHandleForReading = FileHandle(fileDescriptor: master, closeOnDealloc: true)
-        self._fileHandleForWriting = FileHandle(fileDescriptor: slave, closeOnDealloc: true)
+        self._fileHandleForReading = FileHandle(fileDescriptor: masterFd, closeOnDealloc: true)
+        self._fileHandleForWriting = FileHandle(fileDescriptor: slaveFd, closeOnDealloc: true)
     }
 
     override var fileHandleForReading: FileHandle {
