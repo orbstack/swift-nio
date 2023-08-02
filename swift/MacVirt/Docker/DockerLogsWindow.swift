@@ -7,7 +7,7 @@ import SwiftUI
 import Combine
 
 private let maxLines = 5000
-private let maxChars = 5000 * 150 // avg line len - easier to do it like this
+private let maxChars = maxLines * 150 // avg line len - easier to do it like this
 private let bottomScrollThreshold = 256.0
 private let fontSize = 13.0
 
@@ -18,6 +18,7 @@ private let urlRegex = try! NSRegularExpression(pattern: #"http(s)?:\/\/(www\.)?
 private let ansiColorRegex = try! NSRegularExpression(pattern: #"\u001B\[([0-9]{1,2};?)*?m"#)
 
 private let ansiColorPalette: [NSColor] = [
+    // keep in mind that ansi colors are meant for white-on-black
     .textBackgroundColor, // black
     .systemRed,
     .systemGreen,
@@ -31,8 +32,8 @@ private let ansiColorPalette: [NSColor] = [
 private struct AnsiState: Equatable {
     var bold = false
     var underline = false
-    var colorFg = 0
-    var colorBg = 0
+    var colorFg: Int?
+    var colorBg: Int?
 
     func addAttribute(to: NSMutableAttributedString, range: NSRange) {
         if bold {
@@ -41,10 +42,10 @@ private struct AnsiState: Equatable {
         if underline {
             to.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
         }
-        if colorFg != 0 {
+        if let colorFg {
             to.addAttribute(.foregroundColor, value: ansiColorPalette[colorFg], range: range)
         }
-        if colorBg != 0 {
+        if let colorBg {
             to.addAttribute(.backgroundColor, value: ansiColorPalette[colorBg], range: range)
         }
     }
@@ -210,11 +211,11 @@ private class LogsViewModel: ObservableObject {
                 case 30...37:
                     state.colorFg = code - 30
                 case 39:
-                    state.colorFg = 0
+                    state.colorFg = nil
                 case 40...47:
                     state.colorBg = code - 40
                 case 49:
-                    state.colorBg = 0
+                    state.colorBg = nil
                 // bright = bold + color
                 case 90...97:
                     state.colorFg = code - 90
