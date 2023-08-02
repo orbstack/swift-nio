@@ -9,7 +9,8 @@ import Combine
 private let maxLines = 5000
 private let maxChars = maxLines * 150 // avg line len - easier to do it like this
 private let bottomScrollThreshold = 256.0
-private let fontSize = 13.0
+private let fontSize = 12.5
+private let terminalLineHeight = 1.2
 
 private let terminalFont = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
 private let terminalFontBold = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
@@ -317,11 +318,61 @@ private class LogsViewModel: ObservableObject {
     }
 }
 
+private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
+    private let fontLineHeight: CGFloat
+
+    init(layoutManager: NSLayoutManager) {
+        // cache this calculation for perf
+        fontLineHeight = layoutManager.defaultLineHeight(for: terminalFont)
+    }
+
+    // this is the only good way to set line height.
+    // paragraphStyle.lineHeightMultiple breaks incremental text search and adds all space to top of line
+    // paragraphStyle.lineSpacing makes selection ugly (it's spacing *between* lines)
+    // lineSpacingAfterGlyphAt causes visible line recycling on scroll (appearing/disappearing at top/bottom)
+    // this method: search works, no ugly selection, centered spacing, no recycling
+    // https://christiantietze.de/posts/2017/07/nstextview-proper-line-height/
+    func layoutManager(
+            _ layoutManager: NSLayoutManager,
+            shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
+            lineFragmentUsedRect: UnsafeMutablePointer<NSRect>,
+            baselineOffset: UnsafeMutablePointer<CGFloat>,
+            in textContainer: NSTextContainer,
+            forGlyphRange glyphRange: NSRange) -> Bool {
+        let lineHeight = fontLineHeight * terminalLineHeight
+        let baselineNudge = (lineHeight - fontLineHeight)
+                // The following factor is a result of experimentation:
+                * 0.6
+
+        var rect = lineFragmentRect.pointee
+        rect.size.height = lineHeight
+
+        var usedRect = lineFragmentUsedRect.pointee
+        usedRect.size.height = max(lineHeight, usedRect.size.height) // keep emoji sizes
+
+        lineFragmentRect.pointee = rect
+        lineFragmentUsedRect.pointee = usedRect
+        baselineOffset.pointee = baselineOffset.pointee + baselineNudge
+
+        return true
+    }
+
+    // this works, but puts all padding at the bottom,
+    // and causes visible lines appearing/disappearing at top/bottom when scrolling slowly
+    /*
+    func layoutManager(_ layoutManager: NSLayoutManager, lineSpacingAfterGlyphAt glyphIndex: Int,
+                       withProposedLineFragmentRect rect: NSRect) -> CGFloat {
+        5
+    }
+     */
+}
+
 private struct LogsTextView: NSViewRepresentable {
     let model: LogsViewModel
 
-    class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
+    class Coordinator {
         var cancellables = Set<AnyCancellable>()
+        var layoutManagerDelegate: NSLayoutManagerDelegate?
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -329,6 +380,11 @@ private struct LogsTextView: NSViewRepresentable {
         let textView = scrollView.documentView as! NSTextView
 
         // textView.font and textView.isAutomaticLinkDetectionEnabled don't work
+        if let layoutManager = textView.layoutManager {
+            // keep strong ref (layoutManager.delegate = weak)
+            context.coordinator.layoutManagerDelegate = LineHeightDelegate(layoutManager: layoutManager)
+            layoutManager.delegate = context.coordinator.layoutManagerDelegate
+        }
         textView.textContainerInset = NSSize(width: 8, height: 8)
         textView.usesAdaptiveColorMappingForDarkAppearance = true
         textView.isAutomaticDataDetectionEnabled = false
@@ -337,7 +393,6 @@ private struct LogsTextView: NSViewRepresentable {
         // char wrap, line height
         let paragraphStyle = NSMutableParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
         paragraphStyle.lineBreakMode = .byCharWrapping
-        paragraphStyle.lineHeightMultiple = 1.2
         textView.defaultParagraphStyle = paragraphStyle
 
         textView.isEditable = false
