@@ -290,7 +290,7 @@ private class LogsViewModel: ObservableObject {
 }
 
 private struct LogsTextView: NSViewRepresentable {
-    @ObservedObject var model: LogsViewModel
+    let model: LogsViewModel
 
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
         var cancellables = Set<AnyCancellable>()
@@ -353,7 +353,7 @@ private struct LogsTextView: NSViewRepresentable {
 private struct LogsView: View {
     let isCompose: Bool
     let args: [String]
-    @StateObject var model: LogsViewModel
+    let model: LogsViewModel
 
     var body: some View {
         LogsTextView(model: model)
