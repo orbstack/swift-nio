@@ -134,22 +134,25 @@ private class AsyncPipeReader {
 }
 
 private class LogsViewModel: ObservableObject {
-    private var seq = 0
-
     var contents = NSMutableAttributedString()
     let updateEvent = PassthroughSubject<(), Never>()
     let searchCommand = PassthroughSubject<(), Never>()
 
     private var process: Process?
-    private var exited = false
-
     private var lastAnsiState = AnsiState()
-    private var cancellables = Set<AnyCancellable>()
+    private var isFirstStart = true
 
     @MainActor
     func start(isCompose: Bool, args: [String]) {
-        exited = false
+        // reset first
+        stop()
         lastAnsiState = AnsiState()
+
+        // if not first start, add delimiter
+        if !isFirstStart {
+            addDelimiter()
+        }
+
         let task = Process()
         task.launchPath = isCompose ? AppConfig.dockerComposeExe : AppConfig.dockerExe
         // force: we do existing-data check in GUI
@@ -184,7 +187,6 @@ private class LogsViewModel: ObservableObject {
                 if status != 0 {
                     add(error: "Failed with status \(status)")
                 }
-                exited = true
             }
         }
         process = task
@@ -193,7 +195,6 @@ private class LogsViewModel: ObservableObject {
             try task.run()
         } catch {
             add(error: "Failed to start log stream: \(error)")
-            exited = true
         }
     }
 
@@ -287,7 +288,6 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     private func add(attributedString: NSMutableAttributedString) {
-        seq += 1
         contents.append(attributedString)
         // truncate if needed
         if contents.length > maxChars {
@@ -304,6 +304,16 @@ private class LogsViewModel: ObservableObject {
         str.addAttribute(.font, value: terminalFontBold, range: NSRange(location: 0, length: str.length))
         // red
         str.addAttribute(.foregroundColor, value: NSColor.systemRed, range: NSRange(location: 0, length: str.length))
+        add(attributedString: str)
+    }
+
+    @MainActor
+    private func addDelimiter() {
+        let str = NSMutableAttributedString(string: "\n\n─────────────────── restarted ──────────────────\n\n")
+        // bold font
+        str.addAttribute(.font, value: terminalFontBold, range: NSRange(location: 0, length: str.length))
+        // secondary
+        str.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: 0, length: str.length))
         add(attributedString: str)
     }
 
@@ -447,8 +457,7 @@ private struct LogsView: View {
             model.stop()
         }
         .onChange(of: args) { newArgs in
-            model.clear()
-            //model.start(isCompose: isCompose, args: newArgs)
+            model.start(isCompose: isCompose, args: newArgs)
         }
     }
 }
