@@ -60,8 +60,8 @@ private class PtyPipe: Pipe {
         if masterFd == -1 {
             // fallback = pipe
             let pipe = Pipe()
-            self._fileHandleForReading = pipe.fileHandleForReading
-            self._fileHandleForWriting = pipe.fileHandleForWriting
+            _fileHandleForReading = pipe.fileHandleForReading
+            _fileHandleForWriting = pipe.fileHandleForWriting
             return
         }
         grantpt(masterFd)
@@ -135,22 +135,32 @@ private class LogsViewModel: ObservableObject {
             process = task
 
             do {
+                print("run")
                 try task.run()
-                /*var line = ""
-                for try await ch in pipe.fileHandleForReading.bytes.characters {
+                print("iter")
+                var buf = Data(capacity: 1024)
+                var lastCh: UInt8 = 0
+                // .lines skips empty lines, .characters is slow, so use bytes
+                // individual bytes are not valid utf8 so use Data as buffer
+                for try await ch in pipe.fileHandleForReading.bytes {
                     // \r for pty logs. mac combines them
-                    if ch == "\r" || ch == "\n" || ch == "\r\n" {
-                        addOutputLine(text: line)
-                        line = ""
+                    if ch == 10 || ch == 13 { // \n or \r
+                        if lastCh == 13 {
+                            // skip \n after \r
+                            lastCh = ch
+                            continue
+                        }
+
+                        buf.append(10) // \n
+                        await add(terminalLine: String(decoding: buf, as: UTF8.self))
+                        buf.removeAll(keepingCapacity: true)
                     } else {
-                        line.append(ch)
+                        buf.append(ch)
                     }
-                }*/
-                // this skips empty lines but is much faster
-                for try await line in pipe.fileHandleForReading.bytes.lines {
-                    print("line: \(line)")
-                    await add(terminalLine: line)
+
+                    lastCh = ch
                 }
+                print("done")
             } catch {
                 await add(error: "Failed to start log stream: \(error)")
                 exited = true
@@ -167,7 +177,7 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     private func add(terminalLine: String) {
-        let attributedStr = NSMutableAttributedString(string: terminalLine + "\n")
+        let attributedStr = NSMutableAttributedString(string: terminalLine)
         // font
         attributedStr.addAttribute(.font, value: terminalFont, range: NSRange(location: 0, length: attributedStr.length))
 
