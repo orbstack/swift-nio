@@ -151,6 +151,8 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     func start(isCompose: Bool, args: [String]) {
+        NSLog("Starting log stream: isCompose=\(isCompose), args=\(args)")
+
         // reset first
         stop()
         lastAnsiState = AnsiState()
