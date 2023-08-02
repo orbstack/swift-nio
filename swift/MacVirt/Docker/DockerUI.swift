@@ -181,7 +181,7 @@ struct DockerContainerLists {
         var composeGroups: [ComposeGroup: [DKContainer]] = [:]
 
         for container in filteredContainers {
-            if let composeProject = container.labels[DockerLabels.composeProject] {
+            if let composeProject = container.composeProject {
                 let group = ComposeGroup(project: composeProject)
                 if composeGroups[group] == nil {
                     composeGroups[group] = [container]

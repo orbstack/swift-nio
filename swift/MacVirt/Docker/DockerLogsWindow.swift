@@ -568,7 +568,7 @@ struct DockerLogsWindow: View {
                           containers.contains(where: { $0.names.contains(containerName) && $0.running }) {
                     model.restart()
                 } else if let composeProject,
-                          containers.contains(where: {$0.labels[DockerLabels.composeProject] == composeProject && $0.running}) {
+                          containers.contains(where: {$0.composeProject == composeProject && $0.running}) {
                     model.restart()
                 }
             }.store(in: &model.cancellables)

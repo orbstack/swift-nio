@@ -1067,7 +1067,7 @@ class VmViewModel: ObservableObject {
             // find working dir from containers
             if let containers = dockerContainers,
                let container = containers.first(where: { container in
-                   container.labels[DockerLabels.composeProject] == project
+                   container.composeProject == project
                }) {
                 // only pass configs and working dir if needed for action
                 // otherwise skip for robustness

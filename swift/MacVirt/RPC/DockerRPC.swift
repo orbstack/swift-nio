@@ -32,6 +32,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         state == "running"
     }
 
+    var composeProject: String? {
+        labels[DockerLabels.composeProject]
+    }
+
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
         labels[DockerLabels.composeService] ??

@@ -448,7 +448,7 @@ extension BaseDockerContainerItem {
                     case .container(let id):
                         return containers.contains(where: { container in container.id == id })
                     case .compose(let project):
-                        return containers.contains(where: { container in container.labels[DockerLabels.composeProject] == project })
+                        return containers.contains(where: { container in container.composeProject == project })
                     default:
                         return false
                     }
@@ -461,7 +461,7 @@ extension BaseDockerContainerItem {
                     switch sel {
                     case .container(let id):
                         if let container = containers.first(where: { container in container.id == id }),
-                           let composeProject = container.labels[DockerLabels.composeProject] {
+                           let composeProject = container.composeProject {
                             return !firstPass.contains(.compose(project: composeProject))
                         } else {
                             // not a compose project
