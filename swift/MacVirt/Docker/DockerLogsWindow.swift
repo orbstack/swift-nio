@@ -91,6 +91,47 @@ private class PtyPipe: Pipe {
     }
 }
 
+private class AsyncPipeReader {
+    private var buf = Data(capacity: 1024)
+    private var lastCh: UInt8 = 0
+
+    private let pipe: Pipe
+    private let callback: (String) -> Void
+
+    init(pipe: Pipe, callback: @escaping (String) -> Void) {
+        self.pipe = pipe
+        self.callback = callback
+        pipe.fileHandleForReading.readabilityHandler = onReadable
+    }
+
+    private func onReadable(handle: FileHandle) {
+        for ch in handle.availableData {
+            // \r for pty logs
+            if ch == 10 || ch == 13 { // \n or \r
+                if lastCh == 13 {
+                    // skip \n after \r
+                    lastCh = ch
+                    continue
+                }
+
+                buf.append(10) // \n
+                callback(String(decoding: buf, as: UTF8.self))
+                buf.removeAll(keepingCapacity: true)
+            } else {
+                buf.append(ch)
+            }
+
+            lastCh = ch
+        }
+    }
+
+    func finish() {
+        pipe.fileHandleForReading.readabilityHandler = nil
+        // drain
+        onReadable(handle: pipe.fileHandleForReading)
+    }
+}
+
 private class LogsViewModel: ObservableObject {
     private var seq = 0
 
@@ -102,69 +143,56 @@ private class LogsViewModel: ObservableObject {
     private var exited = false
 
     private var lastAnsiState = AnsiState()
+    private var cancellables = Set<AnyCancellable>()
 
+    @MainActor
     func start(isCompose: Bool, args: [String]) {
-        Task.detached { [self] in
-            exited = false
-            lastAnsiState = AnsiState()
-            let task = Process()
-            task.launchPath = isCompose ? AppConfig.dockerComposeExe : AppConfig.dockerExe
-            // force: we do existing-data check in GUI
-            task.arguments = args
+        exited = false
+        lastAnsiState = AnsiState()
+        let task = Process()
+        task.launchPath = isCompose ? AppConfig.dockerComposeExe : AppConfig.dockerExe
+        // force: we do existing-data check in GUI
+        task.arguments = args
 
-            // env is more robust, user can mess with context
-            var newEnv = ProcessInfo.processInfo.environment
-            newEnv["TERM"] = "xterm" // 16 color only
-            newEnv["DOCKER_HOST"] = "unix://\(Files.dockerSocket)"
-            task.environment = newEnv
+        // env is more robust, user can mess with context
+        var newEnv = ProcessInfo.processInfo.environment
+        newEnv["TERM"] = "xterm" // 16 color only
+        newEnv["DOCKER_HOST"] = "unix://\(Files.dockerSocket)"
+        task.environment = newEnv
 
-            // use pty to make docker-compose print colored prefixes
-            let pipe = PtyPipe()
-            task.standardOutput = pipe
-            task.standardError = pipe
-
-            task.terminationHandler = { process in
-                let status = process.terminationStatus
-                DispatchQueue.main.async { [self] in
-                    if status != 0 {
-                        add(error: "Failed with status \(status)")
-                    }
-                    exited = true
-                }
+        // use pty to make docker-compose print colored prefixes
+        let pipe = PtyPipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        // AsyncBytes is not actually async, it blocks on read and occupies a task thread
+        // so can't run multiple tasks concurrently
+        let reader = AsyncPipeReader(pipe: pipe) { line in
+            // this queuing actually improves perf and provides a buffer:
+            // if gui is slow it'll update less often but won't block the reader
+            DispatchQueue.main.async { [weak self] in
+                self?.add(terminalLine: line)
             }
-            process = task
+        }
 
-            do {
-                print("run")
-                try task.run()
-                print("iter")
-                var buf = Data(capacity: 1024)
-                var lastCh: UInt8 = 0
-                // .lines skips empty lines, .characters is slow, so use bytes
-                // individual bytes are not valid utf8 so use Data as buffer
-                for try await ch in pipe.fileHandleForReading.bytes {
-                    // \r for pty logs. mac combines them
-                    if ch == 10 || ch == 13 { // \n or \r
-                        if lastCh == 13 {
-                            // skip \n after \r
-                            lastCh = ch
-                            continue
-                        }
+        task.terminationHandler = { process in
+            let status = process.terminationStatus
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
 
-                        buf.append(10) // \n
-                        await add(terminalLine: String(decoding: buf, as: UTF8.self))
-                        buf.removeAll(keepingCapacity: true)
-                    } else {
-                        buf.append(ch)
-                    }
-
-                    lastCh = ch
+                reader.finish()
+                if status != 0 {
+                    add(error: "Failed with status \(status)")
                 }
-                print("done")
-            } catch {
-                await add(error: "Failed to start log stream: \(error)")
                 exited = true
             }
+        }
+        process = task
+
+        do {
+            try task.run()
+        } catch {
+            add(error: "Failed to start log stream: \(error)")
+            exited = true
         }
     }
 
