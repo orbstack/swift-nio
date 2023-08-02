@@ -152,6 +152,7 @@ private class LogsViewModel: ObservableObject {
         if !isFirstStart {
             addDelimiter()
         }
+        isFirstStart = false
 
         let task = Process()
         task.launchPath = isCompose ? AppConfig.dockerComposeExe : AppConfig.dockerExe
@@ -309,7 +310,7 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     private func addDelimiter() {
-        let str = NSMutableAttributedString(string: "\n\n─────────────────── restarted ──────────────────\n\n")
+        let str = NSMutableAttributedString(string: "\n─────────────────── restarted ──────────────────\n\n")
         // bold font
         str.addAttribute(.font, value: terminalFontBold, range: NSRange(location: 0, length: str.length))
         // secondary
@@ -421,6 +422,8 @@ private struct LogsTextView: NSViewRepresentable {
                 textView.scrollToEndOfDocument(nil)
                 NSAnimationContext.endGrouping()
             }.store(in: &context.coordinator.cancellables)
+        // trigger initial update
+        model.updateEvent.send()
 
         model.searchCommand.sink { [weak textView] query in
             guard let textView else {
@@ -468,6 +471,7 @@ struct DockerLogsWindow: View {
     @StateObject private var model = LogsViewModel()
 
     @State private var containerId: String?
+    @State private var containerName: String? // saved once we get id
     @State private var composeProject: String?
 
     // persist if somehow window gets restored
@@ -480,6 +484,19 @@ struct DockerLogsWindow: View {
                let container = containers.first(where: { $0.id == containerId }) {
                 LogsView(isCompose: false,
                         args: ["logs", "-f", "-n", String(maxLines), containerId],
+                        model: model)
+                .navigationTitle("Logs: \(container.userName)")
+                .onAppear {
+                    // save name so we can keep going after container is recreated
+                    containerName = container.names.first
+                }
+            } else if let containerName,
+                      let containers = vmModel.dockerContainers,
+                      let container = containers.first(where: { $0.names.contains(containerName) }) {
+                // if restarted, use name
+                // don't update id - it'll cause unnecessary logs restart
+                LogsView(isCompose: false,
+                        args: ["logs", "-f", "-n", String(maxLines), container.id],
                         model: model)
                 .navigationTitle("Logs: \(container.userName)")
             } else if let composeProject {
