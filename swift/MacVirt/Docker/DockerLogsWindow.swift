@@ -344,10 +344,10 @@ private class LogsViewModel: ObservableObject {
     @MainActor
     private func addDelimiter() {
         let str = NSMutableAttributedString(string: "\n─────────────────── restarted ──────────────────\n\n")
-        // bold font
-        str.addAttribute(.font, value: terminalFontBold, range: NSRange(location: 0, length: str.length))
-        // secondary
-        str.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: 0, length: str.length))
+        // font (bold causes overlapping box chars)
+        str.addAttribute(.font, value: terminalFont, range: NSRange(location: 0, length: str.length))
+        // secondary gray (secondaryLabelColor also causes overlap bleed)
+        str.addAttribute(.foregroundColor, value: NSColor.systemGray, range: NSRange(location: 0, length: str.length))
         add(attributedString: str)
     }
 
