@@ -14,6 +14,7 @@ private let terminalLineHeight = 1.2
 
 private let terminalFont = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
 private let terminalFontBold = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
+private let terminalColor = NSColor.textColor
 
 private let urlRegex = try! NSRegularExpression(pattern: #"http(s)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}(\.[a-z]{2,6})?\b([-a-zA-Z0-9@:%_\+.~#?&\/\/=]*)"#)
 private let ansiColorRegex = try! NSRegularExpression(pattern: #"\u001B\[([0-9]{1,2};?)*?m"#)
@@ -241,6 +242,8 @@ private class LogsViewModel: ObservableObject {
         let attributedStr = NSMutableAttributedString(string: terminalLine)
         // font
         attributedStr.addAttribute(.font, value: terminalFont, range: NSRange(location: 0, length: attributedStr.length))
+        // color
+        attributedStr.addAttribute(.foregroundColor, value: terminalColor, range: NSRange(location: 0, length: attributedStr.length))
 
         // parse links first, before indexes change
         var matches = urlRegex.matches(in: terminalLine, range: NSRange(location: 0, length: terminalLine.utf16.count))
@@ -427,7 +430,6 @@ private struct LogsTextView: NSViewRepresentable {
             layoutManager.delegate = context.coordinator.layoutManagerDelegate
         }
         textView.textContainerInset = NSSize(width: 8, height: 8)
-        textView.usesAdaptiveColorMappingForDarkAppearance = true
         textView.isAutomaticDataDetectionEnabled = false
         textView.isIncrementalSearchingEnabled = true
 
