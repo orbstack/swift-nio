@@ -212,7 +212,7 @@ struct MacVirtApp: App {
             }
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/", "docker/project-logs/"))
-        .windowDefaultSize(width: 750, height: 500)
+        .windowDefaultSize(width: 800, height: 600)
         .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {

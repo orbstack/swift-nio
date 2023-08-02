@@ -211,3 +211,14 @@ extension Color {
         )
     }
 }
+
+extension NSColor {
+    convenience init(hex: UInt, alpha: Double = 1) {
+        self.init(
+            srgbRed: CGFloat((hex >> 16) & 0xff) / 255,
+            green: CGFloat((hex >> 08) & 0xff) / 255,
+            blue: CGFloat((hex >> 00) & 0xff) / 255,
+            alpha: CGFloat(alpha)
+        )
+    }
+}
