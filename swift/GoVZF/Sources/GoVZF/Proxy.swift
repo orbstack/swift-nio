@@ -115,7 +115,8 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
     let query: [String: Any] = [
         kSecClass as String: kSecClassCertificate,
         kSecMatchLimit as String: kSecMatchLimitAll,
-        kSecReturnRef as String: true
+        kSecReturnRef as String: true,
+        kSecAttrCanVerify as String: true,
     ]
 
     var result: CFTypeRef?
