@@ -21,7 +21,7 @@ private let ansiColorPalette: [NSColor] = [
     .textBackgroundColor, // black
     .systemRed,
     .systemGreen,
-    .systemYellow,
+    .systemOrange, // systemYellow has bad contrast in light
     .systemBlue,
     .systemPurple,
     .systemCyan,
@@ -50,6 +50,35 @@ private struct AnsiState: Equatable {
     }
 }
 
+private class PtyPipe: Pipe {
+    private let _fileHandleForReading: FileHandle
+    private let _fileHandleForWriting: FileHandle
+
+    override init() {
+        var master: Int32 = 0
+        var slave: Int32 = 0
+        if openpty(&master, &slave, nil, nil, nil) != 0 {
+            // fallback = pipe
+            let pipe = Pipe()
+            self._fileHandleForReading = pipe.fileHandleForReading
+            self._fileHandleForWriting = pipe.fileHandleForWriting
+            return
+        }
+
+        // use FileHandle immediately
+        self._fileHandleForReading = FileHandle(fileDescriptor: master, closeOnDealloc: true)
+        self._fileHandleForWriting = FileHandle(fileDescriptor: slave, closeOnDealloc: true)
+    }
+
+    override var fileHandleForReading: FileHandle {
+        _fileHandleForReading
+    }
+
+    override var fileHandleForWriting: FileHandle {
+        _fileHandleForWriting
+    }
+}
+
 private class LogsViewModel: ObservableObject {
     private var seq = 0
 
@@ -63,9 +92,7 @@ private class LogsViewModel: ObservableObject {
     private var lastAnsiState = AnsiState()
 
     func start(isCompose: Bool, args: [String]) {
-        print("start: \(args)")
-        Task.detached { @MainActor [self] in
-            print("running: \(args)")
+        Task.detached { [self] in
             self.exited = false
             lastAnsiState = AnsiState()
             let task = Process()
@@ -79,12 +106,12 @@ private class LogsViewModel: ObservableObject {
             newEnv["DOCKER_HOST"] = "unix://\(Files.dockerSocket)"
             task.environment = newEnv
 
-            let pipe = Pipe()
+            // use pty to make docker-compose print colored prefixes
+            let pipe = PtyPipe()
             task.standardOutput = pipe
             task.standardError = pipe
 
             task.terminationHandler = { process in
-                print("term = \(process.terminationStatus)")
                 let status = process.terminationStatus
                 DispatchQueue.main.async { [self] in
                     if status != 0 {
@@ -96,9 +123,7 @@ private class LogsViewModel: ObservableObject {
             process = task
 
             do {
-                print("begin")
                 try task.run()
-                print("r..")
                 /*var line = ""
                 for try await ch in pipe.fileHandleForReading.bytes.characters {
                     // \r for pty logs. mac combines them
@@ -112,10 +137,10 @@ private class LogsViewModel: ObservableObject {
                 // this skips empty lines but is much faster
                 for try await line in pipe.fileHandleForReading.bytes.lines {
                     print("line: \(line)")
-                    add(terminalLine: line)
+                    await add(terminalLine: line)
                 }
             } catch {
-                add(error: "Failed to run migration: \(error)")
+                await add(error: "Failed to start log stream: \(error)")
                 self.exited = true
             }
         }
@@ -128,6 +153,7 @@ private class LogsViewModel: ObservableObject {
         process = nil
     }
 
+    @MainActor
     private func add(terminalLine: String) {
         let attributedStr = NSMutableAttributedString(string: terminalLine + "\n")
         // font
@@ -208,6 +234,7 @@ private class LogsViewModel: ObservableObject {
         add(attributedString: attributedStr)
     }
 
+    @MainActor
     private func add(attributedString: NSMutableAttributedString) {
         seq += 1
         contents.append(attributedString)
@@ -219,6 +246,7 @@ private class LogsViewModel: ObservableObject {
         updateEvent.send()
     }
 
+    @MainActor
     private func add(error: String) {
         let str = NSMutableAttributedString(string: error + "\n")
         // bold font
@@ -228,6 +256,7 @@ private class LogsViewModel: ObservableObject {
         add(attributedString: str)
     }
 
+    @MainActor
     func clear() {
         contents = NSMutableAttributedString()
         updateEvent.send()
