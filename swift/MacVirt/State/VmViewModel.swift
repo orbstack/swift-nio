@@ -7,6 +7,7 @@ import SwiftUI
 import SwiftJSONRPC
 import Sentry
 import Virtualization
+import Combine
 
 private let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
 private let dockerSystemDfRatelimit = 1.0 * 60 * 60 // 1 hour
@@ -413,6 +414,7 @@ class VmViewModel: ObservableObject {
     // TODO move to WindowTracker
     var openLogWindowIds: Set<String> = []
     var openMainWindowCount = 0
+    private var cancellables = Set<AnyCancellable>()
 
     // Setup
     @Published private(set) var isSshConfigWritable = true
@@ -421,19 +423,22 @@ class VmViewModel: ObservableObject {
     @Published var dockerConfigJson = "{\n}"
 
     init() {
-        daemon.monitorDaemonNotifications { [self] _ in
+        daemon.monitorNotifications()
+
+        daemon.daemonNotifications.sink { _ in
             // go through spawn-daemon for simplicity and ignore pid
             Task { @MainActor in
                 await self.tryStartAndWait()
             }
-        }
-        daemon.monitorDockerNotifications { [self] event in
+        }.store(in: &cancellables)
+
+        daemon.dockerNotifications.sink { event in
             Task { @MainActor in
                 let doContainers = event.changed.contains(.container)
                 let doVolumes = event.changed.contains(.volume)
                 await self.tryRefreshDockerList(doContainers: doContainers, doVolumes: doVolumes)
             }
-        }
+        }.store(in: &cancellables)
     }
 
     private func setStateAsync(_ state: VmState) {

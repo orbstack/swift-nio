@@ -138,15 +138,30 @@ private class LogsViewModel: ObservableObject {
     let updateEvent = PassthroughSubject<(), Never>()
     let searchCommand = PassthroughSubject<(), Never>()
 
-    private var process: Process?
+    var process: Process?
     private var lastAnsiState = AnsiState()
     private var isFirstStart = true
+
+    var cancellables = Set<AnyCancellable>()
+
+    private var lastIsCompose: Bool?
+    private var lastArgs: [String]?
+    private var lastLineDate: Date?
 
     @MainActor
     func start(isCompose: Bool, args: [String]) {
         // reset first
         stop()
         lastAnsiState = AnsiState()
+        lastIsCompose = isCompose
+        lastArgs = args
+        // append arg to filter since last received line, for restart
+        var args = args
+        if let lastLineDate {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions.insert(.withFractionalSeconds)
+            args.append("--since=\(formatter.string(from: lastLineDate))")
+        }
 
         // if not first start, add delimiter
         if !isFirstStart {
@@ -175,16 +190,20 @@ private class LogsViewModel: ObservableObject {
             // this queuing actually improves perf and provides a buffer:
             // if gui is slow it'll update less often but won't block the reader
             DispatchQueue.main.async { [weak self] in
-                self?.add(terminalLine: line)
+                guard let self else { return }
+                lastLineDate = Date() // for restart
+                add(terminalLine: line)
             }
         }
 
         task.terminationHandler = { process in
             let status = process.terminationStatus
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
+                guard let self else { return }
 
                 reader.finish()
+                // mark as exited for restarting on container state change
+                self.process = nil
                 if status != 0 {
                     add(error: "Failed with status \(status)")
                 }
@@ -204,6 +223,17 @@ private class LogsViewModel: ObservableObject {
             process.terminate()
         }
         process = nil
+
+        // don't restart
+        lastIsCompose = nil
+        lastArgs = nil
+    }
+
+    @MainActor
+    func restart() {
+        if let lastIsCompose, let lastArgs {
+            start(isCompose: lastIsCompose, args: lastArgs)
+        }
     }
 
     @MainActor
@@ -515,6 +545,29 @@ struct DockerLogsWindow: View {
             if let savedUrl {
                 onOpenURL(savedUrl)
             }
+
+            vmModel.$dockerContainers.sink { containers in
+                // if containers list changes,
+                // and process has exited,
+                // and (container ID && it's running) or (containerName && it's running) or (composeProject && any running)
+                if model.process != nil {
+                    return
+                }
+                guard let containers else {
+                    return
+                }
+
+                if let containerId,
+                   containers.contains(where: { $0.id == containerId && $0.running }) {
+                    model.restart()
+                } else if let containerName,
+                          containers.contains(where: { $0.names.contains(containerName) && $0.running }) {
+                    model.restart()
+                } else if let composeProject,
+                          containers.contains(where: {$0.labels[DockerLabels.composeProject] == composeProject && $0.running}) {
+                    model.restart()
+                }
+            }.store(in: &model.cancellables)
         }
         .onDisappear {
             if let containerId {

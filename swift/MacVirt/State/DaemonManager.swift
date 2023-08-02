@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import Combine
 
 private let stopExitCodeLogFatal = 1
 private let stopExitCodeGoPanic = 2
@@ -79,6 +80,9 @@ struct DKUIEvent: Codable {
     let changed: [DKUIEntity]
 }
 class DaemonManager {
+    let daemonNotifications = PassthroughSubject<Int, Never>()
+    let dockerNotifications = PassthroughSubject<DKUIEvent, Never>()
+
     private let pidsHolder = PidsHolder()
     private var lastPid: Int?
 
@@ -225,7 +229,7 @@ class DaemonManager {
     }
 
     // subscribe to notification center and dispatch any pids with the given callback
-    func monitorDaemonNotifications(callback: @escaping (Int) -> Void) {
+    func monitorNotifications() {
         let nc = DistributedNotificationCenter.default()
         nc.addObserver(forName: .init("dev.orbstack.vmgr.private.DaemonStarted"), object: nil, queue: nil) { notification in
             guard let pid = notification.userInfo?["pid"] as? Int else {
@@ -233,12 +237,9 @@ class DaemonManager {
                 return
             }
             NSLog("Received notification for pid \(pid)")
-            callback(pid)
+            self.daemonNotifications.send(pid)
         }
-    }
 
-    func monitorDockerNotifications(callback: @escaping (DKUIEvent) -> Void) {
-        let nc = DistributedNotificationCenter.default()
         nc.addObserver(forName: .init("dev.orbstack.vmgr.private.DockerUIEvent"), object: nil, queue: nil) { notification in
             guard let eventJson = notification.userInfo?["event_json"] as? String else {
                 NSLog("Invalid notification: \(notification)")
@@ -251,7 +252,7 @@ class DaemonManager {
                 return
             }
             NSLog("Received Docker notification: \(event)")
-            callback(event)
+            self.dockerNotifications.send(event)
         }
     }
 }
