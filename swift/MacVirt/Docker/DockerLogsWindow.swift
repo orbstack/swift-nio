@@ -509,9 +509,8 @@ private struct DockerLogsContentView: View {
     @State private var containerName: String? // saved once we get id
 
     var body: some View {
-        Group {
+        DockerStateWrapperView(refreshAction: { }) { containers, _ in
             if case let .container(containerId) = cid,
-               let containers = vmModel.dockerContainers,
                let container = containers.first(where: { $0.id == containerId }) {
                 LogsView(isCompose: false,
                         args: ["logs", "-f", "-n", String(maxLines), containerId],
@@ -522,7 +521,6 @@ private struct DockerLogsContentView: View {
                     containerName = container.names.first
                 }
             } else if let containerName,
-                      let containers = vmModel.dockerContainers,
                       let container = containers.first(where: { $0.names.contains(containerName) }) {
                 // if restarted, use name
                 // don't update id - it'll cause unnecessary logs restart
@@ -608,7 +606,6 @@ private struct DockerLogsContentView: View {
 
 struct DockerLogsWindow: View {
     @EnvironmentObject private var vmModel: VmViewModel
-    @StateObject private var windowHolder = WindowHolder()
 
     @SceneStorage("DockerLogs_containerId") private var containerId: String?
 
@@ -628,24 +625,11 @@ struct DockerLogsWindow: View {
         .onOpenURL { url in
             containerId = url.lastPathComponent
         }
-        .background(WindowAccessor(holder: windowHolder))
-        .onAppear {
-            if let window = windowHolder.window {
-                window.isRestorable = false
-            }
-        }
-        .onChange(of: windowHolder.window) { window in
-            if let window {
-                // unrestorable: is ephemeral, and also restored doesn't preserve url
-                window.isRestorable = false
-            }
-        }
     }
 }
 
 struct DockerComposeLogsWindow: View {
     @EnvironmentObject private var vmModel: VmViewModel
-    @StateObject private var windowHolder = WindowHolder()
 
     // for hide sidebar workaround - unused
     @State private var collapsed = false
@@ -712,18 +696,6 @@ struct DockerComposeLogsWindow: View {
         }
         .onOpenURL { url in
             composeProject = url.lastPathComponent
-        }
-        .background(WindowAccessor(holder: windowHolder))
-        .onAppear {
-            if let window = windowHolder.window {
-                window.isRestorable = false
-            }
-        }
-        .onChange(of: windowHolder.window) { window in
-            if let window {
-                // unrestorable: is ephemeral, and also restored doesn't preserve url
-                window.isRestorable = false
-            }
         }
         .if(composeProject != nil) {
             $0.navigationTitle("Project Logs: \(composeProject ?? "")")
