@@ -633,20 +633,27 @@ struct DockerComposeLogsWindow: View {
 
     // for hide sidebar workaround - unused
     @State private var collapsed = false
+    // mirror from SceneStorage to fix flicker
+    @State private var selection = "all"
 
     @SceneStorage("DockerComposeLogs_composeProject") private var composeProject: String?
-    @SceneStorage("DockerComposeLogs_selection") private var selection = "all"
+    @SceneStorage("DockerComposeLogs_selection") private var savedSelection = "all"
 
     private var sidebarContents12: some View {
-        Group {
+        List {
+            let selBinding = Binding<String?>(get: {
+                selection
+            }, set: {
+                if let sel = $0 {
+                    selection = sel
+                }
+            })
+
             if let composeProject {
-                // on macOS 14, must put .tag() on Label or it crashes
-                // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
                 NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject),
-                        standalone: false)) {
+                        standalone: false), tag: "all", selection: selBinding) {
                     Label("All", systemImage: "square.stack.3d.up")
                 }
-                .tag("all")
                 .onAppear {
                     vmModel.openLogWindowIds.insert(.compose(project: composeProject))
                 }
@@ -661,7 +668,7 @@ struct DockerComposeLogsWindow: View {
                     Section("Services") {
                         ForEach(children, id: \.self) { container in
                             NavigationLink(destination: DockerLogsContentView(cid: container.cid,
-                                    standalone: false)) {
+                                    standalone: false), tag: "container:\(container.id)", selection: selBinding) {
                                 Label {
                                     Text(container.userName)
                                 } icon: {
@@ -669,35 +676,31 @@ struct DockerComposeLogsWindow: View {
                                     Image(nsImage: SystemImages.redGreenDot(isRunning: container.running))
                                 }
                             }
-                            .tag("container:\(container.id)")
                         }
                     }
                 }
             }
         }
+        .listStyle(.sidebar)
+        .background(SplitViewAccessor(sideCollapsed: $collapsed))
     }
 
     var body: some View {
         Group {
-            // binding helps us set default on <13
-            let selBinding = Binding<String?>(get: {
-                selection
-            }, set: {
-                if let sel = $0 {
-                    selection = sel
-                }
-            })
-
             NavigationView {
-                List(selection: selBinding) {
-                    sidebarContents12
-                }
-                .listStyle(.sidebar)
-                .background(SplitViewAccessor(sideCollapsed: $collapsed))
+                sidebarContents12
+
+                ContentUnavailableViewCompat("No Service Selected")
             }
         }
         .onOpenURL { url in
             composeProject = url.lastPathComponent
+        }
+        .onAppear {
+            selection = savedSelection
+        }
+        .onChange(of: selection) {
+            savedSelection = $0
         }
         .navigationTitle(WindowTitles.projectLogs(composeProject))
     }
