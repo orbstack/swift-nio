@@ -333,7 +333,23 @@ func (c *Container) configureLxc() error {
 		 */
 		// seccomp
 		set("lxc.seccomp.allow_nesting", "1")
-		set("lxc.seccomp.profile", m.seccompPolicyPath)
+		// select policy: emulated? isolated?
+		var policyType SeccompPolicyType
+		isEmulated := c.Image.Arch != runtime.GOARCH
+		if isEmulated {
+			if c.isolated {
+				policyType = SeccompPolicyEmulatedIsolated
+			} else {
+				policyType = SeccompPolicyEmulated
+			}
+		} else {
+			if c.isolated {
+				policyType = SeccompPolicyIsolated
+			} else {
+				policyType = SeccompPolicyDefault
+			}
+		}
+		set("lxc.seccomp.profile", m.seccompPolicyPaths[policyType])
 
 		// network
 		set("lxc.net.0.type", "veth")

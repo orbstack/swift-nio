@@ -33,12 +33,12 @@ var (
 
 type ConManager struct {
 	// config
-	dataDir           string
-	tmpDir            string
-	lxcDir            string
-	seccompPolicyPath string
-	agentExe          *os.File
-	kernelVersion     string
+	dataDir            string
+	tmpDir             string
+	lxcDir             string
+	seccompPolicyPaths [_seccompPolicyMax]string
+	agentExe           *os.File
+	kernelVersion      string
 
 	// state
 	containersByID   map[string]*Container
@@ -76,8 +76,7 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 	}
 
 	// extract seccomp policy
-	seccompPolicyPath := path.Join(tmpDir, "seccomp.policy")
-	err = os.WriteFile(seccompPolicyPath, []byte(seccompPolicy), 0644)
+	seccompPolicyPaths, err := writeSeecompPolicies(tmpDir)
 	if err != nil {
 		return nil, err
 	}
@@ -122,12 +121,12 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 	kernelVersion := string(uname.Release[:bytes.IndexByte(uname.Release[:], 0)])
 
 	mgr := &ConManager{
-		dataDir:           dataDir,
-		tmpDir:            tmpDir,
-		lxcDir:            lxcDir,
-		seccompPolicyPath: seccompPolicyPath,
-		agentExe:          agentExe,
-		kernelVersion:     kernelVersion,
+		dataDir:            dataDir,
+		tmpDir:             tmpDir,
+		lxcDir:             lxcDir,
+		seccompPolicyPaths: seccompPolicyPaths,
+		agentExe:           agentExe,
+		kernelVersion:      kernelVersion,
 
 		containersByID:   make(map[string]*Container),
 		containersByName: make(map[string]*Container),
