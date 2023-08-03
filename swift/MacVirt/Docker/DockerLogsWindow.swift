@@ -673,11 +673,54 @@ struct DockerComposeLogsWindow: View {
         }
     }
 
+    @available(macOS 14, *)
+    private var sidebarContents14: some View {
+        Group {
+            if let composeProject {
+                NavigationLink(value: "all") {
+                    Label("All", systemImage: "list.dash.header.rectangle")
+                }
+                .onAppear {
+                    vmModel.openLogWindowIds.insert(.compose(project: composeProject))
+                }
+                .onDisappear {
+                    vmModel.openLogWindowIds.remove(.compose(project: composeProject))
+                }
+
+                if let containers = vmModel.dockerContainers {
+                    let children = containers.filter({ $0.composeProject == composeProject })
+                    .sorted(by: { $0.userName < $1.userName })
+
+                    Section("Services") {
+                        ForEach(children, id: \.self) { container in
+                            NavigationLink(value: "container:\(container.id)") {
+                                Label(container.userName, systemImage: "")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     var body: some View {
         Group {
-//            if #available(macOS 13, *) {
-//
-//            } else {
+            if #available(macOS 14, *) {
+                NavigationSplitView {
+                    List(selection: $selection) {
+                        sidebarContents14
+                    }
+                    .listStyle(.sidebar)
+                    .background(SplitViewAccessor(sideCollapsed: $collapsed))
+                } detail: {
+                    if selection == "all", let composeProject {
+                        DockerLogsContentView(cid: .compose(project: composeProject), containerAsTitle: true)
+                    } else {
+                        let containerId = selection.replacingOccurrences(of: "container:", with: "")
+                        DockerLogsContentView(cid: .container(id: containerId), containerAsTitle: true)
+                    }
+                }
+            } else {
                 // binding helps us set default on <13
                 let selBinding = Binding<String?>(get: {
                     selection
@@ -694,7 +737,7 @@ struct DockerComposeLogsWindow: View {
                     .listStyle(.sidebar)
                     .background(SplitViewAccessor(sideCollapsed: $collapsed))
                 }
-//            }
+            }
         }
         .onOpenURL { url in
             composeProject = url.lastPathComponent
