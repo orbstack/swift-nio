@@ -143,8 +143,6 @@ private class LogsViewModel: ObservableObject {
     private var lastAnsiState = AnsiState()
     private var isFirstStart = true
 
-    var cancellables = Set<AnyCancellable>()
-
     private var lastIsCompose: Bool?
     private var lastArgs: [String]?
     private var lastLineDate: Date?
@@ -537,7 +535,8 @@ private struct DockerLogsContentView: View {
             }
         }
         .task {
-            vmModel.$dockerContainers.sink { containers in
+            // rely on cancellation
+            for await containers in vmModel.$dockerContainers.values {
                 // if containers list changes,
                 // and process has exited,
                 // and (container ID && it's running) or (containerName && it's running) or (composeProject && any running)
@@ -558,7 +557,7 @@ private struct DockerLogsContentView: View {
                           containers.contains(where: { $0.composeProject == composeProject && $0.running }) {
                     model.restart()
                 }
-            }.store(in: &model.cancellables)
+            }
         }
         .frame(minWidth: 400, minHeight: 200)
         .toolbar {
