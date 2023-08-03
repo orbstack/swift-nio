@@ -122,7 +122,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     }
 
     private func showLogs() {
-        if !vmModel.openLogWindowIds.contains(composeGroup.project) {
+        if !vmModel.openLogWindowIds.contains(.compose(project: composeGroup.project)) {
             NSWorkspace.shared.open(URL(string: "orbstack://docker/project-logs/\(composeGroup.project)")!)
         } else {
             // find window by title and bring to front

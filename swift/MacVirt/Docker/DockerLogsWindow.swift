@@ -222,6 +222,8 @@ private class LogsViewModel: ObservableObject {
     }
 
     func stop() {
+        NSLog("Ending log stream: isCompose=\(lastIsCompose ?? false), args=\(lastArgs ?? [])")
+
         if let process {
             process.terminate()
         }
@@ -499,27 +501,22 @@ private struct LogsView: View {
     }
 }
 
-struct DockerLogsWindow: View {
+private struct DockerLogsContentView: View {
     @EnvironmentObject private var vmModel: VmViewModel
-    @StateObject private var windowHolder = WindowHolder()
     @StateObject private var model = LogsViewModel()
 
-    @State private var containerId: String?
+    let cid: DockerContainerId
     @State private var containerName: String? // saved once we get id
-    @State private var composeProject: String?
-
-    // persist if somehow window gets restored
-    @SceneStorage("DockerLogs_url") private var savedUrl: URL?
 
     var body: some View {
         Group {
-            if let containerId,
+            if case let .container(containerId) = cid,
                let containers = vmModel.dockerContainers,
                let container = containers.first(where: { $0.id == containerId }) {
                 LogsView(isCompose: false,
                         args: ["logs", "-f", "-n", String(maxLines), containerId],
                         model: model)
-                .navigationTitle("Logs: \(container.userName)")
+                .navigationSubtitle(container.userName)
                 .onAppear {
                     // save name so we can keep going after container is recreated
                     containerName = container.names.first
@@ -532,24 +529,16 @@ struct DockerLogsWindow: View {
                 LogsView(isCompose: false,
                         args: ["logs", "-f", "-n", String(maxLines), container.id],
                         model: model)
-                .navigationTitle("Logs: \(container.userName)")
-            } else if let composeProject {
+                .navigationSubtitle(container.userName)
+            } else if case let .compose(composeProject) = cid {
                 LogsView(isCompose: true,
                         args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
                         model: model)
-                .navigationTitle("Project Logs: \(composeProject)")
             } else {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
             }
         }
-        .onOpenURL { url in
-            onOpenURL(url)
-        }
         .task {
-            if let savedUrl {
-                onOpenURL(savedUrl)
-            }
-
             vmModel.$dockerContainers.sink { containers in
                 // if containers list changes,
                 // and process has exited,
@@ -561,24 +550,83 @@ struct DockerLogsWindow: View {
                     return
                 }
 
-                if let containerId,
+                if case let .container(containerId) = cid,
                    containers.contains(where: { $0.id == containerId && $0.running }) {
                     model.restart()
                 } else if let containerName,
                           containers.contains(where: { $0.names.contains(containerName) && $0.running }) {
                     model.restart()
-                } else if let composeProject,
-                          containers.contains(where: {$0.composeProject == composeProject && $0.running}) {
+                } else if case let .compose(composeProject) = cid,
+                          containers.contains(where: { $0.composeProject == composeProject && $0.running }) {
                     model.restart()
                 }
             }.store(in: &model.cancellables)
         }
-        .onDisappear {
-            if let containerId {
-                vmModel.openLogWindowIds.remove(containerId)
-            } else if let composeProject {
-                vmModel.openLogWindowIds.remove(composeProject)
+        .frame(minWidth: 400, minHeight: 200)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                // on macOS 14, NavigationSplitView provides this button and we can't disable it
+                if #unavailable(macOS 14) {
+                    Button(action: toggleSidebar, label: {
+                        Label("Toggle Sidebar", systemImage: "sidebar.leading")
+                    })
+                    .help("Toggle Sidebar")
+                }
             }
+
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    model.copyAll()
+                }) {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .help("Copy")
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+            }
+
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    model.clear()
+                }) {
+                    Label("Clear", systemImage: "trash")
+                }
+                .help("Clear")
+                .keyboardShortcut("k", modifiers: [.command])
+            }
+
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    model.searchCommand.send()
+                }) {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+                .help("Search")
+            }
+        }
+    }
+}
+
+struct DockerLogsWindow: View {
+    @EnvironmentObject private var vmModel: VmViewModel
+    @StateObject private var windowHolder = WindowHolder()
+
+    @SceneStorage("DockerLogs_containerId") private var containerId: String?
+
+    var body: some View {
+        Group {
+            if let containerId {
+                DockerLogsContentView(cid: .container(id: containerId))
+                .navigationTitle("Logs")
+                .onAppear {
+                    vmModel.openLogWindowIds.insert(.container(id: containerId))
+                }
+                .onDisappear {
+                    vmModel.openLogWindowIds.remove(.container(id: containerId))
+                }
+            }
+        }
+        .onOpenURL { url in
+            containerId = url.lastPathComponent
         }
         .background(WindowAccessor(holder: windowHolder))
         .onAppear {
@@ -592,50 +640,97 @@ struct DockerLogsWindow: View {
                 window.isRestorable = false
             }
         }
-        .frame(minWidth: 400, minHeight: 200)
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    model.copyAll()
-                }) {
-                    Label("Copy", systemImage: "doc.on.doc")
-                }
-                .disabled(containerId == nil && composeProject == nil)
-                .help("Copy")
-                .keyboardShortcut("c", modifiers: [.command, .shift])
-            }
+    }
+}
 
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    model.clear()
-                }) {
-                    Label("Clear", systemImage: "trash")
-                }
-                .disabled(containerId == nil && composeProject == nil)
-                .help("Clear")
-                .keyboardShortcut("k", modifiers: [.command])
-            }
+struct DockerComposeLogsWindow: View {
+    @EnvironmentObject private var vmModel: VmViewModel
+    @StateObject private var windowHolder = WindowHolder()
 
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    model.searchCommand.send()
-                }) {
-                    Label("Search", systemImage: "magnifyingglass")
+    // for hide sidebar workaround - unused
+    @State private var collapsed = false
+
+    @SceneStorage("DockerComposeLogs_composeProject") private var composeProject: String?
+    @SceneStorage("DockerComposeLogs_selection") private var selection = "all"
+
+    private var sidebarContents12: some View {
+        Group {
+            if let composeProject {
+                // on macOS 14, must put .tag() on Label or it crashes
+                // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
+                NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject))) {
+                    Label("All", systemImage: "list.dash.header.rectangle")
                 }
-                .disabled(containerId == nil && composeProject == nil)
-                .help("Search")
+                .tag("all")
+                .onAppear {
+                    vmModel.openLogWindowIds.insert(.compose(project: composeProject))
+                }
+                .onDisappear {
+                    vmModel.openLogWindowIds.remove(.compose(project: composeProject))
+                }
+
+                if let containers = vmModel.dockerContainers {
+                    let children = containers.filter({ $0.composeProject == composeProject })
+                    .sorted(by: { $0.userName < $1.userName })
+
+                    Section("Services") {
+                        ForEach(children, id: \.self) { container in
+                            // icon should be red/green circle from menu bar
+                            NavigationLink(destination: DockerLogsContentView(cid: container.cid)) {
+                                Label(container.userName, systemImage: "")
+                            }
+                            .tag("container:\(container.id)")
+                        }
+                    }
+                }
             }
         }
     }
 
-    private func onOpenURL(_ url: URL) {
-        if url.pathComponents[1] == "project-logs" {
+    var body: some View {
+        Group {
+//            if #available(macOS 13, *) {
+//
+//            } else {
+                // binding helps us set default on <13
+                let selBinding = Binding<String?>(get: {
+                    selection
+                }, set: {
+                    if let sel = $0 {
+                        selection = sel
+                    }
+                })
+
+                NavigationView {
+                    List(selection: selBinding) {
+                        sidebarContents12
+                    }
+                    .listStyle(.sidebar)
+                    .background(SplitViewAccessor(sideCollapsed: $collapsed))
+                }
+//            }
+        }
+        .onOpenURL { url in
             composeProject = url.lastPathComponent
-            vmModel.openLogWindowIds.insert(composeProject!)
-        } else {
-            containerId = url.lastPathComponent
-            vmModel.openLogWindowIds.insert(containerId!)
         }
-        savedUrl = url
+        .background(WindowAccessor(holder: windowHolder))
+        .onAppear {
+            if let window = windowHolder.window {
+                window.isRestorable = false
+            }
+        }
+        .onChange(of: windowHolder.window) { window in
+            if let window {
+                // unrestorable: is ephemeral, and also restored doesn't preserve url
+                window.isRestorable = false
+            }
+        }
+        .if(composeProject != nil) {
+            $0.navigationTitle("Project Logs: \(composeProject ?? "")")
+        }
     }
+}
+
+private func toggleSidebar() {
+    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
 }

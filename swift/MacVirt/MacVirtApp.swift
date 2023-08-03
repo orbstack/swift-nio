@@ -211,8 +211,19 @@ struct MacVirtApp: App {
                 windowTracker.onWindowAppear()
             }
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/", "docker/project-logs/"))
+        .handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/"))
         .windowDefaultSize(width: 800, height: 600)
+        .windowToolbarStyle(.unifiedCompact)
+
+        WindowGroup("Project Logs", id: "docker-compose-logs") {
+            DockerComposeLogsWindow()
+            .environmentObject(model)
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
+        }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "docker/project-logs/"))
+        .windowDefaultSize(width: 875, height: 625) // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {

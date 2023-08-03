@@ -146,7 +146,7 @@ struct ContentView: View {
                         selection = sel
                     }
                 })
-                
+
                 NavigationView {
                     List(selection: selBinding) {
                         sidebarContents12
@@ -184,13 +184,13 @@ struct ContentView: View {
                     }) {
                         Label("New Machine", systemImage: "plus")
                     }
-                            // careful: .keyboardShortcut after sheet composability applies to entire CreateContainerView (including Picker items) on macOS 12
-                            .keyboardShortcut("n", modifiers: [.command])
-                            .sheet(isPresented: $model.presentCreateMachine) {
-                                CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)
-                            }
-                            .help("New Machine")
-                            .disabled(model.state != .running)
+                    // careful: .keyboardShortcut after sheet composability applies to entire CreateContainerView (including Picker items) on macOS 12
+                    .keyboardShortcut("n", modifiers: [.command])
+                    .sheet(isPresented: $model.presentCreateMachine) {
+                        CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)
+                    }
+                    .help("New Machine")
+                    .disabled(model.state != .running)
                 }
             }
 
@@ -201,9 +201,9 @@ struct ContentView: View {
                     }) {
                         Label("New Volume", systemImage: "plus")
                     }
-                            .help("New Volume")
-                            .disabled(model.state != .running)
-                            .keyboardShortcut("n", modifiers: [.command])
+                    .help("New Volume")
+                    .disabled(model.state != .running)
+                    .keyboardShortcut("n", modifiers: [.command])
                 }
             }
 
@@ -214,10 +214,10 @@ struct ContentView: View {
                     }) {
                         Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
                     }.popover(isPresented: $presentDockerFilter, arrowEdge: .bottom) {
-                                DockerFilterView()
-                            }
-                            .help("Filter Containers")
-                            .disabled(model.state != .running)
+                        DockerFilterView()
+                    }
+                    .help("Filter Containers")
+                    .disabled(model.state != .running)
                 }
             }
         }

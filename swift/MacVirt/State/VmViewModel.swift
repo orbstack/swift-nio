@@ -412,7 +412,7 @@ class VmViewModel: ObservableObject {
     @Published var lastDockerSystemDfAt: Date?
 
     // TODO move to WindowTracker
-    var openLogWindowIds: Set<String> = []
+    var openLogWindowIds: Set<DockerContainerId> = []
     var openMainWindowCount = 0
     private var cancellables = Set<AnyCancellable>()
 
