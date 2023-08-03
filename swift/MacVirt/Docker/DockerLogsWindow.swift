@@ -660,10 +660,14 @@ struct DockerComposeLogsWindow: View {
 
                     Section("Services") {
                         ForEach(children, id: \.self) { container in
-                            // icon should be red/green circle from menu bar
                             NavigationLink(destination: DockerLogsContentView(cid: container.cid,
                                     containerAsTitle: false)) {
-                                Label(container.userName, systemImage: "")
+                                Label {
+                                    Text(container.userName)
+                                } icon: {
+                                    // icon = red/green status dot
+                                    Image(nsImage: SystemImages.redGreenDot(isRunning: container.running))
+                                }
                             }
                             .tag("container:\(container.id)")
                         }

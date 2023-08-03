@@ -352,10 +352,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if actionInProgress {
             icon = systemImage("circle.dotted")
         } else if showStatus {
-            let color = container.running ? NSColor.systemGreen : NSColor.systemRed
-            icon = NSImage(named: "MenuBarStatusDot")!
-                .tint(color: color.withAlphaComponent(0.8))
-            icon!.size = NSSize(width: 16, height: 16)
+            icon = SystemImages.redGreenDot(isRunning: container.running)
         }
         let containerItem = newActionItem(container.userName, icon: icon) { [self] in
             openApp(tab: "docker")
@@ -791,4 +788,14 @@ private func systemImage(_ name: String, bold: Bool = false, small: Bool = false
     }
 
     return nil
+}
+
+struct SystemImages {
+    static func redGreenDot(isRunning: Bool) -> NSImage {
+        let color = isRunning ? NSColor.systemGreen : NSColor.systemRed
+        let icon = NSImage(named: "MenuBarStatusDot")!
+            .tint(color: color.withAlphaComponent(0.8))
+        icon.size = NSSize(width: 16, height: 16)
+        return icon
+    }
 }
