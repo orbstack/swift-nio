@@ -126,17 +126,5 @@ struct FeedbackView: View {
         }
         .frame(width: 450)
         .padding(24)
-        .background(WindowAccessor(holder: windowHolder))
-        .onAppear {
-            if let window = windowHolder.window {
-                window.isRestorable = false
-            }
-        }
-        .onChange(of: windowHolder.window) { window in
-            if let window {
-                // unrestorable: is ephemeral, and also restored doesn't preserve url
-                window.isRestorable = false
-            }
-        }
     }
 }
