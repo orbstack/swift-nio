@@ -169,10 +169,7 @@ struct ContentView: View {
             ToolbarItem(placement: .navigation) {
                 // on macOS 14, NavigationSplitView provides this button and we can't disable it
                 if #unavailable(macOS 14) {
-                    Button(action: toggleSidebar, label: {
-                        Label("Toggle Sidebar", systemImage: "sidebar.leading")
-                    })
-                    .help("Toggle Sidebar")
+                    ToggleSidebarButton()
                 }
             }
 
@@ -334,10 +331,6 @@ struct ContentView: View {
                      """)
             }
         }
-    }
-
-    private func toggleSidebar() {
-        NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
     }
 }
 

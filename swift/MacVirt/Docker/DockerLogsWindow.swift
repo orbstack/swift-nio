@@ -569,10 +569,7 @@ private struct DockerLogsContentView: View {
                 // only show sideba
                 // it must be here b/c macOS 12 bug where multiple .toolbar doesn't work
                 if !standalone {
-                    Button(action: toggleSidebar, label: {
-                        Label("Toggle Sidebar", systemImage: "sidebar.leading")
-                    })
-                    .help("Toggle Sidebar")
+                    ToggleSidebarButton()
                 }
             }
 
@@ -704,8 +701,4 @@ struct DockerComposeLogsWindow: View {
         }
         .navigationTitle(WindowTitles.projectLogs(composeProject))
     }
-}
-
-private func toggleSidebar() {
-    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
 }

@@ -222,3 +222,14 @@ extension NSColor {
         )
     }
 }
+
+struct ToggleSidebarButton: View {
+    var body: some View {
+        Button {
+            NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+        } label: {
+            Label("Toggle Sidebar", systemImage: "sidebar.leading")
+        }
+        .help("Toggle Sidebar")
+    }
+}
