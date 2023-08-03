@@ -89,15 +89,9 @@ struct CommandsRootView: View {
                 VStack(alignment: .leading, spacing: 32) {
                     CommandSection(systemImage: "info.circle.fill", title: "Get started with machines") {
                         CommandBox(
-                                title: "Control machines: orbctl",
-                                desc: "Create, start, stop, delete, change default, and more. Explore the help for more commands.",
-                                command: "orbctl help"
-                        )
-
-                        CommandBox(
-                                title: "Short command: orb",
-                                desc: "Start a shell, run commands, or control machines.",
-                                command: "orb help"
+                            title: "All-purpose command: orb",
+                            desc: "Manage OrbStack and its machines, start a shell, or run a Linux command.",
+                            command: "orb help"
                         )
                     }
 
@@ -130,7 +124,7 @@ struct CommandsRootView: View {
 
                         CommandBox(
                                 title: "Start a shell as a specific user and machine",
-                                desc: "Use the same flags as “orbctl shell”.",
+                                desc: "Use the same flags as “orb shell”.",
                                 command: "orb -m ubuntu -u root"
                         )
 
@@ -147,7 +141,7 @@ struct CommandsRootView: View {
                         )
                     }
 
-                    let sshConfigMsg = vmModel.isSshConfigWritable ? "" : "\nSee “orbctl ssh” for instructions to add OrbStack to your SSH config."
+                    let sshConfigMsg = vmModel.isSshConfigWritable ? "" : "\nSee “orb ssh” for instructions to add OrbStack to your SSH config."
                     CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code and JetBrains IDEs.\(sshConfigMsg)") {
                         CommandBox(
                                 title: "Log in",
