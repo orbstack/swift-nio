@@ -96,12 +96,10 @@ private func getProxyPassword(proto: String, server: String, port: Int) -> Strin
 
     var result: AnyObject?
     let status = SecItemCopyMatching(query as CFDictionary, &result)
-    if status == errSecSuccess {
-        if let dict = result as? [String: Any] {
-            if let data = dict[kSecValueData as String] as? Data {
-                return String(data: data, encoding: .utf8)
-            }
-        }
+    if status == errSecSuccess,
+       let dict = result as? [String: Any],
+       let data = dict[kSecValueData as String] as? Data {
+        return String(data: data, encoding: .utf8)
     }
 
     return nil
@@ -121,7 +119,6 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
 
     var result: CFTypeRef?
     let status = SecItemCopyMatching(query as CFDictionary, &result)
-
     guard status == errSecSuccess else {
         throw SwextError.fetchCertificate(status: status)
     }
