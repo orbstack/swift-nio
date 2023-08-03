@@ -504,6 +504,7 @@ private struct DockerLogsContentView: View {
     @StateObject private var model = LogsViewModel()
 
     let cid: DockerContainerId
+    let containerAsSubtitle: Bool
     @State private var containerName: String? // saved once we get id
 
     var body: some View {
@@ -513,7 +514,8 @@ private struct DockerLogsContentView: View {
                 LogsView(isCompose: false,
                         args: ["logs", "-f", "-n", String(maxLines), containerId],
                         model: model)
-                .navigationSubtitle(container.userName)
+                .if(containerAsSubtitle) { $0.navigationSubtitle(container.userName) }
+                .if(!containerAsSubtitle) { $0.navigationTitle("\(WindowTitles.logs): \(container.userName)") }
                 .onAppear {
                     // save name so we can keep going after container is recreated
                     containerName = container.names.first
@@ -525,7 +527,8 @@ private struct DockerLogsContentView: View {
                 LogsView(isCompose: false,
                         args: ["logs", "-f", "-n", String(maxLines), container.id],
                         model: model)
-                .navigationSubtitle(container.userName)
+                .if(containerAsSubtitle) { $0.navigationSubtitle(container.userName) }
+                .if(!containerAsSubtitle) { $0.navigationTitle("\(WindowTitles.logs): \(container.userName)") }
             } else if case let .compose(composeProject) = cid {
                 LogsView(isCompose: true,
                         args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
@@ -611,7 +614,7 @@ struct DockerLogsWindow: View {
     var body: some View {
         Group {
             if let containerId {
-                DockerLogsContentView(cid: .container(id: containerId))
+                DockerLogsContentView(cid: .container(id: containerId), containerAsSubtitle: false)
                 .navigationTitle("Logs")
                 .onAppear {
                     vmModel.openLogWindowIds.insert(.container(id: containerId))
@@ -641,7 +644,8 @@ struct DockerComposeLogsWindow: View {
             if let composeProject {
                 // on macOS 14, must put .tag() on Label or it crashes
                 // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
-                NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject))) {
+                NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject),
+                        containerAsSubtitle: true)) {
                     Label("All", systemImage: "list.dash.header.rectangle")
                 }
                 .tag("all")
@@ -659,7 +663,8 @@ struct DockerComposeLogsWindow: View {
                     Section("Services") {
                         ForEach(children, id: \.self) { container in
                             // icon should be red/green circle from menu bar
-                            NavigationLink(destination: DockerLogsContentView(cid: container.cid)) {
+                            NavigationLink(destination: DockerLogsContentView(cid: container.cid,
+                                    containerAsSubtitle: true)) {
                                 Label(container.userName, systemImage: "")
                             }
                             .tag("container:\(container.id)")
