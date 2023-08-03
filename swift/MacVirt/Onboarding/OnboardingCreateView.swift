@@ -113,7 +113,7 @@ struct OnboardingCreateView: View {
                                 }
                                 Text(version.friendlyName).tag(version.key)
                             }
-                        }
+                        }.disabled(distro.versions.count == 1)
 
                         #if arch(arm64)
                         Picker("CPU type", selection: $arch) {
