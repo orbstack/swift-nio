@@ -17,6 +17,7 @@ struct VmConfig: Codable, Equatable {
     var mountHideShared: Bool
     var dataDir: String?
     var dockerSetContext: Bool
+    var setupUseAdmin: Bool
 
     // due to keyDecodingStrategy
     enum CodingKeys: String, CodingKey {
@@ -28,6 +29,7 @@ struct VmConfig: Codable, Equatable {
         case mountHideShared = "mountHideShared"
         case dataDir = "dataDir"
         case dockerSetContext = "docker.setContext"
+        case setupUseAdmin = "setup.useAdmin"
     }
 }
 

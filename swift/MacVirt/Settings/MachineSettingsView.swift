@@ -32,6 +32,9 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
     @State private var cpu = 1.0
     @State private var enableRosetta = true
     @State private var dockerSetContext = true
+    @State private var setupUseAdmin = true
+
+    @State private var presentDisableAdmin = false
 
     var body: some View {
         Form {
@@ -122,6 +125,22 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                         setConfigKey(\.dockerSetContext, newValue)
                     }
 
+                    let adminBinding = Binding<Bool>(
+                        get: { Users.hasAdmin && setupUseAdmin },
+                        set: { newValue in
+                            if newValue {
+                                setConfigKey(\.setupUseAdmin, true)
+                            } else {
+                                presentDisableAdmin = true
+                            }
+                        }
+                    )
+                    Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
+                    .disabled(!Users.hasAdmin) // disabled + false if no admin
+                    Text("This can improve performance, compatibility, and features. [Learn more](https://docs.orbstack.dev/readme-link/admin)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
                     Spacer()
                     .frame(height: 32)
 
@@ -153,6 +172,18 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
         }
         .padding()
         .background(WindowAccessor(holder: windowHolder))
+        .alert("Disable admin features?", isPresented: $presentDisableAdmin) {
+            Button("Cancel", role: .cancel) {}
+            Button("Disable", role: .destructive) {
+                setConfigKey(\.setupUseAdmin, false)
+            }
+        } message: {
+            Text("""
+                 This will disable performance improvements, better Docker compatibility, and potentially more features in the future.
+
+                 We recommend keeping this on.
+                 """)
+        }
     }
 
     private func updateFrom(_ config: VmConfig) {
@@ -160,5 +191,6 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
         cpu = Double(config.cpu)
         enableRosetta = config.rosetta
         dockerSetContext = config.dockerSetContext
+        setupUseAdmin = config.setupUseAdmin
     }
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/setup/userutil"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -83,6 +84,9 @@ func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
 	}
 	// check if admin
 	isAdmin := slices.Contains(gids, gidAdmin)
+	if !vmconfig.Get().SetupUseAdmin {
+		isAdmin = false
+	}
 
 	// look up the user's shell
 	// until Go os/user supports shell, use cgo getpwuid_r instead of dscl
