@@ -40,7 +40,7 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
                             if newValue != vmModel.config?.networkBridge {
                                 if vmModel.state == .running,
                                    let machines = vmModel.containers,
-                                   let dockerRecord = machines.first(where: { $0.builtin && $0.id == ContainerIds.docker }),
+                                   let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
                                    dockerRecord.state == .starting || dockerRecord.state == .running {
                                     Task { @MainActor in
                                         await vmModel.tryRestartContainer(dockerRecord)

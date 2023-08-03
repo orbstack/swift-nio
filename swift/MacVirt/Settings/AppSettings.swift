@@ -16,34 +16,41 @@ struct AppSettings: View {
         case machine
         case docker
         case network
+        case storage
         case debug
     }
 
     var body: some View {
         TabView(selection: $selectedTab) {
             GeneralSettingsView(updaterController: updaterController)
-                    .tabItem {
-                        Label("General", systemImage: "gear")
-                    }
-                    .tag(Tabs.general)
+            .tabItem {
+                Label("General", systemImage: "gear")
+            }
+            .tag(Tabs.general)
 
             MachineSettingsView()
-                    .tabItem {
-                        Label("System", systemImage: "cpu")
-                    }
-                    .tag(Tabs.machine)
+            .tabItem {
+                Label("System", systemImage: "cpu")
+            }
+            .tag(Tabs.machine)
 
             DockerSettingsView()
-                    .tabItem {
-                        Label("Docker", systemImage: "shippingbox")
-                    }
-                    .tag(Tabs.docker)
+            .tabItem {
+                Label("Docker", systemImage: "shippingbox")
+            }
+            .tag(Tabs.docker)
 
             NetworkSettingsView()
-                    .tabItem {
-                        Label("Network", systemImage: "network")
-                    }
-                    .tag(Tabs.network)
+            .tabItem {
+                Label("Network", systemImage: "network")
+            }
+            .tag(Tabs.network)
+
+            StorageSettingsView()
+            .tabItem {
+                Label("Storage", systemImage: "externaldrive")
+            }
+            .tag(Tabs.storage)
 
             #if DEBUG
             DebugSettingsView(updaterController: updaterController)

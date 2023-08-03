@@ -42,7 +42,7 @@ struct DockerSettingsView: View {
 
                 if vmModel.state == .running,
                    let machines = vmModel.containers,
-                   let dockerRecord = machines.first(where: { $0.builtin && $0.id == ContainerIds.docker }) {
+                   let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }) {
                     Button("Apply") {
                         Task.detached {
                             let saved = await save()

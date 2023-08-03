@@ -23,12 +23,6 @@ extension BaseVmgrSettingsView {
     }
 }
 
-private enum DirItem: Hashable {
-    case def
-    case custom(String)
-    case other
-}
-
 struct MachineSettingsView: BaseVmgrSettingsView, View {
     @EnvironmentObject internal var vmModel: VmViewModel
 
@@ -37,8 +31,6 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
     @State private var memoryMib = 0.0
     @State private var cpu = 1.0
     @State private var enableRosetta = true
-    @State private var mountHideShared = false
-    @State private var dataDir: String?
     @State private var dockerSetContext = true
 
     var body: some View {
@@ -125,46 +117,6 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                     Spacer()
                         .frame(height: 32)
 
-                    let selBinding = Binding<DirItem> {
-                        if let dataDir {
-                            return DirItem.custom(dataDir)
-                        } else {
-                            return DirItem.def
-                        }
-                    } set: { newValue in
-                        switch newValue {
-                        case .def:
-                            // update immediately to avoid picker glitch
-                            dataDir = nil
-                            setConfigKey(\.dataDir, nil)
-                        case .custom:
-                            // ignore
-                            break
-                        case .other:
-                            selectFolder()
-                        }
-                    }
-
-                    Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
-                    .onChange(of: mountHideShared) { newValue in
-                        setConfigKey(\.mountHideShared, newValue)
-                    }
-                    VStack {
-                        Picker(selection: selBinding, label: Text("Data location")) {
-                            Text("Default").tag(DirItem.def)
-                            Divider()
-                            if let dataDir {
-                                Text(dataDir.split(separator: "/").last ?? "Custom")
-                                .tag(DirItem.custom(dataDir))
-                            }
-                            Divider()
-                            Text("Other…").tag(DirItem.other)
-                        }
-                    }.frame(maxWidth: 256)
-
-                    Spacer()
-                        .frame(height: 32)
-
                     Toggle("Switch Docker context automatically", isOn: $dockerSetContext)
                     .onChange(of: dockerSetContext) { newValue in
                         setConfigKey(\.dockerSetContext, newValue)
@@ -203,36 +155,10 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
         .background(WindowAccessor(holder: windowHolder))
     }
 
-    private func selectFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canDownloadUbiquitousContents = false
-        panel.canResolveUbiquitousConflicts = false
-        // initial directory
-        panel.directoryURL = URL(fileURLWithPath: dataDir ?? Folders.userData)
-
-        let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
-        panel.beginSheetModal(for: window) { result in
-            if result == .OK,
-               let url = panel.url {
-                if url.path == Folders.userData {
-                    setConfigKey(\.dataDir, nil)
-                } else {
-                    setConfigKey(\.dataDir, url.path)
-                }
-            }
-        }
-    }
-
     private func updateFrom(_ config: VmConfig) {
         memoryMib = Double(config.memoryMib)
         cpu = Double(config.cpu)
         enableRosetta = config.rosetta
-        mountHideShared = config.mountHideShared
-        dataDir = config.dataDir
         dockerSetContext = config.dockerSetContext
     }
 }

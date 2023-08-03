@@ -54,6 +54,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case setupError(cause: Error)
     case configRefresh(cause: Error)
     case configUpdateError(cause: Error)
+    case resetDataError(cause: Error)
 
     // docker
     case dockerListError(cause: Error)
@@ -106,6 +107,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t get settings"
         case .configUpdateError:
             return "Can’t change settings"
+        case .resetDataError:
+            return "Can’t reset data"
 
         case .dockerListError:
             return "Failed to refresh Docker"
@@ -247,6 +250,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .configRefresh(let cause):
             return cause
         case .configUpdateError(let cause):
+            return cause
+        case .resetDataError(let cause):
             return cause
 
         case .dockerListError(let cause):
@@ -702,7 +707,7 @@ class VmViewModel: ObservableObject {
         } catch {
             // ignore if stopped
             if let machines = containers,
-               let dockerRecord = machines.first(where: { $0.builtin && $0.id == ContainerIds.docker }),
+               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
                !dockerRecord.running {
                 return
             }
@@ -996,6 +1001,42 @@ class VmViewModel: ObservableObject {
         } catch {
             setError(.configUpdateError(cause: error))
         }
+    }
+
+    func resetData() async throws {
+        do {
+            try await vmgr.resetData()
+        } catch {
+            // if it's stopped, ignore the error. ("The network connection was lost." NSURLErrorNetworkConnectionLost)
+            if case let InvocationError.applicationError(cause) = error,
+               let execError = cause as? HTTPRequestExecutorError,
+               case let .httpClientError(clientError) = execError.reason,
+               let nestedError = clientError as? NestedError<Error>,
+               let urlError = nestedError.cause as? URLError,
+               urlError.code == .networkConnectionLost {
+                return
+            } else {
+                throw error
+            }
+        }
+    }
+
+    // this makes vmgr re-exec itself so we don't worry about state
+    @MainActor
+    func tryResetData() async {
+        // stop
+        do {
+            try await resetData()
+        } catch {
+            setError(.resetDataError(cause: error))
+            return
+        }
+
+        // wait for state change from daemon manager callback
+        await waitForStateEquals(.stopped)
+
+        // start
+        await tryStartAndWait()
     }
 
     @MainActor
