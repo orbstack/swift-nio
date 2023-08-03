@@ -109,6 +109,35 @@ enum SwextError: Error {
     case fetchCertificate(status: OSStatus)
 }
 
+private func checkSslTrustSettings(_ certificate: SecCertificate, domain: SecTrustSettingsDomain) -> Bool {
+    var results: CFArray?
+    let status = SecTrustSettingsCopyTrustSettings(certificate, domain, &results)
+    guard status == errSecSuccess, let results else {
+        return false
+    }
+
+    for trustSettings in results as! [[String: Any]] {
+        let policy = trustSettings[kSecTrustSettingsPolicy] as! SecPolicy
+        let props = SecPolicyCopyProperties(policy) as! [String: Any]
+        // make sure this policy is for SSL, otherwise it's not relevant to us
+        guard let policy = trustSettings[kSecTrustSettingsPolicy] as! SecPolicy?,
+              let props = SecPolicyCopyProperties(policy) as? [String: Any],
+              props[kSecPolicyOid as String] as? String == (kSecPolicyAppleSSL as String) else {
+            continue
+        }
+
+        // and make sure it's trusted
+        // this doubles as a root cert check, b/c .trustRoot == root, and .trustAsRoot == not root
+        // (we're technically supposed to check whether cert is root, and assume kSecTrustSettingsResult==trustRoot default)
+        if let result = trustSettings[kSecTrustSettingsResult] as? Int,
+           result == SecTrustSettingsResult.trustRoot.rawValue {
+            return true
+        }
+    }
+
+    return false
+}
+
 private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
     let query: [String: Any] = [
         kSecClass as String: kSecClassCertificate,
@@ -125,33 +154,10 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
 
     let certs = result as! [SecCertificate]
     let extraCaCerts = certs.filter { certificate in
-        // validate for SSL use
-        var trust: SecTrust?
-        let policy = SecPolicyCreateSSL(true, nil)
-        SecTrustCreateWithCertificates(certificate, policy, &trust)
-
-        if let trust {
-            // disable network fetch - can't block here
-            SecTrustSetNetworkFetchAllowed(trust, false)
-
-            var error: CFError?
-            let result = SecTrustEvaluateWithError(trust, &error)
-            // check validity
-            guard result && error == nil else {
-                return false
-            }
-
-            if filterRootOnly {
-                let chainLen = SecTrustGetCertificateCount(trust)
-                guard chainLen == 1 else {
-                    return false
-                }
-            }
-
-            return true
-        }
-
-        return false
+        // check both user and admin trust settings
+        // (system is read-only roots)
+        checkSslTrustSettings(certificate, domain: .user) ||
+                checkSslTrustSettings(certificate, domain: .admin)
     }
 
     return extraCaCerts.compactMap { certificate in
