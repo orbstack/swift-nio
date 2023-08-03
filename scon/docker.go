@@ -311,6 +311,18 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		return fmt.Errorf("write certs: %w", err)
 	}
 
+	// get host timezone
+	hostTimezone, err := c.manager.host.GetTimezone()
+	if err != nil {
+		return fmt.Errorf("get timezone: %w", err)
+	}
+	// create localtime symlink
+	_ = fs.Remove("/etc/localtime")
+	err = fs.Symlink("/usr/share/zoneinfo/"+hostTimezone, "/etc/localtime")
+	if err != nil {
+		logrus.WithError(err).Error("failed to symlink localtime")
+	}
+
 	// create docker data dir in case it was deleted
 	err = os.MkdirAll(conf.C().DockerDataDir, 0755)
 	if err != nil {

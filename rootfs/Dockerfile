@@ -123,7 +123,9 @@ RUN apk add --no-cache \
     git \
     openssh-client-default \
     # for migration xattrs
-    tar
+    tar \
+    # /etc/localtime for containers
+    tzdata
 
 # network
 COPY \
