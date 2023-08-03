@@ -235,6 +235,7 @@ private class LogsViewModel: ObservableObject {
     @MainActor
     func restart() {
         if let lastIsCompose, let lastArgs {
+            NSLog("Restarting log stream: isCompose=\(lastIsCompose), args=\(lastArgs)")
             start(isCompose: lastIsCompose, args: lastArgs)
         }
     }
