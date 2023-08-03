@@ -204,7 +204,7 @@ struct MacVirtApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
-        WindowGroup("Logs", id: "docker-container-logs") {
+        WindowGroup(WindowTitles.containerLogsBase, id: "docker-container-logs") {
             DockerLogsWindow()
             .environmentObject(model)
             .onAppear {
@@ -215,7 +215,7 @@ struct MacVirtApp: App {
         .windowDefaultSize(width: 800, height: 600)
         .windowToolbarStyle(.unifiedCompact)
 
-        WindowGroup("Project Logs", id: "docker-compose-logs") {
+        WindowGroup(WindowTitles.projectLogsBase, id: "docker-compose-logs") {
             DockerComposeLogsWindow()
             .environmentObject(model)
             .onAppear {

@@ -184,7 +184,7 @@ struct ContentView: View {
                     }) {
                         Label("New Machine", systemImage: "plus")
                     }
-                    // careful: .keyboardShortcut after sheet composability applies to entire CreateContainerView (including Picker items) on macOS 12
+                    // careful: .keyboardShortcut after sheet composability applies to entire view (including Picker items) on macOS 12
                     .keyboardShortcut("n", modifiers: [.command])
                     .sheet(isPresented: $model.presentCreateMachine) {
                         CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)

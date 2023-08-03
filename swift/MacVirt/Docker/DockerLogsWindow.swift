@@ -505,7 +505,8 @@ private struct DockerLogsContentView: View {
     @StateObject private var model = LogsViewModel()
 
     let cid: DockerContainerId
-    let containerAsTitle: Bool
+    // individual container, not compose
+    let standalone: Bool
     @State private var containerName: String? // saved once we get id
 
     var body: some View {
@@ -515,7 +516,7 @@ private struct DockerLogsContentView: View {
                 LogsView(isCompose: false,
                         args: ["logs", "-f", "-n", String(maxLines), containerId],
                         model: model)
-                .if(containerAsTitle) { $0.navigationTitle("\(WindowTitles.logs): \(container.userName)") }
+                .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
                 .onAppear {
                     // save name so we can keep going after container is recreated
                     containerName = container.names.first
@@ -527,7 +528,7 @@ private struct DockerLogsContentView: View {
                 LogsView(isCompose: false,
                         args: ["logs", "-f", "-n", String(maxLines), container.id],
                         model: model)
-                .if(containerAsTitle) { $0.navigationTitle("\(WindowTitles.logs): \(container.userName)") }
+                .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
             } else if case let .compose(composeProject) = cid {
                 LogsView(isCompose: true,
                         args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
@@ -564,8 +565,10 @@ private struct DockerLogsContentView: View {
         .frame(minWidth: 400, minHeight: 200)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                // on macOS 14, NavigationSplitView provides this button and we can't disable it
-                if #unavailable(macOS 14) {
+                // unlike main window, we never use NavigationSplitView b/c sidebar button bug
+                // only show sideba
+                // it must be here b/c macOS 12 bug where multiple .toolbar doesn't work
+                if !standalone {
                     Button(action: toggleSidebar, label: {
                         Label("Toggle Sidebar", systemImage: "sidebar.leading")
                     })
@@ -613,8 +616,7 @@ struct DockerLogsWindow: View {
     var body: some View {
         Group {
             if let containerId {
-                DockerLogsContentView(cid: .container(id: containerId), containerAsTitle: true)
-                .navigationTitle("Logs")
+                DockerLogsContentView(cid: .container(id: containerId), standalone: true)
                 .onAppear {
                     vmModel.openLogWindowIds.insert(.container(id: containerId))
                 }
@@ -644,8 +646,8 @@ struct DockerComposeLogsWindow: View {
                 // on macOS 14, must put .tag() on Label or it crashes
                 // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
                 NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject),
-                        containerAsTitle: false)) {
-                    Label("All", systemImage: "list.dash.header.rectangle")
+                        standalone: false)) {
+                    Label("All", systemImage: "square.stack.3d.up")
                 }
                 .tag("all")
                 .onAppear {
@@ -662,7 +664,7 @@ struct DockerComposeLogsWindow: View {
                     Section("Services") {
                         ForEach(children, id: \.self) { container in
                             NavigationLink(destination: DockerLogsContentView(cid: container.cid,
-                                    containerAsTitle: false)) {
+                                    standalone: false)) {
                                 Label {
                                     Text(container.userName)
                                 } icon: {
@@ -700,9 +702,7 @@ struct DockerComposeLogsWindow: View {
         .onOpenURL { url in
             composeProject = url.lastPathComponent
         }
-        .if(composeProject != nil) {
-            $0.navigationTitle("Project Logs: \(composeProject ?? "")")
-        }
+        .navigationTitle(WindowTitles.projectLogs(composeProject))
     }
 }
 

@@ -24,7 +24,7 @@ extension DKContainer {
         } else {
             // find window by title and bring to front
             for window in NSApp.windows {
-                if window.title == "\(WindowTitles.logs): \(userName)" {
+                if window.title == WindowTitles.containerLogs(userName) {
                     window.makeKeyAndOrderFront(nil)
                     break
                 }
@@ -111,8 +111,23 @@ extension NSPasteboard {
 }
 
 struct WindowTitles {
-    static let projectLogs = "Project Logs"
-    static let logs = "Logs" // also for empty
+    static let projectLogsBase = "Project Logs"
+    static func projectLogs(_ project: String?) -> String {
+        if let project {
+            return "\(project) — \(projectLogsBase)"
+        } else {
+            return projectLogsBase
+        }
+    }
+
+    static let containerLogsBase = "Logs"
+    static func containerLogs(_ name: String?) -> String {
+        if let name {
+            return "\(name) — \(containerLogsBase)"
+        } else {
+            return containerLogsBase
+        }
+    }
 }
 
 enum DockerListItem: Identifiable, Equatable {
