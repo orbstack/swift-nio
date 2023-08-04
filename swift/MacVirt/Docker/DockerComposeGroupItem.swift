@@ -127,7 +127,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
         } else {
             // find window by title and bring to front
             for window in NSApp.windows {
-                if window.title == "\(WindowTitles.projectLogs): \(composeGroup.project)" {
+                if window.title == WindowTitles.projectLogs(composeGroup.project) {
                     window.makeKeyAndOrderFront(nil)
                     break
                 }
