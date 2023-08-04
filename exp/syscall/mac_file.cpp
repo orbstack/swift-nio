@@ -27,7 +27,7 @@ static int do_test() {
 	u64 total_lat = 0;
 	u64 iters = 0;
 
-	int dir_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall", O_RDONLY|O_DIRECTORY, 0);
+	int dir_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall", O_EVTONLY, 0);
 	if (dir_fd < 0) {
 		printf("open error\n");
 		return -1;
@@ -35,11 +35,11 @@ static int do_test() {
 
 	u64 start = now();
 	while (true) {
-		int new_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall/testfile", O_RDWR|O_CREAT, 0644);
-		if (new_fd < 0) {
-			printf("open error\n");
-			break;
-		}
+		// int new_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall/testfile", O_RDWR|O_CREAT, 0644);
+		// if (new_fd < 0) {
+		// 	printf("open error\n");
+		// 	break;
+		// }
 
 		u64 iter_start_ts = now();
 		if (iter_start_ts - start > DURATION) {
@@ -49,6 +49,12 @@ static int do_test() {
 		/* iter begin */
 		//close(new_fd);
 
+		// int new_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall/testfile", O_EVTONLY|O_CLOEXEC, 0644);
+		// if (new_fd < 0) {
+		// 	printf("open error\n");
+		// 	break;
+		// }
+
 		// struct stat st;
 		// int ret = fstat(new_fd, &st);
 		// if (ret != 0) {
@@ -57,11 +63,24 @@ static int do_test() {
 		// }
 
 		// struct stat st;
-		// int ret = fstatat(new_fd, "testfile", &st, AT_SYMLINK_NOFOLLOW);
+		// int ret = stat("/Users/dragon/code/projects/macvirt/exp/syscall/testfile", &st);
+		// if (ret != 0) {
+		// 	printf("stat error\n");
+		// 	break;
+		// }
+
+		// struct stat st;
+		// int ret = fstatat(dir_fd, "testfile", &st, AT_SYMLINK_NOFOLLOW);
 		// if (ret != 0) {
 		// 	printf("fstatat error\n");
 		// 	break;
 		// }
+
+		int new_fd = openat(dir_fd, "testfile", O_RDWR, 0644);
+		if (new_fd < 0) {
+			printf("openat error\n");
+			break;
+		}
 
 		// char buf[1024];
 		// int ret = getxattr("/Users/dragon/code/projects/macvirt/exp/syscall/testfile", "dev.orbstack.perm", buf, sizeof(buf), 0, XATTR_NOFOLLOW);
@@ -96,12 +115,12 @@ static int do_test() {
 		// 	break;
 		// }
 
-		char buf[1024];
-		int ret = read(new_fd, buf, sizeof(buf));
-		if (ret < 0) {
-			printf("read error\n");
-			break;
-		}
+		// char buf[1024];
+		// int ret = read(new_fd, buf, sizeof(buf));
+		// if (ret < 0) {
+		// 	printf("read error\n");
+		// 	break;
+		// }
 
 		/* iter end*/
 
