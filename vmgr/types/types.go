@@ -19,7 +19,7 @@ const (
 	Start_UnexpectedStopReasons
 
 	// unexpected reasons
-	StopReasonPanic
+	StopReasonKernelPanic
 	StopReasonDrm
 	StopReasonHealthCheck
 )

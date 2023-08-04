@@ -9,16 +9,19 @@ private let stopExitCodeLogFatal = 1
 private let stopExitCodeGoPanic = 2
 private let stopExitCodeKernelPanic = 101
 private let stopExitCodeDrm = 102
+private let stopExitCodeHealthCheck = 103
 
 enum ExitReason: Equatable, CustomStringConvertible {
     case status(Int)
     case signal(Int)
 
     // from exit code
-    case logFatal
-    case goPanic
+    case logFatal // 1
+    case goPanic // 2
+    // stop codes
     case kernelPanic
     case drm
+    case healthCheck
 
     // from signal
     case killed
@@ -36,10 +39,13 @@ enum ExitReason: Equatable, CustomStringConvertible {
             return "failed to start"
         case .goPanic:
             return "fatal error"
+
         case .kernelPanic:
             return "kernel panic"
         case .drm:
             return "license check failed"
+        case .healthCheck:
+            return "VM not responding"
 
         case .killed:
             return "killed (SIGKILL)"
@@ -141,7 +147,7 @@ class DaemonManager {
         }
         lastPid = pid
 
-        Task.detached { [self] in
+        Thread.detachNewThread { [self] in
             NSLog("Watching pid \(pid)")
             let kqFd = kqueue()
             guard kqFd != -1 else {
@@ -209,6 +215,8 @@ class DaemonManager {
                     reason = .kernelPanic
                 case stopExitCodeDrm:
                     reason = .drm
+                case stopExitCodeHealthCheck:
+                    reason = .healthCheck
                 default:
                     reason = .status(status)
                 }

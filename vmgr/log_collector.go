@@ -184,7 +184,7 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 				if strings.Contains(line, "] Kernel panic - not syncing:") {
 					// record panic log
 					panicRecorder.Start(panicShutdownDelay, func(output string) {
-						stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonPanic}
+						stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonKernelPanic}
 
 						// report panic lines to sentry
 						// if possible we read the last lines of the log file
