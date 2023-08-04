@@ -52,8 +52,13 @@ type ContainerSummary struct {
 // minimized version:
 // the more fields we try to decode, the greater the chance of failure
 type ContainerSummaryMin struct {
-	ID     string `json:"Id"`
-	Mounts []MountPoint
+	ID              string `json:"Id"`
+	Names           []string
+	Mounts          []MountPoint
+	NetworkSettings struct {
+		Networks map[string]NetworkEndpointSettings
+	}
+	Labels map[string]string
 }
 
 // Identifiable - for scon agent

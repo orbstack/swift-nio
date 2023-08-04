@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/mdns"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/sgclient"
@@ -60,6 +61,9 @@ type DockerAgent struct {
 	containerBinds map[string][]string
 	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
 	lastNetworks   []dockertypes.Network
+
+	mdnsRegistry mdnsRegistry
+	mdnsServer   *mdns.Server
 
 	// refreshing w/ debounce+diff ensures consistent snapshots
 	containerRefreshDebounce syncx.FuncDebounce
@@ -438,6 +442,26 @@ func (a *AgentServer) DockerMigrationStopSyncServer(_ None, _ *None) error {
  * Private - Docker agent
  */
 
+func (d *DockerAgent) startMdnsServer() error {
+	iface, err := net.InterfaceByName("eth0") // scon bridge / machines interface
+	if err != nil {
+		return err
+	}
+	d.mdnsRegistry = newMdnsRegistry()
+
+	// automatically runs until server.Shutdown()
+	mdnsServer, err := mdns.NewServer(&mdns.Config{
+		Zone:  &d.mdnsRegistry,
+		Iface: iface,
+	})
+	if err != nil {
+		return err
+	}
+	d.mdnsServer = mdnsServer
+
+	return nil
+}
+
 func (d *DockerAgent) PostStart() error {
 	// docker-init oom score adj
 	// dockerd's score is set via cmdline argument
@@ -466,6 +490,12 @@ func (d *DockerAgent) PostStart() error {
 	}
 
 	d.Running.Set(true)
+
+	// do this before event monitor, or we may miss events
+	err = d.startMdnsServer()
+	if err != nil {
+		return err
+	}
 
 	// start docker event monitor
 	go func() {
@@ -962,6 +992,9 @@ func (d *DockerAgent) onContainerStart(ctr dockertypes.ContainerSummaryMin) erro
 	cid := ctr.ID
 	logrus.WithField("cid", cid).Debug("Docker container started")
 
+	// add to mdns registry
+	d.mdnsRegistry.AddContainer(&ctr)
+
 	// get container bind mounts
 	var binds []string
 	for _, m := range ctr.Mounts {
@@ -1025,6 +1058,9 @@ func (d *DockerAgent) onContainerStart(ctr dockertypes.ContainerSummaryMin) erro
 func (d *DockerAgent) onContainerStop(ctr dockertypes.ContainerSummaryMin) error {
 	cid := ctr.ID
 	logrus.WithField("cid", cid).Debug("Docker container stopped")
+
+	// remove from mdns registry
+	d.mdnsRegistry.RemoveContainer(&ctr)
 
 	// get container bind mounts
 	d.mu.Lock()
