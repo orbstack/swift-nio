@@ -256,6 +256,7 @@
 		D8715C562A1FEF260047A9BE /* CBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CBridge.h; path = ../CBridge/CBridge.h; sourceTree = "<group>"; };
 		D8715CC02A208C640047A9BE /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../out/scli; sourceTree = "<group>"; };
 		D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper (VM).app"; path = "../out/OrbStack Helper (VM).app"; sourceTree = "<group>"; };
+		D87745F92A7CB84C00739040 /* guihelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = guihelper.entitlements; sourceTree = "<group>"; };
 		D880D81F2A2B22A0002CF279 /* VzClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VzClient.swift; sourceTree = "<group>"; };
 		D880D8202A2B22A0002CF279 /* FsNotify.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FsNotify.swift; sourceTree = "<group>"; };
 		D880D8212A2B22A0002CF279 /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
@@ -425,6 +426,7 @@
 		D81E784E299CC4F200A1D8AC /* guihelper */ = {
 			isa = PBXGroup;
 			children = (
+				D87745F92A7CB84C00739040 /* guihelper.entitlements */,
 				D81E784F299CC4F200A1D8AC /* main.swift */,
 				D81E7858299CD27F00A1D8AC /* Info.plist */,
 			);
@@ -857,6 +859,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = guihelper/guihelper.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				DEVELOPMENT_TEAM = HUAQ24HBR6;
@@ -880,6 +883,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = guihelper/guihelper.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				DEVELOPMENT_TEAM = HUAQ24HBR6;
