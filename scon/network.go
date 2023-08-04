@@ -260,8 +260,9 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string) (f
 	}
 
 	// NAT
-	// TODO interface?
-	rules := [][]string{{"nat", "POSTROUTING", "-s", netmask, "!", "-d", netmask, "-j", "MASQUERADE"}}
+	// filtering by output interface fixes multicast
+	// can't filter by input interface (-i) in POSTROUTING
+	rules := [][]string{{"nat", "POSTROUTING", "-s", netmask, "!", "-o", ifBridge, "-j", "MASQUERADE"}}
 
 	if secureSvcIP != "" {
 		// allow secureSvcIP:SecureSvcDockerRemoteCtx from docker
