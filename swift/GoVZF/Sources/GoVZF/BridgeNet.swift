@@ -99,8 +99,7 @@ struct BridgeNetworkConfig: Codable {
     let ip6Address: String?
 
     var hostOverrideMac: [UInt8]
-    // only for VlanRouter
-    let guestMac: [UInt8]?
+    let allowMulticast: Bool
 
     let maxLinkMtu: Int
 }
@@ -118,7 +117,7 @@ class BridgeNetwork {
 
     init(config: BridgeNetworkConfig) throws {
         self.config = config
-        self.processor = PacketProcessor(hostOverrideMac: config.hostOverrideMac)
+        self.processor = PacketProcessor(hostOverrideMac: config.hostOverrideMac, allowMulticast: config.allowMulticast)
 
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
         xpc_dictionary_set_uint64(ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))

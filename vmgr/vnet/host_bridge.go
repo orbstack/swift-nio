@@ -167,6 +167,8 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		UUID: deriveBridgeConfigUuid(config),
 		// this is a template. updated by VlanRouter when it gets index
 		HostOverrideMAC: brMacVlanRouterTemplate,
+		// doesn't work well
+		AllowMulticast: false,
 
 		MaxLinkMTU: int(n.LinkMTU),
 	}
@@ -344,11 +346,14 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		GuestFd:         n.hostBridgeFds[brIndexSconMachine],
 		ShouldReadGuest: true,
 
-		UUID:            brUuidSconMachine,
-		Ip4Address:      netconf.SconHostBridgeIP4,
-		Ip4Mask:         netconf.SconSubnet4Mask,
-		Ip6Address:      netconf.SconHostBridgeIP6,
+		UUID:       brUuidSconMachine,
+		Ip4Address: netconf.SconHostBridgeIP4,
+		Ip4Mask:    netconf.SconSubnet4Mask,
+		Ip6Address: netconf.SconHostBridgeIP6,
+
 		HostOverrideMAC: brMacSconMachine,
+		// for .local names
+		AllowMulticast: true,
 
 		MaxLinkMTU: int(n.LinkMTU),
 	})

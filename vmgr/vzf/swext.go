@@ -38,11 +38,13 @@ type BridgeNetworkConfig struct {
 	GuestFd         int  `json:"guestFd"`
 	ShouldReadGuest bool `json:"shouldReadGuest"`
 
-	UUID            string   `json:"uuid"`
-	Ip4Address      string   `json:"ip4Address,omitempty"`
-	Ip4Mask         string   `json:"ip4Mask"`
-	Ip6Address      string   `json:"ip6Address,omitempty"`
+	UUID       string `json:"uuid"`
+	Ip4Address string `json:"ip4Address,omitempty"`
+	Ip4Mask    string `json:"ip4Mask"`
+	Ip6Address string `json:"ip6Address,omitempty"`
+
 	HostOverrideMAC []uint16 `json:"hostOverrideMac,omitempty"`
+	AllowMulticast  bool     `json:"allowMulticast"`
 
 	MaxLinkMTU int `json:"maxLinkMtu"`
 }

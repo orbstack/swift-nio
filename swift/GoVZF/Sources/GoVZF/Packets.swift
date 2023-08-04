@@ -92,10 +92,12 @@ class PacketProcessor {
     private let hostOverrideMac: [UInt8]
     // the host MAC that macOS expects to see
     private var hostActualMac: [UInt8]?
+    private let allowMulticast: Bool
 
-    init(realExternalMtu: Int = 1500, hostOverrideMac: [UInt8]) {
+    init(realExternalMtu: Int = 1500, hostOverrideMac: [UInt8], allowMulticast: Bool = false) {
         self.realExternalMtu = realExternalMtu
         self.hostOverrideMac = hostOverrideMac
+        self.allowMulticast = allowMulticast
     }
 
     /*
@@ -225,19 +227,21 @@ class PacketProcessor {
             hostActualMac = Array(UnsafeBufferPointer(start: srcMacPtr.assumingMemoryBound(to: UInt8.self), count: macAddrSize))
         }
 
-        // allow IPv4 broadcast so ARP works
-        // drop all IPv4 multicast (to save CPU from mDNS)
-        let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
-        if memcmp(dstMacPtr, macAddrIpv4MulticastPrefix, macAddrIpv4MulticastPrefix.count) == 0 {
-            throw BrnetError.dropPacket
-        }
-
-        // allow IPv6 multicast to NDP prefix (33:33:FF:XX:XX:XX) so NDP works
-        // drop all other IPv6 multicast (to save CPU from mDNS)
-        if memcmp(dstMacPtr, macAddrIpv6MulticastPrefix, macAddrIpv6MulticastPrefix.count) == 0 {
-            let nextByte: UInt8 = try pkt.load(offset: 0 + 2)
-            if nextByte != 0xff {
+        if !allowMulticast {
+            // allow IPv4 broadcast so ARP works
+            // drop all IPv4 multicast (to save CPU from mDNS)
+            let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
+            if memcmp(dstMacPtr, macAddrIpv4MulticastPrefix, macAddrIpv4MulticastPrefix.count) == 0 {
                 throw BrnetError.dropPacket
+            }
+
+            // allow IPv6 multicast to NDP prefix (33:33:FF:XX:XX:XX) so NDP works
+            // drop all other IPv6 multicast (to save CPU from mDNS)
+            if memcmp(dstMacPtr, macAddrIpv6MulticastPrefix, macAddrIpv6MulticastPrefix.count) == 0 {
+                let nextByte: UInt8 = try pkt.load(offset: 0 + 2)
+                if nextByte != 0xff {
+                    throw BrnetError.dropPacket
+                }
             }
         }
 
