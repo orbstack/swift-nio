@@ -117,8 +117,6 @@ private func checkSslTrustSettings(_ certificate: SecCertificate, domain: SecTru
     }
 
     for trustSettings in results as! [[String: Any]] {
-        let policy = trustSettings[kSecTrustSettingsPolicy] as! SecPolicy
-        let props = SecPolicyCopyProperties(policy) as! [String: Any]
         // make sure this policy is for SSL, otherwise it's not relevant to us
         guard let policy = trustSettings[kSecTrustSettingsPolicy] as! SecPolicy?,
               let props = SecPolicyCopyProperties(policy) as? [String: Any],
