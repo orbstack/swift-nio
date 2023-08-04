@@ -40,7 +40,8 @@ var (
 	rootPort  C.io_connect_t
 	isAsleep  = false
 
-	LastWakeTime *timex.MonoSleepTime
+	LastSleepTime *timex.MonoSleepTime
+	LastWakeTime  *timex.MonoSleepTime
 )
 
 type SleepWakeMonitor struct {
@@ -91,4 +92,16 @@ func MonitorSleepWake() (*SleepWakeMonitor, error) {
 
 func IsAsleep() bool {
 	return isAsleep
+}
+
+func SleepOrWakeWithin(duration time.Duration) bool {
+	sleepTime := LastSleepTime
+	if sleepTime != nil && timex.SinceMonoSleep(*sleepTime) < duration {
+		return true
+	}
+	wakeTime := LastWakeTime
+	if wakeTime != nil && timex.SinceMonoSleep(*wakeTime) < duration {
+		return true
+	}
+	return false
 }

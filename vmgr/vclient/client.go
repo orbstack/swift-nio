@@ -35,7 +35,8 @@ const (
 	// match chrony ntp polling interval
 	diskStatsInterval = 128 * time.Second
 	// very liberal to avoid false positive
-	requestTimeout = 30 * time.Second
+	requestTimeout                  = 30 * time.Second
+	healthCheckSleepWakeGracePeriod = requestTimeout
 
 	// arm: arch timer doesn't advance in sleep, so not needed
 	// x86: tsc advances in sleep; pausing and resuming prevents that, so monotonic clock and timeouts work as expected, and we don't get stalls
@@ -219,12 +220,14 @@ func matchTimeoutError(err error) bool {
 }
 
 func (vc *VClient) healthCheck() {
+	awakeBefore := !iokit.IsAsleep()
 	err := vc.doCheckin()
 	if err != nil {
 		logrus.WithError(err).Error("health check failed")
 
 		// if it was because of a timeout, then we should shut down. vm is dead
-		if matchTimeoutError(err) {
+		// but only if awake before AND after check, and not recently slept
+		if matchTimeoutError(err) && awakeBefore && !iokit.IsAsleep() && !iokit.SleepOrWakeWithin(healthCheckSleepWakeGracePeriod) {
 			vc.requestStopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonHealthCheck}
 		}
 	}
