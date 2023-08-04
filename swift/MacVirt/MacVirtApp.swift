@@ -85,6 +85,8 @@ struct MacVirtApp: App {
     init() {
         delegate = UpdateDelegate()
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
+        // SUEnableSystemProfiling doesn't work?
+        updaterController.updater.sendsSystemProfile = true
 
         appDelegate.updaterController = updaterController
         appDelegate.actionTracker = actionTracker
