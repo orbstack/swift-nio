@@ -227,14 +227,15 @@ class PacketProcessor {
             hostActualMac = Array(UnsafeBufferPointer(start: srcMacPtr.assumingMemoryBound(to: UInt8.self), count: macAddrSize))
         }
 
-        if !allowMulticast {
-            // allow IPv4 broadcast so ARP works
-            // drop all IPv4 multicast (to save CPU from mDNS)
-            let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
-            if memcmp(dstMacPtr, macAddrIpv4MulticastPrefix, macAddrIpv4MulticastPrefix.count) == 0 {
-                throw BrnetError.dropPacket
-            }
+        // allow IPv4 broadcast so ARP works
+        // drop all IPv4 multicast (to save CPU from mDNS)
+        // macOS broadcasts mDNS to v4 and v6 simultaneously. v6 is less likely to conflict, so just drop v4 to save CPU
+        let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
+        if memcmp(dstMacPtr, macAddrIpv4MulticastPrefix, macAddrIpv4MulticastPrefix.count) == 0 {
+            throw BrnetError.dropPacket
+        }
 
+        if !allowMulticast {
             // allow IPv6 multicast to NDP prefix (33:33:FF:XX:XX:XX) so NDP works
             // drop all other IPv6 multicast (to save CPU from mDNS)
             if memcmp(dstMacPtr, macAddrIpv6MulticastPrefix, macAddrIpv6MulticastPrefix.count) == 0 {
