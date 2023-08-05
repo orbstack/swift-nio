@@ -40,6 +40,7 @@ require (
 )
 
 require (
+	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
