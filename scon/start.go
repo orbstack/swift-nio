@@ -38,6 +38,7 @@ var (
 	}
 
 	extraDeviceExcludes = []string{
+		// allows reading ram contents
 		"zram0",
 	}
 )
@@ -277,11 +278,14 @@ func (c *Container) configureLxc() error {
 			addDevOptional("/dev/binder")
 			addDevOptional("/dev/vndbinder")
 			addDevOptional("/dev/hwbinder")
-		}
 
-		// add /dev/vdb1 to make k3s happy - it just wants to stat
-		// but keep it blocked in devices cgroup
-		bind("/dev/vdb1", "/dev/vdb1", "")
+			// add /dev/vdb1 to make k3s happy
+			// it only needs stat, but no harm in letting people access this if they need to for whatever reason
+			addDevOptional(conf.C().DataFsDevice)
+		} else {
+			// non-isolated should still be able to stat, for k3s. just deny it via devices cgroup
+			bind(conf.C().DataFsDevice, conf.C().DataFsDevice, "")
+		}
 
 		// Default mounts
 		set("lxc.mount.auto", "proc:rw sys:mixed cgroup:rw:force")

@@ -20,6 +20,7 @@ func init() {
 
 type Config struct {
 	DataFsDir     string
+	DataFsDevice  string
 	SconDataDir   string
 	GuestMountSrc string
 	HostMountSrc  string
@@ -39,6 +40,7 @@ type Config struct {
 
 var configVM = Config{
 	DataFsDir:     "/data",
+	DataFsDevice:  "/dev/vdb1",
 	SconDataDir:   "/data/scon",
 	GuestMountSrc: "/opt/orbstack-guest",
 	HostMountSrc:  "/mnt/mac",
