@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -315,8 +316,9 @@ func withContainerMountNs[T any](c *Container, fn func() (T, error)) (T, error) 
 	if initPidF == nil {
 		return zero, fmt.Errorf("no init pid")
 	}
+	defer runtime.KeepAlive(initPidF)
 
-	return sysns.WithMountNs(initPidF, fn)
+	return sysns.WithMountNs(int(initPidF.Fd()), fn)
 }
 
 func (c *Container) UseMountNs(fn func() error) error {

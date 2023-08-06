@@ -64,6 +64,9 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 	go runOne("host service proxy ssh-agent", func() error {
 		return RunHostServiceProxy(mounts.SshAgentSocket, ports.SecureSvcHostSSHAgent, u.Uid)
 	})
+	go runOne("vscode ssh agent proxy", func() error {
+		return RunSshAgentProxy(u.Uid, u.Gid)
+	})
 
 	// perms for cmdlinks
 	err = os.Chown(conf.C().CmdLinksDir, u.Uid, u.Gid)

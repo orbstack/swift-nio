@@ -2,7 +2,6 @@ package sysns
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 
 	"golang.org/x/sys/unix"
@@ -20,7 +19,7 @@ type result[T any] struct {
 	err error
 }
 
-func WithMountNs[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
+func WithMountNs[T any](newNsFd int, fn func() (T, error)) (T, error) {
 	// LockOSThread is per-goroutine, so make a new temp goroutine
 	resultCh := make(chan result[T])
 	go func() {
@@ -41,8 +40,7 @@ func WithMountNs[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 
 			// now we have a different mount ns from original process.
 			// switch to target mount ns
-			err = unix.Setns(int(newNsF.Fd()), unix.CLONE_NEWNS)
-			runtime.KeepAlive(newNsF)
+			err = unix.Setns(newNsFd, unix.CLONE_NEWNS)
 			if err != nil {
 				return zero, err
 			}
@@ -56,4 +54,11 @@ func WithMountNs[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 
 	result := <-resultCh
 	return result.val, result.err
+}
+
+func WithMountNs1(newNsFd int, fn func() error) error {
+	_, err := WithMountNs(newNsFd, func() (struct{}, error) {
+		return struct{}{}, fn()
+	})
+	return err
 }

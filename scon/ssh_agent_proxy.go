@@ -1,7 +1,8 @@
-package agent
+package main
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path"
@@ -11,49 +12,27 @@ import (
 
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
-type SshAgentProxyArgs struct {
-	Uid int
-	Gid int
-}
-
 // this entire thing is a hacky workaround for a VS Code bug
 // https://github.com/microsoft/vscode/issues/168202
-func (a *AgentServer) StartSshAgentProxy(args *SshAgentProxyArgs, _ *None) error {
-	// start ssh agent proxy
-	go func() {
-		err := RunSshAgentProxy(args)
-		if err != nil {
-			logrus.WithError(err).Error("ssh agent proxy exited with error")
-		}
-	}()
-
-	return nil
-}
-
-func RunSshAgentProxy(args *SshAgentProxyArgs) error {
-	os.Remove(mounts.TmpSshAgentProxySocket)
-	// /dev/.orbstack
-	err := os.MkdirAll(path.Dir(mounts.TmpSshAgentProxySocket), 0755)
-	if err != nil {
-		return err
-	}
-
-	listener, err := net.Listen("unix", mounts.TmpSshAgentProxySocket)
+func RunSshAgentProxy(uid int, gid int) error {
+	os.Remove(mounts.SshAgentProxySocket)
+	listener, err := net.Listen("unix", mounts.SshAgentProxySocket)
 	if err != nil {
 		return err
 	}
 
 	// set socket permissions
-	err = os.Chmod(mounts.TmpSshAgentProxySocket, 0600)
+	err = os.Chmod(mounts.SshAgentProxySocket, 0600)
 	if err != nil {
 		return err
 	}
-	err = os.Chown(mounts.TmpSshAgentProxySocket, args.Uid, args.Gid)
+	err = os.Chown(mounts.SshAgentProxySocket, uid, gid)
 	if err != nil {
 		return err
 	}
@@ -139,32 +118,41 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 		return nil
 	}
 
-	// should we proxy this?
-	if strings.HasPrefix(path.Base(sockPath), "vscode-ssh-auth-sock-") {
-		// fix it IFF it doesn't exist
-		if _, err := os.Lstat(sockPath); errors.Is(err, os.ErrNotExist) {
-			sockPath = mounts.SshAgentSocket
-		}
+	// past this point, we switch to the pid's mount ns to do stat, readlink, dial
+	pidFd, err := unix.PidfdOpen(int(cred.Pid), 0)
+	if err != nil {
+		return fmt.Errorf("pidfd open: %w", err)
 	}
+	defer unix.Close(pidFd)
 
-	// resolve socket path relative to process cwd
-	if !path.IsAbs(sockPath) {
-		cwd, err := os.Readlink(procPid + "/cwd")
+	return sysns.WithMountNs1(pidFd, func() error {
+		// should we proxy this?
+		if strings.HasPrefix(path.Base(sockPath), "vscode-ssh-auth-sock-") {
+			// fix it IFF it doesn't exist
+			if _, err := os.Lstat(sockPath); errors.Is(err, os.ErrNotExist) {
+				sockPath = mounts.SshAgentSocket
+			}
+		}
+
+		// resolve socket path relative to process cwd
+		if !path.IsAbs(sockPath) {
+			cwd, err := os.Readlink(procPid + "/cwd")
+			if err != nil {
+				return err
+			}
+
+			sockPath = path.Join(cwd, sockPath)
+		}
+
+		// connect to the real ssh agent (w/ uid and gid, race-free)
+		realConn, err := dialAsUidGid(cred.Uid, cred.Gid, "unix", sockPath)
 		if err != nil {
 			return err
 		}
+		defer realConn.Close()
 
-		sockPath = path.Join(cwd, sockPath)
-	}
-
-	// connect to the real ssh agent (w/ uid and gid, race-free)
-	realConn, err := dialAsUidGid(cred.Uid, cred.Gid, "unix", sockPath)
-	if err != nil {
-		return err
-	}
-	defer realConn.Close()
-
-	// proxy data
-	tcpfwd.Pump2(conn, realConn.(*net.UnixConn))
-	return nil
+		// proxy data
+		tcpfwd.Pump2(conn, realConn.(*net.UnixConn))
+		return nil
+	})
 }

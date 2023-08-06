@@ -298,16 +298,6 @@ func (c *Client) DialTCPContext(addrPort string) (*net.TCPConn, error) {
 	return conn.(*net.TCPConn), nil
 }
 
-func (c *Client) StartSshAgentProxy(args SshAgentProxyArgs) error {
-	var none None
-	err := c.rpc.Call("a.StartSshAgentProxy", args, &none)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (c *Client) EndUserSession(user string) error {
 	var none None
 	err := c.rpc.Call("a.EndUserSession", user, &none)

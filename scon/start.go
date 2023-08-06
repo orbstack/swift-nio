@@ -917,21 +917,13 @@ func (c *Container) postStartAsync(a *agent.Client) error {
 		return fmt.Errorf("get agent pidfd: %w", err)
 	}
 
-	// ssh agent proxy (vscode workaround)
-	hostUser, err := c.manager.host.GetUser()
-	if err != nil {
-		return err
-	}
-	err = a.StartSshAgentProxy(agent.SshAgentProxyArgs{
-		Uid: hostUser.Uid,
-		Gid: hostUser.Uid,
-	})
-	if err != nil {
-		return err
-	}
-
 	// bind mount NFS if ok (i.e. if host already did)
 	if c.manager.hostNfsMounted {
+		hostUser, err := c.manager.host.GetUser()
+		if err != nil {
+			return err
+		}
+
 		err = bindMountNfsRoot(c, "/mnt/machines", hostUser.HomeDir+"/"+mounts.NfsDirName)
 		if err != nil {
 			return err
