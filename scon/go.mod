@@ -6,8 +6,6 @@ replace github.com/orbstack/macvirt/vmgr => ../vmgr
 
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
-replace github.com/hashicorp/mdns => github.com/kdrag0n/mdns-macvirt v0.0.0-20230806032247-f8685c94c359
-
 require (
 	github.com/coreos/go-iptables v0.6.0
 	github.com/creack/pty v1.1.18
@@ -28,7 +26,6 @@ require (
 	github.com/docker/libkv v0.2.1
 	github.com/fatih/color v1.15.0
 	github.com/getsentry/sentry-go v0.23.0
-	github.com/hashicorp/mdns v1.0.5
 	github.com/miekg/dns v1.1.55
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/pkg/sftp v1.13.5

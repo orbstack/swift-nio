@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-iptables/iptables"
-	"github.com/hashicorp/mdns"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
