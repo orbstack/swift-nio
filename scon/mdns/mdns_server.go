@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 
 	"github.com/miekg/dns"
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
 const (
@@ -82,10 +84,13 @@ func NewServer(config *Config) (*Server, error) {
 	}
 
 	if ipv4List != nil {
+		// SHOULD set TTL to 255 (mdns-scan checks this)
+		ipv4.NewPacketConn(ipv4List).SetMulticastTTL(255)
 		go s.recv(s.ipv4List)
 	}
 
 	if ipv6List != nil {
+		ipv6.NewPacketConn(ipv6List).SetMulticastHopLimit(255)
 		go s.recv(s.ipv6List)
 	}
 
