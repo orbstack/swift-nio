@@ -19,7 +19,7 @@ require (
 
 require (
 	github.com/alitto/pond v1.8.3
-	github.com/armon/go-radix v1.0.0
+	github.com/armon/go-radix v1.0.1-0.20221118154546-54df44f2176c
 	github.com/briandowns/spinner v1.20.0
 	github.com/cilium/ebpf v0.10.0
 	github.com/creachadair/jrpc2 v1.0.1
