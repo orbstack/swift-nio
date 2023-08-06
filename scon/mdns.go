@@ -1,25 +1,31 @@
-package agent
+package main
 
 import (
+	"context"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )
 
 // in the future we should add machines using container.IPAddresses() on .orb.local
 var mdnsContainerSuffixes = []string{".docker.local.", ".orb.local."}
 
-// exclude macOS cache flush probes
-var mdnsExcludeSuffixes = []string{"._tcp.local.", "._udp.local."}
+const mdnsMachineSuffix = ".orb.local."
 
 const (
 	// short because containers can start/stop often
 	mdnsTTL = 60 // seconds
+
+	// matches mDNSResponder timeout
+	mdnsProxyTimeout  = 5 * time.Second
+	mdnsProxyUpstream = netconf.ServicesIP4 + ":53"
 )
 
 type mdnsRegistry struct {
@@ -31,7 +37,25 @@ type mdnsRegistry struct {
 
 type mdnsEntry struct {
 	// net.IP more efficient b/c dns is in bytes
-	IPs []net.IP
+	ips     []net.IP
+	machine *Container
+}
+
+func (e mdnsEntry) IPs() []net.IP {
+	if e.machine != nil {
+		ips, err := e.machine.GetIPAddresses()
+		if err != nil {
+			logrus.WithError(err).WithField("name", e.machine.Name).Error("failed to get machine IPs for DNS")
+			return nil
+		}
+		return ips
+	} else {
+		return e.ips
+	}
+}
+
+func (e mdnsEntry) IsContainer() bool {
+	return e.machine == nil
 }
 
 func newMdnsRegistry() mdnsRegistry {
@@ -118,7 +142,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, name := range names {
-		r.tree.Insert(reverse(name), mdnsEntry{IPs: ips})
+		r.tree.Insert(reverse(name), mdnsEntry{ips: ips})
 	}
 }
 
@@ -133,7 +157,39 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	}
 }
 
-func (r *mdnsRegistry) Records(q dns.Question) []dns.RR {
+func (r *mdnsRegistry) AddMachine(c *Container) {
+	name := c.Name + mdnsMachineSuffix
+	logrus.WithField("name", name).Debug("mdns: add machine")
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.tree.Insert(reverse(name), mdnsEntry{machine: c})
+}
+
+func (r *mdnsRegistry) RemoveMachine(c *Container) {
+	name := c.Name + mdnsMachineSuffix
+	logrus.WithField("name", name).Debug("mdns: remove machine")
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.tree.Delete(reverse(name))
+}
+
+func (r *mdnsRegistry) ClearContainers() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.tree.Walk(func(s string, v interface{}) bool {
+		// delete all container nodes
+		entry := v.(mdnsEntry)
+		if entry.IsContainer() {
+			r.tree.Delete(s)
+		}
+		return false // continue
+	})
+}
+
+func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	if q.Qclass != dns.ClassINET {
 		return nil
 	}
@@ -149,17 +205,12 @@ func (r *mdnsRegistry) Records(q dns.Question) []dns.RR {
 	case dns.TypeAAAA:
 		includeV6 = true
 	default:
-		return nil
+		// other types go out to macOS (e.g. for discovery)
+		return r.proxyToHost(q, from)
 	}
 
 	if !strings.HasSuffix(q.Name, ".local.") {
 		return nil // mDNS is only .local
-	}
-	// exclude macOS cache flush probes
-	for _, suffix := range mdnsExcludeSuffixes {
-		if strings.HasSuffix(q.Name, suffix) {
-			return nil
-		}
 	}
 
 	logrus.WithField("name", q.Name).Debug("mdns: lookup")
@@ -168,12 +219,13 @@ func (r *mdnsRegistry) Records(q dns.Question) []dns.RR {
 	defer r.mu.Unlock()
 	_, _entry, ok := r.tree.LongestPrefix(reverse(q.Name))
 	if !ok {
-		return nil
+		// not found in local tree, so proxy out to macOS to make a query
+		return r.proxyToHost(q, from)
 	}
 	entry := _entry.(mdnsEntry)
 
 	var records []dns.RR
-	for _, ip := range entry.IPs {
+	for _, ip := range entry.IPs() {
 		if ip4 := ip.To4(); ip4 != nil && includeV4 {
 			records = append(records, &dns.A{
 				Hdr: dns.RR_Header{
@@ -197,4 +249,29 @@ func (r *mdnsRegistry) Records(q dns.Question) []dns.RR {
 		}
 	}
 	return records
+}
+
+func (r *mdnsRegistry) proxyToHost(q dns.Question, from net.Addr) []dns.RR {
+	// to prevent loop: if it's from macOS, don't proxy v4 mDNS
+	// works b/c we block v4 multicast in brnet and only send v6, while machines will probably query both
+	// TODO: properly check macOS IPv6 link-local addr
+	if fromUDP, ok := from.(*net.UDPAddr); ok && fromUDP.IP.To4() == nil {
+		return nil
+	}
+
+	logrus.WithField("name", q.Name).Debug("mdns: proxy to host")
+	ctx, cancel := context.WithTimeout(context.Background(), mdnsProxyTimeout)
+	defer cancel()
+
+	// ask host mDNSResponder. it can handle .local queries
+	msg := new(dns.Msg)
+	msg.SetQuestion(q.Name, q.Qtype)
+	msg.RecursionDesired = false // mDNS
+	reply, err := dns.ExchangeContext(ctx, msg, mdnsProxyUpstream)
+	if err != nil {
+		logrus.WithError(err).WithField("name", q.Name).Debug("host mDNS query failed")
+		return nil
+	}
+
+	return reply.Answer
 }

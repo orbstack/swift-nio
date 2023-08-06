@@ -157,6 +157,19 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 	return nil
 }
 
+// note: this is for start/stop, not create/delete
+func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.DockerContainersDiff, _ *None) error {
+	// update mDNS registry
+	for _, ctr := range diff.Added {
+		s.m.net.mdnsRegistry.AddContainer(&ctr)
+	}
+	for _, ctr := range diff.Removed {
+		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
+	}
+
+	return nil
+}
+
 func ListenSconGuest(m *ConManager) error {
 	dockerContainer, err := m.GetByID(ContainerIDDocker)
 	if err != nil {

@@ -37,3 +37,8 @@ func (c *Client) DockerRemoveBridge(config sgtypes.DockerBridgeConfig) error {
 	var noResult None
 	return c.rpc.Call("scg.DockerRemoveBridge", config, &noResult)
 }
+
+func (c *Client) OnDockerContainersChanged(diff sgtypes.DockerContainersDiff) error {
+	var noResult None
+	return c.rpc.Call("scg.OnDockerContainersChanged", diff, &noResult)
+}

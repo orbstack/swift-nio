@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-iptables/iptables"
+	"github.com/hashicorp/mdns"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -42,11 +44,15 @@ type Network struct {
 	cleanupNAT     func() error
 	dnsmasqProcess *os.Process
 	dataDir        string
+
+	mdnsRegistry mdnsRegistry
+	mdnsServer   *mdns.Server
 }
 
 func NewNetwork(dataDir string) *Network {
 	return &Network{
-		dataDir: dataDir,
+		dataDir:      dataDir,
+		mdnsRegistry: newMdnsRegistry(),
 	}
 }
 
@@ -72,11 +78,27 @@ func (n *Network) Start() error {
 	}
 	n.dnsmasqProcess = proc
 
+	// configure NAT
 	cleanupNAT, err := setupAllNat()
 	if err != nil {
 		return err
 	}
 	n.cleanupNAT = cleanupNAT
+
+	// start mDNS server
+	logrus.Debug("starting mDNS server")
+	iface, err := net.InterfaceByName(ifBridge) // scon bridge / machines interface
+	if err != nil {
+		return err
+	}
+	mdnsServer, err := mdns.NewServer(&mdns.Config{
+		Zone:  &n.mdnsRegistry,
+		Iface: iface,
+	})
+	if err != nil {
+		return err
+	}
+	n.mdnsServer = mdnsServer
 
 	return nil
 }
@@ -168,6 +190,12 @@ func (n *Network) Close() error {
 			logrus.WithError(err).Error("failed to kill dnsmasq")
 		}
 		n.dnsmasqProcess = nil
+	}
+	if n.mdnsServer != nil {
+		err := n.mdnsServer.Shutdown()
+		if err != nil {
+			logrus.WithError(err).Error("failed to shutdown mDNS server")
+		}
 	}
 	return nil
 }

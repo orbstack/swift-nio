@@ -687,6 +687,9 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		}
 	}
 
+	// add to mDNS registry
+	c.manager.net.mdnsRegistry.AddMachine(c)
+
 	err = c.onStartLocked()
 	if err != nil {
 		return err

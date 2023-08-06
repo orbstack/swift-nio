@@ -127,6 +127,11 @@ func (c *Container) onStopLocked() error {
 	}
 	c.lastListeners = nil
 
+	// remove from mDNS registry
+	c.manager.net.mdnsRegistry.RemoveMachine(c)
+	// discard cached IP addresses
+	c.ipAddrs = nil
+
 	// stop bpf
 	if c.bpf != nil {
 		err := c.bpf.Close()

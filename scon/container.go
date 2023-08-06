@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"sync/atomic"
 	"syscall"
@@ -47,7 +48,8 @@ type Container struct {
 	builtin  bool
 	isolated bool
 	// state
-	state atomic.Pointer[types.ContainerState]
+	state   atomic.Pointer[types.ContainerState]
+	ipAddrs []net.IP
 
 	hooks ContainerHooks
 

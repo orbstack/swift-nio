@@ -25,6 +25,7 @@ const (
 
 	// special case for systemd-network DHCP client, and Debian's LLMNR
 	portDHCPClient = 68
+	portMDNS       = 5353
 	portLLMNR      = 5355
 )
 
@@ -47,8 +48,9 @@ func procToAgentSpec(p sysnet.ProcListener) agent.ProxySpec {
 }
 
 func filterListener(l sysnet.ProcListener) bool {
-	// remove DHCP client and LLMNR
-	if l.Proto == sysnet.ProtoUDP && (l.Port == portDHCPClient || l.Port == portLLMNR) {
+	// remove DHCP client, mDNS, and LLMNR
+	// mDNS won't work b/c mDNSResponder occupies it on macOS
+	if l.Proto == sysnet.ProtoUDP && (l.Port == portDHCPClient || l.Port == portMDNS || l.Port == portLLMNR) {
 		return false
 	}
 

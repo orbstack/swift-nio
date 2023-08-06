@@ -6,6 +6,8 @@ replace github.com/orbstack/macvirt/vmgr => ../vmgr
 
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
+replace github.com/hashicorp/mdns => github.com/kdrag0n/mdns-macvirt v0.0.0-20230806032247-f8685c94c359
+
 require (
 	github.com/coreos/go-iptables v0.6.0
 	github.com/creack/pty v1.1.18
@@ -19,6 +21,7 @@ require (
 
 require (
 	github.com/alitto/pond v1.8.3
+	github.com/armon/go-radix v1.0.0
 	github.com/briandowns/spinner v1.20.0
 	github.com/cilium/ebpf v0.10.0
 	github.com/creachadair/jrpc2 v1.0.1
@@ -40,7 +43,6 @@ require (
 )
 
 require (
-	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

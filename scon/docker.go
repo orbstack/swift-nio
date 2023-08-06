@@ -358,6 +358,9 @@ func (h *DockerHooks) PostStart(c *Container) error {
 }
 
 func (h *DockerHooks) PostStop(c *Container) error {
+	// clear mDNS registry
+	c.manager.net.mdnsRegistry.ClearContainers()
+
 	// slow, so use async if stopping (b/c we know it doesn't matter at that point)
 	isAsync := c.manager.stopping
 	err := c.manager.host.ClearDockerState(isAsync)

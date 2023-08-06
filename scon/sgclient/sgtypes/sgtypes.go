@@ -1,6 +1,10 @@
 package sgtypes
 
-import "net/netip"
+import (
+	"net/netip"
+
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
+)
 
 type DockerBridgeConfig struct {
 	// for host
@@ -10,4 +14,9 @@ type DockerBridgeConfig struct {
 
 	// for scon
 	GuestInterfaceName string
+}
+
+type DockerContainersDiff struct {
+	Added   []dockertypes.ContainerSummaryMin
+	Removed []dockertypes.ContainerSummaryMin
 }
