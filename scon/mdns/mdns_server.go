@@ -287,9 +287,15 @@ func (s *Server) sendResponse(resp *dns.Msg, from net.Addr, unicast bool) error 
 	// Determine the socket to send from
 	addr := from.(*net.UDPAddr)
 	if addr.IP.To4() != nil {
+		if !unicast {
+			addr = ipv4Addr
+		}
 		_, err = s.ipv4List.WriteToUDP(buf, addr)
 		return err
 	} else {
+		if !unicast {
+			addr = ipv6Addr
+		}
 		_, err = s.ipv6List.WriteToUDP(buf, addr)
 		return err
 	}
