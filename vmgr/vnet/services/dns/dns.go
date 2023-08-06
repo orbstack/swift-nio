@@ -16,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/dns/dnssd"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -211,7 +212,17 @@ func (h *DnsServer) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool)
 			continue
 		}
 
-		for _, a := range answers {
+		for i, a := range answers {
+			// don't return duplicates
+			// can happen with mDNS "dig _services._dns-sd._udp.local PTR" queries:
+			// returns a bunch of the same services from diff interfaces, causing reply to get truncated
+			isDupe := slices.ContainsFunc(answers[:i], func(b dnssd.QueryAnswer) bool {
+				return a.Equal(&b)
+			})
+			if isDupe {
+				continue
+			}
+
 			if verboseTrace {
 				logrus.WithFields(logrus.Fields{
 					"name": q.Name,

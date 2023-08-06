@@ -1,6 +1,9 @@
 package dnssd
 
-import "errors"
+import (
+	"bytes"
+	"errors"
+)
 
 type QueryAnswer struct {
 	Name  string
@@ -8,6 +11,14 @@ type QueryAnswer struct {
 	Class uint16
 	Data  []byte
 	TTL   uint32
+}
+
+func (a *QueryAnswer) Equal(b *QueryAnswer) bool {
+	return a.Name == b.Name &&
+		a.Type == b.Type &&
+		a.Class == b.Class &&
+		a.TTL == b.TTL &&
+		bytes.Equal(a.Data, b.Data)
 }
 
 var (
