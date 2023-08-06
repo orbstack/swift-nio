@@ -77,6 +77,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
     __uint(max_entries, 1024);
     __type(key, __u64);
     __type(value, struct udp_meta);
@@ -235,6 +236,7 @@ static int sendmsg_common(struct bpf_sock_addr *ctx) {
     return VERDICT_PROCEED;
 }
 
+// this handles 2 cases: UDP connect, and TCP bind-before-connect (for explicit client port)
 // returns: whether conditions were met
 static bool connect_common(struct bpf_sock_addr *ctx) {
     // be careful of connect(AF_UNSPEC)
