@@ -133,12 +133,12 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 		return fmt.Errorf("configure: %w", err)
 	}
 
-	objs := lfwdObjects{}
-	err = spec.LoadAndAssign(&objs, nil)
+	objs := &lfwdObjects{}
+	err = spec.LoadAndAssign(objs, nil)
 	if err != nil {
 		return fmt.Errorf("load objs: %w", err)
 	}
-	b.closers = append(b.closers, &objs)
+	b.closers = append(b.closers, objs)
 
 	err = b.attachOneCg(ebpf.AttachCGroupInet4Connect, objs.LfwdConnect4)
 	if err != nil {
@@ -205,6 +205,10 @@ func checkIsNsfs(entry fs.DirEntry) bool {
 // NOTE: runs in container mount ns
 // called with c.mu held for read
 func (b *ContainerBpfManager) CfwdUpdateNetNamespaces(entries []fs.DirEntry) error {
+	if b.cfwdNetnsProg == nil {
+		return nil
+	}
+
 	var realKeys []string
 	for _, entry := range entries {
 		if checkIsNsfs(entry) {

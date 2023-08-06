@@ -89,10 +89,10 @@ static int cfwd_loop_cb(__u32 index, struct cfwd_scan_ctx *ctx) {
     return 0; // continue
 }
 
-// this is per-netns
+// this is per-netns, so no need to check netns cookie
 SEC("sk_lookup/") // cilium/ebpf incorrectly expects trailing "/", libbpf doesn't
 int cfwd_sk_lookup(struct bpf_sk_lookup *ctx) {
-    bpf_printk("cfwd: sk_lookup: fmaily=%u protocol=%u local_port=%u", ctx->family, ctx->protocol, ctx->local_port);
+    bpf_printk("cfwd: sk_lookup: family=%u protocol=%u local_port=%u", ctx->family, ctx->protocol, ctx->local_port);
     // only IPv4/v6, TCP, port 80, + container netns&cgroup
     if ((ctx->family != AF_INET && ctx->family != AF_INET6) ||
             ctx->protocol != IPPROTO_TCP || ctx->local_port != CFWD_PORT) {

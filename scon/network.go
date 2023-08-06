@@ -294,6 +294,7 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string) (f
 
 	if secureSvcIP != "" {
 		// allow secureSvcIP:SecureSvcDockerRemoteCtx from docker
+		// TODO this needs ip/mac spoofing protection
 		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-s", netconf.SconDockerIP4, "-d", secureSvcIP, "--dport", strconv.Itoa(ports.SecureSvcDockerRemoteCtx), "-j", "ACCEPT"})
 
 		// block other secure svc

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
@@ -130,6 +131,16 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		if err != nil {
 			return err
 		}
+		defer func() {
+			if retErr != nil {
+				err2 := c.useAgentLocked(func(a *agent.Client) error {
+					return a.StopProxyTCP(agentSpec)
+				})
+				if err2 != nil {
+					logrus.WithError(err2).Error("failed to stop tcp proxy after error")
+				}
+			}
+		}()
 
 		// tell host
 		hostForwardSpec = hclient.ForwardSpec{
@@ -138,13 +149,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		}
 		err = m.host.StartForward(hostForwardSpec)
 		if err != nil {
-			err2 := c.useAgentLocked(func(a *agent.Client) error {
-				return a.StopProxyTCP(agentSpec)
-			})
-			if err2 != nil {
-				logrus.WithError(err2).Error("failed to stop tcp proxy after hcontrol error")
-			}
-			return err
+			return fmt.Errorf("host: %w", err)
 		}
 
 	case sysnet.ProtoUDP:
@@ -168,6 +173,16 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		if err != nil {
 			return err
 		}
+		defer func() {
+			if retErr != nil {
+				err2 := c.useAgentLocked(func(a *agent.Client) error {
+					return a.StopProxyUDP(agentSpec)
+				})
+				if err2 != nil {
+					logrus.WithError(err2).Error("failed to stop udp proxy after error")
+				}
+			}
+		}()
 
 		// tell host
 		hostForwardSpec = hclient.ForwardSpec{
@@ -176,13 +191,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		}
 		err = m.host.StartForward(hostForwardSpec)
 		if err != nil {
-			err2 := c.useAgentLocked(func(a *agent.Client) error {
-				return a.StopProxyUDP(agentSpec)
-			})
-			if err2 != nil {
-				logrus.WithError(err2).Error("failed to stop udp proxy after hcontrol error")
-			}
-			return err
+			return fmt.Errorf("host: %w", err)
 		}
 	}
 
