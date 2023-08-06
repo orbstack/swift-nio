@@ -213,7 +213,9 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		return nil // mDNS is only .local
 	}
 
-	logrus.WithField("name", q.Name).Debug("mdns: lookup")
+	if verboseDebug { // avoid allocations
+		logrus.WithField("name", q.Name).Debug("mdns: lookup")
+	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -259,7 +261,9 @@ func (r *mdnsRegistry) proxyToHost(q dns.Question, from net.Addr) []dns.RR {
 		return nil
 	}
 
-	logrus.WithField("name", q.Name).Debug("mdns: proxy to host")
+	if verboseDebug {
+		logrus.WithField("name", q.Name).Debug("mdns: proxy to host")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), mdnsProxyTimeout)
 	defer cancel()
 
@@ -269,7 +273,9 @@ func (r *mdnsRegistry) proxyToHost(q dns.Question, from net.Addr) []dns.RR {
 	msg.RecursionDesired = false // mDNS
 	reply, err := dns.ExchangeContext(ctx, msg, mdnsProxyUpstream)
 	if err != nil {
-		logrus.WithError(err).WithField("name", q.Name).Debug("host mDNS query failed")
+		if verboseDebug {
+			logrus.WithError(err).WithField("name", q.Name).Debug("host mDNS query failed")
+		}
 		return nil
 	}
 
