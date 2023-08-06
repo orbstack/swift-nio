@@ -4,8 +4,23 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"golang.org/x/sys/unix"
 )
+
+var (
+	hostNetnsFdOnce syncx.Once[int]
+)
+
+func getHostNetnsFd() int {
+	return hostNetnsFdOnce.Do(func() int {
+		fd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			panic(err)
+		}
+		return fd
+	})
+}
 
 func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 	var zero T
@@ -14,19 +29,15 @@ func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 	defer runtime.UnlockOSThread()
 
 	// get current ns
-	currentNsFd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return zero, err
-	}
-	defer unix.Close(currentNsFd)
+	hostNetnsFd := getHostNetnsFd()
 
 	// set ns
-	err = unix.Setns(int(newNsF.Fd()), unix.CLONE_NEWNET)
+	err := unix.Setns(int(newNsF.Fd()), unix.CLONE_NEWNET)
 	runtime.KeepAlive(newNsF)
 	if err != nil {
 		return zero, err
 	}
-	defer unix.Setns(currentNsFd, unix.CLONE_NEWNET)
+	defer unix.Setns(hostNetnsFd, unix.CLONE_NEWNET)
 
 	return fn()
 }

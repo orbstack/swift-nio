@@ -5,17 +5,19 @@ import (
 	"net"
 	"net/rpc"
 
+	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type SconGuestServer struct {
 	m               *ConManager
-	dockerContainer *Container
+	dockerMachine   *Container
 	vlanRouterIfi   int
 	vlanMacTemplate net.HardwareAddr
 }
@@ -48,11 +50,10 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	hostMac[5] = byte(vlanId & 0x7f)
 
 	// open nsfd
-	initPidF, err := s.dockerContainer.lxc.InitPidFd()
-	if err != nil {
-		return fmt.Errorf("open pid: %w", err)
+	initPidF := s.dockerMachine.initPidFile
+	if initPidF == nil {
+		return fmt.Errorf("docker machine has no init pid")
 	}
-	defer initPidF.Close()
 
 	// create macvlan
 	// MAC of the macvlan interface doesn't matter because it's just a bridge member
@@ -62,7 +63,7 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	la.ParentIndex = s.vlanRouterIfi // parent = eth2
 	la.MTU = 1500                    // doesn't really matter because GSO
 	// move to container netns (doesn't accept pidfd as nsfd)
-	la.Namespace = netlink.NsPid(s.dockerContainer.lxc.InitPid())
+	la.Namespace = netlink.NsPid(s.dockerMachine.lxc.InitPid())
 	macvlan := &netlink.Macvlan{
 		LinkAttrs: la,
 		// filter by source MAC
@@ -78,7 +79,7 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 		}
 	}()
 
-	// now enter the container's netns...
+	// now enter the container's netns... (interface is in there)
 	_, err = sysnet.WithNetns(initPidF, func() (_ struct{}, retErr2 error) {
 		defer func() {
 			if retErr2 != nil {
@@ -130,11 +131,10 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 	}
 
 	// open nsfd
-	initPidF, err := s.dockerContainer.lxc.InitPidFd()
-	if err != nil {
-		return fmt.Errorf("open pid: %w", err)
+	initPidF := s.dockerMachine.initPidFile
+	if initPidF == nil {
+		return fmt.Errorf("docker machine has no init pid")
 	}
-	defer initPidF.Close()
 
 	// now enter the container's netns...
 	_, err = sysnet.WithNetns(initPidF, func() (struct{}, error) {
@@ -188,7 +188,7 @@ func ListenSconGuest(m *ConManager) error {
 
 	server := &SconGuestServer{
 		m:               m,
-		dockerContainer: dockerContainer,
+		dockerMachine:   dockerContainer,
 		vlanRouterIfi:   vlanRouterIf.Index,
 		vlanMacTemplate: vlanMacTemplate,
 	}

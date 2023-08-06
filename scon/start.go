@@ -610,7 +610,7 @@ func (c *Container) prepareFsStart() error {
 	return nil
 }
 
-func (c *Container) startLocked(isInternal bool) (err error) {
+func (c *Container) startLocked(isInternal bool) (retErr error) {
 	if c.runningLocked() {
 		return nil
 	}
@@ -624,7 +624,7 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 		return err
 	}
 	defer func() {
-		if err != nil {
+		if retErr != nil {
 			c.revertStateLocked(oldState)
 		}
 	}()
@@ -669,6 +669,24 @@ func (c *Container) startLocked(isInternal bool) (err error) {
 	if !c.lxc.Wait(lxc.RUNNING, startStopTimeout) {
 		return fmt.Errorf("machine did not start: %s - %v", c.Name, c.lxc.State())
 	}
+	// after this point: if it failed, attempt to stop lxc
+	defer func() {
+		if retErr != nil {
+			_ = c.lxc.Stop()
+		}
+	}()
+
+	// TODO: what if it crashed?
+	initPid := c.lxc.InitPid()
+	if initPid == -1 {
+		return fmt.Errorf("machine '%s': missing init pid", c.Name)
+	}
+	c.initPid = initPid
+	initPidFile, err := c.lxc.InitPidFd()
+	if err != nil {
+		return fmt.Errorf("machine '%s': get init pid fd: %w", c.Name, err)
+	}
+	c.initPidFile = initPidFile
 
 	err = c.startAgentLocked()
 	if err != nil {
@@ -809,34 +827,9 @@ func findCgroup(pid int) (string, error) {
 	return "", fmt.Errorf("no cgroup found")
 }
 
-// optionally use existing initPid query for performance
-func withContainerNetns[T any](c *Container, initPid int, fn func() (T, error)) (T, error) {
-	var zero T
-
-	// open pidfd for netns switch
-	var initPidF *os.File
-	var err error
-	if initPid == -1 {
-		initPidF, err = c.lxc.InitPidFd()
-		if err != nil {
-			return zero, fmt.Errorf("open pid: %w", err)
-		}
-	} else {
-		initPidFd, err := unix.PidfdOpen(initPid, 0)
-		if err != nil {
-			return zero, fmt.Errorf("open pid: %w", err)
-		}
-
-		initPidF = os.NewFile(uintptr(initPidFd), "[pidfd]")
-	}
-	defer initPidF.Close()
-
-	return sysnet.WithNetns(initPidF, fn)
-}
-
 func (c *Container) attachBpf(initPid int) error {
 	// netns cookie
-	netnsCookie, err := withContainerNetns(c, initPid, func() (uint64, error) {
+	netnsCookie, err := withContainerNetns(c, func() (uint64, error) {
 		return sysnet.GetNetnsCookie()
 	})
 	if err != nil {
@@ -892,8 +885,8 @@ func (c *Container) initNetPostStart() error {
 	}
 
 	// need pid, not pidfd, to open /proc/PID/cgroup
-	initPid := c.lxc.InitPid()
-	if initPid < 0 {
+	initPid := c.initPid
+	if initPid == 0 {
 		return fmt.Errorf("no init pid")
 	}
 
@@ -939,10 +932,7 @@ func (c *Container) postStartAsync(a *agent.Client) error {
 
 	// bind mount NFS if ok (i.e. if host already did)
 	if c.manager.hostNfsMounted {
-		err = a.BindMountNfsRoot(agent.BindMountArgs{
-			Source: "/mnt/machines",
-			Target: hostUser.HomeDir + "/" + mounts.NfsDirName,
-		})
+		err = bindMountNfsRoot(c, "/mnt/machines", hostUser.HomeDir+"/"+mounts.NfsDirName)
 		if err != nil {
 			return err
 		}

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/agent/common"
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
@@ -516,12 +515,7 @@ func (m *ConManager) onHostNfsMounted() error {
 			return nil
 		}
 
-		return c.UseAgent(func(a *agent.Client) error {
-			return a.BindMountNfsRoot(agent.BindMountArgs{
-				Source: "/mnt/machines",
-				Target: hostUser.HomeDir + "/" + mounts.NfsDirName,
-			})
-		})
+		return bindMountNfsRoot(c, "/mnt/machines", hostUser.HomeDir+"/"+mounts.NfsDirName)
 	})
 }
 

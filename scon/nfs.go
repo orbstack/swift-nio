@@ -110,3 +110,9 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 
 	return nil
 }
+
+func bindMountNfsRoot(c *Container, src string, target string) error {
+	return c.UseMountNs(func() error {
+		return unix.Mount(src, target, "", unix.MS_BIND|unix.MS_REC|unix.MS_SHARED|unix.MS_RDONLY, "")
+	})
+}

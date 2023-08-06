@@ -125,6 +125,7 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 		return err
 	}
 
+	// lfwd
 	err = b.attachOneCg(ebpf.AttachCGroupUDP4Sendmsg, objs.LfwdSendmsg4)
 	if err != nil {
 		return err
@@ -134,17 +135,14 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 	if err != nil {
 		return err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCGroupInet6Connect, objs.LfwdConnect6)
 	if err != nil {
 		return err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCGroupUDP6Sendmsg, objs.LfwdSendmsg6)
 	if err != nil {
 		return err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCgroupInet6GetPeername, objs.LfwdGetpeername6)
 	if err != nil {
 		return err

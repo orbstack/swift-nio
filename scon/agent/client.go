@@ -308,26 +308,6 @@ func (c *Client) StartSshAgentProxy(args SshAgentProxyArgs) error {
 	return nil
 }
 
-func (c *Client) BindMountNfsRoot(args BindMountArgs) error {
-	var none None
-	err := c.rpc.Call("a.BindMountNfsRoot", args, &none)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Client) RemoveFile(path string) error {
-	var none None
-	err := c.rpc.Call("a.RemoveFile", path, &none)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (c *Client) EndUserSession(user string) error {
 	var none None
 	err := c.rpc.Call("a.EndUserSession", user, &none)

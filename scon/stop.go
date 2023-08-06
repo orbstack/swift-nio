@@ -141,6 +141,13 @@ func (c *Container) onStopLocked() error {
 		c.bpf = nil
 	}
 
+	// discard init pid
+	if c.initPidFile != nil {
+		c.initPidFile.Close()
+	}
+	c.initPid = 0
+	c.initPidFile = nil
+
 	// cancel listener update
 	c.autofwdDebounce.Cancel()
 

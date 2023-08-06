@@ -16,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
+	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -48,21 +49,25 @@ type Container struct {
 	builtin  bool
 	isolated bool
 	// state
-	state   atomic.Pointer[types.ContainerState]
-	ipAddrs []net.IP
+	state atomic.Pointer[types.ContainerState]
 
 	hooks ContainerHooks
 
 	lxc *lxc.Container
 
-	agent   atomic.Pointer[agent.Client]
 	manager *ConManager
 	mu      syncx.RWMutex
 
+	// if booted
+	// TODO: move all this into a .rt field (RuntimeState)
 	lastListeners     []sysnet.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
+	agent             atomic.Pointer[agent.Client]
 	bpf               *bpf.ContainerBpfManager
+	ipAddrs           []net.IP
+	initPid           int
+	initPidFile       *os.File
 
 	// docker
 	freezer atomic.Pointer[Freezer]
@@ -214,8 +219,8 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 	// can't use lxc.RemoveDeviceNode because node is already gone from host
 	// just delete the node in the container
 	// don't bother to update the devices cgroup bpf filter
-	err := c.UseAgent(func(a *agent.Client) error {
-		return a.RemoveFile(dst)
+	err := c.UseMountNs(func() error {
+		return os.Remove(dst)
 	})
 	if err != nil {
 		return err
@@ -292,6 +297,33 @@ func UseAgentRet[T any](c *Container, fn func(*agent.Client) (T, error)) (T, err
 		return err
 	})
 	return ret, err
+}
+
+func withContainerNetns[T any](c *Container, fn func() (T, error)) (T, error) {
+	var zero T
+	initPidF := c.initPidFile
+	if initPidF == nil {
+		return zero, fmt.Errorf("no init pid")
+	}
+
+	return sysnet.WithNetns(initPidF, fn)
+}
+
+func withContainerMountNs[T any](c *Container, fn func() (T, error)) (T, error) {
+	var zero T
+	initPidF := c.initPidFile
+	if initPidF == nil {
+		return zero, fmt.Errorf("no init pid")
+	}
+
+	return sysns.WithMountNs(initPidF, fn)
+}
+
+func (c *Container) UseMountNs(fn func() error) error {
+	_, err := withContainerMountNs(c, func() (struct{}, error) {
+		return struct{}{}, fn()
+	})
+	return err
 }
 
 func (c *Container) Freezer() *Freezer {
