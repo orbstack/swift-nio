@@ -851,13 +851,13 @@ func (c *Container) attachBpf(initPid int) error {
 	c.bpf = bpfMgr
 
 	// attach ptrack
-	err = bpfMgr.AttachPtrack()
+	ptrackReader, err := bpfMgr.AttachPtrack()
 	if err != nil {
 		return fmt.Errorf("attach bpf ptrack: %w", err)
 	}
 
 	go runOne("ptrack monitor for "+c.Name, func() error {
-		return c.bpf.MonitorPtrack(func() error {
+		return bpf.MonitorPtrack(ptrackReader, func() error {
 			c.triggerListenersUpdate()
 			return nil
 		})

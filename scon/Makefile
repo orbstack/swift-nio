@@ -6,7 +6,7 @@ scli:
 	@mkdir -p ../out
 	@go build -o ../out/scli ./cmd/scli
 
-bpf/lfwd_%: bpf/src/lfwd.c
+bpf/lfwd_%: bpf/src/lfwd.c bpf/src/cfwd.h
 	@go generate ./bpf
 
 bpf/ptrack_%: bpf/src/ptrack.c

@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"net"
 	"net/rpc"
+	"os"
 
-	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 )
 
 type SconGuestServer struct {
@@ -63,7 +62,7 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	la.ParentIndex = s.vlanRouterIfi // parent = eth2
 	la.MTU = 1500                    // doesn't really matter because GSO
 	// move to container netns (doesn't accept pidfd as nsfd)
-	la.Namespace = netlink.NsPid(s.dockerMachine.lxc.InitPid())
+	la.Namespace = netlink.NsPid(s.dockerMachine.initPid)
 	macvlan := &netlink.Macvlan{
 		LinkAttrs: la,
 		// filter by source MAC
@@ -120,6 +119,26 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 		return err
 	}
 
+	// add host ip to cfwd bpf
+	s.dockerMachine.mu.RLock()
+	defer s.dockerMachine.mu.RUnlock()
+	if s.dockerMachine.bpf != nil {
+		if config.IP4Subnet.IsValid() {
+			ip, _ := config.HostIP4()
+			err := s.dockerMachine.bpf.CfwdAddHostIP(ip)
+			if err != nil {
+				return fmt.Errorf("add host ip %+v to cfwd: %w", ip, err)
+			}
+		}
+		if config.IP6Subnet.IsValid() {
+			ip, _ := config.HostIP6()
+			err := s.dockerMachine.bpf.CfwdAddHostIP(ip)
+			if err != nil {
+				return fmt.Errorf("add host ip %+v to cfwd: %w", ip, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -154,6 +173,26 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 		return err
 	}
 
+	// remove host ip from cfwd bpf
+	s.dockerMachine.mu.RLock()
+	defer s.dockerMachine.mu.RUnlock()
+	if s.dockerMachine.bpf != nil {
+		if config.IP4Subnet.IsValid() {
+			ip, _ := config.HostIP4()
+			err := s.dockerMachine.bpf.CfwdRemoveHostIP(ip)
+			if err != nil {
+				return fmt.Errorf("remove host ip %+v from cfwd: %w", ip, err)
+			}
+		}
+		if config.IP6Subnet.IsValid() {
+			ip, _ := config.HostIP6()
+			err := s.dockerMachine.bpf.CfwdRemoveHostIP(ip)
+			if err != nil {
+				return fmt.Errorf("remove host ip %+v from cfwd: %w", ip, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -165,6 +204,25 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.DockerContainer
 	}
 	for _, ctr := range diff.Removed {
 		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
+	}
+
+	// attach cfwd to container net namespaces
+	s.dockerMachine.mu.RLock()
+	defer s.dockerMachine.mu.RUnlock()
+
+	if s.dockerMachine.bpf != nil {
+		err := s.dockerMachine.UseMountNs(func() error {
+			// faster than checking container inspect's SandboxKey
+			entries, err := os.ReadDir("/run/docker/netns")
+			if err != nil {
+				return err
+			}
+
+			return s.dockerMachine.bpf.CfwdUpdateNetNamespaces(entries)
+		})
+		if err != nil {
+			return fmt.Errorf("update cfwd: %w", err)
+		}
 	}
 
 	return nil

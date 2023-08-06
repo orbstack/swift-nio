@@ -1,10 +1,16 @@
 // Copyright 2023 Orbital Labs, LLC
 // License: proprietary and confidential.
 
+// lfwd: localhost forwarder for Docker host networking
+// ----------------------------------------------------
 // Redirects connect() calls to localhost (127.0.0.1 or ::1) to host NAT
 // (198.19.248.254) if there's no listener on localhost.
 // Also translates getpeername() to return localhost so programs don't get confused,
 // and sendmsg() for UDP.
+//
+// Doesn't really break anything because you already need route_localnet for NAT on localhost -- pretty unlikely.
+
+// (cfwd is also compiled into this program, since both are Docker-specific)
 
 #include <string.h>
 #include <stdbool.h>
@@ -47,6 +53,12 @@ static const __be32 HOSTNAT_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x00f0, 0, 0, 0
 
 const volatile __u64 config_netns_cookie = 0;
 
+#define copy4(dst, src) \
+    dst[0] = src[0]; \
+    dst[1] = src[1]; \
+    dst[2] = src[2]; \
+    dst[3] = src[3];
+
 struct fwd_meta {
     // value size can't be 0
     __u8 unused;
@@ -79,6 +91,8 @@ static bool check_netns(struct bpf_sock_addr *ctx) {
 
     return true;
 }
+
+#include "cfwd.h"
 
 /*
  * v4
@@ -243,12 +257,6 @@ static bool check_ip6(struct bpf_sock_addr *ctx) {
 
     return true;
 }
-
-#define copy4(dst, src) \
-    dst[0] = src[0]; \
-    dst[1] = src[1]; \
-    dst[2] = src[2]; \
-    dst[3] = src[3];
 
 // inline needed for copy from *udp_src_ip6
 static __always_inline bool check_listener6(struct bpf_sock_addr *ctx, const __be32 *udp_src_ip6) {
