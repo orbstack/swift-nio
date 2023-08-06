@@ -21,18 +21,7 @@ import (
 // this entire thing is a hacky workaround for a VS Code bug
 // https://github.com/microsoft/vscode/issues/168202
 func RunSshAgentProxy(uid int, gid int) error {
-	os.Remove(mounts.SshAgentProxySocket)
-	listener, err := net.Listen("unix", mounts.SshAgentProxySocket)
-	if err != nil {
-		return err
-	}
-
-	// set socket permissions
-	err = os.Chmod(mounts.SshAgentProxySocket, 0600)
-	if err != nil {
-		return err
-	}
-	err = os.Chown(mounts.SshAgentProxySocket, uid, gid)
+	listener, err := listenUnixWithPerms(mounts.SshAgentProxySocket, 0600, uid, gid)
 	if err != nil {
 		return err
 	}
