@@ -63,9 +63,7 @@ type DockerAgent struct {
 
 	// refreshing w/ debounce+diff ensures consistent snapshots
 	containerRefreshDebounce syncx.FuncDebounce
-	containerRefreshMu       syncx.Mutex
 	networkRefreshDebounce   syncx.FuncDebounce
-	networkRefreshMu         syncx.Mutex
 	uiEventDebounce          syncx.FuncDebounce
 	pendingUIEntities        []dockertypes.UIEntity
 
@@ -782,9 +780,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 }
 
 func (d *DockerAgent) refreshContainers() error {
-	// debounce does NOT synchronize if this runs for >100ms!
-	d.containerRefreshMu.Lock()
-	defer d.containerRefreshMu.Unlock()
+	// no mu needed: FuncDebounce has mutex
 
 	// only includes running
 	var newContainers []dockertypes.ContainerSummaryMin
@@ -837,9 +833,7 @@ func compareNetworks(a, b dockertypes.Network) bool {
 }
 
 func (d *DockerAgent) refreshNetworks() error {
-	// debounce does NOT synchronize if this runs for >100ms!
-	d.networkRefreshMu.Lock()
-	defer d.networkRefreshMu.Unlock()
+	// no mu needed: FuncDebounce has mutex
 
 	var newNetworks []dockertypes.Network
 	err := d.client.Call("GET", "/networks", nil, &newNetworks)
