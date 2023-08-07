@@ -832,6 +832,25 @@ func compareNetworks(a, b dockertypes.Network) bool {
 	return a.Name < b.Name
 }
 
+func (d *DockerAgent) filterNewNetworks(nets []dockertypes.Network) []dockertypes.Network {
+	var newNets []dockertypes.Network
+	for _, n := range nets {
+		// must have 1+ active containers
+		// but only full network obj has Containers
+		var fullNetwork dockertypes.Network
+		err := d.client.Call("GET", "/networks/"+n.ID, nil, &fullNetwork)
+		if err != nil {
+			logrus.WithError(err).Error("failed to get full network")
+			continue
+		}
+
+		if len(fullNetwork.Containers) > 0 {
+			newNets = append(newNets, n)
+		}
+	}
+	return newNets
+}
+
 func (d *DockerAgent) refreshNetworks() error {
 	// no mu needed: FuncDebounce has mutex
 
@@ -840,6 +859,10 @@ func (d *DockerAgent) refreshNetworks() error {
 	if err != nil {
 		return err
 	}
+
+	// filter out networks with no active containers.
+	// people can have a lot of old compose networks piled up, causing us to reach vmnet bridge limit
+	newNetworks = d.filterNewNetworks(newNetworks)
 
 	// diff
 	added, removed := util.DiffSlicesKey[string](d.lastNetworks, newNetworks)
@@ -929,6 +952,8 @@ func (d *DockerAgent) monitorEvents() error {
 			case "create", "start", "die", "destroy":
 				d.triggerUIEvent(dockertypes.UIEventContainer)
 				d.containerRefreshDebounce.Call()
+				// also need to trigger networks refresh, because networks depends on active containers
+				d.networkRefreshDebounce.Call()
 			}
 
 		case "volume":
@@ -937,7 +962,8 @@ func (d *DockerAgent) monitorEvents() error {
 
 		case "network":
 			switch event.Action {
-			case "create", "destroy":
+			// "connect" and "disconnect" for dynamic bridge creation depending on active containers
+			case "create", "destroy", "connect", "disconnect":
 				// we only care about bridges
 				if event.Actor.Attributes.Type == "bridge" {
 					d.networkRefreshDebounce.Call()
