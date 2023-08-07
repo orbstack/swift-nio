@@ -261,8 +261,9 @@ class BridgeNetwork {
     func tryWriteToHost(iov: UnsafeMutablePointer<iovec>, len: Int) {
         // process packet
         let pkt = Packet(iov: iov, len: len)
+        let opts: PacketWriteOptions
         do {
-            try processor.processToHost(pkt: pkt)
+            opts = try processor.processToHost(pkt: pkt)
         } catch {
             NSLog("[brnet] error processing to host: \(error)")
             return
@@ -273,11 +274,20 @@ class BridgeNetwork {
                 vm_pkt_iov: iov,
                 vm_pkt_iovcnt: 1,
                 vm_flags: 0)
-        var pktsWritten = Int32(1)
+        var pktsWritten: Int32 = 1
         let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
         guard ret2 == .VMNET_SUCCESS else {
             NSLog("[brnet] host write error: \(VmnetError.from(ret2))")
             return
+        }
+
+        // need to write again for TCP ECN SYN->RST workaround?
+        if opts.sendDuplicate {
+            let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
+            guard ret2 == .VMNET_SUCCESS else {
+                NSLog("[brnet] host write error: \(VmnetError.from(ret2))")
+                return
+            }
         }
     }
 

@@ -36,6 +36,10 @@ private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
 typealias BrnetInterfaceIndex = UInt
 let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
 
+struct PacketWriteOptions {
+    var sendDuplicate: Bool
+}
+
 struct Packet {
     let data: UnsafeMutableRawPointer
     let len: Int
@@ -109,7 +113,7 @@ class PacketProcessor {
     (see below for MAC routing)
     */
     // warning: can be called concurrently! and multiple times per packet!
-    func processToHost(pkt: Packet) throws {
+    func processToHost(pkt: Packet) throws -> PacketWriteOptions {
         // if we have actual host MAC...
         if let hostActualMac {
             // then check if we need to rewrite the destination MAC (Ethernet[0])
@@ -170,6 +174,16 @@ class PacketProcessor {
                 }
             }
         }
+
+        // check for duplicate-send heuristic for TCP ECN SYN->RST workaround
+        var opts = PacketWriteOptions(sendDuplicate: false)
+        do {
+            opts.sendDuplicate = try PacketProcessor.needsDuplicateSend(pkt: pkt)
+        } catch {
+            // failed to parse packet - ignore
+        }
+
+        return opts
     }
 
     /*
@@ -381,6 +395,73 @@ class PacketProcessor {
         hdr.hdr_len = UInt16(transportStartOff + transportHdrLen)
 
         return hdr
+    }
+
+    // Workaround for macOS retransmitting SYN if received RST, and ECN was enabled
+    //
+    // The problem: connecting to a not-listening port should return connection refused immediately,
+    // but instead takes 1 second. macOS has a heuristic to retransmit SYN if it receives RST-ACK,
+    // only if the connection is in setup stage with ECN enabled, and it's on a LOCAL interface.
+    // Doesn't happen over Wi-Fi LAN b/c it only applies if route flag RTF_LOCAL is set.
+    //
+    // 2 possible fixes that require root:
+    //   - set interface flag IFEF_ECN_DISABLE to disable ECN
+    //   - unset route flag RTF_LOCAL to disable heuristic (will break route monitor)
+    //
+    // instead, we use a simple fix: send RST-ACK *twice* if it's in setup stage.
+    // this works b/c first packet sets the flag that SYN-RST has been seen, and second one is obeyed.
+    // https://github.com/apple-oss-distributions/xnu/blob/aca3beaa3dfbd42498b42c5e5ce20a938e6554e5/bsd/netinet/tcp_input.c#L3574
+    //
+    // this func checks for: TCP, RST-ACK from guest, in setup stage
+    static func needsDuplicateSend(pkt: Packet) throws -> Bool {
+        // read ethertype from pkt
+        let ipStartOff = 14
+        let etherType = pkt.etherType
+        // read udp/tcp
+        var transportProto: UInt8 = 0
+        var ipHdrLen = 0
+        if etherType == ETHTYPE_IPV4 {
+            //print("ipv4")
+            transportProto = try pkt.load(offset: ipStartOff + 9)
+            // not always 20 bytes
+            ipHdrLen = Int(((try pkt.load(offset: ipStartOff) as UInt8) & 0x0F) * 4)
+        } else if etherType == ETHTYPE_IPV6 {
+            //print("ipv6")
+            let nextHeader: UInt8 = try pkt.load(offset: ipStartOff + 6)
+            // handle hop-by-hop extension header
+            if nextHeader == 0 {
+                //print("hop-by-hop")
+                transportProto = try pkt.load(offset: ipStartOff + 40)
+                ipHdrLen = 40 + 8
+            } else {
+                transportProto = nextHeader
+                ipHdrLen = 40
+            }
+        }
+        let transportStartOff = ipStartOff + ipHdrLen
+
+        // TCP
+        guard transportProto == IPPROTO_TCP else {
+            return false
+        }
+
+        // flags = RST + ACK
+        let tcpFlags = try pkt.load(offset: transportStartOff + 2+2+4+4+1) as UInt8
+        guard tcpFlags == 0x14 else {
+            return false
+        }
+
+        // setup stage:
+        // seq = 1, win = 0. (ack is relative so it's harder to check)
+        // should also check seq = 1 but it's misaligned
+        //let tcpSeq = try pkt.load(offset: transportStartOff + 2+2) as UInt32
+        let tcpWin = try pkt.load(offset: transportStartOff + 2+2+4+4+2) as UInt16
+        guard tcpWin == 0 else {
+            return false
+        }
+
+        // matches all heuristics
+        return true
     }
 }
 
