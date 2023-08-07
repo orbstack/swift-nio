@@ -13,6 +13,9 @@ var (
 
 	oomScoreAdjDefault = "0"
 	oomScoreAdjScon    = "-950"
+
+	// mitigate risk of 512k tcp buffers using too much memory: not too aggressive oom adj
+	OomScoreAdjCriticalGuest = "-500"
 )
 
 func setOomScoreAdj(score string) {

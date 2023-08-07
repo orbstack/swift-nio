@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
+	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/sgclient"
 	"github.com/orbstack/macvirt/scon/syncx"
@@ -149,15 +150,8 @@ func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
  */
 
 func (d *DockerAgent) PostStart() error {
-	// docker-init oom score adj
-	// dockerd's score is set via cmdline argument
-	err := os.WriteFile("/proc/1/oom_score_adj", []byte(oomScoreAdjCriticalGuest), 0644)
-	if err != nil {
-		return err
-	}
-
 	// wait for Docker API to start
-	err = util.WaitForRunPathExist("/var/run/docker.sock")
+	err := util.WaitForRunPathExist("/var/run/docker.sock")
 	if err != nil {
 		return err
 	}
@@ -184,7 +178,6 @@ func (d *DockerAgent) PostStart() error {
 			logrus.WithError(err).Error("failed to connect to hcontrol")
 			return
 		}
-
 		d.host, err = hclient.New(hConn)
 		if err != nil {
 			logrus.WithError(err).Error("failed to create hclient")
@@ -312,7 +305,9 @@ func (d *DockerAgent) monitorEvents() error {
 			}
 		}
 
-		logrus.WithField("event", event).Debug("engine event")
+		if conf.Debug() {
+			logrus.WithField("event", event).Debug("engine event")
+		}
 		switch event.Type {
 		case "container":
 			switch event.Action {

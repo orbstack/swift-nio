@@ -333,6 +333,16 @@ func (h *DockerHooks) PreStart(c *Container) error {
 }
 
 func (h *DockerHooks) PostStart(c *Container) error {
+	// docker-init oom score adj
+	// dockerd's score is set via cmdline argument
+	initPid := c.initPid
+	if initPid != 0 {
+		err := os.WriteFile("/proc/"+strconv.Itoa(initPid)+"/oom_score_adj", []byte(util.OomScoreAdjCriticalGuest), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
 	// make a freezer
 	freezer := NewContainerFreezer(c, dockerFreezeDebounce, func() (bool, error) {
 		// [predicate, via agent] check docker API to see if any containers are running

@@ -25,9 +25,6 @@ import (
 
 const (
 	ProcessName = appid.AppName + "-helper"
-
-	// mitigate risk of 512k tcp buffers using too much memory: not too aggressive oom adj
-	oomScoreAdjCriticalGuest = "-500"
 )
 
 type AgentServer struct {
@@ -158,7 +155,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		server.docker = NewDockerAgent()
 	}
 
-	// Go sets soft rlimit = hard. bring it back down to avoid perf issues
+	// Go sets soft rlimit = hard. bring it back down to avoid perf issues with fd closing in bad processes
 	err = unix.Setrlimit(unix.RLIMIT_NOFILE, &unix.Rlimit{
 		Cur: 16384,
 		Max: 1048576,
