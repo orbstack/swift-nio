@@ -19,6 +19,8 @@ var mdnsContainerSuffixes = []string{".docker.local.", ".orb.local."}
 
 const mdnsMachineSuffix = ".orb.local."
 
+const mdnsIndexDomain = "orb.local."
+
 const (
 	// short because containers can start/stop often
 	mdnsTTL = 60 // seconds
@@ -36,6 +38,9 @@ type mdnsRegistry struct {
 }
 
 type mdnsEntry struct {
+	// allow *. suffix match? (false for index)
+	IsWildcard bool
+
 	// net.IP more efficient b/c dns is in bytes
 	ips     []net.IP
 	machine *Container
@@ -142,7 +147,10 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, name := range names {
-		r.tree.Insert(reverse(name), mdnsEntry{ips: ips})
+		r.tree.Insert(reverse(name), mdnsEntry{
+			IsWildcard: true,
+			ips:        ips,
+		})
 	}
 }
 
@@ -163,7 +171,10 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.tree.Insert(reverse(name), mdnsEntry{machine: c})
+	r.tree.Insert(reverse(name), mdnsEntry{
+		IsWildcard: true,
+		machine:    c,
+	})
 }
 
 func (r *mdnsRegistry) RemoveMachine(c *Container) {
@@ -190,7 +201,10 @@ func (r *mdnsRegistry) ClearContainers() {
 }
 
 func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
-	if q.Qclass != dns.ClassINET {
+	// top bit = "QU" (unicast) flag
+	// mDNSResponder sends QU first. not responding causes 1-sec delay
+	qclass := q.Qclass &^ (1 << 15)
+	if qclass != dns.ClassINET {
 		return nil
 	}
 
@@ -219,12 +233,17 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	_, _entry, ok := r.tree.LongestPrefix(reverse(q.Name))
+	treeKey := reverse(q.Name)
+	matchedKey, _entry, ok := r.tree.LongestPrefix(treeKey)
 	if !ok {
 		// not found in local tree, so proxy out to macOS to make a query
 		return r.proxyToHost(q, from)
 	}
 	entry := _entry.(mdnsEntry)
+	// if not an exact match: is wildcard allowed?
+	if !entry.IsWildcard && matchedKey != treeKey {
+		return nil
+	}
 
 	var records []dns.RR
 	for _, ip := range entry.IPs() {
