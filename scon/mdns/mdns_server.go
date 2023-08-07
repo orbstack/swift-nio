@@ -257,6 +257,53 @@ func (s *Server) handleQuery(query *dns.Msg, from net.Addr) error {
 	return nil
 }
 
+func (s *Server) SendCacheFlush(records []dns.RR) error {
+	msg := &dns.Msg{
+		MsgHdr: dns.MsgHdr{
+			Id: 0,
+
+			// 18.2: QR (Query/Response) Bit - must be set to 1 in response.
+			Response: true,
+
+			// 18.3: OPCODE - must be zero in response (OpcodeQuery == 0)
+			Opcode: dns.OpcodeQuery,
+
+			// 18.4: AA (Authoritative Answer) Bit - must be set to 1
+			Authoritative: true,
+
+			// The following fields must all be set to 0:
+			// 18.5: TC (TRUNCATED) Bit
+			// 18.6: RD (Recursion Desired) Bit
+			// 18.7: RA (Recursion Available) Bit
+			// 18.8: Z (Zero) Bit
+			// 18.9: AD (Authentic Data) Bit
+			// 18.10: CD (Checking Disabled) Bit
+			// 18.11: RCODE (Response Code)
+		},
+		// 18.12 pertains to questions (handled by handleQuestion)
+		// 18.13 pertains to resource records (handled by handleQuestion)
+
+		// 18.14: Name Compression - responses should be compressed (though see
+		// caveats in the RFC), so set the Compress bit (part of the dns library
+		// API, not part of the DNS packet) to true.
+		Compress: true,
+
+		Answer: records,
+	}
+
+	// set cache flush bit (most significant bit of rrclass)
+	for _, rr := range records {
+		rr.Header().Class |= 1 << 15
+	}
+
+	// send only multicast v6 for macOS mDNSResponder
+	if err := s.sendResponse(msg, ipv6Addr, false); err != nil {
+		return fmt.Errorf("mdns: error sending cache flush: %v", err)
+	}
+
+	return nil
+}
+
 // handleQuestion is used to handle an incoming question
 //
 // The response to a question may be transmitted over multicast, unicast, or

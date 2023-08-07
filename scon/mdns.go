@@ -10,6 +10,7 @@ import (
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/mdns"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -23,13 +24,33 @@ const mdnsMachineSuffix = ".orb.local."
 const mdnsIndexDomain = "orb.local."
 
 const (
-	// short because containers can start/stop often
-	mdnsTTL = 60 // seconds
+	// long because we have cache flushing on reuse
+	// ARP cache is a non-issue. Docker generates MAC from IP within the subnet, so it doesn't change
+	mdnsTTLSeconds         = 300 // = 5 min (in seconds)
+	mdnsTTLDuration        = mdnsTTLSeconds * time.Second
+	mdnsCacheFlushDebounce = 250 * time.Millisecond
+	// prevent memory leak in case of scanning
+	mdnsCacheMaxQueryHistory = 512
 
 	// matches mDNSResponder timeout
 	mdnsProxyTimeout  = 5 * time.Second
 	mdnsProxyUpstream = netconf.ServicesIP4 + ":53"
 )
+
+type mdnsEntry struct {
+	// allow *. suffix match? (false for index)
+	IsWildcard bool
+
+	// net.IP more efficient b/c dns is in bytes
+	ips     []net.IP
+	machine *Container
+}
+
+type mdnsQueryInfo struct {
+	Time time.Time
+	// to flush queried wildcards
+	MatchedKey string
+}
 
 type mdnsRegistry struct {
 	mu sync.Mutex
@@ -37,7 +58,10 @@ type mdnsRegistry struct {
 	// this allows subdomain wildcards and custom domains to work properly
 	tree *radix.Tree
 
-	server *mdns.Server
+	server             *mdns.Server
+	cacheFlushDebounce syncx.FuncDebounce
+	recentQueries      map[string]mdnsQueryInfo
+	pendingFlushes     map[string]*mdnsEntry
 }
 
 func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
@@ -64,15 +88,6 @@ func (r *mdnsRegistry) StopServer() error {
 	return nil
 }
 
-type mdnsEntry struct {
-	// allow *. suffix match? (false for index)
-	IsWildcard bool
-
-	// net.IP more efficient b/c dns is in bytes
-	ips     []net.IP
-	machine *Container
-}
-
 func (e mdnsEntry) IPs() []net.IP {
 	if e.machine != nil {
 		ips, err := e.machine.GetIPAddresses()
@@ -86,14 +101,49 @@ func (e mdnsEntry) IPs() []net.IP {
 	}
 }
 
+func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool) []dns.RR {
+	var records []dns.RR
+	for _, ip := range e.IPs() {
+		if ip4 := ip.To4(); ip4 != nil && includeV4 {
+			records = append(records, &dns.A{
+				Hdr: dns.RR_Header{
+					Name:   qName,
+					Rrtype: dns.TypeA,
+					Class:  dns.ClassINET,
+					Ttl:    mdnsTTLSeconds,
+				},
+				A: ip4,
+			})
+		} else if ip6 := ip.To16(); ip6 != nil && includeV6 {
+			records = append(records, &dns.AAAA{
+				Hdr: dns.RR_Header{
+					Name:   qName,
+					Rrtype: dns.TypeAAAA,
+					Class:  dns.ClassINET,
+					Ttl:    mdnsTTLSeconds,
+				},
+				AAAA: ip6,
+			})
+		}
+	}
+	return records
+}
+
 func (e mdnsEntry) IsContainer() bool {
 	return e.machine == nil
 }
 
-func newMdnsRegistry() mdnsRegistry {
-	return mdnsRegistry{
-		tree: radix.New(),
+func newMdnsRegistry() *mdnsRegistry {
+	r := &mdnsRegistry{
+		tree:           radix.New(),
+		recentQueries:  make(map[string]mdnsQueryInfo),
+		pendingFlushes: make(map[string]*mdnsEntry),
 	}
+	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
+
+	// add initial index record
+
+	return r
 }
 
 func reverse(s string) string {
@@ -106,9 +156,10 @@ func reverse(s string) string {
 }
 
 func containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin) []string {
-	// full ID, short ID, names, compose: service.project
-	names := make([]string, 0, 2+len(ctr.Names)+1)
-	names = append(names, ctr.ID, ctr.ID[:12])
+	// (3) short ID, names, compose: service.project
+	// full ID is too long for DNS: it's 64 chars, max is 63 per component
+	names := make([]string, 0, 1+len(ctr.Names)+1)
+	names = append(names, ctr.ID[:12])
 	for _, name := range ctr.Names {
 		names = append(names, strings.TrimPrefix(name, "/"))
 	}
@@ -163,6 +214,50 @@ func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) []net.IP {
 	return ips
 }
 
+// flush cache of all reused names that were queried
+// must record queries because of wildcards: we don't know what wildcard subdomains the user may have queried
+// and to prevent overflowing MTU, don't flush every possible name/alias unless it was actually used
+func (r *mdnsRegistry) flushReusedCache() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.server == nil {
+		return
+	}
+
+	// send cache flush: prepopulate cache with new reused names
+	// no point in checking if IPs changed - we're just updating cache with the same values
+	flushRecords := make([]dns.RR, 0, len(r.pendingFlushes))
+	for qName, entry := range r.pendingFlushes {
+		flushRecords = append(flushRecords, entry.ToRecords(qName, true, true)...)
+	}
+	if len(flushRecords) > 0 {
+		if verboseDebug {
+			logrus.WithField("records", flushRecords).Debug("mdns: sending cache flush")
+		}
+
+		err := r.server.SendCacheFlush(flushRecords)
+		if err != nil {
+			logrus.WithError(err).Error("failed to send cache flush")
+		}
+	}
+
+	// GC: remove records with expired TTL
+	// this is OK from VM's monotonic time perspective, because VM time will never advance faster than host
+	now := time.Now()
+	for qName, qInfo := range r.recentQueries {
+		if now.Sub(qInfo.Time) >= mdnsTTLDuration {
+			delete(r.recentQueries, qName)
+		}
+	}
+
+	// reset pending flushes
+	// TODO use Go 1.21 clear
+	for k := range r.pendingFlushes {
+		delete(r.pendingFlushes, k)
+	}
+}
+
 func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	names := containerToMdnsNames(ctr)
 	ips := containerToMdnsIPs(ctr)
@@ -174,10 +269,21 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, name := range names {
-		r.tree.Insert(reverse(name), mdnsEntry{
+		entry := mdnsEntry{
 			IsWildcard: true,
 			ips:        ips,
-		})
+		}
+		treeKey := reverse(name)
+		r.tree.Insert(treeKey, entry)
+
+		// need to flush any caches? what names were we queried under? (wildcard)
+		now := time.Now()
+		for qName, qInfo := range r.recentQueries {
+			if qInfo.MatchedKey == treeKey && now.Sub(qInfo.Time) < mdnsTTLDuration {
+				r.pendingFlushes[qName] = &entry
+				r.cacheFlushDebounce.Call()
+			}
+		}
 	}
 }
 
@@ -198,10 +304,22 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.tree.Insert(reverse(name), mdnsEntry{
+
+	treeKey := reverse(name)
+	entry := mdnsEntry{
 		IsWildcard: true,
 		machine:    c,
-	})
+	}
+	r.tree.Insert(treeKey, entry)
+
+	// need to flush any caches? what names were we queried under? (wildcard)
+	now := time.Now()
+	for qName, qInfo := range r.recentQueries {
+		if qInfo.MatchedKey == treeKey && now.Sub(qInfo.Time) < mdnsTTLDuration {
+			r.pendingFlushes[qName] = &entry
+			r.cacheFlushDebounce.Call()
+		}
+	}
 }
 
 func (r *mdnsRegistry) RemoveMachine(c *Container) {
@@ -260,6 +378,7 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	treeKey := reverse(q.Name)
 	matchedKey, _entry, ok := r.tree.LongestPrefix(treeKey)
 	if !ok {
@@ -267,35 +386,31 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		return r.proxyToHost(q, from)
 	}
 	entry := _entry.(mdnsEntry)
+
 	// if not an exact match: is wildcard allowed?
 	if !entry.IsWildcard && matchedKey != treeKey {
 		return nil
 	}
 
-	var records []dns.RR
-	for _, ip := range entry.IPs() {
-		if ip4 := ip.To4(); ip4 != nil && includeV4 {
-			records = append(records, &dns.A{
-				Hdr: dns.RR_Header{
-					Name:   q.Name,
-					Rrtype: dns.TypeA,
-					Class:  dns.ClassINET,
-					Ttl:    mdnsTTL,
-				},
-				A: ip4,
-			})
-		} else if ip6 := ip.To16(); ip6 != nil && includeV6 {
-			records = append(records, &dns.AAAA{
-				Hdr: dns.RR_Header{
-					Name:   q.Name,
-					Rrtype: dns.TypeAAAA,
-					Class:  dns.ClassINET,
-					Ttl:    mdnsTTL,
-				},
-				AAAA: ip6,
-			})
+	records := entry.ToRecords(q.Name, includeV4, includeV6)
+	if len(records) == 0 {
+		return nil
+	}
+
+	// record query for cache flushing
+	if len(r.recentQueries) >= mdnsCacheMaxQueryHistory {
+		// delete a random entry to stay under limit
+		// very unlikely to hit this in real usage - rare enough that LRU isn't worth it
+		for k := range r.recentQueries {
+			delete(r.recentQueries, k)
+			break
 		}
 	}
+	r.recentQueries[q.Name] = mdnsQueryInfo{
+		Time:       time.Now(),
+		MatchedKey: matchedKey,
+	}
+
 	return records
 }
 
@@ -317,6 +432,8 @@ func (r *mdnsRegistry) proxyToHost(q dns.Question, from net.Addr) []dns.RR {
 	msg := new(dns.Msg)
 	msg.SetQuestion(q.Name, q.Qtype)
 	msg.RecursionDesired = false // mDNS
+	// don't think vnet supports fragmentation. this value is from dig
+	msg.SetEdns0(1232, false)
 	reply, err := dns.ExchangeContext(ctx, msg, mdnsProxyUpstream)
 	if err != nil {
 		if verboseDebug {

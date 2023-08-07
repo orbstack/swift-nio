@@ -31,7 +31,7 @@ const (
 	dhcpLeaseTime4 = "48h"
 	// leave room for static assignments like docker
 	dhcpLeaseStart = 10
-	dhcpLeaseEnd   = 250
+	dhcpLeaseEnd   = 247
 	raInterval     = 8 * time.Hour
 	raLifetime     = 30 * 24 * time.Hour
 
@@ -45,7 +45,7 @@ type Network struct {
 	dnsmasqProcess *os.Process
 	dataDir        string
 
-	mdnsRegistry mdnsRegistry
+	mdnsRegistry *mdnsRegistry
 }
 
 func NewNetwork(dataDir string) *Network {
@@ -91,7 +91,7 @@ func (n *Network) Start() error {
 		return err
 	}
 	err = n.mdnsRegistry.StartServer(&mdns.Config{
-		Zone:  &n.mdnsRegistry,
+		Zone:  n.mdnsRegistry,
 		Iface: iface,
 	})
 	if err != nil {
