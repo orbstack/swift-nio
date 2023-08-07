@@ -6,6 +6,7 @@ import (
 	"net/rpc"
 	"os"
 
+	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -58,7 +59,7 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	// MAC of the macvlan interface doesn't matter because it's just a bridge member
 	// real Linux packets come from container and the bridge master interface
 	la := netlink.NewLinkAttrs()
-	la.Name = fmt.Sprintf(".orbmirror%d", vlanId)
+	la.Name = fmt.Sprintf("%s%d", agent.DockerBridgeMirrorPrefix, vlanId)
 	la.ParentIndex = s.vlanRouterIfi // parent = eth2
 	la.MTU = 1500                    // doesn't really matter because GSO
 	// move to container netns (doesn't accept pidfd as nsfd)
@@ -160,7 +161,7 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 		// delete the link
 		err := netlink.LinkDel(&netlink.GenericLink{
 			LinkAttrs: netlink.LinkAttrs{
-				Name: fmt.Sprintf(".orbmirror%d", vlanId),
+				Name: fmt.Sprintf("%s%d", agent.DockerBridgeMirrorPrefix, vlanId),
 			},
 		})
 		if err != nil {

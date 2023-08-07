@@ -33,6 +33,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
@@ -47,6 +48,8 @@ const (
 	// from documentation test net 2
 	DockerNetMigrationBip  = "203.0.113.97/24"
 	DockerNetMigrationFlag = "/etc/docker/.orb_migrate_networks"
+
+	DockerBridgeMirrorPrefix = ".orbmirror"
 )
 
 type DockerAgent struct {
@@ -832,23 +835,56 @@ func compareNetworks(a, b dockertypes.Network) bool {
 	return a.Name < b.Name
 }
 
-func (d *DockerAgent) filterNewNetworks(nets []dockertypes.Network) []dockertypes.Network {
+func findLink(links []netlink.Link, name string) netlink.Link {
+	for _, l := range links {
+		if l.Attrs().Name == name {
+			return l
+		}
+	}
+	return nil
+}
+
+func (d *DockerAgent) filterNewNetworks(nets []dockertypes.Network) ([]dockertypes.Network, error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		return nil, fmt.Errorf("list links: %w", err)
+	}
+
 	var newNets []dockertypes.Network
 	for _, n := range nets {
-		// must have 1+ active containers
-		// but only full network obj has Containers
-		var fullNetwork dockertypes.Network
-		err := d.client.Call("GET", "/networks/"+n.ID, nil, &fullNetwork)
-		if err != nil {
-			logrus.WithError(err).Error("failed to get full network")
+		// we only deal with local + bridge
+		if n.Driver != "bridge" || n.Scope != "local" {
 			continue
 		}
 
-		if len(fullNetwork.Containers) > 0 {
-			newNets = append(newNets, n)
+		// must have 1+ active containers
+		// but only full network obj has Containers and that's kinda expensive, so check interface membership instead
+		ifName := dockerNetworkToInterfaceName(&n)
+
+		// find index of bridge
+		bridgeLink := findLink(links, ifName)
+		if bridgeLink == nil {
+			logrus.WithField("network", n.Name).Error("bridge not found")
+			continue
 		}
+		bridgeIndex := bridgeLink.Attrs().Index
+
+		// check if there are any containers (veth) attached
+		hasMembers := false
+		for _, l := range links {
+			attrs := l.Attrs()
+			if attrs.MasterIndex == bridgeIndex && !strings.HasPrefix(attrs.Name, DockerBridgeMirrorPrefix) {
+				hasMembers = true
+				break
+			}
+		}
+		if !hasMembers {
+			continue
+		}
+
+		newNets = append(newNets, n)
 	}
-	return newNets
+	return newNets, nil
 }
 
 func (d *DockerAgent) refreshNetworks() error {
@@ -862,7 +898,10 @@ func (d *DockerAgent) refreshNetworks() error {
 
 	// filter out networks with no active containers.
 	// people can have a lot of old compose networks piled up, causing us to reach vmnet bridge limit
-	newNetworks = d.filterNewNetworks(newNetworks)
+	newNetworks, err = d.filterNewNetworks(newNetworks)
+	if err != nil {
+		return err
+	}
 
 	// diff
 	added, removed := util.DiffSlicesKey[string](d.lastNetworks, newNetworks)
@@ -1090,12 +1129,15 @@ func (d *DockerAgent) onContainerStop(ctr dockertypes.ContainerSummaryMin) error
 	return nil
 }
 
-func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeConfig, bool) {
-	// we only care about Driver=bridge, Scope=local
-	if n.Driver != "bridge" || n.Scope != "local" {
-		return sgtypes.DockerBridgeConfig{}, false
+func dockerNetworkToInterfaceName(n *dockertypes.Network) string {
+	if n.Name == "bridge" {
+		return "docker0"
+	} else {
+		return "br-" + n.ID[:12]
 	}
+}
 
+func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeConfig, bool) {
 	// requirements:
 	//   - ipv4, ipv6, or 4+6
 	//   - ipv6 must be /64
@@ -1147,12 +1189,7 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 	}
 
 	// resolve interface name
-	var ifName string
-	if n.Name == "bridge" {
-		ifName = "docker0"
-	} else {
-		ifName = "br-" + n.ID[:12]
-	}
+	ifName := dockerNetworkToInterfaceName(&n)
 
 	return sgtypes.DockerBridgeConfig{
 		IP4Subnet:          ip4Subnet,
