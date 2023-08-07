@@ -271,7 +271,7 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	return out
 }
 
-// triggered by bpf ptrack
+// triggered by bpf pmon
 func (c *Container) updateListenersNow() error {
 	// this is to prevent stopping while we're updating listeners
 	c.mu.Lock()

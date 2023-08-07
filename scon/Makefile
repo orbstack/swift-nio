@@ -9,10 +9,10 @@ scli:
 bpf/lfwd_%: bpf/src/lfwd.c bpf/src/cfwd.h
 	@go generate ./bpf
 
-bpf/ptrack_%: bpf/src/ptrack.c
+bpf/pmon_%: bpf/src/pmon.c
 	@go generate ./bpf
 
-bpfgen: bpf/lfwd_bpfel.o bpf/lfwd_bpfel.go bpf/ptrack_bpfel.o bpf/ptrack_bpfel.go
+bpfgen: bpf/lfwd_bpfel.o bpf/lfwd_bpfel.go bpf/pmon_bpfel.o bpf/pmon_bpfel.go
 
 run:
 	ssh -t ovm "cd /mnt/mac/$(shell pwd); killall scon; ./build.sh && ./run.sh"

@@ -271,12 +271,12 @@ func (b *ContainerBpfManager) CfwdRemoveHostIP(ip net.IP) error {
 }
 
 // called with c.mu held
-func (b *ContainerBpfManager) AttachPtrack() (*ringbuf.Reader, error) {
+func (b *ContainerBpfManager) AttachPmon() (*ringbuf.Reader, error) {
 	// must load a new instance to set a different netns cookie in config map
 	// maps are per-program instance
 	// and this is an unpinned program (no ref in /sys/fs/bpf), so it'll be destroyed
 	// when we close fds
-	spec, err := loadPtrack()
+	spec, err := loadPmon()
 	if err != nil {
 		return nil, fmt.Errorf("load spec: %w", err)
 	}
@@ -289,59 +289,59 @@ func (b *ContainerBpfManager) AttachPtrack() (*ringbuf.Reader, error) {
 		return nil, fmt.Errorf("configure: %w", err)
 	}
 
-	objs := ptrackObjects{}
+	objs := pmonObjects{}
 	err = spec.LoadAndAssign(&objs, nil)
 	if err != nil {
 		return nil, fmt.Errorf("load objs: %w", err)
 	}
 	b.closers = append(b.closers, &objs)
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet4PostBind, objs.PtrackPostBind4)
+	err = b.attachOneCg(ebpf.AttachCGroupInet4PostBind, objs.PmonPostBind4)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet4Connect, objs.PtrackConnect4)
+	err = b.attachOneCg(ebpf.AttachCGroupInet4Connect, objs.PmonConnect4)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupUDP4Recvmsg, objs.PtrackRecvmsg4)
+	err = b.attachOneCg(ebpf.AttachCGroupUDP4Recvmsg, objs.PmonRecvmsg4)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupUDP4Sendmsg, objs.PtrackSendmsg4)
+	err = b.attachOneCg(ebpf.AttachCGroupUDP4Sendmsg, objs.PmonSendmsg4)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet6PostBind, objs.PtrackPostBind6)
+	err = b.attachOneCg(ebpf.AttachCGroupInet6PostBind, objs.PmonPostBind6)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet6Connect, objs.PtrackConnect6)
+	err = b.attachOneCg(ebpf.AttachCGroupInet6Connect, objs.PmonConnect6)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupUDP6Recvmsg, objs.PtrackRecvmsg6)
+	err = b.attachOneCg(ebpf.AttachCGroupUDP6Recvmsg, objs.PmonRecvmsg6)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupUDP6Sendmsg, objs.PtrackSendmsg6)
+	err = b.attachOneCg(ebpf.AttachCGroupUDP6Sendmsg, objs.PmonSendmsg6)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCgroupInetSockRelease, objs.PtrackSockRelease)
+	err = b.attachOneCg(ebpf.AttachCgroupInetSockRelease, objs.PmonSockRelease)
 	if err != nil {
 		return nil, err
 	}
 
-	reader, err := ringbuf.NewReader(objs.ptrackMaps.NotifyRing)
+	reader, err := ringbuf.NewReader(objs.pmonMaps.NotifyRing)
 	if err != nil {
 		return nil, fmt.Errorf("create reader: %w", err)
 	}
@@ -350,7 +350,7 @@ func (b *ContainerBpfManager) AttachPtrack() (*ringbuf.Reader, error) {
 	return reader, nil
 }
 
-func MonitorPtrack(reader *ringbuf.Reader, fn func() error) error {
+func MonitorPmon(reader *ringbuf.Reader, fn func() error) error {
 	var rec ringbuf.Record
 	for {
 		// read one event
@@ -366,7 +366,7 @@ func MonitorPtrack(reader *ringbuf.Reader, fn func() error) error {
 		// trigger callback
 		err = fn()
 		if err != nil {
-			logrus.WithError(err).Error("ptrack callback failed")
+			logrus.WithError(err).Error("pmon callback failed")
 		}
 	}
 }

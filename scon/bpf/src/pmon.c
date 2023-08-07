@@ -128,7 +128,7 @@ static bool cancel_udp_notify(struct fwd_meta *meta, void *ctx) {
 }
 
 SEC("cgroup/sock_release")
-int ptrack_sock_release(struct bpf_sock *sk) {
+int pmon_sock_release(struct bpf_sock *sk) {
     // only intended netns
     if (!check_netns(sk)) {
         return VERDICT_PROCEED;
@@ -265,7 +265,7 @@ static bool check_ip4(struct bpf_sock *sk) {
 }
 
 SEC("cgroup/post_bind4")
-int ptrack_post_bind4(struct bpf_sock *sk) {
+int pmon_post_bind4(struct bpf_sock *sk) {
     // only localhost
     if (!check_ip4(sk)) {
         return VERDICT_PROCEED;
@@ -278,7 +278,7 @@ int ptrack_post_bind4(struct bpf_sock *sk) {
 }
 
 SEC("cgroup/connect4")
-int ptrack_connect4(struct bpf_sock_addr *ctx) {
+int pmon_connect4(struct bpf_sock_addr *ctx) {
     if (connect_common(ctx)) {
         bpf_printk("connect4: delete sk %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
     }
@@ -286,13 +286,13 @@ int ptrack_connect4(struct bpf_sock_addr *ctx) {
 }
 
 SEC("cgroup/recvmsg4")
-int ptrack_recvmsg4(struct bpf_sock_addr *ctx) {
+int pmon_recvmsg4(struct bpf_sock_addr *ctx) {
     bpf_printk("recvmsg4: %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
     return recvmsg_common(ctx);
 }
 
 SEC("cgroup/sendmsg4")
-int ptrack_sendmsg4(struct bpf_sock_addr *ctx) {
+int pmon_sendmsg4(struct bpf_sock_addr *ctx) {
     bpf_printk("sendmsg4: %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
     return sendmsg_common(ctx);
 }
@@ -310,7 +310,7 @@ static bool check_ip6(struct bpf_sock *sk) {
 }
 
 SEC("cgroup/post_bind6")
-int ptrack_post_bind6(struct bpf_sock *sk) {
+int pmon_post_bind6(struct bpf_sock *sk) {
     // only localhost
     if (!check_ip6(sk)) {
         return VERDICT_PROCEED;
@@ -323,7 +323,7 @@ int ptrack_post_bind6(struct bpf_sock *sk) {
 }
 
 SEC("cgroup/connect6")
-int ptrack_connect6(struct bpf_sock_addr *ctx) {
+int pmon_connect6(struct bpf_sock_addr *ctx) {
     if (connect_common(ctx)) {
         bpf_printk("connect6: deleted sk %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     }
@@ -331,13 +331,13 @@ int ptrack_connect6(struct bpf_sock_addr *ctx) {
 }
 
 SEC("cgroup/recvmsg6")
-int ptrack_recvmsg6(struct bpf_sock_addr *ctx) {
+int pmon_recvmsg6(struct bpf_sock_addr *ctx) {
     bpf_printk("recvmsg6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return recvmsg_common(ctx);
 }
 
 SEC("cgroup/sendmsg6")
-int ptrack_sendmsg6(struct bpf_sock_addr *ctx) {
+int pmon_sendmsg6(struct bpf_sock_addr *ctx) {
     bpf_printk("sendmsg6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return sendmsg_common(ctx);
 }
