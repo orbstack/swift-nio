@@ -112,13 +112,16 @@ FROM base AS docker
 
 # removed: xfsprogs e2fsprogs btrfs-progs
 RUN apk add --no-cache \
-    docker-engine \
     ip6tables \
     iptables \
     openssl \
     shadow-uidmap \
     xz \
     pigz \
+    # Docker engine deps
+    ca-certificates \
+    runc \
+    containerd \
     # support Docker build from git repos
     git \
     openssh-client-default \
@@ -126,6 +129,18 @@ RUN apk add --no-cache \
     tar \
     # /etc/localtime for containers
     tzdata
+
+# Official Docker engine build
+RUN <<EOT sh -eux
+mkdir /work
+cd /work
+wget -O docker.tar.gz "https://download.docker.com/linux/static/stable/\$(uname -m)/docker-24.0.5.tgz"
+tar -xvf docker.tar.gz
+mv docker/dockerd docker/docker-init docker/docker-proxy /usr/local/bin/
+
+cd /
+rm -rf /work
+EOT
 
 # network
 COPY \

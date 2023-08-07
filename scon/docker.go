@@ -70,7 +70,7 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	cm.set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 
 	// dind does some setup and mounts
-	cm.set("lxc.init.cmd", "/usr/bin/docker-init -- /docker-entrypoint.sh")
+	cm.set("lxc.init.cmd", "/usr/local/bin/docker-init -- /docker-entrypoint.sh")
 
 	// create docker data dir in case it was deleted
 	err := os.MkdirAll(conf.C().DockerDataDir, 0755)
