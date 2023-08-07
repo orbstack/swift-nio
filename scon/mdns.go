@@ -9,6 +9,7 @@ import (
 
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
+	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -35,6 +36,32 @@ type mdnsRegistry struct {
 	// we store reversed name to do longest prefix match as longest-suffix
 	// this allows subdomain wildcards and custom domains to work properly
 	tree *radix.Tree
+
+	server *mdns.Server
+}
+
+func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	server, err := mdns.NewServer(config)
+	if err != nil {
+		return err
+	}
+	r.server = server
+	return nil
+}
+
+func (r *mdnsRegistry) StopServer() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.server != nil {
+		err := r.server.Shutdown()
+		r.server = nil
+		return err
+	}
+	return nil
 }
 
 type mdnsEntry struct {

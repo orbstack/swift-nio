@@ -46,7 +46,6 @@ type Network struct {
 	dataDir        string
 
 	mdnsRegistry mdnsRegistry
-	mdnsServer   *mdns.Server
 }
 
 func NewNetwork(dataDir string) *Network {
@@ -91,14 +90,13 @@ func (n *Network) Start() error {
 	if err != nil {
 		return err
 	}
-	mdnsServer, err := mdns.NewServer(&mdns.Config{
+	err = n.mdnsRegistry.StartServer(&mdns.Config{
 		Zone:  &n.mdnsRegistry,
 		Iface: iface,
 	})
 	if err != nil {
 		return err
 	}
-	n.mdnsServer = mdnsServer
 
 	return nil
 }
@@ -191,11 +189,9 @@ func (n *Network) Close() error {
 		}
 		n.dnsmasqProcess = nil
 	}
-	if n.mdnsServer != nil {
-		err := n.mdnsServer.Shutdown()
-		if err != nil {
-			logrus.WithError(err).Error("failed to shutdown mDNS server")
-		}
+	err := n.mdnsRegistry.StopServer()
+	if err != nil {
+		logrus.WithError(err).Error("failed to shutdown mDNS server")
 	}
 	return nil
 }

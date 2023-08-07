@@ -85,12 +85,17 @@ func NewServer(config *Config) (*Server, error) {
 
 	if ipv4List != nil {
 		// SHOULD set TTL to 255 (mdns-scan checks this)
-		ipv4.NewPacketConn(ipv4List).SetMulticastTTL(255)
+		// https://www.rfc-editor.org/rfc/rfc6762.html sec. 11
+		packetConn := ipv4.NewPacketConn(ipv4List)
+		packetConn.SetMulticastTTL(255)
+		packetConn.SetTTL(255) // yes, even for unicast
 		go s.recv(s.ipv4List)
 	}
 
 	if ipv6List != nil {
-		ipv6.NewPacketConn(ipv6List).SetMulticastHopLimit(255)
+		packetConn := ipv6.NewPacketConn(ipv6List)
+		packetConn.SetMulticastHopLimit(255)
+		packetConn.SetHopLimit(255)
 		go s.recv(s.ipv6List)
 	}
 
