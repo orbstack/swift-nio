@@ -553,61 +553,15 @@ outer:
 
 	// TODO plugins?
 
-	// 4. containers (depends on all above)
-	totalContainers := len(filteredContainers)
-	remainingContainers := filteredContainers
-	// make sure there's always one iteration, in case there are no containers
-	// non-blocking send in case it's already filled
-	select {
-	case m.entityFinishCh <- struct{}{}:
-	default:
-	}
-	for range m.entityFinishCh {
-		// try to submit more containers
-		var deferredContainers []*dockertypes.ContainerSummary // didn't make it into this round
-		for _, c := range remainingContainers {
-			// check if all deps are satisfied
-			satisfied := true
-			m.mu.Lock()
-			for _, dep := range containerDeps[c.ID] {
-				if !slices.Contains(m.finishedDeps, dep) {
-					logrus.WithField("container", c.Names).WithField("dep", dep).Debug("Container dependency not satisfied")
-					satisfied = false
-					break
-				}
-			}
-			m.mu.Unlock()
-
-			if satisfied {
-				// satisfied, submit
-				err = m.submitOneContainer(group, c)
-				if err != nil {
-					return err
-				}
-			} else {
-				deferredContainers = append(deferredContainers, c)
-			}
-		}
-
-		// update remaining
-		remainingContainers = deferredContainers
-
-		// stop when everything has been submitted
-		if len(remainingContainers) == 0 {
-			logrus.WithField("remaining", len(remainingContainers)).Debug("No more containers to submit")
-			break
-		}
-
-		// if there are no non-container entities left, there must be a missing dependency.
-		// break to avoid deadlock
-		if m.finishedEntities >= (m.totalEntities - totalContainers) {
-			logrus.WithFields(logrus.Fields{
-				"finished":    m.finishedEntities,
-				"total":       m.totalEntities,
-				"tcontainers": totalContainers,
-				"rem":         len(remainingContainers),
-			}).Debug("No more entities to submit")
-			break
+	// 4. containers
+	// depends on all above, so use a barrier
+	// TODO restore dependency graph
+	group.Wait()
+	for _, c := range filteredContainers {
+		c := c
+		err = m.submitOneContainer(group, c)
+		if err != nil {
+			return err
 		}
 	}
 
