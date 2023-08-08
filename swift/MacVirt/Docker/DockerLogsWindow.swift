@@ -147,6 +147,8 @@ private class LogsViewModel: ObservableObject {
     private var lastArgs: [String]?
     private var lastLineDate: Date?
 
+    var cancellables: Set<AnyCancellable> = []
+
     @MainActor
     func start(isCompose: Bool, args: [String]) {
         NSLog("Starting log stream: isCompose=\(isCompose), args=\(args)")
@@ -537,9 +539,9 @@ private struct DockerLogsContentView: View {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
             }
         }
-        .task {
-            // rely on cancellation
-            for await containers in vmModel.$dockerContainers.values {
+        .onAppear {
+            // TODO why doesn't for-await + .task() work? (that way we get auto-cancel)
+            vmModel.$dockerContainers.sink { [self] containers in
                 // if containers list changes,
                 // and process has exited,
                 // and (container ID && it's running) or (containerName && it's running) or (composeProject && any running)
@@ -560,7 +562,7 @@ private struct DockerLogsContentView: View {
                           containers.contains(where: { $0.composeProject == composeProject && $0.running }) {
                     model.restart()
                 }
-            }
+            }.store(in: &model.cancellables)
         }
         .frame(minWidth: 400, minHeight: 200)
         .toolbar {
@@ -661,20 +663,19 @@ struct DockerComposeLogsWindow: View {
                     vmModel.openLogWindowIds.remove(.compose(project: composeProject))
                 }
 
-                if let containers = vmModel.dockerContainers {
-                    let children = containers.filter({ $0.composeProject == composeProject })
+                let children = vmModel.dockerContainers?
+                    .filter({ $0.composeProject == composeProject })
                     .sorted(by: { $0.userName < $1.userName })
-
-                    Section("Services") {
-                        ForEach(children, id: \.self) { container in
-                            NavigationLink(destination: DockerLogsContentView(cid: container.cid,
-                                    standalone: false), tag: "container:\(container.id)", selection: selBinding) {
-                                Label {
-                                    Text(container.userName)
-                                } icon: {
-                                    // icon = red/green status dot
-                                    Image(nsImage: SystemImages.redGreenDot(isRunning: container.running))
-                                }
+                        ?? []
+                Section("Services") {
+                    ForEach(children, id: \.id) { container in
+                        NavigationLink(destination: DockerLogsContentView(cid: container.cid,
+                                standalone: false), tag: "container:\(container.id)", selection: selBinding) {
+                            Label {
+                                Text(container.userName)
+                            } icon: {
+                                // icon = red/green status dot
+                                Image(nsImage: SystemImages.redGreenDot(isRunning: container.running))
                             }
                         }
                     }
