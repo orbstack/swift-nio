@@ -60,7 +60,7 @@ struct AppSettings: View {
                     .tag(Tabs.debug)
             #endif
         }
-        .frame(width: 485)
+        .frame(width: 500)
         .padding(20)
         .navigationTitle("Settings")
     }
