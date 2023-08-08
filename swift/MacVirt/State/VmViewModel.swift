@@ -427,6 +427,10 @@ class VmViewModel: ObservableObject {
     @Published private(set) var dockerEnableIPv6 = false
     @Published var dockerConfigJson = "{\n}"
 
+    var netBridgeAvailable: Bool {
+        config?.networkBridge != false
+    }
+
     init() {
         daemon.monitorNotifications()
 

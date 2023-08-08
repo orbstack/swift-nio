@@ -51,6 +51,21 @@ struct DKContainer: Codable, Identifiable, Hashable {
                 ?? []
     }
 
+    // use same logic as scon server
+    // 1. first custom domain
+    // 2. service.project.orb.local (compose)
+    // 3. container name.orb.local
+    var preferredDomain: String {
+        if let label = labels[DockerLabels.customDomains],
+           let domain = label.split(separator: ",").first {
+            return String(domain)
+        } else if let project = composeProject {
+            return "\(userName).\(project).orb.local"
+        } else {
+            return "\(userName).orb.local"
+        }
+    }
+
     var cid: DockerContainerId {
         .container(id: id)
     }
@@ -353,4 +368,6 @@ struct DockerLabels {
     static let composeService = "com.docker.compose.service"
     static let composeConfigFiles = "com.docker.compose.project.config_files"
     static let composeWorkingDir = "com.docker.compose.project.working_dir"
+
+    static let customDomains = "dev.orbstack.domains"
 }

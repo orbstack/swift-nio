@@ -16,7 +16,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
         lhs.container == rhs.container &&
-                lhs.selection == rhs.selection
+            lhs.selection == rhs.selection
     }
 
     var body: some View {
@@ -42,19 +42,18 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
                     let name = nameTxt.isEmpty ? "(no name)" : nameTxt
                     Text(name)
-                            .font(.body)
+                        .font(.body)
 
-                    let shortId = String(container.id.prefix(12))
-                    Text("\(shortId) (\(container.image))")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .truncationMode(.tail)
-                            .lineLimit(1)
+                    Text(container.image)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .truncationMode(.tail)
+                        .lineLimit(1)
                 }
             }
-                    .opacity(container.running ? 1 : 0.5)
-                    // padding for expand arrow
-                    .padding(.leading, 8)
+            .opacity(container.running ? 1 : 0.5)
+            // padding for expand arrow
+            .padding(.leading, 8)
 
             Spacer()
 
@@ -93,130 +92,143 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 .help("Delete container")
             }
         }
-                .padding(.vertical, 4)
-                .onDoubleClick {
+        .padding(.vertical, 4)
+        .onDoubleClick {
+            presentPopover = true
+        }
+        .contextMenu {
+            Group {
+                if isRunning {
+                    Button(action: {
+                        finishStop()
+                    }) {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                    .disabled(actionInProgress != nil)
+                } else {
+                    Button(action: {
+                        finishStart()
+                    }) {
+                        Label("Start", systemImage: "start.fill")
+                    }
+                    .disabled(actionInProgress != nil)
+                }
+
+                Button(action: {
+                    finishRestart()
+                }) {
+                    Label("Restart", systemImage: "arrow.clockwise")
+                }
+                .disabled(actionInProgress != nil || !isRunning)
+
+                Button(action: {
+                    finishRemove()
+                }) {
+                    Label("Delete", systemImage: "trash.fill")
+                }
+                .disabled(actionInProgress != nil)
+            }
+
+            Divider()
+
+            Group {
+                Button(action: {
                     presentPopover = true
+                }) {
+                    Label("Get Info", systemImage: "terminal")
                 }
-                .contextMenu {
-                    Group {
-                        if isRunning {
-                            Button(action: {
-                                finishStop()
-                            }) {
-                                Label("Stop", systemImage: "stop.fill")
+
+                Button(action: {
+                    container.showLogs(vmModel: vmModel)
+                }) {
+                    Label("Show Logs", systemImage: "terminal")
+                }
+
+                Button(action: {
+                    container.openInTerminal()
+                }) {
+                    Label("Open Terminal", systemImage: "terminal")
+                }
+                .disabled(!isRunning)
+
+                Button(action: {
+                    NSWorkspace.shared.open(URL(string: "http://\(container.preferredDomain)")!)
+                }) {
+                    Label("Open in Browser", systemImage: "terminal")
+                }
+                .disabled(!isRunning || !vmModel.netBridgeAvailable)
+            }
+
+            Divider()
+
+            Group {
+                if container.ports.isEmpty && container.mounts.isEmpty {
+                    Button("No Ports or Mounts") {}
+                            .disabled(true)
+                }
+
+                if !container.ports.isEmpty {
+                    Menu("Ports") {
+                        ForEach(container.ports) { port in
+                            Button(port.formatted) {
+                                port.openUrl()
                             }
-                                    .disabled(actionInProgress != nil)
-                        } else {
-                            Button(action: {
-                                finishStart()
-                            }) {
-                                Label("Start", systemImage: "start.fill")
-                            }
-                                    .disabled(actionInProgress != nil)
-                        }
-
-                        Button(action: {
-                            finishRestart()
-                        }) {
-                            Label("Restart", systemImage: "arrow.clockwise")
-                        }
-                                .disabled(actionInProgress != nil || !isRunning)
-
-                        Button(action: {
-                            finishRemove()
-                        }) {
-                            Label("Delete", systemImage: "trash.fill")
-                        }
-                                .disabled(actionInProgress != nil)
-                    }
-
-                    Divider()
-
-                    Group {
-                        Button(action: {
-                            presentPopover = true
-                        }) {
-                            Label("Get Info", systemImage: "terminal")
-                        }
-
-                        Button(action: {
-                            container.showLogs(vmModel: vmModel)
-                        }) {
-                            Label("Show Logs", systemImage: "terminal")
-                        }
-
-                        Button(action: {
-                            container.openInTerminal()
-                        }) {
-                            Label("Open Terminal", systemImage: "terminal")
-                        }
-                                .disabled(!isRunning)
-                    }
-
-                    Divider()
-
-                    Group {
-                        if container.ports.isEmpty && container.mounts.isEmpty {
-                            Button("No Ports or Mounts") {}
-                                    .disabled(true)
-                        }
-
-                        if !container.ports.isEmpty {
-                            Menu("Ports") {
-                                ForEach(container.ports) { port in
-                                    Button(port.formatted) {
-                                        port.openUrl()
-                                    }
-                                }
-                            }
-                        }
-
-                        if !container.mounts.isEmpty {
-                            Menu("Mounts") {
-                                ForEach(container.mounts) { mount in
-                                    Button(mount.formatted) {
-                                        mount.openSourceDirectory()
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Divider()
-
-                    Group {
-                        Menu("Copy") {
-                            Button(action: {
-                                NSPasteboard.copy(container.id)
-                            }) {
-                                Label("ID", systemImage: "doc.on.doc")
-                            }
-
-                            Button(action: {
-                                NSPasteboard.copy(container.image)
-                            }) {
-                                Label("Image", systemImage: "doc.on.doc")
-                            }
-
-                            Button(action: {
-                                Task { @MainActor in
-                                    await container.copyRunCommand()
-                                }
-                            }) {
-                                Label("Command", systemImage: "doc.on.doc")
-                            }
-
-                            let ipAddress = container.ipAddresses.first
-                            Button(action: {
-                                if let ipAddress {
-                                    NSPasteboard.copy(ipAddress)
-                                }
-                            }) {
-                                Label("IP", systemImage: "doc.on.doc")
-                            }.disabled(ipAddress == nil)
                         }
                     }
                 }
+
+                if !container.mounts.isEmpty {
+                    Menu("Mounts") {
+                        ForEach(container.mounts) { mount in
+                            Button(mount.formatted) {
+                                mount.openSourceDirectory()
+                            }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            Group {
+                Menu("Copy") {
+                    Button(action: {
+                        NSPasteboard.copy(container.id)
+                    }) {
+                        Label("ID", systemImage: "doc.on.doc")
+                    }
+
+                    Button(action: {
+                        NSPasteboard.copy(container.image)
+                    }) {
+                        Label("Image", systemImage: "doc.on.doc")
+                    }
+
+                    Button(action: {
+                        Task { @MainActor in
+                            await container.copyRunCommand()
+                        }
+                    }) {
+                        Label("Command", systemImage: "doc.on.doc")
+                    }
+
+                    Button(action: {
+                        NSPasteboard.copy(container.preferredDomain)
+                    }) {
+                        Label("Domain", systemImage: "doc.on.doc")
+                    }.disabled(vmModel.config?.networkBridge == false)
+
+                    let ipAddress = container.ipAddresses.first
+                    Button(action: {
+                        if let ipAddress {
+                            NSPasteboard.copy(ipAddress)
+                        }
+                    }) {
+                        Label("IP", systemImage: "doc.on.doc")
+                    }.disabled(ipAddress == nil)
+                }
+            }
+        }
     }
 
     private var detailsView: some View {
@@ -227,6 +239,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 Text("Info")
                         .font(.headline)
                 HStack(spacing: 12) {
+                    let domain = container.preferredDomain
                     let ipAddress = container.ipAddresses.first
 
                     VStack(alignment: .trailing) {
@@ -234,7 +247,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         Text("ID")
                         Text("Image")
                         if ipAddress != nil {
-                            Text("IP")
+                            Text("Address")
                         }
                     }
 
@@ -246,13 +259,18 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .textSelection(.enabled)
                         Text(container.image)
                             .textSelection(.enabled)
+                        // needs to be running w/ ip to have domain
                         if let ipAddress {
-                            Text(ipAddress)
+                            if vmModel.netBridgeAvailable {
+                                CustomLink(domain, url: URL(string: "http://\(domain)")!)
+                            } else {
+                                Text(ipAddress)
                                 .textSelection(.enabled)
+                            }
                         }
                     }
                 }
-                        .padding(.leading, 16)
+                .padding(.leading, 16)
             }
 
             if !container.ports.isEmpty {
@@ -261,47 +279,27 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(container.ports) { port in
-                            Text(port.formatted)
-                                    .font(.body.monospacedDigit())
-                                    .foregroundColor(.blue)
-                                    .onHover { inside in
-                                        if inside {
-                                            NSCursor.pointingHand.push()
-                                        } else {
-                                            NSCursor.pop()
-                                        }
-                                    }
-                                    .onTapGesture {
-                                        port.openUrl()
-                                    }
+                            CustomLink(port.formatted) {
+                                port.openUrl()
+                            }
                         }
                     }
-                            .padding(.leading, 16)
+                    .padding(.leading, 16)
                 }
             }
 
             if !container.mounts.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Mounts")
-                            .font(.headline)
+                        .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(container.mounts) { mount in
-                            Text(mount.formatted)
-                                    .font(.body.monospacedDigit())
-                                    .foregroundColor(.blue)
-                                    .onHover { inside in
-                                        if inside {
-                                            NSCursor.pointingHand.push()
-                                        } else {
-                                            NSCursor.pop()
-                                        }
-                                    }
-                                    .onTapGesture {
-                                        mount.openSourceDirectory()
-                                    }
+                            CustomLink(mount.formatted) {
+                                mount.openSourceDirectory()
+                            }
                         }
                     }
-                            .padding(.leading, 16)
+                    .padding(.leading, 16)
                 }
             }
 
@@ -329,11 +327,43 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
             }
         }
-                .padding(20)
+        .padding(20)
     }
 
     var selfId: DockerContainerId {
         container.cid
+    }
+}
+
+private struct CustomLink: View {
+    let text: String
+    let onClick: () -> Void
+
+    init(_ text: String, onClick: @escaping () -> Void) {
+        self.text = text
+        self.onClick = onClick
+    }
+
+    init(_ text: String, url: URL) {
+        self.text = text
+        self.onClick = {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    var body: some View {
+        Text(text)
+        .foregroundColor(.blue)
+        .onHover { inside in
+            if inside {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .onTapGesture {
+            onClick()
+        }
     }
 }
 
