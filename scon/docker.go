@@ -133,7 +133,8 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			// remove cache mounts after 10 days, unless it's really small
 			// default includes source.local but that's negligible
 			// filters are OR, but until= is special and gets translated to KeepDuration
-			{"filter": []any{"until=240h" /*10d*/, "type=exec.cachemount"}, "keepStorage": "5GB"},
+			// UPDATE: we no longer delete cache mounts because if they're not used to build a layer, they're considered unused, meaning that they always expire after 10d
+			//{"filter": []any{"until=240h" /*10d*/, "type=exec.cachemount"}, "keepStorage": "5GB"},
 
 			// remove unused cache after 30 days (avoid size threshold for perf)
 			// this is kinda broken - it doesn't clear all that match, only some. need to re-trigger gc to make it go again
