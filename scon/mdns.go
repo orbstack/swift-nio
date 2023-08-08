@@ -22,7 +22,7 @@ import (
 )
 
 // in the future we should add machines using container.IPAddresses() on .orb.local
-var mdnsContainerSuffixes = []string{".docker.local.", ".orb.local."}
+var mdnsContainerSuffixes = []string{".orb.local.", ".docker.local."}
 
 const mdnsMachineSuffix = ".orb.local."
 
