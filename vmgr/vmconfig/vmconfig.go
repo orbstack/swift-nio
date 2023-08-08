@@ -40,7 +40,6 @@ type VmConfig struct {
 	MountHideShared  bool   `json:"mount_hide_shared"`
 	DataDir          string `json:"data_dir,omitempty"`
 	DockerSetContext bool   `json:"docker.set_context"`
-	SetupUseAdmin    bool   `json:"setup.use_admin"`
 }
 
 type VmConfigChange struct {
@@ -236,7 +235,6 @@ func Defaults() *VmConfig {
 		MountHideShared:  false,
 		DataDir:          "",
 		DockerSetContext: true,
-		SetupUseAdmin:    true,
 	}
 }
 
