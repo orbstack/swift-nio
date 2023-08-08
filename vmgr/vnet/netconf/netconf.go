@@ -25,12 +25,14 @@ const (
 	SconGatewayIP4    = SconSubnet4 + ".1"
 	SconDockerIP4     = SconSubnet4 + ".2"
 	SconHostBridgeIP4 = SconSubnet4 + ".3"
+	SconWebIndexIP4   = SconGatewayIP4
 
 	SconSubnet6       = "fd07:b51a:cc66:0000:"
 	SconSubnet6CIDR   = SconSubnet6 + ":/64"
 	SconGatewayIP6    = SconSubnet6 + ":1"
 	SconDockerIP6     = SconSubnet6 + ":2"
 	SconHostBridgeIP6 = SconSubnet6 + ":3"
+	SconWebIndexIP6   = SconGatewayIP6
 )
 
 // static ARP/neighbors to save CPU

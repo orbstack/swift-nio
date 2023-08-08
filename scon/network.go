@@ -225,25 +225,9 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 	if err != nil {
 		return nil, err
 	}
-	addr, err = netlink.ParseAddr(netconf.SconWebIndexIP4 + "/24")
-	if err != nil {
-		return nil, err
-	}
-	err = netlink.AddrAdd(bridge, addr)
-	if err != nil {
-		return nil, err
-	}
 
 	// add gateway,web IPv6
 	addr, err = netlink.ParseAddr(netconf.SconGatewayIP6 + "/64")
-	if err != nil {
-		return nil, err
-	}
-	err = netlink.AddrAdd(bridge, addr)
-	if err != nil {
-		return nil, err
-	}
-	addr, err = netlink.ParseAddr(netconf.SconWebIndexIP6 + "/64")
 	if err != nil {
 		return nil, err
 	}
@@ -317,9 +301,9 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	// first, accept related/established
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
 
-	// also allow mac to access web server
+	// also allow mac to access web server port 80
 	// TODO this needs ip/mac spoofing protection
-	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-s", hostBridgeIP, "-d", webIndexIP, "-j", "ACCEPT"})
+	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-s", hostBridgeIP, "-d", webIndexIP, "--proto", "tcp", "--dport", "80", "-j", "ACCEPT"})
 
 	// then block machines from accessing VM init-net servesr that are intended for host vmgr to connect to
 	// blocked on both guest IP (198.19.248.2) and bridge gateway (198.19.249.1)
