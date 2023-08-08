@@ -263,6 +263,7 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 	// (3) short ID, names, compose: service.project
 	// full ID is too long for DNS: it's 64 chars, max is 63 per component
 	names := make([]dnsName, 0, 1+len(ctr.Names)+1)
+	// full ID is always hidden
 	names = append(names, dnsName{ctr.ID[:12], true})
 	for _, name := range ctr.Names {
 		names = append(names, dnsName{strings.TrimPrefix(name, "/"), false})
@@ -270,6 +271,10 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 	if ctr.Labels != nil {
 		if composeProject, ok := ctr.Labels["com.docker.compose.project"]; ok {
 			if composeService, ok := ctr.Labels["com.docker.compose.service"]; ok {
+				// if we have a compose name, mark all the default ones as hidden
+				for i := range names {
+					names[i].Hidden = true
+				}
 				names = append(names, dnsName{composeService + "." + composeProject, false})
 			}
 		}
@@ -282,6 +287,7 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 			if j == 0 {
 				names[i] = dnsName{name.Name + suffix, name.Hidden}
 			} else {
+				// alias suffixes are always hidden
 				names = append(names, dnsName{name.Name, true})
 			}
 		}
