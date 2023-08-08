@@ -437,8 +437,18 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	entry := _entry.(mdnsEntry)
 
 	// if not an exact match: is wildcard allowed?
-	if !entry.IsWildcard && matchedKey != treeKey {
-		return nil
+	if matchedKey != treeKey {
+		// this was a wildcard match. is that allowed?
+		if !entry.IsWildcard {
+			return nil
+		}
+
+		// make sure we're matching on a component boundary:
+		// check that the next character is a dot
+		// e.g. stack.local shouldn't match orbstack.local
+		if len(treeKey) > len(matchedKey) && treeKey[len(matchedKey)] != '.' {
+			return nil
+		}
 	}
 
 	records := entry.ToRecords(q.Name, includeV4, includeV6)
