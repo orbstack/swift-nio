@@ -1,6 +1,7 @@
 package dmigrate
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 
@@ -65,7 +66,18 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerSummary, userNa
 		n.NetworkID = m.networkIDMap[n.NetworkID]
 	}
 	m.mu.Unlock()
-	err = m.destClient.Call("POST", "/containers/create?name="+url.QueryEscape(fullCtr.Name)+"&platform="+url.QueryEscape(fullCtr.Platform), newCtrReq, &newCtrResp)
+	prettyJson, err := json.Marshal(&newCtrReq)
+	if err != nil {
+		return fmt.Errorf("marshal container create request: %w", err)
+	}
+	platform := fullCtr.Platform
+	// if no architecture set, use docker default image selection logic
+	// this fixes amd64 migration when no explicit arch was specified in the source container
+	if platform == "linux" {
+		platform = ""
+	}
+	logrus.WithField("newCtrReq", string(prettyJson)).WithField("path", "/containers/create?name="+url.QueryEscape(fullCtr.Name)+"&platform="+url.QueryEscape(platform)).Debug("creating container")
+	err = m.destClient.Call("POST", "/containers/create?name="+url.QueryEscape(fullCtr.Name)+"&platform="+url.QueryEscape(platform), newCtrReq, &newCtrResp)
 	if err != nil {
 		return fmt.Errorf("create container: %w", err)
 	}
