@@ -137,7 +137,7 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                     )
                     Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
                     .disabled(!Users.hasAdmin) // disabled + false if no admin
-                    Text("This can improve performance, compatibility, and features. [Learn more](https://docs.orbstack.dev/readme-link/admin)")
+                    Text("This can improve performance and compatibility. [Learn more](https://docs.orbstack.dev/readme-link/admin)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 

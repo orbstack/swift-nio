@@ -70,40 +70,42 @@ struct MachineContainerItem: View {
         }
         .padding(.vertical, 4)
         .contextMenu {
-            if record.running {
-                Button(action: {
-                    Task { @MainActor in
-                        await actionTracker.with(machine: record, action: .stop) {
-                            await vmModel.tryStopContainer(record)
+            Group {
+                if record.running {
+                    Button(action: {
+                        Task { @MainActor in
+                            await actionTracker.with(machine: record, action: .stop) {
+                                await vmModel.tryStopContainer(record)
+                            }
                         }
+                    }) {
+                        Label("Stop", systemImage: "restart")
                     }
-                }) {
-                    Label("Stop", systemImage: "restart")
-                }
-                .disabled(actionInProgress)
-            } else {
-                Button(action: {
-                    Task { @MainActor in
-                        await actionTracker.with(machine: record, action: .start) {
-                            await vmModel.tryStartContainer(record)
+                    .disabled(actionInProgress)
+                } else {
+                    Button(action: {
+                        Task { @MainActor in
+                            await actionTracker.with(machine: record, action: .start) {
+                                await vmModel.tryStartContainer(record)
+                            }
                         }
+                    }) {
+                        Label("Start", systemImage: "restart")
                     }
-                }) {
-                    Label("Start", systemImage: "restart")
+                    .disabled(actionInProgress)
                 }
-                .disabled(actionInProgress)
-            }
 
-            Button(action: {
-                Task { @MainActor in
-                    await actionTracker.with(machine: record, action: .restart) {
-                        await vmModel.tryRestartContainer(record)
+                Button(action: {
+                    Task { @MainActor in
+                        await actionTracker.with(machine: record, action: .restart) {
+                            await vmModel.tryRestartContainer(record)
+                        }
                     }
+                }) {
+                    Label("Restart", systemImage: "restart")
                 }
-            }) {
-                Label("Restart", systemImage: "restart")
+                .disabled(actionInProgress)
             }
-            .disabled(actionInProgress)
 
             Divider()
 
@@ -122,28 +124,36 @@ struct MachineContainerItem: View {
 
             Divider()
 
-            Button(action: {
-                Task {
-                    await vmModel.trySetDefaultContainer(record)
+            Group {
+                Button(action: {
+                    Task {
+                        await vmModel.trySetDefaultContainer(record)
+                    }
+                }) {
+                    Label("Make Default", systemImage: "star")
                 }
-            }) {
-                Label("Make Default", systemImage: "star")
+
+                Button("Rename") {
+                    self.presentRename = true
+                }
+
+                Button(role: .destructive, action: {
+                    if CGKeyCode.optionKeyPressed {
+                        finishDelete()
+                    } else {
+                        self.presentConfirmDelete = true
+                    }
+                }) {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(actionInProgress)
             }
 
-            Button("Rename") {
-                self.presentRename = true
-            }
+            Divider()
 
-            Button(role: .destructive, action: {
-                if CGKeyCode.optionKeyPressed {
-                    finishDelete()
-                } else {
-                    self.presentConfirmDelete = true
-                }
-            }) {
-                Label("Delete", systemImage: "trash")
-            }
-            .disabled(actionInProgress)
+            Button("Copy Address") {
+                NSPasteboard.copy("\(record.name).orb.local")
+            }.disabled(!record.running || !vmModel.netBridgeAvailable)
         }
         .confirmationDialog("Delete \(record.name)?",
                 isPresented: $presentConfirmDelete) {

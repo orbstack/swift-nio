@@ -371,8 +371,17 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         if let ipAddress = container.ipAddresses.first {
-            submenu.addActionItem("IP: \(ipAddress)") {
-                NSPasteboard.copy(ipAddress)
+            if vmModel.netBridgeAvailable {
+                let domain = container.preferredDomain
+                submenu.addActionItem("Address: \(domain)") {
+                    //NSPasteboard.copy(domain)
+                    // dupe of "Open in Browser" but more common
+                    NSWorkspace.shared.open(URL(string: "http://\(domain)")!)
+                }
+            } else {
+                submenu.addActionItem("IP: \(ipAddress)") {
+                    NSPasteboard.copy(ipAddress)
+                }
             }
         }
 
@@ -418,6 +427,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addActionItem("Open Terminal", disabled: !container.running) {
             container.openInTerminal()
+        }
+
+        if vmModel.netBridgeAvailable {
+            submenu.addActionItem("Open in Browser", disabled: !container.running) {
+                NSWorkspace.shared.open(URL(string: "http://\(container.preferredDomain)")!)
+            }
         }
 
         submenu.addSeparator()
@@ -528,6 +543,15 @@ class MenuBarController: NSObject, NSMenuDelegate {
             await record.openInTerminal()
         }
         let submenu = machineItem.newSubmenu()
+
+        if record.running {
+            let domain = "\(record.name).orb.local"
+            submenu.addActionItem("Address: \(domain)", disabled: !vmModel.netBridgeAvailable) { [self] in
+                NSPasteboard.copy(domain)
+            }
+        }
+
+        submenu.addSeparator()
 
         if record.running {
             submenu.addActionItem("Stop", icon: systemImage("stop.fill"),
