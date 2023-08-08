@@ -71,8 +71,10 @@ Host %s
   #   ubuntu@%s: container "ubuntu", user matching your macOS user
   #   root@fedora@%s: container "fedora", user "root"
   User default
-  IdentityFile %s/id_ed25519 # replace or symlink %s/id_ed25519 file to change the key
-  IdentitiesOnly yes # only use this key
+  # replace or symlink %s/id_ed25519 file to change the key
+  IdentityFile %s/id_ed25519
+  # only use this key
+  IdentitiesOnly yes
   ProxyCommand %s
   ProxyUseFdpass yes
 `, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, relHome, relHome, quotedCmd)
