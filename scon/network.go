@@ -13,6 +13,7 @@ import (
 
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -48,10 +49,10 @@ type Network struct {
 	mdnsRegistry *mdnsRegistry
 }
 
-func NewNetwork(dataDir string) *Network {
+func NewNetwork(dataDir string, host *hclient.Client) *Network {
 	return &Network{
 		dataDir:      dataDir,
-		mdnsRegistry: newMdnsRegistry(),
+		mdnsRegistry: newMdnsRegistry(host),
 	}
 }
 

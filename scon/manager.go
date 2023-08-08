@@ -139,7 +139,7 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		stopChan:      make(chan struct{}),
 		earlyStopChan: make(chan struct{}),
 	}
-	mgr.net = NewNetwork(mgr.subdir("network"))
+	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host)
 
 	return mgr, nil
 }

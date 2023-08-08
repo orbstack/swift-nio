@@ -9,9 +9,11 @@ import (
 
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
+	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )
@@ -62,6 +64,8 @@ type mdnsRegistry struct {
 	cacheFlushDebounce syncx.FuncDebounce
 	recentQueries      map[string]mdnsQueryInfo
 	pendingFlushes     map[string]*mdnsEntry
+
+	host *hclient.Client
 }
 
 func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
@@ -133,11 +137,12 @@ func (e mdnsEntry) IsContainer() bool {
 	return e.machine == nil
 }
 
-func newMdnsRegistry() *mdnsRegistry {
+func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
 	r := &mdnsRegistry{
 		tree:           radix.New(),
 		recentQueries:  make(map[string]mdnsQueryInfo),
 		pendingFlushes: make(map[string]*mdnsEntry),
+		host:           host,
 	}
 	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
 
@@ -155,7 +160,7 @@ func reverse(s string) string {
 	return string(buf)
 }
 
-func containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin) []string {
+func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin, notifyInvalid bool) []string {
 	// (3) short ID, names, compose: service.project
 	// full ID is too long for DNS: it's 64 chars, max is 63 per component
 	names := make([]string, 0, 1+len(ctr.Names)+1)
@@ -189,14 +194,54 @@ func containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin) []string {
 				if !strings.HasSuffix(name, ".") {
 					name += "."
 				}
-				if !strings.HasSuffix(name, ".local.") {
-					logrus.WithField("name", name).Warn("dev.orbstack.domains: ignoring non-local domain")
+
+				// only validate user-provided domains
+				if ok, reason := validateName(name); !ok {
+					logrus.WithField("name", name).WithField("reason", reason).Error("invalid custom domain")
+					// send notification
+					if notifyInvalid {
+						go func() {
+							err := r.host.Notify(guitypes.Notification{
+								Title:   "Invalid domain: " + strings.TrimSuffix(name, "."),
+								Message: reason,
+								Silent:  true,
+								URL:     "https://docs.orbstack.dev/readme-link/invalid-container-domain",
+							})
+							if err != nil {
+								logrus.WithError(err).Error("failed to send notification")
+							}
+						}()
+					}
+
+					continue
 				}
+
 				names = append(names, name)
 			}
 		}
 	}
 	return names
+}
+
+// string so gofmt doesn't complain about capital
+func validateName(name string) (bool, string) {
+	if !strings.HasSuffix(name, ".local.") {
+		return false, "Must end with .local"
+	}
+	parts := strings.Split(name, ".")
+	for i, part := range parts {
+		if len(part) > 63 {
+			return false, "Each component must be under 63 characters"
+		}
+		// last part can be empty
+		if len(part) == 0 && i != len(parts)-1 {
+			return false, "Empty component"
+		}
+	}
+	if len(name) > 255 {
+		return false, "Must be under 255 characters"
+	}
+	return true, ""
 }
 
 func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) []net.IP {
@@ -236,9 +281,12 @@ func (r *mdnsRegistry) flushReusedCache() {
 			logrus.WithField("records", flushRecords).Debug("mdns: sending cache flush")
 		}
 
+		// careful: if any records are invalid, this will fail with rrdata error
+		// but it's ok: cache flushing is based on queried records.
+		// if a name is invalid (>63 component / >255), it's not possible to query it
 		err := r.server.SendCacheFlush(flushRecords)
 		if err != nil {
-			logrus.WithError(err).Error("failed to send cache flush")
+			logrus.WithError(err).Error("failed to flush cache")
 		}
 	}
 
@@ -259,7 +307,7 @@ func (r *mdnsRegistry) flushReusedCache() {
 }
 
 func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
-	names := containerToMdnsNames(ctr)
+	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
 	ips := containerToMdnsIPs(ctr)
 	logrus.WithFields(logrus.Fields{
 		"names": names,
@@ -288,7 +336,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 }
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
-	names := containerToMdnsNames(ctr)
+	names := r.containerToMdnsNames(ctr, false /*notifyInvalid*/)
 	logrus.WithField("names", names).Debug("mdns: remove container")
 
 	r.mu.Lock()
@@ -305,6 +353,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// we don't validate these b/c it's not under the user's control
 	treeKey := reverse(name)
 	entry := mdnsEntry{
 		IsWildcard: true,
