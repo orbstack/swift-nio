@@ -216,7 +216,7 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 		return nil, err
 	}
 
-	// add ip
+	// add gateway,web IP
 	addr, err := netlink.ParseAddr(netconf.SconGatewayIP4 + "/24")
 	if err != nil {
 		return nil, err
@@ -225,9 +225,25 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 	if err != nil {
 		return nil, err
 	}
+	addr, err = netlink.ParseAddr(netconf.SconWebIndexIP4 + "/24")
+	if err != nil {
+		return nil, err
+	}
+	err = netlink.AddrAdd(bridge, addr)
+	if err != nil {
+		return nil, err
+	}
 
-	// add ipv6
+	// add gateway,web IPv6
 	addr, err = netlink.ParseAddr(netconf.SconGatewayIP6 + "/64")
+	if err != nil {
+		return nil, err
+	}
+	err = netlink.AddrAdd(bridge, addr)
+	if err != nil {
+		return nil, err
+	}
+	addr, err = netlink.ParseAddr(netconf.SconWebIndexIP6 + "/64")
 	if err != nil {
 		return nil, err
 	}
@@ -257,12 +273,12 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 }
 
 func setupAllNat() (func() error, error) {
-	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, netconf.SconSubnet4CIDR, netconf.SecureSvcIP4)
+	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, netconf.SconSubnet4CIDR, netconf.SecureSvcIP4, netconf.SconHostBridgeIP4, netconf.SconWebIndexIP4)
 	if err != nil {
 		return nil, err
 	}
 
-	cleanup6, err := setupOneNat(iptables.ProtocolIPv6, netconf.SconSubnet6CIDR, "")
+	cleanup6, err := setupOneNat(iptables.ProtocolIPv6, netconf.SconSubnet6CIDR, "", netconf.SconHostBridgeIP6, netconf.SconWebIndexIP6)
 	if err != nil {
 		_ = cleanup4()
 		return nil, err
@@ -278,7 +294,7 @@ func setupAllNat() (func() error, error) {
 	}, nil
 }
 
-func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string) (func() error, error) {
+func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, hostBridgeIP string, webIndexIP string) (func() error, error) {
 	ipt, err := iptables.New(iptables.IPFamily(proto), iptables.Timeout(10))
 	if err != nil {
 		return nil, err
@@ -300,6 +316,10 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string) (f
 
 	// first, accept related/established
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
+
+	// also allow mac to access web server
+	// TODO this needs ip/mac spoofing protection
+	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-s", hostBridgeIP, "-d", webIndexIP, "-j", "ACCEPT"})
 
 	// then block machines from accessing VM init-net servesr that are intended for host vmgr to connect to
 	// blocked on both guest IP (198.19.248.2) and bridge gateway (198.19.249.1)

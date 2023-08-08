@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"net"
+	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/scon/templates"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -42,7 +45,10 @@ const (
 type mdnsEntry struct {
 	// allow *. suffix match? (false for index)
 	IsWildcard bool
+	// show in index?
+	IsHidden bool
 
+	Type MdnsEntryType
 	// net.IP more efficient b/c dns is in bytes
 	ips     []net.IP
 	machine *Container
@@ -53,6 +59,24 @@ type mdnsQueryInfo struct {
 	// to flush queried wildcards
 	MatchedKey string
 }
+
+type mdnsIndexResult struct {
+	ContainerDomains []string
+	MachineDomains   []string
+}
+
+type dnsName struct {
+	Name   string
+	Hidden bool
+}
+
+type MdnsEntryType int
+
+const (
+	MdnsEntryContainer MdnsEntryType = iota
+	MdnsEntryMachine
+	MdnsEntryStatic
+)
 
 type mdnsRegistry struct {
 	mu sync.Mutex
@@ -66,18 +90,88 @@ type mdnsRegistry struct {
 	pendingFlushes     map[string]*mdnsEntry
 
 	host *hclient.Client
+
+	httpServer *http.Server
 }
 
 func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	server, err := mdns.NewServer(config)
+	var err error
+	r.server, err = mdns.NewServer(config)
 	if err != nil {
 		return err
 	}
-	r.server = server
+
+	// start HTTP index server
+	r.httpServer = &http.Server{
+		Handler: r,
+	}
+	go runOne("dns index server (v4)", func() error {
+		l, err := net.Listen("tcp", net.JoinHostPort(netconf.SconWebIndexIP4, "80"))
+		if err != nil {
+			return err
+		}
+		return r.httpServer.Serve(l)
+	})
+	go runOne("dns index server (v6)", func() error {
+		l, err := net.Listen("tcp", net.JoinHostPort(netconf.SconWebIndexIP6, "80"))
+		if err != nil {
+			return err
+		}
+		return r.httpServer.Serve(l)
+	})
+
 	return nil
+}
+
+func (r *mdnsRegistry) listIndexDomains() mdnsIndexResult {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var res mdnsIndexResult
+	r.tree.Walk(func(s string, v any) bool {
+		entry := v.(mdnsEntry)
+		if entry.IsHidden {
+			return false
+		}
+
+		name := strings.TrimSuffix(reverse(s), ".")
+		switch entry.Type {
+		case MdnsEntryContainer:
+			res.ContainerDomains = append(res.ContainerDomains, name)
+		case MdnsEntryMachine:
+			res.MachineDomains = append(res.MachineDomains, name)
+		}
+
+		return false
+	})
+
+	// sort
+	sort.Strings(res.ContainerDomains)
+	sort.Strings(res.MachineDomains)
+
+	return res
+}
+
+func (r *mdnsRegistry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	defer req.Body.Close()
+
+	if req.URL.Path != "/" || req.Method != http.MethodGet {
+		http.NotFound(w, req)
+		return
+	}
+
+	// build a list of domains to show
+	res := r.listIndexDomains()
+
+	// respond with html
+	w.Header().Set("Content-Type", "text/html")
+	err := templates.DnsIndexHTML.Execute(w, res)
+	if err != nil {
+		logrus.WithError(err).Error("failed to execute template")
+	}
 }
 
 func (r *mdnsRegistry) StopServer() error {
@@ -133,10 +227,6 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool) []dns
 	return records
 }
 
-func (e mdnsEntry) IsContainer() bool {
-	return e.machine == nil
-}
-
 func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
 	r := &mdnsRegistry{
 		tree:           radix.New(),
@@ -147,6 +237,15 @@ func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
 	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
 
 	// add initial index record
+	r.tree.Insert(reverse(mdnsIndexDomain), mdnsEntry{
+		Type:       MdnsEntryStatic,
+		IsWildcard: false,
+		IsHidden:   true, // don't show itself
+		ips: []net.IP{
+			net.ParseIP(netconf.SconWebIndexIP4),
+			net.ParseIP(netconf.SconWebIndexIP6),
+		},
+	})
 
 	return r
 }
@@ -160,18 +259,18 @@ func reverse(s string) string {
 	return string(buf)
 }
 
-func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin, notifyInvalid bool) []string {
+func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin, notifyInvalid bool) []dnsName {
 	// (3) short ID, names, compose: service.project
 	// full ID is too long for DNS: it's 64 chars, max is 63 per component
-	names := make([]string, 0, 1+len(ctr.Names)+1)
-	names = append(names, ctr.ID[:12])
+	names := make([]dnsName, 0, 1+len(ctr.Names)+1)
+	names = append(names, dnsName{ctr.ID[:12], true})
 	for _, name := range ctr.Names {
-		names = append(names, strings.TrimPrefix(name, "/"))
+		names = append(names, dnsName{strings.TrimPrefix(name, "/"), false})
 	}
 	if ctr.Labels != nil {
 		if composeProject, ok := ctr.Labels["com.docker.compose.project"]; ok {
 			if composeService, ok := ctr.Labels["com.docker.compose.service"]; ok {
-				names = append(names, composeService+"."+composeProject)
+				names = append(names, dnsName{composeService + "." + composeProject, false})
 			}
 		}
 	}
@@ -181,15 +280,20 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 		for j, suffix := range mdnsContainerSuffixes {
 			// reuse existing array element for first suffix
 			if j == 0 {
-				names[i] = name + suffix
+				names[i] = dnsName{name.Name + suffix, name.Hidden}
 			} else {
-				names = append(names, name+suffix)
+				names = append(names, dnsName{name.Name, true})
 			}
 		}
 	}
 
 	if ctr.Labels != nil {
-		if extraNames, ok := ctr.Labels["dev.orbstack.domains"]; ok {
+		if extraNames, ok := ctr.Labels["dev.orbstack.domains"]; ok && extraNames != "" {
+			// if we have extra names, mark all the default ones as hidden
+			for i := range names {
+				names[i].Hidden = true
+			}
+
 			for _, name := range strings.Split(extraNames, ",") {
 				if !strings.HasSuffix(name, ".") {
 					name += "."
@@ -216,10 +320,11 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 					continue
 				}
 
-				names = append(names, name)
+				names = append(names, dnsName{name, false})
 			}
 		}
 	}
+
 	return names
 }
 
@@ -318,10 +423,13 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	defer r.mu.Unlock()
 	for _, name := range names {
 		entry := mdnsEntry{
+			Type:       MdnsEntryContainer,
 			IsWildcard: true,
-			ips:        ips,
+			// short-ID and aliases are hidden, real names and custom names are not
+			IsHidden: name.Hidden,
+			ips:      ips,
 		}
-		treeKey := reverse(name)
+		treeKey := reverse(name.Name)
 		r.tree.Insert(treeKey, entry)
 
 		// need to flush any caches? what names were we queried under? (wildcard)
@@ -342,7 +450,7 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, name := range names {
-		r.tree.Delete(reverse(name))
+		r.tree.Delete(reverse(name.Name))
 	}
 }
 
@@ -356,8 +464,11 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	// we don't validate these b/c it's not under the user's control
 	treeKey := reverse(name)
 	entry := mdnsEntry{
+		Type:       MdnsEntryMachine,
 		IsWildcard: true,
-		machine:    c,
+		// machines only have one name, but hide docker
+		IsHidden: c.builtin,
+		machine:  c,
 	}
 	r.tree.Insert(treeKey, entry)
 
@@ -387,7 +498,7 @@ func (r *mdnsRegistry) ClearContainers() {
 	r.tree.Walk(func(s string, v interface{}) bool {
 		// delete all container nodes
 		entry := v.(mdnsEntry)
-		if entry.IsContainer() {
+		if entry.Type == MdnsEntryContainer {
 			r.tree.Delete(s)
 		}
 		return false // continue
