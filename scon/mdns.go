@@ -229,6 +229,24 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool) []dns
 			}
 		}
 	}
+
+	// if AAAA and no records...
+	if includeV6 && !includeV4 && len(records) == 0 {
+		// need to send explicit negative response: NSEC
+		// https://datatracker.ietf.org/doc/html/rfc6762#section-6.1
+		// otherwise macOS delays for several seconds
+		records = append(records, &dns.NSEC{
+			Hdr: dns.RR_Header{
+				Name:   qName,
+				Rrtype: dns.TypeNSEC,
+				Class:  dns.ClassINET,
+				Ttl:    mdnsTTLSeconds,
+			},
+			NextDomain: qName,
+			TypeBitMap: []uint16{dns.TypeA},
+		})
+	}
+
 	return records
 }
 
