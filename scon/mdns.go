@@ -202,26 +202,31 @@ func (e mdnsEntry) IPs() []net.IP {
 func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool) []dns.RR {
 	var records []dns.RR
 	for _, ip := range e.IPs() {
-		if ip4 := ip.To4(); ip4 != nil && includeV4 {
-			records = append(records, &dns.A{
-				Hdr: dns.RR_Header{
-					Name:   qName,
-					Rrtype: dns.TypeA,
-					Class:  dns.ClassINET,
-					Ttl:    mdnsTTLSeconds,
-				},
-				A: ip4,
-			})
-		} else if ip6 := ip.To16(); ip6 != nil && includeV6 {
-			records = append(records, &dns.AAAA{
-				Hdr: dns.RR_Header{
-					Name:   qName,
-					Rrtype: dns.TypeAAAA,
-					Class:  dns.ClassINET,
-					Ttl:    mdnsTTLSeconds,
-				},
-				AAAA: ip6,
-			})
+		if ip4 := ip.To4(); ip4 != nil {
+			// can't combine chcek because v4 .To16() works
+			if includeV4 {
+				records = append(records, &dns.A{
+					Hdr: dns.RR_Header{
+						Name:   qName,
+						Rrtype: dns.TypeA,
+						Class:  dns.ClassINET,
+						Ttl:    mdnsTTLSeconds,
+					},
+					A: ip4,
+				})
+			}
+		} else if ip6 := ip.To16(); ip6 != nil {
+			if includeV6 {
+				records = append(records, &dns.AAAA{
+					Hdr: dns.RR_Header{
+						Name:   qName,
+						Rrtype: dns.TypeAAAA,
+						Class:  dns.ClassINET,
+						Ttl:    mdnsTTLSeconds,
+					},
+					AAAA: ip6,
+				})
+			}
 		}
 	}
 	return records
