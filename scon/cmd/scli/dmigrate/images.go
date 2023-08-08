@@ -156,6 +156,7 @@ func (m *Migrator) submitImages(group *pond.TaskGroup, images []*dockertypes.Ima
 
 		idx := idx
 		img := img
+		logrus.WithField("image", userName).Debug("submitting image")
 		group.Submit(func() {
 			defer m.finishOneEntity(&entitySpec{imageID: img.ID})
 

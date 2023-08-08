@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"os"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/dmigrate"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -61,9 +60,9 @@ var migrateDockerCmd = &cobra.Command{
 		}
 
 		// image slowpath: skip a proxy layer, for perf
-		rawDockerSock := conf.DockerRemoteCtxSocketRaw()
-		if _, err := os.Stat(rawDockerSock); err != nil {
-			rawDockerSock = conf.DockerRemoteCtxSocket()
+		rawDockerSock := conf.DockerRemoteCtxSocket()
+		if dmigrate.RemoteIsRunning(conf.DockerRemoteCtxSocketRaw()) {
+			rawDockerSock = conf.DockerRemoteCtxSocketRaw()
 		}
 
 		destSocket := conf.DockerSocket()

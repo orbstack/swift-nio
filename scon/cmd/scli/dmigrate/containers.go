@@ -109,6 +109,7 @@ func (m *Migrator) submitOneContainer(group *pond.TaskGroup, ctr *dockertypes.Co
 		userName = ctr.ID
 	}
 
+	logrus.WithField("container", ctr.Names).Debug("Submitting container")
 	group.Submit(func() {
 		defer m.finishOneEntity(&entitySpec{containerID: ctr.ID})
 

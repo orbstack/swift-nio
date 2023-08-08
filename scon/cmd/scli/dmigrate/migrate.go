@@ -121,6 +121,7 @@ func (m *Migrator) SetRawSrcSocket(rawSrcSocket string) {
 func (m *Migrator) finishOneEntity(spec *entitySpec) {
 	m.mu.Lock()
 	m.finishedEntities++
+	logrus.WithField("finished", spec).Debug("Finished entity")
 	if spec != nil {
 		// works as adaptive notifications w/ non-blocking send + 1 buf
 		m.finishedDeps = append(m.finishedDeps, *spec)
@@ -225,7 +226,9 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	// we do network deps by *NAME* b/c ID of default none/host/bridge can differ
 	eligibleNetworkNames := []string{"bridge", "host", "none"}
 	for _, n := range manifest.Networks {
+		logrus.WithField("network", n.Name).Debug("Checking network")
 		if n.Scope != "local" || n.Driver != "bridge" {
+			logrus.WithField("network", n.Name).Debug("Skipping network: not local/bridge")
 			continue
 		}
 		eligibleNetworkNames = append(eligibleNetworkNames, n.Name)
@@ -236,8 +239,10 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	containerDeps := make(map[string][]entitySpec)
 outer:
 	for _, c := range manifest.Containers {
+		logrus.WithField("container", c.Names).Debug("Checking container")
 		// skip migration image ones (won't work b/c migration img is excluded)
 		if c.Image == migrationAgentImage {
+			logrus.WithField("container", c.Names).Debug("Skipping container: migration agent")
 			continue
 		}
 
@@ -256,7 +261,7 @@ outer:
 			return fmt.Errorf("parse finishedAt: %w", err)
 		}
 		if time.Since(startedAt) > maxUnusedContainerAge && time.Since(finishedAt) > maxUnusedContainerAge {
-			logrus.WithField("container", c.ID).Debug("Skipping container: old and unused")
+			logrus.WithField("container", c.Names).Debug("Skipping container: old and unused")
 			continue
 		}
 
@@ -264,12 +269,13 @@ outer:
 		if c.NetworkSettings != nil && c.NetworkSettings.Networks != nil {
 			for cnetName := range c.NetworkSettings.Networks {
 				if !slices.Contains(eligibleNetworkNames, cnetName) {
-					logrus.WithField("container", c.ID).Debug("Skipping container: depends on non-existent network")
+					logrus.WithField("container", c.Names).Debug("Skipping container: depends on non-existent network")
 					continue outer
 				}
 			}
 		}
 
+		logrus.WithField("container", c.Names).Debug("Including container")
 		filteredContainers = append(filteredContainers, c)
 	}
 
@@ -278,21 +284,26 @@ outer:
 	containerUsedNets := make(map[string]struct{})
 	for _, c := range filteredContainers {
 		if c.NetworkSettings == nil {
+			logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: no network settings")
 			continue
 		}
 		if c.NetworkSettings.Networks == nil {
+			logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: no networks")
 			continue
 		}
 		// don't trust the name, look through IDs
 		for cnetName, cnet := range c.NetworkSettings.Networks {
 			// if we won't be migrating it, then skip it as a dependency or we'll get deadlock
 			if !slices.Contains(eligibleNetworkNames, cnetName) {
+				logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: depends on non-existent network")
 				continue
 			}
 			if cnetName == "bridge" || cnetName == "host" || cnetName == "none" {
+				logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: depends on default network")
 				continue
 			}
 
+			logrus.WithField("container", c.Names).WithField("network", cnetName).Debug("[build used map] Container uses network")
 			containerUsedNets[cnet.NetworkID] = struct{}{}
 			containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{networkName: cnetName})
 		}
@@ -300,16 +311,21 @@ outer:
 	// 2. filter networks
 	var filteredNetworks []dockertypes.Network
 	for _, n := range manifest.Networks {
+		logrus.WithField("network", n.Name).Debug("Checking network")
 		if n.Scope != "local" || n.Driver != "bridge" {
+			logrus.WithField("network", n.Name).Debug("Skipping network: not local/bridge")
 			continue
 		}
 		// skip default networks
 		if n.Name == "bridge" || n.Name == "host" || n.Name == "none" {
+			logrus.WithField("network", n.Name).Debug("Skipping network: default network")
 			continue
 		}
 		if _, ok := containerUsedNets[n.ID]; !ok {
+			logrus.WithField("network", n.Name).Debug("Skipping network: not used by any containers")
 			continue
 		}
+		logrus.WithField("network", n.Name).Debug("Including network")
 		filteredNetworks = append(filteredNetworks, n)
 	}
 
@@ -318,13 +334,17 @@ outer:
 	containerUsedVolumes := make(map[string][]*dockertypes.ContainerSummary)
 	for _, c := range filteredContainers {
 		if c.Mounts == nil {
+			logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: no mounts")
 			continue
 		}
 		for _, m := range c.Mounts {
 			// volume mounts only (skip dep if we're not migrating it)
+			logrus.WithField("container", c.Names).WithField("mount", m.Name).Debug("[build used map] Checking mount")
 			if m.Type != "volume" || m.Driver != "local" {
+				logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: non-local volume mount")
 				continue
 			}
+			logrus.WithField("container", c.Names).WithField("mount", m.Name).Debug("[build used map] Container uses volume")
 			containerUsedVolumes[m.Name] = append(containerUsedVolumes[m.Name], c)
 			containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{volumeName: m.Name})
 		}
@@ -333,16 +353,20 @@ outer:
 	var filteredVolumes []dockertypes.Volume
 	for _, v := range manifest.Volumes {
 		// TODO include non-local volumes
+		logrus.WithField("volume", v.Name).Debug("Checking volume")
 		if v.Driver != "local" || v.Scope != "local" {
+			logrus.WithField("volume", v.Name).Debug("Skipping volume: not local")
 			continue
 		}
 		if v.Labels != nil {
 			if _, ok := v.Labels["com.docker.volume.anonymous"]; ok {
 				if _, ok := containerUsedVolumes[v.Name]; !ok {
+					logrus.WithField("volume", v.Name).Debug("Skipping volume: anonymous and not used by any containers")
 					continue
 				}
 			}
 		}
+		logrus.WithField("volume", v.Name).Debug("Including volume")
 		filteredVolumes = append(filteredVolumes, v)
 	}
 
@@ -358,10 +382,12 @@ outer:
 	for _, i := range manifest.Images {
 		// exclude agent image
 		if slices.Contains(i.RepoTags, migrationAgentImage) {
+			logrus.WithField("image", i.ID).Debug("Skipping image: migration agent")
 			continue
 		}
 
 		if _, ok := containerUsedImages[i.ID]; ok {
+			logrus.WithField("image", i.ID).Debug("Including image: used by container")
 			filteredImages = append(filteredImages, i)
 			continue
 		}
@@ -377,6 +403,7 @@ outer:
 		// not referenced by a container
 		// check if tagged and not pushed
 		if len(i.RepoTags) > 0 && len(i.RepoDigests) == 0 {
+			logrus.WithField("image", i.ID).Debug("Including image: tagged and not pushed")
 			filteredImages = append(filteredImages, i)
 			continue
 		}
@@ -434,6 +461,7 @@ outer:
 	group := pool.Group()
 
 	// [src] start agent
+	logrus.Debug("Starting migration agent")
 	srcAgentCid, err := m.srcClient.RunContainer(&dockertypes.ContainerCreateRequest{
 		Image: migrationAgentImage,
 		Cmd:   []string{"sleep", "1h"},
@@ -455,6 +483,7 @@ outer:
 	m.srcAgentCid = srcAgentCid
 	defer func() {
 		// [src] kill agent (+ auto-remove)
+		logrus.Debug("Stopping migration agent")
 		err := m.srcClient.KillContainer(srcAgentCid)
 		if err != nil {
 			logrus.Warnf("kill src container: %v", err)
@@ -542,6 +571,7 @@ outer:
 			m.mu.Lock()
 			for _, dep := range containerDeps[c.ID] {
 				if !slices.Contains(m.finishedDeps, dep) {
+					logrus.WithField("container", c.Names).WithField("dep", dep).Debug("Container dependency not satisfied")
 					satisfied = false
 					break
 				}
@@ -564,12 +594,19 @@ outer:
 
 		// stop when everything has been submitted
 		if len(remainingContainers) == 0 {
+			logrus.WithField("remaining", len(remainingContainers)).Debug("No more containers to submit")
 			break
 		}
 
 		// if there are no non-container entities left, there must be a missing dependency.
 		// break to avoid deadlock
 		if m.finishedEntities >= (m.totalEntities - totalContainers) {
+			logrus.WithFields(logrus.Fields{
+				"finished":    m.finishedEntities,
+				"total":       m.totalEntities,
+				"tcontainers": totalContainers,
+				"rem":         len(remainingContainers),
+			}).Debug("No more entities to submit")
 			break
 		}
 	}

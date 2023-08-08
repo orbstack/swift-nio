@@ -47,6 +47,7 @@ func (m *Migrator) migrateOneVolume(vol dockertypes.Volume, depContainers []*doc
 func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []dockertypes.Volume, containerUsedVolumes map[string][]*dockertypes.ContainerSummary) error {
 	for _, vol := range volumes {
 		vol := vol
+		logrus.WithField("volume", vol.Name).Debug("submitting volume")
 		group.Submit(func() {
 			defer m.finishOneEntity(&entitySpec{volumeName: vol.Name})
 
