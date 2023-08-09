@@ -85,130 +85,6 @@ static const __u8 BRIDGE_GUEST_MAC[ETH_ALEN] = "\xda\x9b\xd0\x54\xe0\x02";
 
 // TC_ACT_PIPE means to continue with the next filter, if any
 
-#define ND_NEIGHBOR_SOLICIT         135
-#define ND_NEIGHBOR_ADVERT          136
-#define ND_OPT_SOURCE_LINKADDR		1
-#define ND_OPT_TARGET_LINKADDR		2
-
-struct nd_neighbor_solicit    /* neighbor solicitation */
-  {
-    struct icmp6hdr  nd_ns_hdr;
-    struct in6_addr   nd_ns_target; /* target address */
-    /* could be followed by options */
-  };
-
-struct nd_neighbor_advert     /* neighbor advertisement */
-  {
-    struct icmp6hdr  nd_na_hdr;
-    struct in6_addr   nd_na_target; /* target address */
-    /* could be followed by options */
-  };
-
-struct nd_opt_hdr             /* Neighbor discovery option header */
-  {
-    __u8  nd_opt_type;
-    __u8  nd_opt_len;        /* in units of 8 octets */
-    /* followed by option specific data */
-  };
-
-static int respond_ndp(struct __sk_buff *skb, struct ethhdr *eth, struct ipv6hdr *ip6) {
-	void *data = (void *)(long)skb->data;
-	const void *data_end = (void *)(long)skb->data_end;
-
-    // is it icmp6?
-    if (ip6->nexthdr != IPPROTO_ICMPV6) {
-        return TC_ACT_PIPE;
-    }
-
-    struct nd_neighbor_solicit *icmp_ns = (struct nd_neighbor_solicit *)(ip6 + 1);
-    if (data + sizeof(*eth) + sizeof(*ip6) + sizeof(*icmp_ns) > data_end) {
-        return TC_ACT_PIPE;
-    }
-
-    if (icmp_ns->nd_ns_hdr.icmp6_type != ND_NEIGHBOR_SOLICIT) {
-        return TC_ACT_PIPE;
-    }
-    if (icmp_ns->nd_ns_target.in6_u.u6_addr32[0] != XLAT_PREFIX6[0] ||
-        icmp_ns->nd_ns_target.in6_u.u6_addr32[1] != XLAT_PREFIX6[1] ||
-        icmp_ns->nd_ns_target.in6_u.u6_addr32[2] != XLAT_PREFIX6[2]) {
-        return TC_ACT_PIPE;
-    }
-
-    // reply with NA
-
-	// resize packet
-	int new_len = sizeof(*eth) + sizeof(*ip6) + sizeof(struct nd_neighbor_advert) + sizeof(struct nd_opt_hdr) + ETH_ALEN;
-	if (bpf_skb_change_tail(skb, new_len, 0)) {
-		return TC_ACT_PIPE;
-	}
-
-	data = (void *)(long)skb->data;
-	data_end = (void *)(long)skb->data_end;
-	eth = data;
-	ip6 = (void *)(eth + 1);
-	icmp_ns = (struct nd_neighbor_solicit *)(ip6 + 1);
-	if (data + new_len > data_end) {
-		return TC_ACT_SHOT;
-	}
-
-    // 1. new dest MAC = src MAC
-    memcpy(eth->h_dest, eth->h_source, ETH_ALEN);
-    // 2. new src MAC = our MAC
-    memcpy(eth->h_source, BRIDGE_GUEST_MAC, ETH_ALEN);
-    // 3. new dest IP = src IP
-    copy4(ip6->daddr.in6_u.u6_addr32, ip6->saddr.in6_u.u6_addr32);
-    // 4. new src IP = target IP
-    copy4(ip6->saddr.in6_u.u6_addr32, icmp_ns->nd_ns_target.in6_u.u6_addr32);
-	// payload len
-	int payload_len = new_len - sizeof(*eth) - sizeof(*ip6);
-	ip6->payload_len = bpf_htons(payload_len);
-
-    struct nd_neighbor_advert *icmp_na = (struct nd_neighbor_advert *)(ip6 + 1);
-    icmp_na->nd_na_hdr.icmp6_type = ND_NEIGHBOR_ADVERT;
-    icmp_na->nd_na_hdr.icmp6_code = 0;
-    icmp_na->nd_na_hdr.icmp6_cksum = 0; // filled in later
-    icmp_na->nd_na_hdr.icmp6_dataun.u_nd_advt.solicited = 1;
-    icmp_na->nd_na_hdr.icmp6_dataun.u_nd_advt.override = 1;
-    /* leave target addr alone */
-
-    // add target lladdr option
-	struct nd_opt_hdr *opt = (struct nd_opt_hdr *)(icmp_na + 1);
-	opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
-	opt->nd_opt_len = 1; // in 8-byte units
-	memcpy(opt + 1, eth->h_source, ETH_ALEN);
-
-    // fix checksums: just recalcuate the whole thing. we changed almost everything
-	__be32 csum = 0;
-	// ipv6 pseudo header
-	__be32 d = bpf_csum_diff(NULL, 0, (void *)&ip6->saddr, sizeof(ip6->saddr), csum);
-	bpf_printk("saddr csum = %d (%04x)", d, d);
-	csum = d;
-	d = bpf_csum_diff(NULL, 0, (void *)&ip6->daddr, sizeof(ip6->daddr), csum);
-	bpf_printk("daddr csum = %d (%04x)", d, d);
-	csum = d;
-	// ipv6 pseudo header. bpf_csum_diff requires 32-bit and nexthdr is 8-bit
-	__be32 pseudo_payload_len = ip6->payload_len;
-	d = bpf_csum_diff(NULL, 0, &pseudo_payload_len, sizeof(pseudo_payload_len), csum);
-	bpf_printk("payload_len csum = %d (%04x)", d, d);
-	csum = d;
-	__be32 pseudo_nexthdr = ip6->nexthdr;
-	d = bpf_csum_diff(NULL, 0, &pseudo_nexthdr, sizeof(pseudo_nexthdr), csum);
-	bpf_printk("nexthdr csum = %d (%04x)", d, d);
-	csum = d;
-	// the rest of the packet
-	d = bpf_csum_diff(NULL, 0, (void *)icmp_na, payload_len, csum);
-	bpf_printk("icmp_na csum = %d (%04x)", d, d);
-	csum = d;
-	if (bpf_l4_csum_replace(skb, sizeof(*eth) + sizeof(*ip6) + offsetof(struct icmp6hdr, icmp6_cksum), 0, csum, BPF_F_PSEUDO_HDR)) {
-		return TC_ACT_SHOT;
-	}
-	//icmp_na->nd_na_hdr.icmp6_cksum = ~csum;
-	bpf_printk("final csum = %d (%04x)", ~csum, ~csum);
-
-    // send it out
-    return bpf_redirect(skb->ifindex, 0); // egress
-}
-
 SEC("tc")
 int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	void *data = (void *)(long)skb->data;
@@ -217,7 +93,7 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	struct ipv6hdr *ip6 = (void *)(eth + 1);
 
 	// Require ethernet dst mac address to be our unicast address.
-	if (skb->pkt_type != PACKET_HOST && skb->pkt_type != PACKET_MULTICAST)
+	if (skb->pkt_type != PACKET_HOST)
 		return TC_ACT_PIPE;
 
 	// Must be meta-ethernet IPv6 frame
@@ -235,11 +111,6 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	// IP version must be 6
 	if (ip6->version != 6)
 		return TC_ACT_PIPE;
-
-    // if it's multicast, attempt NDP
-    if (skb->pkt_type == PACKET_MULTICAST) {
-        return respond_ndp(skb, eth, ip6);
-    }
 
 	// Maximum IPv6 payload length that can be translated to IPv4
 	if (bpf_ntohs(ip6->payload_len) > 0xFFFF - sizeof(struct iphdr))
