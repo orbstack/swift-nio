@@ -43,7 +43,7 @@
 #include <bpf/bpf_endian.h>
 
 // warning: this makes it GPL
-#define DEBUG
+//#define DEBUG
 
 #ifndef DEBUG
 #ifdef bpf_printk
@@ -61,9 +61,10 @@
     dst[2] = src[2]; \
     dst[3] = src[3];
 
-// falls under scon machine /32
-// fd07:b51a:cc66:0:ffff:6464/96
-static const __be32 XLAT_PREFIX6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xffff, 0x6464, 0, 0);
+// falls under scon machine /64
+// (always leave standard form of IP here for searching if we change it later)
+// fd07:b51a:cc66:0:b0c0:a617/96
+static const __be32 XLAT_PREFIX6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xb0c0, 0xa617, 0, 0);
 
 // source ip after translation
 // we use this ip, outside of machine bridge, so that docker machine routes the reply via default route (i.e. us)
@@ -79,7 +80,7 @@ static const __be32 XLAT_SRC_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0, 0, 0, 0, 3)
 // da:9b:d0:54:e0:02
 static const __u8 BRIDGE_GUEST_MAC[ETH_ALEN] = "\xda\x9b\xd0\x54\xe0\x02";
 
-#define MARK_ROUTE_TO_DOCKER 0xdead6464
+#define MARK_ROUTE_NAT64 0xdead6464
 
 #define IP_DF 0x4000  // Flag: "Don't Fragment"
 
@@ -98,21 +99,9 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 		return TC_ACT_PIPE;
 	}
 
-	// Must be meta-ethernet IPv6 frame
-	if (skb->protocol != bpf_htons(ETH_P_IPV6)) {
-		bpf_printk("not ipv6\n");
-		return TC_ACT_PIPE;
-	}
-
 	// Must have (ethernet and) ipv6 header
-	if (data + sizeof(*eth) + sizeof(*ip6) > data_end) {
+	if ((ip6 + 1) > data_end) {
 		bpf_printk("no ipv6 header\n");
-		return TC_ACT_PIPE;
-	}
-
-	// Ethertype - if present - must be IPv6
-	if (eth->h_proto != bpf_htons(ETH_P_IPV6)) {
-		bpf_printk("not ipv6\n");
 		return TC_ACT_PIPE;
 	}
 
@@ -204,10 +193,11 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	*(struct iphdr *)(eth + 1) = ip;
 
     // mark and re-inject
-    skb->mark = MARK_ROUTE_TO_DOCKER; // route to docker machine (via ip rule)
+    skb->mark = MARK_ROUTE_NAT64; // route to docker machine (via ip rule)
 	return bpf_redirect(skb->ifindex, BPF_F_INGRESS);
 }
 
+// no address checking in this path. non-translated packet can't get here b/c routing
 SEC("tc")
 int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	void *data = (void *)(long)skb->data;
@@ -219,16 +209,8 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	if (skb->pkt_type != PACKET_HOST)
 		return TC_ACT_PIPE;
 
-	// Must be meta-ethernet IPv4 frame
-	if (skb->protocol != bpf_htons(ETH_P_IP))
-		return TC_ACT_PIPE;
-
 	// Must have ipv4 header
-	if (data + sizeof(*eth) + sizeof(struct iphdr) > data_end)
-		return TC_ACT_PIPE;
-
-	// Ethertype must be IPv4
-	if (eth->h_proto != bpf_htons(ETH_P_IP))
+	if ((ip4 + 1) > data_end)
 		return TC_ACT_PIPE;
 
 	// IP version must be 4
@@ -264,6 +246,8 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	if (ip4->frag_off & ~bpf_htons(IP_DF))
 		return TC_ACT_PIPE;
 
+    // begin modification
+
 	switch (ip4->protocol) {
 	case IPPROTO_TCP:  // For TCP & UDP the checksum neutrality of the chosen IPv6
 	case IPPROTO_GRE:  // address means there is no need to update their checksums.
@@ -271,7 +255,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 		break;         // since there is never a checksum to update.
 
 	case IPPROTO_UDP:  // See above comment, but must also have UDP header...
-		if (data + sizeof(*eth) + sizeof(*ip4) + sizeof(struct udphdr) > data_end)
+		if (data + ETH_HLEN + sizeof(*ip4) + sizeof(struct udphdr) > data_end)
 			return TC_ACT_PIPE;
         // TODO: fix checksum properly. 0 is invalid for IPv6 but we use csum offload
 		struct udphdr *uh = (struct udphdr *)(ip4 + 1);
@@ -283,8 +267,6 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	default:  // do not know how to handle anything else
 		return TC_ACT_PIPE;
 	}
-
-    // begin modification
 
 	struct ipv6hdr ip6 = {
 		.version = 6,                                    // __u8:4
@@ -323,7 +305,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
 	eth = data;
-	if (data + sizeof(*eth) + sizeof(ip6) > data_end)
+	if (data + ETH_HLEN + sizeof(ip6) > data_end)
 		return TC_ACT_SHOT;
 
 	// update headers

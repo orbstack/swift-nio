@@ -24,6 +24,13 @@ const VNET_NEIGHBORS: &[&str] = &[
     "fd07:b51a:cc66:00f0::1",
 ];
 
+// dummy to make Linux happy. not actually used
+// da:9b:d0:64:e1:30
+const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x03];
+const NAT64_SOURCE_ADDR: &str = "198.19.248.64";
+const NAT64_FWMARK: u32 = 0xdead6464;
+const NAT64_DOCKER_MACHINE_IP4: &str = "198.19.249.2";
+
 const FS_CORRUPTED_MSG: &str = r#"
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! DATA IS LIKELY CORRUPTED.
@@ -291,6 +298,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     let mut ip_link = handle.link();
     let ip_addr = handle.address();
     let ip_route = handle.route();
+    let ip_rule = handle.rule();
     let ip_neigh = handle.neighbours();
 
     // loopback: set lo up
@@ -330,6 +338,28 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
         .mtu(1500)
         .up()
         .execute().await?;
+
+    // NAT64 from machine bridge to docker
+    // make Linux happy (doesn't really matter)
+    ip_neigh.add(eth1.header.index, NAT64_SOURCE_ADDR.parse().unwrap())
+        .link_local_address(NAT64_SOURCE_LLADDR)
+        .execute().await.unwrap();
+    // ingress route from translated IPv4 source address to Docker machine (which does IP forward to containers)
+    // create ip rule for fwmark from BPF clsact program
+    // ip rule add fwmark 0xdead6464 table 64
+    let mut fwmark_rule = ip_rule.add().v4().table(64); // table ID is not exposed to BPF
+    fwmark_rule.message_mut().nlas.push(netlink_packet_route::rule::Nla::FwMark(NAT64_FWMARK));
+    fwmark_rule.execute().await.unwrap();
+    // ip route add default via 198.19.249.2 table 64
+    // ip_route.add().v4()
+    //     .gateway(NAT64_DOCKER_MACHINE_IP4.parse().unwrap())
+    //     .table(64).execute().await.unwrap();
+    // egress route from Docker machine back to BPF eth1
+    // ip route add 198.19.248.64 dev eth1
+    ip_route.add().v4()
+        .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
+        .output_interface(eth1.header.index)
+        .execute().await.unwrap();
 
     // docker vlan router
     // scon deals with the rest

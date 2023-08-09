@@ -85,6 +85,17 @@ func (n *Network) Start() error {
 	}
 	n.cleanupNAT = cleanupNAT
 
+	// add nat64 route:
+	// ip route add default via 198.19.249.2 dev conbr0 table 64
+	err = netlink.RouteAdd(&netlink.Route{
+		LinkIndex: bridge.Index,
+		Gw:        net.ParseIP(netconf.SconDockerIP4),
+		Table:     64,
+	})
+	if err != nil && !errors.Is(err, unix.EEXIST) {
+		return err
+	}
+
 	// start mDNS server
 	logrus.Debug("starting mDNS server")
 	iface, err := net.InterfaceByName(ifBridge) // scon bridge / machines interface

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +44,8 @@ const (
 
 	mdnsCacheFlushRrclass = 1 << 15 // top bit
 )
+
+var nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6)
 
 type mdnsEntry struct {
 	// allow *. suffix match? (false for index)
@@ -116,14 +119,14 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		Handler: r,
 	}
 	go runOne("dns index server (v4)", func() error {
-		l, err := net.Listen("tcp", net.JoinHostPort(netconf.SconWebIndexIP4, "80"))
+		l, err := net.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "80"))
 		if err != nil {
 			return err
 		}
 		return r.httpServer.Serve(l)
 	})
 	go runOne("dns index server (v6)", func() error {
-		l, err := net.Listen("tcp", net.JoinHostPort(netconf.SconWebIndexIP6, "80"))
+		l, err := net.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "80"))
 		if err != nil {
 			return err
 		}
@@ -205,10 +208,13 @@ func (e mdnsEntry) IPs() []net.IP {
 
 func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl uint32) []dns.RR {
 	var records []dns.RR
-	for _, ip := range e.IPs() {
-		if ip4 := ip.To4(); ip4 != nil {
-			// can't combine chcek bexcause v4 .To16() works
-			if includeV4 {
+	ips := e.IPs()
+
+	// A
+	if includeV4 {
+		for _, ip := range ips {
+			if ip4 := ip.To4(); ip4 != nil {
+				// can't combine check bexcause v4 .To16() works
 				records = append(records, &dns.A{
 					Hdr: dns.RR_Header{
 						Name:   qName,
@@ -219,8 +225,14 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 					A: ip4,
 				})
 			}
-		} else if ip6 := ip.To16(); ip6 != nil {
-			if includeV6 {
+		}
+	}
+
+	// AAAA
+	if includeV6 {
+		var gotIP6 bool
+		for _, ip := range ips {
+			if ip6 := ip.To16(); ip6 != nil {
 				records = append(records, &dns.AAAA{
 					Hdr: dns.RR_Header{
 						Name:   qName,
@@ -230,6 +242,32 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 					},
 					AAAA: ip6,
 				})
+				gotIP6 = true
+			}
+		}
+
+		// if we got none, use NAT64 address derived from IPv4
+		// this helps for several reasons:
+		//   - Safari (Network.framework) uses interface scoped-address for v4 mDNS response so it can't connect, but it doesn't do scope for v6
+		//   - scon machine IPv6 isn't going to conflict with anything, unlike IPv4 and Docker bridges
+		//   - we get multi-second delays when returning NSEC for AAAA (due to some unknown changes). returning both is fine
+		if !gotIP6 {
+			for _, ip := range ips {
+				if ip4 := ip.To4(); ip4 != nil {
+					// map NAT64 /96
+					ip6 := nat64Prefix.Addr().AsSlice()
+					copy(ip6[12:], ip4)
+
+					records = append(records, &dns.AAAA{
+						Hdr: dns.RR_Header{
+							Name:   qName,
+							Rrtype: dns.TypeAAAA,
+							Class:  dns.ClassINET | mdnsCacheFlushRrclass,
+							Ttl:    ttl,
+						},
+						AAAA: ip6[:],
+					})
+				}
 			}
 		}
 	}

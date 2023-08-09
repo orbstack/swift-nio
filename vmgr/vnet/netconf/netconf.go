@@ -33,6 +33,9 @@ const (
 	SconDockerIP6     = SconSubnet6 + ":2"
 	SconHostBridgeIP6 = SconSubnet6 + ":3"
 	SconWebIndexIP6   = SconGatewayIP6
+
+	// must be under SconSubnet6/64 due to macOS vmnet routing (neighbors)
+	NAT64Subnet6 = "fd07:b51a:cc66:0:b0c0:a617::/96"
 )
 
 // static ARP/neighbors to save CPU
@@ -48,6 +51,9 @@ const (
 	// gateway and vmnet use :e1 block
 	GatewayMAC        = BlockMACPrefix + ":e1:01"
 	SconHostBridgeMAC = BlockMACPrefix + ":e1:02"
+
+	// dummy, not really used, just to make Linux happy
+	NAT64SourceMAC = BlockMACPrefix + ":e1:03"
 
 	// vlan router uses entire :e2 block
 	// lower 7 bits: vlan id / interface index
