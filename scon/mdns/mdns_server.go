@@ -291,11 +291,6 @@ func (s *Server) SendCacheFlush(records []dns.RR) error {
 		Answer: records,
 	}
 
-	// set cache flush bit (most significant bit of rrclass)
-	for _, rr := range records {
-		rr.Header().Class |= 1 << 15
-	}
-
 	// send only multicast v6 for macOS mDNSResponder
 	if err := s.sendResponse(msg, ipv6Addr, false); err != nil {
 		return fmt.Errorf("mdns: error sending cache flush: %v", err)

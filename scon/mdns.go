@@ -40,6 +40,8 @@ const (
 	// matches mDNSResponder timeout
 	mdnsProxyTimeout  = 5 * time.Second
 	mdnsProxyUpstream = netconf.ServicesIP4 + ":53"
+
+	mdnsCacheFlushRrclass = 1 << 15 // top bit
 )
 
 type mdnsEntry struct {
@@ -92,7 +94,7 @@ type mdnsRegistry struct {
 	// must keep track of all queries for cache flushing
 	// otherwise we don't know what wildcard queries there could've been
 	recentQueries  map[string]mdnsQueryInfo
-	pendingFlushes map[string]*mdnsEntry
+	pendingFlushes map[string]struct{}
 
 	host *hclient.Client
 
@@ -205,13 +207,13 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 	var records []dns.RR
 	for _, ip := range e.IPs() {
 		if ip4 := ip.To4(); ip4 != nil {
-			// can't combine chcek because v4 .To16() works
+			// can't combine chcek bexcause v4 .To16() works
 			if includeV4 {
 				records = append(records, &dns.A{
 					Hdr: dns.RR_Header{
 						Name:   qName,
 						Rrtype: dns.TypeA,
-						Class:  dns.ClassINET,
+						Class:  dns.ClassINET | mdnsCacheFlushRrclass,
 						Ttl:    ttl,
 					},
 					A: ip4,
@@ -223,7 +225,7 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 					Hdr: dns.RR_Header{
 						Name:   qName,
 						Rrtype: dns.TypeAAAA,
-						Class:  dns.ClassINET,
+						Class:  dns.ClassINET | mdnsCacheFlushRrclass,
 						Ttl:    ttl,
 					},
 					AAAA: ip6,
@@ -239,7 +241,7 @@ func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
 	r := &mdnsRegistry{
 		tree:           radix.New(),
 		recentQueries:  make(map[string]mdnsQueryInfo),
-		pendingFlushes: make(map[string]*mdnsEntry),
+		pendingFlushes: make(map[string]struct{}),
 		host:           host,
 	}
 	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
@@ -401,8 +403,15 @@ func (r *mdnsRegistry) flushReusedCache() {
 	// send cache flush: prepopulate cache with new reused names
 	// no point in checking if IPs changed - we're just updating cache with the same values
 	flushRecords := make([]dns.RR, 0, len(r.pendingFlushes))
-	for qName, entry := range r.pendingFlushes {
-		flushRecords = append(flushRecords, entry.ToRecords(qName, true, true, mdnsTTLSeconds)...)
+	for qName := range r.pendingFlushes {
+		// easy to get correct new records by just querying again
+		// note: macOS doesn't respect NSEC flush to indicate "no longer exists"
+		qRecords := r.getRecordsLocked(dns.Question{
+			Name:   qName,
+			Qtype:  dns.TypeANY,
+			Qclass: dns.ClassINET,
+		}, true, true)
+		flushRecords = append(flushRecords, qRecords...)
 	}
 	if len(flushRecords) > 0 {
 		if verboseDebug {
@@ -434,22 +443,11 @@ func (r *mdnsRegistry) flushReusedCache() {
 	}
 }
 
-func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string, newEntry *mdnsEntry) {
+func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) {
 	for qName, qInfo := range r.recentQueries {
 		if now.Before(qInfo.ExpiresAt) && strings.HasSuffix(qName, changedName) {
-			// if no new entry was provided, look for one in the tree
-			// this lets us flush cache back to a wildcard if the more-specific domain was removed
-			// we're required to send latest known info when flushing cache,
-			// because otherwise it'll leave a negative cache entry in client
-			if newEntry == nil {
-				_, _entry, ok := r.tree.LongestPrefix(reverse(qName))
-				if !ok {
-					continue
-				}
-				newEntry = _entry.(*mdnsEntry)
-			}
-
-			r.pendingFlushes[qName] = newEntry
+			// too hard to figure out what the new records should be at this point, so just use the query code path
+			r.pendingFlushes[qName] = struct{}{}
 			r.cacheFlushDebounce.Call()
 		}
 	}
@@ -478,7 +476,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 		r.tree.Insert(treeKey, entry)
 
 		// need to flush any caches? what names were we queried under? (wildcard)
-		r.maybeFlushCacheLocked(now, name.Name, entry)
+		r.maybeFlushCacheLocked(now, name.Name)
 	}
 }
 
@@ -491,7 +489,7 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	now := time.Now()
 	for _, name := range names {
 		r.tree.Delete(reverse(name.Name))
-		r.maybeFlushCacheLocked(now, name.Name, nil)
+		r.maybeFlushCacheLocked(now, name.Name)
 	}
 }
 
@@ -514,7 +512,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	r.tree.Insert(treeKey, entry)
 
 	// need to flush any caches? what names were we queried under? (wildcard)
-	r.maybeFlushCacheLocked(time.Now(), name, entry)
+	r.maybeFlushCacheLocked(time.Now(), name)
 }
 
 func (r *mdnsRegistry) RemoveMachine(c *Container) {
@@ -524,7 +522,7 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tree.Delete(reverse(name))
-	r.maybeFlushCacheLocked(time.Now(), name, nil)
+	r.maybeFlushCacheLocked(time.Now(), name)
 }
 
 func (r *mdnsRegistry) ClearContainers() {
@@ -546,16 +544,25 @@ func (r *mdnsRegistry) ClearContainers() {
 // https://datatracker.ietf.org/doc/html/rfc6762#section-6.1
 // otherwise macOS delays for several seconds if AAAA missing
 func nxdomain(q dns.Question) []dns.RR {
+	// flush all for synthetic ANY query
+	var qTypes []uint16
+	if q.Qtype == dns.TypeANY {
+		// bits must be sorted
+		qTypes = []uint16{dns.TypeA, dns.TypeAAAA, dns.TypeANY}
+	} else {
+		qTypes = []uint16{q.Qtype}
+	}
+
 	return []dns.RR{&dns.NSEC{
 		Hdr: dns.RR_Header{
 			Name:   q.Name,
 			Rrtype: dns.TypeNSEC,
-			Class:  dns.ClassINET,
+			Class:  dns.ClassINET | mdnsCacheFlushRrclass,
 			// this is OK because we record it in cache-flush query history
 			Ttl: mdnsTTLSeconds,
 		},
 		NextDomain: q.Name,
-		TypeBitMap: []uint16{q.Qtype},
+		TypeBitMap: qTypes,
 	}}
 }
 
