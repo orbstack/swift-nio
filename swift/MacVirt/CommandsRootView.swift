@@ -123,7 +123,7 @@ struct CommandsRootView: View {
                         )
 
                         CommandBox(
-                                title: "Start a shell as a specific user and machine",
+                                title: "Log in as a specific user and machine",
                                 desc: "Use the same flags as “orb shell”.",
                                 command: "orb -m ubuntu -u root"
                         )
@@ -132,12 +132,6 @@ struct CommandsRootView: View {
                                 title: "Run a command",
                                 desc: "Prefix any command with “orb” to run it in a Linux machine.",
                                 command: "orb uname -a"
-                        )
-
-                        CommandBox(
-                                title: "Run a command as a specific user and machine",
-                                desc: "The same flags can be used when prefixing a command with “orb”.",
-                                command: "orb -m ubuntu -u root uname -a"
                         )
                     }
 
