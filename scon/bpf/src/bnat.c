@@ -52,7 +52,7 @@
 #define bpf_printk(fmt, ...) do { } while (0)
 #endif
 
-#define IP4(a, b, c, d) ((a << 24) | (b << 16) | (c << 8) | d)
+#define IP4(a, b, c, d) (bpf_htonl((a << 24) | (b << 16) | (c << 8) | d))
 #define IP6(a,b,c,d,e,f,g,h) {bpf_htonl(a << 16 | b), bpf_htonl(c << 16 | d), bpf_htonl(e << 16 | f), bpf_htonl(g << 16 | h)}
 
 #define copy4(dst, src) \
@@ -93,28 +93,40 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	struct ipv6hdr *ip6 = (void *)(eth + 1);
 
 	// Require ethernet dst mac address to be our unicast address.
-	if (skb->pkt_type != PACKET_HOST)
+	if (skb->pkt_type != PACKET_HOST) {
+		bpf_printk("not host\n");
 		return TC_ACT_PIPE;
+	}
 
 	// Must be meta-ethernet IPv6 frame
-	if (skb->protocol != bpf_htons(ETH_P_IPV6))
+	if (skb->protocol != bpf_htons(ETH_P_IPV6)) {
+		bpf_printk("not ipv6\n");
 		return TC_ACT_PIPE;
+	}
 
 	// Must have (ethernet and) ipv6 header
-	if (data + sizeof(*eth) + sizeof(*ip6) > data_end)
+	if (data + sizeof(*eth) + sizeof(*ip6) > data_end) {
+		bpf_printk("no ipv6 header\n");
 		return TC_ACT_PIPE;
+	}
 
 	// Ethertype - if present - must be IPv6
-	if (eth->h_proto != bpf_htons(ETH_P_IPV6))
+	if (eth->h_proto != bpf_htons(ETH_P_IPV6)) {
+		bpf_printk("not ipv6\n");
 		return TC_ACT_PIPE;
+	}
 
 	// IP version must be 6
-	if (ip6->version != 6)
+	if (ip6->version != 6) {
+		bpf_printk("not ipv6\n");
 		return TC_ACT_PIPE;
+	}
 
 	// Maximum IPv6 payload length that can be translated to IPv4
-	if (bpf_ntohs(ip6->payload_len) > 0xFFFF - sizeof(struct iphdr))
+	if (bpf_ntohs(ip6->payload_len) > 0xFFFF - sizeof(struct iphdr)) {
+		bpf_printk("payload too big\n");
 		return TC_ACT_PIPE;
+	}
 	switch (ip6->nexthdr) {
 	case IPPROTO_TCP:  // For TCP & UDP the checksum neutrality of the chosen IPv6
 	case IPPROTO_UDP:  // address means there is no need to update their checksums.
@@ -122,13 +134,15 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	case IPPROTO_ESP:  // since there is never a checksum to update.
 		break;
 	default:  // do not know how to handle anything else
+		bpf_printk("not tcp/udp/gre/esp\n");
 		return TC_ACT_PIPE;
 	}
 
     // check subnet /96
-    if (ip6->saddr.in6_u.u6_addr32[0] != XLAT_PREFIX6[0] ||
-        ip6->saddr.in6_u.u6_addr32[1] != XLAT_PREFIX6[1] ||
-        ip6->saddr.in6_u.u6_addr32[2] != XLAT_PREFIX6[2]) {
+    if (ip6->daddr.in6_u.u6_addr32[0] != XLAT_PREFIX6[0] ||
+        ip6->daddr.in6_u.u6_addr32[1] != XLAT_PREFIX6[1] ||
+        ip6->daddr.in6_u.u6_addr32[2] != XLAT_PREFIX6[2]) {
+		bpf_printk("not in subnet\n");
         return TC_ACT_PIPE;
     }
 
@@ -171,15 +185,19 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 
 	// Packet mutations begin - point of no return, but if this first modification fails
 	// the packet is probably still pristine, so let clatd handle it.
-	if (bpf_skb_change_proto(skb, bpf_htons(ETH_P_IP), 0))
+	if (bpf_skb_change_proto(skb, bpf_htons(ETH_P_IP), 0)) {
+		bpf_printk("change proto failed\n");
 		return TC_ACT_PIPE;
+	}
 	bpf_csum_update(skb, sum6);
 
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
 	eth = data;
-	if (data + sizeof(*eth) + sizeof(struct iphdr) > data_end)
+	if (data + sizeof(*eth) + sizeof(struct iphdr) > data_end) {
+		bpf_printk("no ip header\n");
 		return TC_ACT_SHOT;
+	}
 
     // write new headers
 	eth->h_proto = bpf_htons(ETH_P_IP);

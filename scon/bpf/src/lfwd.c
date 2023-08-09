@@ -40,7 +40,7 @@ enum {
     VERDICT_PROCEED = 1,
 };
 
-#define IP4(a, b, c, d) ((a << 24) | (b << 16) | (c << 8) | d)
+#define IP4(a, b, c, d) (bpf_htonl((a << 24) | (b << 16) | (c << 8) | d))
 #define IP6(a,b,c,d,e,f,g,h) {bpf_htonl(a << 16 | b), bpf_htonl(c << 16 | d), bpf_htonl(e << 16 | f), bpf_htonl(g << 16 | h)}
 
 #define LOCALHOST_IP4 IP4(127, 0, 0, 1)
@@ -98,7 +98,7 @@ static bool check_netns(struct bpf_sock_addr *ctx) {
  * v4
  */
 static bool check_ip4(struct bpf_sock_addr *ctx) {
-    if (ctx->user_ip4 != bpf_htonl(LOCALHOST_IP4)) {
+    if (ctx->user_ip4 != LOCALHOST_IP4) {
         bpf_printk("not localhost %x", bpf_ntohl(ctx->user_ip4));
         
         // udp sockets can be reconnected, so delete meta just in case
@@ -175,7 +175,7 @@ int lfwd_connect4(struct bpf_sock_addr *ctx) {
     }
 
     // rewrite address
-    ctx->user_ip4 = bpf_htonl(HOSTNAT_IP4);
+    ctx->user_ip4 = HOSTNAT_IP4;
 
     // save to map
     struct fwd_meta meta = {};
@@ -209,7 +209,7 @@ int lfwd_sendmsg4(struct bpf_sock_addr *ctx) {
 
     // check for existing socket
     // combinations: src 0.0.0.0 (unlikely for client), src 127.0.0.1 (likely since dest is localhost), and explicit src
-    if (!check_listener4(ctx, 0) || !check_listener4(ctx, bpf_htonl(LOCALHOST_IP4))) {
+    if (!check_listener4(ctx, 0) || !check_listener4(ctx, LOCALHOST_IP4)) {
         return VERDICT_PROCEED;
     }
     // also check for explicit sendmsg src ip4 if needed
@@ -218,7 +218,7 @@ int lfwd_sendmsg4(struct bpf_sock_addr *ctx) {
     }
 
     // rewrite address
-    ctx->user_ip4 = bpf_htonl(HOSTNAT_IP4);
+    ctx->user_ip4 = HOSTNAT_IP4;
 
     // don't save to map. this is an unconnected udp socket, so no getpeername
 
@@ -235,7 +235,7 @@ int lfwd_getpeername4(struct bpf_sock_addr *ctx) {
     }
 
     // rewrite address
-    ctx->user_ip4 = bpf_htonl(LOCALHOST_IP4);
+    ctx->user_ip4 = LOCALHOST_IP4;
 
     return VERDICT_PROCEED;
 }

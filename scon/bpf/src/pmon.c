@@ -40,7 +40,7 @@ enum {
     VERDICT_PROCEED = 1,
 };
 
-#define IP4(a, b, c, d) ((a << 24) | (b << 16) | (c << 8) | d)
+#define IP4(a, b, c, d) (bpf_htonl((a << 24) | (b << 16) | (c << 8) | d))
 #define IP6(a,b,c,d,e,f,g,h) {bpf_htonl(a << 16 | b), bpf_htonl(c << 16 | d), bpf_htonl(e << 16 | f), bpf_htonl(g << 16 | h)}
 
 #define LOCALHOST_IP4 IP4(127, 0, 0, 1)
@@ -256,7 +256,7 @@ static bool connect_common(struct bpf_sock_addr *ctx) {
  * v4
  */
 static bool check_ip4(struct bpf_sock *sk) {
-    if (sk->src_ip4 != bpf_htonl(LOCALHOST_IP4) && sk->src_ip4 != bpf_htonl(UNSPEC_IP4)) {
+    if (sk->src_ip4 != LOCALHOST_IP4 && sk->src_ip4 != UNSPEC_IP4) {
         bpf_printk("not localhost or unspec %x", bpf_ntohl(sk->src_ip4));
         return false;
     }
