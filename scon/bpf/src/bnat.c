@@ -197,6 +197,10 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	struct ethhdr *eth = data;
 	struct iphdr *ip4 = (void *)(eth + 1);
 
+	// Require ethernet dst mac address to be our unicast address.
+	if (skb->pkt_type != PACKET_HOST)
+		return TC_ACT_PIPE;
+
 	// Must be meta-ethernet IPv4 frame
 	if (skb->protocol != bpf_htons(ETH_P_IP))
 		return TC_ACT_PIPE;
