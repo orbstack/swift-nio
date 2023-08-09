@@ -679,12 +679,12 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 	// TODO: what if it crashed?
 	initPid := c.lxc.InitPid()
 	if initPid == -1 {
-		return fmt.Errorf("machine '%s': missing init pid", c.Name)
+		return fmt.Errorf("machine '%s' failed to start: init crashed", c.Name)
 	}
 	c.initPid = initPid
 	initPidFile, err := c.lxc.InitPidFd()
 	if err != nil {
-		return fmt.Errorf("machine '%s': get init pid fd: %w", c.Name, err)
+		return fmt.Errorf("machine '%s' failed to start: init crashed (%w)", c.Name, err)
 	}
 	c.initPidFile = initPidFile
 
