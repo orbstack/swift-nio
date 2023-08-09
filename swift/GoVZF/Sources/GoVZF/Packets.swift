@@ -355,6 +355,9 @@ class PacketProcessor {
         // 5. new ICMPv6 type = advertisement
         try pkt.store(offset: 14 + 40, value: ICMPV6_NEIGHBOR_ADVERTISEMENT)
 
+        // flags
+        try pkt.store(offset: 14 + 40 + 4, value: (0x60000000 as UInt32).bigEndian) // solicited, override
+
         // 6. new ICMPv6 option = target link-layer address
         do {
             try pkt.store(offset: 14 + 40 + 24, value: ICMPV6_OPTION_TARGET_LLADDR)

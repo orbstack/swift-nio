@@ -232,7 +232,8 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 	if includeV6 {
 		var gotIP6 bool
 		for _, ip := range ips {
-			if ip6 := ip.To16(); ip6 != nil {
+			if ip.To4() == nil {
+				ip6 := ip.To16()
 				records = append(records, &dns.AAAA{
 					Hdr: dns.RR_Header{
 						Name:   qName,

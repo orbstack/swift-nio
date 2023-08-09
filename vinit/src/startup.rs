@@ -25,7 +25,7 @@ const VNET_NEIGHBORS: &[&str] = &[
 ];
 
 // dummy to make Linux happy. not actually used
-// da:9b:d0:64:e1:30
+// da:9b:d0:64:e1:03
 const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x03];
 const NAT64_SOURCE_ADDR: &str = "198.19.248.64";
 const NAT64_FWMARK: u32 = 0xdead6464;
