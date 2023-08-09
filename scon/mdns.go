@@ -31,13 +31,7 @@ const mdnsIndexDomain = "orb.local."
 const (
 	// long because we have cache flushing on reuse
 	// ARP cache is a non-issue. Docker generates MAC from IP within the subnet, so it doesn't change
-	mdnsTTLSeconds uint32 = 5 * 60 // = 5 min
-	// for wildcard matches, start with a short TTL in case it will be taken by a service that's still starting
-	// we're not waiting for the actual server to be ready - this is just when the *container* starts, so it should be fast
-	// prevents issues with e.g. docs.orbstack.local matching *.orbstack.local before docs starts
-	// if we wildcard-match against the parent twice, it's probably not going to have children
-	// no need to keep track of every wildcard query for this
-	mdnsInitialWildcardTTLSeconds uint32 = 5
+	mdnsTTLSeconds = 5 * 60 // = 5 min
 
 	// flush cache this long after a name was reused
 	mdnsCacheFlushDebounce = 250 * time.Millisecond
@@ -54,8 +48,6 @@ type mdnsEntry struct {
 	IsWildcard bool
 	// show in index?
 	IsHidden bool
-
-	MatchedAsWildcard bool
 
 	Type MdnsEntryType
 	// net.IP more efficient b/c dns is in bytes
@@ -611,7 +603,6 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	entry := _entry.(*mdnsEntry)
 
 	// if not an exact match: is wildcard allowed?
-	ttlSeconds := mdnsTTLSeconds
 	if matchedKey != treeKey {
 		// this was a wildcard match. is that allowed?
 		if !entry.IsWildcard {
@@ -635,14 +626,12 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		// because expected behavior for wildcards (at least explicit *. ones) is precisely to match
 		// against a more specific child if available, and if not, fall back to the wildcard parent
 
-		// track initial cache period TTL
-		if !entry.MatchedAsWildcard {
-			ttlSeconds = mdnsInitialWildcardTTLSeconds
-		}
-		entry.MatchedAsWildcard = true
+		// no need to use a shorter cache TTL for initial wildcard queries.
+		// we handle it by flushing cache
+		// Chrome caches DNS anyway so the short TTL doesn't help
 	}
 
-	records := entry.ToRecords(q.Name, includeV4, includeV6, ttlSeconds)
+	records := entry.ToRecords(q.Name, includeV4, includeV6, mdnsTTLSeconds)
 	if len(records) == 0 {
 		return nil
 	}
@@ -657,7 +646,7 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		}
 	}
 	r.recentQueries[q.Name] = mdnsQueryInfo{
-		ExpiresAt: time.Now().Add(time.Duration(ttlSeconds) * time.Second),
+		ExpiresAt: time.Now().Add(mdnsTTLSeconds * time.Second),
 	}
 
 	return records
