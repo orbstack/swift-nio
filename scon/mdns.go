@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -69,8 +68,9 @@ type mdnsIndexResult struct {
 }
 
 type dnsName struct {
-	Name   string
-	Hidden bool
+	Name     string
+	Hidden   bool
+	Wildcard bool
 }
 
 type MdnsEntryType int
@@ -153,10 +153,7 @@ func (r *mdnsRegistry) listIndexDomains() mdnsIndexResult {
 		return false
 	})
 
-	// sort
-	sort.Strings(res.ContainerDomains)
-	sort.Strings(res.MachineDomains)
-
+	// don't sort. radix tree is pre-sorted in a good order, by suffix
 	return res
 }
 
@@ -235,23 +232,6 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 		}
 	}
 
-	// if AAAA and no records...
-	if includeV6 && !includeV4 && len(records) == 0 {
-		// need to send explicit negative response: NSEC
-		// https://datatracker.ietf.org/doc/html/rfc6762#section-6.1
-		// otherwise macOS delays for several seconds
-		records = append(records, &dns.NSEC{
-			Hdr: dns.RR_Header{
-				Name:   qName,
-				Rrtype: dns.TypeNSEC,
-				Class:  dns.ClassINET,
-				Ttl:    ttl,
-			},
-			NextDomain: qName,
-			TypeBitMap: []uint16{dns.TypeA},
-		})
-	}
-
 	return records
 }
 
@@ -292,9 +272,10 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 	// full ID is too long for DNS: it's 64 chars, max is 63 per component
 	names := make([]dnsName, 0, 1+len(ctr.Names)+1)
 	// full ID is always hidden
-	names = append(names, dnsName{ctr.ID[:12], true})
+	// all default domains are wildcards, b/c we don't set them up in a hierarchy so they can't conflict
+	names = append(names, dnsName{Name: ctr.ID[:12], Hidden: true, Wildcard: true})
 	for _, name := range ctr.Names {
-		names = append(names, dnsName{strings.TrimPrefix(name, "/"), false})
+		names = append(names, dnsName{Name: strings.TrimPrefix(name, "/"), Hidden: false, Wildcard: true})
 	}
 	if ctr.Labels != nil {
 		if composeProject, ok := ctr.Labels["com.docker.compose.project"]; ok {
@@ -303,7 +284,7 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 				for i := range names {
 					names[i].Hidden = true
 				}
-				names = append(names, dnsName{composeService + "." + composeProject, false})
+				names = append(names, dnsName{Name: composeService + "." + composeProject, Hidden: false, Wildcard: true})
 			}
 		}
 	}
@@ -313,10 +294,10 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 		for j, suffix := range mdnsContainerSuffixes {
 			// reuse existing array element for first suffix
 			if j == 0 {
-				names[i] = dnsName{name.Name + suffix, name.Hidden}
+				names[i].Name += suffix
 			} else {
 				// alias suffixes are always hidden
-				names = append(names, dnsName{name.Name, true})
+				names = append(names, dnsName{Name: name.Name, Hidden: true, Wildcard: true})
 			}
 		}
 	}
@@ -331,6 +312,14 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 			for _, name := range strings.Split(extraNames, ",") {
 				if !strings.HasSuffix(name, ".") {
 					name += "."
+				}
+				// wildcard?
+				// default off due to ambiguous cases that cause problems depending on service startup order,
+				// e.g. orbstack.local and docs.orbstack.local
+				isWildcard := false
+				if strings.HasPrefix(name, "*.") {
+					name = strings.TrimPrefix(name, "*.")
+					isWildcard = true
 				}
 
 				// only validate user-provided domains
@@ -354,7 +343,7 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 					continue
 				}
 
-				names = append(names, dnsName{name, false})
+				names = append(names, dnsName{Name: name, Hidden: false, Wildcard: isWildcard})
 			}
 		}
 	}
@@ -480,7 +469,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	for _, name := range names {
 		entry := &mdnsEntry{
 			Type:       MdnsEntryContainer,
-			IsWildcard: true,
+			IsWildcard: name.Wildcard,
 			// short-ID and aliases are hidden, real names and custom names are not
 			IsHidden: name.Hidden,
 			ips:      ips,
@@ -552,6 +541,25 @@ func (r *mdnsRegistry) ClearContainers() {
 	})
 }
 
+// NSEC = explicit negative response
+// lets client to return NXDOMAIN immediately instead of hanging
+// https://datatracker.ietf.org/doc/html/rfc6762#section-6.1
+// otherwise macOS delays for several seconds if AAAA missing
+func nxdomain(q dns.Question) []dns.RR {
+	return []dns.RR{&dns.NSEC{
+		Hdr: dns.RR_Header{
+			Name:   q.Name,
+			Rrtype: dns.TypeNSEC,
+			Class:  dns.ClassINET,
+			// this is OK because we record it in cache-flush query history
+			Ttl: mdnsTTLSeconds,
+		},
+		NextDomain: q.Name,
+		TypeBitMap: []uint16{q.Qtype},
+	}}
+}
+
+// dispatcher, to either host proxy or our server
 func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	// top bit = "QU" (unicast) flag
 	// mDNSResponder sends QU first. not responding causes 1-sec delay
@@ -560,6 +568,27 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		return nil
 	}
 
+	// this is a dual-purpose server:
+	//   - if query came from Linux, proxy out to macOS host and let mDNSResponder take care of it
+	//     * this is OK because domains handled by us will just loop back. less efficient, but much simpler
+	//   - if query came from macOS, we're the authoritative server
+	//
+	// this prevents looping to/from macOS,
+	// check by blocking v6: works b/c we block v4 multicast in brnet and only send v6, while machines will probably query both
+	// TODO: properly check macOS IPv6 link-local addr
+	if fromUDP, ok := from.(*net.UDPAddr); ok && fromUDP.IP.To4() != nil {
+		// this query is from Linux because it's IPv4
+		return r.proxyToHost(q)
+	} else {
+		// this query is from macOS because it's IPv6
+		return r.handleQuery(q)
+	}
+}
+
+// authoritative server
+func (r *mdnsRegistry) handleQuery(q dns.Question) []dns.RR {
+	// only handle A, AAAA, and ANY
+	// TODO respond to Safari's HTTPS/OPT with NSEC?
 	includeV4 := false
 	includeV6 := false
 	switch q.Qtype {
@@ -571,12 +600,7 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	case dns.TypeAAAA:
 		includeV6 = true
 	default:
-		// other types go out to macOS (e.g. for discovery)
-		return r.proxyToHost(q, from)
-	}
-
-	if !strings.HasSuffix(q.Name, ".local.") {
-		return nil // mDNS is only .local
+		return nil
 	}
 
 	if verboseDebug { // avoid allocations
@@ -586,57 +610,11 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	treeKey := reverse(q.Name)
-	matchedKey, _entry, ok := r.tree.LongestPrefix(treeKey)
-	if verboseDebug {
-		logrus.WithFields(logrus.Fields{
-			"treeKey":    treeKey,
-			"matchedKey": matchedKey,
-			"entry":      _entry,
-			"ok":         ok,
-		}).Debug("mdns: lookup result")
-	}
-	if !ok {
-		// not found in local tree, so proxy out to macOS to make a query
-		return r.proxyToHost(q, from)
-	}
-	entry := _entry.(*mdnsEntry)
-
-	// if not an exact match: is wildcard allowed?
-	if matchedKey != treeKey {
-		// this was a wildcard match. is that allowed?
-		if !entry.IsWildcard {
-			return nil
-		}
-
-		// make sure we're matching on a component boundary:
-		// check that the next character is a dot
-		// e.g. stack.local shouldn't match orbstack.local
-		if len(treeKey) > len(matchedKey) && treeKey[len(matchedKey)] != '.' {
-			return nil
-		}
-
-		// only allow one wildcard component, not *.*.*.
-		// do this by counting dots and making sure there's no more than one extra dot
-		if strings.Count(treeKey, ".") > strings.Count(matchedKey, ".")+1 {
-			return nil
-		}
-
-		// note: we do *NOT* check whether the matched key was a leaf node (i.e. has no children)
-		// because expected behavior for wildcards (at least explicit *. ones) is precisely to match
-		// against a more specific child if available, and if not, fall back to the wildcard parent
-
-		// no need to use a shorter cache TTL for initial wildcard queries.
-		// we handle it by flushing cache
-		// Chrome caches DNS anyway so the short TTL doesn't help
-	}
-
-	records := entry.ToRecords(q.Name, includeV4, includeV6, mdnsTTLSeconds)
-	if len(records) == 0 {
-		return nil
-	}
+	// do lookup, and generate NSEC if necessary
+	records := r.getRecordsLocked(q, includeV4, includeV6)
 
 	// record query for cache flushing
+	// this include NSEC so that we can flush negative cache if added later
 	if len(r.recentQueries) >= mdnsCacheMaxQueryHistory {
 		// delete a random entry to stay under limit
 		// very unlikely to hit this in real usage - rare enough that LRU isn't worth it
@@ -652,14 +630,70 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	return records
 }
 
-func (r *mdnsRegistry) proxyToHost(q dns.Question, from net.Addr) []dns.RR {
-	// to prevent loop: if it's from macOS, don't proxy v4 mDNS
-	// works b/c we block v4 multicast in brnet and only send v6, while machines will probably query both
-	// TODO: properly check macOS IPv6 link-local addr
-	if fromUDP, ok := from.(*net.UDPAddr); ok && fromUDP.IP.To4() == nil {
-		return nil
+// the idea: we return NSEC if not found AND we know we're in control of the name
+// that means we either got a tree match but rejected it, or it's under our suffix
+func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV6 bool) []dns.RR {
+	treeKey := reverse(q.Name)
+	matchedKey, _entry, ok := r.tree.LongestPrefix(treeKey)
+	if verboseDebug {
+		logrus.WithFields(logrus.Fields{
+			"treeKey":    treeKey,
+			"matchedKey": matchedKey,
+			"entry":      _entry,
+			"ok":         ok,
+		}).Debug("mdns: lookup result")
+	}
+	if !ok {
+		// no match at all.
+		// return NSEC only if it's under our main suffix
+		// otherwise we can't take responsibility for this name
+		if strings.HasSuffix(q.Name, mdnsContainerSuffixes[0]) {
+			return nxdomain(q)
+		} else {
+			return nil
+		}
+	}
+	entry := _entry.(*mdnsEntry)
+
+	// if not an exact match: is wildcard allowed?
+	if matchedKey != treeKey {
+		// this was a wildcard match. is that allowed?
+		if !entry.IsWildcard {
+			return nxdomain(q)
+		}
+
+		// make sure we're matching on a component boundary:
+		// check that the next character is a dot
+		// e.g. stack.local shouldn't match orbstack.local
+		if len(treeKey) > len(matchedKey) && treeKey[len(matchedKey)] != '.' {
+			return nxdomain(q)
+		}
+
+		// only allow one wildcard component, not *.*.*.
+		// do this by counting dots and making sure there's no more than one extra dot
+		if strings.Count(treeKey, ".") > strings.Count(matchedKey, ".")+1 {
+			return nxdomain(q)
+		}
+
+		// note: we do *NOT* check whether the matched key was a leaf node (i.e. has no children)
+		// because expected behavior for wildcards (at least explicit *. ones) is precisely to match
+		// against a more specific child if available, and if not, fall back to the wildcard parent
+
+		// no need to use a shorter cache TTL for initial wildcard queries.
+		// we handle it by flushing cache
+		// Chrome caches DNS anyway so the short TTL doesn't help
 	}
 
+	records := entry.ToRecords(q.Name, includeV4, includeV6, mdnsTTLSeconds)
+	if len(records) == 0 {
+		// no records, return NSEC b/c we still got a match
+		return nxdomain(q)
+	}
+
+	return records
+}
+
+func (r *mdnsRegistry) proxyToHost(q dns.Question) []dns.RR {
 	if verboseDebug {
 		logrus.WithField("name", q.Name).Debug("mdns: proxy to host")
 	}
