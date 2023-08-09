@@ -57,8 +57,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
     // 3. container name.orb.local
     var preferredDomain: String {
         if let label = labels[DockerLabels.customDomains],
-           let domain = label.split(separator: ",").first {
-            return String(domain)
+           let _domain = label.split(separator: ",").first {
+            // remove wildcard
+            let domain = String(_domain)
+            return String(domain.deletingPrefix("*."))
         } else if let project = composeProject {
             return "\(userName).\(project).orb.local"
         } else {
