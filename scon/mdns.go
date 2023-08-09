@@ -31,8 +31,15 @@ const mdnsIndexDomain = "orb.local."
 const (
 	// long because we have cache flushing on reuse
 	// ARP cache is a non-issue. Docker generates MAC from IP within the subnet, so it doesn't change
-	mdnsTTLSeconds         = 300 // = 5 min (in seconds)
-	mdnsTTLDuration        = mdnsTTLSeconds * time.Second
+	mdnsTTLSeconds uint32 = 5 * 60 // = 5 min
+	// for wildcard matches, start with a short TTL in case it will be taken by a service that's still starting
+	// we're not waiting for the actual server to be ready - this is just when the *container* starts, so it should be fast
+	// prevents issues with e.g. docs.orbstack.local matching *.orbstack.local before docs starts
+	// if we wildcard-match against the parent twice, it's probably not going to have children
+	// no need to keep track of every wildcard query for this
+	mdnsInitialWildcardTTLSeconds uint32 = 5
+
+	// flush cache this long after a name was reused
 	mdnsCacheFlushDebounce = 250 * time.Millisecond
 	// prevent memory leak in case of scanning
 	mdnsCacheMaxQueryHistory = 512
@@ -48,6 +55,8 @@ type mdnsEntry struct {
 	// show in index?
 	IsHidden bool
 
+	MatchedAsWildcard bool
+
 	Type MdnsEntryType
 	// net.IP more efficient b/c dns is in bytes
 	ips     []net.IP
@@ -55,9 +64,11 @@ type mdnsEntry struct {
 }
 
 type mdnsQueryInfo struct {
-	Time time.Time
-	// to flush queried wildcards
-	MatchedKey string
+	// to check whether flush is necessary, and whether GC is ok
+	ExpiresAt time.Time
+
+	// to avoid problems flushing wildcards that were later replaced by a more specific domain,
+	// we don't store the matched key, we check the suffix of the qName (map key) instead
 }
 
 type mdnsIndexResult struct {
@@ -86,8 +97,10 @@ type mdnsRegistry struct {
 
 	server             *mdns.Server
 	cacheFlushDebounce syncx.FuncDebounce
-	recentQueries      map[string]mdnsQueryInfo
-	pendingFlushes     map[string]*mdnsEntry
+	// must keep track of all queries for cache flushing
+	// otherwise we don't know what wildcard queries there could've been
+	recentQueries  map[string]mdnsQueryInfo
+	pendingFlushes map[string]*mdnsEntry
 
 	host *hclient.Client
 
@@ -132,7 +145,7 @@ func (r *mdnsRegistry) listIndexDomains() mdnsIndexResult {
 
 	var res mdnsIndexResult
 	r.tree.Walk(func(s string, v any) bool {
-		entry := v.(mdnsEntry)
+		entry := v.(*mdnsEntry)
 		if entry.IsHidden {
 			return false
 		}
@@ -199,7 +212,7 @@ func (e mdnsEntry) IPs() []net.IP {
 	}
 }
 
-func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool) []dns.RR {
+func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl uint32) []dns.RR {
 	var records []dns.RR
 	for _, ip := range e.IPs() {
 		if ip4 := ip.To4(); ip4 != nil {
@@ -210,7 +223,7 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool) []dns
 						Name:   qName,
 						Rrtype: dns.TypeA,
 						Class:  dns.ClassINET,
-						Ttl:    mdnsTTLSeconds,
+						Ttl:    ttl,
 					},
 					A: ip4,
 				})
@@ -222,7 +235,7 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool) []dns
 						Name:   qName,
 						Rrtype: dns.TypeAAAA,
 						Class:  dns.ClassINET,
-						Ttl:    mdnsTTLSeconds,
+						Ttl:    ttl,
 					},
 					AAAA: ip6,
 				})
@@ -240,7 +253,7 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool) []dns
 				Name:   qName,
 				Rrtype: dns.TypeNSEC,
 				Class:  dns.ClassINET,
-				Ttl:    mdnsTTLSeconds,
+				Ttl:    ttl,
 			},
 			NextDomain: qName,
 			TypeBitMap: []uint16{dns.TypeA},
@@ -260,7 +273,7 @@ func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
 	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
 
 	// add initial index record
-	r.tree.Insert(reverse(mdnsIndexDomain), mdnsEntry{
+	r.tree.Insert(reverse(mdnsIndexDomain), &mdnsEntry{
 		Type:       MdnsEntryStatic,
 		IsWildcard: false,
 		IsHidden:   true, // don't show itself
@@ -408,7 +421,7 @@ func (r *mdnsRegistry) flushReusedCache() {
 	// no point in checking if IPs changed - we're just updating cache with the same values
 	flushRecords := make([]dns.RR, 0, len(r.pendingFlushes))
 	for qName, entry := range r.pendingFlushes {
-		flushRecords = append(flushRecords, entry.ToRecords(qName, true, true)...)
+		flushRecords = append(flushRecords, entry.ToRecords(qName, true, true, mdnsTTLSeconds)...)
 	}
 	if len(flushRecords) > 0 {
 		if verboseDebug {
@@ -428,7 +441,7 @@ func (r *mdnsRegistry) flushReusedCache() {
 	// this is OK from VM's monotonic time perspective, because VM time will never advance faster than host
 	now := time.Now()
 	for qName, qInfo := range r.recentQueries {
-		if now.Sub(qInfo.Time) >= mdnsTTLDuration {
+		if now.After(qInfo.ExpiresAt) {
 			delete(r.recentQueries, qName)
 		}
 	}
@@ -437,6 +450,27 @@ func (r *mdnsRegistry) flushReusedCache() {
 	// TODO use Go 1.21 clear
 	for k := range r.pendingFlushes {
 		delete(r.pendingFlushes, k)
+	}
+}
+
+func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string, newEntry *mdnsEntry) {
+	for qName, qInfo := range r.recentQueries {
+		if now.Before(qInfo.ExpiresAt) && strings.HasSuffix(qName, changedName) {
+			// if no new entry was provided, look for one in the tree
+			// this lets us flush cache back to a wildcard if the more-specific domain was removed
+			// we're required to send latest known info when flushing cache,
+			// because otherwise it'll leave a negative cache entry in client
+			if newEntry == nil {
+				_, _entry, ok := r.tree.LongestPrefix(reverse(qName))
+				if !ok {
+					continue
+				}
+				newEntry = _entry.(*mdnsEntry)
+			}
+
+			r.pendingFlushes[qName] = newEntry
+			r.cacheFlushDebounce.Call()
+		}
 	}
 }
 
@@ -450,8 +484,9 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	now := time.Now()
 	for _, name := range names {
-		entry := mdnsEntry{
+		entry := &mdnsEntry{
 			Type:       MdnsEntryContainer,
 			IsWildcard: true,
 			// short-ID and aliases are hidden, real names and custom names are not
@@ -462,13 +497,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 		r.tree.Insert(treeKey, entry)
 
 		// need to flush any caches? what names were we queried under? (wildcard)
-		now := time.Now()
-		for qName, qInfo := range r.recentQueries {
-			if qInfo.MatchedKey == treeKey && now.Sub(qInfo.Time) < mdnsTTLDuration {
-				r.pendingFlushes[qName] = &entry
-				r.cacheFlushDebounce.Call()
-			}
-		}
+		r.maybeFlushCacheLocked(now, name.Name, entry)
 	}
 }
 
@@ -478,8 +507,10 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	now := time.Now()
 	for _, name := range names {
 		r.tree.Delete(reverse(name.Name))
+		r.maybeFlushCacheLocked(now, name.Name, nil)
 	}
 }
 
@@ -492,7 +523,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 
 	// we don't validate these b/c it's not under the user's control
 	treeKey := reverse(name)
-	entry := mdnsEntry{
+	entry := &mdnsEntry{
 		Type:       MdnsEntryMachine,
 		IsWildcard: true,
 		// machines only have one name, but hide docker
@@ -502,13 +533,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	r.tree.Insert(treeKey, entry)
 
 	// need to flush any caches? what names were we queried under? (wildcard)
-	now := time.Now()
-	for qName, qInfo := range r.recentQueries {
-		if qInfo.MatchedKey == treeKey && now.Sub(qInfo.Time) < mdnsTTLDuration {
-			r.pendingFlushes[qName] = &entry
-			r.cacheFlushDebounce.Call()
-		}
-	}
+	r.maybeFlushCacheLocked(time.Now(), name, entry)
 }
 
 func (r *mdnsRegistry) RemoveMachine(c *Container) {
@@ -518,6 +543,7 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tree.Delete(reverse(name))
+	r.maybeFlushCacheLocked(time.Now(), name, nil)
 }
 
 func (r *mdnsRegistry) ClearContainers() {
@@ -526,7 +552,7 @@ func (r *mdnsRegistry) ClearContainers() {
 
 	r.tree.Walk(func(s string, v interface{}) bool {
 		// delete all container nodes
-		entry := v.(mdnsEntry)
+		entry := v.(*mdnsEntry)
 		if entry.Type == MdnsEntryContainer {
 			r.tree.Delete(s)
 		}
@@ -570,13 +596,22 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 
 	treeKey := reverse(q.Name)
 	matchedKey, _entry, ok := r.tree.LongestPrefix(treeKey)
+	if verboseDebug {
+		logrus.WithFields(logrus.Fields{
+			"treeKey":    treeKey,
+			"matchedKey": matchedKey,
+			"entry":      _entry,
+			"ok":         ok,
+		}).Debug("mdns: lookup result")
+	}
 	if !ok {
 		// not found in local tree, so proxy out to macOS to make a query
 		return r.proxyToHost(q, from)
 	}
-	entry := _entry.(mdnsEntry)
+	entry := _entry.(*mdnsEntry)
 
 	// if not an exact match: is wildcard allowed?
+	ttlSeconds := mdnsTTLSeconds
 	if matchedKey != treeKey {
 		// this was a wildcard match. is that allowed?
 		if !entry.IsWildcard {
@@ -589,9 +624,25 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		if len(treeKey) > len(matchedKey) && treeKey[len(matchedKey)] != '.' {
 			return nil
 		}
+
+		// only allow one wildcard component, not *.*.*.
+		// do this by counting dots and making sure there's no more than one extra dot
+		if strings.Count(treeKey, ".") > strings.Count(matchedKey, ".")+1 {
+			return nil
+		}
+
+		// note: we do *NOT* check whether the matched key was a leaf node (i.e. has no children)
+		// because expected behavior for wildcards (at least explicit *. ones) is precisely to match
+		// against a more specific child if available, and if not, fall back to the wildcard parent
+
+		// track initial cache period TTL
+		if !entry.MatchedAsWildcard {
+			ttlSeconds = mdnsInitialWildcardTTLSeconds
+		}
+		entry.MatchedAsWildcard = true
 	}
 
-	records := entry.ToRecords(q.Name, includeV4, includeV6)
+	records := entry.ToRecords(q.Name, includeV4, includeV6, ttlSeconds)
 	if len(records) == 0 {
 		return nil
 	}
@@ -606,8 +657,7 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		}
 	}
 	r.recentQueries[q.Name] = mdnsQueryInfo{
-		Time:       time.Now(),
-		MatchedKey: matchedKey,
+		ExpiresAt: time.Now().Add(time.Duration(ttlSeconds) * time.Second),
 	}
 
 	return records
