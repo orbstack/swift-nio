@@ -63,6 +63,7 @@ enum BrnetError: Error {
     case tooManyInterfaces
 
     case dropPacket
+    case redirectToHost
 }
 
 private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) throws -> (interface_ref, xpc_object_t) {
@@ -211,6 +212,11 @@ class BridgeNetwork {
                     switch error {
                     case BrnetError.dropPacket:
                         break
+                    case BrnetError.redirectToHost:
+                        // redirect to host for NDP responder
+                        var iov = iovec(iov_base: pkt.data, iov_len: pkt.len)
+                        tryWriteToHost(iov: &iov, len: pkt.len)
+                        continue
                     default:
                         NSLog("[brnet] error processing/building hdr: \(error)")
                     }

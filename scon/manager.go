@@ -163,7 +163,7 @@ func (m *ConManager) Start() error {
 	}
 
 	// bpf
-	err = m.bpf.Load()
+	err = m.bpf.Load(ifVmnetMachine)
 	if err != nil {
 		return err
 	}

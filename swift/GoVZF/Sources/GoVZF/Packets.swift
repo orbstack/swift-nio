@@ -33,6 +33,12 @@ private let macAddrIpv4MulticastPrefix: [UInt8] = [0x01, 0x00, 0x5e]
 private let macAddrIpv6MulticastPrefix: [UInt8] = [0x33, 0x33]
 private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
 
+// falls under scon machine /32
+// fd07:b51a:cc66:0:ffff:6464/96
+private let nat64Prefix: [UInt8] = [0xfd, 0x07, 0xb5, 0x1a, 0xcc, 0x66, 0x00, 0x00, 0xff, 0xff, 0x64, 0x64]
+// da:9b:d0:54:e0:02
+private let macAddrGuest: [UInt8] = [0xda, 0x9b, 0xd0, 0x54, 0xe0, 0x02]
+
 typealias BrnetInterfaceIndex = UInt
 let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
 
@@ -309,9 +315,66 @@ class PacketProcessor {
                     } catch {
                         // ignore if option not present
                     }
+
+                    // NAT64: respond to solicitation with advertisement for VM MAC
+                    if icmpv6Type == ICMPV6_NEIGHBOR_SOLICITATION {
+                        try maybeRespondNat64Ndp(pkt: pkt)
+                    }
                 }
             }
         }
+    }
+
+    func maybeRespondNat64Ndp(pkt: Packet) throws {
+        // check target address prefix
+        let targetAddrPtr = try pkt.slicePtr(offset: 14 + 40 + 8, len: 16)
+        guard memcmp(targetAddrPtr, nat64Prefix, nat64Prefix.count) == 0 else {
+            return
+        }
+
+        // copy the entire old packet, but skip the ethernet header
+        let oldPacketBuf = [UInt8](UnsafeBufferPointer(start: pkt.data.advanced(by: 14).assumingMemoryBound(to: UInt8.self),
+                count: pkt.len - 14))
+
+        // 1. new dest MAC = src MAC
+        let srcMacPtr = try pkt.slicePtr(offset: macAddrSize, len: macAddrSize)
+        let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
+        dstMacPtr.copyMemory(from: srcMacPtr, byteCount: macAddrSize)
+
+        // 2. new src MAC = guest MAC
+        srcMacPtr.copyMemory(from: macAddrGuest, byteCount: macAddrSize)
+
+        // 3. new dest IPv6 = src IPv6
+        let srcIpv6Ptr = try pkt.slicePtr(offset: 14 + 8, len: 16)
+        let dstIpv6Ptr = try pkt.slicePtr(offset: 14 + 24, len: 16)
+        dstIpv6Ptr.copyMemory(from: srcIpv6Ptr, byteCount: 16)
+
+        // 4. new src IP = target IP
+        srcIpv6Ptr.copyMemory(from: targetAddrPtr, byteCount: 16)
+
+        // 5. new ICMPv6 type = advertisement
+        try pkt.store(offset: 14 + 40, value: ICMPV6_NEIGHBOR_ADVERTISEMENT)
+
+        // 6. new ICMPv6 option = target link-layer address
+        do {
+            try pkt.store(offset: 14 + 40 + 24, value: ICMPV6_OPTION_TARGET_LLADDR)
+            let icmpv6TargetMacPtr = try pkt.slicePtr(offset: 14 + 40 + 26, len: macAddrSize)
+            icmpv6TargetMacPtr.copyMemory(from: macAddrGuest, byteCount: macAddrSize)
+        } catch {
+            // ignore if option not present
+        }
+
+        // 7. new ICMPv6 checksum
+        let oldChecksum = (try pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
+        // need to create [UInt8] from the buffers
+        let newPacketBuf = [UInt8](UnsafeBufferPointer(start: pkt.data.advanced(by: 14).assumingMemoryBound(to: UInt8.self),
+                count: pkt.len - 14))
+        let newChecksum = Checksum.update(oldChecksum: oldChecksum,
+                oldData: oldPacketBuf, newData: newPacketBuf)
+        try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
+
+        // 8. redirect packet to host
+        throw BrnetError.redirectToHost
     }
 
     func buildVnetHdr(pkt: Packet) throws -> virtio_net_hdr {
