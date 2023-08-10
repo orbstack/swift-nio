@@ -34,7 +34,7 @@ private let macAddrIpv6MulticastPrefix: [UInt8] = [0x33, 0x33]
 private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
 
 // falls under scon machine /32
-// fd07:b51a:cc66:0:b0c0:a617/96
+// fd07:b51a:cc66:0:a617:db5e/96
 private let nat64Prefix: [UInt8] = [0xfd, 0x07, 0xb5, 0x1a, 0xcc, 0x66, 0x00, 0x00, 0xa6, 0x17, 0xdb, 0x5e]
 // da:9b:d0:54:e0:02
 private let nat64MacAddrGuest: [UInt8] = [0xda, 0x9b, 0xd0, 0x54, 0xe0, 0x02]
