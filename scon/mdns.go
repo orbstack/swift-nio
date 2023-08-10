@@ -45,7 +45,7 @@ const (
 	mdnsCacheFlushRrclass = 1 << 15 // top bit
 )
 
-var nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6)
+var nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
 
 type mdnsEntry struct {
 	// allow *. suffix match? (false for index)

@@ -63,8 +63,9 @@
 
 // falls under scon machine /64
 // (always leave standard form of IP here for searching if we change it later)
-// fd07:b51a:cc66:0:b0c0:a617/96
-static const __be32 XLAT_PREFIX6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xb0c0, 0xa617, 0, 0);
+// chosen to be checksum-neutral for stateless NAT64 w/o L4 (TCP/UDP) checksum update: this prefix adds up to 0
+// fd07:b51a:cc66:0:a617:db5e/96
+static const __be32 XLAT_PREFIX6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0x0000, 0x0000);
 
 // source ip after translation
 // we use this ip, outside of machine bridge, so that docker machine routes the reply via default route (i.e. us)
@@ -74,8 +75,9 @@ static const __be32 XLAT_PREFIX6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xb0c0
 
 // source IP of incoming 6->4 packets
 // dest IP of outgoing 4->6
-// fd07:b51a:cc66::3
-static const __be32 XLAT_SRC_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0, 0, 0, 0, 3);
+// this is the xlat-mapped version of XLAT_IP4 source addr. that way, we get full checksum neutrality
+// fd07:b51a:cc66:0:a617:db5e:c613:f840
+static const __be32 XLAT_SRC_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0xc613, 0xf840);
 
 // da:9b:d0:54:e0:02
 static const __u8 BRIDGE_GUEST_MAC[ETH_ALEN] = "\xda\x9b\xd0\x54\xe0\x02";
@@ -127,7 +129,7 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 		return TC_ACT_PIPE;
 	}
 
-    // check subnet /96
+    // check dest subnet /96
     if (ip6->daddr.in6_u.u6_addr32[0] != XLAT_PREFIX6[0] ||
         ip6->daddr.in6_u.u6_addr32[1] != XLAT_PREFIX6[1] ||
         ip6->daddr.in6_u.u6_addr32[2] != XLAT_PREFIX6[2]) {

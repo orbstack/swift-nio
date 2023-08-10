@@ -21,12 +21,12 @@ const VNET_NEIGHBORS: &[&str] = &[
     "198.19.248.253",
     "198.19.248.254",
     // only one IPv6: others are on ext subnet (to avoid NDP)
-    "fd07:b51a:cc66:00f0::1",
+    "fd07:b51a:cc66:f0::1",
 ];
 
-// dummy to make Linux happy. not actually used
-// da:9b:d0:64:e1:03
-const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x03];
+// destination for return packets:
+// da:9b:d0:54:e1:02 (SconHostBridgeMAC)
+const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x54, 0xe1, 0x02];
 const NAT64_SOURCE_ADDR: &str = "198.19.248.64";
 const NAT64_FWMARK: u32 = 0xdead6464;
 const NAT64_DOCKER_MACHINE_IP4: &str = "198.19.249.2";
@@ -323,11 +323,11 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
 
     // add IP addresses
     ip_addr.add(eth0.header.index, "198.19.248.2".parse()?, 24).execute().await?;
-    ip_addr.add(eth0.header.index, "fd07:b51a:cc66:00f0::2".parse()?, 64).execute().await?;
+    ip_addr.add(eth0.header.index, "fd07:b51a:cc66:f0::2".parse()?, 64).execute().await?;
 
     // add default routes
     ip_route.add().v4().gateway("198.19.248.1".parse()?).execute().await?;
-    ip_route.add().v6().gateway("fd07:b51a:cc66:00f0::1".parse()?).execute().await?;
+    ip_route.add().v6().gateway("fd07:b51a:cc66:f0::1".parse()?).execute().await?;
 
     // scon machine bridge: eth1 mtu, up
     // scon deals with the rest

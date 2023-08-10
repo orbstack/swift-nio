@@ -9,9 +9,9 @@ const (
 	ExtHostNatIP4 = Subnet4 + ".253"
 	HostNatIP4    = Subnet4 + ".254"
 
-	Subnet6 = "fd07:b51a:cc66:00f0:"
+	Subnet6 = "fd07:b51a:cc66:f0:"
 	// hack: because we don't implement NDP, we need to use a different subnet for anything that's not guest or gateway
-	SubnetExt6    = "fd07:b51a:cc66:00f1:"
+	SubnetExt6    = "fd07:b51a:cc66:f1:"
 	GatewayIP6    = Subnet6 + ":1"
 	GuestIP6      = Subnet6 + ":2"
 	ExtHostNatIP6 = SubnetExt6 + ":253"
@@ -27,15 +27,20 @@ const (
 	SconHostBridgeIP4 = SconSubnet4 + ".3"
 	SconWebIndexIP4   = SconGatewayIP4
 
-	SconSubnet6       = "fd07:b51a:cc66:0000:"
+	SconSubnet6       = "fd07:b51a:cc66:0:"
 	SconSubnet6CIDR   = SconSubnet6 + ":/64"
 	SconGatewayIP6    = SconSubnet6 + ":1"
 	SconDockerIP6     = SconSubnet6 + ":2"
-	SconHostBridgeIP6 = SconSubnet6 + ":3"
+	SconHostBridgeIP6 = NAT64SourceIP6 // to make NAT64 easier
 	SconWebIndexIP6   = SconGatewayIP6
 
 	// must be under SconSubnet6/64 due to macOS vmnet routing (neighbors)
-	NAT64Subnet6 = "fd07:b51a:cc66:0:b0c0:a617::/96"
+	// chosen to be checksum-neutral for stateless NAT64 w/o L4 (TCP/UDP) checksum update: this prefix adds up to 0
+	NAT64Subnet6     = "fd07:b51a:cc66:0:a617:db5e:"
+	NAT64Subnet6CIDR = NAT64Subnet6 + ":/96"
+	NAT64SourceIP4   = Subnet4 + ".64" // 198.19.248.64
+	// /96 prefix + /32 suffix = IPv4 198.19.248.64, mapped
+	NAT64SourceIP6 = NAT64Subnet6 + "c613:f840"
 )
 
 // static ARP/neighbors to save CPU

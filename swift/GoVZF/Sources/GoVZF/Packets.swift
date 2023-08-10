@@ -35,9 +35,9 @@ private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
 
 // falls under scon machine /32
 // fd07:b51a:cc66:0:b0c0:a617/96
-private let nat64Prefix: [UInt8] = [0xfd, 0x07, 0xb5, 0x1a, 0xcc, 0x66, 0x00, 0x00, 0xb0, 0xc0, 0xa6, 0x17]
+private let nat64Prefix: [UInt8] = [0xfd, 0x07, 0xb5, 0x1a, 0xcc, 0x66, 0x00, 0x00, 0xa6, 0x17, 0xdb, 0x5e]
 // da:9b:d0:54:e0:02
-private let macAddrGuest: [UInt8] = [0xda, 0x9b, 0xd0, 0x54, 0xe0, 0x02]
+private let nat64MacAddrGuest: [UInt8] = [0xda, 0x9b, 0xd0, 0x54, 0xe0, 0x02]
 
 typealias BrnetInterfaceIndex = UInt
 let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
@@ -101,7 +101,7 @@ class PacketProcessor {
     // the host MAC we use with the VM
     private let hostOverrideMac: [UInt8]
     // the host MAC that macOS expects to see
-    private var hostActualMac: [UInt8]?
+    private var hostRealMac: [UInt8]?
     private let allowMulticast: Bool
 
     init(realExternalMtu: Int = 1500, hostOverrideMac: [UInt8], allowMulticast: Bool = false) {
@@ -121,12 +121,12 @@ class PacketProcessor {
     // warning: can be called concurrently! and multiple times per packet!
     func processToHost(pkt: Packet) throws -> PacketWriteOptions {
         // if we have actual host MAC...
-        if let hostActualMac {
+        if let hostRealMac {
             // then check if we need to rewrite the destination MAC (Ethernet[0])
             let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
             if memcmp(dstMacPtr, hostOverrideMac, macAddrSize) == 0 {
                 // rewrite destination MAC (Ethernet[0])
-                dstMacPtr.copyMemory(from: hostActualMac, byteCount: macAddrSize)
+                dstMacPtr.copyMemory(from: hostRealMac, byteCount: macAddrSize)
             }
 
             // also rewrite ARP destination MAC? (Ethernet + ARP[18])
@@ -134,7 +134,7 @@ class PacketProcessor {
             if etherType == ETHTYPE_ARP {
                 let arpDstMacPtr = try pkt.slicePtr(offset: 14 + 18, len: macAddrSize)
                 if memcmp(arpDstMacPtr, hostOverrideMac, macAddrSize) == 0 {
-                    arpDstMacPtr.copyMemory(from: hostActualMac, byteCount: macAddrSize)
+                    arpDstMacPtr.copyMemory(from: hostRealMac, byteCount: macAddrSize)
                 }
             }
 
@@ -164,12 +164,12 @@ class PacketProcessor {
                             if icmpv6OptionType == ICMPV6_OPTION_SOURCE_LLADDR || icmpv6OptionType == ICMPV6_OPTION_TARGET_LLADDR {
                                 let icmpv6DstMacPtr = try pkt.slicePtr(offset: 14 + 40 + 26, len: macAddrSize)
                                 if memcmp(icmpv6DstMacPtr, hostOverrideMac, macAddrSize) == 0 {
-                                    icmpv6DstMacPtr.copyMemory(from: hostActualMac, byteCount: macAddrSize)
+                                    icmpv6DstMacPtr.copyMemory(from: hostRealMac, byteCount: macAddrSize)
 
                                     // fix checksum incrementally
                                     let oldChecksum = (try pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
                                     let newChecksum = Checksum.update(oldChecksum: oldChecksum,
-                                            oldData: hostOverrideMac, newData: hostActualMac)
+                                            oldData: hostOverrideMac, newData: hostRealMac)
                                     try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
                                 }
                             }
@@ -242,9 +242,9 @@ class PacketProcessor {
     func processToGuest(pkt: Packet) throws {
         // save the actual macOS source MAC if needed (for later translation) - Ethernet[6]
         let srcMacPtr = try pkt.slicePtr(offset: macAddrSize, len: macAddrSize)
-        if hostActualMac == nil {
+        if hostRealMac == nil {
             // [concurrency] race doesn't matter - should all be the same, and ARC will free dupes
-            hostActualMac = Array(UnsafeBufferPointer(start: srcMacPtr.assumingMemoryBound(to: UInt8.self), count: macAddrSize))
+            hostRealMac = Array(UnsafeBufferPointer(start: srcMacPtr.assumingMemoryBound(to: UInt8.self), count: macAddrSize))
         }
 
         // allow IPv4 broadcast so ARP works
@@ -301,14 +301,14 @@ class PacketProcessor {
                         let icmpv6OptionType: UInt8 = try pkt.load(offset: 14 + 40 + 24)
                         if icmpv6OptionType == ICMPV6_OPTION_SOURCE_LLADDR || icmpv6OptionType == ICMPV6_OPTION_TARGET_LLADDR {
                             let icmpv6SrcMacPtr = try pkt.slicePtr(offset: 14 + 40 + 26, len: macAddrSize)
-                            if let hostActualMac,
-                               memcmp(icmpv6SrcMacPtr, hostActualMac, macAddrSize) == 0 {
+                            if let hostRealMac,
+                               memcmp(icmpv6SrcMacPtr, hostRealMac, macAddrSize) == 0 {
                                 icmpv6SrcMacPtr.copyMemory(from: hostOverrideMac, byteCount: macAddrSize)
 
                                 // fix checksum incrementally
                                 let oldChecksum = (try pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
                                 let newChecksum = Checksum.update(oldChecksum: oldChecksum,
-                                        oldData: hostActualMac, newData: hostOverrideMac)
+                                        oldData: hostRealMac, newData: hostOverrideMac)
                                 try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
                             }
                         }
@@ -342,7 +342,7 @@ class PacketProcessor {
         dstMacPtr.copyMemory(from: srcMacPtr, byteCount: macAddrSize)
 
         // 2. new src MAC = guest MAC
-        srcMacPtr.copyMemory(from: macAddrGuest, byteCount: macAddrSize)
+        srcMacPtr.copyMemory(from: nat64MacAddrGuest, byteCount: macAddrSize)
 
         // 3. new dest IPv6 = src IPv6
         let srcIpv6Ptr = try pkt.slicePtr(offset: 14 + 8, len: 16)
@@ -362,7 +362,7 @@ class PacketProcessor {
         do {
             try pkt.store(offset: 14 + 40 + 24, value: ICMPV6_OPTION_TARGET_LLADDR)
             let icmpv6TargetMacPtr = try pkt.slicePtr(offset: 14 + 40 + 26, len: macAddrSize)
-            icmpv6TargetMacPtr.copyMemory(from: macAddrGuest, byteCount: macAddrSize)
+            icmpv6TargetMacPtr.copyMemory(from: nat64MacAddrGuest, byteCount: macAddrSize)
         } catch {
             // ignore if option not present
         }

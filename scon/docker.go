@@ -217,7 +217,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	// otherwise keep it unset to avoid adding IPv6 to bridge IPAM
 	if ipv6, ok := config["ipv6"].(bool); ok && ipv6 {
 		if _, ok := config["fixed-cidr-v6"]; !ok {
-			config["fixed-cidr-v6"] = "fd07:b51a:cc66:0001::/64"
+			config["fixed-cidr-v6"] = "fd07:b51a:cc66:1::/64"
 		}
 	}
 

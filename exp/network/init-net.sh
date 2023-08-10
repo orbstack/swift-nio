@@ -1,1 +1,1 @@
-killall udhcpc; sysctl net.ipv6.conf.eth1.accept_ra=0; ip link set eth1 up; ip addr add 172.30.30.2/24 dev eth1; ip route add default via 172.30.30.1 dev eth1; ip addr add fd07:b51a:cc66:0021::2/64 dev eth1; ip route add default via fd07:b51a:cc66:0021::1 dev eth1
+killall udhcpc; sysctl net.ipv6.conf.eth1.accept_ra=0; ip link set eth1 up; ip addr add 172.30.30.2/24 dev eth1; ip route add default via 172.30.30.1 dev eth1; ip addr add fd07:b51a:cc66:21::2/64 dev eth1; ip route add default via fd07:b51a:cc66:21::1 dev eth1

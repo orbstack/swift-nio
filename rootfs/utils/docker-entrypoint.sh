@@ -11,7 +11,7 @@ mount --make-rshared /
 mkdir /run/host-services
 ln -sf /opt/orbstack-guest/run/host-ssh-agent.sock /run/host-services/ssh-auth.sock
 
-ip6tables -t nat -A POSTROUTING -s fd07:b51a:cc66:0001::/64 -o eth0 -j MASQUERADE
+ip6tables -t nat -A POSTROUTING -s fd07:b51a:cc66:1::/64 -o eth0 -j MASQUERADE
 iptables -t nat -A PREROUTING -s 192.168.215.0/24,192.168.228.0/24,192.168.247.0/24,192.168.207.0/24,192.168.167.0/24,192.168.107.0/24,192.168.237.0/24,192.168.148.0/24,192.168.214.0/24,192.168.165.0/24,192.168.227.0/24,192.168.181.0/24,192.168.158.0/24,192.168.117.0/24,192.168.155.0/24,192.168.194.0/24 -d 172.17.0.1 -j DNAT --to-destination 198.19.249.2
 export TMPDIR=/dockertmp
 exec /opt/orbstack-guest/simplevisor dockerd --host-gateway-ip=198.19.248.254
