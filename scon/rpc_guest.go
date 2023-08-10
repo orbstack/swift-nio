@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/rpc"
@@ -216,7 +217,12 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.DockerContainer
 			// faster than checking container inspect's SandboxKey
 			entries, err := os.ReadDir("/run/docker/netns")
 			if err != nil {
-				return err
+				if errors.Is(err, os.ErrNotExist) {
+					// does not exist until first container starts
+					entries = nil
+				} else {
+					return err
+				}
 			}
 
 			return s.dockerMachine.bpf.CfwdUpdateNetNamespaces(entries)
