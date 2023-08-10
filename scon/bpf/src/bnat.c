@@ -166,21 +166,10 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	};
 
 	// Calculate the IPv4 one's complement checksum of the IPv4 header.
-	__wsum sum4 = 0;
-
-	for (int i = 0; i < sizeof(ip) / sizeof(__u16); ++i)
-		sum4 += ((__u16 *)&ip)[i];
-
-	// Note that sum4 is guaranteed to be non-zero by virtue of ip.version == 4
-	sum4 = (sum4 & 0xFFFF) + (sum4 >> 16);  // collapse u32 into range 1 .. 0x1FFFE
-	sum4 = (sum4 & 0xFFFF) + (sum4 >> 16);  // collapse any potential carry into u16
-	ip.check = (__u16)~sum4;                // sum4 cannot be zero, so this is never 0xFFFF
+	ip.check = ~bpf_csum_diff(NULL, 0, &ip, sizeof(ip), 0);
 
 	// Calculate the *negative* IPv6 16-bit one's complement checksum of the IPv6 header.
-	__wsum sum6 = 0;
-	// We'll end up with a non-zero sum due to ip6->version == 6 (which has '0' bits)
-	for (int i = 0; i < sizeof(*ip6) / sizeof(__u16); ++i)
-		sum6 += ~((__u16 *)ip6)[i];  // note the bitwise negation
+	__be32 sum6 = bpf_csum_diff(ip6, sizeof(*ip6), NULL, 0, 0);
 
 	// Note that there is no L4 checksum update: we are relying on the checksum neutrality
 	// of the ipv6 address chosen by netd's ClatdController.
