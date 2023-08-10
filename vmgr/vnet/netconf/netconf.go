@@ -40,7 +40,7 @@ const (
 	NAT64Subnet6CIDR = NAT64Subnet6 + ":/96"
 	NAT64SourceIP4   = "10.183.233.241"
 	// /96 prefix + /32 suffix = IPv4 10.183.233.241, mapped
-	NAT64SourceIP6 = NAT64Subnet6 + "c613:f840"
+	NAT64SourceIP6 = NAT64Subnet6 + "0ab7:e9f1"
 )
 
 // static ARP/neighbors to save CPU

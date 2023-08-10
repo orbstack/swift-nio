@@ -85,8 +85,8 @@ static const __be32 XLAT_PREFIX6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617
 // source IP of incoming 6->4 packets
 // dest IP of outgoing 4->6
 // this is the xlat-mapped version of NAT64_SRC_IP4 source addr. that way, we get full checksum neutrality
-// fd07:b51a:cc66:0:a617:db5e:c613:f840
-static const __be32 XLAT_SRC_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0xc613, 0xf840);
+// fd07:b51a:cc66:0:a617:db5e:0ab7:e9f1
+static const __be32 XLAT_SRC_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0x0ab7, 0xe9f1);
 
 // da:9b:d0:54:e0:02
 static const __u8 BRIDGE_GUEST_MAC[ETH_ALEN] = "\xda\x9b\xd0\x54\xe0\x02";
