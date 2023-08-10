@@ -70,12 +70,21 @@ static const __be32 XLAT_PREFIX6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617
 // source ip after translation
 // we use this ip, outside of machine bridge, so that docker machine routes the reply via default route (i.e. us)
 // then we use a static ip route to redirect it to eth1 (where our egress4 prog is attached)
-// 198.19.248.64
-#define XLAT_IP4 IP4(198, 19, 248, 64)
+//
+// ideally we'd MASQUERADE this to Docker bridge gateway IP in Docker machine, but we need to make sure cfwd can differentiate it and make sk_lookup hook kick in
+// I tried to mod the kernel and add mark to "struct bpf_sk_lookup" but it doesn't work b/c skb is usually NULL at the lookup point.
+// so instead, use a weird random private IP to make private RFC IP checks like Keycloak happy, while minimizing chance of conflict
+// marks are lost across bridge too, but i'm sure there's a way around that
+//
+// TODO do this better by figuring out some other way to mark and let cfwd know, e.g. bpf maps
+// really not ideal to let Docker containers/servers see this weird IP
+//
+// 10.183.233.241
+#define NAT64_SRC_IP4 IP4(10, 183, 233, 241)
 
 // source IP of incoming 6->4 packets
 // dest IP of outgoing 4->6
-// this is the xlat-mapped version of XLAT_IP4 source addr. that way, we get full checksum neutrality
+// this is the xlat-mapped version of NAT64_SRC_IP4 source addr. that way, we get full checksum neutrality
 // fd07:b51a:cc66:0:a617:db5e:c613:f840
 static const __be32 XLAT_SRC_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0xc613, 0xf840);
 
@@ -152,7 +161,7 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 		.ttl = ip6->hop_limit,                                             // u8
 		.protocol = ip6->nexthdr,                                          // u8
 		.check = 0,                                                        // u16
-		.saddr = XLAT_IP4,
+		.saddr = NAT64_SRC_IP4,
 		.daddr = ip6->daddr.in6_u.u6_addr32[3],
 	};
 
@@ -219,7 +228,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 
 	// only if translated
 	// do this early so we exit fast for pure v4 traffic
-	if (ip4->daddr != XLAT_IP4)
+	if (ip4->daddr != NAT64_SRC_IP4)
 		return TC_ACT_PIPE;
 
 	// drop packet on any failure after subnet check. it'll be wrong anyway

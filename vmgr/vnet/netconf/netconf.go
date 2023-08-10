@@ -38,8 +38,8 @@ const (
 	// chosen to be checksum-neutral for stateless NAT64 w/o L4 (TCP/UDP) checksum update: this prefix adds up to 0
 	NAT64Subnet6     = "fd07:b51a:cc66:0:a617:db5e:"
 	NAT64Subnet6CIDR = NAT64Subnet6 + ":/96"
-	NAT64SourceIP4   = Subnet4 + ".64" // 198.19.248.64
-	// /96 prefix + /32 suffix = IPv4 198.19.248.64, mapped
+	NAT64SourceIP4   = "10.183.233.241"
+	// /96 prefix + /32 suffix = IPv4 10.183.233.241, mapped
 	NAT64SourceIP6 = NAT64Subnet6 + "c613:f840"
 )
 

@@ -27,7 +27,7 @@ const VNET_NEIGHBORS: &[&str] = &[
 // destination for return packets:
 // da:9b:d0:54:e1:02 (SconHostBridgeMAC)
 const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x54, 0xe1, 0x02];
-const NAT64_SOURCE_ADDR: &str = "198.19.248.64";
+const NAT64_SOURCE_ADDR: &str = "10.183.233.241";
 const NAT64_FWMARK: u32 = 0xe97bd031;
 const NAT64_DOCKER_MACHINE_IP4: &str = "198.19.249.2";
 
@@ -357,7 +357,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     //     .gateway(NAT64_DOCKER_MACHINE_IP4.parse().unwrap())
     //     .table(64).execute().await.unwrap();
     // egress route from Docker machine back to BPF eth1
-    // ip route add 198.19.248.64 dev eth1
+    // ip route add 10.183.233.241 dev eth1
     ip_route.add().v4()
         .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
         .output_interface(eth1.header.index)

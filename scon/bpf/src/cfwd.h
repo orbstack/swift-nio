@@ -16,6 +16,9 @@
 // max ephemeral port. unlikely that user goes lower
 #define CFWD_MAX_SCAN_PORT 32767
 
+// 10.183.233.241
+#define NAT64_SRC_IP4 IP4(10, 183, 233, 241)
+
 struct cfwd_host_ip_key {
     __be32 ip6or4[4]; // network byte order
 };
@@ -103,20 +106,23 @@ int cfwd_sk_lookup(struct bpf_sk_lookup *ctx) {
     if (cfwd_try_assign_port(ctx, CFWD_PORT)) return SK_PASS;
 
     // verify src addr: must be macOS host bridge IP. works b/c it's over bridge, not NAT
-    struct cfwd_host_ip_key host_ip_key = {};
-    if (ctx->family == AF_INET) {
-        // make 4-in-6 mapped IP
-        host_ip_key.ip6or4[0] = 0;
-        host_ip_key.ip6or4[1] = 0;
-        host_ip_key.ip6or4[2] = bpf_htonl(0xffff);
-        host_ip_key.ip6or4[3] = ctx->remote_ip4;
-    } else {
-        memcpy(host_ip_key.ip6or4, ctx->remote_ip6, 16);
-    }
-    struct cfwd_host_ip *host_ip = bpf_map_lookup_elem(&cfwd_host_ips, &host_ip_key);
-    if (host_ip == NULL) {
-        bpf_printk("cfwd: not mac host bridge IP: %08x%08x%08x%08x", bpf_ntohl(host_ip_key.ip6or4[0]), bpf_ntohl(host_ip_key.ip6or4[1]), bpf_ntohl(host_ip_key.ip6or4[2]), bpf_ntohl(host_ip_key.ip6or4[3]));
-        return SK_PASS;
+    // and a special case for NAT64 source IP. see bnat for why we need this weird IP
+    if (!(ctx->family == AF_INET && ctx->remote_ip4 == NAT64_SRC_IP4)) {
+        struct cfwd_host_ip_key host_ip_key;
+        if (ctx->family == AF_INET) {
+            // make 4-in-6 mapped IP
+            host_ip_key.ip6or4[0] = 0;
+            host_ip_key.ip6or4[1] = 0;
+            host_ip_key.ip6or4[2] = bpf_htonl(0xffff);
+            host_ip_key.ip6or4[3] = ctx->remote_ip4;
+        } else {
+            memcpy(host_ip_key.ip6or4, ctx->remote_ip6, 16);
+        }
+        struct cfwd_host_ip *host_ip = bpf_map_lookup_elem(&cfwd_host_ips, &host_ip_key);
+        if (host_ip == NULL) {
+            bpf_printk("cfwd: not mac host bridge IP: %08x%08x%08x%08x", bpf_ntohl(host_ip_key.ip6or4[0]), bpf_ntohl(host_ip_key.ip6or4[1]), bpf_ntohl(host_ip_key.ip6or4[2]), bpf_ntohl(host_ip_key.ip6or4[3]));
+            return SK_PASS;
+        }
     }
 
     // all verified: we want to redirect this connection if there's a suitable target.
