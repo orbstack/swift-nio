@@ -245,19 +245,6 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	if (bpf_htons(ip4->tot_len) > 0xFFFF - sizeof(struct iphdr))
 		return TC_ACT_SHOT;
 
-	// Calculate the IPv4 one's complement checksum of the IPv4 header.
-	__wsum sum4 = 0;
-
-	for (int i = 0; i < sizeof(*ip4) / sizeof(__u16); ++i)
-		sum4 += ((__u16 *)ip4)[i];
-
-	// Note that sum4 is guaranteed to be non-zero by virtue of ip4->version == 4
-	sum4 = (sum4 & 0xFFFF) + (sum4 >> 16);  // collapse u32 into range 1 .. 0x1FFFE
-	sum4 = (sum4 & 0xFFFF) + (sum4 >> 16);  // collapse any potential carry into u16
-	// for a correct checksum we should get *a* zero, but sum4 must be positive, ie 0xFFFF
-	if (sum4 != 0xFFFF)
-		return TC_ACT_SHOT;
-
 	// Minimum IPv4 total length is the size of the header
 	if (bpf_ntohs(ip4->tot_len) < sizeof(*ip4))
 		return TC_ACT_SHOT;
@@ -300,11 +287,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
     ip6.saddr.in6_u.u6_addr32[3] = ip4->saddr;
 	copy4(ip6.daddr.in6_u.u6_addr32, XLAT_SRC_IP6);
 
-	// Calculate the IPv6 16-bit one's complement checksum of the IPv6 header.
-	__wsum sum6 = 0;
-	// We'll end up with a non-zero sum due to ip6.version == 6
-	for (int i = 0; i < sizeof(ip6) / sizeof(__u16); ++i)
-		sum6 += ((__u16 *)&ip6)[i];
+	__be32 csum6 = bpf_csum_diff(NULL, 0, &ip6, sizeof(ip6), 0);
 
 	// Packet mutations begin - point of no return, but if this first modification fails
 	// the packet is probably still pristine, so let clatd handle it.
@@ -319,7 +302,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	//
 	// bpf_csum_update() always succeeds if the skb is CHECKSUM_COMPLETE and returns an error
 	// (-ENOTSUPP) if it isn't.  So we just ignore the return code (see above for more details).
-	bpf_csum_update(skb, sum6);
+	bpf_csum_update(skb, csum6);
 
 	// bpf_skb_change_proto() invalidates all pointers - reload them.
 	data = (void *)(long)skb->data;
