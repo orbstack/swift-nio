@@ -75,12 +75,13 @@ type Network struct {
 	hostForwardMu sync.Mutex
 
 	// bridges
-	hostBridgeMu   sync.Mutex
-	hostBridgeFds  []int
-	hostBridges    []HostBridge
-	bridgeRouteMon *bridge.RouteMon
-	vlanRouter     *vzf.VlanRouter
-	vlanIndices    map[sgtypes.DockerBridgeConfig]int
+	hostBridgeMu           sync.Mutex
+	hostBridgeFds          []int
+	hostBridges            []HostBridge
+	bridgeRouteMon         *bridge.RouteMon
+	vlanRouter             *vzf.VlanRouter
+	vlanIndices            map[sgtypes.DockerBridgeConfig]int
+	disableMachineBridgeV4 bool
 
 	// services we need references to
 	DockerRemoteCtxForward *tcpfwd.UnixNATForward

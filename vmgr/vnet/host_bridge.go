@@ -291,14 +291,26 @@ func (n *Network) CreateSconMachineHostBridge() error {
 			return fmt.Errorf("check routes: %w", err)
 		}
 		if hasRoutes {
-			return errors.New("conflict with existing route")
+			// there's a conflict. can we get away with v6 only?
+			hasRoutes, err := bridge.HasAnyValidRoutes(nil, netip.Prefix{}, prefix6)
+			if err != nil {
+				return fmt.Errorf("check routes (v6): %w", err)
+			}
+			if hasRoutes {
+				return errors.New("conflict with existing route")
+			}
+
+			// v4 conflicts but v6 doesn't. let's just use v6
+			// as persistent flag to avoid breaking stuff later if they restart VPN
+			// usually this is only Surge/v2ray anyway
+			n.disableMachineBridgeV4 = true
 		}
 
 		// we still register the subnet monitor via defer,
 		// so we'll try again later if the VPN is turned off
 	}
 
-	err := n.createHostBridge(brIndexSconMachine, vzf.BridgeNetworkConfig{
+	config := vzf.BridgeNetworkConfig{
 		GuestFd:         n.hostBridgeFds[brIndexSconMachine],
 		ShouldReadGuest: true,
 
@@ -312,7 +324,13 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		AllowMulticast: true,
 
 		MaxLinkMTU: int(n.LinkMTU),
-	})
+	}
+	if n.disableMachineBridgeV4 {
+		config.Ip4Address = ""
+		config.Ip4Mask = ""
+	}
+
+	err := n.createHostBridge(brIndexSconMachine, config)
 	if err != nil {
 		return err
 	}

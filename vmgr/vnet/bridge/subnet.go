@@ -12,6 +12,9 @@ type MonitoredSubnet struct {
 	prefix4 netip.Prefix
 	prefix6 netip.Prefix
 	renewFn func() error
+
+	lastCorrect4 bool
+	lastCorrect6 bool
 }
 
 func (m *MonitoredSubnet) IsActive() bool {
@@ -44,6 +47,13 @@ func (m *MonitoredSubnet) maybeRenewAsync(wg *sync.WaitGroup, routingTable []rou
 	if correct4 && correct6 {
 		return
 	}
+
+	// also skip if there's no difference from last time
+	if correct4 == m.lastCorrect4 && correct6 == m.lastCorrect6 {
+		return
+	}
+	m.lastCorrect4 = correct4
+	m.lastCorrect6 = correct6
 
 	// proceeding with renewal, in parallel with other subnets
 	if !predicate() {
