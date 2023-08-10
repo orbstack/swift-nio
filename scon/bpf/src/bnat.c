@@ -35,6 +35,7 @@
 #include <linux/pkt_cls.h>
 #include <linux/swab.h>
 #include <linux/udp.h>
+#include <linux/icmp.h>
 #include <linux/icmpv6.h>
 #include <errno.h>
 #include <time.h>
@@ -95,6 +96,189 @@ static const __u8 BRIDGE_GUEST_MAC[ETH_ALEN] = "\xda\x9b\xd0\x54\xe0\x02";
 
 #define IP_DF 0x4000  // Flag: "Don't Fragment"
 
+/* SPDX-License-Identifier: BSD-2-Clause */
+/* Copyright Authors of Cilium */
+static __always_inline __wsum csum_add(__wsum csum, __wsum addend)
+{
+	csum += addend;
+	return csum + (csum < addend);
+}
+
+static __always_inline __wsum csum_sub(__wsum csum, __wsum addend)
+{
+	return csum_add(csum, ~addend);
+}
+
+static __always_inline __be32 ipv6_pseudohdr_checksum(struct ipv6hdr *hdr,
+						      __u8 next_hdr,
+						      __u16 payload_len, __be32 sum)
+{
+	__be32 len = bpf_htonl((__u32)payload_len);
+	__be32 nexthdr = bpf_htonl((__u32)next_hdr);
+
+	sum = bpf_csum_diff(NULL, 0, &hdr->saddr, sizeof(struct in6_addr), sum);
+	sum = bpf_csum_diff(NULL, 0, &hdr->daddr, sizeof(struct in6_addr), sum);
+	sum = bpf_csum_diff(NULL, 0, &len, sizeof(len), sum);
+	sum = bpf_csum_diff(NULL, 0, &nexthdr, sizeof(nexthdr), sum);
+
+	return sum;
+}
+
+static int icmp4_to_icmp6(struct __sk_buff *skb, int nh_off) {
+	struct icmphdr icmp4;
+	struct icmp6hdr icmp6 = {};
+
+	if (bpf_skb_load_bytes(skb, nh_off, &icmp4, sizeof(icmp4)) < 0)
+		return -1;
+	icmp6.icmp6_cksum = icmp4.checksum;
+	switch (icmp4.type) {
+	case ICMP_ECHO:
+		icmp6.icmp6_type = ICMPV6_ECHO_REQUEST;
+		icmp6.icmp6_identifier = icmp4.un.echo.id;
+		icmp6.icmp6_sequence = icmp4.un.echo.sequence;
+		break;
+	case ICMP_ECHOREPLY:
+		icmp6.icmp6_type = ICMPV6_ECHO_REPLY;
+		icmp6.icmp6_identifier = icmp4.un.echo.id;
+		icmp6.icmp6_sequence = icmp4.un.echo.sequence;
+		break;
+	case ICMP_DEST_UNREACH:
+		icmp6.icmp6_type = ICMPV6_DEST_UNREACH;
+		switch (icmp4.code) {
+		case ICMP_NET_UNREACH:
+		case ICMP_HOST_UNREACH:
+			icmp6.icmp6_code = ICMPV6_NOROUTE;
+			break;
+		case ICMP_PROT_UNREACH:
+			icmp6.icmp6_type = ICMPV6_PARAMPROB;
+			icmp6.icmp6_code = ICMPV6_UNK_NEXTHDR;
+			icmp6.icmp6_pointer = 6;
+			break;
+		case ICMP_PORT_UNREACH:
+			icmp6.icmp6_code = ICMPV6_PORT_UNREACH;
+			break;
+		case ICMP_FRAG_NEEDED:
+			icmp6.icmp6_type = ICMPV6_PKT_TOOBIG;
+			icmp6.icmp6_code = 0;
+			/* FIXME */
+			if (icmp4.un.frag.mtu)
+				icmp6.icmp6_mtu = bpf_htonl(bpf_ntohs(icmp4.un.frag.mtu));
+			else
+				icmp6.icmp6_mtu = bpf_htonl(1500);
+			break;
+		case ICMP_SR_FAILED:
+			icmp6.icmp6_code = ICMPV6_NOROUTE;
+			break;
+		case ICMP_NET_UNKNOWN:
+		case ICMP_HOST_UNKNOWN:
+		case ICMP_HOST_ISOLATED:
+		case ICMP_NET_UNR_TOS:
+		case ICMP_HOST_UNR_TOS:
+			icmp6.icmp6_code = 0;
+			break;
+		case ICMP_NET_ANO:
+		case ICMP_HOST_ANO:
+		case ICMP_PKT_FILTERED:
+			icmp6.icmp6_code = ICMPV6_ADM_PROHIBITED;
+			break;
+		default:
+			return -1;
+		}
+		break;
+	case ICMP_TIME_EXCEEDED:
+		icmp6.icmp6_type = ICMPV6_TIME_EXCEED;
+		break;
+	case ICMP_PARAMETERPROB:
+		icmp6.icmp6_type = ICMPV6_PARAMPROB;
+		/* FIXME */
+		icmp6.icmp6_pointer = 6;
+		break;
+	default:
+		return -1;
+	}
+	if (bpf_skb_store_bytes(skb, nh_off, &icmp6, sizeof(icmp6), 0) < 0)
+		return -1;
+	icmp4.checksum = 0;
+	icmp6.icmp6_cksum = 0;
+	return bpf_csum_diff(&icmp4, sizeof(icmp4), &icmp6, sizeof(icmp6), 0);
+}
+
+static int icmp6_to_icmp4(struct __sk_buff *skb, int nh_off) {
+	struct icmphdr icmp4 = {};
+	struct icmp6hdr icmp6;
+	__u32 mtu;
+
+	if (bpf_skb_load_bytes(skb, nh_off, &icmp6, sizeof(icmp6)) < 0)
+		return -1;
+	icmp4.checksum = icmp6.icmp6_cksum;
+	switch (icmp6.icmp6_type) {
+	case ICMPV6_ECHO_REQUEST:
+		icmp4.type = ICMP_ECHO;
+		icmp4.un.echo.id = icmp6.icmp6_identifier;
+		icmp4.un.echo.sequence = icmp6.icmp6_sequence;
+		break;
+	case ICMPV6_ECHO_REPLY:
+		icmp4.type = ICMP_ECHOREPLY;
+		icmp4.un.echo.id = icmp6.icmp6_identifier;
+		icmp4.un.echo.sequence = icmp6.icmp6_sequence;
+		break;
+	case ICMPV6_DEST_UNREACH:
+		icmp4.type = ICMP_DEST_UNREACH;
+		switch (icmp6.icmp6_code) {
+		case ICMPV6_NOROUTE:
+		case ICMPV6_NOT_NEIGHBOUR:
+		case ICMPV6_ADDR_UNREACH:
+			icmp4.code = ICMP_HOST_UNREACH;
+			break;
+		case ICMPV6_ADM_PROHIBITED:
+			icmp4.code = ICMP_HOST_ANO;
+			break;
+		case ICMPV6_PORT_UNREACH:
+			icmp4.code = ICMP_PORT_UNREACH;
+			break;
+		default:
+			return -1;
+		}
+		break;
+	case ICMPV6_PKT_TOOBIG:
+		icmp4.type = ICMP_DEST_UNREACH;
+		icmp4.code = ICMP_FRAG_NEEDED;
+		/* FIXME */
+		if (icmp6.icmp6_mtu) {
+			mtu = bpf_ntohl(icmp6.icmp6_mtu);
+			icmp4.un.frag.mtu = bpf_htons((__u16)mtu);
+		} else {
+			icmp4.un.frag.mtu = bpf_htons(1500);
+		}
+		break;
+	case ICMPV6_TIME_EXCEED:
+		icmp4.type = ICMP_TIME_EXCEEDED;
+		icmp4.code = icmp6.icmp6_code;
+		break;
+	case ICMPV6_PARAMPROB:
+		switch (icmp6.icmp6_code) {
+		case ICMPV6_HDR_FIELD:
+			icmp4.type = ICMP_PARAMETERPROB;
+			icmp4.code = 0;
+			break;
+		case ICMPV6_UNK_NEXTHDR:
+			icmp4.type = ICMP_DEST_UNREACH;
+			icmp4.code = ICMP_PROT_UNREACH;
+			break;
+		default:
+			return -1;
+		}
+		break;
+	default:
+		return -1;
+	}
+	if (bpf_skb_store_bytes(skb, nh_off, &icmp4, sizeof(icmp4), 0) < 0)
+		return -1;
+	icmp4.checksum = 0;
+	icmp6.icmp6_cksum = 0;
+	return bpf_csum_diff(&icmp6, sizeof(icmp6), &icmp4, sizeof(icmp4), 0);
+}
+
 // TC_ACT_PIPE means to continue with the next filter, if any
 
 SEC("tc")
@@ -143,6 +327,7 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	case IPPROTO_UDP:  // address means there is no need to update their checksums.
 	case IPPROTO_GRE:  // We do not need to bother looking at GRE/ESP headers,
 	case IPPROTO_ESP:  // since there is never a checksum to update.
+	case IPPROTO_ICMPV6:
 		break;
 	default:  // do not know how to handle anything else
 		bpf_printk("not tcp/udp/gre/esp\n");
@@ -165,6 +350,42 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 		.daddr = ip6->daddr.in6_u.u6_addr32[3],
 	};
 
+	// icmpv6 -> v4
+	int l4csum = 0;
+	if (ip6->nexthdr == IPPROTO_ICMPV6) {
+		ip.protocol = IPPROTO_ICMP;
+
+		// ICMPv4 has no L4 checksum
+		l4csum = icmp6_to_icmp4(skb, ETH_HLEN + sizeof(struct ipv6hdr));
+		if (l4csum < 0) {
+			bpf_printk("icmp6_to_icmp4 failed\n");
+			return TC_ACT_SHOT;
+		}
+
+		// reload pointers
+		// TODO switch to direct packet access
+		data = (void *)(long)skb->data;
+		data_end = (void *)(long)skb->data_end;
+		eth = data;
+		ip6 = (void *)(eth + 1);
+		if ((ip6 + 1) > data_end) {
+			bpf_printk("no ipv6 header\n");
+			return TC_ACT_PIPE;
+		}
+
+		__be32 csum1 = ipv6_pseudohdr_checksum(ip6, IPPROTO_ICMPV6,
+						bpf_ntohs(ip6->payload_len), 0);
+		l4csum = csum_sub(l4csum, csum1);
+		// // subtract ipv6 pseudo header
+		// l4csum = bpf_csum_diff(&ip6->saddr, sizeof(ip6->saddr), NULL, 0, l4csum);
+		// l4csum = bpf_csum_diff(&ip6->daddr, sizeof(ip6->daddr), NULL, 0, l4csum);
+		// // must be 32-bit
+		// __be32 psh_payload_len = ip6->payload_len;
+		// l4csum = bpf_csum_diff(&psh_payload_len, sizeof(psh_payload_len), NULL, 0, l4csum);
+		// __be32 psh_nexthdr = ip6->nexthdr;
+		// l4csum = bpf_csum_diff(&psh_nexthdr, sizeof(psh_nexthdr), NULL, 0, l4csum);
+	}
+
 	// Calculate the IPv4 one's complement checksum of the IPv4 header.
 	ip.check = ~bpf_csum_diff(NULL, 0, &ip, sizeof(ip), 0);
 
@@ -182,10 +403,17 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	}
 	bpf_csum_update(skb, sum6);
 
+	if (ip.protocol == IPPROTO_ICMP) {
+		if (bpf_l4_csum_replace(skb, ETH_HLEN + sizeof(ip) + offsetof(struct icmphdr, checksum), 0, l4csum, BPF_F_PSEUDO_HDR)) {
+			bpf_printk("icmpv4 csum failed\n");
+			return TC_ACT_SHOT;
+		}
+	}
+
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
 	eth = data;
-	if (data + sizeof(*eth) + sizeof(struct iphdr) > data_end) {
+	if (data + ETH_HLEN + sizeof(struct iphdr) > data_end) {
 		bpf_printk("no ip header\n");
 		return TC_ACT_SHOT;
 	}
@@ -248,6 +476,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	case IPPROTO_TCP:  // For TCP & UDP the checksum neutrality of the chosen IPv6
 	case IPPROTO_GRE:  // address means there is no need to update their checksums.
 	case IPPROTO_ESP:  // We do not need to bother looking at GRE/ESP headers,
+	case IPPROTO_ICMP:
 		break;         // since there is never a checksum to update.
 
 	case IPPROTO_UDP:  // See above comment, but must also have UDP header...
@@ -276,6 +505,32 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
     ip6.saddr.in6_u.u6_addr32[3] = ip4->saddr;
 	copy4(ip6.daddr.in6_u.u6_addr32, XLAT_SRC_IP6);
 
+	// icmpv4 -> v6
+	int l4csum = 0;
+	if (ip4->protocol == IPPROTO_ICMP) {
+		ip6.nexthdr = IPPROTO_ICMPV6;
+		l4csum = icmp4_to_icmp6(skb, ETH_HLEN + sizeof(*ip4));
+
+		// reload pointers
+		// TODO switch to direct packet access
+		data = (void *)(long)skb->data;
+		data_end = (void *)(long)skb->data_end;
+		eth = data;
+		ip4 = (void *)(eth + 1);
+		if ((ip4 + 1) > data_end) {
+			bpf_printk("no ipv4 header\n");
+			return TC_ACT_PIPE;
+		}
+
+		__be32 csum1 = ipv6_pseudohdr_checksum(&ip6, IPPROTO_ICMPV6,
+						bpf_ntohs(ip6.payload_len), 0);
+		l4csum = csum_add(l4csum, csum1);
+		if (bpf_l4_csum_replace(skb, ETH_HLEN + sizeof(*ip4) + offsetof(struct icmp6hdr, icmp6_cksum), 0, l4csum, BPF_F_PSEUDO_HDR)) {
+			bpf_printk("icmpv6 csum failed\n");
+			return TC_ACT_SHOT;
+		}
+	}
+
 	__be32 csum6 = bpf_csum_diff(NULL, 0, &ip6, sizeof(ip6), 0);
 
 	// Packet mutations begin - point of no return, but if this first modification fails
@@ -293,6 +548,13 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 	// (-ENOTSUPP) if it isn't.  So we just ignore the return code (see above for more details).
 	bpf_csum_update(skb, csum6);
 
+	if (ip6.nexthdr == IPPROTO_ICMPV6) {
+		// if (bpf_l4_csum_replace(skb, ETH_HLEN + sizeof(ip6) + offsetof(struct icmp6hdr, icmp6_cksum), 0, l4csum, BPF_F_PSEUDO_HDR)) {
+		// 	bpf_printk("icmpv6 csum failed\n");
+		// 	return TC_ACT_SHOT;
+		// }
+	}
+
 	// bpf_skb_change_proto() invalidates all pointers - reload them.
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
@@ -307,7 +569,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 }
 
 #ifndef DEBUG
-char _license[] SEC("license") = "Apache 2.0 + Proprietary";
+char _license[] SEC("license") = "Apache 2.0 + BSD 2-Clause + Proprietary";
 #else
 char _license[] SEC("license") = "GPL";
 #endif
