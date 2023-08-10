@@ -17,7 +17,7 @@ NOTARY_KEYCHAIN_PROFILE=main
 SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/bin
 
 # for uploading debug symbols (login required too)
-SENTRY_ORG=orbital-labs
+SENTRY_ORG=kdrag0n
 SENTRY_PROJECT=orbstack
 
 CDN_BASE_URL=https://cdn-updates.orbstack.dev
