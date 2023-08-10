@@ -126,6 +126,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		return r.httpServer.Serve(l)
 	})
 	go runOne("dns index server (v6)", func() error {
+		// breaks with DAD on bridge interface
 		l, err := net.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "80"))
 		if err != nil {
 			return err

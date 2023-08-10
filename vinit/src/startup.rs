@@ -287,6 +287,10 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     sysctl("net.ipv6.conf.default.accept_ra", "0")?;
     // and fix tentative IPv6 delay
     sysctl("net.ipv6.conf.eth0.accept_dad", "0")?;
+    // on all interfaces, e.g. conbr0 too
+    // TODO consider optimistic dad
+    sysctl("net.ipv6.conf.all.accept_dad", "0")?;
+    sysctl("net.ipv6.conf.default.accept_dad", "0")?;
 
     // scon net
     sysctl("net.ipv4.ip_forward", "1")?;
