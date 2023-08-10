@@ -387,10 +387,9 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	}
 
 	// Calculate the IPv4 one's complement checksum of the IPv4 header.
-	ip.check = ~bpf_csum_diff(NULL, 0, &ip, sizeof(ip), 0);
-
-	// Calculate the *negative* IPv6 16-bit one's complement checksum of the IPv6 header.
-	__be32 sum6 = bpf_csum_diff(ip6, sizeof(*ip6), NULL, 0, 0);
+	// csum_diff is NOT a 16-bit checksum! it's an opaque 32-bit value
+	// differs by arch. `ip.check = ~diff` works on arm64 but not x86
+	__wsum diff = bpf_csum_diff(NULL, 0, &ip, sizeof(ip), 0);
 
 	// Note that there is no L4 checksum update: we are relying on the checksum neutrality
 	// of the ipv6 address chosen by netd's ClatdController.
@@ -400,14 +399,6 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	if (bpf_skb_change_proto(skb, bpf_htons(ETH_P_IP), 0)) {
 		bpf_printk("change proto failed\n");
 		return TC_ACT_SHOT;
-	}
-	bpf_csum_update(skb, sum6);
-
-	if (ip.protocol == IPPROTO_ICMP) {
-		if (bpf_l4_csum_replace(skb, ETH_HLEN + sizeof(ip) + offsetof(struct icmphdr, checksum), 0, l4csum, BPF_F_PSEUDO_HDR)) {
-			bpf_printk("icmpv4 csum failed\n");
-			return TC_ACT_SHOT;
-		}
 	}
 
 	data = (void *)(long)skb->data;
@@ -421,6 +412,18 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
     // write new headers
 	eth->h_proto = bpf_htons(ETH_P_IP);
 	*(struct iphdr *)(eth + 1) = ip;
+
+	// set after writing iphdr, otherwise it'll be overwritten by check=0
+	if (bpf_l3_csum_replace(skb, ETH_HLEN + offsetof(struct iphdr, check), 0, diff, 0)) {
+		bpf_printk("ipv4 csum failed\n");
+		return TC_ACT_SHOT;
+	}
+	if (ip.protocol == IPPROTO_ICMP) {
+		if (bpf_l4_csum_replace(skb, ETH_HLEN + sizeof(ip) + offsetof(struct icmphdr, checksum), 0, l4csum, BPF_F_PSEUDO_HDR)) {
+			bpf_printk("icmpv4 csum failed\n");
+			return TC_ACT_SHOT;
+		}
+	}
 
     // mark and re-inject
     skb->mark = MARK_NAT64; // route to docker machine (via ip rule)
@@ -531,29 +534,10 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 		}
 	}
 
-	__be32 csum6 = bpf_csum_diff(NULL, 0, &ip6, sizeof(ip6), 0);
-
 	// Packet mutations begin - point of no return, but if this first modification fails
 	// the packet is probably still pristine, so let clatd handle it.
 	if (bpf_skb_change_proto(skb, bpf_htons(ETH_P_IPV6), 0))
 		return TC_ACT_SHOT;
-
-	// This takes care of updating the skb->csum field for a CHECKSUM_COMPLETE packet.
-	// In such a case, skb->csum is a 16-bit one's complement sum of the entire payload,
-	// thus we need to subtract out the ipv4 header's sum, and add in the ipv6 header's sum.
-	// However, we've already verified the ipv4 checksum is correct and thus 0.
-	// Thus we only need to add the ipv6 header's sum.
-	//
-	// bpf_csum_update() always succeeds if the skb is CHECKSUM_COMPLETE and returns an error
-	// (-ENOTSUPP) if it isn't.  So we just ignore the return code (see above for more details).
-	bpf_csum_update(skb, csum6);
-
-	if (ip6.nexthdr == IPPROTO_ICMPV6) {
-		// if (bpf_l4_csum_replace(skb, ETH_HLEN + sizeof(ip6) + offsetof(struct icmp6hdr, icmp6_cksum), 0, l4csum, BPF_F_PSEUDO_HDR)) {
-		// 	bpf_printk("icmpv6 csum failed\n");
-		// 	return TC_ACT_SHOT;
-		// }
-	}
 
 	// bpf_skb_change_proto() invalidates all pointers - reload them.
 	data = (void *)(long)skb->data;
