@@ -1,7 +1,7 @@
 use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instant, Duration}, os::{unix::{prelude::PermissionsExt, fs::chroot}}, process::{Command, Stdio}, io::{Write}, net::UdpSocket, sync::Arc};
 
 use mkswap::SwapWriter;
-use netlink_packet_route::{LinkMessage, link};
+use netlink_packet_route::{LinkMessage, link, FR_ACT_TO_TBL};
 use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags}, unistd::{sethostname}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId, clock_gettime}};
 use futures_util::TryStreamExt;
 use tracing::log::debug;
@@ -28,7 +28,7 @@ const VNET_NEIGHBORS: &[&str] = &[
 // da:9b:d0:54:e1:02 (SconHostBridgeMAC)
 const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x54, 0xe1, 0x02];
 const NAT64_SOURCE_ADDR: &str = "198.19.248.64";
-const NAT64_FWMARK: u32 = 0xdead6464;
+const NAT64_FWMARK: u32 = 0xe97bd031;
 const NAT64_DOCKER_MACHINE_IP4: &str = "198.19.249.2";
 
 const FS_CORRUPTED_MSG: &str = r#"
@@ -346,8 +346,10 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
         .execute().await.unwrap();
     // ingress route from translated IPv4 source address to Docker machine (which does IP forward to containers)
     // create ip rule for fwmark from BPF clsact program
-    // ip rule add fwmark 0xdead6464 table 64
-    let mut fwmark_rule = ip_rule.add().v4().table(64); // table ID is not exposed to BPF
+    // ip rule add fwmark 0xe97bd031 table 64
+    let mut fwmark_rule = ip_rule.add().v4()
+        .table(64) // table ID is not exposed to BPF
+        .action(FR_ACT_TO_TBL);
     fwmark_rule.message_mut().nlas.push(netlink_packet_route::rule::Nla::FwMark(NAT64_FWMARK));
     fwmark_rule.execute().await.unwrap();
     // ip route add default via 198.19.249.2 table 64
