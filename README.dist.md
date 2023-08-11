@@ -33,7 +33,7 @@ Edit `config.sh` as necessary.
 This build is done on an Arch Linux install (x86_64 host) with the following packages:
 
 ```bash
-pacman -Syu aarch64-linux-gnu-binutils aarch64-linux-gnu-gcc aarch64-linux-gnu-glibc
+pacman -Syu base-devel bc aarch64-linux-gnu-binutils aarch64-linux-gnu-gcc aarch64-linux-gnu-glibc
 ```
 
 Correct results cannot be guaranteed in any other environments due to toolchain and compiler differences.

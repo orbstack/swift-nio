@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -xeuo pipefail
 
 TAG="${1:-HEAD}"
 
@@ -31,25 +31,36 @@ rm -fr swift/*/Tests
 
 # vendor gvisor
 rm -fr vendor/gvisor # is a symlink
-git clone git@github.com:orbstack/gvisor-macvirt --ref ~/code/vm/gvisor --depth 1 vendor/gvisor
+git clone git@github.com:orbstack/gvisor-macvirt --reference-if-able ~/code/vm/gvisor --depth 1 vendor/gvisor
 rm -fr vendor/gvisor/.git
 
 # filter source code last, so we include everything
-popd
+pushd "$REPO_ROOT/scripts/codeproc"
 pnpm install
 node index.js "$tmpdir/repo"
-pushd "$tmpdir/repo"
+popd
 
 # vendor kernel
 # causes problems with case-insensitive apfs
-# git clone git@github.com:orbstack/linux-macvirt-priv --ref ~/code/projects/orbstack/linux-orbstack --depth 1 vendor/linux
+# git clone git@github.com:orbstack/linux-macvirt-priv --reference-if-able ~/code/projects/orbstack/linux-orbstack --depth 1 vendor/linux
 # rm -fr vendor/linux/.git
 # rm -f vendor/linux/configs/debug
 
 # replace bundle ID
-find . -type f -print0  | xargs -0 sed -i \
-    -e 's/dev.kdrag0n.MacVirt/com.anthropic.OrbStackInternal/g'
+find . -type f -print0  | xargs -0 gsed -i 's/dev.kdrag0n.MacVirt/com.anthropic.OrbStackInternal/g'
 # TODO: team ID?
 # from HUAQ24HBR6
 
-sed -i 's/kdrag0n/orbital-labs/' config.sh
+# replace sentry org ID to look better
+gsed -i 's/kdrag0n/orbital-labs/g' config.sh
+
+# temp: copy latest readme
+cp -f "$REPO_ROOT/README.dist.md" .
+
+# push 
+git init
+git add .
+git commit -am "External release $TAG"
+git checkout -b main
+git remote add origin git@github.com:orbstack/orbstack-ext-main
+git push -f origin main

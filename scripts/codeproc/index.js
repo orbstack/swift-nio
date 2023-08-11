@@ -40,6 +40,12 @@ const includeComments = [
     '// swift-tools', // Package.swift
     '# syntax:', // dockerfile
     '#!/', // shebang
+    'Copyright', // legal
+    'License:', // legal, e.g. bnat
+]
+
+const skipFiles = [
+    '/config.sh', // important comments for user
 ]
 
 function newParser(pkg) {
@@ -76,6 +82,11 @@ function walkAndReplace(cursor, cb) {
 let srcDir = process.argv[2]
 let spaceAscii = 32
 for await (let path of walk(srcDir)) {
+    if (skipFiles.some((s) => path === srcDir + s)) {
+        console.log("SKIP: " + path)
+        continue
+    }
+
     console.log(path)
     let str = await fsp.readFile(path, "utf8")
 
