@@ -30,8 +30,8 @@ To build and run Docker containers and manage anything related to Docker, use th
     docker
 There is no need to use Linux machines if you only want to use Docker.
 
-For example, to run an example container:
-    docker run -it -p 80:80 docker/getting-started
+For example, to start an example container:
+    docker run -p 80:80 docker/getting-started
 Then visit http://localhost in your browser.
 
 Docker Compose and buildx are also included:
