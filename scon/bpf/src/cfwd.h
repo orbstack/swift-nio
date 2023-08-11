@@ -13,8 +13,6 @@
 // simplified: just port scan, no need for listener tracking or per-netns cache
 
 #define CFWD_PORT 80
-// max ephemeral port. unlikely that user goes lower
-#define CFWD_MAX_SCAN_PORT 32767
 
 // 10.183.233.241
 #define NAT64_SRC_IP4 IP4(10, 183, 233, 241)
@@ -74,22 +72,43 @@ static bool cfwd_try_assign_port(struct bpf_sk_lookup *ctx, int port) {
 }
 
 struct cfwd_scan_ctx {
+    int start;
     struct bpf_sk_lookup *ctx;
 };
 
 static int cfwd_loop_cb(__u32 index, struct cfwd_scan_ctx *ctx) {
-    __u16 port = index + 1; // no port 0
-    if (port == 3306 || port == 5432 || port == 6379 || port == 27017) {
-        return 0; // continue
-    }
+    __u16 port = ctx->start + index;
+    if (port == 3306) return 0; // mysql
+    if (port == 5432) return 0; // postgres
+    if (port == 6379) return 0; // redis
+    if (port == 8443) return 0; // https (we don't currently support HTTPS - this is only for port 80)
+    if (port == 27017) return 0; // mongo
 
     // try this port
     if (cfwd_try_assign_port(ctx->ctx, port)) {
         bpf_printk("cfwd: found suitable listener on port %u", port);
-        return 1; // stop
+        return 1; // break
     }
 
     return 0; // continue
+}
+
+// start inclusive, end exclusive
+static bool cfwd_try_port_range(struct bpf_sk_lookup *ctx, int start, int end) {
+    struct cfwd_scan_ctx scan_ctx = {
+        .start = start,
+        .ctx = ctx,
+    };
+
+    // -1 because there's no port 0
+    // scanning 32767 ports takes ~1.25 ms, 2.5 ms for 65535. it's fast enough, much simpler than caching
+    int ret = bpf_loop(end - start, cfwd_loop_cb, &scan_ctx, 0);
+    if (ret < 0) {
+        bpf_printk("cfwd: scan loop failed: %d", ret);
+        return false;
+    }
+
+    return ctx->sk != NULL;
 }
 
 // this is per-netns, so no need to check netns cookie
@@ -127,21 +146,19 @@ int cfwd_sk_lookup(struct bpf_sk_lookup *ctx) {
 
     // all verified: we want to redirect this connection if there's a suitable target.
     // first try priority ports, for perf (avoid scanning) and consistent behavior
-    if (cfwd_try_assign_port(ctx, 8080)) return SK_PASS;
-    if (cfwd_try_assign_port(ctx, 3000)) return SK_PASS;
-    if (cfwd_try_assign_port(ctx, 5173)) return SK_PASS;
-    if (cfwd_try_assign_port(ctx, 8000)) return SK_PASS;
+    if (cfwd_try_assign_port(ctx, 8080)) return SK_PASS; // common
+    if (cfwd_try_assign_port(ctx, 3000)) return SK_PASS; // nodejs common
+    if (cfwd_try_assign_port(ctx, 5173)) return SK_PASS; // vite
+    if (cfwd_try_assign_port(ctx, 8000)) return SK_PASS; // python common
 
-    struct cfwd_scan_ctx scan_ctx = {
-        .ctx = ctx,
-    };
-    // -1 because there's no port 0
-    // scanning 32767 ports takes ~1.25 ms, 2.5 ms for 65535. it's fast enough, much simpler than caching
-    int ret = bpf_loop(CFWD_MAX_SCAN_PORT-1, cfwd_loop_cb, &scan_ctx, 0);
-    if (ret < 0) {
-        bpf_printk("cfwd: failed to scan for suitable listener: %d", ret);
-        return SK_PASS;
-    }
+    // now try ranges
+    // 8000-9000: most likely to be used for HTTP ports. (we've already checked 80 and other common ports)
+    if (cfwd_try_port_range(ctx, 8000, 9000)) return SK_PASS;
+    // 81-8000: try the lower half next. (start at 81 b/c we've already checked 80)
+    // lower ports are all SSH, telnet, mail, etc.
+    if (cfwd_try_port_range(ctx, 81, 8000)) return SK_PASS;
+    // 9000-32767: try the upper half next. (start at 9000 b/c we've already checked 8000)
+    if (cfwd_try_port_range(ctx, 9000, 32767+1 /*inclusive*/)) return SK_PASS;
 
     return SK_PASS;
 }
