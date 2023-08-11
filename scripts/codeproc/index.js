@@ -33,6 +33,15 @@ const parserPkgs = {
     '.yaml': TreeSitterYaml,
 }
 
+const includeComments = [
+    '//go:', // go:embed, go:generate, go:build
+    '//export', // Cgo export
+    '#include', // Cgo C block
+    '// swift-tools', // Package.swift
+    '# syntax:', // dockerfile
+    '#!/', // shebang
+]
+
 function newParser(pkg) {
     let parser = new Parser()
     parser.setLanguage(pkg)
@@ -82,6 +91,10 @@ for await (let path of walk(srcDir)) {
             walkAndReplace(cursor, /** @param {Parser.TreeCursor} cursor */ (cursor) => {
                 // comment, block_comment, line_comment, multiline_comment
                 if (cursor.nodeType.includes("comment")) {
+                    if (includeComments.some((s) => cursor.nodeText.includes(s))) {
+                        return // skip
+                    }
+
                     // replace data with zeros in original string buffer
                     //rawData.fill(spaceAscii, cursor.startIndex, cursor.endIndex)
                     // just use the raw string
