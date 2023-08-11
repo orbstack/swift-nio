@@ -374,9 +374,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
             if vmModel.netBridgeAvailable {
                 let domain = container.preferredDomain
                 submenu.addActionItem("Address: \(domain)") {
-                    //NSPasteboard.copy(domain)
                     // dupe of "Open in Browser" but more common
                     NSWorkspace.shared.open(URL(string: "http://\(domain)")!)
+                    // but also copy it
+                    NSPasteboard.copy(domain)
                 }
             } else {
                 submenu.addActionItem("IP: \(ipAddress)") {

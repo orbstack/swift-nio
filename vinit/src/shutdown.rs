@@ -158,7 +158,10 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
             }
 
             // unmount
-            println!("  -  Unmounting {}", target);
+            // don't log /nfsroot. spammy and leaks info
+            if !target.starts_with("/nfsroot") {
+                println!("  -  Unmounting {}", target);
+            }
             // TODO: MNT_DETACH?
             if let Err(e) = umount2(target, MntFlags::MNT_FORCE) {
                 println!(" !!! Failed to unmount {}: {}", target, e);
