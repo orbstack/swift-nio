@@ -3,6 +3,7 @@ package dmigrate
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,7 +17,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -436,13 +436,8 @@ outer:
 	defer vmclient.Client().InternalSetDockerRemoteCtxAddr("")
 
 	// parallel workers
-	workerCount := getPcpuCount() - 1
-	if workerCount < minWorkers {
-		workerCount = minWorkers
-	}
-	if workerCount > maxWorkers {
-		workerCount = maxWorkers
-	}
+	workerCount := min(getPcpuCount()-1, maxWorkers)
+	workerCount = max(workerCount, 1)
 	errTracker := &errorTracker{}
 	pool := pond.New(workerCount, 100, pond.PanicHandler(func(p any) {
 		var err error

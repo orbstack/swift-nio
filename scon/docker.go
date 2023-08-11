@@ -115,10 +115,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		return fmt.Errorf("get disk size: %w", err)
 	}
 
-	globalLimit := diskSize * 12 / 100
-	if globalLimit > maxBuildCacheSize {
-		globalLimit = maxBuildCacheSize
-	}
+	globalLimit := min(diskSize*12/100, maxBuildCacheSize)
 
 	// generate base docker daemon config
 	baseFeatures := map[string]any{}

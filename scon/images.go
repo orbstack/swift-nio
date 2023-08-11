@@ -13,7 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"runtime"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -168,7 +168,7 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 		for version := range product.Versions {
 			versions = append(versions, version)
 		}
-		sort.Strings(versions)
+		slices.Sort(versions)
 		version := versions[len(versions)-1]
 
 		items := product.Versions[version].Items
@@ -345,10 +345,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 		cmd = exec.Command("tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs", "--xattrs-include=*")
 	case ImageFormatSquashfs:
 		// limit parallelism
-		procs := runtime.NumCPU()
-		if procs > maxSquashfsCpus {
-			procs = maxSquashfsCpus
-		}
+		procs := min(runtime.NumCPU(), maxSquashfsCpus)
 		cmd = exec.Command("unsquashfs", "-n", "-f", "-p", strconv.Itoa(procs), "-d", rootfsDir, rootfsFile)
 	default:
 		return fmt.Errorf("unsupported rootfs format: %v", img.RootfsFormat)

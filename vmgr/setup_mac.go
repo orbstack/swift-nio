@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -16,7 +17,6 @@ import (
 	"github.com/orbstack/macvirt/scon/agent/envutil"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 

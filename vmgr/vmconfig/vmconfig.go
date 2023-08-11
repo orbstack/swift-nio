@@ -53,12 +53,8 @@ func (c *VmConfig) Validate() error {
 	}
 
 	// clamp cpus
-	if c.CPU < 1 {
-		c.CPU = 1
-	}
-	if c.CPU > runtime.NumCPU() {
-		c.CPU = runtime.NumCPU()
-	}
+	c.CPU = min(c.CPU, runtime.NumCPU())
+	c.CPU = max(c.CPU, 1)
 
 	// must be a supported proxy protocol
 	if c.NetworkProxy != ProxyNone && c.NetworkProxy != ProxyAuto {
@@ -219,10 +215,7 @@ func diffJsonMaps(a, b any) (map[string]any, error) {
 func calcMemory() uint64 {
 	hostMem := mem.PhysicalMemory()
 	targetMem := hostMem / 3
-	if targetMem > maxDefaultMemory {
-		return maxDefaultMemory
-	}
-	return targetMem
+	return min(targetMem, maxDefaultMemory)
 }
 
 func Defaults() *VmConfig {

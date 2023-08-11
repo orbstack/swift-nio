@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/netip"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -12,7 +13,6 @@ import (
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 )
 
 const (

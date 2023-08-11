@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 

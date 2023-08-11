@@ -2,8 +2,7 @@ package images
 
 import (
 	"runtime"
-
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 const (

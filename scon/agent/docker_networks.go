@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
@@ -10,7 +11,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/exp/slices"
 )
 
 const (

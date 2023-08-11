@@ -477,10 +477,7 @@ func (r *mdnsRegistry) flushReusedCache() {
 	}
 
 	// reset pending flushes
-	// TODO use Go 1.21 clear
-	for k := range r.pendingFlushes {
-		delete(r.pendingFlushes, k)
-	}
+	clear(r.pendingFlushes)
 }
 
 func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) {

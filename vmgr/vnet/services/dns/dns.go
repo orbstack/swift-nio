@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -16,7 +17,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/dns/dnssd"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"

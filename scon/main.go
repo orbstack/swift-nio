@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 

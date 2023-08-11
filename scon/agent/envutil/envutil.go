@@ -1,7 +1,7 @@
 package envutil
 
 import (
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -29,7 +29,7 @@ func (m EnvMap) ToPairs() []string {
 		out = append(out, k+"="+v)
 	}
 	// sort
-	sort.Strings(out)
+	slices.Sort(out)
 
 	return out
 }

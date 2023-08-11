@@ -2,6 +2,7 @@ package agent
 
 import (
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
@@ -9,7 +10,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 )
 
 func (d *DockerAgent) refreshContainers() error {
