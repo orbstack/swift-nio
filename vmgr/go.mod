@@ -8,7 +8,7 @@ replace github.com/orbstack/macvirt/scon => ../scon
 // replace gvisor.dev/gvisor => github.com/orbstack/gvisor-macvirt v0.0.0-20230519042013-f7785c29c732
 
 // dev
-replace gvisor.dev/gvisor => ../../../vm/gvisor
+replace gvisor.dev/gvisor => ../vendor/gvisor
 
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
