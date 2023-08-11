@@ -12,8 +12,6 @@
 //
 // simplified: just port scan, no need for listener tracking or per-netns cache
 
-#define CFWD_PORT 80
-
 // 10.183.233.241
 #define NAT64_SRC_IP4 IP4(10, 183, 233, 241)
 
@@ -111,54 +109,71 @@ static bool cfwd_try_port_range(struct bpf_sk_lookup *ctx, int start, int end) {
     return ctx->sk != NULL;
 }
 
+// verify src addr: must be macOS host bridge IP. works b/c it's over bridge, not NAT
+// and a special case for NAT64 source IP. see bnat for why we need this weird IP
+static bool cfwd_should_redirect_for_ip(struct bpf_sk_lookup *ctx) {
+    // NAT64 for mDNS
+    if (ctx->family == AF_INET && ctx->remote_ip4 == NAT64_SRC_IP4) {
+        return true;
+    }
+
+    struct cfwd_host_ip_key host_ip_key;
+    if (ctx->family == AF_INET) {
+        // make 4-in-6 mapped IP
+        host_ip_key.ip6or4[0] = 0;
+        host_ip_key.ip6or4[1] = 0;
+        host_ip_key.ip6or4[2] = bpf_htonl(0xffff);
+        host_ip_key.ip6or4[3] = ctx->remote_ip4;
+    } else {
+        memcpy(host_ip_key.ip6or4, ctx->remote_ip6, 16);
+    }
+
+    struct cfwd_host_ip *host_ip = bpf_map_lookup_elem(&cfwd_host_ips, &host_ip_key);
+    return host_ip != NULL;
+}
+
 // this is per-netns, so no need to check netns cookie
 SEC("sk_lookup/") // cilium/ebpf incorrectly expects trailing "/", libbpf doesn't
 int cfwd_sk_lookup(struct bpf_sk_lookup *ctx) {
     bpf_printk("cfwd: sk_lookup: family=%u protocol=%u local_port=%u", ctx->family, ctx->protocol, ctx->local_port);
     // only IPv4/v6, TCP, port 80, + container netns&cgroup
-    if ((ctx->family != AF_INET && ctx->family != AF_INET6) ||
-            ctx->protocol != IPPROTO_TCP || ctx->local_port != CFWD_PORT) {
+    if ((ctx->family != AF_INET && ctx->family != AF_INET6) || ctx->protocol != IPPROTO_TCP) {
         return SK_PASS;
     }
 
-    // if there's already a port 80 listener, skip (fastpath)
-    if (cfwd_try_assign_port(ctx, CFWD_PORT)) return SK_PASS;
+    if (ctx->local_port == 80) {
+        // fastpath: if there's a real listener, or not from macOS
+        if (cfwd_try_assign_port(ctx, ctx->local_port)) return SK_PASS;
+        if (!cfwd_should_redirect_for_ip(ctx)) return SK_PASS;
 
-    // verify src addr: must be macOS host bridge IP. works b/c it's over bridge, not NAT
-    // and a special case for NAT64 source IP. see bnat for why we need this weird IP
-    if (!(ctx->family == AF_INET && ctx->remote_ip4 == NAT64_SRC_IP4)) {
-        struct cfwd_host_ip_key host_ip_key;
-        if (ctx->family == AF_INET) {
-            // make 4-in-6 mapped IP
-            host_ip_key.ip6or4[0] = 0;
-            host_ip_key.ip6or4[1] = 0;
-            host_ip_key.ip6or4[2] = bpf_htonl(0xffff);
-            host_ip_key.ip6or4[3] = ctx->remote_ip4;
-        } else {
-            memcpy(host_ip_key.ip6or4, ctx->remote_ip6, 16);
-        }
-        struct cfwd_host_ip *host_ip = bpf_map_lookup_elem(&cfwd_host_ips, &host_ip_key);
-        if (host_ip == NULL) {
-            bpf_printk("cfwd: not mac host bridge IP: %08x%08x%08x%08x", bpf_ntohl(host_ip_key.ip6or4[0]), bpf_ntohl(host_ip_key.ip6or4[1]), bpf_ntohl(host_ip_key.ip6or4[2]), bpf_ntohl(host_ip_key.ip6or4[3]));
-            return SK_PASS;
-        }
+        // all verified: we want to redirect this connection if there's a suitable target.
+        // first try priority ports, for perf (avoid scanning) and consistent behavior
+        if (cfwd_try_assign_port(ctx, 8080)) return SK_PASS; // common
+        if (cfwd_try_assign_port(ctx, 3000)) return SK_PASS; // nodejs common
+        if (cfwd_try_assign_port(ctx, 5173)) return SK_PASS; // vite
+        if (cfwd_try_assign_port(ctx, 8000)) return SK_PASS; // python common
+
+        // now try ranges
+        // 8000-9000: most likely to be used for HTTP ports. (we've already checked 80 and other common ports)
+        if (cfwd_try_port_range(ctx, 8000, 9000)) return SK_PASS;
+        // 81-8000: try the lower half next. (start at 81 b/c we've already checked 80)
+        // lower ports are all SSH, telnet, mail, etc.
+        if (cfwd_try_port_range(ctx, 81, 8000)) return SK_PASS;
+        // 9000-32767: try the upper half next. (start at 9000 b/c we've already checked 8000)
+        if (cfwd_try_port_range(ctx, 9000, 32767+1 /*inclusive*/)) return SK_PASS;
+    } else if (ctx->local_port == 443) {
+        // fastpath: if there's a real listener, or not from macOS
+        if (cfwd_try_assign_port(ctx, ctx->local_port)) return SK_PASS;
+        if (!cfwd_should_redirect_for_ip(ctx)) return SK_PASS;
+
+        // try 8443
+        if (cfwd_try_assign_port(ctx, 8443)) return SK_PASS;
+    } else {
+        // not a port we care about
+        return SK_PASS;
     }
 
-    // all verified: we want to redirect this connection if there's a suitable target.
-    // first try priority ports, for perf (avoid scanning) and consistent behavior
-    if (cfwd_try_assign_port(ctx, 8080)) return SK_PASS; // common
-    if (cfwd_try_assign_port(ctx, 3000)) return SK_PASS; // nodejs common
-    if (cfwd_try_assign_port(ctx, 5173)) return SK_PASS; // vite
-    if (cfwd_try_assign_port(ctx, 8000)) return SK_PASS; // python common
-
-    // now try ranges
-    // 8000-9000: most likely to be used for HTTP ports. (we've already checked 80 and other common ports)
-    if (cfwd_try_port_range(ctx, 8000, 9000)) return SK_PASS;
-    // 81-8000: try the lower half next. (start at 81 b/c we've already checked 80)
-    // lower ports are all SSH, telnet, mail, etc.
-    if (cfwd_try_port_range(ctx, 81, 8000)) return SK_PASS;
-    // 9000-32767: try the upper half next. (start at 9000 b/c we've already checked 8000)
-    if (cfwd_try_port_range(ctx, 9000, 32767+1 /*inclusive*/)) return SK_PASS;
-
+    // not found
+    bpf_printk("cfwd: no suitable listener found");
     return SK_PASS;
 }
