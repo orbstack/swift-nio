@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"cmp"
 	"fmt"
 	"net/netip"
 	"slices"
@@ -18,15 +19,15 @@ const (
 	DockerBridgeMirrorPrefix   = ".orbmirror"
 )
 
-func compareNetworks(a, b dockertypes.Network) bool {
+func compareNetworks(a, b dockertypes.Network) int {
 	// always rank default bridge network first
 	if a.Name == dockerDefaultBridgeNetwork {
-		return true
+		return -1
 	} else if b.Name == dockerDefaultBridgeNetwork {
-		return false
+		return 1
 	}
 
-	return a.Name < b.Name
+	return cmp.Compare(a.Name, b.Name)
 }
 
 func findLink(links []netlink.Link, name string) netlink.Link {

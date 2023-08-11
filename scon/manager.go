@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -367,8 +368,8 @@ func (m *ConManager) ListContainers() []*Container {
 	for _, c := range m.containersByID {
 		containers = append(containers, c)
 	}
-	slices.SortFunc(containers, func(a, b *Container) bool {
-		return a.Name < b.Name
+	slices.SortFunc(containers, func(a, b *Container) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 	return containers
 }
