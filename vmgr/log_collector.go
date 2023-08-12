@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -47,6 +49,15 @@ var (
 var (
 	oomKillRegex = regexp.MustCompile(`Out of memory: Killed process \d+ \((.+)\)`)
 )
+
+func init() {
+	// remove RCU stall on x86. it's normal due to timekeeping
+	if runtime.GOARCH == "amd64" {
+		kernelWarnPatterns = slices.DeleteFunc(kernelWarnPatterns, func(s string) bool {
+			return s == "] rcu: INFO:"
+		})
+	}
+}
 
 type KernelPanicError struct {
 	Err error
