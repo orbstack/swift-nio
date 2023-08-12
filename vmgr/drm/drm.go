@@ -308,6 +308,10 @@ func (c *DrmClient) persistState(result *drmtypes.Result) error {
 		return err
 	}
 
+	// delete old if necessary
+	// update is too complicated
+	_ = keychain.DeleteGenericPasswordItem(keychainService, keychainAccount)
+
 	item := keychain.NewGenericPassword(keychainService, keychainAccount, keychainLabel, data, keychainAccessGroup)
 	item.SetSynchronizable(keychain.SynchronizableNo) // tokens are tied to device
 	item.SetAccessible(keychain.AccessibleAlways)     // for headless usage
