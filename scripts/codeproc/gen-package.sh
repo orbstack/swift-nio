@@ -16,7 +16,7 @@ git archive "$TAG" | tar -x -C "$tmpdir/repo"
 pushd "$tmpdir/repo"
 
 # remove basic files
-rm -fr exp .github keys cli-bin Frameworks
+rm -fr exp .github keys cli-bin Frameworks rootfs/live
 fd -u0 '\.(?:vscode|idea|fleet)' | xargs -0 rm -fr
 fd -0 README.md | xargs -0 rm -f
 

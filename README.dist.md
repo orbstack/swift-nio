@@ -42,9 +42,7 @@ Correct results cannot be guaranteed in any other environments due to toolchain 
 - Run `./build.sh` in the repo root
 - Copy the following files to the macOS machine, creating directories as necesasry:
   - `out/arch/arm64/boot/Image` -> `vmgr/assets/release/arm64/kernel`
-  - `out/modules.builtin` -> `rootfs/kernel/arm64/modules.builtin`
   - `out86/arch/x86/boot/bzImage` -> `vmgr/assets/release/x86/kernel`
-  - `out86/modules.builtin` -> `rootfs/kernel/x86/modules.builtin`
 
 The kernel cannot be vendored into this repo due to filename conflicts on case-insensitive filesystems.
 
