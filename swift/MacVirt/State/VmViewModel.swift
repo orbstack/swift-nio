@@ -56,6 +56,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case configUpdateError(cause: Error)
     case resetDataError(cause: Error)
 
+    case drmWarning(event: VmgrDrmWarning)
+
     // docker
     case dockerListError(cause: Error)
     case dockerContainerActionError(action: String, cause: Error)
@@ -109,6 +111,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t change settings"
         case .resetDataError:
             return "Can’t reset data"
+
+        case .drmWarning:
+            return "Can’t verify license. OrbStack will stop working soon."
 
         case .dockerListError:
             return "Failed to refresh Docker"
@@ -187,7 +192,16 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             } else {
                 return output
             }
+        case .drmWarning(let event):
+            return """
+                   \(event.lastError)
 
+                   To fix this:
+                       • Check your internet connection
+                       • Make sure api-license.orbstack.dev isn't blocked
+                       • Check your proxy in Settings > Network
+                       • Make sure your date and time are correct
+                   """
         default:
             if let cause {
                 return fmtRpc(cause)
@@ -253,6 +267,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .resetDataError(let cause):
             return cause
+
+        case .drmWarning:
+            return nil
 
         case .dockerListError(let cause):
             return cause
@@ -446,6 +463,12 @@ class VmViewModel: ObservableObject {
                 let doContainers = event.changed.contains(.container)
                 let doVolumes = event.changed.contains(.volume)
                 await self.tryRefreshDockerList(doContainers: doContainers, doVolumes: doVolumes)
+            }
+        }.store(in: &cancellables)
+
+        daemon.drmWarningNotifications.sink { [self] event in
+            Task { @MainActor in
+                error = .drmWarning(event: event)
             }
         }.store(in: &cancellables)
     }

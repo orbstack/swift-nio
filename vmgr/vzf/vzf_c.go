@@ -29,6 +29,7 @@ void swext_fsevents_VmNotifier_stop(void* ptr);
 void swext_fsevents_VmNotifier_finalize(void* ptr);
 void swext_ipc_notify_started(void);
 void swext_ipc_notify_docker_event(const char* event);
+void swext_ipc_notify_drm_warning(const char* event);
 
 struct GResultCreate swext_brnet_create(const char* config_json_str);
 void swext_brnet_close(void* ptr);
@@ -439,6 +440,12 @@ func SwextIpcNotifyDockerEvent(eventJsonStr string) {
 	cStr := C.CString(eventJsonStr)
 	defer C.free(unsafe.Pointer(cStr))
 	C.swext_ipc_notify_docker_event(cStr)
+}
+
+func SwextIpcNotifyDrmWarning(eventJsonStr string) {
+	cStr := C.CString(eventJsonStr)
+	defer C.free(unsafe.Pointer(cStr))
+	C.swext_ipc_notify_drm_warning(cStr)
 }
 
 /*

@@ -85,9 +85,15 @@ enum DKUIEntity: String, Codable {
 struct DKUIEvent: Codable {
     let changed: [DKUIEntity]
 }
+
+struct VmgrDrmWarning: Codable {
+    let lastError: String
+}
+
 class DaemonManager {
     let daemonNotifications = PassthroughSubject<Int, Never>()
     let dockerNotifications = PassthroughSubject<DKUIEvent, Never>()
+    let drmWarningNotifications = PassthroughSubject<VmgrDrmWarning, Never>()
 
     private let pidsHolder = PidsHolder()
     private var lastPid: Int?
@@ -261,6 +267,21 @@ class DaemonManager {
             }
             NSLog("Received Docker notification: \(event)")
             self.dockerNotifications.send(event)
+        }
+
+        nc.addObserver(forName: .init("dev.orbstack.vmgr.private.DRMWarning"), object: nil, queue: nil) { notification in
+            guard let eventJson = notification.userInfo?["event_json"] as? String else {
+                NSLog("Invalid notification: \(notification)")
+                return
+            }
+            // decode
+            let decoder = JSONDecoder()
+            guard let event = try? decoder.decode(VmgrDrmWarning.self, from: eventJson.data(using: .utf8)!) else {
+                NSLog("Invalid notification: \(notification)")
+                return
+            }
+            NSLog("Received DRM notification: \(event)")
+            self.drmWarningNotifications.send(event)
         }
     }
 }

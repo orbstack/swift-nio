@@ -127,3 +127,14 @@ type UploadDiagReportResponse struct {
 	UploadURL   string `json:"upload_url"`
 	DownloadURL string `json:"download_url"`
 }
+
+// saved as generic app password in keychain
+type PersistentState struct {
+	RefreshToken     string              `json:"refresh_token"`
+	EntitlementToken string              `json:"entitlement_token"`
+	FetchedAt        timex.MonoSleepTime `json:"fetched_at"`
+}
+
+type VmgrDrmWarningEvent struct {
+	LastError string `json:"lastError"`
+}

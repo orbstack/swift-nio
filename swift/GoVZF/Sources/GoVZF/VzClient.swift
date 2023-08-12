@@ -376,26 +376,3 @@ func run_Machine_finalize(ptr: UnsafeMutableRawPointer) {
     // drop long-lived Go ref
     Unmanaged<VmWrapper>.fromOpaque(ptr).release()
 }
-
-
-// TODO move this
-@_cdecl("swext_ipc_notify_started")
-func swext_ipc_notify_started() {
-    let nc = DistributedNotificationCenter.default()
-    // deliverImmediately sends even if GUI is in background
-    nc.postNotificationName(.init("dev.orbstack.vmgr.private.DaemonStarted"),
-            object: nil,
-            userInfo: ["pid": getpid()],
-            deliverImmediately: true)
-}
-
-@_cdecl("swext_ipc_notify_docker_event")
-func swext_ipc_notify_docker_event(eventJsonStr: UnsafePointer<CChar>) {
-    let nc = DistributedNotificationCenter.default()
-    // deliverImmediately for meneu bar app
-    let eventJson = String(cString: eventJsonStr)
-    nc.postNotificationName(.init("dev.orbstack.vmgr.private.DockerUIEvent"),
-            object: nil,
-            userInfo: ["event_json": eventJson],
-            deliverImmediately: true)
-}

@@ -22,9 +22,12 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
 	"github.com/orbstack/macvirt/vmgr/drm/updates"
+	"github.com/orbstack/macvirt/vmgr/guihelper"
+	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vnet"
+	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,7 +41,11 @@ const (
 	checkinLifetime = 24*time.Hour - 2*evaluateInterval
 
 	// allow non-explicit (i.e. network error) failures up to this long after startup
-	startGracePeriod = 30 * time.Minute
+	startGracePeriod = 15 * time.Minute
+
+	// allow this many failures before shutting down
+	// first fail is to send a GUI warning, second fail shuts down
+	failLimit = 2
 
 	// after VM wakes up from sleep, wait this long for time/clock sync before reporting
 	// this ensures host and VM clock are synced again
@@ -95,8 +102,9 @@ type DrmClient struct {
 
 	updater *updates.Updater
 
-	persistResultCh chan *drmtypes.Result
-	failChan        chan struct{}
+	persistResultCh     chan *drmtypes.Result
+	failChan            chan struct{}
+	failCountSinceValid int
 }
 
 func newDrmClient() *DrmClient {
@@ -230,13 +238,6 @@ func (c *DrmClient) Run() {
 	}
 }
 
-// saved as generic app password in keychain
-type persistedState struct {
-	RefreshToken     string              `json:"refresh_token"`
-	EntitlementToken string              `json:"entitlement_token"`
-	FetchedAt        timex.MonoSleepTime `json:"fetched_at"`
-}
-
 func (c *DrmClient) restoreState() error {
 	dlog("restoreState")
 	data, err := keychain.GetGenericPassword(keychainService, keychainAccount, keychainLabel, keychainAccessGroup)
@@ -248,7 +249,7 @@ func (c *DrmClient) restoreState() error {
 		return nil
 	}
 
-	var state persistedState
+	var state drmtypes.PersistentState
 	err = json.Unmarshal(data, &state)
 	if err != nil {
 		return err
@@ -301,7 +302,7 @@ func (c *DrmClient) persistState(result *drmtypes.Result) error {
 
 	dlog("persistState")
 	//TODO encrypt by device id
-	state := persistedState{
+	state := drmtypes.PersistentState{
 		RefreshToken:     result.RefreshToken,
 		EntitlementToken: result.EntitlementToken,
 		FetchedAt:        result.CheckedAt,
@@ -334,6 +335,27 @@ func (c *DrmClient) runStatePersister() {
 			dlog("bg: persist state failed: ", err)
 		}
 	}
+}
+
+func (c *DrmClient) sendGUIWarning(lastError error) {
+	// post notification
+	err := guihelper.Notify(guitypes.Notification{
+		Title:   "OrbStack will stop working soon",
+		Message: "Can’t verify license. Please restore network access or save your work.",
+		Silent:  false,
+	})
+	if err != nil {
+		logrus.WithError(err).Error("failed to post notification")
+	}
+
+	// send alert to GUI if window is open
+	data, err := json.Marshal(drmtypes.VmgrDrmWarningEvent{
+		LastError: lastError.Error(),
+	})
+	if err != nil {
+		logrus.WithError(err).Error("failed to marshal event")
+	}
+	vzf.SwextIpcNotifyDrmWarning(string(data))
 }
 
 func (c *DrmClient) SetVnet(n *vnet.Network) {
@@ -434,42 +456,65 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 
 	result, err := c.doCheckinLockedRetry()
 	if err != nil {
-		isVerifyFail := errors.Is(err, ErrVerify)
+		// a verification failure after fetch is always an immediate fail.
+		if errors.Is(err, ErrVerify) {
+			dlog("invalidating result: explicit verification failure")
+			c.dispatchFail()
+			return result, err
+		}
+
 		wakeTime := iokit.LastWakeTime
+		c.failCountSinceValid++
 
 		// new check failed. are we in grace period for old token expiry?
-		if !isVerifyFail && lastResult != nil && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
+		if lastResult != nil && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in last token grace period")
 			return lastResult, nil
-		} else if !isVerifyFail && lastResult == nil && /*mono*/ timex.SinceMonoSleep(c.startTime) < startGracePeriod {
+		} else if lastResult == nil && /*mono*/ timex.SinceMonoSleep(c.startTime) < startGracePeriod {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in start grace period")
 			return nil, errors.Join(err, ErrGrace)
-		} else if !isVerifyFail && lastResult == nil && wakeTime != nil && /*mono*/ timex.SinceMonoSleep(*wakeTime) < startGracePeriod {
+		} else if lastResult == nil && wakeTime != nil && /*mono*/ timex.SinceMonoSleep(*wakeTime) < startGracePeriod {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in wake grace period")
 			return nil, errors.Join(err, ErrGrace)
+		} else if c.failCountSinceValid < failLimit {
+			// not in any grace period, but this is the first time we've failed after the last successful check
+			// on first failure, set a flag and send a warning.
+			dlog("failed checkin, but this is first fail - sending warning")
+			c.sendGUIWarning(err)
+			// propagate log error
+			return result, err
 		} else {
+			// not in any grace period, and we've failed twice since the last successful check
+			// on second failure, shut down
+
 			// no grace period (or verify failed), so invalidate the result
-			result = &drmtypes.Result{
-				State:            drmtypes.StateInvalid,
-				EntitlementToken: "",
-				RefreshToken:     c.refreshToken,
-				ClaimInfo:        nil,
-				CheckedAt:        timex.NowMonoSleep(),
-			}
-			dlog("failed checkin and no grace period, invalidating result")
-
-			c.mu.Lock()
-			defer c.mu.Unlock()
-
-			c.dispatchResultLocked(result)
+			dlog("invalidating result: failed checkin, no grace period, already sent warning (2nd fail)")
+			c.dispatchFail()
 			return result, err
 		}
 	}
 
+	// success = reset fail counter
+	c.failCountSinceValid = 0
 	return result, nil
+}
+
+func (c *DrmClient) dispatchFail() {
+	result := &drmtypes.Result{
+		State:            drmtypes.StateInvalid,
+		EntitlementToken: "",
+		RefreshToken:     c.refreshToken,
+		ClaimInfo:        nil,
+		CheckedAt:        timex.NowMonoSleep(),
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.dispatchResultLocked(result)
 }
 
 func (c *DrmClient) doCheckinLockedRetry() (*drmtypes.Result, error) {
