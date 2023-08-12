@@ -41,7 +41,7 @@ A Linux user will be created to match your macOS user. Use "--set-password" to s
 Supported distros: ` + strings.Join(images.Distros(), "  ") + `
 Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 `,
-	Example: `  orb create -a arm64 ubuntu:kinetic
+	Example: `  orb create -a arm64 ubuntu:lunar
   orb create -a amd64 fedora foo`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
