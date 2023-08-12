@@ -10,11 +10,13 @@ var (
 		"TERM_PROGRAM_VERSION",
 		"TERM_SESSION_ID",
 		"COMMAND_MODE",
-		"LC_TERMINAL_VERSION",
-		"LC_TERMINAL",
 		"ITERM_SESSION_ID",
 		"ITERM_PROFILE",
 		"COLORTERM",
+
+		// match macOS /etc/ssh/ssh_config: LANG, LC_*
+		"LANG",
+		// LC_* logic is somewhere else
 
 		// default programs depends on PATH
 		"TERMINAL",

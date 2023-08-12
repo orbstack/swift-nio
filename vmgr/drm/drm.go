@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/keybase/go-keychain"
 	"github.com/orbstack/macvirt/scon/isclient"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
@@ -36,7 +37,7 @@ const (
 	checkinLifetime = 24*time.Hour - 2*evaluateInterval
 
 	// allow non-explicit (i.e. network error) failures up to this long after startup
-	startGracePeriod = 15 * time.Minute
+	startGracePeriod = 30 * time.Minute
 
 	// after VM wakes up from sleep, wait this long for time/clock sync before reporting
 	// this ensures host and VM clock are synced again
@@ -48,6 +49,12 @@ const (
 
 	apiBaseUrlProd = "https://api-license.orbstack.dev"
 	apiBaseUrlDev  = "http://localhost:8400"
+
+	// avoid perm issues bug for diff bundle IDs
+	keychainService     = "dev.kdrag0n.MacVirt" // user-facing "Where"
+	keychainAccount     = "license_state"
+	keychainLabel       = "OrbStack" // user-facing "Name"
+	keychainAccessGroup = "HUAQ24HBR6.dev.orbstack"
 )
 
 var (
@@ -192,6 +199,14 @@ func (c *DrmClient) Run() {
 	ticker := time.NewTicker(evaluateInterval)
 	defer ticker.Stop()
 
+	go func() {
+		err := c.restoreState()
+		if err != nil {
+			dlog("restore state failed: ", err)
+		}
+	}()
+
+	// this includes a first iteration
 	for ; true; <-ticker.C {
 		dlog("periodic/init check")
 		result, err := c.KickCheck()
@@ -209,6 +224,95 @@ func (c *DrmClient) Run() {
 
 		dlog("periodic check result: ", result)
 	}
+}
+
+// saved as generic app password in keychain
+type persistedState struct {
+	RefreshToken     string `json:"refresh_token"`
+	EntitlementToken string `json:"entitlement_token"`
+}
+
+func (c *DrmClient) restoreState() error {
+	dlog("restoreState")
+	data, err := keychain.GetGenericPassword(keychainService, keychainAccount, keychainLabel, keychainAccessGroup)
+	if err != nil {
+		return err
+	}
+	if len(data) == 0 {
+		dlog("restore: no data")
+		return nil
+	}
+
+	var state persistedState
+	err = json.Unmarshal(data, &state)
+	if err != nil {
+		return err
+	}
+	//TODO encrypt by device id - or pointless b/c weak/honor DRM anyway
+
+	// use non-strict version check for restore
+	dlog("restore: verify token")
+	claimInfo, err := c.verifier.Verify(state.EntitlementToken, sjwt.TokenVerifyParams{
+		StrictVersion: false,
+	})
+	c.mu.Lock() // take it here for setting refresh token
+	defer c.mu.Unlock()
+	if err != nil {
+		// never dispatch invalid results here, just get it from the server again
+		dlog("restore: verify failed: ", err)
+		// still, we can salvage the refresh token
+		dlog("restore: use refresh token: ", state.RefreshToken)
+		c.refreshToken = state.RefreshToken
+		return errors.Join(ErrVerify, err)
+	}
+
+	// we're under lock now.
+	// this is normally the first result that gets dispatched, so if there's a new one from the server, don't overwrite it with an old one
+	if c.lastResult != nil {
+		dlog("restore: already got new result from server, skip")
+		return nil
+	}
+
+	dlog("restore: dispatch good result")
+	result := &drmtypes.Result{
+		State:            drmtypes.StateValid,
+		EntitlementToken: state.EntitlementToken,
+		RefreshToken:     state.RefreshToken,
+		ClaimInfo:        claimInfo,
+		CheckedAt:/*wall*/ timex.NowMonoSleep(),
+	}
+	c.dispatchResultLocked(result)
+	c.refreshToken = state.RefreshToken
+	return nil
+}
+
+func (c *DrmClient) persistState(result *drmtypes.Result) error {
+	// only persist valid states, no point in saving invalid if this is for optimistic cache on start
+	if result.State != drmtypes.StateValid {
+		dlog("persistState: skip invalid state")
+		return nil
+	}
+
+	dlog("persistState")
+	//TODO encrypt by device id
+	state := persistedState{
+		RefreshToken:     result.RefreshToken,
+		EntitlementToken: result.EntitlementToken,
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+
+	item := keychain.NewGenericPassword(keychainService, keychainAccount, keychainLabel, data, keychainAccessGroup)
+	item.SetSynchronizable(keychain.SynchronizableNo) // tokens are tied to device
+	item.SetAccessible(keychain.AccessibleAlways)     // for headless usage
+	err = keychain.AddItem(item)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *DrmClient) SetVnet(n *vnet.Network) {
@@ -336,7 +440,10 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 			}
 			dlog("failed checkin and no grace period, invalidating result")
 
-			c.dispatchResult(result)
+			c.mu.Lock()
+			defer c.mu.Unlock()
+
+			c.dispatchResultLocked(result)
 			return result, err
 		}
 	}
@@ -383,6 +490,7 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 		return nil, errors.Join(ErrVerify, err)
 	}
 
+	dlog("dispatch good result")
 	result := &drmtypes.Result{
 		State:            drmtypes.StateValid,
 		EntitlementToken: resp.EntitlementToken,
@@ -390,24 +498,21 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 		ClaimInfo:        claimInfo,
 		CheckedAt:/*wall*/ timex.NowMonoSleep(),
 	}
-	dlog("dispatch good result")
-
-	c.dispatchResult(result)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.refreshToken = resp.RefreshToken
 
+	c.dispatchResultLocked(result)
+	c.refreshToken = resp.RefreshToken
 	return result, nil
 }
 
-func (c *DrmClient) dispatchResult(result *drmtypes.Result) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+func (c *DrmClient) dispatchResultLocked(result *drmtypes.Result) {
 	dlog("dispatchResult: ", result)
 	c.lastResult = result
 	c.setState(result.State)
+	//TODO channel
+	c.persistState(result)
 
 	// report every period, to make sure scon stays alive
 	go func() {

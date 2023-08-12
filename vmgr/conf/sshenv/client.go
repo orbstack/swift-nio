@@ -30,6 +30,13 @@ func OSToClientEnv(osEnv envutil.EnvMap, transFns TranslatorFuncs) (envutil.EnvM
 		}
 	}
 
+	// include all LC_* to match macOS ssh_config
+	for k, v := range osEnv {
+		if strings.HasPrefix(k, "LC_") {
+			clientEnv[k] = v
+		}
+	}
+
 	// translate proxy envs
 	for _, k := range proxyEnvKeys {
 		if v, ok := osEnv[k]; ok {

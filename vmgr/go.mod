@@ -40,6 +40,7 @@ require (
 require (
 	github.com/briandowns/spinner v1.20.0 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
+	github.com/keybase/go-keychain v0.0.0-20230523030712-b5615109f100 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/petermattis/goid v0.0.0-20230518223814-80aa455d8761 // indirect
