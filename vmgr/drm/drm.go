@@ -232,8 +232,9 @@ func (c *DrmClient) Run() {
 
 // saved as generic app password in keychain
 type persistedState struct {
-	RefreshToken     string `json:"refresh_token"`
-	EntitlementToken string `json:"entitlement_token"`
+	RefreshToken     string              `json:"refresh_token"`
+	EntitlementToken string              `json:"entitlement_token"`
+	FetchedAt        timex.MonoSleepTime `json:"fetched_at"`
 }
 
 func (c *DrmClient) restoreState() error {
@@ -283,7 +284,8 @@ func (c *DrmClient) restoreState() error {
 		EntitlementToken: state.EntitlementToken,
 		RefreshToken:     state.RefreshToken,
 		ClaimInfo:        claimInfo,
-		CheckedAt:/*wall*/ timex.NowMonoSleep(),
+		// needed to prevent re-check from being deferred for too long
+		CheckedAt:/*wall*/ state.FetchedAt,
 	}
 	c.dispatchResultLocked(result)
 	c.refreshToken = state.RefreshToken
@@ -302,6 +304,7 @@ func (c *DrmClient) persistState(result *drmtypes.Result) error {
 	state := persistedState{
 		RefreshToken:     result.RefreshToken,
 		EntitlementToken: result.EntitlementToken,
+		FetchedAt:        result.CheckedAt,
 	}
 	data, err := json.Marshal(state)
 	if err != nil {

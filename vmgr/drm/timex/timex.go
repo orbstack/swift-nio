@@ -28,5 +28,11 @@ func NowMonoSleep() MonoSleepTime {
 }
 
 func SinceMonoSleep(t MonoSleepTime) time.Duration {
+	// in case there is no mono time, use wall
+	// happens when restored from keychain
+	if t.mono == 0 {
+		return time.Since(t.Wall)
+	}
+
 	return time.Duration(nowNs() - t.mono)
 }
