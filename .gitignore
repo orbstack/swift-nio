@@ -1,9 +1,6 @@
 /assets/
-/assets_router/
 .DS_Store
 *.pcap
-/scdata/
-/dist/
 *.zip
 /updates/
 /out/
