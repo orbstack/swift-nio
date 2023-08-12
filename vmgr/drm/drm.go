@@ -463,10 +463,8 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 			return result, err
 		}
 
-		wakeTime := iokit.LastWakeTime
-		c.failCountSinceValid++
-
 		// new check failed. are we in grace period for old token expiry?
+		wakeTime := iokit.LastWakeTime
 		if lastResult != nil && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 			// still in grace period, so keep the old result
 			dlog("failed checkin, but still in last token grace period")
@@ -483,15 +481,15 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 			// not in any grace period, but this is the first time we've failed after the last successful check
 			// on first failure, set a flag and send a warning.
 			dlog("failed checkin, but this is first fail - sending warning")
+			c.failCountSinceValid++
 			c.sendGUIWarning(err)
 			// propagate log error
 			return result, err
 		} else {
 			// not in any grace period, and we've failed twice since the last successful check
 			// on second failure, shut down
-
-			// no grace period (or verify failed), so invalidate the result
 			dlog("invalidating result: failed checkin, no grace period, already sent warning (2nd fail)")
+			c.failCountSinceValid++
 			c.dispatchFail()
 			return result, err
 		}
