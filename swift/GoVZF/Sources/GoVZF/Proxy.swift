@@ -125,6 +125,12 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
 
     let certs = result as! [SecCertificate]
     let extraCaCerts = certs.filter { certificate in
+        // skip Avast trusted CA as workaround for >800 certs. checking trust settings doesn't work properly
+        if let summary = SecCertificateCopySubjectSummary(certificate) as String?,
+           summary == "Avast trusted CA" {
+            return false
+        }
+
         // validate for SSL use
         var trust: SecTrust?
         let policy = SecPolicyCreateSSL(true, nil)
