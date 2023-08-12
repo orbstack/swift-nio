@@ -9,8 +9,8 @@ import (
 
 func MountNfs(tcpPort int) error {
 	// similar to:
-	// mount_nfs -vvvvv -o vers=4,proto=ticotsord,soft,mutejukebox,rwsize=131072,readahead=64,deadtimeout=10,nocallback "<$HOME/.orbstack/run/nfs.sock>":/ ~/OrbStack
-	// mount_nfs -vvvvv -o vers=4,tcp,inet,soft,mutejukebox,rwsize=131072,readahead=64,deadtimeout=10,nocallback,port=62429 localhost: ~/OrbStack
+	// mount_nfs -vvvvv -o vers=4,proto=ticotsord,soft,intr,mutejukebox,rwsize=131072,readahead=64,deadtimeout=10,nocallback "<$HOME/.orbstack/run/nfs.sock>":/ ~/OrbStack
+	// mount_nfs -vvvvv -o vers=4,tcp,inet,soft,intr,mutejukebox,rwsize=131072,readahead=64,deadtimeout=10,nocallback,port=62429 localhost: ~/OrbStack
 	err := doMount(Spec{
 		// IsUnix:  true,
 		// Addr:    NfsSocket(),
