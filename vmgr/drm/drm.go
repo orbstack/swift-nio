@@ -15,6 +15,7 @@ import (
 	"github.com/keybase/go-keychain"
 	"github.com/orbstack/macvirt/scon/isclient"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
@@ -51,7 +52,7 @@ const (
 	apiBaseUrlDev  = "http://localhost:8400"
 
 	// avoid perm issues bug for diff bundle IDs
-	keychainService     = "dev.kdrag0n.MacVirt" // user-facing "Where"
+	keychainService     = appid.BundleID // user-facing "Where"
 	keychainAccount     = "license_state"
 	keychainLabel       = "OrbStack" // user-facing "Name"
 	keychainAccessGroup = "HUAQ24HBR6.dev.orbstack"
@@ -94,7 +95,8 @@ type DrmClient struct {
 
 	updater *updates.Updater
 
-	failChan chan struct{}
+	persistResultCh chan *drmtypes.Result
+	failChan        chan struct{}
 }
 
 func newDrmClient() *DrmClient {
@@ -131,7 +133,8 @@ func newDrmClient() *DrmClient {
 
 		updater: updates.NewUpdater(),
 
-		failChan: make(chan struct{}),
+		persistResultCh: make(chan *drmtypes.Result, 1),
+		failChan:        make(chan struct{}),
 	}
 
 	c.http = &http.Client{
@@ -199,6 +202,7 @@ func (c *DrmClient) Run() {
 	ticker := time.NewTicker(evaluateInterval)
 	defer ticker.Stop()
 
+	go c.runStatePersister()
 	go func() {
 		err := c.restoreState()
 		if err != nil {
@@ -313,6 +317,16 @@ func (c *DrmClient) persistState(result *drmtypes.Result) error {
 	}
 
 	return nil
+}
+
+// keychain can hang on permission prompt, so do it in a goroutine
+func (c *DrmClient) runStatePersister() {
+	for result := range c.persistResultCh {
+		err := c.persistState(result)
+		if err != nil {
+			dlog("bg: persist state failed: ", err)
+		}
+	}
 }
 
 func (c *DrmClient) SetVnet(n *vnet.Network) {
@@ -511,8 +525,11 @@ func (c *DrmClient) dispatchResultLocked(result *drmtypes.Result) {
 	dlog("dispatchResult: ", result)
 	c.lastResult = result
 	c.setState(result.State)
-	//TODO channel
-	c.persistState(result)
+	// don't block if perm prompt is stuck
+	select {
+	case c.persistResultCh <- result:
+	default:
+	}
 
 	// report every period, to make sure scon stays alive
 	go func() {

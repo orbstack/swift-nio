@@ -15,3 +15,5 @@ const (
 	UrlUpdate   = UrlPrefix + "update"
 	UrlSettings = UrlPrefix + "settings"
 )
+
+const BundleID = "dev.kdrag0n.MacVirt"
