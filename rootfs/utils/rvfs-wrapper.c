@@ -30,8 +30,6 @@ struct elf_info {
     // interpreter (dynamic linker) path
     bool has_interp; // false = static
     char interpreter[PATH_MAX];
-    // patchelf?
-    bool pt_interp_after_load;
 
     // links against libuv?
     bool needs_libuv;
@@ -70,9 +68,8 @@ static bool argv_contains(char **argv, char *what) {
 }
 
 static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, struct elf_info *elf_info) {
-    // if running "apk", use qemu to avoid futex bug
     // milvusdb assumes AVX. QEMU 7.2+ supports AVX, but not Rosetta. https://github.com/orbstack/orbstack/issues/482
-    if (strcmp(exe_name, "apk") == 0 || strcmp(exe_name, "milvus") == 0) {
+    if (strcmp(exe_name, "milvus") == 0) {
         if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
         return EMU_QEMU;
     }
@@ -80,6 +77,7 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, 
     // vsce-sign also breaks in qemu so no point in switching
 
     // fix "build-script-build" getting stuck on futex during cargo build
+    // futex(0xffff86e5bfb4, FUTEX_WAIT_PRIVATE, 1, NULL
     // ex: /build/vinit/target/release/build/bzip2-sys-7a5f3f458c874dc9/build-script-build
     if (strcmp(exe_name, "build-script-build") == 0) {
         if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
@@ -181,10 +179,6 @@ static int read_elf_info(int fd, struct elf_info *out) {
             memcpy(out->interpreter, file + phdr->p_offset, phdr->p_filesz);//TODO check bounds
             out->has_interp = true;
             out->interpreter[phdr->p_filesz] = '\0';
-            // set flag for PT_INTERP after LOAD
-            if (seen_pt_load) {
-                out->pt_interp_after_load = true;
-            }
             if (DEBUG) fprintf(stderr, "interp: %s\n", out->interpreter);
         } else if (phdr->p_type == PT_DYNAMIC) {
             // find string table (STRTAB)
@@ -422,21 +416,6 @@ int main(int argc, char **argv) {
     const char *rvk_data = emu == EMU_ROSETTA ? rvk1_data : rvk2_data;
     if (prctl(PR_SET_NAME, rvk_data, 0, 0, 0) != 0) {
         return orb_perror("prctl");
-    }
-
-    // patchelf workaround: Rosetta segfaults if PT_INTERP is after PT_LOAD
-    // as a workaround, we invoke the dynamic linker directly instead
-    if (emu == EMU_ROSETTA && elf_info.pt_interp_after_load) {
-        // create new argv: [exe_argv[0], exe_path, ...&argv[3]]
-        char *new_argv[2 + (argc - 3) + 1];
-        new_argv[0] = exe_argv[0];
-        new_argv[1] = exe_path;
-        memcpy(&new_argv[2], &argv[3], (argc - 3) * sizeof(char*));
-        new_argv[2 + (argc - 3)] = NULL;
-
-        if (execve(elf_info.interpreter, new_argv, environ) != 0) {
-            return orb_perror("execve");
-        }
     }
 
     // execute by fd
