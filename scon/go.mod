@@ -33,7 +33,6 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.2
 	go.etcd.io/bbolt v1.3.7
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/net v0.13.0
 	golang.org/x/term v0.10.0
 	gopkg.in/yaml.v3 v3.0.1
