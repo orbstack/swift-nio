@@ -518,12 +518,14 @@ func runVmManager() {
 		NetworkNat:         useNat,
 		NetworkHostBridges: 2, // machine + VlanRouter
 		MacAddressPrefix:   netconf.GuestMACPrefix,
-		Balloon:            true,
-		Rng:                true,
-		Vsock:              true,
-		Virtiofs:           true,
-		Rosetta:            vmconfig.Get().Rosetta,
-		Sound:              false,
+		// doesn't work so let's just hide it
+		Balloon:  false,
+		Rng:      true,
+		Vsock:    true,
+		Virtiofs: true,
+		Rosetta:  vmconfig.Get().Rosetta,
+		// useful once we have graphics
+		Sound: false,
 
 		StopCh:        stopCh,
 		HealthCheckCh: healthCheckCh,
