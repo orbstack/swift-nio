@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -19,9 +20,28 @@ const (
 	nfsDirContainers = "/nfs/containers"
 )
 
-func mountOneNfs(source string, mirrorDir string, subDest string, fstype string, flags uintptr, data string) error {
-	backingPath := mirrorDir + "/rw/" + subDest
-	destPath := mirrorDir + "/ro/" + subDest
+type NfsMirrorManager struct {
+	roDir string
+	rwDir string
+
+	mu    sync.Mutex
+	dests map[string]struct{}
+}
+
+func newNfsMirror(dir string) *NfsMirrorManager {
+	return &NfsMirrorManager{
+		roDir: dir + "/ro/",
+		rwDir: dir + "/rw/",
+		dests: make(map[string]struct{}),
+	}
+}
+
+func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	backingPath := m.rwDir + subdest
+	destPath := m.roDir + subdest
 
 	logrus.WithFields(logrus.Fields{
 		"src": source,
@@ -44,16 +64,20 @@ func mountOneNfs(source string, mirrorDir string, subDest string, fstype string,
 		return err
 	}
 
+	m.dests[destPath] = struct{}{}
 	return nil
 }
 
-func mountOneNfsBind(source string, mirrorDir string, nfsSubDst string) error {
-	return mountOneNfs(source, mirrorDir, nfsSubDst, "", unix.MS_BIND, "")
+func (m *NfsMirrorManager) MountBind(source string, subdest string) error {
+	return m.Mount(source, subdest, "", unix.MS_BIND, "")
 }
 
-func unmountOneNfs(mirrorDir string, nfsSubDst string) error {
-	backingPath := mirrorDir + "/rw/" + nfsSubDst
-	mountPath := mirrorDir + "/ro/" + nfsSubDst
+func (m *NfsMirrorManager) Unmount(subdest string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	backingPath := m.rwDir + subdest
+	mountPath := m.roDir + subdest
 
 	logrus.WithField("dst", mountPath).Debug("unmounting nfs dir")
 	// unmount
@@ -69,21 +93,34 @@ func unmountOneNfs(mirrorDir string, nfsSubDst string) error {
 		return err
 	}
 
+	delete(m.dests, mountPath)
 	return nil
+}
+
+func (m *NfsMirrorManager) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var errs []error
+	for dest := range m.dests {
+		err := unix.Unmount(dest, unix.MNT_DETACH)
+		if err != nil && !errors.Is(err, unix.EINVAL) {
+			errs = append(errs, fmt.Errorf("unmount %s: %w", dest, err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 func (m *ConManager) onRestoreContainer(c *Container) error {
 	// nfs bind mount
 	err := func() error {
-		m.nfsMu.Lock()
-		defer m.nfsMu.Unlock()
-
 		// docker is special
 		if c.ID == ContainerIDDocker {
 			return nil
 		}
 
-		err := mountOneNfsBind(c.rootfsDir, nfsDirRoot, c.Name)
+		err := m.nfsRoot.MountBind(c.rootfsDir, c.Name)
 		if err != nil {
 			return err
 		}
@@ -100,15 +137,12 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 func (m *ConManager) onPreDeleteContainer(c *Container) error {
 	// nfs symlink
 	err := func() error {
-		m.nfsMu.Lock()
-		defer m.nfsMu.Unlock()
-
 		// docker is special
 		if c.ID == ContainerIDDocker {
 			return nil
 		}
 
-		err := unmountOneNfs(nfsDirRoot, c.Name)
+		err := m.nfsRoot.Unmount(c.Name)
 		if err != nil {
 			return err
 		}
@@ -128,7 +162,7 @@ func bindMountNfsRoot(c *Container, src string, target string) error {
 	})
 }
 
-func mountOneNfsImage(img *dockertypes.FullImage) error {
+func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage) error {
 	// guaranteed that there's a tag at this point
 	tag := img.RepoTags[0]
 
@@ -174,13 +208,13 @@ func mountOneNfsImage(img *dockertypes.FullImage) error {
 	// overlayfs does not support having only a single lowerdir.
 	// just use bind mount instead in that case, e.g. single-layer base image like alpine
 	if len(layerDirs) == 1 {
-		err = mountOneNfsBind(layerDirs[0], nfsDirImages, tag)
+		err = m.MountBind(layerDirs[0], tag)
 		if err != nil {
 			return fmt.Errorf("mount bind: %w", err)
 		}
 	} else {
 		// note: nfs_export not really needed because of mergerfs
-		err = mountOneNfs("img", nfsDirImages, tag, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
+		err = m.Mount("img", tag, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
 		if err != nil {
 			return fmt.Errorf("mount overlay: %w", err)
 		}

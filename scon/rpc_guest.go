@@ -239,7 +239,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[*dockertypes.FullImage], _ *None) error {
 	// mount new ones
 	for _, img := range diff.Added {
-		err := mountOneNfsImage(img)
+		err := s.m.nfsImages.MountImage(img)
 		if err != nil {
 			logrus.WithError(err).Error("failed to mount docker image")
 		}
@@ -249,7 +249,7 @@ func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[*dockertypes.F
 	for _, img := range diff.Removed {
 		// guaranteed that there's a tag at this point
 		tag := img.RepoTags[0]
-		err := unmountOneNfs(nfsDirImages, tag)
+		err := s.m.nfsImages.Unmount(tag)
 		if err != nil {
 			logrus.WithError(err).Error("failed to unmount docker image")
 		}
