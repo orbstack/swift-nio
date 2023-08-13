@@ -5,6 +5,7 @@ import (
 	"net/rpc"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
 type None struct{}
@@ -38,7 +39,12 @@ func (c *Client) DockerRemoveBridge(config sgtypes.DockerBridgeConfig) error {
 	return c.rpc.Call("scg.DockerRemoveBridge", config, &noResult)
 }
 
-func (c *Client) OnDockerContainersChanged(diff sgtypes.DockerContainersDiff) error {
+func (c *Client) OnDockerContainersChanged(diff sgtypes.Diff[dockertypes.ContainerSummaryMin]) error {
 	var noResult None
 	return c.rpc.Call("scg.OnDockerContainersChanged", diff, &noResult)
+}
+
+func (c *Client) OnDockerImagesChanged(diff sgtypes.Diff[*dockertypes.FullImage]) error {
+	var noResult None
+	return c.rpc.Call("scg.OnDockerImagesChanged", diff, &noResult)
 }

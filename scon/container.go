@@ -220,6 +220,7 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 	// can't use lxc.RemoveDeviceNode because node is already gone from host
 	// just delete the node in the container
 	// don't bother to update the devices cgroup bpf filter
+	// TODO use proc root fd
 	err := c.UseMountNs(func() error {
 		return os.Remove(dst)
 	})

@@ -33,7 +33,7 @@ type VolumeListResponse struct {
 
 type SystemDf struct {
 	LayersSize int64
-	Images     []Image `json:",omitempty"`
+	Images     []ImageSummary `json:",omitempty"`
 	//Layers
 	//Containers, etc
 	Volumes []Volume

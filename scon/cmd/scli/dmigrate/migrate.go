@@ -142,7 +142,7 @@ func (m *Migrator) sendProgressEvent(progress float64) {
 }
 
 type engineManifest struct {
-	Images     []*dockertypes.Image
+	Images     []*dockertypes.ImageSummary
 	Containers []*dockertypes.ContainerSummary
 	Networks   []dockertypes.Network
 	Volumes    []dockertypes.Volume
@@ -378,7 +378,7 @@ outer:
 		containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{imageID: c.ImageID})
 	}
 	// 2. filter images
-	var filteredImages []*dockertypes.Image
+	var filteredImages []*dockertypes.ImageSummary
 	for _, i := range manifest.Images {
 		// exclude agent image
 		if slices.Contains(i.RepoTags, migrationAgentImage) {

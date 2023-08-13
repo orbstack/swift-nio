@@ -26,7 +26,7 @@ type imageV2Manifest struct {
 	Layers   []string `json:"Layers"`
 }
 
-func (m *Migrator) sendImageFastpath(img *dockertypes.Image) error {
+func (m *Migrator) sendImageFastpath(img *dockertypes.ImageSummary) error {
 	// [src] get full image info
 	var fullImg dockertypes.FullImage
 	err := m.srcClient.Call("GET", "/images/"+img.ID+"/json", nil, &fullImg)
@@ -122,7 +122,7 @@ func (m *Migrator) sendImageFastpath(img *dockertypes.Image) error {
 	return m.syncDirsGeneric(m.srcClient, cmdBuilder, "/", m.destClient, &dirSyncReq)
 }
 
-func (m *Migrator) migrateOneImage(idx int, img *dockertypes.Image, userName string) error {
+func (m *Migrator) migrateOneImage(idx int, img *dockertypes.ImageSummary, userName string) error {
 	logrus.Infof("Migrating image %s", userName)
 
 	// try fastpath
@@ -145,7 +145,7 @@ func (m *Migrator) migrateOneImage(idx int, img *dockertypes.Image, userName str
 	return nil
 }
 
-func (m *Migrator) submitImages(group *pond.TaskGroup, images []*dockertypes.Image) error {
+func (m *Migrator) submitImages(group *pond.TaskGroup, images []*dockertypes.ImageSummary) error {
 	for idx, img := range images {
 		var userName string
 		if len(img.RepoTags) > 0 {

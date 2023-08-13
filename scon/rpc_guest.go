@@ -6,14 +6,19 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type SconGuestServer struct {
@@ -199,7 +204,7 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 }
 
 // note: this is for start/stop, not create/delete
-func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.DockerContainersDiff, _ *None) error {
+func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertypes.ContainerSummaryMin], _ *None) error {
 	// update mDNS registry
 	for _, ctr := range diff.Added {
 		s.m.net.mdnsRegistry.AddContainer(&ctr)
@@ -229,6 +234,85 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.DockerContainer
 		})
 		if err != nil {
 			return fmt.Errorf("update cfwd: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func mountOneNfsImage(img *dockertypes.FullImage) error {
+	// guaranteed that there's a tag at this point
+	tag := img.RepoTags[0]
+
+	// c8d snapshotter not supported
+	if img.GraphDriver.Name != "overlay2" {
+		return nil
+	}
+
+	// open each dir as O_PATH fd. layer paths are too long so normally docker uses symlinks
+	// TODO use proc root fd
+	lowerDirValue := img.GraphDriver.Data["LowerDir"]
+	lowerParts := strings.Split(lowerDirValue, ":")
+	// make it empty?
+	if lowerDirValue == "" {
+		lowerParts = nil
+	}
+	layerDirs := make([]string, 0, 1+len(img.GraphDriver.Data))
+	// upper first
+	upperPath := strings.Replace(img.GraphDriver.Data["UpperDir"], "/var/lib/docker", conf.C().DockerDataDir, 1)
+	// an image should never have no layers
+	if upperPath == "" {
+		return fmt.Errorf("image '%s' has no upper dir", tag)
+	}
+
+	upperFd, err := unix.Open(upperPath, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open upper dir '%s': %w", upperPath, err)
+	}
+	defer unix.Close(upperFd)
+	// upper first, by order
+	layerDirs = append(layerDirs, "/proc/self/fd/"+strconv.Itoa(upperFd))
+
+	for _, dir := range lowerParts {
+		lowerPath := strings.Replace(dir, "/var/lib/docker", conf.C().DockerDataDir, 1)
+		lowerFd, err := unix.Open(lowerPath, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return fmt.Errorf("open lower dir '%s': %w", lowerPath, err)
+		}
+		defer unix.Close(lowerFd)
+		layerDirs = append(layerDirs, "/proc/self/fd/"+strconv.Itoa(lowerFd))
+	}
+
+	err = mountOneNfs("docker-image", "docker/images/"+tag, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
+	if err != nil {
+		return fmt.Errorf("mount: %w", err)
+	}
+
+	// add the export
+	err = addNfsdExport(conf.C().NfsRootRO + "/docker/images/" + tag)
+	if err != nil {
+		return fmt.Errorf("add export: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[*dockertypes.FullImage], _ *None) error {
+	// mount new ones
+	for _, img := range diff.Added {
+		err := mountOneNfsImage(img)
+		if err != nil {
+			logrus.WithError(err).Error("failed to mount docker image")
+		}
+	}
+
+	// unmount old ones
+	for _, img := range diff.Removed {
+		// guaranteed that there's a tag at this point
+		tag := img.RepoTags[0]
+		err := unmountOneNfs("docker/images/" + tag)
+		if err != nil {
+			logrus.WithError(err).Error("failed to unmount docker image")
 		}
 	}
 

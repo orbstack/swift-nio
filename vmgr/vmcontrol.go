@@ -174,7 +174,7 @@ func (s *VmControlServer) DockerVolumeRemove(ctx context.Context, params vmtypes
 	return s.dockerClient.Call("DELETE", "/volumes/"+params.ID, nil, nil)
 }
 
-func (s *VmControlServer) DockerImageList(ctx context.Context) ([]*dockertypes.Image, error) {
+func (s *VmControlServer) DockerImageList(ctx context.Context) ([]*dockertypes.ImageSummary, error) {
 	return s.dockerClient.ListImages()
 }
 

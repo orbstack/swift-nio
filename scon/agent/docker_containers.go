@@ -42,7 +42,7 @@ func (d *DockerAgent) refreshContainers() error {
 	}
 
 	// tell scon
-	err = d.scon.OnDockerContainersChanged(sgtypes.DockerContainersDiff{
+	err = d.scon.OnDockerContainersChanged(sgtypes.Diff[dockertypes.ContainerSummaryMin]{
 		Added:   added,
 		Removed: removed,
 	})

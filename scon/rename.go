@@ -44,13 +44,13 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	defer func() {
 		if retErr != nil {
 			_ = unmountOneNfs(newName)
-			err2 := mountOneNfs(c.rootfsDir, oldName)
+			err2 := mountOneNfsBind(c.rootfsDir, oldName)
 			if err2 != nil {
 				logrus.WithError(err2).Error("failed to remount old name after error")
 			}
 		}
 	}()
-	err = mountOneNfs(c.rootfsDir, newName)
+	err = mountOneNfsBind(c.rootfsDir, newName)
 	if err != nil {
 		return "", err
 	}

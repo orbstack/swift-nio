@@ -1,6 +1,6 @@
 package dockertypes
 
-type Image struct {
+type ImageSummary struct {
 	ID          string `json:"Id"`
 	Containers  int
 	Created     int64
@@ -21,4 +21,8 @@ type FullImage struct {
 		Type   string
 		Layers []string
 	}
+}
+
+func (img *FullImage) Identifier() string {
+	return img.ID
 }

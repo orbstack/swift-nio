@@ -42,9 +42,13 @@ type DockerAgent struct {
 	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
 	lastNetworks   []dockertypes.Network
 
+	lastImages     []*dockertypes.FullImage
+	fullImageCache map[string]*dockertypes.FullImage
+
 	// refreshing w/ debounce+diff ensures consistent snapshots
 	containerRefreshDebounce syncx.FuncDebounce
 	networkRefreshDebounce   syncx.FuncDebounce
+	imageRefreshDebounce     syncx.FuncDebounce
 	uiEventDebounce          syncx.FuncDebounce
 	pendingUIEntities        []dockertypes.UIEntity
 
@@ -69,7 +73,10 @@ func NewDockerAgent() *DockerAgent {
 			},
 		}, nil),
 
-		Running:        syncx.NewCondBool(),
+		Running: syncx.NewCondBool(),
+
+		fullImageCache: make(map[string]*dockertypes.FullImage),
+
 		containerBinds: make(map[string][]string),
 		dirSyncJobs:    make(map[uint64]chan error),
 	}
@@ -82,6 +89,12 @@ func NewDockerAgent() *DockerAgent {
 	})
 	dockerAgent.networkRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
 		err := dockerAgent.refreshNetworks()
+		if err != nil {
+			logrus.WithError(err).Error("failed to refresh networks")
+		}
+	})
+	dockerAgent.imageRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		err := dockerAgent.refreshImages()
 		if err != nil {
 			logrus.WithError(err).Error("failed to refresh networks")
 		}
@@ -287,6 +300,7 @@ func (d *DockerAgent) monitorEvents() error {
 	// kick an initial refresh
 	d.containerRefreshDebounce.Call()
 	d.networkRefreshDebounce.Call()
+	d.imageRefreshDebounce.Call()
 	// also kick all initial UI events for menu bar bg start
 	d.triggerUIEvent(dockertypes.UIEventContainer)
 	d.triggerUIEvent(dockertypes.UIEventVolume)
@@ -319,8 +333,19 @@ func (d *DockerAgent) monitorEvents() error {
 			}
 
 		case "volume":
-			d.triggerUIEvent(dockertypes.UIEventVolume)
-			// there is no event for images
+			switch event.Action {
+			// include mount, unmount because UI shows used/unused
+			case "create", "destroy", "mount", "unmount":
+				d.triggerUIEvent(dockertypes.UIEventVolume)
+			}
+
+		case "image":
+			// no UI event for images: unnecessary
+			switch event.Action {
+			case "delete", "import", "load", "pull", "tag", "untag":
+				// TODO clear full image cache on tag/untag. event doesn't contain image ID
+				d.imageRefreshDebounce.Call()
+			}
 
 		case "network":
 			switch event.Action {

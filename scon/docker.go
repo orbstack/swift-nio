@@ -514,7 +514,7 @@ func (m *ConManager) runDockerNFS() error {
 		for _, vol := range added {
 			dataSrc := dockerVolDir + "/" + vol + "/_data"
 			nfsSubDst := nfsDockerSubdir + "/" + vol
-			err := mountOneNfs(dataSrc, nfsSubDst)
+			err := mountOneNfsBind(dataSrc, nfsSubDst)
 			if err != nil {
 				return err
 			}

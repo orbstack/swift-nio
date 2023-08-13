@@ -2,41 +2,47 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
-func mountOneNfs(dataSrc string, nfsSubDst string) error {
+func mountOneNfs(source string, nfsSubDst string, fstype string, flags uintptr, data string) error {
 	nfsRootRO := conf.C().NfsRootRO
 	nfsRootRW := conf.C().NfsRootRW
 	backingPath := nfsRootRW + "/" + nfsSubDst
-	mountPath := nfsRootRO + "/" + nfsSubDst
+	destPath := nfsRootRO + "/" + nfsSubDst
 
 	logrus.WithFields(logrus.Fields{
-		"src": dataSrc,
-		"dst": mountPath,
+		"src": source,
+		"dst": destPath,
 	}).Trace("mounting nfs")
-	err := os.Mkdir(backingPath, 0755)
+	err := os.MkdirAll(backingPath, 0755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
 
 	// unmount first
-	err = unix.Unmount(mountPath, unix.MNT_DETACH)
+	err = unix.Unmount(destPath, unix.MNT_DETACH)
 	if err != nil && !errors.Is(err, unix.EINVAL) {
 		return err
 	}
 
 	// bind mount
-	err = unix.Mount(dataSrc, mountPath, "", unix.MS_BIND, "")
+	err = unix.Mount(source, destPath, fstype, flags, data)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func mountOneNfsBind(source string, nfsSubDst string) error {
+	return mountOneNfs(source, nfsSubDst, "", unix.MS_BIND, "")
 }
 
 func unmountOneNfs(nfsSubDst string) error {
@@ -48,12 +54,47 @@ func unmountOneNfs(nfsSubDst string) error {
 	logrus.WithField("dst", mountPath).Debug("unmounting nfs")
 	// unmount
 	err := unix.Unmount(mountPath, unix.MNT_DETACH)
-	if err != nil {
+	if err != nil && !errors.Is(err, unix.EINVAL) {
+		// EINVAL = not mounted
 		return err
 	}
 
 	// remove directory
 	err = os.Remove(backingPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addNfsdExport(path string) error {
+	// matches what exportfs -arv does
+	err := os.WriteFile("/proc/net/rpc/auth.unix.ip/channel", []byte("nfsd 0.0.0.0 2147483647 -test-client-"), 0644)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile("/proc/net/rpc/nfsd.export/channel", []byte(fmt.Sprintf("-test-client- %s  3 25662 65534 65534 0", path)), 0644)
+	if err != nil {
+		return err
+	}
+
+	// flush
+	flushData := []byte(fmt.Sprintf("%d", time.Now().Unix()))
+	err = os.WriteFile("/proc/net/rpc/auth.unix.ip/flush", flushData, 0644)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile("/proc/net/rpc/auth.unix.gid/flush", flushData, 0644)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile("/proc/net/rpc/nfsd.fh/flush", flushData, 0644)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile("/proc/net/rpc/nfsd.export/flush", flushData, 0644)
 	if err != nil {
 		return err
 	}
@@ -72,7 +113,7 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 			return nil
 		}
 
-		err := mountOneNfs(c.rootfsDir, c.Name)
+		err := mountOneNfsBind(c.rootfsDir, c.Name)
 		if err != nil {
 			return err
 		}
