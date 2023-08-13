@@ -130,7 +130,7 @@ for await (let path of walk(srcDir)) {
     if (!done) {
         if (path.endsWith('/Dockerfile')) {
             // special case hack
-            str = str.replace(/^#.*$/gm, '')
+            str = str.replace(/^\s*#.*$/gm, '')
         }
 
         console.log("ERROR: UNKNOWN FILE: " + path)
