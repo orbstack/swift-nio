@@ -1,0 +1,92 @@
+👾 kernel | [   70.676590] Adding 8388604k swap on /dev/nbd0.  Priority:-2 extents:1 across:8388604k SS
+👾 kernel | [   80.323248] Adding 4194300k swap on /dev/vdc1.  Priority:-3 extents:1 across:4194300k
+👾 kernel | [   80.361754] sysctl (1113): drop_caches: 3
+👾 kernel | [   85.342159] PM: hibernation: hibernation entry
+📦 scon | DEBU[08-13 05:25:31] device event                                  event="\"/dev/vcs63\": 0x100 == IN_CREATE"
+📦 scon | DEBU[08-13 05:25:31] device event                                  event="\"/dev/vcsu63\": 0x100 == IN_CREATE"
+📦 scon | DEBU[08-13 05:25:31] device event                                  event="\"/dev/vcsa63\": 0x100 == IN_CREATE"
+📦 scon | DEBU[08-13 05:25:31] device event                                  event="\"/dev/char\": 0x40000100 == IN_CREATE|IN_ISDIR"
+👾 kernel | [   85.344963] virtio-fs: virtio_fs_enqueue_req() failed -107
+👾 kernel | [   85.345090] virtio-fs: virtio_fs_enqueue_req() failed -107
+👾 kernel | [   85.358281] Filesystems sync: 0.015 seconds
+👾 kernel | [   85.358386] Freezing user space processes
+👾 kernel | [   85.361113] Freezing user space processes completed (elapsed 0.002 seconds)
+👾 kernel | [   85.361210] OOM killer disabled.
+👾 kernel | [   85.361273] PM: hibernation: Preallocating image memory
+👾 kernel | [   85.427241] PM: hibernation: Allocated 233258 pages for snapshot
+👾 kernel | [   85.427402] PM: hibernation: Allocated 933032 kbytes in 0.06 seconds (15550.53 MB/s)
+👾 kernel | [   85.427488] Freezing remaining freezable tasks
+👾 kernel | [   85.430116] Freezing remaining freezable tasks completed (elapsed 0.002 seconds)
+👾 kernel | [   85.430251] printk: Suspending console(s) (use no_console_suspend to debug)
+👾 kernel | [   85.456809] vhci_hcd vhci_hcd.0: suspend vhci_hcd
+👾 kernel | [   85.461999] Disabling non-boot CPUs ...
+👾 kernel | [   85.473407] psci: CPU1 killed (polled 0 ms)
+👾 kernel | [   85.474659] psci: CPU2 killed (polled 0 ms)
+👾 kernel | [   85.475482] psci: CPU3 killed (polled 0 ms)
+👾 kernel | [   85.475903] psci: CPU4 killed (polled 0 ms)
+👾 kernel | [   85.476176] psci: CPU5 killed (polled 0 ms)
+👾 kernel | [   85.476514] psci: CPU6 killed (polled 0 ms)
+👾 kernel | [   85.476850] psci: CPU7 killed (polled 0 ms)
+👾 kernel | [   85.477158] psci: CPU8 killed (polled 0 ms)
+👾 kernel | [   85.477407] psci: CPU9 killed (polled 0 ms)
+👾 kernel | [   85.477567] PM: hibernation: Creating image:
+👾 kernel | [   85.477567] PM: hibernation: Need to copy 207571 pages
+👾 kernel | [   85.477567] PM: hibernation: Image created (207571 pages copied)
+👾 kernel | [   85.477635] Enabling non-boot CPUs ...
+👾 kernel | [   85.477806] Detected PIPT I-cache on CPU1
+👾 kernel | [   85.477821] GICv3: CPU1: found redistributor 1 region 0:0x0000000010030000
+👾 kernel | [   85.477886] CPU1: Booted secondary processor 0x0000000001 [0x00000000]
+👾 kernel | [   85.478048] CPU1 is up
+👾 kernel | [   85.478157] Detected PIPT I-cache on CPU2
+👾 kernel | [   85.478172] GICv3: CPU2: found redistributor 2 region 0:0x0000000010050000
+👾 kernel | [   85.478237] CPU2: Booted secondary processor 0x0000000002 [0x00000000]
+👾 kernel | [   85.478362] CPU2 is up
+👾 kernel | [   85.478463] Detected PIPT I-cache on CPU3
+👾 kernel | [   85.478482] GICv3: CPU3: found redistributor 3 region 0:0x0000000010070000
+👾 kernel | [   85.478540] CPU3: Booted secondary processor 0x0000000003 [0x00000000]
+👾 kernel | [   85.478658] CPU3 is up
+👾 kernel | [   85.478760] Detected PIPT I-cache on CPU4
+👾 kernel | [   85.478779] GICv3: CPU4: found redistributor 4 region 0:0x0000000010090000
+👾 kernel | [   85.478838] CPU4: Booted secondary processor 0x0000000004 [0x00000000]
+👾 kernel | [   85.478922] CPU4 is up
+👾 kernel | [   85.479018] Detected PIPT I-cache on CPU5
+👾 kernel | [   85.479039] GICv3: CPU5: found redistributor 5 region 0:0x00000000100b0000
+👾 kernel | [   85.479097] CPU5: Booted secondary processor 0x0000000005 [0x00000000]
+👾 kernel | [   85.479182] CPU5 is up
+👾 kernel | [   85.479279] Detected PIPT I-cache on CPU6
+👾 kernel | [   85.479306] GICv3: CPU6: found redistributor 6 region 0:0x00000000100d0000
+👾 kernel | [   85.479364] CPU6: Booted secondary processor 0x0000000006 [0x00000000]
+👾 kernel | [   85.479432] CPU6 is up
+👾 kernel | [   85.479539] Detected PIPT I-cache on CPU7
+👾 kernel | [   85.479566] GICv3: CPU7: found redistributor 7 region 0:0x00000000100f0000
+👾 kernel | [   85.479633] CPU7: Booted secondary processor 0x0000000007 [0x00000000]
+👾 kernel | [   85.479738] CPU7 is up
+👾 kernel | [   85.479836] Detected PIPT I-cache on CPU8
+👾 kernel | [   85.479867] GICv3: CPU8: found redistributor 8 region 0:0x0000000010110000
+👾 kernel | [   85.479926] CPU8: Booted secondary processor 0x0000000008 [0x00000000]
+👾 kernel | [   85.480018] CPU8 is up
+👾 kernel | [   85.480139] Detected PIPT I-cache on CPU9
+👾 kernel | [   85.480174] GICv3: CPU9: found redistributor 9 region 0:0x0000000010130000
+👾 kernel | [   85.480236] CPU9: Booted secondary processor 0x0000000009 [0x00000000]
+👾 kernel | [   85.480374] CPU9 is up
+👾 kernel | [   85.481632] virtio_blk virtio5: 1/0/0 default/read/poll queues
+👾 kernel | [   85.483864] virtio_blk virtio4: 1/0/0 default/read/poll queues
+👾 kernel | [   85.484868] virtio_blk virtio6: 1/0/0 default/read/poll queues
+👾 kernel | [   85.513698] hibernate: Hibernating on CPU 0 [mpidr:0x0]
+👾 kernel | [   85.514494] PM: Using 3 thread(s) for compression
+👾 kernel | [   85.514543] PM: Compressing and saving image data (207977 pages)...
+👾 kernel | [   85.514633] PM: Image saving progress:   0%
+👾 kernel | [   85.580930] PM: Image saving progress:  10%
+👾 kernel | [   85.620498] PM: Image saving progress:  20%
+👾 kernel | [   85.669111] PM: Image saving progress:  30%
+👾 kernel | [   85.742162] PM: Image saving progress:  40%
+👾 kernel | [   85.801848] PM: Image saving progress:  50%
+👾 kernel | [   85.857445] PM: Image saving progress:  60%
+👾 kernel | [   85.913498] PM: Image saving progress:  70%
+👾 kernel | [   85.993996] PM: Image saving progress:  80%
+👾 kernel | [   86.048646] PM: Image saving progress:  90%
+👾 kernel | [   86.102953] PM: Image saving progress: 100%
+👾 kernel | [   86.103345] PM: Image saving done
+👾 kernel | [   86.103399] PM: hibernation: Wrote 831908 kbytes in 0.58 seconds (1434.32 MB/s)
+👾 kernel | [   86.103658] PM: S|
+👾 kernel | [   86.122595] reboot: Power down

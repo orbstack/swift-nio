@@ -1,0 +1,84 @@
+👾 kernel | [   13.810689] virtio-fs: virtio_fs_enqueue_req() failed -107
+👾 kernel | [   13.810729] virtio-fs: virtio_fs_enqueue_req() failed -107
+👾 kernel | [   13.865857] Filesystems sync: 0.060 seconds
+👾 kernel | [   13.865989] Freezing user space processes
+👾 kernel | [   13.867788] Freezing user space processes completed (elapsed 0.001 seconds)
+👾 kernel | [   13.867849] OOM killer disabled.
+👾 kernel | [   13.867970] PM: hibernation: Preallocating image memory
+👾 kernel | [   13.930696] PM: hibernation: Allocated 227662 pages for snapshot
+👾 kernel | [   13.930812] PM: hibernation: Allocated 910648 kbytes in 0.06 seconds (15177.46 MB/s)
+👾 kernel | [   13.930855] Freezing remaining freezable tasks
+👾 kernel | [   13.931713] Freezing remaining freezable tasks completed (elapsed 0.000 seconds)
+👾 kernel | [   13.931844] printk: Suspending console(s) (use no_console_suspend to debug)
+👾 kernel | [   13.958827] vhci_hcd vhci_hcd.0: suspend vhci_hcd
+👾 kernel | [   13.964451] Disabling non-boot CPUs ...
+👾 kernel | [   13.974720] psci: CPU1 killed (polled 0 ms)
+👾 kernel | [   13.977150] psci: CPU2 killed (polled 0 ms)
+👾 kernel | [   13.977601] psci: CPU3 killed (polled 0 ms)
+👾 kernel | [   13.977936] psci: CPU4 killed (polled 0 ms)
+👾 kernel | [   13.978239] psci: CPU5 killed (polled 0 ms)
+👾 kernel | [   13.978595] psci: CPU6 killed (polled 0 ms)
+👾 kernel | [   13.978881] psci: CPU7 killed (polled 0 ms)
+👾 kernel | [   13.979182] psci: CPU8 killed (polled 0 ms)
+👾 kernel | [   13.979421] psci: CPU9 killed (polled 0 ms)
+👾 kernel | [   13.979556] PM: hibernation: Creating image:
+👾 kernel | [   13.979556] PM: hibernation: Need to copy 205172 pages
+👾 kernel | [   13.979556] PM: hibernation: Image created (205172 pages copied)
+👾 kernel | [   13.979572] Enabling non-boot CPUs ...
+👾 kernel | [   13.979745] Detected PIPT I-cache on CPU1
+👾 kernel | [   13.979761] GICv3: CPU1: found redistributor 1 region 0:0x0000000010030000
+👾 kernel | [   13.979827] CPU1: Booted secondary processor 0x0000000001 [0x00000000]
+👾 kernel | [   13.980052] CPU1 is up
+👾 kernel | [   13.980166] Detected PIPT I-cache on CPU2
+👾 kernel | [   13.980180] GICv3: CPU2: found redistributor 2 region 0:0x0000000010050000
+👾 kernel | [   13.980244] CPU2: Booted secondary processor 0x0000000002 [0x00000000]
+👾 kernel | [   13.980338] CPU2 is up
+👾 kernel | [   13.980442] Detected PIPT I-cache on CPU3
+👾 kernel | [   13.980459] GICv3: CPU3: found redistributor 3 region 0:0x0000000010070000
+👾 kernel | [   13.980522] CPU3: Booted secondary processor 0x0000000003 [0x00000000]
+👾 kernel | [   13.980609] CPU3 is up
+👾 kernel | [   13.980710] Detected PIPT I-cache on CPU4
+👾 kernel | [   13.980732] GICv3: CPU4: found redistributor 4 region 0:0x0000000010090000
+👾 kernel | [   13.980794] CPU4: Booted secondary processor 0x0000000004 [0x00000000]
+👾 kernel | [   13.980938] CPU4 is up
+👾 kernel | [   13.981071] Detected PIPT I-cache on CPU5
+👾 kernel | [   13.981095] GICv3: CPU5: found redistributor 5 region 0:0x00000000100b0000
+👾 kernel | [   13.981157] CPU5: Booted secondary processor 0x0000000005 [0x00000000]
+👾 kernel | [   13.981248] CPU5 is up
+👾 kernel | [   13.981352] Detected PIPT I-cache on CPU6
+👾 kernel | [   13.981381] GICv3: CPU6: found redistributor 6 region 0:0x00000000100d0000
+👾 kernel | [   13.981447] CPU6: Booted secondary processor 0x0000000006 [0x00000000]
+👾 kernel | [   13.981616] CPU6 is up
+👾 kernel | [   13.981722] Detected PIPT I-cache on CPU7
+👾 kernel | [   13.981752] GICv3: CPU7: found redistributor 7 region 0:0x00000000100f0000
+👾 kernel | [   13.981813] CPU7: Booted secondary processor 0x0000000007 [0x00000000]
+👾 kernel | [   13.981916] CPU7 is up
+👾 kernel | [   13.982014] Detected PIPT I-cache on CPU8
+👾 kernel | [   13.982045] GICv3: CPU8: found redistributor 8 region 0:0x0000000010110000
+👾 kernel | [   13.982105] CPU8: Booted secondary processor 0x0000000008 [0x00000000]
+👾 kernel | [   13.982205] CPU8 is up
+👾 kernel | [   13.982302] Detected PIPT I-cache on CPU9
+👾 kernel | [   13.982336] GICv3: CPU9: found redistributor 9 region 0:0x0000000010130000
+👾 kernel | [   13.982396] CPU9: Booted secondary processor 0x0000000009 [0x00000000]
+👾 kernel | [   13.982503] CPU9 is up
+👾 kernel | [   13.986925] virtio_blk virtio4: 1/0/0 default/read/poll queues
+👾 kernel | [   13.986992] virtio_blk virtio5: 1/0/0 default/read/poll queues
+👾 kernel | [   13.987059] virtio_blk virtio6: 1/0/0 default/read/poll queues
+👾 kernel | [   14.013975] hibernate: Hibernating on CPU 0 [mpidr:0x0]
+👾 kernel | [   14.014577] PM: Using 3 thread(s) for compression
+👾 kernel | [   14.014620] PM: Compressing and saving image data (205573 pages)...
+👾 kernel | [   14.014699] PM: Image saving progress:   0%
+👾 kernel | [   14.063741] PM: Image saving progress:  10%
+👾 kernel | [   14.099299] PM: Image saving progress:  20%
+👾 kernel | [   14.141104] PM: Image saving progress:  30%
+👾 kernel | [   14.202900] PM: Image saving progress:  40%
+👾 kernel | [   14.259177] PM: Image saving progress:  50%
+👾 kernel | [   14.296356] PM: Image saving progress:  60%
+👾 kernel | [   14.348673] PM: Image saving progress:  70%
+👾 kernel | [   14.397005] PM: Image saving progress:  80%
+👾 kernel | [   14.437499] PM: Image saving progress:  90%
+👾 kernel | [   14.484708] PM: Image saving progress: 100%
+👾 kernel | [   14.485028] PM: Image saving done
+👾 kernel | [   14.485061] PM: hibernation: Wrote 822292 kbytes in 0.47 seconds (1749.55 MB/s)
+👾 kernel | [   14.485298] PM: S|
+👾 kernel | [   14.503951] reboot: Power down
