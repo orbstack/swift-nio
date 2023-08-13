@@ -80,8 +80,9 @@ mv runc /out/
 EOT
 
 # Build C - vsocknfs, rvfs-wrapper
-FROM base AS c-build
+FROM base AS c-base
 RUN apk add --no-cache alpine-sdk linux-headers
+FROM c-base AS c-build
 COPY rootfs/utils/*.c /build/
 COPY --from=runc-build /out/runc /build/
 RUN <<EOT sh -eux
@@ -93,6 +94,18 @@ strip /out/* /out-guest/*
 
 # append runc.arm64 to rvfs-wrapper
 cat /build/runc >> /out/rstub
+EOT
+
+FROM c-base AS mergerfs-build
+RUN <<EOT sh -eux
+wget https://github.com/trapexit/mergerfs/releases/download/2.36.0/mergerfs-2.36.0.tar.gz
+tar -xvf mergerfs-2.36.0.tar.gz
+cd mergerfs-2.36.0
+make -j\$(nproc)
+
+mkdir /out
+mv build/mergerfs /out
+strip /out/mergerfs
 EOT
 
 # Generate Rosetta deltas (need Debian for bsdiff)
@@ -365,7 +378,9 @@ rm -f /etc/motd
 mkdir -p /usr/lib/lxc/rootfs
 
 # NFS
-mkdir /nfsroot-ro /nfsroot-rw
+mkdir -p /nfs/root/ro /nfs/root/rw
+mkdir -p /nfs/images/ro /nfs/images/rw
+mkdir -p /nfs/containers/ro /nfs/containers/rw
 
 # Mountpoints
 mkdir /data
@@ -412,6 +427,7 @@ COPY LICENSE /
 COPY --from=rosetta-deltas /out/ /opt/orb/delta
 
 # Compiled binaries (in order of most likely to change)
+COPY --from=mergerfs-build /out/mergerfs /opt/orb/
 COPY --from=c-build /out/* /opt/orb/
 COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vinit

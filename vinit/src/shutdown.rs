@@ -158,8 +158,8 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
             }
 
             // unmount
-            // don't log /nfsroot. spammy and leaks info
-            if !target.starts_with("/nfsroot") {
+            // don't log /nfs mounts. spammy and leaks info
+            if !target.starts_with("/nfs") {
                 println!("  -  Unmounting {}", target);
             }
             // TODO: MNT_DETACH?

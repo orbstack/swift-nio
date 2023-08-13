@@ -21,7 +21,8 @@ pub struct Service {
 
 impl Service {
     pub const CHRONY: Service = Service {
-        name: "chrony",
+        // vague service names to avoid revealing info
+        name: "ntp",
         critical: true,
         restartable: true,
         needs_clean_shutdown: false,
@@ -42,6 +43,29 @@ impl Service {
     pub const SSH: Service = Service {
         name: "ssh",
         critical: true,
+        restartable: true,
+        needs_clean_shutdown: false,
+    };
+
+    // critical because macOS NFS can freeze, or even worse, kernel panic if it crashes
+    // nfs4 still needs this - kernel nfsd talks to it
+    pub const NFS_MOUNTD: Service = Service {
+        name: "mountd",
+        critical: true,
+        restartable: true,
+        needs_clean_shutdown: false,
+    };
+
+    pub const MERGERFS_IMAGES: Service = Service {
+        name: "images-fs",
+        critical: false,
+        restartable: true,
+        needs_clean_shutdown: false,
+    };
+
+    pub const MERGERFS_CONTAINERS: Service = Service {
+        name: "containers-fs",
+        critical: false,
         restartable: true,
         needs_clean_shutdown: false,
     };

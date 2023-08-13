@@ -31,8 +31,6 @@ type Config struct {
 	SSHListenIP6  string
 	DockerRootfs  string
 	DockerDataDir string
-	NfsRootRO     string
-	NfsRootRW     string
 	EtcExports    string
 	CmdLinksDir   string
 	StartNfs      bool
@@ -51,8 +49,6 @@ var configVM = Config{
 	SSHListenIP6:  netconf.GuestIP6,
 	DockerRootfs:  "/opt/docker-rootfs",
 	DockerDataDir: "/data/docker",
-	NfsRootRO:     "/nfsroot-ro",
-	NfsRootRW:     "/nfsroot-rw",
 	EtcExports:    "/etc/exports",
 	CmdLinksDir:   "/data/guest-state/bin/cmdlinks",
 	StartNfs:      true,

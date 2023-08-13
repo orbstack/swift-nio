@@ -164,6 +164,9 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
 
     // nfsd
     mount("nfsd", "/proc/fs/nfsd", "nfsd", secure_flags, None)?;
+    // to prevent EBUSY, set options before starting anything
+    fs::write("/proc/fs/nfsd/nfsv4leasetime", "30")?;
+    fs::write("/proc/fs/nfsd/nfsv4gracetime", "1")?;
 
     // seal /opt/orb as read-only for security
     // prevents machines from reopening /proc/<agent>/exe as writable. CVE-2019-5736
@@ -456,6 +459,59 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn create_noindex_flags(dir: &str) -> Result<(), Box<dyn Error>> {
+    // attempt to reduce NFS CPU usage from macOS indexing
+    fs::write(format!("{}/.metadata_never_index", dir), "").unwrap();
+    fs::write(format!("{}/.metadata-never-index", dir), "").unwrap();
+    fs::write(format!("{}/.metadata_never_index_unless_rootfs", dir), "").unwrap();
+    // and from fsevents logs
+    fs::create_dir_all(format!("{}/.fseventsd", dir)).unwrap();
+    fs::write(format!("{}/.fseventsd/no_log", dir), "").unwrap();
+
+    Ok(())
+}
+
+// a mirror dirs is a tmpfs dir with ro and rw binds, meant for exporting over nfs (possibly as subdir)
+fn create_mirror_dir(dir: &str) -> Result<(String, String), Box<dyn Error>> {
+    let ro_dir = format!("{}/ro", dir);
+    let rw_dir = format!("{}/rw", dir);
+
+    fs::create_dir_all(&ro_dir).unwrap();
+    fs::create_dir_all(&rw_dir).unwrap();
+
+    // create noindex flags
+    create_noindex_flags(&rw_dir).unwrap();
+
+    // seal ro copy:
+    // read-only bind (+ rshared, for scon bind mounts)
+    bind_mount(&rw_dir, &ro_dir, Some(MsFlags::MS_REC | MsFlags::MS_SHARED)).unwrap();
+    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
+    bind_mount(&ro_dir, &ro_dir, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY | MsFlags::MS_SHARED)).unwrap();
+    Ok((ro_dir, rw_dir))
+}
+
+fn init_nfs() -> Result<(), Box<dyn Error>> {
+    // mount name is visible in machines bind mount, so use vanity name
+    // we use this same tmpfs for all mirror dirs
+    mount("machines", "/nfs", "tmpfs", MsFlags::MS_NOATIME | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID, Some("mode=0755")).unwrap();
+
+    // create mirror dirs: root, images, containers
+    // perf matters more for volumes so it uses raw binds instead of mergerfs
+    let (_, rw_root) = create_mirror_dir("/nfs/root").unwrap();
+    create_mirror_dir("/nfs/images").unwrap();
+    create_mirror_dir("/nfs/containers").unwrap();
+
+    // readme in root
+    fs::copy("/opt/orb/nfs-readme.txt", format!("{}/README.txt", rw_root)).unwrap();
+
+    // create mergerfs and volume mountpoint dirs
+    fs::create_dir_all(format!("{}/docker/volumes", rw_root)).unwrap();
+    fs::create_dir_all(format!("{}/docker/images", rw_root)).unwrap();
+    fs::create_dir_all(format!("{}/docker/containers", rw_root)).unwrap();
+
+    Ok(())
+}
+
 fn init_data() -> Result<(), Box<dyn Error>> {
     // guest tools
     fs::create_dir_all("/data/guest-state/bin/cmdlinks")?;
@@ -472,20 +528,8 @@ fn init_data() -> Result<(), Box<dyn Error>> {
         bind_mount("/data/dev-root-home", "/root", None)?;
     }
 
-    // set up NFS root for scon
-    // mount name is visible in machines bind mount, so use vanity name
-    mount("machines", "/nfsroot-rw", "tmpfs", MsFlags::MS_NOATIME | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID, Some("mode=0755"))?;
-    fs::copy("/opt/orb/nfs-readme.txt", "/nfsroot-rw/README.txt")?;
-    // attempt to reduce NFS CPU usage from macOS indexing
-    fs::write("/nfsroot-rw/.metadata_never_index", "")?;
-    fs::write("/nfsroot-rw/.metadata-never-index", "")?;
-    fs::write("/nfsroot-rw/.metadata_never_index_unless_rootfs", "")?;
-    fs::create_dir_all("/nfsroot-rw/.fseventsd")?;
-    fs::write("/nfsroot-rw/.fseventsd/no_log", "")?;
-    // read-only bind (+ rshared, for scon bind mounts)
-    bind_mount("/nfsroot-rw", "/nfsroot-ro", Some(MsFlags::MS_REC | MsFlags::MS_SHARED))?;
-    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
-    bind_mount("/nfsroot-ro", "/nfsroot-ro", Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY | MsFlags::MS_SHARED))?;
+    // set up NFS roots for scon
+    init_nfs()?;
 
     Ok(())
 }
@@ -715,6 +759,36 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
         .arg("mgr")
         // pass cmdline for console detection
         .args(&sys_info.cmdline))?;
+
+    // rpc.mountd
+    service_tracker.spawn(Service::NFS_MOUNTD, &mut Command::new("/opt/pkg/rpc.mountd")
+        .arg("--no-udp")
+        .arg("--no-nfs-version").arg("2")
+        .arg("--no-nfs-version").arg("3")
+        //.arg("--debug").arg("all")
+        .arg("--foreground"))?;
+
+    // mergerfs for images
+    service_tracker.spawn(Service::MERGERFS_IMAGES, &mut Command::new("/opt/orb/mergerfs")
+        .arg("-o")
+        // read-only
+        // noforget,inodecalc=path-hash is recommended for nfs
+        // nfsopenhack=git to be safe
+        // security_capability=false for perf
+        .arg("ro,noatime,fsname=docker-images,cache.files=partial,dropcacheonclose=true,category.create=ff,category.action=ff,category.search=ff,noforget,inodecalc=path-hash,nfsopenhack=git,security_capability=false")
+        .arg("-f") // foreground
+        .arg("/nfs/images/ro") // src
+        .arg("/nfs/root/ro/docker/images"))?; // dest
+    // mergerfs for containers
+    service_tracker.spawn(Service::MERGERFS_CONTAINERS, &mut Command::new("/opt/orb/mergerfs")
+        .arg("-o")
+        // noforget,inodecalc=path-hash is recommended for nfs
+        // nfsopenhack=git to be safe
+        // security_capability=false for perf
+        .arg("noatime,fsname=docker-containers,cache.files=partial,dropcacheonclose=true,category.create=ff,category.action=ff,category.search=ff,noforget,inodecalc=path-hash,nfsopenhack=git,security_capability=false")
+        .arg("-f") // foreground
+        .arg("/nfs/containers/ro")
+        .arg("/nfs/root/ro/docker/containers"))?;
 
     // ssh
     if DEBUG {

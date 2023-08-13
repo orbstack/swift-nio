@@ -401,7 +401,7 @@ func (c *Container) configureLxc() error {
 
 			// bind NFS root at /mnt/machines for access
 			// must be rshared for agent's ~/OrbStack bind to work later
-			bind(config.NfsRootRO, "/mnt/machines", "ro,rshared")
+			bind(nfsDirRoot+"/ro", "/mnt/machines", "ro,rshared")
 			// we also bind it to ~/OrbStack later so paths work correctly
 			// but must do it AFTER macOS host mounts NFS on the path
 			// otherwise, kernel sees that inode has changed and unmounts everything
@@ -926,7 +926,7 @@ func (c *Container) postStartAsync(a *agent.Client) error {
 
 		err = bindMountNfsRoot(c, "/mnt/machines", hostUser.HomeDir+"/"+mounts.NfsDirName)
 		if err != nil {
-			return err
+			return fmt.Errorf("bind mount home machines: %w", err)
 		}
 	}
 
