@@ -46,22 +46,19 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	logrus.WithFields(logrus.Fields{
 		"src": source,
 		"dst": destPath,
-	}).Trace("mounting nfs dir")
+	}).Debug("mounting nfs dir")
 	err := os.MkdirAll(backingPath, 0755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
 
 	// unmount first
-	err = unix.Unmount(destPath, unix.MNT_DETACH)
-	if err != nil && !errors.Is(err, unix.EINVAL) {
-		return err
-	}
+	_ = unix.Unmount(destPath, unix.MNT_DETACH)
 
 	// bind mount
 	err = unix.Mount(source, destPath, fstype, flags, data)
 	if err != nil {
-		return err
+		return fmt.Errorf("mount %s: %w", destPath, err)
 	}
 
 	m.dests[destPath] = struct{}{}
@@ -210,13 +207,13 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage) error {
 	if len(layerDirs) == 1 {
 		err = m.MountBind(layerDirs[0], tag)
 		if err != nil {
-			return fmt.Errorf("mount bind: %w", err)
+			return fmt.Errorf("mount bind on %s: %w", tag, err)
 		}
 	} else {
 		// note: nfs_export not really needed because of mergerfs
 		err = m.Mount("img", tag, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
 		if err != nil {
-			return fmt.Errorf("mount overlay: %w", err)
+			return fmt.Errorf("mount overlay on %s: %w", tag, err)
 		}
 	}
 
