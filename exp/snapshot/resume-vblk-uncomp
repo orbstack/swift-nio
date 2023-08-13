@@ -1,0 +1,139 @@
+👾 kernel | [    0.229539] cfg80211: failed to load regulatory.db
+👾 kernel | [    0.229741] PM: hibernation: resume from hibernation
+👾 kernel | [    0.229980] random: crng reseeded on system resumption
+👾 kernel | [    0.230142] Freezing user space processes
+👾 kernel | [    0.230200] Freezing user space processes completed (elapsed 0.000 seconds)
+👾 kernel | [    0.230313] OOM killer disabled.
+👾 kernel | [    0.230345] Freezing remaining freezable tasks
+👾 kernel | [    0.231939] Freezing remaining freezable tasks completed (elapsed 0.001 seconds)
+👾 kernel | [    0.249443] PM: Loading image data pages (203965 pages)...
+👾 kernel | [    0.249514] hibernate: Hibernated on CPU 0 [mpidr:0x0]
+👾 kernel | [    0.249698] ------------[ cut here ]------------
+🌲 vmgr | DEBU[08-12 22:32:30] report stats:{3996329328640 1436551127040 579460190208}
+👾 kernel | [    0.249739] WARNING: CPU: 0 PID: 0 at kernel/smp.c:753 smp_call_function_many_cond+0x444/0x4b0
+👾 kernel | [    0.249852] Modules linked in:
+👾 kernel | [    0.249922] CPU: 0 PID: 0 Comm: swapper/0 Not tainted 6.4.10-orbstack-00061-g63092e1b9ea6-dirty #1
+👾 kernel | [    0.249999] pstate: 61400005 (nZCv daif +PAN -UAO -TCO +DIT -SSBS BTYPE=--)
+👾 kernel | [    0.250063] pc : smp_call_function_many_cond+0x444/0x4b0
+👾 kernel | [    0.250104] lr : kick_all_cpus_sync+0x34/0x48
+👾 kernel | [    0.250145] sp : ffff27c3aeeb12d0
+👾 kernel | [    0.250176] x29: ffff27c3aeeb12d0 x28: ffffb4a8a6941e00 x27: ffffb4a8a692b5b8
+👾 kernel | [    0.250269] x26: ffffb4a8a6505770 x25: 0000000000000000 x24: 000000000000000a
+👾 kernel | [    0.250335] x23: 0000000000000000 x22: 00000000ffffffff x21: ffff27c2402ebc38
+👾 kernel | [    0.250426] x20: 0000000000000000 x19: 0000000000000000 x18: ffffffffffffffff
+👾 kernel | [    0.250513] x17: ffff731b08998000 x16: ffff27c3aeead580 x15: ffff27c3aeeb13b0
+👾 kernel | [    0.250611] x14: 0000000000000008 x13: 0000000000000000 x12: 0000000000000000
+👾 kernel | [    0.250684] x11: 0000000000000040 x10: ffffb4a8a692b000 x9 : 0000000000000000
+👾 kernel | [    0.250768] x8 : 0000000000000000 x7 : ffffb4a8a6941e00 x6 : 0000000000000100
+👾 kernel | [    0.250836] x5 : 0000000000000000 x4 : 0000000000000000 x3 : 0000000000000001
+👾 kernel | [    0.250901] x2 : 0000000000000000 x1 : 0000000000000100 x0 : ffffb4a8a692b5b8
+👾 kernel | [    0.251022] Call trace:
+👾 kernel | [    0.251056]  smp_call_function_many_cond+0x444/0x4b0
+👾 kernel | [    0.251112]  kick_all_cpus_sync+0x34/0x48
+👾 kernel | [    0.251150]  hib_end_io+0x108/0x1a0
+👾 kernel | [    0.251197]  bio_endio+0x140/0x1a0
+👾 kernel | [    0.251249]  blk_update_request+0x210/0x430
+👾 kernel | [    0.251280]  blk_mq_end_request+0x28/0xb8
+👾 kernel | [    0.251303]  virtblk_request_done+0x64/0xe8
+👾 kernel | [    0.251364]  blk_complete_reqs+0x5c/0x78
+👾 kernel | [    0.251401]  blk_done_softirq+0x24/0x38
+👾 kernel | [    0.251487]  __do_softirq+0x118/0x334
+👾 kernel | [    0.251541]  ____do_softirq+0x14/0x28
+👾 kernel | [    0.251608]  call_on_irq_stack+0x24/0x40
+👾 kernel | [    0.251671]  do_softirq_own_stack+0x20/0x30
+👾 kernel | [    0.251725]  __irq_exit_rcu+0xa0/0xe0
+👾 kernel | [    0.251766]  irq_exit_rcu+0x14/0x28
+👾 kernel | [    0.251808]  el1_interrupt+0x34/0x50
+👾 kernel | [    0.251891]  el1h_64_irq_handler+0x14/0x20
+👾 kernel | [    0.251927]  el1h_64_irq+0x64/0x68
+👾 kernel | [    0.252026]  do_idle+0x120/0x238
+👾 kernel | [    0.252083]  cpu_startup_entry+0x28/0x38
+👾 kernel | [    0.252124]  rest_init+0xc8/0xd0
+👾 kernel | [    0.252167]  arch_call_rest_init+0x14/0x20
+👾 kernel | [    0.252205]  start_kernel+0x440/0x4c0
+👾 kernel | [    0.252247]  __primary_switched+0xbc/0xd0
+👾 kernel | [    0.252299] ---[ end trace 0000000000000000 ]---
+👾 kernel | [    0.252449] PM: Image loading progress:   0%
+👾 kernel | [    0.498638] PM: Image loading progress:  10%
+👾 kernel | [    0.509553] PM: Image loading progress:  20%
+🌲 vmgr | INFO[08-12 22:32:30] Setup not done in time, running setup...
+🌲 vmgr | INFO[08-12 22:32:30] target command path                           dir=/Users/dragon/bin requiresRoot=false
+🌲 vmgr | DEBU[08-12 22:32:30] checking bin command                          cmd=orbctl src=/Users/dragon/code/projects/macvirt/cli-bin/bin/orbctl
+🌲 vmgr | DEBU[08-12 22:32:30] skipping link (no update needed)              dst=/Users/dragon/bin/orbctl src=/Users/dragon/code/projects/macvirt/cli-bin/bin/orbctl
+🌲 vmgr | DEBU[08-12 22:32:30] checking bin command                          cmd=orb src=/Users/dragon/code/projects/macvirt/cli-bin/bin/orb
+🌲 vmgr | DEBU[08-12 22:32:30] skipping link (no update needed)              dst=/Users/dragon/bin/orb src=/Users/dragon/code/projects/macvirt/cli-bin/bin/orb
+🌲 vmgr | DEBU[08-12 22:32:30] checking xbin command                         cmd=docker src=/Users/dragon/code/projects/macvirt/cli-bin/xbin/docker
+🌲 vmgr | DEBU[08-12 22:32:30] checking xbin command                         cmd=docker-compose src=/Users/dragon/code/projects/macvirt/cli-bin/xbin/docker-compose
+🌲 vmgr | DEBU[08-12 22:32:30] checking xbin command                         cmd=docker-credential-osxkeychain src=/Users/dragon/code/projects/macvirt/cli-bin/xbin/docker-credential-osxkeychain
+🌲 vmgr | DEBU[08-12 22:32:30] linking docker CLI plugin                     dst=/Users/dragon/.docker/cli-plugins/docker-buildx src=/Users/dragon/code/projects/macvirt/cli-bin/xbin/docker-buildx
+🌲 vmgr | DEBU[08-12 22:32:30] linking docker CLI plugin                     dst=/Users/dragon/.docker/cli-plugins/docker-compose src=/Users/dragon/code/projects/macvirt/cli-bin/xbin/docker-compose
+🌲 vmgr | DEBU[08-12 22:32:30] prepare setup info done                       adminMessage="<nil>" adminShellCommand="<nil>" alertAddPaths="[]" alertProfile="<nil>"
+🌲 vmgr | INFO[08-12 22:32:30] setup done
+🌲 vmgr | INFO[08-12 22:32:30] CLI setup complete
+👾 kernel | [    1.593103] PM: Image loading progress:  30%
+👾 kernel | [    2.774755] PM: Image loading progress:  40%
+👾 kernel | [    4.048975] PM: Image loading progress:  50%
+👾 kernel | [    5.236088] PM: Image loading progress:  60%
+👾 kernel | [    6.444895] PM: Image loading progress:  70%
+👾 kernel | [    7.720080] PM: Image loading progress:  80%
+👾 kernel | [    8.968001] PM: Image loading progress:  90%
+👾 kernel | [   10.281570] PM: Image loading progress: 100%
+👾 kernel | [   12.878097] PM: Image loading done
+👾 kernel | [   12.878160] PM: hibernation: Read 815860 kbytes in 12.62 seconds (64.64 MB/s)
+👾 kernel | [   12.878288] printk: Suspending console(s) (use no_console_suspend to debug)
+👾 kernel | [    8.019692] vhci_hcd vhci_hcd.0: suspend vhci_hcd
+👾 kernel | [    8.024395] Disabling non-boot CPUs ...
+👾 kernel | [    8.036365] psci: CPU1 killed (polled 0 ms)
+👾 kernel | [    8.037197] psci: CPU2 killed (polled 0 ms)
+👾 kernel | [    8.038872] psci: CPU3 killed (polled 0 ms)
+👾 kernel | [    8.039241] psci: CPU4 killed (polled 0 ms)
+👾 kernel | [    8.039548] psci: CPU5 killed (polled 0 ms)
+👾 kernel | [    8.039849] psci: CPU6 killed (polled 0 ms)
+👾 kernel | [    8.040127] psci: CPU7 killed (polled 0 ms)
+👾 kernel | [    8.040427] psci: CPU8 killed (polled 0 ms)
+👾 kernel | [    8.040701] psci: CPU9 killed (polled 0 ms)
+👾 kernel | [    8.040811] PM: hibernation: Creating image:
+👾 kernel | [    8.040811] PM: hibernation: Need to copy 203567 pages
+👾 kernel | [    8.040826] Enabling non-boot CPUs ...
+👾 kernel | [    8.041005] Detected PIPT I-cache on CPU1
+👾 kernel | [    8.041020] GICv3: CPU1: found redistributor 1 region 0:0x0000000010030000
+👾 kernel | [    8.041082] CPU1: Booted secondary processor 0x0000000001 [0x00000000]
+👾 kernel | [    8.041186] CPU1 is up
+👾 kernel | [    8.041286] Detected PIPT I-cache on CPU2
+👾 kernel | [    8.041300] GICv3: CPU2: found redistributor 2 region 0:0x0000000010050000
+👾 kernel | [    8.041358] CPU2: Booted secondary processor 0x0000000002 [0x00000000]
+👾 kernel | [    8.041432] CPU2 is up
+👾 kernel | [    8.041549] Detected PIPT I-cache on CPU3
+👾 kernel | [    8.041566] GICv3: CPU3: found redistributor 3 region 0:0x0000000010070000
+👾 kernel | [    8.041631] CPU3: Booted secondary processor 0x0000000003 [0x00000000]
+👾 kernel | [    8.041713] CPU3 is up
+👾 kernel | [    8.041815] Detected PIPT I-cache on CPU4
+👾 kernel | [    8.041837] GICv3: CPU4: found redistributor 4 region 0:0x0000000010090000
+👾 kernel | [    8.041895] CPU4: Booted secondary processor 0x0000000004 [0x00000000]
+👾 kernel | [    8.041972] CPU4 is up
+👾 kernel | [    8.042065] Detected PIPT I-cache on CPU5
+👾 kernel | [    8.042087] GICv3: CPU5: found redistributor 5 region 0:0x00000000100b0000
+👾 kernel | [    8.042144] CPU5: Booted secondary processor 0x0000000005 [0x00000000]
+👾 kernel | [    8.042213] CPU5 is up
+👾 kernel | [    8.042322] Detected PIPT I-cache on CPU6
+👾 kernel | [    8.042346] GICv3: CPU6: found redistributor 6 region 0:0x00000000100d0000
+👾 kernel | [    8.042404] CPU6: Booted secondary processor 0x0000000006 [0x00000000]
+👾 kernel | [    8.042495] CPU6 is up
+👾 kernel | [    8.042588] Detected PIPT I-cache on CPU7
+👾 kernel | [    8.042615] GICv3: CPU7: found redistributor 7 region 0:0x00000000100f0000
+👾 kernel | [    8.042676] CPU7: Booted secondary processor 0x0000000007 [0x00000000]
+👾 kernel | [    8.042774] CPU7 is up
+👾 kernel | [    8.042875] Detected PIPT I-cache on CPU8
+👾 kernel | [    8.042908] GICv3: CPU8: found redistributor 8 region 0:0x0000000010110000
+👾 kernel | [    8.042967] CPU8: Booted secondary processor 0x0000000008 [0x00000000]
+👾 kernel | [    8.043069] CPU8 is up
+👾 kernel | [    8.043165] Detected PIPT I-cache on CPU9
+👾 kernel | [    8.043198] GICv3: CPU9: found redistributor 9 region 0:0x0000000010130000
+👾 kernel | [    8.043256] CPU9: Booted secondary processor 0x0000000009 [0x00000000]
+👾 kernel | [    8.043357] CPU9 is up
+👾 kernel | [    8.064825] virtio_blk virtio4: 1/0/0 default/read/poll queues
+👾 kernel | [    8.064846] virtio_blk virtio5: 1/0/0 default/read/poll queues
+👾 kernel | [    8.064893] virtio_blk virtio6: 1/0/0 default/read/poll queues
+👾 kernel | [    8.095568] OOM killer enabled.
+👾 kernel | [    8.095624] Restarting tasks ... done.
+👾 kernel | [    8.096325] PM: hibernation: hibernation exit
