@@ -116,10 +116,10 @@ static __always_inline __be32 ipv6_pseudohdr_checksum(struct ipv6hdr *hdr,
 	__be32 len = bpf_htonl((__u32)payload_len);
 	__be32 nexthdr = bpf_htonl((__u32)next_hdr);
 
-	sum = bpf_csum_diff(NULL, 0, &hdr->saddr, sizeof(struct in6_addr), sum);
-	sum = bpf_csum_diff(NULL, 0, &hdr->daddr, sizeof(struct in6_addr), sum);
-	sum = bpf_csum_diff(NULL, 0, &len, sizeof(len), sum);
-	sum = bpf_csum_diff(NULL, 0, &nexthdr, sizeof(nexthdr), sum);
+	sum = bpf_csum_diff(NULL, 0, (__be32 *)&hdr->saddr, sizeof(struct in6_addr), sum);
+	sum = bpf_csum_diff(NULL, 0, (__be32 *)&hdr->daddr, sizeof(struct in6_addr), sum);
+	sum = bpf_csum_diff(NULL, 0, (__be32 *)&len, sizeof(len), sum);
+	sum = bpf_csum_diff(NULL, 0, (__be32 *)&nexthdr, sizeof(nexthdr), sum);
 
 	return sum;
 }
@@ -200,7 +200,7 @@ static int icmp4_to_icmp6(struct __sk_buff *skb, int nh_off) {
 		return -1;
 	icmp4.checksum = 0;
 	icmp6.icmp6_cksum = 0;
-	return bpf_csum_diff(&icmp4, sizeof(icmp4), &icmp6, sizeof(icmp6), 0);
+	return bpf_csum_diff((__be32 *)&icmp4, sizeof(icmp4), (__be32 *)&icmp6, sizeof(icmp6), 0);
 }
 
 static int icmp6_to_icmp4(struct __sk_buff *skb, int nh_off) {
@@ -276,7 +276,7 @@ static int icmp6_to_icmp4(struct __sk_buff *skb, int nh_off) {
 		return -1;
 	icmp4.checksum = 0;
 	icmp6.icmp6_cksum = 0;
-	return bpf_csum_diff(&icmp6, sizeof(icmp6), &icmp4, sizeof(icmp4), 0);
+	return bpf_csum_diff((__be32 *)&icmp6, sizeof(icmp6), (__be32 *)&icmp4, sizeof(icmp4), 0);
 }
 
 // TC_ACT_PIPE means to continue with the next filter, if any
@@ -295,7 +295,7 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 	}
 
 	// Must have (ethernet and) ipv6 header
-	if ((ip6 + 1) > data_end) {
+	if ((void *)(ip6 + 1) > data_end) {
 		bpf_printk("no ipv6 header\n");
 		return TC_ACT_PIPE;
 	}
@@ -368,7 +368,7 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 		data_end = (void *)(long)skb->data_end;
 		eth = data;
 		ip6 = (void *)(eth + 1);
-		if ((ip6 + 1) > data_end) {
+		if ((void *)(ip6 + 1) > data_end) {
 			bpf_printk("no ipv6 header\n");
 			return TC_ACT_PIPE;
 		}
@@ -376,20 +376,12 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
 		__be32 csum1 = ipv6_pseudohdr_checksum(ip6, IPPROTO_ICMPV6,
 						bpf_ntohs(ip6->payload_len), 0);
 		l4csum = csum_sub(l4csum, csum1);
-		// // subtract ipv6 pseudo header
-		// l4csum = bpf_csum_diff(&ip6->saddr, sizeof(ip6->saddr), NULL, 0, l4csum);
-		// l4csum = bpf_csum_diff(&ip6->daddr, sizeof(ip6->daddr), NULL, 0, l4csum);
-		// // must be 32-bit
-		// __be32 psh_payload_len = ip6->payload_len;
-		// l4csum = bpf_csum_diff(&psh_payload_len, sizeof(psh_payload_len), NULL, 0, l4csum);
-		// __be32 psh_nexthdr = ip6->nexthdr;
-		// l4csum = bpf_csum_diff(&psh_nexthdr, sizeof(psh_nexthdr), NULL, 0, l4csum);
 	}
 
 	// Calculate the IPv4 one's complement checksum of the IPv4 header.
 	// csum_diff is NOT a 16-bit checksum! it's an opaque 32-bit value
 	// differs by arch. `ip.check = ~diff` works on arm64 but not x86
-	__wsum diff = bpf_csum_diff(NULL, 0, &ip, sizeof(ip), 0);
+	__wsum diff = bpf_csum_diff(NULL, 0, (__be32 *)&ip, sizeof(ip), 0);
 
 	// Note that there is no L4 checksum update: we are relying on the checksum neutrality
 	// of the ipv6 address chosen by netd's ClatdController.
@@ -443,7 +435,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 		return TC_ACT_PIPE;
 
 	// Must have ipv4 header
-	if ((ip4 + 1) > data_end)
+	if ((void *)(ip4 + 1) > data_end)
 		return TC_ACT_PIPE;
 
 	// only if translated
@@ -520,7 +512,7 @@ int sched_cls_egress4_nat4(struct __sk_buff *skb) {
 		data_end = (void *)(long)skb->data_end;
 		eth = data;
 		ip4 = (void *)(eth + 1);
-		if ((ip4 + 1) > data_end) {
+		if ((void *)(ip4 + 1) > data_end) {
 			bpf_printk("no ipv4 header\n");
 			return TC_ACT_PIPE;
 		}
