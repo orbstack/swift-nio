@@ -443,6 +443,8 @@ func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, er
 	}
 
 	go func() {
+		defer listener.Close()
+
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
