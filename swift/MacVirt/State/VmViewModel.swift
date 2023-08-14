@@ -385,6 +385,8 @@ class VmViewModel: ObservableObject {
     private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:42506"))
     private let scon = SconService(client: newRPCClient("http://127.0.0.1:42507"))
 
+    let privHelper = PHManager()
+
     @Published private(set) var state = VmState.stopped {
         didSet {
             if state == .running {

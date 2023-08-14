@@ -19,4 +19,6 @@ extension Defaults.Keys {
     static let globalShowMenubarExtra = Key<Bool>("global_showMenubarExtra", default: true)
     // changed key in v0.14.0: setting was renamed and people enabled it due to misunderstanding in prev versions
     static let globalStayInBackground = Key<Bool>("global_stayInBackground2", default: false)
+
+    static let adminDismissCount = Key<Int>("admin_dismissCount", default: 0)
 }

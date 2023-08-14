@@ -15,14 +15,19 @@
 		B118B3B76CA225F4062B10D1 /* NSImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BABDE1F02C8A54DB011F /* NSImage.swift */; };
 		B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB2A7BF402695260775E /* IPC.swift */; };
 		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
+		B118B5071D4CD08E276ACEEC /* PHManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5410BD3CE9F29680E04 /* PHManager.swift */; };
 		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
 		B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
 		B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */; };
 		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
+		B118BBE71285AFB898911E6B /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDB3EC9055E40DB59CE2 /* PHShared.swift */; };
 		B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B300D94CA37572036935 /* Buttons.swift */; };
+		B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */; };
 		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
 		B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */; };
+		B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B88B9296701977A1F286 /* CodeInfo.swift */; };
+		B118BFC3C61061E49AE533BC /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDB3EC9055E40DB59CE2 /* PHShared.swift */; };
 		D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */; };
 		D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */; };
 		D80443E22A1B404E00ED59C5 /* OnboardingRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */; };
@@ -87,6 +92,16 @@
 		D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8715CC12A208C640047A9BE /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8715CC02A208C640047A9BE /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8715CC32A208C750047A9BE /* OrbStack Helper (VM).app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D87745FC2A7CBB1800739040 /* Blessed in Frameworks */ = {isa = PBXBuildFile; productRef = D87745FB2A7CBB1800739040 /* Blessed */; };
+		D87745FF2A7CBB2000739040 /* EmbeddedPropertyList in Frameworks */ = {isa = PBXBuildFile; productRef = D87745FE2A7CBB2000739040 /* EmbeddedPropertyList */; };
+		D87746022A7CBB2E00739040 /* SecureXPC in Frameworks */ = {isa = PBXBuildFile; productRef = D87746012A7CBB2E00739040 /* SecureXPC */; };
+		D87746152A7CC0B700739040 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87746142A7CC0B700739040 /* main.swift */; };
+		D877461A2A7CC6F600739040 /* Uninstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87746192A7CC6F600739040 /* Uninstaller.swift */; };
+		D877461C2A7CC70000739040 /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = D877461B2A7CC70000739040 /* Updater.swift */; };
+		D877461E2A7CC89800739040 /* HelperServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D877461D2A7CC89800739040 /* HelperServer.swift */; };
+		D87746212A7CD12400739040 /* dev.orbstack.OrbStack.privhelper in Embed privileged helper tool */ = {isa = PBXBuildFile; fileRef = D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D87D98652A7DF26600EB7C63 /* SecureXPC in Frameworks */ = {isa = PBXBuildFile; productRef = D87D98642A7DF26600EB7C63 /* SecureXPC */; };
+		D87D98672A7DF26900EB7C63 /* EmbeddedPropertyList in Frameworks */ = {isa = PBXBuildFile; productRef = D87D98662A7DF26900EB7C63 /* EmbeddedPropertyList */; };
 		D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D81F2A2B22A0002CF279 /* VzClient.swift */; };
 		D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8202A2B22A0002CF279 /* FsNotify.swift */; };
 		D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8212A2B22A0002CF279 /* Proxy.swift */; };
@@ -159,6 +174,26 @@
 			name = "Embed Go VM helper bundle";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D87746102A7CC0B700739040 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		D87746202A7CD0BC00739040 /* Embed privileged helper tool */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchServices;
+			dstSubfolderSpec = 1;
+			files = (
+				D87746212A7CD12400739040 /* dev.orbstack.OrbStack.privhelper in Embed privileged helper tool */,
+			);
+			name = "Embed privileged helper tool";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D88F4EB72998D61B00419B5C /* Copy assets */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 12;
@@ -178,14 +213,18 @@
 		B118B300D94CA37572036935 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		B118B30219F10B44000AE05A /* OnboardingManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
 		B118B4A5DDC711F7EF2AE61B /* GUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
+		B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HelperToolInfoPlist.swift; sourceTree = "<group>"; };
+		B118B5410BD3CE9F29680E04 /* PHManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHManager.swift; sourceTree = "<group>"; };
 		B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerMigrationWindow.swift; sourceTree = "<group>"; };
 		B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentUnavailableViewCompat.swift; sourceTree = "<group>"; };
+		B118B88B9296701977A1F286 /* CodeInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CodeInfo.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
 		B118BABDE1F02C8A54DB011F /* NSImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NSImage.swift; sourceTree = "<group>"; };
 		B118BB2A7BF402695260775E /* IPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
 		B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
 		B118BD52B15443D1329C832A /* Packets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
+		B118BDB3EC9055E40DB59CE2 /* PHShared.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHShared.swift; sourceTree = "<group>"; };
 		B118BE46918C0AB595ADE247 /* RenameContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameContainerView.swift; sourceTree = "<group>"; };
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
 		B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
@@ -259,6 +298,13 @@
 		D8715CC02A208C640047A9BE /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../out/scli; sourceTree = "<group>"; };
 		D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper (VM).app"; path = "../out/OrbStack Helper (VM).app"; sourceTree = "<group>"; };
 		D87745F92A7CB84C00739040 /* guihelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = guihelper.entitlements; sourceTree = "<group>"; };
+		D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dev.orbstack.OrbStack.privhelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		D87746142A7CC0B700739040 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		D87746192A7CC6F600739040 /* Uninstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Uninstaller.swift; sourceTree = "<group>"; };
+		D877461B2A7CC70000739040 /* Updater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
+		D877461D2A7CC89800739040 /* HelperServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperServer.swift; sourceTree = "<group>"; };
+		D877461F2A7CCB6400739040 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D87D98682A7E057B00EB7C63 /* launchd.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = launchd.plist; sourceTree = "<group>"; };
 		D880D81F2A2B22A0002CF279 /* VzClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VzClient.swift; sourceTree = "<group>"; };
 		D880D8202A2B22A0002CF279 /* FsNotify.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FsNotify.swift; sourceTree = "<group>"; };
 		D880D8212A2B22A0002CF279 /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
@@ -290,6 +336,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D877460F2A7CC0B700739040 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D87D98652A7DF26600EB7C63 /* SecureXPC in Frameworks */,
+				D87D98672A7DF26900EB7C63 /* EmbeddedPropertyList in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D8A32B8B296F839100E56EEF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -297,7 +352,10 @@
 				D86614182A38061700EA0995 /* Defaults in Frameworks */,
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
+				D87746022A7CBB2E00739040 /* SecureXPC in Frameworks */,
+				D87745FC2A7CBB1800739040 /* Blessed in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
+				D87745FF2A7CBB2000739040 /* EmbeddedPropertyList in Frameworks */,
 				D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -305,6 +363,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B118B01C2FCE80B68B16373D /* Helper */ = {
+			isa = PBXGroup;
+			children = (
+				B118B5410BD3CE9F29680E04 /* PHManager.swift */,
+			);
+			path = Helper;
+			sourceTree = "<group>";
+		};
 		D804439F2A1B404E00ED59C5 /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
@@ -482,6 +548,22 @@
 			name = External;
 			sourceTree = "<group>";
 		};
+		D87746132A7CC0B700739040 /* privhelper */ = {
+			isa = PBXGroup;
+			children = (
+				D87746142A7CC0B700739040 /* main.swift */,
+				D87746192A7CC6F600739040 /* Uninstaller.swift */,
+				D877461B2A7CC70000739040 /* Updater.swift */,
+				D877461D2A7CC89800739040 /* HelperServer.swift */,
+				D877461F2A7CCB6400739040 /* Info.plist */,
+				B118B88B9296701977A1F286 /* CodeInfo.swift */,
+				B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */,
+				B118BDB3EC9055E40DB59CE2 /* PHShared.swift */,
+				D87D98682A7E057B00EB7C63 /* launchd.plist */,
+			);
+			path = privhelper;
+			sourceTree = "<group>";
+		};
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
@@ -489,6 +571,7 @@
 				D8A32B90296F839100E56EEF /* MacVirt */,
 				D81E784E299CC4F200A1D8AC /* guihelper */,
 				D870292129B316A700A4CFD9 /* GoVZF */,
+				D87746132A7CC0B700739040 /* privhelper */,
 				D8A32B8F296F839100E56EEF /* Products */,
 				D81E785D29A4CEEF00A1D8AC /* Frameworks */,
 			);
@@ -500,6 +583,7 @@
 				D8A32B8E296F839100E56EEF /* OrbStack.app */,
 				D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */,
 				D870292029B316A700A4CFD9 /* GoVZF.framework */,
+				D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -528,6 +612,7 @@
 				D80443AF2A1B404E00ED59C5 /* State */,
 				D80443B42A1B404E00ED59C5 /* Utils */,
 				B118B1DCE616676E483BB2BB /* FeedbackView.swift */,
+				B118B01C2FCE80B68B16373D /* Helper */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -589,6 +674,27 @@
 			productReference = D870292029B316A700A4CFD9 /* GoVZF.framework */;
 			productType = "com.apple.product-type.framework";
 		};
+		D87746112A7CC0B700739040 /* privhelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D87746162A7CC0B700739040 /* Build configuration list for PBXNativeTarget "privhelper" */;
+			buildPhases = (
+				D877460E2A7CC0B700739040 /* Sources */,
+				D877460F2A7CC0B700739040 /* Frameworks */,
+				D87746102A7CC0B700739040 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = privhelper;
+			packageProductDependencies = (
+				D87D98642A7DF26600EB7C63 /* SecureXPC */,
+				D87D98662A7DF26900EB7C63 /* EmbeddedPropertyList */,
+			);
+			productName = privhelper;
+			productReference = D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */;
+			productType = "com.apple.product-type.tool";
+		};
 		D8A32B8D296F839100E56EEF /* MacVirt */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D8A32B9D296F839100E56EEF /* Build configuration list for PBXNativeTarget "MacVirt" */;
@@ -598,6 +704,7 @@
 				D8A32B8C296F839100E56EEF /* Resources */,
 				D8694A3B2991F3F80046B6B6 /* Copy “Launch at Login Helper” */,
 				D8694A3E2991F8C70046B6B6 /* Copy Go executables and Swift GUI helper */,
+				D87746202A7CD0BC00739040 /* Embed privileged helper tool */,
 				D8715CBE2A2087790047A9BE /* Embed Go VM helper bundle */,
 				D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */,
 				D88F4EB72998D61B00419B5C /* Copy assets */,
@@ -616,6 +723,9 @@
 				D8694A48299464810046B6B6 /* Sparkle */,
 				D855F1EF2998B6A700B62588 /* Sentry */,
 				D86614172A38061700EA0995 /* Defaults */,
+				D87745FB2A7CBB1800739040 /* Blessed */,
+				D87745FE2A7CBB2000739040 /* EmbeddedPropertyList */,
+				D87746012A7CBB2E00739040 /* SecureXPC */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -628,7 +738,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1420;
+				LastSwiftUpdateCheck = 1430;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					D81E784C299CC4F200A1D8AC = {
@@ -638,6 +748,9 @@
 					D870291F29B316A700A4CFD9 = {
 						CreatedOnToolsVersion = 14.2;
 						LastSwiftMigration = 1430;
+					};
+					D87746112A7CC0B700739040 = {
+						CreatedOnToolsVersion = 14.3;
 					};
 					D8A32B8D296F839100E56EEF = {
 						CreatedOnToolsVersion = 14.2;
@@ -660,6 +773,9 @@
 				D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				D86614162A38061700EA0995 /* XCRemoteSwiftPackageReference "defaults" */,
+				D87745FA2A7CBB1800739040 /* XCRemoteSwiftPackageReference "Blessed" */,
+				D87745FD2A7CBB2000739040 /* XCRemoteSwiftPackageReference "EmbeddedPropertyList" */,
+				D87746002A7CBB2E00739040 /* XCRemoteSwiftPackageReference "SecureXPC" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -668,6 +784,7 @@
 				D8A32B8D296F839100E56EEF /* MacVirt */,
 				D81E784C299CC4F200A1D8AC /* guihelper */,
 				D870291F29B316A700A4CFD9 /* GoVZF */,
+				D87746112A7CC0B700739040 /* privhelper */,
 			);
 		};
 /* End PBXProject section */
@@ -777,6 +894,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D877460E2A7CC0B700739040 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D877461E2A7CC89800739040 /* HelperServer.swift in Sources */,
+				D87746152A7CC0B700739040 /* main.swift in Sources */,
+				D877461A2A7CC6F600739040 /* Uninstaller.swift in Sources */,
+				D877461C2A7CC70000739040 /* Updater.swift in Sources */,
+				B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */,
+				B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */,
+				B118BBE71285AFB898911E6B /* PHShared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D8A32B8A296F839100E56EEF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -845,6 +976,8 @@
 				B118B209F240A8036216EC04 /* DockerMigrationWindow.swift in Sources */,
 				B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */,
 				B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */,
+				B118B5071D4CD08E276ACEEC /* PHManager.swift in Sources */,
+				B118BFC3C61061E49AE533BC /* PHShared.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -976,6 +1109,48 @@
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
+		D87746172A7CC0B700739040 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEVELOPMENT_TEAM = HUAQ24HBR6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "$(SRCROOT)/privhelper/Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				OTHER_LDFLAGS = (
+					"-sectcreate",
+					__TEXT,
+					__launchd_plist,
+					privhelper/launchd.plist,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.orbstack.OrbStack.privhelper;
+				PRODUCT_NAME = dev.orbstack.OrbStack.privhelper;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D87746182A7CC0B700739040 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEVELOPMENT_TEAM = HUAQ24HBR6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "$(SRCROOT)/privhelper/Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				OTHER_LDFLAGS = (
+					"-sectcreate",
+					__TEXT,
+					__launchd_plist,
+					privhelper/launchd.plist,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.orbstack.OrbStack.privhelper;
+				PRODUCT_NAME = dev.orbstack.OrbStack.privhelper;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
@@ -1187,6 +1362,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		D87746162A7CC0B700739040 /* Build configuration list for PBXNativeTarget "privhelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D87746172A7CC0B700739040 /* Debug */,
+				D87746182A7CC0B700739040 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		D8A32B89296F839100E56EEF /* Build configuration list for PBXProject "MacVirt" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1248,6 +1432,30 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		D87745FA2A7CBB1800739040 /* XCRemoteSwiftPackageReference "Blessed" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/trilemma-dev/Blessed.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.6.0;
+			};
+		};
+		D87745FD2A7CBB2000739040 /* XCRemoteSwiftPackageReference "EmbeddedPropertyList" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/trilemma-dev/EmbeddedPropertyList.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		D87746002A7CBB2E00739040 /* XCRemoteSwiftPackageReference "SecureXPC" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/trilemma-dev/SecureXPC.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.8.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1275,6 +1483,31 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		D87745FB2A7CBB1800739040 /* Blessed */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D87745FA2A7CBB1800739040 /* XCRemoteSwiftPackageReference "Blessed" */;
+			productName = Blessed;
+		};
+		D87745FE2A7CBB2000739040 /* EmbeddedPropertyList */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D87745FD2A7CBB2000739040 /* XCRemoteSwiftPackageReference "EmbeddedPropertyList" */;
+			productName = EmbeddedPropertyList;
+		};
+		D87746012A7CBB2E00739040 /* SecureXPC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D87746002A7CBB2E00739040 /* XCRemoteSwiftPackageReference "SecureXPC" */;
+			productName = SecureXPC;
+		};
+		D87D98642A7DF26600EB7C63 /* SecureXPC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D87746002A7CBB2E00739040 /* XCRemoteSwiftPackageReference "SecureXPC" */;
+			productName = SecureXPC;
+		};
+		D87D98662A7DF26900EB7C63 /* EmbeddedPropertyList */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D87745FD2A7CBB2000739040 /* XCRemoteSwiftPackageReference "EmbeddedPropertyList" */;
+			productName = EmbeddedPropertyList;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

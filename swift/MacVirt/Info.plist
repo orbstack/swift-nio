@@ -23,5 +23,10 @@
 			</array>
 		</dict>
 	</array>
+    <key>SMPrivilegedExecutables</key>
+    <dict>
+        <key>dev.orbstack.OrbStack.privhelper</key>
+        <string>anchor apple generic and identifier "dev.orbstack.OrbStack.privhelper" and certificate leaf[subject.OU] = "HUAQ24HBR6"</string>
+    </dict>
 </dict>
 </plist>
