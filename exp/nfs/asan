@@ -1,0 +1,108 @@
+==941==ERROR: AddressSanitizer: heap-use-after-free on address 0x606000b03b10 at pc 0xaaaaaab8d458 bp 0xfffff5fff630 sp 0xfffff5fff628
+READ of size 8 at 0x606000b03b10 thread T4
+[Detaching after fork from child process 976]
+    #0 0xaaaaaab8d454 in std::_Sp_counted_ptr_inplace<forgotten_inode, std::allocator<void>, (__gnu_cxx::_Lock_policy)2>::_M_dispose() (/mnt/mac/Users/dragon/code/vm/libfuse/example/passthrough_llph+0xed454) (BuildId: e7a403966e82d705d39c0905e5487ebaf34eb862)
+    #1 0xaaaaaab87b84 in unref_inode(lo_data*, lo_inode*, unsigned long, bool) passthrough_llph.cc
+    #2 0xaaaaaab88470 in lo_do_readdir(fuse_req*, unsigned long, unsigned long, long, fuse_file_info*, int) passthrough_llph.cc
+    #3 0xfffff7f009ec  (/usr/lib/libfuse3.so.3+0x149ec) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #4 0xfffff7f027d8  (/usr/lib/libfuse3.so.3+0x167d8) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #5 0xfffff7efdfc0  (/usr/lib/libfuse3.so.3+0x11fc0) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #6 0xfffff7f9f120 in start /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/pthread_create.c:207:2
+
+0x606000b03b10 is located 48 bytes inside of 56-byte region [0x606000b03ae0,0x606000b03b18)
+freed by thread T5 here:
+    #0 0xaaaaaab47d00 in free /home/buildozer/aports/main/llvm-runtimes/src/llvm-project-16.0.6.src/compiler-rt/lib/asan/asan_malloc_linux.cpp:52:3
+    #1 0xaaaaaab8790c in unref_inode(lo_data*, lo_inode*, unsigned long, bool) passthrough_llph.cc
+    #2 0xaaaaaab8d438 in std::_Sp_counted_ptr_inplace<forgotten_inode, std::allocator<void>, (__gnu_cxx::_Lock_policy)2>::_M_dispose() (/mnt/mac/Users/dragon/code/vm/libfuse/example/passthrough_llph+0xed438) (BuildId: e7a403966e82d705d39c0905e5487ebaf34eb862)
+    #3 0xaaaaaab87b84 in unref_inode(lo_data*, lo_inode*, unsigned long, bool) passthrough_llph.cc
+    #4 0xaaaaaab88470 in lo_do_readdir(fuse_req*, unsigned long, unsigned long, long, fuse_file_info*, int) passthrough_llph.cc
+    #5 0xfffff7f009ec  (/usr/lib/libfuse3.so.3+0x149ec) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #6 0xfffff7f027d8  (/usr/lib/libfuse3.so.3+0x167d8) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #7 0xfffff7efdfc0  (/usr/lib/libfuse3.so.3+0x11fc0) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #8 0xfffff7f9f120 in start /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/pthread_create.c:207:2
+    #9 0xfffff7f9d4d0  /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/aarch64/clone.s:28
+
+previously allocated by thread T2 here:
+    #0 0xaaaaaab47f64 in __interceptor_calloc /home/buildozer/aports/main/llvm-runtimes/src/llvm-project-16.0.6.src/compiler-rt/lib/asan/asan_malloc_linux.cpp:77:3
+    #1 0xaaaaaab865bc in lo_do_lookup(fuse_req*, unsigned long, char const*, fuse_entry_param*) passthrough_llph.cc
+    #2 0xaaaaaab88568 in lo_do_readdir(fuse_req*, unsigned long, unsigned long, long, fuse_file_info*, int) passthrough_llph.cc
+    #3 0xfffff7f009ec  (/usr/lib/libfuse3.so.3+0x149ec) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #4 0xfffff7f027d8  (/usr/lib/libfuse3.so.3+0x167d8) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #5 0xfffff7efdfc0  (/usr/lib/libfuse3.so.3+0x11fc0) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #6 0xfffff7f9f120 in start /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/pthread_create.c:207:2
+    #7 0xfffff7f9d4d0  /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/aarch64/clone.s:28
+
+Thread T4 created by T3 here:
+    #0 0xaaaaaab34f84 in pthread_create /home/buildozer/aports/main/llvm-runtimes/src/llvm-project-16.0.6.src/compiler-rt/lib/asan/asan_interceptors.cpp:208:3
+    #1 0xfffff7efdc3c  (/usr/lib/libfuse3.so.3+0x11c3c) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #2 0xfffff7efde58  (/usr/lib/libfuse3.so.3+0x11e58) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #3 0xfffff7efdfa8  (/usr/lib/libfuse3.so.3+0x11fa8) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #4 0xfffff7f9f120 in start /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/pthread_create.c:207:2
+    #5 0xfffff7f9d4d0  /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/aarch64/clone.s:28
+
+Thread T3 created by T1 here:
+    #0 0xaaaaaab34f84 in pthread_create /home/buildozer/aports/main/llvm-runtimes/src/llvm-project-16.0.6.src/compiler-rt/lib/asan/asan_interceptors.cpp:208:3
+    #1 0xfffff7efdc3c  (/usr/lib/libfuse3.so.3+0x11c3c) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #2 0xfffff7efde58  (/usr/lib/libfuse3.so.3+0x11e58) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #3 0xfffff7efdfa8  (/usr/lib/libfuse3.so.3+0x11fa8) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #4 0xfffff7f9f120 in start /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/pthread_create.c:207:2
+    #5 0xfffff7f9d4d0  /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/aarch64/clone.s:28
+
+Thread T1 created by T0 here:
+    #0 0xaaaaaab34f84 in pthread_create /home/buildozer/aports/main/llvm-runtimes/src/llvm-project-16.0.6.src/compiler-rt/lib/asan/asan_interceptors.cpp:208:3
+    #1 0xfffff7efdc3c  (/usr/lib/libfuse3.so.3+0x11c3c) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #2 0xfffff7efde58  (/usr/lib/libfuse3.so.3+0x11e58) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #3 0xfffff7efe1a4 in fuse_session_loop_mt (/usr/lib/libfuse3.so.3+0x121a4) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #4 0xfffff7efe3a8 in fuse_session_loop_mt_32 (/usr/lib/libfuse3.so.3+0x123a8) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #5 0xaaaaaab8268c in main (/mnt/mac/Users/dragon/code/vm/libfuse/example/passthrough_llph+0xe268c) (BuildId: e7a403966e82d705d39c0905e5487ebaf34eb862)
+    #6 0xfffff7f5d540 in libc_start_main_stage2 /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/env/__libc_start_main.c:95:2
+
+Thread T5 created by T4 here:
+    #0 0xaaaaaab34f84 in pthread_create /home/buildozer/aports/main/llvm-runtimes/src/llvm-project-16.0.6.src/compiler-rt/lib/asan/asan_interceptors.cpp:208:3
+    #1 0xfffff7efdc3c  (/usr/lib/libfuse3.so.3+0x11c3c) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #2 0xfffff7efde58  (/usr/lib/libfuse3.so.3+0x11e58) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #3 0xfffff7efdfa8  (/usr/lib/libfuse3.so.3+0x11fa8) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #4 0xfffff7f9f120 in start /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/pthread_create.c:207:2
+    #5 0xfffff7f9d4d0  /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/aarch64/clone.s:28
+
+Thread T2 created by T1 here:
+    #0 0xaaaaaab34f84 in pthread_create /home/buildozer/aports/main/llvm-runtimes/src/llvm-project-16.0.6.src/compiler-rt/lib/asan/asan_interceptors.cpp:208:3
+    #1 0xfffff7efdc3c  (/usr/lib/libfuse3.so.3+0x11c3c) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #2 0xfffff7efde58  (/usr/lib/libfuse3.so.3+0x11e58) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #3 0xfffff7efdfa8  (/usr/lib/libfuse3.so.3+0x11fa8) (BuildId: 294ed31f0c6c1eb12088d8858ffd8ca68e5dca5d)
+    #4 0xfffff7f9f120 in start /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/pthread_create.c:207:2
+    #5 0xfffff7f9d4d0  /home/buildozer/aports/main/musl/src/83b858f83b658bd34eca5d8ad4d145f673ae7e5e/src/thread/aarch64/clone.s:28
+
+SUMMARY: AddressSanitizer: heap-use-after-free (/mnt/mac/Users/dragon/code/vm/libfuse/example/passthrough_llph+0xed454) (BuildId: e7a403966e82d705d39c0905e5487ebaf34eb862) in std::_Sp_counted_ptr_inplace<forgotten_inode, std::allocator<void>, (__gnu_cxx::_Lock_policy)2>::_M_dispose()
+Shadow bytes around the buggy address:
+  0x606000b03880: fa fa fa fa 00 00 00 00 00 00 00 fa fa fa fa fa
+  0x606000b03900: 00 00 00 00 00 00 00 fa fa fa fa fa 00 00 00 00
+  0x606000b03980: 00 00 00 fa fa fa fa fa 00 00 00 00 00 00 00 fa
+  0x606000b03a00: fa fa fa fa 00 00 00 00 00 00 00 fa fa fa fa fa
+  0x606000b03a80: 00 00 00 00 00 00 00 fa fa fa fa fa fd fd fd fd
+=>0x606000b03b00: fd fd[fd]fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x606000b03b80: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x606000b03c00: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x606000b03c80: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x606000b03d00: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x606000b03d80: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==941==ABORTING
