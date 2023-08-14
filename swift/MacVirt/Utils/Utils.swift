@@ -332,3 +332,19 @@ struct BundleInfo {
     let id: String
     let url: URL
 }
+
+struct Users {
+    static let gidAdmin: gid_t = 80
+
+    // lazy init
+    static let hasAdmin = _hasAdmin()
+    private static func _hasAdmin() -> Bool {
+        // user supplementary groups is fast, opendirectory is slow
+        var gids = [gid_t](repeating: 0, count: 100)
+        // don't bother to slice - the rest are 0
+        if getgroups(100, &gids) < 0 {
+            return false
+        }
+        return gids.contains(gidAdmin)
+    }
+}
