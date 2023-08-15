@@ -24,6 +24,7 @@ import (
 
 const (
 	ifBridge       = "conbr0"
+	ifVnet         = "eth0"
 	ifVmnetMachine = "eth1"
 	ifVmnetDocker  = "eth2"
 
@@ -309,15 +310,29 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", secureSvcIP, "-j", "REJECT", "--reject-with", "tcp-reset"})
 	}
 
-	// first, accept related/established
-	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
+	// related/established
+	rules = append(rules, []string{"filter", "INPUT", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
 
-	// also allow mac to access web server port 80
+	// host: allow mac gvisor vnet to access anything
+	rules = append(rules, []string{"filter", "INPUT", "-i", ifVnet, "-j", "ACCEPT"})
+
+	// icmp: allow all ICMP for ping and neighbor solicitation
+	rules = append(rules, []string{"filter", "INPUT", "-p", "icmp", "-j", "ACCEPT"})
+
+	// 67/udp: allow machines to use DHCP v4 server (dnsmasq)
+	if proto == iptables.ProtocolIPv4 {
+		rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-p", "udp", "--dport", "67", "-j", "ACCEPT"})
+	}
+
+	// 5353/udp: allow machines to use mDNS server
+	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-p", "udp", "--dport", "5353", "-j", "ACCEPT"})
+
+	// allow mac host bridge to access web server port 80
+	// block machines because it could leak info to isolated machines
 	// TODO this needs ip/mac spoofing protection
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-s", hostBridgeIP, "-d", webIndexIP, "--proto", "tcp", "--dport", "80", "-j", "ACCEPT"})
 
-	// then block machines from accessing VM init-net servesr that are intended for host vmgr to connect to
-	// blocked on both guest IP (198.19.248.2) and bridge gateway (198.19.249.1)
+	// explicitly block machines from accessing VM init-net servers that are intended for host vmgr to connect to
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"})
 
 	// add rules
@@ -328,12 +343,23 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 		}
 	}
 
+	// now save to set input policy block
+	err = ipt.ChangePolicy("filter", "INPUT", "DROP")
+	if err != nil {
+		return nil, err
+	}
+
 	return func() error {
-		// iterate in reverse order
 		var errs []error
+		err := ipt.ChangePolicy("filter", "INPUT", "ACCEPT")
+		if err != nil {
+			errs = append(errs, err)
+		}
+
+		// iterate in reverse order
 		for i := len(rules) - 1; i >= 0; i-- {
 			rule := rules[i]
-			err = ipt.DeleteIfExists(rule[0], rule[1], rule[2:]...)
+			err := ipt.DeleteIfExists(rule[0], rule[1], rule[2:]...)
 			if err != nil {
 				errs = append(errs, err)
 			}
