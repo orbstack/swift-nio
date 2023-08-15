@@ -32,34 +32,6 @@ struct DebugSettingsView: View {
                 .frame(height: 32)
 
             Text("Helper")
-            //Text("Installed: \(vmModel.privHelper.checkInstalled() ? "yes" : "no")")
-            Button("Install") {
-                Task {
-                    do {
-                        try await vmModel.privHelper.install()
-                    } catch {
-                        print(error)
-                    }
-                }
-            }
-            Button("Uninstall") {
-                Task {
-                    do {
-                        try await vmModel.privHelper.uninstall()
-                    } catch {
-                        print(error)
-                    }
-                }
-            }
-            Button("Update") {
-                Task {
-                    do {
-                        try await vmModel.privHelper.update()
-                    } catch {
-                        print(error)
-                    }
-                }
-            }
             Button("action: symlink") {
                 Task {
                     do {

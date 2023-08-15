@@ -18,16 +18,12 @@ import Foundation
 ///  - To remove the `launchd` property list, its location is assumed to be `/Library/LaunchDaemons/<helper_tool_name>.plist`
 ///     - While this location is not documented in `SMJobBless`, it is used in Apple's EvenBetterAuthorizationSample `Uninstall.sh` script
 enum Uninstaller {
-    /// Errors that prevent the uninstall from succeeding.
     enum UninstallError: Error {
-        /// Attempting to unload using `launchctl` failed.
         case launchctlFailure(statusCode: Int32)
-        /// The argument provided must be a process identifier, but was not.
         case notProcessId(invalidArgument: String)
     }
     
-    /// Command line argument that identifies to `main` to call the  `uninstallFromCommandLine(...)` function.
-    static let commandLineArgument = "uninstall"
+    static let cliCommand = "uninstall"
     
     /// Indirectly uninstalls this helper tool. Calling this function will terminate this process unless an error is throw.
     ///
@@ -35,37 +31,27 @@ enum Uninstaller {
     ///
     /// - Throws: If unable to determine the on disk location of this running code.
     static func uninstallFromXPC() throws {
-        NSLog("uninstall requested, PID \(getpid())")
+        NSLog("starting uninstaller")
         let process = Process()
         process.launchPath = try CodeInfo.currentCodeLocation().path
-        process.qualityOfService = QualityOfService.utility
-        process.arguments = [commandLineArgument, String(getpid())]
+        process.qualityOfService = .utility
+        process.arguments = [cliCommand, String(getpid())]
         process.launch()
-        NSLog("about to exit...")
         exit(0)
     }
     
-    /// Directly uninstalls this executable. Calling this function will terminate this process unless an error is thrown.
-    ///
-    /// Depending on the the arguments provided to this function, it may wait on another process to exit before performing the uninstall.
-    ///
-    /// - Parameter arguments: The command line arguments; the first argument should always be `uninstall`.
-    /// - Throws: If unable to perform the uninstall, including because the provided arguments are invalid.
-    static func uninstallFromCommandLine(withArguments arguments: [String]) throws -> Never {
+    static func uninstallFromCli(withArguments arguments: [String]) throws -> Never {
         if arguments.count == 1 {
-            try uninstallImmediately()
+            try uninstallNow()
         } else {
             guard let pid: pid_t = Int32(arguments[1]) else {
                 throw UninstallError.notProcessId(invalidArgument: arguments[1])
             }
-            try uninstallAfterProcessExits(pid: pid)
+            try waitPidExitAndUninstall(pid: pid)
         }
     }
 
-    /// Uninstalls this helper tool after waiting for a process (in practice this helper tool launched via XPC) to terminate.
-    ///
-    /// - Parameter pid: Identifier for the process which must terminate before performing uninstall. In practice this is identifier is for is a previous run of this helper tool.
-    private static func uninstallAfterProcessExits(pid: pid_t) throws -> Never {
+    private static func waitPidExitAndUninstall(pid: pid_t) throws -> Never {
         // When passing 0 as the second argument, no signal is sent, but existence and permission checks are still
         // performed. This checks for the existence of a process ID. If 0 is returned the process still exists, so loop
         // until 0 is no longer returned.
@@ -75,7 +61,7 @@ enum Uninstaller {
         }
         NSLog("PID \(getpid()) done waiting for PID \(pid)")
         
-        try uninstallImmediately()
+        try uninstallNow()
     }
     
     /// Uninstalls this helper tool.
@@ -88,9 +74,9 @@ enum Uninstaller {
     ///
     /// - Throws: Due to one of: unable to determine the on disk location of this running code, that location is not the blessed location, `launchctl` can't
     /// unload this helper tool, the `launchd` property list for this helper tool can't be deleted, or the on disk representation of this helper tool can't be deleted.
-    private static func uninstallImmediately() throws -> Never {
+    private static func uninstallNow() throws -> Never {
         // Equivalent to: launchctl unload /Library/LaunchDaemons/<helper tool name>.plist
-        NSLog("unload from launchctl")
+        NSLog("unload from launchd")
         let process = Process()
         process.launchPath = "/bin/launchctl"
         process.qualityOfService = .utility
@@ -105,7 +91,7 @@ enum Uninstaller {
         NSLog("delete files")
         try FileManager.default.removeItem(at: PHShared.installedPlistURL)
         try FileManager.default.removeItem(at: PHShared.installedURL)
-        NSLog("uninstall finished")
+        NSLog("uninstalled, exiting")
         exit(0)
     }
 }

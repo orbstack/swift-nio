@@ -12,15 +12,32 @@ import EmbeddedPropertyList
 import SecureXPC
 import Defaults
 
-struct PHManager {
+class PHManager {
     private let xpcClient: XPCClient
+    private var ready = false
 
     init() {
         self.xpcClient = XPCClient.forMachService(named: PHShared.helperID)
     }
 
-    /// Attempts to install the helper tool, requiring user authorization.
-    func install() async throws {
+    private func ensureReady() async throws {
+        if ready {
+            return
+        }
+
+        do {
+            try await update()
+        } catch XPCError.connectionInvalid {
+            if await checkInstalled() {
+                throw XPCError.connectionInvalid
+            } else {
+                try await install()
+            }
+        }
+        ready = true
+    }
+
+    private func install() async throws {
         // don't block main thread
         try await Task.detached {
             do {
@@ -30,26 +47,39 @@ struct PHManager {
             }
         }.value
     }
-    
-    /// Attempts to update the helper tool by having the helper tool perform a self update.
-    func update() async throws {
-        try await xpcClient.sendMessage(PHUpdateRequest(helperURL: PHShared.bundledURL),
-                to: PHShared.updateRoute)
-        //TODO ignore case .failure(let error) = response  -> .connectionInterrupted
+
+    private func update() async throws {
+        do {
+            try await xpcClient.sendMessage(PHUpdateRequest(helperURL: PHShared.bundledURL),
+                    to: PHShared.updateRoute)
+        } catch XPCError.connectionInterrupted {
+            // ignore: normal
+        } catch PHUpdateError.downgrade {
+            // ignore: normal - no upgrade needed
+        }
     }
     
     /// Attempts to uninstall the helper tool by having the helper tool uninstall itself.
     func uninstall() async throws {
-        try await xpcClient.send(to: PHShared.uninstallRoute)
-        //TODO ignore case .failure(let error) = response  -> .connectionInterrupted
+        if !(await checkInstalled()) {
+            return
+        }
+
+        try await ensureReady()
+        do {
+            try await xpcClient.send(to: PHShared.uninstallRoute)
+        } catch XPCError.connectionInterrupted {
+            // ignore: normal
+        }
     }
 
     func symlink(src: String, dest: String) async throws {
+        try await ensureReady()
         try await xpcClient.sendMessage(PHSymlinkRequest(src: src, dest: dest),
                 to: PHShared.symlinkRoute)
     }
 
-    func checkInstalled() async -> Bool {
+    private func checkInstalled() async -> Bool {
         // check with launchd
         do {
             try await runProcessChecked("/bin/launchctl", ["print", "system/\(PHShared.helperID)"])

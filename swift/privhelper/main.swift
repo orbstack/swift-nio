@@ -1,6 +1,7 @@
 import Foundation
 import SecureXPC
 
+
 if CommandLine.arguments.count > 1 {
     // CLI
     var arguments = CommandLine.arguments
@@ -8,13 +9,13 @@ if CommandLine.arguments.count > 1 {
     NSLog("args: \(arguments)")
 
     if let firstArgument = arguments.first {
-        if firstArgument == Uninstaller.commandLineArgument {
-            try Uninstaller.uninstallFromCommandLine(withArguments: arguments)
+        if firstArgument == Uninstaller.cliCommand {
+            try Uninstaller.uninstallFromCli(withArguments: arguments)
         } else {
             NSLog("argument not recognized: \(firstArgument)")
         }
     }
-} else {
+} else if getppid() == 1 {
     // server
     NSLog("starting server")
 
@@ -30,4 +31,6 @@ if CommandLine.arguments.count > 1 {
         }
     }
     server.startAndBlock()
+} else {
+    print("Usage: \(CommandLine.arguments[0]) \(Uninstaller.cliCommand)")
 }

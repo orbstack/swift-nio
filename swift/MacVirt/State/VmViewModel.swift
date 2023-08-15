@@ -56,6 +56,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case configUpdateError(cause: Error)
     case resetDataError(cause: Error)
 
+    // vmgr - async
     case drmWarning(event: VmgrDrmWarning)
 
     // docker
@@ -79,6 +80,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case containerDeleteError(cause: Error)
     case containerCreateError(cause: Error)
     case containerRenameError(cause: Error)
+
+    // helper
+    case privHelperUninstallError(cause: Error)
 
     var errorUserInfo: [String : Any] {
         // debug desc gives most info for sentry
@@ -149,6 +153,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t create machine"
         case .containerRenameError:
             return "Can’t rename machine"
+
+        case .privHelperUninstallError:
+            return "Can’t uninstall helper"
         }
     }
 
@@ -304,6 +311,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .containerCreateError(let cause):
             return cause
         case .containerRenameError(let cause):
+            return cause
+
+        case .privHelperUninstallError(let cause):
             return cause
         }
     }
@@ -1274,6 +1284,14 @@ class VmViewModel: ObservableObject {
             dockerEnableIPv6 = enableIpv6
         } catch {
             setError(.dockerConfigSaveError(cause: error))
+        }
+    }
+
+    func tryUninstallPrivHelper() async {
+        do {
+            try await privHelper.uninstall()
+        } catch {
+            setError(.privHelperUninstallError(cause: error))
         }
     }
 

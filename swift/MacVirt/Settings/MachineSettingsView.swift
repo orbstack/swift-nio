@@ -176,6 +176,9 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
             Button("Cancel", role: .cancel) {}
             Button("Disable", role: .destructive) {
                 setConfigKey(\.setupUseAdmin, false)
+                Task {
+                    await vmModel.tryUninstallPrivHelper()
+                }
             }
         } message: {
             Text("""

@@ -17,48 +17,41 @@ enum Updater {
     /// - Parameter req: Path to the helper tool.
     /// - Throws: If the helper tool file can't be read, public keys can't be determined, or `launchd` property lists can't be compared.
     static func updateHelperTool(req: PHUpdateRequest) throws {
+        NSLog("req: \(req)")
         guard try CodeInfo.doesPublicKeyMatch(forExecutable: req.helperURL) else {
+            NSLog("bad signature")
             throw PHUpdateError.badSignature
         }
+
+        let (curVersion, newVersion) = try readVersions(helperUrl: req.helperURL)
+        if curVersion == newVersion {
+            NSLog("same version")
+            return
+        } else if curVersion < newVersion {
+            NSLog("downgrade")
+            throw PHUpdateError.downgrade(from: curVersion.rawValue, to: newVersion.rawValue)
+        }
         
-        guard try launchdPropertyListsMatch(forHelperTool: req.helperURL) else {
+        guard try checkLaunchdPlistMatches(helperUrl: req.helperURL) else {
+            NSLog("launchd property lists don't match")
             throw PHUpdateError.launchdPlistChanged
         }
-        
-        let (isNewer, currentVersion, otherVersion) = try isHelperToolNewerVersion(atPath: req.helperURL)
-        guard isNewer else {
-            throw PHUpdateError.downgrade(from: currentVersion.rawValue, to: otherVersion.rawValue)
-        }
-        
+
+        try NSLog("current \(CodeInfo.currentCodeLocation())")
         try Data(contentsOf: req.helperURL).write(to: CodeInfo.currentCodeLocation(), options: .atomicWrite)
-        NSLog("update succeeded, exiting")
+        // can't self-reexec. needs to be started by launchd for mach service
+        NSLog("updated, restarting")
         exit(0)
     }
-    
-    /// Determines if the helper tool located at the provided `URL` is actually an update.
-    ///
-    /// - Parameter helperTool: Path to the helper tool.
-    /// - Throws: If unable to read the info property lists of this helper tool or the one located at `helperTool`.
-    /// - Returns: If the helper tool at the location specified by `helperTool` is newer than the one running this code and the versions of both.
-    private static func isHelperToolNewerVersion(
-        atPath helperTool: URL
-    ) throws -> (isNewer: Bool, current: BundleVersion, other: BundleVersion) {
-        let current = try HelperToolInfoPlist.main.version
-        let other = try HelperToolInfoPlist(from: helperTool).version
 
-        return (other > current, current, other)
+    private static func readVersions(helperUrl: URL) throws -> (BundleVersion, BundleVersion) {
+        let current = try HelperToolInfoPlist.main.version
+        let new = try HelperToolInfoPlist(from: helperUrl).version
+        return (current, new)
     }
-    
-    /// Determines if the `launchd` property list used by this helper tool and the executable located at the provided `URL` are byte-for-byte identical.
-    ///
-    /// This matters because only the helper tool itself is being updated, the property list generated for `launchd` will not be updated as part of this update
-    /// process.
-    ///
-    /// - Parameter helperTool: Path to the helper tool.
-    /// - Throws: If unable to read the `launchd` property lists of this helper tool or the one located at `helperTool`.
-    /// - Returns: If the two `launchd` property lists match.
-    private static func launchdPropertyListsMatch(forHelperTool helperTool: URL) throws -> Bool {
+
+    private static func checkLaunchdPlistMatches(helperUrl: URL) throws -> Bool {
         try EmbeddedPropertyListReader.launchd.readInternal() ==
-                EmbeddedPropertyListReader.launchd.readExternal(from: helperTool)
+                EmbeddedPropertyListReader.launchd.readExternal(from: helperUrl)
     }
 }
