@@ -249,7 +249,11 @@ func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[*dockertypes.F
 	// unmount old ones
 	for _, img := range diff.Removed {
 		// guaranteed that there's a tag at this point
-		tag := img.RepoTags[0]
+		tag := img.UserTag()
+		if tag == "" {
+			continue
+		}
+
 		err := s.m.nfsRoot.Unmount("docker/images/" + tag)
 		if err != nil {
 			logrus.WithError(err).Error("failed to unmount docker image")

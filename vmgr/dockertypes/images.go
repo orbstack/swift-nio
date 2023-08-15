@@ -1,5 +1,7 @@
 package dockertypes
 
+import "strings"
+
 type ImageSummary struct {
 	ID          string `json:"Id"`
 	Containers  int
@@ -25,4 +27,16 @@ type FullImage struct {
 
 func (img *FullImage) Identifier() string {
 	return img.ID
+}
+
+func (img *FullImage) UserTag() string {
+	if len(img.RepoTags) == 0 {
+		return ""
+	}
+
+	tag := img.RepoTags[0]
+	// containerd image store returns these; old docker didn't
+	tag = strings.Replace(tag, "docker.io/library/", "", 1)
+	tag = strings.Replace(tag, "docker.io/", "", 1)
+	return tag
 }

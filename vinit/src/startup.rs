@@ -497,7 +497,7 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     // create mirror dirs: root, images, containers
     // perf matters more for volumes so it uses raw binds instead of mergerfs
     let (_, rw_root) = create_mirror_dir("/nfs/root").unwrap();
-    create_mirror_dir("/nfs/for-machines").unwrap();
+    let (_, rw_for_machines) = create_mirror_dir("/nfs/for-machines").unwrap();
 
     // readme in root
     fs::copy("/opt/orb/nfs-readme.txt", format!("{}/README.txt", rw_root)).unwrap();
@@ -505,7 +505,7 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     // create mergerfs and volume mountpoint dirs
     fs::create_dir_all(format!("{}/docker/volumes", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/images", rw_root)).unwrap();
-    fs::create_dir_all(format!("{}/docker/containers", rw_root)).unwrap();
+    fs::create_dir_all(format!("{}/docker/volumes", rw_for_machines)).unwrap();
 
     Ok(())
 }

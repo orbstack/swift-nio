@@ -238,6 +238,7 @@ struct Folders {
     static let nfs = "\(home)/\(nfsName)"
     static let nfsDocker = "\(nfs)/docker"
     static let nfsDockerVolumes = "\(nfsDocker)/volumes"
+    static let nfsDockerImages = "\(nfsDocker)/images"
 
     static let appData = "\(home)/.orbstack"
     static let config = "\(appData)/config"

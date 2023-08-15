@@ -36,6 +36,19 @@ struct DockerImageItem: View, Equatable {
             }
             Spacer()
 
+            if !(image.repoTags?.isEmpty ?? true) {
+                Button(action: {
+                    openFolder()
+                }) {
+                    Image(systemName: "folder.fill")
+                            // match ProgressIconButton size
+                    .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.borderless)
+                .disabled(actionInProgress)
+                .help("Open image")
+            }
+
             ProgressIconButton(systemImage: "trash.fill",
                     actionInProgress: actionInProgress,
                     role: .destructive) {
@@ -46,6 +59,14 @@ struct DockerImageItem: View, Equatable {
         }
         .padding(.vertical, 4)
         .contextMenu {
+            Button(action: {
+                openFolder()
+            }) {
+                Label("Open", systemImage: "folder")
+            }.disabled(actionInProgress || (image.repoTags?.isEmpty ?? true))
+
+            Divider()
+
             Button(action: {
                 finishDelete()
             }) {
@@ -111,5 +132,9 @@ struct DockerImageItem: View, Equatable {
         } else {
             return [image.id]
         }
+    }
+
+    private func openFolder() {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerImages)/\(image.userTag)")
     }
 }
