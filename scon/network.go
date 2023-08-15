@@ -313,6 +313,9 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	// related/established
 	rules = append(rules, []string{"filter", "INPUT", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
 
+	// localhost
+	rules = append(rules, []string{"filter", "INPUT", "-i", "lo", "-j", "ACCEPT"})
+
 	// host: allow mac gvisor vnet to access anything
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifVnet, "-j", "ACCEPT"})
 
