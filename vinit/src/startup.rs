@@ -506,6 +506,7 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(format!("{}/docker/volumes", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/images", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/volumes", rw_for_machines)).unwrap();
+    fs::create_dir("/tmp/empty").unwrap();
 
     Ok(())
 }

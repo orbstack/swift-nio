@@ -245,20 +245,15 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage) error {
 		layerDirs = append(layerDirs, "/proc/self/fd/"+strconv.Itoa(lowerFd))
 	}
 
-	// overlayfs does not support having only a single lowerdir.
-	// just use bind mount instead in that case, e.g. single-layer base image like alpine
-	subDest := "docker/images/" + tag
+	// overlayfs does not support having only a single lowerdir. use same code path
 	if len(layerDirs) == 1 {
-		err = m.MountBind(layerDirs[0], subDest)
-		if err != nil {
-			return fmt.Errorf("mount bind on %s: %w", subDest, err)
-		}
-	} else {
-		// note: nfs_export not really needed because of mergerfs
-		err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
-		if err != nil {
-			return fmt.Errorf("mount overlay on %s: %w", subDest, err)
-		}
+		layerDirs = append(layerDirs, "/tmp/empty")
+	}
+
+	subDest := "docker/images/" + tag
+	err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
+	if err != nil {
+		return fmt.Errorf("mount overlay on %s: %w", subDest, err)
 	}
 
 	return nil
