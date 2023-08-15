@@ -29,7 +29,6 @@ const VNET_NEIGHBORS: &[&str] = &[
 const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x54, 0xe1, 0x02];
 const NAT64_SOURCE_ADDR: &str = "10.183.233.241";
 const NAT64_FWMARK: u32 = 0xe97bd031;
-const NAT64_DOCKER_MACHINE_IP4: &str = "198.19.249.2";
 
 const FS_CORRUPTED_MSG: &str = r#"
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -490,7 +489,7 @@ fn create_mirror_dir(dir: &str) -> Result<(String, String), Box<dyn Error>> {
     Ok((ro_dir, rw_dir))
 }
 
-fn init_nfs() -> Result<(), Box<dyn Error>> {
+fn init_nfs() -> Result<(), Box<dyn Error>> { 
     // mount name is visible in machines bind mount, so use vanity name
     // we use this same tmpfs for all mirror dirs
     mount("machines", "/nfs", "tmpfs", MsFlags::MS_NOATIME | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID, Some("mode=0755")).unwrap();
@@ -498,8 +497,7 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     // create mirror dirs: root, images, containers
     // perf matters more for volumes so it uses raw binds instead of mergerfs
     let (_, rw_root) = create_mirror_dir("/nfs/root").unwrap();
-    create_mirror_dir("/nfs/images").unwrap();
-    create_mirror_dir("/nfs/containers").unwrap();
+    create_mirror_dir("/nfs/for-machines").unwrap();
 
     // readme in root
     fs::copy("/opt/orb/nfs-readme.txt", format!("{}/README.txt", rw_root)).unwrap();
@@ -767,28 +765,6 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
         .arg("--no-nfs-version").arg("3")
         //.arg("--debug").arg("all")
         .arg("--foreground"))?;
-
-    // mergerfs for images
-    service_tracker.spawn(Service::MERGERFS_IMAGES, &mut Command::new("/opt/orb/mergerfs")
-        .arg("-o")
-        // read-only
-        // noforget,inodecalc=path-hash is recommended for nfs
-        // nfsopenhack=git to be safe
-        // security_capability=false for perf
-        .arg("ro,noatime,fsname=docker-images,cache.files=partial,dropcacheonclose=true,category.create=ff,category.action=ff,category.search=ff,noforget,inodecalc=path-hash,nfsopenhack=git,security_capability=false")
-        .arg("-f") // foreground
-        .arg("/nfs/images/ro") // src
-        .arg("/nfs/root/ro/docker/images"))?; // dest
-    // mergerfs for containers
-    service_tracker.spawn(Service::MERGERFS_CONTAINERS, &mut Command::new("/opt/orb/mergerfs")
-        .arg("-o")
-        // noforget,inodecalc=path-hash is recommended for nfs
-        // nfsopenhack=git to be safe
-        // security_capability=false for perf
-        .arg("noatime,fsname=docker-containers,cache.files=partial,dropcacheonclose=true,category.create=ff,category.action=ff,category.search=ff,noforget,inodecalc=path-hash,nfsopenhack=git,security_capability=false")
-        .arg("-f") // foreground
-        .arg("/nfs/containers/ro")
-        .arg("/nfs/root/ro/docker/containers"))?;
 
     // ssh
     if DEBUG {

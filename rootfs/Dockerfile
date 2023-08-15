@@ -96,18 +96,6 @@ strip /out/* /out-guest/*
 cat /build/runc >> /out/rstub
 EOT
 
-FROM c-base AS mergerfs-build
-RUN <<EOT sh -eux
-wget https://github.com/trapexit/mergerfs/releases/download/2.36.0/mergerfs-2.36.0.tar.gz
-tar -xvf mergerfs-2.36.0.tar.gz
-cd mergerfs-2.36.0
-make -j\$(nproc)
-
-mkdir /out
-mv build/mergerfs /out
-strip /out/mergerfs
-EOT
-
 # Generate Rosetta deltas (need Debian for bsdiff)
 FROM debian as rosetta-deltas
 RUN apt-get update && \
@@ -427,7 +415,6 @@ COPY LICENSE /
 COPY --from=rosetta-deltas /out/ /opt/orb/delta
 
 # Compiled binaries (in order of most likely to change)
-COPY --from=mergerfs-build /out/mergerfs /opt/orb/
 COPY --from=c-build /out/* /opt/orb/
 COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vinit

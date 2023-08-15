@@ -514,7 +514,7 @@ func (m *ConManager) runDockerNFS() error {
 		for _, vol := range added {
 			dataSrc := dockerVolDir + "/" + vol + "/_data"
 			nfsSubDst := nfsDockerSubdir + "/" + vol
-			err := m.nfsRoot.MountBind(dataSrc, nfsSubDst)
+			err := m.nfsForAll.MountBind(dataSrc, nfsSubDst)
 			if err != nil {
 				return err
 			}
@@ -523,7 +523,7 @@ func (m *ConManager) runDockerNFS() error {
 		// remove old volumes
 		for _, vol := range removed {
 			nfsSubDst := nfsDockerSubdir + "/" + vol
-			err := m.nfsRoot.Unmount(nfsSubDst)
+			err := m.nfsForAll.Unmount(nfsSubDst)
 			if err != nil {
 				return err
 			}

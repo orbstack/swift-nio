@@ -7,17 +7,21 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	nfsDirRoot       = "/nfs/root"
-	nfsDirImages     = "/nfs/images"
-	nfsDirContainers = "/nfs/containers"
+	nfsDirRoot        = "/nfs/root"
+	nfsDirForMachines = "/nfs/for-machines"
+
+	nfsExportsDebounce = 250 * time.Millisecond
 )
 
 type NfsMirrorManager struct {
@@ -25,15 +29,35 @@ type NfsMirrorManager struct {
 	rwDir string
 
 	mu    sync.Mutex
-	dests map[string]struct{}
+	dests map[string]nfsMountEntry
+
+	nextFsid        int
+	hostUid         int
+	exportsDebounce syncx.FuncDebounce
+	controlsExports bool
 }
 
-func newNfsMirror(dir string) *NfsMirrorManager {
-	return &NfsMirrorManager{
-		roDir: dir + "/ro/",
-		rwDir: dir + "/rw/",
-		dests: make(map[string]struct{}),
+type nfsMountEntry struct {
+	Fsid int
+}
+
+func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
+	m := &NfsMirrorManager{
+		roDir:           dir + "/ro/",
+		rwDir:           dir + "/rw/",
+		dests:           make(map[string]nfsMountEntry),
+		nextFsid:        100,
+		controlsExports: controlsExports,
 	}
+
+	m.exportsDebounce = syncx.NewFuncDebounce(nfsExportsDebounce, func() {
+		err := m.updateExports()
+		if err != nil {
+			logrus.WithError(err).Error("failed to update exports")
+		}
+	})
+
+	return m
 }
 
 func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string) error {
@@ -49,7 +73,7 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	}).Debug("mounting nfs dir")
 	err := os.MkdirAll(backingPath, 0755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		return err
+		return fmt.Errorf("mkdir %s: %w", backingPath, err)
 	}
 
 	// unmount first
@@ -61,7 +85,16 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 		return fmt.Errorf("mount %s: %w", destPath, err)
 	}
 
-	m.dests[destPath] = struct{}{}
+	// fsid is only needed for overlay and fuse (non-bind mounts)
+	var entry nfsMountEntry
+	if fstype != "" && m.controlsExports {
+		m.nextFsid++
+		entry = nfsMountEntry{
+			Fsid: m.nextFsid,
+		}
+		m.exportsDebounce.Call()
+	}
+	m.dests[destPath] = entry
 	return nil
 }
 
@@ -75,6 +108,11 @@ func (m *NfsMirrorManager) Unmount(subdest string) error {
 
 	backingPath := m.rwDir + subdest
 	mountPath := m.roDir + subdest
+
+	entry, ok := m.dests[mountPath]
+	if !ok {
+		return nil
+	}
 
 	logrus.WithField("dst", mountPath).Debug("unmounting nfs dir")
 	// unmount
@@ -91,6 +129,9 @@ func (m *NfsMirrorManager) Unmount(subdest string) error {
 	}
 
 	delete(m.dests, mountPath)
+	if entry.Fsid != 0 {
+		m.exportsDebounce.Call()
+	}
 	return nil
 }
 
@@ -117,7 +158,7 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 			return nil
 		}
 
-		err := m.nfsRoot.MountBind(c.rootfsDir, c.Name)
+		err := m.nfsForAll.MountBind(c.rootfsDir, c.Name)
 		if err != nil {
 			return err
 		}
@@ -139,7 +180,7 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 			return nil
 		}
 
-		err := m.nfsRoot.Unmount(c.Name)
+		err := m.nfsForAll.Unmount(c.Name)
 		if err != nil {
 			return err
 		}
@@ -204,17 +245,53 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage) error {
 
 	// overlayfs does not support having only a single lowerdir.
 	// just use bind mount instead in that case, e.g. single-layer base image like alpine
+	subDest := "docker/images/" + tag
 	if len(layerDirs) == 1 {
-		err = m.MountBind(layerDirs[0], tag)
+		err = m.MountBind(layerDirs[0], subDest)
 		if err != nil {
-			return fmt.Errorf("mount bind on %s: %w", tag, err)
+			return fmt.Errorf("mount bind on %s: %w", subDest, err)
 		}
 	} else {
 		// note: nfs_export not really needed because of mergerfs
-		err = m.Mount("img", tag, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
+		err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
 		if err != nil {
-			return fmt.Errorf("mount overlay on %s: %w", tag, err)
+			return fmt.Errorf("mount overlay on %s: %w", subDest, err)
 		}
+	}
+
+	return nil
+}
+
+func (m *NfsMirrorManager) updateExports() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 127.0.0.8 = vsock
+	exportsBase := fmt.Sprintf(`
+/nfs/root/ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
+/nfs/root/ro/docker/volumes 127.0.0.8(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
+`, m.hostUid, m.hostUid)
+
+	destLines := make([]string, 0, len(m.dests))
+	for path, entry := range m.dests {
+		if entry.Fsid == 0 {
+			// doesn't need fsid, handled by mount propagation
+			continue
+		}
+
+		destLines = append(destLines, fmt.Sprintf("%s 127.0.0.8(rw,async,fsid=%d,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", path, entry.Fsid))
+	}
+	exportsBase += strings.Join(destLines, "\n")
+
+	err := os.WriteFile(conf.C().EtcExports, []byte(exportsBase), 0644)
+	if err != nil {
+		return err
+	}
+
+	// can't write directly to /proc because etab needs to be written for rpc.mountd
+	err = util.Run("/opt/pkg/exportfs", "-ar")
+	if err != nil {
+		return err
 	}
 
 	return nil

@@ -76,9 +76,13 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 
 	// setup and start nfs uid
 	if conf.C().StartNfs {
-		// chown nfs root (perm mode = 700)
+		// chown nfs roots (perm mode = 700)
 		// we use correct gid here to avoid wrong "macports" group on Mac: https://github.com/orbstack/orbstack/issues/404
 		err = os.Chown(nfsDirRoot+"/rw", u.Uid, u.Gid)
+		if err != nil {
+			return err
+		}
+		err = os.Chown(nfsDirForMachines+"/rw", u.Uid, u.Gid)
 		if err != nil {
 			return err
 		}
@@ -90,18 +94,15 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 		// most docker volumes are owned by root and some have restrictive perms
 		// so this ensures people can actually use them, e.g. in finder (which can't use sudo)
 		// plus images and containers, which use mergerfs to collapse inodes from underlying overlayfs and avoid polluting mounts / causing flaky rpc.mountd NFS4ERR_DELAY issues
-		nfsExport := fmt.Sprintf(`
-/nfs/root/ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
-/nfs/root/ro/docker/volumes 127.0.0.8(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
-/nfs/root/ro/docker/images 127.0.0.8(rw,async,fsid=100,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
-/nfs/root/ro/docker/containers 127.0.0.8(rw,async,fsid=200,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
-`, u.Uid, u.Uid)
-		//err = util.RunCmd("exportfs", "-o", "rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid="+strconv.Itoa(u.Uid)+",anongid="+strconv.Itoa(u.Uid), nfsExport)
-		err = os.WriteFile(conf.C().EtcExports, []byte(nfsExport), 0644)
-		if err != nil {
-			return err
-		}
+		mgr.nfsRoot.hostUid = u.Uid
 		go func() {
+			// update exports
+			err := mgr.nfsRoot.updateExports()
+			if err != nil {
+				logrus.WithError(err).Error("failed to update nfs exports")
+				return
+			}
+
 			// don't init nfs more than once. causes issues with exports
 			if data, err := os.ReadFile("/proc/fs/nfsd/portlist"); err == nil && len(strings.TrimSpace(string(data))) > 0 {
 				logrus.Debug("nfs already initialized")

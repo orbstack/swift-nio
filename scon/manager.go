@@ -58,9 +58,9 @@ type ConManager struct {
 	forwardsMu syncx.Mutex
 
 	// nfs
-	nfsRoot       *NfsMirrorManager
-	nfsImages     *NfsMirrorManager
-	nfsContainers *NfsMirrorManager
+	nfsRoot        *NfsMirrorManager
+	nfsForMachines *NfsMirrorManager
+	nfsForAll      NfsMirror
 
 	// stop
 	stopChan      chan struct{}
@@ -139,14 +139,14 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 
 		forwards: make(map[sysnet.ProcListener]ForwardState),
 
-		nfsRoot:       newNfsMirror(nfsDirRoot),
-		nfsImages:     newNfsMirror(nfsDirImages),
-		nfsContainers: newNfsMirror(nfsDirContainers),
+		nfsRoot:        newNfsMirror(nfsDirRoot, true),
+		nfsForMachines: newNfsMirror(nfsDirForMachines, false),
 
 		stopChan:      make(chan struct{}),
 		earlyStopChan: make(chan struct{}),
 	}
 	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host)
+	mgr.nfsForAll = NewMultiNfsMirror(mgr.nfsRoot, mgr.nfsForMachines)
 
 	return mgr, nil
 }
@@ -308,8 +308,7 @@ func (m *ConManager) Close() error {
 	m.net.Close()
 	m.bpf.Close()
 	m.nfsRoot.Close()
-	m.nfsImages.Close()
-	m.nfsContainers.Close()
+	m.nfsForMachines.Close()
 	close(m.stopChan)          // this acts as broadcast
 	_ = os.RemoveAll(m.tmpDir) // seccomp and lxc
 	return nil
