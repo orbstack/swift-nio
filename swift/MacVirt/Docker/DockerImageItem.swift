@@ -36,7 +36,7 @@ struct DockerImageItem: View, Equatable {
             }
             Spacer()
 
-            if !(image.repoTags?.isEmpty ?? true) {
+            if image.repoTags?.isEmpty == false {
                 Button(action: {
                     openFolder()
                 }) {
@@ -58,12 +58,17 @@ struct DockerImageItem: View, Equatable {
             .help(isInUse ? "Image in use" : "Delete image")
         }
         .padding(.vertical, 4)
+        .onDoubleClick {
+            if image.repoTags?.isEmpty == false {
+                openFolder()
+            }
+        }
         .contextMenu {
             Button(action: {
                 openFolder()
             }) {
                 Label("Open", systemImage: "folder")
-            }.disabled(actionInProgress || (image.repoTags?.isEmpty ?? true))
+            }.disabled(actionInProgress || (image.repoTags?.isEmpty != false))
 
             Divider()
 

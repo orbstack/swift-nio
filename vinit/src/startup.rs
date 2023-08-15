@@ -80,6 +80,14 @@ fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> Result<(), Bo
     mount_common(source, dest, None, flags.unwrap_or(MsFlags::empty()) | MsFlags::MS_BIND, None)
 }
 
+fn seal_read_only(path: &str) -> Result<(), Box<dyn Error>> {
+    // prevents machines from reopening /proc/<agent>/exe as writable. CVE-2019-5736
+    bind_mount(path, path, None)?;
+    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
+    bind_mount(path, path, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
+    Ok(())
+}
+
 fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
     let merged_flags = MsFlags::MS_NOATIME;
     // secure flags for overlay
@@ -167,11 +175,9 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     fs::write("/proc/fs/nfsd/nfsv4leasetime", "30")?;
     fs::write("/proc/fs/nfsd/nfsv4gracetime", "1")?;
 
-    // seal /opt/orb as read-only for security
-    // prevents machines from reopening /proc/<agent>/exe as writable. CVE-2019-5736
-    bind_mount("/opt/orb", "/opt/orb", None)?;
-    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
-    bind_mount("/opt/orb", "/opt/orb", Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
+    // for security, seal all directories/files we expose to machines as read-only
+    // otherwise machines can remount them as read-write
+    seal_read_only("/opt/orb")?;
 
     // early race-free emulator setup on arm64
     #[cfg(target_arch = "aarch64")]

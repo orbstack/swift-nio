@@ -377,14 +377,13 @@ func (c *Container) configureLxc() error {
 		set("lxc.proc.oom_score_adj", "0")
 
 		// bind mounts
-		config := conf.C()
-		bind(config.GuestMountSrc, "/opt/orbstack-guest", "ro")
+		bind(conf.C().GuestMountSrc, "/opt/orbstack-guest", "ro")
 
 		// isolated containers don't get bind mounts
 		if !c.isolated {
-			bind(config.HostMountSrc, "/mnt/mac", "")
+			bind(conf.C().HostMountSrc, "/mnt/mac", "")
 			// we're doing this in kernel now, to avoid showing up in `df`
-			//bind(config.FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
+			//bind(conf.C().FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
 
 			// binds for mac linked paths
 			// symlinks cause problems with vs code, git, etc. so we bind them
