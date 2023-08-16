@@ -50,7 +50,6 @@ oracle:8
 oracle:9
 plamo:7.x
 plamo:8.x
-pld:current
 rockylinux:8
 rockylinux:9
 springdalelinux:7
