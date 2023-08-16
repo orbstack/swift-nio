@@ -117,12 +117,6 @@ func (s *VmControlServer) StartSetup(ctx context.Context) (*vmtypes.SetupInfo, e
 	return info, nil
 }
 
-func (s *VmControlServer) FinishSetup(ctx context.Context) error {
-	// our docker context setup always works now,
-	// so no need to wait for user to do setup
-	return nil
-}
-
 // for post-migration
 func (s *VmControlServer) SetDockerContext(ctx context.Context) error {
 	return setupDockerContext()
@@ -352,7 +346,6 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"ResetConfig": handler.New(s.ResetConfig),
 
 		"StartSetup":                     handler.New(s.StartSetup),
-		"FinishSetup":                    handler.New(s.FinishSetup),
 		"SetDockerContext":               handler.New(s.SetDockerContext),
 		"IsSshConfigWritable":            handler.New(s.IsSshConfigWritable),
 		"InternalReportEnv":              handler.New(s.InternalReportEnv),

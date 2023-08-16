@@ -28,6 +28,10 @@ struct HelperServer {
             throw PHSymlinkError.existingSocketLink
         }
 
+        // create dir (mkdir -p)
+        let destDir = URL(fileURLWithPath: req.dest).deletingLastPathComponent().path
+        try FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true, attributes: nil)
+
         try FileManager.default.createSymbolicLink(atPath: req.dest, withDestinationPath: req.src)
     }
 }

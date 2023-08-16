@@ -32,6 +32,10 @@ enum PHSymlinkError: Error, Codable {
     case existingSocketLink
 }
 
+enum PHError: Error, Codable {
+    case canceled
+}
+
 struct PHUpdateRequest: Codable {
     let helperURL: URL
 }

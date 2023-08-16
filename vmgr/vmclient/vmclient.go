@@ -183,10 +183,6 @@ func (c *VmClient) StartSetup() (*vmtypes.SetupInfo, error) {
 	return &info, nil
 }
 
-func (c *VmClient) FinishSetup() error {
-	return c.rpc.CallResult(context.TODO(), "FinishSetup", nil, &noResult)
-}
-
 func (c *VmClient) SetDockerContext() error {
 	return c.rpc.CallResult(context.TODO(), "SetDockerContext", nil, &noResult)
 }

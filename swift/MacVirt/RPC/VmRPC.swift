@@ -34,7 +34,7 @@ struct VmConfig: Codable, Equatable {
 }
 
 struct SetupInfo: Codable {
-    var adminShellCommand: String?
+    var adminSymlinkCommands: [PHSymlinkRequest]?
     var adminMessage: String?
     var alertProfileChanged: String?
     var alertRequestAddPaths: [String]?
@@ -73,10 +73,6 @@ class VmService: RPCService {
 
     func startSetup() async throws -> SetupInfo {
         try await invoke("StartSetup")
-    }
-
-    func finishSetup() async throws {
-        try await invoke("FinishSetup")
     }
 
     func isSshConfigWritable() async throws -> Bool {

@@ -16,6 +16,8 @@ class PHManager {
     private let xpcClient: XPCClient
     private var ready = false
 
+    var installReason: String?
+
     init() {
         self.xpcClient = XPCClient.forMachService(named: PHShared.helperID)
     }
@@ -39,11 +41,13 @@ class PHManager {
 
     private func install() async throws {
         // don't block main thread
-        try await Task.detached {
+        try await Task.detached { [self] in
             do {
-                try PrivilegedHelperManager.shared.authorizeAndBless(message: "Allow using admin privileges for enhanced compatibility?")
+                // TODO: support new API + migration
+                try PrivilegedHelperManager.shared.authorizeAndBless(message: installReason ?? "Allow using admin privileges for enhanced compatibility?")
             } catch AuthorizationError.canceled {
                 Defaults[.adminDismissCount] += 1
+                throw PHError.canceled
             }
         }.value
     }
@@ -59,7 +63,6 @@ class PHManager {
         }
     }
     
-    /// Attempts to uninstall the helper tool by having the helper tool uninstall itself.
     func uninstall() async throws {
         if !(await checkInstalled()) {
             return
@@ -71,6 +74,9 @@ class PHManager {
         } catch XPCError.connectionInterrupted {
             // ignore: normal
         }
+
+        // reset
+        ready = false
     }
 
     func symlink(src: String, dest: String) async throws {

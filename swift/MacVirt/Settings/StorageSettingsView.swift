@@ -14,8 +14,8 @@ private enum DirItem: Hashable {
     case other
 }
 
-struct StorageSettingsView: BaseVmgrSettingsView, View {
-    @EnvironmentObject internal var vmModel: VmViewModel
+struct StorageSettingsView: View {
+    @EnvironmentObject private var vmModel: VmViewModel
 
     @StateObject private var windowHolder = WindowHolder()
 
@@ -39,7 +39,7 @@ struct StorageSettingsView: BaseVmgrSettingsView, View {
                     case .def:
                         // update immediately to avoid picker glitch
                         dataDir = nil
-                        setConfigKey(\.dataDir, nil)
+                        vmModel.trySetConfigKey(\.dataDir, nil)
                     case .custom:
                         // ignore
                         break
@@ -50,7 +50,7 @@ struct StorageSettingsView: BaseVmgrSettingsView, View {
 
                 Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
                 .onChange(of: mountHideShared) { newValue in
-                    setConfigKey(\.mountHideShared, newValue)
+                    vmModel.trySetConfigKey(\.mountHideShared, newValue)
                 }
                 VStack {
                     Picker(selection: selBinding, label: Text("Data location")) {
@@ -145,9 +145,9 @@ struct StorageSettingsView: BaseVmgrSettingsView, View {
             if result == .OK,
                let url = panel.url {
                 if url.path == Folders.userData {
-                    setConfigKey(\.dataDir, nil)
+                    vmModel.trySetConfigKey(\.dataDir, nil)
                 } else {
-                    setConfigKey(\.dataDir, url.path)
+                    vmModel.trySetConfigKey(\.dataDir, url.path)
                 }
             }
         }

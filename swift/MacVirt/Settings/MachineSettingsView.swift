@@ -7,24 +7,10 @@ import SwiftUI
 import LaunchAtLogin
 import Combine
 import Sparkle
+import Defaults
 
-protocol BaseVmgrSettingsView {
-    var vmModel: VmViewModel { get }
-}
-
-extension BaseVmgrSettingsView {
-    func setConfigKey<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>, _ newValue: T) {
-        Task { @MainActor in
-            if var config = vmModel.config {
-                config[keyPath: keyPath] = newValue
-                await vmModel.trySetConfig(config)
-            }
-        }
-    }
-}
-
-struct MachineSettingsView: BaseVmgrSettingsView, View {
-    @EnvironmentObject internal var vmModel: VmViewModel
+struct MachineSettingsView: View {
+    @EnvironmentObject private var vmModel: VmViewModel
 
     @StateObject private var windowHolder = WindowHolder()
 
@@ -58,7 +44,7 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                         if #available(macOS 13, *) {
                             Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
                             .onChange(of: enableRosetta) { newValue in
-                                setConfigKey(\.rosetta, newValue)
+                                vmModel.trySetConfigKey(\.rosetta, newValue)
                             }
                             Text("Faster. Only disable if you run into compatibility issues.")
                             .font(.subheadline)
@@ -91,7 +77,7 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                             Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
                         }
                         .onChange(of: memoryMib) { newValue in
-                            setConfigKey(\.memoryMib, UInt64(newValue))
+                            vmModel.trySetConfigKey(\.memoryMib, UInt64(newValue))
                         }
 
                         let maxCpu = ProcessInfo.processInfo.processorCount
@@ -110,7 +96,7 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
                             Text("None")
                         }
                         .onChange(of: cpu) { newValue in
-                            setConfigKey(\.cpu, UInt(newValue))
+                            vmModel.trySetConfigKey(\.cpu, UInt(newValue))
                         }
                         Text("Resources are used on demand, up to these limits.")
                         .font(.subheadline)
@@ -122,14 +108,16 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
 
                     Toggle("Switch Docker context automatically", isOn: $dockerSetContext)
                     .onChange(of: dockerSetContext) { newValue in
-                        setConfigKey(\.dockerSetContext, newValue)
+                        vmModel.trySetConfigKey(\.dockerSetContext, newValue)
                     }
 
                     let adminBinding = Binding<Bool>(
                         get: { Users.hasAdmin && setupUseAdmin },
                         set: { newValue in
                             if newValue {
-                                setConfigKey(\.setupUseAdmin, true)
+                                vmModel.trySetConfigKey(\.setupUseAdmin, true)
+                                // reset dismiss count
+                                Defaults[.adminDismissCount] = 0
                             } else {
                                 presentDisableAdmin = true
                             }
@@ -175,7 +163,7 @@ struct MachineSettingsView: BaseVmgrSettingsView, View {
         .alert("Disable admin features?", isPresented: $presentDisableAdmin) {
             Button("Cancel", role: .cancel) {}
             Button("Disable", role: .destructive) {
-                setConfigKey(\.setupUseAdmin, false)
+                vmModel.trySetConfigKey(\.setupUseAdmin, false)
                 Task {
                     await vmModel.tryUninstallPrivHelper()
                 }

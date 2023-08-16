@@ -8,9 +8,11 @@ import SwiftJSONRPC
 import Sentry
 import Virtualization
 import Combine
+import Defaults
 
 private let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
 private let dockerSystemDfRatelimit = 1.0 * 60 * 60 // 1 hour
+private let maxAdminDismissCount = 2 // auto-disable
 
 enum VmState: Int, Comparable {
     case stopped
@@ -799,46 +801,33 @@ class VmViewModel: ObservableObject {
     func doSetup() async throws {
         let info = try await vmgr.startSetup()
 
-        var waitTasks = [Task<Void, Error>]()
-
         if let pathCmd = info.alertProfileChanged {
             presentProfileChanged = ProfileChangedAlert(profileRelPath: pathCmd)
-            waitTasks.append(Task {
-                for await _ in $presentProfileChanged.first(where: { $0 == nil }).values {
-                    break
-                }
-            })
         }
 
         if let paths = info.alertRequestAddPaths {
             presentAddPaths = AddPathsAlert(paths: paths)
-            waitTasks.append(Task {
-                for await _ in $presentAddPaths.first(where: { $0 == nil }).values {
-                    break
-                }
-            })
         }
 
         // need to do anything?
-        if let cmd = info.adminShellCommand {
+        if let cmds = info.adminSymlinkCommands {
             let reason = info.adminMessage ?? "make changes"
-            let prompt = "\(Constants.userAppName) wants to \(reason). This is optional."
-            waitTasks.append(Task.detached {
+            // suffixed with "OrbStack is trying to install a new helper tool."
+            let prompt = "\(reason) Optional: "
+            privHelper.installReason = prompt
+            for cmd in cmds {
                 do {
-                    try runAsAdmin(script: cmd, prompt: prompt)
-                } catch {
-                    NSLog("setup admin error: \(error)")
+                    try await privHelper.symlink(src: cmd.src, dest: cmd.dest)
+                } catch PHError.canceled {
+                    // ignore: user canceled
+                    if Defaults[.adminDismissCount] >= maxAdminDismissCount {
+                        // try to disable admin
+                        trySetConfigKey(\.setupUseAdmin, false)
+                    }
+                    return
                 }
-            })
+            }
         }
-
-        // wait for all tasks
-        for task in waitTasks {
-            try await task.value
-        }
-
-        // ok we're done
-        try await vmgr.finishSetup()
     }
 
     @MainActor
@@ -1039,6 +1028,15 @@ class VmViewModel: ObservableObject {
             try await setConfig(newConfig)
         } catch {
             setError(.configUpdateError(cause: error))
+        }
+    }
+
+    func trySetConfigKey<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>, _ newValue: T) {
+        Task { @MainActor in
+            if var config = config {
+                config[keyPath: keyPath] = newValue
+                await trySetConfig(config)
+            }
         }
     }
 

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 
 	"github.com/alessio/shellescape"
 	"github.com/orbstack/macvirt/scon/agent/envutil"
@@ -23,7 +22,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -426,7 +424,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	pathItems := strings.Split(details.EnvPATH, ":")
 
 	// link docker sock?
-	var adminCommands []string
+	var adminCommands []vmtypes.PHSymlinkRequest
 	adminLinkDocker := false
 	adminLinkCommands := false
 	if details.IsAdmin {
@@ -434,7 +432,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				// doesn't exist - ignore, relink
-			} else if errors.Is(err, syscall.EINVAL) {
+			} else if errors.Is(err, unix.EINVAL) {
 				// not a link - ignore, relink
 			} else {
 				return nil, err
@@ -443,7 +441,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		wantDest := conf.DockerSocket()
 		if sockDest != wantDest {
 			logrus.Info("[request admin] link docker socket")
-			adminCommands = append(adminCommands, "rm -f /var/run/docker.sock; ln -sf "+wantDest+" /var/run/docker.sock")
+			adminCommands = append(adminCommands, vmtypes.PHSymlinkRequest{Src: wantDest, Dest: "/var/run/docker.sock"})
 			adminLinkDocker = true
 		}
 	}
@@ -607,9 +605,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 				"src": src,
 				"dst": dest,
 			}).Info("[request admin] linking command (as root)")
-			adminCommands = append(adminCommands,
-				shellescape.QuoteCommand([]string{"mkdir", "-p", filepath.Dir(dest)}),
-				shellescape.QuoteCommand([]string{"ln", "-sf", src, dest}))
+			adminCommands = append(adminCommands, vmtypes.PHSymlinkRequest{Src: src, Dest: dest})
 			adminLinkCommands = true
 			return nil
 		}
@@ -682,17 +678,16 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	info := &vmtypes.SetupInfo{}
 	if len(adminCommands) > 0 {
 		// join and escape commands
-		cmd := "set -e; " + strings.Join(adminCommands, "; ")
-		info.AdminShellCommand = &cmd
+		info.AdminSymlinkCommands = adminCommands
 
-		var adminReasons []string
-		if adminLinkCommands {
-			adminReasons = append(adminReasons, "install command-line tools")
+		var msg string
+		if adminLinkCommands && adminLinkDocker {
+			msg = "Install command-line tools and improve Docker socket compatibility?"
+		} else if adminLinkCommands {
+			msg = "Install command-line tools?"
+		} else if adminLinkDocker {
+			msg = "Improve Docker socket compatibility?"
 		}
-		if adminLinkDocker {
-			adminReasons = append(adminReasons, "improve Docker socket compatibility")
-		}
-		msg := strings.Join(adminReasons, " and ")
 		info.AdminMessage = &msg
 	}
 	if askAddPath {
@@ -704,10 +699,10 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		info.AlertProfileChanged = alertProfileChangedPath
 	}
 	logrus.WithFields(logrus.Fields{
-		"adminShellCommand": strp(info.AdminShellCommand),
-		"adminMessage":      strp(info.AdminMessage),
-		"alertAddPaths":     info.AlertRequestAddPaths,
-		"alertProfile":      info.AlertProfileChanged,
+		"adminSymlinkCommands": info.AdminSymlinkCommands,
+		"adminMessage":         strp(info.AdminMessage),
+		"alertAddPaths":        info.AlertRequestAddPaths,
+		"alertProfile":         info.AlertProfileChanged,
 	}).Debug("prepare setup info done")
 
 	s.setupDone = true
@@ -744,17 +739,17 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 	}
 
 	// request run as admin
-	if info.AdminShellCommand != nil {
-		logrus.WithField("cmd", *info.AdminShellCommand).Debug("requesting run as admin")
-		prompt := ""
-		if info.AdminMessage != nil {
-			prompt = *info.AdminMessage
-		}
+	if info.AdminSymlinkCommands != nil {
+		logrus.WithField("cmd", info.AdminSymlinkCommands).Debug("requesting admin symlinks")
+		// prompt := ""
+		// if info.AdminMessage != nil {
+		// 	prompt = *info.AdminMessage
+		// }
 
-		err := vzf.SwextGuiRunAsAdmin(*info.AdminShellCommand, "OrbStack wants to "+prompt+". This is optional.")
-		if err != nil {
-			return err
-		}
+		// err := vzf.SwextGuiRunAsAdmin(info.AdminSymlinkCommands, "OrbStack wants to "+prompt+". This is optional.")
+		// if err != nil {
+		// 	return err
+		// }
 	}
 
 	return nil

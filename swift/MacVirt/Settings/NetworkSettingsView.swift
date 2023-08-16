@@ -8,8 +8,8 @@ import LaunchAtLogin
 import Combine
 import Sparkle
 
-struct NetworkSettingsView: BaseVmgrSettingsView, View {
-    @EnvironmentObject internal var vmModel: VmViewModel
+struct NetworkSettingsView: View {
+    @EnvironmentObject private var vmModel: VmViewModel
     @Environment(\.controlActiveState) private var controlActiveState: ControlActiveState
     @State private var proxyText = ""
     @State private var proxyMode = "auto"
@@ -34,7 +34,7 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
                 case .running:
                     Toggle("Allow access to container domains & IPs", isOn: $networkBridge)
                         .onChange(of: networkBridge) { newValue in
-                            setConfigKey(\.networkBridge, newValue)
+                            vmModel.trySetConfigKey(\.networkBridge, newValue)
 
                             // restart Docker if running
                             if newValue != vmModel.config?.networkBridge {
@@ -117,7 +117,7 @@ struct NetworkSettingsView: BaseVmgrSettingsView, View {
             proxyValue = proxyText == "" ? "auto" : proxyText
         }
 
-        setConfigKey(\.networkProxy, proxyValue)
+        vmModel.trySetConfigKey(\.networkProxy, proxyValue)
     }
 
     private func updateFrom(_ config: VmConfig) {
