@@ -15,7 +15,7 @@ struct AppConfig {
     static let vmgrExeName = "OrbStack Helper (VM)"
 #if DEBUG
     static let debug = true
-    static let vmgrExe = "\(Folders.home)/code/projects/macvirt/vmgr/\(vmgrExeName)"
+    static let vmgrExe = "\(Folders.home)/code/projects/macvirt/out/\(vmgrExeName).app/Contents/MacOS/\(vmgrExeName)"
     static let apiBaseUrl = "http://localhost:8400"
 #else
     static let debug = false

@@ -1,1 +1,4 @@
-../vmgr/OrbStack Helper (VM)
+#!/bin/sh
+cd "$(dirname "$0")"
+# run it with the correct bundle path, unlike a symlink
+exec "../out/OrbStack Helper (VM).app/Contents/MacOS/OrbStack Helper (VM)" "$@"

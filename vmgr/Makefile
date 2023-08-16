@@ -2,7 +2,10 @@
 
 run: ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\)
 	@orb shutdown -f || :
-	@"./OrbStack Helper (VM)" vmgr
+	@"../out/OrbStack Helper (VM).app/Contents/MacOS/OrbStack Helper (VM)" vmgr
+
+run-raw: ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\)
+	@"../out/OrbStack Helper (VM).app/Contents/MacOS/OrbStack Helper (VM)" vmgr
 
 ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib-debug
