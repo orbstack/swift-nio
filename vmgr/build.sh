@@ -38,6 +38,7 @@ go build -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "
 # it checks CFBundleExecutable in Info.plist
 
 # add Info.plist, PkgInfo, and provisioning profile
-cp -r bundle/. "$BUNDLE_OUT/Contents"
+# -R doesn't follow symlinks
+cp -R bundle/. "$BUNDLE_OUT/Contents"
 # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
 codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
