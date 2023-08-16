@@ -57,9 +57,9 @@ enum Uninstaller {
         // until 0 is no longer returned.
         while kill(pid, 0) == 0 { // in practice this condition almost always evaluates to false on its first check
             usleep(50 * 1000) // sleep for 50ms
-            NSLog("PID \(getpid()) waited 50ms for PID \(pid)")
+            NSLog("waiting for parent \(pid) to exit")
         }
-        NSLog("PID \(getpid()) done waiting for PID \(pid)")
+        NSLog("parent exited, uninstalling")
         
         try uninstallNow()
     }
