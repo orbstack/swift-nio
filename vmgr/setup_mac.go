@@ -689,15 +689,16 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		// join and escape commands
 		info.AdminSymlinkCommands = adminCommands
 
+		// whether macOS appends suffix ~40 chars but not exactly. width based?
+		// so do it for each message: "OrbStack is trying to install a new helper tool."
 		var msg string
 		if adminLinkCommands && adminLinkDocker {
-			msg = "Install command-line tools and improve Docker socket compatibility"
+			msg = "Improve Docker socket compatibility and install command-line tools? This is optional."
 		} else if adminLinkCommands {
-			msg = "Install command-line tools"
+			msg = "Install command-line tools? This is optional."
 		} else if adminLinkDocker {
-			msg = "Improve Docker socket compatibility"
+			msg = "Improve Docker socket compatibility? This is optional."
 		}
-		msg += "? This is optional. OrbStack Helper (VM) is trying to install a new helper tool."
 		info.AdminMessage = &msg
 	}
 	if askAddPath {
