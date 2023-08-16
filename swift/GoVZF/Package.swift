@@ -19,13 +19,14 @@ let package = Package(
         .package(url: "https://github.com/trilemma-dev/Blessed.git", from: "0.6.0"),
         .package(url: "https://github.com/trilemma-dev/EmbeddedPropertyList.git", from: "2.0.2"),
         .package(url: "https://github.com/trilemma-dev/SecureXPC.git", from: "0.8.0"),
+        .package(url: "https://github.com/sindresorhus/Defaults", from: "7.2.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "GoVZF",
-            dependencies: ["CBridge", "Blessed", "EmbeddedPropertyList", "SecureXPC"]),
+            dependencies: ["CBridge", "Blessed", "EmbeddedPropertyList", "SecureXPC", "Defaults"]),
         .systemLibrary(
             name: "CBridge"),
         .testTarget(

@@ -9,25 +9,27 @@
 /* Begin PBXBuildFile section */
 		B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */; };
 		B118B05969CAC4497636F8DE /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF90FB580B56419D1472 /* FFI.swift */; };
+		B118B059B171800F250B42CD /* PHManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHManager.swift */; };
 		B118B076E8CB7033926025A7 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1DCE616676E483BB2BB /* FeedbackView.swift */; };
 		B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE46918C0AB595ADE247 /* RenameContainerView.swift */; };
+		B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
+		B118B0FC989BF42C8A2B6EE2 /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
 		B118B209F240A8036216EC04 /* DockerMigrationWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */; };
 		B118B3B76CA225F4062B10D1 /* NSImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BABDE1F02C8A54DB011F /* NSImage.swift */; };
+		B118B3BEA18481697E1EB21E /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
 		B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB2A7BF402695260775E /* IPC.swift */; };
 		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
-		B118B5071D4CD08E276ACEEC /* PHManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5410BD3CE9F29680E04 /* PHManager.swift */; };
 		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
 		B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
 		B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */; };
+		B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
 		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
-		B118BBE71285AFB898911E6B /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDB3EC9055E40DB59CE2 /* PHShared.swift */; };
 		B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B300D94CA37572036935 /* Buttons.swift */; };
 		B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */; };
 		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
 		B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */; };
 		B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B88B9296701977A1F286 /* CodeInfo.swift */; };
-		B118BFC3C61061E49AE533BC /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDB3EC9055E40DB59CE2 /* PHShared.swift */; };
 		D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */; };
 		D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */; };
 		D80443E22A1B404E00ED59C5 /* OnboardingRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */; };
@@ -72,7 +74,6 @@
 		D804440D2A1B404E00ED59C5 /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D32A1B404E00ED59C5 /* Updater.swift */; };
 		D804440E2A1B404E00ED59C5 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D42A1B404E00ED59C5 /* GeneralSettingsView.swift */; };
 		D804440F2A1B404E00ED59C5 /* NetworkSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D52A1B404E00ED59C5 /* NetworkSettingsView.swift */; };
-		D80444102A1B404E00ED59C5 /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D62A1B404E00ED59C5 /* Defaults.swift */; };
 		D80444112A1B404E00ED59C5 /* ActionTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D72A1B404E00ED59C5 /* ActionTracker.swift */; };
 		D80444122A1B404E00ED59C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D82A1B404E00ED59C5 /* DoubleClick.swift */; };
 		D80444132A1B404E00ED59C5 /* RPCExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DA2A1B404E00ED59C5 /* RPCExecutor.swift */; };
@@ -105,7 +106,7 @@
 		D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D81F2A2B22A0002CF279 /* VzClient.swift */; };
 		D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8202A2B22A0002CF279 /* FsNotify.swift */; };
 		D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8212A2B22A0002CF279 /* Proxy.swift */; };
-		D880D8262A2B22A0002CF279 /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8222A2B22A0002CF279 /* Defaults.swift */; };
+		D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */; };
 		D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8292A2B40C7002CF279 /* VlanRouter.swift */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -114,6 +115,10 @@
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
 		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
 		D8BAAFBE2A60583A00E5637F /* DiagReporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */; };
+		D8D1EEAF2A8C6E8000C80718 /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
+		D8D1EEB02A8C6E8000C80718 /* PHManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHManager.swift */; };
+		D8D1EEB32A8C7EC500C80718 /* DefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */; };
+		D8D1EEB42A8C7EC500C80718 /* DefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -210,12 +215,14 @@
 /* Begin PBXFileReference section */
 		B118B1DCE616676E483BB2BB /* FeedbackView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineSettingsView.swift; sourceTree = "<group>"; };
+		B118B2ECDBD9470B8263AE90 /* PHManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHManager.swift; sourceTree = "<group>"; };
 		B118B300D94CA37572036935 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		B118B30219F10B44000AE05A /* OnboardingManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
 		B118B4A5DDC711F7EF2AE61B /* GUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
 		B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HelperToolInfoPlist.swift; sourceTree = "<group>"; };
-		B118B5410BD3CE9F29680E04 /* PHManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHManager.swift; sourceTree = "<group>"; };
+		B118B5B2CF0210C1D968C7AC /* PHShared.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHShared.swift; sourceTree = "<group>"; };
 		B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerMigrationWindow.swift; sourceTree = "<group>"; };
+		B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SharedUtils.swift; sourceTree = "<group>"; };
 		B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentUnavailableViewCompat.swift; sourceTree = "<group>"; };
 		B118B88B9296701977A1F286 /* CodeInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CodeInfo.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
@@ -224,7 +231,6 @@
 		B118BB2A7BF402695260775E /* IPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
 		B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
 		B118BD52B15443D1329C832A /* Packets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
-		B118BDB3EC9055E40DB59CE2 /* PHShared.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHShared.swift; sourceTree = "<group>"; };
 		B118BE46918C0AB595ADE247 /* RenameContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameContainerView.swift; sourceTree = "<group>"; };
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
 		B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
@@ -272,7 +278,6 @@
 		D80443D32A1B404E00ED59C5 /* Updater.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
 		D80443D42A1B404E00ED59C5 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		D80443D52A1B404E00ED59C5 /* NetworkSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NetworkSettingsView.swift; sourceTree = "<group>"; };
-		D80443D62A1B404E00ED59C5 /* Defaults.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Defaults.swift; sourceTree = "<group>"; };
 		D80443D72A1B404E00ED59C5 /* ActionTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActionTracker.swift; sourceTree = "<group>"; };
 		D80443D82A1B404E00ED59C5 /* DoubleClick.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DoubleClick.swift; path = ../DoubleClick.swift; sourceTree = "<group>"; };
 		D80443DA2A1B404E00ED59C5 /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
@@ -308,7 +313,7 @@
 		D880D81F2A2B22A0002CF279 /* VzClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VzClient.swift; sourceTree = "<group>"; };
 		D880D8202A2B22A0002CF279 /* FsNotify.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FsNotify.swift; sourceTree = "<group>"; };
 		D880D8212A2B22A0002CF279 /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
-		D880D8222A2B22A0002CF279 /* Defaults.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Defaults.swift; sourceTree = "<group>"; };
+		D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultsFFI.swift; sourceTree = "<group>"; };
 		D880D8292A2B40C7002CF279 /* VlanRouter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VlanRouter.swift; sourceTree = "<group>"; };
 		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
 		D88F4ED9299A131B00419B5C /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = build/bins/docker; sourceTree = "<group>"; };
@@ -319,6 +324,7 @@
 		D8A32B98296F839100E56EEF /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		D8A32B9A296F839100E56EEF /* MacVirt.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacVirt.entitlements; sourceTree = "<group>"; };
 		D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DiagReporterView.swift; sourceTree = "<group>"; };
+		D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultsKeys.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -363,12 +369,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		B118B01C2FCE80B68B16373D /* Helper */ = {
+		B118B5A454DB12F33008959E /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				B118B5410BD3CE9F29680E04 /* PHManager.swift */,
+				B118B5B2CF0210C1D968C7AC /* PHShared.swift */,
+				B118B2ECDBD9470B8263AE90 /* PHManager.swift */,
+				D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */,
+				B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */,
 			);
-			path = Helper;
+			name = Shared;
+			path = privhelper/Shared;
 			sourceTree = "<group>";
 		};
 		D804439F2A1B404E00ED59C5 /* Onboarding */ = {
@@ -464,7 +474,6 @@
 				D80443D32A1B404E00ED59C5 /* Updater.swift */,
 				D80443D42A1B404E00ED59C5 /* GeneralSettingsView.swift */,
 				D80443D52A1B404E00ED59C5 /* NetworkSettingsView.swift */,
-				D80443D62A1B404E00ED59C5 /* Defaults.swift */,
 				B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */,
 				B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */,
 				B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */,
@@ -516,7 +525,7 @@
 			children = (
 				D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */,
 				D8715C562A1FEF260047A9BE /* CBridge.h */,
-				D880D8222A2B22A0002CF279 /* Defaults.swift */,
+				D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */,
 				D880D8202A2B22A0002CF279 /* FsNotify.swift */,
 				D880D8212A2B22A0002CF279 /* Proxy.swift */,
 				D880D8292A2B40C7002CF279 /* VlanRouter.swift */,
@@ -551,15 +560,14 @@
 		D87746132A7CC0B700739040 /* privhelper */ = {
 			isa = PBXGroup;
 			children = (
+				B118B88B9296701977A1F286 /* CodeInfo.swift */,
+				D877461D2A7CC89800739040 /* HelperServer.swift */,
+				B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */,
+				D877461F2A7CCB6400739040 /* Info.plist */,
+				D87D98682A7E057B00EB7C63 /* launchd.plist */,
 				D87746142A7CC0B700739040 /* main.swift */,
 				D87746192A7CC6F600739040 /* Uninstaller.swift */,
 				D877461B2A7CC70000739040 /* Updater.swift */,
-				D877461D2A7CC89800739040 /* HelperServer.swift */,
-				D877461F2A7CCB6400739040 /* Info.plist */,
-				B118B88B9296701977A1F286 /* CodeInfo.swift */,
-				B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */,
-				B118BDB3EC9055E40DB59CE2 /* PHShared.swift */,
-				D87D98682A7E057B00EB7C63 /* launchd.plist */,
 			);
 			path = privhelper;
 			sourceTree = "<group>";
@@ -568,6 +576,7 @@
 			isa = PBXGroup;
 			children = (
 				D8715CC42A208EB80047A9BE /* External */,
+				B118B5A454DB12F33008959E /* Shared */,
 				D8A32B90296F839100E56EEF /* MacVirt */,
 				D81E784E299CC4F200A1D8AC /* guihelper */,
 				D870292129B316A700A4CFD9 /* GoVZF */,
@@ -612,7 +621,6 @@
 				D80443AF2A1B404E00ED59C5 /* State */,
 				D80443B42A1B404E00ED59C5 /* Utils */,
 				B118B1DCE616676E483BB2BB /* FeedbackView.swift */,
-				B118B01C2FCE80B68B16373D /* Helper */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -881,16 +889,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D8D1EEAF2A8C6E8000C80718 /* PHShared.swift in Sources */,
+				D8D1EEB42A8C7EC500C80718 /* DefaultsKeys.swift in Sources */,
+				D8D1EEB02A8C6E8000C80718 /* PHManager.swift in Sources */,
 				D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */,
 				D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */,
 				D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */,
-				D880D8262A2B22A0002CF279 /* Defaults.swift in Sources */,
+				D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */,
 				D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */,
 				D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */,
 				B118BD0025A6757805924195 /* Packets.swift in Sources */,
 				B118B05969CAC4497636F8DE /* FFI.swift in Sources */,
 				B118B53B9175CE61544C8B2A /* GUI.swift in Sources */,
 				B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */,
+				B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -904,7 +916,7 @@
 				D877461C2A7CC70000739040 /* Updater.swift in Sources */,
 				B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */,
 				B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */,
-				B118BBE71285AFB898911E6B /* PHShared.swift in Sources */,
+				B118B0FC989BF42C8A2B6EE2 /* PHShared.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -913,7 +925,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				D80443F92A1B404E00ED59C5 /* CommandsRootView.swift in Sources */,
-				D80444102A1B404E00ED59C5 /* Defaults.swift in Sources */,
 				D80443F42A1B404E00ED59C5 /* Operators.swift in Sources */,
 				D80444122A1B404E00ED59C5 /* DoubleClick.swift in Sources */,
 				D80443EB2A1B404E00ED59C5 /* Images.swift in Sources */,
@@ -934,6 +945,7 @@
 				D80444092A1B404E00ED59C5 /* AppDelegate.swift in Sources */,
 				D804440E2A1B404E00ED59C5 /* GeneralSettingsView.swift in Sources */,
 				D80443FC2A1B404E00ED59C5 /* DockerImagesRootView.swift in Sources */,
+				D8D1EEB32A8C7EC500C80718 /* DefaultsKeys.swift in Sources */,
 				D80443FA2A1B404E00ED59C5 /* DockerStateWrapperView.swift in Sources */,
 				D80444012A1B404E00ED59C5 /* DockerFilterView.swift in Sources */,
 				D804440C2A1B404E00ED59C5 /* AppSettings.swift in Sources */,
@@ -976,8 +988,9 @@
 				B118B209F240A8036216EC04 /* DockerMigrationWindow.swift in Sources */,
 				B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */,
 				B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */,
-				B118B5071D4CD08E276ACEEC /* PHManager.swift in Sources */,
-				B118BFC3C61061E49AE533BC /* PHShared.swift in Sources */,
+				B118B3BEA18481697E1EB21E /* PHShared.swift in Sources */,
+				B118B059B171800F250B42CD /* PHManager.swift in Sources */,
+				B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1404,8 +1417,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/defaults";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.2.0;
 			};
 		};
 		D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */ = {
