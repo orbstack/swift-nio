@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"os/exec"
-
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
@@ -22,7 +21,7 @@ var internalBrewUninstall = &cobra.Command{
 		}
 
 		// reset docker context
-		err := exec.Command(conf.FindXbin("docker"), "context", "use", "default").Run()
+		err := util.RunInheritOut(conf.FindXbin("docker"), "context", "use", "default")
 		// don't panic on errors - do as much as we can
 		printErrCLI(err)
 
@@ -32,8 +31,12 @@ var internalBrewUninstall = &cobra.Command{
 		printErrCLI(err)
 
 		// uninstall priv helper tool
-		vmclient.FindVmgrExe()
+		vmgrExe, err := vmclient.FindVmgrExe()
 		printErrCLI(err)
+		if err == nil {
+			err := util.RunInheritOut(vmgrExe, "uninstall-privhelper")
+			printErrCLI(err)
+		}
 
 		return nil
 	},

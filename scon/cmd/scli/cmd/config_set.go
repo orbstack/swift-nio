@@ -77,6 +77,10 @@ Some options will only take effect after restarting the virtual machine.
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
 			config.DockerSetContext = val
+		case "setup.use_admin":
+			val, err := strconv.ParseBool(value)
+			checkCLI(err)
+			config.SetupUseAdmin = val
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)
