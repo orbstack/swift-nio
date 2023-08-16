@@ -1286,14 +1286,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func tryUninstallPrivHelper() async {
-        do {
-            try await privHelper.uninstall()
-        } catch {
-            setError(.privHelperUninstallError(cause: error))
-        }
-    }
-
     func waitForStateEquals(_ target: VmState) async {
         for await value in $state.first(where: { $0 == target }).values {
             if value == target {

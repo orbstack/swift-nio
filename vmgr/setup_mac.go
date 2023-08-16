@@ -84,6 +84,14 @@ func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
 	// check if admin
 	isAdmin := slices.Contains(gids, gidAdmin)
 	if !vmconfig.Get().SetupUseAdmin {
+		// uninstall priv helper if admin is disabled but available
+		if isAdmin {
+			err := vzf.SwextPrivhelperUninstall()
+			if err != nil {
+				logrus.WithError(err).Error("failed to uninstall priv helper")
+			}
+		}
+
 		isAdmin = false
 	}
 
@@ -751,8 +759,11 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 			err := vzf.SwextPrivhelperSymlink(cmd.Src, cmd.Dest)
 			if err != nil {
 				if err.Error() == "canceled" {
+					logrus.Info("user canceled privhelper install")
 					break
 				} else if err.Error() == "canceledAndReachedMaxDismissCount" {
+					logrus.Info("user canceled privhelper install too many times, disabling")
+
 					// disable admin
 					err := vmconfig.Update(func(c *vmconfig.VmConfig) {
 						c.SetupUseAdmin = false

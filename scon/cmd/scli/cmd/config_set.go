@@ -81,6 +81,7 @@ Some options will only take effect after restarting the virtual machine.
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
 			config.SetupUseAdmin = val
+			rebootRequired = true
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)
