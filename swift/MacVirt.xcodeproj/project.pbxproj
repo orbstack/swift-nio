@@ -29,6 +29,7 @@
 		B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B300D94CA37572036935 /* Buttons.swift */; };
 		B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */; };
 		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
+		B118BD7881459134B77DE5FB /* ActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */; };
 		B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */; };
 		B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B88B9296701977A1F286 /* CodeInfo.swift */; };
 		D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */; };
@@ -228,6 +229,7 @@
 		B118B88B9296701977A1F286 /* CodeInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CodeInfo.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
+		B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActivityTracker.swift; sourceTree = "<group>"; };
 		B118BABDE1F02C8A54DB011F /* NSImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NSImage.swift; sourceTree = "<group>"; };
 		B118BB2A7BF402695260775E /* IPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
 		B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
@@ -571,6 +573,7 @@
 				D87746142A7CC0B700739040 /* main.swift */,
 				D87746192A7CC6F600739040 /* Uninstaller.swift */,
 				D877461B2A7CC70000739040 /* Updater.swift */,
+				B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */,
 			);
 			path = privhelper;
 			sourceTree = "<group>";
@@ -921,6 +924,7 @@
 				B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */,
 				B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */,
 				B118B0FC989BF42C8A2B6EE2 /* PHShared.swift in Sources */,
+				B118BD7881459134B77DE5FB /* ActivityTracker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

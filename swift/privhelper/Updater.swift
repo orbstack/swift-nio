@@ -17,6 +17,9 @@ enum Updater {
     /// - Parameter req: Path to the helper tool.
     /// - Throws: If the helper tool file can't be read, public keys can't be determined, or `launchd` property lists can't be compared.
     static func updateHelperTool(req: PHUpdateRequest) throws {
+        activityTracker.begin()
+        defer { activityTracker.end() }
+
         NSLog("req: \(req)")
         guard try CodeInfo.doesPublicKeyMatch(forExecutable: req.helperURL) else {
             NSLog("bad signature")

@@ -30,6 +30,7 @@ if CommandLine.arguments.count > 1 {
             NSLog("error: \(error)")
         }
     }
+    activityTracker.kick()
     server.startAndBlock()
 } else {
     print("Usage: \(CommandLine.arguments[0]) \(Uninstaller.cliCommand)")

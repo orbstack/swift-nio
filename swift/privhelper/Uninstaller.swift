@@ -31,6 +31,9 @@ enum Uninstaller {
     ///
     /// - Throws: If unable to determine the on disk location of this running code.
     static func uninstallFromXPC() throws {
+        activityTracker.begin()
+        defer { activityTracker.end() }
+
         NSLog("starting uninstaller")
         let process = Process()
         process.launchPath = try CodeInfo.currentCodeLocation().path

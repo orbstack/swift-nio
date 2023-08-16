@@ -2,6 +2,9 @@ import Foundation
 
 struct HelperServer {
     static func symlink(req: PHSymlinkRequest) throws {
+        activityTracker.begin()
+        defer { activityTracker.end() }
+
         NSLog("symlink: \(req.src) -> \(req.dest)")
 
         // security: only allow dest to /usr/local/bin/* and /var/run/docker.sock
