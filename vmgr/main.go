@@ -823,6 +823,8 @@ func main() {
 		runSshProxyFdpass()
 	case "report-env":
 		runReportEnv()
+	case "uninstall-privhelper":
+		runUninstallPrivhelper()
 	case "vmgr", "":
 		runVmManager()
 	default:

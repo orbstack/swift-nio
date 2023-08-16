@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */; };
 		B118B05969CAC4497636F8DE /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF90FB580B56419D1472 /* FFI.swift */; };
-		B118B059B171800F250B42CD /* PHManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHManager.swift */; };
+		B118B059B171800F250B42CD /* PHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHClient.swift */; };
 		B118B076E8CB7033926025A7 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1DCE616676E483BB2BB /* FeedbackView.swift */; };
 		B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE46918C0AB595ADE247 /* RenameContainerView.swift */; };
 		B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
@@ -22,6 +22,7 @@
 		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
 		B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
+		B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */; };
 		B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */; };
 		B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
 		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
@@ -116,7 +117,7 @@
 		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
 		D8BAAFBE2A60583A00E5637F /* DiagReporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */; };
 		D8D1EEAF2A8C6E8000C80718 /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
-		D8D1EEB02A8C6E8000C80718 /* PHManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHManager.swift */; };
+		D8D1EEB02A8C6E8000C80718 /* PHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHClient.swift */; };
 		D8D1EEB32A8C7EC500C80718 /* DefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */; };
 		D8D1EEB42A8C7EC500C80718 /* DefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */; };
 /* End PBXBuildFile section */
@@ -215,7 +216,7 @@
 /* Begin PBXFileReference section */
 		B118B1DCE616676E483BB2BB /* FeedbackView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineSettingsView.swift; sourceTree = "<group>"; };
-		B118B2ECDBD9470B8263AE90 /* PHManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHManager.swift; sourceTree = "<group>"; };
+		B118B2ECDBD9470B8263AE90 /* PHClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHClient.swift; sourceTree = "<group>"; };
 		B118B300D94CA37572036935 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		B118B30219F10B44000AE05A /* OnboardingManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
 		B118B4A5DDC711F7EF2AE61B /* GUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
@@ -231,6 +232,7 @@
 		B118BB2A7BF402695260775E /* IPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
 		B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
 		B118BD52B15443D1329C832A /* Packets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
+		B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PrivHelperFFI.swift; sourceTree = "<group>"; };
 		B118BE46918C0AB595ADE247 /* RenameContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameContainerView.swift; sourceTree = "<group>"; };
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
 		B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
@@ -373,7 +375,7 @@
 			isa = PBXGroup;
 			children = (
 				B118B5B2CF0210C1D968C7AC /* PHShared.swift */,
-				B118B2ECDBD9470B8263AE90 /* PHManager.swift */,
+				B118B2ECDBD9470B8263AE90 /* PHClient.swift */,
 				D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */,
 				B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */,
 			);
@@ -534,6 +536,7 @@
 				B118BF90FB580B56419D1472 /* FFI.swift */,
 				B118B4A5DDC711F7EF2AE61B /* GUI.swift */,
 				B118BB2A7BF402695260775E /* IPC.swift */,
+				B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */,
 			);
 			name = GoVZF;
 			path = GoVZF/Sources/GoVZF;
@@ -891,7 +894,7 @@
 			files = (
 				D8D1EEAF2A8C6E8000C80718 /* PHShared.swift in Sources */,
 				D8D1EEB42A8C7EC500C80718 /* DefaultsKeys.swift in Sources */,
-				D8D1EEB02A8C6E8000C80718 /* PHManager.swift in Sources */,
+				D8D1EEB02A8C6E8000C80718 /* PHClient.swift in Sources */,
 				D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */,
 				D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */,
 				D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */,
@@ -903,6 +906,7 @@
 				B118B53B9175CE61544C8B2A /* GUI.swift in Sources */,
 				B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */,
 				B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */,
+				B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -989,7 +993,7 @@
 				B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */,
 				B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */,
 				B118B3BEA18481697E1EB21E /* PHShared.swift in Sources */,
-				B118B059B171800F250B42CD /* PHManager.swift in Sources */,
+				B118B059B171800F250B42CD /* PHClient.swift in Sources */,
 				B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

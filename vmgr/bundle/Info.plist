@@ -26,5 +26,10 @@
 	<true/>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>SMPrivilegedExecutables</key>
+	<dict>
+		<key>dev.orbstack.OrbStack.privhelper</key>
+		<string>anchor apple generic and identifier &quot;dev.orbstack.OrbStack.privhelper&quot; and certificate leaf[subject.OU] = &quot;HUAQ24HBR6&quot;</string>
+	</dict>
 </dict>
 </plist>

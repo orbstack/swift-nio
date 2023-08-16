@@ -397,7 +397,7 @@ class VmViewModel: ObservableObject {
     private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:42506"))
     private let scon = SconService(client: newRPCClient("http://127.0.0.1:42507"))
 
-    let privHelper = PHManager()
+    let privHelper = PHClient()
 
     @Published private(set) var state = VmState.stopped {
         didSet {
@@ -811,10 +811,11 @@ class VmViewModel: ObservableObject {
 
         // need to do anything?
         if let cmds = info.adminSymlinkCommands {
-            let reason = info.adminMessage ?? "make changes"
-            // suffixed with "OrbStack is trying to install a new helper tool."
-            let prompt = "\(reason) Optional: "
-            privHelper.installReason = prompt
+            // suffixed with "OrbStack is trying to install a new helper tool." but only in GUI
+            if let reason = info.adminMessage {
+                privHelper.installReason = reason
+            }
+
             for cmd in cmds {
                 do {
                     try await privHelper.symlink(src: cmd.src, dest: cmd.dest)

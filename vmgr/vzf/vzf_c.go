@@ -44,6 +44,10 @@ void swext_vlanrouter_clearBridges(void* ptr);
 void swext_vlanrouter_close(void* ptr);
 
 struct GResultErr swext_gui_run_as_admin(char* shell_script, char* prompt);
+
+struct GResultErr swext_privhelper_symlink(const char* src, const char* dst);
+struct GResultErr swext_privhelper_uninstall(void);
+void swext_privhelper_set_install_reason(const char* reason);
 */
 import (
 	"C"
@@ -647,4 +651,27 @@ func SwextGuiRunAsAdmin(shellScript string, prompt string) error {
 	defer C.free(unsafe.Pointer(cPrompt))
 	res := C.swext_gui_run_as_admin(cShellScript, cPrompt)
 	return errFromResult(res)
+}
+
+/*
+ * Priv helper
+ */
+func SwextPrivhelperSymlink(src string, dst string) error {
+	cSrc := C.CString(src)
+	defer C.free(unsafe.Pointer(cSrc))
+	cDst := C.CString(dst)
+	defer C.free(unsafe.Pointer(cDst))
+	res := C.swext_privhelper_symlink(cSrc, cDst)
+	return errFromResult(res)
+}
+
+func SwextPrivhelperUninstall() error {
+	res := C.swext_privhelper_uninstall()
+	return errFromResult(res)
+}
+
+func SwextPrivhelperSetInstallReason(reason string) {
+	cReason := C.CString(reason)
+	defer C.free(unsafe.Pointer(cReason))
+	C.swext_privhelper_set_install_reason(cReason)
 }

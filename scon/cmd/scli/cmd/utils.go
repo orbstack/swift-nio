@@ -17,6 +17,13 @@ func check(err error) {
 	}
 }
 
+func printErrCLI(err error) {
+	if err != nil {
+		red := color.New(color.FgRed).FprintlnFunc()
+		red(os.Stderr, err)
+	}
+}
+
 func checkCLI(err error) {
 	if err != nil {
 		red := color.New(color.FgRed).FprintlnFunc()

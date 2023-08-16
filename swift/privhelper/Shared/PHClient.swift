@@ -12,19 +12,27 @@ import EmbeddedPropertyList
 import SecureXPC
 import Defaults
 
-class PHManager {
+class PHClient {
     private let xpcClient: XPCClient
     private var ready = false
+    private var canceledInstall = false
 
-    var installReason: String?
+    var installReason = "Allow using admin to improve compatibility?"
 
     init() {
         self.xpcClient = XPCClient.forMachService(named: PHShared.helperID)
     }
 
     private func ensureReady() async throws {
+        if canceledInstall {
+            throw PHError.canceled
+        }
         if ready {
             return
+        }
+        defer {
+            // whatever failed (probably canceled), it's probably not gonna recover
+            ready = true
         }
 
         do {
@@ -33,18 +41,23 @@ class PHManager {
             if await checkInstalled() {
                 throw XPCError.connectionInvalid
             } else {
-                try await install()
+                do {
+                    try await install()
+                } catch PHError.canceled {
+                    canceledInstall = true
+                    throw PHError.canceled
+                }
             }
         }
-        ready = true
     }
 
     private func install() async throws {
         // don't block main thread
+        NSLog("installing privhelper")
         try await Task.detached { [self] in
             do {
                 // TODO: support new API + migration
-                try PrivilegedHelperManager.shared.authorizeAndBless(message: installReason ?? "Allow using admin privileges for enhanced compatibility?")
+                try PrivilegedHelperManager.shared.authorizeAndBless(message: installReason)
             } catch AuthorizationError.canceled {
                 Defaults[.adminDismissCount] += 1
                 throw PHError.canceled
@@ -58,6 +71,7 @@ class PHManager {
                     to: PHShared.updateRoute)
         } catch XPCError.connectionInterrupted {
             // ignore: normal
+            NSLog("updated privhelper")
         } catch PHUpdateError.downgrade {
             // ignore: normal - no upgrade needed
         }

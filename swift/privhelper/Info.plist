@@ -8,8 +8,10 @@
     <string>1</string>
 	<key>SMAuthorizedClients</key>
 	<array>
-		<string>anchor apple generic and identifier &quot;dev.kdrag0n.MacVirt&quot; and info[CFBundleVersion] &gt;= &quot;1&quot; and certificate leaf[subject.OU] = &quot;HUAQ24HBR6&quot;</string>
-		<string>anchor apple generic and identifier &quot;dev.kdrag0n.MacVirt.vmgr&quot; and info[CFBundleVersion] &gt;= &quot;1&quot; and certificate leaf[subject.OU] = &quot;HUAQ24HBR6&quot;</string>
+        <!-- TODO:  and info[CFBundleVersion] &gt;= &quot;1&quot;  -->
+        <!-- prevent downgrade attack from app side -->
+		<string>anchor apple generic and identifier &quot;dev.kdrag0n.MacVirt&quot; and certificate leaf[subject.OU] = &quot;HUAQ24HBR6&quot;</string>
+		<string>anchor apple generic and identifier &quot;dev.kdrag0n.MacVirt.vmgr&quot; and certificate leaf[subject.OU] = &quot;HUAQ24HBR6&quot;</string>
 	</array>
 </dict>
 </plist>

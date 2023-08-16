@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -682,12 +683,13 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 
 		var msg string
 		if adminLinkCommands && adminLinkDocker {
-			msg = "Install command-line tools and improve Docker socket compatibility?"
+			msg = "Install command-line tools and improve Docker socket compatibility"
 		} else if adminLinkCommands {
-			msg = "Install command-line tools?"
+			msg = "Install command-line tools"
 		} else if adminLinkDocker {
-			msg = "Improve Docker socket compatibility?"
+			msg = "Improve Docker socket compatibility"
 		}
+		msg += "? This is optional. OrbStack Helper (VM) is trying to install a new helper tool."
 		info.AdminMessage = &msg
 	}
 	if askAddPath {
@@ -739,17 +741,31 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 	}
 
 	// request run as admin
-	if info.AdminSymlinkCommands != nil {
+	if len(info.AdminSymlinkCommands) > 0 {
 		logrus.WithField("cmd", info.AdminSymlinkCommands).Debug("requesting admin symlinks")
-		// prompt := ""
-		// if info.AdminMessage != nil {
-		// 	prompt = *info.AdminMessage
-		// }
+		if info.AdminMessage != nil {
+			vzf.SwextPrivhelperSetInstallReason(*info.AdminMessage)
+		}
 
-		// err := vzf.SwextGuiRunAsAdmin(info.AdminSymlinkCommands, "OrbStack wants to "+prompt+". This is optional.")
-		// if err != nil {
-		// 	return err
-		// }
+		for _, cmd := range info.AdminSymlinkCommands {
+			err := vzf.SwextPrivhelperSymlink(cmd.Src, cmd.Dest)
+			if err != nil {
+				if err.Error() == "canceled" {
+					break
+				} else if err.Error() == "canceledAndReachedMaxDismissCount" {
+					// disable admin
+					err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+						c.SetupUseAdmin = false
+					})
+					if err != nil {
+						logrus.WithError(err).Warn("failed to disable admin")
+					}
+					break
+				} else {
+					return fmt.Errorf("symlink %s -> %s: %w", cmd.Src, cmd.Dest, err)
+				}
+			}
+		}
 	}
 
 	return nil

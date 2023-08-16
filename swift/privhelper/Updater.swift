@@ -27,7 +27,7 @@ enum Updater {
         if curVersion == newVersion {
             NSLog("same version")
             return
-        } else if curVersion < newVersion {
+        } else if newVersion < curVersion {
             NSLog("downgrade")
             throw PHUpdateError.downgrade(from: curVersion.rawValue, to: newVersion.rawValue)
         }

@@ -33,7 +33,7 @@ enum PHSymlinkError: Error, Codable {
 }
 
 enum PHError: Error, Codable {
-    case canceled
+    case canceled // name exposed to FFI
 }
 
 struct PHUpdateRequest: Codable {

@@ -10,7 +10,7 @@ import Foundation
 /// Convenience wrappers around Security framework functionality.
 enum CodeInfo {
     /// Errors that may occur when trying to determine information about this running helper tool or another on disk executable.
-    enum CodeInfoError: Error {
+    enum CodeInfoError: Error, Codable {
         /// Unable to determine the location of the executable.
         case codeLocationNotRetrievable(OSStatus)
         /// Unable to retrieve the on disk code representation for a specified file URL.

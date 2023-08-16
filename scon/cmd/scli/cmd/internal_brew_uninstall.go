@@ -23,14 +23,17 @@ var internalBrewUninstall = &cobra.Command{
 
 		// reset docker context
 		err := exec.Command(conf.FindXbin("docker"), "context", "use", "default").Run()
-		if err != nil {
-			return err
-		}
+		// don't panic on errors - do as much as we can
+		printErrCLI(err)
 
 		spinner := spinutil.Start("red", "Cleaning up")
 		err = vmclient.Client().Stop()
 		spinner.Stop()
-		checkCLI(err)
+		printErrCLI(err)
+
+		// uninstall priv helper tool
+		vmclient.FindVmgrExe()
+		printErrCLI(err)
 
 		return nil
 	},
