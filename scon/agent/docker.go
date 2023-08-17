@@ -57,6 +57,8 @@ type DockerAgent struct {
 	dirSyncMu       syncx.Mutex
 	dirSyncListener net.Listener
 	dirSyncJobs     map[uint64]chan error
+
+	k8s *K8sAgent
 }
 
 func NewDockerAgent() *DockerAgent {
@@ -105,6 +107,11 @@ func NewDockerAgent() *DockerAgent {
 			logrus.WithError(err).Error("failed to send UI event")
 		}
 	})
+
+	// TODO only if k8s
+	dockerAgent.k8s = &K8sAgent{
+		docker: dockerAgent,
+	}
 
 	return dockerAgent
 }
@@ -213,6 +220,16 @@ func (d *DockerAgent) PostStart() error {
 			logrus.WithError(err).Error("failed to monitor Docker events")
 		}
 	}()
+
+	// send kubeconfig to host
+	if d.k8s != nil {
+		go func() {
+			err := d.k8s.WaitAndSendKubeConfig()
+			if err != nil {
+				logrus.WithError(err).Error("failed to send kubeconfig")
+			}
+		}()
+	}
 
 	return nil
 }

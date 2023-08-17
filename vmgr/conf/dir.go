@@ -7,12 +7,15 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 )
 
 const (
 	VmgrExeName = "OrbStack Helper (VM)"
+
+	K8sContext = appid.AppName
 )
 
 func ensureDir(dir string) string {
@@ -116,6 +119,14 @@ func DockerRemoteCtxSocket() string {
 
 func DockerRemoteCtxSocketRaw() string {
 	return coredir.HomeDir() + "/Library/Containers/com.docker.docker/Data/docker.raw.sock"
+}
+
+func KubeDir() string {
+	return ensureDir(HomeDir() + "/.kube")
+}
+
+func KubeConfigFile() string {
+	return KubeDir() + "/config"
 }
 
 func SconSSHSocket() string {

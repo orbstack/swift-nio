@@ -1,6 +1,7 @@
 package hcsrv
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/rpc"
 	"os"
 	"os/user"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,12 +29,14 @@ import (
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/sshagent"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
@@ -396,6 +400,82 @@ func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
 func (h *HcontrolServer) OnDataFsReady(_ None, _ *None) error {
 	logrus.Info("Data FS ready")
 	h.dataFsReady.Set(true)
+	return nil
+}
+
+type jsonObject map[string]any
+
+func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
+	logrus.Info("K8s config ready")
+
+	// replace k3s "default" with "orbstack"
+	regex := regexp.MustCompile(`\bdefault\b`)
+	kubeConfigStr = regex.ReplaceAllString(kubeConfigStr, conf.K8sContext)
+
+	// merge with existing config if there is one
+	var mergedConfig jsonObject
+	// decode our new one as a base first, in case there is no existing config
+	err := yaml.Unmarshal([]byte(kubeConfigStr), &mergedConfig)
+	if err != nil {
+		return fmt.Errorf("parse new config: %w", err)
+	}
+	// ... and save its new values
+	newCluster := mergedConfig["clusters"].([]any)[0].(jsonObject)
+	newContext := mergedConfig["contexts"].([]any)[0].(jsonObject)
+	newUser := mergedConfig["users"].([]any)[0].(jsonObject)
+
+	// add existing config
+	if oldConfigStr, err := os.ReadFile(conf.KubeConfigFile()); err == nil {
+		err := yaml.Unmarshal(oldConfigStr, &mergedConfig)
+		if err != nil {
+			return fmt.Errorf("parse old config: %w", err)
+		}
+
+		// merge: clusters, contexts, users
+		// for each one: delete any existing with same name, then append new
+		for _, typeKey := range []string{"clusters", "contexts", "users"} {
+			// remove existing
+			var newItems []jsonObject
+			for _, newItem := range mergedConfig[typeKey].([]any) {
+				if newItem, ok := newItem.(jsonObject); ok {
+					if newItem["name"] != newCluster["name"] {
+						newItems = append(newItems, newItem)
+					}
+				}
+			}
+
+			// append new
+			switch typeKey {
+			case "clusters":
+				newItems = append(newItems, newCluster)
+			case "contexts":
+				newItems = append(newItems, newContext)
+			case "users":
+				newItems = append(newItems, newUser)
+			}
+			mergedConfig[typeKey] = newItems
+		}
+	}
+
+	// set current context
+	if vmconfig.Get().DockerSetContext {
+		mergedConfig["current-context"] = conf.K8sContext
+	}
+
+	// encode in kubectl format
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	err = encoder.Encode(mergedConfig)
+	if err != nil {
+		return fmt.Errorf("encode merged config: %w", err)
+	}
+
+	err = os.WriteFile(conf.KubeConfigFile(), buf.Bytes(), 0600)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

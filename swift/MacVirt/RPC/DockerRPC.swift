@@ -33,15 +33,27 @@ struct DKContainer: Codable, Identifiable, Hashable {
     }
 
     var composeProject: String? {
-        labels[DockerLabels.composeProject]
+        if let composeProject = labels[DockerLabels.composeProject] {
+            return composeProject
+        } else if labels[DockerLabels.k8sType] != nil {
+            return "k8s"
+        } else {
+            return nil
+        }
     }
 
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
-        labels[DockerLabels.composeService] ??
-                names.map {
-                    $0.deletingPrefix("/")
-                }.joined(separator: ", ")
+        if let k8sType = labels[DockerLabels.k8sType],
+           let k8sPodName = labels[DockerLabels.k8sPodName] {
+            return "\(k8sPodName) (\(k8sType))"
+        } else if let composeService = labels[DockerLabels.composeService] {
+            return composeService
+        } else {
+            return names.map {
+                $0.deletingPrefix("/")
+            }.joined(separator: ", ")
+        }
     }
 
     var ipAddresses: [String] {
@@ -370,6 +382,9 @@ struct DockerLabels {
     static let composeService = "com.docker.compose.service"
     static let composeConfigFiles = "com.docker.compose.project.config_files"
     static let composeWorkingDir = "com.docker.compose.project.working_dir"
+
+    static let k8sType = "io.kubernetes.docker.type"
+    static let k8sPodName = "io.kubernetes.pod.name"
 
     static let customDomains = "dev.orbstack.domains"
 }

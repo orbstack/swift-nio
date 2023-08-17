@@ -177,6 +177,11 @@ func (c *Client) OnDataFsReady() error {
 	return c.rpc.Call("hc.OnDataFsReady", None{}, &none)
 }
 
+func (c *Client) OnK8sConfigReady(kubeConfigStr string) error {
+	var none None
+	return c.rpc.Call("hc.OnK8sConfigReady", kubeConfigStr, &none)
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }
