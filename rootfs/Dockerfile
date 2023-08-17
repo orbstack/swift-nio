@@ -143,6 +143,18 @@ cd /
 rm -rf /work
 EOT
 
+# k3s
+ARG ARCH=arm64
+RUN <<EOT sh -eux
+if [[ "$ARCH" == "amd64" ]]; then
+    url="https://github.com/k3s-io/k3s/releases/download/v1.27.4+k3s1/k3s"
+else
+    url="https://github.com/k3s-io/k3s/releases/download/v1.27.4+k3s1/k3s-$ARCH"
+fi
+wget -O /usr/local/bin/k3s "\$url"
+chmod +x /usr/local/bin/k3s
+EOT
+
 # network
 COPY \
     rootfs/config/resolv.conf \

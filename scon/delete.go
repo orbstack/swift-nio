@@ -102,7 +102,11 @@ func (c *Container) deleteDockerLocked() error {
 	// delete the entire directory
 	err = deleteRootfs(conf.C().DockerDataDir)
 	if err != nil {
-		return fmt.Errorf("delete rootfs: %w", err)
+		return fmt.Errorf("delete docker data: %w", err)
+	}
+	err = deleteRootfs(conf.C().K8sDataDir)
+	if err != nil {
+		return fmt.Errorf("delete k8s data: %w", err)
 	}
 
 	return nil

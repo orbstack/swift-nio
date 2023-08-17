@@ -9,30 +9,30 @@ DOCKER_VERSION=24.0.5
 BUILDX_VERSION=0.11.1
 COMPOSE_VERSION=2.20.3
 CREDENTIAL_VERSION=0.7.0
+# match k3s
+KUBECTL_VERSION=1.27.4
 
 rm -fr $GO_ARCH
 mkdir -p $GO_ARCH
 pushd $GO_ARCH
 
 # docker
-curl -LO https://download.docker.com/mac/static/stable/$DOCKER_ARCH/docker-$DOCKER_VERSION.tgz
-tar -xvf docker-${DOCKER_VERSION}.tgz
-rm docker-${DOCKER_VERSION}.tgz
+curl -L https://download.docker.com/mac/static/stable/$DOCKER_ARCH/docker-$DOCKER_VERSION.tgz | tar -xvf -
 mv docker/docker docker_
 rm -rf docker
 mv docker_ docker
 
 # buildx
-curl -LO https://github.com/docker/buildx/releases/download/v$BUILDX_VERSION/buildx-v$BUILDX_VERSION.darwin-$GO_ARCH
-mv buildx-v$BUILDX_VERSION.darwin-$GO_ARCH docker-buildx
+curl -L https://github.com/docker/buildx/releases/download/v$BUILDX_VERSION/buildx-v$BUILDX_VERSION.darwin-$GO_ARCH > docker-buildx
 chmod +x docker-buildx
 
 # compose
-curl -LO https://github.com/docker/compose/releases/download/v$COMPOSE_VERSION/docker-compose-darwin-$DOCKER_ARCH
-mv docker-compose-darwin-$DOCKER_ARCH docker-compose
+curl -L https://github.com/docker/compose/releases/download/v$COMPOSE_VERSION/docker-compose-darwin-$DOCKER_ARCH > docker-compose
 chmod +x docker-compose
 
 # docker-credential-osxkeychain
-curl -LO https://github.com/docker/docker-credential-helpers/releases/download/v$CREDENTIAL_VERSION/docker-credential-osxkeychain-v$CREDENTIAL_VERSION.darwin-$GO_ARCH
-mv docker-credential-osxkeychain-v$CREDENTIAL_VERSION.darwin-$GO_ARCH docker-credential-osxkeychain
+curl -L https://github.com/docker/docker-credential-helpers/releases/download/v$CREDENTIAL_VERSION/docker-credential-osxkeychain-v$CREDENTIAL_VERSION.darwin-$GO_ARCH > docker-credential-osxkeychain
 chmod +x docker-credential-osxkeychain
+
+# kubectl
+curl -L "https://dl.k8s.io/release/v$KUBECTL_VERSION/bin/darwin/$GO_ARCH/kubectl" > kubectl
