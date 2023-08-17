@@ -36,3 +36,4 @@ chmod +x docker-credential-osxkeychain
 
 # kubectl
 curl -L "https://dl.k8s.io/release/v$KUBECTL_VERSION/bin/darwin/$GO_ARCH/kubectl" > kubectl
+chmod +x kubectl
