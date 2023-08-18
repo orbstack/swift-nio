@@ -47,7 +47,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                                 Text("New: Domain names for services")
                                 .font(.headline)
 
-                                Text("See all containers at [orb.local](https://orb.local)")
+                                Text("See all containers at [orb.local](http://orb.local)")
                                 .font(.body)
                                 .foregroundColor(.secondary)
                             }
