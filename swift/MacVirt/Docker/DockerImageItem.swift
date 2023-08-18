@@ -64,7 +64,7 @@ struct DockerImageItem: View, Equatable {
                                 Text("New: Direct image access")
                                     .font(.headline)
 
-                                Text("Explore image files in Finder or other tools")
+                                Text("Explore image files in Finder and other tools")
                                     .font(.body)
                                     .foregroundColor(.secondary)
                             }
