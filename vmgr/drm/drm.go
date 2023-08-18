@@ -314,6 +314,7 @@ func (c *DrmClient) persistState(result *drmtypes.Result) error {
 
 	// delete old if necessary
 	// update is too complicated
+	// also helps fix permissinos in case signing ID changed
 	_ = keychain.DeleteGenericPasswordItem(keychainService, keychainAccount)
 
 	item := keychain.NewGenericPassword(keychainService, keychainAccount, keychainLabel, data, keychainAccessGroup)
