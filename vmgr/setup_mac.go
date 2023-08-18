@@ -66,7 +66,7 @@ type PathInfo struct {
 var (
 	binCommands = []string{"orbctl", "orb"}
 	// some people run "docker-compose"
-	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain", "kubectl"}
+	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain"}
 	dockerPlugins = []string{"docker-buildx", "docker-compose"}
 )
 
