@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"os"
 	"runtime"
 	"strconv"
@@ -77,6 +78,10 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		// Also prevent TSC from being disabled after sleep with tsc=reliable
 		// disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
 		cmdline = append(cmdline, "mitigations=off", "clocksource=tsc", "tsc=reliable", "hpet=disable")
+	}
+	// 25% sampling for slub debug, to fix vfs kernel panic
+	if rand.Intn(4) == 0 {
+		cmdline = append(cmdline, "slub_debug=,dentry")
 	}
 	if c.DiskRootfs != "" {
 		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
