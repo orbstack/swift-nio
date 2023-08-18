@@ -42,6 +42,53 @@ tgAAAAtzc2gtZWQyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oA
 AAAEAdZQRbxMDW6DaGP2YY8yxby24cwECktHygG1dGxHmuFiAQkPegrt11dCS0Oy6nL3Wa
 TzmdsUzXZjqytDS6OrigAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
 -----END OPENSSH PRIVATE KEY-----`
+	hostKeyECDSA = `-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS
+1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQSo65hrIeTFpS/ZFiZNzAkPO9zs9GzV
+GbZgYtsv8wJ19AgMR8LrYnGNK3cgYVJWnXe5WXjK8IZwxF/jT9cL4YO0AAAAqJDz+WiQ8/
+loAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBKjrmGsh5MWlL9kW
+Jk3MCQ873Oz0bNUZtmBi2y/zAnX0CAxHwuticY0rdyBhUladd7lZeMrwhnDEX+NP1wvhg7
+QAAAAhALqjXlpenZU0ClqZAG4ypGXwwY0N2/O1uycE8O5Zt7q1AAAACXJvb3RAdWdlbgEC
+AwQFBg==
+-----END OPENSSH PRIVATE KEY-----`
+	hostKeyRSA = `-----BEGIN OPENSSH PRIVATE KEY-----
+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
+xyXN/213PT8EVPAAAACXJvb3RAdWdlbgE=
+-----END OPENSSH PRIVATE KEY-----`
 )
 
 const (
@@ -577,6 +624,8 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 	sshServerPub.SubsystemHandlers["sftp"] = sshServerPub.handleConn
 	sshServerPub.ChannelHandlers["direct-tcpip"] = sshServerPub.handleLocalForward
 	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
+	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyECDSA)))
+	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyRSA)))
 
 	go runOne("internal SSH server", func() error {
 		err := sshServerInt.Serve(listenerInternal)
