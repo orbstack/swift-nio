@@ -169,7 +169,7 @@ func TestSconRestart(t *testing.T) {
 
 func TestSconRename(t *testing.T) {
 	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		err := scli.Client().ContainerRename(c, machineName+"_renamed")
+		err := scli.Client().ContainerRename(c, machineName+"-renamed")
 		checkT(t, err)
 
 		//TODO verify name in shell, hosts etc.
