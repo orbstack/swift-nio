@@ -70,7 +70,7 @@ struct DockerImageItem: View, Equatable {
                             }
                         }
                         .padding(20)
-                        .overlay(alignment: .topTrailing) {
+                        .overlay(alignment: .topLeading) { // opposite side of arrow edge
                             Button(action: {
                                 tipsImageMountsShow = false
                             }) {

@@ -506,7 +506,8 @@ private struct DockerLogsContentView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @StateObject private var model = LogsViewModel()
 
-    let cid: DockerContainerId
+    // allows nil for macOS 12 window workaround
+    let cid: DockerContainerId?
     // individual container, not compose
     let standalone: Bool
     @State private var containerName: String? // saved once we get id
@@ -622,6 +623,10 @@ struct DockerLogsWindow: View {
                 .onDisappear {
                     vmModel.openLogWindowIds.remove(.container(id: containerId))
                 }
+            } else {
+                // must always have a view, or the window doesn't open on macOS 12{ url in  }
+                // EmptyView and Spacer don't work
+                DockerLogsContentView(cid: nil, standalone: true)
             }
         }
         .onOpenURL { url in
@@ -687,12 +692,10 @@ struct DockerComposeLogsWindow: View {
     }
 
     var body: some View {
-        Group {
-            NavigationView {
-                sidebarContents12
+        NavigationView {
+            sidebarContents12
 
-                ContentUnavailableViewCompat("No Service Selected")
-            }
+            ContentUnavailableViewCompat("No Service Selected")
         }
         .onOpenURL { url in
             composeProject = url.lastPathComponent

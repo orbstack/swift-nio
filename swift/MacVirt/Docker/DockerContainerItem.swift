@@ -90,7 +90,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             }
                         }
                         .padding(20)
-                        .overlay(alignment: .topTrailing) {
+                        .overlay(alignment: .topLeading) { // opposite side of arrow edge
                             Button(action: {
                                 tipsContainerDomainsShow = false
                             }) {
