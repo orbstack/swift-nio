@@ -797,8 +797,8 @@
 			targets = (
 				D8A32B8D296F839100E56EEF /* MacVirt */,
 				D81E784C299CC4F200A1D8AC /* guihelper */,
-				D870291F29B316A700A4CFD9 /* GoVZF */,
 				D87746112A7CC0B700739040 /* privhelper */,
+				D870291F29B316A700A4CFD9 /* GoVZF */,
 			);
 		};
 /* End PBXProject section */
@@ -1141,6 +1141,7 @@
 				DEVELOPMENT_TEAM = HUAQ24HBR6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/privhelper/Info.plist";
+				INSTALL_PATH = "";
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
 				OTHER_LDFLAGS = (
 					"-sectcreate",
@@ -1162,6 +1163,7 @@
 				DEVELOPMENT_TEAM = HUAQ24HBR6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/privhelper/Info.plist";
+				INSTALL_PATH = "";
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
 				OTHER_LDFLAGS = (
 					"-sectcreate",
