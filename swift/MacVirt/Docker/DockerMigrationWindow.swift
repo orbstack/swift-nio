@@ -35,7 +35,9 @@ private class MigrationViewModel: ObservableObject {
             task.terminationHandler = { process in
                 let status = process.terminationStatus
                 DispatchQueue.main.async { [self] in
-                    if status != 0 {
+                    // 1 is normal for Compose on EOF (when dockerd stops)
+                    // ignore it for now so people don't see the error
+                    if status != 0 && status != 1 {
                         errors = errors + ["\nFailed with status \(status)"]
                     }
                     exitStatus = Int(status)
