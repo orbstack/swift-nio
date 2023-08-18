@@ -34,14 +34,14 @@ struct DockerImagesRootView: View {
                         List(selection: $selection) {
                             Section(header: Text("Tagged")) {
                                 ForEach(taggedImages) { image in
-                                    DockerImageItem(image: image, selection: selection)
+                                    DockerImageItem(image: image, selection: selection, isFirstInList: image.id == taggedImages.first?.id)
                                     .equatable()
                                 }
                             }
 
                             Section(header: Text("Untagged")) {
                                 ForEach(untaggedImages) { image in
-                                    DockerImageItem(image: image, selection: selection)
+                                    DockerImageItem(image: image, selection: selection, isFirstInList: false)
                                     .equatable()
                                 }
                             }

@@ -15,6 +15,8 @@ extension Defaults.Keys {
 
     // key changed because initial release was flaky
     static let tipsMenubarBgShown = Key<Bool>("tips_menubarBgShown2", default: false)
+    static let tipsContainerDomainsShow = Key<Bool>("tips_containerDomainsShow", default: true)
+    static let tipsImageMountsShow = Key<Bool>("tips_imageMountsShow", default: true)
 
     static let globalShowMenubarExtra = Key<Bool>("global_showMenubarExtra", default: true)
     // changed key in v0.14.0: setting was renamed and people enabled it due to misunderstanding in prev versions

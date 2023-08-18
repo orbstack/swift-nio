@@ -4,13 +4,17 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
 
+    @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
+
     var composeGroup: ComposeGroup
     var selection: Set<DockerContainerId>
+    var isFirstInList: Bool
 
     static func == (lhs: DockerComposeGroupItem, rhs: DockerComposeGroupItem) -> Bool {
         lhs.composeGroup == rhs.composeGroup &&
@@ -30,6 +34,39 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                         .frame(width: 32, height: 32)
                         .padding(.trailing, 8)
                         .foregroundColor(color)
+                .if(isFirstInList) {
+                    $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .trailing) {
+                        HStack {
+                            Image(systemName: "network")
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                            .foregroundColor(.accentColor)
+                            .padding(.trailing, 4)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("New: Domain names for services")
+                                .font(.headline)
+
+                                Text("See all containers at [orb.local](https://orb.local)")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(20)
+                        .overlay(alignment: .topTrailing) {
+                            Button(action: {
+                                tipsContainerDomainsShow = false
+                            }) {
+                                Image(systemName: "xmark")
+                                .resizable()
+                                .frame(width: 8, height: 8)
+                                .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(8)
+                        }
+                    }
+                }
 
                 VStack(alignment: .leading) {
                     Text(composeGroup.project)
@@ -123,6 +160,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
     private func showLogs() {
         if !vmModel.openLogWindowIds.contains(.compose(project: composeGroup.project)) {
+            print("openurl: orbstack://docker/project-logs/\(composeGroup.project)")
             NSWorkspace.shared.open(URL(string: "orbstack://docker/project-logs/\(composeGroup.project)")!)
         } else {
             // find window by title and bring to front

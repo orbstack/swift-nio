@@ -76,6 +76,7 @@ private struct DockerContainerListItemView: View {
     let item: DockerListItem
     let selection: Set<DockerContainerId>
     let initialSelection: Set<DockerContainerId>
+    let isFirstInList: Bool
 
     var body: some View {
         switch item {
@@ -88,10 +89,12 @@ private struct DockerContainerListItemView: View {
         case .container(let container):
             DockerContainerItem(container: container,
                     selection: selection,
+                    isFirstInList: isFirstInList,
                     presentPopover: initialSelection.contains(.container(id: container.id)))
             .equatable()
         case .compose(let group, _):
-            DockerComposeGroupItem(composeGroup: group, selection: selection)
+            DockerComposeGroupItem(composeGroup: group, selection: selection,
+                    isFirstInList: isFirstInList)
             .equatable()
         }
     }
@@ -119,7 +122,8 @@ private struct DockerContainersList: View {
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     DockerContainerListItemView(item: item,
                             selection: selection.wrappedValue,
-                            initialSelection: initialSelection)
+                            initialSelection: initialSelection,
+                            isFirstInList: item.id == listItems.first?.id)
                 }
                 .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
                 // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group

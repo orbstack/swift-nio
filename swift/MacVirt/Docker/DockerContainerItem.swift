@@ -4,13 +4,17 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
 
+    @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
+
     var container: DKContainer
     var selection: Set<DockerContainerId>
+    var isFirstInList: Bool
 
     @State var presentPopover: Bool
 
@@ -66,6 +70,39 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 .help("Get info")
                 .popover(isPresented: $presentPopover, arrowEdge: .leading) {
                     detailsView
+                }
+                .if(isFirstInList) {
+                    $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .leading) {
+                        HStack {
+                            Image(systemName: "network")
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                            .foregroundColor(.accentColor)
+                            .padding(.trailing, 4)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("New: Domain names for services")
+                                .font(.headline)
+
+                                Text("See all containers at [orb.local](http://orb.local)")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(20)
+                        .overlay(alignment: .topTrailing) {
+                            Button(action: {
+                                tipsContainerDomainsShow = false
+                            }) {
+                                Image(systemName: "xmark")
+                                .resizable()
+                                .frame(width: 8, height: 8)
+                                .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(8)
+                        }
+                    }
                 }
 
                 if isRunning {

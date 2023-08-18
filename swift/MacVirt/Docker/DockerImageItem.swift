@@ -4,13 +4,17 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct DockerImageItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
 
+    @Default(.tipsImageMountsShow) private var tipsImageMountsShow
+
     var image: DKImage
     var selection: Set<String>
+    var isFirstInList: Bool
 
     static func == (lhs: DockerImageItem, rhs: DockerImageItem) -> Bool {
         lhs.image.id == rhs.image.id &&
@@ -47,6 +51,39 @@ struct DockerImageItem: View, Equatable {
                 .buttonStyle(.borderless)
                 .disabled(actionInProgress)
                 .help("Open image")
+                .if(isFirstInList) {
+                    $0.popover(isPresented: $tipsImageMountsShow, arrowEdge: .leading) {
+                        HStack {
+                            Image(systemName: "folder.circle")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.accentColor)
+                                .padding(.trailing, 4)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("New: Direct image access")
+                                    .font(.headline)
+
+                                Text("Explore image files in Finder or other tools")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(20)
+                        .overlay(alignment: .topTrailing) {
+                            Button(action: {
+                                tipsImageMountsShow = false
+                            }) {
+                                Image(systemName: "xmark")
+                                    .resizable()
+                                    .frame(width: 8, height: 8)
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(8)
+                        }
+                    }
+                }
             }
 
             ProgressIconButton(systemImage: "trash.fill",
