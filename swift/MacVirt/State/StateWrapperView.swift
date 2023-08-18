@@ -17,10 +17,9 @@ struct StateWrapperView<Content: View>: View {
     var body: some View {
         switch vmModel.state {
         case .stopped:
-            VStack {
-                Text("Not running")
-                        .font(.title)
-                        .foregroundColor(.secondary)
+            VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
+                ContentUnavailableViewCompat("Service Not Running", systemImage: "moon.zzz.fill")
+
                 Button(action: {
                     Task {
                         await vmModel.tryStartAndWait()
