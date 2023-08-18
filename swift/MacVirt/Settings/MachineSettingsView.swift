@@ -160,7 +160,7 @@ struct MachineSettingsView: View {
         }
         .padding()
         .background(WindowAccessor(holder: windowHolder))
-        .alert("Disable admin features?", isPresented: $presentDisableAdmin) {
+        .alert("Disable privileged features?", isPresented: $presentDisableAdmin) {
             Button("Cancel", role: .cancel) {}
             Button("Disable", role: .destructive) {
                 vmModel.trySetConfigKey(\.setupUseAdmin, false)
