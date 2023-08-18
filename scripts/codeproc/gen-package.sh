@@ -29,11 +29,6 @@ fd -0 '_test\.go$' | xargs -0 rm -f
 # remove Swift tests
 rm -fr swift/*/Tests
 
-# vendor gvisor
-rm -fr vendor/gvisor # is a symlink
-git clone git@github.com:orbstack/gvisor-macvirt --reference-if-able ~/code/vm/gvisor --depth 1 vendor/gvisor
-rm -fr vendor/gvisor/.git
-
 # filter source code last, so we include everything
 pushd "$REPO_ROOT/scripts/codeproc"
 pnpm install
