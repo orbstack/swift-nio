@@ -374,7 +374,7 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 								Title:   "Invalid domain: " + strings.TrimSuffix(name, "."),
 								Message: reason,
 								Silent:  true,
-								URL:     "https://docs.orbstack.dev/readme-link/invalid-container-domain",
+								URL:     "https://go.orbstack.dev/invalid-container-domain",
 							})
 							if err != nil {
 								logrus.WithError(err).Error("failed to send notification")

@@ -196,6 +196,7 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 
 func bindMountNfsRoot(c *Container, src string, target string) error {
 	return c.UseMountNs(func() error {
+		// shared from machine POV is OK
 		return unix.Mount(src, target, "", unix.MS_BIND|unix.MS_REC|unix.MS_SHARED|unix.MS_RDONLY, "")
 	})
 }

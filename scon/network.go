@@ -320,7 +320,11 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifVnet, "-j", "ACCEPT"})
 
 	// icmp: allow all ICMP for ping and neighbor solicitation
-	rules = append(rules, []string{"filter", "INPUT", "-p", "icmp", "-j", "ACCEPT"})
+	if proto == iptables.ProtocolIPv4 {
+		rules = append(rules, []string{"filter", "INPUT", "-p", "icmp", "-j", "ACCEPT"})
+	} else {
+		rules = append(rules, []string{"filter", "INPUT", "-p", "icmpv6", "-j", "ACCEPT"})
+	}
 
 	// 67/udp: allow machines to use DHCP v4 server (dnsmasq)
 	if proto == iptables.ProtocolIPv4 {

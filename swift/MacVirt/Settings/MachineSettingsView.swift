@@ -125,7 +125,7 @@ struct MachineSettingsView: View {
                     )
                     Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
                     .disabled(!Users.hasAdmin) // disabled + false if no admin
-                    Text("This can improve performance and compatibility. [Learn more](https://docs.orbstack.dev/readme-link/admin)")
+                    Text("This can improve performance and compatibility. [Learn more](https://go.orbstack.dev/admin)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 

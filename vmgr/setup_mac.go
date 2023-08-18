@@ -43,7 +43,7 @@ To find the real size:
     - Right-click the file and select "Get Info"
       Then look at "size on disk"
 
-For more details, see https://docs.orbstack.dev/readme-link/data-img
+For more details, see https://go.orbstack.dev/data-img
 `
 )
 
@@ -66,7 +66,7 @@ type PathInfo struct {
 var (
 	binCommands = []string{"orbctl", "orb"}
 	// some people run "docker-compose"
-	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain"}
+	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain", "kubectl"}
 	dockerPlugins = []string{"docker-buildx", "docker-compose"}
 )
 
@@ -693,11 +693,11 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		// so do it for each message: "OrbStack is trying to install a new helper tool."
 		var msg string
 		if adminLinkCommands && adminLinkDocker {
-			msg = "Improve Docker socket compatibility and install command-line tools? This is optional."
+			msg = "Improve Docker socket compatibility and install command-line tools? Optional; learn more at go.orbstack.dev/admin.\n\n"
 		} else if adminLinkCommands {
-			msg = "Install command-line tools? This is optional."
+			msg = "Install command-line tools? Optional; learn more at go.orbstack.dev/admin.\n\n"
 		} else if adminLinkDocker {
-			msg = "Improve Docker socket compatibility? This is optional."
+			msg = "Improve Docker socket compatibility? Optional; learn more at go.orbstack.dev/admin.\n\n"
 		}
 		info.AdminMessage = &msg
 	}

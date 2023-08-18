@@ -225,9 +225,10 @@ fn apply_perf_tuning_late() -> Result<(), Box<dyn Error>> {
     // lxd net tuning (= ~min tcp_mem)
     sysctl("net.core.netdev_max_backlog", "16384")?;
 
-    // k8s
+    // k8s / k3s
     sysctl("vm.panic_on_oom", "0")?;
     sysctl("kernel.panic_on_oops", "1")?;
+    sysctl("net.netfilter.nf_conntrack_max", "327680")?;
     // fake this one
     //sysctl("kernel.panic", "10")?;
     sysctl("kernel.keys.root_maxkeys", "1000000")?;
@@ -489,9 +490,11 @@ fn create_mirror_dir(dir: &str) -> Result<(String, String), Box<dyn Error>> {
 
     // seal ro copy:
     // read-only bind (+ rshared, for scon bind mounts)
-    bind_mount(&rw_dir, &ro_dir, Some(MsFlags::MS_REC | MsFlags::MS_SHARED)).unwrap();
+    bind_mount(&rw_dir, &ro_dir, Some(MsFlags::MS_REC)).unwrap();
     // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
-    bind_mount(&ro_dir, &ro_dir, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY | MsFlags::MS_SHARED)).unwrap();
+    bind_mount(&ro_dir, &ro_dir, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY)).unwrap();
+    // and finally, make it shared (doesn't work as flag in above calls)
+    mount_common(&ro_dir, &ro_dir, None, MsFlags::MS_SHARED, None).unwrap();
     Ok((ro_dir, rw_dir))
 }
 

@@ -51,7 +51,7 @@ struct NetworkSettingsView: View {
                     Text("Use domains and IPs to connect to containers without port forwarding.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Text("This also includes Linux machines. [Learn more](https://docs.orbstack.dev/readme-link/container-domains)")
+                    Text("This also includes Linux machines. [Learn more](https://go.orbstack.dev/container-domains)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 

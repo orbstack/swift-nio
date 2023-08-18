@@ -399,8 +399,8 @@ func (c *Container) configureLxc() error {
 			}
 
 			// bind NFS root at /mnt/machines for access
-			// must be rshared for agent's ~/OrbStack bind to work later
-			bind(nfsDirForMachines+"/ro", "/mnt/machines", "ro,rshared")
+			// must be rslave for agent's ~/OrbStack bind to work later
+			bind(nfsDirForMachines+"/ro", "/mnt/machines", "ro,rslave")
 			// we also bind it to ~/OrbStack later so paths work correctly
 			// but must do it AFTER macOS host mounts NFS on the path
 			// otherwise, kernel sees that inode has changed and unmounts everything

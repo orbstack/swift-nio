@@ -342,7 +342,7 @@ int main(int argc, char **argv) {
                             "\n"
                             "This can also be caused by running a glibc executable in a musl distro, or vice versa.\n"
                             "\n"
-                            "For more details and instructions, see https://docs.orbstack.dev/readme-link/multiarch\n"
+                            "For more details and instructions, see https://go.orbstack.dev/multiarch\n"
                             "", elf_info.interpreter, env_type, env_type);
             return 255;
         }

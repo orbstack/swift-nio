@@ -35,7 +35,7 @@ const (
 	// match chrony ntp polling interval
 	diskStatsInterval = 128 * time.Second
 	// very liberal to avoid false positive
-	requestTimeout                  = 30 * time.Second
+	requestTimeout                  = 1 * time.Minute
 	healthCheckSleepWakeGracePeriod = requestTimeout
 
 	// arm: arch timer doesn't advance in sleep, so not needed
@@ -223,6 +223,7 @@ func (vc *VClient) healthCheck() {
 	awakeBefore := !iokit.IsAsleep()
 	err := vc.doCheckin()
 	if err != nil {
+		//TODO require multiple failures
 		logrus.WithError(err).Error("health check failed")
 
 		// if it was because of a timeout, then we should shut down. vm is dead

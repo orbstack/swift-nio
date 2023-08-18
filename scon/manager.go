@@ -253,7 +253,7 @@ func (m *ConManager) Start() error {
 	go runOne("krpc initiator server", RunKrpcInitiator)
 
 	logrus.Info("started")
-	return err
+	return nil
 }
 
 func (m *ConManager) cleanupCaches() error {
