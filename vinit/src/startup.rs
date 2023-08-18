@@ -774,7 +774,9 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
         .arg("--no-nfs-version").arg("2")
         .arg("--no-nfs-version").arg("3")
         //.arg("--debug").arg("all")
-        .arg("--foreground"))?;
+        .arg("--foreground")
+        // hide debug output
+        .stdout(Stdio::null()))?;
 
     // ssh
     if DEBUG {
