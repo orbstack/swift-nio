@@ -22,6 +22,9 @@ struct HelperServer {
         }
         if oldSrc == req.src {
             return
+        } else if oldSrc != nil {
+            // delete the old one
+            try FileManager.default.removeItem(atPath: req.dest)
         }
 
         // security: don't overwrite existing /var/run/docker.sock if it points to another user's OrbStack sock
