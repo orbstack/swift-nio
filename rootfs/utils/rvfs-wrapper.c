@@ -69,10 +69,7 @@ static bool argv_contains(char **argv, char *what) {
 
 static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, struct elf_info *elf_info) {
     // milvusdb assumes AVX. QEMU 7.2+ supports AVX, but not Rosetta. https://github.com/orbstack/orbstack/issues/482
-    if (strcmp(exe_name, "milvus") == 0) {
-        if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
-        return EMU_QEMU;
-    }
+    // we don't use new QEMU due to segfaults so we can't run this anyway
 
     // vsce-sign also breaks in qemu so no point in switching
 

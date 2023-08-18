@@ -1264,10 +1264,16 @@ class VmViewModel: ObservableObject {
     }
 
     func trySetDockerConfig(configJson: String, enableIpv6: Bool) async {
+        // JSONSerialization can't handle empty objects
+        var configJsonStr = configJson
+        if configJsonStr.isEmpty {
+            configJsonStr = "{}"
+        }
+
         do {
             // parse and update the json for ipv6
             // this breaks formatting, but better than regex
-            var json = try JSONSerialization.jsonObject(with: configJson.data(using: .utf8)!, options: []) as! [String: Any]
+            var json = try JSONSerialization.jsonObject(with: configJsonStr.data(using: .utf8)!, options: []) as! [String: Any]
             // don't add "ipv6" key if not needed
             let oldIpv6 = json["ipv6"] as? Bool ?? false
             if oldIpv6 != enableIpv6 {
