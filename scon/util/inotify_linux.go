@@ -32,10 +32,10 @@ func WaitForRunPathExist(path string) error {
 		}
 	}
 
-	return WaitForPathExist(path)
+	return WaitForPathExist(path, false)
 }
 
-func WaitForPathExist(path string) error {
+func WaitForPathExist(path string, requireWriteClose bool) error {
 	// skip watcher if exists
 	// must lstat because systemd units are non-existent symlinks
 	if _, err := os.Lstat(path); err == nil {
@@ -52,20 +52,24 @@ func WaitForPathExist(path string) error {
 	// watch the parent directory
 	// includes both create and rename (to cover systemd invocation units)
 	parent := filepath.Dir(path)
-	err = watcher.AddWatch(parent, inotify.InCreate|inotify.InMovedTo)
+	flags := inotify.InCreate | inotify.InMovedTo
+	if requireWriteClose {
+		flags |= inotify.InCloseWrite
+	}
+	err = watcher.AddWatch(parent, flags)
 	if err != nil && errors.Is(err, os.ErrNotExist) {
 		// precaution: stop at /
 		if parent == "/" {
 			return err
 		}
 
-		err = WaitForPathExist(parent)
+		err = WaitForPathExist(parent, false)
 		if err != nil {
 			return err
 		}
 
 		// ok, now parent exists, then retry
-		err = watcher.AddWatch(parent, inotify.InCreate|inotify.InMovedTo)
+		err = watcher.AddWatch(parent, flags)
 	}
 	if err != nil {
 		return err
@@ -81,7 +85,9 @@ func WaitForPathExist(path string) error {
 		select {
 		case event := <-watcher.Event:
 			if event.Name == path {
-				return nil
+				if !requireWriteClose || event.Mask&inotify.InCloseWrite != 0 {
+					return nil
+				}
 			}
 		case err := <-watcher.Error:
 			return fmt.Errorf("inotify error: %w", err)

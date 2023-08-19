@@ -405,8 +405,27 @@ func (h *HcontrolServer) OnDataFsReady(_ None, _ *None) error {
 
 type jsonObject map[string]any
 
+func firstObj(o any) jsonObject {
+	if arr, ok := o.([]any); ok {
+		if len(arr) > 0 {
+			if obj, ok := arr[0].(jsonObject); ok {
+				return obj
+			}
+		}
+	}
+	return nil
+}
+
+func toArr(o any) []any {
+	if arr, ok := o.([]any); ok {
+		return arr
+	}
+	return nil
+}
+
 func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 	logrus.Info("K8s config ready")
+	logrus.WithField("kubeConfigStr", kubeConfigStr).Debug("received k8s config")
 
 	// replace k3s "default" with "orbstack"
 	regex := regexp.MustCompile(`\bdefault\b`)
@@ -420,9 +439,9 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 		return fmt.Errorf("parse new config: %w", err)
 	}
 	// ... and save its new values
-	newCluster := mergedConfig["clusters"].([]any)[0].(jsonObject)
-	newContext := mergedConfig["contexts"].([]any)[0].(jsonObject)
-	newUser := mergedConfig["users"].([]any)[0].(jsonObject)
+	newCluster := firstObj(mergedConfig["clusters"])
+	newContext := firstObj(mergedConfig["contexts"])
+	newUser := firstObj(mergedConfig["users"])
 
 	// add existing config
 	if oldConfigStr, err := os.ReadFile(conf.KubeConfigFile()); err == nil {
@@ -436,7 +455,7 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 		for _, typeKey := range []string{"clusters", "contexts", "users"} {
 			// remove existing
 			var newItems []jsonObject
-			for _, newItem := range mergedConfig[typeKey].([]any) {
+			for _, newItem := range toArr(mergedConfig[typeKey]) {
 				if newItem, ok := newItem.(jsonObject); ok {
 					if newItem["name"] != newCluster["name"] {
 						newItems = append(newItems, newItem)
