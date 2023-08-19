@@ -188,7 +188,7 @@ struct MacVirtApp: App {
                 }
             }
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "main", "docker/containers/", "docker/projects/"))
+        .handlesExternalEvents(matching: ["main", "docker/containers/", "docker/projects/"])
         .windowDefaultSize(width: 725, height: 600)
 
         WindowGroup("Setup", id: "onboarding") {
@@ -202,7 +202,7 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "onboarding"))
+        .handlesExternalEvents(matching: ["onboarding"])
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
@@ -213,7 +213,7 @@ struct MacVirtApp: App {
                 windowTracker.onWindowAppear()
             }
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "docker/container-logs/"))
+        .handlesExternalEvents(matching: ["docker/container-logs/"])
         .windowDefaultSize(width: 800, height: 600)
         .windowToolbarStyle(.unifiedCompact)
 
@@ -224,7 +224,7 @@ struct MacVirtApp: App {
                 windowTracker.onWindowAppear()
             }
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "docker/project-logs/"))
+        .handlesExternalEvents(matching: ["docker/project-logs/"])
         .windowDefaultSize(width: 875, height: 625) // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
@@ -235,7 +235,7 @@ struct MacVirtApp: App {
                 windowTracker.onWindowAppear()
             }
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "docker/migration"))
+        .handlesExternalEvents(matching: ["docker/migration"])
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
@@ -248,7 +248,7 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "diagreport"))
+        .handlesExternalEvents(matching: ["diagreport"])
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
@@ -261,7 +261,7 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "bugreport"))
+        .handlesExternalEvents(matching: ["bugreport"])
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
@@ -274,7 +274,7 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "feedback"))
+        .handlesExternalEvents(matching: ["feedback"])
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 

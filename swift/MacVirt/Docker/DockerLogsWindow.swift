@@ -698,7 +698,14 @@ struct DockerComposeLogsWindow: View {
             ContentUnavailableViewCompat("No Service Selected")
         }
         .onOpenURL { url in
-            composeProject = url.lastPathComponent
+            // check "base64" query param
+            // for backward compat with restored state URLs, this is query-gated
+            if url.query?.contains("base64") == true,
+               let decoded = Data(base64URLEncoded: url.lastPathComponent) {
+                composeProject = String(data: decoded, encoding: .utf8)
+            } else {
+                composeProject = url.lastPathComponent
+            }
         }
         .onAppear {
             selection = savedSelection

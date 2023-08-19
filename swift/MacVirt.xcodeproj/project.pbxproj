@@ -19,6 +19,7 @@
 		B118B3BEA18481697E1EB21E /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
 		B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB2A7BF402695260775E /* IPC.swift */; };
 		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
+		B118B43B007C2829095646FE /* Data+Base64URL.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B103C2DE982C1219D12E /* Data+Base64URL.swift */; };
 		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
 		B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
@@ -215,6 +216,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B118B103C2DE982C1219D12E /* Data+Base64URL.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Data+Base64URL.swift"; sourceTree = "<group>"; };
 		B118B1DCE616676E483BB2BB /* FeedbackView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineSettingsView.swift; sourceTree = "<group>"; };
 		B118B2ECDBD9470B8263AE90 /* PHClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHClient.swift; sourceTree = "<group>"; };
@@ -434,6 +436,7 @@
 				B118BABDE1F02C8A54DB011F /* NSImage.swift */,
 				B118B300D94CA37572036935 /* Buttons.swift */,
 				B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */,
+				B118B103C2DE982C1219D12E /* Data+Base64URL.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -999,6 +1002,7 @@
 				B118B3BEA18481697E1EB21E /* PHShared.swift in Sources */,
 				B118B059B171800F250B42CD /* PHClient.swift in Sources */,
 				B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */,
+				B118B43B007C2829095646FE /* Data+Base64URL.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
