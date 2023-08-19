@@ -465,14 +465,16 @@ class VmViewModel: ObservableObject {
     init() {
         daemon.monitorNotifications()
 
-        daemon.daemonNotifications.sink { _ in
+        daemon.daemonNotifications.sink { [weak self] _ in
+            guard let self else { return }
             // go through spawn-daemon for simplicity and ignore pid
             Task { @MainActor in
                 await self.tryStartAndWait()
             }
         }.store(in: &cancellables)
 
-        daemon.dockerNotifications.sink { event in
+        daemon.dockerNotifications.sink { [weak self] event in
+            guard let self else { return }
             Task { @MainActor in
                 let doContainers = event.changed.contains(.container)
                 let doVolumes = event.changed.contains(.volume)
@@ -480,9 +482,10 @@ class VmViewModel: ObservableObject {
             }
         }.store(in: &cancellables)
 
-        daemon.drmWarningNotifications.sink { [self] event in
+        daemon.drmWarningNotifications.sink { [weak self] event in
+            guard let self else { return }
             Task { @MainActor in
-                error = .drmWarning(event: event)
+                self.error = .drmWarning(event: event)
             }
         }.store(in: &cancellables)
     }

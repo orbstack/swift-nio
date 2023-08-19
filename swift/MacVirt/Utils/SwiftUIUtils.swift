@@ -41,10 +41,9 @@ struct WindowAccessor: NSViewRepresentable {
                     .removeDuplicates()
                     .dropFirst()
                     .sink { [weak self] newWindow in
-                        guard let self = self else { return }
-                        self.onChange(newWindow)
-                        if let newWindow = newWindow {
-                            self.monitorClosing(of: newWindow)
+                        self?.onChange(newWindow)
+                        if let newWindow {
+                            self?.monitorClosing(of: newWindow)
                         }
                     }
                     .store(in: &cancellables)
@@ -55,9 +54,8 @@ struct WindowAccessor: NSViewRepresentable {
             NotificationCenter.default
                     .publisher(for: NSWindow.willCloseNotification, object: window)
                     .sink { [weak self] notification in
-                        guard let self = self else { return }
-                        self.onChange(nil)
-                        self.cancellables.removeAll()
+                        self?.onChange(nil)
+                        self?.cancellables.removeAll()
                     }
                     .store(in: &cancellables)
         }

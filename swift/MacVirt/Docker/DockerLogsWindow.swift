@@ -134,10 +134,15 @@ private class AsyncPipeReader {
     }
 }
 
+private class CommandViewModel: ObservableObject {
+    let searchCommand = PassthroughSubject<(), Never>()
+    let clearCommand = PassthroughSubject<(), Never>()
+    let copyAllCommand = PassthroughSubject<(), Never>()
+}
+
 private class LogsViewModel: ObservableObject {
     var contents = NSMutableAttributedString()
     let updateEvent = PassthroughSubject<(), Never>()
-    let searchCommand = PassthroughSubject<(), Never>()
 
     var process: Process?
     private var lastAnsiState = AnsiState()
@@ -147,7 +152,49 @@ private class LogsViewModel: ObservableObject {
     private var lastArgs: [String]?
     private var lastLineDate: Date?
 
-    var cancellables: Set<AnyCancellable> = []
+    private var cancellables: Set<AnyCancellable> = []
+    @Published var lastContainerName: String? // saved once we get id
+
+    @MainActor
+    func monitorContainers(vmModel: VmViewModel, cid: DockerContainerId) {
+        vmModel.$dockerContainers.sink { [weak self] containers in
+            guard let self else { return }
+
+            // if containers list changes,
+            // and process has exited,
+            // and (container ID && it's running) or (containerName && it's running) or (composeProject && any running)
+            if self.process != nil {
+                return
+            }
+            guard let containers else {
+                return
+            }
+
+            if case let .container(containerId) = cid,
+               containers.contains(where: { $0.id == containerId && $0.running }) {
+                self.restart()
+            } else if let lastContainerName,
+                      containers.contains(where: { $0.names.contains(lastContainerName) && $0.running }) {
+                self.restart()
+            } else if case let .compose(composeProject) = cid,
+                      containers.contains(where: { $0.composeProject == composeProject && $0.running }) {
+                self.restart()
+            }
+        }.store(in: &cancellables)
+    }
+
+    @MainActor
+    func monitorCommands(commandModel: CommandViewModel) {
+        commandModel.clearCommand.sink { [weak self] in
+            self?.clear()
+        }.store(in: &cancellables)
+
+        commandModel.copyAllCommand.sink { [weak self] in
+            self?.copyAll()
+        }.store(in: &cancellables)
+
+        // search command is monitored by GUI
+    }
 
     @MainActor
     func start(isCompose: Bool, args: [String]) {
@@ -418,6 +465,7 @@ private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
 
 private struct LogsTextView: NSViewRepresentable {
     let model: LogsViewModel
+    let commandModel: CommandViewModel
 
     class Coordinator {
         var cancellables = Set<AnyCancellable>()
@@ -462,10 +510,8 @@ private struct LogsTextView: NSViewRepresentable {
         // trigger initial update
         model.updateEvent.send()
 
-        model.searchCommand.sink { [weak textView] query in
-            guard let textView else {
-                return
-            }
+        commandModel.searchCommand.sink { [weak textView] query in
+            guard let textView else { return }
             // need .tag holder
             let button = NSButton()
             button.tag = NSTextFinder.Action.showFindInterface.rawValue
@@ -484,12 +530,14 @@ private struct LogsTextView: NSViewRepresentable {
 }
 
 private struct LogsView: View {
+    @EnvironmentObject private var commandModel: CommandViewModel
+
     let isCompose: Bool
     let args: [String]
     let model: LogsViewModel
 
     var body: some View {
-        LogsTextView(model: model)
+        LogsTextView(model: model, commandModel: commandModel)
         .onAppear {
             model.start(isCompose: isCompose, args: args)
         }
@@ -504,13 +552,13 @@ private struct LogsView: View {
 
 private struct DockerLogsContentView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var commandModel: CommandViewModel
     @StateObject private var model = LogsViewModel()
 
     // allows nil for macOS 12 window workaround
     let cid: DockerContainerId?
     // individual container, not compose
     let standalone: Bool
-    @State private var containerName: String? // saved once we get id
 
     var body: some View {
         DockerStateWrapperView(refreshAction: { }) { containers, _ in
@@ -522,9 +570,9 @@ private struct DockerLogsContentView: View {
                 .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
                 .onAppear {
                     // save name so we can keep going after container is recreated
-                    containerName = container.names.first
+                    model.lastContainerName = container.names.first
                 }
-            } else if let containerName,
+            } else if let containerName = model.lastContainerName,
                       let container = containers.first(where: { $0.names.contains(containerName) }) {
                 // if restarted, use name
                 // don't update id - it'll cause unnecessary logs restart
@@ -542,74 +590,18 @@ private struct DockerLogsContentView: View {
         }
         .onAppear {
             // TODO why doesn't for-await + .task() work? (that way we get auto-cancel)
-            vmModel.$dockerContainers.sink { [self] containers in
-                // if containers list changes,
-                // and process has exited,
-                // and (container ID && it's running) or (containerName && it's running) or (composeProject && any running)
-                if model.process != nil {
-                    return
-                }
-                guard let containers else {
-                    return
-                }
-
-                if case let .container(containerId) = cid,
-                   containers.contains(where: { $0.id == containerId && $0.running }) {
-                    model.restart()
-                } else if let containerName,
-                          containers.contains(where: { $0.names.contains(containerName) && $0.running }) {
-                    model.restart()
-                } else if case let .compose(composeProject) = cid,
-                          containers.contains(where: { $0.composeProject == composeProject && $0.running }) {
-                    model.restart()
-                }
-            }.store(in: &model.cancellables)
+            model.monitorCommands(commandModel: commandModel)
+            if let cid {
+                model.monitorContainers(vmModel: vmModel, cid: cid)
+            }
         }
         .frame(minWidth: 400, minHeight: 200)
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                // unlike main window, we never use NavigationSplitView b/c sidebar button bug
-                // only show sideba
-                // it must be here b/c macOS 12 bug where multiple .toolbar doesn't work
-                if !standalone {
-                    ToggleSidebarButton()
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    model.copyAll()
-                }) {
-                    Label("Copy", systemImage: "doc.on.doc")
-                }
-                .help("Copy")
-                .keyboardShortcut("c", modifiers: [.command, .shift])
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    model.clear()
-                }) {
-                    Label("Clear", systemImage: "trash")
-                }
-                .help("Clear")
-                .keyboardShortcut("k", modifiers: [.command])
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button(action: {
-                    model.searchCommand.send()
-                }) {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                .help("Search")
-            }
-        }
     }
 }
 
 struct DockerLogsWindow: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @StateObject private var commandModel = CommandViewModel()
 
     @SceneStorage("DockerLogs_containerId") private var containerId: String?
 
@@ -629,14 +621,17 @@ struct DockerLogsWindow: View {
                 DockerLogsContentView(cid: nil, standalone: true)
             }
         }
+        .environmentObject(commandModel)
         .onOpenURL { url in
             containerId = url.lastPathComponent
         }
+        .toolbar(forCommands: commandModel, standalone: true)
     }
 }
 
 struct DockerComposeLogsWindow: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @StateObject private var commandModel = CommandViewModel()
 
     // for hide sidebar workaround - unused
     @State private var collapsed = false
@@ -695,8 +690,9 @@ struct DockerComposeLogsWindow: View {
         NavigationView {
             sidebarContents12
 
-            ContentUnavailableViewCompat("No Service Selected")
+            ContentUnavailableViewCompat("No Service Selected", systemImage: "questionmark.app.fill")
         }
+        .environmentObject(commandModel)
         .onOpenURL { url in
             // check "base64" query param
             // for backward compat with restored state URLs, this is query-gated
@@ -714,5 +710,50 @@ struct DockerComposeLogsWindow: View {
             savedSelection = $0
         }
         .navigationTitle(WindowTitles.projectLogs(composeProject))
+        .toolbar(forCommands: commandModel, standalone: false)
+    }
+}
+
+private extension View {
+    func toolbar(forCommands commandModel: CommandViewModel, standalone: Bool) -> some View {
+        toolbar {
+            ToolbarItem(placement: .navigation) {
+                // unlike main window, we never use NavigationSplitView b/c sidebar button bug
+                // only show sidebar
+                // it must be here b/c macOS 12 bug where multiple .toolbar doesn't work
+                if !standalone {
+                    ToggleSidebarButton()
+                }
+            }
+
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    commandModel.copyAllCommand.send()
+                }) {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .help("Copy")
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+            }
+
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    commandModel.clearCommand.send()
+                }) {
+                    Label("Clear", systemImage: "trash")
+                }
+                .help("Clear")
+                .keyboardShortcut("k", modifiers: [.command])
+            }
+
+            ToolbarItem(placement: .automatic) {
+                Button(action: {
+                    commandModel.searchCommand.send()
+                }) {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+                .help("Search")
+            }
+        }
     }
 }

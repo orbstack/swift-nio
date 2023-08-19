@@ -154,7 +154,7 @@ struct ContentView: View {
                 NavigationView {
                     sidebarContents12
 
-                    ContentUnavailableViewCompat("No Tab Selected")
+                    ContentUnavailableViewCompat("No Tab Selected", systemImage: "questionmark.app.fill")
                 }
             }
         }

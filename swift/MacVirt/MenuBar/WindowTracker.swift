@@ -51,8 +51,7 @@ class WindowTracker: ObservableObject {
                 // nil = all windows
                 .publisher(for: NSWindow.willCloseNotification, object: nil)
                 .sink { [weak self] notification in
-                    guard let self = self else { return }
-                    self.onWindowDisappear(closingWindow: notification.object as? NSWindow)
+                    self?.onWindowDisappear(closingWindow: notification.object as? NSWindow)
                 }
                 .store(in: &cancellables)
     }
