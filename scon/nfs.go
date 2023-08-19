@@ -266,7 +266,7 @@ func (m *NfsMirrorManager) updateExports() error {
 
 	// 127.0.0.8 = vsock
 	exportsBase := fmt.Sprintf(`
-/nfs/root/ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
+/nfs/root/ro 127.0.0.8(ro,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
 /nfs/root/ro/docker/volumes 127.0.0.8(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
 `, m.hostUid, m.hostUid)
 
@@ -277,7 +277,7 @@ func (m *NfsMirrorManager) updateExports() error {
 			continue
 		}
 
-		destLines = append(destLines, fmt.Sprintf("%s 127.0.0.8(rw,async,fsid=%d,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", path, entry.Fsid))
+		destLines = append(destLines, fmt.Sprintf("%s 127.0.0.8(ro,async,fsid=%d,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", path, entry.Fsid))
 	}
 	exportsBase += strings.Join(destLines, "\n")
 
