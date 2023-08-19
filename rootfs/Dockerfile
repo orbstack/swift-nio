@@ -159,8 +159,10 @@ EOT
 COPY \
     rootfs/config/resolv.conf \
     rootfs/config/os-release \
+    rootfs/config/docker/hosts \
+    # k8s wants machine-id
+    rootfs/config/docker/machine-id \
     /etc/
-COPY rootfs/config/hosts.docker /etc/hosts
 RUN <<EOT sh -eux
 echo docker > /etc/hostname
 # for daemon.json generation
