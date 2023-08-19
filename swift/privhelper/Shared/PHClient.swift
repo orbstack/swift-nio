@@ -62,6 +62,9 @@ class PHClient {
                 Defaults[.adminDismissCount] += 1
                 throw PHError.canceled
             }
+
+            // successfully installed, so reset dismiss count
+            Defaults[.adminDismissCount] = 0
         }.value
     }
 
