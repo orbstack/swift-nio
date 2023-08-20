@@ -45,7 +45,19 @@ const (
 	mdnsCacheFlushRrclass = 1 << 15 // top bit
 )
 
-var nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
+var (
+	nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
+	sconSubnet4 = mustParseCIDR(netconf.SconSubnet4CIDR)
+	sconSubnet6 = mustParseCIDR(netconf.SconSubnet6CIDR)
+)
+
+func mustParseCIDR(s string) *net.IPNet {
+	_, ipnet, err := net.ParseCIDR(s)
+	if err != nil {
+		panic(err)
+	}
+	return ipnet
+}
 
 type mdnsEntry struct {
 	// allow *. suffix match? (false for index)
@@ -201,7 +213,16 @@ func (e mdnsEntry) IPs() []net.IP {
 			logrus.WithError(err).WithField("name", e.machine.Name).Error("failed to get machine IPs for DNS")
 			return nil
 		}
-		return ips
+
+		// only return the IPs we issued
+		// otherwise all the Docker gateway IPs get returned
+		var newIPs []net.IP
+		for _, ip := range ips {
+			if sconSubnet4.Contains(ip) || sconSubnet6.Contains(ip) {
+				newIPs = append(newIPs, ip)
+			}
+		}
+		return newIPs
 	} else {
 		return e.ips
 	}
