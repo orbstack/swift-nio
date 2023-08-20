@@ -57,7 +57,7 @@ struct DockerSettingsView: View {
             }
         }
         .padding()
-        .navigationTitle("Settings")
+        .navigationTitle("Docker")
         .onAppear {
             // not MainActor: blocking sync I/O
             Task.detached {
