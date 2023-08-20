@@ -72,6 +72,9 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// dind does some setup and mounts
 	cm.set("lxc.init.cmd", "/usr/local/bin/docker-init -- /docker-entrypoint.sh")
 
+	// vanity name for k8s node name
+	cm.set("lxc.uts.name", "orbstack")
+
 	// create docker data dirs in case it was deleted
 	err := os.MkdirAll(conf.C().DockerDataDir, 0755)
 	if err != nil {
@@ -89,6 +92,10 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	if err != nil {
 		return "", fmt.Errorf("create k8s data: %w", err)
 	}
+	err = os.MkdirAll(conf.C().K8sDataDir+"/etc-node", 0755)
+	if err != nil {
+		return "", fmt.Errorf("create k8s data: %w", err)
+	}
 
 	// mounts
 	// data
@@ -97,6 +104,8 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	cm.bind(conf.C().K8sDataDir+"/cni", "/var/lib/cni", "")
 	cm.bind(conf.C().K8sDataDir+"/kubelet", "/var/lib/kubelet", "")
 	cm.bind(conf.C().K8sDataDir+"/k3s", "/var/lib/rancher/k3s", "")
+	// for password: /etc/rancher/node/password
+	cm.bind(conf.C().K8sDataDir+"/etc-node", "/etc/rancher/node", "")
 	// tmp (like dind)
 	cm.set("lxc.mount.entry", "none run tmpfs rw,nosuid,nodev,mode=755 0 0")
 	// match docker dind
@@ -341,6 +350,23 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	err = os.MkdirAll(conf.C().DockerDataDir, 0755)
 	if err != nil {
 		return fmt.Errorf("create docker data: %w", err)
+	}
+	// and k8s
+	err = os.MkdirAll(conf.C().K8sDataDir+"/cni", 0755)
+	if err != nil {
+		return fmt.Errorf("create k8s data: %w", err)
+	}
+	err = os.MkdirAll(conf.C().K8sDataDir+"/kubelet", 0755)
+	if err != nil {
+		return fmt.Errorf("create k8s data: %w", err)
+	}
+	err = os.MkdirAll(conf.C().K8sDataDir+"/k3s", 0755)
+	if err != nil {
+		return fmt.Errorf("create k8s data: %w", err)
+	}
+	err = os.MkdirAll(conf.C().K8sDataDir+"/etc-node", 0755)
+	if err != nil {
+		return fmt.Errorf("create k8s data: %w", err)
 	}
 
 	return nil

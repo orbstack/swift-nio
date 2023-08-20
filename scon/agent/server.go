@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -56,9 +56,7 @@ func (a *AgentServer) Ping(_ None, _ *None) error {
 
 // TODO fix zeroing: https://source.chromium.org/chromium/chromium/src/+/main:content/common/set_process_title_linux.cc
 func setProcessCmdline(name string) error {
-	argv0str := (*reflect.StringHeader)(unsafe.Pointer(&os.Args[0]))
-	argv0 := (*[1 << 30]byte)(unsafe.Pointer(argv0str.Data))[:argv0str.Len]
-
+	argv0 := unsafe.Slice(unsafe.StringData(os.Args[0]), len(os.Args[0]))
 	n := copy(argv0, name)
 	if n < len(argv0) {
 		// zero out the rest
@@ -67,13 +65,23 @@ func setProcessCmdline(name string) error {
 		}
 	}
 
+	// zero out the rest of the args
+	for i := 1; i < len(os.Args); i++ {
+		argv := unsafe.Slice(unsafe.StringData(os.Args[i]), len(os.Args[i]))
+		for j := 0; j < len(argv); j++ {
+			argv[j] = 0
+		}
+	}
+
 	return nil
 }
 
 func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// double fork so we get reparented to pidns init, away from scon
-	if len(os.Args) == 2 {
-		_, err := os.StartProcess(os.Args[0], []string{os.Args[0]}, &os.ProcAttr{
+	if len(os.Args) >= 2 && os.Args[1] == "fork" {
+		args := []string{os.Args[0]}
+		args = append(args, os.Args[2:]...)
+		_, err := os.StartProcess(os.Args[0], args, &os.ProcAttr{
 			Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
 			Sys: &syscall.SysProcAttr{
 				Setsid: true,
@@ -97,6 +105,9 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		return err
 	}
 	unix.Close(exeFd)
+
+	// read args before we zero it out
+	isDocker := slices.Contains(os.Args, "-docker")
 
 	// set process name
 	err = setProcessCmdline(ProcessName)
@@ -127,6 +138,10 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if err != nil {
 		return err
 	}
+	if isDocker {
+		// remove vanity name
+		hostname = "docker"
+	}
 
 	// now safe to init logrus
 	if conf.Debug() {
@@ -151,7 +166,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		return err
 	}
 
-	if hostname == "docker" {
+	if isDocker {
 		server.docker = NewDockerAgent()
 	}
 

@@ -164,7 +164,8 @@ COPY \
     rootfs/config/docker/machine-id \
     /etc/
 RUN <<EOT sh -eux
-echo docker > /etc/hostname
+# vanity name
+echo orbstack > /etc/hostname
 # for daemon.json generation
 mkdir -p /etc/docker
 

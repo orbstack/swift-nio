@@ -407,6 +407,9 @@ func (c *Container) configureLxc() error {
 			// https://github.com/torvalds/linux/commit/8ed936b5671bfb33d89bc60bdcc7cf0470ba52fe
 		}
 
+		// allow hook to override this
+		set("lxc.uts.name", c.Name)
+
 		// container hooks, before rootfs is set
 		if c.hooks != nil {
 			newRootfs, err := c.hooks.Config(c, containerConfigMethods{
@@ -423,7 +426,6 @@ func (c *Container) configureLxc() error {
 
 		// container
 		set("lxc.rootfs.path", "dir:"+rootfs)
-		set("lxc.uts.name", c.Name)
 
 		// hooks
 		set("lxc.hook.version", "1")
@@ -766,8 +768,13 @@ func (c *Container) startAgentLocked() error {
 
 	// add some more fds
 	exeFd := int(c.manager.agentExe.Fd())
+	args := []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd)), "fork"}
+	if c.ID == ContainerIDDocker {
+		args = append(args, "-docker")
+	}
+
 	cmd := &LxcCommand{
-		CombinedArgs: []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd)), "fork"},
+		CombinedArgs: args,
 		Dir:          "/",
 		Env:          []string{},
 		Stdin:        rpcFile,
