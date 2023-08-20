@@ -410,6 +410,12 @@ func (c *Container) configureLxc() error {
 		// allow hook to override this
 		set("lxc.uts.name", c.Name)
 
+		// extra cgroup level so container can't remove limits
+		// works w/ kernel commit: "cgroup: allow root and its grandchildren to mix children and controllers"
+		set("lxc.cgroup.dir.monitor", "scon.monitor."+c.ID)
+		set("lxc.cgroup.dir.container", "scon.container."+c.ID)
+		set("lxc.cgroup.dir.container.inner", "child")
+
 		// container hooks, before rootfs is set
 		if c.hooks != nil {
 			newRootfs, err := c.hooks.Config(c, containerConfigMethods{
@@ -863,8 +869,8 @@ func (c *Container) attachBpf(initPid int) error {
 	}
 
 	go runOne("pmon monitor for "+c.Name, func() error {
-		return bpf.MonitorPmon(pmonReader, func() error {
-			c.triggerListenersUpdate()
+		return bpf.MonitorPmon(pmonReader, func(ev bpf.PmonEvent) error {
+			c.triggerListenersUpdate(ev.DirtyFlags)
 			return nil
 		})
 	})
@@ -915,7 +921,7 @@ func (c *Container) postStartAsync(a *agent.Client) error {
 	}
 
 	// kick listener update in case we missed any before agent start
-	c.triggerListenersUpdate()
+	c.triggerListenersUpdate(bpf.LtypeAll)
 
 	// get agent's pidfd
 	err = a.GetAgentPidFd()
