@@ -36,11 +36,11 @@ func Pump2(c1, c2 FullDuplexConn) {
 
 	// Don't wait for both if one side failed (not EOF)
 	if err1 := <-errChan; err1 != nil {
-		logrus.Error("tcp pump2 error 1 ", err1)
+		logrus.WithError(err1).Debug("tcp pump2 error 1")
 		return
 	}
 	if err2 := <-errChan; err2 != nil {
-		logrus.Error("tcp pump2 error 2 ", err2)
+		logrus.WithError(err2).Debug("tcp pump2 error 2")
 		return
 	}
 }

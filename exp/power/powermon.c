@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
         double delta_energy = new_energy_impact - last_energy_impact;
         double delta_time = mach_absolute_to_nsec(now_abs - last_time_abs, timebase) / 1e9;
         double d_energy_impact = delta_energy / delta_time;
-        printf("%.3f\n", d_energy_impact);
+        printf("%.1f\n", d_energy_impact);
 
         last_time_abs = now_abs;
         last_energy_impact = new_energy_impact;

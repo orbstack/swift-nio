@@ -53,11 +53,11 @@ func pump2SpUnixGv(c1 *net.UnixConn, c2 *gonet.TCPConn) {
 
 	// Don't wait for both if one side failed (not EOF)
 	if err1 := <-errChan; err1 != nil {
-		logrus.WithError(err1).Error("tcp pump2 error 1")
+		logrus.WithError(err1).Debug("tcp pump2 error 1")
 		return
 	}
 	if err2 := <-errChan; err2 != nil {
-		logrus.WithError(err2).Error("tcp pump2 error 2")
+		logrus.WithError(err2).Debug("tcp pump2 error 2")
 		return
 	}
 }
