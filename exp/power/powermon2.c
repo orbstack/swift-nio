@@ -169,6 +169,7 @@ int main(int argc, char *argv[]) {
     double elapsed_sec = (double)(last_time_ns - start_ns) / 1e9;
     fprintf(stderr, "avg power = %.1f mW\n", (double)(last_cru.energy - start_cru.energy) / elapsed_sec / 1e6);
     double percent_cpu = (double)mach_abs_to_nsec(last_cru.cpu_time - start_cru.cpu_time, timebase) / elapsed_sec / 1e9 * 100;
+    fprintf(stderr, "energy used = %.1f mJ\n", (double)(last_cru.energy - start_cru.energy) / 1e6);
     fprintf(stderr, "avg %%cpu = %.1f%%\n", percent_cpu);
     fprintf(stderr, "  %% P-core = %.1f%%\n", ((double)mach_abs_to_nsec(last_cru.cpu_ptime - start_cru.cpu_ptime, timebase) / elapsed_sec / 1e9 * 100) / percent_cpu * 100);
     // TODO: fix overflow when cpu_ptime > cpu_time
