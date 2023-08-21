@@ -41,6 +41,7 @@ type VmConfig struct {
 	DataDir          string `json:"data_dir,omitempty"`
 	DockerSetContext bool   `json:"docker.set_context"`
 	SetupUseAdmin    bool   `json:"setup.use_admin"`
+	K8sEnable        bool   `json:"k8s.enable"`
 }
 
 type VmConfigChange struct {
@@ -230,6 +231,7 @@ func Defaults() *VmConfig {
 		DataDir:          "",
 		DockerSetContext: true,
 		SetupUseAdmin:    true,
+		K8sEnable:        false,
 	}
 }
 

@@ -206,10 +206,13 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	}
 
 	// read config overrides from host
-	overrideConfig, err := c.manager.host.ReadDockerDaemonConfig()
+	cfg, err := c.manager.host.GetDockerMachineConfig()
 	if err != nil {
 		return fmt.Errorf("read docker config: %w", err)
 	}
+
+	c.manager.k8sEnabled = cfg.K8sEnable
+	overrideConfig := cfg.DockerDaemonConfig
 	overrideConfig = strings.TrimSpace(overrideConfig)
 	if overrideConfig != "" {
 		// write as override

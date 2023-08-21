@@ -102,11 +102,11 @@ func (c *Client) GetLastDrmResult() (*drmtypes.Result, error) {
 	return &result, nil
 }
 
-func (c *Client) ReadDockerDaemonConfig() (string, error) {
-	var result string
-	err := c.rpc.Call("hc.ReadDockerDaemonConfig", None{}, &result)
+func (c *Client) GetDockerMachineConfig() (htypes.DockerMachineConfig, error) {
+	var result htypes.DockerMachineConfig
+	err := c.rpc.Call("hc.GetDockerMachineConfig", None{}, &result)
 	if err != nil {
-		return "", err
+		return htypes.DockerMachineConfig{}, err
 	}
 
 	return result, nil

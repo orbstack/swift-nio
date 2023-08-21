@@ -13,3 +13,8 @@ type User struct {
 	Name     string
 	HomeDir  string
 }
+
+type DockerMachineConfig struct {
+	DockerDaemonConfig string
+	K8sEnable          bool
+}

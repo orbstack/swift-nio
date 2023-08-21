@@ -18,8 +18,9 @@ struct VmConfig: Codable, Equatable {
     var dataDir: String?
     var dockerSetContext: Bool
     var setupUseAdmin: Bool
+    var k8sEnable: Bool
 
-    // due to keyDecodingStrategy
+    // camel case due to keyDecodingStrategy translating snake_case before it hits this
     enum CodingKeys: String, CodingKey {
         case memoryMib = "memoryMib"
         case cpu = "cpu"
@@ -30,6 +31,7 @@ struct VmConfig: Codable, Equatable {
         case dataDir = "dataDir"
         case dockerSetContext = "docker.setContext"
         case setupUseAdmin = "setup.useAdmin"
+        case k8sEnable = "k8s.enable"
     }
 }
 

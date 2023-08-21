@@ -199,7 +199,11 @@ func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error 
 	return nil
 }
 
-func (h *HcontrolServer) ReadDockerDaemonConfig(_ None, reply *string) error {
+func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMachineConfig) error {
+	*reply = htypes.DockerMachineConfig{
+		K8sEnable: vmconfig.Get().K8sEnable,
+	}
+
 	data, err := os.ReadFile(conf.DockerDaemonConfig())
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -209,14 +213,13 @@ func (h *HcontrolServer) ReadDockerDaemonConfig(_ None, reply *string) error {
 				return err
 			}
 
-			*reply = ""
 			return nil
 		}
 
 		return err
 	}
 
-	*reply = string(data)
+	reply.DockerDaemonConfig = string(data)
 	return nil
 }
 

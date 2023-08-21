@@ -82,6 +82,11 @@ Some options will only take effect after restarting the virtual machine.
 			checkCLI(err)
 			config.SetupUseAdmin = val
 			rebootRequired = true
+		case "k8s.enable":
+			val, err := strconv.ParseBool(value)
+			checkCLI(err)
+			config.K8sEnable = val
+			rebootRequired = true
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)
