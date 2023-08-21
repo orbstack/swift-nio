@@ -23,10 +23,7 @@ import (
 )
 
 const (
-	// match chrony ntp polling interval
-	autoForwardGCInterval  = 128 * time.Second
-	autoForwardGCThreshold = 1 * time.Minute
-	autoForwardDebounce    = 20 * time.Millisecond
+	autoForwardDebounce = 20 * time.Millisecond
 
 	// special case for systemd-network DHCP client, and Debian's LLMNR
 	portDHCPClient = 68
@@ -419,37 +416,4 @@ func (c *Container) updateListenersNow(dirtyFlags bpf.LtypeFlags) error {
 func (c *Container) triggerListenersUpdate(dirtyFlags bpf.LtypeFlags) {
 	syncx.AtomicOrUint32(&c.fwdDirtyFlags, uint32(dirtyFlags))
 	c.autofwdDebounce.Call()
-}
-
-func (m *ConManager) runWatchdogGC() {
-	ticker := time.NewTicker(autoForwardGCInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			m.containersMu.RLock()
-			for _, c := range m.containersByID {
-				if !c.Running() {
-					continue
-				}
-
-				go func(c *Container) {
-					c.mu.RLock()
-					lastAutofwdUpdate := c.lastAutofwdUpdate
-					c.mu.RUnlock()
-
-					if time.Since(lastAutofwdUpdate) > autoForwardGCThreshold {
-						err := c.updateListenersNow(bpf.LtypeUDP)
-						if err != nil {
-							logrus.WithField("container", c.Name).WithError(err).Error("failed to GC listeners")
-						}
-					}
-				}(c)
-			}
-			m.containersMu.RUnlock()
-		case <-m.stopChan:
-			return
-		}
-	}
 }
