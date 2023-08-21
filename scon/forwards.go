@@ -323,8 +323,9 @@ func (c *Container) readIptablesListeners(listeners []sysnet.ProcListener) ([]sy
 			// add listener to list
 			listeners = append(listeners, sysnet.ProcListener{
 				Proto: proto,
-				// nodeports are always 0.0.0.0 b/c of how we configured kube-proxy
-				Addr: netip.IPv4Unspecified(),
+				// nodeports are technically always 0.0.0.0 b/c of how we configured kube-proxy
+				// but let's restrict them to localhost for security
+				Addr: netip.AddrFrom4([4]byte{127, 0, 0, 1}),
 				Port: uint16(port),
 			})
 		}
