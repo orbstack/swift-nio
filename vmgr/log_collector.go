@@ -64,7 +64,15 @@ type KernelPanicError struct {
 }
 
 func (e *KernelPanicError) Error() string {
-	return e.Err.Error()
+	return "kernel panic: " + e.Err.Error()
+}
+
+type DataCorruptionError struct {
+	Err error
+}
+
+func (e *DataCorruptionError) Error() string {
+	return "data corruption: " + e.Err.Error()
 }
 
 type KernelWarning struct {
@@ -72,7 +80,7 @@ type KernelWarning struct {
 }
 
 func (e *KernelWarning) Error() string {
-	return e.Err.Error()
+	return "kernel warning: " + e.Err.Error()
 }
 
 type KernelLogRecorder struct {
@@ -204,16 +212,22 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 							panicLog = logHistory
 						}
 
-						sentry.CaptureException(&KernelPanicError{
-							// no new line - sentry preview only shows first line
-							Err: errors.New("kernel panic: " + panicLog),
-						})
+						var err error
+						// no new line - sentry preview only shows first line
+						msg := errors.New(panicLog)
+						// we want to know about the rate of data corruption errors, but don't let it pollute real panics
+						if strings.Contains(panicLog, "DATA IS LIKELY CORRUPTED") || strings.Contains(panicLog, "MissingDataPartition") {
+							err = &DataCorruptionError{Err: msg}
+						} else {
+							err = &KernelPanicError{Err: msg}
+						}
+						sentry.CaptureException(err)
 					})
 				} else if matchWarnPattern(line) {
 					// record warning log
 					warnRecorder.Start(kernelWarnRecordDuration, func(output string) {
 						sentry.CaptureException(&KernelWarning{
-							Err: errors.New("kernel warning: " + output),
+							Err: errors.New(output),
 						})
 					})
 
