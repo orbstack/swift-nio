@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -644,6 +645,20 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 		return fmt.Errorf("truncate log: %w", err)
 	}
 	_ = os.Remove(c.logPath() + "-console")
+
+	// randomize cgroup paths in case an old one was left behind
+	// usually only happens in dev when scon is killed, so conflict risk is very low in prod
+	// base36 to minimize length
+	// needed because lxc doesn't iterate and append index if we set cgroups explicitly (which we need for inner child cgroup for security)
+	randSuffix := c.ID + "." + strconv.FormatUint(uint64(rand.Uint32()), 36)
+	err = c.setLxcConfig("lxc.cgroup.dir.monitor", "scon.monitor."+randSuffix)
+	if err != nil {
+		return fmt.Errorf("set cgroup: %w", err)
+	}
+	err = c.setLxcConfig("lxc.cgroup.dir.container", "scon.container."+randSuffix)
+	if err != nil {
+		return fmt.Errorf("set cgroup: %w", err)
+	}
 
 	// fs
 	err = c.prepareFsStart()
