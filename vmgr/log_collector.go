@@ -42,6 +42,8 @@ var (
 		"] NETDEV WATCHDOG:",
 		// RCU stall
 		"] rcu: INFO:",
+		// kfence memory safety issue
+		"] BUG: KFENCE",
 		// TODO: add NFS broken conn?
 	}
 )
