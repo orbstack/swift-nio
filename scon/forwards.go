@@ -430,37 +430,7 @@ func (m *ConManager) runWatchdogGC() {
 		case <-ticker.C:
 			m.containersMu.RLock()
 			for _, c := range m.containersByID {
-				// watchdog: verify container state
-				running := c.Running()
-				lxcRunning := c.lxcRunning()
-				// make sure it matches our status
-				if running != lxcRunning {
-					// we did that without locking so this isn't necessarily correct. take a closer look
-					go func(c *Container) {
-						c.mu.RLock()
-						lockedRunning := c.Running()
-						lockedState := c.State()
-						hasMismatch := lockedRunning != (lockedState == types.ContainerStateRunning)
-						c.mu.RUnlock()
-
-						if !hasMismatch {
-							// false positive, we were in the middle of a state change
-							return
-						}
-
-						logrus.WithFields(logrus.Fields{
-							"container": c.Name,
-							"running":   running,
-							"state":     c.State(),
-						}).Warn("watchdog: container state mismatch, refreshing")
-						err := c.refreshState()
-						if err != nil {
-							logrus.WithField("container", c.Name).WithError(err).Error("watchdog: failed to refresh container state")
-						}
-					}(c)
-				}
-
-				if !running {
+				if !c.Running() {
 					continue
 				}
 
@@ -470,7 +440,7 @@ func (m *ConManager) runWatchdogGC() {
 					c.mu.RUnlock()
 
 					if time.Since(lastAutofwdUpdate) > autoForwardGCThreshold {
-						err := c.updateListenersNow(bpf.LtypeAll)
+						err := c.updateListenersNow(bpf.LtypeUDP)
 						if err != nil {
 							logrus.WithField("container", c.Name).WithError(err).Error("failed to GC listeners")
 						}
