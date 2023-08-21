@@ -27,10 +27,9 @@ struct DockerStateWrapperView<Content: View>: View {
                            dockerRecord.state != .stopped {
                             content(containers, dockerRecord)
                         } else if dockerRecord.state == .stopped {
-                            VStack {
-                                Text("Docker is off")
-                                        .font(.title)
-                                        .foregroundColor(.secondary)
+                            VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
+                                ContentUnavailableViewCompat("Docker Disabled", systemImage: "shippingbox.fill")
+
                                 Button(action: {
                                     Task {
                                         await vmModel.tryStartContainer(dockerRecord)
@@ -38,8 +37,11 @@ struct DockerStateWrapperView<Content: View>: View {
                                     }
                                 }) {
                                     Text("Turn on")
+                                    .padding(.horizontal, 4)
                                 }
+                                .buttonStyle(.borderedProminent)
                                 .keyboardShortcut(.defaultAction)
+                                .controlSize(.large)
                             }
                         } else {
                             ProgressView(label: {
