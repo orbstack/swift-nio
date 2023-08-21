@@ -68,6 +68,36 @@ type DockerDaemonFeatures struct {
 type DockerHooks struct {
 }
 
+type SimplevisorConfig struct {
+	Services [][]string `json:"services"`
+}
+
+func (h *DockerHooks) createDataDirs() error {
+	err := os.MkdirAll(conf.C().DockerDataDir, 0755)
+	if err != nil {
+		return err
+	}
+	// and k8s
+	err = os.MkdirAll(conf.C().K8sDataDir+"/cni", 0755)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll(conf.C().K8sDataDir+"/kubelet", 0755)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll(conf.C().K8sDataDir+"/k3s", 0755)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll(conf.C().K8sDataDir+"/etc-node", 0755)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, error) {
 	// env from Docker
 	cm.set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
@@ -81,6 +111,11 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 
 	// vanity name for k8s node name
 	cm.set("lxc.uts.name", "orbstack")
+
+	err := h.createDataDirs()
+	if err != nil {
+		return "", fmt.Errorf("create data: %w", err)
+	}
 
 	// mounts
 	// data
@@ -334,42 +369,43 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		logrus.WithError(err).Error("failed to symlink localtime")
 	}
 
-	// enable or disable k8s service
+	svConfig := SimplevisorConfig{
+		Services: [][]string{
+			{"dockerd", "--host-gateway-ip=" + netconf.HostNatIP4},
+		},
+	}
+	// add k8s service
 	if c.manager.k8sEnabled {
-		_ = fs.Remove("/opt/.orb_service1")
-	} else {
-		k8sCmd := "k3s server --disable metrics-server,traefik --https-listen-port 26443 --lb-server-port 26444 --docker --container-runtime-endpoint /var/run/docker.sock --protect-kernel-defaults --flannel-backend host-gw --write-kubeconfig /run/kubeconfig.yml"
+		k8sCmd := []string{
+			"k3s", "server",
+			"--disable", "metrics-server,traefik",
+			"--https-listen-port", strconv.Itoa(ports.HostKubernetes),
+			"--lb-server-port", strconv.Itoa(ports.HostKubernetes + 1),
+			"--docker",
+			"--container-runtime-endpoint", "/var/run/docker.sock",
+			"--protect-kernel-defaults",
+			"--flannel-backend", "host-gw",
+			"--write-kubeconfig", "/run/kubeconfig.yml",
+		}
 		if conf.Debug() {
-			k8sCmd += " --enable-pprof"
+			k8sCmd = append(k8sCmd, "--enable-pprof")
 		}
-
-		err = fs.WriteFile("/opt/.orb_service1", []byte(k8sCmd), 0644)
-		if err != nil {
-			return err
-		}
+		svConfig.Services = append(svConfig.Services, k8sCmd)
+	}
+	// set simplevisor config
+	svConfigJson, err := json.Marshal(&svConfig)
+	if err != nil {
+		return err
+	}
+	err = c.setLxcConfig("lxc.environment", "SIMPLEVISOR_CONFIG="+string(svConfigJson))
+	if err != nil {
+		return fmt.Errorf("set simplevisor config: %w", err)
 	}
 
 	// create docker data dir in case it was deleted
-	err = os.MkdirAll(conf.C().DockerDataDir, 0755)
+	err = h.createDataDirs()
 	if err != nil {
-		return fmt.Errorf("create docker data: %w", err)
-	}
-	// and k8s
-	err = os.MkdirAll(conf.C().K8sDataDir+"/cni", 0755)
-	if err != nil {
-		return fmt.Errorf("create k8s data: %w", err)
-	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/kubelet", 0755)
-	if err != nil {
-		return fmt.Errorf("create k8s data: %w", err)
-	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/k3s", 0755)
-	if err != nil {
-		return fmt.Errorf("create k8s data: %w", err)
-	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/etc-node", 0755)
-	if err != nil {
-		return fmt.Errorf("create k8s data: %w", err)
+		return fmt.Errorf("create data: %w", err)
 	}
 
 	return nil
@@ -403,6 +439,12 @@ func (h *DockerHooks) PostStart(c *Container) error {
 		return isIdle, nil
 	})
 	c.freezer.Store(freezer)
+
+	// prevent freeze if k8s enabled
+	// too complicated to freeze it due to async pod lifecycle
+	if c.manager.k8sEnabled {
+		freezer.incRefCLocked()
+	}
 
 	// trigger an initial freeze once docker starts
 	go c.manager.dockerProxy.kickStart(freezer)

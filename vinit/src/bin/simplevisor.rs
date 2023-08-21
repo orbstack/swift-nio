@@ -2,10 +2,16 @@ use std::{error::Error, process::Command};
 
 use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use signal_hook::iterator::Signals;
+use serde::Deserialize;
 
 struct MonitoredChild {
     process: std::process::Child,
     args: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct SimplevisorConfig {
+    services: Vec<Vec<String>>,
 }
 
 // EXTREMELY simple process supervisor:
@@ -16,21 +22,26 @@ struct MonitoredChild {
 //
 // we keep tini around for signal forwarding
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut children = std::env::args().into_iter()
-        .skip(1)
-        .map(|spec| {
-            let child_args = spec.split(' ').map(|s| s.to_string()).collect::<Vec<_>>();
+    // get config from env
+    let config_str = std::env::var("SIMPLEVISOR_CONFIG")?;
+    let config: SimplevisorConfig = serde_json::from_str(&config_str)?;
+
+    let mut children = config.services.iter()
+        .map(|child_args| {
             let process = Command::new(&child_args[0])
                 .args(&child_args[1..])
                 .spawn()
                 .unwrap();
             MonitoredChild {
                 process,
-                args: child_args,
+                args: child_args.clone(),
             }
         })
         .collect::<Vec<_>>();
     let mut is_shutting_down = false;
+
+    // remove config from env
+    std::env::remove_var("SIMPLEVISOR_CONFIG");
 
     // forward all signals to children
     let mut signals = Signals::new(&[
