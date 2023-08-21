@@ -415,7 +415,7 @@ func (c *Container) configureLxc() error {
 		// works w/ kernel commit: "cgroup: allow root and its grandchildren to mix children and controllers"
 		set("lxc.cgroup.dir.monitor", "scon.monitor."+c.ID)
 		set("lxc.cgroup.dir.container", "scon.container."+c.ID)
-		set("lxc.cgroup.dir.container.inner", "child")
+		set("lxc.cgroup.dir.container.inner", bpf.ChildCgroupName)
 
 		// container hooks, before rootfs is set
 		if c.hooks != nil {
@@ -793,6 +793,9 @@ func (c *Container) startAgentLocked() error {
 	if c.ID == ContainerIDDocker {
 		args = append(args, "-docker")
 	}
+	if c.ID == ContainerIDK8s && c.manager.k8sEnabled {
+		args = append(args, "-k8s")
+	}
 
 	cmd := &LxcCommand{
 		CombinedArgs: args,
@@ -868,7 +871,7 @@ func (c *Container) attachBpf(initPid int) error {
 	if err != nil {
 		return fmt.Errorf("find cgroup: %w", err)
 	}
-	// only take the first part ("lxc") in case systemd created init.scope
+	// only take the first part ("scon.container.") in case systemd created init.scope
 	cgPath := "/sys/fs/cgroup/" + strings.Split(cgGroup, "/")[1]
 
 	bpfMgr, err := bpf.NewContainerBpfManager(cgPath, netnsCookie)
@@ -878,7 +881,8 @@ func (c *Container) attachBpf(initPid int) error {
 	c.bpf = bpfMgr
 
 	// attach pmon
-	pmonReader, err := bpfMgr.AttachPmon()
+	includeNft := c.ID == ContainerIDK8s
+	pmonReader, err := bpfMgr.AttachPmon(includeNft)
 	if err != nil {
 		return fmt.Errorf("attach bpf pmon: %w", err)
 	}

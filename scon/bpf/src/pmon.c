@@ -24,6 +24,7 @@
 
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
+#include <bpf/bpf_tracing.h>
 
 // warning: this makes it GPL
 //#define DEBUG
@@ -40,6 +41,12 @@ enum {
     VERDICT_PROCEED = 1,
 };
 
+enum {
+    LTYPE_TCP = 1 << 0,
+    LTYPE_UDP = 1 << 1,
+    LTYPE_IPTABLES = 1 << 2,
+};
+
 #define IP4(a, b, c, d) (bpf_htonl((a << 24) | (b << 16) | (c << 8) | d))
 #define IP6(a,b,c,d,e,f,g,h) {bpf_htonl(a << 16 | b), bpf_htonl(c << 16 | d), bpf_htonl(e << 16 | f), bpf_htonl(g << 16 | h)}
 
@@ -52,6 +59,8 @@ static const __be32 UNSPEC_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 0);
 #define UDP_BIND_DEBOUNCE 20 // ms
 
 const volatile __u64 config_netns_cookie = 0;
+// easier to check this in fentry hook
+const volatile __u64 config_cgroup_id = 0;
 
 struct fwd_meta {
     // UDP notification is delayed until first recvmsg
@@ -64,7 +73,7 @@ struct udp_meta {
 };
 
 struct notify_event {
-    __u8 unused;
+    __u8 dirty_flags;
 };
 
 // sk storage to indicate a tracked socket
@@ -100,9 +109,11 @@ static bool check_netns(void *ctx) {
     return true;
 }
 
-static void send_notify() {
+static void send_notify(__u8 dirty_flags) {
     bpf_printk("*** notify");
-    struct notify_event event = {};
+    struct notify_event event = {
+        .dirty_flags = dirty_flags,
+    };
     int ret = bpf_ringbuf_output(&notify_ring, &event, sizeof(event), 0);
     if (ret != 0) {
         bpf_printk("failed to send notify");
@@ -143,14 +154,14 @@ int pmon_sock_release(struct bpf_sock *sk) {
 
     bpf_printk("sock_release");
     cancel_udp_notify(meta, sk);
-    send_notify();
+    send_notify(sk->type == SOCK_STREAM ? LTYPE_TCP : LTYPE_UDP);
 
     return VERDICT_PROCEED;
 }
 
 static int udp_timer_cb(void *map, int *key, struct udp_meta *val) {
     bpf_printk("udp debounce fired");
-    send_notify();
+    send_notify(LTYPE_UDP);
 
     // delete self to clear timer
     int ret = bpf_map_delete_elem(map, key);
@@ -183,7 +194,7 @@ static bool postbind_common(struct bpf_sock *sk) {
 
     // notify (TCP). UDP delayed until first recvmsg
     if (sk->type == SOCK_STREAM) {
-        send_notify();
+        send_notify(LTYPE_TCP);
     } else {
         meta->udp_notify_pending = true;
 
@@ -215,7 +226,7 @@ static int recvmsg_common(struct bpf_sock_addr *ctx) {
     if (cancel_udp_notify(meta, ctx)) {
         bpf_printk("recvmsg: first udp notify (is server)");
         // if delete failed, timer already fired, so no need to notify again
-        send_notify();
+        send_notify(LTYPE_UDP);
     }
 
     return VERDICT_PROCEED;
@@ -340,6 +351,34 @@ SEC("cgroup/sendmsg6")
 int pmon_sendmsg6(struct bpf_sock_addr *ctx) {
     bpf_printk("sendmsg6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return sendmsg_common(ctx);
+}
+
+/*
+ * iptables
+ *
+ * matches NFT_MSG_NEWRULE and NFT_MSG_DELRULE
+ * works because docker machine uses iptables-nft
+ */
+
+static int nft_change_common() {
+    if (bpf_get_current_cgroup_id() != config_cgroup_id) {
+        return 0;
+    }
+
+    bpf_printk("nft changed");
+    send_notify(LTYPE_IPTABLES);
+    return 0;
+}
+
+// nft_trans_rule_add is generic, but we use fexit to be safe - guaranteed that it's done
+SEC("fexit/nf_tables_newrule")
+int BPF_PROG(nf_tables_newrule) {
+    return nft_change_common();
+}
+
+SEC("fexit/nf_tables_delrule")
+int BPF_PROG(nf_tables_delrule) {
+    return nft_change_common();
 }
 
 char _license[] SEC("license") = "GPL";

@@ -61,7 +61,7 @@ type DockerAgent struct {
 	k8s *K8sAgent
 }
 
-func NewDockerAgent() *DockerAgent {
+func NewDockerAgent(isK8s bool) *DockerAgent {
 	dockerAgent := &DockerAgent{
 		// use default unix socket
 		client: dockerclient.NewWithHTTP(&http.Client{
@@ -108,9 +108,10 @@ func NewDockerAgent() *DockerAgent {
 		}
 	})
 
-	// TODO only if k8s
-	dockerAgent.k8s = &K8sAgent{
-		docker: dockerAgent,
+	if isK8s {
+		dockerAgent.k8s = &K8sAgent{
+			docker: dockerAgent,
+		}
 	}
 
 	return dockerAgent

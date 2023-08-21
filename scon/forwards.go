@@ -6,11 +6,15 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -271,8 +275,66 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	return out
 }
 
+func (c *Container) readIptablesListeners(listeners []sysnet.ProcListener) ([]sysnet.ProcListener, error) {
+	// join container netns
+	return withContainerNetns(c, func() ([]sysnet.ProcListener, error) {
+		// faster than coreos iptables
+		nodeportRulesStr, err := util.RunWithOutput("iptables", "-t", "nat", "-S", "KUBE-NODEPORTS")
+		if err != nil {
+			if strings.Contains(err.Error(), "chain `KUBE-NODEPORTS' in table `nat' is incompatible") {
+				// this happens with iptables-nft when it's not found
+				return listeners, nil
+			} else {
+				return nil, err
+			}
+		}
+
+		for _, rule := range strings.Split(nodeportRulesStr, "\n") {
+			parts := strings.Split(rule, " ")
+			if len(parts) < 4 {
+				continue
+			}
+
+			var proto string
+			if slices.Contains(parts, "tcp") {
+				proto = "tcp"
+			} else if slices.Contains(parts, "udp") {
+				proto = "udp"
+			} else {
+				continue
+			}
+
+			// find "--dport"
+			var port int
+			for i, part := range parts {
+				if part == "--dport" && i+1 < len(parts) {
+					port, err = strconv.Atoi(parts[i+1])
+					if err != nil {
+						continue
+					}
+					break
+				}
+			}
+			if port == 0 {
+				// not found
+				continue
+			}
+
+			// add listener to list
+			listeners = append(listeners, sysnet.ProcListener{
+				Proto: proto,
+				// nodeports are always 0.0.0.0 b/c of how we configured kube-proxy
+				Addr: netip.IPv4Unspecified(),
+				Port: uint16(port),
+			})
+		}
+
+		return listeners, nil
+	})
+}
+
 // triggered by bpf pmon
-func (c *Container) updateListenersNow() error {
+func (c *Container) updateListenersNow(dirtyFlags bpf.LtypeFlags) error {
 	// this is to prevent stopping while we're updating listeners
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -287,10 +349,20 @@ func (c *Container) updateListenersNow() error {
 		return ErrMachineNotRunning
 	}
 
+	// read /proc/net
 	listeners, err := sysnet.ReadAllProcNet(strconv.Itoa(initPid))
 	if err != nil {
 		return err
 	}
+
+	if c.ID == ContainerIDK8s && c.manager.k8sEnabled {
+		// add nodeports from iptables
+		listeners, err = c.readIptablesListeners(listeners)
+		if err != nil {
+			return fmt.Errorf("read iptables: %w", err)
+		}
+	}
+
 	listeners = filterListeners(listeners)
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
@@ -332,7 +404,8 @@ func (c *Container) updateListenersNow() error {
 	return errors.Join(errs...)
 }
 
-func (c *Container) triggerListenersUpdate() {
+func (c *Container) triggerListenersUpdate(dirtyFlags bpf.LtypeFlags) {
+	syncx.AtomicOrUint32(&c.fwdDirtyFlags, uint32(dirtyFlags))
 	c.autofwdDebounce.Call()
 }
 
@@ -385,7 +458,7 @@ func (m *ConManager) runWatchdogGC() {
 					c.mu.RUnlock()
 
 					if time.Since(lastAutofwdUpdate) > autoForwardGCThreshold {
-						err := c.updateListenersNow()
+						err := c.updateListenersNow(bpf.LtypeAll)
 						if err != nil {
 							logrus.WithField("container", c.Name).WithError(err).Error("failed to GC listeners")
 						}

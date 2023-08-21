@@ -67,10 +67,12 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	backingPath := m.rwDir + subdest
 	destPath := m.roDir + subdest
 
-	logrus.WithFields(logrus.Fields{
-		"src": source,
-		"dst": destPath,
-	}).Debug("mounting nfs dir")
+	if verboseDebug {
+		logrus.WithFields(logrus.Fields{
+			"src": source,
+			"dst": destPath,
+		}).Trace("mounting nfs dir")
+	}
 	err := os.MkdirAll(backingPath, 0755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return fmt.Errorf("mkdir %s: %w", backingPath, err)
@@ -114,7 +116,9 @@ func (m *NfsMirrorManager) Unmount(subdest string) error {
 		return nil
 	}
 
-	logrus.WithField("dst", mountPath).Debug("unmounting nfs dir")
+	if verboseDebug {
+		logrus.WithField("dst", mountPath).Trace("unmounting nfs dir")
+	}
 	// unmount
 	err := unix.Unmount(mountPath, unix.MNT_DETACH)
 	if err != nil && !errors.Is(err, unix.EINVAL) {

@@ -108,6 +108,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 	// read args before we zero it out
 	isDocker := slices.Contains(os.Args, "-docker")
+	isK8s := slices.Contains(os.Args, "-k8s")
 
 	// set process name
 	err = setProcessCmdline(ProcessName)
@@ -167,7 +168,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	}
 
 	if isDocker {
-		server.docker = NewDockerAgent()
+		server.docker = NewDockerAgent(isK8s)
 	}
 
 	// Go sets soft rlimit = hard. bring it back down to avoid perf issues with fd closing in bad processes

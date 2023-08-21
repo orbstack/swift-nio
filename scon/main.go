@@ -54,6 +54,9 @@ func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
 		return err
 	}
 
+	// TODO
+	mgr.k8sEnabled = true
+
 	// start host service proxies now that we have uid/gid
 	go runOne("host service proxy host-ssh", func() error {
 		return RunHostServiceProxy(mounts.HostSSHSocket, ports.SecureSvcHostSSH, u.Uid)

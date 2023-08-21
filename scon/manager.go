@@ -52,6 +52,8 @@ type ConManager struct {
 	host           *hclient.Client
 	hostNfsMounted bool
 	bpf            *bpf.GlobalBpfManager
+	// TODO make this its own machine?
+	k8sEnabled bool
 
 	// auto forward
 	forwards   map[sysnet.ProcListener]ForwardState

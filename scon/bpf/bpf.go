@@ -19,6 +19,24 @@ import (
 
 //go:generate ./build-bpf.sh
 
+const (
+	ChildCgroupName = "child"
+)
+
+type LtypeFlags uint8
+
+const (
+	LtypeTCP LtypeFlags = 1 << iota
+	LtypeUDP
+	LtypeIPTables
+
+	LtypeAll = LtypeTCP | LtypeUDP | LtypeIPTables
+)
+
+type PmonEvent struct {
+	DirtyFlags LtypeFlags
+}
+
 type ContainerBpfManager struct {
 	cgPath      string
 	netnsCookie uint64
@@ -105,6 +123,17 @@ func (b *ContainerBpfManager) attachOneCg(typ ebpf.AttachType, prog *ebpf.Progra
 	l, err := link.AttachCgroup(link.CgroupOptions{
 		Path:    b.cgPath,
 		Attach:  typ,
+		Program: prog,
+	})
+	if err != nil {
+		return fmt.Errorf("attach: %w", err)
+	}
+	b.closers = append(b.closers, l)
+	return nil
+}
+
+func (b *ContainerBpfManager) attachOneTracing(prog *ebpf.Program) error {
+	l, err := link.AttachTracing(link.TracingOptions{
 		Program: prog,
 	})
 	if err != nil {
@@ -271,7 +300,26 @@ func (b *ContainerBpfManager) CfwdRemoveHostIP(ip net.IP) error {
 }
 
 // called with c.mu held
-func (b *ContainerBpfManager) AttachPmon() (*ringbuf.Reader, error) {
+func (b *ContainerBpfManager) AttachPmon(includeNft bool) (*ringbuf.Reader, error) {
+	// k3s cgroup ID = inode
+	var cgroupID uint64
+	if includeNft {
+		// create the k3s cgroup ahead of time. we want to watch kube-proxy
+		err := os.MkdirAll(b.cgPath+"/"+ChildCgroupName+"/k3s", 0755)
+		if err != nil {
+			return nil, fmt.Errorf("create k3s cgroup: %w", err)
+		}
+
+		// get inode
+		var stat unix.Stat_t
+		err = unix.Stat(b.cgPath+"/"+ChildCgroupName+"/k3s", &stat)
+		if err != nil {
+			return nil, fmt.Errorf("stat k3s cgroup: %w", err)
+		}
+		logrus.WithField("cgroupID", stat.Ino).Debug("created k3s cgroup")
+		cgroupID = stat.Ino
+	}
+
 	// must load a new instance to set a different netns cookie in config map
 	// maps are per-program instance
 	// and this is an unpinned program (no ref in /sys/fs/bpf), so it'll be destroyed
@@ -284,6 +332,7 @@ func (b *ContainerBpfManager) AttachPmon() (*ringbuf.Reader, error) {
 	// set netns cookie filter
 	err = spec.RewriteConstants(map[string]any{
 		"config_netns_cookie": b.netnsCookie,
+		"config_cgroup_id":    cgroupID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure: %w", err)
@@ -300,17 +349,14 @@ func (b *ContainerBpfManager) AttachPmon() (*ringbuf.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCGroupInet4Connect, objs.PmonConnect4)
 	if err != nil {
 		return nil, err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCGroupUDP4Recvmsg, objs.PmonRecvmsg4)
 	if err != nil {
 		return nil, err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCGroupUDP4Sendmsg, objs.PmonSendmsg4)
 	if err != nil {
 		return nil, err
@@ -320,25 +366,32 @@ func (b *ContainerBpfManager) AttachPmon() (*ringbuf.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCGroupInet6Connect, objs.PmonConnect6)
 	if err != nil {
 		return nil, err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCGroupUDP6Recvmsg, objs.PmonRecvmsg6)
 	if err != nil {
 		return nil, err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCGroupUDP6Sendmsg, objs.PmonSendmsg6)
 	if err != nil {
 		return nil, err
 	}
-
 	err = b.attachOneCg(ebpf.AttachCgroupInetSockRelease, objs.PmonSockRelease)
 	if err != nil {
 		return nil, err
+	}
+
+	if includeNft {
+		err = b.attachOneTracing(objs.NfTablesNewrule)
+		if err != nil {
+			return nil, err
+		}
+		err = b.attachOneTracing(objs.NfTablesDelrule)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	reader, err := ringbuf.NewReader(objs.pmonMaps.NotifyRing)
@@ -350,7 +403,7 @@ func (b *ContainerBpfManager) AttachPmon() (*ringbuf.Reader, error) {
 	return reader, nil
 }
 
-func MonitorPmon(reader *ringbuf.Reader, fn func() error) error {
+func MonitorPmon(reader *ringbuf.Reader, fn func(PmonEvent) error) error {
 	var rec ringbuf.Record
 	for {
 		// read one event
@@ -363,8 +416,14 @@ func MonitorPmon(reader *ringbuf.Reader, fn func() error) error {
 			}
 		}
 
+		// notify event = u8
+		var ev PmonEvent
+		if len(rec.RawSample) > 0 {
+			ev.DirtyFlags = LtypeFlags(rec.RawSample[0])
+		}
+
 		// trigger callback
-		err = fn()
+		err = fn(ev)
 		if err != nil {
 			logrus.WithError(err).Error("pmon callback failed")
 		}

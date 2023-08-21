@@ -64,6 +64,7 @@ type Container struct {
 	lastListeners     []sysnet.ProcListener
 	autofwdDebounce   syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
+	fwdDirtyFlags     uint32
 	agent             atomic.Pointer[agent.Client]
 	bpf               *bpf.ContainerBpfManager
 	ipAddrs           []net.IP
@@ -108,7 +109,8 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 	}
 
 	c.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
-		err := c.updateListenersNow()
+		flags := atomic.SwapUint32(&c.fwdDirtyFlags, 0)
+		err := c.updateListenersNow(bpf.LtypeFlags(flags))
 		if err != nil {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
 		}

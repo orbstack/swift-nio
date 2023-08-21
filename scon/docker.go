@@ -33,6 +33,9 @@ const (
 	ContainerDocker   = "docker"
 	ContainerIDDocker = "01GQQVF6C60000000000DOCKER"
 
+	// currently same
+	ContainerIDK8s = "01GQQVF6C60000000000DOCKER"
+
 	// takes ~3 ms to unfreeze
 	dockerFreezeDebounce = 2 * time.Second
 
@@ -68,9 +71,13 @@ type DockerHooks struct {
 func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, error) {
 	// env from Docker
 	cm.set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+	// use real tmp
+	cm.set("lxc.environment", "TMPDIR=/realtmp")
+	// disable Go SIGURG preemption to reduce wakeups
+	cm.set("lxc.environment", "GODEBUG=asyncpreemptoff=1")
 
 	// dind does some setup and mounts
-	cm.set("lxc.init.cmd", "/usr/local/bin/docker-init -- /docker-entrypoint.sh")
+	cm.set("lxc.init.cmd", "/usr/local/bin/docker-init -- /opt/init")
 
 	// vanity name for k8s node name
 	cm.set("lxc.uts.name", "orbstack")
@@ -111,7 +118,7 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// match docker dind
 	cm.set("lxc.mount.entry", "none dev/shm tmpfs rw,nosuid,nodev,noexec,relatime,size=65536k,create=dir 0 0")
 	// alternate tmpfs because our /tmp is symlinked to /private/tmp
-	cm.set("lxc.mount.entry", "none dockertmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
+	cm.set("lxc.mount.entry", "none realtmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
 	// extra linked path: /System
 	cm.bind(mounts.Virtiofs+"/System", "/System", "")
 
