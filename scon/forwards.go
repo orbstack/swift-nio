@@ -70,8 +70,11 @@ func filterListeners(listeners []sysnet.ListenerInfo, containerIsK8s bool) []sys
 				// 10250 == kubelet metrics
 				// TODO: what's the ephemeral port listening on ::?
 				if l.Port() == ports.HostKubernetes || l.Port() == 10250 {
-					// TODO might cause problems with v4-only clients
-					l.ExtListenAddr = netipIPv6Loopback
+					// mismatch with internal (Which is v6 due to '::' in machine), but it still works fine
+					l.ExtListenAddr = netipIPv4Loopback
+					// and let's pretend that the internal listener is v4, to fix mismatch
+					// dial will still work due to :: tcp46 listener on k8s side
+					l.ListenerKey.AddrPort = netip.AddrPortFrom(netip.IPv4Unspecified(), l.Port())
 				}
 			}
 
@@ -81,6 +84,10 @@ func filterListeners(listeners []sysnet.ListenerInfo, containerIsK8s bool) []sys
 	return filtered
 }
 
+// pstub is, unfortunately, the only way to do this safely, race-free.
+// dockerd starts userland proxy to reserve the port, *before* it adds iptables rules
+// so if we look at iptables too soon, rule won't be there
+// and if we do it later after pmon's nft-change trigger, the forward may already have been set up, so we won't check UseIptables again
 func addContainerIptablesForward(c *Container, spec sysnet.ListenerInfo, internalPort uint16, internalListenIP net.IP) error {
 	var toMachineIP net.IP
 	var err error
@@ -306,7 +313,7 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ListenerInfo
 	}
 
 	// remove iptables acceleration
-	// spec might, so look up by key
+	// spec.UseIptables / pstub state might change, so look up by key and remove it if it exists
 	err = m.net.StopIptablesForward(spec.ListenerKey)
 	if err != nil {
 		return err
