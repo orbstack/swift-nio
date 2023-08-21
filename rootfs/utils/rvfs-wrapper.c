@@ -164,7 +164,6 @@ static int read_elf_info(int fd, struct elf_info *out) {
     }
 
     Elf64_Ehdr *ehdr = file;
-    bool seen_pt_load = false;
     for (int i = 0; i < ehdr->e_phnum; i++) {
         Elf64_Phdr *phdr = file + (ehdr->e_phoff + i * ehdr->e_phentsize); //TODO check bounds
         if (phdr->p_type == PT_INTERP) {
@@ -220,8 +219,6 @@ static int read_elf_info(int fd, struct elf_info *out) {
                     }
                 }
             }
-        } else if (phdr->p_type == PT_LOAD) {
-            seen_pt_load = true;
         }
     }
 

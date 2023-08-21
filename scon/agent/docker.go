@@ -58,10 +58,11 @@ type DockerAgent struct {
 	dirSyncListener net.Listener
 	dirSyncJobs     map[uint64]chan error
 
-	k8s *K8sAgent
+	k8s   *K8sAgent
+	pstub *PstubServer
 }
 
-func NewDockerAgent(isK8s bool) *DockerAgent {
+func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 	dockerAgent := &DockerAgent{
 		// use default unix socket
 		client: dockerclient.NewWithHTTP(&http.Client{
@@ -114,7 +115,19 @@ func NewDockerAgent(isK8s bool) *DockerAgent {
 		}
 	}
 
-	return dockerAgent
+	pstub, err := NewPstubServer()
+	if err != nil {
+		return nil, err
+	}
+	dockerAgent.pstub = pstub
+	go func() {
+		err := pstub.Serve()
+		if err != nil {
+			logrus.WithError(err).Error("pstub server failed")
+		}
+	}()
+
+	return dockerAgent, nil
 }
 
 /*

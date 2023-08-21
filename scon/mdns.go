@@ -208,7 +208,7 @@ func (r *mdnsRegistry) StopServer() error {
 
 func (e mdnsEntry) IPs() []net.IP {
 	if e.machine != nil {
-		ips, err := e.machine.GetIPAddresses()
+		ips, err := e.machine.GetIPAddrs()
 		if err != nil {
 			logrus.WithError(err).WithField("name", e.machine.Name).Error("failed to get machine IPs for DNS")
 			return nil

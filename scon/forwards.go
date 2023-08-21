@@ -74,6 +74,10 @@ func filterListeners(listeners []sysnet.ProcListener) []sysnet.ProcListener {
 	return filtered
 }
 
+func useIptablesForForward() {
+
+}
+
 func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (retErr error) {
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
@@ -146,6 +150,8 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 			}
 		}()
 
+		// enable iptables acceleration if eligible (soft fail)
+
 		// tell host
 		hostForwardSpec = hclient.ForwardSpec{
 			Host:  "tcp:" + net.JoinHostPort(hostListenIP, strconv.Itoa(int(targetPort))),
@@ -187,6 +193,8 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 				}
 			}
 		}()
+
+		// enable iptables acceleration if eligible (soft fail)
 
 		// tell host
 		hostForwardSpec = hclient.ForwardSpec{
@@ -234,6 +242,9 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener
 	if err != nil {
 		return err
 	}
+
+	// remove iptables acceleration
+	//m.net.ToggleIptablesForward()
 
 	// tell agent (our side of listener is already closed)
 	agentSpec := procToAgentSpec(spec)

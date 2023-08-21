@@ -21,7 +21,7 @@ import (
 // this entire thing is a hacky workaround for a VS Code bug
 // https://github.com/microsoft/vscode/issues/168202
 func RunSshAgentProxy(uid int, gid int) error {
-	listener, err := listenUnixWithPerms(mounts.SshAgentProxySocket, 0600, uid, gid)
+	listener, err := util.ListenUnixWithPerms(mounts.SshAgentProxySocket, 0600, uid, gid)
 	if err != nil {
 		return err
 	}

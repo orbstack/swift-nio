@@ -15,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -180,6 +181,25 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 	return cmd.Process, nil
 }
 
+func (n *Network) ToggleIptablesForward(isV6 bool, proto string, internalPort int, internalListenIP net.IP, toMachineIP net.IP, delete bool) error {
+	cmd := "iptables"
+	if isV6 {
+		cmd = "ip6tables"
+	}
+
+	action := "-A"
+	if delete {
+		action = "-D"
+	}
+
+	err := util.Run(cmd, "-t", "nat", action, "PREROUTING", "-i", ifBridge, "-d", internalListenIP.String(), "-p", proto, "--dport", strconv.Itoa(internalPort), "-j", "DNAT", "--to-destination", toMachineIP.String())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (n *Network) Close() error {
 	if n.bridge != nil {
 		err := netlink.LinkDel(n.bridge)
@@ -296,6 +316,12 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 		return nil, err
 	}
 
+	// flush it. we own iptables
+	err = ipt.ClearAll()
+	if err != nil {
+		return nil, err
+	}
+
 	// NAT
 	// filtering by output interface fixes multicast
 	// can't filter by input interface (-i) in POSTROUTING
@@ -344,7 +370,7 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 
 	// add rules
 	for _, rule := range rules {
-		err = ipt.AppendUnique(rule[0], rule[1], rule[2:]...)
+		err = ipt.Append(rule[0], rule[1], rule[2:]...)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +392,7 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 		// iterate in reverse order
 		for i := len(rules) - 1; i >= 0; i-- {
 			rule := rules[i]
-			err := ipt.DeleteIfExists(rule[0], rule[1], rule[2:]...)
+			err := ipt.Delete(rule[0], rule[1], rule[2:]...)
 			if err != nil {
 				errs = append(errs, err)
 			}

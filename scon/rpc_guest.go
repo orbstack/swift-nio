@@ -9,6 +9,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -292,7 +293,7 @@ func ListenSconGuest(m *ConManager) error {
 	}
 
 	// perms: root only (it's only for docker agent)
-	listener, err := listenUnixWithPerms(mounts.SconGuestSocket, 0600, 0, 0)
+	listener, err := util.ListenUnixWithPerms(mounts.SconGuestSocket, 0600, 0, 0)
 	if err != nil {
 		return err
 	}

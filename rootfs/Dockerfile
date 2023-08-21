@@ -89,7 +89,7 @@ RUN <<EOT sh -eux
 mkdir /out /out-guest
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
 gcc -O2 -Wall -static -o /out/rstub /build/rvfs-wrapper.c
-gcc -O2 -Wall -static -o /out-guest/dummy /build/dummy.c
+gcc -O2 -Wall -static -o /out-guest/pstub /build/pstub.c
 strip /out/* /out-guest/*
 
 # append runc.arm64 to rvfs-wrapper

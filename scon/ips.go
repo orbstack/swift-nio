@@ -5,11 +5,45 @@ import (
 	"net"
 )
 
-func (c *Container) GetIPAddresses() ([]net.IP, error) {
+func (c *Container) GetIPAddrs() ([]net.IP, error) {
 	// race is OK as long as it doesn't race with writer (start/stop)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	return c.getIPAddrsLocked()
+}
+
+func (c *Container) GetIP4() (net.IP, error) {
+	ips, err := c.GetIPAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ip := range ips {
+		if ip.To4() != nil {
+			return ip, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no IPv4 address found")
+}
+
+func (c *Container) GetIP6() (net.IP, error) {
+	ips, err := c.GetIPAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ip := range ips {
+		if ip.To4() == nil {
+			return ip, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no IPv6 address found")
+}
+
+func (c *Container) getIPAddrsLocked() ([]net.IP, error) {
 	oldIPs := c.ipAddrs
 	if oldIPs != nil {
 		return oldIPs, nil

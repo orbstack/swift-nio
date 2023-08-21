@@ -15,7 +15,7 @@ const (
 	LinuxExplicit = "/mnt/linux"
 
 	Opt             = "/opt/" + appid.AppName + "-guest"
-	Setctty         = Opt + "/setctty"
+	Pstub           = Opt + "/pstub"
 	Bin             = Opt + "/bin"
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"

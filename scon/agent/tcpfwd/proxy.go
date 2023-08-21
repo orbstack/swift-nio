@@ -13,18 +13,20 @@ var (
 )
 
 type TCPProxy struct {
-	listener net.Listener
-	preferV6 bool
-	port     uint16
-	registry *registry.LocalTCPRegistry
+	listener    net.Listener
+	preferV6    bool
+	port        uint16
+	registry    *registry.LocalTCPRegistry
+	forceDialIP net.IP
 }
 
-func NewTCPProxy(listener net.Listener, preferV6 bool, port uint16, registry *registry.LocalTCPRegistry) *TCPProxy {
+func NewTCPProxy(listener net.Listener, preferV6 bool, port uint16, registry *registry.LocalTCPRegistry, forceDialIP net.IP) *TCPProxy {
 	return &TCPProxy{
-		listener: listener,
-		preferV6: preferV6,
-		port:     port,
-		registry: registry,
+		listener:    listener,
+		preferV6:    preferV6,
+		port:        port,
+		registry:    registry,
+		forceDialIP: forceDialIP,
 	}
 }
 
@@ -41,7 +43,7 @@ func (p *TCPProxy) Run() error {
 
 func (p *TCPProxy) handleConn(conn net.Conn) {
 	// try bypass -> local registry
-	if p.registry.TakeConn(p.port, conn) {
+	if p.registry != nil && p.registry.TakeConn(p.port, conn) {
 		logrus.WithField("port", p.port).Debug("bypassing local registry")
 		return
 	}
@@ -60,6 +62,9 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 		dialAddr.IP = ipv4Loopback
 		otherIP = net.IPv6loopback
 	}
+	if p.forceDialIP != nil {
+		dialAddr.IP = p.forceDialIP
+	}
 
 	dialConn, err := netx.DialTCP("tcp", nil, &dialAddr)
 	if err != nil {
@@ -67,11 +72,15 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 
 		// if conn refused (i.e. no listener) but our proxy is still registered,
 		// try dialing the other v4/v6 protocol
-		dialAddr.IP = otherIP
-		logrus.WithField("dialAddr", dialAddr).Debug("retrying with other protocol")
-		dialConn, err = netx.DialTCP("tcp", nil, &dialAddr)
-		if err != nil {
-			logrus.WithError(err).Error("failed to dial local (2)")
+		if p.forceDialIP == nil {
+			dialAddr.IP = otherIP
+			logrus.WithField("dialAddr", dialAddr).Debug("retrying with other protocol")
+			dialConn, err = netx.DialTCP("tcp", nil, &dialAddr)
+			if err != nil {
+				logrus.WithError(err).Error("failed to dial local (2)")
+				return
+			}
+		} else {
 			return
 		}
 	}

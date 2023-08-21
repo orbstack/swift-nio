@@ -2,9 +2,9 @@ package main
 
 import (
 	"net"
-	"os"
 
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 )
@@ -14,30 +14,9 @@ type HostServiceProxy struct {
 	connectAddr *net.TCPAddr
 }
 
-func listenUnixWithPerms(path string, perms os.FileMode, uid, gid int) (net.Listener, error) {
-	_ = os.Remove(path)
-
-	listener, err := net.Listen("unix", path)
-	if err != nil {
-		return nil, err
-	}
-
-	err = os.Chmod(path, perms)
-	if err != nil {
-		return nil, err
-	}
-
-	err = os.Chown(path, uid, gid)
-	if err != nil {
-		return nil, err
-	}
-
-	return listener, nil
-}
-
 func NewHostServiceProxy(unixPath string, port int, socketUidGid int) (*HostServiceProxy, error) {
 	// security: chmod 600 and chown to default user uid/gid
-	listener, err := listenUnixWithPerms(unixPath, 0600, socketUidGid, socketUidGid)
+	listener, err := util.ListenUnixWithPerms(unixPath, 0600, socketUidGid, socketUidGid)
 	if err != nil {
 		return nil, err
 	}
