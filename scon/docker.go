@@ -82,28 +82,6 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// vanity name for k8s node name
 	cm.set("lxc.uts.name", "orbstack")
 
-	// create docker data dirs in case it was deleted
-	err := os.MkdirAll(conf.C().DockerDataDir, 0755)
-	if err != nil {
-		return "", fmt.Errorf("create docker data: %w", err)
-	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/cni", 0755)
-	if err != nil {
-		return "", fmt.Errorf("create k8s data: %w", err)
-	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/kubelet", 0755)
-	if err != nil {
-		return "", fmt.Errorf("create k8s data: %w", err)
-	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/k3s", 0755)
-	if err != nil {
-		return "", fmt.Errorf("create k8s data: %w", err)
-	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/etc-node", 0755)
-	if err != nil {
-		return "", fmt.Errorf("create k8s data: %w", err)
-	}
-
 	// mounts
 	// data
 	cm.bind(conf.C().DockerDataDir, "/var/lib/docker", "")
@@ -354,6 +332,21 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	err = fs.Symlink("/usr/share/zoneinfo/"+hostTimezone, "/etc/localtime")
 	if err != nil {
 		logrus.WithError(err).Error("failed to symlink localtime")
+	}
+
+	// enable or disable k8s service
+	if c.manager.k8sEnabled {
+		_ = fs.Remove("/opt/.orb_service1")
+	} else {
+		k8sCmd := "k3s server --disable metrics-server,traefik --https-listen-port 26443 --lb-server-port 26444 --docker --container-runtime-endpoint /var/run/docker.sock --protect-kernel-defaults --flannel-backend host-gw --write-kubeconfig /run/kubeconfig.yml"
+		if conf.Debug() {
+			k8sCmd += " --enable-pprof"
+		}
+
+		err = fs.WriteFile("/opt/.orb_service1", []byte(k8sCmd), 0644)
+		if err != nil {
+			return err
+		}
 	}
 
 	// create docker data dir in case it was deleted

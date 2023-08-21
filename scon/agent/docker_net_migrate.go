@@ -15,7 +15,7 @@ const (
 	// from documentation test net 2
 	// just temp, not actually used
 	DockerNetMigrationBip  = "203.0.113.97/24"
-	DockerNetMigrationFlag = "/etc/docker/.orb_migrate_networks"
+	DockerNetMigrationFlag = "/opt/.orb_migrate_networks"
 )
 
 func checkIPAMConflict(ipam dockertypes.IPAM, target netip.Prefix) (bool, error) {

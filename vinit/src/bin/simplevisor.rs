@@ -30,6 +30,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         })
         .collect::<Vec<_>>();
+    let mut is_shutting_down = false;
 
     // forward all signals to children
     let mut signals = Signals::new(&[
@@ -64,9 +65,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     if let Some(status) = child.process.try_wait()? {
                         // we exit as soon as a child does
                         // this covers cases of dockerd and k8s crashing
-                        // and on shutdown, dockerd should exit first, so we exit faster. k8s would take a while
+                        // but on orderly shutdown (SIGTERM) we want to wait for dockerd. k8s shuts down faster
                         println!(" [*] service {} exited with {}", i, status);
-                        std::process::exit(status.code().unwrap_or(1));
+                        if !is_shutting_down || i == 0 {
+                            std::process::exit(status.code().unwrap_or(1));
+                        }
                     }
                 }
             }
@@ -91,6 +94,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // forward signal to children
                 for child in children.iter_mut() {
                     kill(Pid::from_raw(child.process.id() as i32), Some(Signal::try_from(signal)?))?;
+                }
+
+                if signal == signal_hook::consts::SIGTERM {
+                    is_shutting_down = true;
                 }
             }
         }
