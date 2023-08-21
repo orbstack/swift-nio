@@ -14,34 +14,56 @@ const (
 	cTCPListen = 10
 	cUDPListen = 7 // ??? don't know where this comes from
 
-	ProtoTCP  = "tcp"
 	protoTCP6 = "tcp6"
-	ProtoUDP  = "udp"
 	protoUDP6 = "udp6"
 )
 
-var allProtos = []string{ProtoTCP, protoTCP6, ProtoUDP, protoUDP6}
+var allProcProtos = []string{string(ProtoTCP), protoTCP6, string(ProtoUDP), protoUDP6}
 
-type ProcListener struct {
-	Addr  netip.Addr
-	Port  uint16
-	Proto string
+type TransportProtocol string
+
+const (
+	ProtoUDP TransportProtocol = "udp"
+	ProtoTCP TransportProtocol = "tcp"
+)
+
+type ListenerInfo struct {
+	ListenerKey
+
+	// if it's docker forward or k8s
+	UseIptables bool
+	// optional: override for macOS side
+	ExtListenAddr netip.Addr
 }
 
-func (p *ProcListener) String() string {
-	return p.Proto + "://" + net.JoinHostPort(p.Addr.String(), strconv.Itoa(int(p.Port)))
+func (i *ListenerInfo) Identifier() ListenerKey {
+	return i.ListenerKey
 }
 
-func (p *ProcListener) HostListenIP() string {
-	if p.Addr.Is4() {
-		if p.Addr.IsLoopback() {
+type ListenerKey struct {
+	netip.AddrPort
+	Proto TransportProtocol
+}
+
+func (k ListenerKey) String() string {
+	return string(k.Proto) + ":" + k.AddrPort.String()
+}
+
+func (i ListenerInfo) HostListenIP() string {
+	// prefer ExtListenAddr
+	if i.ExtListenAddr.IsValid() {
+		return i.ExtListenAddr.String()
+	}
+
+	if i.Addr().Is4() {
+		if i.Addr().IsLoopback() {
 			return "127.0.0.1"
 		}
 		return "0.0.0.0"
 	}
 
 	// IPv6
-	if p.Addr.IsLoopback() {
+	if i.Addr().IsLoopback() {
 		return "::1"
 	}
 	return "::"
@@ -72,12 +94,12 @@ func parseHexAddr(addr string) (net.IP, uint16, error) {
 	return net.IP(addrBytes), uint16(port), nil
 }
 
-func parseProcNet(data string, proto string) ([]ProcListener, error) {
-	listeners := make([]ProcListener, 0)
+func parseProcNet(data string, proto string) ([]ListenerInfo, error) {
+	listeners := make([]ListenerInfo, 0)
 	lines := strings.Split(data, "\n")[1:] // skip header
 
 	expectState := cTCPListen
-	if proto == ProtoUDP || proto == protoUDP6 {
+	if proto == string(ProtoUDP) || proto == protoUDP6 {
 		expectState = cUDPListen
 	}
 
@@ -119,20 +141,21 @@ func parseProcNet(data string, proto string) ([]ProcListener, error) {
 		}
 
 		// don't care about remote addr - it's always 00000000:0000
-		listeners = append(listeners, ProcListener{
-			Addr:  localNetip,
-			Port:  localPort,
-			Proto: strings.TrimSuffix(proto, "6"),
+		listeners = append(listeners, ListenerInfo{
+			ListenerKey: ListenerKey{
+				AddrPort: netip.AddrPortFrom(localNetip, localPort),
+				Proto:    TransportProtocol(strings.TrimSuffix(proto, "6")),
+			},
 		})
 	}
 
 	return listeners, nil
 }
 
-func ReadAllProcNet(pid string) ([]ProcListener, error) {
-	var listeners []ProcListener
+func ReadAllProcNet(pid string) ([]ListenerInfo, error) {
+	var listeners []ListenerInfo
 
-	for _, proto := range allProtos {
+	for _, proto := range allProcProtos {
 		data, err := os.ReadFile("/proc/" + pid + "/net/" + proto)
 		if err != nil {
 			return nil, err

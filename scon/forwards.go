@@ -15,10 +15,10 @@ import (
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/syncx"
-	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/sirupsen/logrus"
 )
 
@@ -42,40 +42,66 @@ type ForwardState struct {
 	HostForwardSpec hclient.ForwardSpec
 }
 
-func procToAgentSpec(p sysnet.ProcListener) agent.ProxySpec {
+func procToAgentSpec(p sysnet.ListenerInfo) agent.ProxySpec {
 	return agent.ProxySpec{
-		IsIPv6: p.Addr.Is6(),
-		Port:   p.Port,
+		IsIPv6: p.Addr().Is6(),
+		Port:   p.Port(),
 	}
 }
 
-func filterListener(l sysnet.ProcListener) bool {
+func filterListener(l sysnet.ListenerInfo) bool {
 	// remove DHCP client, mDNS, and LLMNR
 	// mDNS won't work b/c mDNSResponder occupies it on macOS
-	if l.Proto == sysnet.ProtoUDP && (l.Port == portDHCPClient || l.Port == portMDNS || l.Port == portLLMNR) {
+	if l.Proto == sysnet.ProtoUDP && (l.Port() == portDHCPClient || l.Port() == portMDNS || l.Port() == portLLMNR) {
 		return false
 	}
 
 	// only forward 0.0.0.0/:: and 127.0.0.1/::1
 	// so this excludes systemd-resolved, bridge-only, etc.
-	return l.Addr == netipIPv4Loopback || l.Addr == netipIPv6Loopback || l.Addr.IsUnspecified()
+	return l.Addr() == netipIPv4Loopback || l.Addr() == netipIPv6Loopback || l.Addr().IsUnspecified()
 }
 
-func filterListeners(listeners []sysnet.ProcListener) []sysnet.ProcListener {
-	var filtered []sysnet.ProcListener
+func filterListeners(listeners []sysnet.ListenerInfo, containerIsK8s bool) []sysnet.ListenerInfo {
+	var filtered []sysnet.ListenerInfo
 	for _, l := range listeners {
 		if filterListener(l) {
+			// special case: k8s port should have ext listen addr of localhost
+			if containerIsK8s {
+				// 10250 == kubelet metrics
+				// TODO: what's the ephemeral port listening on ::?
+				if l.Port() == ports.HostKubernetes || l.Port() == 10250 {
+					// TODO might cause problems with v4-only clients
+					l.ExtListenAddr = netipIPv6Loopback
+				}
+			}
+
 			filtered = append(filtered, l)
 		}
 	}
 	return filtered
 }
 
-func useIptablesForForward() {
+func addContainerIptablesForward(c *Container, spec sysnet.ListenerInfo, internalPort uint16, internalListenIP net.IP) error {
+	var toMachineIP net.IP
+	var err error
+	if spec.Addr().Is4() {
+		toMachineIP, err = c.getIP4Locked()
+	} else {
+		toMachineIP, err = c.getIP6Locked()
+	}
+	if err != nil {
+		return fmt.Errorf("get container IP: %w", err)
+	}
 
+	err = c.manager.net.StartIptablesForward(spec.ListenerKey, internalPort, internalListenIP, toMachineIP)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (retErr error) {
+func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (retErr error) {
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
 		"spec":      spec,
@@ -85,27 +111,27 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 	defer m.forwardsMu.Unlock()
 
 	// already there?
-	if _, ok := m.forwards[spec]; ok {
+	if _, ok := m.forwards[spec.ListenerKey]; ok {
 		return errors.New("forward already exists")
 	}
 
 	// block port on container side
 	if c.bpf != nil {
-		err := c.bpf.LfwdBlockPort(spec.Port)
+		err := c.bpf.LfwdBlockPort(spec.Port())
 		if err != nil {
 			return err
 		}
 		defer func() {
 			if retErr != nil {
-				c.bpf.LfwdUnblockPort(spec.Port)
+				c.bpf.LfwdUnblockPort(spec.Port())
 			}
 		}()
 	}
 
-	targetPort := spec.Port // container and external macOS port are the same
+	targetPort := spec.Port() // container and external macOS port are the same
 	agentSpec := procToAgentSpec(spec)
 	var internalListenIP net.IP
-	if spec.Addr.Is4() {
+	if spec.Addr().Is4() {
 		internalListenIP = util.DefaultAddress4()
 	} else {
 		internalListenIP = util.DefaultAddress6()
@@ -127,10 +153,13 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		internalPort = uint16(listener.Addr().(*net.TCPAddr).Port)
 
 		// pass to agent
+		var agentResult agent.ProxyResult
 		err = c.useAgentLocked(func(a *agent.Client) error {
-			return a.StartProxyTCP(agentSpec, listener)
+			r, err := a.StartProxyTCP(agentSpec, listener)
+			agentResult = r
+			return err
 		})
-		// if it succeeded, we don't need this anymore
+		// if it succeeded, we don't need this anymore. agent has the fd
 		// if it failed, we need to close it to prevent a leak
 		listener.Close()
 		if err != nil {
@@ -148,6 +177,22 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		}()
 
 		// enable iptables acceleration if eligible (soft fail)
+		// if we do this later, first conn could be slow
+		if spec.UseIptables || agentResult.IsDockerPstub {
+			err = addContainerIptablesForward(c, spec, internalPort, internalListenIP)
+			if err != nil {
+				logrus.WithError(err).Error("failed to add iptables forward")
+			} else {
+				defer func() {
+					if retErr != nil {
+						err2 := m.net.StopIptablesForward(spec.ListenerKey)
+						if err2 != nil {
+							logrus.WithError(err2).Error("failed to stop iptables forward after error")
+						}
+					}
+				}()
+			}
+		}
 
 		// tell host
 		hostForwardSpec = hclient.ForwardSpec{
@@ -171,8 +216,11 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		internalPort = uint16(listener.LocalAddr().(*net.UDPAddr).Port)
 
 		// pass to agent
+		var agentResult agent.ProxyResult
 		err = c.useAgentLocked(func(a *agent.Client) error {
-			return a.StartProxyUDP(agentSpec, listener)
+			r, err := a.StartProxyUDP(agentSpec, listener)
+			agentResult = r
+			return err
 		})
 		// if it succeeded, we don't need this anymore
 		// if it failed, we need to close it to prevent a leak
@@ -192,6 +240,23 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		}()
 
 		// enable iptables acceleration if eligible (soft fail)
+		// if we do this later, first conn could be slow
+		// this is especially important for UDP because userspace UDP proxy is subject to timeouts
+		if spec.UseIptables || agentResult.IsDockerPstub {
+			err = addContainerIptablesForward(c, spec, internalPort, internalListenIP)
+			if err != nil {
+				logrus.WithError(err).Error("failed to add iptables forward")
+			} else {
+				defer func() {
+					if retErr != nil {
+						err2 := m.net.StopIptablesForward(spec.ListenerKey)
+						if err2 != nil {
+							logrus.WithError(err2).Error("failed to stop iptables forward after error")
+						}
+					}
+				}()
+			}
+		}
 
 		// tell host
 		hostForwardSpec = hclient.ForwardSpec{
@@ -204,7 +269,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 		}
 	}
 
-	m.forwards[spec] = ForwardState{
+	m.forwards[spec.ListenerKey] = ForwardState{
 		Owner:           c,
 		InternalPort:    internalPort,
 		HostForwardSpec: hostForwardSpec,
@@ -219,14 +284,14 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ProcListener) (
 	return nil
 }
 
-func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener) error {
+func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ListenerInfo) error {
 	logrus.WithField("spec", spec).Info("remove forward")
 
 	m.forwardsMu.Lock()
 	defer m.forwardsMu.Unlock()
 
 	// check owner
-	state, ok := m.forwards[spec]
+	state, ok := m.forwards[spec.ListenerKey]
 	if !ok {
 		return errors.New("forward does not exist")
 	}
@@ -241,7 +306,11 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener
 	}
 
 	// remove iptables acceleration
-	//m.net.ToggleIptablesForward()
+	// spec might, so look up by key
+	err = m.net.StopIptablesForward(spec.ListenerKey)
+	if err != nil {
+		return err
+	}
 
 	// tell agent (our side of listener is already closed)
 	agentSpec := procToAgentSpec(spec)
@@ -263,13 +332,13 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ProcListener
 
 	// unblock port on container side
 	if c.bpf != nil {
-		err := c.bpf.LfwdUnblockPort(spec.Port)
+		err := c.bpf.LfwdUnblockPort(spec.Port())
 		if err != nil {
 			logrus.WithField("container", c.Name).WithError(err).Error("failed to unblock port")
 		}
 	}
 
-	delete(m.forwards, spec)
+	delete(m.forwards, spec.ListenerKey)
 	return nil
 }
 
@@ -283,9 +352,9 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	return out
 }
 
-func (c *Container) readIptablesListeners(listeners []sysnet.ProcListener) ([]sysnet.ProcListener, error) {
+func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo) ([]sysnet.ListenerInfo, error) {
 	// join container netns
-	return withContainerNetns(c, func() ([]sysnet.ProcListener, error) {
+	return withContainerNetns(c, func() ([]sysnet.ListenerInfo, error) {
 		// faster than coreos iptables
 		nodeportRulesStr, err := util.RunWithOutput("iptables", "-t", "nat", "-S", "KUBE-NODEPORTS")
 		if err != nil {
@@ -329,17 +398,46 @@ func (c *Container) readIptablesListeners(listeners []sysnet.ProcListener) ([]sy
 			}
 
 			// add listener to list
-			listeners = append(listeners, sysnet.ProcListener{
-				Proto: proto,
+			listeners = append(listeners, sysnet.ListenerInfo{
 				// nodeports are technically always 0.0.0.0 b/c of how we configured kube-proxy
 				// but let's restrict them to localhost for security
-				Addr: netip.AddrFrom4([4]byte{127, 0, 0, 1}),
-				Port: uint16(port),
+				ListenerKey: sysnet.ListenerKey{
+					AddrPort: netip.AddrPortFrom(netip.IPv4Unspecified(), uint16(port)),
+					Proto:    sysnet.TransportProtocol(proto),
+				},
+				// always safe b/c 0.0.0.0 and source IP already lost
+				UseIptables:   true,
+				ExtListenAddr: netipIPv4Loopback,
 			})
 		}
 
 		return listeners, nil
 	})
+}
+
+// workaround for generics not working for value types
+func diffSlicesListenerKey(old, new []sysnet.ListenerInfo) (added, removed []sysnet.ListenerInfo) {
+	oldMap := make(map[sysnet.ListenerKey]struct{})
+	for _, item := range old {
+		oldMap[item.Identifier()] = struct{}{}
+	}
+	newMap := make(map[sysnet.ListenerKey]struct{})
+	for _, item := range new {
+		newMap[item.Identifier()] = struct{}{}
+	}
+
+	for _, newItem := range new {
+		if _, ok := oldMap[newItem.Identifier()]; !ok {
+			added = append(added, newItem)
+		}
+	}
+	for _, oldItem := range old {
+		if _, ok := newMap[oldItem.Identifier()]; !ok {
+			removed = append(removed, oldItem)
+		}
+	}
+
+	return
 }
 
 // triggered by bpf pmon
@@ -372,17 +470,17 @@ func (c *Container) updateListenersNow(dirtyFlags bpf.LtypeFlags) error {
 		}
 	}
 
-	listeners = filterListeners(listeners)
+	listeners = filterListeners(listeners, c.ID == ContainerIDK8s)
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
 		"listeners": listeners,
 	}).Debug("update listeners")
 
-	added, removed := util.DiffSlices(c.lastListeners, listeners)
+	added, removed := diffSlicesListenerKey(c.lastListeners, listeners)
 
 	var errs []error
-	var notAdded []sysnet.ProcListener
-	var notRemoved []sysnet.ProcListener
+	var notAdded []sysnet.ListenerInfo
+	var notRemoved []sysnet.ListenerInfo
 	for _, listener := range added {
 		err := c.manager.addForwardCLocked(c, listener)
 		if err != nil {

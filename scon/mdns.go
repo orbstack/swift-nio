@@ -47,8 +47,6 @@ const (
 
 var (
 	nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
-	sconSubnet4 = mustParseCIDR(netconf.SconSubnet4CIDR)
-	sconSubnet6 = mustParseCIDR(netconf.SconSubnet6CIDR)
 )
 
 func mustParseCIDR(s string) *net.IPNet {
@@ -214,15 +212,7 @@ func (e mdnsEntry) IPs() []net.IP {
 			return nil
 		}
 
-		// only return the IPs we issued
-		// otherwise all the Docker gateway IPs get returned
-		var newIPs []net.IP
-		for _, ip := range ips {
-			if sconSubnet4.Contains(ip) || sconSubnet6.Contains(ip) {
-				newIPs = append(newIPs, ip)
-			}
-		}
-		return newIPs
+		return ips
 	} else {
 		return e.ips
 	}

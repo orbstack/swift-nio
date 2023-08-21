@@ -5,9 +5,14 @@ import (
 
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
+	"github.com/orbstack/macvirt/scon/util/sysnet"
 )
 
-func (a *AgentServer) StartProxyTCP(args StartProxyArgs, _ *None) error {
+type ProxyResult struct {
+	IsDockerPstub bool
+}
+
+func (a *AgentServer) StartProxyTCP(args StartProxyArgs, reply *ProxyResult) error {
 	spec := args.ProxySpec
 	listenerFd, err := a.fdx.RecvFile(args.FdxSeq)
 	if err != nil {
@@ -27,10 +32,13 @@ func (a *AgentServer) StartProxyTCP(args StartProxyArgs, _ *None) error {
 	a.tcpProxies[spec] = proxy
 	go proxy.Run()
 
+	*reply = ProxyResult{
+		IsDockerPstub: a.docker != nil && a.docker.pstub.OwnsWildcardSpec(spec, sysnet.ProtoTCP),
+	}
 	return nil
 }
 
-func (a *AgentServer) StartProxyUDP(args StartProxyArgs, _ *None) error {
+func (a *AgentServer) StartProxyUDP(args StartProxyArgs, reply *ProxyResult) error {
 	spec := args.ProxySpec
 	listenerFd, err := a.fdx.RecvFile(args.FdxSeq)
 	if err != nil {
@@ -50,6 +58,9 @@ func (a *AgentServer) StartProxyUDP(args StartProxyArgs, _ *None) error {
 	a.udpProxies[spec] = proxy
 	go proxy.Run()
 
+	*reply = ProxyResult{
+		IsDockerPstub: a.docker != nil && a.docker.pstub.OwnsWildcardSpec(spec, sysnet.ProtoUDP),
+	}
 	return nil
 }
 

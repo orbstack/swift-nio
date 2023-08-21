@@ -3,6 +3,16 @@ package main
 import (
 	"fmt"
 	"net"
+
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+)
+
+var (
+	sconSubnet4 = mustParseCIDR(netconf.SconSubnet4CIDR)
+	sconSubnet6 = mustParseCIDR(netconf.SconSubnet6CIDR)
+
+	sconDocker4 = net.ParseIP(netconf.SconDockerIP4)
+	sconDocker6 = net.ParseIP(netconf.SconDockerIP6)
 )
 
 func (c *Container) GetIPAddrs() ([]net.IP, error) {
@@ -13,8 +23,13 @@ func (c *Container) GetIPAddrs() ([]net.IP, error) {
 	return c.getIPAddrsLocked()
 }
 
-func (c *Container) GetIP4() (net.IP, error) {
-	ips, err := c.GetIPAddrs()
+func (c *Container) getIP4Locked() (net.IP, error) {
+	// fastpath
+	if c.ID == ContainerIDDocker {
+		return sconDocker4, nil
+	}
+
+	ips, err := c.getIPAddrsLocked()
 	if err != nil {
 		return nil, err
 	}
@@ -28,8 +43,13 @@ func (c *Container) GetIP4() (net.IP, error) {
 	return nil, fmt.Errorf("no IPv4 address found")
 }
 
-func (c *Container) GetIP6() (net.IP, error) {
-	ips, err := c.GetIPAddrs()
+func (c *Container) getIP6Locked() (net.IP, error) {
+	// fastpath
+	if c.ID == ContainerIDDocker {
+		return sconDocker6, nil
+	}
+
+	ips, err := c.getIPAddrsLocked()
 	if err != nil {
 		return nil, err
 	}
@@ -56,11 +76,15 @@ func (c *Container) getIPAddrsLocked() ([]net.IP, error) {
 
 	newIPs := make([]net.IP, 0, len(ipStrs))
 	for _, ipStr := range ipStrs {
-		parsed := net.ParseIP(ipStr)
-		if parsed == nil {
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
 			return nil, fmt.Errorf("invalid IP address %q", ipStr)
 		}
-		newIPs = append(newIPs, parsed)
+		// only return the IPs we issued
+		// otherwise all the Docker gateway IPs get returned
+		if sconSubnet4.Contains(ip) || sconSubnet6.Contains(ip) {
+			newIPs = append(newIPs, ip)
+		}
 	}
 
 	// if less than 2 ips (v4 and v6), don't cache it. this is a bad read

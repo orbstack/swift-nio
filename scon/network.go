@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-iptables/iptables"
@@ -16,6 +17,7 @@ import (
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -49,12 +51,22 @@ type Network struct {
 	dataDir        string
 
 	mdnsRegistry *mdnsRegistry
+
+	iptablesMu  sync.Mutex
+	iptForwards map[sysnet.ListenerKey]iptablesForwardMeta
+}
+
+type iptablesForwardMeta struct {
+	internalPort     uint16
+	internalListenIP net.IP
+	toMachineIP      net.IP
 }
 
 func NewNetwork(dataDir string, host *hclient.Client) *Network {
 	return &Network{
 		dataDir:      dataDir,
 		mdnsRegistry: newMdnsRegistry(host),
+		iptForwards:  make(map[sysnet.ListenerKey]iptablesForwardMeta),
 	}
 }
 
@@ -181,22 +193,58 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 	return cmd.Process, nil
 }
 
-func (n *Network) ToggleIptablesForward(isV6 bool, proto string, internalPort int, internalListenIP net.IP, toMachineIP net.IP, delete bool) error {
+func (n *Network) toggleIptablesForward(action string, key sysnet.ListenerKey, meta iptablesForwardMeta) error {
 	cmd := "iptables"
-	if isV6 {
+	if key.Addr().Is6() {
 		cmd = "ip6tables"
 	}
 
-	action := "-A"
-	if delete {
-		action = "-D"
-	}
-
-	err := util.Run(cmd, "-t", "nat", action, "PREROUTING", "-i", ifBridge, "-d", internalListenIP.String(), "-p", proto, "--dport", strconv.Itoa(internalPort), "-j", "DNAT", "--to-destination", toMachineIP.String())
+	err := util.Run(cmd, "-t", "nat", action, "PREROUTING", "-i", ifVnet, "-d", meta.internalListenIP.String(), "-p", string(key.Proto), "--dport", strconv.Itoa(int(meta.internalPort)), "-j", "DNAT", "--to-destination", net.JoinHostPort(meta.toMachineIP.String(), strconv.Itoa(int(key.Port()))))
 	if err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (n *Network) StartIptablesForward(key sysnet.ListenerKey, internalPort uint16, internalListenIP net.IP, toMachineIP net.IP) error {
+	n.iptablesMu.Lock()
+	defer n.iptablesMu.Unlock()
+
+	if _, ok := n.iptForwards[key]; ok {
+		return fmt.Errorf("iptables forward already exists: %s", key)
+	}
+
+	meta := iptablesForwardMeta{
+		internalPort:     internalPort,
+		internalListenIP: internalListenIP,
+		toMachineIP:      toMachineIP,
+	}
+	err := n.toggleIptablesForward("-A", key, meta)
+	if err != nil {
+		return err
+	}
+
+	n.iptForwards[key] = meta
+	return nil
+}
+
+func (n *Network) StopIptablesForward(key sysnet.ListenerKey) error {
+	n.iptablesMu.Lock()
+	defer n.iptablesMu.Unlock()
+
+	meta, ok := n.iptForwards[key]
+	if !ok {
+		// normal - we always go through this path
+		return nil
+	}
+
+	err := n.toggleIptablesForward("-D", key, meta)
+	if err != nil {
+		return err
+	}
+
+	delete(n.iptForwards, key)
 	return nil
 }
 

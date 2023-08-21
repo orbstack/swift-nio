@@ -473,7 +473,7 @@ type DockerProxy struct {
 }
 
 func (m *ConManager) startDockerProxy() error {
-	l, err := netx.ListenTCP("tcp4", &net.TCPAddr{
+	l, err := netx.ListenTCP("tcp", &net.TCPAddr{
 		// NIC interface, port 2375
 		IP:   util.DefaultAddress4(),
 		Port: ports.GuestDocker,

@@ -56,7 +56,7 @@ type ConManager struct {
 	k8sEnabled bool
 
 	// auto forward
-	forwards   map[sysnet.ProcListener]ForwardState
+	forwards   map[sysnet.ListenerKey]ForwardState
 	forwardsMu syncx.Mutex
 
 	// nfs
@@ -139,7 +139,7 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		host: hc,
 		bpf:  bpfMgr,
 
-		forwards: make(map[sysnet.ProcListener]ForwardState),
+		forwards: make(map[sysnet.ListenerKey]ForwardState),
 
 		nfsRoot:        newNfsMirror(nfsDirRoot, true),
 		nfsForMachines: newNfsMirror(nfsDirForMachines, false),
@@ -226,9 +226,6 @@ func (m *ConManager) Start() error {
 	go runOne("guest RPC server", func() error {
 		return ListenSconGuest(m)
 	})
-
-	// periodic tasks
-	go m.runWatchdogGC()
 
 	// start all pending containers
 	for _, c := range pendingStarts {

@@ -54,54 +54,54 @@ func (c *Client) Ping() error {
 	return c.rpc.Call("a.Ping", none, &none)
 }
 
-func (c *Client) StartProxyTCP(spec ProxySpec, listener net.Listener) error {
+func (c *Client) StartProxyTCP(spec ProxySpec, listener net.Listener) (ProxyResult, error) {
 	// send fd
 	file, err := listener.(*netx.TCPListener).File()
 	if err != nil {
-		return err
+		return ProxyResult{}, err
 	}
 	defer file.Close() // this is a dup
 
 	seq, err := c.fdx.SendFile(file)
 	if err != nil {
-		return err
+		return ProxyResult{}, err
 	}
 
-	var none None
+	var reply ProxyResult
 	err = c.rpc.Call("a.StartProxyTCP", StartProxyArgs{
 		ProxySpec: spec,
 		FdxSeq:    seq,
-	}, &none)
+	}, &reply)
 	if err != nil {
-		return err
+		return ProxyResult{}, err
 	}
 
-	return nil
+	return reply, nil
 }
 
-func (c *Client) StartProxyUDP(spec ProxySpec, listener net.Conn) error {
+func (c *Client) StartProxyUDP(spec ProxySpec, listener net.Conn) (ProxyResult, error) {
 	// send fd
 	file, err := listener.(*net.UDPConn).File()
 	if err != nil {
-		return err
+		return ProxyResult{}, err
 	}
 	defer file.Close() // this is a dup
 
 	seq, err := c.fdx.SendFile(file)
 	if err != nil {
-		return err
+		return ProxyResult{}, err
 	}
 
-	var none None
+	var reply ProxyResult
 	err = c.rpc.Call("a.StartProxyUDP", StartProxyArgs{
 		ProxySpec: spec,
 		FdxSeq:    seq,
-	}, &none)
+	}, &reply)
 	if err != nil {
-		return err
+		return ProxyResult{}, err
 	}
 
-	return nil
+	return reply, nil
 }
 
 func (c *Client) StopProxyTCP(spec ProxySpec) error {
