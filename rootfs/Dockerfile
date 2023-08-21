@@ -186,7 +186,7 @@ mkdir /dockertmp
 EOT
 
 # sets up ipv6 nat
-COPY rootfs/utils/docker-entrypoint.sh /
+COPY rootfs/utils/docker-init.sh /opt/init
 
 
 

@@ -417,9 +417,8 @@ func MonitorPmon(reader *ringbuf.Reader, fn func(PmonEvent) error) error {
 		}
 
 		// notify event = u8
-		var ev PmonEvent
-		if len(rec.RawSample) > 0 {
-			ev.DirtyFlags = LtypeFlags(rec.RawSample[0])
+		ev := PmonEvent{
+			DirtyFlags: LtypeFlags(rec.RawSample[0]),
 		}
 
 		// trigger callback
