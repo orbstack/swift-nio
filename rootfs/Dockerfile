@@ -137,7 +137,7 @@ mkdir /work
 cd /work
 wget -O docker.tar.gz "https://download.docker.com/linux/static/stable/\$(uname -m)/docker-24.0.5.tgz"
 tar -xvf docker.tar.gz
-mv docker/dockerd docker/docker-init docker/docker-proxy /usr/local/bin/
+mv docker/dockerd docker/docker-init /usr/local/bin/
 
 cd /
 rm -rf /work
