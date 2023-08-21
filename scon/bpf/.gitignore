@@ -1,2 +1,3 @@
 lfwd_*.go
 *.o
+vmlinux.h

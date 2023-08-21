@@ -6,6 +6,10 @@ scli:
 	@mkdir -p ../out
 	@go build -o ../out/scli ./cmd/scli
 
+# cat buffering improves speed a lot on virtiofs
+bpf/vmlinux.h: /sys/kernel/btf/vmlinux
+	@bpftool btf dump file /sys/kernel/btf/vmlinux format c | cat > bpf/vmlinux.h
+
 bpf/bnat_%: bpf/src/bnat.c
 	@go generate ./bpf
 
