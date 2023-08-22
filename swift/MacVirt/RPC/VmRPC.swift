@@ -94,6 +94,10 @@ class VmService: RPCService {
         try await invoke("DockerContainerStop", params: IDRequest(id: id))
     }
 
+    func dockerContainerKill(_ id: String) async throws {
+        try await invoke("DockerContainerKill", params: IDRequest(id: id))
+    }
+
     func dockerContainerRestart(_ id: String) async throws {
         try await invoke("DockerContainerRestart", params: IDRequest(id: id))
     }

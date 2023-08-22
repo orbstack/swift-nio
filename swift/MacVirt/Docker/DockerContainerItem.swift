@@ -139,14 +139,14 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     Button(action: {
                         finishStop()
                     }) {
-                        Label("Stop", systemImage: "stop.fill")
+                        Label("Stop", systemImage: "")
                     }
                     .disabled(actionInProgress != nil)
                 } else {
                     Button(action: {
                         finishStart()
                     }) {
-                        Label("Start", systemImage: "start.fill")
+                        Label("Start", systemImage: "")
                     }
                     .disabled(actionInProgress != nil)
                 }
@@ -154,16 +154,23 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 Button(action: {
                     finishRestart()
                 }) {
-                    Label("Restart", systemImage: "arrow.clockwise")
+                    Label("Restart", systemImage: "")
                 }
                 .disabled(actionInProgress != nil || !isRunning)
 
                 Button(action: {
                     finishRemove()
                 }) {
-                    Label("Delete", systemImage: "trash.fill")
+                    Label("Delete", systemImage: "")
                 }
                 .disabled(actionInProgress != nil)
+
+                Button(action: {
+                    finishKill()
+                }) {
+                    Label("Kill", systemImage: "")
+                }
+                .disabled(actionInProgress != nil || !isRunning)
             }
 
             Divider()
@@ -417,6 +424,8 @@ protocol BaseDockerContainerItem {
     @MainActor
     func finishStop()
     @MainActor
+    func finishKill()
+    @MainActor
     func finishRestart()
     @MainActor
     func finishRemove()
@@ -437,6 +446,24 @@ extension BaseDockerContainerItem {
                         await vmModel.tryDockerContainerStop(id)
                     case .compose:
                         await vmModel.tryDockerComposeStop(item)
+                    default:
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func finishKill() {
+        for item in resolveActionList() {
+            Task { @MainActor in
+                await actionTracker.with(cid: item, action: .kill) {
+                    switch item {
+                    case .container(let id):
+                        await vmModel.tryDockerContainerKill(id)
+                    case .compose:
+                        await vmModel.tryDockerComposeKill(item)
                     default:
                         return
                     }

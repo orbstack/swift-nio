@@ -1119,6 +1119,12 @@ class VmViewModel: ObservableObject {
         })
     }
 
+    func tryDockerContainerKill(_ id: String) async {
+        await doTryDockerContainerAction("kill", {
+            try await vmgr.dockerContainerKill(id)
+        })
+    }
+
     func tryDockerContainerRestart(_ id: String) async {
         await doTryDockerContainerAction("restart", {
             try await vmgr.dockerContainerRestart(id)
@@ -1193,6 +1199,10 @@ class VmViewModel: ObservableObject {
 
     func tryDockerComposeStop(_ cid: DockerContainerId) async {
         await doTryDockerComposeAction("stop", cid: cid, args: ["stop"])
+    }
+
+    func tryDockerComposeKill(_ cid: DockerContainerId) async {
+        await doTryDockerComposeAction("kill", cid: cid, args: ["kill"])
     }
 
     func tryDockerComposeRestart(_ cid: DockerContainerId) async {

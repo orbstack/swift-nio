@@ -115,29 +115,25 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                  */
                 .contextMenu {
                     Group {
-                        Button(action: {
+                        Button("Start") {
                             finishStart()
-                        }) {
-                            Label("Start", systemImage: "start.fill")
                         }.disabled(actionInProgress != nil || isRunning)
 
-                        Button(action: {
+                        Button("Stop") {
                             finishStop()
-                        }) {
-                            Label("Stop", systemImage: "stop.fill")
                         }.disabled(actionInProgress != nil || !isRunning)
 
-                        Button(action: {
+                        Button("Restart") {
                             finishRestart()
-                        }) {
-                            Label("Restart", systemImage: "arrow.clockwise")
                         }.disabled(actionInProgress != nil || !isRunning)
 
-                        Button(action: {
+                        Button("Delete") {
                             finishRemove()
-                        }) {
-                            Label("Delete", systemImage: "trash.fill")
                         }.disabled(actionInProgress != nil)
+
+                        Button("Kill") {
+                            finishKill()
+                        }.disabled(actionInProgress != nil || !isRunning)
                     }
 
                     Divider()

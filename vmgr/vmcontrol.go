@@ -134,6 +134,10 @@ func (s *VmControlServer) DockerContainerStop(ctx context.Context, req vmtypes.I
 	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/stop", nil, nil)
 }
 
+func (s *VmControlServer) DockerContainerKill(ctx context.Context, req vmtypes.IDRequest) error {
+	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/kill", nil, nil)
+}
+
 func (s *VmControlServer) DockerContainerRestart(ctx context.Context, req vmtypes.IDRequest) error {
 	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/restart", nil, nil)
 }
@@ -354,6 +358,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"DockerContainerList":    handler.New(s.DockerContainerList),
 		"DockerContainerStart":   handler.New(s.DockerContainerStart),
 		"DockerContainerStop":    handler.New(s.DockerContainerStop),
+		"DockerContainerKill":    handler.New(s.DockerContainerKill),
 		"DockerContainerRestart": handler.New(s.DockerContainerRestart),
 		"DockerContainerPause":   handler.New(s.DockerContainerPause),
 		"DockerContainerUnpause": handler.New(s.DockerContainerUnpause),

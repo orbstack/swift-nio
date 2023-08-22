@@ -7,6 +7,7 @@ import Foundation
 enum DKContainerAction {
     case start
     case stop
+    case kill
     case pause
     case unpause
     case restart
