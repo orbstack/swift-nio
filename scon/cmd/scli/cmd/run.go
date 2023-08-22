@@ -150,14 +150,13 @@ To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac
 			c, err := scli.Client().GetDefaultContainer()
 			if err != nil {
 				if err.Error() == "[-32098] no machines found" {
-					fmt.Fprintf(os.Stderr, `No Linux machines found.
+					fmt.Fprintf(os.Stderr, `To use Docker:
+    docker run ...
+See "orb docker" for more info.
 
-To create a machine:
+To create a Linux machine:
     orb create ubuntu
 See "orb create --help" for supported distros and options.
-
-This is not needed if you only want to use Docker.
-See "orb docker" for more info.
 `)
 					os.Exit(1)
 				} else {
