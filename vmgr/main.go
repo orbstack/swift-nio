@@ -60,14 +60,12 @@ const (
 
 const stopExitCodeBase = 100
 
-var (
-	// host -> guest
-	optionalForwards = map[string]string{
-		// public SSH
-		"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
-		"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
-	}
-)
+// host -> guest
+var optionalForwards = map[string]string{
+	// public SSH
+	"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
+	"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
+}
 
 func init() {
 	if conf.Debug() {

@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -359,63 +360,86 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	return out
 }
 
-func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo) ([]sysnet.ListenerInfo, error) {
-	// join container netns
-	return withContainerNetns(c, func() ([]sysnet.ListenerInfo, error) {
-		// faster than coreos iptables
-		nodeportRulesStr, err := util.RunWithOutput("iptables", "-t", "nat", "-S", "KUBE-NODEPORTS")
-		if err != nil {
-			if strings.Contains(err.Error(), "chain `KUBE-NODEPORTS' in table `nat' is incompatible") {
-				// this happens with iptables-nft when it's not found
-				return listeners, nil
-			} else {
-				return nil, err
+func readOneIptablesListeners(cmd string, listeners []sysnet.ListenerInfo) ([]sysnet.ListenerInfo, error) {
+	rulesStr, err := util.RunWithOutput(cmd, "-t", "nat", "-S")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rule := range strings.Split(rulesStr, "\n") {
+		parts := strings.Split(rule, " ")
+		if len(parts) < 4 {
+			continue
+		}
+
+		// must be KUBE-NODEPORTS (for NodePort) or KUBE-SERVICES (for LoadBalancer)
+		// ClusterIP is handled separately
+		if parts[0] != "-A" || (parts[1] != "KUBE-NODEPORTS" && parts[1] != "KUBE-SERVICES") {
+			continue
+		}
+
+		// if there's a destination filter, it must be docker machine IP
+		// this makes sure we only detect LoadBalancer ports in KUBE-SERVICES
+		// KUBE-NODEPORTS doesn't have destination filters
+		destIndex := slices.Index(parts, "-d")
+		if destIndex != -1 && destIndex+1 < len(parts) {
+			destCIDR := parts[destIndex+1]
+			if destCIDR != netconf.SconDockerIP4+"/32" && destCIDR != netconf.SconDockerIP6+"/128" {
+				continue
 			}
 		}
 
-		for _, rule := range strings.Split(nodeportRulesStr, "\n") {
-			parts := strings.Split(rule, " ")
-			if len(parts) < 4 {
-				continue
-			}
+		// find "-p"
+		protoIndex := slices.Index(parts, "-p")
+		if protoIndex == -1 || protoIndex+1 >= len(parts) {
+			continue
+		}
+		proto := parts[protoIndex+1]
+		if proto != "tcp" && proto != "udp" {
+			continue
+		}
 
-			var proto string
-			if slices.Contains(parts, "tcp") {
-				proto = "tcp"
-			} else if slices.Contains(parts, "udp") {
-				proto = "udp"
-			} else {
-				continue
-			}
+		// find "--dport"
+		dportIndex := slices.Index(parts, "--dport")
+		if dportIndex == -1 || dportIndex+1 >= len(parts) {
+			continue
+		}
+		port, err := strconv.Atoi(parts[dportIndex+1])
+		if err != nil {
+			continue
+		}
 
-			// find "--dport"
-			var port int
-			for i, part := range parts {
-				if part == "--dport" && i+1 < len(parts) {
-					port, err = strconv.Atoi(parts[i+1])
-					if err != nil {
-						continue
-					}
-					break
-				}
-			}
-			if port == 0 {
-				// not found
-				continue
-			}
+		// add listener to list
+		listeners = append(listeners, sysnet.ListenerInfo{
+			// nodeports are technically always 0.0.0.0 b/c of how we configured kube-proxy
+			// but let's restrict them to localhost for security
+			ListenerKey: sysnet.ListenerKey{
+				AddrPort: netip.AddrPortFrom(netip.IPv4Unspecified(), uint16(port)),
+				Proto:    sysnet.TransportProtocol(proto),
+			},
+			// always safe b/c 0.0.0.0 and source IP already lost
+			UseIptables:   true,
+			ExtListenAddr: netipIPv4Loopback,
+		})
+	}
 
-			// add listener to list
-			listeners = append(listeners, sysnet.ListenerInfo{
-				// nodeports are technically always 0.0.0.0 b/c of how we configured kube-proxy
-				// but let's restrict them to localhost for security
-				ListenerKey: sysnet.ListenerKey{
-					AddrPort: netip.AddrPortFrom(netip.IPv4Unspecified(), uint16(port)),
-					Proto:    sysnet.TransportProtocol(proto),
-				},
-				// always safe b/c 0.0.0.0 and source IP already lost
-				UseIptables:   true,
-				ExtListenAddr: netipIPv4Loopback,
-			})
+	return listeners, nil
+}
+
+// even if we don't need forwards to mac, it's important to register these listeneres as forwards so they get added to lfwd blocked_ports map
+// otherwise route_localnet doesn't work and these ports don't work in the machine
+func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo) ([]sysnet.ListenerInfo, error) {
+	// join container netns
+	return withContainerNetns(c, func() ([]sysnet.ListenerInfo, error) {
+		// v4 and v6
+		listeners, err := readOneIptablesListeners("iptables", listeners)
+		if err != nil {
+			return nil, err
+		}
+
+		listeners, err = readOneIptablesListeners("ip6tables", listeners)
+		if err != nil {
+			return nil, err
 		}
 
 		return listeners, nil

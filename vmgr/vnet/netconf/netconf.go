@@ -27,6 +27,7 @@ const (
 	SconHostBridgeIP4 = SconSubnet4 + ".3"
 	SconWebIndexIP4   = SconGatewayIP4
 
+	// :0 is canonical format, not :0000
 	SconSubnet6       = "fd07:b51a:cc66:0:"
 	SconSubnet6CIDR   = SconSubnet6 + ":/64"
 	SconGatewayIP6    = SconSubnet6 + ":1"
@@ -35,7 +36,8 @@ const (
 	SconWebIndexIP6   = SconGatewayIP6
 
 	// must be under SconSubnet6/64 due to macOS vmnet routing (neighbors)
-	// chosen to be checksum-neutral for stateless NAT64 w/o L4 (TCP/UDP) checksum update: this prefix adds up to 0
+	// chosen to be checksum-neutral for stateless NAT64 w/o L4 (TCP/UDP) checksum update: this prefix adds up to 0 in big-endian 16-bit internet checksum
+	// calculated by randomly generating "a617", summing all values, and then subtracting from 0xffff for the last one
 	NAT64Subnet6     = "fd07:b51a:cc66:0:a617:db5e:"
 	NAT64Subnet6CIDR = NAT64Subnet6 + ":/96"
 	NAT64SourceIP4   = "10.183.233.241"
