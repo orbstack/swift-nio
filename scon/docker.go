@@ -34,6 +34,7 @@ const (
 	ContainerIDDocker = "01GQQVF6C60000000000DOCKER"
 
 	// currently same
+	ContainerK8s   = "k8s"
 	ContainerIDK8s = "01GQQVF6C60000000000DOCKER"
 
 	// takes ~3 ms to unfreeze

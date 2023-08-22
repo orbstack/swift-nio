@@ -24,6 +24,7 @@ const (
 	SconSubnet4Mask   = "255.255.255.0"
 	SconGatewayIP4    = SconSubnet4 + ".1"
 	SconDockerIP4     = SconSubnet4 + ".2"
+	SconK8sIP4        = SconDockerIP4
 	SconHostBridgeIP4 = SconSubnet4 + ".3"
 	SconWebIndexIP4   = SconGatewayIP4
 
@@ -32,6 +33,7 @@ const (
 	SconSubnet6CIDR   = SconSubnet6 + ":/64"
 	SconGatewayIP6    = SconSubnet6 + ":1"
 	SconDockerIP6     = SconSubnet6 + ":2"
+	SconK8sIP6        = SconDockerIP6
 	SconHostBridgeIP6 = NAT64SourceIP6 // to make NAT64 easier
 	SconWebIndexIP6   = SconGatewayIP6
 
