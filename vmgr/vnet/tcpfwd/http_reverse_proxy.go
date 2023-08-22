@@ -98,7 +98,8 @@ func newHttpReverseProxy(proxyUrl *url.URL, perHostFilter *proxy.PerHost, p *Pro
 				r.SetURL(&url.URL{
 					Scheme: "http",
 					Host:   host,
-					Path:   r.In.URL.Path,
+					// this is a *base* path
+					Path: "/",
 				})
 			} else {
 				// use proxy
