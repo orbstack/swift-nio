@@ -379,6 +379,8 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	if c.manager.k8sEnabled {
 		k8sCmd := []string{
 			"k3s", "server",
+			// ddesktop has no metrics server
+			// and users may want their own ingress (e.g. nginx) - don't be opinionated
 			"--disable", "metrics-server,traefik",
 			"--https-listen-port", strconv.Itoa(ports.HostKubernetes),
 			"--lb-server-port", strconv.Itoa(ports.HostKubernetes + 1),
@@ -386,6 +388,9 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			"--container-runtime-endpoint", "/var/run/docker.sock",
 			"--protect-kernel-defaults",
 			"--flannel-backend", "host-gw",
+			"--cluster-cidr", netconf.K8sClusterCIDR,
+			"--service-cidr", netconf.K8sServiceCIDR,
+			"--kube-controller-manager-arg", "node-cidr-mask-size=" + netconf.K8sNodeCIDRMaskSize,
 			"--write-kubeconfig", "/run/kubeconfig.yml",
 		}
 		if conf.Debug() {

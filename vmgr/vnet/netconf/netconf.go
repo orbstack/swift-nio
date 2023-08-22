@@ -101,7 +101,8 @@ var DockerDefaultAddressPools = []map[string]any{
 	{"base": "192.168.158.0/24", "size": 24},
 	{"base": "192.168.117.0/24", "size": 24},
 	{"base": "192.168.155.0/24", "size": 24},
-	{"base": "192.168.194.0/24", "size": 24},
+	// reserved for k8s
+	//{"base": "192.168.194.0/24", "size": 24},
 	{"base": "192.168.147.0/24", "size": 24},
 	{"base": "192.168.229.0/24", "size": 24},
 	{"base": "192.168.183.0/24", "size": 24},
@@ -119,7 +120,8 @@ var DockerDefaultAddressPools = []map[string]any{
 	{"base": "192.168.164.0/24", "size": 24},
 	{"base": "192.168.163.0/24", "size": 24},
 	{"base": "192.168.172.0/24", "size": 24},
-	{"base": "192.168.138.0/24", "size": 24},
+	// reserved for k8s
+	//{"base": "192.168.138.0/24", "size": 24},
 
 	// Docker defaults for overflow (and compat, if explicit subnet is specified for a network)
 	{"base": "172.17.0.0/16", "size": 16},
@@ -131,3 +133,8 @@ var DockerDefaultAddressPools = []map[string]any{
 	// remove the 192.168 pool to avoid conflicts
 	//{"base": "192.168.0.0/16", "size": 20},
 }
+
+// default max pods is 110, so we can fit it in here
+const K8sClusterCIDR = "192.168.194.0/25"
+const K8sServiceCIDR = "192.168.194.128/25"
+const K8sNodeCIDRMaskSize = "25"
