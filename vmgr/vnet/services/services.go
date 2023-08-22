@@ -29,7 +29,8 @@ var (
 		"gateway.docker.internal": {IP4: netconf.GatewayIP4, IP6: netconf.GatewayIP6},
 
 		// compat with old docker
-		"docker.for.mac.localhost": {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"docker.for.mac.localhost":     {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
+		"docker.for.mac.host.internal": {IP4: netconf.HostNatIP4, IP6: netconf.HostNatIP6},
 	}
 
 	// e.g. for ping/traceroute
