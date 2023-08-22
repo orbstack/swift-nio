@@ -718,7 +718,7 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
     sysctl("vm.watermark_boost_factor", "0")?;
 
     // MGLRU thrashing protection
-    fs::write("/sys/kernel/mm/lru_gen/min_ttl_ms", "1000")?;
+    fs::write("/sys/kernel/mm/lru_gen/min_ttl_ms", "500")?;
 
     // zram
     // size = 1x RAM
