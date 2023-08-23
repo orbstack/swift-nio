@@ -319,16 +319,16 @@ class PacketProcessor {
                     }
 
                     // NAT64: respond to solicitation with advertisement for VM MAC
-                    //
+                    // Vlan: respond as NDP proxy for IPv6 forward (Linux does ARP)
                     if icmpv6Type == ICMPV6_NEIGHBOR_SOLICITATION {
-                        try maybeRespondNat64Ndp(pkt: pkt)
+                        try maybeRespondNdp(pkt: pkt)
                     }
                 }
             }
         }
     }
 
-    func maybeRespondNat64Ndp(pkt: Packet) throws {
+    func maybeRespondNdp(pkt: Packet) throws {
         guard let ndpReplyPrefix, let guestMac else {
             return
         }
