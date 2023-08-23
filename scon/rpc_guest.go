@@ -57,6 +57,12 @@ func enableProxyNdp(intf string) error {
 		return fmt.Errorf("set proxy delay: %w", err)
 	}
 
+	// even though we use static ARP proxy entry for this interface, proxy_delay still applies
+	err = os.WriteFile("/proc/sys/net/ipv4/neigh/"+intf+"/proxy_delay", []byte("0"), 0)
+	if err != nil {
+		return fmt.Errorf("set proxy delay: %w", err)
+	}
+
 	return nil
 }
 
