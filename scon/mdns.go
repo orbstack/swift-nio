@@ -534,7 +534,7 @@ func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) 
 	}
 }
 
-func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
+func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.IP {
 	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
 	ips := containerToMdnsIPs(ctr)
 	logrus.WithFields(logrus.Fields{
@@ -559,6 +559,8 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 		// need to flush any caches? what names were we queried under? (wildcard)
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
+
+	return ips
 }
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {

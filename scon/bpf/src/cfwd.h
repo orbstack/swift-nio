@@ -31,6 +31,20 @@ struct {
     __type(value, struct cfwd_host_ip);
 } cfwd_host_ips SEC(".maps");
 
+// explicit http ports
+struct cfwd_container_meta {
+    __u16 http_port;
+    __u16 https_port;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __uint(max_entries, 256);
+    __type(key, struct cfwd_ip_key);
+    __type(value, struct cfwd_container_meta);
+} cfwd_container_metas SEC(".maps");
+
 static bool cfwd_try_assign_port(struct bpf_sk_lookup *ctx, int port) {
     struct bpf_sock *sk;
     if (ctx->family == AF_INET6) {
@@ -132,6 +146,21 @@ static bool cfwd_should_redirect_for_ip(struct bpf_sk_lookup *ctx) {
     return host_ip != NULL;
 }
 
+static struct cfwd_container_meta *cfwd_get_meta(struct bpf_sk_lookup *ctx) {
+    struct cfwd_ip_key container_ip_key;
+    if (ctx->family == AF_INET) {
+        // make 4-in-6 mapped IP
+        container_ip_key.ip6or4[0] = 0;
+        container_ip_key.ip6or4[1] = 0;
+        container_ip_key.ip6or4[2] = bpf_htonl(0xffff);
+        container_ip_key.ip6or4[3] = ctx->local_ip4;
+    } else {
+        memcpy(container_ip_key.ip6or4, ctx->local_ip6, 16);
+    }
+
+    return bpf_map_lookup_elem(&cfwd_container_metas, &container_ip_key);
+}
+
 // this is per-netns, so no need to check netns cookie
 SEC("sk_lookup/") // cilium/ebpf incorrectly expects trailing "/", libbpf doesn't
 int cfwd_sk_lookup(struct bpf_sk_lookup *ctx) {
@@ -142,11 +171,26 @@ int cfwd_sk_lookup(struct bpf_sk_lookup *ctx) {
     }
 
     if (ctx->local_port == 80) {
-        // fastpath: if there's a real listener, or not from macOS
-        if (cfwd_try_assign_port(ctx, ctx->local_port)) return SK_PASS;
+        // fastpath: not from macOS
         if (!cfwd_should_redirect_for_ip(ctx)) return SK_PASS;
 
-        // all verified: we want to redirect this connection if there's a suitable target.
+        // if there's an explicit user preference, use that, and only that.
+        // consider this scenario:
+        //   - docker ipv6 enabled
+        //   - container has multiple tcp servers, non-http and http
+        //   - user configures http port
+        //   - http server only listens on ipv4
+        // ... then if we keep scanning, we'll find the non-http ipv4 server, and browser will never try v6
+        struct cfwd_container_meta *meta = cfwd_get_meta(ctx);
+        if (meta != NULL && meta->http_port != 0) {
+            cfwd_try_assign_port(ctx, meta->http_port);
+            return SK_PASS;
+        }
+
+        // then try real listener
+        if (cfwd_try_assign_port(ctx, ctx->local_port)) return SK_PASS;
+
+        // nope. redirect this connection if there's a suitable target
         // first try priority ports, for perf (avoid scanning) and consistent behavior
         if (cfwd_try_assign_port(ctx, 8080)) return SK_PASS; // common
         if (cfwd_try_assign_port(ctx, 3000)) return SK_PASS; // nodejs common
@@ -162,9 +206,18 @@ int cfwd_sk_lookup(struct bpf_sk_lookup *ctx) {
         // 9000-32767: try the upper half next. (start at 9000 b/c we've already checked 8000)
         if (cfwd_try_port_range(ctx, 9000, 32767+1 /*inclusive*/)) return SK_PASS;
     } else if (ctx->local_port == 443) {
-        // fastpath: if there's a real listener, or not from macOS
-        if (cfwd_try_assign_port(ctx, ctx->local_port)) return SK_PASS;
+        // fastpath: not from macOS
         if (!cfwd_should_redirect_for_ip(ctx)) return SK_PASS;
+
+        // if there's an explicit user preference, use that, and only that
+        struct cfwd_container_meta *meta = cfwd_get_meta(ctx);
+        if (meta != NULL && meta->https_port != 0) {
+            cfwd_try_assign_port(ctx, meta->https_port);
+            return SK_PASS;
+        }
+
+        // then try real listener
+        if (cfwd_try_assign_port(ctx, ctx->local_port)) return SK_PASS;
 
         // try 8443
         if (cfwd_try_assign_port(ctx, 8443)) return SK_PASS;

@@ -37,6 +37,8 @@ type PmonEvent struct {
 	DirtyFlags LtypeFlags
 }
 
+type CfwdContainerMeta = lfwdCfwdContainerMeta
+
 type ContainerBpfManager struct {
 	cgPath      string
 	netnsCookie uint64
@@ -51,6 +53,7 @@ type ContainerBpfManager struct {
 
 	cfwdNetnsProg      *ebpf.Program
 	cfwdHostIps        *ebpf.Map
+	cfwdContainerMetas *ebpf.Map
 	cfwdAttachedNsKeys map[string]*link.NetNsLink
 }
 
@@ -200,6 +203,7 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 	b.lfwdBlockedPorts = objs.lfwdMaps.BlockedPorts
 	// cfwd: attached to each docker container netns, but not the machine itself
 	b.cfwdHostIps = objs.lfwdMaps.CfwdHostIps
+	b.cfwdContainerMetas = objs.lfwdMaps.CfwdContainerMetas
 	b.cfwdNetnsProg = objs.CfwdSkLookup
 	return nil
 }
@@ -298,6 +302,24 @@ func (b *ContainerBpfManager) CfwdRemoveHostIP(ip net.IP) error {
 	}
 
 	return b.cfwdHostIps.Delete(ipToCfwdKey(ip))
+}
+
+// called with c.mu held for read
+func (b *ContainerBpfManager) CfwdAddContainerMeta(ip net.IP, meta CfwdContainerMeta) error {
+	if b.cfwdContainerMetas == nil {
+		return nil
+	}
+
+	return b.cfwdContainerMetas.Put(ipToCfwdKey(ip), meta)
+}
+
+// called with c.mu held for read
+func (b *ContainerBpfManager) CfwdRemoveContainerMeta(ip net.IP) error {
+	if b.cfwdContainerMetas == nil {
+		return nil
+	}
+
+	return b.cfwdContainerMetas.Delete(ipToCfwdKey(ip))
 }
 
 // called with c.mu held

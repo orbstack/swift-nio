@@ -6,8 +6,10 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"strconv"
 
 	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
@@ -316,21 +318,57 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 	return nil
 }
 
+func containerToCfwdMeta(ctr *dockertypes.ContainerSummaryMin) bpf.CfwdContainerMeta {
+	meta := bpf.CfwdContainerMeta{}
+	if portStr, ok := ctr.Labels["dev.orbstack.http-port"]; ok {
+		if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
+			meta.HttpPort = uint16(port)
+		}
+	}
+	if portStr, ok := ctr.Labels["dev.orbstack.https-port"]; ok {
+		if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
+			meta.HttpsPort = uint16(port)
+		}
+	}
+	return meta
+}
+
 // note: this is for start/stop, not create/delete
 func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertypes.ContainerSummaryMin], _ *None) error {
+	s.dockerMachine.mu.RLock()
+	defer s.dockerMachine.mu.RUnlock()
+	dockerBpf := s.dockerMachine.bpf // nil if not running anymore
+
 	// update mDNS registry
 	for _, ctr := range diff.Added {
-		s.m.net.mdnsRegistry.AddContainer(&ctr)
+		ctrIPs := s.m.net.mdnsRegistry.AddContainer(&ctr)
+
+		if dockerBpf != nil {
+			meta := containerToCfwdMeta(&ctr)
+			for _, ctrIP := range ctrIPs {
+				err := dockerBpf.CfwdAddContainerMeta(ctrIP, meta)
+				if err != nil {
+					logrus.WithError(err).Error("failed to add container meta to cfwd")
+				}
+			}
+		}
 	}
 	for _, ctr := range diff.Removed {
 		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
+
+		if dockerBpf != nil {
+			ctrIPs := containerToMdnsIPs(&ctr)
+			for _, ctrIP := range ctrIPs {
+				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP)
+				if err != nil {
+					logrus.WithError(err).Error("failed to remove container meta from cfwd")
+				}
+			}
+		}
 	}
 
 	// attach cfwd to container net namespaces
-	s.dockerMachine.mu.RLock()
-	defer s.dockerMachine.mu.RUnlock()
-
-	if s.dockerMachine.bpf != nil {
+	if dockerBpf != nil {
 		err := s.dockerMachine.UseMountNs(func() error {
 			// faster than checking container inspect's SandboxKey
 			entries, err := os.ReadDir("/run/docker/netns")
