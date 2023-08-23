@@ -428,16 +428,7 @@ class VmViewModel: ObservableObject {
     }
 
     @Published private(set) var containers: [ContainerRecord]?
-    @Published private(set) var error: VmError? {
-        didSet {
-            if let error {
-                NSLog("Error: \(error)")
-                if !error.ignoreSentry {
-                    SentrySDK.capture(error: error)
-                }
-            }
-        }
-    }
+    @Published private(set) var error: VmError?
 
     @Published var creatingCount = 0
     @Published var configAtLastStart: VmConfig?
@@ -494,7 +485,7 @@ class VmViewModel: ObservableObject {
         daemon.drmWarningNotifications.sink { [weak self] event in
             guard let self else { return }
             Task { @MainActor in
-                self.error = .drmWarning(event: event)
+                self.setError(.drmWarning(event: event))
             }
         }.store(in: &cancellables)
     }
@@ -512,7 +503,16 @@ class VmViewModel: ObservableObject {
             return
         }
 
-        self.error = error
+        NSLog("Error: \(error)")
+        if !error.ignoreSentry {
+            SentrySDK.capture(error: error)
+        }
+
+        // attempted workaround for SwiftUI main thread hangs:
+        // if there's already an error, don't overwrite it
+        if self.error == nil {
+            self.error = error
+        }
     }
 
     private func spawnDaemon() throws {
