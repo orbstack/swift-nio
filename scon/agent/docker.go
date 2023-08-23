@@ -205,30 +205,27 @@ func (d *DockerAgent) PostStart() error {
 
 	d.Running.Set(true)
 
+	// no point in doing this async. main goroutine exits after PostStart
+	hConn, err := net.Dial("unix", mounts.HcontrolSocket)
+	if err != nil {
+		return err
+	}
+	d.host, err = hclient.New(hConn)
+	if err != nil {
+		return err
+	}
+
+	sConn, err := net.Dial("unix", mounts.SconGuestSocket)
+	if err != nil {
+		return err
+	}
+	d.scon, err = sgclient.New(sConn)
+	if err != nil {
+		return err
+	}
+
 	// start docker event monitor
 	go func() {
-		hConn, err := net.Dial("unix", mounts.HcontrolSocket)
-		if err != nil {
-			logrus.WithError(err).Error("failed to connect to hcontrol")
-			return
-		}
-		d.host, err = hclient.New(hConn)
-		if err != nil {
-			logrus.WithError(err).Error("failed to create hclient")
-			return
-		}
-
-		sConn, err := net.Dial("unix", mounts.SconGuestSocket)
-		if err != nil {
-			logrus.WithError(err).Error("failed to connect to scon guest")
-			return
-		}
-		d.scon, err = sgclient.New(sConn)
-		if err != nil {
-			logrus.WithError(err).Error("failed to create scon guest client")
-			return
-		}
-
 		err = d.monitorEvents()
 		if err != nil {
 			logrus.WithError(err).Error("failed to monitor Docker events")
@@ -237,12 +234,10 @@ func (d *DockerAgent) PostStart() error {
 
 	// send kubeconfig to host
 	if d.k8s != nil {
-		go func() {
-			err := d.k8s.WaitAndSendKubeConfig()
-			if err != nil {
-				logrus.WithError(err).Error("failed to send kubeconfig")
-			}
-		}()
+		err = d.k8s.PostStart()
+		if err != nil {
+			return fmt.Errorf("k8s post start: %w", err)
+		}
 	}
 
 	return nil

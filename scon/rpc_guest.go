@@ -29,6 +29,30 @@ func (s *SconGuestServer) Ping(_ None, _ *None) error {
 	return nil
 }
 
+func enableProxyArp(intf string) error {
+	// enable proxy arp and ndp
+	err := os.WriteFile("/proc/sys/net/ipv4/conf/"+intf+"/proxy_arp", []byte("1"), 0)
+	if err != nil {
+		return fmt.Errorf("enable proxy arp: %w", err)
+	}
+	err = os.WriteFile("/proc/sys/net/ipv6/conf/"+intf+"/proxy_ndp", []byte("1"), 0)
+	if err != nil {
+		return fmt.Errorf("enable proxy ndp: %w", err)
+	}
+
+	// set proxy delay to 0
+	err = os.WriteFile("/proc/sys/net/ipv4/neigh/"+intf+"/proxy_delay", []byte("0"), 0)
+	if err != nil {
+		return fmt.Errorf("set proxy delay: %w", err)
+	}
+	err = os.WriteFile("/proc/sys/net/ipv6/neigh/"+intf+"/proxy_delay", []byte("0"), 0)
+	if err != nil {
+		return fmt.Errorf("set proxy delay: %w", err)
+	}
+
+	return nil
+}
+
 func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *None) (retErr error) {
 	// assign vlan ID, create vmnet bridge on host, add to VlanRouter
 	vlanId, err := s.m.host.AddDockerBridge(config)
@@ -92,7 +116,7 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 
 		err = netlink.LinkSetAllmulticastOff(macvlan)
 		if err != nil {
-			return struct{}{}, fmt.Errorf("set mirror link allmulticast off: %w", err)
+			return struct{}{}, fmt.Errorf("set mirror link flags: %w", err)
 		}
 
 		// add host MAC to filter
@@ -101,20 +125,56 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 			return struct{}{}, fmt.Errorf("add host mac to filter: %w", err)
 		}
 
-		// attach macvlan to docker bridge
-		err = netlink.LinkSetMaster(macvlan, &netlink.GenericLink{
-			LinkAttrs: netlink.LinkAttrs{
-				Name: config.GuestInterfaceName,
-			},
-		})
+		// ip forward is already enabled
+		// enable proxy arp and ndp
+		err = enableProxyArp(macvlan.Name)
 		if err != nil {
-			return struct{}{}, fmt.Errorf("attach mirror link: %w", err)
+			return struct{}{}, fmt.Errorf("enable proxy arp: %w", err)
+		}
+		// need to do the same on guest bridge interface, otherwise container keeps sending ARP probes for .254 (host IP) and no one answers because it's on the wrong bridge
+		// (k8s has no interface)
+		if config.GuestInterfaceName != "" {
+			err = enableProxyArp(config.GuestInterfaceName)
+			if err != nil {
+				return struct{}{}, fmt.Errorf("enable proxy arp: %w", err)
+			}
 		}
 
-		// set up
+		// bring it up
 		err = netlink.LinkSetUp(macvlan)
 		if err != nil {
 			return struct{}{}, fmt.Errorf("set mirror link up: %w", err)
+		}
+
+		// add routes, but NO addresses, otherwise we create a conflict with the host IP
+		// must be done after it's up, or we get "network is down"
+		if config.IP4Subnet.IsValid() {
+			ip, _ := config.HostIP4()
+			err = netlink.RouteAdd(&netlink.Route{
+				LinkIndex: macvlan.Index,
+				Dst: &net.IPNet{
+					IP:   ip,
+					Mask: net.CIDRMask(32, 32),
+				},
+			})
+			if err != nil {
+				return struct{}{}, fmt.Errorf("add host ip4 route to mirror link: %w", err)
+			}
+		}
+		if config.IP6Subnet.IsValid() {
+			ip, _ := config.HostIP6()
+			err = netlink.RouteAdd(&netlink.Route{
+				LinkIndex: macvlan.Index,
+				Dst: &net.IPNet{
+					IP:   ip,
+					Mask: net.CIDRMask(128, 128),
+				},
+			})
+			if err != nil {
+				return struct{}{}, fmt.Errorf("add host ip6 route to mirror link: %w", err)
+			}
+
+			// TODO fix ndp
 		}
 
 		return struct{}{}, nil

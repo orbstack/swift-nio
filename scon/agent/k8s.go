@@ -1,15 +1,66 @@
 package agent
 
 import (
+	"net"
+	"net/netip"
 	"os"
 	"time"
 
+	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
+	"github.com/vishvananda/netlink"
 )
 
 type K8sAgent struct {
 	docker *DockerAgent
+}
+
+func (a *K8sAgent) PostStart() error {
+	go func() {
+		err := a.WaitAndSendKubeConfig()
+		if err != nil {
+			logrus.WithError(err).Error("failed to send kubeconfig")
+		}
+	}()
+
+	// create .orbholder dummy interface for k8s bridge arp proxy
+	// services CIDR (.128/25) does not actually exist as addrs or routes; it's all done in iptables PREROUTING
+	// so this is needed for linux to respond to arp
+	la := netlink.NewLinkAttrs()
+	la.Name = ".orbholder"
+	dummy := &netlink.Dummy{LinkAttrs: la}
+	err := netlink.LinkAdd(dummy)
+	if err != nil {
+		return err
+	}
+
+	// add addr
+	// interface does not need to be brought up
+	_, servicesNet, err := net.ParseCIDR(netconf.K8sServiceCIDR)
+	if err != nil {
+		return err
+	}
+	err = netlink.AddrAdd(dummy, &netlink.Addr{
+		IPNet: servicesNet,
+	})
+	if err != nil {
+		return err
+	}
+
+	// best-effort: create k8s bridge using vlan infra
+	logrus.Debug("k8s: creating k8s bridge")
+	bridgeConfig := sgtypes.DockerBridgeConfig{
+		IP4Subnet: netip.MustParsePrefix(netconf.K8sMergedCIDR),
+		// no ip6, no interface
+	}
+	err = a.docker.scon.DockerAddBridge(bridgeConfig)
+	if err != nil {
+		logrus.WithError(err).Error("failed to create k8s bridge")
+	}
+
+	return nil
 }
 
 func (a *K8sAgent) WaitAndSendKubeConfig() error {

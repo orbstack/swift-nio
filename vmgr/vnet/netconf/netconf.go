@@ -138,3 +138,7 @@ var DockerDefaultAddressPools = []map[string]any{
 const K8sClusterCIDR = "192.168.194.0/25"
 const K8sServiceCIDR = "192.168.194.128/25"
 const K8sNodeCIDRMaskSize = "25"
+
+// for bridging to host
+// cluster and service CIDRs must be adjacent
+const K8sMergedCIDR = "192.168.194.0/24"
