@@ -15,28 +15,41 @@ type DockerBridgeConfig struct {
 	GuestInterfaceName string
 }
 
-func (config *DockerBridgeConfig) HostIP4() (net.IP, net.IPMask) {
+func (config *DockerBridgeConfig) HostIP4() net.IPNet {
 	mask := prefixToMask(config.IP4Subnet)
-	ip := net.IP(config.IP4Subnet.Addr().AsSlice())
-	// last IP - to avoid conflict with containers or gateway
-	ip = lastIPInSubnet(ip, mask)
-	// if it conflicts with the Linux-side host/gateway IP (bip), subtract 1 more from last octet
+
+	// first IP (x.y.z.0) to avoid conflict with containers or gateway
+	// this is the best option because:
+	//   - Docker gateway is normally .1, and Docker never seems to assign .0
+	//   - K8s will never assign .0: https://github.com/kubernetes/kubernetes/blob/fb785f1f42183e26e2b9f042474391c4d58433bb/pkg/registry/core/service/ipallocator/bitmap.go#L81
+	//   - historically .0 was broadcast but not for a *long* time, so it's safe to use unlike 0.0.0.x
+	ip := net.IP(config.IP4Subnet.Masked().Addr().AsSlice())
+
+	// only chance of conflict is if user manually assigns .0 as gateway,
+	// so we check for that and use last IP (x.y.z.254) instead. (255 is broadcast)
 	if ip.Equal(config.IP4Gateway.AsSlice()) {
-		ip[len(ip)-1]--
+		ip = lastIPInSubnet(ip, mask)
 	}
 
-	return ip, mask
+	return net.IPNet{
+		IP:   ip,
+		Mask: mask,
+	}
 }
 
-func (config *DockerBridgeConfig) HostIP6() (net.IP, net.IPMask) {
+func (config *DockerBridgeConfig) HostIP6() net.IPNet {
+	// last IP - to avoid conflict with containers or gateway
+	// for some reason, first IP (zero IP) makes Linux use loopback route for v6
 	mask := prefixToMask(config.IP6Subnet)
 	ip := net.IP(config.IP6Subnet.Addr().AsSlice())
-	// last IP - to avoid conflict with containers or gateway
-	// this has basically no chance of conflicting with a user-selected or SLAAC IP,
-	// and Docker doesn't provide gateway IP for, so we don't check for v6 bip conflict
 	ip = lastIPInSubnet(ip, mask)
 
-	return ip, mask
+	// unlike v4 this has basically no chance of conflicting with a user-selected or SLAAC IP,
+	// and Docker doesn't provide gateway IP for v6, so we don't check for v6 bip conflict
+	return net.IPNet{
+		IP:   ip,
+		Mask: mask,
+	}
 }
 
 type Diff[T any] struct {

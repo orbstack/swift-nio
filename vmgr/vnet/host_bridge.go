@@ -193,15 +193,15 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 	}
 
 	if config.IP4Subnet.IsValid() {
-		ip, mask := config.HostIP4()
-		vmnetConfig.Ip4Address = ip.String()
-		vmnetConfig.Ip4Mask = net.IP(mask).String()
+		hostIP := config.HostIP4()
+		vmnetConfig.Ip4Address = hostIP.IP.String()
+		vmnetConfig.Ip4Mask = net.IP(hostIP.Mask).String()
 	}
 
 	if config.IP6Subnet.IsValid() {
 		// macOS mask is always /64. we check this on docker side too
-		ip, _ := config.HostIP6()
-		vmnetConfig.Ip6Address = ip.String()
+		hostIP := config.HostIP6()
+		vmnetConfig.Ip6Address = hostIP.IP.String()
 		// NDP proxy
 		vmnetConfig.NDPReplyPrefix = slicePrefix6(config.IP6Subnet)
 	}
