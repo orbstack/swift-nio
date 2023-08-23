@@ -205,8 +205,6 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 				if strings.Contains(line, "] Kernel panic - not syncing:") {
 					// record panic log
 					panicRecorder.Start(panicShutdownDelay, func(output string) {
-						stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonKernelPanic}
-
 						// report panic lines to sentry
 						// if possible we read the last lines of the log file
 						panicLog := output
@@ -220,8 +218,10 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 						// we want to know about the rate of data corruption errors, but don't let it pollute real panics
 						if strings.Contains(panicLog, "DATA IS LIKELY CORRUPTED") || strings.Contains(panicLog, "MissingDataPartition") {
 							err = &DataCorruptionError{Err: msg}
+							stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataCorruption}
 						} else {
 							err = &KernelPanicError{Err: msg}
+							stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonKernelPanic}
 						}
 						sentry.CaptureException(err)
 					})

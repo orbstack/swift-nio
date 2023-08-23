@@ -190,7 +190,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .spawnExit(_, let output):
             return output
         case .vmgrExit(let reason, let output):
-            if reason == .drm {
+            switch reason {
+            case .drm:
                 return """
                        To fix this:
                            • Check your internet connection
@@ -198,7 +199,15 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
                            • Check your proxy in Settings > Network
                            • Make sure your date and time are correct
                        """
-            } else {
+            case .dataCorruption:
+                return """
+                       OrbStack data is corrupted and cannot be recovered.
+
+                       To delete the data and start fresh, run "orb reset" in Terminal.
+
+                       In the future, avoid unclean shutdowns to prevent this from happening again.
+                       """
+            default:
                 return output
             }
         case .drmWarning(let event):

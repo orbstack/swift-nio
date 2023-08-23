@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
@@ -34,7 +34,7 @@ All machines will be stopped immediately.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// confirm
 		if !flagYes {
-			cmd.PrintErrln("WARNING: This will PERMANENTLY DELETE ALL Linux AND Docker DATA!")
+			cmd.PrintErrln("WARNING: This will PERMANENTLY DELETE ALL DOCKER AND LINUX DATA!")
 			cmd.PrintErrln("This cannot be undone.")
 			cmd.PrintErrln("")
 			cmd.PrintErr("Are you sure you want to continue [y/N]? ")
@@ -48,10 +48,13 @@ All machines will be stopped immediately.
 			}
 		}
 
-		// spinner
-		scli.EnsureVMWithSpinner()
 		spinner := spinutil.Start("red", "Resetting data")
-		err := vmclient.Client().ResetData()
+		var err error
+		if vmclient.IsRunning() {
+			err = vmclient.Client().ResetData()
+		} else {
+			err = os.RemoveAll(conf.DataDir())
+		}
 		spinner.Stop()
 		checkCLI(err)
 

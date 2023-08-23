@@ -22,6 +22,7 @@ const (
 	StopReasonKernelPanic
 	StopReasonDrm
 	StopReasonHealthCheck
+	StopReasonDataCorruption
 )
 
 type StopRequest struct {

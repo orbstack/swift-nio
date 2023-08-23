@@ -5,11 +5,15 @@
 import Foundation
 import Combine
 
-private let stopExitCodeLogFatal = 1
-private let stopExitCodeGoPanic = 2
-private let stopExitCodeKernelPanic = 101
-private let stopExitCodeDrm = 102
-private let stopExitCodeHealthCheck = 103
+private enum StopExitCode: Int {
+    case logFatal = 1
+    case goPanic = 2
+
+    case kernelPanic = 101
+    case drm = 102
+    case healthCheck = 103
+    case dataCorruption = 104
+}
 
 enum ExitReason: Equatable, CustomStringConvertible {
     case status(Int)
@@ -22,6 +26,7 @@ enum ExitReason: Equatable, CustomStringConvertible {
     case kernelPanic
     case drm
     case healthCheck
+    case dataCorruption
 
     // from signal
     case killed
@@ -46,6 +51,8 @@ enum ExitReason: Equatable, CustomStringConvertible {
             return "license check failed"
         case .healthCheck:
             return "VM not responding"
+        case .dataCorruption:
+            return "data is corrupted"
 
         case .killed:
             return "killed (SIGKILL)"
@@ -212,17 +219,19 @@ class DaemonManager {
                 }
             } else {
                 let status = waitStatus >> 8
-                switch status {
-                case stopExitCodeLogFatal:
+                switch StopExitCode(rawValue: status) {
+                case .logFatal:
                     reason = .logFatal
-                case stopExitCodeGoPanic:
+                case .goPanic:
                     reason = .goPanic
-                case stopExitCodeKernelPanic:
+                case .kernelPanic:
                     reason = .kernelPanic
-                case stopExitCodeDrm:
+                case .drm:
                     reason = .drm
-                case stopExitCodeHealthCheck:
+                case .healthCheck:
                     reason = .healthCheck
+                case .dataCorruption:
+                    reason = .dataCorruption
                 default:
                     reason = .status(status)
                 }
