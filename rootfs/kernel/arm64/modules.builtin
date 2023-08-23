@@ -13,6 +13,7 @@ kernel/arch/arm64/crypto/chacha-neon.ko
 kernel/arch/arm64/crypto/poly1305-neon.ko
 kernel/arch/arm64/crypto/aes-arm64.ko
 kernel/arch/arm64/crypto/aes-neon-bs.ko
+kernel/kernel/configs.ko
 kernel/kernel/kheaders.ko
 kernel/mm/zsmalloc.ko
 kernel/fs/binfmt_misc.ko

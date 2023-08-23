@@ -13,6 +13,7 @@ kernel/arch/x86/crypto/crc32c-intel.ko
 kernel/arch/x86/crypto/crc32-pclmul.ko
 kernel/arch/x86/crypto/poly1305-x86_64.ko
 kernel/arch/x86/crypto/curve25519-x86_64.ko
+kernel/kernel/configs.ko
 kernel/kernel/kheaders.ko
 kernel/mm/zsmalloc.ko
 kernel/fs/binfmt_misc.ko
@@ -172,6 +173,7 @@ kernel/drivers/misc/pvpanic/pvpanic-pci.ko
 kernel/drivers/scsi/scsi_mod.ko
 kernel/drivers/scsi/scsi_common.ko
 kernel/drivers/scsi/sd_mod.ko
+kernel/drivers/net/dummy.ko
 kernel/drivers/net/wireguard/wireguard.ko
 kernel/drivers/net/macvlan.ko
 kernel/drivers/net/macvtap.ko
