@@ -129,7 +129,9 @@ RUN apk add --no-cache \
     # for migration xattrs
     tar \
     # /etc/localtime for containers
-    tzdata
+    tzdata \
+    # for kubectl port-forward
+    socat
 
 # Official Docker engine build
 RUN <<EOT sh -eux
