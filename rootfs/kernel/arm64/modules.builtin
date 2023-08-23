@@ -179,6 +179,7 @@ kernel/drivers/misc/pvpanic/pvpanic-pci.ko
 kernel/drivers/scsi/scsi_mod.ko
 kernel/drivers/scsi/scsi_common.ko
 kernel/drivers/scsi/sd_mod.ko
+kernel/drivers/net/dummy.ko
 kernel/drivers/net/wireguard/wireguard.ko
 kernel/drivers/net/macvlan.ko
 kernel/drivers/net/macvtap.ko
