@@ -1,11 +1,11 @@
 package util
 
 func DiffSlices[T comparable](old, new []T) (added, removed []T) {
-	oldMap := make(map[T]struct{})
+	oldMap := make(map[T]struct{}, len(old))
 	for _, item := range old {
 		oldMap[item] = struct{}{}
 	}
-	newMap := make(map[T]struct{})
+	newMap := make(map[T]struct{}, len(new))
 	for _, item := range new {
 		newMap[item] = struct{}{}
 	}
@@ -29,11 +29,11 @@ type Identifiable[I comparable] interface {
 }
 
 func DiffSlicesKey[I comparable, T Identifiable[I]](old, new []T) (added, removed []T) {
-	oldMap := make(map[I]struct{})
+	oldMap := make(map[I]struct{}, len(old))
 	for _, item := range old {
 		oldMap[item.Identifier()] = struct{}{}
 	}
-	newMap := make(map[I]struct{})
+	newMap := make(map[I]struct{}, len(new))
 	for _, item := range new {
 		newMap[item.Identifier()] = struct{}{}
 	}

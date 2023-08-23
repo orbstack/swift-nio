@@ -429,7 +429,6 @@ func readOneIptablesListeners(cmd string, listeners []sysnet.ListenerInfo) ([]sy
 // even if we don't need forwards to mac, it's important to register these listeneres as forwards so they get added to lfwd blocked_ports map
 // otherwise route_localnet doesn't work and these ports don't work in the machine
 func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo) ([]sysnet.ListenerInfo, error) {
-	// join container netns
 	return withContainerNetns(c, func() ([]sysnet.ListenerInfo, error) {
 		// v4 and v6
 		listeners, err := readOneIptablesListeners("iptables", listeners)
@@ -448,11 +447,11 @@ func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo) ([]sy
 
 // workaround for generics not working for value types
 func diffSlicesListenerKey(old, new []sysnet.ListenerInfo) (added, removed []sysnet.ListenerInfo) {
-	oldMap := make(map[sysnet.ListenerKey]struct{})
+	oldMap := make(map[sysnet.ListenerKey]struct{}, len(old))
 	for _, item := range old {
 		oldMap[item.Identifier()] = struct{}{}
 	}
-	newMap := make(map[sysnet.ListenerKey]struct{})
+	newMap := make(map[sysnet.ListenerKey]struct{}, len(new))
 	for _, item := range new {
 		newMap[item.Identifier()] = struct{}{}
 	}
