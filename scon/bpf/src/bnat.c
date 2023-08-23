@@ -70,6 +70,7 @@ static const __be32 XLAT_PREFIX6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617
 
 // source ip after translation
 // we use this ip, outside of machine bridge, so that docker machine routes the reply via default route (i.e. us)
+// also, it needs to be RFC private IP due to applications
 // then we use a static ip route to redirect it to eth1 (where our egress4 prog is attached)
 //
 // ideally we'd MASQUERADE this to Docker bridge gateway IP in Docker machine, but we need to make sure cfwd can differentiate it and make sk_lookup hook kick in

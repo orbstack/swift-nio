@@ -42,6 +42,7 @@ const includeComments = [
     '#!/', // shebang
     'Copyright', // legal
     'License:', // legal, e.g. bnat
+    'SPDX-License-Identifier', // legal
 ]
 
 const skipFiles = [
