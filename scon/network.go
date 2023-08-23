@@ -337,7 +337,7 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 }
 
 func setupAllNat() (func() error, error) {
-	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, netconf.SconSubnet4CIDR, netconf.SecureSvcIP4, netconf.SconHostBridgeIP4, netconf.SconWebIndexIP4)
+	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, netconf.SconSubnet4CIDR, netconf.VnetSecureSvcIP4, netconf.SconHostBridgeIP4, netconf.SconWebIndexIP4)
 	if err != nil {
 		return nil, err
 	}

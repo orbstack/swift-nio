@@ -88,6 +88,7 @@ class VlanRouter {
             // upper 1 bit = 0 (host)
             var config = config
             config.hostOverrideMac[5] = UInt8(index & 0x7f)
+            config.guestMac[5] = UInt8((index & 0x7f) | 0x80)
 
             let bridge = try BridgeNetwork(config: config)
             interfaces[Int(index)] = bridge

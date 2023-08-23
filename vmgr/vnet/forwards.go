@@ -47,9 +47,9 @@ func (n *Network) StartForward(spec ForwardSpec) (HostForward, error) {
 	case "tcp":
 		switch toProto {
 		case "tcp":
-			connectAddr4 := netconf.GuestIP4 + ":" + toPort
-			connectAddr6 := "[" + netconf.GuestIP6 + "]:" + toPort
-			fwd, err = tcpfwd.StartTcpHostForward(n.Stack, n.NIC, netconf.HostNatIP4, netconf.HostNatIP6, fromAddr, connectAddr4, connectAddr6, isInternal)
+			connectAddr4 := netconf.VnetGuestIP4 + ":" + toPort
+			connectAddr6 := "[" + netconf.VnetGuestIP6 + "]:" + toPort
+			fwd, err = tcpfwd.StartTcpHostForward(n.Stack, n.NIC, netconf.VnetHostNatIP4, netconf.Vnet2HostNatIP6, fromAddr, connectAddr4, connectAddr6, isInternal)
 			if err != nil {
 				return nil, err
 			}
@@ -71,8 +71,8 @@ func (n *Network) StartForward(spec ForwardSpec) (HostForward, error) {
 	case "udp":
 		switch toProto {
 		case "udp":
-			connectAddr4 := netconf.GuestIP4 + ":" + toPort
-			connectAddr6 := "[" + netconf.GuestIP6 + "]:" + toPort
+			connectAddr4 := netconf.VnetGuestIP4 + ":" + toPort
+			connectAddr6 := "[" + netconf.VnetGuestIP6 + "]:" + toPort
 			fwd, err = udpfwd.StartUDPHostForward(n.Stack, fromAddr, connectAddr4, connectAddr6)
 			if err != nil {
 				return nil, err
@@ -85,7 +85,7 @@ func (n *Network) StartForward(spec ForwardSpec) (HostForward, error) {
 		_ = os.Remove(fromAddr)
 		switch toProto {
 		case "tcp":
-			connectAddr4 := netconf.GuestIP4 + ":" + toPort
+			connectAddr4 := netconf.VnetGuestIP4 + ":" + toPort
 			fwd, err = tcpfwd.StartUnixTcpHostForward(n.Stack, n.NIC, fromAddr, connectAddr4)
 			if err != nil {
 				return nil, err

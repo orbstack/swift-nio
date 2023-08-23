@@ -97,7 +97,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 		return nil, nil, err
 	}
 
-	macAddr, err := tcpip.ParseMACAddress(netconf.GatewayMAC)
+	macAddr, err := tcpip.ParseMACAddress(netconf.HostMACVnet)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -184,13 +184,13 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 
 	if err := s.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
-		AddressWithPrefix: netutil.ParseTcpipAddress(netconf.GatewayIP4).WithPrefix(),
+		AddressWithPrefix: netutil.ParseTcpipAddress(netconf.VnetGatewayIP4).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
 	if err := s.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
 		Protocol:          ipv6.ProtocolNumber,
-		AddressWithPrefix: netutil.ParseTcpipAddress(netconf.GatewayIP6).WithPrefix(),
+		AddressWithPrefix: netutil.ParseTcpipAddress(netconf.VnetGatewayIP6).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
@@ -203,7 +203,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		return nil, errors.New(err.String())
 	}
 
-	_, ipSubnet4, err := net.ParseCIDR(netconf.Subnet4 + ".0/24")
+	_, ipSubnet4, err := net.ParseCIDR(netconf.VnetSubnet4 + ".0/24")
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		return nil, err
 	}
 
-	_, ipSubnet6, err := net.ParseCIDR(netconf.Subnet6 + ":0/64")
+	_, ipSubnet6, err := net.ParseCIDR(netconf.VnetSubnet6 + ":0/64")
 	if err != nil {
 		return nil, err
 	}
@@ -278,10 +278,10 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	// }
 
 	// ICMP, used by forwarders
-	guestAddr4 := netutil.ParseTcpipAddress(netconf.GuestIP4)
-	guestAddr6 := netutil.ParseTcpipAddress(netconf.GuestIP6)
-	gatewayAddr4 := netutil.ParseTcpipAddress(netconf.GatewayIP4)
-	gatewayAddr6 := netutil.ParseTcpipAddress(netconf.GatewayIP6)
+	guestAddr4 := netutil.ParseTcpipAddress(netconf.VnetGuestIP4)
+	guestAddr6 := netutil.ParseTcpipAddress(netconf.VnetGuestIP6)
+	gatewayAddr4 := netutil.ParseTcpipAddress(netconf.VnetGatewayIP4)
+	gatewayAddr6 := netutil.ParseTcpipAddress(netconf.VnetGatewayIP6)
 
 	// add static neighbors so we don't need ARP (waste of CPU)
 	guestMac, err := tcpip.ParseMACAddress(netconf.GuestMACVnet)
@@ -303,8 +303,8 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	icmpFwd.MonitorReplies()
 
 	// Build NAT table
-	hostNatIP4 := netutil.ParseTcpipAddress(netconf.HostNatIP4)
-	hostNatIP6 := netutil.ParseTcpipAddress(netconf.HostNatIP6)
+	hostNatIP4 := netutil.ParseTcpipAddress(netconf.VnetHostNatIP4)
+	hostNatIP6 := netutil.ParseTcpipAddress(netconf.Vnet2HostNatIP6)
 
 	// Forwarders
 	tcpForwarder, proxyManager := tcpfwd.NewTcpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)

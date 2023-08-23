@@ -23,7 +23,7 @@ func NewHostServiceProxy(unixPath string, port int, socketUidGid int) (*HostServ
 
 	return &HostServiceProxy{
 		listener:    listener,
-		connectAddr: &net.TCPAddr{IP: net.ParseIP(netconf.SecureSvcIP4), Port: port},
+		connectAddr: &net.TCPAddr{IP: net.ParseIP(netconf.VnetSecureSvcIP4), Port: port},
 	}, nil
 }
 

@@ -44,6 +44,8 @@ type BridgeNetworkConfig struct {
 	Ip6Address string `json:"ip6Address,omitempty"`
 
 	HostOverrideMAC []uint16 `json:"hostOverrideMac,omitempty"`
+	GuestMAC        []uint16 `json:"guestMac,omitempty"`
+	NDPReplyPrefix  []uint16 `json:"ndpReplyPrefix,omitempty"`
 	AllowMulticast  bool     `json:"allowMulticast"`
 
 	MaxLinkMTU int `json:"maxLinkMtu"`

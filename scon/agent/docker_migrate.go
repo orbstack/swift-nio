@@ -48,7 +48,7 @@ func readUntilResponseEnd(conn io.Reader, trailer string) (io.ReadWriter, error)
 }
 
 func (a *AgentServer) DockerMigrationLoadImage(params types.InternalDockerMigrationLoadImageRequest, _ *None) error {
-	remoteConn, err := netx.Dial("tcp", netconf.SecureSvcIP4+":"+strconv.Itoa(ports.SecureSvcDockerRemoteCtx))
+	remoteConn, err := netx.Dial("tcp", netconf.VnetSecureSvcIP4+":"+strconv.Itoa(ports.SecureSvcDockerRemoteCtx))
 	if err != nil {
 		return err
 	}

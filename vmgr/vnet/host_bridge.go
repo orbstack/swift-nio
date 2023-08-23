@@ -24,14 +24,18 @@ const (
 )
 
 var (
-	brMacSconMachine        []uint16
+	brMacSconHost           []uint16
+	brMacSconGuest          []uint16
 	brMacVlanRouterTemplate []uint16
 
-	zeroNetIPv4 = netip.MustParsePrefix("0.0.0.0/8")
+	// 0.0.0.0/8
+	zeroNetIPv4 = netip.PrefixFrom(netip.IPv4Unspecified(), 8)
+	nat64Subnet = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
 )
 
 func init() {
-	brMacSconMachine = mustParseUint16Mac(netconf.SconHostBridgeMAC)
+	brMacSconHost = mustParseUint16Mac(netconf.HostMACSconBridge)
+	brMacSconGuest = mustParseUint16Mac(netconf.GuestMACSconBridge)
 	brMacVlanRouterTemplate = mustParseUint16Mac(netconf.VlanRouterMACTemplate)
 }
 
@@ -41,13 +45,27 @@ func mustParseUint16Mac(mac string) []uint16 {
 		panic(err)
 	}
 
+	return bytesToUint16(m)
+}
+
+func bytesToUint16(b []byte) []uint16 {
 	// map to uint16 for json to swift
-	macUint16 := make([]uint16, len(m))
-	for i, b := range m {
+	// go encodes []uint8 to base64
+	macUint16 := make([]uint16, len(b))
+	for i, b := range b {
 		macUint16[i] = uint16(b)
 	}
 
 	return macUint16
+}
+
+// Swift does memcmp on this
+func slicePrefix6(p netip.Prefix) []uint16 {
+	// FIXME: we only do /64 and /96
+	if p.Bits()%8 != 0 {
+		panic(fmt.Errorf("invalid prefix: %s", p))
+	}
+	return bytesToUint16(p.Addr().AsSlice()[:p.Bits()/8])
 }
 
 func (n *Network) AddHostBridgeFd(fd int) error {
@@ -167,6 +185,7 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		UUID: deriveBridgeConfigUuid(config),
 		// this is a template. updated by VlanRouter when it gets index
 		HostOverrideMAC: brMacVlanRouterTemplate,
+		GuestMAC:        brMacVlanRouterTemplate,
 		// doesn't work well
 		AllowMulticast: false,
 
@@ -183,6 +202,8 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		// macOS mask is always /64. we check this on docker side too
 		ip, _ := config.HostIP6()
 		vmnetConfig.Ip6Address = ip.String()
+		// NDP proxy
+		vmnetConfig.NDPReplyPrefix = slicePrefix6(config.IP6Subnet)
 	}
 
 	// if addr part of the prefix == 0, then macOS will add RTF_GLOBAL to the routing entry
@@ -319,7 +340,11 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		Ip4Mask:    netconf.SconSubnet4Mask,
 		Ip6Address: netconf.SconHostBridgeIP6,
 
-		HostOverrideMAC: brMacSconMachine,
+		HostOverrideMAC: brMacSconHost,
+		// scon machine bridge doesn't use ip forward/proxy arp - it bridges machines directly
+		// so this is just the VM's MAC for NDP responder use
+		GuestMAC:       brMacSconGuest,
+		NDPReplyPrefix: slicePrefix6(nat64Subnet),
 		// for .local names
 		AllowMulticast: true,
 

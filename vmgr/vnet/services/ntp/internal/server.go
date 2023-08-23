@@ -169,7 +169,7 @@ func (s *Server) Respond(r *ServerReq) {
 		return
 	}
 
-	logrus.Debug("NTP request from ", r.Client)
+	logrus.Debug("NTP request")
 
 	// BUG(marineam): We doesn't account for the possibility of
 	// UpdateOffset behaving differently for the transmit time instead of

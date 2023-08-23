@@ -90,7 +90,7 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
 }
 
 struct BridgeNetworkConfig: Codable {
-    var guestFd: Int32
+    let guestFd: Int32
     let shouldReadGuest: Bool
 
     let uuid: String
@@ -99,9 +99,12 @@ struct BridgeNetworkConfig: Codable {
     // always /64
     let ip6Address: String?
 
-    var hostOverrideMac: [UInt8]
+    var hostOverrideMac: [UInt8] // for vlans: template, filled in by addBridge
+    var guestMac: [UInt8] // for vlans: template, filled in by addBridge
+    let ndpReplyPrefix: [UInt8]?
     let allowMulticast: Bool
 
+    // 65535 on macOS 12+
     let maxLinkMtu: Int
 }
 
@@ -118,7 +121,10 @@ class BridgeNetwork {
 
     init(config: BridgeNetworkConfig) throws {
         self.config = config
-        self.processor = PacketProcessor(hostOverrideMac: config.hostOverrideMac, allowMulticast: config.allowMulticast)
+        self.processor = PacketProcessor(hostOverrideMac: config.hostOverrideMac,
+                allowMulticast: config.allowMulticast,
+                ndpReplyPrefix: config.ndpReplyPrefix,
+                guestMac: config.guestMac)
 
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
         xpc_dictionary_set_uint64(ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))

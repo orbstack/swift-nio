@@ -72,9 +72,15 @@ struct DKContainer: Codable, Identifiable, Hashable {
            let _domain = label.split(separator: ",").first {
             // remove wildcard
             let domain = String(_domain)
+            // make it RFC 1035 compliant, or Tomcat complains
+            // we have aliases for _ -> - if it was a default name (compose or container name)
+            // _ is allowed for custom names
             return String(domain.deletingPrefix("*."))
+                .replacingOccurrences(of: "_", with: "-")
         } else if let project = composeProject {
+            // make it RFC 1035 compliant, or Tomcat complains
             return "\(userName).\(project).orb.local"
+                .replacingOccurrences(of: "_", with: "-")
         } else {
             return "\(userName).orb.local"
         }

@@ -372,7 +372,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 	svConfig := SimplevisorConfig{
 		Services: [][]string{
-			{"dockerd", "--host-gateway-ip=" + netconf.HostNatIP4, "--userland-proxy-path", mounts.Pstub},
+			{"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},
 	}
 	// add k8s service

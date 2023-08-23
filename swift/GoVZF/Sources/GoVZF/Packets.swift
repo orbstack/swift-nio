@@ -33,12 +33,6 @@ private let macAddrIpv4MulticastPrefix: [UInt8] = [0x01, 0x00, 0x5e]
 private let macAddrIpv6MulticastPrefix: [UInt8] = [0x33, 0x33]
 private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
 
-// falls under scon machine /32
-// fd07:b51a:cc66:0:a617:db5e/96
-private let nat64Prefix: [UInt8] = [0xfd, 0x07, 0xb5, 0x1a, 0xcc, 0x66, 0x00, 0x00, 0xa6, 0x17, 0xdb, 0x5e]
-// da:9b:d0:54:e0:02
-private let nat64MacAddrGuest: [UInt8] = [0xda, 0x9b, 0xd0, 0x54, 0xe0, 0x02]
-
 typealias BrnetInterfaceIndex = UInt
 let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
 
@@ -104,10 +98,18 @@ class PacketProcessor {
     private var hostRealMac: [UInt8]?
     private let allowMulticast: Bool
 
-    init(realExternalMtu: Int = 1500, hostOverrideMac: [UInt8], allowMulticast: Bool = false) {
+    // IPv6 prefix that we respond to NDP probes for
+    private var ndpReplyPrefix: [UInt8]?
+    // guest MAC address for NDP replies
+    private var guestMac: [UInt8]?
+
+    init(realExternalMtu: Int = 1500, hostOverrideMac: [UInt8], allowMulticast: Bool = false,
+            ndpReplyPrefix: [UInt8]? = nil, guestMac: [UInt8]? = nil) {
         self.realExternalMtu = realExternalMtu
         self.hostOverrideMac = hostOverrideMac
         self.allowMulticast = allowMulticast
+        self.ndpReplyPrefix = ndpReplyPrefix
+        self.guestMac = guestMac
     }
 
     /*
@@ -317,6 +319,7 @@ class PacketProcessor {
                     }
 
                     // NAT64: respond to solicitation with advertisement for VM MAC
+                    //
                     if icmpv6Type == ICMPV6_NEIGHBOR_SOLICITATION {
                         try maybeRespondNat64Ndp(pkt: pkt)
                     }
@@ -326,9 +329,13 @@ class PacketProcessor {
     }
 
     func maybeRespondNat64Ndp(pkt: Packet) throws {
+        guard let ndpReplyPrefix, let guestMac else {
+            return
+        }
+
         // check target address prefix
         let targetAddrPtr = try pkt.slicePtr(offset: 14 + 40 + 8, len: 16)
-        guard memcmp(targetAddrPtr, nat64Prefix, nat64Prefix.count) == 0 else {
+        guard memcmp(targetAddrPtr, ndpReplyPrefix, ndpReplyPrefix.count) == 0 else {
             return
         }
 
@@ -342,7 +349,7 @@ class PacketProcessor {
         dstMacPtr.copyMemory(from: srcMacPtr, byteCount: macAddrSize)
 
         // 2. new src MAC = guest MAC
-        srcMacPtr.copyMemory(from: nat64MacAddrGuest, byteCount: macAddrSize)
+        srcMacPtr.copyMemory(from: guestMac, byteCount: macAddrSize)
 
         // 3. new dest IPv6 = src IPv6
         let srcIpv6Ptr = try pkt.slicePtr(offset: 14 + 8, len: 16)
@@ -362,7 +369,7 @@ class PacketProcessor {
         do {
             try pkt.store(offset: 14 + 40 + 24, value: ICMPV6_OPTION_TARGET_LLADDR)
             let icmpv6TargetMacPtr = try pkt.slicePtr(offset: 14 + 40 + 26, len: macAddrSize)
-            icmpv6TargetMacPtr.copyMemory(from: nat64MacAddrGuest, byteCount: macAddrSize)
+            icmpv6TargetMacPtr.copyMemory(from: guestMac, byteCount: macAddrSize)
         } catch {
             // ignore if option not present
         }

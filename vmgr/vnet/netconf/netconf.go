@@ -1,21 +1,21 @@
 package netconf
 
 const (
-	Subnet4       = "198.19.248"
-	GatewayIP4    = Subnet4 + ".1"
-	GuestIP4      = Subnet4 + ".2"
-	ServicesIP4   = Subnet4 + ".200"
-	SecureSvcIP4  = Subnet4 + ".201"
-	ExtHostNatIP4 = Subnet4 + ".253"
-	HostNatIP4    = Subnet4 + ".254"
+	VnetSubnet4       = "198.19.248"
+	VnetGatewayIP4    = VnetSubnet4 + ".1"
+	VnetGuestIP4      = VnetSubnet4 + ".2"
+	VnetServicesIP4   = VnetSubnet4 + ".200"
+	VnetSecureSvcIP4  = VnetSubnet4 + ".201"
+	VnetExtHostNatIP4 = VnetSubnet4 + ".253"
+	VnetHostNatIP4    = VnetSubnet4 + ".254"
 
-	Subnet6 = "fd07:b51a:cc66:f0:"
+	VnetSubnet6 = "fd07:b51a:cc66:f0:"
 	// hack: because we don't implement NDP, we need to use a different subnet for anything that's not guest or gateway
-	SubnetExt6    = "fd07:b51a:cc66:f1:"
-	GatewayIP6    = Subnet6 + ":1"
-	GuestIP6      = Subnet6 + ":2"
-	ExtHostNatIP6 = SubnetExt6 + ":253"
-	HostNatIP6    = SubnetExt6 + ":254"
+	Vnet2Subnet6       = "fd07:b51a:cc66:f1:"
+	VnetGatewayIP6     = VnetSubnet6 + ":1"
+	VnetGuestIP6       = VnetSubnet6 + ":2"
+	Vnet2ExtHostNatIP6 = Vnet2Subnet6 + ":253"
+	Vnet2HostNatIP6    = Vnet2Subnet6 + ":254"
 )
 
 const (
@@ -50,19 +50,20 @@ const (
 // static ARP/neighbors to save CPU
 // all under random block U/L block:
 const (
-	//da9bd054-66ca-48ab-8b7a-ac47d3a2698a
 	BlockMACPrefix = "da:9b:d0:54"
 
 	// we start at :e0
 	GuestMACPrefix = BlockMACPrefix + ":e0"
-	GuestMACVnet   = GuestMACPrefix + ":01"
+	// da:9b:d0:54:e0:01
+	GuestMACVnet = GuestMACPrefix + ":01"
+	// da:9b:d0:54:e0:02
+	GuestMACSconBridge = GuestMACPrefix + ":02"
 
 	// gateway and vmnet use :e1 block
-	GatewayMAC        = BlockMACPrefix + ":e1:01"
-	SconHostBridgeMAC = BlockMACPrefix + ":e1:02"
-
-	// dummy, not really used, just to make Linux happy
-	NAT64SourceMAC = BlockMACPrefix + ":e1:03"
+	// da:9b:d0:54:e1:01
+	HostMACVnet = BlockMACPrefix + ":e1:01"
+	// da:9b:d0:54:e1:02
+	HostMACSconBridge = BlockMACPrefix + ":e1:02"
 
 	// vlan router uses entire :e2 block
 	// lower 7 bits: vlan id / interface index

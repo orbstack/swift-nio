@@ -40,7 +40,7 @@ const (
 
 	// matches mDNSResponder timeout
 	mdnsProxyTimeout  = 5 * time.Second
-	mdnsProxyUpstream = netconf.ServicesIP4 + ":53"
+	mdnsProxyUpstream = netconf.VnetServicesIP4 + ":53"
 
 	mdnsCacheFlushRrclass = 1 << 15 // top bit
 )
@@ -112,6 +112,42 @@ type mdnsRegistry struct {
 	host *hclient.Client
 
 	httpServer *http.Server
+}
+
+func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
+	r := &mdnsRegistry{
+		tree:           radix.New(),
+		recentQueries:  make(map[string]mdnsQueryInfo),
+		pendingFlushes: make(map[string]struct{}),
+		host:           host,
+	}
+	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
+
+	// add initial index record
+	r.tree.Insert(reverse(mdnsIndexDomain), &mdnsEntry{
+		Type:       MdnsEntryStatic,
+		IsWildcard: false,
+		IsHidden:   true, // don't show itself
+		ips: []net.IP{
+			net.ParseIP(netconf.SconWebIndexIP4),
+			net.ParseIP(netconf.SconWebIndexIP6),
+		},
+	})
+
+	// add k8s alias
+	k8sIP4 := net.ParseIP(netconf.SconK8sIP4)
+	r.tree.Insert(reverse("k8s.orb.local."), &mdnsEntry{
+		Type:       MdnsEntryStatic,
+		IsWildcard: true,
+		IsHidden:   false,
+		ips: []net.IP{
+			k8sIP4,
+			// for now, use NAT64 until we do IPv6 for k8s
+			mapToNat64(k8sIP4),
+		},
+	})
+
+	return r
 }
 
 func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
@@ -267,9 +303,7 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 		if !gotIP6 {
 			for _, ip := range ips {
 				if ip4 := ip.To4(); ip4 != nil {
-					// map NAT64 /96
-					ip6 := nat64Prefix.Addr().AsSlice()
-					copy(ip6[12:], ip4)
+					ip6 := mapToNat64(ip4)
 
 					records = append(records, &dns.AAAA{
 						Hdr: dns.RR_Header{
@@ -288,40 +322,6 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 	return records
 }
 
-func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
-	r := &mdnsRegistry{
-		tree:           radix.New(),
-		recentQueries:  make(map[string]mdnsQueryInfo),
-		pendingFlushes: make(map[string]struct{}),
-		host:           host,
-	}
-	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
-
-	// add initial index record
-	r.tree.Insert(reverse(mdnsIndexDomain), &mdnsEntry{
-		Type:       MdnsEntryStatic,
-		IsWildcard: false,
-		IsHidden:   true, // don't show itself
-		ips: []net.IP{
-			net.ParseIP(netconf.SconWebIndexIP4),
-			net.ParseIP(netconf.SconWebIndexIP6),
-		},
-	})
-
-	// add k8s alias
-	r.tree.Insert(reverse("k8s.orb.local."), &mdnsEntry{
-		Type:       MdnsEntryStatic,
-		IsWildcard: true,
-		IsHidden:   false,
-		ips: []net.IP{
-			net.ParseIP(netconf.SconK8sIP4),
-			net.ParseIP(netconf.SconK8sIP6),
-		},
-	})
-
-	return r
-}
-
 func reverse(s string) string {
 	// simply reversing the entire thing is fine - as long as we do it consistently
 	buf := make([]byte, 0, len(s))
@@ -331,15 +331,29 @@ func reverse(s string) string {
 	return string(buf)
 }
 
+func mapToNat64(ip4 net.IP) net.IP {
+	ip6 := nat64Prefix.Addr().AsSlice()
+	copy(ip6[12:], ip4.To4())
+	return ip6[:]
+}
+
 func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin, notifyInvalid bool) []dnsName {
 	// (3) short ID, names, compose: service.project
 	// full ID is too long for DNS: it's 64 chars, max is 63 per component
 	names := make([]dnsName, 0, 1+len(ctr.Names)+1)
 	// full ID is always hidden
 	// all default domains are wildcards, b/c we don't set them up in a hierarchy so they can't conflict
+	// TODO: migrate to proper "preferred domain" logic
 	names = append(names, dnsName{Name: ctr.ID[:12], Hidden: true, Wildcard: true})
 	for _, name := range ctr.Names {
-		names = append(names, dnsName{Name: strings.TrimPrefix(name, "/"), Hidden: false, Wildcard: true})
+		name = strings.TrimPrefix(name, "/")
+		// translate _ to - for RFC compliance, but keep orig $CONTAINER_NAME for convenience, for apps that don't care
+		if strings.Contains(name, "_") {
+			names = append(names, dnsName{Name: name, Hidden: true, Wildcard: true})
+			names = append(names, dnsName{Name: strings.ReplaceAll(name, "_", "-"), Hidden: false, Wildcard: true})
+		} else {
+			names = append(names, dnsName{Name: name, Hidden: false, Wildcard: true})
+		}
 	}
 	if ctr.Labels != nil {
 		if composeProject, ok := ctr.Labels["com.docker.compose.project"]; ok {
@@ -348,7 +362,15 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 				for i := range names {
 					names[i].Hidden = true
 				}
-				names = append(names, dnsName{Name: composeService + "." + composeProject, Hidden: false, Wildcard: true})
+
+				name := composeService + "." + composeProject
+				// translate _ to - for RFC compliance, but keep orig $CONTAINER_NAME for convenience, for apps that don't care
+				if strings.Contains(name, "_") {
+					names = append(names, dnsName{Name: name, Hidden: true, Wildcard: true})
+					names = append(names, dnsName{Name: strings.ReplaceAll(name, "_", "-"), Hidden: false, Wildcard: true})
+				} else {
+					names = append(names, dnsName{Name: name, Hidden: false, Wildcard: true})
+				}
 			}
 		}
 	}
