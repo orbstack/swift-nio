@@ -58,3 +58,13 @@ func AddrFromNetip(addr netip.Addr) tcpip.Address {
 		return tcpip.Address{}
 	}
 }
+
+func NetipFromAddr(addr tcpip.Address) netip.Addr {
+	if addr.Len() == 4 {
+		return netip.AddrFrom4(addr.As4())
+	} else if addr.Len() == 16 {
+		return netip.AddrFrom16(addr.As16())
+	} else {
+		return netip.Addr{}
+	}
+}

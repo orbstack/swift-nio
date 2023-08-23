@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/icmpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
@@ -21,6 +22,7 @@ import (
 )
 
 const (
+	// note: Linux default is 60 sec
 	tcpConnectTimeout = 30 * time.Second
 	// this is global
 	// set very high for nmap
@@ -57,7 +59,7 @@ func tryBestCleanup(conn *gonet.TCPConn) error {
 	return tryAbort(conn)
 }
 
-func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) (*tcp.Forwarder, *ProxyManager) {
+func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address, bridgeRouteMon *bridge.RouteMon) (*tcp.Forwarder, *ProxyManager) {
 	proxyMgr := newProxyManager(hostNatIP4, hostNatIP6)
 
 	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
@@ -68,15 +70,19 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 			}
 		}()
 
-		localAddress := r.ID().LocalAddress
-		if !netutil.ShouldForward(localAddress) {
+		targetAddr := r.ID().LocalAddress
+		// exclude blacklisted IPs
+		// and to prevent loops, exclude IPs that we're currently bridging (i.e. scon or vlan)
+		shouldForward := netutil.ShouldForward(targetAddr) &&
+			!bridgeRouteMon.ContainsIP(netutil.NetipFromAddr(targetAddr))
+		if !shouldForward {
 			r.Complete(false)
 			return
 		}
 
 		// if we require proxy and don't have SOCKS, port 80 should use reverse proxy
 		extPort := int(r.ID().LocalPort)
-		if proxyMgr.requiresHttpProxy && extPort == 80 && proxyMgr.isProxyEligibleIPPre(localAddress) {
+		if proxyMgr.requiresHttpProxy && extPort == 80 && proxyMgr.isProxyEligibleIPPre(targetAddr) {
 			proxyMgr.httpMu.Lock()
 			revProxy := proxyMgr.httpRevProxy
 			proxyMgr.httpMu.Unlock()
@@ -94,7 +100,7 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 			r.Complete(false)
 			if tcpErr != nil {
 				// Maybe VM abandoned the connection already, nothing to do
-				extAddr := net.JoinHostPort(localAddress.String(), strconv.Itoa(extPort))
+				extAddr := net.JoinHostPort(targetAddr.String(), strconv.Itoa(extPort))
 				logrus.Errorf("TCP forward [%v] create endpoint failed: %v", extAddr, tcpErr)
 				return
 			}
@@ -108,7 +114,7 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 		}
 
 		// this also handles host NAT
-		extConn, extAddr, err := proxyMgr.DialForward(localAddress, extPort)
+		extConn, extAddr, err := proxyMgr.DialForward(targetAddr, extPort)
 		if err != nil {
 			// log level depends on proxy
 			if _, ok := err.(*ProxyDialError); ok {
@@ -117,27 +123,27 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 				logrus.Debugf("TCP forward [%v] dial failed: %v", extAddr, err)
 			}
 
-			// if connection refused
 			if errors.Is(err, unix.ECONNREFUSED) || errors.Is(err, unix.ECONNRESET) {
-				// send RST
+				// connection refused: send RST
 				r.Complete(true)
 			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) || errors.Is(err, unix.ENETUNREACH) {
 				logrus.Debug("inject ICMP unreachable")
-				if localAddress.To4() == (tcpip.Address{}) {
+				if targetAddr.To4() == (tcpip.Address{}) {
 					if errors.Is(err, unix.ENETUNREACH) {
-						i.InjectDestUnreachable6(r.Pkt, header.ICMPv6NetworkUnreachable)
+						icmpMgr.InjectDestUnreachable6(r.Pkt, header.ICMPv6NetworkUnreachable)
 					} else {
-						i.InjectDestUnreachable6(r.Pkt, header.ICMPv6AddressUnreachable)
+						icmpMgr.InjectDestUnreachable6(r.Pkt, header.ICMPv6AddressUnreachable)
 					}
 				} else {
 					if errors.Is(err, unix.ENETUNREACH) {
-						i.InjectDestUnreachable4(r.Pkt, header.ICMPv4NetUnreachable)
+						icmpMgr.InjectDestUnreachable4(r.Pkt, header.ICMPv4NetUnreachable)
 					} else {
-						i.InjectDestUnreachable4(r.Pkt, header.ICMPv4HostUnreachable)
+						icmpMgr.InjectDestUnreachable4(r.Pkt, header.ICMPv4HostUnreachable)
 					}
 				}
 				r.Complete(false)
 			} else if errors.Is(err, unix.ETIMEDOUT) || errors.Is(err, context.DeadlineExceeded) {
+				// timeout: simulate timeout by not responding
 				r.Complete(false)
 			} else {
 				// unknown
@@ -153,7 +159,7 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 		ep, tcpErr := r.CreateEndpoint(&wq)
 		r.Complete(false)
 		if tcpErr != nil {
-			// Maybe VM abandoned the connection already, nothing to do
+			// VM abandoned the connection already, nothing to do
 			logrus.Errorf("TCP forward [%v] create endpoint failed: %v", extAddr, tcpErr)
 			return
 		}
@@ -170,7 +176,7 @@ func NewTcpForwarder(s *stack.Stack, i *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Addres
 			// other port doesn't matter, only service does (client port should be ephemeral)
 			err = setExtNodelay(extTcpConn, 0)
 			if err != nil {
-				logrus.Errorf("TCP forward [%v] set ext opts failed: %v", extAddr, err)
+				logrus.Errorf("TCP forward [%v] set opts failed: %v", extAddr, err)
 				return
 			}
 

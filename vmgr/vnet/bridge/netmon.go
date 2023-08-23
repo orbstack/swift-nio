@@ -107,6 +107,24 @@ func (m *RouteMon) Monitor() error {
 	return nil
 }
 
+// ContainsIP returns whether ip is in any of the actively monitored bridge subnets.
+func (m *RouteMon) ContainsIP(ip netip.Addr) bool {
+	m.subnetsMu.Lock()
+	defer m.subnetsMu.Unlock()
+
+	for _, subnet := range m.subnets {
+		if !subnet.IsActive() {
+			continue
+		}
+
+		if subnet.prefix4.Contains(ip) || subnet.prefix6.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (m *RouteMon) SetSubnet(index int, prefix4 netip.Prefix, prefix6 netip.Prefix, renewFn func() error) error {
 	m.subnetsMu.Lock()
 	defer m.subnetsMu.Unlock()

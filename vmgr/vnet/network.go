@@ -306,8 +306,13 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	hostNatIP4 := netutil.ParseTcpipAddress(netconf.VnetHostNatIP4)
 	hostNatIP6 := netutil.ParseTcpipAddress(netconf.Vnet2HostNatIP6)
 
+	bridgeRouteMon, err := bridge.NewRouteMon()
+	if err != nil {
+		return nil, err
+	}
+
 	// Forwarders
-	tcpForwarder, proxyManager := tcpfwd.NewTcpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)
+	tcpForwarder, proxyManager := tcpfwd.NewTcpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6, bridgeRouteMon)
 	s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
 	udpForwarder := udpfwd.NewUdpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)
@@ -315,11 +320,6 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 
 	// Silence gvisor logs
 	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
-
-	bridgeRouteMon, err := bridge.NewRouteMon()
-	if err != nil {
-		return nil, err
-	}
 
 	network := &Network{
 		Stack:        s,
