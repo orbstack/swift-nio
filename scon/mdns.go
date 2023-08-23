@@ -309,9 +309,9 @@ func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
 	})
 
 	// add k8s alias
-	r.tree.Insert(reverse("k8s.local."), &mdnsEntry{
+	r.tree.Insert(reverse("k8s.orb.local."), &mdnsEntry{
 		Type:       MdnsEntryStatic,
-		IsWildcard: false,
+		IsWildcard: true,
 		IsHidden:   false,
 		ips: []net.IP{
 			net.ParseIP(netconf.SconK8sIP4),
