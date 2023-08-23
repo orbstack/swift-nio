@@ -274,10 +274,11 @@ func (b *ContainerBpfManager) CfwdUpdateNetNamespaces(entries []fs.DirEntry) err
 	return nil
 }
 
-func ipToCfwdKey(ip net.IP) lfwdCfwdHostIpKey {
-	key := lfwdCfwdHostIpKey{}
+func ipToCfwdKey(ip net.IP) lfwdCfwdIpKey {
+	key := lfwdCfwdIpKey{}
 	// reinterpret and copy big endian
-	copy((*[16]byte)(unsafe.Pointer(&key.Ip6or4))[:], ip.To16()) // map 4-to-6
+	// also map 4-in-6
+	copy((*[16]byte)(unsafe.Pointer(&key.Ip6or4))[:], ip.To16())
 	return key
 }
 

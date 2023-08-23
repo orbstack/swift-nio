@@ -15,7 +15,7 @@
 // 10.183.233.241
 #define NAT64_SRC_IP4 IP4(10, 183, 233, 241)
 
-struct cfwd_host_ip_key {
+struct cfwd_ip_key {
     __be32 ip6or4[4]; // network byte order
 };
 
@@ -27,7 +27,7 @@ struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(map_flags, BPF_F_NO_PREALLOC);
     __uint(max_entries, 16); // macOS max = 8 vlan bridges
-    __type(key, struct cfwd_host_ip_key);
+    __type(key, struct cfwd_ip_key);
     __type(value, struct cfwd_host_ip);
 } cfwd_host_ips SEC(".maps");
 
@@ -117,7 +117,7 @@ static bool cfwd_should_redirect_for_ip(struct bpf_sk_lookup *ctx) {
         return true;
     }
 
-    struct cfwd_host_ip_key host_ip_key;
+    struct cfwd_ip_key host_ip_key;
     if (ctx->family == AF_INET) {
         // make 4-in-6 mapped IP
         host_ip_key.ip6or4[0] = 0;
