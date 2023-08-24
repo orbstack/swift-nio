@@ -12,7 +12,6 @@ import (
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
-	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -100,10 +99,10 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	copy(guestMac, s.vlanMacTemplate)
 	guestMac[5] = byte(vlanId&0x7f) | 0x80
 
-	// open nsfd
-	initPidF := s.dockerMachine.initPidFile
-	if initPidF == nil {
-		return fmt.Errorf("docker machine has no init pid")
+	// make sure we have a valid pid to attach to for ns
+	initPid := s.dockerMachine.initPid
+	if initPid == -1 {
+		return fmt.Errorf("docker machine crashed")
 	}
 
 	// create macvlan
@@ -114,7 +113,7 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	// guest MAC does matter! we use ip forward + proxy arp/ndp, and NDP responder is in Swift, so it needs to know what to reply with
 	la.HardwareAddr = guestMac
 	// move to container netns (doesn't accept pidfd as nsfd)
-	la.Namespace = netlink.NsPid(s.dockerMachine.initPid)
+	la.Namespace = netlink.NsPid(initPid)
 	macvlan := &netlink.Macvlan{
 		LinkAttrs: la,
 		// filter by source MAC
@@ -130,8 +129,35 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 		}
 	}()
 
+	// add iptables rule to block FORWARD to this subnet
+	// prevents routing loop if host pings a non-existent k8s service ip, and docker machine tries to fulfill
+	// we *could* instead add a DROP rule to FORWARD in the docker machine, effectively binding it so that it only forwards to one interface. but since k8s has no interface, that's not possible. this solution allows sharing the code path
+	// we could *also* block outgoing conns to this on the host side, using BridgeRouteMon, but that's racy: vmnet doesn't return until it succeeds, at which point interface is already up and we're too late. if we optimistically block it too early, then it could disrupt traffic on user's conflicting subnets. it's also far more complicated wrt. renewal when conflicting subnets appear/disappear on the host.
+	if config.IP4Subnet.IsValid() {
+		err = s.m.net.BlockIptablesForward(config.IP4Subnet)
+		if err != nil {
+			return fmt.Errorf("block iptables forward: %w", err)
+		}
+		defer func() {
+			if retErr != nil {
+				_ = s.m.net.UnblockIptablesForward(config.IP4Subnet)
+			}
+		}()
+	}
+	if config.IP6Subnet.IsValid() {
+		err = s.m.net.BlockIptablesForward(config.IP6Subnet)
+		if err != nil {
+			return fmt.Errorf("block iptables forward: %w", err)
+		}
+		defer func() {
+			if retErr != nil {
+				_ = s.m.net.UnblockIptablesForward(config.IP6Subnet)
+			}
+		}()
+	}
+
 	// now enter the container's netns... (interface is in there)
-	_, err = sysnet.WithNetns(initPidF, func() (_ struct{}, retErr2 error) {
+	_, err = withContainerNetns(s.dockerMachine, func() (_ struct{}, retErr2 error) {
 		defer func() {
 			if retErr2 != nil {
 				_ = netlink.LinkDel(macvlan)
@@ -242,6 +268,7 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	}
 
 	// add host ip to cfwd bpf
+	// TODO: fix potential race if host connects after interface is up, but before this
 	s.dockerMachine.mu.RLock()
 	defer s.dockerMachine.mu.RUnlock()
 	if s.dockerMachine.bpf != nil {
@@ -271,14 +298,8 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 		return err
 	}
 
-	// open nsfd
-	initPidF := s.dockerMachine.initPidFile
-	if initPidF == nil {
-		return fmt.Errorf("docker machine has no init pid")
-	}
-
 	// now enter the container's netns...
-	_, err = sysnet.WithNetns(initPidF, func() (struct{}, error) {
+	_, err = withContainerNetns(s.dockerMachine, func() (struct{}, error) {
 		// delete the link
 		err := netlink.LinkDel(&netlink.GenericLink{
 			LinkAttrs: netlink.LinkAttrs{
@@ -293,6 +314,20 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 	})
 	if err != nil {
 		return err
+	}
+
+	// unblock forwarding in case this conflicts with user's networks
+	if config.IP4Subnet.IsValid() {
+		err = s.m.net.UnblockIptablesForward(config.IP4Subnet)
+		if err != nil {
+			return fmt.Errorf("unblock iptables forward: %w", err)
+		}
+	}
+	if config.IP6Subnet.IsValid() {
+		err = s.m.net.UnblockIptablesForward(config.IP6Subnet)
+		if err != nil {
+			return fmt.Errorf("unblock iptables forward: %w", err)
+		}
 	}
 
 	// remove host ip from cfwd bpf
@@ -335,6 +370,7 @@ func containerToCfwdMeta(ctr *dockertypes.ContainerSummaryMin) bpf.CfwdContainer
 
 // note: this is for start/stop, not create/delete
 func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertypes.ContainerSummaryMin], _ *None) error {
+	// must not release lock - bpf is protected by c.mu
 	s.dockerMachine.mu.RLock()
 	defer s.dockerMachine.mu.RUnlock()
 	dockerBpf := s.dockerMachine.bpf // nil if not running anymore

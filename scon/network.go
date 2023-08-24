@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path"
@@ -194,19 +195,17 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 }
 
 func (n *Network) toggleIptablesForward(action string, key sysnet.ListenerKey, meta iptablesForwardMeta) error {
-	cmd := "iptables"
-	if key.Addr().Is6() {
-		cmd = "ip6tables"
-	}
-
 	// MASQUERADE not needed
 	// this preserves source IP from host vnet, which works due to ip forward
-	err := util.Run(cmd, "-t", "nat", action, "PREROUTING", "-i", ifVnet, "-d", meta.internalListenIP.String(), "-p", string(key.Proto), "--dport", strconv.Itoa(int(meta.internalPort)), "-j", "DNAT", "--to-destination", net.JoinHostPort(meta.toMachineIP.String(), strconv.Itoa(int(key.Port()))))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return util.Run(iptCmdFor(key.Addr()),
+		"-t", "nat",
+		action, "PREROUTING",
+		"-i", ifVnet,
+		"-d", meta.internalListenIP.String(),
+		"-p", string(key.Proto),
+		"--dport", strconv.Itoa(int(meta.internalPort)),
+		"-j", "DNAT",
+		"--to-destination", net.JoinHostPort(meta.toMachineIP.String(), strconv.Itoa(int(key.Port()))))
 }
 
 func (n *Network) StartIptablesForward(key sysnet.ListenerKey, internalPort uint16, internalListenIP net.IP, toMachineIP net.IP) error {
@@ -248,6 +247,23 @@ func (n *Network) StopIptablesForward(key sysnet.ListenerKey) error {
 
 	delete(n.iptForwards, key)
 	return nil
+}
+
+func iptCmdFor(addr netip.Addr) string {
+	// avoid 4-in-6 issues
+	if !addr.Is4() {
+		return "ip6tables"
+	}
+	return "iptables"
+}
+
+func (n *Network) BlockIptablesForward(prefix netip.Prefix) error {
+	// to prevent issues if we actually decide to use routing in the future, we only block it for outgoing traffic
+	return util.Run(iptCmdFor(prefix.Addr()), "-t", "filter", "-I", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-d", prefix.String(), "-j", "DROP")
+}
+
+func (n *Network) UnblockIptablesForward(prefix netip.Prefix) error {
+	return util.Run(iptCmdFor(prefix.Addr()), "-t", "filter", "-D", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-d", prefix.String(), "-j", "DROP")
 }
 
 func (n *Network) Close() error {
@@ -372,19 +388,10 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 		return nil, err
 	}
 
-	// NAT
+	// NAT: gvisor only accepts packets with our source IP
 	// filtering by output interface fixes multicast
 	// can't filter by input interface (-i) in POSTROUTING
-	rules := [][]string{{"nat", "POSTROUTING", "-s", netmask, "!", "-o", ifBridge, "-j", "MASQUERADE"}}
-
-	if secureSvcIP != "" {
-		// allow secureSvcIP:SecureSvcDockerRemoteCtx from docker
-		// TODO this needs ip/mac spoofing protection
-		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-s", netconf.SconDockerIP4, "-d", secureSvcIP, "--dport", strconv.Itoa(ports.SecureSvcDockerRemoteCtx), "-j", "ACCEPT"})
-
-		// block other secure svc
-		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", secureSvcIP, "-j", "REJECT", "--reject-with", "tcp-reset"})
-	}
+	rules := [][]string{{"nat", "POSTROUTING", "-s", netmask, "-o", ifVnet, "-j", "MASQUERADE"}}
 
 	// related/established
 	rules = append(rules, []string{"filter", "INPUT", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
@@ -418,6 +425,32 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	// explicitly block machines from accessing VM init-net servers that are intended for host vmgr to connect to
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"})
 
+	/*
+	 * forward
+	 */
+
+	// limit access to secure services
+	if secureSvcIP != "" {
+		// allow secureSvcIP:SecureSvcDockerRemoteCtx from docker
+		// TODO this needs ip/mac spoofing protection
+		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-s", netconf.SconDockerIP4, "-d", secureSvcIP, "--dport", strconv.Itoa(ports.SecureSvcDockerRemoteCtx), "-j", "ACCEPT"})
+
+		// block other secure svc
+		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", secureSvcIP, "-j", "REJECT", "--reject-with", "tcp-reset"})
+	}
+
+	// allow machines to access any internet address, via gvisor
+	// this includes private IPs and everything else
+	// don't allow forwarding to any other interfaces we may add to machine in the future
+	rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-j", "ACCEPT"})
+	// reverse forward uses MASQUERADE but it's still subject to FORWARD
+	// use ctstate to prevent unwanted forwards if gvisor tries to send to wrong ips
+	rules = append(rules, []string{"filter", "FORWARD", "-i", ifVnet, "-o", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
+
+	// now, the real purpose of policy=DROP for FORWARD is to prevent routing loops
+	// to do so, we prepend/delete rules when creating bridges
+	// Linux will never ip-forward conbr0 subnet to eth0 since it's a local route on conbr0, so no need to worry about that. only vlan bridges are at risk because the netns is different, and because we do L3 forwarding for them
+
 	// add rules
 	for _, rule := range rules {
 		err = ipt.Append(rule[0], rule[1], rule[2:]...)
@@ -426,8 +459,14 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 		}
 	}
 
-	// now save to set input policy block
+	// rules added. it's now safe to change policies to DROP
+	// INPUT: policy DROP for security.
 	err = ipt.ChangePolicy("filter", "INPUT", "DROP")
+	if err != nil {
+		return nil, err
+	}
+	// FORWARD: policy DROP to prevent routing loops.
+	err = ipt.ChangePolicy("filter", "FORWARD", "DROP")
 	if err != nil {
 		return nil, err
 	}
