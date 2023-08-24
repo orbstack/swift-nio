@@ -384,6 +384,10 @@ func (b *ContainerBpfManager) AttachPmon(includeNft bool) (*ringbuf.Reader, erro
 	if err != nil {
 		return nil, err
 	}
+	err = b.attachOneCg(ebpf.AttachCgroupInet4GetPeername, objs.PmonGetpeername4)
+	if err != nil {
+		return nil, err
+	}
 
 	err = b.attachOneCg(ebpf.AttachCGroupInet6PostBind, objs.PmonPostBind6)
 	if err != nil {
@@ -402,6 +406,10 @@ func (b *ContainerBpfManager) AttachPmon(includeNft bool) (*ringbuf.Reader, erro
 		return nil, err
 	}
 	err = b.attachOneCg(ebpf.AttachCgroupInetSockRelease, objs.PmonSockRelease)
+	if err != nil {
+		return nil, err
+	}
+	err = b.attachOneCg(ebpf.AttachCgroupInet6GetPeername, objs.PmonGetpeername6)
 	if err != nil {
 		return nil, err
 	}

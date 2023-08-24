@@ -186,7 +186,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 
 		// enable iptables acceleration if eligible (soft fail)
 		// if we do this later, first conn could be slow
-		if spec.UseIptables || agentResult.IsDockerPstub {
+		if spec.UseIptables() || agentResult.IsDockerPstub {
 			err = addContainerIptablesForward(c, spec, internalPort, internalListenIP)
 			if err != nil {
 				logrus.WithError(err).Error("failed to add iptables forward")
@@ -250,7 +250,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 		// enable iptables acceleration if eligible (soft fail)
 		// if we do this later, first conn could be slow
 		// this is especially important for UDP because userspace UDP proxy is subject to timeouts
-		if spec.UseIptables || agentResult.IsDockerPstub {
+		if spec.UseIptables() || agentResult.IsDockerPstub {
 			err = addContainerIptablesForward(c, spec, internalPort, internalListenIP)
 			if err != nil {
 				logrus.WithError(err).Error("failed to add iptables forward")
@@ -418,7 +418,7 @@ func readOneIptablesListeners(cmd string, listeners []sysnet.ListenerInfo) ([]sy
 				Proto:    sysnet.TransportProtocol(proto),
 			},
 			// always safe b/c 0.0.0.0 and source IP already lost
-			UseIptables:   true,
+			FromIptables:  true,
 			ExtListenAddr: netipIPv4Loopback,
 		})
 	}

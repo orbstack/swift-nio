@@ -56,11 +56,22 @@ static const __be32 LOCALHOST_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 1);
 #define UNSPEC_IP4 0
 static const __be32 UNSPEC_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 0);
 
+// 198.19.248.1
+#define HOST_VNET_IP4 IP4(198, 19, 248, 1)
+// fd07:b51a:cc66:f0::1
+static const __be32 HOST_VNET_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x00f0, 0x0000, 0x0000, 0x0000, 0x0001);
+
 #define UDP_BIND_DEBOUNCE 20 // ms
 
 const volatile __u64 config_netns_cookie = 0;
 // easier to check this in fentry hook
 const volatile __u64 config_cgroup_id = 0;
+
+#define copy4(dst, src) \
+    dst[0] = src[0]; \
+    dst[1] = src[1]; \
+    dst[2] = src[2]; \
+    dst[3] = src[3];
 
 struct fwd_meta {
     // UDP notification is delayed until first recvmsg
@@ -308,6 +319,21 @@ int pmon_sendmsg4(struct bpf_sock_addr *ctx) {
     return sendmsg_common(ctx);
 }
 
+SEC("cgroup/getpeername4")
+int pmon_getpeername4(struct bpf_sock_addr *ctx) {
+    // host vnet never makes inbound connections except for port forwards,
+    // and it never runs servers. that means the only possibility if getpeername==host is that it's an incoming port forward connection
+    // TODO: this is imperfect. we should check ports or at least TCP state == ESTABLISHED/CLOSED. otherwise this could have odd behavior if people are still connecting a socket, e.g. attempted conn to
+    // but that's very unlikely and I don't think getpeername works if not connected?
+
+    // rewrite addr if peer is host vnet (198.19.248.1)
+    if (ctx->user_ip4 == HOST_VNET_IP4) {
+        ctx->user_ip4 = LOCALHOST_IP4;
+    }
+
+    return VERDICT_PROCEED;
+}
+
 /*
  * v6
  */
@@ -351,6 +377,21 @@ SEC("cgroup/sendmsg6")
 int pmon_sendmsg6(struct bpf_sock_addr *ctx) {
     bpf_printk("sendmsg6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return sendmsg_common(ctx);
+}
+
+SEC("cgroup/getpeername6")
+int pmon_getpeername6(struct bpf_sock_addr *ctx) {
+    // host vnet never makes inbound connections except for port forwards,
+    // and it never runs servers. that means the only possibility if getpeername==host is that it's an incoming port forward connection
+    // TODO: this is imperfect. we should check ports or at least TCP state == ESTABLISHED/CLOSED. otherwise this could have odd behavior if people are still connecting a socket, e.g. attempted conn to
+    // but that's very unlikely and I don't think getpeername works if not connected?
+
+    // rewrite addr if peer is host vnet (198.19.248.1)
+    if (memcmp(ctx->user_ip6, HOST_VNET_IP6, 16) == 0) {
+        copy4(ctx->user_ip6, LOCALHOST_IP6);
+    }
+
+    return VERDICT_PROCEED;
 }
 
 /*

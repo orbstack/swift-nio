@@ -31,9 +31,14 @@ type ListenerInfo struct {
 	ListenerKey
 
 	// if it's docker forward or k8s
-	UseIptables bool
+	FromIptables bool
 	// optional: override for macOS side
 	ExtListenAddr netip.Addr
+}
+
+func (i ListenerInfo) UseIptables() bool {
+	// all wildcard listeners can use iptables, because we preserve source IP and translate getpeername in cfwd
+	return i.FromIptables || i.AddrPort.Addr().IsUnspecified()
 }
 
 func (i *ListenerInfo) Identifier() ListenerKey {

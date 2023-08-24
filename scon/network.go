@@ -199,6 +199,8 @@ func (n *Network) toggleIptablesForward(action string, key sysnet.ListenerKey, m
 		cmd = "ip6tables"
 	}
 
+	// MASQUERADE not needed
+	// this preserves source IP from host vnet, which works due to ip forward
 	err := util.Run(cmd, "-t", "nat", action, "PREROUTING", "-i", ifVnet, "-d", meta.internalListenIP.String(), "-p", string(key.Proto), "--dport", strconv.Itoa(int(meta.internalPort)), "-j", "DNAT", "--to-destination", net.JoinHostPort(meta.toMachineIP.String(), strconv.Itoa(int(key.Port()))))
 	if err != nil {
 		return err
