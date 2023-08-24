@@ -55,6 +55,7 @@ type Network struct {
 
 	iptablesMu  sync.Mutex
 	iptForwards map[sysnet.ListenerKey]iptablesForwardMeta
+	iptBlocks   map[netip.Prefix]struct{}
 }
 
 type iptablesForwardMeta struct {
@@ -68,6 +69,7 @@ func NewNetwork(dataDir string, host *hclient.Client) *Network {
 		dataDir:      dataDir,
 		mdnsRegistry: newMdnsRegistry(host),
 		iptForwards:  make(map[sysnet.ListenerKey]iptablesForwardMeta),
+		iptBlocks:    make(map[netip.Prefix]struct{}),
 	}
 }
 
@@ -259,11 +261,47 @@ func iptCmdFor(addr netip.Addr) string {
 
 func (n *Network) BlockIptablesForward(prefix netip.Prefix) error {
 	// to prevent issues if we actually decide to use routing in the future, we only block it for outgoing traffic
-	return util.Run(iptCmdFor(prefix.Addr()), "-t", "filter", "-I", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-d", prefix.String(), "-j", "DROP")
+	// also filter by docker machine. it's an edge case, but machines should actually be allowed to forward to containers (e.g. *.local), at least until we add ip routes to VM. need to filter by MAC instead of IP because ip forward keeps source IP
+	err := util.Run(iptCmdFor(prefix.Addr()), "-t", "filter", "-I", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-d", prefix.String(), "-m", "mac", "--mac-source", MACAddrDocker, "-j", "DROP")
+	if err != nil {
+		return err
+	}
+
+	n.iptablesMu.Lock()
+	defer n.iptablesMu.Unlock()
+	n.iptBlocks[prefix] = struct{}{}
+	return nil
+}
+
+func (n *Network) unblockIptablesForwardLockedBase(prefix netip.Prefix) error {
+	return util.Run(iptCmdFor(prefix.Addr()), "-t", "filter", "-D", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-d", prefix.String(), "-m", "mac", "--mac-source", MACAddrDocker, "-j", "DROP")
 }
 
 func (n *Network) UnblockIptablesForward(prefix netip.Prefix) error {
-	return util.Run(iptCmdFor(prefix.Addr()), "-t", "filter", "-D", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-d", prefix.String(), "-j", "DROP")
+	err := n.unblockIptablesForwardLockedBase(prefix)
+	if err != nil {
+		return err
+	}
+
+	n.iptablesMu.Lock()
+	defer n.iptablesMu.Unlock()
+	delete(n.iptBlocks, prefix)
+	return nil
+}
+
+func (n *Network) ClearIptablesForwardBlocks() error {
+	n.iptablesMu.Lock()
+	defer n.iptablesMu.Unlock()
+
+	for prefix := range n.iptBlocks {
+		err := n.unblockIptablesForwardLockedBase(prefix)
+		if err != nil {
+			return err
+		}
+	}
+
+	clear(n.iptBlocks)
+	return nil
 }
 
 func (n *Network) Close() error {

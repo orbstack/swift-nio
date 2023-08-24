@@ -48,6 +48,7 @@ const (
 )
 
 var (
+	MACAddrDocker         = deriveMacAddress(ContainerIDDocker)
 	dockerContainerRecord = types.ContainerRecord{
 		ID:   ContainerIDDocker,
 		Name: ContainerDocker,
@@ -467,6 +468,12 @@ func (h *DockerHooks) PostStop(c *Container) error {
 	err := c.manager.host.ClearDockerState(isAsync)
 	if err != nil {
 		return fmt.Errorf("clear docker state: %w", err)
+	}
+
+	// clear blocked iptables forwards
+	err = c.manager.net.ClearIptablesForwardBlocks()
+	if err != nil {
+		return fmt.Errorf("clear iptables: %w", err)
 	}
 
 	return nil
