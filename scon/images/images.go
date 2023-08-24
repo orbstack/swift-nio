@@ -105,7 +105,7 @@ var (
 		ImageArch:      "current",
 		ImageCentos:    "9-Stream",
 		ImageDebian:    "bookworm",
-		ImageDevuan:    "chimaera",
+		ImageDevuan:    "daedalus",
 		ImageFedora:    "38",
 		ImageGentoo:    "current",
 		ImageKali:      "current",

@@ -22,7 +22,7 @@ debian:buster
 debian:sid
 devuan:beowulf
 devuan:chimaera
-fedora:36
+devuan:daedalus
 fedora:37
 fedora:38
 funtoo:1.4
