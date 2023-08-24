@@ -133,7 +133,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
                         Button("Kill") {
                             finishKill()
-                        }.disabled(actionInProgress != nil || !isRunning)
+                        }.disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
                     }
 
                     Divider()
