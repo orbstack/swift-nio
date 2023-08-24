@@ -77,11 +77,14 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 			return
 		}
 		// and to prevent loops, exclude IPs that we're currently bridging (i.e. scon or vlan)
-		if bridgeRouteMon.ContainsIP(netutil.NetipFromAddr(targetAddr)) {
-			logrus.WithField("ip", targetAddr).Debug("TCP forward: dropping looped conn")
-			r.Complete(false)
-			return
-		}
+		// TODO: restore this check? loops are inconsequential, but incorrectly excluding a conflicted bridge route is not. conflicted routes will still be in route mon
+		/*
+			if bridgeRouteMon.ContainsIP(netutil.NetipFromAddr(targetAddr)) {
+				logrus.WithField("ip", targetAddr).Debug("TCP forward: dropping looped conn")
+				r.Complete(false)
+				return
+			}
+		*/
 
 		// if we require proxy and don't have SOCKS, port 80 should use reverse proxy
 		extPort := int(r.ID().LocalPort)
