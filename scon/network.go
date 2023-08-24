@@ -482,8 +482,8 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	// don't allow forwarding to any other interfaces we may add to machine in the future
 	rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-j", "ACCEPT"})
 	// reverse forward uses MASQUERADE but it's still subject to FORWARD
-	// use ctstate to prevent unwanted forwards if gvisor tries to send to wrong ips
-	rules = append(rules, []string{"filter", "FORWARD", "-i", ifVnet, "-o", ifBridge, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
+	// can't filter by ctstate ESTABLISHED/RELATED because DNAT port forwards use this path too
+	rules = append(rules, []string{"filter", "FORWARD", "-i", ifVnet, "-o", ifBridge, "-j", "ACCEPT"})
 
 	// now, the real purpose of policy=DROP for FORWARD is to prevent routing loops
 	// to do so, we prepend/delete rules when creating bridges
