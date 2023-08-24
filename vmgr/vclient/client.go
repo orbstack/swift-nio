@@ -44,6 +44,11 @@ const (
 	// nfs timeouts during sleep (in ~2 min with vsock and hours with tcp)
 	// TODO figure out how to make pausing work
 	needsPauseResume = false
+
+	// TODO: fix health check
+	// sometimes it fails during sleep on arm64
+	// level=error msg="health check failed" error="Post \"http://vcontrol/disk/report_stats\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+	stopOnHealthCheckFail = false
 )
 
 type VClient struct {
@@ -216,7 +221,9 @@ func matchTimeoutError(err error) bool {
 	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 		return true
 	}
-	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, unix.ETIMEDOUT) || strings.Contains(err.Error(), "operation timed out") /* tcpip.ErrTimeout */
+	return errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, unix.ETIMEDOUT) ||
+		strings.Contains(err.Error(), "operation timed out") /* tcpip.ErrTimeout */
 }
 
 func (vc *VClient) healthCheck() {
@@ -228,7 +235,11 @@ func (vc *VClient) healthCheck() {
 
 		// if it was because of a timeout, then we should shut down. vm is dead
 		// but only if awake before AND after check, and not recently slept
-		if matchTimeoutError(err) && awakeBefore && !iokit.IsAsleep() && !iokit.SleepOrWakeWithin(healthCheckSleepWakeGracePeriod) {
+		if stopOnHealthCheckFail &&
+			matchTimeoutError(err) &&
+			awakeBefore &&
+			!iokit.IsAsleep() &&
+			!iokit.SleepOrWakeWithin(healthCheckSleepWakeGracePeriod) {
 			vc.requestStopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonHealthCheck}
 		}
 	}
