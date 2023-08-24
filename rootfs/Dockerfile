@@ -392,6 +392,7 @@ mkdir /data
 mkdir /mnt/mac
 mkdir /mnt/rosetta
 mkdir /mnt/rv
+mkdir /mirror-ro
 
 # binfmt vanity links
 ln -s /opt/orb/rstub '[rosetta]' # (real rosetta is in rvfs)
