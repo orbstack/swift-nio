@@ -77,7 +77,7 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 			return
 		}
 		// and to prevent loops, exclude IPs that we're currently bridging (i.e. scon or vlan)
-		if !bridgeRouteMon.ContainsIP(netutil.NetipFromAddr(targetAddr)) {
+		if bridgeRouteMon.ContainsIP(netutil.NetipFromAddr(targetAddr)) {
 			logrus.WithField("ip", targetAddr).Debug("TCP forward: dropping looped conn")
 			r.Complete(false)
 			return
