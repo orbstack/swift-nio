@@ -40,9 +40,6 @@ const (
 
 	// host paths
 	LaunchdSshAgentListeners = "/opt/orb/launchd-ssh-agent-listeners"
-
-	// for read-only seal in bind mounts
-	RoMirror = "/mirror-ro"
 )
 
 // mac

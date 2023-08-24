@@ -179,11 +179,6 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     // otherwise machines can remount them as read-write
     seal_read_only("/opt/orb")?;
 
-    // read-only seal that can't be remounted, for binding files into machines
-    // empty dir must be on diff fs, or we get ELOOP
-    fs::create_dir("/tmp/empty").unwrap();
-    mount("orbstack", "/mirror-ro", "overlay", MsFlags::MS_RDONLY, Some("lowerdir=/:/tmp/empty"))?;
-
     // early race-free emulator setup on arm64
     #[cfg(target_arch = "aarch64")]
     setup_arch_emulators_early()?;
@@ -520,6 +515,7 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(format!("{}/docker/volumes", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/images", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/volumes", rw_for_machines)).unwrap();
+    fs::create_dir("/tmp/empty").unwrap();
 
     Ok(())
 }

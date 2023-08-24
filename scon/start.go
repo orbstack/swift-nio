@@ -378,7 +378,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.proc.oom_score_adj", "0")
 
 		// bind mounts
-		bind(mounts.RoMirror+conf.C().GuestMountSrc, "/opt/orbstack-guest", "ro")
+		bind(conf.C().GuestMountSrc, "/opt/orbstack-guest", "ro")
 
 		// isolated containers don't get bind mounts
 		if !c.isolated {
@@ -396,7 +396,7 @@ func (c *Container) configureLxc() error {
 			// anything operation (mount, stat, access) on the /private socket through virtiofs returns EOPNOTSUPP
 			// so we bind the dir to a tmpfs
 			if sshAgentSocks.Env != "" && strings.HasPrefix(sshAgentSocks.Env, "/private/tmp/com.apple.launchd.") {
-				bind(mounts.RoMirror+mounts.LaunchdSshAgentListeners, path.Dir(sshAgentSocks.Env), "ro")
+				bind(mounts.LaunchdSshAgentListeners, path.Dir(sshAgentSocks.Env), "ro")
 			}
 
 			// bind NFS root at /mnt/machines for access
