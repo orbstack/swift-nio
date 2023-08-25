@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,6 +64,14 @@ var (
 	}
 )
 
+// changes here:
+//   - removed "health" from config (can't be overridden in custom config map)
+//   - removed livenessProbe that uses /health. there's still a readinessProbe
+//   - added static NodeHosts to "coredns" ConfigMap (normally added by k3s)
+//
+//go:embed k8s/orb-coredns.yml
+var k8sCorednsYaml []byte
+
 type DockerDaemonFeatures struct {
 	Buildkit bool `json:"buildkit"`
 }
@@ -93,6 +102,17 @@ func (h *DockerHooks) createDataDirs() error {
 		return err
 	}
 	err = os.MkdirAll(conf.C().K8sDataDir+"/etc-node", 0755)
+	if err != nil {
+		return err
+	}
+
+	// add customized coredns: healthcheck removed
+	// /var/lib/rancher/k3s/server/manifests/coredns.yaml
+	err = os.MkdirAll(conf.C().K8sDataDir+"/k3s/server/manifests", 0755)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(conf.C().K8sDataDir+"/k3s/server/manifests/orb-coredns.yaml", []byte(k8sCorednsYaml), 0644)
 	if err != nil {
 		return err
 	}
@@ -381,8 +401,9 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		k8sCmd := []string{
 			"k3s", "server",
 			// ddesktop has no metrics server
-			// and users may want their own ingress (e.g. nginx) - don't be opinionated
-			"--disable", "metrics-server,traefik",
+			// users may want their own ingress (e.g. nginx) - don't be opinionated
+			// coredns is customized to remove health check
+			"--disable", "metrics-server,traefik,coredns",
 			"--https-listen-port", strconv.Itoa(ports.HostKubernetes),
 			"--lb-server-port", strconv.Itoa(ports.HostKubernetes + 1),
 			"--docker",
