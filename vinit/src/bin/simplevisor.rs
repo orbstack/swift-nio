@@ -68,7 +68,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         signal_hook::consts::SIGPROF,
     ])?;
     for signal in signals.forever() {
-        println!(" [*] received {}", Signal::try_from(signal)?);
         match signal {
             signal_hook::consts::SIGCHLD => {
                 // a child exited?
@@ -102,6 +101,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             _ => {
+                println!(" [*] received {}", Signal::try_from(signal)?);
+
                 // forward signal to children
                 for child in children.iter_mut() {
                     kill(Pid::from_raw(child.process.id() as i32), Some(Signal::try_from(signal)?))?;
