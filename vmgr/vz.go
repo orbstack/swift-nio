@@ -90,6 +90,11 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 			cmdline = append(cmdline, "orb.console_is_pipe")
 		}
 	}
+	// dogfood: disable swiotlb to save 64M reserved memory
+	// TODO enable this for everyon, stress test all devices, test on x86
+	if conf.Debug() {
+		cmdline = append(cmdline, "swiotlb=noforce", "iommu=off")
+	}
 	logrus.Debug("cmdline", cmdline)
 
 	spec := vzf.VzSpec{
