@@ -489,6 +489,23 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	// to do so, we prepend/delete rules when creating bridges
 	// Linux will never ip-forward conbr0 subnet to eth0 since it's a local route on conbr0, so no need to worry about that. only vlan bridges are at risk because the netns is different, and because we do L3 forwarding for them
 
+	/*
+	 * raw security
+	 */
+
+	// reverse path filter for internal services
+	// prevents machines from hijacking existing internal TCP conns
+	// we don't do this for all IPs for performance, and because it could cause issues with NAT64 fib routing
+	// but the vnet subnet is usually not perf critical
+	// rule: raw -> [conntrack] -> mangle -> nat -> filter
+	if proto == iptables.ProtocolIPv4 {
+		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.VnetSubnet4CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
+	} else {
+		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.VnetSubnet6CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
+		// including ext as well
+		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.Vnet2Subnet6CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
+	}
+
 	// add rules
 	for _, rule := range rules {
 		err = ipt.Append(rule[0], rule[1], rule[2:]...)
@@ -511,7 +528,12 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 
 	return func() error {
 		var errs []error
+		// revert policy
 		err := ipt.ChangePolicy("filter", "INPUT", "ACCEPT")
+		if err != nil {
+			errs = append(errs, err)
+		}
+		err = ipt.ChangePolicy("filter", "FORWARD", "ACCEPT")
 		if err != nil {
 			errs = append(errs, err)
 		}
