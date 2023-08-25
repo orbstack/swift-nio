@@ -40,7 +40,7 @@ enum CodeInfo {
         let newStaticCode = try createStaticCode(forExecutable: executable)
         let flags = SecCSFlags(rawValue: kSecCSStrictValidate | kSecCSCheckAllArchitectures)
         var req: SecRequirement?
-        guard SecRequirementCreateWithString(codeSigningReq as CFString, flags, &req) == errSecSuccess else {
+        guard SecRequirementCreateWithString(codeSigningReq as CFString, SecCSFlags(), &req) == errSecSuccess else {
             throw CodeInfoError.createCodeSigningRequirement(errSecInternalComponent)
         }
         return SecStaticCodeCheckValidity(newStaticCode, flags, req) == errSecSuccess
