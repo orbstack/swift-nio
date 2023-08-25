@@ -13,8 +13,8 @@ type MonitoredSubnet struct {
 	prefix6 netip.Prefix
 	renewFn func() error
 
-	lastCorrect4 bool
-	lastCorrect6 bool
+	lastCorrect4 *bool
+	lastCorrect6 *bool
 }
 
 func (m *MonitoredSubnet) IsActive() bool {
@@ -44,16 +44,33 @@ func (m *MonitoredSubnet) maybeRenewAsync(wg *sync.WaitGroup, routingTable []rou
 			return
 		}
 	}
+	if verboseDebug {
+		logrus.WithFields(logrus.Fields{
+			"ip4": m.prefix4,
+			"ip6": m.prefix6,
+		}).Debugf("host bridge route check: v4=%v v6=%v", correct4, correct6)
+	}
 	if correct4 && correct6 {
 		return
 	}
 
 	// also skip if there's no difference from last time
-	if correct4 == m.lastCorrect4 && correct6 == m.lastCorrect6 {
-		return
-	}
-	m.lastCorrect4 = correct4
-	m.lastCorrect6 = correct6
+	// TODO: add this check back to prevent fighting with Surge
+	// this breaks case where tailscale is on w/ exit node before orbstack starts, b/c before and after renew are both correct4&&correct6=false
+	/*
+		if m.lastCorrect4 != nil && m.lastCorrect6 != nil &&
+			correct4 == *m.lastCorrect4 && correct6 == *m.lastCorrect6 {
+			if verboseDebug {
+				logrus.WithFields(logrus.Fields{
+					"ip4": m.prefix4,
+					"ip6": m.prefix6,
+				}).Debugf("host bridge route: SKIP v4=%v v6=%v (no change)", correct4, correct6)
+			}
+			return
+		}
+	*/
+	m.lastCorrect4 = &correct4
+	m.lastCorrect6 = &correct6
 
 	// proceeding with renewal, in parallel with other subnets
 	if !predicate() {
