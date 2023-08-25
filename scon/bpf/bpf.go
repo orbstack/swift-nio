@@ -135,10 +135,8 @@ func (b *ContainerBpfManager) attachOneCg(typ ebpf.AttachType, prog *ebpf.Progra
 	return nil
 }
 
-func (b *ContainerBpfManager) attachOneTracing(prog *ebpf.Program) error {
-	l, err := link.AttachTracing(link.TracingOptions{
-		Program: prog,
-	})
+func (b *ContainerBpfManager) attachOneKretprobe(prog *ebpf.Program, symbol string) error {
+	l, err := link.Kretprobe(symbol, prog, nil)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
@@ -415,11 +413,11 @@ func (b *ContainerBpfManager) AttachPmon(includeNft bool) (*ringbuf.Reader, erro
 	}
 
 	if includeNft {
-		err = b.attachOneTracing(objs.NfTablesNewrule)
+		err = b.attachOneKretprobe(objs.NfTablesNewrule, "nf_tables_newrule")
 		if err != nil {
 			return nil, err
 		}
-		err = b.attachOneTracing(objs.NfTablesDelrule)
+		err = b.attachOneKretprobe(objs.NfTablesDelrule, "nf_tables_delrule")
 		if err != nil {
 			return nil, err
 		}

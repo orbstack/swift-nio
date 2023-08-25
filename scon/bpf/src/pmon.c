@@ -64,7 +64,7 @@ static const __be32 HOST_VNET_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x00f0, 0x000
 #define UDP_BIND_DEBOUNCE 20 // ms
 
 const volatile __u64 config_netns_cookie = 0;
-// easier to check this in fentry hook
+// easier to check this in kretprobe hook
 const volatile __u64 config_cgroup_id = 0;
 
 #define copy4(dst, src) \
@@ -401,7 +401,7 @@ int pmon_getpeername6(struct bpf_sock_addr *ctx) {
  * works because docker machine uses iptables-nft
  */
 
-static int nft_change_common() {
+static int nft_change_common(void) {
     if (bpf_get_current_cgroup_id() != config_cgroup_id) {
         return 0;
     }
@@ -411,14 +411,16 @@ static int nft_change_common() {
     return 0;
 }
 
-// nft_trans_rule_add is generic, but we use fexit to be safe - guaranteed that it's done
-SEC("fexit/nf_tables_newrule")
-int BPF_PROG(nf_tables_newrule) {
+// nft_trans_rule_add is generic, but we use kretprobe to be safe - guaranteed that it's done
+// use kretprobe instead of fexit (which is faster) because cilium ebpf loads entire vmlinux BTF and uses ~70M memory to link fexit
+// maybe we should use C libbpf instead...
+SEC("kretprobe/nf_tables_newrule")
+int nf_tables_newrule(void) {
     return nft_change_common();
 }
 
-SEC("fexit/nf_tables_delrule")
-int BPF_PROG(nf_tables_delrule) {
+SEC("kretprobe/nf_tables_delrule")
+int nf_tables_delrule(void) {
     return nft_change_common();
 }
 
