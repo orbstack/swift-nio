@@ -170,8 +170,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }) {
                     Label("Kill", systemImage: "")
                 }
-            }.disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
             }
+            .disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
 
             Divider()
 

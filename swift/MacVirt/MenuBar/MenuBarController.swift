@@ -547,7 +547,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if record.running {
             let domain = "\(record.name).orb.local"
-            submenu.addActionItem("Address: \(domain)", disabled: !vmModel.netBridgeAvailable) { [self] in
+            submenu.addActionItem("Address: \(domain)", disabled: !vmModel.netBridgeAvailable) {
                 NSPasteboard.copy(domain)
             }
         }
