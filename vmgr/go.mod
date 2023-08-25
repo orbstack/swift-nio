@@ -21,7 +21,7 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/gliderlabs/ssh v0.3.5
 	github.com/orbstack/macvirt/scon v0.0.0-00010101000000-000000000000
-	golang.org/x/sys v0.10.0
+	golang.org/x/sys v0.11.0
 )
 
 require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
@@ -35,6 +35,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.4
 	github.com/keybase/go-keychain v0.0.0-20230523030712-b5615109f100
 	github.com/muja/goconfig v0.0.0-20180417074348-0a635507dddc
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -44,8 +45,7 @@ require (
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/petermattis/goid v0.0.0-20230518223814-80aa455d8761 // indirect
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
-	golang.org/x/text v0.11.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	golang.org/x/text v0.12.0 // indirect
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106 // indirect
 )
 
@@ -56,20 +56,20 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/term v0.10.0
+	golang.org/x/term v0.11.0
 )
 
 require (
 	github.com/miekg/dns v1.1.55
-	golang.org/x/crypto v0.11.0
-	golang.org/x/tools v0.11.1 // indirect
+	golang.org/x/crypto v0.12.0
+	golang.org/x/tools v0.12.1-0.20230815132531-74c255bcf846 // indirect
 )
 
 require (
 	github.com/google/btree v1.1.2 // indirect
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/mod v0.12.0
-	golang.org/x/net v0.13.0
+	golang.org/x/net v0.14.0
 	golang.org/x/time v0.3.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20221220191351-8ea7ab01ea4e
 )
