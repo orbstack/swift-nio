@@ -248,27 +248,17 @@ func (d *DockerAgent) killContainers() error {
 	// good programs should be safe to kill in case of power loss anyway, as long as we do it atomically like this
 	// let docker daemon shut down cleanly due to bolt DBs and image db
 	logrus.Debug("killing containers")
-	cgroups, err := os.ReadDir("/sys/fs/cgroup/docker")
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// no cgroups, no containers
-			return nil
-		} else {
-			return err
-		}
-	}
-	for _, cgroup := range cgroups {
-		if !cgroup.IsDir() {
-			continue
-		}
 
-		err = os.WriteFile("/sys/fs/cgroup/docker/"+cgroup.Name()+"/cgroup.kill", []byte("1"), 0644)
-		if err != nil {
-			// ENOENT: it may already be dead
-			if !errors.Is(err, os.ErrNotExist) {
-				return err
-			}
-		}
+	// cgroup kill is recursive so no need to listdir
+	err := os.WriteFile("/sys/fs/cgroup/docker/cgroup.kill", []byte("1"), 0644)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// ENOENT: it may already be dead, or not running
+		return err
+	}
+
+	err = os.WriteFile("/sys/fs/cgroup/kubepods/cgroup.kill", []byte("1"), 0644)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
 
 	return nil
