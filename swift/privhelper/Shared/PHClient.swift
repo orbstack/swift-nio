@@ -13,15 +13,13 @@ import SecureXPC
 import Defaults
 
 class PHClient {
-    private let xpcClient: XPCClient
+    // sameTeamIdentifierIfPresent -> teamIdentifierForThisProcess -> SecCodeCopySigningInformation shouldn't be called on main thread
+    private lazy var xpcClient = XPCClient.forMachService(named: PHShared.helperID)
+
     private var ready = false
     private var canceledInstall = false
 
     var installReason = "Allow using admin to improve compatibility?"
-
-    init() {
-        self.xpcClient = XPCClient.forMachService(named: PHShared.helperID)
-    }
 
     private func ensureReady() async throws {
         if canceledInstall {
