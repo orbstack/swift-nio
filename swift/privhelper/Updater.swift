@@ -21,7 +21,7 @@ enum Updater {
         defer { activityTracker.end() }
 
         NSLog("req: \(req)")
-        guard try CodeInfo.doesPublicKeyMatch(forExecutable: req.helperURL) else {
+        guard try CodeInfo.matchTeamId(forExecutable: req.helperURL) else {
             NSLog("bad signature")
             throw PHUpdateError.badSignature
         }
