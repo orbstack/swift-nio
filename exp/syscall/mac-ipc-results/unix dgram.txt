@@ -1,0 +1,213 @@
+❯ g++ mac_ipc.cpp -std=c++11 && ./a.out  
+read error 
+avg latency: 45 
+median: 15 
+ 
+0-3: 26 
+3-6: 324 
+6-9: 908 
+9-12: 1239 
+12-15: 933 
+15-18: 1178 
+18-21: 760 
+21-24: 364 
+24-27: 128 
+27-30: 99 
+30-33: 61 
+33-36: 64 
+36-39: 46 
+39-42: 48 
+42-45: 42 
+45-48: 50 
+48-51: 50 
+51-54: 50 
+54-57: 36 
+57-60: 36 
+60-63: 38 
+63-66: 40 
+66-69: 37 
+69-72: 31 
+72-75: 26 
+75-78: 22 
+78-81: 25 
+81-84: 28 
+84-87: 26 
+87-90: 17 
+90-93: 13 
+93-96: 10 
+96-99: 8 
+99-102: 5 
+102-105: 14 
+105-108: 9 
+108-111: 10 
+111-114: 18 
+114-117: 6 
+117-120: 12 
+120-123: 4 
+123-126: 3 
+126-129: 12 
+129-132: 6 
+132-135: 13 
+135-138: 5 
+138-141: 4 
+141-144: 7 
+144-147: 2 
+147-150: 6 
+150-153: 2 
+153-156: 4 
+156-159: 2 
+159-162: 7 
+162-165: 8 
+165-168: 5 
+168-171: 4 
+171-174: 5 
+174-177: 2 
+177-180: 4 
+186-189: 3 
+189-192: 2 
+192-195: 3 
+201-204: 2 
+204-207: 5 
+207-210: 5 
+213-216: 3 
+216-219: 4 
+219-222: 2 
+222-225: 2 
+228-231: 2 
+231-234: 2 
+243-246: 2 
+258-261: 3 
+264-267: 2 
+267-270: 2 
+273-276: 3 
+276-279: 2 
+282-285: 3 
+285-288: 2 
+291-294: 3 
+297-300: 2 
+303-306: 2 
+309-312: 3 
+321-324: 6 
+336-339: 2 
+366-369: 2 
+390-393: 2 
+396-399: 3 
+405-408: 2 
+417-420: 2 
+432-435: 2 
+441-444: 3 
+468-471: 2 
+474-477: 2 
+495-498: 2 
+534-537: 2 
+558-561: 2 
+630-633: 2 
+657-660: 2 
+783-786: 2 
+867-870: 2 
+ 
+~/code/projects/macvirt/e 
+~/code/projects/macvirt/e 
+~/code/projects/macvirt/e 
+~/code/projects/macvirt/e 
+~/code/projects/macvirt/e 
+~/code/projects/macvirt/exp/syscall main* 11s 
+❯  
+Session Contents Restored on Jul 30, 2023 at 5:09 PM 
+Last login: Sun Jul 30 17:09:31 on ttys010 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp/sysca 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp/syscall main* 
+❯  
+Session Contents Restored on Aug 11, 2023 at 11:25 PM 
+Last login: Fri Aug 11 23:25:57 on ttys005 
+ 
+~/code/projects/macvirt/exp/syscall 
+❯  
+Session Contents Restored on Aug 11, 2023 at 11:31 PM 
+Last login: Fri Aug 11 23:31:55 on ttys004 
+ 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp/syscall vendor-gvisor* 
+❯  
+Session Contents Restored on Aug 21, 2023 at 5:23 AM 
+Last login: Mon Aug 21 05:23:32 on ttys008 
+ 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp/syscall k8s* ⇡ 
+❯  
+Session Contents Restored on Aug 24, 2023 at 8:25 PM 
+Last login: Thu Aug 24 20:25:53 on ttys011 
+ 
+~/code/projects/macvirt/exp 
+~/code/projects/macvirt/exp/syscall k8s* 
+❯  
