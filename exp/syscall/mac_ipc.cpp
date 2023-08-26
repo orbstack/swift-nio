@@ -16,7 +16,14 @@ typedef long long s64;
 #define BUCKET_SIZE 3
 
 static u64 now() {
+#ifdef __MACH__
+	// mach_absolute_time
 	return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * SEC + ts.tv_nsec;
+#endif
 }
 
 static int do_test(int fd1, int fd2) {
