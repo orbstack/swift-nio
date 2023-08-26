@@ -124,6 +124,7 @@ struct FeedbackView: View {
                 .disabled(feedbackText.count < 5 || feedbackText.count > charLimit || sendInProgress)
             }
         }
+        .background(WindowAccessor(holder: windowHolder))
         .frame(width: 450)
         .padding(24)
     }
