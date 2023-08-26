@@ -269,8 +269,9 @@ func (m *NfsMirrorManager) updateExports() error {
 	defer m.mu.Unlock()
 
 	// 127.0.0.8 = vsock
+	// root export needs to be rw for machines
 	exportsBase := fmt.Sprintf(`
-/nfs/root/ro 127.0.0.8(ro,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
+/nfs/root/ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
 /nfs/root/ro/docker/volumes 127.0.0.8(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
 `, m.hostUid, m.hostUid)
 
