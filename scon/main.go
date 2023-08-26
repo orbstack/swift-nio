@@ -13,6 +13,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/orbstack/macvirt/scon/conf"
+	_ "github.com/orbstack/macvirt/scon/earlyinit"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/killswitch"
 	"github.com/orbstack/macvirt/scon/util"
