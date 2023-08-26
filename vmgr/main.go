@@ -29,6 +29,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
+	_ "github.com/orbstack/macvirt/vmgr/earlyinit"
 	"github.com/orbstack/macvirt/vmgr/flock"
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/logutil"
