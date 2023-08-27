@@ -49,7 +49,7 @@ func (n *Network) StartForward(spec ForwardSpec) (HostForward, error) {
 		case "tcp":
 			connectAddr4 := netconf.VnetGuestIP4 + ":" + toPort
 			connectAddr6 := "[" + netconf.VnetGuestIP6 + "]:" + toPort
-			fwd, err = tcpfwd.StartTcpHostForward(n.Stack, n.NIC, netconf.VnetHostNatIP4, netconf.Vnet2HostNatIP6, fromAddr, connectAddr4, connectAddr6, isInternal)
+			fwd, err = tcpfwd.StartTcpHostForward(n.Stack, n.NIC, netconf.VnetHostNatIP4, netconf.VnetHostNatIP6, fromAddr, connectAddr4, connectAddr6, isInternal)
 			if err != nil {
 				return nil, err
 			}

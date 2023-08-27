@@ -489,6 +489,10 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	// to do so, we prepend/delete rules when creating bridges
 	// Linux will never ip-forward conbr0 subnet to eth0 since it's a local route on conbr0, so no need to worry about that. only vlan bridges are at risk because the netns is different, and because we do L3 forwarding for them
 
+	// allow machines to talk to each other, and to macOS host bridge IP
+	// this is bridge but still counts as forward
+	rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "-o", ifBridge, "-j", "ACCEPT"})
+
 	/*
 	 * raw security
 	 */
@@ -502,8 +506,6 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.VnetSubnet4CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
 	} else {
 		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.VnetSubnet6CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
-		// including ext as well
-		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.Vnet2Subnet6CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
 	}
 
 	// add rules

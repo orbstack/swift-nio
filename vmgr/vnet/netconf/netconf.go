@@ -10,15 +10,12 @@ const (
 	VnetExtHostNatIP4 = VnetSubnet4 + ".253"
 	VnetHostNatIP4    = VnetSubnet4 + ".254"
 
-	VnetSubnet6     = "fd07:b51a:cc66:f0:"
-	VnetSubnet6CIDR = VnetSubnet6 + ":/64"
-	// hack: because we don't implement NDP, we need to use a different subnet for anything that's not guest or gateway
-	Vnet2Subnet6       = "fd07:b51a:cc66:f1:"
-	Vnet2Subnet6CIDR   = Vnet2Subnet6 + ":/64"
-	VnetGatewayIP6     = VnetSubnet6 + ":1"
-	VnetGuestIP6       = VnetSubnet6 + ":2"
-	Vnet2ExtHostNatIP6 = Vnet2Subnet6 + ":253"
-	Vnet2HostNatIP6    = Vnet2Subnet6 + ":254"
+	VnetSubnet6       = "fd07:b51a:cc66:f0:"
+	VnetSubnet6CIDR   = VnetSubnet6 + ":/64"
+	VnetGatewayIP6    = VnetSubnet6 + ":1"
+	VnetGuestIP6      = VnetSubnet6 + ":2"
+	VnetExtHostNatIP6 = VnetSubnet6 + ":253"
+	VnetHostNatIP6    = VnetSubnet6 + ":254"
 )
 
 const (

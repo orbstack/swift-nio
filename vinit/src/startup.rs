@@ -336,7 +336,8 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
 
     // add IP addresses
     ip_addr.add(eth0.header.index, "198.19.248.2".parse()?, 24).execute().await?;
-    ip_addr.add(eth0.header.index, "fd07:b51a:cc66:f0::2".parse()?, 64).execute().await?;
+    // to avoid NDP, use /126 so only ::1 and ::2 are on the network
+    ip_addr.add(eth0.header.index, "fd07:b51a:cc66:f0::2".parse()?, 126).execute().await?;
 
     // add default routes
     ip_route.add().v4().gateway("198.19.248.1".parse()?).execute().await?;

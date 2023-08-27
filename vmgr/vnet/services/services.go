@@ -19,18 +19,18 @@ import (
 var (
 	staticDnsHosts = map[string]dnssrv.StaticHost{
 		"vm.orb.internal":         {IP4: netconf.VnetGuestIP4, IP6: netconf.VnetGuestIP6},
-		"host.internal":           {IP4: netconf.VnetHostNatIP4, IP6: netconf.Vnet2HostNatIP6},
-		"host.orb.internal":       {IP4: netconf.VnetHostNatIP4, IP6: netconf.Vnet2HostNatIP6},
-		"host.docker.internal":    {IP4: netconf.VnetHostNatIP4, IP6: netconf.Vnet2HostNatIP6},
-		"host.lima.internal":      {IP4: netconf.VnetHostNatIP4, IP6: netconf.Vnet2HostNatIP6},
+		"host.internal":           {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"host.orb.internal":       {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"host.docker.internal":    {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"host.lima.internal":      {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
 		"docker.orb.internal":     {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
 		"services.orb.internal":   {IP4: netconf.VnetServicesIP4},
 		"gateway.orb.internal":    {IP4: netconf.VnetGatewayIP4, IP6: netconf.VnetGatewayIP6},
 		"gateway.docker.internal": {IP4: netconf.VnetGatewayIP4, IP6: netconf.VnetGatewayIP6},
 
 		// compat with old docker
-		"docker.for.mac.localhost":     {IP4: netconf.VnetHostNatIP4, IP6: netconf.Vnet2HostNatIP6},
-		"docker.for.mac.host.internal": {IP4: netconf.VnetHostNatIP4, IP6: netconf.Vnet2HostNatIP6},
+		"docker.for.mac.localhost":     {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"docker.for.mac.host.internal": {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
 	}
 
 	// e.g. for ping/traceroute
@@ -38,7 +38,7 @@ var (
 		netconf.VnetGuestIP4:     {Name: "vm.orb.internal"},
 		netconf.VnetGuestIP6:     {Name: "vm.orb.internal"},
 		netconf.VnetHostNatIP4:   {Name: "host.orb.internal"},
-		netconf.Vnet2HostNatIP6:  {Name: "host.orb.internal"},
+		netconf.VnetHostNatIP6:   {Name: "host.orb.internal"},
 		netconf.VnetServicesIP4:  {Name: "services.orb.internal"},
 		netconf.VnetSecureSvcIP4: {Name: "services2.orb.internal"},
 		netconf.VnetGatewayIP4:   {Name: "gateway.orb.internal"},

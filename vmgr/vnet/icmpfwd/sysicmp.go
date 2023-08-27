@@ -32,7 +32,7 @@ func init() {
 	// set host addrs for gvisor to reply to ICMP echo
 	// TODO better API
 	ipv4.KAddrHost4 = netutil.AddrFromNetip(netip.MustParseAddr(netconf.VnetHostNatIP4))
-	ipv6.KAddrHost6 = netutil.AddrFromNetip(netip.MustParseAddr(netconf.Vnet2HostNatIP6))
+	ipv6.KAddrHost6 = netutil.AddrFromNetip(netip.MustParseAddr(netconf.VnetHostNatIP6))
 }
 
 type IcmpFwd struct {

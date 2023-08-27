@@ -304,7 +304,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 
 	// Build NAT table
 	hostNatIP4 := netutil.ParseTcpipAddress(netconf.VnetHostNatIP4)
-	hostNatIP6 := netutil.ParseTcpipAddress(netconf.Vnet2HostNatIP6)
+	hostNatIP6 := netutil.ParseTcpipAddress(netconf.VnetHostNatIP6)
 
 	bridgeRouteMon, err := bridge.NewRouteMon()
 	if err != nil {
