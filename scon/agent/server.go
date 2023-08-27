@@ -225,8 +225,9 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		if err != nil {
 			logrus.WithError(err).Error("docker post-start failed")
 			// well, docker won't work...
-			// just kill everything
-			unix.Kill(1, unix.SIGTERM)
+			// just kill everything. nothing else should really be running
+			// can't kill pid 1 with SIGKILL because unlike other procs, it has no handler by default
+			_ = unix.Kill(1, unix.SIGTERM)
 		}
 	}
 

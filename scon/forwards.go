@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"net/rpc"
 	"slices"
 	"strconv"
 	"strings"
@@ -332,10 +333,9 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ListenerInfo
 			return errors.New("unknown protocol")
 		}
 	})
-	if err != nil && !errors.Is(err, ErrMachineNotRunning) && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrUnexpectedEOF) {
+	if err != nil && !errors.Is(err, ErrMachineNotRunning) && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, rpc.ErrShutdown) {
 		// proceed with removal - worst case, we leak a socket, but still remove forward entry to allow reuse
 		logrus.WithField("container", c.Name).WithError(err).Error("failed to stop agent side of forward")
-		return err
 	}
 
 	// unblock port on container side
