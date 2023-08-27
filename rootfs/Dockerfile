@@ -148,13 +148,12 @@ EOT
 # k3s
 ARG ARCH=arm64
 RUN <<EOT sh -eux
-if [[ "$ARCH" == "amd64" ]]; then
-    url="https://github.com/k3s-io/k3s/releases/download/v1.27.4+k3s1/k3s"
-else
-    url="https://github.com/k3s-io/k3s/releases/download/v1.27.4+k3s1/k3s-$ARCH"
-fi
-wget -O /usr/local/bin/k3s "\$url"
 chmod +x /usr/local/bin/k3s
+
+# we have these commands, might as well expose them
+ln -s /usr/local/bin/k3s /usr/local/bin/kubectl
+ln -s /usr/local/bin/k3s /usr/local/bin/crictl
+ln -s /usr/local/bin/k3s /usr/local/bin/ctr
 EOT
 
 # network
