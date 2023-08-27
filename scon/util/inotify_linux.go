@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	runPollTimeout = 15 * time.Second
+	runPollTimeout  = 15 * time.Second
+	runPollInterval = 25 * time.Millisecond
 )
 
 // like WaitForPathExist but polls and waits for /run to be mounted first
@@ -26,7 +27,7 @@ func WaitForRunPathExist(path string) error {
 		if IsMountpointSimple("/run") {
 			break
 		}
-		time.Sleep(25 * time.Millisecond)
+		time.Sleep(runPollInterval)
 
 		if time.Since(start) > runPollTimeout {
 			return fmt.Errorf("timeout waiting for /run mount")
@@ -99,12 +100,13 @@ func WaitForPathExist(path string, requireWriteClose bool) error {
 func WaitForSocketConnectible(path string) error {
 	start := time.Now()
 	for {
-		_, err := net.Dial("unix", path)
+		conn, err := net.Dial("unix", path)
 		if err == nil {
+			conn.Close()
 			return nil
 		}
 
-		time.Sleep(runPollTimeout)
+		time.Sleep(runPollInterval)
 
 		if time.Since(start) > runPollTimeout {
 			return fmt.Errorf("timeout waiting for socket %s", path)
