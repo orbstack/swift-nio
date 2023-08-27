@@ -27,7 +27,8 @@ import (
 const (
 	dockerRefreshDebounce = 100 * time.Millisecond
 	// TODO: skip debounce when GUI action in progress
-	dockerUIEventDebounce = 50 * time.Millisecond
+	dockerUIEventDebounce   = 50 * time.Millisecond
+	dockerAPISocketUpstream = "/var/run/docker.sock"
 )
 
 type DockerAgent struct {
@@ -69,7 +70,7 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 			// no timeout - we do event monitoring
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", "/var/run/docker.sock")
+					return net.Dial("unix", dockerAPISocketUpstream)
 				},
 				// idle conns are ok here because we get frozen along with docker
 				MaxIdleConns: 2,
@@ -164,7 +165,7 @@ func (a *AgentServer) DockerHandleConn(fdxSeq uint64, _ *None) error {
 	a.docker.Running.Wait()
 
 	// dial unix socket
-	dockerConn, err := net.Dial("unix", "/var/run/docker.sock")
+	dockerConn, err := net.Dial("unix", dockerAPISocketUpstream)
 	if err != nil {
 		return err
 	}
@@ -185,7 +186,14 @@ func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 
 func (d *DockerAgent) PostStart() error {
 	// wait for Docker API to start
-	err := util.WaitForRunPathExist("/var/run/docker.sock")
+	err := util.WaitForRunPathExist(dockerAPISocketUpstream)
+	if err != nil {
+		return err
+	}
+
+	// fix very rare race: socket file is created on 'bind' but refuses connections until 'listen', causing event monitor to break
+	// TODO edit json and use docker fd://* syntax instead. zero race and more flexible
+	err = util.WaitForSocketConnectible(dockerAPISocketUpstream)
 	if err != nil {
 		return err
 	}

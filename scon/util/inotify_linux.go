@@ -5,6 +5,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -91,6 +92,22 @@ func WaitForPathExist(path string, requireWriteClose bool) error {
 			}
 		case err := <-watcher.Error:
 			return fmt.Errorf("inotify error: %w", err)
+		}
+	}
+}
+
+func WaitForSocketConnectible(path string) error {
+	start := time.Now()
+	for {
+		_, err := net.Dial("unix", path)
+		if err == nil {
+			return nil
+		}
+
+		time.Sleep(runPollTimeout)
+
+		if time.Since(start) > runPollTimeout {
+			return fmt.Errorf("timeout waiting for socket %s", path)
 		}
 	}
 }
