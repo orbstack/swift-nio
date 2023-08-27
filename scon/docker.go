@@ -419,6 +419,9 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			k8sCmd = append(k8sCmd, "--enable-pprof")
 		}
 		svConfig.Services = append(svConfig.Services, k8sCmd)
+
+		// remove old config symlink
+		_ = fs.Remove("/etc/rancher/k3s/k3s.yaml")
 	}
 	// set simplevisor config
 	svConfigJson, err := json.Marshal(&svConfig)

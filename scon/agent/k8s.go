@@ -4,7 +4,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"time"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
@@ -67,14 +66,11 @@ func (a *K8sAgent) WaitAndSendKubeConfig() error {
 	// wait for kubeconfig
 	// parent /run always exists because we mount it in docker machine
 	logrus.Debug("k8s: waiting for kubeconfig")
-	err := util.WaitForPathExist("/run/kubeconfig.yml", true /*requireWriteClose*/)
+	// wait for this symlink. it's created after /run/kubeconfig.yml is fully written, so it's race-free
+	err := util.WaitForPathExist("/etc/rancher/k3s/k3s.yaml", false /*requireWriteClose*/)
 	if err != nil {
 		return err
 	}
-
-	// give it some time just to make sure it's fully written
-	// k8s is slow to start anyway so it doesn't matter
-	time.Sleep(100 * time.Millisecond)
 
 	kubeConfigData, err := os.ReadFile("/run/kubeconfig.yml")
 	if err != nil {
