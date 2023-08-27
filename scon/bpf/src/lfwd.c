@@ -48,8 +48,8 @@ static const __be32 LOCALHOST_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 1);
 
 // 198.19.248.254
 #define HOSTNAT_IP4 IP4(198, 19, 248, 254)
-// fd07:b51a:cc66:f0::254
-static const __be32 HOSTNAT_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x00f0, 0, 0, 0, 0x254);
+// fd07:b51a:cc66:f0::fe
+static const __be32 HOSTNAT_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x00f0, 0, 0, 0, 0xfe);
 
 const volatile __u64 config_netns_cookie = 0;
 

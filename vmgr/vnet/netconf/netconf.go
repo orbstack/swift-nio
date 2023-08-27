@@ -14,8 +14,8 @@ const (
 	VnetSubnet6CIDR   = VnetSubnet6 + ":/64"
 	VnetGatewayIP6    = VnetSubnet6 + ":1"
 	VnetGuestIP6      = VnetSubnet6 + ":2"
-	VnetExtHostNatIP6 = VnetSubnet6 + ":253"
-	VnetHostNatIP6    = VnetSubnet6 + ":254"
+	VnetExtHostNatIP6 = VnetSubnet6 + ":fd"
+	VnetHostNatIP6    = VnetSubnet6 + ":fe"
 )
 
 const (
