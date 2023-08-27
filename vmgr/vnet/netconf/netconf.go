@@ -136,10 +136,16 @@ var DockerDefaultAddressPools = []map[string]any{
 }
 
 // default max pods is 110, so we can fit it in here
-const K8sClusterCIDR = "192.168.194.0/25"
-const K8sServiceCIDR = "192.168.194.128/25"
-const K8sNodeCIDRMaskSize = "25"
+const K8sClusterCIDR4 = "192.168.194.0/25"
+const K8sServiceCIDR4 = "192.168.194.128/25"
+const K8sNodeCIDRMaskSize4 = "25"
 
 // for bridging to host
 // cluster and service CIDRs must be adjacent
-const K8sMergedCIDR = "192.168.194.0/24"
+const K8sMergedCIDR4 = "192.168.194.0/24"
+
+// k8s uses ipv4 number to assign here, so do it conservatively to reserve space for future use
+const K8sClusterCIDR6 = "fd07:b51a:cc66:a::/112"
+const K8sServiceCIDR6 = "fd07:b51a:cc66:a:8000::/112"
+const K8sNodeCIDRMaskSize6 = "72"
+const K8sMergedCIDR6 = "fd07:b51a:cc66:a::/64"

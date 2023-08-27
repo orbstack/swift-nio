@@ -410,9 +410,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			"--container-runtime-endpoint", "/var/run/docker.sock",
 			"--protect-kernel-defaults",
 			"--flannel-backend", "host-gw",
-			"--cluster-cidr", netconf.K8sClusterCIDR,
-			"--service-cidr", netconf.K8sServiceCIDR,
-			"--kube-controller-manager-arg", "node-cidr-mask-size=" + netconf.K8sNodeCIDRMaskSize,
+			"--cluster-cidr", netconf.K8sClusterCIDR4 + "," + netconf.K8sClusterCIDR6,
+			"--service-cidr", netconf.K8sServiceCIDR4 + "," + netconf.K8sServiceCIDR6,
+			"--kube-controller-manager-arg", "node-cidr-mask-size-ipv4=" + netconf.K8sNodeCIDRMaskSize4,
+			"--kube-controller-manager-arg", "node-cidr-mask-size-ipv6=" + netconf.K8sNodeCIDRMaskSize6,
 			"--write-kubeconfig", "/run/kubeconfig.yml",
 		}
 		if conf.Debug() {

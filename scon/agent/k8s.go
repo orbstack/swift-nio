@@ -37,12 +37,22 @@ func (a *K8sAgent) PostStart() error {
 
 	// add addr
 	// interface does not need to be brought up
-	_, servicesNet, err := net.ParseCIDR(netconf.K8sServiceCIDR)
+	_, servicesNet4, err := net.ParseCIDR(netconf.K8sServiceCIDR4)
 	if err != nil {
 		return err
 	}
 	err = netlink.AddrAdd(dummy, &netlink.Addr{
-		IPNet: servicesNet,
+		IPNet: servicesNet4,
+	})
+	if err != nil {
+		return err
+	}
+	_, servicesNet6, err := net.ParseCIDR(netconf.K8sServiceCIDR6)
+	if err != nil {
+		return err
+	}
+	err = netlink.AddrAdd(dummy, &netlink.Addr{
+		IPNet: servicesNet6,
 	})
 	if err != nil {
 		return err
@@ -51,8 +61,9 @@ func (a *K8sAgent) PostStart() error {
 	// best-effort: create k8s bridge using vlan infra
 	logrus.Debug("k8s: creating k8s bridge")
 	bridgeConfig := sgtypes.DockerBridgeConfig{
-		IP4Subnet: netip.MustParsePrefix(netconf.K8sMergedCIDR),
-		// no ip6, no interface
+		IP4Subnet: netip.MustParsePrefix(netconf.K8sMergedCIDR4),
+		IP6Subnet: netip.MustParsePrefix(netconf.K8sMergedCIDR6),
+		// no interface
 	}
 	err = a.docker.scon.DockerAddBridge(bridgeConfig)
 	if err != nil {
