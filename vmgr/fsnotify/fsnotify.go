@@ -1,6 +1,7 @@
 package fsnotify
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -35,7 +36,7 @@ func NewVmNotifier(network *vnet.Network) (*VmNotifier, error) {
 func (n *VmNotifier) Run() error {
 	n.swext.Start()
 
-	conn, err := n.network.DialGuestTCPRetry(ports.GuestKrpc)
+	conn, err := n.network.DialGuestTCPRetry(context.TODO(), ports.GuestKrpc)
 	if err != nil {
 		return fmt.Errorf("dial guest: %w", err)
 	}

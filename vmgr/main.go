@@ -35,6 +35,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/types"
+	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"github.com/orbstack/macvirt/vmgr/vclient"
@@ -456,7 +457,11 @@ func runVmManager() {
 
 	// everything is set up for spawn-daemon to work properly (build id and pid)
 	// now notify GUI that we've started
-	vzf.SwextIpcNotifyStarted()
+	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		Started: &uitypes.StartedEvent{
+			Pid: os.Getpid(),
+		},
+	})
 
 	// killswitch
 	err = killswitch.Check()
@@ -650,6 +655,7 @@ func runVmManager() {
 		dockerClient: makeDockerClient(),
 		drm:          drm.Client(),
 		network:      vnetwork,
+		hcontrol:     hcServer,
 	}
 	vmcontrolCleanup, err := controlServer.Serve()
 	check(err)

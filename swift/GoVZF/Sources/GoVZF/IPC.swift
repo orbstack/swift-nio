@@ -4,34 +4,13 @@
 
 import Foundation
 
-@_cdecl("swext_ipc_notify_started")
-func swext_ipc_notify_started() {
+@_cdecl("swext_ipc_notify_uievent")
+func swext_ipc_notify_uievent(eventJsonStr: UnsafePointer<CChar>) {
     let nc = DistributedNotificationCenter.default()
     // deliverImmediately sends even if GUI is in background
-    nc.postNotificationName(.init("dev.orbstack.vmgr.private.DaemonStarted"),
-            object: nil,
-            userInfo: ["pid": getpid()],
-            deliverImmediately: true)
-}
-
-@_cdecl("swext_ipc_notify_docker_event")
-func swext_ipc_notify_docker_event(eventJsonStr: UnsafePointer<CChar>) {
-    let nc = DistributedNotificationCenter.default()
-    // deliverImmediately for meneu bar app
     let eventJson = String(cString: eventJsonStr)
-    nc.postNotificationName(.init("dev.orbstack.vmgr.private.DockerUIEvent"),
+    nc.postNotificationName(.init("dev.orbstack.vmgr.private.UIEvent"),
             object: nil,
-            userInfo: ["event_json": eventJson],
-            deliverImmediately: true)
-}
-
-@_cdecl("swext_ipc_notify_drm_warning")
-func swext_ipc_notify_drm_warning(eventJsonStr: UnsafePointer<CChar>) {
-    let nc = DistributedNotificationCenter.default()
-    // deliverImmediately: important
-    let eventJson = String(cString: eventJsonStr)
-    nc.postNotificationName(.init("dev.orbstack.vmgr.private.DRMWarning"),
-            object: nil,
-            userInfo: ["event_json": eventJson],
+            userInfo: ["event": eventJson],
             deliverImmediately: true)
 }

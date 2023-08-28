@@ -32,6 +32,7 @@ struct ContentView: View {
     @State private var collapsed = false
     // with searchable, this breaks if it's on model, but works as state
     @State private var presentDockerFilter = false
+    @State private var presentK8sFilter = false
 
     @State private var initialDockerContainerSelection: Set<DockerContainerId> = []
 
@@ -64,6 +65,18 @@ struct ContentView: View {
                 
                 NavigationLink(destination: DockerImagesRootView(), tag: "docker-images", selection: selBinding) {
                     Label("Images", systemImage: "doc.zipper")
+                        .padding(.vertical, 3)
+                }
+            }
+
+            Section(header: Text("Kubernetes")) {
+                NavigationLink(destination: K8SPodsView(), tag: "k8s-pods", selection: selBinding) {
+                    Label("Pods", systemImage: "helm")
+                        .padding(.vertical, 3)
+                }
+
+                NavigationLink(destination: K8SServicesView(), tag: "k8s-services", selection: selBinding) {
+                    Label("Services", systemImage: "network")
                         .padding(.vertical, 3)
                 }
             }
@@ -106,6 +119,18 @@ struct ContentView: View {
                 }
             }
 
+            Section(header: Text("Kubernetes")) {
+                NavigationLink(value: "k8s-pods") {
+                    Label("Pods", systemImage: "helm")
+                    .padding(.vertical, 3)
+                }
+
+                NavigationLink(value: "k8s-services") {
+                    Label("Services", systemImage: "network")
+                    .padding(.vertical, 3)
+                }
+            }
+
             Section(header: Text("Linux")) {
                 NavigationLink(value: "machines") {
                     Label("Machines", systemImage: "desktopcomputer")
@@ -139,6 +164,11 @@ struct ContentView: View {
                         DockerVolumesRootView()
                     case "docker-images":
                         DockerImagesRootView()
+
+                    case "k8s-pods":
+                        K8SPodsView()
+                    case "k8s-services":
+                        K8SServicesView()
                         
                     case "machines":
                         MachinesRootView()
@@ -216,6 +246,20 @@ struct ContentView: View {
                         DockerFilterView()
                     }
                     .help("Filter Containers")
+                    .disabled(model.state != .running)
+                }
+            }
+
+            ToolbarItem(placement: .automatic) {
+                if selection == "k8s-pods" || selection == "k8s-services" {
+                    Button(action: {
+                        presentK8sFilter = true
+                    }) {
+                        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                    }.popover(isPresented: $presentK8sFilter, arrowEdge: .bottom) {
+                        K8SFilterView()
+                    }
+                    .help("Filter")
                     .disabled(model.state != .running)
                 }
             }

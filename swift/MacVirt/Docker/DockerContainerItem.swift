@@ -29,7 +29,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
         HStack {
             HStack {
-                let color = SystemColors.forString(container.id)
+                // make it consistent
+                let color = SystemColors.forString(container.userName)
                 Image(systemName: "shippingbox.fill")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -122,8 +123,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 ProgressIconButton(systemImage: "trash.fill",
-                        actionInProgress: actionInProgress == .remove) {
-                    finishRemove()
+                        actionInProgress: actionInProgress == .delete) {
+                    finishDelete()
                 }
                 .disabled(actionInProgress != nil)
                 .help("Delete container")
@@ -159,7 +160,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 .disabled(actionInProgress != nil || !isRunning)
 
                 Button(action: {
-                    finishRemove()
+                    finishDelete()
                 }) {
                     Label("Delete", systemImage: "")
                 }
@@ -350,14 +351,20 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             VStack(alignment: .leading) {
                 HStack {
                     if isRunning {
-                        Button("Terminal") {
+                        Button {
                             container.openInTerminal()
+                        } label: {
+                            Label("Terminal", systemImage: "terminal")
                         }
+                        .controlSize(.large)
                     }
 
-                    Button("Logs") {
+                    Button {
                         container.showLogs(vmModel: vmModel)
+                    } label: {
+                        Label("Logs", systemImage: "doc.text.magnifyingglass")
                     }
+                    .controlSize(.large)
                 }
 
                 if isRunning && container.image == "docker/getting-started" {
@@ -379,38 +386,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     }
 }
 
-private struct CustomLink: View {
-    let text: String
-    let onClick: () -> Void
-
-    init(_ text: String, onClick: @escaping () -> Void) {
-        self.text = text
-        self.onClick = onClick
-    }
-
-    init(_ text: String, url: URL) {
-        self.text = text
-        self.onClick = {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    var body: some View {
-        Text(text)
-        .foregroundColor(.blue)
-        .onHover { inside in
-            if inside {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
-        .onTapGesture {
-            onClick()
-        }
-    }
-}
-
 protocol BaseDockerContainerItem {
     var vmModel: VmViewModel { get }
     var actionTracker: ActionTracker { get }
@@ -428,7 +403,7 @@ protocol BaseDockerContainerItem {
     @MainActor
     func finishRestart()
     @MainActor
-    func finishRemove()
+    func finishDelete()
 
     func isSelected() -> Bool
     @MainActor
@@ -509,10 +484,10 @@ extension BaseDockerContainerItem {
     }
 
     @MainActor
-    func finishRemove() {
+    func finishDelete() {
         for item in resolveActionList() {
             Task { @MainActor in
-                await actionTracker.with(cid: item, action: .remove) {
+                await actionTracker.with(cid: item, action: .delete) {
                     switch item {
                     case .container(let id):
                         await vmModel.tryDockerContainerRemove(id)

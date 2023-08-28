@@ -89,18 +89,32 @@ enum DKUIEntity: String, Codable {
     case image = "image"
 }
 
-struct DKUIEvent: Codable {
-    let changed: [DKUIEntity]
-}
+struct UIEvent: Codable {
+    let started: Started?
+    let docker: Docker?
+    let drmWarning: DrmWarning?
+    let k8s: K8s?
 
-struct VmgrDrmWarning: Codable {
-    let lastError: String
+    struct Started: Codable {
+        let pid: Int
+    }
+
+    struct Docker: Codable {
+        let changed: [DKUIEntity]
+    }
+
+    struct DrmWarning: Codable {
+        let lastError: String
+    }
+
+    struct K8s: Codable {
+        let currentPods: [K8SPod]?
+        let currentServices: [K8SService]?
+    }
 }
 
 class DaemonManager {
-    let daemonNotifications = PassthroughSubject<Int, Never>()
-    let dockerNotifications = PassthroughSubject<DKUIEvent, Never>()
-    let drmWarningNotifications = PassthroughSubject<VmgrDrmWarning, Never>()
+    let uiEvents = PassthroughSubject<UIEvent, Never>()
 
     private let pidsHolder = PidsHolder()
     private var lastPid: Int?
@@ -253,44 +267,23 @@ class DaemonManager {
 
     // subscribe to notification center and dispatch any pids with the given callback
     func monitorNotifications() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
         let nc = DistributedNotificationCenter.default()
-        nc.addObserver(forName: .init("dev.orbstack.vmgr.private.DaemonStarted"), object: nil, queue: nil) { notification in
-            guard let pid = notification.userInfo?["pid"] as? Int else {
-                NSLog("Invalid notification: \(notification)")
+        nc.addObserver(forName: .init("dev.orbstack.vmgr.private.UIEvent"), object: nil, queue: nil) { notification in
+            guard let eventJson = notification.userInfo?["event"] as? String else {
+                NSLog("Notification is missing data: \(notification)")
                 return
             }
-            NSLog("Received notification for pid \(pid)")
-            self.daemonNotifications.send(pid)
-        }
 
-        nc.addObserver(forName: .init("dev.orbstack.vmgr.private.DockerUIEvent"), object: nil, queue: nil) { notification in
-            guard let eventJson = notification.userInfo?["event_json"] as? String else {
-                NSLog("Invalid notification: \(notification)")
-                return
+            do {
+                let event = try decoder.decode(UIEvent.self, from: eventJson.data(using: .utf8)!)
+                NSLog("Received UI event: \(event)")
+                self.uiEvents.send(event)
+            } catch {
+                NSLog("Failed to decode notification \(notification) - error = \(error)")
             }
-            // decode
-            let decoder = JSONDecoder()
-            guard let event = try? decoder.decode(DKUIEvent.self, from: eventJson.data(using: .utf8)!) else {
-                NSLog("Invalid notification: \(notification)")
-                return
-            }
-            NSLog("Received Docker notification: \(event)")
-            self.dockerNotifications.send(event)
-        }
-
-        nc.addObserver(forName: .init("dev.orbstack.vmgr.private.DRMWarning"), object: nil, queue: nil) { notification in
-            guard let eventJson = notification.userInfo?["event_json"] as? String else {
-                NSLog("Invalid notification: \(notification)")
-                return
-            }
-            // decode
-            let decoder = JSONDecoder()
-            guard let event = try? decoder.decode(VmgrDrmWarning.self, from: eventJson.data(using: .utf8)!) else {
-                NSLog("Invalid notification: \(notification)")
-                return
-            }
-            NSLog("Received DRM notification: \(event)")
-            self.drmWarningNotifications.send(event)
         }
     }
 }

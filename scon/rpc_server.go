@@ -252,6 +252,15 @@ func (s *SconServer) InternalDockerMigrationStopSyncServer(ctx context.Context) 
 	return nil
 }
 
+func (s *SconServer) InternalDeleteK8s(ctx context.Context) error {
+	c, err := s.m.GetByID(ContainerIDDocker)
+	if err != nil {
+		return err
+	}
+
+	return c.DeleteK8s()
+}
+
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
 		"Ping":                                  handler.New(s.Ping),
@@ -274,6 +283,8 @@ func (s *SconServer) Serve() error {
 		"InternalDockerMigrationRunSyncServer":  handler.New(s.InternalDockerMigrationRunSyncServer),
 		"InternalDockerMigrationWaitSync":       handler.New(s.InternalDockerMigrationWaitSync),
 		"InternalDockerMigrationStopSyncServer": handler.New(s.InternalDockerMigrationStopSyncServer),
+		// TODO better alias
+		"InternalDeleteK8s": handler.New(s.InternalDeleteK8s),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

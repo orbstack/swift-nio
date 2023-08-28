@@ -140,7 +140,7 @@ struct MachineSettingsView: View {
                         Text("Apply")
                         // TODO: dockerSetContext doesn't require restart
                     }
-                    .disabled(vmModel.configAtLastStart == vmModel.config)
+                    .disabled(vmModel.appliedConfig == vmModel.config)
                     .keyboardShortcut("s")
 
                 default:

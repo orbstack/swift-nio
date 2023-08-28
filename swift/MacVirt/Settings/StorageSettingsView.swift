@@ -23,6 +23,7 @@ struct StorageSettingsView: View {
     @State private var dataDir: String?
 
     @State private var presentConfirmResetDockerData = false
+    @State private var presentConfirmResetK8sData = false
     @State private var presentConfirmResetAllData = false
 
     var body: some View {
@@ -73,6 +74,10 @@ struct StorageSettingsView: View {
                     presentConfirmResetDockerData = true
                 }
 
+                Button("Reset Kubernetes cluster", role: .destructive) {
+                    presentConfirmResetK8sData = true
+                }
+
                 Button("Reset all data", role: .destructive) {
                     presentConfirmResetAllData = true
                 }
@@ -88,7 +93,7 @@ struct StorageSettingsView: View {
                     Text("Apply")
                     // TODO: dockerSetContext doesn't require restart
                 }
-                .disabled(vmModel.configAtLastStart == vmModel.config)
+                .disabled(vmModel.appliedConfig == vmModel.config)
                 .keyboardShortcut("s")
             }
             .onChange(of: vmModel.config) { config in
@@ -113,7 +118,20 @@ struct StorageSettingsView: View {
                 }
             }
         } message: {
-            Text("All Docker containers, images, volumes, and other data will be permanently deleted.")
+            Text("All Docker containers, images, volumes, and other data will be permanently lost.\n\nKubernetes data will also be deleted.")
+        }
+        .alert("Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                Task {
+                    if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
+                        await vmModel.tryInternalDeleteK8s()
+                        await vmModel.tryStartContainer(dockerRecord)
+                    }
+                }
+            }
+        } message: {
+            Text("All Kubernetes deployments, pods, services, and other data will be permanently lost.")
         }
         .alert("Reset all data?", isPresented: $presentConfirmResetAllData) {
             Button("Cancel", role: .cancel) {}
@@ -123,7 +141,7 @@ struct StorageSettingsView: View {
                 }
             }
         } message: {
-            Text("All Docker data (containers, images, volumes, etc.) and Linux machines will be permanently deleted.")
+            Text("All Docker data (containers, images, volumes, etc.) and Linux machines will be permanently lost.")
         }
         .padding()
         .background(WindowAccessor(holder: windowHolder))

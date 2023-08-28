@@ -25,6 +25,7 @@ func init() {
 	migrateDockerCmd.Flags().BoolVarP(&flagImages, "images", "i", true, "Migrate images")
 	migrateDockerCmd.Flags().BoolVarP(&flagContainers, "containers", "c", true, "Migrate containers")
 	migrateDockerCmd.Flags().BoolVarP(&flagVolumes, "volumes", "v", true, "Migrate volumes")
+	migrateDockerCmd.Flags().BoolVarP(&flagAll, "all", "a", false, "Disable filters and migrate everything")
 	migrateDockerCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force migration even if OrbStack already has data")
 	// no shorthand, only for gui use
 	migrateDockerCmd.Flags().StringVar(&flagFormat, "format", "text", "Output format")
@@ -72,6 +73,8 @@ var migrateDockerCmd = &cobra.Command{
 		checkCLI(err)
 
 		err = migrator.MigrateAll(dmigrate.MigrateParams{
+			All: flagAll,
+
 			IncludeImages:     flagImages,
 			IncludeContainers: flagContainers,
 			IncludeVolumes:    flagVolumes,

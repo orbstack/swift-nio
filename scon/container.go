@@ -43,6 +43,7 @@ type ContainerHooks interface {
 type Container struct {
 	ID        string
 	Name      string
+	Aliases   []string
 	Image     types.ImageSpec
 	dir       string
 	rootfsDir string

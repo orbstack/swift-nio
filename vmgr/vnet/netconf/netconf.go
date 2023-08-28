@@ -145,7 +145,7 @@ const K8sNodeCIDRMaskSize4 = "25"
 const K8sMergedCIDR4 = "192.168.194.0/24"
 
 // k8s uses ipv4 number to assign here, so do it conservatively to reserve space for future use
-const K8sClusterCIDR6 = "fd07:b51a:cc66:a::/112"
+const K8sClusterCIDR6 = "fd07:b51a:cc66:a::/72"
 const K8sServiceCIDR6 = "fd07:b51a:cc66:a:8000::/112"
 const K8sNodeCIDRMaskSize6 = "72"
-const K8sMergedCIDR6 = "fd07:b51a:cc66:a::/64"
+const K8sMergedCIDR6 = "fd07:b51a:cc66:a::/64" // remember: macOS can only do /64

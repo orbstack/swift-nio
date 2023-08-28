@@ -415,7 +415,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addActionItem("Delete", icon: systemImage("trash.fill"),
                 disabled: actionInProgress) { [self] in
-            await actionTracker.with(cid: container.cid, action: .remove) {
+            await actionTracker.with(cid: container.cid, action: .delete) {
                 await vmModel.tryDockerContainerRemove(container.id)
             }
         }
@@ -502,7 +502,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addActionItem("Delete", icon: systemImage("trash.fill"),
                 disabled: actionInProgress) { [self] in
-            await actionTracker.with(cid: group.cid, action: .remove) {
+            await actionTracker.with(cid: group.cid, action: .delete) {
                 await vmModel.tryDockerComposeRemove(group.cid)
             }
         }

@@ -9,6 +9,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
@@ -75,6 +76,24 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 		}
 
 		for _, containerName := range containerNames {
+			// k8s special case
+			if containerName == types.ContainerNameK8s {
+				c, err := scli.Client().GetByID(types.ContainerIDDocker)
+				checkCLI(err)
+
+				if flagAll && c.Builtin {
+					continue
+				}
+
+				scli.EnsureSconVMWithSpinner()
+				spinner := spinutil.Start("red", "Deleting k8s")
+				err = scli.Client().InternalDeleteK8s()
+				spinner.Stop()
+				checkCLI(err)
+
+				continue
+			}
+
 			// try ID first
 			c, err := scli.Client().GetByID(containerName)
 			if err != nil {

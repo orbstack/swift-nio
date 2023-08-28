@@ -12,7 +12,11 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
+
+const verboseDebug = false
 
 type Client struct {
 	http    *http.Client
@@ -103,13 +107,13 @@ func (c *Client) newRequest(method, path string, body any) (*http.Request, error
 		}
 	}
 
-	/*
+	if verboseDebug {
 		logrus.WithFields(logrus.Fields{
 			"method": method,
 			"path":   path,
 			"body":   body,
 		}).Debug("docker call")
-	*/
+	}
 
 	req, err := http.NewRequest(method, c.baseURL+path, reader)
 	if err != nil {

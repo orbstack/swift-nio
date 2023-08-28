@@ -400,6 +400,9 @@ func (m *ConManager) removeContainer(c *Container) error {
 
 	delete(m.containersByID, c.ID)
 	delete(m.containersByName, c.Name)
+	for _, alias := range c.Aliases {
+		delete(m.containersByName, alias)
+	}
 
 	runtime.SetFinalizer(c, nil)
 	_ = c.lxc.Release()

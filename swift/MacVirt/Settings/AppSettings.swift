@@ -15,6 +15,7 @@ struct AppSettings: View {
         case general
         case machine
         case docker
+        case k8s
         case network
         case storage
         case debug
@@ -39,6 +40,12 @@ struct AppSettings: View {
                 Label("Docker", systemImage: "shippingbox")
             }
             .tag(Tabs.docker)
+
+            K8SSettingsView()
+            .tabItem {
+                Label("Kubernetes", systemImage: "helm")
+            }
+            .tag(Tabs.k8s)
 
             NetworkSettingsView()
             .tabItem {

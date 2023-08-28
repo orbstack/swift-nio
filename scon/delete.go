@@ -78,11 +78,7 @@ func deleteRootfs(rootfs string) error {
 	return nil
 }
 
-func (c *Container) deleteDockerLocked() error {
-	if c.manager.stopping {
-		return ErrStopping
-	}
-
+func (c *Container) deleteDockerLocked(k8sOnly bool) error {
 	_, err := c.stopLocked(StopOptions{
 		Force: true, // don't care about data
 	})
@@ -100,9 +96,11 @@ func (c *Container) deleteDockerLocked() error {
 	logrus.WithField("container", c.Name).Info("deleting container data")
 
 	// delete the entire directory
-	err = deleteRootfs(conf.C().DockerDataDir)
-	if err != nil {
-		return fmt.Errorf("delete docker data: %w", err)
+	if !k8sOnly {
+		err = deleteRootfs(conf.C().DockerDataDir)
+		if err != nil {
+			return fmt.Errorf("delete docker data: %w", err)
+		}
 	}
 	err = deleteRootfs(conf.C().K8sDataDir)
 	if err != nil {
@@ -112,18 +110,19 @@ func (c *Container) deleteDockerLocked() error {
 	return nil
 }
 
+// internal means this is to clean up a failed creation
 func (c *Container) deleteLocked(isInternal bool) error {
+	if c.manager.stopping {
+		return ErrStopping
+	}
+
 	// exception for builtin: docker can be deleted (data only)
 	if c.ID == ContainerIDDocker {
-		return c.deleteDockerLocked()
+		return c.deleteDockerLocked(false /*k8sOnly*/)
 	}
 
 	if c.builtin {
 		return errors.New("cannot delete builtin machine")
-	}
-
-	if c.manager.stopping {
-		return ErrStopping
 	}
 
 	_, err := c.stopLocked(StopOptions{
@@ -173,4 +172,15 @@ func (c *Container) deleteInternal() error {
 	defer c.mu.Unlock()
 
 	return c.deleteLocked(true)
+}
+
+func (c *Container) DeleteK8s() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.manager.stopping {
+		return ErrStopping
+	}
+
+	return c.deleteDockerLocked(true /*k8sOnly*/)
 }

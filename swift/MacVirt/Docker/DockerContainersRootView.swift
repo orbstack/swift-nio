@@ -80,8 +80,6 @@ private struct DockerContainerListItemView: View {
 
     var body: some View {
         switch item {
-        case .builtinRecord(let record):
-            BuiltinContainerItem(record: record)
         case .sectionLabel(let label):
             Text(label)
             .font(.subheadline.bold())
@@ -107,7 +105,6 @@ private struct DockerContainersList: View {
     let filterIsSearch: Bool
     let runningCount: Int
     let allContainers: [DKContainer]
-    let dockerRecord: ContainerRecord
     let listItems: [DockerListItem]
     let selection: Binding<Set<DockerContainerId>>
     let initialSelection: Set<DockerContainerId>
@@ -209,9 +206,7 @@ struct DockerContainersRootView: View {
     @State var searchQuery: String
 
     var body: some View {
-        DockerStateWrapperView(
-            refreshAction: refresh
-        ) { containers, dockerRecord in
+        DockerStateWrapperView(\.dockerContainers) { containers, dockerRecord in
             let runningCount = containers.filter { $0.running }.count
 
             let filteredContainers = containers.filter { container in
@@ -224,13 +219,12 @@ struct DockerContainersRootView: View {
 
             // 0 spacing to fix bg color gap between list and getting started hint
             let listItems = DockerContainerLists.makeListItems(filteredContainers: filteredContainers,
-                    dockerRecord: dockerRecord, showStopped: filterShowStopped)
+                    showStopped: filterShowStopped)
             DockerContainersList(
                     filterShowStopped: filterShowStopped,
                     filterIsSearch: !searchQuery.isEmpty,
                     runningCount: runningCount,
                     allContainers: containers,
-                    dockerRecord: dockerRecord,
                     listItems: listItems,
                     selection: $selection,
                     initialSelection: initialSelection,
@@ -238,6 +232,9 @@ struct DockerContainersRootView: View {
                     dockerImages: vmModel.dockerImages,
                     dockerVolumes: vmModel.dockerVolumes
             )
+        } onRefresh: {
+            await vmModel.tryRefreshList()
+            await vmModel.maybeTryRefreshDockerList()
         }
         .navigationTitle("Containers")
         .searchable(
@@ -245,10 +242,5 @@ struct DockerContainersRootView: View {
             placement: .toolbar,
             prompt: "Search"
         )
-    }
-
-    private func refresh() async {
-        await vmModel.tryRefreshList()
-        await vmModel.maybeTryRefreshDockerList()
     }
 }

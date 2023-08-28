@@ -2,6 +2,7 @@ package vnet
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -372,18 +373,21 @@ func (n *Network) Close() error {
 	return nil
 }
 
-func (n *Network) DialGuestTCP(port uint16) (net.Conn, error) {
-	return gonet.DialTCP(n.Stack, tcpip.FullAddress{
+func (n *Network) DialGuestTCP(ctx context.Context, port uint16) (net.Conn, error) {
+	return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
 		NIC:  n.NIC,
 		Addr: n.GuestAddr4,
 		Port: port,
 	}, ipv4.ProtocolNumber)
 }
 
-func (n *Network) DialGuestTCPRetry(port uint16) (net.Conn, error) {
+func (n *Network) DialGuestTCPRetry(ctx context.Context, port uint16) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, guestDialRetryTimeout)
+	defer cancel()
+
 	start := time.Now()
 	for {
-		conn, err := n.DialGuestTCP(port)
+		conn, err := n.DialGuestTCP(ctx, port)
 		if err == nil {
 			return conn, nil
 		}

@@ -19,7 +19,7 @@ extension DKContainer {
 
     @MainActor
     func showLogs(vmModel: VmViewModel) {
-        if !vmModel.openLogWindowIds.contains(.container(id: id)) {
+        if !vmModel.openDockerLogWindowIds.contains(DockerContainerId.container(id: id)) {
             NSWorkspace.shared.open(URL(string: "orbstack://docker/container-logs/\(id)")!)
         } else {
             // find window by title and bring to front
@@ -128,18 +128,24 @@ struct WindowTitles {
             return containerLogsBase
         }
     }
+
+    static let podLogsBase = "Pod Logs"
+    static func podLogs(_ name: String?) -> String {
+        if let name {
+            return "\(name) — \(podLogsBase)"
+        } else {
+            return podLogsBase
+        }
+    }
 }
 
 enum DockerListItem: Identifiable, Equatable {
-    case builtinRecord(ContainerRecord)
     case sectionLabel(String)
     case container(DKContainer)
     case compose(ComposeGroup, children: [DockerListItem])
 
     var id: DockerContainerId {
         switch self {
-        case .builtinRecord(let record):
-            return .builtinRecord(record.id)
         case .sectionLabel(let label):
             return .sectionLabel(label)
         case .container(let container):
@@ -180,12 +186,9 @@ enum DockerListItem: Identifiable, Equatable {
 }
 
 struct DockerContainerLists {
-    static func makeListItems(filteredContainers: [DKContainer],
-                       dockerRecord: ContainerRecord? = nil,
-                       showStopped: Bool) -> [DockerListItem] {
+    static func makeListItems(filteredContainers: [DKContainer], showStopped: Bool) -> [DockerListItem] {
         // TODO - workaround was to remove section headers
         var listItems: [DockerListItem] = [
-            //DockerListItem(builtinRecord: dockerRecord),
             //DockerListItem(sectionLabel: "Running"),
         ]
         var runningItems: [DockerListItem] = []

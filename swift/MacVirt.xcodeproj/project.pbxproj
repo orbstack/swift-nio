@@ -10,36 +10,45 @@
 		B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */; };
 		B118B05969CAC4497636F8DE /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF90FB580B56419D1472 /* FFI.swift */; };
 		B118B059B171800F250B42CD /* PHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHClient.swift */; };
+		B118B05A4822E6D2CE27AE32 /* CustomLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4E4BEA14F3804B048B1 /* CustomLink.swift */; };
 		B118B076E8CB7033926025A7 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1DCE616676E483BB2BB /* FeedbackView.swift */; };
 		B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE46918C0AB595ADE247 /* RenameContainerView.swift */; };
 		B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
 		B118B0FC989BF42C8A2B6EE2 /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
 		B118B209F240A8036216EC04 /* DockerMigrationWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */; };
+		B118B242A992055158331DBA /* K8SStateWrapperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDCE479E491B624AC373 /* K8SStateWrapperView.swift */; };
+		B118B2587E45023C13156AE5 /* K8SUIHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B065CF24496A8E43EC03 /* K8SUIHelpers.swift */; };
 		B118B3B76CA225F4062B10D1 /* NSImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BABDE1F02C8A54DB011F /* NSImage.swift */; };
 		B118B3BEA18481697E1EB21E /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
 		B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB2A7BF402695260775E /* IPC.swift */; };
 		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
 		B118B43B007C2829095646FE /* Data+Base64URL.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B103C2DE982C1219D12E /* Data+Base64URL.swift */; };
+		B118B4653B70C49EAB1B1094 /* DockerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B82B52FEEB467CDA5C7A /* DockerSettingsView.swift */; };
 		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
 		B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */; };
+		B118B5BB973EBC5FD60C865B /* K8SSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BA158D66536A2AA036FB /* K8SSettingsView.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
+		B118B81365EA43CD9BD5FFF1 /* K8sRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1E2A991085A29F40FB3 /* K8sRPC.swift */; };
 		B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */; };
+		B118B8D281CB560AA13AD3FB /* K8SPodsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B530786FB12B0A422003 /* K8SPodsView.swift */; };
 		B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */; };
 		B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
 		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
 		B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B300D94CA37572036935 /* Buttons.swift */; };
+		B118BC0C08A918A48F447E2D /* K8SPodItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BBF4988AABF0AB93C4EA /* K8SPodItemView.swift */; };
 		B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */; };
 		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
+		B118BD1656CDA2FBAE025120 /* K8SServicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BAE7880AF024BB63CA95 /* K8SServicesView.swift */; };
 		B118BD7881459134B77DE5FB /* ActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */; };
 		B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */; };
 		B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B88B9296701977A1F286 /* CodeInfo.swift */; };
+		B118BF84ADD1FBB62A3DCA2E /* K8SFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30B81DE183143A624B9 /* K8SFilterView.swift */; };
 		D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */; };
 		D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */; };
 		D80443E22A1B404E00ED59C5 /* OnboardingRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */; };
 		D80443E32A1B404E00ED59C5 /* OnboardingModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A32A1B404E00ED59C5 /* OnboardingModeView.swift */; };
 		D80443E42A1B404E00ED59C5 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A42A1B404E00ED59C5 /* OnboardingViewModel.swift */; };
 		D80443E82A1B404E00ED59C5 /* MachineContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A92A1B404E00ED59C5 /* MachineContainerItem.swift */; };
-		D80443E92A1B404E00ED59C5 /* BuiltinContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443AA2A1B404E00ED59C5 /* BuiltinContainerItem.swift */; };
 		D80443EA2A1B404E00ED59C5 /* CreateContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443AB2A1B404E00ED59C5 /* CreateContainerView.swift */; };
 		D80443EB2A1B404E00ED59C5 /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443AC2A1B404E00ED59C5 /* Images.swift */; };
 		D80443EC2A1B404E00ED59C5 /* MachinesUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443AD2A1B404E00ED59C5 /* MachinesUI.swift */; };
@@ -65,7 +74,6 @@
 		D80444012A1B404E00ED59C5 /* DockerFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C62A1B404E00ED59C5 /* DockerFilterView.swift */; };
 		D80444022A1B404E00ED59C5 /* DockerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C72A1B404E00ED59C5 /* DockerViewModel.swift */; };
 		D80444032A1B404E00ED59C5 /* DockerVolumeItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C82A1B404E00ED59C5 /* DockerVolumeItem.swift */; };
-		D80444042A1B404E00ED59C5 /* DockerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C92A1B404E00ED59C5 /* DockerSettingsView.swift */; };
 		D80444052A1B404E00ED59C5 /* DockerVolumesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CA2A1B404E00ED59C5 /* DockerVolumesRootView.swift */; };
 		D80444062A1B404E00ED59C5 /* DockerUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CB2A1B404E00ED59C5 /* DockerUI.swift */; };
 		D80444072A1B404E00ED59C5 /* DockerContainersRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CC2A1B404E00ED59C5 /* DockerContainersRootView.swift */; };
@@ -85,8 +93,9 @@
 		D80444162A1B404E00ED59C5 /* DockerRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */; };
 		D81E7850299CC4F200A1D8AC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E784F299CC4F200A1D8AC /* main.swift */; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
+		D85EC4642A9CEBA800300ABE /* kubectl in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D85EC4632A9CEBA800300ABE /* kubectl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D86614182A38061700EA0995 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D86614172A38061700EA0995 /* Defaults */; };
 		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
@@ -112,9 +121,9 @@
 		D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */; };
 		D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8292A2B40C7002CF279 /* VlanRouter.swift */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
-		D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D88F4EDD299A131B00419B5C /* docker-compose in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D88F4EDC299A131B00419B5C /* docker in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D88F4EDD299A131B00419B5C /* docker-compose in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
 		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
 		D8BAAFBE2A60583A00E5637F /* DiagReporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */; };
@@ -157,18 +166,19 @@
 			name = "Copy Go executables and Swift GUI helper";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */ = {
+		D8694A45299224CA0046B6B6 /* Copy xbin executables */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 12;
 			dstPath = xbin;
 			dstSubfolderSpec = 6;
 			files = (
-				D88F4EDC299A131B00419B5C /* docker in Copy Docker xbin executables */,
-				D81E786529A7012900A1D8AC /* docker-buildx in Copy Docker xbin executables */,
-				D88F4EDD299A131B00419B5C /* docker-compose in Copy Docker xbin executables */,
-				D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy Docker xbin executables */,
+				D85EC4642A9CEBA800300ABE /* kubectl in Copy xbin executables */,
+				D88F4EDC299A131B00419B5C /* docker in Copy xbin executables */,
+				D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */,
+				D88F4EDD299A131B00419B5C /* docker-compose in Copy xbin executables */,
+				D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy xbin executables */,
 			);
-			name = "Copy Docker xbin executables";
+			name = "Copy xbin executables";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		D8715CBE2A2087790047A9BE /* Embed Go VM helper bundle */ = {
@@ -216,27 +226,37 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B118B065CF24496A8E43EC03 /* K8SUIHelpers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SUIHelpers.swift; sourceTree = "<group>"; };
 		B118B103C2DE982C1219D12E /* Data+Base64URL.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Data+Base64URL.swift"; sourceTree = "<group>"; };
 		B118B1DCE616676E483BB2BB /* FeedbackView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
+		B118B1E2A991085A29F40FB3 /* K8sRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8sRPC.swift; sourceTree = "<group>"; };
 		B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineSettingsView.swift; sourceTree = "<group>"; };
 		B118B2ECDBD9470B8263AE90 /* PHClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHClient.swift; sourceTree = "<group>"; };
 		B118B300D94CA37572036935 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		B118B30219F10B44000AE05A /* OnboardingManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
+		B118B30B81DE183143A624B9 /* K8SFilterView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SFilterView.swift; sourceTree = "<group>"; };
 		B118B4A5DDC711F7EF2AE61B /* GUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
+		B118B4E4BEA14F3804B048B1 /* CustomLink.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomLink.swift; sourceTree = "<group>"; };
 		B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HelperToolInfoPlist.swift; sourceTree = "<group>"; };
+		B118B530786FB12B0A422003 /* K8SPodsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SPodsView.swift; sourceTree = "<group>"; };
 		B118B5B2CF0210C1D968C7AC /* PHShared.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHShared.swift; sourceTree = "<group>"; };
 		B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerMigrationWindow.swift; sourceTree = "<group>"; };
 		B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SharedUtils.swift; sourceTree = "<group>"; };
+		B118B82B52FEEB467CDA5C7A /* DockerSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerSettingsView.swift; sourceTree = "<group>"; };
 		B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentUnavailableViewCompat.swift; sourceTree = "<group>"; };
 		B118B88B9296701977A1F286 /* CodeInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CodeInfo.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
 		B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActivityTracker.swift; sourceTree = "<group>"; };
+		B118BA158D66536A2AA036FB /* K8SSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SSettingsView.swift; sourceTree = "<group>"; };
 		B118BABDE1F02C8A54DB011F /* NSImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NSImage.swift; sourceTree = "<group>"; };
+		B118BAE7880AF024BB63CA95 /* K8SServicesView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SServicesView.swift; sourceTree = "<group>"; };
 		B118BB2A7BF402695260775E /* IPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
+		B118BBF4988AABF0AB93C4EA /* K8SPodItemView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SPodItemView.swift; sourceTree = "<group>"; };
 		B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
 		B118BD52B15443D1329C832A /* Packets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
 		B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PrivHelperFFI.swift; sourceTree = "<group>"; };
+		B118BDCE479E491B624AC373 /* K8SStateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SStateWrapperView.swift; sourceTree = "<group>"; };
 		B118BE46918C0AB595ADE247 /* RenameContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameContainerView.swift; sourceTree = "<group>"; };
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
 		B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
@@ -246,7 +266,6 @@
 		D80443A32A1B404E00ED59C5 /* OnboardingModeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingModeView.swift; sourceTree = "<group>"; };
 		D80443A42A1B404E00ED59C5 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		D80443A92A1B404E00ED59C5 /* MachineContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineContainerItem.swift; sourceTree = "<group>"; };
-		D80443AA2A1B404E00ED59C5 /* BuiltinContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BuiltinContainerItem.swift; sourceTree = "<group>"; };
 		D80443AB2A1B404E00ED59C5 /* CreateContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateContainerView.swift; sourceTree = "<group>"; };
 		D80443AC2A1B404E00ED59C5 /* Images.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
 		D80443AD2A1B404E00ED59C5 /* MachinesUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachinesUI.swift; sourceTree = "<group>"; };
@@ -272,7 +291,6 @@
 		D80443C62A1B404E00ED59C5 /* DockerFilterView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerFilterView.swift; sourceTree = "<group>"; };
 		D80443C72A1B404E00ED59C5 /* DockerViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerViewModel.swift; sourceTree = "<group>"; };
 		D80443C82A1B404E00ED59C5 /* DockerVolumeItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerVolumeItem.swift; sourceTree = "<group>"; };
-		D80443C92A1B404E00ED59C5 /* DockerSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerSettingsView.swift; sourceTree = "<group>"; };
 		D80443CA2A1B404E00ED59C5 /* DockerVolumesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerVolumesRootView.swift; sourceTree = "<group>"; };
 		D80443CB2A1B404E00ED59C5 /* DockerUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerUI.swift; sourceTree = "<group>"; };
 		D80443CC2A1B404E00ED59C5 /* DockerContainersRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerContainersRootView.swift; sourceTree = "<group>"; };
@@ -299,6 +317,7 @@
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D81E786429A7012900A1D8AC /* docker-buildx */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-buildx"; path = "build/bins/docker-buildx"; sourceTree = "<group>"; };
+		D85EC4632A9CEBA800300ABE /* kubectl */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = kubectl; path = build/bins/kubectl; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../vmgr/xbin/docker; sourceTree = "<group>"; };
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../vmgr/xbin/docker-compose"; sourceTree = "<group>"; };
@@ -387,6 +406,20 @@
 			path = privhelper/Shared;
 			sourceTree = "<group>";
 		};
+		B118BC30D178CF936018341C /* K8s */ = {
+			isa = PBXGroup;
+			children = (
+				B118B530786FB12B0A422003 /* K8SPodsView.swift */,
+				B118B1E2A991085A29F40FB3 /* K8sRPC.swift */,
+				B118BDCE479E491B624AC373 /* K8SStateWrapperView.swift */,
+				B118BBF4988AABF0AB93C4EA /* K8SPodItemView.swift */,
+				B118B065CF24496A8E43EC03 /* K8SUIHelpers.swift */,
+				B118BAE7880AF024BB63CA95 /* K8SServicesView.swift */,
+				B118B30B81DE183143A624B9 /* K8SFilterView.swift */,
+			);
+			path = K8s;
+			sourceTree = "<group>";
+		};
 		D804439F2A1B404E00ED59C5 /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
@@ -405,7 +438,6 @@
 			isa = PBXGroup;
 			children = (
 				D80443A92A1B404E00ED59C5 /* MachineContainerItem.swift */,
-				D80443AA2A1B404E00ED59C5 /* BuiltinContainerItem.swift */,
 				D80443AB2A1B404E00ED59C5 /* CreateContainerView.swift */,
 				D80443AC2A1B404E00ED59C5 /* Images.swift */,
 				D80443AD2A1B404E00ED59C5 /* MachinesUI.swift */,
@@ -437,6 +469,7 @@
 				B118B300D94CA37572036935 /* Buttons.swift */,
 				B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */,
 				B118B103C2DE982C1219D12E /* Data+Base64URL.swift */,
+				B118B4E4BEA14F3804B048B1 /* CustomLink.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -464,7 +497,6 @@
 				D80443C62A1B404E00ED59C5 /* DockerFilterView.swift */,
 				D80443C72A1B404E00ED59C5 /* DockerViewModel.swift */,
 				D80443C82A1B404E00ED59C5 /* DockerVolumeItem.swift */,
-				D80443C92A1B404E00ED59C5 /* DockerSettingsView.swift */,
 				D80443CA2A1B404E00ED59C5 /* DockerVolumesRootView.swift */,
 				D80443CB2A1B404E00ED59C5 /* DockerUI.swift */,
 				D80443CC2A1B404E00ED59C5 /* DockerContainersRootView.swift */,
@@ -484,6 +516,8 @@
 				B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */,
 				B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */,
 				B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */,
+				B118B82B52FEEB467CDA5C7A /* DockerSettingsView.swift */,
+				B118BA158D66536A2AA036FB /* K8SSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -550,6 +584,7 @@
 		D8715CC42A208EB80047A9BE /* External */ = {
 			isa = PBXGroup;
 			children = (
+				D85EC4632A9CEBA800300ABE /* kubectl */,
 				D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */,
 				D8715CC02A208C640047A9BE /* scli */,
 				D81E786429A7012900A1D8AC /* docker-buildx */,
@@ -630,6 +665,7 @@
 				D80443AF2A1B404E00ED59C5 /* State */,
 				D80443B42A1B404E00ED59C5 /* Utils */,
 				B118B1DCE616676E483BB2BB /* FeedbackView.swift */,
+				B118BC30D178CF936018341C /* K8s */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -723,7 +759,7 @@
 				D8694A3E2991F8C70046B6B6 /* Copy Go executables and Swift GUI helper */,
 				D87746202A7CD0BC00739040 /* Embed privileged helper tool */,
 				D8715CBE2A2087790047A9BE /* Embed Go VM helper bundle */,
-				D8694A45299224CA0046B6B6 /* Copy Docker xbin executables */,
+				D8694A45299224CA0046B6B6 /* Copy xbin executables */,
 				D88F4EB72998D61B00419B5C /* Copy assets */,
 				D8694A46299224F10046B6B6 /* Create symlinks */,
 				D86F35482997A5B700DADC6F /* Set version from Git */,
@@ -945,7 +981,6 @@
 				D80443EA2A1B404E00ED59C5 /* CreateContainerView.swift in Sources */,
 				D80443E42A1B404E00ED59C5 /* OnboardingViewModel.swift in Sources */,
 				D80443F52A1B404E00ED59C5 /* Utils.swift in Sources */,
-				D80444042A1B404E00ED59C5 /* DockerSettingsView.swift in Sources */,
 				D80444022A1B404E00ED59C5 /* DockerViewModel.swift in Sources */,
 				D80444032A1B404E00ED59C5 /* DockerVolumeItem.swift in Sources */,
 				D80444132A1B404E00ED59C5 /* RPCExecutor.swift in Sources */,
@@ -965,7 +1000,6 @@
 				D80443F62A1B404E00ED59C5 /* SplitViewAccessor.swift in Sources */,
 				D80444002A1B404E00ED59C5 /* DockerComposeGroupItem.swift in Sources */,
 				D80444112A1B404E00ED59C5 /* ActionTracker.swift in Sources */,
-				D80443E92A1B404E00ED59C5 /* BuiltinContainerItem.swift in Sources */,
 				D80443F72A1B404E00ED59C5 /* MenuBarController.swift in Sources */,
 				D804440A2A1B404E00ED59C5 /* MacVirtApp.swift in Sources */,
 				D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */,
@@ -1003,6 +1037,16 @@
 				B118B059B171800F250B42CD /* PHClient.swift in Sources */,
 				B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */,
 				B118B43B007C2829095646FE /* Data+Base64URL.swift in Sources */,
+				B118B8D281CB560AA13AD3FB /* K8SPodsView.swift in Sources */,
+				B118B81365EA43CD9BD5FFF1 /* K8sRPC.swift in Sources */,
+				B118B242A992055158331DBA /* K8SStateWrapperView.swift in Sources */,
+				B118BC0C08A918A48F447E2D /* K8SPodItemView.swift in Sources */,
+				B118B2587E45023C13156AE5 /* K8SUIHelpers.swift in Sources */,
+				B118BD1656CDA2FBAE025120 /* K8SServicesView.swift in Sources */,
+				B118B05A4822E6D2CE27AE32 /* CustomLink.swift in Sources */,
+				B118B4653B70C49EAB1B1094 /* DockerSettingsView.swift in Sources */,
+				B118B5BB973EBC5FD60C865B /* K8SSettingsView.swift in Sources */,
+				B118BF84ADD1FBB62A3DCA2E /* K8SFilterView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

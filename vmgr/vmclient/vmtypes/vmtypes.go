@@ -20,6 +20,11 @@ type IDRequest struct {
 	ID string `json:"id"`
 }
 
+type K8sNameRequest struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
 type InternalSetDockerRemoteCtxAddrRequest struct {
 	Addr string `json:"addr"`
 }

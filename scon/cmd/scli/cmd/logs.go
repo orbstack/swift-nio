@@ -26,6 +26,11 @@ var logsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
+		// k8s special case: same as docker machine
+		if args[0] == types.ContainerNameK8s {
+			args[0] = types.ContainerIDDocker
+		}
+
 		// try ID first
 		c, err := scli.Client().GetByID(args[0])
 		if err != nil {

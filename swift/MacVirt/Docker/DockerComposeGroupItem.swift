@@ -99,8 +99,8 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 ProgressIconButton(systemImage: "trash.fill",
-                        actionInProgress: actionInProgress == .remove) {
-                    finishRemove()
+                        actionInProgress: actionInProgress == .delete) {
+                    finishDelete()
                 }
                 .disabled(actionInProgress != nil)
                 .help("Delete project")
@@ -128,7 +128,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                         }.disabled(actionInProgress != nil || !isRunning)
 
                         Button("Delete") {
-                            finishRemove()
+                            finishDelete()
                         }.disabled(actionInProgress != nil)
 
                         Button("Kill") {
@@ -155,7 +155,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     }
 
     private func showLogs() {
-        if !vmModel.openLogWindowIds.contains(.compose(project: composeGroup.project)) {
+        if !vmModel.openDockerLogWindowIds.contains(.compose(project: composeGroup.project)) {
             // workaround: url can't contain "domain"???
             let projectB64URL = composeGroup.project.data(using: .utf8)!.base64URLEncodedString()
             NSWorkspace.shared.open(URL(string: "orbstack://docker/project-logs/\(projectB64URL)?base64=true")!)

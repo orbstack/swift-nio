@@ -541,9 +541,17 @@ func (m *ConManager) insertContainerLocked(c *Container) error {
 	if _, ok := m.containersByName[c.Name]; ok {
 		return fmt.Errorf("machine '%q' already exists", c.Name)
 	}
+	for _, alias := range c.Aliases {
+		if _, ok := m.containersByName[alias]; ok {
+			return fmt.Errorf("machine '%q' already exists", alias)
+		}
+	}
 
 	m.containersByID[c.ID] = c
 	m.containersByName[c.Name] = c
+	for _, alias := range c.Aliases {
+		m.containersByName[alias] = c
+	}
 	return nil
 }
 

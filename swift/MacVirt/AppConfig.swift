@@ -27,6 +27,7 @@ struct AppConfig {
     static let ctlExe = pathForAuxiliaryExecutable("bin/orbctl")
     static let dockerExe = pathForAuxiliaryExecutable("xbin/docker")
     static let dockerComposeExe = pathForAuxiliaryExecutable("xbin/docker-compose")
+    static let kubectlExe = pathForAuxiliaryExecutable("xbin/kubectl")
 }
 
 // can't crash because bundlePath can't be nil

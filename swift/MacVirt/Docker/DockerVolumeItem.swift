@@ -141,7 +141,7 @@ struct DockerVolumeItem: View {
         for name in resolveActionList() {
             NSLog("remove volume \(name)")
             Task { @MainActor in
-                await actionTracker.with(volumeId: name, action: .remove) {
+                await actionTracker.with(volumeId: name, action: .delete) {
                     await vmModel.tryDockerVolumeRemove(name)
                 }
             }

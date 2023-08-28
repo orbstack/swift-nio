@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
@@ -56,6 +57,30 @@ If no arguments are provided, this command will stop the entire OrbStack service
 		}
 
 		for _, containerName := range containerNames {
+			// k8s special case: disable config and restart/stop docker machine
+			if containerName == types.ContainerNameK8s {
+				// disable config
+				config, err := vmclient.Client().GetConfig()
+				checkCLI(err)
+				config.K8sEnable = false
+				err = vmclient.Client().SetConfig(config)
+				checkCLI(err)
+
+				c, err := scli.Client().GetByID(types.ContainerIDDocker)
+				checkCLI(err)
+
+				spinner := spinutil.Start("red", "Stopping k8s")
+				if c.State == types.ContainerStateRunning {
+					err = scli.Client().ContainerRestart(c)
+				} else {
+					err = scli.Client().ContainerStop(c)
+				}
+				spinner.Stop()
+				checkCLI(err)
+
+				continue
+			}
+
 			// try ID first
 			c, err := scli.Client().GetByID(containerName)
 			if err != nil {

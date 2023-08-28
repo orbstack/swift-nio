@@ -303,7 +303,6 @@ func (d *DockerAgent) doSendUIEvent() error {
 	event := dockertypes.UIEvent{
 		Changed: d.pendingUIEntities,
 	}
-	logrus.WithField("event", event).Debug("sending UI event")
 	err := d.host.OnDockerUIEvent(&event)
 	if err != nil {
 		return err

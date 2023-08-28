@@ -16,10 +16,11 @@ const (
 	GuestSconSSH         = 2222
 	GuestSconSSHPublic   = 2223
 	GuestVcontrol        = 103
-	GuestNFS             = 2049
+	GuestNFS             = 2049 // vsock
 	GuestKrpc            = 9000
 	// outside of ephemeral range
 	GuestDocker = 2375
+	GuestK8s    = 6443
 
 	// host services for guest
 	ServiceDNS  = 53
@@ -31,4 +32,6 @@ const (
 	SecureSvcHostSSHAgent    = 23
 	SecureSvcHcontrol        = 8300
 	SecureSvcDockerRemoteCtx = 2376
+
+	DockerMachineK8s = 26443
 )

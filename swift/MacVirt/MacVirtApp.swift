@@ -228,6 +228,17 @@ struct MacVirtApp: App {
         .windowDefaultSize(width: 875, height: 625) // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
+        WindowGroup(WindowTitles.podLogsBase, id: "k8s-pod-logs") {
+            K8SPodLogsWindow()
+            .environmentObject(model)
+            .onAppear {
+                windowTracker.onWindowAppear()
+            }
+        }
+        .handlesExternalEvents(matching: ["k8s/pod-logs/"])
+        .windowDefaultSize(width: 875, height: 625) // extra side for sidebar
+        .windowToolbarStyle(.unifiedCompact)
+
         WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {
             DockerMigrationWindow()
             .environmentObject(model)

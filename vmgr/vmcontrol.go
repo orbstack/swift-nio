@@ -32,8 +32,11 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet"
+	hcsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	_ "net/http/pprof"
 )
@@ -54,6 +57,7 @@ type VmControlServer struct {
 	dockerClient *dockerclient.Client
 	drm          *drm.DrmClient
 	network      *vnet.Network
+	hcontrol     *hcsrv.HcontrolServer
 
 	setupDone            bool
 	setupMu              sync.Mutex
@@ -123,6 +127,7 @@ func (s *VmControlServer) SetDockerContext(ctx context.Context) error {
 }
 
 func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]*dockertypes.ContainerSummary, error) {
+	// TODO: this should not return EOF errors. errors from docker crashing should be propagated separately
 	return s.dockerClient.ListContainers(true)
 }
 
@@ -150,7 +155,7 @@ func (s *VmControlServer) DockerContainerUnpause(ctx context.Context, req vmtype
 	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/unpause", nil, nil)
 }
 
-func (s *VmControlServer) DockerContainerRemove(ctx context.Context, params vmtypes.IDRequest) error {
+func (s *VmControlServer) DockerContainerDelete(ctx context.Context, params vmtypes.IDRequest) error {
 	return s.dockerClient.Call("DELETE", "/containers/"+params.ID+"?force=true", nil, nil)
 }
 
@@ -168,7 +173,7 @@ func (s *VmControlServer) DockerVolumeCreate(ctx context.Context, options docker
 	return s.dockerClient.Call("POST", "/volumes/create", &options, nil)
 }
 
-func (s *VmControlServer) DockerVolumeRemove(ctx context.Context, params vmtypes.IDRequest) error {
+func (s *VmControlServer) DockerVolumeDelete(ctx context.Context, params vmtypes.IDRequest) error {
 	return s.dockerClient.Call("DELETE", "/volumes/"+params.ID, nil, nil)
 }
 
@@ -176,7 +181,7 @@ func (s *VmControlServer) DockerImageList(ctx context.Context) ([]*dockertypes.I
 	return s.dockerClient.ListImages()
 }
 
-func (s *VmControlServer) DockerImageRemove(ctx context.Context, params vmtypes.IDRequest) error {
+func (s *VmControlServer) DockerImageDelete(ctx context.Context, params vmtypes.IDRequest) error {
 	return s.dockerClient.Call("DELETE", "/images/"+params.ID+"?force=true", nil, nil)
 }
 
@@ -189,6 +194,31 @@ func (s *VmControlServer) DockerSystemDf(ctx context.Context) (*dockertypes.Syst
 	}
 
 	return &df, nil
+}
+
+func (s *VmControlServer) K8sPodDelete(ctx context.Context, params vmtypes.K8sNameRequest) error {
+	client, err := s.k8sClient()
+	if err != nil {
+		return err
+	}
+	return client.CoreV1().Pods(params.Namespace).Delete(ctx, params.Name, metav1.DeleteOptions{})
+}
+
+func (s *VmControlServer) K8sServiceDelete(ctx context.Context, params vmtypes.K8sNameRequest) error {
+	client, err := s.k8sClient()
+	if err != nil {
+		return err
+	}
+	return client.CoreV1().Services(params.Namespace).Delete(ctx, params.Name, metav1.DeleteOptions{})
+}
+
+func (s *VmControlServer) k8sClient() (*kubernetes.Clientset, error) {
+	return s.hcontrol.K8sClient()
+}
+
+func (s *VmControlServer) GuiReportStarted(ctx context.Context) error {
+	s.hcontrol.K8sReportGuiStarted()
+	return nil
 }
 
 func (h *VmControlServer) IsSshConfigWritable(ctx context.Context) (bool, error) {
@@ -362,16 +392,21 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"DockerContainerRestart": handler.New(s.DockerContainerRestart),
 		"DockerContainerPause":   handler.New(s.DockerContainerPause),
 		"DockerContainerUnpause": handler.New(s.DockerContainerUnpause),
-		"DockerContainerRemove":  handler.New(s.DockerContainerRemove),
+		"DockerContainerDelete":  handler.New(s.DockerContainerDelete),
 
 		"DockerVolumeList":   handler.New(s.DockerVolumeList),
 		"DockerVolumeCreate": handler.New(s.DockerVolumeCreate),
-		"DockerVolumeRemove": handler.New(s.DockerVolumeRemove),
+		"DockerVolumeDelete": handler.New(s.DockerVolumeDelete),
 
 		"DockerImageList":   handler.New(s.DockerImageList),
-		"DockerImageRemove": handler.New(s.DockerImageRemove),
+		"DockerImageDelete": handler.New(s.DockerImageDelete),
 
 		"DockerSystemDf": handler.New(s.DockerSystemDf),
+
+		"K8sPodDelete":     handler.New(s.K8sPodDelete),
+		"K8sServiceDelete": handler.New(s.K8sServiceDelete),
+
+		"GuiReportStarted": handler.New(s.GuiReportStarted),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

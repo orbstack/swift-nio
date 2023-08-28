@@ -53,6 +53,8 @@ type Migrator struct {
 }
 
 type MigrateParams struct {
+	All bool
+
 	IncludeContainers bool
 	IncludeVolumes    bool
 	IncludeImages     bool
@@ -247,30 +249,40 @@ outer:
 		}
 
 		// skip containers not used for >1 month (need to fetch full info)
-		fullCtr, err := m.srcClient.InspectContainer(c.ID)
-		if err != nil {
-			return fmt.Errorf("get src container: %w", err)
-		}
+		if !params.All {
+			fullCtr, err := m.srcClient.InspectContainer(c.ID)
+			if err != nil {
+				return fmt.Errorf("get src container: %w", err)
+			}
 
-		startedAt, err := time.Parse(time.RFC3339Nano, fullCtr.State.StartedAt)
-		if err != nil {
-			return fmt.Errorf("parse startedAt: %w", err)
-		}
-		finishedAt, err := time.Parse(time.RFC3339Nano, fullCtr.State.FinishedAt)
-		if err != nil {
-			return fmt.Errorf("parse finishedAt: %w", err)
-		}
-		if time.Since(startedAt) > maxUnusedContainerAge && time.Since(finishedAt) > maxUnusedContainerAge {
-			logrus.WithField("container", c.Names).Debug("Skipping container: old and unused")
-			continue
-		}
+			startedAt, err := time.Parse(time.RFC3339Nano, fullCtr.State.StartedAt)
+			if err != nil {
+				return fmt.Errorf("parse startedAt: %w", err)
+			}
+			finishedAt, err := time.Parse(time.RFC3339Nano, fullCtr.State.FinishedAt)
+			if err != nil {
+				return fmt.Errorf("parse finishedAt: %w", err)
+			}
+			if time.Since(startedAt) > maxUnusedContainerAge && time.Since(finishedAt) > maxUnusedContainerAge {
+				logrus.WithField("container", c.Names).Debug("Skipping container: old and unused")
+				continue
+			}
 
-		// it's not possible to depend on a non-existent image or volume, but it *IS* possible to depend on a non-existent network. skip if so, otherwise migration gets stuck
-		if c.NetworkSettings != nil && c.NetworkSettings.Networks != nil {
-			for cnetName := range c.NetworkSettings.Networks {
-				if !slices.Contains(eligibleNetworkNames, cnetName) {
-					logrus.WithField("container", c.Names).Debug("Skipping container: depends on non-existent network")
-					continue outer
+			// it's not possible to depend on a non-existent image or volume, but it *IS* possible to depend on a non-existent network. skip if so, otherwise migration gets stuck
+			if c.NetworkSettings != nil && c.NetworkSettings.Networks != nil {
+				for cnetName := range c.NetworkSettings.Networks {
+					if !slices.Contains(eligibleNetworkNames, cnetName) {
+						logrus.WithField("container", c.Names).Debug("Skipping container: depends on non-existent network")
+						continue outer
+					}
+				}
+			}
+
+			// exclude k8s. without proper state it won't work
+			if c.Labels != nil {
+				if _, ok := c.Labels["io.kubernetes.pod.namespace"]; ok {
+					logrus.WithField("container", c.Names).Debug("Skipping container: is kubernetes pod")
+					continue
 				}
 			}
 		}
@@ -321,9 +333,11 @@ outer:
 			logrus.WithField("network", n.Name).Debug("Skipping network: default network")
 			continue
 		}
-		if _, ok := containerUsedNets[n.ID]; !ok {
-			logrus.WithField("network", n.Name).Debug("Skipping network: not used by any containers")
-			continue
+		if !params.All {
+			if _, ok := containerUsedNets[n.ID]; !ok {
+				logrus.WithField("network", n.Name).Debug("Skipping network: not used by any containers")
+				continue
+			}
 		}
 		logrus.WithField("network", n.Name).Debug("Including network")
 		filteredNetworks = append(filteredNetworks, n)
@@ -358,7 +372,7 @@ outer:
 			logrus.WithField("volume", v.Name).Debug("Skipping volume: not local")
 			continue
 		}
-		if v.Labels != nil {
+		if !params.All && v.Labels != nil {
 			if _, ok := v.Labels["com.docker.volume.anonymous"]; ok {
 				if _, ok := containerUsedVolumes[v.Name]; !ok {
 					logrus.WithField("volume", v.Name).Debug("Skipping volume: anonymous and not used by any containers")
@@ -386,7 +400,7 @@ outer:
 			continue
 		}
 
-		if _, ok := containerUsedImages[i.ID]; ok {
+		if _, ok := containerUsedImages[i.ID]; ok || params.All {
 			logrus.WithField("image", i.ID).Debug("Including image: used by container")
 			filteredImages = append(filteredImages, i)
 			continue

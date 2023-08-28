@@ -2,6 +2,7 @@ package drm
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vzf"
@@ -350,13 +352,11 @@ func (c *DrmClient) sendGUIWarning(lastError error) {
 	}
 
 	// send alert to GUI if window is open
-	data, err := json.Marshal(drmtypes.VmgrDrmWarningEvent{
-		LastError: lastError.Error(),
+	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		DrmWarning: &uitypes.DrmWarningEvent{
+			LastError: lastError.Error(),
+		},
 	})
-	if err != nil {
-		logrus.WithError(err).Error("failed to marshal event")
-	}
-	vzf.SwextIpcNotifyDrmWarning(string(data))
 }
 
 func (c *DrmClient) SetVnet(n *vnet.Network) {
@@ -418,7 +418,7 @@ func (c *DrmClient) UseSconInternalClient(fn func(*isclient.Client) error) error
 		// connect
 		dlog("dial scon internal rpc")
 		// important: retry. if it fails, drm could fail when it shouldn't, and ~/OrbStack bind mounts won't work
-		conn, err := c.vnet.DialGuestTCPRetry(ports.GuestSconRPCInternal)
+		conn, err := c.vnet.DialGuestTCPRetry(context.TODO(), ports.GuestSconRPCInternal)
 		if err != nil {
 			return err
 		}

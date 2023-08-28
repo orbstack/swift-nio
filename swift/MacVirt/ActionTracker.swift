@@ -11,7 +11,7 @@ enum DKContainerAction {
     case pause
     case unpause
     case restart
-    case remove
+    case delete
 
     var isStartStop: Bool {
         switch self {
@@ -24,11 +24,11 @@ enum DKContainerAction {
 }
 
 enum DKVolumeAction {
-    case remove
+    case delete
 }
 
 enum DKImageAction {
-    case remove
+    case delete
 }
 
 enum MachineAction {
@@ -44,8 +44,18 @@ enum DockerContainerId: Hashable {
     case compose(project: String)
 
     // not docker
-    case builtinRecord(String)
     case sectionLabel(String)
+}
+
+enum K8SResourceAction {
+    case delete
+
+    var userDesc: String {
+        switch self {
+        case .delete:
+            return "delete"
+        }
+    }
 }
 
 @MainActor
@@ -55,6 +65,7 @@ class ActionTracker: ObservableObject {
     @Published var ongoingDockerVolumeActions: [String: DKVolumeAction] = [:]
     @Published var ongoingDockerImageActions: [String: DKImageAction] = [:]
     @Published var ongoingMachineActions: [String: MachineAction] = [:]
+    @Published var ongoingK8sActions: [K8SResourceId: K8SResourceAction] = [:]
 
     func ongoingFor(_ cid: DockerContainerId) -> DKContainerAction? {
         ongoingDockerContainerActions[cid]
@@ -70,6 +81,10 @@ class ActionTracker: ObservableObject {
 
     func ongoingFor(machine: ContainerRecord) -> MachineAction? {
         ongoingMachineActions[machine.id]
+    }
+
+    func ongoingFor(_ k8s: K8SResourceId) -> K8SResourceAction? {
+        ongoingK8sActions[k8s]
     }
 
     func begin(_ cid: DockerContainerId, action: DKContainerAction) {
@@ -88,6 +103,10 @@ class ActionTracker: ObservableObject {
         ongoingMachineActions[mid] = action
     }
 
+    func begin(_ k8s: K8SResourceId, action: K8SResourceAction) {
+        ongoingK8sActions[k8s] = action
+    }
+
     func end(_ cid: DockerContainerId) {
         ongoingDockerContainerActions[cid] = nil
     }
@@ -102,6 +121,10 @@ class ActionTracker: ObservableObject {
 
     func endMachine(_ mid: String) {
         ongoingMachineActions[mid] = nil
+    }
+
+    func end(_ k8s: K8SResourceId) {
+        ongoingK8sActions[k8s] = nil
     }
 
     func with(cid: DockerContainerId, action: DKContainerAction, _ block: () throws -> Void) rethrows {
@@ -149,6 +172,18 @@ class ActionTracker: ObservableObject {
     func with(machine: ContainerRecord, action: MachineAction, _ block: () async throws -> Void) async rethrows {
         beginMachine(machine.id, action: action)
         defer { endMachine(machine.id) }
+        try await block()
+    }
+
+    func with(k8s: K8SResourceId, action: K8SResourceAction, _ block: () throws -> Void) rethrows {
+        begin(k8s, action: action)
+        defer { end(k8s) }
+        try block()
+    }
+
+    func with(k8s: K8SResourceId, action: K8SResourceAction, _ block: () async throws -> Void) async rethrows {
+        begin(k8s, action: action)
+        defer { end(k8s) }
         try await block()
     }
 }

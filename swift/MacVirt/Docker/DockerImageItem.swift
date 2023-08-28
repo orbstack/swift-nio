@@ -139,7 +139,7 @@ struct DockerImageItem: View, Equatable {
         for id in resolveActionList() {
             NSLog("remove image \(id)")
             Task { @MainActor in
-                await actionTracker.with(imageId: id, action: .remove) {
+                await actionTracker.with(imageId: id, action: .delete) {
                     await vmModel.tryDockerImageRemove(id)
                 }
             }

@@ -12,8 +12,8 @@ target_pkg="$(./download-one.sh "$(cat target)")"
 cat catalog | xargs -P 8 -n 1 ./download-one.sh > src_pkgs
 
 # extract target
-7z.7zip x -y "cache/$target_pkg"
-7z.7zip x -y "Payload~"
+7z x -y "cache/$target_pkg"
+7z x -y "Payload~"
 target_exe="Library/Apple/usr/libexec/oah/RosettaLinux/rosetta"
 
 echo -ne 'orb\x00rosetta\x00fp' > header

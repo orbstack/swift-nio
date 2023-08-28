@@ -42,6 +42,11 @@ struct SetupInfo: Codable {
     var alertRequestAddPaths: [String]?
 }
 
+private struct K8sNameRequest: Codable {
+    let namespace: String
+    let name: String
+}
+
 class VmService: RPCService {
     func ping() async throws {
         try await invoke("Ping")
@@ -111,7 +116,7 @@ class VmService: RPCService {
     }
 
     func dockerContainerRemove(_ id: String) async throws {
-        try await invoke("DockerContainerRemove", params: IDRequest(id: id))
+        try await invoke("DockerContainerDelete", params: IDRequest(id: id))
     }
 
     func dockerVolumeList() async throws -> DKVolumeListResponse {
@@ -123,7 +128,7 @@ class VmService: RPCService {
     }
 
     func dockerVolumeRemove(_ id: String) async throws {
-        try await invoke("DockerVolumeRemove", params: IDRequest(id: id))
+        try await invoke("DockerVolumeDelete", params: IDRequest(id: id))
     }
 
     func dockerImageList() async throws -> [DKImage] {
@@ -131,10 +136,27 @@ class VmService: RPCService {
     }
 
     func dockerImageRemove(_ id: String) async throws {
-        try await invoke("DockerImageRemove", params: IDRequest(id: id))
+        try await invoke("DockerImageDelete", params: IDRequest(id: id))
     }
 
     func dockerSystemDf() async throws -> DKSystemDf {
         try await invoke("DockerSystemDf")
+    }
+
+    // MARK: - K8s
+    func k8sPodDelete(namespace: String, name: String) async throws {
+        try await invoke("K8sPodDelete", params: K8sNameRequest(namespace: namespace, name: name))
+    }
+
+    func k8sServiceDelete(namespace: String, name: String) async throws {
+        try await invoke("K8sServiceDelete", params: K8sNameRequest(namespace: namespace, name: name))
+    }
+
+    func internalDeleteK8s() async throws {
+        try await invoke("InternalDeleteK8s")
+    }
+
+    func guiReportStarted() async throws {
+        try await invoke("GuiReportStarted")
     }
 }

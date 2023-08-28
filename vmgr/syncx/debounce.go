@@ -50,3 +50,7 @@ func (d *LeadingFuncDebounce) invoke() {
 	defer d.funcMu.Unlock()
 	d.fn()
 }
+
+func (d *LeadingFuncDebounce) CallNow() {
+	go d.invoke()
+}

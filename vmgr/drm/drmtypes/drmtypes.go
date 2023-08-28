@@ -134,7 +134,3 @@ type PersistentState struct {
 	EntitlementToken string              `json:"entitlement_token"`
 	FetchedAt        timex.MonoSleepTime `json:"fetched_at"`
 }
-
-type VmgrDrmWarningEvent struct {
-	LastError string `json:"lastError"`
-}

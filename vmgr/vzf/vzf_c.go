@@ -27,9 +27,7 @@ struct GResultErr swext_fsevents_VmNotifier_start(void* ptr);
 struct GResultErr swext_fsevents_VmNotifier_updatePaths(void* ptr, const char** paths, int count);
 void swext_fsevents_VmNotifier_stop(void* ptr);
 void swext_fsevents_VmNotifier_finalize(void* ptr);
-void swext_ipc_notify_started(void);
-void swext_ipc_notify_docker_event(const char* event);
-void swext_ipc_notify_drm_warning(const char* event);
+void swext_ipc_notify_uievent(const char* event);
 
 struct GResultCreate swext_brnet_create(const char* config_json_str);
 void swext_brnet_close(void* ptr);
@@ -63,6 +61,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/sirupsen/logrus"
 )
 
@@ -436,20 +435,18 @@ func (n *FsVmNotifier) UpdatePaths(paths []string) error {
  * Notify
  */
 
-func SwextIpcNotifyStarted() {
-	C.swext_ipc_notify_started()
-}
+func SwextIpcNotifyUIEvent(ev uitypes.UIEvent) {
+	eventJson, err := json.Marshal(ev)
+	if err != nil {
+		logrus.WithError(err).Error("failed to marshal event")
+		return
+	}
+	eventJsonStr := string(eventJson)
+	logrus.WithField("event", eventJsonStr).Debug("send UI event")
 
-func SwextIpcNotifyDockerEvent(eventJsonStr string) {
-	cStr := C.CString(eventJsonStr)
+	cStr := C.CString(string(eventJsonStr))
 	defer C.free(unsafe.Pointer(cStr))
-	C.swext_ipc_notify_docker_event(cStr)
-}
-
-func SwextIpcNotifyDrmWarning(eventJsonStr string) {
-	cStr := C.CString(eventJsonStr)
-	defer C.free(unsafe.Pointer(cStr))
-	C.swext_ipc_notify_drm_warning(cStr)
+	C.swext_ipc_notify_uievent(cStr)
 }
 
 /*

@@ -102,11 +102,25 @@ func (n *Network) Start() error {
 	}
 	n.cleanupNAT = cleanupNAT
 
+	// start static iptables forward for k8s server
+	// avoid taking a real forward slot - it could interfere with localhost autofwd
+	err = n.toggleIptablesForward("-A", sysnet.ListenerKey{
+		AddrPort: netip.AddrPortFrom(netipIPv4Loopback, ports.DockerMachineK8s),
+		Proto:    sysnet.ProtoTCP,
+	}, iptablesForwardMeta{
+		internalPort:     ports.GuestK8s,
+		internalListenIP: net.ParseIP(netconf.VnetGuestIP4),
+		toMachineIP:      sconDocker4,
+	})
+	if err != nil {
+		return err
+	}
+
 	// add nat64 route:
 	// ip route add default via 198.19.249.2 dev conbr0 table 64
 	err = netlink.RouteAdd(&netlink.Route{
 		LinkIndex: bridge.Index,
-		Gw:        net.ParseIP(netconf.SconDockerIP4),
+		Gw:        sconDocker4,
 		Table:     64,
 	})
 	if err != nil && !errors.Is(err, unix.EEXIST) {
@@ -475,6 +489,8 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 
 		// block other secure svc
 		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", secureSvcIP, "-j", "REJECT", "--reject-with", "tcp-reset"})
+		// and for UDP and other protocols too
+		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "-d", secureSvcIP, "-j", "DROP"})
 	}
 
 	// allow machines to access any internet address, via gvisor

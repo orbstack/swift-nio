@@ -59,7 +59,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case resetDataError(cause: Error)
 
     // vmgr - async
-    case drmWarning(event: VmgrDrmWarning)
+    case drmWarning(event: UIEvent.DrmWarning)
 
     // docker
     case dockerListError(cause: Error)
@@ -68,9 +68,11 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case dockerImageActionError(action: String, cause: Error)
     case dockerComposeActionError(action: String, cause: Error)
     case dockerConfigSaveError(cause: Error)
-
     // migration
     case dockerMigrationError(status: Int, output: String)
+
+    // k8s
+    case k8sResourceActionError(kid: K8SResourceId, action: K8SResourceAction, cause: Error)
 
     // scon
     case startError(cause: Error)
@@ -133,9 +135,11 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t \(action) project"
         case .dockerConfigSaveError:
             return "Can’t apply Docker config"
-
         case .dockerMigrationError:
             return "Can’t migrate Docker data"
+
+        case .k8sResourceActionError(let kid, let action, _):
+            return "Can’t \(action.userDesc) \(kid.typeDesc)"
 
         case .startError:
             return "Failed to start machine manager"
@@ -301,9 +305,11 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .dockerConfigSaveError(let cause):
             return cause
-
         case .dockerMigrationError:
             return nil
+
+        case .k8sResourceActionError(_, _, let cause):
+            return cause
 
         case .startError(let cause):
             return cause
@@ -423,6 +429,9 @@ class VmViewModel: ObservableObject {
                 dockerImages = nil
                 dockerSystemDf = nil
                 lastDockerSystemDfAt = nil
+
+                k8sPods = nil
+                k8sServices = nil
             }
         }
     }
@@ -431,7 +440,7 @@ class VmViewModel: ObservableObject {
     @Published private(set) var error: VmError?
 
     @Published var creatingCount = 0
-    @Published var configAtLastStart: VmConfig?
+    @Published var appliedConfig: VmConfig? // usually from last start
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false
 
@@ -447,8 +456,13 @@ class VmViewModel: ObservableObject {
     @Published var dockerSystemDf: DKSystemDf?
     @Published var lastDockerSystemDfAt: Date?
 
+    // Kubernetes
+    @Published var k8sPods: [K8SPod]?
+    @Published var k8sServices: [K8SService]?
+
     // TODO move to WindowTracker
-    var openLogWindowIds: Set<DockerContainerId> = []
+    var openDockerLogWindowIds: Set<DockerContainerId> = []
+    var openK8sLogWindowIds: Set<K8SResourceId> = []
     var openMainWindowCount = 0
     private var cancellables = Set<AnyCancellable>()
 
@@ -465,27 +479,24 @@ class VmViewModel: ObservableObject {
     init() {
         daemon.monitorNotifications()
 
-        daemon.daemonNotifications.sink { [weak self] _ in
+        daemon.uiEvents.sink { [weak self] rawEvent in
             guard let self else { return }
-            // go through spawn-daemon for simplicity and ignore pid
-            Task { @MainActor in
-                await self.tryStartAndWait()
-            }
-        }.store(in: &cancellables)
 
-        daemon.dockerNotifications.sink { [weak self] event in
-            guard let self else { return }
             Task { @MainActor in
-                let doContainers = event.changed.contains(.container)
-                let doVolumes = event.changed.contains(.volume)
-                await self.tryRefreshDockerList(doContainers: doContainers, doVolumes: doVolumes)
-            }
-        }.store(in: &cancellables)
-
-        daemon.drmWarningNotifications.sink { [weak self] event in
-            guard let self else { return }
-            Task { @MainActor in
-                self.setError(.drmWarning(event: event))
+                if let event = rawEvent.started {
+                    // go through spawn-daemon for simplicity and ignore pid
+                    NSLog("Daemon started: pid \(event.pid)")
+                    await self.tryStartAndWait()
+                } else if let event = rawEvent.docker {
+                    let doContainers = event.changed.contains(.container)
+                    let doVolumes = event.changed.contains(.volume)
+                    await self.tryRefreshDockerList(doContainers: doContainers, doVolumes: doVolumes)
+                } else if let event = rawEvent.drmWarning {
+                    self.setError(.drmWarning(event: event))
+                } else if let event = rawEvent.k8s {
+                    self.k8sPods = event.currentPods
+                    self.k8sServices = event.currentServices
+                }
             }
         }.store(in: &cancellables)
     }
@@ -886,9 +897,14 @@ class VmViewModel: ObservableObject {
         }
         do {
             try await refreshConfig()
-            configAtLastStart = config
+            appliedConfig = config
         } catch {
             NSLog("refresh: start: refresh config: \(error)")
+        }
+        do {
+            try await vmgr.guiReportStarted()
+        } catch {
+            NSLog("refresh: start: report started: \(error)")
         }
         NSLog("end refresh: start")
     }
@@ -997,6 +1013,15 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    @MainActor
+    func tryInternalDeleteK8s() async {
+        do {
+            try await vmgr.internalDeleteK8s()
+        } catch {
+            setError(.containerDeleteError(cause: error))
+        }
+    }
+
     func createContainer(name: String, distro: Distro, version: String, arch: String) async throws {
         try await scon.create(name: name, image: ImageSpec(
             distro: distro.imageKey,
@@ -1046,10 +1071,14 @@ class VmViewModel: ObservableObject {
 
     func trySetConfigKey<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>, _ newValue: T) {
         Task { @MainActor in
-            if var config = config {
-                config[keyPath: keyPath] = newValue
-                await trySetConfig(config)
-            }
+            await trySetConfigKeyAsync(keyPath, newValue)
+        }
+    }
+
+    func trySetConfigKeyAsync<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>, _ newValue: T) async {
+        if var config = config {
+            config[keyPath: keyPath] = newValue
+            await trySetConfig(config)
         }
     }
 
@@ -1347,6 +1376,22 @@ class VmViewModel: ObservableObject {
 
         // or have not updated for a while
         return Date().timeIntervalSince(lastUpdatedAt) > dockerSystemDfRatelimit
+    }
+
+    func tryK8sPodDelete(_ kid: K8SResourceId) async {
+        do {
+            try await vmgr.k8sPodDelete(namespace: kid.namespace, name: kid.name)
+        } catch {
+            setError(.k8sResourceActionError(kid: kid, action: .delete, cause: error))
+        }
+    }
+
+    func tryK8sServiceDelete(_ kid: K8SResourceId) async {
+        do {
+            try await vmgr.k8sServiceDelete(namespace: kid.namespace, name: kid.name)
+        } catch {
+            setError(.k8sResourceActionError(kid: kid, action: .delete, cause: error))
+        }
     }
 
     private func makeVmgrExitError(_ reason: ExitReason) -> VmError {

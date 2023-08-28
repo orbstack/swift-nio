@@ -36,7 +36,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
         if let composeProject = labels[DockerLabels.composeProject] {
             return composeProject
         } else if labels[DockerLabels.k8sType] != nil {
-            return "k8s"
+            return "Kubernetes"
         } else {
             return nil
         }

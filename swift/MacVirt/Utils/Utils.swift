@@ -55,6 +55,8 @@ private func escapeShellArgs(_ args: [String]) -> String {
 }
 
 func openTerminal(_ command: String, _ args: [String]) async throws {
+    NSLog("Run command: \(command) \(args.joined(separator: " "))")
+
     let terminalBundle = InstalledApps.lastUsedTerminal
     // exception: Alacritty doesn't support opening .sh
     if terminalBundle.id == InstalledApps.alacritty {
@@ -290,4 +292,8 @@ struct Users {
         }
         return gids.contains(gidAdmin)
     }
+}
+
+struct K8sConstants {
+    static let context = "orbstack"
 }

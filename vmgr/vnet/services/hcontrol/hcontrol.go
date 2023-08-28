@@ -2,10 +2,11 @@ package hcsrv
 
 import (
 	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/rpc"
 	"os"
 	"os/user"
@@ -28,6 +29,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	vmgrsyncx "github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet"
@@ -39,9 +42,16 @@ import (
 	"gopkg.in/yaml.v3"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const nfsUnmountTimeout = 10 * time.Second
+
+const k8sUIEventDebounce = 250 * time.Millisecond
 
 const (
 	nfsReadmeText = `# OrbStack file sharing
@@ -85,6 +95,11 @@ type HcontrolServer struct {
 	nfsMounted bool
 
 	dataFsReady syncx.CondBool
+
+	k8sMu             sync.Mutex
+	k8sClient         *kubernetes.Clientset
+	k8sNotifyDebounce *vmgrsyncx.LeadingFuncDebounce
+	k8sInformerStopCh chan struct{}
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -322,6 +337,24 @@ func (h *HcontrolServer) ClearDockerState(async bool, _ *None) error {
 		}
 	}
 
+	// stopping docker machine means k8s also stopped, so stop k8s informer
+	h.k8sMu.Lock()
+	defer h.k8sMu.Unlock()
+
+	if h.k8sInformerStopCh != nil {
+		close(h.k8sInformerStopCh)
+		h.k8sInformerStopCh = nil
+	}
+	h.k8sNotifyDebounce = nil
+
+	// and clear gui state because k8s is push-only to UI
+	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		K8s: &uitypes.K8sEvent{
+			CurrentPods:     nil,
+			CurrentServices: nil,
+		},
+	})
+
 	return nil
 }
 
@@ -343,15 +376,10 @@ func (h *HcontrolServer) clearFsnotifyRefs() error {
 }
 
 func (h *HcontrolServer) OnDockerUIEvent(event dockertypes.UIEvent, _ *None) error {
-	// encode to json
-	data, err := json.Marshal(&event)
-	if err != nil {
-		return err
-	}
-
 	// notify GUI
-	logrus.WithField("event", event).Debug("sending docker UI event to GUI")
-	vzf.SwextIpcNotifyDockerEvent(string(data))
+	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		Docker: &event,
+	})
 	return nil
 }
 
@@ -498,7 +526,101 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 		return err
 	}
 
+	// create k8s client proxy for GUI
+	k8sConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeConfigStr))
+	if err != nil {
+		return fmt.Errorf("load kubeconfig: %w", err)
+	}
+
+	// disable proxy. this is internal dial
+	k8sConfig.Proxy = nil
+	// set dialer
+	k8sConfig.Dial = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return h.n.DialGuestTCP(ctx, ports.GuestK8s)
+	}
+	k8sConfig.Timeout = 15 * time.Second
+
+	// let k8s lib create the client with correct TLS settings
+	clientset, err := kubernetes.NewForConfig(k8sConfig)
+	if err != nil {
+		return fmt.Errorf("create k8s client: %w", err)
+	}
+
+	h.k8sMu.Lock()
+	defer h.k8sMu.Unlock()
+
+	// stop existing informer
+	if h.k8sInformerStopCh != nil {
+		close(h.k8sInformerStopCh)
+		h.k8sInformerStopCh = nil
+	}
+	h.k8sNotifyDebounce = nil
+
+	// 0 = no periodic resync
+	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
+	podInformer := informerFactory.Core().V1().Pods()
+	podLister := podInformer.Lister()
+	serviceInformer := informerFactory.Core().V1().Services()
+	serviceLister := serviceInformer.Lister()
+
+	debounce := vmgrsyncx.NewLeadingFuncDebounce(func() {
+		pods, err := podLister.List(labels.Everything())
+		if err != nil {
+			logrus.WithError(err).Error("failed to list pods")
+			return
+		}
+
+		services, err := serviceLister.List(labels.Everything())
+		if err != nil {
+			logrus.WithError(err).Error("failed to list services")
+			return
+		}
+
+		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+			K8s: &uitypes.K8sEvent{
+				CurrentPods:     pods,
+				CurrentServices: services,
+			},
+		})
+	}, k8sUIEventDebounce)
+
+	handler := cache.ResourceEventHandlerFuncs{
+		AddFunc:    func(obj any) { debounce.Trigger() },
+		UpdateFunc: func(oldObj, newObj any) { debounce.Trigger() },
+		DeleteFunc: func(obj any) { debounce.Trigger() },
+	}
+	podInformer.Informer().AddEventHandler(handler)
+	serviceInformer.Informer().AddEventHandler(handler)
+
+	// start informers
+	stopCh := make(chan struct{})
+	informerFactory.Start(stopCh)
+
+	h.k8sClient = clientset
+	h.k8sInformerStopCh = stopCh
+	h.k8sNotifyDebounce = debounce
 	return nil
+}
+
+func (h *HcontrolServer) K8sClient() (*kubernetes.Clientset, error) {
+	h.k8sMu.Lock()
+	defer h.k8sMu.Unlock()
+
+	if h.k8sClient == nil {
+		return nil, errors.New("kubernetes not running")
+	}
+
+	return h.k8sClient, nil
+}
+
+// trigger event on gui start
+func (h *HcontrolServer) K8sReportGuiStarted() {
+	h.k8sMu.Lock()
+	defer h.k8sMu.Unlock()
+
+	if h.k8sNotifyDebounce != nil {
+		h.k8sNotifyDebounce.CallNow()
+	}
 }
 
 func (h *HcontrolServer) InternalUnmountNfs() error {

@@ -175,3 +175,7 @@ func (c *SconClient) InternalDockerMigrationWaitSync(req types.InternalDockerMig
 func (c *SconClient) InternalDockerMigrationStopSyncServer() error {
 	return c.rpc.CallResult(context.TODO(), "InternalDockerMigrationStopSyncServer", nil, &noResult)
 }
+
+func (c *SconClient) InternalDeleteK8s() error {
+	return c.rpc.CallResult(context.TODO(), "InternalDeleteK8s", nil, &noResult)
+}

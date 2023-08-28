@@ -4,6 +4,8 @@ const (
 	ContainerIDDocker = "01GQQVF6C60000000000DOCKER"
 	// sentinel
 	DockerMigrationSyncDirImageLoad = "//..__orb_migrate_docker_image_load__"
+
+	ContainerNameK8s = "k8s"
 )
 
 type LogType string

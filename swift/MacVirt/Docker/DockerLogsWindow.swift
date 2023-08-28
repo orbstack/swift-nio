@@ -148,7 +148,7 @@ private class LogsViewModel: ObservableObject {
     private var lastAnsiState = AnsiState()
     private var isFirstStart = true
 
-    private var lastIsCompose: Bool?
+    private var lastCmdExe: String?
     private var lastArgs: [String]?
     private var lastLineDate: Date?
 
@@ -197,20 +197,25 @@ private class LogsViewModel: ObservableObject {
     }
 
     @MainActor
-    func start(isCompose: Bool, args: [String]) {
-        NSLog("Starting log stream: isCompose=\(isCompose), args=\(args)")
+    func start(cmdExe: String, args: [String]) {
+        NSLog("Starting log stream: cmdExe=\(cmdExe), args=\(args)")
 
         // reset first
         stop()
         lastAnsiState = AnsiState()
-        lastIsCompose = isCompose
+        lastCmdExe = cmdExe
         lastArgs = args
         // append arg to filter since last received line, for restart
         var args = args
         if let lastLineDate {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions.insert(.withFractionalSeconds)
-            args.append("--since=\(formatter.string(from: lastLineDate))")
+            // for k8s this is --since-time
+            if cmdExe == AppConfig.kubectlExe {
+                args.append("--since-time=\(formatter.string(from: lastLineDate))")
+            } else {
+                args.append("--since=\(formatter.string(from: lastLineDate))")
+            }
         }
 
         // if not first start, add delimiter
@@ -220,7 +225,7 @@ private class LogsViewModel: ObservableObject {
         isFirstStart = false
 
         let task = Process()
-        task.launchPath = isCompose ? AppConfig.dockerComposeExe : AppConfig.dockerExe
+        task.launchPath = cmdExe
         // force: we do existing-data check in GUI
         task.arguments = args
 
@@ -269,7 +274,7 @@ private class LogsViewModel: ObservableObject {
     }
 
     func stop() {
-        NSLog("Ending log stream: isCompose=\(lastIsCompose ?? false), args=\(lastArgs ?? [])")
+        NSLog("Ending log stream: cmdExe=\(lastCmdExe ?? ""), args=\(lastArgs ?? [])")
 
         if let process {
             process.terminate()
@@ -277,15 +282,15 @@ private class LogsViewModel: ObservableObject {
         process = nil
 
         // don't restart
-        lastIsCompose = nil
+        lastCmdExe = nil
         lastArgs = nil
     }
 
     @MainActor
     func restart() {
-        if let lastIsCompose, let lastArgs {
-            NSLog("Restarting log stream: isCompose=\(lastIsCompose), args=\(lastArgs)")
-            start(isCompose: lastIsCompose, args: lastArgs)
+        if let lastCmdExe, let lastArgs {
+            NSLog("Restarting log stream: cmdExe=\(lastCmdExe), args=\(lastArgs)")
+            start(cmdExe: lastCmdExe, args: lastArgs)
         }
     }
 
@@ -532,20 +537,20 @@ private struct LogsTextView: NSViewRepresentable {
 private struct LogsView: View {
     @EnvironmentObject private var commandModel: CommandViewModel
 
-    let isCompose: Bool
+    let cmdExe: String
     let args: [String]
     let model: LogsViewModel
 
     var body: some View {
         LogsTextView(model: model, commandModel: commandModel)
         .onAppear {
-            model.start(isCompose: isCompose, args: args)
+            model.start(cmdExe: cmdExe, args: args)
         }
         .onDisappear {
             model.stop()
         }
         .onChange(of: args) { newArgs in
-            model.start(isCompose: isCompose, args: newArgs)
+            model.start(cmdExe: cmdExe, args: newArgs)
         }
     }
 }
@@ -561,10 +566,10 @@ private struct DockerLogsContentView: View {
     let standalone: Bool
 
     var body: some View {
-        DockerStateWrapperView(refreshAction: { }) { containers, _ in
+        DockerStateWrapperView(\.dockerContainers) { containers, _ in
             if case let .container(containerId) = cid,
                let container = containers.first(where: { $0.id == containerId }) {
-                LogsView(isCompose: false,
+                LogsView(cmdExe: AppConfig.dockerExe,
                         args: ["logs", "-f", "-n", String(maxLines), containerId],
                         model: model)
                 .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
@@ -576,17 +581,18 @@ private struct DockerLogsContentView: View {
                       let container = containers.first(where: { $0.names.contains(containerName) }) {
                 // if restarted, use name
                 // don't update id - it'll cause unnecessary logs restart
-                LogsView(isCompose: false,
+                LogsView(cmdExe: AppConfig.dockerExe,
                         args: ["logs", "-f", "-n", String(maxLines), container.id],
                         model: model)
                 .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
             } else if case let .compose(composeProject) = cid {
-                LogsView(isCompose: true,
+                LogsView(cmdExe: AppConfig.dockerComposeExe,
                         args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
                         model: model)
             } else {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
             }
+        } onRefresh: {
         }
         .onAppear {
             // TODO why doesn't for-await + .task() work? (that way we get auto-cancel)
@@ -610,10 +616,10 @@ struct DockerLogsWindow: View {
             if let containerId {
                 DockerLogsContentView(cid: .container(id: containerId), standalone: true)
                 .onAppear {
-                    vmModel.openLogWindowIds.insert(.container(id: containerId))
+                    vmModel.openDockerLogWindowIds.insert(.container(id: containerId))
                 }
                 .onDisappear {
-                    vmModel.openLogWindowIds.remove(.container(id: containerId))
+                    vmModel.openDockerLogWindowIds.remove(.container(id: containerId))
                 }
             } else {
                 // must always have a view, or the window doesn't open on macOS 12{ url in  }
@@ -657,10 +663,10 @@ struct DockerComposeLogsWindow: View {
                     Label("All", systemImage: "square.stack.3d.up")
                 }
                 .onAppear {
-                    vmModel.openLogWindowIds.insert(.compose(project: composeProject))
+                    vmModel.openDockerLogWindowIds.insert(.compose(project: composeProject))
                 }
                 .onDisappear {
-                    vmModel.openLogWindowIds.remove(.compose(project: composeProject))
+                    vmModel.openDockerLogWindowIds.remove(.compose(project: composeProject))
                 }
 
                 let children = vmModel.dockerContainers?
@@ -755,5 +761,70 @@ private extension View {
                 .help("Search")
             }
         }
+    }
+}
+
+// TODO move to K8s/
+private struct K8SLogsContentView: View {
+    @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var commandModel: CommandViewModel
+    @StateObject private var model = LogsViewModel()
+
+    // allows nil for macOS 12 window workaround
+    let kid: K8SResourceId?
+
+    var body: some View {
+        K8SStateWrapperView(\.k8sPods) { pods, _ in
+            if case let .pod(namespace, name) = kid,
+               pods.contains(where: { $0.id == kid }) {
+                LogsView(cmdExe: AppConfig.kubectlExe,
+                        args: ["logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)", "-f"],
+                        model: model)
+                .navigationTitle(WindowTitles.podLogs(name))
+            } else {
+                ContentUnavailableViewCompat("Pod Removed", systemImage: "trash", desc: "No logs available.")
+            }
+        } onRefresh: {
+        }
+        .onAppear {
+            // TODO why doesn't for-await + .task() work? (that way we get auto-cancel)
+            model.monitorCommands(commandModel: commandModel)
+            // TODO equivalent of monitorContainers for pod recreate? or unlikely b/c of deployment + random names
+        }
+        .frame(minWidth: 400, minHeight: 200)
+    }
+}
+
+struct K8SPodLogsWindow: View {
+    @EnvironmentObject private var vmModel: VmViewModel
+    @StateObject private var commandModel = CommandViewModel()
+
+    @SceneStorage("K8SLogs_namespaceAndName") private var namespaceAndName: String?
+
+    var body: some View {
+        Group {
+            if let namespaceAndName,
+               let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName) {
+                K8SLogsContentView(kid: kid)
+                .onAppear {
+                    vmModel.openK8sLogWindowIds.insert(kid)
+                }
+                .onDisappear {
+                    vmModel.openK8sLogWindowIds.remove(kid)
+                }
+            } else {
+                // must always have a view, or the window doesn't open on macOS 12{ url in  }
+                // EmptyView and Spacer don't work
+                K8SLogsContentView(kid: nil)
+            }
+        }
+        .environmentObject(commandModel)
+        .onOpenURL { url in
+            if let decoded = Data(base64URLEncoded: url.lastPathComponent),
+               let namespaceAndName = String(data: decoded, encoding: .utf8) {
+                self.namespaceAndName = namespaceAndName
+            }
+        }
+        .toolbar(forCommands: commandModel, standalone: true)
     }
 }

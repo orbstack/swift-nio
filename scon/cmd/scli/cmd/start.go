@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
@@ -53,6 +54,30 @@ If no machines are specified, the command will start all machines that were runn
 		}
 
 		for _, containerName := range containerNames {
+			// k8s special case: enable config and (re)start docker machine
+			if containerName == types.ContainerNameK8s {
+				// enable config
+				config, err := vmclient.Client().GetConfig()
+				checkCLI(err)
+				config.K8sEnable = true
+				err = vmclient.Client().SetConfig(config)
+				checkCLI(err)
+
+				c, err := scli.Client().GetByID(types.ContainerIDDocker)
+				checkCLI(err)
+
+				spinner := spinutil.Start("green", "Starting k8s")
+				if c.State == types.ContainerStateRunning {
+					err = scli.Client().ContainerRestart(c)
+				} else {
+					err = scli.Client().ContainerStart(c)
+				}
+				spinner.Stop()
+				checkCLI(err)
+
+				continue
+			}
+
 			// try ID first
 			c, err := scli.Client().GetByID(containerName)
 			if err != nil {

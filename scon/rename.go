@@ -73,6 +73,10 @@ func (c *Container) Rename(newName string) error {
 		return err
 	}
 
+	if c.builtin {
+		return fmt.Errorf("cannot rename builtin machine")
+	}
+
 	// take all locks and rename the actual container first
 	c.manager.containersMu.Lock()
 	c.mu.Lock()
