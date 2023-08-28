@@ -48,6 +48,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     let name = nameTxt.isEmpty ? "(no name)" : nameTxt
                     Text(name)
                         .font(.body)
+                        .lineLimit(1)
 
                     Text(container.image)
                         .font(.subheadline)

@@ -70,7 +70,8 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
                 VStack(alignment: .leading) {
                     Text(composeGroup.project)
-                            .font(.body)
+                        .font(.body)
+                        .lineLimit(1)
                 }
             }
             .opacity(isRunning ? 1 : 0.5)

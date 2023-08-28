@@ -41,15 +41,16 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
                 VStack(alignment: .leading) {
                     Text(pod.name)
-                    .font(.body)
+                        .font(.body)
+                        .lineLimit(1)
 
                     // TODO: show deployment here
                     /*
                     Text(pod.image)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .truncationMode(.tail)
-                    .lineLimit(1)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .truncationMode(.tail)
+                        .lineLimit(1)
                      */
                 }
             }
