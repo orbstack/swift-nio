@@ -180,9 +180,9 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                         Text(pod.ageStr)
                         .textSelection(.enabled)
                         // needs to be running w/ ip to have domain
-                        if let ipAddress {
+                        if let ipAddress, let url = URL(string: "http://\(domain)") {
                             if vmModel.netBridgeAvailable {
-                                CustomLink(domain, url: URL(string: "http://\(domain)")!)
+                                CustomLink(domain, url: url)
                             } else {
                                 Text(ipAddress)
                                 .textSelection(.enabled)

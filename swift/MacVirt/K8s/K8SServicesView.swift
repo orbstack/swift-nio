@@ -31,15 +31,14 @@ private struct K8SServicesList: View {
     var body: some View {
         VStack(spacing: 0) {
             if !listItems.isEmpty {
-                List {
+                List(selection: selection) {
                     ForEach(listItems) { group in
                         Section(header: Text(group.title)) {
                             ForEach(group.items) { item in
                                 // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
-                                //TODO
-//                                K8SServiceItemView(service: item,
-//                                        selection: selection.wrappedValue)
-//                                .equatable()
+                                K8SServiceItemView(service: item,
+                                        selection: selection.wrappedValue)
+                                .equatable()
                             }
                         }
                     }

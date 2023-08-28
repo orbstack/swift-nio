@@ -249,7 +249,7 @@ struct K8SPodIP: Codable, Equatable, Hashable {
     let ip: String
 }
 
-struct K8SService: Codable, K8SResource {
+struct K8SService: K8SResource, Codable, Equatable, Hashable {
     let metadata: K8SServiceMetadata
     let spec: K8SServiceSpec
     let status: K8SServiceStatus
@@ -264,6 +264,96 @@ struct K8SService: Codable, K8SResource {
 
     var namespace: String {
         metadata.namespace
+    }
+
+    var systemImage: String {
+        switch spec.type {
+        case .loadBalancer:
+            return "network"
+        case .clusterIP:
+            return "point.3.filled.connected.trianglepath.dotted"
+        case .externalName:
+            return "network"
+        case .nodePort:
+            return "rectangle.connected.to.line.below"
+        }
+    }
+
+    var canOpen: Bool {
+        spec.type != .externalName && isWebService
+    }
+
+    var hasLocalhost: Bool {
+        spec.type == .loadBalancer || spec.type == .nodePort
+    }
+
+    var preferredDomain: String {
+        // TODO domains
+        //"\(name).\(namespace).svc.cluster.local"
+        switch spec.type {
+        case .loadBalancer:
+            return "k8s.orb.local"
+        case .clusterIP:
+            return spec.clusterIP ?? "localhost"
+        case .externalName:
+            return "localhost"
+        case .nodePort:
+            return "localhost"
+        }
+    }
+
+    var preferredDomainAndPort: String {
+        let firstPort = spec.ports?.first
+        guard let firstPort else { return preferredDomain }
+        return "\(preferredDomain):\(firstPort.port)"
+    }
+
+    func wrapURL(host: String) -> String? {
+        let tcpPort = spec.ports?.first(where: { $0.match(proto: "TCP", port: 443, name: "https") })
+            ?? spec.ports?.first(where: { $0.match(proto: "TCP", port: 80, name: "http") })
+        guard let tcpPort else { return nil }
+
+        // loadBalancer ignores nodeport
+        let port = spec.type == .loadBalancer ? tcpPort.port : (tcpPort.nodePort ?? tcpPort.port)
+        let scheme = (tcpPort.appProtocol == "https" || port == 443) ? "https" : "http"
+        if (scheme == "https" && port == 443) || (scheme == "http" && port == 80) {
+            return "\(scheme)://\(preferredDomain)"
+        } else {
+            return "\(scheme)://\(preferredDomain):\(port)"
+        }
+    }
+
+    func wrapURLNoScheme(host: String) -> String? {
+        let pre = wrapURL(host: host)?
+            .replacingOccurrences(of: "http://", with: "")
+            .replacingOccurrences(of: "https://", with: "")
+        guard let pre else { return nil }
+
+        // special case: loadBalancer = *. if no port
+        if spec.type == .loadBalancer && !pre.contains(":") {
+            return "*.\(pre)"
+        }
+
+        return pre
+    }
+
+    var isWebService: Bool {
+        spec.ports?.contains { port in
+            port.proto == "TCP" &&
+                    (port.match(proto: "TCP", port: 443, name: "https") ||
+                    port.match(proto: "TCP", port: 80, name: "http"))
+        } ?? false
+    }
+
+    var externalIP: String? {
+        status.loadBalancer?.ingress?.first?.ip
+    }
+
+    var ageStr: String {
+        relativeDateFormatter.localizedString(for: metadata.creationTimestamp, relativeTo: Date())
+        // TODO do this better
+        .replacingOccurrences(of: " ago", with: "")
+        .replacingOccurrences(of: "in ", with: "")
     }
 }
 
@@ -287,16 +377,34 @@ struct K8SServiceSpec: Codable, Equatable, Hashable {
     let ports: [K8SServicePort]?
     let selector: [String: String]?
     let sessionAffinity: String?
-    let type: String?
+    let type: K8SServiceType
 }
 
-struct K8SServicePort: Codable, Equatable, Hashable {
+enum K8SServiceType: String, Codable, Equatable, Hashable {
+    case clusterIP = "ClusterIP"
+    case externalName = "ExternalName"
+    case loadBalancer = "LoadBalancer"
+    case nodePort = "NodePort"
+}
+
+struct K8SServicePort: Codable, Equatable, Hashable, Identifiable {
     // TODO what's optional?
     let name: String?
     let proto: String?
-    let port: Int?
-    //let targetPort: Int? // can be string
+    let port: Int
+    //let targetPort: IntOrString? // can be string
     let nodePort: Int?
+    let appProtocol: String?
+
+    var id: String {
+        "\(proto ?? "")-\(port)"
+    }
+
+    func match(proto: String, port: Int, name: String) -> Bool {
+        self.proto == proto &&
+                (self.port == port || self.nodePort == port ||
+                        self.appProtocol == name || self.name == name)
+    }
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -304,6 +412,7 @@ struct K8SServicePort: Codable, Equatable, Hashable {
         case port
         //case targetPort
         case nodePort
+        case appProtocol
     }
 }
 
@@ -314,4 +423,10 @@ struct K8SServiceStatus: Codable, Equatable, Hashable {
 }
 
 struct K8SServiceLoadBalancer: Codable, Equatable, Hashable {
+    let ingress: [K8SServiceLoadBalancerIngress]?
+}
+
+struct K8SServiceLoadBalancerIngress: Codable, Equatable, Hashable {
+    // TODO what's optional?
+    let ip: String?
 }
