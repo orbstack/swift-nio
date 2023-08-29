@@ -217,8 +217,13 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                             // TODO dedupe logic
                             let portNumber = service.spec.type == .loadBalancer ? port.port : (port.nodePort ?? port.port)
                             // avoid pretty commas num format
-                            Text("\(String(portNumber))/\(port.proto ?? "TCP")")
-                            .textSelection(.enabled)
+                            if port.proto != "TCP" {
+                                Text("\(String(portNumber))/\(port.proto ?? "TCP")")
+                                .textSelection(.enabled)
+                            } else {
+                                Text(String(portNumber))
+                                .textSelection(.enabled)
+                            }
                         }
                     }
                     .padding(.leading, 16)
