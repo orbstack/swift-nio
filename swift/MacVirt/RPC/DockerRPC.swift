@@ -50,17 +50,19 @@ struct DKContainer: Codable, Identifiable, Hashable {
         } else if let composeService = labels[DockerLabels.composeService] {
             return composeService
         } else {
-            return names.map {
-                $0.deletingPrefix("/")
-            }.joined(separator: ", ")
+            return names
+                .lazy
+                .map { $0.deletingPrefix("/") }
+                .joined(separator: ", ")
         }
     }
 
     var ipAddresses: [String] {
         networkSettings?.networks.values
-                .map { $0.ipAddress }
-                .filter { !$0.isEmpty }
-                ?? []
+            .lazy
+            .map { $0.ipAddress }
+            .filter { !$0.isEmpty }
+            ?? []
     }
 
     // use same logic as scon server

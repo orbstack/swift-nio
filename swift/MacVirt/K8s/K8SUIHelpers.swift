@@ -19,6 +19,7 @@ struct K8SResourceLists {
                                                   showSystemNs: Bool = false) -> [SectionGroup<Resource>] {
         let grouped = Dictionary(grouping: resources, by: { $0.namespace })
         return grouped
+            .lazy
             .map { SectionGroup(title: $0.key,
                     // sort items within section
                     items: $0.value.sorted { $0.name < $1.name }) }

@@ -56,7 +56,7 @@ struct MachinesRootView: View {
                                 Button(action: {
                                     rootSelectedTab = "docker"
                                 }) {
-                                    Text("Go to Docker")
+                                    Text("Go to Containers")
                                 }
                                 .controlSize(.large)
                             }
