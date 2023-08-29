@@ -184,6 +184,7 @@ mkdir /var/lib/docker
 rm -rf /tmp
 ln -sf /private/tmp /tmp
 ln -sf /mnt/mac/var/folders /var/
+ln -sf /mnt/mac/opt/homebrew /opt/
 mkdir /dockertmp
 EOT
 
