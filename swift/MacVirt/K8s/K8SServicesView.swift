@@ -12,7 +12,7 @@ private struct GettingStartedHintBox: View {
             Text("Get started with an example")
             .font(.title2)
             .bold()
-            Text("kubectl expose deploy/nginx --type=NodePort --port=80")
+            Text("kubectl expose pod nginx --type=NodePort --port=80")
             .font(.body.monospaced())
             .textSelection(.enabled)
         }
@@ -24,7 +24,6 @@ private struct GettingStartedHintBox: View {
 
 private struct K8SServicesList: View {
     let filterIsSearch: Bool
-    let allServices: [K8SService]
     let listItems: [SectionGroup<K8SService>]
     let selection: Binding<Set<K8SResourceId>>
 
@@ -59,7 +58,7 @@ private struct K8SServicesList: View {
                 Spacer()
 
                 // don't show getting started hint if empty is caused by filter
-                if allServices.isEmpty {
+                if !filterIsSearch {
                     HStack {
                         Spacer()
                         GettingStartedHintBox()
@@ -93,7 +92,6 @@ struct K8SServicesView: View {
 
             // 0 spacing to fix bg color gap between list and getting started hint
             K8SServicesList(filterIsSearch: !searchQuery.isEmpty,
-                    allServices: services,
                     listItems: listItems,
                     selection: $selection)
         } onRefresh: {

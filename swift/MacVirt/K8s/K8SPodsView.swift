@@ -25,7 +25,6 @@ private struct GettingStartedHintBox: View {
 private struct K8SPodsList: View {
     let filterIsSearch: Bool
     let runningCount: Int
-    let allPods: [K8SPod]
     let listItems: [SectionGroup<K8SPod>]
     let selection: Binding<Set<K8SResourceId>>
 
@@ -60,7 +59,7 @@ private struct K8SPodsList: View {
                 Spacer()
 
                 // don't show getting started hint if empty is caused by filter
-                if allPods.isEmpty {
+                if !filterIsSearch {
                     HStack {
                         Spacer()
                         GettingStartedHintBox()
@@ -97,7 +96,6 @@ struct K8SPodsView: View {
             // 0 spacing to fix bg color gap between list and getting started hint
             K8SPodsList(filterIsSearch: !searchQuery.isEmpty,
                     runningCount: runningCount,
-                    allPods: pods,
                     listItems: listItems,
                     selection: $selection)
         } onRefresh: {

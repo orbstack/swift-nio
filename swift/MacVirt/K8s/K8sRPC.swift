@@ -12,7 +12,7 @@ private func makeRelativeDateFormatter() -> RelativeDateTimeFormatter {
     return formatter
 }
 
-enum K8SResourceId: Identifiable, Hashable {
+enum K8SResourceId: Equatable, Identifiable, Hashable {
     // uid isn't very useful. it breaks using ID as a check
     // (node, namespace, name) is unique
     // TODO maybe we do want uid, but exclude it from Identifiable and Hashable for matching
