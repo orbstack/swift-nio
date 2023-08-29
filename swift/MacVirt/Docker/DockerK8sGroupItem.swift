@@ -49,6 +49,11 @@ struct DockerK8sGroupItem: View, Equatable {
                 Defaults[.selectedTab] = "k8s-pods"
             }
             .help("Go to Pods")
+
+            ProgressIconButton(systemImage: "network", actionInProgress: false) {
+                Defaults[.selectedTab] = "k8s-services"
+            }
+            .help("Go to Services")
         }
         .padding(.vertical, 4)
         .contextMenu {

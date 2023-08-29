@@ -42,6 +42,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -574,6 +575,14 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 		if err != nil {
 			logrus.WithError(err).Error("failed to list services")
 			return
+		}
+
+		// don't send empty slices to swift as nil
+		if len(pods) == 0 {
+			pods = []*v1.Pod{}
+		}
+		if len(services) == 0 {
+			services = []*v1.Service{}
 		}
 
 		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
