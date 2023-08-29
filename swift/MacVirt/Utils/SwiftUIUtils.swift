@@ -97,7 +97,8 @@ struct SystemColors {
         //Color(.systemRed),
         Color(.systemGreen),
         Color(.systemBlue),
-        Color(.systemOrange),
+        // removed: semantic, could be confusing in k8s case
+        //Color(.systemOrange),
         // removed due to poor contrast on light
         //Color(.systemYellow),
         Color(.systemBrown),
@@ -115,7 +116,11 @@ struct SystemColors {
     static func forString(_ str: String) -> Color {
         let index = Int(stableStringHash(str)) %% all.count
         // tone down saturation
-        return all[index].opacity(0.8)
+        return desaturate(all[index])
+    }
+
+    static func desaturate(_ color: Color) -> Color {
+        color.opacity(0.8)
     }
 }
 

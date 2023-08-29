@@ -62,4 +62,42 @@ extension K8SPod {
             }
         }
     }
+
+    var uiState: K8SPodUIState {
+        switch statusStr {
+        case "Running":
+            return .running
+        case "PodInitializing", "ContainerCreating", "Pending", "Terminating":
+            return .loading
+        case "Completed":
+            return .completed
+        case "Error", "ImagePullBackOff", "CrashLoopBackOff", "CreateContainerConfigError", "InvalidImageName":
+            return .error
+        default:
+            // neutral state
+            return .completed
+        }
+    }
+}
+
+enum K8SPodUIState {
+    case loading
+    case running
+    case error
+    case completed
+}
+
+extension K8SServiceType {
+    var uiColor: NSColor {
+        switch self {
+        case .clusterIP:
+            return .systemBlue
+        case .nodePort:
+            return .systemGreen
+        case .loadBalancer:
+            return .systemOrange
+        case .externalName:
+            return .systemPurple
+        }
+    }
 }

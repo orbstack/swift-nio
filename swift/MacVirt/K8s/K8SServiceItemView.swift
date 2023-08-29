@@ -25,8 +25,8 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
 
         HStack {
             HStack {
-                // this way it's consistent. seed suffix chosen for diff colors
-                let color = SystemColors.forString(service.spec.type.rawValue + "/s23fq")
+                // this way it's consistent
+                let color = SystemColors.desaturate(Color(service.spec.type.uiColor))
                 Image(systemName: service.systemImage)
                 .resizable()
                 .aspectRatio(contentMode: .fit)

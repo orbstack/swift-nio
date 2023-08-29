@@ -21,23 +21,50 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
     }
 
     var body: some View {
-        let isRunning = pod.running
+        let state = pod.uiState
         let actionInProgress = actionTracker.ongoingFor(selfId)
 
         HStack {
             HStack {
-                // this way it's consistent
-                let color = SystemColors.forString(pod.name)
-                Image(systemName: "helm")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .padding(8)
-                .foregroundColor(Color(hex: 0xfafafa))
-                .background(Circle().fill(color))
-                // rasterize so opacity works on it as one big image
-                .drawingGroup(opaque: true)
-                .padding(.trailing, 8)
+                // this way it's consistent. we use red for error so it's confusing otherwise
+                let color = SystemColors.desaturate(Color(.systemBlue))
+                switch state {
+                case .running, .completed:
+                    Image(systemName: "helm")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .padding(8)
+                    .foregroundColor(Color(hex: 0xfafafa))
+                    .background(Circle().fill(color)
+                        .opacity(state == .running ? 1 : 0.5))
+                    // rasterize so opacity works on it as one big image
+                    .drawingGroup(opaque: true)
+                    .padding(.trailing, 8)
+
+                case .loading:
+                    // can't rasterize this so only do opacity on bg
+                    ProgressView()
+                    .scaleEffect(0.5)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .padding(8)
+                    .foregroundColor(Color(hex: 0xfafafa))
+                    .background(Circle().fill(color).opacity(0.5))
+                    .padding(.trailing, 8)
+
+                case .error:
+                    Image(systemName: "exclamationmark")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .padding(8)
+                    .foregroundColor(Color(hex: 0xfafafa))
+                    .background(Circle().fill(SystemColors.desaturate(Color(.systemRed))))
+                    // rasterize so opacity works on it as one big image
+                    .drawingGroup(opaque: true)
+                    .padding(.trailing, 8)
+                }
 
                 VStack(alignment: .leading) {
                     Text(pod.name)
@@ -53,8 +80,8 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                         .lineLimit(1)
                      */
                 }
+                .opacity((state == .loading || state == .completed) ? 0.5 : 1)
             }
-            .opacity(pod.running ? 1 : 0.5)
             // padding for expand arrow
             .padding(.leading, 8)
 
@@ -113,14 +140,14 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 }) {
                     Label("Open Terminal", systemImage: "")
                 }
-                .disabled(!isRunning)
+                .disabled(state != .running)
 
                 Button(action: {
                     NSWorkspace.shared.open(URL(string: "http://\(pod.preferredDomain)")!)
                 }) {
                     Label("Open in Browser", systemImage: "")
                 }
-                .disabled(!isRunning || !vmModel.netBridgeAvailable)
+                .disabled(state != .running || !vmModel.netBridgeAvailable)
             }
 
             Divider()
@@ -154,7 +181,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
     private var detailsView: some View {
         VStack(alignment: .leading, spacing: 20) {
-            let isRunning = pod.running
+            let isRunning = pod.uiState == .running
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Info")

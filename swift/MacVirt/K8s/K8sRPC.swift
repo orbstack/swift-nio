@@ -106,10 +106,6 @@ struct K8SPod: K8SResource, Codable, Equatable, Hashable {
     let spec: K8SPodSpec
     let status: K8SPodStatus
 
-    var running: Bool {
-        statusStr == "Running"
-    }
-
     var statusStr: String {
         // if any container is failed, the pod is failed
         if let containerStatuses = status.containerStatuses {

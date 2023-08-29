@@ -82,7 +82,7 @@ struct K8SPodsView: View {
 
     var body: some View {
         K8SStateWrapperView(\.k8sPods) { pods, _ in
-            let runningCount = pods.filter { $0.running }.count
+            let runningCount = pods.filter { $0.uiState == .running }.count
 
             let filteredPods = pods.filter { pod in
                 searchQuery.isEmpty ||
