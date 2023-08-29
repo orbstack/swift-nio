@@ -79,7 +79,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		cmdline = append(cmdline, "mitigations=off", "clocksource=tsc", "tsc=reliable", "hpet=disable")
 	}
 	if c.DiskRootfs != "" {
-		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro", "sched_verbose", "schedstats=enable")
+		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
 	}
 	if c.Console != ConsoleNone {
 		// quiet kernel boot to reduce log spam when truncated in sentry and GUI
