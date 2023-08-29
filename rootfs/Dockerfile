@@ -147,6 +147,7 @@ EOT
 
 # k3s
 ARG ARCH=arm64
+COPY rootfs/k8s/k3s-${ARCH} /usr/local/bin/k3s
 RUN <<EOT sh -eux
 chmod +x /usr/local/bin/k3s
 
