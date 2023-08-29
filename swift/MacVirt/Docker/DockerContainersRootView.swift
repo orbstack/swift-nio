@@ -22,6 +22,8 @@ private struct GettingStartedHintBox: View {
                 .font(.title2)
                 .bold()
             Text("docker run -it -p 80:80 docker/getting-started")
+                // WA: selecting text in dark mode changes color to black when on material bg
+                .foregroundColor(.primary)
                 .font(.body.monospaced())
                 .textSelection(.enabled)
             Text("Then open [localhost](http://localhost) in your browser.")
@@ -93,6 +95,9 @@ private struct DockerContainerListItemView: View {
         case .compose(let group, _):
             DockerComposeGroupItem(composeGroup: group, selection: selection,
                     isFirstInList: isFirstInList)
+            .equatable()
+        case .k8sGroup(let group, _):
+            DockerK8sGroupItem(group: group)
             .equatable()
         }
     }

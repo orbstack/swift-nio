@@ -301,6 +301,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         Text(container.status)
                             .textSelection(.enabled)
                         Text(String(container.id.prefix(12)))
+                            // WA: selecting text in dark mode changes color to black when on material bg
+                            .foregroundColor(.primary)
                             .font(.body.monospaced())
                             .textSelection(.enabled)
                         Text(container.image)

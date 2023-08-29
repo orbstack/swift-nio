@@ -47,6 +47,15 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
         }
     }
 
+    private var isK8sClusterCreating: Bool {
+        // if there are no kube-system pods
+        // api server resource is always there
+        if let pods = vmModel.k8sPods {
+            return !pods.contains(where: { $0.namespace == "kube-system" })
+        }
+        return false
+    }
+
     var body: some View {
         StateWrapperView {
             Group {
@@ -56,10 +65,15 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
                    let config = vmModel.appliedConfig { // applied config, not current
                     Group {
                         if let entities = vmModel[keyPath: keyPath],
-                           dockerRecord.state != .stopped {
+                           dockerRecord.state != .stopped,
+                           !isK8sClusterCreating {
                             content(entities, dockerRecord)
                         } else if dockerRecord.state == .stopped || !config.k8sEnable {
                             disabledView
+                        } else if isK8sClusterCreating {
+                            ProgressView(label: {
+                                Text("Creating cluster")
+                            })
                         } else {
                             ProgressView(label: {
                                 Text("Loading")

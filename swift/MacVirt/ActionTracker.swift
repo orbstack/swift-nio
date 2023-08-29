@@ -45,6 +45,7 @@ enum DockerContainerId: Hashable {
 
     // not docker
     case sectionLabel(String)
+    case k8sGroup
 }
 
 enum K8SResourceAction {

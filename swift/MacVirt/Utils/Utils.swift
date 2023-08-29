@@ -296,4 +296,5 @@ struct Users {
 
 struct K8sConstants {
     static let context = "orbstack"
+    static let apiResId = K8SResourceId.service(namespace: "default", name: "kubernetes")
 }

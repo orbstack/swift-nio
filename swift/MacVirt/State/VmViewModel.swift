@@ -1016,7 +1016,7 @@ class VmViewModel: ObservableObject {
     @MainActor
     func tryInternalDeleteK8s() async {
         do {
-            try await vmgr.internalDeleteK8s()
+            try await scon.internalDeleteK8s()
         } catch {
             setError(.containerDeleteError(cause: error))
         }

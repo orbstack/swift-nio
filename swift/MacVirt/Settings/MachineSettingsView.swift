@@ -106,7 +106,7 @@ struct MachineSettingsView: View {
                     Spacer()
                         .frame(height: 32)
 
-                    Toggle("Switch Docker context automatically", isOn: $dockerSetContext)
+                    Toggle("Switch Docker & Kubernetes context automatically", isOn: $dockerSetContext)
                     .onChange(of: dockerSetContext) { newValue in
                         vmModel.trySetConfigKey(\.dockerSetContext, newValue)
                     }

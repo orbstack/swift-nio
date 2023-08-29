@@ -152,10 +152,6 @@ class VmService: RPCService {
         try await invoke("K8sServiceDelete", params: K8sNameRequest(namespace: namespace, name: name))
     }
 
-    func internalDeleteK8s() async throws {
-        try await invoke("InternalDeleteK8s")
-    }
-
     func guiReportStarted() async throws {
         try await invoke("GuiReportStarted")
     }

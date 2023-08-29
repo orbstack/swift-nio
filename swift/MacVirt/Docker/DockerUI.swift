@@ -139,10 +139,15 @@ struct WindowTitles {
     }
 }
 
+struct DockerK8sGroup: Equatable {
+    let anyRunning: Bool
+}
+
 enum DockerListItem: Identifiable, Equatable {
     case sectionLabel(String)
     case container(DKContainer)
     case compose(ComposeGroup, children: [DockerListItem])
+    case k8sGroup(DockerK8sGroup, children: [DockerListItem])
 
     var id: DockerContainerId {
         switch self {
@@ -152,6 +157,8 @@ enum DockerListItem: Identifiable, Equatable {
             return .container(id: container.id)
         case .compose(let group, _):
             return .compose(project: group.project)
+        case .k8sGroup:
+            return .k8sGroup
         }
     }
 
@@ -161,6 +168,8 @@ enum DockerListItem: Identifiable, Equatable {
             return container.names.first ?? ""
         case .compose(let group, _):
             return group.project
+        case .k8sGroup:
+            return "Kubernetes"
         default:
             return ""
         }
@@ -168,7 +177,7 @@ enum DockerListItem: Identifiable, Equatable {
 
     var isGroup: Bool {
         switch self {
-        case .compose:
+        case .compose, .k8sGroup:
             return true
         default:
             return false
@@ -178,6 +187,8 @@ enum DockerListItem: Identifiable, Equatable {
     var listChildren: [DockerListItem]? {
         switch self {
         case .compose(_, let children):
+            return children
+        case .k8sGroup(_, let children):
             return children
         default:
             return nil
@@ -196,6 +207,7 @@ struct DockerContainerLists {
 
         // collect compose groups and remove them from containers
         var ungroupedContainers: [DKContainer] = []
+        var k8sContainers: [DKContainer] = []
         var composeGroups: [ComposeGroup: [DKContainer]] = [:]
 
         for container in filteredContainers {
@@ -206,6 +218,8 @@ struct DockerContainerLists {
                 } else {
                     composeGroups[group]?.append(container)
                 }
+            } else if container.isK8s {
+                k8sContainers.append(container)
             } else {
                 ungroupedContainers.append(container)
             }
@@ -223,6 +237,19 @@ struct DockerContainerLists {
             let anyRunning = containers.contains(where: { $0.running })
             group.anyRunning = anyRunning
             let item = DockerListItem.compose(group, children: children)
+            if anyRunning {
+                runningItems.append(item)
+            } else {
+                stoppedItems.append(item)
+            }
+        }
+
+        // add k8s items
+        if !k8sContainers.isEmpty {
+            let anyRunning = k8sContainers.contains(where: { $0.running })
+            let children = k8sContainers.map { DockerListItem.container($0) }
+            let group = DockerK8sGroup(anyRunning: anyRunning)
+            let item = DockerListItem.k8sGroup(group, children: children)
             if anyRunning {
                 runningItems.append(item)
             } else {

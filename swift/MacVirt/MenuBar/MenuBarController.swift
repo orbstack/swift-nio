@@ -251,6 +251,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
                     return makeContainerItem(container: container)
                 case .compose(let group, let children):
                     return makeComposeGroupItem(group: group, children: children)
+                case .k8sGroup:
+                    // ignore
+                    return nil
                 default:
                     return nil
                 }

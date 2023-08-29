@@ -28,43 +28,45 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             HStack {
                 // this way it's consistent. we use red for error so it's confusing otherwise
                 let color = SystemColors.desaturate(Color(.systemBlue))
-                switch state {
-                case .running, .completed:
-                    Image(systemName: "helm")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .padding(8)
-                    .foregroundColor(Color(hex: 0xfafafa))
-                    .background(Circle().fill(color)
-                        .opacity(state == .running ? 1 : 0.5))
-                    // rasterize so opacity works on it as one big image
-                    .drawingGroup(opaque: true)
-                    .padding(.trailing, 8)
+                Group {
+                    switch state {
+                    case .running, .completed:
+                        Image(systemName: "helm")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .padding(8)
+                        .foregroundColor(Color(hex: 0xfafafa))
+                        .background(Circle().fill(color))
+                        // rasterize so opacity works on it as one big image
+                        .drawingGroup(opaque: true)
+                        .padding(.trailing, 8)
 
-                case .loading:
-                    // can't rasterize this so only do opacity on bg
-                    ProgressView()
-                    .scaleEffect(0.5)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .padding(8)
-                    .foregroundColor(Color(hex: 0xfafafa))
-                    .background(Circle().fill(color).opacity(0.5))
-                    .padding(.trailing, 8)
+                    case .loading:
+                        // can't rasterize this so only do opacity on bg
+                        ProgressView()
+                        .scaleEffect(0.5)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .padding(8)
+                        .foregroundColor(Color(hex: 0xfafafa))
+                        .background(Circle().fill(color).opacity(0.5))
+                        .padding(.trailing, 8)
 
-                case .error:
-                    Image(systemName: "exclamationmark")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .padding(8)
-                    .foregroundColor(Color(hex: 0xfafafa))
-                    .background(Circle().fill(SystemColors.desaturate(Color(.systemRed))))
-                    // rasterize so opacity works on it as one big image
-                    .drawingGroup(opaque: true)
-                    .padding(.trailing, 8)
+                    case .error:
+                        Image(systemName: "exclamationmark")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .padding(8)
+                        .foregroundColor(Color(hex: 0xfafafa))
+                        .background(Circle().fill(SystemColors.desaturate(Color(.systemRed))))
+                        // rasterize so opacity works on it as one big image
+                        .drawingGroup(opaque: true)
+                        .padding(.trailing, 8)
+                    }
                 }
+                .opacity((state == .completed) ? 0.5 : 1)
 
                 VStack(alignment: .leading) {
                     Text(pod.name)
@@ -227,6 +229,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(pod.status.containerStatuses ?? []) { container in
                             if let name = container.name {
+                                //TODO link
                                 Label {
                                     Text(name)
                                 } icon: {

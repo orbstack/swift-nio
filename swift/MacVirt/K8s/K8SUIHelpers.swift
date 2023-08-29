@@ -14,8 +14,6 @@ struct SectionGroup<Element: Identifiable>: Identifiable {
     }
 }
 
-private let k8sApiResId = K8SResourceId.service(namespace: "default", name: "kubernetes")
-
 struct K8SResourceLists {
     static func groupItems<Resource: K8SResource>(_ resources: [Resource],
                                                   showSystemNs: Bool = false) -> [SectionGroup<Resource>] {
@@ -26,7 +24,7 @@ struct K8SResourceLists {
                     items: $0.value
                         .lazy
                         // k8s API service is always there. consider it system so we can show empty state
-                        .filter { showSystemNs || ($0.id != k8sApiResId) }
+                        .filter { showSystemNs || ($0.id != K8sConstants.apiResId) }
                         // sort items within section
                         .sorted { $0.name < $1.name }) }
             // remove empty groups caused by filtering above

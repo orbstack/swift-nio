@@ -121,4 +121,8 @@ class SconService: RPCService {
     func containerRename(_ record: ContainerRecord, newName: String) async throws {
         try await invoke("ContainerRename", params: ContainerRenameRequest(container: record, newName: newName))
     }
+
+    func internalDeleteK8s() async throws {
+        try await invoke("InternalDeleteK8s")
+    }
 }
