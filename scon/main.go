@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -188,9 +189,26 @@ func runContainerManager() {
 	// sentry.Recover() suppresses panic
 	defer func() {
 		if err := recover(); err != nil {
-			hub := sentry.CurrentHub()
-			hub.Recover(err)
+			// add ENOSPC/EDQUOT error info
+			if e, ok := err.(error); ok && (errors.Is(e, unix.ENOSPC) || errors.Is(e, unix.EDQUOT)) {
+				usage, err2 := util.RunWithOutput("btrfs", "filesystem", "usage", conf.C().DataFsDir)
+				if err2 != nil {
+					logrus.WithError(err2).Error("failed to get FS usage")
+					usage = fmt.Sprintf("[failed to get FS usage: %v]", err2)
+				}
+				qgroup, err2 := util.RunWithOutput("btrfs", "qgroup", "show", "-r", "-e", conf.C().DataFsDir)
+				if err2 != nil {
+					logrus.WithError(err2).Error("failed to get QG info")
+					qgroup = fmt.Sprintf("[failed to get QG info: %v]", err2)
+				} else {
+					// strip first line so it's less obvious what this is
+					qgroup = strings.Join(strings.Split(qgroup, "\n")[1:], "\n")
+				}
 
+				err = fmt.Errorf("%w\n\nUsage:\n%s\n\nQG:\n%s", e, usage, qgroup)
+			}
+
+			sentry.CurrentHub().Recover(err)
 			panic(err)
 		}
 	}()
