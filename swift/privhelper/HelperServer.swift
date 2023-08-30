@@ -27,13 +27,6 @@ struct HelperServer {
             try FileManager.default.removeItem(atPath: req.dest)
         }
 
-        // security: don't overwrite existing /var/run/docker.sock if it points to another user's OrbStack sock
-        if req.dest == "/var/run/docker.sock",
-           let oldSrc,
-           oldSrc.contains("/.orbstack/") {
-            throw PHSymlinkError.existingSocketLink
-        }
-
         // create dir (mkdir -p)
         let destDir = URL(fileURLWithPath: req.dest).deletingLastPathComponent().path
         try FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true, attributes: nil)
