@@ -1,4 +1,5 @@
 /assets/
+!/assets/kernel/*/modules.builtin
 .DS_Store
 *.pcap
 *.zip
