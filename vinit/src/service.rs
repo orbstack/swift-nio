@@ -22,7 +22,7 @@ pub struct Service {
 impl Service {
     pub const CHRONY: Service = Service {
         // vague service names to avoid revealing info
-        name: "ntp",
+        name: "time-sync",
         critical: true,
         restartable: true,
         needs_clean_shutdown: false,
