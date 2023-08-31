@@ -196,6 +196,7 @@ func runContainerManager() {
 					logrus.WithError(err2).Error("failed to get FS usage")
 					usage = fmt.Sprintf("[failed to get FS usage: %v]", err2)
 				}
+
 				qgroup, err2 := util.RunWithOutput("btrfs", "qgroup", "show", "-r", "-e", conf.C().DataFsDir)
 				if err2 != nil {
 					logrus.WithError(err2).Error("failed to get QG info")
@@ -205,7 +206,15 @@ func runContainerManager() {
 					qgroup = strings.Join(strings.Split(qgroup, "\n")[1:], "\n")
 				}
 
-				err = fmt.Errorf("%w\n\nUsage:\n%s\n\nQG:\n%s", e, usage, qgroup)
+				// now try to recover, but don't auto reboot
+				// usage=0 means to deallocate only unused data/metadata blocks and release them back to general alloc pool, so it doesn't require any scratch space to complete
+				balanceOut, err2 := util.RunWithOutput("btrfs", "balance", "start", "-dusage=0", "-musage=0", conf.C().DataFsDir)
+				if err2 != nil {
+					logrus.WithError(err2).Error("failed to recover FS space")
+					balanceOut = fmt.Sprintf("[failed to recover FS space: %v]", err2)
+				}
+
+				err = fmt.Errorf("%w\n\nUsage:\n%s\n\nQG:\n%s\n\nRecovery:%s", e, usage, qgroup, balanceOut)
 			}
 
 			sentry.CurrentHub().Recover(err)
