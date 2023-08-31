@@ -50,7 +50,7 @@ type DockerAgent struct {
 	containerRefreshDebounce syncx.FuncDebounce
 	networkRefreshDebounce   syncx.FuncDebounce
 	imageRefreshDebounce     syncx.FuncDebounce
-	uiEventDebounce          syncx.FuncDebounce
+	uiEventDebounce          syncx.LeadingFuncDebounce
 	pendingUIEntities        []dockertypes.UIEntity
 
 	eventsConn io.Closer
@@ -103,12 +103,12 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 			logrus.WithError(err).Error("failed to refresh networks")
 		}
 	})
-	dockerAgent.uiEventDebounce = syncx.NewFuncDebounce(dockerUIEventDebounce, func() {
+	dockerAgent.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
 		err := dockerAgent.doSendUIEvent()
 		if err != nil {
 			logrus.WithError(err).Error("failed to send UI event")
 		}
-	})
+	}, dockerUIEventDebounce)
 
 	if isK8s {
 		dockerAgent.k8s = &K8sAgent{
@@ -293,7 +293,7 @@ func (d *DockerAgent) triggerUIEvent(entity dockertypes.UIEntity) {
 	if !slices.Contains(d.pendingUIEntities, entity) {
 		d.pendingUIEntities = append(d.pendingUIEntities, entity)
 	}
-	d.uiEventDebounce.Call()
+	d.uiEventDebounce.Trigger()
 }
 
 func (d *DockerAgent) doSendUIEvent() error {
