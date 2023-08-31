@@ -37,8 +37,13 @@ type ListenerInfo struct {
 }
 
 func (i ListenerInfo) UseIptables() bool {
-	// all wildcard listeners can use iptables, because we preserve source IP and translate getpeername in cfwd
-	return i.FromIptables || i.AddrPort.Addr().IsUnspecified()
+	// all wildcard listeners *could* use iptables, because we preserve source IP and translate getpeername in cfwd
+	// but in reality, that causes some issues:
+	// Docker's default port forwarding rules do DNAT but not MASQUERADE or SNAT. This preserves source IP and it works because return path goes through host netns' default route.
+	// We can fix this in our managed docker machine by adding MASQUERADE rules by source IP, but it's not possible to do this for whatever docker or k8s people may be running in machines.
+	// if the 198.19 IP goes through, it gets translated to localhost *inside* the container, which is unexpected as it should've been the host's IP.
+	// so disable it until we can do true localhost-like forwarding with raw bpf skbs.
+	return i.FromIptables //|| i.AddrPort.Addr().IsUnspecified()
 }
 
 func (i *ListenerInfo) Identifier() ListenerKey {
