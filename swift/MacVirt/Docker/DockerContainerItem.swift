@@ -375,9 +375,12 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .frame(height: 20)
 
                     // special case for more seamless onboarding
-                    Button("Open Tutorial", action: {
+                    Button {
                         NSWorkspace.shared.open(URL(string: "http://localhost")!)
-                    })
+                    } label: {
+                        Label("Open Tutorial", systemImage: "questionmark.circle")
+                    }
+                    .controlSize(.large)
                 }
             }
         }

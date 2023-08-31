@@ -33,11 +33,11 @@ struct DKContainer: Codable, Identifiable, Hashable {
     }
 
     var composeProject: String? {
-        if let composeProject = labels[DockerLabels.composeProject] {
-            return composeProject
-        } else {
-            return nil
-        }
+        labels[DockerLabels.composeProject]
+    }
+
+    var composeService: String? {
+        labels[DockerLabels.composeService]
     }
 
     var isK8s: Bool {
@@ -49,7 +49,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
         if let k8sType = labels[DockerLabels.k8sType],
            let k8sPodName = labels[DockerLabels.k8sPodName] {
             return "\(k8sPodName) (\(k8sType))"
-        } else if let composeService = labels[DockerLabels.composeService] {
+        } else if let composeService = composeService {
             return composeService
         } else {
             return names
@@ -81,9 +81,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
             // _ is allowed for custom names
             return String(domain.deletingPrefix("*."))
                 .replacingOccurrences(of: "_", with: "-")
-        } else if let project = composeProject {
+        } else if let project = composeProject,
+                  let service = composeService {
             // make it RFC 1035 compliant, or Tomcat complains
-            return "\(userName).\(project).orb.local"
+            return "\(service).\(project).orb.local"
                 .replacingOccurrences(of: "_", with: "-")
         } else {
             return "\(userName).orb.local"

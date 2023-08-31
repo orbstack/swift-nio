@@ -345,12 +345,12 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .killswitchExpired:
             return true
         case .dockerVolumeActionError(let action, let cause):
-            if action == "remove",
+            if action == "delete",
                fmtRpc(cause) == "volume in use" {
                 return true
             }
         case .dockerImageActionError(let action, let cause):
-            if action == "remove",
+            if action == "delete",
                fmtRpc(cause) == "image in use" {
                 return true
             }
@@ -1182,7 +1182,7 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerContainerRemove(_ id: String) async {
-        await doTryDockerContainerAction("remove", {
+        await doTryDockerContainerAction("delete", {
             try await vmgr.dockerContainerRemove(id)
         })
     }
@@ -1248,7 +1248,7 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerComposeRemove(_ cid: DockerContainerId) async {
-        await doTryDockerComposeAction("remove", cid: cid, args: ["rm", "-f", "--stop"])
+        await doTryDockerComposeAction("delete", cid: cid, args: ["rm", "-f", "--stop"])
     }
 
     @MainActor
@@ -1267,7 +1267,7 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerVolumeRemove(_ name: String) async {
-        await doTryDockerVolumeAction("remove", {
+        await doTryDockerVolumeAction("delete", {
             try await vmgr.dockerVolumeRemove(name)
         })
     }
@@ -1284,7 +1284,7 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerImageRemove(_ id: String) async {
-        await doTryDockerImageAction("remove", {
+        await doTryDockerImageAction("delete", {
             try await vmgr.dockerImageRemove(id)
         })
     }
