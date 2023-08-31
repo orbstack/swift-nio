@@ -3,6 +3,7 @@ package bugreport
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -113,6 +115,30 @@ func BuildZip(infoTxt []byte) (*ReportPackage, error) {
 		err = r.addFileBytes("netstat_rn.txt", []byte(netstat))
 		if err != nil {
 			logrus.WithError(err).Error("failed to add netstat -rn")
+		}
+	}
+
+	// add statfs and stat
+	var statfs unix.Statfs_t
+	err = unix.Statfs(conf.DataDir(), &statfs)
+	if err != nil {
+		logrus.WithError(err).Error("failed to get statfs")
+	} else {
+		err = r.AddFileJson("statfs.json", statfs)
+		if err != nil {
+			logrus.WithError(err).Error("failed to add statfs")
+		}
+	}
+	var imgStat unix.Stat_t
+	err = unix.Stat(conf.DataImage(), &imgStat)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			logrus.WithError(err).Error("failed to get stat")
+		}
+	} else {
+		err = r.AddFileJson("stat_dataimg.json", imgStat)
+		if err != nil {
+			logrus.WithError(err).Error("failed to add stat")
 		}
 	}
 
