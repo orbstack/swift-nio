@@ -67,8 +67,8 @@ func TestLeadingFuncDebounceSlow(t *testing.T) {
 		}
 	}
 
-	time.Sleep(300 * time.Millisecond)
-	if count != 2 {
-		t.Fatal("expected count to be 2")
+	time.Sleep(400 * time.Millisecond)
+	if count != 3 {
+		t.Fatalf("expected count to be 3; got %d", count)
 	}
 }

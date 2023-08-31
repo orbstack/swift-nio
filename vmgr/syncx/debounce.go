@@ -36,7 +36,7 @@ func (d *LeadingFuncDebounce) Trigger() {
 			d.timer = nil
 			d.mu.Unlock()
 			// call if needed
-			if d.pending.CompareAndSwap(true, false) {
+			if d.pending.Swap(false) {
 				d.invoke()
 			}
 		})
