@@ -60,6 +60,16 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
 
             // WA: crash on macOS 12 without nested HStack
             HStack {
+                if let urlStr = service.wrapURL(host: service.preferredDomain) {
+                    ProgressIconButton(systemImage: "link",
+                            actionInProgress: false) {
+                        if let url = URL(string: urlStr) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .help("Open in Browser")
+                }
+
                 ProgressIconButton(systemImage: "info.circle.fill",
                         actionInProgress: false) {
                     presentPopover = true
