@@ -34,4 +34,4 @@ mv updates/pub/arm64/old_updates/* updates/old/arm64/ || :
 mv updates/pub/amd64/old_updates/* updates/old/amd64/ || :
 
 # upload to cloudflare
-rclone sync -P updates/pub r2:orbstack-updates
+#rclone sync -P updates/pub r2:orbstack-updates
