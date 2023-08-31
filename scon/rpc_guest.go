@@ -384,7 +384,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 			for _, ctrIP := range ctrIPs {
 				err := dockerBpf.CfwdAddContainerMeta(ctrIP, meta)
 				if err != nil {
-					logrus.WithError(err).Error("failed to add container meta to cfwd")
+					logrus.WithError(err).WithField("ip", ctrIP).Error("failed to add container to cfwd")
 				}
 			}
 		}
@@ -397,7 +397,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 			for _, ctrIP := range ctrIPs {
 				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP)
 				if err != nil {
-					logrus.WithError(err).Error("failed to remove container meta from cfwd")
+					logrus.WithError(err).WithField("ip", ctrIP).Error("failed to remove container from cfwd")
 				}
 			}
 		}
