@@ -70,15 +70,15 @@ struct StorageSettingsView: View {
                 Spacer()
                 .frame(height: 32)
 
-                Button("Reset Docker data", role: .destructive) {
+                Button("Reset Docker Data", role: .destructive) {
                     presentConfirmResetDockerData = true
                 }
 
-                Button("Reset Kubernetes cluster", role: .destructive) {
+                Button("Reset Kubernetes Cluster", role: .destructive) {
                     presentConfirmResetK8sData = true
                 }
 
-                Button("Reset all data", role: .destructive) {
+                Button("Reset All Data", role: .destructive) {
                     presentConfirmResetAllData = true
                 }
 

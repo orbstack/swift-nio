@@ -41,7 +41,7 @@ struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
                                         await onRefresh()
                                     }
                                 }) {
-                                    Text("Turn on")
+                                    Text("Turn On")
                                     .padding(.horizontal, 4)
                                 }
                                 .buttonStyle(.borderedProminent)

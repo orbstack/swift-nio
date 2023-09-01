@@ -40,7 +40,7 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
                     await onRefresh()
                 }
             }) {
-                Text("Turn on")
+                Text("Turn On")
                 .padding(.horizontal, 4)
             }
             .buttonStyle(.borderedProminent)

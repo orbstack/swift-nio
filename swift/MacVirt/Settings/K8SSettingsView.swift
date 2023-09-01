@@ -61,7 +61,7 @@ struct K8SSettingsView: View {
                     .disabled(vmModel.appliedConfig == vmModel.config)
                     .keyboardShortcut("s")
 
-                    Button("Reset cluster", role: .destructive) {
+                    Button("Reset Cluster", role: .destructive) {
                         presentConfirmResetK8sData = true
                     }
                 }
