@@ -32,6 +32,7 @@ private let ansiColorPalette: [NSColor] = [
 
     // bright colors
     .systemGray, // "bright black" is used for dim text: echo -e '\e[90m2023-09-01T00:48:52.163\e[0m Starting'
+    // TODO blend 0.4 with textColor, for light and dark
     .systemRed,
     .systemGreen,
     .systemOrange,
