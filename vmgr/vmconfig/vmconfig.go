@@ -32,16 +32,17 @@ var (
 )
 
 type VmConfig struct {
-	MemoryMiB        uint64 `json:"memory_mib"`
-	CPU              int    `json:"cpu"`
-	Rosetta          bool   `json:"rosetta"`
-	NetworkProxy     string `json:"network_proxy"`
-	NetworkBridge    bool   `json:"network_bridge"`
-	MountHideShared  bool   `json:"mount_hide_shared"`
-	DataDir          string `json:"data_dir,omitempty"`
-	DockerSetContext bool   `json:"docker.set_context"`
-	SetupUseAdmin    bool   `json:"setup.use_admin"`
-	K8sEnable        bool   `json:"k8s.enable"`
+	MemoryMiB         uint64 `json:"memory_mib"`
+	CPU               int    `json:"cpu"`
+	Rosetta           bool   `json:"rosetta"`
+	NetworkProxy      string `json:"network_proxy"`
+	NetworkBridge     bool   `json:"network_bridge"`
+	MountHideShared   bool   `json:"mount_hide_shared"`
+	DataDir           string `json:"data_dir,omitempty"`
+	DockerSetContext  bool   `json:"docker.set_context"`
+	SetupUseAdmin     bool   `json:"setup.use_admin"`
+	K8sEnable         bool   `json:"k8s.enable"`
+	K8sExposeServices bool   `json:"k8s.expose_services"`
 }
 
 type VmConfigChange struct {
@@ -222,16 +223,17 @@ func calcMemory() uint64 {
 
 func Defaults() *VmConfig {
 	return &VmConfig{
-		MemoryMiB:        calcMemory() / 1024 / 1024,
-		CPU:              runtime.NumCPU(),
-		Rosetta:          true,
-		NetworkProxy:     ProxyAuto,
-		NetworkBridge:    true,
-		MountHideShared:  false,
-		DataDir:          "",
-		DockerSetContext: true,
-		SetupUseAdmin:    true,
-		K8sEnable:        false,
+		MemoryMiB:         calcMemory() / 1024 / 1024,
+		CPU:               runtime.NumCPU(),
+		Rosetta:           true,
+		NetworkProxy:      ProxyAuto,
+		NetworkBridge:     true,
+		MountHideShared:   false,
+		DataDir:           "",
+		DockerSetContext:  true,
+		SetupUseAdmin:     true,
+		K8sEnable:         false,
+		K8sExposeServices: false,
 	}
 }
 

@@ -63,12 +63,12 @@ func filterListener(l sysnet.ListenerInfo) bool {
 	return l.Addr() == netipIPv4Loopback || l.Addr() == netipIPv6Loopback || l.Addr().IsUnspecified()
 }
 
-func filterListeners(listeners []sysnet.ListenerInfo, containerIsK8s bool) []sysnet.ListenerInfo {
+func filterListeners(listeners []sysnet.ListenerInfo, forceK8sLocalhost bool) []sysnet.ListenerInfo {
 	var filtered []sysnet.ListenerInfo
 	for _, l := range listeners {
 		if filterListener(l) {
 			// special case: k8s port should have ext listen addr of localhost
-			if containerIsK8s {
+			if forceK8sLocalhost {
 				// 10250 == kubelet metrics
 				// TODO: what's the ephemeral port listening on ::?
 				if l.Port() == ports.HostKubernetes || l.Port() == 10250 {
@@ -360,7 +360,12 @@ func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
 	return out
 }
 
-func readOneIptablesListeners(cmd string, listeners []sysnet.ListenerInfo) ([]sysnet.ListenerInfo, error) {
+func readOneIptablesListeners(ipVer int, listeners []sysnet.ListenerInfo, forceRestrictLocalhost bool) ([]sysnet.ListenerInfo, error) {
+	cmd := "iptables"
+	if ipVer == 6 {
+		cmd = "ip6tables"
+	}
+
 	rulesStr, err := util.RunWithOutput(cmd, "-t", "nat", "-S")
 	if err != nil {
 		return nil, err
@@ -409,18 +414,30 @@ func readOneIptablesListeners(cmd string, listeners []sysnet.ListenerInfo) ([]sy
 			continue
 		}
 
+		unspecAddr := netip.IPv4Unspecified()
+		if ipVer == 6 {
+			unspecAddr = netip.IPv6Unspecified()
+		}
+
 		// add listener to list
-		listeners = append(listeners, sysnet.ListenerInfo{
+		listener := sysnet.ListenerInfo{
 			// nodeports are technically always 0.0.0.0 b/c of how we configured kube-proxy
 			// but let's restrict them to localhost for security
 			ListenerKey: sysnet.ListenerKey{
-				AddrPort: netip.AddrPortFrom(netip.IPv4Unspecified(), uint16(port)),
+				AddrPort: netip.AddrPortFrom(unspecAddr, uint16(port)),
 				Proto:    sysnet.TransportProtocol(proto),
 			},
 			// always safe b/c 0.0.0.0 and source IP already lost
-			FromIptables:  true,
-			ExtListenAddr: netipIPv4Loopback,
-		})
+			FromIptables: true,
+		}
+		if forceRestrictLocalhost {
+			if ipVer == 4 {
+				listener.ExtListenAddr = netipIPv4Loopback
+			} else {
+				listener.ExtListenAddr = netipIPv6Loopback
+			}
+		}
+		listeners = append(listeners, listener)
 	}
 
 	return listeners, nil
@@ -428,15 +445,15 @@ func readOneIptablesListeners(cmd string, listeners []sysnet.ListenerInfo) ([]sy
 
 // even if we don't need forwards to mac, it's important to register these listeneres as forwards so they get added to lfwd blocked_ports map
 // otherwise route_localnet doesn't work and these ports don't work in the machine
-func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo) ([]sysnet.ListenerInfo, error) {
+func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo, forceRestrictLocalhost bool) ([]sysnet.ListenerInfo, error) {
 	return withContainerNetns(c, func() ([]sysnet.ListenerInfo, error) {
 		// v4 and v6
-		listeners, err := readOneIptablesListeners("iptables", listeners)
+		listeners, err := readOneIptablesListeners(4, listeners, forceRestrictLocalhost)
 		if err != nil {
 			return nil, err
 		}
 
-		listeners, err = readOneIptablesListeners("ip6tables", listeners)
+		listeners, err = readOneIptablesListeners(6, listeners, forceRestrictLocalhost)
 		if err != nil {
 			return nil, err
 		}
@@ -494,13 +511,13 @@ func (c *Container) updateListenersNow(dirtyFlags bpf.LtypeFlags) error {
 
 	if c.ID == ContainerIDK8s && c.manager.k8sEnabled {
 		// add nodeports from iptables
-		listeners, err = c.readIptablesListeners(listeners)
+		listeners, err = c.readIptablesListeners(listeners, !c.manager.k8sExposeServices /*forceRestrictLocalhost*/)
 		if err != nil {
 			return fmt.Errorf("read iptables: %w", err)
 		}
 	}
 
-	listeners = filterListeners(listeners, c.ID == ContainerIDK8s)
+	listeners = filterListeners(listeners, c.ID == ContainerIDK8s && !c.manager.k8sExposeServices /*forceK8sLocalhost*/)
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
 		"listeners": listeners,

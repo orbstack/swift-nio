@@ -247,6 +247,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	}
 
 	c.manager.k8sEnabled = cfg.K8sEnable
+	c.manager.k8sExposeServices = cfg.K8sExposeServices
 	overrideConfig := cfg.DockerDaemonConfig
 	overrideConfig = strings.TrimSpace(overrideConfig)
 	if overrideConfig != "" {

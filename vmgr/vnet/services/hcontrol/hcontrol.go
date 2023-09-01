@@ -216,8 +216,10 @@ func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error 
 }
 
 func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMachineConfig) error {
+	cfg := vmconfig.Get()
 	*reply = htypes.DockerMachineConfig{
-		K8sEnable: vmconfig.Get().K8sEnable,
+		K8sEnable:         cfg.K8sEnable,
+		K8sExposeServices: cfg.K8sExposeServices,
 	}
 
 	data, err := os.ReadFile(conf.DockerDaemonConfig())

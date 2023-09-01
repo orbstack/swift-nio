@@ -15,6 +15,7 @@ struct K8SSettingsView: View {
     @StateObject private var windowHolder = WindowHolder()
 
     @State private var k8sEnable = false
+    @State private var k8sExposeServices = false
 
     @State private var presentConfirmResetK8sData = false
 
@@ -26,6 +27,17 @@ struct K8SSettingsView: View {
                     vmModel.trySetConfigKey(\.k8sEnable, newValue)
                 }
                 Text("Lightweight local cluster with UI & network integration. [Learn more](https://go.orbstack.dev/k8s)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+                Spacer()
+                .frame(height: 32)
+
+                Toggle("Expose services to local network devices", isOn: $k8sExposeServices)
+                .onChange(of: k8sExposeServices) { newValue in
+                    vmModel.trySetConfigKey(\.k8sExposeServices, newValue)
+                }
+                Text("Includes NodePorts, LoadBalancers, and the Kubernetes API.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
@@ -84,5 +96,6 @@ struct K8SSettingsView: View {
 
     private func updateFrom(_ config: VmConfig) {
         k8sEnable = config.k8sEnable
+        k8sExposeServices = config.k8sExposeServices
     }
 }

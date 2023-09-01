@@ -17,4 +17,5 @@ type User struct {
 type DockerMachineConfig struct {
 	DockerDaemonConfig string
 	K8sEnable          bool
+	K8sExposeServices  bool
 }

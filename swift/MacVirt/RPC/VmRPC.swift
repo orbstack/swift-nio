@@ -19,8 +19,10 @@ struct VmConfig: Codable, Equatable {
     var dockerSetContext: Bool
     var setupUseAdmin: Bool
     var k8sEnable: Bool
+    var k8sExposeServices: Bool
 
     // camel case due to keyDecodingStrategy translating snake_case before it hits this
+    // these are NOT the keys in the real json
     enum CodingKeys: String, CodingKey {
         case memoryMib = "memoryMib"
         case cpu = "cpu"
@@ -32,6 +34,7 @@ struct VmConfig: Codable, Equatable {
         case dockerSetContext = "docker.setContext"
         case setupUseAdmin = "setup.useAdmin"
         case k8sEnable = "k8s.enable"
+        case k8sExposeServices = "k8s.exposeServices"
     }
 }
 
