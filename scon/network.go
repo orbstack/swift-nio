@@ -538,20 +538,11 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	if err != nil {
 		return nil, err
 	}
-	// FORWARD: policy DROP to prevent routing loops.
-	err = ipt.ChangePolicy("filter", "FORWARD", "DROP")
-	if err != nil {
-		return nil, err
-	}
 
 	return func() error {
 		var errs []error
 		// revert policy
 		err := ipt.ChangePolicy("filter", "INPUT", "ACCEPT")
-		if err != nil {
-			errs = append(errs, err)
-		}
-		err = ipt.ChangePolicy("filter", "FORWARD", "ACCEPT")
 		if err != nil {
 			errs = append(errs, err)
 		}
