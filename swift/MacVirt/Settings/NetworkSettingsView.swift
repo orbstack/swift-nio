@@ -16,73 +16,56 @@ struct NetworkSettingsView: View {
     @State private var networkBridge = true
 
     var body: some View {
-        Form {
-            Group {
-                switch vmModel.state {
-                case .stopped:
-                    VStack {
-                        Text("Service must be running to change settings.")
-                        Button(action: {
-                            Task {
-                                await vmModel.tryStartAndWait()
+        SettingsStateWrapperView {
+            Form {
+                Toggle("Allow access to container domains & IPs", isOn: $networkBridge)
+                .onChange(of: networkBridge) { newValue in
+                    vmModel.trySetConfigKey(\.networkBridge, newValue)
+
+                    // restart Docker if running
+                    if newValue != vmModel.config?.networkBridge {
+                        if vmModel.state == .running,
+                           let machines = vmModel.containers,
+                           let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
+                           dockerRecord.state == .starting || dockerRecord.state == .running {
+                            Task { @MainActor in
+                                await vmModel.tryRestartContainer(dockerRecord)
                             }
-                        }) {
-                            Text("Start")
                         }
                     }
-
-                case .running:
-                    Toggle("Allow access to container domains & IPs", isOn: $networkBridge)
-                        .onChange(of: networkBridge) { newValue in
-                            vmModel.trySetConfigKey(\.networkBridge, newValue)
-
-                            // restart Docker if running
-                            if newValue != vmModel.config?.networkBridge {
-                                if vmModel.state == .running,
-                                   let machines = vmModel.containers,
-                                   let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
-                                   dockerRecord.state == .starting || dockerRecord.state == .running {
-                                    Task { @MainActor in
-                                        await vmModel.tryRestartContainer(dockerRecord)
-                                    }
-                                }
-                            }
-                        }
-                    Text("Use domains and IPs to connect to containers without port forwarding.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text("This also includes Linux machines. [Learn more](https://go.orbstack.dev/container-domains)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    Spacer().frame(height: 32)
-
-                    Picker("Proxy", selection: $proxyMode) {
-                        Text("Automatic (system)").tag("auto")
-                        Text("Custom").tag("custom")
-                        Text("None").tag("none")
-                    }.pickerStyle(.radioGroup)
-
-                    Spacer().frame(height: 20)
-
-                    //TODO validate url on our side
-                    TextField("", text: $proxyText)
-                            .onSubmit {
-                                commit()
-                            }
-                            .disabled(proxyMode != "custom")
-
-                    Text("HTTP, HTTPS, or SOCKS proxy for all Docker and Linux traffic.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    // suppress markdown
-                    Text(String(proxyMode == "custom" ? "Example: socks5://user:pass@example.com:1080" : ""))
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                default:
-                    ProgressView()
                 }
+                Text("Use domains and IPs to connect to containers without port forwarding.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                Text("This also includes Linux machines. [Learn more](https://go.orbstack.dev/container-domains)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+                Spacer().frame(height: 32)
+
+                Picker("Proxy", selection: $proxyMode) {
+                    Text("Automatic (system)").tag("auto")
+                    Text("Custom").tag("custom")
+                    Text("None").tag("none")
+                }
+                .pickerStyle(.radioGroup)
+
+                Spacer().frame(height: 20)
+
+                //TODO validate url on our side
+                TextField("", text: $proxyText)
+                .onSubmit {
+                    commit()
+                }
+                .disabled(proxyMode != "custom")
+
+                Text("HTTP, HTTPS, or SOCKS proxy for all Docker and Linux traffic.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                // suppress markdown
+                Text(String(proxyMode == "custom" ? "Example: socks5://user:pass@example.com:1080" : ""))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
             }
             .onChange(of: vmModel.config) { config in
                 if let config {

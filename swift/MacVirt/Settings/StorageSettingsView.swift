@@ -27,7 +27,7 @@ struct StorageSettingsView: View {
     @State private var presentConfirmResetAllData = false
 
     var body: some View {
-        StateWrapperView {
+        SettingsStateWrapperView {
             Form {
                 let selBinding = Binding<DirItem> {
                     if let dataDir {

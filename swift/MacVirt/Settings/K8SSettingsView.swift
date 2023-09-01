@@ -19,57 +19,39 @@ struct K8SSettingsView: View {
     @State private var presentConfirmResetK8sData = false
 
     var body: some View {
-        Form {
-            Group {
-                switch vmModel.state {
-                case .stopped:
-                    VStack {
-                        Text("Service must be running to change settings.")
-                        Button(action: {
-                            Task {
-                                await vmModel.tryStartAndWait()
+        SettingsStateWrapperView {
+            Form {
+                Toggle("Enable Kubernetes cluster", isOn: $k8sEnable)
+                .onChange(of: k8sEnable) { newValue in
+                    vmModel.trySetConfigKey(\.k8sEnable, newValue)
+                }
+                Text("Lightweight local cluster with UI & network integration. [Learn more](https://go.orbstack.dev/k8s)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+                Spacer()
+                .frame(height: 32)
+
+                HStack(spacing: 16) {
+                    Button(action: {
+                        Task {
+                            // TODO fix this and add proper dirty check. this breaks dirty state of other configs
+                            // needs to be set first, or k8s state wrapper doesn't update
+                            vmModel.appliedConfig = vmModel.config
+
+                            if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
+                                await vmModel.tryRestartContainer(dockerRecord)
                             }
-                        }) {
-                            Text("Start")
                         }
+                    }) {
+                        Text("Apply")
                     }
+                    .disabled(vmModel.appliedConfig == vmModel.config)
+                    .keyboardShortcut("s")
 
-                case .running:
-                    Toggle("Enable Kubernetes cluster", isOn: $k8sEnable)
-                    .onChange(of: k8sEnable) { newValue in
-                        vmModel.trySetConfigKey(\.k8sEnable, newValue)
+                    Button("Reset cluster", role: .destructive) {
+                        presentConfirmResetK8sData = true
                     }
-                    Text("Lightweight local cluster with UI & network integration. [Learn more](https://go.orbstack.dev/k8s)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                    Spacer()
-                    .frame(height: 32)
-
-                    HStack(spacing: 16) {
-                        Button(action: {
-                            Task {
-                                // TODO fix this and add proper dirty check. this breaks dirty state of other configs
-                                // needs to be set first, or k8s state wrapper doesn't update
-                                vmModel.appliedConfig = vmModel.config
-
-                                if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
-                                    await vmModel.tryRestartContainer(dockerRecord)
-                                }
-                            }
-                        }) {
-                            Text("Apply")
-                        }
-                        .disabled(vmModel.appliedConfig == vmModel.config)
-                        .keyboardShortcut("s")
-
-                        Button("Reset cluster", role: .destructive) {
-                            presentConfirmResetK8sData = true
-                        }
-                    }
-
-                default:
-                    ProgressView()
                 }
             }
             .onChange(of: vmModel.config) { config in

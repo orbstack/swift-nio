@@ -6,6 +6,9 @@ import Foundation
 import SwiftUI
 import Sparkle
 
+// TODO remove dep on service
+typealias SettingsStateWrapperView = StateWrapperView
+
 struct AppSettings: View {
     let updaterController: SPUStandardUpdaterController
 
