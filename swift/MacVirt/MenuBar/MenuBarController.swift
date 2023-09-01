@@ -520,6 +520,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
         submenu.addSeparator()
 
         submenu.addActionItem("Logs", icon: systemImage("doc.text.magnifyingglass")) { [self] in
+            // reappear in dock and trigger workaround
+            windowTracker.setPolicy(.regular)
+
             group.showLogs(vmModel: vmModel)
         }
 
@@ -617,7 +620,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             Defaults[.selectedTab] = tab
         }
 
-        // reappear in dock
+        // reappear in dock and trigger workaround
         windowTracker.setPolicy(.regular)
 
         // open main window if needed, as if user clicked on dock
