@@ -13,6 +13,25 @@ struct ComposeGroup: Hashable, Equatable {
     var cid: DockerContainerId {
         .compose(project: project)
     }
+
+    @MainActor
+    func showLogs(vmModel: VmViewModel) {
+        if !vmModel.openDockerLogWindowIds.contains(.compose(project: project)) {
+            // workaround: url can't contain "domain"???
+            let projectB64URL = project.data(using: .utf8)!.base64URLEncodedString()
+            if let url = URL(string: "orbstack://docker/project-logs/\(projectB64URL)?base64=true") {
+                NSWorkspace.shared.open(url)
+            }
+        } else {
+            // find window by title and bring to front
+            for window in NSApp.windows {
+                if window.title == WindowTitles.projectLogs(project) {
+                    window.makeKeyAndOrderFront(nil)
+                    break
+                }
+            }
+        }
+    }
 }
 
 private struct GettingStartedHintBox: View {

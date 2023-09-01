@@ -428,17 +428,17 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addSeparator()
 
-        submenu.addActionItem("Show Logs") { [self] in
+        submenu.addActionItem("Logs", icon: systemImage("doc.text.magnifyingglass")) { [self] in
             container.showLogs(vmModel: vmModel)
         }
 
-        submenu.addActionItem("Open Terminal", disabled: !container.running) {
+        submenu.addActionItem("Terminal", icon: systemImage("terminal"), disabled: !container.running) {
             container.openInTerminal()
         }
 
         if vmModel.netBridgeAvailable {
             let preferredDomain = container.preferredDomain
-            submenu.addActionItem("Open in Browser", disabled: !container.running || preferredDomain == nil) {
+            submenu.addActionItem("Open in Browser", icon: systemImage("link"), disabled: !container.running || preferredDomain == nil) {
                 if let preferredDomain,
                    let url = URL(string: "http://\(preferredDomain)") {
                     NSWorkspace.shared.open(url)
@@ -518,6 +518,13 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         submenu.addSeparator()
+
+        submenu.addActionItem("Logs", icon: systemImage("doc.text.magnifyingglass")) { [self] in
+            group.showLogs(vmModel: vmModel)
+        }
+
+        submenu.addSeparator()
+
         submenu.addSectionHeader("Services")
 
         for childItem in children {

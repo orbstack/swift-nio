@@ -107,67 +107,51 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 .help("Delete project")
             }
         }
-                .padding(.vertical, 4)
-                // ideally use Introspect to expand row, but does nothing for now
-                /*
-                .onDoubleClick {
-                    presentPopover = true
-                }
-                 */
-                .contextMenu {
-                    Group {
-                        Button("Start") {
-                            finishStart()
-                        }.disabled(actionInProgress != nil || isRunning)
+        .padding(.vertical, 4)
+        // ideally use Introspect to expand row, but does nothing for now
+        /*
+        .onDoubleClick {
+            presentPopover = true
+        }
+         */
+        .contextMenu {
+            Group {
+                Button("Start") {
+                    finishStart()
+                }.disabled(actionInProgress != nil || isRunning)
 
-                        Button("Stop") {
-                            finishStop()
-                        }.disabled(actionInProgress != nil || !isRunning)
+                Button("Stop") {
+                    finishStop()
+                }.disabled(actionInProgress != nil || !isRunning)
 
-                        Button("Restart") {
-                            finishRestart()
-                        }.disabled(actionInProgress != nil || !isRunning)
+                Button("Restart") {
+                    finishRestart()
+                }.disabled(actionInProgress != nil || !isRunning)
 
-                        Button("Delete") {
-                            finishDelete()
-                        }.disabled(actionInProgress != nil)
+                Button("Delete") {
+                    finishDelete()
+                }.disabled(actionInProgress != nil)
 
-                        Button("Kill") {
-                            finishKill()
-                        }.disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
-                    }
-
-                    Divider()
-
-                    Button("Show Logs", action: showLogs)
-
-                    Divider()
-
-                    Group {
-                        Button(action: {
-                            let pasteboard = NSPasteboard.general
-                            pasteboard.clearContents()
-                            pasteboard.setString(composeGroup.project, forType: .string)
-                        }) {
-                            Label("Copy Name", systemImage: "doc.on.doc")
-                        }
-                    }
-                }
-    }
-
-    private func showLogs() {
-        if !vmModel.openDockerLogWindowIds.contains(.compose(project: composeGroup.project)) {
-            // workaround: url can't contain "domain"???
-            let projectB64URL = composeGroup.project.data(using: .utf8)!.base64URLEncodedString()
-            if let url = URL(string: "orbstack://docker/project-logs/\(projectB64URL)?base64=true") {
-                NSWorkspace.shared.open(url)
+                Button("Kill") {
+                    finishKill()
+                }.disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
             }
-        } else {
-            // find window by title and bring to front
-            for window in NSApp.windows {
-                if window.title == WindowTitles.projectLogs(composeGroup.project) {
-                    window.makeKeyAndOrderFront(nil)
-                    break
+
+            Divider()
+
+            Button("Show Logs") {
+                composeGroup.showLogs(vmModel: vmModel)
+            }
+
+            Divider()
+
+            Group {
+                Button(action: {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(composeGroup.project, forType: .string)
+                }) {
+                    Label("Copy Name", systemImage: "doc.on.doc")
                 }
             }
         }
