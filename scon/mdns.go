@@ -542,6 +542,9 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 		"ips":   ips,
 	}).Debug("mdns: add container")
 
+	// we still *add* records if empty IPs (i.e. no netns, like k8s pods) to give them immediate NXDOMAIN in case people do $CONTAINER.orb.local, but hide them to avoid cluttering index
+	allHidden := len(ips) == 0
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now()
@@ -550,7 +553,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 			Type:       MdnsEntryContainer,
 			IsWildcard: name.Wildcard,
 			// short-ID and aliases are hidden, real names and custom names are not
-			IsHidden: name.Hidden,
+			IsHidden: allHidden || name.Hidden,
 			ips:      ips,
 		}
 		treeKey := reverse(name.Name)
