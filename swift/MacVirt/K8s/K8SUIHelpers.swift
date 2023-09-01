@@ -39,7 +39,9 @@ extension K8SPod {
     func showLogs(vmModel: VmViewModel) {
         if !vmModel.openK8sLogWindowIds.contains(id) {
             let b64URL = "\(namespace)/\(name)".data(using: .utf8)!.base64URLEncodedString()
-            NSWorkspace.shared.open(URL(string: "orbstack://k8s/pod-logs/\(b64URL)")!)
+            if let url = URL(string: "orbstack://k8s/pod-logs/\(b64URL)") {
+                NSWorkspace.shared.open(url)
+            }
         } else {
             // find window by title and bring to front
             for window in NSApp.windows {

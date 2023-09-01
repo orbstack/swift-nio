@@ -59,7 +59,9 @@ extension DKPort {
         let ctrPort = privatePort
         let localPort = publicPort ?? privatePort
         let httpProto = (ctrPort == 443 || ctrPort == 8443 || localPort == 443 || localPort == 8443) ? "https" : "http"
-        NSWorkspace.shared.open(URL(string: "\(httpProto)://localhost:\(localPort)")!)
+        if let url = URL(string: "\(httpProto)://localhost:\(localPort)") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
 

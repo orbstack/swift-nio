@@ -67,11 +67,21 @@ struct DKContainer: Codable, Identifiable, Hashable {
             ?? []
     }
 
+    var ipAddress: String? {
+        ipAddresses.first
+    }
+
     // use same logic as scon server
     // 1. first custom domain
     // 2. service.project.orb.local (compose)
     // 3. container name.orb.local
-    var preferredDomain: String {
+    var preferredDomain: String? {
+        // containers without IPs can't have a domain
+        // pods don't have a docker-level netns
+        guard !ipAddresses.isEmpty else {
+            return nil
+        }
+
         if let label = labels[DockerLabels.customDomains],
            let _domain = label.split(separator: ",").first {
             // remove wildcard

@@ -373,14 +373,17 @@ class MenuBarController: NSObject, NSMenuDelegate {
             NSPasteboard.copy(container.image)
         }
 
-        if let ipAddress = container.ipAddresses.first {
+        if let ipAddress = container.ipAddress {
             if vmModel.netBridgeAvailable {
-                let domain = container.preferredDomain
-                submenu.addActionItem("Address: \(domain)") {
-                    // dupe of "Open in Browser" but more common
-                    NSWorkspace.shared.open(URL(string: "http://\(domain)")!)
-                    // but also copy it
-                    NSPasteboard.copy(domain)
+                if let domain = container.preferredDomain {
+                    submenu.addActionItem("Address: \(domain)") {
+                        // dupe of "Open in Browser" but more common
+                        if let url = URL(string: "http://\(domain)") {
+                            NSWorkspace.shared.open(url)
+                        }
+                        // but also copy it
+                        NSPasteboard.copy(domain)
+                    }
                 }
             } else {
                 submenu.addActionItem("IP: \(ipAddress)") {
@@ -434,8 +437,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         if vmModel.netBridgeAvailable {
-            submenu.addActionItem("Open in Browser", disabled: !container.running) {
-                NSWorkspace.shared.open(URL(string: "http://\(container.preferredDomain)")!)
+            let preferredDomain = container.preferredDomain
+            submenu.addActionItem("Open in Browser", disabled: !container.running || preferredDomain == nil) {
+                if let preferredDomain,
+                   let url = URL(string: "http://\(preferredDomain)") {
+                    NSWorkspace.shared.open(url)
+                }
             }
         }
 

@@ -159,7 +159,9 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
         if !vmModel.openDockerLogWindowIds.contains(.compose(project: composeGroup.project)) {
             // workaround: url can't contain "domain"???
             let projectB64URL = composeGroup.project.data(using: .utf8)!.base64URLEncodedString()
-            NSWorkspace.shared.open(URL(string: "orbstack://docker/project-logs/\(projectB64URL)?base64=true")!)
+            if let url = URL(string: "orbstack://docker/project-logs/\(projectB64URL)?base64=true") {
+                NSWorkspace.shared.open(url)
+            }
         } else {
             // find window by title and bring to front
             for window in NSApp.windows {

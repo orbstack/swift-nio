@@ -197,12 +197,16 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
                 .disabled(!isRunning)
 
+                let preferredDomain = container.preferredDomain
                 Button(action: {
-                    NSWorkspace.shared.open(URL(string: "http://\(container.preferredDomain)")!)
+                    if let preferredDomain,
+                       let url = URL(string: "http://\(container.preferredDomain)") {
+                        NSWorkspace.shared.open(url)
+                    }
                 }) {
                     Label("Open in Browser", systemImage: "terminal")
                 }
-                .disabled(!isRunning || !vmModel.netBridgeAvailable)
+                .disabled(!isRunning || !vmModel.netBridgeAvailable || preferredDomain == nil)
             }
 
             Divider()
@@ -258,13 +262,16 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         Label("Command", systemImage: "doc.on.doc")
                     }
 
+                    let preferredDomain = container.preferredDomain
                     Button(action: {
-                        NSPasteboard.copy(container.preferredDomain)
+                        if let preferredDomain {
+                            NSPasteboard.copy(preferredDomain)
+                        }
                     }) {
                         Label("Domain", systemImage: "doc.on.doc")
-                    }.disabled(vmModel.config?.networkBridge == false)
+                    }.disabled(vmModel.config?.networkBridge == false || preferredDomain == nil)
 
-                    let ipAddress = container.ipAddresses.first
+                    let ipAddress = container.ipAddress
                     Button(action: {
                         if let ipAddress {
                             NSPasteboard.copy(ipAddress)
@@ -286,7 +293,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         .font(.headline)
                 HStack(spacing: 12) {
                     let domain = container.preferredDomain
-                    let ipAddress = container.ipAddresses.first
+                    let ipAddress = container.ipAddress
 
                     VStack(alignment: .trailing) {
                         Text("Status")
@@ -308,7 +315,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         Text(container.image)
                             .textSelection(.enabled)
                         // needs to be running w/ ip to have domain
-                        if let ipAddress, let url = URL(string: "http://\(domain)") {
+                        if let ipAddress,
+                           let domain,
+                           let url = URL(string: "http://\(domain)") {
                             if vmModel.netBridgeAvailable {
                                 CustomLink(domain, url: url)
                             } else {

@@ -14,12 +14,16 @@ extension Int {
     }
 }
 
-// for macOS < 13
 extension String {
+    // for macOS < 13
     func deletingPrefix(_ prefix: String) -> String {
         guard hasPrefix(prefix) else {
             return self
         }
         return String(dropFirst(prefix.count))
+    }
+
+    func toURL() -> URL? {
+        URL(string: self)
     }
 }

@@ -208,8 +208,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     // notification
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        if let url = response.notification.request.content.userInfo["url"] as? String {
-            NSWorkspace.shared.open(URL(string: url)!)
+        if let url = (response.notification.request.content.userInfo["url"] as? String)?.toURL() {
+            NSWorkspace.shared.open(url)
         }
     }
 }

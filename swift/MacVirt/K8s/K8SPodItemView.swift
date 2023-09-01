@@ -145,7 +145,9 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 .disabled(state != .running)
 
                 Button(action: {
-                    NSWorkspace.shared.open(URL(string: "http://\(pod.preferredDomain)")!)
+                    if let url = URL(string: "http://\(pod.preferredDomain)") {
+                        NSWorkspace.shared.open(url)
+                    }
                 }) {
                     Label("Open in Browser", systemImage: "")
                 }
