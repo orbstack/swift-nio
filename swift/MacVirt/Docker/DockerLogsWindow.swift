@@ -29,6 +29,16 @@ private let ansiColorPalette: [NSColor] = [
     .systemPurple,
     .systemCyan,
     .textColor, // white
+
+    // bright colors
+    .systemGray, // "bright black" is used for dim text: echo -e '\e[90m2023-09-01T00:48:52.163\e[0m Starting'
+    .systemRed,
+    .systemGreen,
+    .systemOrange,
+    .systemBlue,
+    .systemPurple,
+    .systemCyan,
+    .textColor, // white
 ]
 
 private struct AnsiState: Equatable {
@@ -349,10 +359,10 @@ private class LogsViewModel: ObservableObject {
                     state.colorBg = nil
                 // bright = bold + color
                 case 90...97:
-                    state.colorFg = code - 90
+                    state.colorFg = 8 + code - 90
                     state.bold = true
                 case 100...107:
-                    state.colorBg = code - 100
+                    state.colorBg = 8 + code - 100
                     state.bold = true
                 default:
                     continue
