@@ -251,6 +251,34 @@ struct ContentView: View {
             }
 
             ToolbarItem(placement: .automatic) {
+                if selection == "k8s-pods" {
+                    let binding = Binding(
+                            get: { model.config?.k8sEnable ?? true },
+                            set: { newValue in
+                                Task { @MainActor in
+                                    if newValue != model.config?.k8sEnable {
+                                        await model.trySetConfigKeyAsync(\.k8sEnable, newValue)
+                                        model.k8sServices = nil
+                                        model.k8sPods = nil
+                                        // TODO fix this and add proper dirty check. this breaks dirty state of other configs
+                                        // needs to be set first, or k8s state wrapper doesn't update
+                                        model.appliedConfig = model.config
+
+                                        if let dockerRecord = model.containers?.first(where: { $0.id == ContainerIds.docker }) {
+                                            await model.tryRestartContainer(dockerRecord)
+                                        }
+                                    }
+                                }
+                            }
+                    )
+
+                    Toggle("Enable Kubernetes", isOn: binding)
+                    .toggleStyle(.switch)
+                    .help("Enable Kubernetes")
+                }
+            }
+
+            ToolbarItem(placement: .automatic) {
                 if selection == "k8s-pods" || selection == "k8s-services" {
                     Button(action: {
                         presentK8sFilter = true

@@ -28,6 +28,8 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
             Button(action: {
                 Task {
                     await vmModel.trySetConfigKeyAsync(\.k8sEnable, true)
+                    vmModel.k8sServices = nil
+                    vmModel.k8sPods = nil
                     // TODO fix this and add proper dirty check. this breaks dirty state of other configs
                     // needs to be set first, or k8s state wrapper doesn't update
                     vmModel.appliedConfig = vmModel.config
