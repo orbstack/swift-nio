@@ -431,11 +431,6 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		//   - KUBE rule is prepended so it takes priority once it's ready
 		//   - can't use raw or prerouting because it would take prio over real k8s one
 		// only do this for k8s to prevent issues if user has subnet conflict and only uses docker
-		svConfig.InitCommands = append(svConfig.InitCommands, []string{
-			"iptables", "-t", "nat", "-A", "ORB-PREROUTING", "-d", netconf.K8sServiceCIDR4, "-j", "DROP",
-		}, []string{
-			"ip6tables", "-t", "nat", "-A", "ORB-PREROUTING", "-d", netconf.K8sServiceCIDR6, "-j", "DROP",
-		})
 
 		// remove old config symlink
 		_ = fs.Remove("/etc/rancher/k3s/k3s.yaml")
