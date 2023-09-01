@@ -1,4 +1,4 @@
-use std::{error::Error, process::Command};
+use std::{error::Error, process::Command, fs, os::unix::fs::symlink};
 
 use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use signal_hook::iterator::Signals;
@@ -11,8 +11,42 @@ struct MonitoredChild {
 
 #[derive(Deserialize)]
 struct SimplevisorConfig {
+    init_commands: Vec<Vec<String>>,
     services: Vec<Vec<String>>,
 }
+
+/*
+fn init_system() -> Result<(), Box<dyn Error>> {
+    // move processes to fix delegation
+    fs::create_dir_all("/sys/fs/cgroup/init.scope")?;
+    let all_procs = fs::read_to_string("/sys/fs/cgroup/cgroup.procs")?;
+    fs::write("/sys/fs/cgroup/init.scope/cgroup.procs", all_procs)?;
+
+    // enable all controllers for subgroups
+    let subtree_controllers = fs::read_to_string("/sys/fs/cgroup/cgroup.controllers")?
+        .trim()
+        .split(' ')
+        // prepend '+' to each controller
+        .map(|s| "+".to_string() + s)
+        .collect::<Vec<String>>()
+        .join(" ");
+    fs::write("/sys/fs/cgroup/cgroup.subtree_control", subtree_controllers)?;
+
+    // make / rshared
+    // TODO do this in rust. too dangerous though
+    let status = Command::new("mount").args(&["--make-rshared", "/"])
+        .status()?;
+    if !status.success() {
+        return Err("failed to make / rshared".into());
+    }
+
+    // symlink sockets for docker desktop compat
+    fs::create_dir_all("/run/host-services")?;
+    symlink("/opt/orbstack-guest/run/host-ssh-agent.sock", "/run/host-services/ssh-auth.sock")?;
+
+    Ok(())
+}
+*/
 
 // EXTREMELY simple process supervisor:
 // - start processes
@@ -25,6 +59,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     // get config from env
     let config_str = std::env::var("SIMPLEVISOR_CONFIG")?;
     let config: SimplevisorConfig = serde_json::from_str(&config_str)?;
+
+    // broken: EINVAL
+    //init_system()?;
+
+    // run init commands
+    for init_command in config.init_commands.iter() {
+        let status = Command::new(&init_command[0])
+            .args(&init_command[1..])
+            .status()?;
+        if !status.success() {
+            return Err(format!("init command {:?} failed with {}", init_command, status).into());
+        }
+    }
 
     let mut children = config.services.iter()
         .map(|child_args| {
