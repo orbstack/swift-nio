@@ -15,37 +15,44 @@ struct StateWrapperView<Content: View>: View {
     }
 
     var body: some View {
-        switch vmModel.state {
-        case .stopped:
-            VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
-                ContentUnavailableViewCompat("Service Not Running", systemImage: "moon.zzz.fill")
+        // special case: restarting is not really a state, but avoid flicker when restarting for settings
+        if vmModel.isVmRestarting {
+            ProgressView(label: {
+                Text("Restarting")
+            })
+        } else {
+            switch vmModel.state {
+            case .stopped:
+                VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
+                    ContentUnavailableViewCompat("Service Not Running", systemImage: "moon.zzz.fill")
 
-                Button(action: {
-                    Task {
-                        await vmModel.tryStartAndWait()
+                    Button(action: {
+                        Task {
+                            await vmModel.tryStartAndWait()
+                        }
+                    }) {
+                        Text("Start")
+                        .padding(.horizontal, 4)
                     }
-                }) {
-                    Text("Start")
-                    .padding(.horizontal, 4)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .controlSize(.large)
+            case .spawning:
+                ProgressView(label: {
+                    Text("Updating")
+                })
+            case .starting:
+                ProgressView(label: {
+                    Text("Starting")
+                })
+            case .running:
+                content()
+            case .stopping:
+                ProgressView(label: {
+                    Text("Stopping")
+                })
             }
-        case .spawning:
-            ProgressView(label: {
-                Text("Updating")
-            })
-        case .starting:
-            ProgressView(label: {
-                Text("Starting")
-            })
-        case .running:
-            content()
-        case .stopping:
-            ProgressView(label: {
-                Text("Stopping")
-            })
         }
     }
 }

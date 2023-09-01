@@ -414,6 +414,8 @@ class VmViewModel: ObservableObject {
 
     let privHelper = PHClient()
 
+    // TODO: fix state machine to deal with restarting
+    @Published private(set) var isVmRestarting = false
     @Published private(set) var state = VmState.stopped {
         didSet {
             if state == .running {
@@ -942,6 +944,11 @@ class VmViewModel: ObservableObject {
     // this makes vmgr re-exec itself so we don't worry about state
     @MainActor
     func tryRestart() async {
+        isVmRestarting = true
+        defer {
+            isVmRestarting = false
+        }
+
         // stop
         do {
             try await stop()
