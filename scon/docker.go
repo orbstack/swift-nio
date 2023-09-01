@@ -431,11 +431,13 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		//   - KUBE rule is prepended so it takes priority once it's ready
 		//   - can't use raw or prerouting because it would take prio over real k8s one
 		// only do this for k8s to prevent issues if user has subnet conflict and only uses docker
-		svConfig.InitCommands = append(svConfig.InitCommands, []string{
-			"iptables", "-t", "nat", "-A", "ORB-PREROUTING", "-d", netconf.K8sServiceCIDR4, "-j", "DROP",
-		}, []string{
-			"ip6tables", "-t", "nat", "-A", "ORB-PREROUTING", "-d", netconf.K8sServiceCIDR6, "-j", "DROP",
-		})
+		// need to use nftables. can't filter by output interface in iptables PREROUTING, and can't do DROP in nat table. need to make sure kube overrides this when it's ready
+		svConfig.InitCommands = append(svConfig.InitCommands,
+			[]string{"nft", "add", "table", "inet", "orb"},
+			[]string{"nft", "add", "chain", "inet", "orb", "orb-prerouting", "{ type filter hook prerouting priority raw; policy accept; }"},
+			[]string{"nft", "add", "rule", "inet", "orb", "orb-prerouting", "ip daddr " + netconf.K8sServiceCIDR4 + " fib daddr . iif oifname eth0 counter drop"},
+			[]string{"nft", "add", "rule", "inet", "orb", "orb-prerouting", "ip6 daddr " + netconf.K8sServiceCIDR6 + " fib daddr . iif oifname eth0 counter drop"},
+		)
 
 		// remove old config symlink
 		_ = fs.Remove("/etc/rancher/k3s/k3s.yaml")
