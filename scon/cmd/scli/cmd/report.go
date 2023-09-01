@@ -41,7 +41,7 @@ You can review the generated report at ~/.orbstack/diag.
 
 		fmt.Fprintln(writer, "OrbStack info:")
 		ver := appver.Get()
-		fmt.Fprintf(writer, "  Version: %s (%d)\n", ver.Short, ver.Code)
+		fmt.Fprintf(writer, "  Version: %s\n", ver.Short)
 		fmt.Fprintf(writer, "  Commit: %s (%s)\n", ver.GitCommit, ver.GitDescribe)
 		fmt.Fprintln(writer, "")
 
