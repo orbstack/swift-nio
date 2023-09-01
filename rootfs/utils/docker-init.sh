@@ -17,7 +17,6 @@ iptables -t nat -A ORB-PREROUTING -s 192.168.215.0/24,192.168.228.0/24,192.168.2
 iptables -t nat -N ORB-POSTROUTING
 iptables -t nat -A POSTROUTING -j ORB-POSTROUTING
 iptables -t nat -A ORB-POSTROUTING -s 198.19.248.1/32 '!' -d 127.0.0.0/8 '!' -o eth0 -j MASQUERADE
-iptables -t nat -A ORB-POSTROUTING -s 10.183.233.241/32 '!' -o eth0 -j MASQUERADE
 
 ip6tables -t nat -N ORB-POSTROUTING
 ip6tables -t nat -A POSTROUTING -j ORB-POSTROUTING
