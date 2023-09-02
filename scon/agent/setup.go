@@ -413,6 +413,8 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	if _, err := strconv.Atoi(groupName); err == nil {
 		groupName = "g" + groupName
 	}
+	// NixOS can't have @
+	groupName = strings.ReplaceAll(groupName, "@", "_")
 	err = util.Run("groupadd", "--gid", gidStr, groupName)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
