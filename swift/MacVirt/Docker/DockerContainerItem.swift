@@ -362,6 +362,13 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             VStack(alignment: .leading) {
                 HStack {
+                    Button {
+                        container.showLogs(vmModel: vmModel)
+                    } label: {
+                        Label("Logs", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .controlSize(.large)
+
                     if isRunning {
                         Button {
                             container.openInTerminal()
@@ -370,13 +377,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         }
                         .controlSize(.large)
                     }
-
-                    Button {
-                        container.showLogs(vmModel: vmModel)
-                    } label: {
-                        Label("Logs", systemImage: "doc.text.magnifyingglass")
-                    }
-                    .controlSize(.large)
                 }
 
                 if isRunning && container.image == "docker/getting-started" {

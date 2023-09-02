@@ -248,6 +248,13 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
             VStack(alignment: .leading) {
                 HStack {
+                    Button {
+                        pod.showLogs(vmModel: vmModel)
+                    } label: {
+                        Label("Logs", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .controlSize(.large)
+
                     if isRunning {
                         Button {
                             pod.openInTerminal()
@@ -256,13 +263,6 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                         }
                         .controlSize(.large)
                     }
-
-                    Button {
-                        pod.showLogs(vmModel: vmModel)
-                    } label: {
-                        Label("Logs", systemImage: "doc.text.magnifyingglass")
-                    }
-                    .controlSize(.large)
                 }
             }
         }
