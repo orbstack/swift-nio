@@ -33,6 +33,7 @@ const (
 	SconSubnet6CIDR   = SconSubnet6 + ":/64"
 	SconGatewayIP6    = SconSubnet6 + ":1"
 	SconDockerIP6     = SconSubnet6 + ":2"
+	SconDockerIP6CIDR = SconDockerIP6 + "/64"
 	SconK8sIP6        = SconDockerIP6
 	SconHostBridgeIP6 = NAT64SourceIP6 // to make NAT64 easier
 	SconWebIndexIP6   = SconGatewayIP6

@@ -162,8 +162,11 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	cm.set("lxc.net.0.flags", "up")
 	cm.set("lxc.net.0.ipv4.address", netconf.SconDockerIP4+"/24")
 	cm.set("lxc.net.0.ipv4.gateway", netconf.SconGatewayIP4)
-	cm.set("lxc.net.0.ipv6.address", netconf.SconDockerIP6+"/64")
-	cm.set("lxc.net.0.ipv6.gateway", netconf.SconGatewayIP6)
+	// we put this in simplevisor init commands to bypass dad (sysctls are applied after ip addrs)
+	/*
+		cm.set("lxc.net.0.ipv6.address", netconf.SconDockerIP6+"/64")
+		cm.set("lxc.net.0.ipv6.gateway", netconf.SconGatewayIP6)
+	*/
 
 	// attach Docker vmnet to machine's netns
 	// inside machine, we'll attach it to the Docker bridge
@@ -395,7 +398,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 	svConfig := SimplevisorConfig{
 		// must not be nil for rust
-		InitCommands: [][]string{},
+		InitCommands: [][]string{
+			{"ip", "addr", "add", netconf.SconDockerIP6CIDR, "dev", "eth0"},
+			{"ip", "-6", "route", "add", "default", "via", netconf.SconGatewayIP6, "dev", "eth0"},
+		},
 		Services: [][]string{
 			{"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},

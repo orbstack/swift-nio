@@ -356,6 +356,9 @@ func (c *Container) configureLxc() error {
 		}
 		set("lxc.seccomp.profile", m.seccompPolicyPaths[policyType])
 
+		// faster ipv6 config
+		set("lxc.sysctl.net.ipv6.conf.eth0.accept_dad", "0")
+
 		// network
 		set("lxc.net.0.type", "veth")
 		// TODO try router
@@ -364,8 +367,6 @@ func (c *Container) configureLxc() error {
 		set("lxc.net.0.mtu", strconv.Itoa(m.net.mtu))
 		set("lxc.net.0.hwaddr", mac)
 		set("lxc.net.0.flags", "up")
-		// faster ipv6 config
-		set("lxc.sysctl.net.ipv6.conf.eth0.accept_dad", "0")
 
 		// rlimit
 		// lower soft limit to avoid slowing down programs that iterate through and close full fd range, but not so low (1024)
