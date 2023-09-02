@@ -7,10 +7,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type cachedImage struct {
+	TagRefs int
+	Image   *dockertypes.FullImage
+}
+
 func (d *DockerAgent) getFullImage(id string) (*dockertypes.FullImage, error) {
 	// use cache if possible
 	if fullImage, ok := d.fullImageCache[id]; ok {
-		return fullImage, nil
+		return fullImage.Image, nil
 	}
 
 	var fullImage dockertypes.FullImage
@@ -31,27 +36,34 @@ func (d *DockerAgent) refreshImages() error {
 
 	// convert to full images
 	// TODO: containerd image stoer can have images with same ID, diff arch
-	newImages := make([]*dockertypes.FullImage, 0, len(newImageSummaries))
+	// TODO this shouldn't be a pointer but must be due to generics. and it'll probably become one due to Diff[T] generics anyway
+	newImages := make([]*sgtypes.TaggedImage, 0, len(newImageSummaries))
 	for _, s := range newImageSummaries {
 		// skip untagged images
-		// so when an image gets its first tag, it'll be added, and unchanged after that
+		// so when an image gets its first tag, it'll be added
 		if len(s.RepoTags) == 0 {
 			continue
 		}
 
+		// same for all tags - no need to refetch
 		fullImage, err := d.getFullImage(s.ID)
 		if err != nil {
 			return err
 		}
 
-		newImages = append(newImages, fullImage)
+		for _, tag := range s.RepoTags {
+			newImages = append(newImages, &sgtypes.TaggedImage{
+				Tag:   tag,
+				Image: fullImage,
+			})
+		}
 	}
 
 	// diff
-	removed, added := util.DiffSlicesKey[string](d.lastImages, newImages)
+	removed, added := util.DiffSlicesKey(d.lastImages, newImages)
 
 	// tell scon
-	err = d.scon.OnDockerImagesChanged(sgtypes.Diff[*dockertypes.FullImage]{
+	err = d.scon.OnDockerImagesChanged(sgtypes.Diff[*sgtypes.TaggedImage]{
 		Added:   added,
 		Removed: removed,
 	})
@@ -62,11 +74,27 @@ func (d *DockerAgent) refreshImages() error {
 	d.lastImages = newImages
 	// update full img cache
 	// must remove before add in case of image rebuild with same tag
-	for _, img := range removed {
-		delete(d.fullImageCache, img.ID)
+	for _, timg := range removed {
+		if cached, ok := d.fullImageCache[timg.Image.ID]; ok {
+			cached.TagRefs--
+			// reassign since it's a value type
+			d.fullImageCache[timg.Image.ID] = cached
+			if cached.TagRefs == 0 {
+				delete(d.fullImageCache, timg.Image.ID)
+			}
+		}
 	}
-	for _, img := range added {
-		d.fullImageCache[img.ID] = img
+	for _, timg := range added {
+		if cached, ok := d.fullImageCache[timg.Image.ID]; ok {
+			cached.TagRefs++
+			// reassign since it's a value type
+			d.fullImageCache[timg.Image.ID] = cached
+		} else {
+			d.fullImageCache[timg.Image.ID] = cachedImage{
+				TagRefs: 1,
+				Image:   timg.Image,
+			}
+		}
 	}
 	return nil
 }

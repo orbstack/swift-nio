@@ -428,25 +428,20 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 	return nil
 }
 
-func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[*dockertypes.FullImage], _ *None) error {
+func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[sgtypes.TaggedImage], _ *None) error {
 	// unmount old ones
-	for _, img := range diff.Removed {
-		// guaranteed that there's a tag at this point
-		tag := img.UserTag()
-		if tag == "" {
-			continue
-		}
-
-		err := s.m.nfsRoot.Unmount("docker/images/" + tag)
+	for _, timg := range diff.Removed {
+		err := s.m.nfsRoot.Unmount("docker/images/" + timg.Tag)
 		if err != nil {
 			logrus.WithError(err).Error("failed to unmount docker image")
 		}
 	}
 
 	// mount new ones
-	for _, img := range diff.Added {
+	for _, timg := range diff.Added {
 		// for root only, to avoid hundreds of mounts in machines
-		err := s.m.nfsRoot.MountImage(img)
+		// TODO: extra tags should be symlinks to be semantically correct
+		err := s.m.nfsRoot.MountImage(timg.Image, timg.Tag)
 		if err != nil {
 			logrus.WithError(err).Error("failed to mount docker image")
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/sgclient"
+	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -43,8 +44,8 @@ type DockerAgent struct {
 	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
 	lastNetworks   []dockertypes.Network
 
-	lastImages     []*dockertypes.FullImage
-	fullImageCache map[string]*dockertypes.FullImage
+	lastImages     []*sgtypes.TaggedImage
+	fullImageCache map[string]cachedImage
 
 	// refreshing w/ debounce+diff ensures consistent snapshots
 	containerRefreshDebounce syncx.FuncDebounce
@@ -79,7 +80,7 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 
 		Running: syncx.NewCondBool(),
 
-		fullImageCache: make(map[string]*dockertypes.FullImage),
+		fullImageCache: make(map[string]cachedImage),
 
 		containerBinds: make(map[string][]string),
 		dirSyncJobs:    make(map[uint64]chan error),

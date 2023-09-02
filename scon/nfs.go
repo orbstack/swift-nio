@@ -205,12 +205,7 @@ func bindMountNfsRoot(c *Container, src string, target string) error {
 	})
 }
 
-func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage) error {
-	tag := img.UserTag()
-	if tag == "" {
-		return nil
-	}
-
+func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string) error {
 	// c8d snapshotter not supported
 	if img.GraphDriver.Name != "overlay2" {
 		return nil

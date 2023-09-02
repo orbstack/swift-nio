@@ -3,6 +3,8 @@ package sgtypes
 import (
 	"net"
 	"net/netip"
+
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
 type DockerBridgeConfig struct {
@@ -55,6 +57,15 @@ func (config *DockerBridgeConfig) HostIP6() net.IPNet {
 type Diff[T any] struct {
 	Added   []T
 	Removed []T
+}
+
+type TaggedImage struct {
+	Tag   string
+	Image *dockertypes.FullImage
+}
+
+func (t *TaggedImage) Identifier() string {
+	return t.Tag
 }
 
 func prefixToMask(prefix netip.Prefix) net.IPMask {

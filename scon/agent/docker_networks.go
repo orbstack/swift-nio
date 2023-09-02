@@ -99,7 +99,7 @@ func (d *DockerAgent) refreshNetworks() error {
 	}
 
 	// diff
-	removed, added := util.DiffSlicesKey[string](d.lastNetworks, newNetworks)
+	removed, added := util.DiffSlicesKey(d.lastNetworks, newNetworks)
 	slices.SortStableFunc(removed, compareNetworks)
 	slices.SortStableFunc(added, compareNetworks)
 

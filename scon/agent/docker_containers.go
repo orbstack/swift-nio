@@ -23,7 +23,7 @@ func (d *DockerAgent) refreshContainers() error {
 	}
 
 	// diff
-	removed, added := util.DiffSlicesKey[string](d.lastContainers, newContainers)
+	removed, added := util.DiffSlicesKey(d.lastContainers, newContainers)
 
 	// remove first
 	// must remove before adding in case of recreate with same name within debounce period
