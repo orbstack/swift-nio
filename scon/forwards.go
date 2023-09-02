@@ -463,7 +463,7 @@ func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo, force
 }
 
 // workaround for generics not working for value types
-func diffSlicesListenerKey(old, new []sysnet.ListenerInfo) (added, removed []sysnet.ListenerInfo) {
+func diffSlicesListenerKey(old, new []sysnet.ListenerInfo) (removed, added []sysnet.ListenerInfo) {
 	oldMap := make(map[sysnet.ListenerKey]struct{}, len(old))
 	for _, item := range old {
 		oldMap[item.Identifier()] = struct{}{}
@@ -523,25 +523,26 @@ func (c *Container) updateListenersNow(dirtyFlags bpf.LtypeFlags) error {
 		"listeners": listeners,
 	}).Debug("update listeners")
 
-	added, removed := diffSlicesListenerKey(c.lastListeners, listeners)
+	removed, added := diffSlicesListenerKey(c.lastListeners, listeners)
 
 	var errs []error
 	var notAdded []sysnet.ListenerInfo
 	var notRemoved []sysnet.ListenerInfo
-	for _, listener := range added {
-		err := c.manager.addForwardCLocked(c, listener)
-		if err != nil {
-			errs = append(errs, err)
-			notAdded = append(notAdded, listener)
-			continue
-		}
-	}
 
+	// must remove before adding in case of recreate with conflicting IP within debounce period
 	for _, listener := range removed {
 		err := c.manager.removeForwardCLocked(c, listener)
 		if err != nil {
 			errs = append(errs, err)
 			notRemoved = append(notRemoved, listener)
+			continue
+		}
+	}
+	for _, listener := range added {
+		err := c.manager.addForwardCLocked(c, listener)
+		if err != nil {
+			errs = append(errs, err)
+			notAdded = append(notAdded, listener)
 			continue
 		}
 	}

@@ -376,19 +376,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 	dockerBpf := s.dockerMachine.bpf // nil if not running anymore
 
 	// update mDNS registry
-	for _, ctr := range diff.Added {
-		ctrIPs := s.m.net.mdnsRegistry.AddContainer(&ctr)
-
-		if dockerBpf != nil {
-			meta := containerToCfwdMeta(&ctr)
-			for _, ctrIP := range ctrIPs {
-				err := dockerBpf.CfwdAddContainerMeta(ctrIP, meta)
-				if err != nil {
-					logrus.WithError(err).WithField("ip", ctrIP).Error("failed to add container to cfwd")
-				}
-			}
-		}
-	}
+	// must remove before adding in case of recreate with same IPs/domain
 	for _, ctr := range diff.Removed {
 		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
 
@@ -398,6 +386,19 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP)
 				if err != nil {
 					logrus.WithError(err).WithField("ip", ctrIP).Error("failed to remove container from cfwd")
+				}
+			}
+		}
+	}
+	for _, ctr := range diff.Added {
+		ctrIPs := s.m.net.mdnsRegistry.AddContainer(&ctr)
+
+		if dockerBpf != nil {
+			meta := containerToCfwdMeta(&ctr)
+			for _, ctrIP := range ctrIPs {
+				err := dockerBpf.CfwdAddContainerMeta(ctrIP, meta)
+				if err != nil {
+					logrus.WithError(err).WithField("ip", ctrIP).Error("failed to add container to cfwd")
 				}
 			}
 		}
@@ -428,15 +429,6 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 }
 
 func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[*dockertypes.FullImage], _ *None) error {
-	// mount new ones
-	for _, img := range diff.Added {
-		// for root only, to avoid hundreds of mounts in machines
-		err := s.m.nfsRoot.MountImage(img)
-		if err != nil {
-			logrus.WithError(err).Error("failed to mount docker image")
-		}
-	}
-
 	// unmount old ones
 	for _, img := range diff.Removed {
 		// guaranteed that there's a tag at this point
@@ -448,6 +440,15 @@ func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[*dockertypes.F
 		err := s.m.nfsRoot.Unmount("docker/images/" + tag)
 		if err != nil {
 			logrus.WithError(err).Error("failed to unmount docker image")
+		}
+	}
+
+	// mount new ones
+	for _, img := range diff.Added {
+		// for root only, to avoid hundreds of mounts in machines
+		err := s.m.nfsRoot.MountImage(img)
+		if err != nil {
+			logrus.WithError(err).Error("failed to mount docker image")
 		}
 	}
 

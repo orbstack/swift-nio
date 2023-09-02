@@ -23,21 +23,22 @@ func (d *DockerAgent) refreshContainers() error {
 	}
 
 	// diff
-	added, removed := util.DiffSlicesKey[string](d.lastContainers, newContainers)
+	removed, added := util.DiffSlicesKey[string](d.lastContainers, newContainers)
 
-	// add first
-	for _, c := range added {
-		err = d.onContainerStart(c)
-		if err != nil {
-			logrus.WithError(err).Error("failed to add container")
-		}
-	}
-
-	// then remove
+	// remove first
+	// must remove before adding in case of recreate with same name within debounce period
 	for _, c := range removed {
 		err = d.onContainerStop(c)
 		if err != nil {
 			logrus.WithError(err).Error("failed to remove container")
+		}
+	}
+
+	// then add
+	for _, c := range added {
+		err = d.onContainerStart(c)
+		if err != nil {
+			logrus.WithError(err).Error("failed to add container")
 		}
 	}
 

@@ -99,23 +99,24 @@ func (d *DockerAgent) refreshNetworks() error {
 	}
 
 	// diff
-	added, removed := util.DiffSlicesKey[string](d.lastNetworks, newNetworks)
-	slices.SortStableFunc(added, compareNetworks)
+	removed, added := util.DiffSlicesKey[string](d.lastNetworks, newNetworks)
 	slices.SortStableFunc(removed, compareNetworks)
+	slices.SortStableFunc(added, compareNetworks)
 
-	// add first
-	for _, n := range added {
-		err = d.onNetworkAdd(n)
-		if err != nil {
-			logrus.WithError(err).Error("failed to add network")
-		}
-	}
-
-	// then remove
+	// remove first
+	// must remove before adding in case of recreate with same name within debounce period
 	for _, n := range removed {
 		err = d.onNetworkRemove(n)
 		if err != nil {
 			logrus.WithError(err).Error("failed to remove network")
+		}
+	}
+
+	// then add
+	for _, n := range added {
+		err = d.onNetworkAdd(n)
+		if err != nil {
+			logrus.WithError(err).Error("failed to add network")
 		}
 	}
 

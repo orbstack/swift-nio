@@ -34,6 +34,7 @@ func (d *DockerAgent) refreshImages() error {
 	newImages := make([]*dockertypes.FullImage, 0, len(newImageSummaries))
 	for _, s := range newImageSummaries {
 		// skip untagged images
+		// so when an image gets its first tag, it'll be added, and unchanged after that
 		if len(s.RepoTags) == 0 {
 			continue
 		}
@@ -47,7 +48,7 @@ func (d *DockerAgent) refreshImages() error {
 	}
 
 	// diff
-	added, removed := util.DiffSlicesKey[string](d.lastImages, newImages)
+	removed, added := util.DiffSlicesKey[string](d.lastImages, newImages)
 
 	// tell scon
 	err = d.scon.OnDockerImagesChanged(sgtypes.Diff[*dockertypes.FullImage]{
@@ -60,11 +61,12 @@ func (d *DockerAgent) refreshImages() error {
 
 	d.lastImages = newImages
 	// update full img cache
-	for _, img := range added {
-		d.fullImageCache[img.ID] = img
-	}
+	// must remove before add in case of image rebuild with same tag
 	for _, img := range removed {
 		delete(d.fullImageCache, img.ID)
+	}
+	for _, img := range added {
+		d.fullImageCache[img.ID] = img
 	}
 	return nil
 }

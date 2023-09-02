@@ -1,6 +1,6 @@
 package util
 
-func DiffSlices[T comparable](old, new []T) (added, removed []T) {
+func DiffSlices[T comparable](old, new []T) (removed, added []T) {
 	oldMap := make(map[T]struct{}, len(old))
 	for _, item := range old {
 		oldMap[item] = struct{}{}
@@ -28,7 +28,7 @@ type Identifiable[I comparable] interface {
 	Identifier() I
 }
 
-func DiffSlicesKey[I comparable, T Identifiable[I]](old, new []T) (added, removed []T) {
+func DiffSlicesKey[I comparable, T Identifiable[I]](old, new []T) (removed, added []T) {
 	oldMap := make(map[I]struct{}, len(old))
 	for _, item := range old {
 		oldMap[item.Identifier()] = struct{}{}

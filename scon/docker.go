@@ -652,20 +652,21 @@ func (m *ConManager) runDockerNFS() error {
 		added, removed := util.DiffSlices(lastVols, vols)
 		lastVols = vols
 
-		// add new volumes
-		for _, vol := range added {
-			dataSrc := dockerVolDir + "/" + vol + "/_data"
+		// remove old volumes
+		// must remove before adding in case of recreate with same name within debounce period
+		for _, vol := range removed {
 			nfsSubDst := nfsDockerSubdir + "/" + vol
-			err := m.nfsForAll.MountBind(dataSrc, nfsSubDst)
+			err := m.nfsForAll.Unmount(nfsSubDst)
 			if err != nil {
 				return err
 			}
 		}
 
-		// remove old volumes
-		for _, vol := range removed {
+		// then add new volumes
+		for _, vol := range added {
+			dataSrc := dockerVolDir + "/" + vol + "/_data"
 			nfsSubDst := nfsDockerSubdir + "/" + vol
-			err := m.nfsForAll.Unmount(nfsSubDst)
+			err := m.nfsForAll.MountBind(dataSrc, nfsSubDst)
 			if err != nil {
 				return err
 			}
