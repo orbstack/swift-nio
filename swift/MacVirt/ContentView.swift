@@ -37,125 +37,114 @@ struct ContentView: View {
     @State private var initialDockerContainerSelection: Set<DockerContainerId> = []
 
     private var sidebarContents12: some View {
-        List {
-            // List(selection:) should NOT be used for navigation: https://kean.blog/post/triple-trouble
-            // NavigationLink(tag:selection:) expects Binding<String?> so make a binding to ignore nil
-            let selBinding = Binding<String?>(get: {
-                selection
-            }, set: {
-                if let sel = $0 {
-                    selection = sel
-                }
-            })
-
+        Group {
             // on macOS 14, must put .tag() on Label or it crashes
             // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
             Section(header: Text("Docker")) {
                 NavigationLink(destination: DockerContainersRootView(initialSelection: initialDockerContainerSelection,
-                                                                     selection: initialDockerContainerSelection, searchQuery: ""),
-                        tag: "docker", selection: selBinding) {
+                                                                     selection: initialDockerContainerSelection, searchQuery: "")) {
                     Label("Containers", systemImage: "shippingbox")
                         .padding(.vertical, 3)
                 }
+                .tag("docker")
                 
-                NavigationLink(destination: DockerVolumesRootView(), tag: "docker-volumes", selection: selBinding) {
+                NavigationLink(destination: DockerVolumesRootView()) {
                     Label("Volumes", systemImage: "externaldrive")
                         .padding(.vertical, 3)
                 }
+                .tag("docker-volumes")
                 
-                NavigationLink(destination: DockerImagesRootView(), tag: "docker-images", selection: selBinding) {
+                NavigationLink(destination: DockerImagesRootView()) {
                     Label("Images", systemImage: "doc.zipper")
                         .padding(.vertical, 3)
                 }
+                .tag("docker-images")
             }
 
             Section(header: Text("Kubernetes")) {
-                NavigationLink(destination: K8SPodsView(), tag: "k8s-pods", selection: selBinding) {
+                NavigationLink(destination: K8SPodsView()) {
                     Label("Pods", systemImage: "helm")
                         .padding(.vertical, 3)
                 }
-
-                NavigationLink(destination: K8SServicesView(), tag: "k8s-services", selection: selBinding) {
+                .tag("k8s-pods")
+                
+                NavigationLink(destination: K8SServicesView()) {
                     Label("Services", systemImage: "network")
                         .padding(.vertical, 3)
                 }
+                .tag("k8s-services")
             }
             
             Section(header: Text("Linux")) {
-                NavigationLink(destination: MachinesRootView(), tag: "machines", selection: selBinding) {
+                NavigationLink(destination: MachinesRootView()) {
                     Label("Machines", systemImage: "desktopcomputer")
                         .padding(.vertical, 3)
                 }
+                .tag("machines")
             }
             
             Section(header: Text("Help")) {
-                NavigationLink(destination: CommandsRootView(), tag: "cli", selection: selBinding) {
+                NavigationLink(destination: CommandsRootView()) {
                     Label("Commands", systemImage: "terminal")
                         .padding(.vertical, 3)
                 }
+                .tag("cli")
             }
         }
-        .listStyle(.sidebar)
-        .background(SplitViewAccessor(sideCollapsed: $collapsed))
     }
-
-    @available(macOS 14, *)
-    private var sidebarContents14: some View {
-        List(selection: $selection) {
-            Section(header: Text("Docker")) {
-                NavigationLink(value: "docker") {
-                    Label("Containers", systemImage: "shippingbox")
-                    .padding(.vertical, 3)
-                }
-
-                NavigationLink(value: "docker-volumes") {
-                    Label("Volumes", systemImage: "externaldrive")
-                    .padding(.vertical, 3)
-                }
-
-                NavigationLink(value: "docker-images") {
-                    Label("Images", systemImage: "doc.zipper")
-                    .padding(.vertical, 3)
-                }
-            }
-
-            Section(header: Text("Kubernetes")) {
-                NavigationLink(value: "k8s-pods") {
-                    Label("Pods", systemImage: "helm")
-                    .padding(.vertical, 3)
-                }
-
-                NavigationLink(value: "k8s-services") {
-                    Label("Services", systemImage: "network")
-                    .padding(.vertical, 3)
-                }
-            }
-
-            Section(header: Text("Linux")) {
-                NavigationLink(value: "machines") {
-                    Label("Machines", systemImage: "desktopcomputer")
-                    .padding(.vertical, 3)
-                }
-            }
-
-            Section(header: Text("Help")) {
-                NavigationLink(value: "cli") {
-                    Label("Commands", systemImage: "terminal")
-                    .padding(.vertical, 3)
-                }
-            }
-        }
-        .listStyle(.sidebar)
-        .background(SplitViewAccessor(sideCollapsed: $collapsed))
-    }
-
+    
     var body: some View {
         Group {
             if #available(macOS 14, *) {
                 // use NavigationSplitView on macOS 14 to fix tab switching crash
                 // TODO: fix toggleSidebar button freezing for ~500 ms - that's why we don't use this on macOS 13
                 NavigationSplitView {
-                    sidebarContents14
+                    List(selection: $selection) {
+                        Section(header: Text("Docker")) {
+                            NavigationLink(value: "docker") {
+                                Label("Containers", systemImage: "shippingbox")
+                                    .padding(.vertical, 3)
+                            }
+                            
+                            NavigationLink(value: "docker-volumes") {
+                                Label("Volumes", systemImage: "externaldrive")
+                                    .padding(.vertical, 3)
+                            }
+                            
+                            NavigationLink(value: "docker-images") {
+                                Label("Images", systemImage: "doc.zipper")
+                                    .padding(.vertical, 3)
+                            }
+                        }
+                        
+                        Section(header: Text("Kubernetes")) {
+                            NavigationLink(value: "k8s-pods") {
+                                Label("Pods", systemImage: "helm")
+                                    .padding(.vertical, 3)
+                            }
+                            
+                            NavigationLink(value: "k8s-services") {
+                                Label("Services", systemImage: "network")
+                                    .padding(.vertical, 3)
+                            }
+                        }
+
+                        Section(header: Text("Linux")) {
+                            NavigationLink(value: "machines") {
+                                Label("Machines", systemImage: "desktopcomputer")
+                                    .padding(.vertical, 3)
+                            }
+                        }
+                        
+                        Section(header: Text("Help")) {
+                            NavigationLink(value: "cli") {
+                                Label("Commands", systemImage: "terminal")
+                                    .padding(.vertical, 3)
+                            }
+                        }
+                    }
+                    .listStyle(.sidebar)
+                    .background(SplitViewAccessor(sideCollapsed: $collapsed))
                 } detail: {
                     switch selection {
                     case "docker":
@@ -181,10 +170,21 @@ struct ContentView: View {
                     }
                 }
             } else {
+                // binding helps us set default on <13
+                let selBinding = Binding<String?>(get: {
+                    selection
+                }, set: {
+                    if let sel = $0 {
+                        selection = sel
+                    }
+                })
+                
                 NavigationView {
-                    sidebarContents12
-
-                    ContentUnavailableViewCompat("No Tab Selected", systemImage: "questionmark.app.fill")
+                    List(selection: selBinding) {
+                        sidebarContents12
+                    }
+                    .listStyle(.sidebar)
+                    .background(SplitViewAccessor(sideCollapsed: $collapsed))
                 }
             }
         }
@@ -201,7 +201,10 @@ struct ContentView: View {
             ToolbarItem(placement: .navigation) {
                 // on macOS 14, NavigationSplitView provides this button and we can't disable it
                 if #unavailable(macOS 14) {
-                    ToggleSidebarButton()
+                    Button(action: toggleSidebar, label: {
+                        Label("Toggle Sidebar", systemImage: "sidebar.leading")
+                    })
+                    .help("Toggle Sidebar")
                 }
             }
 
@@ -405,6 +408,10 @@ struct ContentView: View {
                      """)
             }
         }
+    }
+
+    private func toggleSidebar() {
+        NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
     }
 }
 
