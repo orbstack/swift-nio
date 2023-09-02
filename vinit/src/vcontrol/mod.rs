@@ -4,11 +4,10 @@ use axum::{
     response::IntoResponse,
     Json, Router, Extension,
 };
-use chrony_candm::{request::{RequestBody, Burst}, common::ChronyAddr};
 use error::AppResult;
 use nix::{sys::{statvfs, reboot::{self, RebootMode}}, unistd};
 use serde::{Deserialize, Serialize};
-use tokio::{sync::{Mutex, mpsc::Sender}};
+use tokio::sync::{Mutex, mpsc::Sender};
 use tower::ServiceBuilder;
 use tracing::{info, debug};
 use std::{net::SocketAddr, sync::Arc, fs::File, os::fd::AsRawFd};
@@ -17,6 +16,7 @@ use crate::{action::SystemAction, startup};
 
 mod error;
 mod btrfs;
+mod chrony;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -160,12 +160,8 @@ async fn sys_wake() -> AppResult<impl IntoResponse> {
     // then ask chrony to do a more precise fix
     // #chronyc -m 'burst 4/4' 'makestep 3.0 -1'
     // chronyc 'burst 4/4'
-    chrony_candm::blocking_query_uds(RequestBody::Burst(Burst {
-        mask: ChronyAddr::Unspec,
-        address: ChronyAddr::Unspec,
-        n_good_samples: 4,
-        n_total_samples: 4,
-    }), Default::default())?;
+    chrony::send_burst_request(4, 4).await
+        .map_err(|e| anyhow!("failed to send command: {}", e))?;
 
     Ok(())
 }

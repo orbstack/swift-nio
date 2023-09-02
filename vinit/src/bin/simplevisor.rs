@@ -1,4 +1,4 @@
-use std::{error::Error, process::Command, fs, os::unix::fs::symlink};
+use std::{error::Error, process::Command};
 
 use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use signal_hook::iterator::Signals;
