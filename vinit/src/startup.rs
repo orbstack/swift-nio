@@ -781,7 +781,7 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
 
     // ssh
     if DEBUG {
-        // must use absolute path
+        // must use absolute path for sshd's sandbox to work
         service_tracker.spawn(Service::SSH, &mut Command::new("/usr/sbin/sshd")
             .arg("-D") // foreground
             .arg("-e"))?; // log to stderr
