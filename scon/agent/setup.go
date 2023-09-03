@@ -20,7 +20,7 @@ import (
 
 var (
 	adminGroups  = []string{"adm", "wheel", "staff", "admin", "sudo", "video"}
-	defaultUsers = []string{"ubuntu", "archlinux", "opensuse"}
+	defaultUsers = []string{"ubuntu", "archlinux", "opensuse", "alarm"}
 
 	// generally: curl, scp
 	PackageInstallCommands = map[string][]string{
