@@ -5,11 +5,11 @@ use axum::{
     Json, Router, Extension,
 };
 use error::AppResult;
-use nix::{sys::{statvfs, reboot::{self, RebootMode}}, unistd};
+use nix::sys::statvfs;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, mpsc::Sender};
 use tower::ServiceBuilder;
-use tracing::{info, debug};
+use tracing::debug;
 use std::{net::SocketAddr, sync::Arc, fs::File, os::fd::AsRawFd};
 
 use crate::{action::SystemAction, startup};
@@ -71,7 +71,6 @@ pub async fn server_main(action_tx: Sender<SystemAction>) {
         .route("/ping", get(ping))
         .route("/sys/shutdown", post(sys_shutdown))
         .route("/sys/wake", post(sys_wake))
-        .route("/sys/emergency_shutdown", post(sys_emergency_shutdown))
         .route("/disk/report_stats", post(disk_report_stats))
         .layer(
             ServiceBuilder::new()
@@ -98,18 +97,6 @@ async fn sys_shutdown(
 ) -> AppResult<impl IntoResponse> {
     debug!("sys_shutdown");
     action_tx.send(SystemAction::Shutdown).await?;
-    Ok(())
-}
-
-// emergency shutdown system
-async fn sys_emergency_shutdown() -> AppResult<impl IntoResponse> {
-    info!("sys_emergency_shutdown");
-
-    // sync
-    unistd::sync();
-    // shutdown, bypass init (connection may be cut off)
-    reboot::reboot(RebootMode::RB_POWER_OFF)?;
-
     Ok(())
 }
 
