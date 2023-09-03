@@ -219,7 +219,7 @@ struct ContentView: View {
                     // careful: .keyboardShortcut after sheet composability applies to entire view (including Picker items) on macOS 12
                     .keyboardShortcut("n", modifiers: [.command])
                     .sheet(isPresented: $model.presentCreateMachine) {
-                        CreateContainerView(isPresented: $model.presentCreateMachine, creatingCount: $model.creatingCount)
+                        CreateContainerView(isPresented: $model.presentCreateMachine)
                     }
                     .help("New Machine")
                     .disabled(model.state != .running)

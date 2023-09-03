@@ -80,22 +80,6 @@ struct MachinesRootView: View {
                             .opacity(creatingOpacity)
                             .padding(16)
                 })
-                .onChange(of: vmModel.creatingCount) { newValue in
-                    if newValue > 0 {
-                        withAnimation {
-                            creatingOpacity = 1
-                        }
-                    } else {
-                        withAnimation {
-                            creatingOpacity = 0
-                        }
-                    }
-                }
-                .onAppear {
-                    if vmModel.creatingCount > 0 {
-                        creatingOpacity = 1
-                    }
-                }
             } else {
                 ProgressView(label: {
                     Text("Loading")

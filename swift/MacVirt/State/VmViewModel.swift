@@ -430,7 +430,6 @@ class VmViewModel: ObservableObject {
     @Published private(set) var containers: [ContainerRecord]?
     @Published private(set) var error: VmError?
 
-    @Published var creatingCount = 0
     @Published var appliedConfig: VmConfig? // usually from last start
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false

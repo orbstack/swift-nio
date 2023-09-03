@@ -183,9 +183,7 @@ struct OnboardingCreateView: View {
             }
 
             // then create
-            vmModel.creatingCount += 1
             await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch)
-            vmModel.creatingCount -= 1
         }
         onboardingController.finish()
     }

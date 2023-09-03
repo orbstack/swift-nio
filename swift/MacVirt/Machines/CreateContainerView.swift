@@ -27,7 +27,6 @@ struct CreateContainerView: View {
     @State private var version = Distro.ubuntu.versions.last!.key
 
     @Binding var isPresented: Bool
-    @Binding var creatingCount: Int
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -165,9 +164,7 @@ struct CreateContainerView: View {
         }
 
         Task { @MainActor in
-            creatingCount += 1
             await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch)
-            creatingCount -= 1
         }
         isPresented = false
     }
