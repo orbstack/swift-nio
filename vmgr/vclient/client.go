@@ -19,7 +19,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
-	hcsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -60,8 +59,6 @@ type VClient struct {
 	signalStopCh     chan struct{}
 	requestStopCh    chan<- types.StopRequest
 	healthCheckReqCh <-chan struct{}
-
-	hcontrolServer *hcsrv.HcontrolServer
 }
 
 type diskReportStats struct {
@@ -70,7 +67,7 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
+func newWithTransport(tr *http.Transport, vm *vzf.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
 	httpClient := &http.Client{
 		Transport: tr,
 		Timeout:   requestTimeout,
@@ -87,11 +84,10 @@ func newWithTransport(tr *http.Transport, vm *vzf.Machine, hcServer *hcsrv.Hcont
 		signalStopCh:     make(chan struct{}),
 		requestStopCh:    requestStopCh,
 		healthCheckReqCh: healthCheckReqCh,
-		hcontrolServer:   hcServer,
 	}, nil
 }
 
-func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolServer, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
+func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
@@ -101,7 +97,7 @@ func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, hcServer *hcsrv.HcontrolSe
 		},
 		MaxIdleConns: 3,
 	}
-	return newWithTransport(tr, vm, hcServer, requestStopCh, healthCheckReqCh)
+	return newWithTransport(tr, vm, requestStopCh, healthCheckReqCh)
 }
 
 func (vc *VClient) Get(endpoint string) (*http.Response, error) {
@@ -163,12 +159,6 @@ func (vc *VClient) StartBackground() error {
 		return fmt.Errorf("register iokit: %w", err)
 	}
 
-	// don't want to miss the first report, or we'll have to wait
-	go func() {
-		vc.hcontrolServer.InternalWaitDataFsReady()
-		vc.healthCheck()
-	}()
-
 	// Report disk stats periodically, sync time on wake
 	go func() {
 		ticker := time.NewTicker(diskStatsInterval)
@@ -228,7 +218,7 @@ func matchTimeoutError(err error) bool {
 
 func (vc *VClient) healthCheck() {
 	awakeBefore := !iokit.IsAsleep()
-	err := vc.doCheckin()
+	err := vc.DoCheckin()
 	if err != nil {
 		//TODO require multiple failures
 		logrus.WithError(err).Error("health check failed")
@@ -246,7 +236,7 @@ func (vc *VClient) healthCheck() {
 }
 
 // for CPU, we combine healthcheck with stats report
-func (vc *VClient) doCheckin() error {
+func (vc *VClient) DoCheckin() error {
 	if iokit.IsAsleep() {
 		return nil
 	}

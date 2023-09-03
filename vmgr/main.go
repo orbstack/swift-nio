@@ -589,7 +589,8 @@ func runVmManager() {
 	hcServer := services.StartNetServices(vnetwork)
 
 	// VM control server client
-	vc, err := vclient.NewWithNetwork(vnetwork, vm, hcServer, stopCh, healthCheckCh)
+	vc, err := vclient.NewWithNetwork(vnetwork, vm, stopCh, healthCheckCh)
+	hcServer.Vclient = vc
 	check(err)
 	defer vc.Close()
 	err = vc.StartBackground()

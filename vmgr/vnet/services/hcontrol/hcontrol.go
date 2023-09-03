@@ -32,6 +32,7 @@ import (
 	vmgrsyncx "github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
+	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
@@ -87,6 +88,7 @@ Learn more: https://go.orbstack.dev/docker-mount
 type HcontrolServer struct {
 	n         *vnet.Network
 	drmClient *drm.DrmClient
+	Vclient   *vclient.VClient
 
 	fsnotifyMu   sync.Mutex
 	fsnotifyRefs map[string]int
@@ -655,6 +657,19 @@ func (h *HcontrolServer) InternalUnmountNfs() error {
 
 func (h *HcontrolServer) InternalWaitDataFsReady() {
 	h.dataFsReady.Wait()
+}
+
+func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {
+	// ask host to update disk stats BEFORE we open the db
+	// to recover from low space if quota was set too low last boot
+	// OK to do this before dataFsReady because btrfs qgroup rfer can exceed fs size
+	err := h.Vclient.DoCheckin()
+	if err != nil {
+		return fmt.Errorf("vc checkin: %w", err)
+	}
+
+	*reply = htypes.InitConfig{}
+	return nil
 }
 
 type None struct{}

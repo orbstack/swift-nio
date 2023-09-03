@@ -182,6 +182,16 @@ func (c *Client) OnK8sConfigReady(kubeConfigStr string) error {
 	return c.rpc.Call("hc.OnK8sConfigReady", kubeConfigStr, &none)
 }
 
+func (c *Client) GetInitConfig() (*htypes.InitConfig, error) {
+	var config htypes.InitConfig
+	err := c.rpc.Call("hc.GetInitConfig", None{}, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }

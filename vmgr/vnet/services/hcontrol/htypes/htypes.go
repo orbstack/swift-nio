@@ -19,3 +19,6 @@ type DockerMachineConfig struct {
 	K8sEnable          bool
 	K8sExposeServices  bool
 }
+
+type InitConfig struct {
+}

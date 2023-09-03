@@ -49,7 +49,18 @@ func runPprof() {
 	}
 }
 
-func doSystemInitTasks(mgr *ConManager, host *hclient.Client) error {
+func doSystemInitTasksEarly(host *hclient.Client) error {
+	// ask host to update disk stats BEFORE we open the db
+	// to recover from low space if quota was set too low last boot
+	_, err := host.GetInitConfig()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 	// get user
 	u, err := host.GetUser()
 	if err != nil {
@@ -233,12 +244,16 @@ func runContainerManager() {
 	hostClient, err := hclient.New(hcontrolConn)
 	check(err)
 
+	// system init tasks (early)
+	err = doSystemInitTasksEarly(hostClient)
+	check(err)
+
 	// create container manager
 	mgr, err := NewConManager(conf.C().SconDataDir, hostClient)
 	check(err)
 
 	// system init tasks
-	err = doSystemInitTasks(mgr, hostClient)
+	err = doSystemInitTasksLate(mgr, hostClient)
 	check(err)
 
 	defer mgr.Close()
