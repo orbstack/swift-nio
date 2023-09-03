@@ -35,7 +35,7 @@ struct ContainerRecord: Codable, Identifiable, Equatable {
     var state: ContainerState
 
     var running: Bool {
-        state == .running
+        state == .running || state == .stopping
     }
 }
 
@@ -124,5 +124,9 @@ class SconService: RPCService {
 
     func internalDeleteK8s() async throws {
         try await invoke("InternalDeleteK8s")
+    }
+
+    func internalGuiReportStarted() async throws {
+        try await invoke("InternalGuiReportStarted")
     }
 }

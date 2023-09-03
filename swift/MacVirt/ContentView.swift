@@ -297,6 +297,7 @@ struct ContentView: View {
         }
         .onAppear {
             model.openMainWindowCount += 1
+            model.initLaunch()
 
             // DO NOT use .task{} here.
             // start tasks should NOT be canceled
@@ -308,20 +309,10 @@ struct ContentView: View {
                 } catch {
                     NSLog("notification request failed: \(error)")
                 }
-
-                await model.initLaunch()
             }
         }
         .onDisappear {
             model.openMainWindowCount -= 1
-        }
-        .onChange(of: controlActiveState) { state in
-            if state == .key {
-                Task {
-                    NSLog("refresh: root view - key")
-                    await model.tryRefreshList()
-                }
-            }
         }
         // error dialog
         .alert(isPresented: $presentError, error: model.error) { error in

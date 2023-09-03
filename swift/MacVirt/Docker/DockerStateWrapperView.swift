@@ -11,14 +11,11 @@ struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
 
     let keyPath: KeyPath<VmViewModel, [Entity]?>
     let content: ([Entity], ContainerRecord) -> Content
-    let onRefresh: () async -> Void
 
     init(_ keyPath: KeyPath<VmViewModel, [Entity]?>,
-         @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content,
-         onRefresh: @escaping () async -> Void) {
+         @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content) {
         self.keyPath = keyPath
         self.content = content
-        self.onRefresh = onRefresh
     }
 
     var body: some View {
@@ -38,7 +35,6 @@ struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
                                 Button(action: {
                                     Task {
                                         await vmModel.tryStartContainer(dockerRecord)
-                                        await onRefresh()
                                     }
                                 }) {
                                     Text("Turn On")
@@ -54,26 +50,10 @@ struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
                             })
                         }
                     }
-                    .onChange(of: dockerRecord.state) { _ in
-                        Task {
-                            await onRefresh()
-                        }
-                    }
                 } else {
                     ProgressView(label: {
                         Text("Loading")
                     })
-                }
-            }
-            .task {
-                NSLog("refresh: docker task")
-                await onRefresh()
-            }
-            .onChange(of: controlActiveState) { state in
-                if state == .key {
-                    Task {
-                        await onRefresh()
-                    }
                 }
             }
         }

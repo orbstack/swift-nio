@@ -173,8 +173,8 @@ struct OnboardingCreateView: View {
         }
 
         Task { @MainActor in
-            // wait for scon before doing anything - might not be started yet
-            await vmModel.tryRefreshList()
+            // wait for scon before doing anything - might not be started yet during onboarding
+            await vmModel.waitForStateEquals(.running)
 
             // user picked linux, so stop docker container to save memory
             if let machines = vmModel.containers,

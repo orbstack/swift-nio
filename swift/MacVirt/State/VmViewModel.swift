@@ -54,15 +54,14 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case startTimeout(cause: Error?)
     case stopError(cause: Error)
     case setupError(cause: Error)
-    case configRefresh(cause: Error)
     case configUpdateError(cause: Error)
     case resetDataError(cause: Error)
+    case eventDecodeError(cause: Error)
 
     // vmgr - async
     case drmWarning(event: UIEvent.DrmWarning)
 
     // docker
-    case dockerListError(cause: Error)
     case dockerContainerActionError(action: String, cause: Error)
     case dockerVolumeActionError(action: String, cause: Error)
     case dockerImageActionError(action: String, cause: Error)
@@ -76,7 +75,6 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
     // scon
     case startError(cause: Error)
-    case listRefresh(cause: Error)
     case defaultError(cause: Error)
     case containerStopError(cause: Error)
     case containerStartError(cause: Error)
@@ -113,18 +111,16 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t stop"
         case .setupError:
             return "Failed to do setup"
-        case .configRefresh:
-            return "Can’t get settings"
         case .configUpdateError:
             return "Can’t change settings"
         case .resetDataError:
             return "Can’t reset data"
+        case .eventDecodeError:
+            return "Can’t get info"
 
         case .drmWarning:
             return "Can’t verify license. OrbStack will stop working soon."
 
-        case .dockerListError:
-            return "Failed to refresh Docker"
         case .dockerContainerActionError(let action, _):
             return "Can’t \(action) container"
         case .dockerVolumeActionError(let action, _):
@@ -143,8 +139,6 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
         case .startError:
             return "Failed to start machine manager"
-        case .listRefresh:
-            return "Failed to load machines"
         case .defaultError:
             return "Can’t set default machine"
         case .containerStopError:
@@ -178,8 +172,6 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return true
 
         case .startError:
-            return true
-        case .listRefresh:
             return true
 
         default:
@@ -283,18 +275,16 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .setupError(let cause):
             return cause
-        case .configRefresh(let cause):
-            return cause
         case .configUpdateError(let cause):
             return cause
         case .resetDataError(let cause):
+            return cause
+        case .eventDecodeError(let cause):
             return cause
 
         case .drmWarning:
             return nil
 
-        case .dockerListError(let cause):
-            return cause
         case .dockerContainerActionError(_, let cause):
             return cause
         case .dockerVolumeActionError(_, let cause):
@@ -312,8 +302,6 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
 
         case .startError(let cause):
-            return cause
-        case .listRefresh(let cause):
             return cause
         case .defaultError(let cause):
             return cause
@@ -426,11 +414,12 @@ class VmViewModel: ObservableObject {
                 // clear state
                 containers = nil
                 config = nil
+                appliedConfig = nil
+
                 dockerContainers = nil
                 dockerVolumes = nil
                 dockerImages = nil
                 dockerSystemDf = nil
-                lastDockerSystemDfAt = nil
 
                 k8sPods = nil
                 k8sServices = nil
@@ -456,7 +445,6 @@ class VmViewModel: ObservableObject {
     @Published var dockerVolumes: [DKVolume]?
     @Published var dockerImages: [DKImage]?
     @Published var dockerSystemDf: DKSystemDf?
-    @Published var lastDockerSystemDfAt: Date?
 
     // Kubernetes
     @Published var k8sPods: [K8SPod]?
@@ -485,27 +473,87 @@ class VmViewModel: ObservableObject {
             guard let self else { return }
 
             Task { @MainActor in
-                if let event = rawEvent.started {
+                // workaround for Codable not being to decode polymorphic
+                // events can also be coalesced, so check each one
+                if let event = rawEvent.vmgr {
                     // go through spawn-daemon for simplicity and ignore pid
-                    NSLog("Daemon started: pid \(event.pid)")
-                    await self.tryStartAndWait()
-                } else if let event = rawEvent.docker {
-                    let doContainers = event.changed.contains(.container)
-                    let doVolumes = event.changed.contains(.volume)
-                    await self.tryRefreshDockerList(doContainers: doContainers, doVolumes: doVolumes)
-                } else if let event = rawEvent.drmWarning {
-                    self.setError(.drmWarning(event: event))
-                } else if let event = rawEvent.k8s {
-                    self.k8sPods = event.currentPods
-                    self.k8sServices = event.currentServices
+                    if let newDaemonPid = event.newDaemonPid {
+                        NSLog("Daemon started: pid \(newDaemonPid)")
+                        await self.tryStartDaemon()
+                    }
+                    if event.stateReady {
+                        // just reached vmcontrol server ready after a new start
+                        await self.onDaemonReady()
+                    }
+                    if let vmConfig = event.vmConfig {
+                        self.onNewVmgrConfig(config: vmConfig)
+                    }
                 }
+
+                if let event = rawEvent.scon {
+                    NSLog("machines changed")
+                    if let containers = event.currentMachines {
+                        self.onNewSconMachines(allContainers: containers)
+                    }
+                }
+
+                if let event = rawEvent.docker {
+                    NSLog("docker changed")
+                    if let containers = event.currentContainers {
+                        self.onNewDockerContainers(containers: containers)
+                    }
+                    if let volumes = event.currentVolumes {
+                        self.onNewDockerVolumes(rawVolumes: volumes)
+                    }
+                    if let images = event.currentImages {
+                        self.onNewDockerImages(rawImages: images)
+                    }
+                    if let systemDf = event.currentSystemDf {
+                        self.onNewDockerSystemDf(resp: systemDf)
+                    }
+                    if event.stopped {
+                        self.dockerContainers = nil
+                        self.dockerVolumes = nil
+                        self.dockerImages = nil
+                        self.dockerSystemDf = nil
+                    }
+                }
+
+                if let event = rawEvent.drmWarning {
+                    NSLog("drm warning")
+                    self.setError(.drmWarning(event: event))
+                }
+
+                if let event = rawEvent.k8s {
+                    NSLog("k8s changed")
+                    if let pods = event.currentPods {
+                        self.k8sPods = pods
+                    }
+                    if let services = event.currentServices {
+                        self.k8sServices = services
+                    }
+                    if event.stopped {
+                        self.k8sPods = nil
+                        self.k8sServices = nil
+                    }
+                }
+            }
+        }.store(in: &cancellables)
+
+        daemon.uiEventErrors.sink { [weak self] error in
+            guard let self else { return }
+
+            Task { @MainActor in
+                self.setError(.eventDecodeError(cause: error))
             }
         }.store(in: &cancellables)
     }
 
-    private func setStateAsync(_ state: VmState) {
+    private func advanceStateAsync(_ state: VmState) {
         DispatchQueue.main.async {
-            self.state = state
+            if state > self.state {
+                self.state = state
+            }
         }
     }
 
@@ -555,7 +603,7 @@ class VmViewModel: ObservableObject {
                     throw VmError.spawnError(cause: ProcessError(status: 0, output: "Invalid pid: \(newPidStr)"))
                 }
 
-                setStateAsync(.starting)
+                advanceStateAsync(.starting)
                 await daemon.monitorPid(newPid) { reason in
                     self.onPidExit(reason)
                 }
@@ -590,100 +638,25 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    private func waitForVM() async throws {
-        // wait for at least .starting
-        await waitForStateAtLeast(.starting)
-
-        let deadline = DispatchTime.now() + .nanoseconds(startTimeout)
-        var lastError: Error?
-        while true {
-            do {
-                try await vmgr.ping()
-                break
-            } catch {
-                lastError = error
-            }
-
-            try await Task.sleep(nanoseconds: startPollInterval)
-            // bail out if daemon exited (next call will fail)
-            if self.state == .stopped {
-                NSLog("poll VM: daemon exited")
-                return
-            }
-            // TODO reduce timeout when gui handles rosetta install
-            if DispatchTime.now() > deadline {
-                setStateAsync(.stopped)
-                throw VmError.startTimeout(cause: lastError)
-            }
-        }
-    }
-
-    private func waitForScon() async throws {
-        guard state < .running else {
-            return
-        }
-
-        try await waitForVM()
-
-        let deadline = DispatchTime.now() + .nanoseconds(startTimeout)
-        var lastError: Error?
-        while true {
-            do {
-                try await scon.ping()
-                break
-            } catch {
-                lastError = error
-            }
-            try await Task.sleep(nanoseconds: startPollInterval)
-            // bail out if daemon exited (next call will fail)
-            if self.state == .stopped {
-                NSLog("poll scon: daemon exited")
-                return
-            }
-            // TODO reduce timeout when gui handles rosetta install
-            if DispatchTime.now() > deadline {
-                setStateAsync(.stopped)
-                throw VmError.startTimeout(cause: lastError)
-            }
-        }
-
-        setStateAsync(.running)
-    }
-
     @MainActor
-    func refreshList() async throws {
-        guard state < .stopping else {
-            return
-        }
+    private func onNewSconMachines(allContainers: [ContainerRecord]) {
+        let isFirstContainers = containers == nil
 
-        try await waitForScon()
-        let allContainers = try await scon.listContainers()
         // filter into running and stopped
         let runningContainers = allContainers.filter { $0.running }
         let stoppedContainers = allContainers.filter { !$0.running }
         // sort alphabetically by name within each group
         containers = runningContainers.sorted { $0.name < $1.name } +
                 stoppedContainers.sorted { $0.name < $1.name }
-    }
 
-    @MainActor
-    func tryRefreshList() async {
-        do {
-            try await refreshList()
-        } catch {
-            // ignore if daemon exited
-            // just in case kqueue didn't get the message yet, check now
-            if self.state == .stopped || !daemon.checkRunningNow() {
-                return
-            }
-
-            setError(.listRefresh(cause: error))
+        // first new scon containers = scon is now running
+        if isFirstContainers {
+            advanceStateAsync(.running)
         }
     }
 
     @MainActor
-    private func refreshDockerContainersList() async throws {
-        let containers = try await vmgr.dockerContainerList()
+    private func onNewDockerContainers(containers: [DKContainer]) {
         // preprocess
         dockerContainers = containers.map { container in
             var container = container
@@ -718,73 +691,22 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func refreshDockerVolumesList() async throws {
-        let resp = try await vmgr.dockerVolumeList()
+    private func onNewDockerVolumes(rawVolumes: [DKVolume]) {
         // sort volumes
-        let volumes = resp.volumes.sorted { $0.name < $1.name }
+        let volumes = rawVolumes.sorted { $0.name < $1.name }
         dockerVolumes = volumes
     }
 
     @MainActor
-    func refreshDockerImagesList() async throws {
-        let rawImages = try await vmgr.dockerImageList()
+    private func onNewDockerImages(rawImages: [DKImage]) {
         // sort images
         let images = rawImages.sorted { $0.userTag < $1.userTag }
         dockerImages = images
     }
 
     @MainActor
-    func refreshDockerSystemDf() async throws {
-        let resp = try await vmgr.dockerSystemDf()
+    private func onNewDockerSystemDf(resp: DKSystemDf) {
         dockerSystemDf = resp
-    }
-
-    @MainActor
-    func refreshDockerList(doContainers: Bool, doVolumes: Bool, doImages: Bool, doSystemDf: Bool) async throws {
-        guard state < .stopping else {
-            return
-        }
-
-        // it's vmgr but need to wait for scon
-        try await waitForScon()
-
-        if doContainers {
-            try await refreshDockerContainersList()
-        }
-        if doVolumes {
-            try await refreshDockerVolumesList()
-        }
-        if doImages {
-            try await refreshDockerImagesList()
-        }
-        if doSystemDf {
-            if shouldUpdateDockerSystemDf() {
-                try await refreshDockerSystemDf()
-                lastDockerSystemDfAt = Date()
-            }
-        }
-    }
-
-    // system df is slow - skip by default
-    @MainActor
-    func tryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true, doSystemDf: Bool = false) async {
-        do {
-            try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages, doSystemDf: doSystemDf)
-        } catch {
-            // ignore if stopped
-            if let machines = containers,
-               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
-               !dockerRecord.running {
-                return
-            }
-
-            // also ignore if vm not running
-            if self.state != .running || !daemon.checkRunningNow() {
-                return
-            }
-
-            setError(.dockerListError(cause: error))
-        }
     }
 
     @MainActor
@@ -799,27 +721,12 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    func maybeRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true, doSystemDf: Bool = false) async throws {
-        // will cause feedback loop if docker is stopped
-        // because querying docker engine socket will start it
-        if isDockerRunning() {
-            try await refreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages, doSystemDf: doSystemDf)
+    private func onNewVmgrConfig(config: VmConfig) {
+        // first config after start = applied
+        if appliedConfig == nil {
+            appliedConfig = config
         }
-    }
-
-    @MainActor
-    func maybeTryRefreshDockerList(doContainers: Bool = true, doVolumes: Bool = true, doImages: Bool = true, doSystemDf: Bool = false) async {
-        // will cause feedback loop if docker is stopped
-        // because querying docker engine socket will start it
-        if isDockerRunning() {
-            await tryRefreshDockerList(doContainers: doContainers, doVolumes: doVolumes, doImages: doImages, doSystemDf: doSystemDf)
-        }
-    }
-
-    @MainActor
-    func refreshConfig() async throws {
-        try await waitForVM()
-        config = try await vmgr.getConfig()
+        self.config = config
     }
 
     @MainActor
@@ -856,59 +763,72 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @MainActor
-    func initLaunch() async {
-        await tryStartAndWait(shouldDoSetup: true)
+    func initLaunch() {
+        // do this part synchronously to avoid UI flicker on launch
+        if !_trySpawnDaemon() {
+            return
+        }
+
+        // async part
+        Task { @MainActor in
+            await tryStartDaemon(doSpawn: false)
+        }
     }
 
-    @MainActor
-    func tryStartAndWait(shouldDoSetup: Bool = false) async {
+    private func _trySpawnDaemon() -> Bool {
         do {
             try spawnDaemon()
         } catch VmError.wrongArch {
             setError(.wrongArch)
-            return
+            return false
         } catch VmError.virtUnsupported {
             setError(.virtUnsupported)
-            return
+            return false
         } catch VmError.killswitchExpired {
             setError(.killswitchExpired)
-            return
+            return false
         } catch {
             setError(.spawnError(cause: error))
+            return false
+        }
+        return true
+    }
+
+    @MainActor
+    func tryStartDaemon(doSpawn: Bool = true) async {
+        if doSpawn {
+            if !_trySpawnDaemon() {
+                return
+            }
+        }
+
+        // this will fail if just started, but succeed if already running
+        // same with scon.
+        do {
+            try await vmgr.guiReportStarted()
+            try await scon.internalGuiReportStarted()
+        } catch {
+            // ignore
+        }
+    }
+
+    @MainActor
+    private func onDaemonReady() async {
+        do {
+            try await vmgr.guiReportStarted()
+            try await scon.internalGuiReportStarted()
+        } catch {
+            NSLog("refresh: start: report started: \(error)")
+            // don't do setup
             return
         }
 
-        // this includes wait
-        NSLog("refresh: start")
-        // avoid feedback loop if killswitch expired
-        // HACK XXX: ignore errors here - UI will trigger "real" ones
+        NSLog("daemon ready")
         do {
-            try await refreshList()
-            try await maybeRefreshDockerList()
-
-            if shouldDoSetup {
-                do {
-                    try await doSetup()
-                } catch {
-                    setError(.setupError(cause: error))
-                }
-            }
+            try await doSetup()
         } catch {
-            NSLog("refresh: start: refresh lists: \(error)")
+            setError(.setupError(cause: error))
         }
-        do {
-            try await refreshConfig()
-            appliedConfig = config
-        } catch {
-            NSLog("refresh: start: refresh config: \(error)")
-        }
-        do {
-            try await vmgr.guiReportStarted()
-        } catch {
-            NSLog("refresh: start: report started: \(error)")
-        }
-        NSLog("end refresh: start")
     }
 
     @MainActor
@@ -961,12 +881,11 @@ class VmViewModel: ObservableObject {
         await waitForStateEquals(.stopped)
 
         // start
-        await tryStartAndWait()
+        await tryStartDaemon()
     }
 
     func stopContainer(_ record: ContainerRecord) async throws {
         try await scon.containerStop(record)
-        try await refreshList()
     }
 
     @MainActor
@@ -980,12 +899,10 @@ class VmViewModel: ObservableObject {
 
     func restartContainer(_ record: ContainerRecord) async throws {
         try await scon.containerRestart(record)
-        try await refreshList()
     }
 
     func startContainer(_ record: ContainerRecord) async throws {
         try await scon.containerStart(record)
-        try await refreshList()
     }
 
     @MainActor
@@ -1008,7 +925,6 @@ class VmViewModel: ObservableObject {
 
     func deleteContainer(_ record: ContainerRecord) async throws {
         try await scon.containerDelete(record)
-        try await refreshList()
     }
 
     @MainActor
@@ -1036,7 +952,6 @@ class VmViewModel: ObservableObject {
             arch: arch,
             variant: ""
         ), userPassword: nil)
-        try await refreshList()
     }
 
     @MainActor
@@ -1050,7 +965,6 @@ class VmViewModel: ObservableObject {
 
     func renameContainer(_ record: ContainerRecord, newName: String) async throws {
         try await scon.containerRename(record, newName: newName)
-        try await refreshList()
     }
 
     @MainActor
@@ -1122,7 +1036,7 @@ class VmViewModel: ObservableObject {
         await waitForStateEquals(.stopped)
 
         // start
-        await tryStartAndWait()
+        await tryStartDaemon()
     }
 
     @MainActor
@@ -1286,8 +1200,6 @@ class VmViewModel: ObservableObject {
         } catch {
             setError(.dockerImageActionError(action: "\(label)", cause: error))
         }
-        // must refresh images after action because there's no events for images
-        await tryRefreshDockerList(doContainers: false, doVolumes: false, doImages: true)
     }
 
     func tryDockerImageRemove(_ id: String) async {
@@ -1298,13 +1210,6 @@ class VmViewModel: ObservableObject {
 
     func dismissError() {
         error = nil
-
-        // refresh in case e.g. container was deleted after create failed
-        Task {
-            do {
-                try await refreshList()
-            } catch {}
-        }
     }
 
     func tryLoadDockerConfig() {
@@ -1364,25 +1269,6 @@ class VmViewModel: ObservableObject {
                 break
             }
         }
-    }
-
-    private func shouldUpdateDockerSystemDf() -> Bool {
-        guard let systemDf = dockerSystemDf,
-              let lastUpdatedAt = lastDockerSystemDfAt else {
-            return true
-        }
-
-        // system df refresh is expensive (100 ms),
-        // so only do it if we're missing info for a volume,
-        if let volumes = dockerVolumes,
-           !volumes.allSatisfy({ vol in
-               systemDf.volumes.contains(where: { sVol in vol.name == sVol.name })
-           }) {
-            return true
-        }
-
-        // or have not updated for a while
-        return Date().timeIntervalSince(lastUpdatedAt) > dockerSystemDfRatelimit
     }
 
     func tryK8sPodDelete(_ kid: K8SResourceId) async {

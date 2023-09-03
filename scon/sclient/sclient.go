@@ -179,3 +179,7 @@ func (c *SconClient) InternalDockerMigrationStopSyncServer() error {
 func (c *SconClient) InternalDeleteK8s() error {
 	return c.rpc.CallResult(context.TODO(), "InternalDeleteK8s", nil, &noResult)
 }
+
+func (c *SconClient) InternalGuiReportStarted() error {
+	return c.rpc.CallResult(context.TODO(), "InternalGuiReportStarted", nil, &noResult)
+}

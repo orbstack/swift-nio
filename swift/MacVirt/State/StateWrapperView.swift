@@ -28,7 +28,7 @@ struct StateWrapperView<Content: View>: View {
 
                     Button(action: {
                         Task {
-                            await vmModel.tryStartAndWait()
+                            await vmModel.tryStartDaemon()
                         }
                     }) {
                         Text("Start")

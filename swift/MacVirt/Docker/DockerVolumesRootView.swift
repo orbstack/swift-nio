@@ -73,9 +73,6 @@ struct DockerVolumesRootView: View {
                     Spacer()
                 }
             }
-        } onRefresh: {
-            await vmModel.tryRefreshList()
-            await vmModel.maybeTryRefreshDockerList(doSystemDf: true)
         }
         .navigationTitle("Volumes")
         .searchable(

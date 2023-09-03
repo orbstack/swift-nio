@@ -256,9 +256,6 @@ struct DockerContainersRootView: View {
                     dockerImages: vmModel.dockerImages,
                     dockerVolumes: vmModel.dockerVolumes
             )
-        } onRefresh: {
-            await vmModel.tryRefreshList()
-            await vmModel.maybeTryRefreshDockerList()
         }
         .navigationTitle("Containers")
         .searchable(

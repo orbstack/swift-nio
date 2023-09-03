@@ -441,10 +441,15 @@ func SwextIpcNotifyUIEvent(ev uitypes.UIEvent) {
 		logrus.WithError(err).Error("failed to marshal event")
 		return
 	}
-	eventJsonStr := string(eventJson)
+
+	SwextIpcNotifyUIEventRaw(string(eventJson))
+}
+
+// raw is for more efficient sending from VM, via gob rpc
+func SwextIpcNotifyUIEventRaw(eventJsonStr string) {
 	logrus.WithField("event", eventJsonStr).Debug("send UI event")
 
-	cStr := C.CString(string(eventJsonStr))
+	cStr := C.CString(eventJsonStr)
 	defer C.free(unsafe.Pointer(cStr))
 	C.swext_ipc_notify_uievent(cStr)
 }

@@ -603,7 +603,6 @@ private struct DockerLogsContentView: View {
             } else {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
             }
-        } onRefresh: {
         }
         .onAppear {
             // TODO why doesn't for-await + .task() work? (that way we get auto-cancel)
@@ -795,7 +794,6 @@ private struct K8SLogsContentView: View {
             } else {
                 ContentUnavailableViewCompat("Pod Removed", systemImage: "trash", desc: "No logs available.")
             }
-        } onRefresh: {
         }
         .onAppear {
             // TODO why doesn't for-await + .task() work? (that way we get auto-cancel)

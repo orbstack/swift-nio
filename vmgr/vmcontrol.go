@@ -63,6 +63,8 @@ type VmControlServer struct {
 	setupMu              sync.Mutex
 	setupEnvChan         atomic.Pointer[chan *vmtypes.EnvReport]
 	setupUserDetailsOnce syncx.Once[Result[*UserDetails]]
+
+	uiEventDebounce syncx.LeadingFuncDebounce
 }
 
 type Result[T any] struct {
@@ -126,11 +128,6 @@ func (s *VmControlServer) SetDockerContext(ctx context.Context) error {
 	return setupDockerContext()
 }
 
-func (s *VmControlServer) DockerContainerList(ctx context.Context) ([]*dockertypes.ContainerSummary, error) {
-	// TODO: this should not return EOF errors. errors from docker crashing should be propagated separately
-	return s.dockerClient.ListContainers(true)
-}
-
 func (s *VmControlServer) DockerContainerStart(ctx context.Context, req vmtypes.IDRequest) error {
 	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/start", nil, nil)
 }
@@ -159,16 +156,6 @@ func (s *VmControlServer) DockerContainerDelete(ctx context.Context, params vmty
 	return s.dockerClient.Call("DELETE", "/containers/"+params.ID+"?force=true", nil, nil)
 }
 
-func (s *VmControlServer) DockerVolumeList(ctx context.Context) (*dockertypes.VolumeListResponse, error) {
-	var volumes dockertypes.VolumeListResponse
-	err := s.dockerClient.Call("GET", "/volumes", nil, &volumes)
-	if err != nil {
-		return nil, err
-	}
-
-	return &volumes, nil
-}
-
 func (s *VmControlServer) DockerVolumeCreate(ctx context.Context, options dockertypes.VolumeCreateOptions) error {
 	return s.dockerClient.Call("POST", "/volumes/create", &options, nil)
 }
@@ -177,23 +164,8 @@ func (s *VmControlServer) DockerVolumeDelete(ctx context.Context, params vmtypes
 	return s.dockerClient.Call("DELETE", "/volumes/"+params.ID, nil, nil)
 }
 
-func (s *VmControlServer) DockerImageList(ctx context.Context) ([]*dockertypes.ImageSummary, error) {
-	return s.dockerClient.ListImages()
-}
-
 func (s *VmControlServer) DockerImageDelete(ctx context.Context, params vmtypes.IDRequest) error {
 	return s.dockerClient.Call("DELETE", "/images/"+params.ID+"?force=true", nil, nil)
-}
-
-func (s *VmControlServer) DockerSystemDf(ctx context.Context) (*dockertypes.SystemDf, error) {
-	// limiting to volumes is less expensive
-	var df dockertypes.SystemDf
-	err := s.dockerClient.Call("GET", "/system/df?type=volume", nil, &df)
-	if err != nil {
-		return nil, err
-	}
-
-	return &df, nil
 }
 
 func (s *VmControlServer) K8sPodDelete(ctx context.Context, params vmtypes.K8sNameRequest) error {
@@ -218,6 +190,7 @@ func (s *VmControlServer) k8sClient() (*kubernetes.Clientset, error) {
 
 func (s *VmControlServer) GuiReportStarted(ctx context.Context) error {
 	s.hcontrol.K8sReportGuiStarted()
+	s.uiEventDebounce.Trigger()
 	return nil
 }
 
@@ -385,7 +358,6 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"InternalReportEnv":              handler.New(s.InternalReportEnv),
 		"InternalSetDockerRemoteCtxAddr": handler.New(s.InternalSetDockerRemoteCtxAddr),
 
-		"DockerContainerList":    handler.New(s.DockerContainerList),
 		"DockerContainerStart":   handler.New(s.DockerContainerStart),
 		"DockerContainerStop":    handler.New(s.DockerContainerStop),
 		"DockerContainerKill":    handler.New(s.DockerContainerKill),
@@ -394,14 +366,10 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"DockerContainerUnpause": handler.New(s.DockerContainerUnpause),
 		"DockerContainerDelete":  handler.New(s.DockerContainerDelete),
 
-		"DockerVolumeList":   handler.New(s.DockerVolumeList),
 		"DockerVolumeCreate": handler.New(s.DockerVolumeCreate),
 		"DockerVolumeDelete": handler.New(s.DockerVolumeDelete),
 
-		"DockerImageList":   handler.New(s.DockerImageList),
 		"DockerImageDelete": handler.New(s.DockerImageDelete),
-
-		"DockerSystemDf": handler.New(s.DockerSystemDf),
 
 		"K8sPodDelete":     handler.New(s.K8sPodDelete),
 		"K8sServiceDelete": handler.New(s.K8sServiceDelete),
@@ -446,6 +414,13 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		return nil, fmt.Errorf("listen vmcontrol: %w", err)
 	}
 	go func() { _ = server.Serve(listenerUnix) }()
+
+	// send new configs to GUI
+	go func() {
+		for range vmconfig.SubscribeDiff() {
+			s.uiEventDebounce.Trigger()
+		}
+	}()
 
 	return func() error {
 		// to prevent race, leave open conns open until process exit, like flock

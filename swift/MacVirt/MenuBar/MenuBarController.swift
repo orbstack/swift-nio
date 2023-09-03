@@ -206,12 +206,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         updateMenu()
         closeBgTip()
-
-        // also trigger a background machine state refresh
-        // TODO: remove when we have dynamic machine state updates
-        Task {
-            await vmModel.tryRefreshList()
-        }
     }
 
     private func updateMenu() {
@@ -231,7 +225,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if state == .stopped {
             menu.addActionItem("Start", shortcut: "s", icon: systemImage("play.fill")) { [self] in
-                await vmModel.tryStartAndWait()
+                await vmModel.tryStartDaemon()
             }
         }
 

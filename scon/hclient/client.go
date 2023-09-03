@@ -1,13 +1,14 @@
 package hclient
 
 import (
+	"encoding/json"
 	"net"
 	"net/rpc"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
-	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 )
 
@@ -162,9 +163,16 @@ func (c *Client) ClearDockerState(async bool) error {
 	return c.rpc.Call("hc.ClearDockerState", async, &none)
 }
 
-func (c *Client) OnDockerUIEvent(event *dockertypes.UIEvent) error {
+func (c *Client) OnUIEvent(ev uitypes.UIEvent) error {
+	// XXX: encode to string here for perf across gob rpc
+	data, err := json.Marshal(ev)
+	if err != nil {
+		return err
+	}
+	eventJsonStr := string(data)
+
 	var none None
-	return c.rpc.Call("hc.OnDockerUIEvent", event, &none)
+	return c.rpc.Call("hc.OnUIEvent", eventJsonStr, &none)
 }
 
 func (c *Client) OnNfsReady() error {

@@ -11,14 +11,11 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
 
     let keyPath: KeyPath<VmViewModel, [Entity]?>
     let content: ([Entity], ContainerRecord) -> Content
-    let onRefresh: () async -> Void
 
     init(_ keyPath: KeyPath<VmViewModel, [Entity]?>,
-         @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content,
-         onRefresh: @escaping () async -> Void) {
+         @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content) {
         self.keyPath = keyPath
         self.content = content
-        self.onRefresh = onRefresh
     }
 
     private var disabledView: some View {
@@ -37,7 +34,6 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
                     if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
                         await vmModel.tryRestartContainer(dockerRecord)
                     }
-                    await onRefresh()
                 }
             }) {
                 Text("Turn On")
@@ -82,26 +78,10 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
                             })
                         }
                     }
-                    .onChange(of: dockerRecord.state) { _ in
-                        Task {
-                            await onRefresh()
-                        }
-                    }
                 } else {
                     ProgressView(label: {
                         Text("Loading")
                     })
-                }
-            }
-            .task {
-                NSLog("refresh: k8s task")
-                await onRefresh()
-            }
-            .onChange(of: controlActiveState) { state in
-                if state == .key {
-                    Task {
-                        await onRefresh()
-                    }
                 }
             }
         }

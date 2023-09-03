@@ -60,9 +60,6 @@ struct DockerImagesRootView: View {
                     Spacer()
                 }
             }
-        } onRefresh: {
-            await vmModel.tryRefreshList()
-            await vmModel.maybeTryRefreshDockerList()
         }
         .navigationTitle("Images")
         .searchable(

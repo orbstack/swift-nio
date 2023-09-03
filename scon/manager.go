@@ -18,10 +18,12 @@ import (
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
+	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -55,6 +57,8 @@ type ConManager struct {
 	// TODO make this its own machine?
 	k8sEnabled        bool
 	k8sExposeServices bool
+	uiEventDebounce   syncx.LeadingFuncDebounce
+	uiInitContainers  sync.WaitGroup
 
 	// auto forward
 	forwards   map[sysnet.ListenerKey]ForwardState
@@ -150,6 +154,25 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 	}
 	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host)
 	mgr.nfsForAll = NewMultiNfsMirror(mgr.nfsRoot, mgr.nfsForMachines)
+	mgr.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
+		// wait for initial starts
+		mgr.uiInitContainers.Wait()
+
+		machines := mgr.ListContainers()
+		records := make([]types.ContainerRecord, 0, len(machines))
+		for _, m := range machines {
+			records = append(records, *m.toRecord())
+		}
+
+		err = mgr.host.OnUIEvent(uitypes.UIEvent{
+			Scon: &uitypes.SconEvent{
+				CurrentMachines: records,
+			},
+		})
+	}, uitypes.UIEventDebounce)
+
+	// prevent UI from getting an event
+	mgr.uiInitContainers.Add(1)
 
 	return mgr, nil
 }
@@ -229,8 +252,13 @@ func (m *ConManager) Start() error {
 	})
 
 	// start all pending containers
+	// do not alert the UI until all are started, to give it a consistent restored state
+	// otherwise docker state will flicker
 	for _, c := range pendingStarts {
+		m.uiInitContainers.Add(1)
 		go func(c *Container) {
+			defer m.uiInitContainers.Done()
+
 			err := c.Start()
 			if err != nil {
 				logrus.WithError(err).WithField("container", c.Name).Error("failed to start restored container")
@@ -251,6 +279,10 @@ func (m *ConManager) Start() error {
 		return err
 	})
 	go runOne("krpc initiator server", RunKrpcInitiator)
+
+	// release the initial ui lock, now that container start jobs are pending, and trigger
+	m.uiInitContainers.Done()
+	m.uiEventDebounce.Trigger()
 
 	logrus.Info("started")
 	return nil
@@ -412,6 +444,8 @@ func (m *ConManager) removeContainer(c *Container) error {
 	if err != nil {
 		return err
 	}
+
+	m.uiEventDebounce.Trigger()
 
 	return nil
 }

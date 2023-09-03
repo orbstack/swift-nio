@@ -1,13 +1,20 @@
 package dockertypes
 
-type UIEntity string
+type UIEntity int
 
 const (
-	UIEventContainer UIEntity = "container"
-	UIEventVolume    UIEntity = "volume"
-	UIEventImage     UIEntity = "image"
+	UIEventContainer UIEntity = iota
+	UIEventVolume
+	UIEventImage
+
+	UIEventMax_
 )
 
 type UIEvent struct {
-	Changed []UIEntity `json:"changed"`
+	CurrentContainers []*ContainerSummary `json:"currentContainers"`
+	CurrentVolumes    []Volume            `json:"currentVolumes"`
+	CurrentImages     []*ImageSummary     `json:"currentImages"`
+	CurrentSystemDf   *SystemDf           `json:"currentSystemDf"`
+
+	Stopped bool `json:"stopped"`
 }

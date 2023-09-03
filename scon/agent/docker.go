@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"slices"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
@@ -22,13 +21,12 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	dockerRefreshDebounce = 100 * time.Millisecond
-	// TODO: skip debounce when GUI action in progress
-	dockerUIEventDebounce   = 50 * time.Millisecond
+	dockerRefreshDebounce   = 100 * time.Millisecond
 	dockerAPISocketUpstream = "/var/run/docker.sock"
 )
 
@@ -52,7 +50,7 @@ type DockerAgent struct {
 	networkRefreshDebounce   syncx.FuncDebounce
 	imageRefreshDebounce     syncx.FuncDebounce
 	uiEventDebounce          syncx.LeadingFuncDebounce
-	pendingUIEntities        []dockertypes.UIEntity
+	pendingUIEntities        [dockertypes.UIEventMax_]bool
 
 	eventsConn io.Closer
 
@@ -109,7 +107,7 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 		if err != nil {
 			logrus.WithError(err).Error("failed to send UI event")
 		}
-	}, dockerUIEventDebounce)
+	}, uitypes.UIEventDebounce)
 
 	if isK8s {
 		dockerAgent.k8s = &K8sAgent{
@@ -291,9 +289,7 @@ func (d *DockerAgent) triggerUIEvent(entity dockertypes.UIEntity) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if !slices.Contains(d.pendingUIEntities, entity) {
-		d.pendingUIEntities = append(d.pendingUIEntities, entity)
-	}
+	d.pendingUIEntities[entity] = true
 	d.uiEventDebounce.Trigger()
 }
 
@@ -301,15 +297,52 @@ func (d *DockerAgent) doSendUIEvent() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	event := dockertypes.UIEvent{
-		Changed: d.pendingUIEntities,
+	event := dockertypes.UIEvent{}
+
+	if d.pendingUIEntities[dockertypes.UIEventContainer] {
+		containers, err := d.client.ListContainers(true /*all*/)
+		if err != nil {
+			return err
+		}
+		event.CurrentContainers = containers
 	}
-	err := d.host.OnDockerUIEvent(&event)
+
+	if d.pendingUIEntities[dockertypes.UIEventVolume] {
+		volumes, err := d.client.ListVolumes()
+		if err != nil {
+			return err
+		}
+		event.CurrentVolumes = volumes
+
+		// a volume was added or removed, so we need to update system df
+		// limiting it to volumes is less expensive
+		// TODO invalidate df every hour
+		var df dockertypes.SystemDf
+		err = d.client.Call("GET", "/system/df?type=volume", nil, &df)
+		if err != nil {
+			return err
+		}
+		event.CurrentSystemDf = &df
+	}
+
+	if d.pendingUIEntities[dockertypes.UIEventImage] {
+		images, err := d.client.ListImages()
+		if err != nil {
+			return err
+		}
+		event.CurrentImages = images
+	}
+
+	err := d.host.OnUIEvent(uitypes.UIEvent{
+		Docker: &event,
+	})
 	if err != nil {
 		return err
 	}
 
-	d.pendingUIEntities = nil
+	for i := range d.pendingUIEntities {
+		d.pendingUIEntities[i] = false
+	}
 	return nil
 }
 
@@ -368,6 +401,7 @@ func (d *DockerAgent) monitorEvents() error {
 			switch event.Action {
 			case "delete", "import", "load", "pull", "tag", "untag":
 				// TODO clear full image cache on tag/untag. event doesn't contain image ID
+				d.triggerUIEvent(dockertypes.UIEventImage)
 				d.imageRefreshDebounce.Call()
 			}
 
@@ -382,4 +416,11 @@ func (d *DockerAgent) monitorEvents() error {
 			}
 		}
 	}
+}
+
+func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
+	a.docker.triggerUIEvent(dockertypes.UIEventContainer)
+	a.docker.triggerUIEvent(dockertypes.UIEventVolume)
+	a.docker.triggerUIEvent(dockertypes.UIEventImage)
+	return nil
 }

@@ -84,6 +84,13 @@ Learn more: https://go.orbstack.dev/docker-mount
 `
 )
 
+type K8sEvent struct {
+	CurrentPods     []*v1.Pod     `json:"currentPods"`
+	CurrentServices []*v1.Service `json:"currentServices"`
+
+	Stopped bool `json:"stopped"`
+}
+
 type HcontrolServer struct {
 	n         *vnet.Network
 	drmClient *drm.DrmClient
@@ -351,9 +358,11 @@ func (h *HcontrolServer) ClearDockerState(async bool, _ *None) error {
 
 	// and clear gui state because k8s is push-only to UI
 	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
-		K8s: &uitypes.K8sEvent{
-			CurrentPods:     nil,
-			CurrentServices: nil,
+		Docker: &dockertypes.UIEvent{
+			Stopped: true,
+		},
+		K8s: &K8sEvent{
+			Stopped: true,
 		},
 	})
 
@@ -377,11 +386,8 @@ func (h *HcontrolServer) clearFsnotifyRefs() error {
 	return nil
 }
 
-func (h *HcontrolServer) OnDockerUIEvent(event dockertypes.UIEvent, _ *None) error {
-	// notify GUI
-	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
-		Docker: &event,
-	})
+func (h *HcontrolServer) OnUIEvent(ev string, _ *None) error {
+	vzf.SwextIpcNotifyUIEventRaw(ev)
 	return nil
 }
 
@@ -581,7 +587,7 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 		}
 
 		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
-			K8s: &uitypes.K8sEvent{
+			K8s: &K8sEvent{
 				CurrentPods:     pods,
 				CurrentServices: services,
 			},

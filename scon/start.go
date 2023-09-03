@@ -589,6 +589,8 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrit
 		}
 	}()
 
+	m.uiEventDebounce.Trigger()
+
 	return c, shouldStart, nil
 }
 

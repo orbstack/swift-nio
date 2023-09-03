@@ -34,6 +34,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/osver"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
@@ -457,9 +458,10 @@ func runVmManager() {
 
 	// everything is set up for spawn-daemon to work properly (build id and pid)
 	// now notify GUI that we've started
+	pid := os.Getpid()
 	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
-		Started: &uitypes.StartedEvent{
-			Pid: os.Getpid(),
+		Vmgr: &uitypes.VmgrEvent{
+			NewDaemonPid: &pid,
 		},
 	})
 
@@ -658,6 +660,13 @@ func runVmManager() {
 		network:      vnetwork,
 		hcontrol:     hcServer,
 	}
+	controlServer.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
+		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+			Vmgr: &uitypes.VmgrEvent{
+				VmConfig: vmconfig.Get(),
+			},
+		})
+	}, uitypes.UIEventDebounce)
 	vmcontrolCleanup, err := controlServer.Serve()
 	check(err)
 	defer vmcontrolCleanup()
@@ -742,6 +751,15 @@ func runVmManager() {
 
 	// Mount NFS
 	defer hcServer.InternalUnmountNfs()
+
+	// notify GUI that host-side startup is done
+	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		Vmgr: &uitypes.VmgrEvent{
+			StateReady: true,
+			// and give it an initial config
+			VmConfig: vmconfig.Get(),
+		},
+	})
 
 	logrus.Debug("waiting for VM to start")
 	returnCh := make(chan struct{}, 1)

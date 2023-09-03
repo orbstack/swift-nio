@@ -1,26 +1,34 @@
 package uitypes
 
 import (
+	"time"
+
+	stypes "github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
-	v1 "k8s.io/api/core/v1"
 )
 
+const UIEventDebounce = 50 * time.Millisecond
+
 type UIEvent struct {
-	Started    *StartedEvent        `json:"started"`
+	Vmgr       *VmgrEvent           `json:"vmgr"`
+	Scon       *SconEvent           `json:"scon"`
 	Docker     *dockertypes.UIEvent `json:"docker"`
 	DrmWarning *DrmWarningEvent     `json:"drmWarning"`
-	K8s        *K8sEvent            `json:"k8s"`
+	// workaround to avoid importing huge k8s pkg in scon and agent
+	K8s any `json:"k8s"`
 }
 
-type StartedEvent struct {
-	Pid int `json:"pid"`
+type VmgrEvent struct {
+	NewDaemonPid *int `json:"newDaemonPid"`
+	StateReady   bool `json:"stateReady"`
+	// also to avoid importing vmconfig pkg
+	VmConfig any `json:"vmConfig"`
+}
+
+type SconEvent struct {
+	CurrentMachines []stypes.ContainerRecord `json:"currentMachines"`
 }
 
 type DrmWarningEvent struct {
 	LastError string `json:"lastError"`
-}
-
-type K8sEvent struct {
-	CurrentPods     []*v1.Pod     `json:"currentPods"`
-	CurrentServices []*v1.Service `json:"currentServices"`
 }

@@ -100,8 +100,6 @@ struct K8SPodsView: View {
                     runningCount: runningCount,
                     listItems: listItems,
                     selection: $selection)
-        } onRefresh: {
-            await vmModel.tryRefreshList()
         }
         .navigationTitle("Pods")
         .searchable(

@@ -83,24 +83,29 @@ private actor PidsHolder {
     }
 }
 
-enum DKUIEntity: String, Codable {
-    case container = "container"
-    case volume = "volume"
-    case image = "image"
-}
-
 struct UIEvent: Codable {
-    let started: Started?
+    let vmgr: Vmgr?
+    let scon: Scon?
     let docker: Docker?
     let drmWarning: DrmWarning?
     let k8s: K8s?
 
-    struct Started: Codable {
-        let pid: Int
+    struct Scon: Codable {
+        let currentMachines: [ContainerRecord]?
+    }
+
+    struct Vmgr: Codable {
+        let newDaemonPid: Int?
+        let stateReady: Bool
+        let vmConfig: VmConfig?
     }
 
     struct Docker: Codable {
-        let changed: [DKUIEntity]
+        let currentContainers: [DKContainer]?
+        let currentVolumes: [DKVolume]?
+        let currentImages: [DKImage]?
+        let currentSystemDf: DKSystemDf?
+        let stopped: Bool
     }
 
     struct DrmWarning: Codable {
@@ -110,11 +115,13 @@ struct UIEvent: Codable {
     struct K8s: Codable {
         let currentPods: [K8SPod]?
         let currentServices: [K8SService]?
+        let stopped: Bool
     }
 }
 
 class DaemonManager {
     let uiEvents = PassthroughSubject<UIEvent, Never>()
+    let uiEventErrors = PassthroughSubject<Error, Never>()
 
     private let pidsHolder = PidsHolder()
     private var lastPid: Int?
@@ -269,6 +276,8 @@ class DaemonManager {
     func monitorNotifications() {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
+        // match JsonRPC even though this is bad. vmconfig depends on it
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
 
         let nc = DistributedNotificationCenter.default()
         nc.addObserver(forName: .init("dev.orbstack.vmgr.private.UIEvent"), object: nil, queue: nil) { notification in
@@ -279,10 +288,11 @@ class DaemonManager {
 
             do {
                 let event = try decoder.decode(UIEvent.self, from: eventJson.data(using: .utf8)!)
-                NSLog("Received UI event: \(event)")
+                NSLog("Received event: \(event)")
                 self.uiEvents.send(event)
             } catch {
                 NSLog("Failed to decode notification \(notification) - error = \(error)")
+                self.uiEventErrors.send(error)
             }
         }
     }

@@ -69,10 +69,6 @@ class VmService: RPCService {
         try await invoke("ResetData")
     }
 
-    func getConfig() async throws -> VmConfig {
-        try await invoke("GetConfig")
-    }
-
     func setConfig(_ config: VmConfig) async throws {
         try await invoke("SetConfig", params: config)
     }
@@ -90,10 +86,6 @@ class VmService: RPCService {
     }
 
     // MARK: - Docker
-    func dockerContainerList() async throws -> [DKContainer] {
-        try await invoke("DockerContainerList")
-    }
-
     func dockerContainerStart(_ id: String) async throws {
         try await invoke("DockerContainerStart", params: IDRequest(id: id))
     }
@@ -122,10 +114,6 @@ class VmService: RPCService {
         try await invoke("DockerContainerDelete", params: IDRequest(id: id))
     }
 
-    func dockerVolumeList() async throws -> DKVolumeListResponse {
-        try await invoke("DockerVolumeList")
-    }
-
     func dockerVolumeCreate(_ options: DKVolumeCreateOptions) async throws {
         try await invoke("DockerVolumeCreate", params: options)
     }
@@ -134,16 +122,8 @@ class VmService: RPCService {
         try await invoke("DockerVolumeDelete", params: IDRequest(id: id))
     }
 
-    func dockerImageList() async throws -> [DKImage] {
-        try await invoke("DockerImageList")
-    }
-
     func dockerImageRemove(_ id: String) async throws {
         try await invoke("DockerImageDelete", params: IDRequest(id: id))
-    }
-
-    func dockerSystemDf() async throws -> DKSystemDf {
-        try await invoke("DockerSystemDf")
     }
 
     // MARK: - K8s

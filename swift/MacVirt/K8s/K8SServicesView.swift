@@ -96,8 +96,6 @@ struct K8SServicesView: View {
             K8SServicesList(filterIsSearch: !searchQuery.isEmpty,
                     listItems: listItems,
                     selection: $selection)
-        } onRefresh: {
-            await vmModel.tryRefreshList()
         }
         .navigationTitle("Services")
         .searchable(

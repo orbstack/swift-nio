@@ -46,8 +46,9 @@ func (s *SconServer) Create(ctx context.Context, req types.CreateRequest) (*type
 }
 
 func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerRecord, error) {
-	var records []types.ContainerRecord
-	for _, c := range s.m.ListContainers() {
+	containers := s.m.ListContainers()
+	records := make([]types.ContainerRecord, 0, len(containers))
+	for _, c := range containers {
 		records = append(records, *c.toRecord())
 	}
 
@@ -261,6 +262,23 @@ func (s *SconServer) InternalDeleteK8s(ctx context.Context) error {
 	return c.DeleteK8s()
 }
 
+func (s *SconServer) InternalGuiReportStarted(ctx context.Context) error {
+	s.m.uiEventDebounce.Trigger()
+
+	// try refreshing docker too
+	c, err := s.m.GetByID(ContainerIDDocker)
+	if err == nil {
+		err = c.UseAgent(func(a *agent.Client) error {
+			return a.DockerGuiReportStarted()
+		})
+		if err != nil {
+			logrus.WithError(err).Error("failed to report docker gui started")
+		}
+	}
+
+	return nil
+}
+
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
 		"Ping":                                  handler.New(s.Ping),
@@ -284,7 +302,8 @@ func (s *SconServer) Serve() error {
 		"InternalDockerMigrationWaitSync":       handler.New(s.InternalDockerMigrationWaitSync),
 		"InternalDockerMigrationStopSyncServer": handler.New(s.InternalDockerMigrationStopSyncServer),
 		// TODO better alias
-		"InternalDeleteK8s": handler.New(s.InternalDeleteK8s),
+		"InternalDeleteK8s":        handler.New(s.InternalDeleteK8s),
+		"InternalGuiReportStarted": handler.New(s.InternalGuiReportStarted),
 	}, &jhttp.BridgeOptions{
 		Server: &jrpc2.ServerOptions{
 			// concurrency limit can cause deadlock in parallel start/stop/create because of post-stop hook reporting

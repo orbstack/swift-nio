@@ -174,7 +174,16 @@ func (c *Container) persist() error {
 	// we do still persist builtin containers, we just ignore most fields when reading
 	record := c.toRecord()
 	logrus.WithField("record", record).Debug("persisting container")
-	return c.manager.db.SetContainer(c.ID, record)
+
+	err := c.manager.db.SetContainer(c.ID, record)
+	if err != nil {
+		return err
+	}
+
+	// also notify UI of state change
+	c.manager.uiEventDebounce.Trigger()
+
+	return nil
 }
 
 func (c *Container) refreshState() error {
