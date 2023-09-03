@@ -11,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
+	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
 
@@ -86,6 +87,14 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 				}
 
 				scli.EnsureSconVMWithSpinner()
+
+				// disable config
+				config, err := vmclient.Client().GetConfig()
+				checkCLI(err)
+				config.K8sEnable = false
+				err = vmclient.Client().SetConfig(config)
+				checkCLI(err)
+
 				spinner := spinutil.Start("red", "Deleting k8s")
 				err = scli.Client().InternalDeleteK8s()
 				spinner.Stop()
