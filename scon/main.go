@@ -214,7 +214,7 @@ func runContainerManager() {
 					balanceOut = fmt.Sprintf("[failed to recover FS space: %v]", err2)
 				}
 
-				err = fmt.Errorf("%w\n\nUsage:\n%s\n\nQG:\n%s\n\nRecovery:%s", e, usage, qgroup, balanceOut)
+				err = fmt.Errorf("%w\n\nUsage:\n%s\n\nQG:\n%s\n\nRecovery: %s", e, usage, qgroup, balanceOut)
 			}
 
 			sentry.CurrentHub().Recover(err)
