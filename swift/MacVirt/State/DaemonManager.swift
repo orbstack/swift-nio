@@ -288,7 +288,6 @@ class DaemonManager {
 
             do {
                 let event = try decoder.decode(UIEvent.self, from: eventJson.data(using: .utf8)!)
-                NSLog("Received event: \(event)")
                 self.uiEvents.send(event)
             } catch {
                 NSLog("Failed to decode notification \(notification) - error = \(error)")

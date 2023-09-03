@@ -447,7 +447,7 @@ func SwextIpcNotifyUIEvent(ev uitypes.UIEvent) {
 
 // raw is for more efficient sending from VM, via gob rpc
 func SwextIpcNotifyUIEventRaw(eventJsonStr string) {
-	logrus.WithField("event", eventJsonStr).Debug("send UI event")
+	logrus.Debug("send UI event")
 
 	cStr := C.CString(eventJsonStr)
 	defer C.free(unsafe.Pointer(cStr))
