@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net"
 	"net/netip"
 	"os"
@@ -19,7 +18,6 @@ import (
 	"github.com/orbstack/macvirt/scon/dockerdb"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/securefs"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -27,7 +25,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
-	"k8s.io/utils/inotify"
 )
 
 const (
@@ -40,10 +37,6 @@ const (
 
 	// takes ~3 ms to unfreeze
 	dockerFreezeDebounce = 2 * time.Second
-
-	dockerNfsDebounce = 250 * time.Millisecond
-
-	nfsDockerSubdir = "docker/volumes"
 
 	maxBuildCacheSize = 80 * 1024 * 1024 * 1024 // 80 GiB
 )
@@ -612,98 +605,4 @@ func (p *DockerProxy) handleConn(conn net.Conn) error {
 
 func (p *DockerProxy) Close() error {
 	return p.l.Close()
-}
-
-func (m *ConManager) runDockerNFS() error {
-	// create docker data volumes dir so we can watch it with inotify once docker starts first time
-	dockerVolDir := conf.C().DockerDataDir + "/volumes"
-	err := os.MkdirAll(dockerVolDir, 0755)
-	if err != nil {
-		return err
-	}
-
-	lastVols := []string{}
-	updateMountsFunc := func() error {
-		// get all volumes
-		volEntries, err := os.ReadDir(dockerVolDir)
-		if err != nil {
-			// if doesn't exist, then assume empty (e.g. just started or just deleted)
-			if errors.Is(err, os.ErrNotExist) {
-				volEntries = nil
-			} else {
-				return err
-			}
-		}
-
-		vols := filterMapSlice(volEntries, func(entry fs.DirEntry) (string, bool) {
-			if entry.IsDir() {
-				// make sure it has _data
-				_, err := os.Stat(dockerVolDir + "/" + entry.Name() + "/_data")
-				if err != nil {
-					return "", false
-				}
-
-				return entry.Name(), true
-			} else {
-				return "", false
-			}
-		})
-
-		added, removed := util.DiffSlices(lastVols, vols)
-		lastVols = vols
-
-		// remove old volumes
-		// must remove before adding in case of recreate with same name within debounce period
-		for _, vol := range removed {
-			nfsSubDst := nfsDockerSubdir + "/" + vol
-			err := m.nfsForAll.Unmount(nfsSubDst)
-			if err != nil {
-				return err
-			}
-		}
-
-		// then add new volumes
-		for _, vol := range added {
-			dataSrc := dockerVolDir + "/" + vol + "/_data"
-			nfsSubDst := nfsDockerSubdir + "/" + vol
-			err := m.nfsForAll.MountBind(dataSrc, nfsSubDst)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
-	// TODO: use WaitForPathExist w/ timeout so we don't need debounce to wait for _data here
-	debounce := syncx.NewFuncDebounce(dockerNfsDebounce, func() {
-		err := updateMountsFunc()
-		if err != nil {
-			logrus.WithError(err).Error("failed to update docker volume mounts")
-		}
-	})
-	debounce.Call()
-
-	watcher, err := inotify.NewWatcher()
-	if err != nil {
-		return err
-	}
-	defer watcher.Close()
-
-	err = watcher.AddWatch(dockerVolDir, inotify.InCreate|inotify.InDelete)
-	if err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case event := <-watcher.Event:
-			if event.Mask&inotify.InCreate != 0 {
-				debounce.Call()
-			} else if event.Mask&inotify.InDelete != 0 {
-				debounce.Call()
-			}
-		case err := <-watcher.Error:
-			logrus.WithError(err).Error("docker volume watcher error")
-		}
-	}
 }

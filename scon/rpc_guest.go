@@ -7,9 +7,12 @@ import (
 	"net/rpc"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/bpf"
+	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -17,6 +20,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type SconGuestServer struct {
@@ -429,6 +433,12 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 }
 
 func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[sgtypes.TaggedImage], _ *None) error {
+	fs, err := securefs.NewFS(conf.C().DockerDataDir)
+	if err != nil {
+		return err
+	}
+	defer fs.Close()
+
 	// unmount old ones
 	for _, timg := range diff.Removed {
 		err := s.m.nfsRoot.Unmount("docker/images/" + timg.Tag)
@@ -441,9 +451,53 @@ func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[sgtypes.Tagged
 	for _, timg := range diff.Added {
 		// for root only, to avoid hundreds of mounts in machines
 		// TODO: extra tags should be symlinks to be semantically correct
-		err := s.m.nfsRoot.MountImage(timg.Image, timg.Tag)
+		err := s.m.nfsRoot.MountImage(timg.Image, timg.Tag, fs)
 		if err != nil {
 			logrus.WithError(err).Error("failed to mount docker image")
+		}
+	}
+
+	return nil
+}
+
+func mountVolume(nfs NfsMirror, vol *dockertypes.Volume, fs *securefs.FS) error {
+	// secure way: open the fd and bind it from O_PATH
+	dir := strings.TrimPrefix(vol.Mountpoint, "/var/lib/docker")
+	fd, err := fs.OpenFd(dir, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open volume dir '%s': %w", dir, err)
+	}
+	defer unix.Close(fd)
+
+	err = nfs.MountBind("/proc/self/fd/"+strconv.Itoa(fd), "docker/volumes/"+vol.Name)
+	if err != nil {
+		return fmt.Errorf("mount volume: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SconGuestServer) OnDockerVolumesChanged(diff sgtypes.Diff[*dockertypes.Volume], _ *None) error {
+	fs, err := securefs.NewFS(conf.C().DockerDataDir)
+	if err != nil {
+		return err
+	}
+	defer fs.Close()
+
+	// unmount old ones
+	for _, vol := range diff.Removed {
+		// machines get volume mounts too, esp. because docker machine needs it for ppl mounting from mac nfs path
+		err := s.m.nfsForAll.Unmount("docker/volumes/" + vol.Name)
+		if err != nil {
+			logrus.WithError(err).Error("failed to unmount docker volume")
+		}
+	}
+
+	// mount new ones
+	for _, vol := range diff.Added {
+		err := mountVolume(s.m.nfsForAll, vol, fs)
+		if err != nil {
+			logrus.WithError(err).Error("failed to mount docker volume")
 		}
 	}
 

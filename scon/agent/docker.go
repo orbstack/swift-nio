@@ -41,6 +41,7 @@ type DockerAgent struct {
 	containerBinds map[string][]string
 	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
 	lastNetworks   []dockertypes.Network
+	lastVolumes    []*dockertypes.Volume
 
 	lastImages     []*sgtypes.TaggedImage
 	fullImageCache map[string]cachedImage
@@ -48,6 +49,7 @@ type DockerAgent struct {
 	// refreshing w/ debounce+diff ensures consistent snapshots
 	containerRefreshDebounce syncx.FuncDebounce
 	networkRefreshDebounce   syncx.FuncDebounce
+	volumeRefreshDebounce    syncx.FuncDebounce
 	imageRefreshDebounce     syncx.FuncDebounce
 	uiEventDebounce          syncx.LeadingFuncDebounce
 	pendingUIEntities        [dockertypes.UIEventMax_]bool
@@ -94,6 +96,12 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 		err := dockerAgent.refreshNetworks()
 		if err != nil {
 			logrus.WithError(err).Error("failed to refresh networks")
+		}
+	})
+	dockerAgent.volumeRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		err := dockerAgent.refreshVolumes()
+		if err != nil {
+			logrus.WithError(err).Error("failed to refresh volumes")
 		}
 	})
 	dockerAgent.imageRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
@@ -293,6 +301,16 @@ func (d *DockerAgent) triggerUIEvent(entity dockertypes.UIEntity) {
 	d.uiEventDebounce.Trigger()
 }
 
+func (d *DockerAgent) triggerAllUIEvents() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for i := range d.pendingUIEntities {
+		d.pendingUIEntities[i] = true
+	}
+	d.uiEventDebounce.Trigger()
+}
+
 func (d *DockerAgent) doSendUIEvent() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -357,11 +375,10 @@ func (d *DockerAgent) monitorEvents() error {
 	// kick an initial refresh
 	d.containerRefreshDebounce.Call()
 	d.networkRefreshDebounce.Call()
+	d.volumeRefreshDebounce.Call()
 	d.imageRefreshDebounce.Call()
 	// also kick all initial UI events for menu bar bg start
-	d.triggerUIEvent(dockertypes.UIEventContainer)
-	d.triggerUIEvent(dockertypes.UIEventVolume)
-	d.triggerUIEvent(dockertypes.UIEventImage)
+	d.triggerAllUIEvents()
 
 	dec := json.NewDecoder(eventsConn)
 	for {
@@ -394,6 +411,7 @@ func (d *DockerAgent) monitorEvents() error {
 			// include mount, unmount because UI shows used/unused
 			case "create", "destroy", "mount", "unmount":
 				d.triggerUIEvent(dockertypes.UIEventVolume)
+				d.volumeRefreshDebounce.Call()
 			}
 
 		case "image":
@@ -419,8 +437,6 @@ func (d *DockerAgent) monitorEvents() error {
 }
 
 func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
-	a.docker.triggerUIEvent(dockertypes.UIEventContainer)
-	a.docker.triggerUIEvent(dockertypes.UIEventVolume)
-	a.docker.triggerUIEvent(dockertypes.UIEventImage)
+	a.docker.triggerAllUIEvents()
 	return nil
 }

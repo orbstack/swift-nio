@@ -55,8 +55,8 @@ func (config *DockerBridgeConfig) HostIP6() net.IPNet {
 }
 
 type Diff[T any] struct {
-	Added   []T
 	Removed []T
+	Added   []T
 }
 
 type TaggedImage struct {

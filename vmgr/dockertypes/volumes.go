@@ -21,13 +21,17 @@ type Volume struct {
 	UsageData  *VolumeUsageData       `json:",omitempty"`
 }
 
+func (v Volume) Identifier() string {
+	return v.Name
+}
+
 type VolumeUsageData struct {
 	RefCount int
 	Size     int64
 }
 
 type VolumeListResponse struct {
-	Volumes  []Volume
+	Volumes  []*Volume
 	Warnings []string
 }
 

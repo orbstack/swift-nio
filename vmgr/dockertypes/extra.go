@@ -12,7 +12,7 @@ const (
 
 type UIEvent struct {
 	CurrentContainers []*ContainerSummary `json:"currentContainers"`
-	CurrentVolumes    []Volume            `json:"currentVolumes"`
+	CurrentVolumes    []*Volume           `json:"currentVolumes"`
 	CurrentImages     []*ImageSummary     `json:"currentImages"`
 	CurrentSystemDf   *SystemDf           `json:"currentSystemDf"`
 

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
@@ -11,7 +12,7 @@ type NfsMirror interface {
 	MountBind(source string, subdest string) error
 	Unmount(subdest string) error
 	Close() error
-	MountImage(img *dockertypes.FullImage, tag string) error
+	MountImage(img *dockertypes.FullImage, tag string, fs *securefs.FS) error
 }
 
 type MultiNfsMirror struct {
@@ -68,10 +69,10 @@ func (m *MultiNfsMirror) Close() error {
 	return errors.Join(errs...)
 }
 
-func (m *MultiNfsMirror) MountImage(img *dockertypes.FullImage, tag string) error {
+func (m *MultiNfsMirror) MountImage(img *dockertypes.FullImage, tag string, fs *securefs.FS) error {
 	var errs []error
 	for _, mirror := range m.mirrors {
-		err := mirror.MountImage(img, tag)
+		err := mirror.MountImage(img, tag, fs)
 		if err != nil {
 			errs = append(errs, err)
 		}

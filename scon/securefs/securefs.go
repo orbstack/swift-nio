@@ -47,7 +47,7 @@ func (fs *FS) Close() error {
 	return unix.Close(fs.dfd)
 }
 
-func (fs *FS) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+func (fs *FS) OpenFd(name string, flag int, perm os.FileMode) (int, error) {
 	// openat2 RESOLVE_IN_ROOT - so symlinks still work
 	for {
 		how := unix.OpenHow{
@@ -62,12 +62,21 @@ func (fs *FS) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error
 			if err == unix.EINTR || err == unix.EAGAIN {
 				continue
 			} else {
-				return nil, err
+				return 0, err
 			}
 		}
 
-		return os.NewFile(uintptr(fd), name), nil
+		return fd, nil
 	}
+}
+
+func (fs *FS) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+	fd, err := fs.OpenFd(name, flag, perm)
+	if err != nil {
+		return nil, err
+	}
+
+	return os.NewFile(uintptr(fd), name), nil
 }
 
 func (fs *FS) Open(name string) (*os.File, error) {

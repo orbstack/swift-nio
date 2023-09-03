@@ -6,7 +6,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
-func (c *Client) ListVolumes() ([]dockertypes.Volume, error) {
+func (c *Client) ListVolumes() ([]*dockertypes.Volume, error) {
 	var volumesResp dockertypes.VolumeListResponse
 	err := c.Call("GET", "/volumes", nil, &volumesResp)
 	if err != nil {

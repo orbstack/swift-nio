@@ -48,3 +48,8 @@ func (c *Client) OnDockerImagesChanged(diff sgtypes.Diff[*sgtypes.TaggedImage]) 
 	var noResult None
 	return c.rpc.Call("scg.OnDockerImagesChanged", diff, &noResult)
 }
+
+func (c *Client) OnDockerVolumesChanged(diff sgtypes.Diff[*dockertypes.Volume]) error {
+	var noResult None
+	return c.rpc.Call("scg.OnDockerVolumesChanged", diff, &noResult)
+}

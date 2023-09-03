@@ -241,7 +241,6 @@ func (m *ConManager) Start() error {
 	if err != nil {
 		return err
 	}
-	go runOne("Docker NFS manager", m.runDockerNFS)
 	go runOne("device monitor", m.runDeviceMonitor)
 	// RPC only once other services are up
 	go runOne("RPC server", func() error {

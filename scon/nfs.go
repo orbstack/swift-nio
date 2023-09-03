@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -71,7 +72,7 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 		logrus.WithFields(logrus.Fields{
 			"src": source,
 			"dst": destPath,
-		}).Trace("mounting nfs dir")
+		}).Debug("mounting nfs dir")
 	}
 	err := os.MkdirAll(backingPath, 0755)
 	if err != nil && !errors.Is(err, os.ErrExist) {
@@ -205,7 +206,7 @@ func bindMountNfsRoot(c *Container, src string, target string) error {
 	})
 }
 
-func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string) error {
+func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string, fs *securefs.FS) error {
 	// c8d snapshotter not supported
 	if img.GraphDriver.Name != "overlay2" {
 		return nil
@@ -221,13 +222,14 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string) er
 	}
 	layerDirs := make([]string, 0, 1+len(img.GraphDriver.Data))
 	// upper first
-	upperPath := strings.Replace(img.GraphDriver.Data["UpperDir"], "/var/lib/docker", conf.C().DockerDataDir, 1)
+	upperPath := strings.TrimPrefix(img.GraphDriver.Data["UpperDir"], "/var/lib/docker")
 	// an image should never have no layers
 	if upperPath == "" {
 		return fmt.Errorf("image '%s' has no upper dir", tag)
 	}
 
-	upperFd, err := unix.Open(upperPath, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	// scope to securefs
+	upperFd, err := fs.OpenFd(upperPath, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return fmt.Errorf("open upper dir '%s': %w", upperPath, err)
 	}
@@ -236,8 +238,8 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string) er
 	layerDirs = append(layerDirs, "/proc/self/fd/"+strconv.Itoa(upperFd))
 
 	for _, dir := range lowerParts {
-		lowerPath := strings.Replace(dir, "/var/lib/docker", conf.C().DockerDataDir, 1)
-		lowerFd, err := unix.Open(lowerPath, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+		lowerPath := strings.TrimPrefix(dir, "/var/lib/docker")
+		lowerFd, err := fs.OpenFd(lowerPath, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 		if err != nil {
 			return fmt.Errorf("open lower dir '%s': %w", lowerPath, err)
 		}
