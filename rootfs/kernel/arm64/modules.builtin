@@ -25,6 +25,7 @@ kernel/fs/quota/quota_tree.ko
 kernel/fs/netfs/netfs.ko
 kernel/fs/ext4/ext4.ko
 kernel/fs/jbd2/jbd2.ko
+kernel/fs/squashfs/squashfs.ko
 kernel/fs/fat/fat.ko
 kernel/fs/fat/vfat.ko
 kernel/fs/exfat/exfat.ko
