@@ -710,7 +710,9 @@ fn enable_swap(path: &str, priority: i32) -> Result<(), Box<dyn Error>> {
 fn setup_memory() -> Result<(), Box<dyn Error>> {
     // prevent us from getting swapped out in case of memory pressure
     // (~8 ms, so it's in this async task)
-    mlockall(MlockAllFlags::MCL_CURRENT | MlockAllFlags::MCL_FUTURE)?;
+    // ... but it allocates ~100M of memory! way more than the RSS of ~27M for vinit
+    // not worth it
+    //mlockall(MlockAllFlags::MCL_CURRENT | MlockAllFlags::MCL_FUTURE)?;
 
     // sysctls
     sysctl("vm.overcommit_memory", "1")?;
