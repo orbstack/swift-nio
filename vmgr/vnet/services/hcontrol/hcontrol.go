@@ -18,7 +18,6 @@ import (
 
 	"github.com/muja/goconfig"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/nfsmnt"
@@ -96,8 +95,6 @@ type HcontrolServer struct {
 
 	NfsPort    int
 	nfsMounted bool
-
-	dataFsReady syncx.CondBool
 
 	k8sMu             sync.Mutex
 	k8sClient         *kubernetes.Clientset
@@ -433,12 +430,6 @@ func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
 	return nil
 }
 
-func (h *HcontrolServer) OnDataFsReady(_ None, _ *None) error {
-	logrus.Info("Data FS ready")
-	h.dataFsReady.Set(true)
-	return nil
-}
-
 type jsonObject map[string]any
 
 func firstObj(o any) jsonObject {
@@ -655,10 +646,6 @@ func (h *HcontrolServer) InternalUnmountNfs() error {
 	return nil
 }
 
-func (h *HcontrolServer) InternalWaitDataFsReady() {
-	h.dataFsReady.Wait()
-}
-
 func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {
 	// ask host to update disk stats BEFORE we open the db
 	// to recover from low space if quota was set too low last boot
@@ -679,7 +666,6 @@ func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, er
 		n:            n,
 		drmClient:    drm.Client(),
 		fsnotifyRefs: make(map[string]int),
-		dataFsReady:  syncx.NewCondBool(),
 	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)

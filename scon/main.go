@@ -151,12 +151,6 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 			return err
 		}
 
-		// report fs ready
-		err = host.OnDataFsReady()
-		if err != nil {
-			return err
-		}
-
 		// syncfs on fd
 		fd, err := unix.Open(conf.C().DataFsDir, unix.O_RDONLY|unix.O_CLOEXEC, 0)
 		if err != nil {
