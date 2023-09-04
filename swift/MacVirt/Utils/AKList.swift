@@ -152,7 +152,7 @@ private class AKSectionNode: NSObject, AKNode {
     }
 }
 
-private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresentable, Equatable {
+private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresentable {
     @ObservedObject var envModel: AKListModel
 
     let sections: [AKSection<Item>]
@@ -160,12 +160,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     let singleSelection: Bool
     let isFlat: Bool
     let makeRowView: (Item) -> ItemView
-
-    static func == (lhs: AKTreeListImpl, rhs: AKTreeListImpl) -> Bool {
-        // row callback should never change
-        lhs.sections == rhs.sections &&
-            lhs.rowHeight == rhs.rowHeight
-    }
 
     final class Coordinator: NSObject, NSOutlineViewDelegate {
         var parent: AKTreeListImpl
@@ -470,8 +464,6 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
                 singleSelection: singleSelection,
                 isFlat: flat,
                 makeRowView: makeRowView)
-        // TODO: is this useless?
-        //.equatable()
         // fix toolbar color and blur (fullSizeContentView)
         .ignoresSafeArea()
         .onReceive(envModel.$selection) { selection in
