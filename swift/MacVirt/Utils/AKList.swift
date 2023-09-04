@@ -93,6 +93,10 @@ private class AKListItemModel: ObservableObject {
 
 typealias AKListItemBase = Identifiable & Equatable
 
+// AKListItem is for both hierarchical and flat lists, with a default impl of listChildren.
+// it requires protocol conformance, but nothing more
+// allows unifying AKTreeList and AKFlatList impl
+// and faster for the flat case (no need for wrapper objects)
 protocol AKListItem: AKListItemBase {
     var listChildren: [any AKListItem]? { get }
 }
@@ -385,7 +389,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 // Can also be used for non-hierarchical lists.
 //
 // TO MIGRATE FROM SwiftUI List:
-//   - List -> AKTreeList or AKFlatList
+//   - List -> AKList
+//   - Section -> [AKSection]
 //   - .onRawDoubleClick -> .akListOnDoubleClick
 //   - .contextMenu -> .akListContextMenu
 //   - increase .vertical padding (4->8) to match SwiftUI List
@@ -403,13 +408,14 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 //   - scroll position moves to follow selection
 //   - native double click implementation for reliability
 //   - sections for hierarchical lists
-struct AKTreeList<Item: AKListItem, ItemView: View>: View {
+struct AKList<Item: AKListItem, ItemView: View>: View {
     private let sections: [AKSection<Item>]
-    @Binding var selection: Set<Item.ID>
+    @Binding private var selection: Set<Item.ID>
     private let rowHeight: CGFloat?
     private let makeRowView: (Item) -> ItemView
+    private let singleSelection: Bool
 
-    // hierarchical, with sections, multiple selection
+    // hierarchical OR flat, with sections, multiple selection
     init(_ sections: [AKSection<Item>],
          selection: Binding<Set<Item.ID>>,
          rowHeight: CGFloat? = nil,
@@ -418,70 +424,26 @@ struct AKTreeList<Item: AKListItem, ItemView: View>: View {
         self._selection = selection
         self.rowHeight = rowHeight
         self.makeRowView = makeRowView
-    }
-
-    var body: some View {
-        AKTreeListImpl(sections: sections,
-                selection: $selection,
-                rowHeight: rowHeight,
-                singleSelection: false,
-                makeRowView: makeRowView)
-        // TODO: is this useless?
-        //.equatable()
-        // fix toolbar color and blur (fullSizeContentView)
-        .ignoresSafeArea()
-    }
-}
-
-extension AKTreeList {
-    // hierarchical, no sections, multiple selection
-    init(_ items: [Item],
-         selection: Binding<Set<Item.ID>>,
-         rowHeight: CGFloat? = nil,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.init(AKSection.single(items),
-                selection: selection,
-                rowHeight: rowHeight,
-                makeRowView: makeRowView)
-    }
-}
-
-struct AKFlatList<Item: AKListItem, ItemView: View>: View {
-    private let sections: [AKSection<Item>]
-    @Binding var selection: Set<Item.ID>
-    private let rowHeight: CGFloat?
-    private let makeRowView: (Item) -> ItemView
-    private let singleSelection: Bool
-
-    // flat, with sections, multiple selection
-    init(_ items: [Item],
-         selection: Binding<Set<Item.ID>>,
-         rowHeight: CGFloat? = nil,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.sections = AKSection.single(items)
-        self._selection = selection
-        self.rowHeight = rowHeight
-        self.makeRowView = makeRowView
         self.singleSelection = false
     }
 
-    // flat, with sections, single selection
-    init(_ items: [Item],
+    // hierarchical OR flat, with sections, single selection
+    init(_ sections: [AKSection<Item>],
          selection singleBinding: Binding<Item.ID?>,
          rowHeight: CGFloat? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.sections = AKSection.single(items)
+        self.sections = sections
         self._selection = Binding<Set<Item.ID>>(
-                get: {
-                    if let id = singleBinding.wrappedValue {
-                        return [id]
-                    } else {
-                        return []
-                    }
-                },
-                set: {
-                    singleBinding.wrappedValue = $0.first
-                })
+            get: {
+                if let id = singleBinding.wrappedValue {
+                    return [id]
+                } else {
+                    return []
+                }
+            },
+            set: {
+                singleBinding.wrappedValue = $0.first
+            })
         self.rowHeight = rowHeight
         self.makeRowView = makeRowView
         self.singleSelection = true
@@ -491,11 +453,37 @@ struct AKFlatList<Item: AKListItem, ItemView: View>: View {
         AKTreeListImpl(sections: sections,
                 selection: $selection,
                 rowHeight: rowHeight,
-                singleSelection: singleSelection) {
-            makeRowView($0)
-        }
+                singleSelection: singleSelection,
+                makeRowView: makeRowView)
+        // TODO: is this useless?
+        //.equatable()
         // fix toolbar color and blur (fullSizeContentView)
         .ignoresSafeArea()
+    }
+}
+
+// structs can't have convenience init, so use an extension
+extension AKList {
+    // hierarchical OR flat, no sections, multiple selection
+    init(_ items: [Item],
+         selection: Binding<Set<Item.ID>>,
+         rowHeight: CGFloat? = nil,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        self.init(AKSection.single(items),
+                selection: selection,
+                rowHeight: rowHeight,
+                makeRowView: makeRowView)
+    }
+
+    // hierarchical OR flat, no sections, single selection
+    init(_ items: [Item],
+         selection singleBinding: Binding<Item.ID?>,
+         rowHeight: CGFloat? = nil,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        self.init(AKSection.single(items),
+                selection: singleBinding,
+                rowHeight: rowHeight,
+                makeRowView: makeRowView)
     }
 }
 

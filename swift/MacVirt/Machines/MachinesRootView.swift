@@ -21,7 +21,7 @@ struct MachinesRootView: View {
                     if containers.contains(where: { !$0.builtin }) {
                         let filteredContainers = containers.filter { !$0.builtin }
                         // see DockerContainerItem for rowHeight calculation
-                        AKFlatList(filteredContainers, selection: $selection, rowHeight: 48) { container in
+                        AKList(filteredContainers, selection: $selection, rowHeight: 48) { container in
                             MachineContainerItem(record: container)
                             .environmentObject(vmModel)
                             .environmentObject(actionTracker)
