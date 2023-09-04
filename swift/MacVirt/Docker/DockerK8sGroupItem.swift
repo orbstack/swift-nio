@@ -73,6 +73,32 @@ struct DockerK8sGroupItem: View, Equatable {
         }
         .padding(.vertical, 4)
         .contextMenu {
+            if isRunning {
+                Button(action: {
+                    Task {
+                        await actionTracker.with(cid: .k8sGroup, action: .stop) {
+                            await vmModel.tryStartStopK8s(enable: false)
+                        }
+                    }
+                }) {
+                    Label("Stop", systemImage: "")
+                }
+                .disabled(actionInProgress)
+            } else {
+                Button(action: {
+                    Task {
+                        await actionTracker.with(cid: .k8sGroup, action: .start) {
+                            await vmModel.tryStartStopK8s(enable: true)
+                        }
+                    }
+                }) {
+                    Label("Start", systemImage: "")
+                }
+                .disabled(actionInProgress)
+            }
+
+            Divider()
+
             Button("Go to Pods") {
                 Defaults[.selectedTab] = "k8s-pods"
             }
