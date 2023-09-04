@@ -203,11 +203,21 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 nsView.outlineParent = (outlineView as! AKOutlineView)
                 return nsView
             } else if let node = nsNode.representedObject as? AKSectionNode {
+                // pixel-perfect match of SwiftUI default section header
                 let cellView = NSTableCellView()
                 let field = NSTextField(labelWithString: node.value)
-                field.font = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
-                field.textColor = .headerColor
+                field.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+                field.textColor = .secondaryLabelColor
+                field.isEditable = false
                 cellView.addSubview(field)
+
+                // center vertically, align to left
+                field.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    field.leadingAnchor.constraint(equalTo: cellView.leadingAnchor),
+                    field.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                ])
+
                 return cellView
             } else {
                 return nil

@@ -29,7 +29,8 @@ struct DockerVolumesRootView: View {
                     ]
 
                     AKList(listData, selection: $selection, rowHeight: 48) { volume in
-                        DockerVolumeItem(volume: volume, isMounted: true, selection: selection)
+                        // TODO optimize: pass section info
+                        DockerVolumeItem(volume: volume, isMounted: isMounted(volume), selection: selection)
                         .id(volume.name)
                         .environmentObject(vmModel)
                         .environmentObject(actionTracker)
