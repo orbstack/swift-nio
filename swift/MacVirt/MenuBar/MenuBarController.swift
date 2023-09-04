@@ -236,10 +236,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
             menu.addSectionHeader("Containers")
 
             // group by Compose
-            let listItems = DockerContainerLists.makeListItems(filteredContainers: dockerContainers,
-                    // menu bar never shows stopped
-                    showStopped: false)
-            menu.addTruncatedItems(listItems) { item in
+            let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(filteredContainers: dockerContainers)
+            menu.addTruncatedItems(runningItems, overflowItems: stoppedItems) { item in
                 switch item {
                 case .container(let container):
                     return makeContainerItem(container: container)
@@ -254,8 +252,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
             }
 
             // placeholder if no containers
-            if listItems.isEmpty ||
-               listItems.allSatisfy({ if case .k8sGroup = $0 { return true } else { return false } }) {
+            if runningItems.isEmpty ||
+               runningItems.allSatisfy({ if case .k8sGroup = $0 { return true } else { return false } }) {
                 menu.addInfoLine("None running")
             }
 
@@ -683,7 +681,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 }
 
 private extension NSMenu {
-    func addTruncatedItems<T>(_ items: [T], makeItem: (T) -> NSMenuItem?) {
+    func addTruncatedItems<T>(_ items: [T], overflowItems: [T]? = nil, makeItem: (T) -> NSMenuItem?) {
         // limit 5
         for container in items.prefix(maxQuickAccessItems) {
             let item = makeItem(container)
@@ -693,7 +691,7 @@ private extension NSMenu {
         }
 
         // show extras in submenu
-        if items.count > maxQuickAccessItems {
+        if items.count > maxQuickAccessItems || overflowItems != nil {
             let submenu = NSMenu()
             let extraItem = NSMenuItem(title: "",
                     action: nil,
@@ -706,6 +704,17 @@ private extension NSMenu {
                 let item = makeItem(container)
                 if let item {
                     submenu.addItem(item)
+                }
+            }
+
+            submenu.addSeparator()
+
+            if let overflowItems {
+                for container in overflowItems {
+                    let item = makeItem(container)
+                    if let item {
+                        submenu.addItem(item)
+                    }
                 }
             }
         }

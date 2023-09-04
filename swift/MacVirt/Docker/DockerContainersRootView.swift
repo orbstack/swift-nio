@@ -126,11 +126,10 @@ private struct DockerContainersList: View {
 
     @Default(.dockerMigrationDismissed) private var dockerMigrationDismissed
 
-    let filterShowStopped: Bool
     let filterIsSearch: Bool
     let runningCount: Int
     let allContainers: [DKContainer]
-    let listItems: [DockerListItem]
+    let listData: [AKSection<DockerListItem>]
     @Binding var selection: Set<DockerContainerId>
     let initialSelection: Set<DockerContainerId>
 
@@ -138,18 +137,20 @@ private struct DockerContainersList: View {
     let dockerVolumes: [DKVolume]?
 
     var body: some View {
-        VStack(spacing: 0) {
-            if !listItems.isEmpty {
+        // TODO bad for perf
+        let flatList = listData.flatMap { $0.items }
 
+        VStack(spacing: 0) {
+            if !listData.isEmpty {
                 // icon = 32, + vertical 8 padding from item VStack = 48
                 // (we used to do padding(4) + SwiftUI's auto list row padding of 4 = total 8 vertical padding, but that breaks double click region)
                 // combined 4+4 padding is in DockerContainerListItemView to fix context menu bounds
-                AKList(listItems, selection: $selection, rowHeight: 32 + 8 + 8, flat: false) { item in
+                AKList(listData, selection: $selection, rowHeight: 32 + 8 + 8, flat: false) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     DockerContainerListItemView(item: item,
                             selection: selection,
                             initialSelection: initialSelection,
-                            isFirstInList: item.id == listItems.first?.id)
+                            isFirstInList: item.id == flatList.first?.id)
                     // environment must be re-injected across boundary
                     .environmentObject(vmModel)
                     .environmentObject(actionTracker)
@@ -194,12 +195,12 @@ private struct DockerContainersList: View {
                 }
             }
         }
-                // show as overlay to avoid VisualEffectView affecting toolbar color
+        // show as overlay to avoid VisualEffectView affecting toolbar color
         .overlay {
             // special case: show example http://localhost if only visible container is getting-started
             // getting started hint box moves to bottom in this case
-            if listItems.count == 1,
-               case let .container(container) = listItems[0],
+            if flatList.count == 1,
+               case let .container(container) = flatList[0],
                container.image == "docker/getting-started" {
 
                 VStack {
@@ -239,14 +240,14 @@ struct DockerContainersRootView: View {
 
             // 0 spacing to fix bg color gap between list and getting started hint
             let _ = print("PARENT recompose with sel \(selection)")
-            let listItems = DockerContainerLists.makeListItems(filteredContainers: filteredContainers,
-                    showStopped: filterShowStopped)
+            let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(filteredContainers: filteredContainers)
+            let listData = makeListData(runningItems: runningItems, stoppedItems: stoppedItems)
+
             DockerContainersList(
-                    filterShowStopped: filterShowStopped,
                     filterIsSearch: !searchQuery.isEmpty,
                     runningCount: runningCount,
                     allContainers: containers,
-                    listItems: listItems,
+                    listData: listData,
                     selection: $selection,
                     initialSelection: initialSelection,
 
@@ -260,5 +261,19 @@ struct DockerContainersRootView: View {
             placement: .toolbar,
             prompt: "Search"
         )
+    }
+
+    private func makeListData(runningItems: [DockerListItem], stoppedItems: [DockerListItem]) -> [AKSection<DockerListItem>] {
+        var listData = [AKSection<DockerListItem>]()
+
+        if !runningItems.isEmpty {
+            listData.append(AKSection(nil, runningItems))
+        }
+
+        if filterShowStopped && !stoppedItems.isEmpty {
+            listData.append(AKSection("Stopped", stoppedItems))
+        }
+
+        return listData
     }
 }

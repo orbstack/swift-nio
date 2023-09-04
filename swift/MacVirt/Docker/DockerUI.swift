@@ -199,11 +199,7 @@ enum DockerListItem: Identifiable, Equatable, AKListItem {
 }
 
 struct DockerContainerLists {
-    static func makeListItems(filteredContainers: [DKContainer], showStopped: Bool) -> [DockerListItem] {
-        // TODO - workaround was to remove section headers
-        var listItems: [DockerListItem] = [
-            //DockerListItem(sectionLabel: "Running"),
-        ]
+    static func makeListItems(filteredContainers: [DKContainer]) -> (running: [DockerListItem], stopped: [DockerListItem]) {
         var runningItems: [DockerListItem] = []
         var stoppedItems: [DockerListItem] = []
 
@@ -283,13 +279,6 @@ struct DockerContainerLists {
             return a.containerName < b.containerName
         }
 
-        // add running/stopped sections
-        listItems += runningItems
-        if showStopped && !stoppedItems.isEmpty {
-            //listItems.append(DockerListItem(sectionLabel: "Stopped"))
-            listItems += stoppedItems
-        }
-
-        return listItems
+        return (runningItems, stoppedItems)
     }
 }
