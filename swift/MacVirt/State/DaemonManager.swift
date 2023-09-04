@@ -280,7 +280,8 @@ class DaemonManager {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
 
         let nc = DistributedNotificationCenter.default()
-        nc.addObserver(forName: .init("dev.orbstack.vmgr.private.UIEvent"), object: nil, queue: nil) { notification in
+        // TODO security
+        nc.addObserver(forName: .init("\(getuid()).dev.orbstack.vmgr.private.UIEvent"), object: nil, queue: nil) { notification in
             guard let eventJson = notification.userInfo?["event"] as? String else {
                 NSLog("Notification is missing data: \(notification)")
                 return

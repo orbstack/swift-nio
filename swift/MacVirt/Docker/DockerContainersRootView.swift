@@ -41,10 +41,8 @@ private struct GettingStartedHintBox: View {
                 .font(.title2)
                 .bold()
             Text("docker run -it -p 80:80 docker/getting-started")
-                // WA: selecting text in dark mode changes color to black when on material bg
-                .foregroundColor(.primary)
+                .textSelectionWithWorkaround()
                 .font(.body.monospaced())
-                .textSelection(.enabled)
             Text("Then open [localhost](http://localhost) in your browser.")
                 .font(.body)
                 .foregroundColor(.secondary)
@@ -123,6 +121,9 @@ private struct DockerContainerListItemView: View {
 }
 
 private struct DockerContainersList: View {
+    @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var actionTracker: ActionTracker
+
     @Default(.dockerMigrationDismissed) private var dockerMigrationDismissed
 
     let filterShowStopped: Bool
@@ -139,26 +140,21 @@ private struct DockerContainersList: View {
     var body: some View {
         VStack(spacing: 0) {
             if !listItems.isEmpty {
-                List(listItems, id: \.id, children: \.listChildren, selection: selection) { item in
+                //List(listItems, id: \.id, children: \.listChildren, selection: selection) { item in
+                // icon = 32, + vertical 8 padding from item VStack = 48
+                // (we used to do padding(4) + SwiftUI's auto list row padding of 4 = total 8 vertical padding, but that breaks double click region)
+                AKTreeList(items: listItems, rowHeight: 32 + 8 + 8) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     DockerContainerListItemView(item: item,
                             selection: selection.wrappedValue,
                             initialSelection: initialSelection,
                             isFirstInList: item.id == listItems.first?.id)
+                    .padding(.vertical, 4)
+                    // environment must be re-injected across boundary
+                    .environmentObject(vmModel)
+                    .environmentObject(actionTracker)
                 }
                 .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
-                // cover up SwiftUI bug: black bars on left/right sides of exiting rows when expanding group
-                // must use VisualEffectView for color Desktop Tinting
-                .overlay(
-                        VisualEffectView(material: .contentBackground)
-                        .frame(width: 10),
-                        alignment: .leading
-                )
-                .overlay(
-                        VisualEffectView(material: .contentBackground)
-                        .frame(width: 10),
-                        alignment: .trailing
-                )
             } else {
                 Spacer()
 

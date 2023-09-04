@@ -36,6 +36,7 @@
 		B118B99BAE17848A3498056C /* DockerK8sGroupItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0395DD7516D3F705FBC /* DockerK8sGroupItem.swift */; };
 		B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
 		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
+		B118BBABE0D99C6164F748AF /* AKTreeList.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9305764473F5CD0B8A4 /* AKTreeList.swift */; };
 		B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B300D94CA37572036935 /* Buttons.swift */; };
 		B118BC0C08A918A48F447E2D /* K8SPodItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BBF4988AABF0AB93C4EA /* K8SPodItemView.swift */; };
 		B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */; };
@@ -250,6 +251,7 @@
 		B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentUnavailableViewCompat.swift; sourceTree = "<group>"; };
 		B118B88B9296701977A1F286 /* CodeInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CodeInfo.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
+		B118B9305764473F5CD0B8A4 /* AKTreeList.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AKTreeList.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
 		B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActivityTracker.swift; sourceTree = "<group>"; };
 		B118BA158D66536A2AA036FB /* K8SSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SSettingsView.swift; sourceTree = "<group>"; };
@@ -475,6 +477,7 @@
 				B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */,
 				B118B103C2DE982C1219D12E /* Data+Base64URL.swift */,
 				B118B4E4BEA14F3804B048B1 /* CustomLink.swift */,
+				B118B9305764473F5CD0B8A4 /* AKTreeList.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1055,6 +1058,7 @@
 				B118BF84ADD1FBB62A3DCA2E /* K8SFilterView.swift in Sources */,
 				B118B4DC48A219728BE68C4F /* K8SServiceItemView.swift in Sources */,
 				B118B99BAE17848A3498056C /* DockerK8sGroupItem.swift in Sources */,
+				B118BBABE0D99C6164F748AF /* AKTreeList.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

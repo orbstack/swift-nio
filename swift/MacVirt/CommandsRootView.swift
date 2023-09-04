@@ -70,13 +70,11 @@ private struct CommandBox: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text(command)
-                // WA: selecting text in dark mode changes color to black when on material bg
-                .foregroundColor(.primary)
+                .textSelectionWithWorkaround()
                 .font(.body.monospaced())
                 .padding(4)
                 .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
         }
     }
 }

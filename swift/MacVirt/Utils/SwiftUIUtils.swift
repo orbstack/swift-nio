@@ -236,3 +236,12 @@ struct ToggleSidebarButton: View {
         .help("Toggle Sidebar")
     }
 }
+
+extension Text {
+    func textSelectionWithWorkaround() -> some View {
+        // WA: selecting text in dark mode changes color to black when on material bg
+        self
+            .foregroundColor(.primary)
+            .textSelection(.enabled)
+    }
+}

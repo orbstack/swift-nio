@@ -200,7 +200,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 let preferredDomain = container.preferredDomain
                 Button(action: {
                     if let preferredDomain,
-                       let url = URL(string: "http://\(container.preferredDomain)") {
+                       let url = URL(string: "http://\(preferredDomain)") {
                         NSWorkspace.shared.open(url)
                     }
                 }) {
@@ -306,14 +306,12 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
                     VStack(alignment: .leading) {
                         Text(container.status)
-                            .textSelection(.enabled)
+                            .textSelectionWithWorkaround()
                         Text(String(container.id.prefix(12)))
-                            // WA: selecting text in dark mode changes color to black when on material bg
-                            .foregroundColor(.primary)
+                            .textSelectionWithWorkaround()
                             .font(.body.monospaced())
-                            .textSelection(.enabled)
                         Text(container.image)
-                            .textSelection(.enabled)
+                            .textSelectionWithWorkaround()
                         // needs to be running w/ ip to have domain
                         if let ipAddress,
                            let domain,
@@ -322,7 +320,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                 CustomLink(domain, url: url)
                             } else {
                                 Text(ipAddress)
-                                .textSelection(.enabled)
+                                .textSelectionWithWorkaround()
                             }
                         }
                     }

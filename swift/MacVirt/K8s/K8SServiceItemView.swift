@@ -192,17 +192,17 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
 
                     VStack(alignment: .leading) {
                         Text(service.spec.type.rawValue)
-                        .textSelection(.enabled)
+                        .textSelectionWithWorkaround()
                         Text(service.ageStr)
-                        .textSelection(.enabled)
+                        .textSelectionWithWorkaround()
                         if let clusterIP {
                             Text(clusterIP)
-                            .textSelection(.enabled)
+                            .textSelectionWithWorkaround()
                         }
                         /*
                         if let externalIP {
                             Text(externalIP)
-                            .textSelection(.enabled)
+                            .textSelectionWithWorkaround()
                         }
                          */
                         if let url = URL(string: address) {
@@ -210,7 +210,7 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                                 CustomLink(addressVisible, url: url)
                             } else {
                                 Text(addressVisible)
-                                .textSelection(.enabled)
+                                .textSelectionWithWorkaround()
                             }
                         }
                     }
@@ -229,10 +229,10 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                             // avoid pretty commas num format
                             if port.proto != "TCP" {
                                 Text("\(String(portNumber))/\(port.proto ?? "TCP")")
-                                .textSelection(.enabled)
+                                .textSelectionWithWorkaround()
                             } else {
                                 Text(String(portNumber))
-                                .textSelection(.enabled)
+                                .textSelectionWithWorkaround()
                             }
                         }
                     }

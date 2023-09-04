@@ -205,18 +205,18 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
                     VStack(alignment: .leading) {
                         Text(pod.statusStr)
-                        .textSelection(.enabled)
+                        .textSelectionWithWorkaround()
                         Text("\(pod.restartCount)")
-                        .textSelection(.enabled)
+                        .textSelectionWithWorkaround()
                         Text(pod.ageStr)
-                        .textSelection(.enabled)
+                        .textSelectionWithWorkaround()
                         // needs to be running w/ ip to have domain
                         if let ipAddress, let url = URL(string: "http://\(domain)") {
                             if vmModel.netBridgeAvailable {
                                 CustomLink(domain, url: url)
                             } else {
                                 Text(ipAddress)
-                                .textSelection(.enabled)
+                                .textSelectionWithWorkaround()
                             }
                         }
                     }
@@ -234,11 +234,11 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                                 //TODO link
                                 Label {
                                     Text(name)
+                                    .textSelectionWithWorkaround()
                                 } icon: {
                                     // icon = red/green status dot
                                     Image(nsImage: SystemImages.redGreenDot(isRunning: container.ready ?? false))
                                 }
-                                .textSelection(.enabled)
                             }
                         }
                     }

@@ -13,10 +13,8 @@ private struct GettingStartedHintBox: View {
             .font(.title2)
             .bold()
             Text("kubectl run nginx --image=nginx")
-            // WA: selecting text in dark mode changes color to black when on material bg
-            .foregroundColor(.primary)
+            .textSelectionWithWorkaround()
             .font(.body.monospaced())
-            .textSelection(.enabled)
         }
         .padding(.vertical, 24)
         .padding(.horizontal, 48)
