@@ -94,10 +94,6 @@ private class AKListItemModel: ObservableObject {
 
 typealias AKListItemBase = Identifiable & Equatable
 
-// AKListItem is for both hierarchical and flat lists, with a default impl of listChildren.
-// it requires protocol conformance, but nothing more
-// allows unifying AKTreeList and AKFlatList impl
-// and faster for the flat case (no need for wrapper objects)
 protocol AKListItem: AKListItemBase {
     var listChildren: [any AKListItem]? { get }
 }
@@ -274,8 +270,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             objAccessTracker.append(item.id)
 
             // update the node
-            let listChildren = item.listChildren
-            let nodeChildren = listChildren?.map { mapNode(item: $0 as! Item) }
+            let nodeChildren = item.listChildren?.map { mapNode(item: $0 as! Item) }
             if nodeChildren?.isEmpty ?? true {
                 node.children = nil
             } else {
@@ -500,6 +495,7 @@ extension AKList {
                 rowHeight: rowHeight,
                 flat: flat,
                 makeRowView: makeRowView)
+        self.singleSelection = true
     }
 
     // hierarchical OR flat, no sections, multiple selection
@@ -526,6 +522,7 @@ extension AKList {
                 rowHeight: rowHeight,
                 flat: flat,
                 makeRowView: makeRowView)
+        self.singleSelection = true
     }
 }
 
