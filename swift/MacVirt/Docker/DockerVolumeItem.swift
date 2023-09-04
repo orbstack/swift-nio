@@ -79,8 +79,8 @@ struct DockerVolumeItem: View {
             .disabled(actionInProgress || isMounted)
             .help(isMounted ? "Volume in use" : "Delete volume\n(Option to confirm)")
         }
-        .padding(.vertical, 4)
-        .onRawDoubleClick {
+        .padding(.vertical, 8)
+        .akListOnDoubleClick {
             openFolder()
         }
         .confirmationDialog(deleteConfirmMsg,
@@ -91,7 +91,7 @@ struct DockerVolumeItem: View {
         } message: {
             Text("Data will be permanently lost.")
         }
-        .contextMenu {
+        .akListContextMenu {
             Button(action: {
                 openFolder()
             }) {

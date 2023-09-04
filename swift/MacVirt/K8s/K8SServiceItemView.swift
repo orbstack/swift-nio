@@ -87,11 +87,11 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                 .help("Delete Service")
             }
         }
-        .padding(.vertical, 4)
-        .onRawDoubleClick {
+        .padding(.vertical, 8)
+        .akListOnDoubleClick {
             presentPopover = true
         }
-        .contextMenu {
+        .akListContextMenu {
             Group {
                 Button(action: {
                     finishDelete()

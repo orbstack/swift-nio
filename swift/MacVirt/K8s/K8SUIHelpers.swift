@@ -5,23 +5,14 @@
 import Foundation
 import AppKit
 
-struct SectionGroup<Element: Identifiable>: Identifiable {
-    let title: String
-    let items: [Element]
-
-    var id: String {
-        title
-    }
-}
-
 struct K8SResourceLists {
     static func groupItems<Resource: K8SResource>(_ resources: [Resource],
-                                                  showSystemNs: Bool = false) -> [SectionGroup<Resource>] {
+                                                  showSystemNs: Bool = false) -> [AKSection<Resource>] {
         let grouped = Dictionary(grouping: resources, by: { $0.namespace })
         return grouped
             .lazy
-            .map { SectionGroup(title: $0.key,
-                    items: $0.value
+            .map { AKSection($0.key,
+                    $0.value
                         .lazy
                         // k8s API service is always there. consider it system so we can show empty state
                         .filter { showSystemNs || ($0.id != K8sConstants.apiResId) }
@@ -30,7 +21,7 @@ struct K8SResourceLists {
             // remove empty groups caused by filtering above
             .filter { !$0.items.isEmpty && (showSystemNs || ($0.title != "kube-system")) }
             // sort sections
-            .sorted { $0.title < $1.title }
+            .sorted { $0.title! < $1.title! }
     }
 }
 

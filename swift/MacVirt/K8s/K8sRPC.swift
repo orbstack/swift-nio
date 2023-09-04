@@ -95,7 +95,7 @@ enum K8SResourceId: Equatable, Identifiable, Hashable {
     }
 }
 
-protocol K8SResource: Identifiable {
+protocol K8SResource: AKListItem {
     var id: K8SResourceId { get }
     var name: String { get }
     var namespace: String { get }

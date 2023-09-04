@@ -288,6 +288,11 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         func mapAllNodes(sections: [AKSection<Item>]) -> [AKNode] {
             // record accessed nodes
             let newNodes = sections.flatMap {
+                // don't show empty sections
+                if $0.items.isEmpty {
+                    return [AKNode]()
+                }
+
                 // more efficient than map and concat
                 var sectionNodes = [AKNode]()
                 sectionNodes.reserveCapacity($0.items.count + 1)
@@ -435,6 +440,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 //   - scroll position moves to follow selection
 //   - native double click implementation for reliability
 //   - sections for hierarchical lists
+//   - hides empty sections
 struct AKList<Item: AKListItem, ItemView: View>: View {
     private let sections: [AKSection<Item>]
     @Binding private var selection: Set<Item.ID>

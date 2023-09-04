@@ -7,6 +7,7 @@ import SwiftUI
 
 struct DockerVolumesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var actionTracker: ActionTracker
 
     @State private var selection: Set<String> = []
     @State private var searchQuery: String = ""
@@ -22,25 +23,16 @@ struct DockerVolumesRootView: View {
             VStack(spacing: 0) {
                 if !filteredVolumes.isEmpty {
                     let totalSizeFormatted = calcTotalSize(filteredVolumes)
+                    let listData = [
+                        AKSection("In Use", filteredVolumes.filter { isMounted($0) }),
+                        AKSection("Unused", filteredVolumes.filter { !isMounted($0) })
+                    ]
 
-                    List(selection: $selection) {
-                        Section(header: Text("In Use")) {
-                            ForEach(filteredVolumes, id: \.name) { volume in
-                                if isMounted(volume) {
-                                    DockerVolumeItem(volume: volume, isMounted: true, selection: selection)
-                                    .id(volume.name)
-                                }
-                            }
-                        }
-
-                        Section(header: Text("Unused")) {
-                            ForEach(filteredVolumes, id: \.name) { volume in
-                                if !isMounted(volume) {
-                                    DockerVolumeItem(volume: volume, isMounted: false, selection: selection)
-                                    .id(volume.name)
-                                }
-                            }
-                        }
+                    AKList(listData, selection: $selection, rowHeight: 48) { volume in
+                        DockerVolumeItem(volume: volume, isMounted: true, selection: selection)
+                        .id(volume.name)
+                        .environmentObject(vmModel)
+                        .environmentObject(actionTracker)
                     }
                     .if(totalSizeFormatted != nil) { list in
                         list.navigationSubtitle(totalSizeFormatted ?? "")

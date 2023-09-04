@@ -23,24 +23,23 @@ private struct GettingStartedHintBox: View {
 }
 
 private struct K8SPodsList: View {
+    @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var actionTracker: ActionTracker
+
     let filterIsSearch: Bool
     let runningCount: Int
-    let listItems: [SectionGroup<K8SPod>]
+    let listItems: [AKSection<K8SPod>]
     @Binding var selection: Set<K8SResourceId>
 
     var body: some View {
         VStack(spacing: 0) {
             if !listItems.isEmpty {
-                List(selection: $selection) {
-                    ForEach(listItems, id: \.title) { group in
-                        Section(header: Text(group.title)) {
-                            ForEach(group.items) { item in
-                                // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
-                                K8SPodItemView(pod: item, selection: selection)
-                                .equatable()
-                            }
-                        }
-                    }
+                AKList(listItems, selection: $selection, rowHeight: 48) { item in
+                    // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
+                    K8SPodItemView(pod: item, selection: selection)
+                    .equatable()
+                    .environmentObject(vmModel)
+                    .environmentObject(actionTracker)
                 }
                 .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
             } else {

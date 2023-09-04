@@ -254,7 +254,7 @@ struct DKVolumeCreateOptions: Codable {
     }
 }
 
-struct DKVolume: Codable, Identifiable, Equatable {
+struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
     let createdAt: String?
     let driver: String
     let labels: [String: String]?
