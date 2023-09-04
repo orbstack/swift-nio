@@ -34,7 +34,8 @@ struct DockerImagesRootView: View {
                         AKSection("Untagged", untaggedImages)
                     ]
 
-                    AKList(listData, selection: $selection) { image in
+                    // 46 is empirically correct, matches auto height. not sure where it comes from
+                    AKList(listData, selection: $selection, rowHeight: 46) { image in
                         DockerImageItem(image: image, selection: selection,
                                 isFirstInList: image.id == taggedImages.first?.id)
                         .equatable()
