@@ -348,7 +348,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if actionInProgress {
             icon = systemImage("circle.dotted")
         } else if showStatus {
-            icon = SystemImages.statusDot(isRunning: container.running)
+            icon = SystemImages.statusDot(container.statusDot)
         }
         let containerItem = newActionItem(container.userName, icon: icon) { [self] in
             openApp(tab: "docker")
@@ -861,14 +861,14 @@ struct SystemImages {
 
 enum StatusDot {
     case green
-    case yellow
+    case orange
     case red
 
     var color: NSColor {
         switch self {
         case .green:
             return NSColor.systemGreen
-        case .yellow:
+        case .orange:
             return NSColor.systemOrange
         case .red:
             return NSColor.systemRed

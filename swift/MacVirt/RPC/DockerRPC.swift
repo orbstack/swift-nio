@@ -32,6 +32,16 @@ struct DKContainer: Codable, Identifiable, Hashable {
         state == "running"
     }
 
+    var statusDot: StatusDot {
+        if status.contains("(unhealthy)") {
+            return .orange
+        } else if running {
+            return .green
+        } else {
+            return .red
+        }
+    }
+
     var composeProject: String? {
         labels[DockerLabels.composeProject]
     }
