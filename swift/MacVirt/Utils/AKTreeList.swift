@@ -128,7 +128,7 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 
     let items: [Item]
     @Binding var selection: Set<Item.ID>
-    let rowHeight: CGFloat
+    let rowHeight: CGFloat?
     let singleSelection: Bool
     let makeRowView: (Item) -> ItemView
 
@@ -176,7 +176,7 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
         }
 
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-            parent.rowHeight
+            parent.rowHeight ?? 0
         }
 
         @objc func onDoubleClick(_ sender: Any) {
@@ -284,6 +284,7 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
         outlineView.autoresizesOutlineColumn = false
         outlineView.allowsMultipleSelection = !singleSelection
         outlineView.allowsEmptySelection = true
+        outlineView.usesAutomaticRowHeights = rowHeight == nil
         // dummy menu to trigger highlight
         outlineView.menu = NSMenu()
 
@@ -349,12 +350,12 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 struct AKTreeList<Item: AKTreeListItem, ItemView: View>: View {
     private let items: [Item]
     @Binding var selection: Set<Item.ID>
-    private let rowHeight: CGFloat
+    private let rowHeight: CGFloat?
     private let makeRowView: (Item) -> ItemView
 
     init(_ items: [Item],
          selection: Binding<Set<Item.ID>>,
-         rowHeight: CGFloat,
+         rowHeight: CGFloat? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
         self.items = items
         self._selection = selection
@@ -378,13 +379,13 @@ struct AKTreeList<Item: AKTreeListItem, ItemView: View>: View {
 struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
     private let items: [FlatItemWrapper<Item>]
     @Binding var selection: Set<Item.ID>
-    private let rowHeight: CGFloat
+    private let rowHeight: CGFloat?
     private let makeRowView: (Item) -> ItemView
     private let singleSelection: Bool
 
     init(_ items: [Item],
          selection: Binding<Set<Item.ID>>,
-         rowHeight: CGFloat,
+         rowHeight: CGFloat? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
         self.items = items.map { FlatItemWrapper(value: $0) }
         self._selection = selection
@@ -395,7 +396,7 @@ struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
 
     init(_ items: [Item],
          selection singleBinding: Binding<Item.ID?>,
-         rowHeight: CGFloat,
+         rowHeight: CGFloat? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
         self.items = items.map { FlatItemWrapper(value: $0) }
         self._selection = Binding<Set<Item.ID>>(
