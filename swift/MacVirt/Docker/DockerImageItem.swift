@@ -94,13 +94,13 @@ struct DockerImageItem: View, Equatable {
             .disabled(actionInProgress || isInUse)
             .help(isInUse ? "Image in use" : "Delete image")
         }
-        .padding(.vertical, 4)
-        .onRawDoubleClick {
+        .padding(.vertical, 8)
+        .akListOnDoubleClick {
             if image.repoTags?.isEmpty == false {
                 openFolder()
             }
         }
-        .contextMenu {
+        .akListContextMenu {
             Button(action: {
                 openFolder()
             }) {

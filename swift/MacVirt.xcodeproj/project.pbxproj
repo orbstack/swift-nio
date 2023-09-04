@@ -97,6 +97,7 @@
 		D81E7850299CC4F200A1D8AC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E784F299CC4F200A1D8AC /* main.swift */; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D82CD8372AA6327C008C7A96 /* Storyboard.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D82CD8362AA6327C008C7A96 /* Storyboard.storyboard */; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D85EC4642A9CEBA800300ABE /* kubectl in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D85EC4632A9CEBA800300ABE /* kubectl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D86614182A38061700EA0995 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D86614172A38061700EA0995 /* Defaults */; };
@@ -323,6 +324,7 @@
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D81E786429A7012900A1D8AC /* docker-buildx */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-buildx"; path = "build/bins/docker-buildx"; sourceTree = "<group>"; };
+		D82CD8362AA6327C008C7A96 /* Storyboard.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = Storyboard.storyboard; sourceTree = "<group>"; };
 		D85EC4632A9CEBA800300ABE /* kubectl */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = kubectl; path = build/bins/kubectl; sourceTree = "<group>"; };
 		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../vmgr/xbin/docker; sourceTree = "<group>"; };
@@ -675,6 +677,7 @@
 				D80443B42A1B404E00ED59C5 /* Utils */,
 				B118B1DCE616676E483BB2BB /* FeedbackView.swift */,
 				B118BC30D178CF936018341C /* K8s */,
+				D82CD8362AA6327C008C7A96 /* Storyboard.storyboard */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -865,6 +868,7 @@
 			files = (
 				D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */,
 				D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */,
+				D82CD8372AA6327C008C7A96 /* Storyboard.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

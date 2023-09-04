@@ -313,7 +313,7 @@ struct DKVolumeListResponse: Codable {
     }
 }
 
-struct DKImage: Codable, Identifiable {
+struct DKImage: AKListItem, Codable, Identifiable {
     let id: String
     let containers: Int
     let created: Int64
