@@ -4,6 +4,7 @@
 
 import AppKit
 import SwiftUI
+import Combine
 
 private class AKOutlineView: NSOutlineView {
     // workaround for off-center disclosure arrow: https://stackoverflow.com/a/74894605
@@ -19,7 +20,7 @@ private class AKOutlineView: NSOutlineView {
         super.menu(for: event)
 
         // find the clicked view
-        if clickedRow >= 0,
+        if clickedRow != -1,
            let view = self.view(atColumn: 0, row: clickedRow, makeIfNecessary: false) {
             // make a fake event for its center
             let center = CGPointMake(NSMidX(view.frame), NSMidY(view.frame))
@@ -78,6 +79,10 @@ private class AKHostingView<V: View>: NSHostingView<V> {
     }
 }
 
+private class AKListModel: ObservableObject {
+    let doubleClicks = PassthroughSubject<AnyHashable, Never>()
+}
+
 protocol AKTreeListItem: Identifiable, Equatable {
     var listChildren: [any AKTreeListItem]? { get }
 }
@@ -111,6 +116,8 @@ private class AKTreeNode: NSObject {
 }
 
 private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepresentable, Equatable {
+    @StateObject private var envModel = AKListModel()
+
     let items: [Item]
     @Binding var selection: Set<Item.ID>
     let rowHeight: CGFloat
@@ -150,9 +157,10 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
             }
 
             let view = parent.makeRowView(node.value as! Item)
+                .environmentObject(parent.envModel)
             // menu forwarder
             let nsView = AKHostingView(rootView: view)
-            nsView.outlineParent = outlineView as! AKOutlineView
+            nsView.outlineParent = (outlineView as! AKOutlineView)
             return nsView
         }
 
@@ -162,19 +170,25 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 
         @objc func onDoubleClick(_ sender: Any) {
             // expand or collapse row
-            if let outlineView = sender as? NSOutlineView {
-                let row = outlineView.clickedRow
-                if row != -1 {
-                    let item = outlineView.item(atRow: row)
-                    if outlineView.isItemExpanded(item) {
-                        outlineView.animator().collapseItem(item)
-                    } else {
-                        outlineView.animator().expandItem(item)
-                    }
-                }
+            let outlineView = sender as! NSOutlineView
+            let row = outlineView.clickedRow
+            guard row != -1 else {
+                return
             }
 
-            // TODO emit event via notification center
+            let item = outlineView.item(atRow: row)
+            if outlineView.isItemExpanded(item) {
+                outlineView.animator().collapseItem(item)
+            } else {
+                outlineView.animator().expandItem(item)
+            }
+
+            // emit double click event via notification center
+            guard let nsNode = item as? NSTreeNode,
+                  let node = nsNode.representedObject as? AKTreeNode else {
+                return
+            }
+            parent.envModel.doubleClicks.send(node.value.id as! AnyHashable)
         }
 
         func mapNode(item: Item) -> AKTreeNode {
@@ -310,6 +324,17 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 //   - .contextMenu -> .akListContextMenu
 //   - increase .vertical padding (4->8) to match SwiftUI List
 //   - add .environmentObjects to the item view
+//
+// benefits:
+//   - fix black bar w/o covering up rect
+//     -> fixes scrollbar
+//   - slightly faster
+//   - double click to expand
+//   - no random holes / buggy behavior
+//   - row separator lines, but only when selected
+//   - should no longer crash
+//   - scroll position moves to follow selection
+//   - native double click implementation for reliability
 struct AKTreeList<Item: AKTreeListItem, ItemView: View>: View {
     private let items: [Item]
     @Binding var selection: Set<Item.ID>
@@ -390,6 +415,22 @@ struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
     }
 }
 
+private struct DoubleClickViewModifier: ViewModifier {
+    @EnvironmentObject private var akListModel: AKListModel
+
+    let targetId: AnyHashable
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+        .onReceive(akListModel.doubleClicks) { id in
+            if id == targetId {
+                action()
+            }
+        }
+    }
+}
+
 extension View {
     // SwiftUI rejects menu(forEvent:) unless it thinks it owns the view at which
     // the click occurred. onDoubleClick makes a big NSView that fulfills this
@@ -401,9 +442,7 @@ extension View {
             }
     }
 
-    func akListOnDoubleClick(perform action: @escaping () -> Void) -> some View {
-        // TODO
-        self
-            .onRawDoubleClick(handler: action)
+    func akListOnDoubleClick(itemId: AnyHashable, perform action: @escaping () -> Void) -> some View {
+        self.modifier(DoubleClickViewModifier(targetId: itemId, action: action))
     }
 }
