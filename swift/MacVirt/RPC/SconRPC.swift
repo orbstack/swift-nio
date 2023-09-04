@@ -24,7 +24,7 @@ struct ImageSpec: Codable, Equatable {
     var variant: String
 }
 
-struct ContainerRecord: Codable, Identifiable, Equatable {
+struct ContainerRecord: AKListItem, Codable, Identifiable, Equatable {
     var id: String
     var name: String
     var image: ImageSpec

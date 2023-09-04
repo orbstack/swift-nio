@@ -145,7 +145,7 @@ struct DockerK8sGroup: Equatable {
     let anyRunning: Bool
 }
 
-enum DockerListItem: Identifiable, Equatable, AKTreeListItem {
+enum DockerListItem: Identifiable, Equatable, AKListItem {
     case sectionLabel(String)
     case container(DKContainer)
     case compose(ComposeGroup, children: [DockerListItem])
@@ -186,7 +186,7 @@ enum DockerListItem: Identifiable, Equatable, AKTreeListItem {
         }
     }
 
-    var listChildren: [any AKTreeListItem]? {
+    var listChildren: [any AKListItem]? {
         switch self {
         case .compose(_, let children):
             return children

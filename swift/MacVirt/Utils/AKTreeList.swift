@@ -91,42 +91,76 @@ private class AKListItemModel: ObservableObject {
     }
 }
 
-protocol AKTreeListItem: Identifiable, Equatable {
-    var listChildren: [any AKTreeListItem]? { get }
+typealias AKListItemBase = Identifiable & Equatable
+
+protocol AKListItem: AKListItemBase {
+    var listChildren: [any AKListItem]? { get }
 }
 
-typealias AKFlatListItem = Identifiable & Equatable
+extension AKListItem {
+    var listChildren: [any AKListItem]? {
+        nil
+    }
+}
 
-private struct FlatItemWrapper<V: AKFlatListItem>: AKTreeListItem {
+private struct FlatItemWrapper<V: AKListItemBase>: AKListItem {
     let value: V
 
     var id: V.ID {
         value.id
     }
 
-    var listChildren: [any AKTreeListItem]? {
+    var listChildren: [any AKListItem]? {
         nil
     }
 }
 
-private class AKTreeNode: NSObject {
-    @objc dynamic var children: [AKTreeNode]?
+struct AKSection<Element: AKListItemBase>: AKListItemBase {
+    // nil = no header
+    let title: String?
+    let items: [Element]
+
+    var id: String? {
+        title
+    }
+
+    static func single(_ items: [Element]) -> [AKSection<Element>] {
+        [AKSection(title: nil, items: items)]
+    }
+}
+
+@objc protocol AKNode {}
+
+private class AKItemNode: NSObject, AKNode {
+    @objc dynamic var children: [AKItemNode]?
     @objc dynamic var isLeaf: Bool = false
-    @objc dynamic var childCount: Int {
+    @objc dynamic var count: Int {
         children?.count ?? 0
     }
 
-    var value: any AKTreeListItem
+    var value: any AKListItem
 
-    init(value: any AKTreeListItem) {
+    init(value: any AKListItem) {
         self.value = value
     }
 }
 
-private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepresentable, Equatable {
+private class AKSectionNode: NSObject, AKNode {
+    @objc dynamic var children: [AKSectionNode]? { nil }
+    @objc dynamic var isLeaf: Bool { true }
+    @objc dynamic var count: Int { 0 }
+
+    var value: String
+
+    init(value: String) {
+        self.value = value
+    }
+}
+
+private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresentable, Equatable {
     @StateObject private var envModel = AKListModel()
 
-    let items: [Item]
+    let sections: [AKSection<Item>]
     @Binding var selection: Set<Item.ID>
     let rowHeight: CGFloat?
     let singleSelection: Bool
@@ -134,7 +168,7 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 
     static func == (lhs: AKTreeListImpl, rhs: AKTreeListImpl) -> Bool {
         // row callback should never change
-        lhs.items == rhs.items &&
+        lhs.sections == rhs.sections &&
             lhs.selection == rhs.selection &&
             lhs.rowHeight == rhs.rowHeight
     }
@@ -142,14 +176,14 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
     final class Coordinator: NSObject, NSOutlineViewDelegate {
         var parent: AKTreeListImpl
 
-        @objc fileprivate dynamic var content: [AKTreeNode] = []
-        var lastItems: [Item] = []
+        @objc fileprivate dynamic var content: [AKNode] = []
+        var lastSections: [AKSection<Item>] = []
 
         var treeController: NSTreeController!
         private var observation: NSKeyValueObservation?
 
         // preserve objc object identity to avoid losing state
-        private var objCache = [Item.ID: AKTreeNode]()
+        private var objCache = [Item.ID: AKItemNode]()
         // array is fastest since we just iterate and clear this
         private var objAccessTracker = [Item.ID]()
 
@@ -159,20 +193,26 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 
         // make views
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
-            guard let nsNode = item as? NSTreeNode,
-                  let node = nsNode.representedObject as? AKTreeNode else {
-                return nil
-            }
+            let nsNode = item as! NSTreeNode
 
-            let itemModel = AKListItemModel(itemId: node.value.id as! AnyHashable)
-            let view = parent.makeRowView(node.value as! Item)
+            // TODO use outlineView.makeView to reuse views
+            if let node = nsNode.representedObject as? AKItemNode {
+                let itemModel = AKListItemModel(itemId: node.value.id as! AnyHashable)
+                let view = parent.makeRowView(node.value as! Item)
                 .environmentObject(parent.envModel)
                 .environmentObject(itemModel)
 
-            // menu forwarder
-            let nsView = AKHostingView(rootView: view)
-            nsView.outlineParent = (outlineView as! AKOutlineView)
-            return nsView
+                // menu forwarder
+                let nsView = AKHostingView(rootView: view)
+                nsView.outlineParent = (outlineView as! AKOutlineView)
+                return nsView
+            } else if let node = nsNode.representedObject as? AKSectionNode {
+                let view = NSTextField(labelWithString: node.value)
+                view.font = NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+                return view
+            } else {
+                return nil
+            }
         }
 
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
@@ -195,19 +235,18 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
             }
 
             // emit double click event via notification center
-            guard let nsNode = item as? NSTreeNode,
-                  let node = nsNode.representedObject as? AKTreeNode else {
-                return
+            let nsNode = item as! NSTreeNode
+            if let node = nsNode.representedObject as? AKItemNode {
+                parent.envModel.doubleClicks.send(node.value.id as! AnyHashable)
             }
-            parent.envModel.doubleClicks.send(node.value.id as! AnyHashable)
         }
 
-        func mapNode(item: Item) -> AKTreeNode {
-            var node: AKTreeNode
+        func mapNode(item: Item) -> AKItemNode {
+            var node: AKItemNode
             if let cachedNode = objCache[item.id] {
                 node = cachedNode
             } else {
-                node = AKTreeNode(value: item)
+                node = AKItemNode(value: item)
                 objCache[item.id] = node
             }
             objAccessTracker.append(item.id)
@@ -220,9 +259,20 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
             return node
         }
 
-        func mapAllNodes(items: [Item]) -> [AKTreeNode] {
+        func mapAllNodes(sections: [AKSection<Item>]) -> [AKNode] {
             // record accessed nodes
-            let newNodes = items.map { mapNode(item: $0) }
+            let newNodes = sections.flatMap {
+                // more efficient than map and concat
+                var sectionNodes = [AKNode]()
+                sectionNodes.reserveCapacity($0.items.count + 1)
+                if let title = $0.title {
+                    sectionNodes.append(AKSectionNode(value: title))
+                }
+                for item in $0.items {
+                    sectionNodes.append(mapNode(item: item))
+                }
+                return sectionNodes
+            }
 
             // remove unused nodes
             let unusedNodes = objCache.filter { !objAccessTracker.contains($0.key) }
@@ -237,12 +287,17 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
             let selectedIds = treeController.selectedObjects
-                .compactMap { ($0 as? AKTreeNode)?.value.id as? Item.ID }
+                .compactMap { ($0 as? AKItemNode)?.value.id as? Item.ID }
             DispatchQueue.main.async {
                 print("et selection to: \(selectedIds)")
                 self.parent.selection = Set(selectedIds)
                 print("read back = \(self.parent.selection)")
             }
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+            let nsNode = item as! NSTreeNode
+            return nsNode.representedObject is AKSectionNode
         }
 
 //        func setTreeController(_ treeController: NSTreeController) {
@@ -252,7 +307,7 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 //            observation = treeController.observe(\.selectedObjects, options: [.new]) { [weak self] _, change in
 //                guard let self = self else { return }
 //                let selectedIds = treeController.selectedObjects
-//                    .compactMap { ($0 as? AKTreeNode)?.value.id as? Item.ID }
+//                    .compactMap { ($0 as? AKItemNode)?.value.id as? Item.ID }
 //                print("set selection to: \(selectedIds)")
 //                parent.selection = Set(selectedIds)
 //            }
@@ -265,9 +320,9 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 
         let treeController = NSTreeController()
         treeController.bind(.contentArray, to: coordinator, withKeyPath: "content")
-        treeController.objectClass = AKTreeNode.self
+        treeController.objectClass = AKItemNode.self
         treeController.childrenKeyPath = "children"
-        treeController.countKeyPath = "childCount"
+        treeController.countKeyPath = "count"
         treeController.leafKeyPath = "isLeaf"
         treeController.preservesSelection = true
         treeController.avoidsEmptySelection = false
@@ -309,16 +364,16 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         let coordinator = context.coordinator
         coordinator.parent = self
-        guard items != coordinator.lastItems else {
+        guard sections != coordinator.lastSections else {
             return
         }
         print("update nsview: \(coordinator)")
 
         // convert to nodes
-        let nodes = coordinator.mapAllNodes(items: items)
+        let nodes = coordinator.mapAllNodes(sections: sections)
         // update tree controller and reload view (via KVO)
         coordinator.content = nodes
-        coordinator.lastItems = items
+        coordinator.lastSections = sections
     }
 
     func makeCoordinator() -> Coordinator {
@@ -326,16 +381,16 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
     }
 }
 
-// Hierarchial list using AppKit's NSOutlineView and NSTreeController.
-// Can also be used for non-hierarchial lists - one impl works.
+// Hierarchical list using AppKit's NSOutlineView and NSTreeController.
+// Can also be used for non-hierarchical lists.
 //
 // TO MIGRATE FROM SwiftUI List:
-//   - List -> AKList
-//   - calculate a rowHeight
+//   - List -> AKTreeList or AKFlatList
 //   - .onRawDoubleClick -> .akListOnDoubleClick
 //   - .contextMenu -> .akListContextMenu
 //   - increase .vertical padding (4->8) to match SwiftUI List
 //   - add .environmentObjects to the item view
+//   - (optional) set rowHeight: for performance
 //
 // benefits:
 //   - fix black bar w/o covering up rect
@@ -347,24 +402,26 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
 //   - should no longer crash
 //   - scroll position moves to follow selection
 //   - native double click implementation for reliability
-struct AKTreeList<Item: AKTreeListItem, ItemView: View>: View {
-    private let items: [Item]
+//   - sections for hierarchical lists
+struct AKTreeList<Item: AKListItem, ItemView: View>: View {
+    private let sections: [AKSection<Item>]
     @Binding var selection: Set<Item.ID>
     private let rowHeight: CGFloat?
     private let makeRowView: (Item) -> ItemView
 
-    init(_ items: [Item],
+    // hierarchical, with sections, multiple selection
+    init(_ sections: [AKSection<Item>],
          selection: Binding<Set<Item.ID>>,
          rowHeight: CGFloat? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.items = items
+        self.sections = sections
         self._selection = selection
         self.rowHeight = rowHeight
         self.makeRowView = makeRowView
     }
 
     var body: some View {
-        AKTreeListImpl(items: items,
+        AKTreeListImpl(sections: sections,
                 selection: $selection,
                 rowHeight: rowHeight,
                 singleSelection: false,
@@ -376,29 +433,44 @@ struct AKTreeList<Item: AKTreeListItem, ItemView: View>: View {
     }
 }
 
-struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
-    private let items: [FlatItemWrapper<Item>]
+extension AKTreeList {
+    // hierarchical, no sections, multiple selection
+    init(_ items: [Item],
+         selection: Binding<Set<Item.ID>>,
+         rowHeight: CGFloat? = nil,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        self.init(AKSection.single(items),
+                selection: selection,
+                rowHeight: rowHeight,
+                makeRowView: makeRowView)
+    }
+}
+
+struct AKFlatList<Item: AKListItem, ItemView: View>: View {
+    private let sections: [AKSection<Item>]
     @Binding var selection: Set<Item.ID>
     private let rowHeight: CGFloat?
     private let makeRowView: (Item) -> ItemView
     private let singleSelection: Bool
 
+    // flat, with sections, multiple selection
     init(_ items: [Item],
          selection: Binding<Set<Item.ID>>,
          rowHeight: CGFloat? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.items = items.map { FlatItemWrapper(value: $0) }
+        self.sections = AKSection.single(items)
         self._selection = selection
         self.rowHeight = rowHeight
         self.makeRowView = makeRowView
         self.singleSelection = false
     }
 
+    // flat, with sections, single selection
     init(_ items: [Item],
          selection singleBinding: Binding<Item.ID?>,
          rowHeight: CGFloat? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.items = items.map { FlatItemWrapper(value: $0) }
+        self.sections = AKSection.single(items)
         self._selection = Binding<Set<Item.ID>>(
                 get: {
                     if let id = singleBinding.wrappedValue {
@@ -416,11 +488,11 @@ struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
     }
 
     var body: some View {
-        AKTreeListImpl(items: items,
+        AKTreeListImpl(sections: sections,
                 selection: $selection,
                 rowHeight: rowHeight,
                 singleSelection: singleSelection) {
-            makeRowView($0.value)
+            makeRowView($0)
         }
         // fix toolbar color and blur (fullSizeContentView)
         .ignoresSafeArea()
@@ -435,17 +507,17 @@ private struct DoubleClickViewModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-        .onReceive(listModel.doubleClicks) { id in
-            if id == itemModel.itemId {
-                action()
+            .onReceive(listModel.doubleClicks) { id in
+                if id == itemModel.itemId {
+                    action()
+                }
             }
-        }
     }
 }
 
 extension View {
     // SwiftUI rejects menu(forEvent:) unless it thinks it owns the view at which
-    // the click occurred. onDoubleClick makes a big NSView that fulfills this
+    // the click occurred. onDoubleClick makes a big NSView to fix this
     func akListContextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
         self
             .onRawDoubleClick { }
