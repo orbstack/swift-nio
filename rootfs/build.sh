@@ -50,7 +50,7 @@ fi
 # build packer and images
 # TODO: migrate to buildx bake
 docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH --build-arg HOST_ARCH=$HOST_ARCH \
-    --platform "$platform" \
+    --platform "$platform" --load \
     -f Dockerfile --target images .. -t ghcr.io/orbstack/images:$BTYPE
 
 # extract images
