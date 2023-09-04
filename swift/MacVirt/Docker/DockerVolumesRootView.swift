@@ -41,18 +41,6 @@ struct DockerVolumesRootView: View {
                                 }
                             }
                         }
-
-                        HStack {
-                            Spacer()
-                            VStack {
-                                Text("You can also find these volumes at ~/\(Folders.nfsName)/docker.")
-                                .font(.title3)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                            }
-                            .padding(.vertical, 24)
-                            Spacer()
-                        }
                     }
                     .if(totalSizeFormatted != nil) { list in
                         list.navigationSubtitle(totalSizeFormatted ?? "")

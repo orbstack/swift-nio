@@ -16,12 +16,13 @@ private class AKOutlineView: NSOutlineView {
     // e.g. clicked on arrow or margin
     // never use the fake menu, but try to forward it
     override func menu(for event: NSEvent) -> NSMenu? {
-        // call super so that it sets clickedRow. (highlight ring won't trigger until willOpenMenu)
-        super.menu(for: event)
+        // calling super.menu makes highlight ring appear, so do this ourselves
+        // otherwise right-clicking section header triggers ring
+        let targetRow = row(at: convert(event.locationInWindow, from: nil))
 
         // find the clicked view
-        if clickedRow != -1,
-           let view = self.view(atColumn: 0, row: clickedRow, makeIfNecessary: false) {
+        if targetRow != -1,
+           let view = self.view(atColumn: 0, row: targetRow, makeIfNecessary: false) {
             // make a fake event for its center
             let center = CGPointMake(NSMidX(view.frame), NSMidY(view.frame))
             // ... relative to the window
@@ -143,14 +144,15 @@ private class AKItemNode: NSObject, AKNode {
 }
 
 private class AKSectionNode: NSObject, AKNode {
-    @objc dynamic var children: [AKSectionNode]? { nil }
-    @objc dynamic var isLeaf: Bool { true }
-    @objc dynamic var count: Int { 0 }
+    @objc dynamic var children: [AKItemNode]?
+    @objc dynamic var isLeaf: Bool { children == nil }
+    @objc dynamic var count: Int { children?.count ?? 0 }
 
     var value: String
 
-    init(value: String) {
+    init(value: String, children: [AKItemNode]?) {
         self.value = value
+        self.children = children
     }
 }
 
@@ -290,7 +292,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 var sectionNodes = [AKNode]()
                 sectionNodes.reserveCapacity($0.items.count + 1)
                 if let title = $0.title {
-                    sectionNodes.append(AKSectionNode(value: title))
+                    // TODO: if we use children, then groups are collapsible
+                    sectionNodes.append(AKSectionNode(value: title, children: nil))
                 }
                 for item in $0.items {
                     sectionNodes.append(mapNode(item: item))
