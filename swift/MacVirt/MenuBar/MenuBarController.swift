@@ -234,10 +234,16 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // Docker containers
         if let dockerContainers = vmModel.dockerContainers {
             menu.addSectionHeader("Containers")
+            let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(filteredContainers: dockerContainers)
+
+            // placeholder if no containers
+            if runningItems.isEmpty ||
+               runningItems.allSatisfy({ if case .k8sGroup = $0 { return true } else { return false } }) {
+                menu.addInfoLine("None running")
+            }
 
             // group by Compose
-            let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(filteredContainers: dockerContainers)
-            menu.addTruncatedItems(runningItems, overflowItems: stoppedItems) { item in
+            menu.addTruncatedItems(runningItems, overflowHeader: "Stopped", overflowItems: stoppedItems) { item in
                 switch item {
                 case .container(let container):
                     return makeContainerItem(container: container)
@@ -249,12 +255,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
                 default:
                     return nil
                 }
-            }
-
-            // placeholder if no containers
-            if runningItems.isEmpty ||
-               runningItems.allSatisfy({ if case .k8sGroup = $0 { return true } else { return false } }) {
-                menu.addInfoLine("None running")
             }
 
             menu.addSeparator()
@@ -348,7 +348,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if actionInProgress {
             icon = systemImage("circle.dotted")
         } else if showStatus {
-            icon = SystemImages.redGreenDot(isRunning: container.running)
+            icon = SystemImages.statusDot(isRunning: container.running)
         }
         let containerItem = newActionItem(container.userName, icon: icon) { [self] in
             openApp(tab: "docker")
@@ -681,7 +681,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
 }
 
 private extension NSMenu {
-    func addTruncatedItems<T>(_ items: [T], overflowItems: [T]? = nil, makeItem: (T) -> NSMenuItem?) {
+    func addTruncatedItems<T>(_ items: [T],
+                              overflowHeader: String? = nil,
+                              overflowItems: [T]? = nil,
+                              makeItem: (T) -> NSMenuItem?) {
         // limit 5
         for container in items.prefix(maxQuickAccessItems) {
             let item = makeItem(container)
@@ -710,6 +713,10 @@ private extension NSMenu {
             submenu.addSeparator()
 
             if let overflowItems {
+                if let overflowHeader {
+                    submenu.addSectionHeader(overflowHeader)
+                }
+
                 for container in overflowItems {
                     let item = makeItem(container)
                     if let item {
@@ -840,11 +847,31 @@ private func systemImage(_ name: String, bold: Bool = false, small: Bool = false
 }
 
 struct SystemImages {
-    static func redGreenDot(isRunning: Bool) -> NSImage {
-        let color = isRunning ? NSColor.systemGreen : NSColor.systemRed
+    static func statusDot(isRunning: Bool) -> NSImage {
+        statusDot(isRunning ? .green : .red)
+    }
+
+    static func statusDot(_ status: StatusDot) -> NSImage {
         let icon = NSImage(named: "MenuBarStatusDot")!
-            .tint(color: color.withAlphaComponent(0.8))
+            .tint(color: status.color.withAlphaComponent(0.8))
         icon.size = NSSize(width: 16, height: 16)
         return icon
+    }
+}
+
+enum StatusDot {
+    case green
+    case yellow
+    case red
+
+    var color: NSColor {
+        switch self {
+        case .green:
+            return NSColor.systemGreen
+        case .yellow:
+            return NSColor.systemOrange
+        case .red:
+            return NSColor.systemRed
+        }
     }
 }

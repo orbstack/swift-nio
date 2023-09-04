@@ -691,7 +691,7 @@ struct DockerComposeLogsWindow: View {
                                 Text(container.userName)
                             } icon: {
                                 // icon = red/green status dot
-                                Image(nsImage: SystemImages.redGreenDot(isRunning: container.running))
+                                Image(nsImage: SystemImages.statusDot(isRunning: container.running))
                             }
                         }
                     }

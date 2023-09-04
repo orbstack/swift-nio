@@ -237,7 +237,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                                     .textSelectionWithWorkaround()
                                 } icon: {
                                     // icon = red/green status dot
-                                    Image(nsImage: SystemImages.redGreenDot(isRunning: container.ready ?? false))
+                                    Image(nsImage: SystemImages.statusDot(isRunning: container.ready ?? false))
                                 }
                             }
                         }
