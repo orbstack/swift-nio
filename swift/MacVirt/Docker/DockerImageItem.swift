@@ -163,14 +163,7 @@ struct DockerImageItem: View, Equatable {
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
         if isSelected() {
-            // SwiftUI List bug: deleted items stay in selection set so we need to filter
-            if let images = vmModel.dockerImages {
-                return selection.filter { sel in
-                    images.contains(where: { $0.id == sel })
-                }
-            } else {
-                return selection
-            }
+            return selection
         } else {
             return [image.id]
         }

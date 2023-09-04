@@ -318,22 +318,9 @@ extension BaseK8SResourceItem {
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
         if isSelected() {
-            // SwiftUI List bug: deleted items stay in selection set so we need to filter
-            let firstPass = selection.filter { sel in
-                switch sel {
-                case .pod:
-                    return vmModel.k8sPods?.contains { pod in pod.id == sel } ?? false
-                case .service:
-                    return vmModel.k8sServices?.contains { service in service.id == sel } ?? false
-                default:
-                    return false
-                }
-            }
-
-            // now we only have items that exist
             // if we're doing a batch action, we could have deployments *and* other resources selected
             // TODO similar to docker, skip Pods/ReplicaSets under a Deployment/StatefulSet/DaemonSet if the higher-up item is selected
-            return firstPass
+            return selection
         } else {
             return [selfId]
         }

@@ -156,14 +156,7 @@ struct DockerVolumeItem: View {
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
         if isSelected() {
-            // SwiftUI List bug: deleted items stay in selection set so we need to filter
-            if let volumes = vmModel.dockerVolumes {
-                return selection.filter { sel in
-                    volumes.contains(where: { $0.name == sel })
-                }
-            } else {
-                return selection
-            }
+            return selection
         } else {
             return [volume.name]
         }
