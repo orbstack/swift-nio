@@ -95,7 +95,7 @@ struct DockerImageItem: View, Equatable {
             .help(isInUse ? "Image in use" : "Delete image")
         }
         .padding(.vertical, 4)
-        .onDoubleClick {
+        .onRawDoubleClick {
             if image.repoTags?.isEmpty == false {
                 openFolder()
             }

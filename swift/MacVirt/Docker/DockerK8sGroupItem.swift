@@ -71,8 +71,8 @@ struct DockerK8sGroupItem: View, Equatable {
             }
             .help("Go to Pods")
         }
-        .padding(.vertical, 4)
-        .contextMenu {
+        .padding(.vertical, 8)
+        .akListContextMenu {
             if isRunning {
                 Button(action: {
                     Task {

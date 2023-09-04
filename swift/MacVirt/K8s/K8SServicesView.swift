@@ -25,18 +25,18 @@ private struct GettingStartedHintBox: View {
 private struct K8SServicesList: View {
     let filterIsSearch: Bool
     let listItems: [SectionGroup<K8SService>]
-    let selection: Binding<Set<K8SResourceId>>
+    @Binding var selection: Set<K8SResourceId>
 
     var body: some View {
         VStack(spacing: 0) {
             if !listItems.isEmpty {
-                List(selection: selection) {
+                List(selection: $selection) {
                     ForEach(listItems) { group in
                         Section(header: Text(group.title)) {
                             ForEach(group.items) { item in
                                 // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                                 K8SServiceItemView(service: item,
-                                        selection: selection.wrappedValue)
+                                        selection: selection)
                                 .equatable()
                             }
                         }

@@ -26,17 +26,17 @@ private struct K8SPodsList: View {
     let filterIsSearch: Bool
     let runningCount: Int
     let listItems: [SectionGroup<K8SPod>]
-    let selection: Binding<Set<K8SResourceId>>
+    @Binding var selection: Set<K8SResourceId>
 
     var body: some View {
         VStack(spacing: 0) {
             if !listItems.isEmpty {
-                List(selection: selection) {
+                List(selection: $selection) {
                     ForEach(listItems, id: \.title) { group in
                         Section(header: Text(group.title)) {
                             ForEach(group.items) { item in
                                 // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
-                                K8SPodItemView(pod: item, selection: selection.wrappedValue)
+                                K8SPodItemView(pod: item, selection: selection)
                                 .equatable()
                             }
                         }

@@ -5,15 +5,95 @@
 import AppKit
 import SwiftUI
 
-// workaround for off-center disclosure arrow: https://stackoverflow.com/a/74894605
 private class AKOutlineView: NSOutlineView {
+    // workaround for off-center disclosure arrow: https://stackoverflow.com/a/74894605
     override func frameOfOutlineCell(atRow row: Int) -> NSRect {
         super.frameOfOutlineCell(atRow: row)
+    }
+
+    // we get here if the right click wasn't handled by SwiftUI, usually b/c out of bounds
+    // e.g. clicked on arrow or margin
+    // never use the fake menu, but try to forward it
+    override func menu(for event: NSEvent) -> NSMenu? {
+        // call super so that it sets clickedRow. (highlight ring won't trigger until willOpenMenu)
+        super.menu(for: event)
+
+        // find the clicked view
+        if clickedRow >= 0,
+           let view = self.view(atColumn: 0, row: clickedRow, makeIfNecessary: false) {
+            // make a fake event for its center
+            let center = CGPointMake(NSMidX(view.frame), NSMidY(view.frame))
+            // ... relative to the window
+            let centerInWindow = view.convert(center, to: nil)
+
+            if let fakeEvent = NSEvent.mouseEvent(
+                with: event.type,
+                location: centerInWindow,
+                modifierFlags: event.modifierFlags,
+                timestamp: event.timestamp,
+                windowNumber: event.windowNumber,
+                context: nil, // deprecated
+                eventNumber: event.eventNumber,
+                clickCount: event.clickCount,
+                pressure: event.pressure
+            ) {
+                return view.menu(for: fakeEvent)
+            }
+        }
+
+        // failed to forward
+        return nil
+    }
+
+    // for AKHostingView to trigger highlight
+    func injectMenu(for event: NSEvent) {
+        super.menu(for: event)
+    }
+}
+
+// forward menu request/open/close events to NSOutlineView so it triggers highlight ring,
+// but *actually* use the menu from SwiftUI
+private class AKHostingView<V: View>: NSHostingView<V> {
+    weak var outlineParent: AKOutlineView?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        // trigger NSOutlineView's highlight
+        outlineParent?.injectMenu(for: event)
+        return super.menu(for: event)
+    }
+
+    // forward menu events
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+        outlineParent?.willOpenMenu(menu, with: event)
+    }
+
+    override func didCloseMenu(_ menu: NSMenu, with event: NSEvent?) {
+        super.didCloseMenu(menu, with: event)
+        outlineParent?.didCloseMenu(menu, with: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
     }
 }
 
 protocol AKTreeListItem: Identifiable, Equatable {
     var listChildren: [any AKTreeListItem]? { get }
+}
+
+typealias AKFlatListItem = Identifiable & Equatable
+
+private struct FlatItemWrapper<V: AKFlatListItem>: AKTreeListItem {
+    let value: V
+
+    var id: V.ID {
+        value.id
+    }
+
+    var listChildren: [any AKTreeListItem]? {
+        nil
+    }
 }
 
 private class AKTreeNode: NSObject {
@@ -32,19 +112,29 @@ private class AKTreeNode: NSObject {
 
 private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRepresentable, Equatable {
     let items: [Item]
+    @Binding var selection: Set<Item.ID>
     let rowHeight: CGFloat
     let makeRowView: (Item) -> ItemView
 
     static func == (lhs: AKTreeListNSView, rhs: AKTreeListNSView) -> Bool {
-        lhs.items == rhs.items && lhs.rowHeight == rhs.rowHeight
+        // row callback should never change
+        lhs.items == rhs.items &&
+            lhs.selection == rhs.selection &&
+            lhs.rowHeight == rhs.rowHeight
     }
 
     final class Coordinator: NSObject, NSOutlineViewDelegate {
-        let parent: AKTreeListNSView
+        var parent: AKTreeListNSView
+
         @objc fileprivate dynamic var content: [AKTreeNode] = []
         var lastItems: [Item] = []
 
+        var treeController: NSTreeController!
+        private var observation: NSKeyValueObservation?
+
+        // preserve objc object identity to avoid losing state
         private var objCache = [Item.ID: AKTreeNode]()
+        // array is fastest since we just iterate and clear this
         private var objAccessTracker = [Item.ID]()
 
         init(_ parent: AKTreeListNSView) {
@@ -59,7 +149,10 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
             }
 
             let view = parent.makeRowView(node.value as! Item)
-            return NSHostingView(rootView: view)
+            // menu forwarder
+            let nsView = AKHostingView(rootView: view)
+            nsView.outlineParent = outlineView as! AKOutlineView
+            return nsView
         }
 
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
@@ -115,11 +208,37 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
             objAccessTracker.removeAll()
             return newNodes
         }
+
+        func outlineViewSelectionDidChange(_ notification: Notification) {
+            let selectedIds = treeController.selectedObjects
+                .compactMap { ($0 as? AKTreeNode)?.value.id as? Item.ID }
+            DispatchQueue.main.async {
+                print("et selection to: \(selectedIds)")
+                self.parent.selection = Set(selectedIds)
+                print("read back = \(self.parent.selection)")
+            }
+        }
+
+//        func setTreeController(_ treeController: NSTreeController) {
+//            self.treeController = treeController
+//
+//            // observe KVO
+//            observation = treeController.observe(\.selectedObjects, options: [.new]) { [weak self] _, change in
+//                guard let self = self else { return }
+//                let selectedIds = treeController.selectedObjects
+//                    .compactMap { ($0 as? AKTreeNode)?.value.id as? Item.ID }
+//                print("set selection to: \(selectedIds)")
+//                parent.selection = Set(selectedIds)
+//            }
+//        }
     }
 
     func makeNSView(context: Context) -> NSScrollView {
+        let coordinator = context.coordinator
+        coordinator.parent = self
+
         let treeController = NSTreeController()
-        treeController.bind(.contentArray, to: context.coordinator, withKeyPath: "content")
+        treeController.bind(.contentArray, to: coordinator, withKeyPath: "content")
         treeController.objectClass = AKTreeNode.self
         treeController.childrenKeyPath = "children"
         treeController.countKeyPath = "childCount"
@@ -128,21 +247,25 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
         treeController.avoidsEmptySelection = false
         treeController.selectsInsertedObjects = false
         treeController.alwaysUsesMultipleValuesMarker = true // perf
+//        coordinator.setTreeController(treeController)
+        coordinator.treeController = treeController
 
         let outlineView = AKOutlineView()
-        outlineView.delegate = context.coordinator
+        outlineView.delegate = coordinator
         outlineView.bind(.content, to: treeController, withKeyPath: "arrangedObjects")
         outlineView.bind(.selectionIndexPaths, to: treeController, withKeyPath: "selectionIndexPaths")
         // fix width changing when expanding/collapsing
         outlineView.autoresizesOutlineColumn = false
         outlineView.allowsMultipleSelection = true
         outlineView.allowsEmptySelection = true
+        // dummy menu to trigger highlight
+        outlineView.menu = NSMenu()
 
         // hide header
         outlineView.headerView = nil
 
         // use outlineView's double click. more reliable than Swift onDoubleClick
-        outlineView.target = context.coordinator
+        outlineView.target = coordinator
         outlineView.doubleAction = #selector(Coordinator.onDoubleClick)
 
         // add one column
@@ -158,9 +281,11 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         let coordinator = context.coordinator
+        coordinator.parent = self
         guard items != coordinator.lastItems else {
             return
         }
+        print("update nsview: \(coordinator)")
 
         // convert to nodes
         let nodes = coordinator.mapAllNodes(items: items)
@@ -174,22 +299,82 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
     }
 }
 
+// Hierarchial list using AppKit's NSOutlineView and NSTreeController.
+// Can also be used for non-hierarchial lists - one impl works.
+//
+// TO MIGRATE FROM SwiftUI List:
+//   - List -> AKList
+//   - calculate a rowHeight
+//   - .onRawDoubleClick -> .akListOnDoubleClick
+//   - .contextMenu -> .akListContextMenu
+//   - increase .vertical padding (+4) to match SwiftUI List
 struct AKTreeList<Item: AKTreeListItem, ItemView: View>: View {
-    let items: [Item]
-    let rowHeight: CGFloat
-    let makeRowView: (Item) -> ItemView
+    private let items: [Item]
+    @Binding var selection: Set<Item.ID>
+    private let rowHeight: CGFloat
+    private let makeRowView: (Item) -> ItemView
 
-    init(items: [Item], rowHeight: CGFloat, @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+    init(_ items: [Item],
+         selection: Binding<Set<Item.ID>>,
+         rowHeight: CGFloat,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
         self.items = items
+        self._selection = selection
         self.rowHeight = rowHeight
         self.makeRowView = makeRowView
     }
 
     var body: some View {
-        AKTreeListNSView(items: items, rowHeight: rowHeight, makeRowView: makeRowView)
+        AKTreeListNSView(items: items,
+                selection: $selection,
+                rowHeight: rowHeight,
+                makeRowView: makeRowView)
         // TODO: is this useless?
-        .equatable()
+        //.equatable()
         // fix toolbar color and blur (fullSizeContentView)
         .ignoresSafeArea()
+    }
+}
+
+struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
+    private let items: [FlatItemWrapper<Item>]
+    @Binding var selection: Set<Item.ID>
+    private let rowHeight: CGFloat
+    private let makeRowView: (Item) -> ItemView
+
+    init(_ items: [Item],
+         selection: Binding<Set<Item.ID>>,
+         rowHeight: CGFloat,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        self.items = items.map { FlatItemWrapper(value: $0) }
+        self._selection = selection
+        self.rowHeight = rowHeight
+        self.makeRowView = makeRowView
+    }
+
+    var body: some View {
+        AKTreeListNSView(items: items,
+                selection: $selection,
+                rowHeight: rowHeight) {
+            makeRowView($0.value)
+        }
+    }
+}
+
+extension View {
+    // SwiftUI rejects menu(forEvent:) unless it thinks it owns the view at which
+    // the click occurred. onDoubleClick makes a big NSView that fulfills this
+    func akListContextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
+        self
+            .onRawDoubleClick { }
+            .contextMenu {
+                menuItems()
+            }
+    }
+
+    func akListOnDoubleClick(perform action: @escaping () -> Void) -> some View {
+        // TODO
+        self
+            .onRawDoubleClick(handler: action)
     }
 }

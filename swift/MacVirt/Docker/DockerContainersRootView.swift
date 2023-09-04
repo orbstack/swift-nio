@@ -108,7 +108,7 @@ private struct DockerContainerListItemView: View {
                     selection: selection,
                     isFirstInList: isFirstInList,
                     presentPopover: initialSelection.contains(.container(id: container.id)))
-            .equatable()
+           // .equatable()
         case .compose(let group, _):
             DockerComposeGroupItem(composeGroup: group, selection: selection,
                     isFirstInList: isFirstInList)
@@ -131,7 +131,7 @@ private struct DockerContainersList: View {
     let runningCount: Int
     let allContainers: [DKContainer]
     let listItems: [DockerListItem]
-    let selection: Binding<Set<DockerContainerId>>
+    @Binding var selection: Set<DockerContainerId>
     let initialSelection: Set<DockerContainerId>
 
     let dockerImages: [DKImage]?
@@ -140,16 +140,15 @@ private struct DockerContainersList: View {
     var body: some View {
         VStack(spacing: 0) {
             if !listItems.isEmpty {
-                //List(listItems, id: \.id, children: \.listChildren, selection: selection) { item in
                 // icon = 32, + vertical 8 padding from item VStack = 48
                 // (we used to do padding(4) + SwiftUI's auto list row padding of 4 = total 8 vertical padding, but that breaks double click region)
-                AKTreeList(items: listItems, rowHeight: 32 + 8 + 8) { item in
+                // combined 4+4 padding is in DockerContainerListItemView to fix context menu bounds
+                AKTreeList(listItems, selection: $selection, rowHeight: 32 + 8 + 8) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     DockerContainerListItemView(item: item,
-                            selection: selection.wrappedValue,
+                            selection: selection,
                             initialSelection: initialSelection,
                             isFirstInList: item.id == listItems.first?.id)
-                    .padding(.vertical, 4)
                     // environment must be re-injected across boundary
                     .environmentObject(vmModel)
                     .environmentObject(actionTracker)
@@ -238,6 +237,7 @@ struct DockerContainersRootView: View {
             }
 
             // 0 spacing to fix bg color gap between list and getting started hint
+            let _ = print("PARENT recompose with sel \(selection)")
             let listItems = DockerContainerLists.makeListItems(filteredContainers: filteredContainers,
                     showStopped: filterShowStopped)
             DockerContainersList(

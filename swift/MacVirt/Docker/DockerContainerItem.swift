@@ -26,6 +26,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     var body: some View {
         let isRunning = container.running
         let actionInProgress = actionTracker.ongoingFor(selfId)
+        let _ = print("recompose \(selfId) with sel \(selection)")
 
         HStack {
             HStack {
@@ -131,11 +132,11 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 .help("Delete container")
             }
         }
-        .padding(.vertical, 4)
-        .onDoubleClick {
+        .padding(.vertical, 8)
+        .akListOnDoubleClick {
             presentPopover = true
         }
-        .contextMenu {
+        .akListContextMenu {
             Group {
                 if isRunning {
                     Button(action: {
@@ -172,8 +173,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }) {
                     Label("Kill", systemImage: "")
                 }
+                .disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
             }
-            .disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
 
             Divider()
 
@@ -520,6 +521,7 @@ extension BaseDockerContainerItem {
 
     @MainActor
     func resolveActionList() -> Set<DockerContainerId> {
+        print("PERFORM ACTION: \(selection)")
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
         if isSelected() {

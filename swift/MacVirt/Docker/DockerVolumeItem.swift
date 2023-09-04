@@ -80,7 +80,7 @@ struct DockerVolumeItem: View {
             .help(isMounted ? "Volume in use" : "Delete volume\n(Option to confirm)")
         }
         .padding(.vertical, 4)
-        .onDoubleClick {
+        .onRawDoubleClick {
             openFolder()
         }
         .confirmationDialog(deleteConfirmMsg,

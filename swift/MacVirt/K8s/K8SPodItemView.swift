@@ -109,7 +109,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             }
         }
         .padding(.vertical, 4)
-        .onDoubleClick {
+        .onRawDoubleClick {
             presentPopover = true
         }
         .contextMenu {

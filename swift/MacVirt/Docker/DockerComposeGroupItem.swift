@@ -107,14 +107,8 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 .help("Delete project")
             }
         }
-        .padding(.vertical, 4)
-        // ideally use Introspect to expand row, but does nothing for now
-        /*
-        .onDoubleClick {
-            presentPopover = true
-        }
-         */
-        .contextMenu {
+        .padding(.vertical, 8)
+        .akListContextMenu {
             Group {
                 Button("Start") {
                     finishStart()

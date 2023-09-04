@@ -166,7 +166,7 @@ struct MachineContainerItem: View {
         .sheet(isPresented: $presentRename) {
             RenameContainerView(name: record.name, record: record, isPresented: $presentRename)
         }
-        .onDoubleClick {
+        .onRawDoubleClick {
             Task {
                 await record.openInTerminal()
             }
