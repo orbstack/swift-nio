@@ -254,7 +254,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
             }
 
             // placeholder if no containers
-            if listItems.isEmpty {
+            if listItems.isEmpty ||
+               listItems.allSatisfy({ if case .k8sGroup = $0 { return true } else { return false } }) {
                 menu.addInfoLine("None running")
             }
 

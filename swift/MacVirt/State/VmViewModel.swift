@@ -430,7 +430,7 @@ class VmViewModel: ObservableObject {
     @Published private(set) var containers: [ContainerRecord]?
     @Published private(set) var error: VmError?
 
-    @Published var appliedConfig: VmConfig? // usually from last start
+    @Published private(set) var appliedConfig: VmConfig? // usually from last start
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false
 
@@ -440,14 +440,14 @@ class VmViewModel: ObservableObject {
     @Published var presentCreateVolume = false
 
     // Docker
-    @Published var dockerContainers: [DKContainer]?
-    @Published var dockerVolumes: [DKVolume]?
-    @Published var dockerImages: [DKImage]?
-    @Published var dockerSystemDf: DKSystemDf?
+    @Published private(set) var dockerContainers: [DKContainer]?
+    @Published private(set) var dockerVolumes: [DKVolume]?
+    @Published private(set) var dockerImages: [DKImage]?
+    @Published private(set) var dockerSystemDf: DKSystemDf?
 
     // Kubernetes
-    @Published var k8sPods: [K8SPod]?
-    @Published var k8sServices: [K8SService]?
+    @Published private(set) var k8sPods: [K8SPod]?
+    @Published private(set) var k8sServices: [K8SService]?
 
     // TODO move to WindowTracker
     var openDockerLogWindowIds: Set<DockerContainerId> = []
@@ -1283,6 +1283,23 @@ class VmViewModel: ObservableObject {
             try await vmgr.k8sServiceDelete(namespace: kid.namespace, name: kid.name)
         } catch {
             setError(.k8sResourceActionError(kid: kid, action: .delete, cause: error))
+        }
+    }
+
+    func tryStartStopK8s(enable: Bool, force: Bool = false) async {
+        guard force || enable != config?.k8sEnable else {
+            return
+        }
+
+        await trySetConfigKeyAsync(\.k8sEnable, enable)
+        k8sServices = nil
+        k8sPods = nil
+        // TODO fix this and add proper dirty check. this breaks dirty state of other configs
+        // needs to be set first, or k8s state wrapper doesn't update
+        appliedConfig = config
+
+        if let dockerRecord = containers?.first(where: { $0.id == ContainerIds.docker }) {
+            await tryRestartContainer(dockerRecord)
         }
     }
 

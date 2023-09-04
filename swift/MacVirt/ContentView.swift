@@ -259,18 +259,7 @@ struct ContentView: View {
                             get: { model.config?.k8sEnable ?? true },
                             set: { newValue in
                                 Task { @MainActor in
-                                    if newValue != model.config?.k8sEnable {
-                                        await model.trySetConfigKeyAsync(\.k8sEnable, newValue)
-                                        model.k8sServices = nil
-                                        model.k8sPods = nil
-                                        // TODO fix this and add proper dirty check. this breaks dirty state of other configs
-                                        // needs to be set first, or k8s state wrapper doesn't update
-                                        model.appliedConfig = model.config
-
-                                        if let dockerRecord = model.containers?.first(where: { $0.id == ContainerIds.docker }) {
-                                            await model.tryRestartContainer(dockerRecord)
-                                        }
-                                    }
+                                    await model.tryStartStopK8s(enable: newValue)
                                 }
                             }
                     )
@@ -292,6 +281,17 @@ struct ContentView: View {
                     }
                     .help("Filter")
                     .disabled(model.state != .running)
+                }
+            }
+
+            ToolbarItem(placement: .automatic) {
+                if selection == "cli" {
+                    Button(action: {
+                        NSWorkspace.shared.open(URL(string: "https://go.orbstack.dev/cli")!)
+                    }) {
+                        Label("Go to Docs", systemImage: "questionmark.circle")
+                    }
+                    .help("Go to Docs")
                 }
             }
         }

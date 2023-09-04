@@ -47,13 +47,8 @@ struct K8SSettingsView: View {
                 HStack(spacing: 16) {
                     Button(action: {
                         Task {
-                            // TODO fix this and add proper dirty check. this breaks dirty state of other configs
-                            // needs to be set first, or k8s state wrapper doesn't update
-                            vmModel.appliedConfig = vmModel.config
-
-                            if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
-                                await vmModel.tryRestartContainer(dockerRecord)
-                            }
+                            // restart only
+                            await vmModel.tryStartStopK8s(enable: k8sEnable, force: true)
                         }
                     }) {
                         Text("Apply")

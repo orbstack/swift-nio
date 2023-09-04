@@ -17,6 +17,7 @@ struct DockerK8sGroupItem: View, Equatable {
     }
 
     var body: some View {
+        let actionInProgress = actionTracker.ongoingFor(.k8sGroup) != nil
         let isRunning = group.anyRunning
 
         HStack {
@@ -45,15 +46,30 @@ struct DockerK8sGroupItem: View, Equatable {
 
             Spacer()
 
+            if isRunning {
+                ProgressIconButton(systemImage: "stop.fill", actionInProgress: actionInProgress) {
+                    Task { @MainActor in
+                        await actionTracker.with(cid: .k8sGroup, action: .stop) {
+                            await vmModel.tryStartStopK8s(enable: false)
+                        }
+                    }
+                }
+                .help("Stop Kubernetes")
+            } else {
+                ProgressIconButton(systemImage: "play.fill", actionInProgress: actionInProgress) {
+                    Task { @MainActor in
+                        await actionTracker.with(cid: .k8sGroup, action: .start) {
+                            await vmModel.tryStartStopK8s(enable: true)
+                        }
+                    }
+                }
+                .help("Start Kubernetes")
+            }
+
             ProgressIconButton(systemImage: "gear", actionInProgress: false) {
                 Defaults[.selectedTab] = "k8s-pods"
             }
             .help("Go to Pods")
-
-            ProgressIconButton(systemImage: "network", actionInProgress: false) {
-                Defaults[.selectedTab] = "k8s-services"
-            }
-            .help("Go to Services")
         }
         .padding(.vertical, 4)
         .contextMenu {

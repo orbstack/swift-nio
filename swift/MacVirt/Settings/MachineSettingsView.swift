@@ -84,7 +84,7 @@ struct MachineSettingsView: View {
                     .onChange(of: cpu) { newValue in
                         vmModel.trySetConfigKey(\.cpu, UInt(newValue))
                     }
-                    Text("Resources are used on demand, up to these limits.")
+                    Text("Resources are used on demand, up to these limits. [Learn more](https://go.orbstack.dev/res-limits)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 }
