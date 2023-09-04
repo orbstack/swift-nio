@@ -83,6 +83,14 @@ private class AKListModel: ObservableObject {
     let doubleClicks = PassthroughSubject<AnyHashable, Never>()
 }
 
+private class AKListItemModel: ObservableObject {
+    let itemId: AnyHashable
+
+    init(itemId: AnyHashable) {
+        self.itemId = itemId
+    }
+}
+
 protocol AKTreeListItem: Identifiable, Equatable {
     var listChildren: [any AKTreeListItem]? { get }
 }
@@ -156,8 +164,11 @@ private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepre
                 return nil
             }
 
+            let itemModel = AKListItemModel(itemId: node.value.id as! AnyHashable)
             let view = parent.makeRowView(node.value as! Item)
                 .environmentObject(parent.envModel)
+                .environmentObject(itemModel)
+
             // menu forwarder
             let nsView = AKHostingView(rootView: view)
             nsView.outlineParent = (outlineView as! AKOutlineView)
@@ -416,15 +427,15 @@ struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
 }
 
 private struct DoubleClickViewModifier: ViewModifier {
-    @EnvironmentObject private var akListModel: AKListModel
+    @EnvironmentObject private var listModel: AKListModel
+    @EnvironmentObject private var itemModel: AKListItemModel
 
-    let targetId: AnyHashable
     let action: () -> Void
 
     func body(content: Content) -> some View {
         content
-        .onReceive(akListModel.doubleClicks) { id in
-            if id == targetId {
+        .onReceive(listModel.doubleClicks) { id in
+            if id == itemModel.itemId {
                 action()
             }
         }
@@ -442,7 +453,7 @@ extension View {
             }
     }
 
-    func akListOnDoubleClick(itemId: AnyHashable, perform action: @escaping () -> Void) -> some View {
-        self.modifier(DoubleClickViewModifier(targetId: itemId, action: action))
+    func akListOnDoubleClick(perform action: @escaping () -> Void) -> some View {
+        self.modifier(DoubleClickViewModifier(action: action))
     }
 }

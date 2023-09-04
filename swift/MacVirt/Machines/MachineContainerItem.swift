@@ -166,7 +166,7 @@ struct MachineContainerItem: View {
         .sheet(isPresented: $presentRename) {
             RenameContainerView(name: record.name, record: record, isPresented: $presentRename)
         }
-        .akListOnDoubleClick(itemId: record.id) {
+        .akListOnDoubleClick {
             Task {
                 await record.openInTerminal()
             }

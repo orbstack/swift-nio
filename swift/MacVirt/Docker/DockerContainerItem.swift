@@ -133,7 +133,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
         }
         .padding(.vertical, 8)
-        .akListOnDoubleClick(itemId: selfId) {
+        .akListOnDoubleClick {
             presentPopover = true
         }
         .akListContextMenu {
