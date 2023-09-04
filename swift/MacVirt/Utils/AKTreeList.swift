@@ -110,13 +110,14 @@ private class AKTreeNode: NSObject {
     }
 }
 
-private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRepresentable, Equatable {
+private struct AKTreeListImpl<Item: AKTreeListItem, ItemView: View>: NSViewRepresentable, Equatable {
     let items: [Item]
     @Binding var selection: Set<Item.ID>
     let rowHeight: CGFloat
+    let singleSelection: Bool
     let makeRowView: (Item) -> ItemView
 
-    static func == (lhs: AKTreeListNSView, rhs: AKTreeListNSView) -> Bool {
+    static func == (lhs: AKTreeListImpl, rhs: AKTreeListImpl) -> Bool {
         // row callback should never change
         lhs.items == rhs.items &&
             lhs.selection == rhs.selection &&
@@ -124,7 +125,7 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
     }
 
     final class Coordinator: NSObject, NSOutlineViewDelegate {
-        var parent: AKTreeListNSView
+        var parent: AKTreeListImpl
 
         @objc fileprivate dynamic var content: [AKTreeNode] = []
         var lastItems: [Item] = []
@@ -137,7 +138,7 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
         // array is fastest since we just iterate and clear this
         private var objAccessTracker = [Item.ID]()
 
-        init(_ parent: AKTreeListNSView) {
+        init(_ parent: AKTreeListImpl) {
             self.parent = parent
         }
 
@@ -256,7 +257,7 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
         outlineView.bind(.selectionIndexPaths, to: treeController, withKeyPath: "selectionIndexPaths")
         // fix width changing when expanding/collapsing
         outlineView.autoresizesOutlineColumn = false
-        outlineView.allowsMultipleSelection = true
+        outlineView.allowsMultipleSelection = !singleSelection
         outlineView.allowsEmptySelection = true
         // dummy menu to trigger highlight
         outlineView.menu = NSMenu()
@@ -307,7 +308,8 @@ private struct AKTreeListNSView<Item: AKTreeListItem, ItemView: View>: NSViewRep
 //   - calculate a rowHeight
 //   - .onRawDoubleClick -> .akListOnDoubleClick
 //   - .contextMenu -> .akListContextMenu
-//   - increase .vertical padding (+4) to match SwiftUI List
+//   - increase .vertical padding (4->8) to match SwiftUI List
+//   - add .environmentObjects to the item view
 struct AKTreeList<Item: AKTreeListItem, ItemView: View>: View {
     private let items: [Item]
     @Binding var selection: Set<Item.ID>
@@ -325,9 +327,10 @@ struct AKTreeList<Item: AKTreeListItem, ItemView: View>: View {
     }
 
     var body: some View {
-        AKTreeListNSView(items: items,
+        AKTreeListImpl(items: items,
                 selection: $selection,
                 rowHeight: rowHeight,
+                singleSelection: false,
                 makeRowView: makeRowView)
         // TODO: is this useless?
         //.equatable()
@@ -341,6 +344,7 @@ struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
     @Binding var selection: Set<Item.ID>
     private let rowHeight: CGFloat
     private let makeRowView: (Item) -> ItemView
+    private let singleSelection: Bool
 
     init(_ items: [Item],
          selection: Binding<Set<Item.ID>>,
@@ -350,14 +354,39 @@ struct AKFlatList<Item: AKFlatListItem, ItemView: View>: View {
         self._selection = selection
         self.rowHeight = rowHeight
         self.makeRowView = makeRowView
+        self.singleSelection = false
+    }
+
+    init(_ items: [Item],
+         selection singleBinding: Binding<Item.ID?>,
+         rowHeight: CGFloat,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        self.items = items.map { FlatItemWrapper(value: $0) }
+        self._selection = Binding<Set<Item.ID>>(
+                get: {
+                    if let id = singleBinding.wrappedValue {
+                        return [id]
+                    } else {
+                        return []
+                    }
+                },
+                set: {
+                    singleBinding.wrappedValue = $0.first
+                })
+        self.rowHeight = rowHeight
+        self.makeRowView = makeRowView
+        self.singleSelection = true
     }
 
     var body: some View {
-        AKTreeListNSView(items: items,
+        AKTreeListImpl(items: items,
                 selection: $selection,
-                rowHeight: rowHeight) {
+                rowHeight: rowHeight,
+                singleSelection: singleSelection) {
             makeRowView($0.value)
         }
+        // fix toolbar color and blur (fullSizeContentView)
+        .ignoresSafeArea()
     }
 }
 

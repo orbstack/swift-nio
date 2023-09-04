@@ -8,6 +8,7 @@ import Defaults
 
 struct MachinesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var actionTracker: ActionTracker
 
     @Default(.selectedTab) private var rootSelectedTab
     @State private var selection: String?
@@ -18,11 +19,12 @@ struct MachinesRootView: View {
             if let containers = vmModel.containers {
                 VStack {
                     if containers.contains(where: { !$0.builtin }) {
-                        List(containers, id: \.id, selection: $selection) { container in
-                            if !container.builtin {
-                                MachineContainerItem(record: container)
-                                        .id(container.id)
-                            }
+                        let filteredContainers = containers.filter { !$0.builtin }
+                        // see DockerContainerItem for rowHeight calculation
+                        AKFlatList(filteredContainers, selection: $selection, rowHeight: 48) { container in
+                            MachineContainerItem(record: container)
+                            .environmentObject(vmModel)
+                            .environmentObject(actionTracker)
                         }
                     } else {
                         Spacer()

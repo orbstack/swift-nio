@@ -140,6 +140,7 @@ private struct DockerContainersList: View {
     var body: some View {
         VStack(spacing: 0) {
             if !listItems.isEmpty {
+
                 // icon = 32, + vertical 8 padding from item VStack = 48
                 // (we used to do padding(4) + SwiftUI's auto list row padding of 4 = total 8 vertical padding, but that breaks double click region)
                 // combined 4+4 padding is in DockerContainerListItemView to fix context menu bounds

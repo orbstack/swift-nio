@@ -68,8 +68,8 @@ struct MachineContainerItem: View {
                 .help("Start \(record.name)")
             }
         }
-        .padding(.vertical, 4)
-        .contextMenu {
+        .padding(.vertical, 8)
+        .akListContextMenu {
             Group {
                 if record.running {
                     Button(action: {
@@ -166,7 +166,7 @@ struct MachineContainerItem: View {
         .sheet(isPresented: $presentRename) {
             RenameContainerView(name: record.name, record: record, isPresented: $presentRename)
         }
-        .onRawDoubleClick {
+        .akListOnDoubleClick {
             Task {
                 await record.openInTerminal()
             }
