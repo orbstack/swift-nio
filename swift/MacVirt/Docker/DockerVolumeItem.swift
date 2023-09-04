@@ -8,10 +8,13 @@ import SwiftUI
 struct DockerVolumeItem: View {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var listModel: AKListModel
 
     var volume: DKVolume
     var isMounted: Bool
-    var selection: Set<String>
+    var selection: Set<String> {
+        listModel.selection as! Set<String>
+    }
 
     @State private var presentConfirmDelete = false
 

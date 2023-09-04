@@ -9,16 +9,18 @@ import Defaults
 struct DockerImageItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var listModel: AKListModel
 
     @Default(.tipsImageMountsShow) private var tipsImageMountsShow
 
     var image: DKImage
-    var selection: Set<String>
+    var selection: Set<String> {
+        listModel.selection as! Set<String>
+    }
     var isFirstInList: Bool
 
     static func == (lhs: DockerImageItem, rhs: DockerImageItem) -> Bool {
-        lhs.image.id == rhs.image.id &&
-                lhs.selection == rhs.selection
+        lhs.image.id == rhs.image.id
     }
 
     var body: some View {

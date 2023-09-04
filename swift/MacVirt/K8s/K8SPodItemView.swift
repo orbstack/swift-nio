@@ -9,15 +9,17 @@ import Defaults
 struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var listModel: AKListModel
 
     var pod: K8SPod
-    var selection: Set<K8SResourceId>
+    var selection: Set<K8SResourceId> {
+        listModel.selection as! Set<K8SResourceId>
+    }
 
     @State private var presentPopover = false
 
     static func == (lhs: K8SPodItemView, rhs: K8SPodItemView) -> Bool {
-        lhs.pod == rhs.pod &&
-                lhs.selection == rhs.selection
+        lhs.pod == rhs.pod
     }
 
     var body: some View {

@@ -9,16 +9,18 @@ import Defaults
 struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var listModel: AKListModel
 
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
 
     var composeGroup: ComposeGroup
-    var selection: Set<DockerContainerId>
+    var selection: Set<DockerContainerId> {
+        listModel.selection as! Set<DockerContainerId>
+    }
     var isFirstInList: Bool
 
     static func == (lhs: DockerComposeGroupItem, rhs: DockerComposeGroupItem) -> Bool {
-        lhs.composeGroup == rhs.composeGroup &&
-                lhs.selection == rhs.selection
+        lhs.composeGroup == rhs.composeGroup
     }
 
     var body: some View {

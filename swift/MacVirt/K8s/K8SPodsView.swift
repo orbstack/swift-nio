@@ -36,7 +36,7 @@ private struct K8SPodsList: View {
             if !listItems.isEmpty {
                 AKList(listItems, selection: $selection, rowHeight: 48) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
-                    K8SPodItemView(pod: item, selection: selection)
+                    K8SPodItemView(pod: item)
                     .equatable()
                     .environmentObject(vmModel)
                     .environmentObject(actionTracker)

@@ -36,7 +36,7 @@ struct DockerImagesRootView: View {
 
                     // 46 is empirically correct, matches auto height. not sure where it comes from
                     AKList(listData, selection: $selection, rowHeight: 46) { image in
-                        DockerImageItem(image: image, selection: selection,
+                        DockerImageItem(image: image,
                                 isFirstInList: image.id == taggedImages.first?.id)
                         .equatable()
                         .environmentObject(vmModel)

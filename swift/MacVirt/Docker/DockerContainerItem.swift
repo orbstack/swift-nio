@@ -9,24 +9,25 @@ import Defaults
 struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var listModel: AKListModel
 
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
 
     var container: DKContainer
-    var selection: Set<DockerContainerId>
+    var selection: Set<DockerContainerId> {
+        listModel.selection as! Set<DockerContainerId>
+    }
     var isFirstInList: Bool
 
     @State var presentPopover: Bool
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
-        lhs.container == rhs.container &&
-            lhs.selection == rhs.selection
+        lhs.container == rhs.container
     }
 
     var body: some View {
         let isRunning = container.running
         let actionInProgress = actionTracker.ongoingFor(selfId)
-        let _ = print("recompose \(selfId) with sel \(selection)")
 
         HStack {
             HStack {
@@ -521,7 +522,6 @@ extension BaseDockerContainerItem {
 
     @MainActor
     func resolveActionList() -> Set<DockerContainerId> {
-        print("PERFORM ACTION: \(selection)")
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
         if isSelected() {

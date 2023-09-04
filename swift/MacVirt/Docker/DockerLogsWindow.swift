@@ -482,10 +482,12 @@ private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
 private struct LogsTextView: NSViewRepresentable {
     let model: LogsViewModel
     let commandModel: CommandViewModel
+    let window: NSWindow?
 
     class Coordinator {
         var cancellables = Set<AnyCancellable>()
         var layoutManagerDelegate: NSLayoutManagerDelegate?
+        var didBecomeFirstResponder = false
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -538,6 +540,16 @@ private struct LogsTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        print("win = \(window)")
+        if let window,
+           !context.coordinator.didBecomeFirstResponder {
+            print("made fr")
+            DispatchQueue.main.async {
+                window.makeFirstResponder(nsView.documentView)
+            }
+            window.initialFirstResponder = nsView.documentView
+            context.coordinator.didBecomeFirstResponder = true
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -547,13 +559,15 @@ private struct LogsTextView: NSViewRepresentable {
 
 private struct LogsView: View {
     @EnvironmentObject private var commandModel: CommandViewModel
+    @StateObject private var windowHolder = WindowHolder()
+    @State private var window: NSWindow?
 
     let cmdExe: String
     let args: [String]
     let model: LogsViewModel
 
     var body: some View {
-        LogsTextView(model: model, commandModel: commandModel)
+        LogsTextView(model: model, commandModel: commandModel, window: window)
         .onAppear {
             model.start(cmdExe: cmdExe, args: args)
         }
@@ -563,6 +577,11 @@ private struct LogsView: View {
         .onChange(of: args) { newArgs in
             model.start(cmdExe: cmdExe, args: newArgs)
         }
+        .onChange(of: windowHolder.window) { newWindow in
+            print("NW", newWindow)
+            window = newWindow
+        }
+        .background(WindowAccessor(holder: windowHolder))
     }
 }
 

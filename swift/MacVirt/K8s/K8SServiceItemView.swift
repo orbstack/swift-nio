@@ -9,15 +9,17 @@ import Defaults
 struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var listModel: AKListModel
 
     var service: K8SService
-    var selection: Set<K8SResourceId>
+    var selection: Set<K8SResourceId> {
+        listModel.selection as! Set<K8SResourceId>
+    }
 
     @State private var presentPopover = false
 
     static func == (lhs: K8SServiceItemView, rhs: K8SServiceItemView) -> Bool {
-        lhs.service == rhs.service &&
-                lhs.selection == rhs.selection
+        lhs.service == rhs.service
     }
 
     var body: some View {

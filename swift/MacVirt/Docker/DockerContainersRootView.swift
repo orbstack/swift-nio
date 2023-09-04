@@ -93,7 +93,6 @@ private struct MigrationHintBox: View {
 // need another view to fix type error
 private struct DockerContainerListItemView: View {
     let item: DockerListItem
-    let selection: Set<DockerContainerId>
     let initialSelection: Set<DockerContainerId>
     let isFirstInList: Bool
 
@@ -105,12 +104,11 @@ private struct DockerContainerListItemView: View {
             .foregroundColor(.secondary)
         case .container(let container):
             DockerContainerItem(container: container,
-                    selection: selection,
                     isFirstInList: isFirstInList,
                     presentPopover: initialSelection.contains(.container(id: container.id)))
-           // .equatable()
+            .equatable()
         case .compose(let group, _):
-            DockerComposeGroupItem(composeGroup: group, selection: selection,
+            DockerComposeGroupItem(composeGroup: group,
                     isFirstInList: isFirstInList)
             .equatable()
         case .k8sGroup(let group, _):
@@ -148,7 +146,6 @@ private struct DockerContainersList: View {
                 AKList(listData, selection: $selection, rowHeight: 32 + 8 + 8, flat: false) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     DockerContainerListItemView(item: item,
-                            selection: selection,
                             initialSelection: initialSelection,
                             isFirstInList: item.id == flatList.first?.id)
                     // environment must be re-injected across boundary
@@ -239,7 +236,6 @@ struct DockerContainersRootView: View {
             }
 
             // 0 spacing to fix bg color gap between list and getting started hint
-            let _ = print("PARENT recompose with sel \(selection)")
             let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(filteredContainers: filteredContainers)
             let listData = makeListData(runningItems: runningItems, stoppedItems: stoppedItems)
 
