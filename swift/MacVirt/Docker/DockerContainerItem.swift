@@ -9,6 +9,7 @@ import Defaults
 struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var windowTracker: WindowTracker
     @EnvironmentObject var listModel: AKListModel
 
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
@@ -187,7 +188,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 Button(action: {
-                    container.showLogs(vmModel: vmModel)
+                    container.showLogs(windowTracker: windowTracker)
                 }) {
                     Label("Show Logs", systemImage: "terminal")
                 }
@@ -271,7 +272,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         }
                     }) {
                         Label("Domain", systemImage: "doc.on.doc")
-                    }.disabled(vmModel.config?.networkBridge == false || preferredDomain == nil)
+                    }.disabled(!vmModel.netBridgeAvailable || preferredDomain == nil)
 
                     let ipAddress = container.ipAddress
                     Button(action: {
@@ -363,7 +364,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             VStack(alignment: .leading) {
                 HStack {
                     Button {
-                        container.showLogs(vmModel: vmModel)
+                        container.showLogs(windowTracker: windowTracker)
                     } label: {
                         Label("Logs", systemImage: "doc.text.magnifyingglass")
                     }

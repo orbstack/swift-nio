@@ -20,9 +20,10 @@ func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
     })
 }
 
-struct ContentView: View {
+struct MainWindow: View {
     @Environment(\.controlActiveState) var controlActiveState
     @EnvironmentObject private var model: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
 
     // SceneStorage inits too late
     @Default(.selectedTab) private var selection
@@ -294,7 +295,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            model.openMainWindowCount += 1
+            windowTracker.openMainWindowCount += 1
             model.initLaunch()
 
             // DO NOT use .task{} here.
@@ -310,7 +311,7 @@ struct ContentView: View {
             }
         }
         .onDisappear {
-            model.openMainWindowCount -= 1
+            windowTracker.openMainWindowCount -= 1
         }
         // error dialog
         .alert(isPresented: $presentError, error: model.error) { error in

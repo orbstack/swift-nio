@@ -24,6 +24,7 @@ private struct GettingStartedHintBox: View {
 
 private struct K8SPodsList: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
 
     let filterIsSearch: Bool
@@ -39,6 +40,7 @@ private struct K8SPodsList: View {
                     K8SPodItemView(pod: item)
                     .equatable()
                     .environmentObject(vmModel)
+                    .environmentObject(windowTracker)
                     .environmentObject(actionTracker)
                 }
                 .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")

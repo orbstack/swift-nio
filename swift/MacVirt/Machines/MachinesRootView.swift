@@ -8,6 +8,7 @@ import Defaults
 
 struct MachinesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
 
     @Default(.selectedTab) private var rootSelectedTab
@@ -24,6 +25,7 @@ struct MachinesRootView: View {
                         AKList(filteredContainers, selection: $selection, rowHeight: 48) { container in
                             MachineContainerItem(record: container)
                             .environmentObject(vmModel)
+                            .environmentObject(windowTracker)
                             .environmentObject(actionTracker)
                         }
                     } else {

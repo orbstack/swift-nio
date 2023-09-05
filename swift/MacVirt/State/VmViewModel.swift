@@ -449,10 +449,6 @@ class VmViewModel: ObservableObject {
     @Published private(set) var k8sPods: [K8SPod]?
     @Published private(set) var k8sServices: [K8SService]?
 
-    // TODO move to WindowTracker
-    var openDockerLogWindowIds: Set<DockerContainerId> = []
-    var openK8sLogWindowIds: Set<K8SResourceId> = []
-    var openMainWindowCount = 0
     private var cancellables = Set<AnyCancellable>()
 
     // Setup

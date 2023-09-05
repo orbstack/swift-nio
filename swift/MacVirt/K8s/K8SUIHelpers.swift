@@ -27,8 +27,8 @@ struct K8SResourceLists {
 
 extension K8SPod {
     @MainActor
-    func showLogs(vmModel: VmViewModel) {
-        if !vmModel.openK8sLogWindowIds.contains(id) {
+    func showLogs(windowTracker: WindowTracker) {
+        if !windowTracker.openK8sLogWindowIds.contains(id) {
             let b64URL = "\(namespace)/\(name)".data(using: .utf8)!.base64URLEncodedString()
             if let url = URL(string: "orbstack://k8s/pod-logs/\(b64URL)") {
                 NSWorkspace.shared.open(url)

@@ -635,7 +635,7 @@ private struct DockerLogsContentView: View {
 }
 
 struct DockerLogsWindow: View {
-    @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
     @StateObject private var commandModel = CommandViewModel()
 
     @SceneStorage("DockerLogs_containerId") private var containerId: String?
@@ -645,10 +645,10 @@ struct DockerLogsWindow: View {
             if let containerId {
                 DockerLogsContentView(cid: .container(id: containerId), standalone: true)
                 .onAppear {
-                    vmModel.openDockerLogWindowIds.insert(.container(id: containerId))
+                    windowTracker.openDockerLogWindowIds.insert(.container(id: containerId))
                 }
                 .onDisappear {
-                    vmModel.openDockerLogWindowIds.remove(.container(id: containerId))
+                    windowTracker.openDockerLogWindowIds.remove(.container(id: containerId))
                 }
             } else {
                 // must always have a view, or the window doesn't open on macOS 12{ url in  }
@@ -665,6 +665,7 @@ struct DockerLogsWindow: View {
 }
 
 struct DockerComposeLogsWindow: View {
+    @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var vmModel: VmViewModel
     @StateObject private var commandModel = CommandViewModel()
 
@@ -692,10 +693,10 @@ struct DockerComposeLogsWindow: View {
                     Label("All", systemImage: "square.stack.3d.up")
                 }
                 .onAppear {
-                    vmModel.openDockerLogWindowIds.insert(.compose(project: composeProject))
+                    windowTracker.openDockerLogWindowIds.insert(.compose(project: composeProject))
                 }
                 .onDisappear {
-                    vmModel.openDockerLogWindowIds.remove(.compose(project: composeProject))
+                    windowTracker.openDockerLogWindowIds.remove(.compose(project: composeProject))
                 }
 
                 let children = vmModel.dockerContainers?
@@ -824,7 +825,7 @@ private struct K8SLogsContentView: View {
 }
 
 struct K8SPodLogsWindow: View {
-    @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
     @StateObject private var commandModel = CommandViewModel()
 
     @SceneStorage("K8SLogs_namespaceAndName") private var namespaceAndName: String?
@@ -835,10 +836,10 @@ struct K8SPodLogsWindow: View {
                let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName) {
                 K8SLogsContentView(kid: kid)
                 .onAppear {
-                    vmModel.openK8sLogWindowIds.insert(kid)
+                    windowTracker.openK8sLogWindowIds.insert(kid)
                 }
                 .onDisappear {
-                    vmModel.openK8sLogWindowIds.remove(kid)
+                    windowTracker.openK8sLogWindowIds.remove(kid)
                 }
             } else {
                 // must always have a view, or the window doesn't open on macOS 12{ url in  }

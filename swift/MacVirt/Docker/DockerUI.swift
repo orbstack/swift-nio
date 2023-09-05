@@ -18,8 +18,8 @@ extension DKContainer {
     }
 
     @MainActor
-    func showLogs(vmModel: VmViewModel) {
-        if !vmModel.openDockerLogWindowIds.contains(DockerContainerId.container(id: id)) {
+    func showLogs(windowTracker: WindowTracker) {
+        if !windowTracker.openDockerLogWindowIds.contains(DockerContainerId.container(id: id)) {
             NSWorkspace.shared.open(URL(string: "orbstack://docker/container-logs/\(id)")!)
         } else {
             // find window by title and bring to front

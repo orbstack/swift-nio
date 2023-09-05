@@ -107,8 +107,9 @@ struct MacVirtApp: App {
          */
 
         WindowGroup {
-            ContentView()
+            MainWindow()
             .environmentObject(model)
+            .environmentObject(windowTracker)
             .environmentObject(actionTracker)
             // workaround: default size uses min height on macOS 12, so this fixes default window size
             // on macOS 13+ we can set smaller min and use windowDefaultSize

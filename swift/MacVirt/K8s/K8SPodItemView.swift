@@ -9,6 +9,7 @@ import Defaults
 struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var windowTracker: WindowTracker
     @EnvironmentObject var listModel: AKListModel
 
     var pod: K8SPod
@@ -134,7 +135,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 }
 
                 Button(action: {
-                    pod.showLogs(vmModel: vmModel)
+                    pod.showLogs(windowTracker: windowTracker)
                 }) {
                     Label("Show Logs", systemImage: "")
                 }
@@ -251,7 +252,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             VStack(alignment: .leading) {
                 HStack {
                     Button {
-                        pod.showLogs(vmModel: vmModel)
+                        pod.showLogs(windowTracker: windowTracker)
                     } label: {
                         Label("Logs", systemImage: "doc.text.magnifyingglass")
                     }

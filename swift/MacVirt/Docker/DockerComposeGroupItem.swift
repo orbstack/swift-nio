@@ -9,6 +9,7 @@ import Defaults
 struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var windowTracker: WindowTracker
     @EnvironmentObject var listModel: AKListModel
 
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
@@ -136,7 +137,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             Divider()
 
             Button("Show Logs") {
-                composeGroup.showLogs(vmModel: vmModel)
+                composeGroup.showLogs(windowTracker: windowTracker)
             }
 
             Divider()

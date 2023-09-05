@@ -41,6 +41,10 @@ class WindowTracker: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let setPolicyDebounce = FuncDebounce(duration: policyDebounce)
 
+    var openDockerLogWindowIds: Set<DockerContainerId> = []
+    var openK8sLogWindowIds: Set<K8SResourceId> = []
+    var openMainWindowCount = 0
+
     // TODO: fix reference cycle
     var menuBar: MenuBarController!
 

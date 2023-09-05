@@ -7,6 +7,7 @@ import SwiftUI
 
 struct DockerVolumesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
 
     @State private var selection: Set<String> = []
@@ -33,6 +34,7 @@ struct DockerVolumesRootView: View {
                         DockerVolumeItem(volume: volume, isMounted: isMounted(volume))
                         .id(volume.name)
                         .environmentObject(vmModel)
+                        .environmentObject(windowTracker)
                         .environmentObject(actionTracker)
                     }
                     .if(totalSizeFormatted != nil) { list in

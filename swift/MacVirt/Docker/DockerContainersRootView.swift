@@ -15,8 +15,8 @@ struct ComposeGroup: Hashable, Equatable {
     }
 
     @MainActor
-    func showLogs(vmModel: VmViewModel) {
-        if !vmModel.openDockerLogWindowIds.contains(.compose(project: project)) {
+    func showLogs(windowTracker: WindowTracker) {
+        if !windowTracker.openDockerLogWindowIds.contains(.compose(project: project)) {
             // workaround: url can't contain "domain"???
             let projectB64URL = project.data(using: .utf8)!.base64URLEncodedString()
             if let url = URL(string: "orbstack://docker/project-logs/\(projectB64URL)?base64=true") {
@@ -117,6 +117,7 @@ private struct DockerContainerListItemView: View {
 
 private struct DockerContainersList: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
 
     @Default(.dockerMigrationDismissed) private var dockerMigrationDismissed
@@ -145,6 +146,7 @@ private struct DockerContainersList: View {
                             isFirstInList: item.id == flatList.first?.id)
                     // environment must be re-injected across boundary
                     .environmentObject(vmModel)
+                    .environmentObject(windowTracker)
                     .environmentObject(actionTracker)
                 }
                 .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")

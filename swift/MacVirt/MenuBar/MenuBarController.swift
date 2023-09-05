@@ -390,7 +390,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         submenu.addSeparator()
 
         submenu.addActionItem("Logs", icon: systemImage("doc.text.magnifyingglass")) { [self] in
-            container.showLogs(vmModel: vmModel)
+            container.showLogs(windowTracker: windowTracker)
         }
 
         submenu.addActionItem("Terminal", icon: systemImage("terminal"), disabled: !container.running) {
@@ -515,8 +515,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         submenu.addActionItem("Logs", icon: systemImage("doc.text.magnifyingglass")) { [self] in
             // reappear in dock and trigger workaround
             windowTracker.setPolicy(.regular)
-
-            group.showLogs(vmModel: vmModel)
+            group.showLogs(windowTracker: windowTracker)
         }
 
         submenu.addSeparator()
@@ -619,7 +618,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // open main window if needed, as if user clicked on dock
         // but always open main so users can get back to main, not e.g. logs
         // must have both because onDisappear (count) is called lazily
-        if !NSApp.windows.contains(where: { $0.isUserFacing }) || vmModel.openMainWindowCount == 0 {
+        if !NSApp.windows.contains(where: { $0.isUserFacing }) || windowTracker.openMainWindowCount == 0 {
             // if we just opened window, then activate later to work around focus menubar bug
             NSLog("open main")
             NSWorkspace.shared.open(URL(string: "orbstack://main")!)

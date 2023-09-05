@@ -24,6 +24,7 @@ private struct GettingStartedHintBox: View {
 
 private struct K8SServicesList: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
 
     let filterIsSearch: Bool
@@ -38,6 +39,7 @@ private struct K8SServicesList: View {
                     K8SServiceItemView(service: item)
                     .equatable()
                     .environmentObject(vmModel)
+                    .environmentObject(windowTracker)
                     .environmentObject(actionTracker)
                 }
             } else {
