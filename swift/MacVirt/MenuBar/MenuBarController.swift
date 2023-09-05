@@ -582,13 +582,14 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private func makeMachineItem(record: ContainerRecord) -> NSMenuItem {
         let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
         let icon = actionInProgress ? systemImage("circle.dotted") : nil
+        let running = record.running // TODO check restartingMachines?
 
         let machineItem = newActionItem(record.name, icon: icon) {
             await record.openInTerminal()
         }
         let submenu = machineItem.newSubmenu()
 
-        if record.running {
+        if running {
             submenu.addActionItem("Stop", icon: systemImage("stop.fill"),
                     disabled: actionInProgress) { [self] in
                 await actionTracker.with(machine: record, action: .stop) {
@@ -604,7 +605,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             }
         }
 
-        if record.running {
+        if running {
             submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
                     disabled: actionInProgress) { [self] in
                 await actionTracker.with(machine: record, action: .restart) {
@@ -617,7 +618,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addSeparator()
 
-        if record.running {
+        if running {
             let domain = "\(record.name).orb.local"
             submenu.addActionItem("Address: \(domain)", disabled: !vmModel.netBridgeAvailable) {
                 NSPasteboard.copy(domain)

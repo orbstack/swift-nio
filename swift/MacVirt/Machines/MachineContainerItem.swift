@@ -16,6 +16,7 @@ struct MachineContainerItem: View {
 
     var body: some View {
         let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
+        let running = record.running || vmModel.restartingMachines.contains(record.id)
 
         HStack {
             Image("distro_\(record.image.distro)")
@@ -23,7 +24,7 @@ struct MachineContainerItem: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 32, height: 32)
                     .padding(.trailing, 8)
-                    .opacity(record.running ? 1 : 0.5)
+                    .opacity(running ? 1 : 0.5)
             VStack(alignment: .leading) {
                 Text(record.name)
                         .font(.body)
@@ -31,7 +32,7 @@ struct MachineContainerItem: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
             }
-            .opacity(record.running ? 1 : 0.5)
+            .opacity(running ? 1 : 0.5)
 
             Spacer()
 
@@ -46,7 +47,7 @@ struct MachineContainerItem: View {
             .disabled(actionInProgress)
             .help("Open Files")
 
-            if record.running {
+            if running {
                 ProgressIconButton(systemImage: "stop.fill",
                         actionInProgress: actionInProgress || record.state == .creating) {
                     Task { @MainActor in
@@ -71,7 +72,7 @@ struct MachineContainerItem: View {
         .padding(.vertical, 8)
         .akListContextMenu {
             Group {
-                if record.running {
+                if running {
                     Button(action: {
                         Task { @MainActor in
                             await actionTracker.with(machine: record, action: .stop) {
@@ -153,7 +154,7 @@ struct MachineContainerItem: View {
 
             Button("Copy Address") {
                 NSPasteboard.copy("\(record.name).orb.local")
-            }.disabled(!record.running || !vmModel.netBridgeAvailable)
+            }.disabled(!running || !vmModel.netBridgeAvailable)
         }
         .confirmationDialog("Delete \(record.name)?",
                 isPresented: $presentConfirmDelete) {

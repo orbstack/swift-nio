@@ -49,13 +49,13 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
         StateWrapperView {
             // TODO return verdict as enum and use switch{} to fix loading flicker
             if let machines = vmModel.containers,
-               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
+               let k8sRecord = machines.first(where: { $0.id == ContainerIds.k8s }),
                let config = vmModel.appliedConfig { // applied config, not current
                 if let entities = vmModel[keyPath: keyPath],
-                   dockerRecord.state != .stopped,
+                   k8sRecord.state != .stopped,
                    !isK8sClusterCreating {
-                    content(entities, dockerRecord)
-                } else if (dockerRecord.state == .stopped || !config.k8sEnable) && !vmModel.isK8sRestarting {
+                    content(entities, k8sRecord)
+                } else if (k8sRecord.state == .stopped || !config.k8sEnable) && !vmModel.restartingMachines.contains(ContainerIds.k8s) {
                     disabledView
                 } else if isK8sClusterCreating {
                     ProgressView(label: {

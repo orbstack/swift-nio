@@ -404,7 +404,7 @@ class VmViewModel: ObservableObject {
 
     // TODO: fix state machine to deal with restarting
     @Published private(set) var isVmRestarting = false
-    @Published private(set) var isK8sRestarting = false
+    @Published private(set) var restartingMachines = Set<String>()
     @Published private(set) var state = VmState.stopped {
         didSet {
             if state == .running {
@@ -893,7 +893,13 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    @MainActor
     func restartContainer(_ record: ContainerRecord) async throws {
+        restartingMachines.insert(record.id)
+        defer {
+            restartingMachines.remove(record.id)
+        }
+
         try await scon.containerRestart(record)
     }
 
@@ -1296,11 +1302,6 @@ class VmViewModel: ObservableObject {
         appliedConfig = config
 
         if let dockerRecord = containers?.first(where: { $0.id == ContainerIds.docker }) {
-            isK8sRestarting = true
-            defer {
-                isK8sRestarting = false
-            }
-
             await tryRestartContainer(dockerRecord)
         }
     }

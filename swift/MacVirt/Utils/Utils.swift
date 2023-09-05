@@ -200,6 +200,7 @@ struct Files {
 
 struct ContainerIds {
     static let docker = "01GQQVF6C60000000000DOCKER"
+    static let k8s = docker
 }
 
 struct AppleEvents {

@@ -229,6 +229,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         }
 
         // preserve objc object identity to avoid losing state
+        // overriding isEqual would probably work but this is also good for perf
         private var objCache = [Item.ID: AKItemNode]()
         // array is fastest since we just iterate and clear this
         private var objAccessTracker = [Item.ID]()
