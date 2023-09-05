@@ -36,60 +36,58 @@ struct ContentView: View {
 
     @State private var initialDockerContainerSelection: Set<DockerContainerId> = []
 
+    @ViewBuilder
     private var sidebarContents12: some View {
-        Group {
-            // on macOS 14, must put .tag() on Label or it crashes
-            // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
-            Section(header: Text("Docker")) {
-                NavigationLink(destination: DockerContainersRootView(initialSelection: initialDockerContainerSelection,
-                                                                     selection: initialDockerContainerSelection, searchQuery: "")) {
-                    Label("Containers", systemImage: "shippingbox")
-                        .padding(.vertical, 3)
-                }
-                .tag("docker")
-                
-                NavigationLink(destination: DockerVolumesRootView()) {
-                    Label("Volumes", systemImage: "externaldrive")
-                        .padding(.vertical, 3)
-                }
-                .tag("docker-volumes")
-                
-                NavigationLink(destination: DockerImagesRootView()) {
-                    Label("Images", systemImage: "doc.zipper")
-                        .padding(.vertical, 3)
-                }
-                .tag("docker-images")
+        // on macOS 14, must put .tag() on Label or it crashes
+        // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
+        Section(header: Text("Docker")) {
+            NavigationLink(destination: DockerContainersRootView(selection: initialDockerContainerSelection, searchQuery: "")) {
+                Label("Containers", systemImage: "shippingbox")
+                .padding(.vertical, 3)
             }
+            .tag("docker")
 
-            Section(header: Text("Kubernetes")) {
-                NavigationLink(destination: K8SPodsView()) {
-                    Label("Pods", systemImage: "helm")
-                        .padding(.vertical, 3)
-                }
-                .tag("k8s-pods")
-                
-                NavigationLink(destination: K8SServicesView()) {
-                    Label("Services", systemImage: "network")
-                        .padding(.vertical, 3)
-                }
-                .tag("k8s-services")
+            NavigationLink(destination: DockerVolumesRootView()) {
+                Label("Volumes", systemImage: "externaldrive")
+                .padding(.vertical, 3)
             }
-            
-            Section(header: Text("Linux")) {
-                NavigationLink(destination: MachinesRootView()) {
-                    Label("Machines", systemImage: "desktopcomputer")
-                        .padding(.vertical, 3)
-                }
-                .tag("machines")
+            .tag("docker-volumes")
+
+            NavigationLink(destination: DockerImagesRootView()) {
+                Label("Images", systemImage: "doc.zipper")
+                .padding(.vertical, 3)
             }
-            
-            Section(header: Text("Help")) {
-                NavigationLink(destination: CommandsRootView()) {
-                    Label("Commands", systemImage: "terminal")
-                        .padding(.vertical, 3)
-                }
-                .tag("cli")
+            .tag("docker-images")
+        }
+
+        Section(header: Text("Kubernetes")) {
+            NavigationLink(destination: K8SPodsView()) {
+                Label("Pods", systemImage: "helm")
+                .padding(.vertical, 3)
             }
+            .tag("k8s-pods")
+
+            NavigationLink(destination: K8SServicesView()) {
+                Label("Services", systemImage: "network")
+                .padding(.vertical, 3)
+            }
+            .tag("k8s-services")
+        }
+
+        Section(header: Text("Linux")) {
+            NavigationLink(destination: MachinesRootView()) {
+                Label("Machines", systemImage: "desktopcomputer")
+                .padding(.vertical, 3)
+            }
+            .tag("machines")
+        }
+
+        Section(header: Text("Help")) {
+            NavigationLink(destination: CommandsRootView()) {
+                Label("Commands", systemImage: "terminal")
+                .padding(.vertical, 3)
+            }
+            .tag("cli")
         }
     }
     
@@ -148,7 +146,7 @@ struct ContentView: View {
                 } detail: {
                     switch selection {
                     case "docker":
-                        DockerContainersRootView(initialSelection: initialDockerContainerSelection, selection: initialDockerContainerSelection, searchQuery: "")
+                        DockerContainersRootView(selection: initialDockerContainerSelection, searchQuery: "")
                     case "docker-volumes":
                         DockerVolumesRootView()
                     case "docker-images":

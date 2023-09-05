@@ -8,7 +8,7 @@ import SwiftUI
 struct StateWrapperView<Content: View>: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    let content: () -> Content
+    @ViewBuilder let content: () -> Content
 
     init(@ViewBuilder content: @escaping () -> Content) {
         self.content = content

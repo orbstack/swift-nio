@@ -141,14 +141,12 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
             Divider()
 
-            Group {
-                Button(action: {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(composeGroup.project, forType: .string)
-                }) {
-                    Label("Copy Name", systemImage: "doc.on.doc")
-                }
+            Button(action: {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(composeGroup.project, forType: .string)
+            }) {
+                Label("Copy Name", systemImage: "doc.on.doc")
             }
         }
     }

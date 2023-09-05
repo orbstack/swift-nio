@@ -19,7 +19,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     }
     var isFirstInList: Bool
 
-    @State var presentPopover: Bool
+    @State private var presentPopover = false
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
         lhs.container == rhs.container

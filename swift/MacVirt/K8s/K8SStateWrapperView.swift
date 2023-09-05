@@ -47,33 +47,29 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
 
     var body: some View {
         StateWrapperView {
-            Group {
-                // TODO return verdict as enum and use switch{} to fix loading flicker
-                if let machines = vmModel.containers,
-                   let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
-                   let config = vmModel.appliedConfig { // applied config, not current
-                    Group {
-                        if let entities = vmModel[keyPath: keyPath],
-                           dockerRecord.state != .stopped,
-                           !isK8sClusterCreating {
-                            content(entities, dockerRecord)
-                        } else if dockerRecord.state == .stopped || !config.k8sEnable {
-                            disabledView
-                        } else if isK8sClusterCreating {
-                            ProgressView(label: {
-                                Text("Creating cluster")
-                            })
-                        } else {
-                            ProgressView(label: {
-                                Text("Loading")
-                            })
-                        }
-                    }
+            // TODO return verdict as enum and use switch{} to fix loading flicker
+            if let machines = vmModel.containers,
+               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
+               let config = vmModel.appliedConfig { // applied config, not current
+                if let entities = vmModel[keyPath: keyPath],
+                   dockerRecord.state != .stopped,
+                   !isK8sClusterCreating {
+                    content(entities, dockerRecord)
+                } else if dockerRecord.state == .stopped || !config.k8sEnable {
+                    disabledView
+                } else if isK8sClusterCreating {
+                    ProgressView(label: {
+                        Text("Creating cluster")
+                    })
                 } else {
                     ProgressView(label: {
                         Text("Loading")
                     })
                 }
+            } else {
+                ProgressView(label: {
+                    Text("Loading")
+                })
             }
         }
     }

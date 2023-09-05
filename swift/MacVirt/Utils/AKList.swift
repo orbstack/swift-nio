@@ -6,6 +6,8 @@ import AppKit
 import SwiftUI
 import Combine
 
+private let maxReuseSlots = 2
+
 private class AKOutlineView: NSOutlineView {
     // workaround for off-center disclosure arrow: https://stackoverflow.com/a/74894605
     override func frameOfOutlineCell(atRow row: Int) -> NSRect {
@@ -57,6 +59,7 @@ private class AKOutlineView: NSOutlineView {
 // but *actually* use the menu from SwiftUI
 private class AKHostingView<V: View>: NSHostingView<V> {
     weak var outlineParent: AKOutlineView?
+    var releaser: (() -> Void)?
 
     override func menu(for event: NSEvent) -> NSMenu? {
         // trigger NSOutlineView's highlight
@@ -78,6 +81,13 @@ private class AKHostingView<V: View>: NSHostingView<V> {
     override func mouseDown(with event: NSEvent) {
         super.mouseDown(with: event)
     }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        if superview == nil {
+            releaser?()
+        }
+    }
 }
 
 class AKListModel: ObservableObject {
@@ -86,10 +96,21 @@ class AKListModel: ObservableObject {
 }
 
 private class AKListItemModel: ObservableObject {
-    let itemId: AnyHashable
+    @Published var item: (any AKListItem)?
+    @Published var itemId: AnyHashable
 
     init(itemId: AnyHashable) {
         self.itemId = itemId
+    }
+}
+
+private class CachedViewHolder<V: View> {
+    var view: AKHostingView<V>
+    var model: AKListItemModel
+
+    init(view: AKHostingView<V>, model: AKListItemModel) {
+        self.view = view
+        self.model = model
     }
 }
 
@@ -152,10 +173,30 @@ private class AKSectionNode: NSObject, AKNode {
     }
 }
 
+private struct HostedItemView<Item: AKListItem, ItemView: View>: View {
+    @ObservedObject var envModel: AKListModel
+    @ObservedObject var itemModel: AKListItemModel
+
+    @ViewBuilder let makeRowView: (Item) -> ItemView
+
+    var body: some View {
+        if let item = itemModel.item {
+            makeRowView(item as! Item)
+            .environmentObject(envModel)
+            .environmentObject(itemModel)
+        } else {
+            EmptyView()
+        }
+    }
+}
+
 private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresentable {
+    typealias Section = AKSection<Item>
+    typealias CachedView = CachedViewHolder<HostedItemView<Item, ItemView>>
+
     @ObservedObject var envModel: AKListModel
 
-    let sections: [AKSection<Item>]
+    let sections: [Section]
     let rowHeight: CGFloat?
     let singleSelection: Bool
     let isFlat: Bool
@@ -165,15 +206,15 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         var parent: AKTreeListImpl
 
         @objc fileprivate dynamic var content: [AKNode] = []
-        var lastSections: [AKSection<Item>] = []
+        var lastSections: [Section]?
 
         private var observation: NSKeyValueObservation?
-        var treeController: NSTreeController! {
+        var treeController: NSTreeController? {
             didSet {
                 // KVO-observing selectedObjects is better than outlineViewSelectionDidChange
                 // because it changes to empty when items are deleted
-                observation = treeController.observe(\.selectedObjects) { [weak self] _, _ in
-                    guard let self = self else { return }
+                observation = treeController?.observe(\.selectedObjects) { [weak self] _, _ in
+                    guard let self, let treeController else { return }
                     let selectedIds = treeController.selectedObjects
                         .compactMap { ($0 as? AKItemNode)?.value.id as? Item.ID }
                     // Publishing changes from within view updates is not allowed, this will cause undefined behavior.
@@ -192,25 +233,74 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // array is fastest since we just iterate and clear this
         private var objAccessTracker = [Item.ID]()
 
+        // preserve view identity to avoid losing state (e.g. popovers)
+        private var viewCache = [Item.ID: CachedView]()
+        // custom reuse queue. hard to use nibs, and we need the identity-preserving cache logic too
+        private var reuseQueue = [CachedView]()
+
         init(_ parent: AKTreeListImpl) {
             self.parent = parent
+            reuseQueue.reserveCapacity(maxReuseSlots)
+        }
+
+        private func getOrCreateItemView(outlineView: NSOutlineView, itemId: Item.ID) -> CachedView {
+            // 1. cached for ID, to preserve identity
+            if let cached = viewCache[itemId] {
+                return cached
+            }
+
+            // 2. look for reusable one
+            if let cached = reuseQueue.popLast() {
+                // a reused view should be added back to the cache once it's been rebound
+                viewCache[itemId] = cached
+                return cached
+            }
+
+            // 3. make a new one
+            let itemModel = AKListItemModel(itemId: itemId as AnyHashable)
+            // doing .environmentObject in the SwiftUI view lets us avoid AnyView here
+            let hostedView = HostedItemView(envModel: parent.envModel,
+                    itemModel: itemModel,
+                    makeRowView: parent.makeRowView)
+            let nsView = AKHostingView(rootView: hostedView)
+            nsView.outlineParent = (outlineView as! AKOutlineView)
+
+            let cached = CachedView(view: nsView, model: itemModel)
+            viewCache[itemId] = cached
+
+            // set releaser
+            nsView.releaser = { [weak self, weak cached] in
+                guard let self, let cached else { return }
+                // remove from active cache
+                self.viewCache.removeValue(forKey: cached.model.itemId as! Item.ID)
+                // add to reuse queue if space is available
+                if self.reuseQueue.count < maxReuseSlots {
+                    self.reuseQueue.append(cached)
+                }
+                // remove item
+                cached.model.item = nil
+            }
+
+            return cached
         }
 
         // make views
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
             let nsNode = item as! NSTreeNode
 
-            // TODO use outlineView.makeView to reuse views
             if let node = nsNode.representedObject as? AKItemNode {
-                let itemModel = AKListItemModel(itemId: node.value.id as! AnyHashable)
-                let view = parent.makeRowView(node.value as! Item)
-                    .environmentObject(parent.envModel)
-                    .environmentObject(itemModel)
+                let cached = getOrCreateItemView(outlineView: outlineView, itemId: node.value.id as! Item.ID)
 
-                // menu forwarder
-                let nsView = AKHostingView(rootView: view)
-                nsView.outlineParent = (outlineView as! AKOutlineView)
-                return nsView
+                // update value if needed
+                // updateNSView does async so it's fine to update right here
+                if (cached.model.item as? Item) != (node.value as? Item) {
+                    cached.model.item = node.value
+                }
+                if (cached.model.itemId as? Item.ID) != (node.value.id as? Item.ID) {
+                    cached.model.itemId = node.value.id as! Item.ID
+                }
+
+                return cached.view
             } else if let node = nsNode.representedObject as? AKSectionNode {
                 // pixel-perfect match of SwiftUI default section header
                 let cellView = NSTableCellView()
@@ -288,22 +378,30 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
             objAccessTracker.append(item.id)
 
-            // update the node
-            let nodeChildren = item.listChildren?.map { mapNode(item: $0 as! Item) }
-            if let nodeChildren, !nodeChildren.isEmpty {
-                node.children = nodeChildren
-                node.isLeaf = false
-                node.count = nodeChildren.count
-            } else {
-                node.children = nil
-                node.isLeaf = true
-                node.count = 0
+            var nodeChildren = item.listChildren?.map { mapNode(item: $0 as! Item) }
+            // map empty to nil
+            if nodeChildren?.isEmpty ?? false {
+                nodeChildren = nil
             }
-            node.value = item
+
+            // do we need to update this node? if not, avoid triggering NSTreeController's KVO
+            // isLeaf and count are derived from children, so no need to check
+            if (node.value as! Item) != item || nodeChildren != node.children {
+                if let nodeChildren {
+                    node.children = nodeChildren
+                    node.isLeaf = false
+                    node.count = nodeChildren.count
+                } else {
+                    node.children = nil
+                    node.isLeaf = true
+                    node.count = 0
+                }
+                node.value = item
+            }
             return node
         }
 
-        func mapAllNodes(sections: [AKSection<Item>]) -> [AKNode] {
+        func mapAllNodes(sections: [Section]) -> [AKNode] {
             // record accessed nodes
             let newNodes = sections.flatMap {
                 // don't show empty sections
@@ -365,7 +463,11 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         outlineView.autoresizesOutlineColumn = false
         outlineView.allowsMultipleSelection = !singleSelection
         outlineView.allowsEmptySelection = true
-        outlineView.usesAutomaticRowHeights = rowHeight == nil
+        if let rowHeight {
+            outlineView.rowHeight = rowHeight
+        } else {
+            outlineView.usesAutomaticRowHeights = true
+        }
         if isFlat {
             // remove padding at left
             outlineView.indentationPerLevel = 0
@@ -399,10 +501,26 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         }
 
         // convert to nodes
-        let nodes = coordinator.mapAllNodes(sections: sections)
-        // update tree controller and reload view (via KVO)
-        coordinator.content = nodes
+        // DispatchQueue.main.async causes initial flicker,
+        // but later we need it to avoid AttributeGraph cycles when clicking popovers during updates
+        // because updating .content updates SwiftUI hosting views, but updateNSView is called inside a SwiftUI view update
+        // this makes the updating non-atomic but it's fine
+        if coordinator.lastSections == nil {
+            let nodes = coordinator.mapAllNodes(sections: sections)
+            // update tree controller and reload view (via KVO)
+            coordinator.content = nodes
+        } else {
+            DispatchQueue.main.async {
+                let nodes = coordinator.mapAllNodes(sections: sections)
+                coordinator.content = nodes
+            }
+        }
         coordinator.lastSections = sections
+    }
+
+    static func dismantleNSView(_ nsView: NSViewType, coordinator: Coordinator) {
+        // break KVO reference cycle
+        coordinator.treeController = nil
     }
 
     func makeCoordinator() -> Coordinator {

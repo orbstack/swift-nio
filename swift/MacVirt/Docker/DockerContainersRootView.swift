@@ -93,7 +93,6 @@ private struct MigrationHintBox: View {
 // need another view to fix type error
 private struct DockerContainerListItemView: View {
     let item: DockerListItem
-    let initialSelection: Set<DockerContainerId>
     let isFirstInList: Bool
 
     var body: some View {
@@ -103,9 +102,7 @@ private struct DockerContainerListItemView: View {
             .font(.subheadline.bold())
             .foregroundColor(.secondary)
         case .container(let container):
-            DockerContainerItem(container: container,
-                    isFirstInList: isFirstInList,
-                    presentPopover: initialSelection.contains(.container(id: container.id)))
+            DockerContainerItem(container: container, isFirstInList: isFirstInList)
             .equatable()
         case .compose(let group, _):
             DockerComposeGroupItem(composeGroup: group,
@@ -129,7 +126,6 @@ private struct DockerContainersList: View {
     let allContainers: [DKContainer]
     let listData: [AKSection<DockerListItem>]
     @Binding var selection: Set<DockerContainerId>
-    let initialSelection: Set<DockerContainerId>
 
     let dockerImages: [DKImage]?
     let dockerVolumes: [DKVolume]?
@@ -146,7 +142,6 @@ private struct DockerContainersList: View {
                 AKList(listData, selection: $selection, rowHeight: 32 + 8 + 8, flat: false) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     DockerContainerListItemView(item: item,
-                            initialSelection: initialSelection,
                             isFirstInList: item.id == flatList.first?.id)
                     // environment must be re-injected across boundary
                     .environmentObject(vmModel)
@@ -219,7 +214,6 @@ struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @Default(.dockerFilterShowStopped) private var filterShowStopped
 
-    let initialSelection: Set<DockerContainerId>
     @State var selection: Set<DockerContainerId>
     @State var searchQuery: String
 
@@ -245,7 +239,6 @@ struct DockerContainersRootView: View {
                     allContainers: containers,
                     listData: listData,
                     selection: $selection,
-                    initialSelection: initialSelection,
 
                     dockerImages: vmModel.dockerImages,
                     dockerVolumes: vmModel.dockerVolumes

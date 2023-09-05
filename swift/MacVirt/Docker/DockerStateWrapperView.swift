@@ -21,40 +21,38 @@ struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
     var body: some View {
         // TODO return verdict as enum and use switch{} to fix loading flicker
         StateWrapperView {
-            Group {
-                if let machines = vmModel.containers,
-                   let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }) {
-                    Group {
-                        if let entities = vmModel[keyPath: keyPath],
-                           dockerRecord.state != .stopped {
-                            content(entities, dockerRecord)
-                        } else if dockerRecord.state == .stopped {
-                            VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
-                                ContentUnavailableViewCompat("Docker Disabled", systemImage: "shippingbox.fill")
+            if let machines = vmModel.containers,
+               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }) {
+                Group {
+                    if let entities = vmModel[keyPath: keyPath],
+                       dockerRecord.state != .stopped {
+                        content(entities, dockerRecord)
+                    } else if dockerRecord.state == .stopped {
+                        VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
+                            ContentUnavailableViewCompat("Docker Disabled", systemImage: "shippingbox.fill")
 
-                                Button(action: {
-                                    Task {
-                                        await vmModel.tryStartContainer(dockerRecord)
-                                    }
-                                }) {
-                                    Text("Turn On")
-                                    .padding(.horizontal, 4)
+                            Button(action: {
+                                Task {
+                                    await vmModel.tryStartContainer(dockerRecord)
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .keyboardShortcut(.defaultAction)
-                                .controlSize(.large)
+                            }) {
+                                Text("Turn On")
+                                .padding(.horizontal, 4)
                             }
-                        } else {
-                            ProgressView(label: {
-                                Text("Loading")
-                            })
+                            .buttonStyle(.borderedProminent)
+                            .keyboardShortcut(.defaultAction)
+                            .controlSize(.large)
                         }
+                    } else {
+                        ProgressView(label: {
+                            Text("Loading")
+                        })
                     }
-                } else {
-                    ProgressView(label: {
-                        Text("Loading")
-                    })
                 }
+            } else {
+                ProgressView(label: {
+                    Text("Loading")
+                })
             }
         }
     }
