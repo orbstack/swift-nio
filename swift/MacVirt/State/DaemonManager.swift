@@ -119,6 +119,14 @@ struct UIEvent: Codable {
     }
 }
 
+private func eintr(_ block: () throws -> Int32) rethrows -> Int32 {
+    var ret: Int32
+    repeat {
+        ret = try block()
+    } while ret == -1 && errno == EINTR
+    return ret
+}
+
 class DaemonManager {
     let uiEvents = PassthroughSubject<UIEvent, Never>()
     let uiEventErrors = PassthroughSubject<Error, Never>()
@@ -202,7 +210,7 @@ class DaemonManager {
                 data: 0,
                 udata: nil
             )
-            var ret = kevent(kqFd, &kev, 1, nil, 0, nil)
+            var ret = eintr { kevent(kqFd, &kev, 1, nil, 0, nil) }
             guard ret != -1 else {
                 // if errno = ESRCH, the process has already exited
                 if errno == ESRCH {
@@ -215,7 +223,7 @@ class DaemonManager {
 
             // wait for exit event
             var kev2 = kevent()
-            ret = kevent(kqFd, nil, 0, &kev2, 1, nil)
+            ret = eintr { kevent(kqFd, nil, 0, &kev2, 1, nil) }
             guard ret != -1 else {
                 NSLog("Error waiting for kevent: \(errno)")
                 return
