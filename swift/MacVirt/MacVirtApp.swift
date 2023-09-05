@@ -210,6 +210,7 @@ struct MacVirtApp: App {
         WindowGroup(WindowTitles.containerLogsBase, id: "docker-container-logs") {
             DockerLogsWindow()
             .environmentObject(vmModel)
+            .environmentObject(windowTracker)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -221,6 +222,7 @@ struct MacVirtApp: App {
         WindowGroup(WindowTitles.projectLogsBase, id: "docker-compose-logs") {
             DockerComposeLogsWindow()
             .environmentObject(vmModel)
+            .environmentObject(windowTracker)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -232,6 +234,7 @@ struct MacVirtApp: App {
         WindowGroup(WindowTitles.podLogsBase, id: "k8s-pod-logs") {
             K8SPodLogsWindow()
             .environmentObject(vmModel)
+            .environmentObject(windowTracker)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
