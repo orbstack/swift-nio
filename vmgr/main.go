@@ -58,6 +58,7 @@ const (
 
 	handoffWaitLockTimeout = 10 * time.Second // also applies to data.img flock
 	gracefulStopTimeout    = 15 * time.Second
+	deferredCleanupTimeout = 15 * time.Second // in case of deadlock
 	sentryShutdownTimeout  = 2 * time.Second
 )
 
@@ -335,6 +336,36 @@ func ensureDataLock() error {
 	}
 
 	return nil
+}
+
+type StopDeadlockError struct {
+	stack string
+}
+
+func (e StopDeadlockError) Error() string {
+	return "stop deadlock: " + e.stack
+}
+
+func enforceStopDeadline() {
+	go func() {
+		time.Sleep(deferredCleanupTimeout)
+		logrus.Error("deferred cleanup timed out, exiting")
+
+		// dump goroutine stacks
+		buf := make([]byte, 65536)
+		n := runtime.Stack(buf, true)
+		err := StopDeadlockError{string(buf[:n])}
+		fmt.Fprintln(os.Stderr, err.Error())
+
+		// try to report to sentry
+		_, _ = util.WithTimeout(func() (struct{}, error) {
+			sentry.CaptureException(err)
+			sentry.Flush(sentryconf.FlushTimeout)
+			return struct{}{}, nil
+		}, sentryconf.FlushTimeout)
+
+		os.Exit(1)
+	}()
 }
 
 type VmManager struct {
@@ -751,6 +782,9 @@ func runVmManager() {
 
 	// Mount NFS
 	defer hcServer.InternalUnmountNfs()
+
+	// the last defer: deadlock breaker
+	defer enforceStopDeadline()
 
 	// notify GUI that host-side startup is done
 	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
