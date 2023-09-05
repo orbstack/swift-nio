@@ -8,6 +8,7 @@ import Defaults
 
 private enum OnboardingMode {
     case docker
+    case k8s
     case linux
 }
 
@@ -54,16 +55,16 @@ private struct ModeButton: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
             }
-                    .padding(16)
-                    .frame(width: 175, height: 175)
-                    .background(Color.primary.opacity(hoverOpacity * 0.025), in: RoundedRectangle(cornerRadius: Self.radius))
-                    .background(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), in: RoundedRectangle(cornerRadius: Self.radius))
-                    .cornerRadius(Self.radius)
-                    /*.overlay(
+            .padding(16)
+            .frame(width: 175, height: 175)
+            .background(Color.primary.opacity(hoverOpacity * 0.025), in: RoundedRectangle(cornerRadius: Self.radius))
+            .background(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), in: RoundedRectangle(cornerRadius: Self.radius))
+            .cornerRadius(Self.radius)
+            /*.overlay(
                 RoundedRectangle(cornerRadius: Self.radius)
                     .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
             )*/
-                    .shadow(color: Color.primary.opacity(0.1), radius: 2, x: 0, y: 1)
+            .shadow(color: Color.primary.opacity(0.1), radius: 2, x: 0, y: 1)
         }
         .buttonStyle(.plain)
         .onHover {
@@ -77,13 +78,14 @@ private struct ModeButton: View {
                 }
             }
         }
-        .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 struct OnboardingModeView: View {
+    @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
+
     let onboardingController: OnboardingController
     @Default(.selectedTab) private var rootSelectedTab
 
@@ -102,7 +104,7 @@ struct OnboardingModeView: View {
 
             Spacer()
 
-            HStack {
+            HStack(spacing: 24) {
                 ModeButton(
                     image: "distro_docker",
                     title: "Docker",
@@ -110,6 +112,16 @@ struct OnboardingModeView: View {
                     action: {
                         rootSelectedTab = "docker"
                         continueWith(.docker)
+                    }
+                )
+
+                ModeButton(
+                    image: "distro_k8s",
+                    title: "Kubernetes",
+                    desc: "Test Kubernetes deployments",
+                    action: {
+                        rootSelectedTab = "k8s-pods"
+                        continueWith(.k8s)
                     }
                 )
 
@@ -142,6 +154,15 @@ struct OnboardingModeView: View {
     private func continueWith(_ mode: OnboardingMode) {
         switch mode {
         case .docker:
+            onboardingController.finish()
+        case .k8s:
+            Task { @MainActor in
+                // wait for ready
+                await vmModel.waitForStateEquals(.running)
+                // enable k8s as soon as possible
+                await vmModel.tryStartStopK8s(enable: true, force: true)
+            }
+
             onboardingController.finish()
         case .linux:
             onboardingModel.advance(to: .create)

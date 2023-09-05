@@ -8,11 +8,11 @@ import SwiftUI
 private struct CtaButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-                .padding(.vertical, 8)
-                .padding(.horizontal, 16)
-                .background(configuration.isPressed ? Color.accentColor : Color.accentColor)
-                .foregroundColor(.primary)
-                .cornerRadius(6.0)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(configuration.isPressed ? Color.accentColor : Color.accentColor)
+            .foregroundColor(.primary)
+            .cornerRadius(6.0)
     }
 }
 
