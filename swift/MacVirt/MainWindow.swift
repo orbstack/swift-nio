@@ -253,7 +253,7 @@ struct MainWindow: View {
             }
 
             ToolbarItem(placement: .automatic) {
-                if selection == "k8s-pods" {
+                if selection == "k8s-pods" && model.config != nil {
                     let binding = Binding(
                             get: { model.config?.k8sEnable ?? true },
                             set: { newValue in
