@@ -355,38 +355,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
         let submenu = containerItem.newSubmenu()
 
-        submenu.addActionItem("ID: \(container.id.prefix(12))") {
-            NSPasteboard.copy(container.id)
-        }
-
-        // in case of pinned hashes
-        let truncatedImage = container.image.prefix(lineLimit) +
-                (container.image.count > lineLimit ? "…" : "")
-        submenu.addActionItem("Image: \(truncatedImage)") {
-            NSPasteboard.copy(container.image)
-        }
-
-        if let ipAddress = container.ipAddress {
-            if vmModel.netBridgeAvailable {
-                if let domain = container.preferredDomain {
-                    submenu.addActionItem("Address: \(domain)") {
-                        // dupe of "Open in Browser" but more common
-                        if let url = URL(string: "http://\(domain)") {
-                            NSWorkspace.shared.open(url)
-                        }
-                        // but also copy it
-                        NSPasteboard.copy(domain)
-                    }
-                }
-            } else {
-                submenu.addActionItem("IP: \(ipAddress)") {
-                    NSPasteboard.copy(ipAddress)
-                }
-            }
-        }
-
-        submenu.addSeparator()
-
         if container.running {
             submenu.addActionItem("Stop", icon: systemImage("stop.fill"),
                     disabled: actionInProgress) { [self] in
@@ -435,6 +403,38 @@ class MenuBarController: NSObject, NSMenuDelegate {
                 if let preferredDomain,
                    let url = URL(string: "http://\(preferredDomain)") {
                     NSWorkspace.shared.open(url)
+                }
+            }
+        }
+
+        submenu.addSeparator()
+
+        submenu.addActionItem("ID: \(container.id.prefix(12))") {
+            NSPasteboard.copy(container.id)
+        }
+
+        // in case of pinned hashes
+        let truncatedImage = container.image.prefix(lineLimit) +
+                (container.image.count > lineLimit ? "…" : "")
+        submenu.addActionItem("Image: \(truncatedImage)") {
+            NSPasteboard.copy(container.image)
+        }
+
+        if let ipAddress = container.ipAddress {
+            if vmModel.netBridgeAvailable {
+                if let domain = container.preferredDomain {
+                    submenu.addActionItem("Address: \(domain)") {
+                        // dupe of "Open in Browser" but more common
+                        if let url = URL(string: "http://\(domain)") {
+                            NSWorkspace.shared.open(url)
+                        }
+                        // but also copy it
+                        NSPasteboard.copy(domain)
+                    }
+                }
+            } else {
+                submenu.addActionItem("IP: \(ipAddress)") {
+                    NSPasteboard.copy(ipAddress)
                 }
             }
         }
@@ -559,15 +559,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         let submenu = machineItem.newSubmenu()
 
         if record.running {
-            let domain = "\(record.name).orb.local"
-            submenu.addActionItem("Address: \(domain)", disabled: !vmModel.netBridgeAvailable) {
-                NSPasteboard.copy(domain)
-            }
-        }
-
-        submenu.addSeparator()
-
-        if record.running {
             submenu.addActionItem("Stop", icon: systemImage("stop.fill"),
                     disabled: actionInProgress) { [self] in
                 await actionTracker.with(machine: record, action: .stop) {
@@ -593,6 +584,15 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         // machine delete is too destructive for menu
+
+        submenu.addSeparator()
+
+        if record.running {
+            let domain = "\(record.name).orb.local"
+            submenu.addActionItem("Address: \(domain)", disabled: !vmModel.netBridgeAvailable) {
+                NSPasteboard.copy(domain)
+            }
+        }
 
         submenu.addSeparator()
 
