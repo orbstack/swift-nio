@@ -15,4 +15,19 @@ extension NSImage {
             return true
         }
     }
+
+    static func mergeX(a: NSImage, b: NSImage, xPadding: CGFloat = 0) -> NSImage {
+        let width = a.size.width + b.size.width + xPadding
+        let height = max(a.size.height, b.size.height)
+        let size = NSSize(width: width, height: height)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        // vertically center
+        let aRect = NSRect(x: 0, y: (height - a.size.height) / 2, width: a.size.width, height: a.size.height)
+        let bRect = NSRect(x: a.size.width + xPadding, y: (height - b.size.height) / 2, width: b.size.width, height: b.size.height)
+        a.draw(in: aRect)
+        b.draw(in: bRect)
+        image.unlockFocus()
+        return image
+    }
 }

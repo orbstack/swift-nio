@@ -246,7 +246,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             menu.addTruncatedItems(runningItems, overflowHeader: "Stopped", overflowItems: stoppedItems) { item in
                 switch item {
                 case .container(let container):
-                    return makeContainerItem(container: container)
+                    return makeContainerItem(container: container, collapseIfStopped: true /* overflow */)
                 case .compose(let group, let children):
                     return makeComposeGroupItem(group: group, children: children)
                 case .k8sGroup:
@@ -340,7 +340,19 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func makeContainerItem(container: DKContainer, showStatus: Bool = false) -> NSMenuItem {
+    private func makeContainerItem(container: DKContainer,
+                                   showStatus: Bool = false,
+                                   collapseIfStopped: Bool = false) -> NSMenuItem {
+        // special case: a stopped item goes in overflow menu and should not have a submenu;
+        // only action should be "start"
+        if collapseIfStopped && !container.running {
+            return newActionItem(container.userName, icon: systemImage("play.fill")) { [self] in
+                await actionTracker.with(cid: container.cid, action: .start) {
+                    await vmModel.tryDockerContainerStart(container.id)
+                }
+            }
+        }
+
         let actionInProgress = actionTracker.ongoingFor(container.cid) != nil
 
         // TODO: highlight container item and open popover
@@ -470,6 +482,23 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func makeComposeGroupItem(group: ComposeGroup, children: [DockerListItem]) -> NSMenuItem {
+        // special case: a stopped item goes in overflow menu and should not have a submenu;
+        // only action should be "start"
+        if !group.anyRunning {
+            var icon: NSImage? = nil
+            if let a = systemImage("play.fill"),
+               let b = systemImage("square.stack.3d.up.fill") {
+                icon = NSImage.mergeX(a: a, b: b, xPadding: 6)
+                icon!.isTemplate = true
+            }
+
+            return newActionItem(group.project, icon: icon) { [self] in
+                await actionTracker.with(cid: group.cid, action: .start) {
+                    await vmModel.tryDockerComposeStart(group.cid)
+                }
+            }
+        }
+
         let actionInProgress = actionTracker.ongoingFor(group.cid) != nil
         let icon = actionInProgress ? systemImage("circle.dotted") : systemImage("square.stack.3d.up.fill")
         let groupItem = newActionItem(group.project, icon: icon) { [self] in
