@@ -147,7 +147,7 @@ type engineManifest struct {
 	Images     []*dockertypes.ImageSummary
 	Containers []*dockertypes.ContainerSummary
 	Networks   []dockertypes.Network
-	Volumes    []dockertypes.Volume
+	Volumes    []*dockertypes.Volume
 }
 
 func enumerateSource(client *dockerclient.Client) (*engineManifest, error) {
