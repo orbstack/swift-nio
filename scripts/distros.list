@@ -52,6 +52,8 @@ plamo:7.x
 plamo:8.x
 rockylinux:8
 rockylinux:9
+slackware:15.0
+slackware:current
 springdalelinux:7
 springdalelinux:8
 springdalelinux:9
