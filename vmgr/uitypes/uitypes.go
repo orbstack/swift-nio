@@ -7,7 +7,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
-const UIEventDebounce = 50 * time.Millisecond
+// now that we use leading debounce, this is fast enough
+const UIEventDebounce = 100 * time.Millisecond
 
 type UIEvent struct {
 	Vmgr       *VmgrEvent           `json:"vmgr"`
