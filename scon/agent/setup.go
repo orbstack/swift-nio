@@ -62,6 +62,7 @@ type InitialSetupArgs struct {
 
 	Password          string
 	Distro            string
+	Version           string
 	SSHAuthorizedKeys []string
 	Timezone          string
 	BasicGitConfigs   BasicGitConfigs
@@ -347,6 +348,21 @@ func configureSystemStandard(args InitialSetupArgs) error {
 				return err
 			}
 		}
+	}
+
+	// oracle: add repos
+	if args.Distro == images.ImageOracle {
+		logrus.Debug("Installing oracle repos")
+		// adds appstream repos and UEK (Unbreakable Enterprise Kernel) repo
+		// also dnf modules
+		err = util.Run("dnf", "install", "-y", "oraclelinux-release-el"+args.Version, "dnf-plugins-core")
+		if err != nil {
+			return err
+		}
+
+		// could disable/delete UEK but no need
+		// dnf config-manager --set-disabled ol8_UEKR6
+		// rm -f /etc/yum.repos.d/uek-*.repo (might get reinstalled on update)
 	}
 
 	// symlink /etc/ssh/ssh_config.d/10-orbstack

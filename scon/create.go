@@ -197,6 +197,7 @@ func (c *Container) setupInitial(args CreateParams) error {
 
 			Password:        args.UserPassword,
 			Distro:          c.Image.Distro,
+			Version:         c.Image.Version,
 			Timezone:        hostTimezone,
 			BasicGitConfigs: gitConfigs,
 		})
