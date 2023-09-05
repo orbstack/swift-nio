@@ -225,6 +225,7 @@ struct DockerContainerLists {
             // if ANY container in the group is running, show the group as running
             let anyRunning = containers.contains(where: { $0.running })
             group.anyRunning = anyRunning
+            group.isFullCompose = containers.allSatisfy { $0.isFullCompose }
             let item = DockerListItem.compose(group, children: children)
             if anyRunning {
                 runningItems.append(item)

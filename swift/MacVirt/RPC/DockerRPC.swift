@@ -50,6 +50,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         labels[DockerLabels.composeService]
     }
 
+    var isFullCompose: Bool {
+        composeProject != nil && composeService != nil
+    }
+
     var isK8s: Bool {
         labels[DockerLabels.k8sType] != nil
     }

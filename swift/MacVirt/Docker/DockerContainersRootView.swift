@@ -9,6 +9,7 @@ import Defaults
 struct ComposeGroup: Hashable, Equatable {
     let project: String
     var anyRunning: Bool = false
+    var isFullCompose: Bool = false
 
     var cid: DockerContainerId {
         .compose(project: project)

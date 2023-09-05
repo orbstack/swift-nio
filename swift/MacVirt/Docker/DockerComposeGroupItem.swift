@@ -91,14 +91,14 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                             actionInProgress: actionInProgress?.isStartStop == true) {
                         finishStop()
                     }
-                    .disabled(actionInProgress != nil)
+                    .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
                     .help("Stop project")
                 } else {
                     ProgressIconButton(systemImage: "play.fill",
                             actionInProgress: actionInProgress?.isStartStop == true) {
                         finishStart()
                     }
-                    .disabled(actionInProgress != nil)
+                    .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
                     .help("Start project")
                 }
 
@@ -106,7 +106,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                         actionInProgress: actionInProgress == .delete) {
                     finishDelete()
                 }
-                .disabled(actionInProgress != nil)
+                .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
                 .help("Delete project")
             }
         }
@@ -115,23 +115,23 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             Group {
                 Button("Start") {
                     finishStart()
-                }.disabled(actionInProgress != nil || isRunning)
+                }.disabled(actionInProgress != nil || isRunning || !composeGroup.isFullCompose)
 
                 Button("Stop") {
                     finishStop()
-                }.disabled(actionInProgress != nil || !isRunning)
+                }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isFullCompose)
 
                 Button("Restart") {
                     finishRestart()
-                }.disabled(actionInProgress != nil || !isRunning)
+                }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isFullCompose)
 
                 Button("Delete") {
                     finishDelete()
-                }.disabled(actionInProgress != nil)
+                }.disabled(actionInProgress != nil || !composeGroup.isFullCompose)
 
                 Button("Kill") {
                     finishKill()
-                }.disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
+                }.disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning || !composeGroup.isFullCompose)
             }
 
             Divider()
