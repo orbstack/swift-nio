@@ -67,17 +67,8 @@ extension DKPort {
 
 extension DKMountPoint {
     var formatted: String {
-        let src = source
-        let dest = destination
-
-        if let volName = name,
-           type == .volume {
-            return "\(abbreviateMount(volName))  →  \(dest)"
-        } else {
-            let home = FileManager.default.homeDirectoryForCurrentUser.path
-            let prettySrc = src.replacingOccurrences(of: home, with: "~")
-            return "\(abbreviateMount(prettySrc))  →  \(dest)"
-        }
+        // don't show src - too long. dest matters more
+        destination
     }
 
     func openSourceDirectory() {
