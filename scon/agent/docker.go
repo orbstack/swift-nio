@@ -38,10 +38,11 @@ type DockerAgent struct {
 	host *hclient.Client
 	scon *sgclient.Client
 
-	containerBinds map[string][]string
-	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
-	lastNetworks   []dockertypes.Network
-	lastVolumes    []*dockertypes.Volume
+	containerBinds         map[string][]string
+	lastContainers         []dockertypes.ContainerSummaryMin // minimized struct to save memory
+	hasRefreshedContainers bool
+	lastNetworks           []dockertypes.Network
+	lastVolumes            []*dockertypes.Volume
 
 	lastImages     []*sgtypes.TaggedImage
 	fullImageCache map[string]cachedImage
