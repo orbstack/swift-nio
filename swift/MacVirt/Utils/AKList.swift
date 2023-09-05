@@ -1,12 +1,149 @@
-//
-// Created by Danny Lin on 9/4/23.
-//
+/*
+ * Copyright (c) 2023 Orbital Labs, LLC <danny@orbstack.dev>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 
 import AppKit
 import SwiftUI
 import Combine
 
 private let maxReuseSlots = 2
+
+// Hierarchical list using AppKit's NSOutlineView and NSTreeController.
+// Can also be used for non-hierarchical ("flat") lists.
+//
+// TO MIGRATE FROM SwiftUI List:
+//   - List -> AKList
+//   - Section -> [AKSection<Item>]
+//   - .onRawDoubleClick -> .akListOnDoubleClick
+//   - .contextMenu -> .akListContextMenu
+//   - increase .vertical padding (4->8) to match SwiftUI List
+//     * AKList doesn't add implicit padding
+//   - add .environmentObjects to the item view
+//     * needs to be reinjected across NSHostingView boundary
+//   - (optional) set rowHeight: for performance
+//
+// benefits:
+//   - fix black bar w/o covering up rect
+//     -> fixes scrollbar
+//   - slightly faster
+//   - double click to expand
+//   - no random holes / buggy behavior
+//   - row separator lines, but only when selected
+//   - should no longer crash
+//   - scroll position moves to follow selection
+//   - native double click implementation for reliability
+//   - sections for hierarchical lists
+//   - hides empty sections
+struct AKList<Item: AKListItem, ItemView: View>: View {
+    @StateObject private var envModel = AKListModel()
+
+    private let sections: [AKSection<Item>]
+    @Binding private var selection: Set<Item.ID>
+    private let rowHeight: CGFloat?
+    private let makeRowView: (Item) -> ItemView
+    private var singleSelection = false
+    private var flat = false
+
+    // hierarchical OR flat, with sections, multiple selection
+    init(_ sections: [AKSection<Item>],
+         selection: Binding<Set<Item.ID>>,
+         rowHeight: CGFloat? = nil,
+         flat: Bool = true,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        self.sections = sections
+        self._selection = selection
+        self.rowHeight = rowHeight
+        self.makeRowView = makeRowView
+        self.flat = flat
+    }
+
+    var body: some View {
+        AKTreeListImpl(envModel: envModel,
+                sections: sections,
+                rowHeight: rowHeight,
+                singleSelection: singleSelection,
+                isFlat: flat,
+                makeRowView: makeRowView)
+                // fix toolbar color and blur (fullSizeContentView)
+        .ignoresSafeArea()
+        .onReceive(envModel.$selection) { selection in
+            self.selection = selection as! Set<Item.ID>
+        }
+    }
+}
+
+// structs can't have convenience init, so use an extension
+extension AKList {
+    // hierarchical OR flat, with sections, single selection
+    init(_ sections: [AKSection<Item>],
+         selection singleBinding: Binding<Item.ID?>,
+         rowHeight: CGFloat? = nil,
+         flat: Bool = true,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        let selBinding = Binding<Set<Item.ID>>(
+                get: {
+                    if let id = singleBinding.wrappedValue {
+                        return [id]
+                    } else {
+                        return []
+                    }
+                },
+                set: {
+                    singleBinding.wrappedValue = $0.first
+                })
+        self.init(sections,
+                selection: selBinding,
+                rowHeight: rowHeight,
+                flat: flat,
+                makeRowView: makeRowView)
+        self.singleSelection = true
+    }
+
+    // hierarchical OR flat, no sections, multiple selection
+    init(_ items: [Item],
+         selection: Binding<Set<Item.ID>>,
+         rowHeight: CGFloat? = nil,
+         flat: Bool = true,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        self.init(AKSection.single(items),
+                selection: selection,
+                rowHeight: rowHeight,
+                flat: flat,
+                makeRowView: makeRowView)
+    }
+
+    // hierarchical OR flat, no sections, single selection
+    init(_ items: [Item],
+         selection singleBinding: Binding<Item.ID?>,
+         rowHeight: CGFloat? = nil,
+         flat: Bool = true,
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+        self.init(AKSection.single(items),
+                selection: singleBinding,
+                rowHeight: rowHeight,
+                flat: flat,
+                makeRowView: makeRowView)
+        self.singleSelection = true
+    }
+}
 
 private class AKOutlineView: NSOutlineView {
     // workaround for off-center disclosure arrow: https://stackoverflow.com/a/74894605
@@ -78,10 +215,6 @@ private class AKHostingView<V: View>: NSHostingView<V> {
         outlineParent?.didCloseMenu(menu, with: event)
     }
 
-    override func mouseDown(with event: NSEvent) {
-        super.mouseDown(with: event)
-    }
-
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
         if superview == nil {
@@ -90,6 +223,7 @@ private class AKHostingView<V: View>: NSHostingView<V> {
     }
 }
 
+// type-erased to make env-based view modifiers feasible
 class AKListModel: ObservableObject {
     let doubleClicks = PassthroughSubject<AnyHashable, Never>()
     @Published var selection: Set<AnyHashable> = []
@@ -246,15 +380,15 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 
         private func getOrCreateItemView(outlineView: NSOutlineView, itemId: Item.ID) -> CachedView {
             // 1. cached for ID, to preserve identity
-            if let cached = viewCache[itemId] {
-                return cached
+            if let holder = viewCache[itemId] {
+                return holder
             }
 
             // 2. look for reusable one
-            if let cached = reuseQueue.popLast() {
+            if let holder = reuseQueue.popLast() {
                 // a reused view should be added back to the cache once it's been rebound
-                viewCache[itemId] = cached
-                return cached
+                viewCache[itemId] = holder
+                return holder
             }
 
             // 3. make a new one
@@ -266,23 +400,23 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             let nsView = AKHostingView(rootView: hostedView)
             nsView.outlineParent = (outlineView as! AKOutlineView)
 
-            let cached = CachedView(view: nsView, model: itemModel)
-            viewCache[itemId] = cached
+            let holder = CachedView(view: nsView, model: itemModel)
+            viewCache[itemId] = holder
 
             // set releaser
-            nsView.releaser = { [weak self, weak cached] in
-                guard let self, let cached else { return }
+            nsView.releaser = { [weak self, weak holder] in
+                guard let self, let holder else { return }
                 // remove from active cache
-                self.viewCache.removeValue(forKey: cached.model.itemId as! Item.ID)
+                self.viewCache.removeValue(forKey: holder.model.itemId as! Item.ID)
                 // add to reuse queue if space is available
                 if self.reuseQueue.count < maxReuseSlots {
-                    self.reuseQueue.append(cached)
+                    self.reuseQueue.append(holder)
                 }
                 // remove item
-                cached.model.item = nil
+                holder.model.item = nil
             }
 
-            return cached
+            return holder
         }
 
         // make views
@@ -290,18 +424,18 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             let nsNode = item as! NSTreeNode
 
             if let node = nsNode.representedObject as? AKItemNode {
-                let cached = getOrCreateItemView(outlineView: outlineView, itemId: node.value.id as! Item.ID)
+                let holder = getOrCreateItemView(outlineView: outlineView, itemId: node.value.id as! Item.ID)
 
                 // update value if needed
                 // updateNSView does async so it's fine to update right here
-                if (cached.model.item as? Item) != (node.value as? Item) {
-                    cached.model.item = node.value
+                if (holder.model.item as? Item) != (node.value as? Item) {
+                    holder.model.item = node.value
                 }
-                if (cached.model.itemId as? Item.ID) != (node.value.id as? Item.ID) {
-                    cached.model.itemId = node.value.id as! Item.ID
+                if (holder.model.itemId as? Item.ID) != (node.value.id as? Item.ID) {
+                    holder.model.itemId = node.value.id as! Item.ID
                 }
 
-                return cached.view
+                return holder.view
             } else if let node = nsNode.representedObject as? AKSectionNode {
                 // pixel-perfect match of SwiftUI default section header
                 let cellView = NSTableCellView()
@@ -328,11 +462,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // but it still gets selected internally and breaks the rounding of adjacent rows
         func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
             let nsNode = item as! NSTreeNode
-            if nsNode.representedObject is AKItemNode {
-                return true
-            } else {
-                return false
-            }
+            return nsNode.representedObject is AKItemNode
         }
 
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
@@ -529,123 +659,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     }
 }
 
-// Hierarchical list using AppKit's NSOutlineView and NSTreeController.
-// Can also be used for non-hierarchical lists.
-//
-// TO MIGRATE FROM SwiftUI List:
-//   - List -> AKList
-//   - Section -> [AKSection]
-//   - .onRawDoubleClick -> .akListOnDoubleClick
-//   - .contextMenu -> .akListContextMenu
-//   - increase .vertical padding (4->8) to match SwiftUI List
-//   - add .environmentObjects to the item view
-//   - (optional) set rowHeight: for performance
-//
-// benefits:
-//   - fix black bar w/o covering up rect
-//     -> fixes scrollbar
-//   - slightly faster
-//   - double click to expand
-//   - no random holes / buggy behavior
-//   - row separator lines, but only when selected
-//   - should no longer crash
-//   - scroll position moves to follow selection
-//   - native double click implementation for reliability
-//   - sections for hierarchical lists
-//   - hides empty sections
-struct AKList<Item: AKListItem, ItemView: View>: View {
-    @StateObject private var envModel = AKListModel()
-
-    private let sections: [AKSection<Item>]
-    @Binding private var selection: Set<Item.ID>
-    private let rowHeight: CGFloat?
-    private let makeRowView: (Item) -> ItemView
-    private var singleSelection = false
-    private var flat = false
-
-    // hierarchical OR flat, with sections, multiple selection
-    init(_ sections: [AKSection<Item>],
-         selection: Binding<Set<Item.ID>>,
-         rowHeight: CGFloat? = nil,
-         flat: Bool = true,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.sections = sections
-        self._selection = selection
-        self.rowHeight = rowHeight
-        self.makeRowView = makeRowView
-        self.flat = flat
-    }
-
-    var body: some View {
-        AKTreeListImpl(envModel: envModel,
-                sections: sections,
-                rowHeight: rowHeight,
-                singleSelection: singleSelection,
-                isFlat: flat,
-                makeRowView: makeRowView)
-        // fix toolbar color and blur (fullSizeContentView)
-        .ignoresSafeArea()
-        .onReceive(envModel.$selection) { selection in
-            self.selection = selection as! Set<Item.ID>
-        }
-    }
-}
-
-// structs can't have convenience init, so use an extension
-extension AKList {
-    // hierarchical OR flat, with sections, single selection
-    init(_ sections: [AKSection<Item>],
-         selection singleBinding: Binding<Item.ID?>,
-         rowHeight: CGFloat? = nil,
-         flat: Bool = true,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        let selBinding = Binding<Set<Item.ID>>(
-            get: {
-                if let id = singleBinding.wrappedValue {
-                    return [id]
-                } else {
-                    return []
-                }
-            },
-            set: {
-                singleBinding.wrappedValue = $0.first
-            })
-        self.init(sections,
-                selection: selBinding,
-                rowHeight: rowHeight,
-                flat: flat,
-                makeRowView: makeRowView)
-        self.singleSelection = true
-    }
-
-    // hierarchical OR flat, no sections, multiple selection
-    init(_ items: [Item],
-         selection: Binding<Set<Item.ID>>,
-         rowHeight: CGFloat? = nil,
-         flat: Bool = true,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.init(AKSection.single(items),
-                selection: selection,
-                rowHeight: rowHeight,
-                flat: flat,
-                makeRowView: makeRowView)
-    }
-
-    // hierarchical OR flat, no sections, single selection
-    init(_ items: [Item],
-         selection singleBinding: Binding<Item.ID?>,
-         rowHeight: CGFloat? = nil,
-         flat: Bool = true,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
-        self.init(AKSection.single(items),
-                selection: singleBinding,
-                rowHeight: rowHeight,
-                flat: flat,
-                makeRowView: makeRowView)
-        self.singleSelection = true
-    }
-}
-
 private struct DoubleClickViewModifier: ViewModifier {
     @EnvironmentObject private var listModel: AKListModel
     @EnvironmentObject private var itemModel: AKListItemModel
@@ -662,15 +675,22 @@ private struct DoubleClickViewModifier: ViewModifier {
     }
 }
 
+private struct BoundingBoxOverlayView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+    }
+}
+
 extension View {
     // SwiftUI rejects menu(forEvent:) unless it thinks it owns the view at which
-    // the click occurred. onDoubleClick makes a big NSView to fix this
+    // the click occurred. add a big NSView overlay to fix it
     func akListContextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
         self
-            .onRawDoubleClick { }
-            .contextMenu {
-                menuItems()
-            }
+            .overlay { BoundingBoxOverlayView() }
+            .contextMenu(menuItems: menuItems)
     }
 
     func akListOnDoubleClick(perform action: @escaping () -> Void) -> some View {
