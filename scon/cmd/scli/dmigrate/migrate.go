@@ -364,7 +364,7 @@ outer:
 		}
 	}
 	// 2. filter volumes
-	var filteredVolumes []dockertypes.Volume
+	var filteredVolumes []*dockertypes.Volume
 	for _, v := range manifest.Volumes {
 		// TODO include non-local volumes
 		logrus.WithField("volume", v.Name).Debug("Checking volume")
