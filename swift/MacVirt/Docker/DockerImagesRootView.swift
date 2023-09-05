@@ -31,7 +31,7 @@ struct DockerImagesRootView: View {
                     let taggedImages = filteredImages.filter { $0.hasTag }
                     let untaggedImages = filteredImages.filter { !$0.hasTag }
                     let listData = [
-                        AKSection("Tagged", taggedImages),
+                        AKSection(nil, taggedImages),
                         AKSection("Untagged", untaggedImages)
                     ]
 
