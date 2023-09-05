@@ -73,7 +73,7 @@ struct AppLifecycle {
 struct MacVirtApp: App {
     // with StateObject, SwiftUI and AppDelegate get different instances
     // we need singleton so use ObservedObject
-    @ObservedObject var model = VmViewModel()
+    @ObservedObject var vmModel = VmViewModel()
     @ObservedObject var actionTracker = ActionTracker()
     @ObservedObject var windowTracker = WindowTracker()
 
@@ -91,7 +91,7 @@ struct MacVirtApp: App {
         appDelegate.updaterController = updaterController
         appDelegate.actionTracker = actionTracker
         appDelegate.windowTracker = windowTracker
-        appDelegate.vmModel = model
+        appDelegate.vmModel = vmModel
 
         for arg in CommandLine.arguments {
             if arg == "--check-updates" {
@@ -108,7 +108,7 @@ struct MacVirtApp: App {
 
         WindowGroup {
             MainWindow()
-            .environmentObject(model)
+            .environmentObject(vmModel)
             .environmentObject(windowTracker)
             .environmentObject(actionTracker)
             // workaround: default size uses min height on macOS 12, so this fixes default window size
@@ -194,7 +194,7 @@ struct MacVirtApp: App {
 
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()
-            .environmentObject(model)
+            .environmentObject(vmModel)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -209,7 +209,7 @@ struct MacVirtApp: App {
 
         WindowGroup(WindowTitles.containerLogsBase, id: "docker-container-logs") {
             DockerLogsWindow()
-            .environmentObject(model)
+            .environmentObject(vmModel)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -220,7 +220,7 @@ struct MacVirtApp: App {
 
         WindowGroup(WindowTitles.projectLogsBase, id: "docker-compose-logs") {
             DockerComposeLogsWindow()
-            .environmentObject(model)
+            .environmentObject(vmModel)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -231,7 +231,7 @@ struct MacVirtApp: App {
 
         WindowGroup(WindowTitles.podLogsBase, id: "k8s-pod-logs") {
             K8SPodLogsWindow()
-            .environmentObject(model)
+            .environmentObject(vmModel)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -242,7 +242,7 @@ struct MacVirtApp: App {
 
         WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {
             DockerMigrationWindow()
-            .environmentObject(model)
+            .environmentObject(vmModel)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -292,7 +292,7 @@ struct MacVirtApp: App {
 
         Settings {
             AppSettings(updaterController: updaterController)
-            .environmentObject(model)
+            .environmentObject(vmModel)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
