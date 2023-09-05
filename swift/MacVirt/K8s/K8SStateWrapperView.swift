@@ -55,7 +55,7 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
                    dockerRecord.state != .stopped,
                    !isK8sClusterCreating {
                     content(entities, dockerRecord)
-                } else if dockerRecord.state == .stopped || !config.k8sEnable {
+                } else if (dockerRecord.state == .stopped || !config.k8sEnable) && !vmModel.isK8sRestarting {
                     disabledView
                 } else if isK8sClusterCreating {
                     ProgressView(label: {
