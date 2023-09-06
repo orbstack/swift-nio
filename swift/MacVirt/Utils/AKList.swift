@@ -343,7 +343,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         var parent: AKTreeListImpl
 
         var rootNodes: [AKNode] = []
-        var lastNodes: [AKNode]?
         var lastSections: [Section]?
 
         // preserve objc object identity to avoid losing state
@@ -695,49 +694,61 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         coordinator.lastSections = sections
     }
 
-    private func completeUpdate(coordinator: Coordinator, nsView: NSScrollView) {
-        let nodes = coordinator.mapAllNodes(sections: sections)
+    private func reloadRecursive(_ outlineView: NSOutlineView, node: AKNode, oldNodes: [AKNode]? = nil) {
+        var shouldReloadChildren = false
+        if outlineView.isItemExpanded(node), let children = node.children {
+            // try to find old node
+            var oldChildren: [AKNode]?
+            if let oldNodes,
+               let oldNode = oldNodes.first(where: { $0 == node }),
+               oldNode.children != children {
+                shouldReloadChildren = true
+                oldChildren = oldNode.children
+            }
 
+            for child in children {
+                reloadRecursive(outlineView, node: child, oldNodes: oldChildren)
+            }
+        }
+        outlineView.reloadItem(node, reloadChildren: shouldReloadChildren)
+    }
+
+    private func diffAndApplyNodes(_ outlineView: NSOutlineView, parent: AKNode?,
+                                   oldNodes: [AKNode], newNodes: [AKNode]) {
+        // could use .inferringMoves, but the move animation is too slow. even Finder doesn't use it
+        let diff = newNodes.difference(from: oldNodes)
+        for change in diff {
+            switch change {
+            case let .insert(offset, _, _):
+                outlineView.insertItems(at: IndexSet(integer: offset), inParent: parent, withAnimation: .slideDown)
+            case let .remove(offset, _, _):
+                outlineView.removeItems(at: IndexSet(integer: offset), inParent: parent, withAnimation: .slideUp)
+            }
+        }
+    }
+
+    private func completeUpdate(coordinator: Coordinator, nsView: NSScrollView) {
+        let newNodes = coordinator.mapAllNodes(sections: sections)
         let outlineView = nsView.documentView as! NSOutlineView
+
         // save selection, identity-based
         let selectedItems = outlineView.selectedRowIndexes
             .map { outlineView.item(atRow: $0) as! AKNode }
 
         // update
         outlineView.beginUpdates()
-        if let lastNodes = coordinator.lastNodes {
-            // reload all old items. it's easier, and cheap with cache
-            // no need to reload new ones
-            for node in lastNodes {
-                let isExpanded = outlineView.isItemExpanded(node)
-                var reloadChildren = false
-                if isExpanded {
-                    // try to find the new version of this node
-                    if let newNode = nodes.first(where: { $0 == node }) {
-                        // are children the same?
-                        reloadChildren = newNode.children != node.children
-                    }
-                }
-                outlineView.reloadItem(node, reloadChildren: reloadChildren)
-            }
+        let lastNodes = coordinator.rootNodes
 
-            // apply diff
-            // could use .inferringMoves, but the move animation is too slow. even Finder doesn't use it
-            let diff = nodes.difference(from: lastNodes)
-            for change in diff {
-                switch change {
-                case let .insert(offset, _, _):
-                    outlineView.insertItems(at: IndexSet(integer: offset), inParent: nil, withAnimation: .slideDown)
-                case let .remove(offset, _, _):
-                    outlineView.removeItems(at: IndexSet(integer: offset), inParent: nil, withAnimation: .slideUp)
-                }
-            }
-        } else {
-            // first run
-            outlineView.insertItems(at: IndexSet(integersIn: 0..<nodes.count), inParent: nil)
+        // reload all old items recursively. it's easier, and cheap with cache
+        // no need to reload new ones
+        for node in lastNodes {
+            reloadRecursive(outlineView, node: node, oldNodes: lastNodes)
         }
-        coordinator.rootNodes = nodes
-        coordinator.lastNodes = nodes
+
+        // apply top-level diff
+        diffAndApplyNodes(outlineView, parent: nil, oldNodes: lastNodes, newNodes: newNodes)
+
+        coordinator.rootNodes = newNodes
         outlineView.endUpdates()
 
         // restore selection
