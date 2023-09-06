@@ -291,7 +291,6 @@ private enum AKNodeType {
 private class AKNode: NSObject {
     let type: AKNodeType
     var children: [AKNode]?
-    var lastChildren: [AKNode]?
     var value: any Equatable
 
     func actuallyEqual<Item: AKListItemBase>(_ other: AKNode, itemType: Item.Type) -> Bool {
@@ -545,7 +544,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 
             // do we need to update this node? if not, avoid triggering NSTreeController's KVO
             // isLeaf and count are derived from children, so no need to check
-            node.lastChildren = node.children
             node.children = nodeChildren
             node.value = item
             return node
@@ -694,29 +692,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         coordinator.lastSections = sections
     }
 
-    private func reloadRecursive(_ outlineView: NSOutlineView, node: AKNode) {
-        if outlineView.isItemExpanded(node), let children = node.children {
-            for child in children {
-                reloadRecursive(outlineView, node: child)
-            }
-        }
-        outlineView.reloadItem(node)
-    }
-
-    private func diffAndApplyNodes(_ outlineView: NSOutlineView, parent: AKNode?,
-                                   oldNodes: [AKNode], newNodes: [AKNode], newParentIndex: Int = 0) {
-        // could use .inferringMoves, but the move animation is too slow. even Finder doesn't use it
-        let diff = newNodes.difference(from: oldNodes)
-        for change in diff {
-            switch change {
-            case let .insert(offset, _, _):
-                outlineView.insertItems(at: IndexSet(integer: newParentIndex + offset), inParent: parent, withAnimation: .slideDown)
-            case let .remove(offset, _, _):
-                outlineView.removeItems(at: IndexSet(integer: newParentIndex + offset), inParent: parent, withAnimation: .slideUp)
-            }
-        }
-    }
-
     private func completeUpdate(coordinator: Coordinator, nsView: NSScrollView) {
         let newNodes = coordinator.mapAllNodes(sections: sections)
         let outlineView = nsView.documentView as! NSOutlineView
@@ -726,28 +701,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             .map { outlineView.item(atRow: $0) as! AKNode }
 
         // update
-        outlineView.beginUpdates()
-        let lastNodes = coordinator.rootNodes
-
-        // reload all old items recursively. it's easier, and cheap with cache
-        // no need to reload new ones
-        for node in lastNodes {
-            reloadRecursive(outlineView, node: node)
-        }
-
-        // apply top-level diff
-        diffAndApplyNodes(outlineView, parent: nil, oldNodes: lastNodes, newNodes: newNodes)
-        // apply diffs for expanded sections
-        for (index, node) in newNodes.enumerated() {
-            if outlineView.isItemExpanded(node),
-               node.lastChildren != node.children {
-                diffAndApplyNodes(outlineView, parent: node, oldNodes: node.lastChildren ?? [], newNodes: node.children ?? [], newParentIndex: index)
-                node.lastChildren = nil
-            }
-        }
-
+        // TODO add animations and fix reloading of children
         coordinator.rootNodes = newNodes
-        outlineView.endUpdates()
+        outlineView.reloadData()
 
         // restore selection
         let selectedRows = selectedItems.compactMap {
