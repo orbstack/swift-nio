@@ -715,7 +715,17 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // update selection to account for deleted items
         coordinator.updateSelection(outlineView: outlineView)
 
-        // don't scroll to selection. scrolling during animation causes overlapping rows
+        // if no selected items are on screen, scroll to the first one
+        // (doesn't work with insert/remove animation)
+        let visibleRows = outlineView.rows(in: outlineView.visibleRect)
+        if !selectedRows.contains(where: { visibleRows.contains($0) }) {
+            if let firstRow = selectedRows.first {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.allowsImplicitAnimation = true
+                    outlineView.scrollRowToVisible(firstRow)
+                }
+            }
+        }
     }
 
     func makeCoordinator() -> Coordinator {
