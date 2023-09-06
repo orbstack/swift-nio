@@ -187,6 +187,9 @@ enum DockerListItem: Identifiable, Equatable, AKListItem {
             return nil
         }
     }
+    var textLabel: String? {
+        containerName
+    }
 }
 
 struct DockerContainerLists {

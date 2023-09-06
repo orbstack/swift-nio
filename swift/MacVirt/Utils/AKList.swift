@@ -252,10 +252,15 @@ typealias AKListItemBase = Identifiable & Equatable
 
 protocol AKListItem: AKListItemBase {
     var listChildren: [any AKListItem]? { get }
+    var textLabel: String? { get }
 }
 
 extension AKListItem {
     var listChildren: [any AKListItem]? {
+        nil
+    }
+
+    var textLabel: String? {
         nil
     }
 }
@@ -474,6 +479,15 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 return 28
             } else {
                 return 0
+            }
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any) -> String? {
+            let nsNode = item as! NSTreeNode
+            if let node = nsNode.representedObject as? AKItemNode {
+                return node.value.textLabel
+            } else {
+                return nil
             }
         }
 

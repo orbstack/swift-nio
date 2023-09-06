@@ -101,6 +101,12 @@ protocol K8SResource: AKListItem {
     var namespace: String { get }
 }
 
+extension K8SResource {
+    var textLabel: String? {
+        name
+    }
+}
+
 struct K8SPod: K8SResource, Codable, Equatable, Hashable {
     let metadata: K8SPodMetadata
     let spec: K8SPodSpec

@@ -37,6 +37,10 @@ struct ContainerRecord: AKListItem, Codable, Identifiable, Equatable {
     var running: Bool {
         state == .running || state == .stopping
     }
+
+    var textLabel: String? {
+        name
+    }
 }
 
 struct MachineConfig: Codable, Equatable {

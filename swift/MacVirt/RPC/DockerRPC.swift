@@ -294,6 +294,10 @@ struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
         return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 
+    var textLabel: String? {
+        name
+    }
+
     enum CodingKeys: String, CodingKey {
         case createdAt = "CreatedAt"
         case driver = "Driver"
@@ -382,6 +386,10 @@ struct DKImage: AKListItem, Codable, Identifiable {
         }
 
         return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    var textLabel: String? {
+        userTag
     }
 
     enum CodingKeys: String, CodingKey {
