@@ -172,7 +172,7 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 		logrus.WithError(err).WithField("addr", connectAddr).Error("host-tcp forward: dial failed")
 		return
 	}
-	defer virtConn.Close()
+	defer tryBestCleanup(virtConn)
 
 	// other port doesn't matter, only service does (client port should be ephemeral)
 	err = setExtNodelay(conn.(*net.TCPConn), 0)
