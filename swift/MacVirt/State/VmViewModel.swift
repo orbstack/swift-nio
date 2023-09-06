@@ -1265,9 +1265,9 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    private func waitForStateAtLeast(_ target: VmState) async {
-        for await value in $state.first(where: { $0 >= target }).values {
-            if value >= target {
+    func waitForNonNil<T>(_ keyPath: KeyPath<VmViewModel, Published<T?>.Publisher>) async {
+        for await value in self[keyPath: keyPath].first(where: { $0 != nil }).values {
+            if value != nil {
                 break
             }
         }

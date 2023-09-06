@@ -157,8 +157,8 @@ struct OnboardingModeView: View {
             onboardingController.finish()
         case .k8s:
             Task { @MainActor in
-                // wait for ready
-                await vmModel.waitForStateEquals(.running)
+                // wait for a config
+                await vmModel.waitForNonNil(\.$config)
                 // enable k8s as soon as possible
                 await vmModel.tryStartStopK8s(enable: true, force: true)
             }
