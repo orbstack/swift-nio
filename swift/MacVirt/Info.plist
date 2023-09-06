@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSPrincipalClass</key>
+	<string>SentryCrashExceptionApplication</string>
 	<key>SUPublicEDKey</key>
 	<string>nuUHoUatJ4OxpNCGb5NJ7s5WQYBG4iiZ6rm8JCk0sNQ=</string>
 	<key>SUEnableAutomaticChecks</key>
@@ -23,10 +25,10 @@
 			</array>
 		</dict>
 	</array>
-    <key>SMPrivilegedExecutables</key>
-    <dict>
-        <key>dev.orbstack.OrbStack.privhelper</key>
-        <string>anchor apple generic and identifier "dev.orbstack.OrbStack.privhelper" and certificate leaf[subject.OU] = "HUAQ24HBR6"</string>
-    </dict>
+	<key>SMPrivilegedExecutables</key>
+	<dict>
+		<key>dev.orbstack.OrbStack.privhelper</key>
+		<string>anchor apple generic and identifier &quot;dev.orbstack.OrbStack.privhelper&quot; and certificate leaf[subject.OU] = &quot;HUAQ24HBR6&quot;</string>
+	</dict>
 </dict>
 </plist>
