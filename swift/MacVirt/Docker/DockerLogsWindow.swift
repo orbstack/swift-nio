@@ -208,7 +208,7 @@ private class LogsViewModel: ObservableObject {
     }
 
     @MainActor
-    func start(cmdExe: String, args: [String]) {
+    func start(cmdExe: String, args: [String], clearAndRestart: Bool = false) {
         NSLog("Starting log stream: cmdExe=\(cmdExe), args=\(args)")
 
         // reset first
@@ -216,23 +216,29 @@ private class LogsViewModel: ObservableObject {
         lastAnsiState = AnsiState()
         lastCmdExe = cmdExe
         lastArgs = args
-        // append arg to filter since last received line, for restart
         var args = args
-        if let lastLineDate {
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions.insert(.withFractionalSeconds)
-            // for k8s this is --since-time
-            if cmdExe == AppConfig.kubectlExe {
-                args.append("--since-time=\(formatter.string(from: lastLineDate))")
-            } else {
-                args.append("--since=\(formatter.string(from: lastLineDate))")
+        if clearAndRestart {
+            // clear for compose checkbox disabledChildren change
+            contents = NSMutableAttributedString()
+        } else {
+            // append arg to filter since last received line, for restart
+            if let lastLineDate {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions.insert(.withFractionalSeconds)
+                // for k8s this is --since-time
+                if cmdExe == AppConfig.kubectlExe {
+                    args.append("--since-time=\(formatter.string(from: lastLineDate))")
+                } else {
+                    args.append("--since=\(formatter.string(from: lastLineDate))")
+                }
+            }
+
+            // if not first start, add delimiter
+            if !isFirstStart {
+                addDelimiter()
             }
         }
 
-        // if not first start, add delimiter
-        if !isFirstStart {
-            addDelimiter()
-        }
         isFirstStart = false
 
         let task = Process()
@@ -262,15 +268,22 @@ private class LogsViewModel: ObservableObject {
             }
         }
 
+        let spawnedPid = task.processIdentifier
         task.terminationHandler = { process in
             let status = process.terminationStatus
+            let reason = process.terminationReason
+
+            // mark as exited for restarting on container state change
+            if process.processIdentifier == spawnedPid {
+                self.process = nil
+            }
+
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
 
                 reader.finish()
-                // mark as exited for restarting on container state change
-                self.process = nil
-                if status != 0 {
+                // ignore our own SIGKILL
+                if status != 0 && reason != .uncaughtSignal {
                     add(error: "Failed with status \(status)")
                 }
             }
@@ -288,7 +301,8 @@ private class LogsViewModel: ObservableObject {
         NSLog("Ending log stream: cmdExe=\(lastCmdExe ?? ""), args=\(lastArgs ?? [])")
 
         if let process {
-            process.terminate()
+            // .terminate sends SIGTERM
+            kill(process.processIdentifier, SIGKILL)
         }
         process = nil
 
@@ -482,7 +496,6 @@ private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
 private struct LogsTextView: NSViewRepresentable {
     let model: LogsViewModel
     let commandModel: CommandViewModel
-    let window: NSWindow?
 
     class Coordinator {
         var cancellables = Set<AnyCancellable>()
@@ -552,18 +565,22 @@ private struct LogsView: View {
 
     let cmdExe: String
     let args: [String]
+    let extraArgs: [String]
     let model: LogsViewModel
 
     var body: some View {
         LogsTextView(model: model, commandModel: commandModel)
         .onAppear {
-            model.start(cmdExe: cmdExe, args: args)
+            model.start(cmdExe: cmdExe, args: args + extraArgs)
         }
         .onDisappear {
             model.stop()
         }
         .onChange(of: args) { newArgs in
-            model.start(cmdExe: cmdExe, args: newArgs)
+            model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
+        }
+        .onChange(of: extraArgs) { newExtraArgs in
+            model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
         }
     }
 }
@@ -577,6 +594,7 @@ private struct DockerLogsContentView: View {
     let cid: DockerContainerId?
     // individual container, not compose
     let standalone: Bool
+    let extraComposeArgs: [String]?
 
     var body: some View {
         DockerStateWrapperView(\.dockerContainers) { containers, _ in
@@ -584,6 +602,7 @@ private struct DockerLogsContentView: View {
                let container = containers.first(where: { $0.id == containerId }) {
                 LogsView(cmdExe: AppConfig.dockerExe,
                         args: ["logs", "-f", "-n", String(maxLines), containerId],
+                        extraArgs: [],
                         model: model)
                 .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
                 .onAppear {
@@ -596,11 +615,13 @@ private struct DockerLogsContentView: View {
                 // don't update id - it'll cause unnecessary logs restart
                 LogsView(cmdExe: AppConfig.dockerExe,
                         args: ["logs", "-f", "-n", String(maxLines), container.id],
+                        extraArgs: [],
                         model: model)
                 .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
             } else if case let .compose(composeProject) = cid {
                 LogsView(cmdExe: AppConfig.dockerComposeExe,
                         args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
+                        extraArgs: extraComposeArgs ?? [],
                         model: model)
             } else {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
@@ -626,7 +647,7 @@ struct DockerLogsWindow: View {
     var body: some View {
         Group {
             if let containerId {
-                DockerLogsContentView(cid: .container(id: containerId), standalone: true)
+                DockerLogsContentView(cid: .container(id: containerId), standalone: true, extraComposeArgs: nil)
                 .onAppear {
                     windowTracker.openDockerLogWindowIds.insert(.container(id: containerId))
                 }
@@ -636,7 +657,7 @@ struct DockerLogsWindow: View {
             } else {
                 // must always have a view, or the window doesn't open on macOS 12{ url in  }
                 // EmptyView and Spacer don't work
-                DockerLogsContentView(cid: nil, standalone: true)
+                DockerLogsContentView(cid: nil, standalone: true, extraComposeArgs: nil)
             }
         }
         .environmentObject(commandModel)
@@ -656,58 +677,79 @@ struct DockerComposeLogsWindow: View {
     @State private var collapsed = false
     // mirror from SceneStorage to fix flicker
     @State private var selection = "all"
+    @State private var disabledChildren = Set<String>()
 
     @SceneStorage("DockerComposeLogs_composeProject") private var composeProject: String?
     @SceneStorage("DockerComposeLogs_selection") private var savedSelection = "all"
 
-    private var sidebarContents12: some View {
-        List {
-            let selBinding = Binding<String?>(get: {
-                selection
-            }, set: {
-                if let sel = $0 {
-                    selection = sel
-                }
-            })
+    var body: some View {
+        let children = vmModel.dockerContainers?
+            .filter { $0.composeProject == composeProject }
+            .sorted { $0.userName < $1.userName } ?? []
 
-            if let composeProject {
-                NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject),
-                        standalone: false), tag: "all", selection: selBinding) {
-                    Label("All", systemImage: "square.stack.3d.up")
-                }
-                .onAppear {
-                    windowTracker.openDockerLogWindowIds.insert(.compose(project: composeProject))
-                }
-                .onDisappear {
-                    windowTracker.openDockerLogWindowIds.remove(.compose(project: composeProject))
-                }
+        NavigationView {
+            List {
+                let selBinding = Binding<String?>(get: {
+                    selection
+                }, set: {
+                    if let sel = $0 {
+                        selection = sel
+                    }
+                })
 
-                let children = vmModel.dockerContainers?
-                    .filter({ $0.composeProject == composeProject })
-                    .sorted(by: { $0.userName < $1.userName })
-                        ?? []
-                Section("Services") {
-                    ForEach(children, id: \.id) { container in
-                        NavigationLink(destination: DockerLogsContentView(cid: container.cid,
-                                standalone: false), tag: "container:\(container.id)", selection: selBinding) {
-                            Label {
-                                Text(container.userName)
-                            } icon: {
-                                // icon = red/green status dot
-                                Image(nsImage: SystemImages.statusDot(container.statusDot))
+                if let composeProject {
+                    let projectLogArgs = disabledChildren.isEmpty ? [] : // all
+                            children
+                            .map { $0.userName }
+                            .filter { !disabledChildren.contains($0) }
+
+                    NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject),
+                            standalone: false, extraComposeArgs: projectLogArgs), tag: "all", selection: selBinding) {
+                        Label("All", systemImage: "square.stack.3d.up")
+                    }
+                    .onAppear {
+                        windowTracker.openDockerLogWindowIds.insert(.compose(project: composeProject))
+                    }
+                    .onDisappear {
+                        windowTracker.openDockerLogWindowIds.remove(.compose(project: composeProject))
+                    }
+
+                    Section("Services") {
+                        ForEach(children, id: \.id) { container in
+                            NavigationLink(destination: DockerLogsContentView(cid: container.cid,
+                                    standalone: false, extraComposeArgs: nil), tag: "container:\(container.id)", selection: selBinding) {
+                                HStack {
+                                    let serviceName = container.userName
+                                    Label {
+                                        Text(serviceName)
+                                    } icon: {
+                                        // icon = red/green status dot
+                                        Image(nsImage: SystemImages.statusDot(container.statusDot))
+                                    }
+
+                                    Spacer()
+
+                                    let enabledBinding = Binding<Bool>(get: {
+                                        !disabledChildren.contains(serviceName)
+                                    }, set: {
+                                        if $0 {
+                                            disabledChildren.remove(serviceName)
+                                        } else {
+                                            disabledChildren.insert(serviceName)
+                                        }
+                                    })
+                                    Toggle(isOn: enabledBinding) { EmptyView() }
+                                    .labelsHidden()
+                                    .toggleStyle(.checkbox)
+                                    .help("Show in All")
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        .listStyle(.sidebar)
-        .background(SplitViewAccessor(sideCollapsed: $collapsed))
-    }
-
-    var body: some View {
-        NavigationView {
-            sidebarContents12
+            .listStyle(.sidebar)
+            .background(SplitViewAccessor(sideCollapsed: $collapsed))
 
             ContentUnavailableViewCompat("No Service Selected", systemImage: "questionmark.app.fill")
         }
@@ -792,6 +834,7 @@ private struct K8SLogsContentView: View {
                pods.contains(where: { $0.id == kid }) {
                 LogsView(cmdExe: AppConfig.kubectlExe,
                         args: ["logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)", "-f"],
+                        extraArgs: [],
                         model: model)
                 .navigationTitle(WindowTitles.podLogs(name))
             } else {
