@@ -706,37 +706,34 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // update
         outlineView.beginUpdates()
         if let lastNodes = coordinator.lastNodes {
-            // reload all. it's easier, and cheap with cache
+            // reload all old items. it's easier, and cheap with cache
+            // no need to reload new ones
             for node in lastNodes {
                 let isExpanded = outlineView.isItemExpanded(node)
-                outlineView.reloadItem(node, reloadChildren: isExpanded)
+                var reloadChildren = false
+                if isExpanded {
+                    // try to find the new version of this node
+                    if let newNode = nodes.first(where: { $0 == node }) {
+                        // are children the same?
+                        reloadChildren = newNode.children != node.children
+                    }
+                }
+                outlineView.reloadItem(node, reloadChildren: reloadChildren)
             }
 
-            // diff
-            let diff = nodes.difference(from: lastNodes)//.inferringMoves()
+            // apply diff
+            // could use .inferringMoves, but the move animation is too slow. even Finder doesn't use it
+            let diff = nodes.difference(from: lastNodes)
             for change in diff {
                 switch change {
-                case let .insert(offset, _, associatedWith):
-                    // associatedWith = move. do whichever one comes last
-                    if let associatedWith {
-                        if associatedWith < offset {
-                            outlineView.moveItem(at: associatedWith, inParent: nil, to: offset, inParent: nil)
-                        }
-                    } else {
-                        outlineView.insertItems(at: IndexSet(integer: offset), inParent: nil, withAnimation: .slideDown)
-                    }
-                case let .remove(offset, _, associatedWith):
-                    // associatedWith = move
-                    if let associatedWith {
-                        if associatedWith < offset {
-                            outlineView.moveItem(at: offset, inParent: nil, to: associatedWith, inParent: nil)
-                        }
-                    } else {
-                        outlineView.removeItems(at: IndexSet(integer: offset), inParent: nil, withAnimation: .slideUp)
-                    }
+                case let .insert(offset, _, _):
+                    outlineView.insertItems(at: IndexSet(integer: offset), inParent: nil, withAnimation: .slideDown)
+                case let .remove(offset, _, _):
+                    outlineView.removeItems(at: IndexSet(integer: offset), inParent: nil, withAnimation: .slideUp)
                 }
             }
         } else {
+            // first run
             outlineView.insertItems(at: IndexSet(integersIn: 0..<nodes.count), inParent: nil)
         }
         coordinator.rootNodes = nodes
@@ -752,6 +749,17 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 
         // update selection to account for deleted items
         coordinator.updateSelection(outlineView: outlineView)
+
+        // if no selected items are on screen, scroll to the first one
+        let visibleRows = outlineView.rows(in: outlineView.visibleRect)
+        if !selectedRows.contains(where: { visibleRows.contains($0) }) {
+            if let firstRow = selectedRows.first {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.allowsImplicitAnimation = true
+                    outlineView.scrollRowToVisible(firstRow)
+                }
+            }
+        }
     }
 
     func makeCoordinator() -> Coordinator {
