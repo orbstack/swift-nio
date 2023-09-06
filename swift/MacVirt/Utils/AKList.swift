@@ -283,26 +283,30 @@ struct AKSection<Element: AKListItem>: AKListItemBase {
     }
 }
 
-@objc protocol AKNode {}
-
-private class AKItemNode: NSObject, AKNode {
-    var children: [AKItemNode]?
-
-    var value: any AKListItem
-
-    init(value: any AKListItem) {
-        self.value = value
-    }
+private enum AKNodeType {
+    case section
+    case item
 }
 
-private class AKSectionNode: NSObject, AKNode {
-    var children: [AKItemNode]?
+private class AKNode: NSObject {
+    let type: AKNodeType
+    var children: [AKNode]?
+    var value: any Equatable
 
-    var value: String
+    func actuallyEqual<Item: AKListItemBase>(_ other: AKNode, itemType: Item.Type) -> Bool {
+        switch (type, other.type) {
+        case (.section, .section):
+            return value as! String == other.value as! String
+        case (.item, .item):
+            return value as! Item == other.value as! Item
+        default:
+            return false
+        }
+    }
 
-    init(value: String, children: [AKItemNode]?) {
+    init(type: AKNodeType, value: any Equatable) {
+        self.type = type
         self.value = value
-        self.children = children
     }
 }
 
@@ -339,13 +343,16 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         var parent: AKTreeListImpl
 
         var rootNodes: [AKNode] = []
+        var lastNodes: [AKNode]?
         var lastSections: [Section]?
 
         // preserve objc object identity to avoid losing state
         // overriding isEqual would probably work but this is also good for perf
-        private var objCache = [Item.ID: AKItemNode]()
+        private var objCache = [Item.ID: AKNode]()
+        private var sectionCache = [String: AKNode]()
         // array is fastest since we just iterate and clear this
         private var objAccessTracker = [Item.ID]()
+        private var sectionAccessTracker = [String]()
 
         // preserve view identity to avoid losing state (e.g. popovers)
         private var viewCache = [Item.ID: CachedView]()
@@ -361,22 +368,16 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
          * data source
          */
         func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-            if item == nil {
-                return rootNodes.count
-            } else if let section = item as? AKSectionNode {
-                return section.children?.count ?? 0
-            } else if let node = item as? AKItemNode {
-                return node.children?.count ?? 0
+            if let item = item as? AKNode {
+                return item.children?.count ?? 0
             } else {
-                return 0
+                return rootNodes.count
             }
         }
 
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-            if let section = item as? AKSectionNode {
-                return section.children != nil
-            } else if let node = item as? AKItemNode {
-                return node.children != nil
+            if let item = item as? AKNode {
+                return item.children != nil
             } else {
                 return false
             }
@@ -385,12 +386,10 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
             if item == nil {
                 return rootNodes[index]
-            } else if let section = item as? AKSectionNode {
-                return section.children![index]
-            } else if let node = item as? AKItemNode {
-                return node.children![index]
+            } else if let item = item as? AKNode {
+                return item.children![index]
             } else {
-                fatalError("outlineView: unknown item type")
+                fatalError("invalid item")
             }
         }
 
@@ -440,23 +439,25 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 
         // make views
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
-            if let node = item as? AKItemNode {
-                let holder = getOrCreateItemView(outlineView: outlineView, itemId: node.value.id as! Item.ID)
+            let node = item as! AKNode
+            if node.type == .item {
+                let value = node.value as! Item
+                let holder = getOrCreateItemView(outlineView: outlineView, itemId: value.id)
 
                 // update value if needed
                 // updateNSView does async so it's fine to update right here
-                if (holder.model.item as? Item) != (node.value as? Item) {
-                    holder.model.item = node.value
+                if (holder.model.item as? Item) != value {
+                    holder.model.item = value
                 }
-                if (holder.model.itemId as? Item.ID) != (node.value.id as? Item.ID) {
-                    holder.model.itemId = node.value.id as! Item.ID
+                if (holder.model.itemId as? Item.ID) != value.id {
+                    holder.model.itemId = value.id
                 }
 
                 return holder.view
-            } else if let node = item as? AKSectionNode {
+            } else if node.type == .section {
                 // pixel-perfect match of SwiftUI default section header
                 let cellView = NSTableCellView()
-                let field = NSTextField(labelWithString: node.value)
+                let field = NSTextField(labelWithString: node.value as! String)
                 field.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
                 field.textColor = .secondaryLabelColor
                 field.isEditable = false
@@ -478,13 +479,15 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // at first glance this isn't needed because section nodes don't render selections,
         // but it still gets selected internally and breaks the rounding of adjacent rows
         func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
-            item is AKItemNode
+            let item = item as! AKNode
+            return item.type == .item
         }
 
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-            if item is AKItemNode {
+            let item = item as! AKNode
+            if item.type == .item {
                 return parent.rowHeight ?? outlineView.rowHeight
-            } else if item is AKSectionNode {
+            } else if item.type == .section {
                 // match SwiftUI section
                 return 28
             } else {
@@ -493,8 +496,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         }
 
         func outlineView(_ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any) -> String? {
-            if let node = item as? AKItemNode {
-                return node.value.textLabel
+            let item = item as! AKNode
+            if item.type == .item {
+                return (item.value as! Item).textLabel
             } else {
                 return nil
             }
@@ -508,7 +512,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 return
             }
 
-            let item = outlineView.item(atRow: row)
+            let item = outlineView.item(atRow: row) as? AKNode
+            guard let item else { return }
             if outlineView.isItemExpanded(item) {
                 outlineView.animator().collapseItem(item)
             } else {
@@ -516,17 +521,18 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
 
             // emit double click event via notification center
-            if let node = item as? AKItemNode {
-                parent.envModel.doubleClicks.send(node.value.id as! AnyHashable)
+            if item.type == .item {
+                let value = item.value as! Item
+                parent.envModel.doubleClicks.send(value.id as AnyHashable)
             }
         }
 
-        func mapNode(item: Item) -> AKItemNode {
-            var node: AKItemNode
+        private func mapNode(item: Item) -> AKNode {
+            var node: AKNode
             if let cachedNode = objCache[item.id] {
                 node = cachedNode
             } else {
-                node = AKItemNode(value: item)
+                node = AKNode(type: .item, value: item)
                 objCache[item.id] = node
             }
             objAccessTracker.append(item.id)
@@ -546,6 +552,18 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             return node
         }
 
+        private func mapSectionNode(title: String) -> AKNode {
+            var node: AKNode
+            if let cachedNode = sectionCache[title] {
+                node = cachedNode
+            } else {
+                node = AKNode(type: .section, value: title)
+                sectionCache[title] = node
+            }
+            sectionAccessTracker.append(title)
+            return node
+        }
+
         func mapAllNodes(sections: [Section]) -> [AKNode] {
             // record accessed nodes
             let newNodes = sections.flatMap {
@@ -559,7 +577,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 sectionNodes.reserveCapacity($0.items.count + 1)
                 if let title = $0.title {
                     // TODO: if we use children, then groups are collapsible
-                    sectionNodes.append(AKSectionNode(value: title, children: nil))
+                    sectionNodes.append(mapSectionNode(title: title))
                 }
                 for item in $0.items {
                     sectionNodes.append(mapNode(item: item))
@@ -573,13 +591,21 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 objCache.removeValue(forKey: id)
             }
 
+            // remove unused sections
+            let unusedSections = sectionCache.filter { !sectionAccessTracker.contains($0.key) }
+            for (title, _) in unusedSections {
+                sectionCache.removeValue(forKey: title)
+            }
+
             // clear access tracker
             objAccessTracker.removeAll()
+            sectionAccessTracker.removeAll()
             return newNodes
         }
 
         func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
-            item is AKSectionNode
+            let item = item as! AKNode
+            return item.type == .section
         }
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -590,7 +616,14 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             // Publishing changes from within view updates is not allowed, this will cause undefined behavior.
             // however, we only call this from either AppKit click event or .async in case of completeUpdate, so it's ok
             let selectedIds = outlineView.selectedRowIndexes
-            .compactMap { (outlineView.item(atRow: $0) as? AKItemNode)?.value.id as? AnyHashable }
+                .compactMap {
+                    let item = outlineView.item(atRow: $0) as? AKNode
+                    if item?.type == .item {
+                        return (item?.value as! Item).id as AnyHashable
+                    } else {
+                        return nil
+                    }
+                }
 
             let newSelection = Set(selectedIds)
             if self.parent.envModel.selection != newSelection {
@@ -664,19 +697,57 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 
     private func completeUpdate(coordinator: Coordinator, nsView: NSScrollView) {
         let nodes = coordinator.mapAllNodes(sections: sections)
-        coordinator.rootNodes = nodes
 
         let outlineView = nsView.documentView as! NSOutlineView
         // save selection, identity-based
         let selectedItems = outlineView.selectedRowIndexes
-            .compactMap { outlineView.item(atRow: $0) as? AKItemNode }
-        outlineView.reloadData()
-        // restore selection
-        let selectedRows = selectedItems
-            .compactMap {
-                let row = outlineView.row(forItem: $0)
-                return row == -1 ? nil : row
+            .map { outlineView.item(atRow: $0) as! AKNode }
+
+        // update
+        outlineView.beginUpdates()
+        if let lastNodes = coordinator.lastNodes {
+            // reload all. it's easier, and cheap with cache
+            for node in lastNodes {
+                let isExpanded = outlineView.isItemExpanded(node)
+                outlineView.reloadItem(node, reloadChildren: isExpanded)
             }
+
+            // diff
+            let diff = nodes.difference(from: lastNodes)//.inferringMoves()
+            for change in diff {
+                switch change {
+                case let .insert(offset, _, associatedWith):
+                    // associatedWith = move. do whichever one comes last
+                    if let associatedWith {
+                        if associatedWith < offset {
+                            outlineView.moveItem(at: associatedWith, inParent: nil, to: offset, inParent: nil)
+                        }
+                    } else {
+                        outlineView.insertItems(at: IndexSet(integer: offset), inParent: nil, withAnimation: .slideDown)
+                    }
+                case let .remove(offset, _, associatedWith):
+                    // associatedWith = move
+                    if let associatedWith {
+                        if associatedWith < offset {
+                            outlineView.moveItem(at: offset, inParent: nil, to: associatedWith, inParent: nil)
+                        }
+                    } else {
+                        outlineView.removeItems(at: IndexSet(integer: offset), inParent: nil, withAnimation: .slideUp)
+                    }
+                }
+            }
+        } else {
+            outlineView.insertItems(at: IndexSet(integersIn: 0..<nodes.count), inParent: nil)
+        }
+        coordinator.rootNodes = nodes
+        coordinator.lastNodes = nodes
+        outlineView.endUpdates()
+
+        // restore selection
+        let selectedRows = selectedItems.compactMap {
+            let row = outlineView.row(forItem: $0)
+            return row == -1 ? nil : row
+        }
         outlineView.selectRowIndexes(IndexSet(selectedRows), byExtendingSelection: false)
 
         // update selection to account for deleted items
