@@ -12,8 +12,7 @@ private struct GettingStartedHintBox: View {
             Text("Get started with an example")
             .font(.title2)
             .bold()
-            Text("kubectl run nginx --image=nginx")
-            .textSelectionWithWorkaround()
+            CopyableText("kubectl run nginx --image=nginx")
             .font(.body.monospaced())
         }
         .padding(.vertical, 24)

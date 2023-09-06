@@ -12,8 +12,7 @@ private struct GettingStartedHintBox: View {
             Text("Get started with an example")
             .font(.title2)
             .bold()
-            Text("kubectl expose pod nginx --type=NodePort --port=80")
-            .textSelectionWithWorkaround()
+            CopyableText("kubectl expose pod nginx --type=NodePort --port=80")
             .font(.body.monospaced())
         }
         .padding(.vertical, 24)

@@ -298,7 +298,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     let domain = container.preferredDomain
                     let ipAddress = container.ipAddress
 
-                    VStack(alignment: .trailing) {
+                    VStack(alignment: .trailing, spacing: 2) {
                         Text("Status")
                         Text("ID")
                         Text("Image")
@@ -307,14 +307,11 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         }
                     }
 
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(container.status)
-                            .textSelectionWithWorkaround()
-                        Text(String(container.id.prefix(12)))
-                            .textSelectionWithWorkaround()
+                        CopyableText(String(container.id.prefix(12)), copyAs: container.id)
                             .font(.body.monospaced())
-                        Text(container.image)
-                            .textSelectionWithWorkaround()
+                        CopyableText(container.image)
                         // needs to be running w/ ip to have domain
                         if let ipAddress,
                            let domain,
@@ -322,8 +319,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             if vmModel.netBridgeAvailable {
                                 CustomLink(domain, url: url)
                             } else {
-                                Text(ipAddress)
-                                .textSelectionWithWorkaround()
+                                CopyableText(ipAddress)
                             }
                         }
                     }

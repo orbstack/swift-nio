@@ -178,7 +178,7 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                     let addressVisible = service.wrapURLNoScheme(host: domain) ?? service.preferredDomainAndPort
                     let isWebService = service.isWebService
 
-                    VStack(alignment: .trailing) {
+                    VStack(alignment: .trailing, spacing: 2) {
                         Text("Type")
                         Text("Age")
                         if clusterIP != nil {
@@ -192,27 +192,22 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                         Text("Address")
                     }
 
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(service.spec.type.rawValue)
-                        .textSelectionWithWorkaround()
                         Text(service.ageStr)
-                        .textSelectionWithWorkaround()
                         if let clusterIP {
-                            Text(clusterIP)
-                            .textSelectionWithWorkaround()
+                            CopyableText(clusterIP)
                         }
                         /*
                         if let externalIP {
-                            Text(externalIP)
-                            .textSelectionWithWorkaround()
+                            CopyableText(externalIP)
                         }
                          */
                         if let url = URL(string: address) {
                             if isWebService {
                                 CustomLink(addressVisible, url: url)
                             } else {
-                                Text(addressVisible)
-                                .textSelectionWithWorkaround()
+                                CopyableText(addressVisible)
                             }
                         }
                     }
@@ -230,11 +225,9 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                             let portNumber = service.spec.type == .loadBalancer ? port.port : (port.nodePort ?? port.port)
                             // avoid pretty commas num format
                             if port.proto != "TCP" {
-                                Text("\(String(portNumber))/\(port.proto ?? "TCP")")
-                                .textSelectionWithWorkaround()
+                                CopyableText("\(String(portNumber))/\(port.proto ?? "TCP")")
                             } else {
-                                Text(String(portNumber))
-                                .textSelectionWithWorkaround()
+                                CopyableText(String(portNumber))
                             }
                         }
                     }

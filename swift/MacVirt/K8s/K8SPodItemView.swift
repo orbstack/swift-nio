@@ -197,7 +197,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                     let domain = pod.preferredDomain
                     let ipAddress = pod.status.podIP
 
-                    VStack(alignment: .trailing) {
+                    VStack(alignment: .trailing, spacing: 2) {
                         Text("Status")
                         Text("Restarts")
                         Text("Age")
@@ -206,20 +206,16 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                         }
                     }
 
-                    VStack(alignment: .leading) {
-                        Text(pod.statusStr)
-                        .textSelectionWithWorkaround()
-                        Text("\(pod.restartCount)")
-                        .textSelectionWithWorkaround()
-                        Text(pod.ageStr)
-                        .textSelectionWithWorkaround()
+                    VStack(alignment: .leading, spacing: 2) {
+                        CopyableText(pod.statusStr)
+                        CopyableText("\(pod.restartCount)")
+                        CopyableText(pod.ageStr)
                         // needs to be running w/ ip to have domain
                         if let ipAddress, let url = URL(string: "http://\(domain)") {
                             if vmModel.netBridgeAvailable {
                                 CustomLink(domain, url: url)
                             } else {
-                                Text(ipAddress)
-                                .textSelectionWithWorkaround()
+                                CopyableText(ipAddress)
                             }
                         }
                     }
@@ -236,8 +232,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                             if let name = container.name {
                                 //TODO link
                                 Label {
-                                    Text(name)
-                                    .textSelectionWithWorkaround()
+                                    CopyableText(name)
                                 } icon: {
                                     // icon = red/green status dot
                                     Image(nsImage: SystemImages.statusDot(isRunning: container.ready ?? false))

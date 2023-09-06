@@ -51,9 +51,17 @@ private struct CommandSection<Content: View>: View {
 private struct CommandBox: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    let title: String
-    let desc: String?
-    let command: String
+    private let title: String
+    private let desc: String?
+    private let command: String
+    private let selectable: Bool
+
+    init(title: String, desc: String? = nil, command: String, selectable: Bool = false) {
+        self.title = title
+        self.desc = desc
+        self.command = command
+        self.selectable = selectable
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -69,12 +77,19 @@ private struct CommandBox: View {
                     // wrap, don't ellipsize
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text(command)
-                .textSelectionWithWorkaround()
-                .font(.body.monospaced())
-                .padding(4)
-                .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Group {
+                if selectable {
+                    Text(command)
+                    .textSelectionWithWorkaround()
+                } else {
+                    CopyableText(command)
+                }
+            }
+            .font(.body.monospaced())
+            .padding(4)
+            .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -156,7 +171,8 @@ struct CommandsRootView: View {
                                          Port: 32222
                                          User: default (or root@ubuntu)
                                          Private key: ~/.orbstack/ssh/id_ed25519
-                                         """
+                                         """,
+                                selectable: true
                         )
                     }
 
