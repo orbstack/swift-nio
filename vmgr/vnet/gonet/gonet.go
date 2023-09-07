@@ -24,7 +24,7 @@ import (
 	"net"
 	"time"
 
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -751,20 +751,20 @@ func (c *UDPConn) LocalAddr() net.Addr {
 }
 
 type ViewWriter struct {
-	views []*bufferv2.View
+	views []*buffer.View
 	bufs  [][]byte
 	rem   int
 }
 
 func NewViewWriter(cap int) *ViewWriter {
 	return &ViewWriter{
-		views: make([]*bufferv2.View, 0, cap),
+		views: make([]*buffer.View, 0, cap),
 		bufs:  make([][]byte, 0, cap),
 		rem:   0,
 	}
 }
 
-func (vw *ViewWriter) WriteView(v *bufferv2.View) (int, error) {
+func (vw *ViewWriter) WriteView(v *buffer.View) (int, error) {
 	if vw.rem == 0 {
 		return 0, io.ErrShortWrite
 	}
@@ -784,7 +784,7 @@ func (vw *ViewWriter) WriteView(v *bufferv2.View) (int, error) {
 }
 
 func (vw *ViewWriter) Write(p []byte) (int, error) {
-	v := bufferv2.NewViewWithData(p)
+	v := buffer.NewViewWithData(p)
 	return vw.WriteView(v)
 }
 
@@ -797,7 +797,7 @@ func (vw *ViewWriter) Reset(len int) {
 	vw.rem = len
 }
 
-func (vw *ViewWriter) Views() []*bufferv2.View {
+func (vw *ViewWriter) Views() []*buffer.View {
 	return vw.views
 }
 

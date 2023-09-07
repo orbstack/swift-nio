@@ -14,7 +14,7 @@ import (
 	goipv4 "golang.org/x/net/ipv4"
 	goipv6 "golang.org/x/net/ipv6"
 	"golang.org/x/sys/unix"
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -562,7 +562,7 @@ func (i *IcmpFwd) sendReply(netProto tcpip.NetworkProtocolNumber, srcAddr, dstAd
 
 	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 		ReserveHeaderBytes: int(r.MaxHeaderLength()),
-		Payload:            bufferv2.MakeWithData(msg),
+		Payload:            buffer.MakeWithData(msg),
 	})
 	defer pkt.DecRef()
 
