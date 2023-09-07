@@ -714,9 +714,11 @@ struct DockerComposeLogsWindow: View {
                             .filter { !disabledChildren.contains($0) }
                     let allDisabled = disabledChildren.count == children.count && !children.isEmpty
 
-                    NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject),
-                            standalone: false, extraComposeArgs: projectLogArgs,
-                            allDisabled: allDisabled), tag: "all", selection: selBinding) {
+                    NavigationLink(tag: "all", selection: selBinding) {
+                        DockerLogsContentView(cid: .compose(project: composeProject),
+                                standalone: false, extraComposeArgs: projectLogArgs,
+                                allDisabled: allDisabled)
+                    } label: {
                         Label("All", systemImage: "square.stack.3d.up")
                     }
                     .onAppear {
@@ -728,8 +730,9 @@ struct DockerComposeLogsWindow: View {
 
                     Section("Services") {
                         ForEach(children, id: \.id) { container in
-                            NavigationLink(destination: DockerLogsContentView(cid: container.cid,
-                                    standalone: false), tag: "container:\(container.id)", selection: selBinding) {
+                            NavigationLink(tag: "container:\(container.id)", selection: selBinding) {
+                                DockerLogsContentView(cid: container.cid, standalone: false)
+                            } label: {
                                 let serviceName = container.userName
                                 let enabledBinding = Binding<Bool>(get: {
                                     !disabledChildren.contains(serviceName)
