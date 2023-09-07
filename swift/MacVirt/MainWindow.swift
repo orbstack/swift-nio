@@ -53,18 +53,23 @@ struct MainWindow: View {
             // on macOS 14, must put .tag() on Label or it crashes
             // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
             Section(header: Text("Docker")) {
-                NavigationLink(destination: DockerContainersRootView(selection: initialDockerContainerSelection, searchQuery: ""),
-                        tag: "docker", selection: selBinding) {
+                NavigationLink(tag: "docker", selection: selBinding) {
+                    DockerContainersRootView(selection: initialDockerContainerSelection, searchQuery: "")
+                } label: {
                     Label("Containers", systemImage: "shippingbox")
                         .padding(.vertical, 3)
                 }
                 
-                NavigationLink(destination: DockerVolumesRootView(), tag: "docker-volumes", selection: selBinding) {
+                NavigationLink(tag: "docker-volumes", selection: selBinding) {
+                    DockerVolumesRootView()
+                } label: {
                     Label("Volumes", systemImage: "externaldrive")
                         .padding(.vertical, 3)
                 }
                 
-                NavigationLink(destination: DockerImagesRootView(), tag: "docker-images", selection: selBinding) {
+                NavigationLink(tag: "docker-images", selection: selBinding) {
+                    DockerImagesRootView()
+                } label: {
                     Label("Images", systemImage: "doc.zipper")
                         .padding(.vertical, 3)
                 }
@@ -72,26 +77,34 @@ struct MainWindow: View {
             .tag("docker")
 
             Section(header: Text("Kubernetes")) {
-                NavigationLink(destination: K8SPodsView(), tag: "k8s-pods", selection: selBinding) {
+                NavigationLink(tag: "k8s-pods", selection: selBinding) {
+                    K8SPodsView()
+                } label: {
                     Label("Pods", systemImage: "helm")
                         .padding(.vertical, 3)
                 }
 
-                NavigationLink(destination: K8SServicesView(), tag: "k8s-services", selection: selBinding) {
+                NavigationLink(tag: "k8s-services", selection: selBinding) {
+                    K8SServicesView()
+                } label: {
                     Label("Services", systemImage: "network")
                         .padding(.vertical, 3)
                 }
             }
             
             Section(header: Text("Linux")) {
-                NavigationLink(destination: MachinesRootView(), tag: "machines", selection: selBinding) {
+                NavigationLink(tag: "machines", selection: selBinding) {
+                    MachinesRootView()
+                } label: {
                     Label("Machines", systemImage: "desktopcomputer")
                         .padding(.vertical, 3)
                 }
             }
             
             Section(header: Text("Help")) {
-                NavigationLink(destination: CommandsRootView(), tag: "cli", selection: selBinding) {
+                NavigationLink(tag: "cli", selection: selBinding) {
+                    CommandsRootView()
+                } label: {
                     Label("Commands", systemImage: "terminal")
                         .padding(.vertical, 3)
                 }
