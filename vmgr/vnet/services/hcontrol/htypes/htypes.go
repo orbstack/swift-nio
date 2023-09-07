@@ -1,5 +1,7 @@
 package htypes
 
+import "github.com/orbstack/macvirt/vmgr/uitypes"
+
 type SSHAgentSockets struct {
 	SshConfig string
 	Env       string
@@ -21,4 +23,9 @@ type DockerMachineConfig struct {
 }
 
 type InitConfig struct {
+}
+
+type DockerExitInfo struct {
+	Async     bool
+	ExitEvent *uitypes.ExitEvent
 }

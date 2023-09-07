@@ -105,7 +105,7 @@ struct UIEvent: Codable {
         let currentVolumes: [DKVolume]?
         let currentImages: [DKImage]?
         let currentSystemDf: DKSystemDf?
-        let stopped: Bool
+        let exited: UIExitEvent?
     }
 
     struct DrmWarning: Codable {
@@ -117,6 +117,11 @@ struct UIEvent: Codable {
         let currentServices: [K8SService]?
         let stopped: Bool
     }
+}
+
+struct UIExitEvent: Codable {
+    let status: Int
+    let message: String?
 }
 
 private func eintr(_ block: () throws -> Int32) rethrows -> Int32 {

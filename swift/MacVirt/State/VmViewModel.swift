@@ -67,6 +67,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case dockerImageActionError(action: String, cause: Error)
     case dockerComposeActionError(action: String, cause: Error)
     case dockerConfigSaveError(cause: Error)
+    case dockerExitError(status: Int, message: String?)
     // migration
     case dockerMigrationError(status: Int, output: String)
 
@@ -131,6 +132,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t \(action) project"
         case .dockerConfigSaveError:
             return "Can’t apply Docker config"
+        case .dockerExitError(let status, _):
+            return "Docker stopped with error \(status)"
         case .dockerMigrationError:
             return "Can’t migrate Docker data"
 
@@ -185,6 +188,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause.localizedDescription
         case .spawnExit(_, let output):
             return output
+        case .dockerExitError(_, let message):
+            return message
         case .vmgrExit(let reason, let output):
             switch reason {
             case .drm:
@@ -295,6 +300,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .dockerConfigSaveError(let cause):
             return cause
+        case .dockerExitError:
+            return nil
         case .dockerMigrationError:
             return nil
 
@@ -507,11 +514,15 @@ class VmViewModel: ObservableObject {
                     if let systemDf = event.currentSystemDf {
                         self.onNewDockerSystemDf(resp: systemDf)
                     }
-                    if event.stopped {
+                    if let exitEvent = event.exited {
                         self.dockerContainers = nil
                         self.dockerVolumes = nil
                         self.dockerImages = nil
                         self.dockerSystemDf = nil
+
+                        if exitEvent.status != 0 {
+                            self.setError(.dockerExitError(status: exitEvent.status, message: exitEvent.message))
+                        }
                     }
                 }
 

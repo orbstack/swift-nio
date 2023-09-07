@@ -158,9 +158,9 @@ func (c *Client) RemoveDockerBridge(config sgtypes.DockerBridgeConfig) (int, err
 	return vlanId, nil
 }
 
-func (c *Client) ClearDockerState(async bool) error {
+func (c *Client) ClearDockerState(info htypes.DockerExitInfo) error {
 	var none None
-	return c.rpc.Call("hc.ClearDockerState", async, &none)
+	return c.rpc.Call("hc.ClearDockerState", info, &none)
 }
 
 func (c *Client) OnUIEvent(ev uitypes.UIEvent) error {

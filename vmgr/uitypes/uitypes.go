@@ -11,10 +11,10 @@ import (
 const UIEventDebounce = 100 * time.Millisecond
 
 type UIEvent struct {
-	Vmgr       *VmgrEvent           `json:"vmgr"`
-	Scon       *SconEvent           `json:"scon"`
-	Docker     *dockertypes.UIEvent `json:"docker"`
-	DrmWarning *DrmWarningEvent     `json:"drmWarning"`
+	Vmgr       *VmgrEvent       `json:"vmgr"`
+	Scon       *SconEvent       `json:"scon"`
+	Docker     *DockerEvent     `json:"docker"`
+	DrmWarning *DrmWarningEvent `json:"drmWarning"`
 	// workaround to avoid importing huge k8s pkg in scon and agent
 	K8s any `json:"k8s"`
 }
@@ -30,6 +30,30 @@ type SconEvent struct {
 	CurrentMachines []stypes.ContainerRecord `json:"currentMachines"`
 }
 
+type DockerEntity int
+
+const (
+	DockerEntityContainer DockerEntity = iota
+	DockerEntityVolume
+	DockerEntityImage
+
+	DockerEntityMax_
+)
+
+type DockerEvent struct {
+	CurrentContainers []*dockertypes.ContainerSummary `json:"currentContainers"`
+	CurrentVolumes    []*dockertypes.Volume           `json:"currentVolumes"`
+	CurrentImages     []*dockertypes.ImageSummary     `json:"currentImages"`
+	CurrentSystemDf   *dockertypes.SystemDf           `json:"currentSystemDf"`
+
+	Exited *ExitEvent `json:"exited"`
+}
+
 type DrmWarningEvent struct {
 	LastError string `json:"lastError"`
+}
+
+type ExitEvent struct {
+	Status  int    `json:"status"`
+	Message string `json:"message,omitempty"`
 }

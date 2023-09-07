@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (c *Container) GetLogs(logType types.LogType) (string, error) {
+func (c *Container) readLogsLocked(logType types.LogType) (string, error) {
 	var path string
 	switch logType {
 	case types.LogRuntime:
@@ -39,4 +39,9 @@ func (c *Container) GetLogs(logType types.LogType) (string, error) {
 	}
 
 	return logStr, nil
+}
+
+func (c *Container) GetLogs(logType types.LogType) (string, error) {
+	// no lock needed
+	return c.readLogsLocked(logType)
 }

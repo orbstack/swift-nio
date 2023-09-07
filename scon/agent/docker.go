@@ -53,7 +53,7 @@ type DockerAgent struct {
 	volumeRefreshDebounce    syncx.FuncDebounce
 	imageRefreshDebounce     syncx.FuncDebounce
 	uiEventDebounce          syncx.LeadingFuncDebounce
-	pendingUIEntities        [dockertypes.UIEventMax_]bool
+	pendingUIEntities        [uitypes.DockerEntityMax_]bool
 
 	eventsConn io.Closer
 
@@ -294,7 +294,7 @@ func (d *DockerAgent) OnStop() error {
 	return nil
 }
 
-func (d *DockerAgent) triggerUIEvent(entity dockertypes.UIEntity) {
+func (d *DockerAgent) triggerUIEvent(entity uitypes.DockerEntity) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -316,9 +316,9 @@ func (d *DockerAgent) doSendUIEvent() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	event := dockertypes.UIEvent{}
+	event := uitypes.DockerEvent{}
 
-	if d.pendingUIEntities[dockertypes.UIEventContainer] {
+	if d.pendingUIEntities[uitypes.DockerEntityContainer] {
 		containers, err := d.client.ListContainers(true /*all*/)
 		if err != nil {
 			return err
@@ -326,7 +326,7 @@ func (d *DockerAgent) doSendUIEvent() error {
 		event.CurrentContainers = containers
 	}
 
-	if d.pendingUIEntities[dockertypes.UIEventVolume] {
+	if d.pendingUIEntities[uitypes.DockerEntityVolume] {
 		volumes, err := d.client.ListVolumes()
 		if err != nil {
 			return err
@@ -344,7 +344,7 @@ func (d *DockerAgent) doSendUIEvent() error {
 		event.CurrentSystemDf = &df
 	}
 
-	if d.pendingUIEntities[dockertypes.UIEventImage] {
+	if d.pendingUIEntities[uitypes.DockerEntityImage] {
 		images, err := d.client.ListImages()
 		if err != nil {
 			return err
@@ -401,7 +401,7 @@ func (d *DockerAgent) monitorEvents() error {
 		case "container":
 			switch event.Action {
 			case "create", "start", "die", "destroy":
-				d.triggerUIEvent(dockertypes.UIEventContainer)
+				d.triggerUIEvent(uitypes.DockerEntityContainer)
 				d.containerRefreshDebounce.Call()
 				// also need to trigger networks refresh, because networks depends on active containers
 				d.networkRefreshDebounce.Call()
@@ -411,7 +411,7 @@ func (d *DockerAgent) monitorEvents() error {
 			switch event.Action {
 			// include mount, unmount because UI shows used/unused
 			case "create", "destroy", "mount", "unmount":
-				d.triggerUIEvent(dockertypes.UIEventVolume)
+				d.triggerUIEvent(uitypes.DockerEntityVolume)
 				d.volumeRefreshDebounce.Call()
 			}
 
@@ -420,7 +420,7 @@ func (d *DockerAgent) monitorEvents() error {
 			switch event.Action {
 			case "delete", "import", "load", "pull", "tag", "untag":
 				// TODO clear full image cache on tag/untag. event doesn't contain image ID
-				d.triggerUIEvent(dockertypes.UIEventImage)
+				d.triggerUIEvent(uitypes.DockerEntityImage)
 				d.imageRefreshDebounce.Call()
 			}
 

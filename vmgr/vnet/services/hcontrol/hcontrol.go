@@ -22,7 +22,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/nfsmnt"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
-	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
@@ -322,7 +321,7 @@ func (h *HcontrolServer) RemoveDockerBridge(config sgtypes.DockerBridgeConfig, r
 	return nil
 }
 
-func (h *HcontrolServer) ClearDockerState(async bool, _ *None) error {
+func (h *HcontrolServer) ClearDockerState(info htypes.DockerExitInfo, _ *None) error {
 	// fsnotify folder refs
 	err := h.clearFsnotifyRefs()
 	if err != nil {
@@ -331,7 +330,7 @@ func (h *HcontrolServer) ClearDockerState(async bool, _ *None) error {
 
 	// vlan router bridge interfaces
 	// vmnet is slow (250 ms per bridge!) so do async if manager is stopping
-	if async {
+	if info.Async {
 		go func() {
 			// if stopping then we also know scon bridge will be closed
 			err := h.n.ClearVlanBridges(true /*includeScon*/)
@@ -357,9 +356,10 @@ func (h *HcontrolServer) ClearDockerState(async bool, _ *None) error {
 	h.k8sNotifyDebounce = nil
 
 	// and clear gui state because k8s is push-only to UI
+	// done on host side
 	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
-		Docker: &dockertypes.UIEvent{
-			Stopped: true,
+		Docker: &uitypes.DockerEvent{
+			Exited: info.ExitEvent,
 		},
 		K8s: &K8sEvent{
 			Stopped: true,

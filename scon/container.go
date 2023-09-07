@@ -94,7 +94,11 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 
 	// special-case hooks for docker
 	if c.builtin && c.Image.Distro == images.ImageDocker {
-		c.hooks = &DockerHooks{}
+		hooks, err := newDockerHooks()
+		if err != nil {
+			return nil, err
+		}
+		c.hooks = hooks
 	}
 
 	// create lxc

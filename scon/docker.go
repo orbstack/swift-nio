@@ -23,7 +23,9 @@ import (
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/sirupsen/logrus"
 )
 
@@ -70,6 +72,18 @@ type DockerDaemonFeatures struct {
 }
 
 type DockerHooks struct {
+	rootfs *securefs.FS
+}
+
+func newDockerHooks() (*DockerHooks, error) {
+	rootfs, err := securefs.NewFS(conf.C().DockerRootfs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DockerHooks{
+		rootfs: rootfs,
+	}, nil
 }
 
 type SimplevisorConfig struct {
@@ -77,36 +91,52 @@ type SimplevisorConfig struct {
 	Services     [][]string `json:"services"`
 }
 
+type SimplevisorStatus struct {
+	ExitStatuses []int `json:"exit_statuses"`
+}
+
 func (h *DockerHooks) createDataDirs() error {
 	err := os.MkdirAll(conf.C().DockerDataDir, 0755)
 	if err != nil {
 		return err
 	}
+
 	// and k8s
-	err = os.MkdirAll(conf.C().K8sDataDir+"/cni", 0755)
+	err = os.MkdirAll(conf.C().K8sDataDir, 0755)
 	if err != nil {
 		return err
 	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/kubelet", 0755)
+	kfs, err := securefs.NewFS(conf.C().K8sDataDir)
 	if err != nil {
 		return err
 	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/k3s", 0755)
+	defer kfs.Close()
+
+	// since we write to the data and use subdirs here, use securefs to prevent escape
+	err = kfs.MkdirAll("/cni", 0755)
 	if err != nil {
 		return err
 	}
-	err = os.MkdirAll(conf.C().K8sDataDir+"/etc-node", 0755)
+	err = kfs.MkdirAll("/kubelet", 0755)
+	if err != nil {
+		return err
+	}
+	err = kfs.MkdirAll("/k3s", 0755)
+	if err != nil {
+		return err
+	}
+	err = kfs.MkdirAll("/etc-node", 0755)
 	if err != nil {
 		return err
 	}
 
 	// add customized coredns: healthcheck removed
 	// /var/lib/rancher/k3s/server/manifests/coredns.yaml
-	err = os.MkdirAll(conf.C().K8sDataDir+"/k3s/server/manifests", 0755)
+	err = kfs.MkdirAll("/k3s/server/manifests", 0755)
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(conf.C().K8sDataDir+"/k3s/server/manifests/orb-coredns.yaml", []byte(k8sCorednsYaml), 0644)
+	err = kfs.WriteFile("/k3s/server/manifests/orb-coredns.yaml", []byte(k8sCorednsYaml), 0644)
 	if err != nil {
 		return err
 	}
@@ -137,6 +167,7 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// data
 	cm.bind(conf.C().DockerDataDir, "/var/lib/docker", "")
 	// k8s
+	// TODO: this could be a potential escape!
 	cm.bind(conf.C().K8sDataDir+"/cni", "/var/lib/cni", "")
 	cm.bind(conf.C().K8sDataDir+"/kubelet", "/var/lib/kubelet", "")
 	cm.bind(conf.C().K8sDataDir+"/k3s", "/var/lib/rancher/k3s", "")
@@ -286,14 +317,6 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		}
 	}
 
-	rootfs := conf.C().DockerRootfs
-	// prevent symlink escape
-	fs, err := securefs.NewFS(rootfs)
-	if err != nil {
-		return err
-	}
-	defer fs.Close()
-
 	// check for possible conflict between user-created bridge nets and default (bip)
 	if bip, ok := config["bip"].(string); ok && bip != "" {
 		conflictNet, err := dockerdb.CheckBipNetworkConflict(conf.C().DockerDataDir+"/network/files/local-kv.db", bip)
@@ -304,7 +327,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 		// to prevent infinite loop: if flag exists, delete it and bail out
 		// we already tried once and it must've failed
-		delErr := fs.Remove(agent.DockerNetMigrationFlag)
+		delErr := h.rootfs.Remove(agent.DockerNetMigrationFlag)
 		if conflictNet != nil && errors.Is(delErr, os.ErrNotExist) {
 			// migration needed
 			logrus.WithField("bip", bip).WithField("conflictNet", conflictNet).Warn("docker bip conflict detected, migrating")
@@ -315,7 +338,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			if err != nil {
 				return err
 			}
-			err = fs.WriteFile(agent.DockerNetMigrationFlag, []byte(origConfigBytes), 0644)
+			err = h.rootfs.WriteFile(agent.DockerNetMigrationFlag, []byte(origConfigBytes), 0644)
 			if err != nil {
 				return err
 			}
@@ -355,7 +378,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	if err != nil {
 		return err
 	}
-	err = fs.WriteFile("/etc/docker/daemon.json", configBytes, 0644)
+	err = h.rootfs.WriteFile("/etc/docker/daemon.json", configBytes, 0644)
 	if err != nil {
 		return err
 	}
@@ -365,14 +388,14 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
-	_ = fs.Remove("/etc/docker/certs.d")
-	err = fs.Symlink(mounts.Virtiofs+hostUser.HomeDir+"/.docker/certs.d", "/etc/docker/certs.d")
+	_ = h.rootfs.Remove("/etc/docker/certs.d")
+	err = h.rootfs.Symlink(mounts.Virtiofs+hostUser.HomeDir+"/.docker/certs.d", "/etc/docker/certs.d")
 	if err != nil {
 		return fmt.Errorf("link certs: %w", err)
 	}
 
 	// write certs
-	err = c.manager.getAndWriteCerts(fs, "/etc/ssl/certs")
+	err = c.manager.getAndWriteCerts(h.rootfs, "/etc/ssl/certs")
 	if err != nil {
 		return fmt.Errorf("write certs: %w", err)
 	}
@@ -383,8 +406,8 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		return fmt.Errorf("get timezone: %w", err)
 	}
 	// create localtime symlink
-	_ = fs.Remove("/etc/localtime")
-	err = fs.Symlink("/usr/share/zoneinfo/"+hostTimezone, "/etc/localtime")
+	_ = h.rootfs.Remove("/etc/localtime")
+	err = h.rootfs.Symlink("/usr/share/zoneinfo/"+hostTimezone, "/etc/localtime")
 	if err != nil {
 		logrus.WithError(err).Error("failed to symlink localtime")
 	}
@@ -432,8 +455,12 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// only do this for k8s to prevent issues if user has subnet conflict and only uses docker
 
 		// remove old config symlink
-		_ = fs.Remove("/etc/rancher/k3s/k3s.yaml")
+		_ = h.rootfs.Remove("/etc/rancher/k3s/k3s.yaml")
 	}
+
+	// remove simplevisor exit status
+	_ = h.rootfs.Remove("/.orb/svstatus.json")
+
 	// set simplevisor config
 	svConfigJson, err := json.Marshal(&svConfig)
 	if err != nil {
@@ -498,9 +525,48 @@ func (h *DockerHooks) PostStop(c *Container) error {
 	// clear mDNS registry
 	c.manager.net.mdnsRegistry.ClearContainers()
 
+	// check for simplevisor's dump
+	exitStatus := 0
+	var exitMsg string
+	data, err := h.rootfs.ReadFile("/.orb/svstatus.json")
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	} else {
+		var svStatus SimplevisorStatus
+		err = json.Unmarshal(data, &svStatus)
+		if err != nil {
+			return fmt.Errorf("parse status: %w", err)
+		}
+
+		// check for exit statuses
+		for i, status := range svStatus.ExitStatuses {
+			// -1 = did not exit before simplevisor stopped
+			if status != 0 && status != -1 {
+				logrus.WithField("status", status).WithField("service", i).Error("docker service exited with non-zero status")
+				exitStatus = status
+			}
+		}
+	}
+
+	// read the log for non-zero exit status
+	if exitStatus != 0 {
+		exitMsg, err = c.readLogsLocked(types.LogConsole)
+		if err != nil {
+			logrus.WithError(err).Error("failed to read docker log")
+		}
+	}
+
 	// slow, so use async if stopping (b/c we know it doesn't matter at that point)
 	isAsync := c.manager.stopping
-	err := c.manager.host.ClearDockerState(isAsync)
+	err = c.manager.host.ClearDockerState(htypes.DockerExitInfo{
+		Async: isAsync,
+		ExitEvent: &uitypes.ExitEvent{
+			Status:  exitStatus,
+			Message: exitMsg,
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("clear docker state: %w", err)
 	}

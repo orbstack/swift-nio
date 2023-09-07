@@ -1,8 +1,8 @@
-use std::{error::Error, process::Command};
+use std::{error::Error, process::Command, fs};
 
 use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use signal_hook::iterator::Signals;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
 struct MonitoredChild {
     process: std::process::Child,
@@ -13,6 +13,11 @@ struct MonitoredChild {
 struct SimplevisorConfig {
     init_commands: Vec<Vec<String>>,
     services: Vec<Vec<String>>,
+}
+
+#[derive(Serialize)]
+struct SimplevisorStatus {
+    exit_statuses: Vec<i32>,
 }
 
 /*
@@ -59,6 +64,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     // get config from env
     let config_str = std::env::var("SIMPLEVISOR_CONFIG")?;
     let config: SimplevisorConfig = serde_json::from_str(&config_str)?;
+
+    let mut out_status = SimplevisorStatus {
+        exit_statuses: vec![-1; config.services.len()],
+    };
 
     // broken: EINVAL
     //init_system()?;
@@ -124,8 +133,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                         // this covers cases of dockerd and k8s crashing
                         // but on orderly shutdown (SIGTERM) we want to wait for dockerd. k8s shuts down faster
                         println!(" [*] service {} exited with {}", i, status);
+                        let st_code = status.code().unwrap_or(1);
+                        out_status.exit_statuses[i] = st_code;
                         if !is_shutting_down || i == 0 {
-                            std::process::exit(status.code().unwrap_or(1));
+                            // write out status
+                            let out_status_str = serde_json::to_string(&out_status)?;
+                            fs::create_dir_all("/.orb")?;
+                            fs::write("/.orb/svstatus.json", out_status_str)?;
+
+                            std::process::exit(st_code);
                         }
                     }
                 }
