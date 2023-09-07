@@ -39,6 +39,7 @@ import (
 	"gvisor.dev/gvisor/pkg/sentry/control"
 	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
 	"gvisor.dev/gvisor/pkg/sighandling"
+	"gvisor.dev/gvisor/pkg/state/statefile"
 	"gvisor.dev/gvisor/runsc/boot"
 	"gvisor.dev/gvisor/runsc/cgroup"
 	"gvisor.dev/gvisor/runsc/config"
@@ -133,14 +134,10 @@ type Container struct {
 	// processes.
 	Saver StateFile `json:"saver"`
 
-	// OverlayConf is the overlay configuration with which this container was
-	// started.
-	OverlayConf config.Overlay2 `json:"overlayConf"`
-
 	// OverlayMediums contains information about how the gofer mounts have been
 	// overlaid. The first entry is for rootfs and the following entries are for
 	// bind mounts in Spec.Mounts (in the same order).
-	OverlayMediums []boot.OverlayMedium `json:"overlayMediums"`
+	OverlayMediums boot.OverlayMediumFlags `json:"overlayMediums"`
 
 	//
 	// Fields below this line are not saved in the state file and will not
@@ -151,7 +148,7 @@ type Container struct {
 	//
 	// This field isn't saved to json, because only a creator of a gofer
 	// process will have it as a child process.
-	goferIsChild bool
+	goferIsChild bool `nojson:"true"`
 }
 
 // Args is used to configure a new container.
@@ -233,7 +230,6 @@ func New(conf *config.Config, args Args) (*Container, error) {
 				ContainerID: args.ID,
 			},
 		},
-		OverlayConf: conf.GetOverlay2(),
 	}
 	// The Cleanup object cleans up partially created containers when an error
 	// occurs. Any errors occurring during cleanup itself are ignored.
@@ -291,11 +287,14 @@ func New(conf *config.Config, args Args) (*Container, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error creating pod mount hints: %w", err)
 		}
-		overlayFilestoreFiles, overlayMediums, err := c.createOverlayFilestores(mountHints)
+		overlayFilestoreFiles, overlayMediums, err := c.createOverlayFilestores(conf.GetOverlay2(), mountHints)
 		if err != nil {
 			return nil, err
 		}
 		c.OverlayMediums = overlayMediums
+		if err := nvProxyPreGoferHostSetup(args.Spec, conf); err != nil {
+			return nil, err
+		}
 		if err := runInCgroup(containerCgroup, func() error {
 			ioFiles, specFile, err := c.createGoferProcess(args.Spec, conf, args.BundleDir, args.Attached)
 			if err != nil {
@@ -429,11 +428,11 @@ func (c *Container) Start(conf *config.Config) error {
 	}
 
 	if isRoot(c.Spec) {
-		if err := c.Sandbox.StartRoot(c.Spec, conf); err != nil {
+		if err := c.Sandbox.StartRoot(conf); err != nil {
 			return err
 		}
 	} else {
-		overlayFilestoreFiles, overlayMediums, err := c.createOverlayFilestores(c.Sandbox.MountHints)
+		overlayFilestoreFiles, overlayMediums, err := c.createOverlayFilestores(conf.GetOverlay2(), c.Sandbox.MountHints)
 		if err != nil {
 			return err
 		}
@@ -499,7 +498,7 @@ func (c *Container) Start(conf *config.Config) error {
 
 // Restore takes a container and replaces its kernel and file system
 // to restore a container from its state file.
-func (c *Container) Restore(spec *specs.Spec, conf *config.Config, restoreFile string) error {
+func (c *Container) Restore(conf *config.Config, restoreFile string) error {
 	log.Debugf("Restore container, cid: %s", c.ID)
 	if err := c.Saver.lock(BlockAcquire); err != nil {
 		return err
@@ -516,7 +515,7 @@ func (c *Container) Restore(spec *specs.Spec, conf *config.Config, restoreFile s
 		log.Warningf("StartContainer hook skipped because running inside container namespace is not supported")
 	}
 
-	if err := c.Sandbox.Restore(c.ID, spec, conf, restoreFile); err != nil {
+	if err := c.Sandbox.Restore(conf, c.ID, restoreFile); err != nil {
 		return err
 	}
 	c.changeStatus(Running)
@@ -539,7 +538,7 @@ func Run(conf *config.Config, args Args) (unix.WaitStatus, error) {
 
 	if conf.RestoreFile != "" {
 		log.Debugf("Restore: %v", conf.RestoreFile)
-		if err := c.Restore(args.Spec, conf, conf.RestoreFile); err != nil {
+		if err := c.Restore(conf, conf.RestoreFile); err != nil {
 			return 0, fmt.Errorf("starting container: %v", err)
 		}
 	} else {
@@ -693,12 +692,12 @@ func (c *Container) ForwardSignals(pid int32, fgProcess bool) func() {
 
 // Checkpoint sends the checkpoint call to the container.
 // The statefile will be written to f, the file at the specified image-path.
-func (c *Container) Checkpoint(f *os.File) error {
+func (c *Container) Checkpoint(f *os.File, options statefile.Options) error {
 	log.Debugf("Checkpoint container, cid: %s", c.ID)
 	if err := c.requireStatus("checkpoint", Created, Running, Paused); err != nil {
 		return err
 	}
-	return c.Sandbox.Checkpoint(c.ID, f)
+	return c.Sandbox.Checkpoint(c.ID, f, options)
 }
 
 // Pause suspends the container and its kernel.
@@ -868,13 +867,13 @@ func (c *Container) forEachSelfOverlay(fn func(mountSrc string)) {
 // createOverlayFilestores creates the regular files that will back the tmpfs
 // upper mount for overlay mounts. It also returns information about the
 // overlay medium used for each bind mount.
-func (c *Container) createOverlayFilestores(mountHints *boot.PodMountHints) ([]*os.File, []boot.OverlayMedium, error) {
+func (c *Container) createOverlayFilestores(conf config.Overlay2, mountHints *boot.PodMountHints) ([]*os.File, []boot.OverlayMedium, error) {
 	var filestoreFiles []*os.File
 	var overlayMediums []boot.OverlayMedium
 
 	// Handle root mount first.
-	shouldOverlay := c.OverlayConf.RootEnabled() && !c.Spec.Root.Readonly
-	filestore, medium, err := c.createOverlayFilestore(c.Spec.Root.Path, shouldOverlay, nil /* hint */)
+	shouldOverlay := conf.RootEnabled() && !c.Spec.Root.Readonly
+	filestore, medium, err := c.createOverlayFilestore(conf, c.Spec.Root.Path, shouldOverlay, nil /* hint */)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -889,8 +888,8 @@ func (c *Container) createOverlayFilestores(mountHints *boot.PodMountHints) ([]*
 			continue
 		}
 		hint := mountHints.FindMount(&c.Spec.Mounts[i])
-		shouldOverlay := c.OverlayConf.SubMountEnabled() && !specutils.IsReadonlyMount(c.Spec.Mounts[i].Options)
-		filestore, medium, err := c.createOverlayFilestore(c.Spec.Mounts[i].Source, shouldOverlay, hint)
+		shouldOverlay := conf.SubMountEnabled() && !specutils.IsReadonlyMount(c.Spec.Mounts[i].Options)
+		filestore, medium, err := c.createOverlayFilestore(conf, c.Spec.Mounts[i].Source, shouldOverlay, hint)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -907,7 +906,7 @@ func (c *Container) createOverlayFilestores(mountHints *boot.PodMountHints) ([]*
 	return filestoreFiles, overlayMediums, nil
 }
 
-func (c *Container) createOverlayFilestore(mountSrc string, shouldOverlay bool, hint *boot.MountHint) (*os.File, boot.OverlayMedium, error) {
+func (c *Container) createOverlayFilestore(conf config.Overlay2, mountSrc string, shouldOverlay bool, hint *boot.MountHint) (*os.File, boot.OverlayMedium, error) {
 	if hint != nil && hint.ShouldOverlay() {
 		// MountHint information takes precedence over shouldOverlay.
 		return c.createOverlayFilestoreInSelf(mountSrc)
@@ -915,19 +914,19 @@ func (c *Container) createOverlayFilestore(mountSrc string, shouldOverlay bool, 
 	switch {
 	case !shouldOverlay:
 		return nil, boot.NoOverlay, nil
-	case c.OverlayConf.IsBackedByMemory():
+	case conf.IsBackedByMemory():
 		return nil, boot.MemoryMedium, nil
-	case c.OverlayConf.IsBackedBySelf():
+	case conf.IsBackedBySelf():
 		return c.createOverlayFilestoreInSelf(mountSrc)
 	default:
-		return c.createOverlayFilestoreInDir()
+		return c.createOverlayFilestoreInDir(conf)
 	}
 }
 
 func (c *Container) createOverlayFilestoreInSelf(mountSrc string) (*os.File, boot.OverlayMedium, error) {
 	mountSrcInfo, err := os.Stat(mountSrc)
 	if err != nil {
-		return nil, boot.NoOverlay, fmt.Errorf("failed to stat mount %q to see if it were a dirctory: %v", mountSrc, err)
+		return nil, boot.NoOverlay, fmt.Errorf("failed to stat mount %q to see if it were a directory: %v", mountSrc, err)
 	}
 	if !mountSrcInfo.IsDir() {
 		log.Warningf("overlay2 self medium is only supported for directory mounts, but mount %q is not a directory, falling back to memory", mountSrc)
@@ -957,8 +956,8 @@ func (c *Container) createOverlayFilestoreInSelf(mountSrc string) (*os.File, boo
 	return os.NewFile(uintptr(filestoreFD), filestorePath), boot.SelfMedium, nil
 }
 
-func (c *Container) createOverlayFilestoreInDir() (*os.File, boot.OverlayMedium, error) {
-	filestoreDir := c.OverlayConf.HostFileDir()
+func (c *Container) createOverlayFilestoreInDir(conf config.Overlay2) (*os.File, boot.OverlayMedium, error) {
+	filestoreDir := conf.HostFileDir()
 	fileInfo, err := os.Stat(filestoreDir)
 	if err != nil {
 		return nil, boot.NoOverlay, fmt.Errorf("failed to stat overlay filestore directory %q: %v", filestoreDir, err)
@@ -1114,7 +1113,7 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *config.Config, bu
 	nextFD := donations.Transfer(cmd, 3)
 
 	cmd.Args = append(cmd.Args, "gofer", "--bundle", bundleDir)
-	cmd.Args = append(cmd.Args, "--overlay-mediums="+boot.ToOverlayMediumFlags(c.OverlayMediums))
+	cmd.Args = append(cmd.Args, "--overlay-mediums="+c.OverlayMediums.String())
 
 	// Open the spec file to donate to the sandbox.
 	specFile, err := specutils.OpenSpec(bundleDir)
@@ -1172,7 +1171,7 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *config.Config, bu
 		{Type: specs.UTSNamespace},
 	}
 
-	rootlessEUID := unix.Getuid() != 0
+	rootlessEUID := unix.Geteuid() != 0
 	// Setup any uid/gid mappings, and create or join the configured user
 	// namespace so the gofer's view of the filesystem aligns with the
 	// users in the sandbox.
@@ -1196,6 +1195,11 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *config.Config, bu
 		defer syncFile.Close()
 	}
 
+	nvProxySetup, err := nvproxySetupAfterGoferUserns(spec, conf, cmd, &donations)
+	if err != nil {
+		return nil, nil, fmt.Errorf("setting up nvproxy for gofer: %w", err)
+	}
+
 	donations.Transfer(cmd, nextFD)
 
 	// Start the gofer in the given namespace.
@@ -1204,16 +1208,22 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *config.Config, bu
 	if err := specutils.StartInNS(cmd, nss); err != nil {
 		return nil, nil, fmt.Errorf("gofer: %v", err)
 	}
+	log.Infof("Gofer started, PID: %d", cmd.Process.Pid)
+	c.GoferPid = cmd.Process.Pid
+	c.goferIsChild = true
 
+	// Set up and synchronize rootless mode userns mappings.
 	if rootlessEUID {
 		if err := sandbox.SetUserMappings(spec, cmd.Process.Pid); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	log.Infof("Gofer started, PID: %d", cmd.Process.Pid)
-	c.GoferPid = cmd.Process.Pid
-	c.goferIsChild = true
+	// Set up nvproxy within the Gofer namespace.
+	if err := nvProxySetup(); err != nil {
+		return nil, nil, fmt.Errorf("nvproxy setup: %w", err)
+	}
+
 	return sandEnds, mountsSand, nil
 }
 
@@ -1660,4 +1670,179 @@ func logIDMappings(mappings []specs.LinuxIDMapping, idType string) {
 	for _, m := range mappings {
 		log.Debugf("\tContainer ID: %d, Host ID: %d, Range Length: %d", m.ContainerID, m.HostID, m.Size)
 	}
+}
+
+// nvProxyPreGoferHostSetup sets up nvproxy on the host. It runs before any
+// Gofers start.
+// It verifies that all the required dependencies are in place, loads kernel
+// modules, and ensures the correct device files exist and are accessible.
+// This should only be necessary once on the host. It should be run during the
+// root container setup sequence to make sure it has run at least once.
+func nvProxyPreGoferHostSetup(spec *specs.Spec, conf *config.Config) error {
+	if !specutils.GPUFunctionalityRequested(spec, conf) || !conf.NVProxyDocker {
+		return nil
+	}
+
+	// Locate binaries. For security reasons, unlike
+	// nvidia-container-runtime-hook, we don't add the container's filesystem
+	// to the search path. We also don't support
+	// /etc/nvidia-container-runtime/config.toml to avoid importing a TOML
+	// parser.
+	cliPath, err := exec.LookPath("nvidia-container-cli")
+	if err != nil {
+		return fmt.Errorf("failed to locate nvidia-container-cli in PATH: %w", err)
+	}
+
+	// nvidia-container-cli --load-kmods seems to be a noop; load kernel modules ourselves.
+	nvproxyLoadKernelModules()
+
+	// Run `nvidia-container-cli info`.
+	// This has the side-effect of automatically creating GPU device files.
+	argv := []string{cliPath, "--load-kmods", "info"}
+	log.Debugf("Executing %q", argv)
+	var infoOut, infoErr strings.Builder
+	cmd := exec.Cmd{
+		Path:   argv[0],
+		Args:   argv,
+		Env:    os.Environ(),
+		Stdout: &infoOut,
+		Stderr: &infoErr,
+	}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("nvidia-container-cli info failed, err: %v\nstdout: %s\nstderr: %s", err, infoOut.String(), infoErr.String())
+	}
+	log.Debugf("nvidia-container-cli info: %v", infoOut.String())
+
+	return nil
+}
+
+// nvproxyLoadKernelModules loads NVIDIA-related kernel modules with modprobe.
+func nvproxyLoadKernelModules() {
+	for _, mod := range [...]string{
+		"nvidia",
+		"nvidia-uvm",
+	} {
+		argv := []string{
+			"/sbin/modprobe",
+			mod,
+		}
+		log.Debugf("Executing %q", argv)
+		var stdout, stderr strings.Builder
+		cmd := exec.Cmd{
+			Path:   argv[0],
+			Args:   argv,
+			Env:    os.Environ(),
+			Stdout: &stdout,
+			Stderr: &stderr,
+		}
+		if err := cmd.Run(); err != nil {
+			// This might not be fatal since modules may already be loaded. Log
+			// the failure but continue.
+			log.Warningf("modprobe %s failed, err: %v\nstdout: %s\nstderr: %s", mod, err, stdout.String(), stderr.String())
+		}
+	}
+}
+
+// nvproxySetupAfterGoferUserns runs `nvidia-container-cli configure`.
+// This sets up the container filesystem with bind mounts that allow it to
+// use NVIDIA devices.
+//
+// This should be called during the Gofer setup process, as the bind mounts
+// are created in the Gofer's mount namespace.
+// If successful, it returns a callback function that must be called once the
+// Gofer process has started.
+// This function has no effect if nvproxy functionality is not requested.
+//
+// This function essentially replicates
+// nvidia-container-toolkit:cmd/nvidia-container-runtime-hook, i.e. the
+// binary that executeHook() is hard-coded to skip, with differences noted
+// inline. We do this rather than move the prestart hook because the
+// "runtime environment" in which prestart hooks execute is vaguely
+// defined, such that nvidia-container-runtime-hook and existing runsc
+// hooks differ in their expected environment.
+//
+// Note that nvidia-container-cli will set up files in /dev and /proc which
+// are useless, since they will be hidden by sentry devtmpfs and procfs
+// respectively (and some device files will have the wrong device numbers
+// from the application's perspective since nvproxy may register device
+// numbers in sentry VFS that differ from those on the host, e.g. for
+// nvidia-uvm). These files are separately created during sandbox VFS
+// construction. For this reason, we don't need to parse
+// NVIDIA_VISIBLE_DEVICES or pass --device to nvidia-container-cli.
+func nvproxySetupAfterGoferUserns(spec *specs.Spec, conf *config.Config, goferCmd *exec.Cmd, goferDonations *donation.Agency) (func() error, error) {
+	if !specutils.GPUFunctionalityRequested(spec, conf) || !conf.NVProxyDocker {
+		return func() error { return nil }, nil
+	}
+
+	if spec.Root == nil {
+		return nil, fmt.Errorf("spec missing root filesystem")
+	}
+
+	// nvidia-container-cli does not create this directory.
+	if err := os.MkdirAll(path.Join(spec.Root.Path, "proc", "driver", "nvidia"), 0555); err != nil {
+		return nil, fmt.Errorf("failed to create /proc/driver/nvidia in app filesystem: %w", err)
+	}
+
+	cliPath, err := exec.LookPath("nvidia-container-cli")
+	if err != nil {
+		return nil, fmt.Errorf("failed to locate nvidia-container-cli in PATH: %w", err)
+	}
+
+	// On Ubuntu, ldconfig is a wrapper around ldconfig.real, and we need the latter.
+	var ldconfigPath string
+	if _, err := os.Stat("/sbin/ldconfig.real"); err == nil {
+		ldconfigPath = "/sbin/ldconfig.real"
+	} else {
+		ldconfigPath = "/sbin/ldconfig"
+	}
+
+	var nvidiaDevices strings.Builder
+	deviceIDs, err := specutils.NvidiaDeviceNumbers(spec, conf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nvidia device numbers: %w", err)
+	}
+	for i, deviceID := range deviceIDs {
+		if i > 0 {
+			nvidiaDevices.WriteRune(',')
+		}
+		nvidiaDevices.WriteString(fmt.Sprintf("%d", uint32(deviceID)))
+	}
+
+	// Create synchronization FD for nvproxy.
+	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	ourEnd := os.NewFile(uintptr(fds[0]), "nvproxy sync runsc FD")
+	goferEnd := os.NewFile(uintptr(fds[1]), "nvproxy sync gofer FD")
+	goferDonations.DonateAndClose("sync-nvproxy-fd", goferEnd)
+
+	return func() error {
+		defer ourEnd.Close()
+		argv := []string{
+			cliPath,
+			"--load-kmods",
+			"configure",
+			fmt.Sprintf("--ldconfig=@%s", ldconfigPath),
+			"--no-cgroups", // runsc doesn't configure device cgroups yet
+			"--utility",
+			"--compute",
+			fmt.Sprintf("--pid=%d", goferCmd.Process.Pid),
+			fmt.Sprintf("--device=%s", nvidiaDevices.String()),
+			spec.Root.Path,
+		}
+		log.Debugf("Executing %q", argv)
+		var stdout, stderr strings.Builder
+		cmd := exec.Cmd{
+			Path:   argv[0],
+			Args:   argv,
+			Env:    os.Environ(),
+			Stdout: &stdout,
+			Stderr: &stderr,
+		}
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("nvidia-container-cli configure failed, err: %v\nstdout: %s\nstderr: %s", err, stdout.String(), stderr.String())
+		}
+		return nil
+	}, nil
 }

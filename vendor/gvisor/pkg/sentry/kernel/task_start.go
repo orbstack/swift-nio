@@ -97,6 +97,9 @@ type TaskConfig struct {
 	// ContainerID is the container the new task belongs to.
 	ContainerID string
 
+	// InitialCgroups are the cgroups the container is initialised to.
+	InitialCgroups map[Cgroup]struct{}
+
 	// UserCounters is user resource counters.
 	UserCounters *userCounters
 }
@@ -110,11 +113,12 @@ type TaskConfig struct {
 func (ts *TaskSet) NewTask(ctx context.Context, cfg *TaskConfig) (*Task, error) {
 	var err error
 	cleanup := func() {
-		cfg.TaskImage.release()
+		cfg.TaskImage.release(ctx)
 		cfg.FSContext.DecRef(ctx)
 		cfg.FDTable.DecRef(ctx)
+		cfg.UTSNamespace.DecRef(ctx)
 		cfg.IPCNamespace.DecRef(ctx)
-		cfg.NetworkNamespace.DecRef()
+		cfg.NetworkNamespace.DecRef(ctx)
 		if cfg.MountNamespace != nil {
 			cfg.MountNamespace.DecRef(ctx)
 		}
@@ -168,7 +172,7 @@ func (ts *TaskSet) newTask(ctx context.Context, cfg *TaskConfig) (*Task, error) 
 		cgroups:         make(map[Cgroup]struct{}),
 		userCounters:    cfg.UserCounters,
 	}
-	t.netns.Store(cfg.NetworkNamespace)
+	t.netns = cfg.NetworkNamespace
 	t.creds.Store(cfg.Credentials)
 	t.endStopCond.L = &t.tg.signalHandlers.mu
 	t.ptraceTracer.Store((*Task)(nil))
@@ -237,8 +241,11 @@ func (ts *TaskSet) newTask(ctx context.Context, cfg *TaskConfig) (*Task, error) 
 		t.parent.children[t] = struct{}{}
 	}
 
-	// srcT may be nil, in which case we default to root cgroups.
-	t.EnterInitialCgroups(srcT)
+	// If InitialCgroups is not nil, the new task will be placed in the
+	// specified cgroups. Otherwise, if srcT is not nil, the new task will
+	// be placed in the srcT's cgroups. If neither is specified, the new task
+	// will be in the root cgroups.
+	t.EnterInitialCgroups(srcT, cfg.InitialCgroups)
 	committed = true
 
 	if tg.leader == nil {
@@ -251,6 +258,12 @@ func (ts *TaskSet) newTask(ctx context.Context, cfg *TaskConfig) (*Task, error) 
 			parentPG.incRefWithParent(parentPG)
 			tg.processGroup = parentPG
 			tg.tty = t.parent.tg.tty
+		}
+
+		// If our parent is a child subreaper, or if it has a child
+		// subreaper, then this new thread group does as well.
+		if t.parent != nil {
+			tg.hasChildSubreaper = t.parent.tg.isChildSubreaper || t.parent.tg.hasChildSubreaper
 		}
 	}
 	tg.tasks.PushBack(t)
@@ -324,7 +337,7 @@ func (ns *PIDNamespace) allocateTID() (ThreadID, error) {
 		// Next.
 		tid++
 		if tid > TasksLimit {
-			tid = InitTID + 1
+			tid = initTID + 1
 		}
 
 		// Is it available?

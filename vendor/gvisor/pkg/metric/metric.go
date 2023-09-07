@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	re "regexp"
 	"sort"
 	"strings"
 	"time"
@@ -486,6 +487,20 @@ func nameToPrometheusName(name string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(name, "/"), "/", "_")
 }
 
+var validMetricNameRegexp = re.MustCompile("^(?:/[_\\w]+)+$")
+
+// verifyName verifies that the given metric name is a valid path-style metric
+// name.
+func verifyName(name string) error {
+	if !strings.HasPrefix(name, "/") {
+		return fmt.Errorf("metric name must start with a '/': %q", name)
+	}
+	if !validMetricNameRegexp.MatchString(name) {
+		return fmt.Errorf("invalid metric name: %q", name)
+	}
+	return nil
+}
+
 // RegisterCustomUint64Metric registers a metric with the given name.
 //
 // Register must only be called at init and will return and error if called
@@ -555,6 +570,9 @@ func MustRegisterCustomUint64Metric(name string, cumulative, sync bool, descript
 //
 // Metrics must be statically defined (i.e., at init).
 func NewUint64Metric(name string, sync bool, units pb.MetricMetadata_Units, description string, fields ...Field) (*Uint64Metric, error) {
+	if err := verifyName(name); err != nil {
+		return nil, err
+	}
 	f, err := newFieldMapper(fields...)
 	if err != nil {
 		return nil, err
@@ -825,13 +843,16 @@ type DistributionMetric struct {
 	// last (i.e. infinite) bucket.
 	samples [][]atomicbitops.Uint64
 
-	// sampleSum is the sum of samples.
+	// statistics is a set of statistics about each distribution.
 	// It is mapped by the concatenation of the fields using `fieldsToKey`.
-	sampleSum []atomicbitops.Int64
+	statistics []distributionStatistics
 }
 
 // NewDistributionMetric creates and registers a new distribution metric.
 func NewDistributionMetric(name string, sync bool, bucketer Bucketer, unit pb.MetricMetadata_Units, description string, fields ...Field) (*DistributionMetric, error) {
+	if err := verifyName(name); err != nil {
+		return nil, err
+	}
 	if initialized.Load() {
 		return nil, ErrInitializationDone
 	}
@@ -867,7 +888,7 @@ func NewDistributionMetric(name string, sync bool, bucketer Bucketer, unit pb.Me
 		exponentialBucketer: exponentialBucketer,
 		fieldsToKey:         fieldsToKey,
 		samples:             samples,
-		sampleSum:           make([]atomicbitops.Int64, fieldsToKey.numKeys()),
+		statistics:          make([]distributionStatistics, fieldsToKey.numKeys()),
 		metadata: &pb.MetricMetadata{
 			Name:                          name,
 			PrometheusName:                nameToPrometheusName(name),
@@ -898,6 +919,132 @@ func MustCreateNewDistributionMetric(name string, sync bool, bucketer Bucketer, 
 	return distrib
 }
 
+// distributionStatistics is a set of useful statistics for a distribution.
+// As metric update operations must be non-blocking, this uses a bunch of
+// atomic numbers rather than a mutex.
+type distributionStatistics struct {
+	// sampleCount is the total number of samples.
+	sampleCount atomicbitops.Uint64
+
+	// sampleSum is the sum of samples.
+	sampleSum atomicbitops.Int64
+
+	// sumOfSquaredDeviations is the running sum of squared deviations from the
+	// mean of each sample.
+	// This quantity is useful as part of Welford's online algorithm:
+	// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+	sumOfSquaredDeviations atomicbitops.Float64
+
+	// min and max are the minimum and maximum samples ever recorded.
+	min, max atomicbitops.Int64
+}
+
+// Update updates the distribution statistics with the given sample.
+// This function must be non-blocking, i.e. no mutexes.
+// As a result, it is not entirely accurate when it races with itself,
+// though the imprecision should be fairly small and should not practically
+// matter for distributions with more than a handful of records.
+func (s *distributionStatistics) Update(sample int64) {
+	newSampleCount := s.sampleCount.Add(1)
+	newSampleSum := s.sampleSum.Add(sample)
+
+	if newSampleCount > 1 {
+		// Not the first sample of the distribution.
+		floatSample := float64(sample)
+		oldMean := float64(newSampleSum-sample) / float64(newSampleCount-1)
+		newMean := float64(newSampleSum) / float64(newSampleCount)
+		devSquared := (floatSample - oldMean) * (floatSample - newMean)
+		s.sumOfSquaredDeviations.Add(devSquared)
+
+		// Update min and max.
+		// We optimistically load racily here in the hope that it passes the CaS
+		// operation. If it doesn't, we'll load it atomically, so this is not a
+		// race.
+		sync.RaceDisable()
+		for oldMin := s.min.RacyLoad(); sample < oldMin && !s.min.CompareAndSwap(oldMin, sample); oldMin = s.min.Load() {
+		}
+		for oldMax := s.max.RacyLoad(); sample > oldMax && !s.max.CompareAndSwap(oldMax, sample); oldMax = s.max.Load() {
+		}
+		sync.RaceEnable()
+	} else {
+		// We are the first sample, so set the min and max to the current sample.
+		// See above for why disabling race detection is safe here as well.
+		sync.RaceDisable()
+		if !s.min.CompareAndSwap(0, sample) {
+			for oldMin := s.min.RacyLoad(); sample < oldMin && !s.min.CompareAndSwap(oldMin, sample); oldMin = s.min.Load() {
+			}
+		}
+		if !s.max.CompareAndSwap(0, sample) {
+			for oldMax := s.max.RacyLoad(); sample > oldMax && !s.max.CompareAndSwap(oldMax, sample); oldMax = s.max.Load() {
+			}
+		}
+		sync.RaceEnable()
+	}
+}
+
+// distributionStatisticsSnapshot an atomically-loaded snapshot of
+// distributionStatistics.
+type distributionStatisticsSnapshot struct {
+	// sampleCount is the total number of samples.
+	sampleCount uint64
+
+	// sampleSum is the sum of samples.
+	sampleSum int64
+
+	// sumOfSquaredDeviations is the running sum of squared deviations from the
+	// mean of each sample.
+	// This quantity is useful as part of Welford's online algorithm:
+	// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+	sumOfSquaredDeviations float64
+
+	// min and max are the minimum and maximum samples ever recorded.
+	min, max int64
+}
+
+// Load generates a consistent snapshot of the distribution statistics.
+func (s *distributionStatistics) Load() distributionStatisticsSnapshot {
+	// We start out reading things racily, but will verify each of them
+	// atomically later in this function, so this is OK. Disable the race
+	// checker for this part of the function.
+	sync.RaceDisable()
+	snapshot := distributionStatisticsSnapshot{
+		sampleCount:            s.sampleCount.RacyLoad(),
+		sampleSum:              s.sampleSum.RacyLoad(),
+		sumOfSquaredDeviations: s.sumOfSquaredDeviations.RacyLoad(),
+		min:                    s.min.RacyLoad(),
+		max:                    s.max.RacyLoad(),
+	}
+	sync.RaceEnable()
+
+	// Now verify that we loaded an atomic snapshot of the statistics.
+	// This relies on the fact that each update should at least change the
+	// count statistic, so we should be able to tell if anything changed based
+	// on whether we have an exact match with the currently-loaded values.
+	// If not, we reload that value and try again until all is consistent.
+retry:
+	if sampleCount := s.sampleCount.Load(); sampleCount != snapshot.sampleCount {
+		snapshot.sampleCount = sampleCount
+		goto retry
+	}
+	if sampleSum := s.sampleSum.Load(); sampleSum != snapshot.sampleSum {
+		snapshot.sampleSum = sampleSum
+		goto retry
+	}
+	if ssd := s.sumOfSquaredDeviations.Load(); ssd != snapshot.sumOfSquaredDeviations {
+		snapshot.sumOfSquaredDeviations = ssd
+		goto retry
+	}
+	if min := s.min.Load(); min != snapshot.min {
+		snapshot.min = min
+		goto retry
+	}
+	if max := s.max.Load(); max != snapshot.max {
+		snapshot.max = max
+		goto retry
+	}
+	return snapshot
+}
+
 // AddSample adds a sample to the distribution.
 // This *must* be called with the correct number of fields, or it will panic.
 // +checkescape:all
@@ -914,7 +1061,7 @@ func (d *DistributionMetric) AddSample(sample int64, fields ...*FieldValue) {
 func (d *DistributionMetric) addSampleByKey(sample int64, key int) {
 	bucket := d.exponentialBucketer.BucketIndex(sample)
 	d.samples[key][bucket+1].Add(1)
-	d.sampleSum[key].Add(sample)
+	d.statistics[key].Update(sample)
 }
 
 // Minimum number of buckets for NewDurationBucket.
@@ -1067,7 +1214,7 @@ func (m *metricSet) Values() metricValues {
 		uint64Metrics:            make(map[string]any, len(m.uint64Metrics)),
 		distributionMetrics:      make(map[string][][]uint64, len(m.distributionMetrics)),
 		distributionTotalSamples: make(map[string][]uint64, len(m.distributionMetrics)),
-		distributionSampleSum:    make(map[string][]int64, len(m.distributionMetrics)),
+		distributionStatistics:   make(map[string][]distributionStatisticsSnapshot, len(m.distributionMetrics)),
 		stages:                   stages,
 	}
 	for k, v := range m.uint64Metrics {
@@ -1094,7 +1241,7 @@ func (m *metricSet) Values() metricValues {
 	for name, metric := range m.distributionMetrics {
 		fieldKeysToValues := make([][]uint64, len(metric.samples))
 		fieldKeysToTotalSamples := make([]uint64, len(metric.samples))
-		fieldKeysToSampleSum := make([]int64, len(metric.samples))
+		fieldKeysToStatistics := make([]distributionStatisticsSnapshot, len(metric.samples))
 		for fieldKey, samples := range metric.samples {
 			samplesSnapshot := snapshotDistribution(samples)
 			totalSamples := uint64(0)
@@ -1106,17 +1253,17 @@ func (m *metricSet) Values() metricValues {
 				// the maps for this fieldKey as nil. This lessens the memory cost
 				// of distributions with unused field combinations.
 				fieldKeysToTotalSamples[fieldKey] = 0
-				fieldKeysToSampleSum[fieldKey] = 0
+				fieldKeysToStatistics[fieldKey] = distributionStatisticsSnapshot{}
 				fieldKeysToValues[fieldKey] = nil
 			} else {
 				fieldKeysToTotalSamples[fieldKey] = totalSamples
-				fieldKeysToSampleSum[fieldKey] = metric.sampleSum[fieldKey].Load()
+				fieldKeysToStatistics[fieldKey] = metric.statistics[fieldKey].Load()
 				fieldKeysToValues[fieldKey] = samplesSnapshot
 			}
 		}
 		vals.distributionMetrics[name] = fieldKeysToValues
 		vals.distributionTotalSamples[name] = fieldKeysToTotalSamples
-		vals.distributionSampleSum[name] = fieldKeysToSampleSum
+		vals.distributionStatistics[name] = fieldKeysToStatistics
 	}
 	return vals
 }
@@ -1147,9 +1294,8 @@ type metricValues struct {
 	// no new samples are not retransmitted.
 	distributionTotalSamples map[string][]uint64
 
-	// distributionSampleSum is the sum of samples for each distribution metric
-	// and field values.
-	distributionSampleSum map[string][]int64
+	// distributionStatistics is a set of statistics about the samples.
+	distributionStatistics map[string][]distributionStatisticsSnapshot
 
 	// Information on when initialization stages were reached. Does not include
 	// the currently-ongoing stage, if any.
@@ -1276,11 +1422,45 @@ func EmitMetricUpdate() {
 
 	if log.IsLogging(log.Debug) {
 		sort.Slice(m.Metrics, func(i, j int) bool {
-			return m.Metrics[i].Name < m.Metrics[j].Name
+			return m.Metrics[i].GetName() < m.Metrics[j].GetName()
 		})
 		log.Debugf("Emitting metrics:")
 		for _, metric := range m.Metrics {
-			log.Debugf("%s: %+v", metric.Name, metric.Value)
+			var valueStr string
+			switch metric.GetValue().(type) {
+			case *pb.MetricValue_Uint64Value:
+				valueStr = fmt.Sprintf("%d", metric.GetUint64Value())
+			case *pb.MetricValue_DistributionValue:
+				valueStr = fmt.Sprintf("new distribution samples: %+v", metric.GetDistributionValue())
+			default:
+				valueStr = "unsupported type"
+			}
+			if len(metric.GetFieldValues()) > 0 {
+				var foundMetadata *pb.MetricMetadata
+				if metricObj, found := allMetrics.uint64Metrics[metric.GetName()]; found {
+					foundMetadata = metricObj.metadata
+				} else if metricObj, found := allMetrics.distributionMetrics[metric.GetName()]; found {
+					foundMetadata = metricObj.metadata
+				}
+				if foundMetadata == nil || len(foundMetadata.GetFields()) != len(metric.GetFieldValues()) {
+					// This should never happen, but if it somehow does, we don't want to crash here, as
+					// this is debug output that may already be printed in the context of panic.
+					log.Debugf("%s%v (cannot find metric definition!): %s", metric.GetName(), metric.GetFieldValues(), valueStr)
+					continue
+				}
+				var sb strings.Builder
+				for i, fieldValue := range metric.GetFieldValues() {
+					if i > 0 {
+						sb.WriteRune(',')
+					}
+					sb.WriteString(foundMetadata.GetFields()[i].GetFieldName())
+					sb.WriteRune('=')
+					sb.WriteString(fieldValue)
+				}
+				log.Debugf("  Metric %s[%s]: %s", metric.GetName(), sb.String(), valueStr)
+			} else {
+				log.Debugf("  Metric %s: %s", metric.GetName(), valueStr)
+			}
 		}
 		for _, stage := range m.StageTiming {
 			duration := time.Duration(stage.Ended.Seconds-stage.Started.Seconds)*time.Second + time.Duration(stage.Ended.Nanos-stage.Started.Nanos)*time.Nanosecond
@@ -1342,7 +1522,7 @@ func GetSnapshot(options SnapshotOptions) (*prometheus.Snapshot, error) {
 		}
 		distributionSamples := values.distributionMetrics[k]
 		numFiniteBuckets := m.exponentialBucketer.NumFiniteBuckets()
-		sampleSums := values.distributionSampleSum[k]
+		statistics := values.distributionStatistics[k]
 		for fieldKey := range dists {
 			var labels map[string]string
 			if numFields := m.fieldsToKey.numKeys(); numFields > 0 {
@@ -1380,8 +1560,11 @@ func GetSnapshot(options SnapshotOptions) (*prometheus.Snapshot, error) {
 				Metric: m.prometheusMetric,
 				Labels: labels,
 				HistogramValue: &prometheus.Histogram{
-					Total:   prometheus.Number{Int: sampleSums[fieldKey]},
-					Buckets: buckets,
+					Total:                  prometheus.Number{Int: statistics[fieldKey].sampleSum},
+					SumOfSquaredDeviations: prometheus.Number{Float: statistics[fieldKey].sumOfSquaredDeviations},
+					Min:                    prometheus.Number{Int: statistics[fieldKey].min},
+					Max:                    prometheus.Number{Int: statistics[fieldKey].max},
+					Buckets:                buckets,
 				},
 			})
 		}

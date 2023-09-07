@@ -45,7 +45,7 @@ import (
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/atomicbitops"
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -528,6 +528,20 @@ func (e *endpoint) AddHeader(pkt stack.PacketBufferPtr) {
 	}
 }
 
+func (e *endpoint) parseHeader(pkt stack.PacketBufferPtr) bool {
+	_, ok := pkt.LinkHeader().Consume(e.hdrSize)
+	return ok
+
+}
+
+// ParseHeader implements stack.LinkEndpoint.ParseHeader.
+func (e *endpoint) ParseHeader(pkt stack.PacketBufferPtr) bool {
+	if e.hdrSize > 0 {
+		return e.parseHeader(pkt)
+	}
+	return true
+}
+
 // writePacket writes outbound packets to the file descriptor. If it is not
 // currently writable, the packet is dropped.
 func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
@@ -730,7 +744,7 @@ func (e *endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) 
 }
 
 // InjectOutbound implements stack.InjectableEndpoint.InjectOutbound.
-func (e *endpoint) InjectOutbound(dest tcpip.Address, packet *bufferv2.View) tcpip.Error {
+func (e *endpoint) InjectOutbound(dest tcpip.Address, packet *buffer.View) tcpip.Error {
 	return rawfile.NonBlockingWrite(e.fds[0].fd, packet.AsSlice())
 }
 
@@ -754,7 +768,7 @@ func (e *endpoint) GSOMaxSize() uint32 {
 	return e.gsoMaxSize
 }
 
-// SupportsHWGSO implements stack.GSOEndpoint.
+// SupportedGSO implements stack.GSOEndpoint.
 func (e *endpoint) SupportedGSO() stack.SupportedGSO {
 	return e.gsoKind
 }

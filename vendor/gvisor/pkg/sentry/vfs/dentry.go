@@ -18,6 +18,7 @@ import (
 	"gvisor.dev/gvisor/pkg/atomicbitops"
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
+	"gvisor.dev/gvisor/pkg/refs"
 	"gvisor.dev/gvisor/pkg/sync"
 )
 
@@ -207,13 +208,12 @@ func (d *Dentry) OnZeroWatches(ctx context.Context) {
 // AbortDeleteDentry or CommitDeleteDentry depending on the deletion's outcome.
 // +checklocksacquire:d.mu
 func (vfs *VirtualFilesystem) PrepareDeleteDentry(mntns *MountNamespace, d *Dentry) error {
-	vfs.mountMu.Lock()
+	vfs.lockMounts()
+	defer vfs.unlockMounts(context.Background())
 	if mntns.mountpoints[d] != 0 {
-		vfs.mountMu.Unlock()
 		return linuxerr.EBUSY // +checklocksforce: inconsistent return.
 	}
 	d.mu.Lock()
-	vfs.mountMu.Unlock()
 	// Return with d.mu locked to block attempts to mount over it; it will be
 	// unlocked by AbortDeleteDentry or CommitDeleteDentry.
 	return nil
@@ -233,21 +233,23 @@ func (vfs *VirtualFilesystem) CommitDeleteDentry(ctx context.Context, d *Dentry)
 	d.dead = true
 	d.mu.Unlock()
 	if d.isMounted() {
-		vfs.forgetDeadMountpoint(ctx, d)
+		vfs.forgetDeadMountpoint(ctx, d, false /*skipDecRef*/)
 	}
 }
 
 // InvalidateDentry is called when d ceases to represent the file it formerly
 // did for reasons outside of VFS' control (e.g. d represents the local state
 // of a file on a remote filesystem on which the file has already been
-// deleted).
-func (vfs *VirtualFilesystem) InvalidateDentry(ctx context.Context, d *Dentry) {
+// deleted). If d is mounted, the method returns a list of Virtual Dentries
+// mounted on d that the caller is responsible for DecRefing.
+func (vfs *VirtualFilesystem) InvalidateDentry(ctx context.Context, d *Dentry) []refs.RefCounter {
 	d.mu.Lock()
 	d.dead = true
 	d.mu.Unlock()
 	if d.isMounted() {
-		vfs.forgetDeadMountpoint(ctx, d)
+		return vfs.forgetDeadMountpoint(ctx, d, true /*skipDecRef*/)
 	}
+	return nil
 }
 
 // PrepareRenameDentry must be called before attempting to rename the file
@@ -263,20 +265,18 @@ func (vfs *VirtualFilesystem) InvalidateDentry(ctx context.Context, d *Dentry) {
 // +checklocksacquire:from.mu
 // +checklocksacquire:to.mu
 func (vfs *VirtualFilesystem) PrepareRenameDentry(mntns *MountNamespace, from, to *Dentry) error {
-	vfs.mountMu.Lock()
+	vfs.lockMounts()
+	defer vfs.unlockMounts(context.Background())
 	if mntns.mountpoints[from] != 0 {
-		vfs.mountMu.Unlock()
 		return linuxerr.EBUSY // +checklocksforce: no locks acquired.
 	}
 	if to != nil {
 		if mntns.mountpoints[to] != 0 {
-			vfs.mountMu.Unlock()
 			return linuxerr.EBUSY // +checklocksforce: no locks acquired.
 		}
 		to.mu.Lock()
 	}
 	from.mu.Lock()
-	vfs.mountMu.Unlock()
 	// Return with from.mu and to.mu locked, which will be unlocked by
 	// AbortRenameDentry, CommitRenameReplaceDentry, or
 	// CommitRenameExchangeDentry.
@@ -307,7 +307,7 @@ func (vfs *VirtualFilesystem) CommitRenameReplaceDentry(ctx context.Context, fro
 		to.dead = true
 		to.mu.Unlock()
 		if to.isMounted() {
-			vfs.forgetDeadMountpoint(ctx, to)
+			vfs.forgetDeadMountpoint(ctx, to, false /*skipDecRef*/)
 		}
 	}
 }
@@ -324,26 +324,23 @@ func (vfs *VirtualFilesystem) CommitRenameExchangeDentry(from, to *Dentry) {
 }
 
 // forgetDeadMountpoint is called when a mount point is deleted or invalidated
-// to umount all mounts using it in all other mount namespaces.
+// to umount all mounts using it in all other mount namespaces. If skipDecRef
+// is true, the method returns a list of reference counted objects with an
+// an extra reference.
 //
 // forgetDeadMountpoint is analogous to Linux's
 // fs/namespace.c:__detach_mounts().
-func (vfs *VirtualFilesystem) forgetDeadMountpoint(ctx context.Context, d *Dentry) {
-	var (
-		vdsToDecRef    []VirtualDentry
-		mountsToDecRef []*Mount
-	)
-	vfs.mountMu.Lock()
+func (vfs *VirtualFilesystem) forgetDeadMountpoint(ctx context.Context, d *Dentry, skipDecRef bool) []refs.RefCounter {
+	vfs.lockMounts()
+	defer vfs.unlockMounts(ctx)
 	vfs.mounts.seq.BeginWrite()
 	for mnt := range vfs.mountpoints[d] {
-		vdsToDecRef, mountsToDecRef = vfs.umountRecursiveLocked(mnt, &umountRecursiveOptions{}, vdsToDecRef, mountsToDecRef)
+		vfs.umountRecursiveLocked(mnt, &umountRecursiveOptions{})
 	}
 	vfs.mounts.seq.EndWrite()
-	vfs.mountMu.Unlock()
-	for _, vd := range vdsToDecRef {
-		vd.DecRef(ctx)
+	var rcs []refs.RefCounter
+	if skipDecRef {
+		rcs = vfs.PopDelayedDecRefs()
 	}
-	for _, mnt := range mountsToDecRef {
-		mnt.DecRef(ctx)
-	}
+	return rcs
 }

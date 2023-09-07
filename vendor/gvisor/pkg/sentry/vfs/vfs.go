@@ -47,7 +47,7 @@ import (
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
 	"gvisor.dev/gvisor/pkg/eventchannel"
 	"gvisor.dev/gvisor/pkg/fspath"
-	"gvisor.dev/gvisor/pkg/log"
+	"gvisor.dev/gvisor/pkg/refs"
 	"gvisor.dev/gvisor/pkg/sentry/fsmetric"
 	"gvisor.dev/gvisor/pkg/sentry/kernel/auth"
 	"gvisor.dev/gvisor/pkg/sentry/socket/unix/transport"
@@ -145,6 +145,13 @@ type VirtualFilesystem struct {
 	// mountPromises contains all unresolved mount promises.
 	mountPromisesMu sync.RWMutex `state:"nosave"`
 	mountPromises   map[VirtualDentry]*waiter.Queue
+
+	// toDecRef contains all the reference counted objects that needed to be
+	// DecRefd while mountMu was held. It is cleared every time unlockMounts is
+	// called and protected by mountMu.
+	//
+	// +checklocks:mountMu
+	toDecRef map[refs.RefCounter]int
 }
 
 // Init initializes a new VirtualFilesystem with no mounts or FilesystemTypes.
@@ -162,6 +169,9 @@ func (vfs *VirtualFilesystem) Init(ctx context.Context) error {
 	vfs.mounts.Init()
 	vfs.groupIDBitmap = bitmap.New(1024)
 	vfs.mountPromises = make(map[VirtualDentry]*waiter.Queue)
+	vfs.mountMu.Lock()
+	vfs.toDecRef = make(map[refs.RefCounter]int)
+	vfs.mountMu.Unlock()
 
 	// Construct vfs.anonMount.
 	anonfsDevMinor, err := vfs.GetAnonBlockDevMinor()
@@ -856,7 +866,7 @@ func (vfs *VirtualFilesystem) getFilesystems() map[*Filesystem]struct{} {
 
 // MkdirAllAt recursively creates non-existent directories on the given path
 // (including the last component).
-func (vfs *VirtualFilesystem) MkdirAllAt(ctx context.Context, currentPath string, root VirtualDentry, creds *auth.Credentials, mkdirOpts *MkdirOptions) error {
+func (vfs *VirtualFilesystem) MkdirAllAt(ctx context.Context, currentPath string, root VirtualDentry, creds *auth.Credentials, mkdirOpts *MkdirOptions, mustBeDir bool) error {
 	pop := &PathOperation{
 		Root:  root,
 		Start: root,
@@ -865,7 +875,7 @@ func (vfs *VirtualFilesystem) MkdirAllAt(ctx context.Context, currentPath string
 	stat, err := vfs.StatAt(ctx, creds, pop, &StatOptions{Mask: linux.STATX_TYPE})
 	switch {
 	case err == nil:
-		if stat.Mask&linux.STATX_TYPE == 0 || stat.Mode&linux.FileTypeMask != linux.ModeDirectory {
+		if mustBeDir && (stat.Mask&linux.STATX_TYPE == 0 || stat.Mode&linux.FileTypeMask != linux.ModeDirectory) {
 			return linuxerr.ENOTDIR
 		}
 		// Directory already exists.
@@ -877,7 +887,7 @@ func (vfs *VirtualFilesystem) MkdirAllAt(ctx context.Context, currentPath string
 	}
 
 	// Recurse to ensure parent is created and then create the final directory.
-	if err := vfs.MkdirAllAt(ctx, path.Dir(currentPath), root, creds, mkdirOpts); err != nil {
+	if err := vfs.MkdirAllAt(ctx, path.Dir(currentPath), root, creds, mkdirOpts, true /* mustBeDir */); err != nil {
 		return err
 	}
 	if err := vfs.MkdirAt(ctx, creds, pop, mkdirOpts); err != nil {
@@ -893,18 +903,14 @@ func (vfs *VirtualFilesystem) MakeSyntheticMountpoint(ctx context.Context, targe
 	mkdirOpts := &MkdirOptions{Mode: 0777, ForSyntheticMountpoint: true}
 
 	// Make sure the parent directory of target exists.
-	if err := vfs.MkdirAllAt(ctx, path.Dir(target), root, creds, mkdirOpts); err != nil {
+	if err := vfs.MkdirAllAt(ctx, path.Dir(target), root, creds, mkdirOpts, true /* mustBeDir */); err != nil {
 		return fmt.Errorf("failed to create parent directory of mountpoint %q: %w", target, err)
 	}
 
 	// Attempt to mkdir the final component. If a file (of any type) exists
 	// then we let allow mounting on top of that because we do not require the
 	// target to be an existing directory, unlike Linux mount(2).
-	if err := vfs.MkdirAt(ctx, creds, &PathOperation{
-		Root:  root,
-		Start: root,
-		Path:  fspath.Parse(target),
-	}, mkdirOpts); err != nil && !linuxerr.Equals(linuxerr.EEXIST, err) {
+	if err := vfs.MkdirAllAt(ctx, target, root, creds, mkdirOpts, false /* mustBeDir */); err != nil {
 		return fmt.Errorf("failed to create mountpoint %q: %w", target, err)
 	}
 	return nil
@@ -951,7 +957,7 @@ func (vfs *VirtualFilesystem) maybeBlockOnMountPromise(ctx context.Context, rp *
 		rp.start = newMnt.root
 		rp.flags = rp.flags&^rpflagsHaveStartRef | rpflagsHaveMountRef
 	case <-time.After(mountPromiseTimeout):
-		log.Warningf("mount promise for %s timed out, proceeding with VFS operation", path)
+		panic(fmt.Sprintf("mount promise for %s timed out, unable to proceed", path))
 	}
 }
 
@@ -964,6 +970,58 @@ func (vfs *VirtualFilesystem) maybeResolveMountPromise(vd VirtualDentry) {
 	}
 	wq.Notify(waiter.EventOut)
 	delete(vfs.mountPromises, vd)
+}
+
+// PopDelayedDecRefs transfers the ownership of vfs.toDecRef to the caller via
+// the returned list. It is the caller's responsibility to DecRef these object
+// later. They must be DecRef'd outside of mountMu.
+//
+// +checklocks:vfs.mountMu
+func (vfs *VirtualFilesystem) PopDelayedDecRefs() []refs.RefCounter {
+	var rcs []refs.RefCounter
+	for rc, refs := range vfs.toDecRef {
+		for i := 0; i < refs; i++ {
+			rcs = append(rcs, rc)
+		}
+	}
+	vfs.toDecRef = map[refs.RefCounter]int{}
+	return rcs
+}
+
+// delayDecRef saves a reference counted object so that it can be DecRef'd
+// outside of vfs.mountMu. This is necessary because filesystem locks possibly
+// taken by DentryImpl.DecRef() may precede vfs.mountMu in the lock order, and
+// Mount.DecRef() may lock vfs.mountMu.
+//
+// +checklocks:vfs.mountMu
+func (vfs *VirtualFilesystem) delayDecRef(rc refs.RefCounter) {
+	vfs.toDecRef[rc]++
+}
+
+// Use this instead of vfs.mountMu.Lock().
+//
+// +checklocksacquire:vfs.mountMu
+func (vfs *VirtualFilesystem) lockMounts() {
+	vfs.mountMu.Lock()
+}
+
+// Use this instead of vfs.mountMu.Unlock(). This method DecRefs any reference
+// counted objects that were collected while mountMu was held.
+//
+// +checklocksrelease:vfs.mountMu
+func (vfs *VirtualFilesystem) unlockMounts(ctx context.Context) {
+	if len(vfs.toDecRef) == 0 {
+		vfs.mountMu.Unlock()
+		return
+	}
+	toDecRef := vfs.toDecRef
+	vfs.toDecRef = map[refs.RefCounter]int{}
+	vfs.mountMu.Unlock()
+	for rc, refs := range toDecRef {
+		for i := 0; i < refs; i++ {
+			rc.DecRef(ctx)
+		}
+	}
 }
 
 // A VirtualDentry represents a node in a VFS tree, by combining a Dentry

@@ -283,9 +283,17 @@ func (d *Dentry) DecRef(ctx context.Context) {
 		refs.LogDecRef(d, r)
 	}
 	if r == 0 {
+		if d.inode.Anonymous() {
+			// Nothing to cache. Skip right to destroy. This avoids
+			// taking fs.mu in the DecRef() path for anonymous
+			// inodes.
+			d.destroy(ctx)
+			return
+		}
+
 		d.fs.mu.Lock()
+		defer d.fs.mu.Unlock()
 		d.cacheLocked(ctx)
-		d.fs.mu.Unlock()
 	} else if r < 0 {
 		panic("kernfs.Dentry.DecRef() called without holding a reference")
 	}
@@ -336,7 +344,10 @@ func (d *Dentry) cacheLocked(ctx context.Context) {
 	// as described in Inode.Getlink.
 	if isDead := d.VFSDentry().IsDead(); isDead || d.parent == nil {
 		if !isDead {
-			d.fs.vfsfs.VirtualFilesystem().InvalidateDentry(ctx, d.VFSDentry())
+			rcs := d.fs.vfsfs.VirtualFilesystem().InvalidateDentry(ctx, d.VFSDentry())
+			for _, rc := range rcs {
+				d.fs.deferDecRef(rc)
+			}
 		}
 		if d.cached {
 			d.fs.cachedDentries.Remove(d)
@@ -346,7 +357,10 @@ func (d *Dentry) cacheLocked(ctx context.Context) {
 		if d.isDeleted() {
 			d.inode.Watches().HandleDeletion(ctx)
 		}
-		d.destroyLocked(ctx)
+		d.destroy(ctx)
+		if d.parent != nil {
+			d.parent.decRefLocked(ctx)
+		}
 		return
 	}
 	if d.VFSDentry().IsEvictable() {
@@ -398,38 +412,39 @@ func (d *Dentry) evictLocked(ctx context.Context) {
 			d.parent.dirMu.Lock()
 			// Note that victim can't be a mount point (in any mount
 			// namespace), since VFS holds references on mount points.
-			d.fs.vfsfs.VirtualFilesystem().InvalidateDentry(ctx, d.VFSDentry())
+			rcs := d.fs.vfsfs.VirtualFilesystem().InvalidateDentry(ctx, d.VFSDentry())
+			for _, rc := range rcs {
+				d.fs.deferDecRef(rc)
+			}
 			delete(d.parent.children, d.name)
 			d.parent.dirMu.Unlock()
 		}
-		d.destroyLocked(ctx)
+		d.destroy(ctx)
+		if d.parent != nil {
+			d.parent.decRefLocked(ctx)
+		}
 	}
 }
 
-// destroyLocked destroys the dentry.
+// destroy destroys the dentry.
 //
 // Preconditions:
-//   - d.fs.mu must be locked for writing.
 //   - d.refs == 0.
 //   - d should have been removed from d.parent.children, i.e. d is not reachable
 //     by path traversal.
 //   - d.vfsd.IsDead() is true.
-func (d *Dentry) destroyLocked(ctx context.Context) {
+func (d *Dentry) destroy(ctx context.Context) {
 	switch refs := d.refs.Load(); refs {
 	case 0:
 		// Mark the dentry destroyed.
 		d.refs.Store(-1)
 	case -1:
-		panic("dentry.destroyLocked() called on already destroyed dentry")
+		panic("dentry.destroy() called on already destroyed dentry")
 	default:
-		panic("dentry.destroyLocked() called with references on the dentry")
+		panic("dentry.destroy() called with references on the dentry")
 	}
 
 	d.inode.DecRef(ctx) // IncRef from Init.
-
-	if d.parent != nil {
-		d.parent.decRefLocked(ctx)
-	}
 
 	refs.Unregister(d)
 }
@@ -514,12 +529,18 @@ func (d *Dentry) InotifyWithParent(ctx context.Context, events, cookie uint32, e
 		events |= linux.IN_ISDIR
 	}
 
-	d.fs.mu.RLock()
-	defer d.fs.mu.RUnlock()
-	// The ordering below is important, Linux always notifies the parent first.
-	if d.parent != nil {
-		d.parent.inode.Watches().Notify(ctx, d.name, events, cookie, et, d.isDeleted())
+	// Linux always notifies the parent first.
+
+	// Don't bother looking for a parent if the inode is anonymous. It
+	// won't have one.
+	if !d.inode.Anonymous() {
+		d.fs.mu.RLock()
+		if d.parent != nil {
+			d.parent.inode.Watches().Notify(ctx, d.name, events, cookie, et, d.isDeleted())
+		}
+		d.fs.mu.RUnlock()
 	}
+
 	d.inode.Watches().Notify(ctx, "", events, cookie, et, d.isDeleted())
 }
 
@@ -704,6 +725,10 @@ type Inode interface {
 
 	// Watches returns the set of inotify watches associated with this inode.
 	Watches() *vfs.Watches
+
+	// Anonymous indicates that the Inode is anonymous. It will never have
+	// a name or parent.
+	Anonymous() bool
 }
 
 type inodeRefs interface {

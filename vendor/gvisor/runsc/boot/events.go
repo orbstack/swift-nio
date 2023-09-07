@@ -15,6 +15,8 @@
 package boot
 
 import (
+	"errors"
+
 	"gvisor.dev/gvisor/pkg/sentry/control"
 	"gvisor.dev/gvisor/pkg/sentry/usage"
 )
@@ -81,25 +83,47 @@ type CPUUsage struct {
 }
 
 // Event gets the events from the container.
-func (cm *containerManager) Event(_ *struct{}, out *EventOut) error {
+func (cm *containerManager) Event(cid *string, out *EventOut) error {
 	*out = EventOut{
 		Event: Event{
+			ID:   *cid,
 			Type: "stats",
 		},
 	}
 
+	// PIDs and check that container exists before going further.
+	pids, err := cm.l.pidsCount(*cid)
+	if err != nil {
+		return err
+	}
+	out.Event.Data.Pids.Current = uint64(pids)
+
 	// Memory usage.
-	// TODO(gvisor.dev/issue/172): Per-container accounting.
 	mem := cm.l.k.MemoryFile()
-	_ = mem.UpdateUsage() // best effort to update.
+	_ = mem.UpdateUsage(0) // best effort to update.
 	_, totalUsage := usage.MemoryAccounting.Copy()
-	out.Event.Data.Memory.Usage = MemoryEntry{
-		Usage: totalUsage,
+	switch containers := cm.l.containerCount(); containers {
+	case 0:
+		return errors.New("no container was found")
+
+	case 1:
+		// There is a single container, so total usage can only come from it.
+
+	default:
+		// In the multi-container case, reports 0 for the root (pause) container,
+		// since it's small and idle. Then equally split the usage to the other
+		// containers. At least the sum of all containers will correctly account
+		// for the memory used by the sandbox.
+		//
+		// TODO(gvisor.dev/issue/172): Proper per-container accounting.
+		if *cid == cm.l.sandboxID {
+			totalUsage = 0
+		} else {
+			totalUsage /= uint64(containers - 1)
+		}
 	}
 
-	// PIDs.
-	// TODO(gvisor.dev/issue/172): Per-container accounting.
-	out.Event.Data.Pids.Current = uint64(len(cm.l.k.TaskSet().Root.ThreadGroups()))
+	out.Event.Data.Memory.Usage.Usage = totalUsage
 
 	// CPU usage by container.
 	out.ContainerUsage = control.ContainerUsage(cm.l.k)

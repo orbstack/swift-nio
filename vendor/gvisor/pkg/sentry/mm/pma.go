@@ -205,7 +205,8 @@ func (mm *MemoryManager) getPMAsInternalLocked(ctx context.Context, vseg vmaIter
 		}
 	}
 
-	opts := pgalloc.AllocOpts{Kind: usage.Anonymous, Dir: pgalloc.BottomUp}
+	memCgID := pgalloc.MemoryCgroupIDFromContext(ctx)
+	opts := pgalloc.AllocOpts{Kind: usage.Anonymous, Dir: pgalloc.BottomUp, MemCgID: memCgID}
 	vma := vseg.ValuePtr()
 	if uintptr(ar.Start) < atomic.LoadUintptr(&vma.lastFault) {
 		// Detect cases where memory is accessed downwards and change memory file
@@ -251,7 +252,7 @@ func (mm *MemoryManager) getPMAsInternalLocked(ctx context.Context, vseg vmaIter
 					}
 					mm.addRSSLocked(allocAR)
 					mm.incPrivateRef(fr)
-					mf.IncRef(fr)
+					mf.IncRef(fr, memCgID)
 					pseg, pgap = mm.pmas.Insert(pgap, allocAR, pma{
 						file:           mf,
 						off:            fr.Start,
@@ -307,7 +308,7 @@ func (mm *MemoryManager) getPMAsInternalLocked(ctx context.Context, vseg vmaIter
 							newpma.needCOW = true
 						}
 						mm.addRSSLocked(newpmaAR)
-						t.File.IncRef(t.FileRange())
+						t.File.IncRef(t.FileRange(), memCgID)
 						// This is valid because memmap.Mappable.Translate is
 						// required to return Translations in increasing
 						// Translation.Source order.
@@ -373,7 +374,12 @@ func (mm *MemoryManager) getPMAsInternalLocked(ctx context.Context, vseg vmaIter
 						return pstart, pseg.PrevGap(), err
 					}
 					// Copy contents.
-					fr, err := mf.AllocateAndFill(uint64(copyAR.Length()), usage.Anonymous, true /* populate */, &safemem.BlockSeqReader{mm.internalMappingsLocked(pseg, copyAR)})
+					fr, err := mf.Allocate(uint64(copyAR.Length()), pgalloc.AllocOpts{
+						Kind:    usage.Anonymous,
+						Mode:    pgalloc.AllocateAndWritePopulate,
+						MemCgID: memCgID,
+						Reader:  &safemem.BlockSeqReader{mm.internalMappingsLocked(pseg, copyAR)},
+					})
 					if _, ok := err.(safecopy.BusError); ok {
 						// If we got SIGBUS during the copy, deliver SIGBUS to
 						// userspace (instead of SIGSEGV) if we're breaking
@@ -404,7 +410,7 @@ func (mm *MemoryManager) getPMAsInternalLocked(ctx context.Context, vseg vmaIter
 					}
 					oldpma.file.DecRef(pseg.fileRange())
 					mm.incPrivateRef(fr)
-					mf.IncRef(fr)
+					mf.IncRef(fr, memCgID)
 					oldpma.file = mf
 					oldpma.off = fr.Start
 					oldpma.translatePerms = hostarch.AnyAccess
@@ -484,7 +490,7 @@ func (mm *MemoryManager) getPMAsInternalLocked(ctx context.Context, vseg vmaIter
 							newpma.maxPerms.Write = false
 							newpma.needCOW = true
 						}
-						t.File.IncRef(t.FileRange())
+						t.File.IncRef(t.FileRange(), memCgID)
 						pseg = mm.pmas.Insert(pgap, newpmaAR, newpma)
 						pgap = pseg.NextGap()
 					}
@@ -704,13 +710,14 @@ func (mm *MemoryManager) Pin(ctx context.Context, ar hostarch.AddrRange, at host
 		ar.End = pendaddr
 	}
 
+	memCgID := pgalloc.MemoryCgroupIDFromContext(ctx)
 	// Gather pmas.
 	var prs []PinnedRange
 	for pseg.Ok() && pseg.Start() < ar.End {
 		psar := pseg.Range().Intersect(ar)
 		f := pseg.ValuePtr().file
 		fr := pseg.fileRangeOf(psar)
-		f.IncRef(fr)
+		f.IncRef(fr, memCgID)
 		prs = append(prs, PinnedRange{
 			Source: psar,
 			File:   f,

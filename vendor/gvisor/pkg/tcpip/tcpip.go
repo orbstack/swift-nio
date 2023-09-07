@@ -359,6 +359,12 @@ func (m AddressMask) Prefix() int {
 	return p
 }
 
+// Equal returns whether m and other are equal. It exists for use by the cmp
+// library.
+func (m AddressMask) Equal(other AddressMask) bool {
+	return m == other
+}
+
 // Subnet is a subnet defined by its address and mask.
 type Subnet struct {
 	address Address
@@ -503,13 +509,16 @@ type FullAddress struct {
 	// This may not be used by all endpoint types.
 	NIC NICID
 
-	// Addr is the network or link layer address.
+	// Addr is the network address.
 	Addr Address
 
 	// Port is the transport port.
 	//
 	// This may not be used by all endpoint types.
 	Port uint16
+
+	// LinkAddr is the link layer address.
+	LinkAddr LinkAddress
 }
 
 // Payloader is an interface that provides data.
@@ -2145,6 +2154,11 @@ type TCPStats struct {
 
 	// SpuriousRTORecovery is the number of spurious RTOs.
 	SpuriousRTORecovery *StatCounter
+
+	// ForwardMaxInFlightDrop is the number of connection requests that are
+	// dropped due to exceeding the maximum number of in-flight connection
+	// requests.
+	ForwardMaxInFlightDrop *StatCounter
 }
 
 // UDPStats collects UDP-specific stats.
@@ -2505,7 +2519,7 @@ func clone(dst reflect.Value, src reflect.Value) {
 
 // String implements the fmt.Stringer interface.
 func (a Address) String() string {
-	switch a.Len() {
+	switch l := a.Len(); l {
 	case 4:
 		return fmt.Sprintf("%d.%d.%d.%d", int(a.addr[0]), int(a.addr[1]), int(a.addr[2]), int(a.addr[3]))
 	case 16:
@@ -2546,7 +2560,7 @@ func (a Address) String() string {
 		}
 		return b.String()
 	default:
-		return fmt.Sprintf("%x", a.addr[:])
+		return fmt.Sprintf("%x", a.addr[:l])
 	}
 }
 

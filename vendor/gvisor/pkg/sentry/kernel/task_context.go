@@ -23,6 +23,7 @@ import (
 	"gvisor.dev/gvisor/pkg/sentry/inet"
 	"gvisor.dev/gvisor/pkg/sentry/kernel/auth"
 	"gvisor.dev/gvisor/pkg/sentry/kernel/ipc"
+	"gvisor.dev/gvisor/pkg/sentry/kernel/shm"
 	ktime "gvisor.dev/gvisor/pkg/sentry/kernel/time"
 	"gvisor.dev/gvisor/pkg/sentry/limits"
 	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
@@ -72,7 +73,9 @@ func (t *Task) contextValue(key any, isTaskGoroutine bool) any {
 			t.mu.Lock()
 			defer t.mu.Unlock()
 		}
-		return t.utsns
+		utsns := t.utsns
+		utsns.IncRef()
+		return utsns
 	case ipc.CtxIPCNamespace:
 		if !isTaskGoroutine {
 			t.mu.Lock()
@@ -110,12 +113,16 @@ func (t *Task) contextValue(key any, isTaskGoroutine bool) any {
 		return func(sig linux.Signal) error {
 			return t.SendSignal(SignalInfoNoInfo(sig, t, t))
 		}
+	case pgalloc.CtxMemoryCgroupID:
+		return t.memCgID.Load()
 	case pgalloc.CtxMemoryFile:
 		return t.k.mf
 	case pgalloc.CtxMemoryFileProvider:
 		return t.k
 	case platform.CtxPlatform:
 		return t.k
+	case shm.CtxDeviceID:
+		return t.k.sysVShmDevID
 	case uniqueid.CtxGlobalUniqueID:
 		return t.k.UniqueID()
 	case uniqueid.CtxGlobalUniqueIDProvider:

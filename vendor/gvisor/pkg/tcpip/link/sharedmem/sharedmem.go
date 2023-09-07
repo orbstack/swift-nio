@@ -27,7 +27,7 @@ import (
 	"fmt"
 
 	"gvisor.dev/gvisor/pkg/atomicbitops"
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/eventfd"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sync"
@@ -133,7 +133,14 @@ type Options struct {
 	// VirtioNetHeaderRequired if true, indicates that all outbound packets should have
 	// a virtio header and inbound packets should have a virtio header as well.
 	VirtioNetHeaderRequired bool
+
+	// GSOMaxSize is the maximum GSO packet size. It is zero if GSO is
+	// disabled. Note that only gVisor GSO is supported, not host GSO.
+	GSOMaxSize uint32
 }
+
+var _ stack.LinkEndpoint = (*endpoint)(nil)
+var _ stack.GSOEndpoint = (*endpoint)(nil)
 
 type endpoint struct {
 	// mtu (maximum transmission unit) is the maximum size of a packet.
@@ -159,6 +166,11 @@ type endpoint struct {
 	// hdrSize is the size of the link layer header if any.
 	// hdrSize is immutable.
 	hdrSize uint32
+
+	// gSOMaxSize is the maximum GSO packet size. It is zero if GSO is
+	// disabled. Note that only gVisor GSO is supported, not host GSO.
+	// gsoMaxSize is immutable.
+	gsoMaxSize uint32
 
 	// virtioNetHeaderRequired if true indicates that a virtio header is expected
 	// in all inbound/outbound packets.
@@ -202,6 +214,7 @@ func New(opts Options) (stack.LinkEndpoint, error) {
 		peerFD:                  opts.PeerFD,
 		onClosed:                opts.OnClosed,
 		virtioNetHeaderRequired: opts.VirtioNetHeaderRequired,
+		gsoMaxSize:              opts.GSOMaxSize,
 	}
 
 	if err := e.tx.init(opts.BufferSize, &opts.TX); err != nil {
@@ -341,6 +354,21 @@ func (e *endpoint) AddHeader(pkt stack.PacketBufferPtr) {
 	})
 }
 
+func (e *endpoint) parseHeader(pkt stack.PacketBufferPtr) bool {
+	_, ok := pkt.LinkHeader().Consume(header.EthernetMinimumSize)
+	return ok
+}
+
+// ParseHeader implements stack.LinkEndpoint.ParseHeader.
+func (e *endpoint) ParseHeader(pkt stack.PacketBufferPtr) bool {
+	// Add ethernet header if needed.
+	if len(e.addr) == 0 {
+		return true
+	}
+
+	return e.parseHeader(pkt)
+}
+
 func (e *endpoint) AddVirtioNetHeader(pkt stack.PacketBufferPtr) {
 	virtio := header.VirtioNetHeader(pkt.VirtioNetHeader().Push(header.VirtioNetHeaderSize))
 	virtio.Encode(&header.VirtioNetHeaderFields{})
@@ -411,7 +439,7 @@ func (e *endpoint) dispatchLoop(d stack.NetworkDispatcher) {
 
 		// Copy data from the shared area to its own buffer, then
 		// prepare to repost the buffer.
-		v := bufferv2.NewView(int(n))
+		v := buffer.NewView(int(n))
 		v.Grow(int(n))
 		offset := uint32(0)
 		for i := range rxb {
@@ -422,7 +450,7 @@ func (e *endpoint) dispatchLoop(d stack.NetworkDispatcher) {
 		}
 
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-			Payload: bufferv2.MakeWithView(v),
+			Payload: buffer.MakeWithView(v),
 		})
 
 		if e.virtioNetHeaderRequired {
@@ -434,13 +462,12 @@ func (e *endpoint) dispatchLoop(d stack.NetworkDispatcher) {
 		}
 
 		var proto tcpip.NetworkProtocolNumber
-		if e.addr != "" {
-			hdr, ok := pkt.LinkHeader().Consume(header.EthernetMinimumSize)
-			if !ok {
+		if len(e.addr) != 0 {
+			if !e.parseHeader(pkt) {
 				pkt.DecRef()
 				continue
 			}
-			proto = header.Ethernet(hdr).Type()
+			proto = header.Ethernet(pkt.LinkHeader().Slice()).Type()
 		} else {
 			// We don't get any indication of what the packet is, so try to guess
 			// if it's an IPv4 or IPv6 packet.
@@ -479,4 +506,14 @@ func (e *endpoint) dispatchLoop(d stack.NetworkDispatcher) {
 // ARPHardwareType implements stack.LinkEndpoint.ARPHardwareType
 func (*endpoint) ARPHardwareType() header.ARPHardwareType {
 	return header.ARPHardwareEther
+}
+
+// GSOMaxSize implements stack.GSOEndpoint.
+func (e *endpoint) GSOMaxSize() uint32 {
+	return e.gsoMaxSize
+}
+
+// SupportsGSO implements stack.GSOEndpoint.
+func (e *endpoint) SupportedGSO() stack.SupportedGSO {
+	return stack.GvisorGSOSupported
 }

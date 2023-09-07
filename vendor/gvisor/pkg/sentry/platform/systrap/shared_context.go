@@ -17,10 +17,13 @@ package systrap
 import (
 	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/sys/unix"
+	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sentry/platform"
 	"gvisor.dev/gvisor/pkg/sentry/platform/systrap/sysmsg"
 	"gvisor.dev/gvisor/pkg/syncevent"
@@ -59,6 +62,11 @@ type sharedContext struct {
 	kicked         bool
 	// The task associated with the context fell asleep.
 	sleeping bool
+}
+
+// String returns the ID of this shared context.
+func (sc *sharedContext) String() string {
+	return strconv.Itoa(int(sc.contextID))
 }
 
 const (
@@ -164,16 +172,12 @@ func (sc *sharedContext) threadID() uint32 {
 
 // EnableSentryFastPath indicates that the polling mode is enabled for the
 // Sentry. It has to be called before putting the context into the context queue.
-// This function is used if contextDecouplingExp=true because the fastpath
-// is negotiated in ThreadContext.
 func (sc *sharedContext) enableSentryFastPath() {
 	atomic.StoreUint32(&sc.shared.SentryFastPath, 1)
 }
 
 // DisableSentryFastPath indicates that the polling mode for the sentry is
 // disabled for the Sentry.
-// This function is used if contextDecouplingExp=true because the fastpath
-// is negotiated in ThreadContext.
 func (sc *sharedContext) disableSentryFastPath() {
 	atomic.StoreUint32(&sc.shared.SentryFastPath, 0)
 }
@@ -186,9 +190,42 @@ func (sc *sharedContext) resetAcked() {
 	atomic.StoreUint32(&sc.shared.Acked, ackReset)
 }
 
+const (
+	contextPreemptTimeoutNsec = 10 * 1000 * 1000 // 10ms
+	contextCheckupTimeoutSec  = 5
+	stuckContextTimeout       = 30 * time.Second
+)
+
 func (sc *sharedContext) sleepOnState(state sysmsg.ContextState) {
-	if errno := sc.shared.SleepOnState(state, sc); errno != 0 {
-		panic(fmt.Sprintf("error waiting for state: %v", errno))
+	timeout := unix.Timespec{
+		Sec:  0,
+		Nsec: contextPreemptTimeoutNsec,
+	}
+	sentInterruptOnce := false
+	deadline := time.Now().Add(stuckContextTimeout)
+	for sc.state() == state {
+		errno := sc.shared.SleepOnState(state, &timeout)
+		if errno == 0 {
+			continue
+		}
+		if errno != unix.ETIMEDOUT {
+			panic(fmt.Sprintf("error waiting for state: %v", errno))
+		}
+		if time.Now().After(deadline) {
+			log.Warningf("Systrap task goroutine has been waiting on ThreadContext.State futex too long. ThreadContext: %v", sc)
+		}
+		if sentInterruptOnce {
+			log.Warningf("The context is still running: %v", sc)
+			continue
+		}
+
+		if !sc.isAcked() || sc.subprocess.contextQueue.isEmpty() {
+			continue
+		}
+		sc.NotifyInterrupt()
+		sentInterruptOnce = true
+		timeout.Sec = contextCheckupTimeoutSec
+		timeout.Nsec = 0
 	}
 }
 
@@ -210,11 +247,6 @@ type fastPathDispatcher struct {
 	// fastPathDisabledTS is the time stamp when the stub fast path was
 	// disabled. It is zero if the fast path is enabled.
 	fastPathDisabledTS atomic.Uint64
-
-	subprocessListMu sync.Mutex
-	// subprocessList contains subprocesses with at least one awake context.
-	// +checklocks:subprocessListMu
-	subprocessList subprocessList
 }
 
 var dispatcher fastPathDispatcher
@@ -256,27 +288,7 @@ func (q *fastPathDispatcher) stubFastPathEnabled() bool {
 // disableStubFastPath disables the fast path over all subprocesses with active
 // contexts.
 func (q *fastPathDispatcher) disableStubFastPath() {
-	q.subprocessListMu.Lock()
-	defer q.subprocessListMu.Unlock()
-
-	for s := q.subprocessList.Front(); s != nil; s = s.Next() {
-		s.contextQueue.disableFastPath()
-	}
 	q.fastPathDisabledTS.Store(uint64(cputicks()))
-}
-
-func (q *fastPathDispatcher) activateSubprocess(s *subprocess) {
-	q.subprocessListMu.Lock()
-	defer q.subprocessListMu.Unlock()
-
-	q.subprocessList.PushBack(s)
-}
-
-func (q *fastPathDispatcher) deactivateSubprocess(s *subprocess) {
-	q.subprocessListMu.Lock()
-	defer q.subprocessListMu.Unlock()
-
-	q.subprocessList.Remove(s)
 }
 
 // deep_sleep_timeout is the timeout after which we stops polling and fall asleep.

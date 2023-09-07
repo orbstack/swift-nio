@@ -19,7 +19,7 @@ package sharedmem
 
 import (
 	"gvisor.dev/gvisor/pkg/atomicbitops"
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -217,6 +217,21 @@ func (e *serverEndpoint) AddHeader(pkt stack.PacketBufferPtr) {
 	})
 }
 
+func (e *serverEndpoint) parseHeader(pkt stack.PacketBufferPtr) bool {
+	_, ok := pkt.LinkHeader().Consume(header.EthernetMinimumSize)
+	return ok
+}
+
+// ParseHeader implements stack.LinkEndpoint.ParseHeader.
+func (e *serverEndpoint) ParseHeader(pkt stack.PacketBufferPtr) bool {
+	// Add ethernet header if needed.
+	if len(e.addr) == 0 {
+		return true
+	}
+
+	return e.parseHeader(pkt)
+}
+
 func (e *serverEndpoint) AddVirtioNetHeader(pkt stack.PacketBufferPtr) {
 	virtio := header.VirtioNetHeader(pkt.VirtioNetHeader().Push(header.VirtioNetHeaderSize))
 	virtio.Encode(&header.VirtioNetHeaderFields{})
@@ -294,7 +309,7 @@ func (e *serverEndpoint) dispatchLoop(d stack.NetworkDispatcher) {
 			}
 		}
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-			Payload: bufferv2.MakeWithView(b),
+			Payload: buffer.MakeWithView(b),
 		})
 		if e.virtioNetHeaderRequired {
 			_, ok := pkt.VirtioNetHeader().Consume(header.VirtioNetHeaderSize)
@@ -304,13 +319,12 @@ func (e *serverEndpoint) dispatchLoop(d stack.NetworkDispatcher) {
 			}
 		}
 		var proto tcpip.NetworkProtocolNumber
-		if e.addr != "" {
-			hdr, ok := pkt.LinkHeader().Consume(header.EthernetMinimumSize)
-			if !ok {
+		if len(e.addr) != 0 {
+			if !e.parseHeader(pkt) {
 				pkt.DecRef()
 				continue
 			}
-			proto = header.Ethernet(hdr).Type()
+			proto = header.Ethernet(pkt.LinkHeader().Slice()).Type()
 		} else {
 			// We don't get any indication of what the packet is, so try to guess
 			// if it's an IPv4 or IPv6 packet.

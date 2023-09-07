@@ -181,6 +181,8 @@ func NewFloat(val float64) *Number {
 // IsInteger returns whether this number contains an integer value.
 // This is defined as either having the `Float` part set to zero (in which case the `Int` part takes
 // precedence), or having `Float` be a value equal to its own rounding and not a special float.
+//
+//go:nosplit
 func (n *Number) IsInteger() bool {
 	if n.Float == 0 {
 		return true
@@ -189,6 +191,19 @@ func (n *Number) IsInteger() bool {
 		return false
 	}
 	return n.Float < float64(math.MaxInt64) && n.Float > float64(math.MinInt64) && math.Round(n.Float) == n.Float
+}
+
+// ToFloat returns this number as a floating-point number, regardless of which
+// type the number was encoded as. An integer Number will have its value cast
+// to a float, while a floating-point Number will have its value returned
+// as-is.
+//
+//go:nosplit
+func (n *Number) ToFloat() float64 {
+	if n.Int != 0 {
+		return float64(n.Int)
+	}
+	return n.Float
 }
 
 // String returns a string representation of this number.
@@ -202,6 +217,8 @@ func (n *Number) String() string {
 
 // SameType returns true if `n` and `other` are either both floating-point or both integers.
 // If a `Number` is zero, it is considered of the same type as any other zero `Number`.
+//
+//go:nosplit
 func (n *Number) SameType(other *Number) bool {
 	// Within `n` and `other`, at least one of `Int` or `Float` must be set to zero.
 	// Therefore, this verifies that there is at least one shared zero between the two.
@@ -210,6 +227,8 @@ func (n *Number) SameType(other *Number) bool {
 
 // GreaterThan returns true if n > other.
 // Precondition: n.SameType(other) is true. Panics otherwise.
+//
+//go:nosplit
 func (n *Number) GreaterThan(other *Number) bool {
 	if !n.SameType(other) {
 		panic("tried to compare two numbers of different types")
@@ -220,8 +239,10 @@ func (n *Number) GreaterThan(other *Number) bool {
 	return n.Float > other.Float
 }
 
-// writeInteger writes the given integer to a writer without allocating strings.
-func writeInteger(w io.Writer, val int64) (int, error) {
+// WriteInteger writes the given integer to a writer without allocating strings.
+//
+//go:nosplit
+func WriteInteger(w io.Writer, val int64) (int, error) {
 	const decimalDigits = "0123456789"
 	if val == 0 {
 		return io.WriteString(w, decimalDigits[0:1])
@@ -260,7 +281,7 @@ func (n *Number) writeTo(w io.Writer) error {
 
 	// Integer case:
 	case n.Int != 0:
-		_, err := writeInteger(w, n.Int)
+		_, err := WriteInteger(w, n.Int)
 		return err
 
 	// Special float cases:
@@ -298,6 +319,12 @@ type Bucket struct {
 type Histogram struct {
 	// Total is the sum of sample values across all buckets.
 	Total Number `json:"total"`
+	// Min is the minimum sample ever recorded in this histogram.
+	Min Number `json:"min"`
+	// Max is the maximum sample ever recorded in this histogram.
+	Max Number `json:"max"`
+	// SumOfSquaredDeviations is the number of squared deviations of all samples.
+	SumOfSquaredDeviations Number `json:"ssd"`
 	// Buckets contains per-bucket data.
 	// A distribution with n finite-boundary buckets should have n+2 entries here.
 	// The 0th entry is the underflow bucket (i.e. the one with -inf as lower bound),
@@ -728,7 +755,7 @@ func (d *Data) writeMetricLine(w io.Writer, metricSuffix string, val *Number, wh
 	if _, err := io.WriteString(w, " "); err != nil {
 		return err
 	}
-	if _, err := writeInteger(w, when.UnixMilli()); err != nil {
+	if _, err := WriteInteger(w, when.UnixMilli()); err != nil {
 		return err
 	}
 	if _, err := io.WriteString(w, "\n"); err != nil {
@@ -762,6 +789,15 @@ func (d *Data) writeTo(w io.Writer, when time.Time, options SnapshotExportOption
 		}
 		samples.Int = int64(numSamples)
 		if err := d.writeMetricLine(w, "_count", &samples, when, options, nil, metricsWritten); err != nil {
+			return err
+		}
+		if err := d.writeMetricLine(w, "_min", &d.HistogramValue.Min, when, options, nil, metricsWritten); err != nil {
+			return err
+		}
+		if err := d.writeMetricLine(w, "_max", &d.HistogramValue.Max, when, options, nil, metricsWritten); err != nil {
+			return err
+		}
+		if err := d.writeMetricLine(w, "_ssd", &d.HistogramValue.SumOfSquaredDeviations, when, options, nil, metricsWritten); err != nil {
 			return err
 		}
 		// Empty line after the histogram.

@@ -141,10 +141,6 @@ func (fd *regularFileFD) PRead(ctx context.Context, dst usermem.IOSequence, offs
 		readErr error
 	)
 	if fd.vfsfd.StatusFlags()&linux.O_DIRECT != 0 {
-		// Lock d.metadataMu for the rest of the read to prevent d.size from
-		// changing.
-		d.metadataMu.Lock()
-		defer d.metadataMu.Unlock()
 		// Write dirty cached pages that will be touched by the read back to
 		// the remote file.
 		if err := d.writeback(ctx, offset, dst.NumBytes()); err != nil {
@@ -439,7 +435,7 @@ func (rw *dentryReadWriter) ReadToBlocks(dsts safemem.BlockSeq) (uint64, error) 
 					End:   gapEnd,
 				}
 				optMR := gap.Range()
-				_, err := rw.d.cache.Fill(rw.ctx, reqMR, maxFillRange(reqMR, optMR), rw.d.size.Load(), mf, usage.PageCache, true /* populate */, h.readToBlocksAt)
+				_, err := rw.d.cache.Fill(rw.ctx, reqMR, maxFillRange(reqMR, optMR), rw.d.size.Load(), mf, usage.PageCache, pgalloc.AllocateAndWritePopulate, h.readToBlocksAt)
 				mf.MarkEvictable(rw.d, pgalloc.EvictableRange{optMR.Start, optMR.End})
 				seg, gap = rw.d.cache.Find(rw.off)
 				if !seg.Ok() {
@@ -798,7 +794,7 @@ func (d *dentry) Translate(ctx context.Context, required, optional memmap.Mappab
 
 	mf := d.fs.mfp.MemoryFile()
 	h := d.readHandle()
-	_, cerr := d.cache.Fill(ctx, required, maxFillRange(required, optional), d.size.Load(), mf, usage.PageCache, true /* populate */, h.readToBlocksAt)
+	_, cerr := d.cache.Fill(ctx, required, maxFillRange(required, optional), d.size.Load(), mf, usage.PageCache, pgalloc.AllocateAndWritePopulate, h.readToBlocksAt)
 
 	var ts []memmap.Translation
 	var translatedEnd uint64
@@ -935,9 +931,9 @@ type dentryPlatformFile struct {
 }
 
 // IncRef implements memmap.File.IncRef.
-func (d *dentryPlatformFile) IncRef(fr memmap.FileRange) {
+func (d *dentryPlatformFile) IncRef(fr memmap.FileRange, memCgID uint32) {
 	d.dataMu.Lock()
-	d.fdRefs.IncRefAndAccount(fr)
+	d.fdRefs.IncRefAndAccount(fr, memCgID)
 	d.dataMu.Unlock()
 }
 

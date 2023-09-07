@@ -45,6 +45,7 @@ import (
 	"gvisor.dev/gvisor/pkg/sentry/control"
 	"gvisor.dev/gvisor/pkg/sentry/platform"
 	"gvisor.dev/gvisor/pkg/sentry/seccheck"
+	"gvisor.dev/gvisor/pkg/state/statefile"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/urpc"
 	"gvisor.dev/gvisor/runsc/boot"
@@ -186,16 +187,16 @@ type Sandbox struct {
 	//
 	// This field isn't saved to json, because only a creator of sandbox
 	// will have it as a child process.
-	child bool
+	child bool `nojson:"true"`
 
 	// statusMu protects status.
-	statusMu sync.Mutex
+	statusMu sync.Mutex `nojson:"true"`
 
 	// status is the exit status of a sandbox process. It's only set if the
 	// child==true and the sandbox was waited on. This field allows for multiple
 	// threads to wait on sandbox and get the exit code, since Linux will return
 	// WaitStatus to one of the waiters only.
-	status unix.WaitStatus
+	status unix.WaitStatus `nojson:"true"`
 }
 
 // Getpid returns the process ID of the sandbox process.
@@ -233,7 +234,7 @@ type Args struct {
 	// OverlayMediums contains information about how the gofer mounts have been
 	// overlaid. The first entry is for rootfs and the following entries are for
 	// bind mounts in Spec.Mounts (in the same order).
-	OverlayMediums []boot.OverlayMedium
+	OverlayMediums boot.OverlayMediumFlags
 
 	// MountHints provides extra information about containers mounts that apply
 	// to the entire pod.
@@ -374,7 +375,7 @@ func (s *Sandbox) CreateSubcontainer(conf *config.Config, cid string, tty *os.Fi
 }
 
 // StartRoot starts running the root container process inside the sandbox.
-func (s *Sandbox) StartRoot(spec *specs.Spec, conf *config.Config) error {
+func (s *Sandbox) StartRoot(conf *config.Config) error {
 	pid := s.Pid.load()
 	log.Debugf("Start root sandbox %q, PID: %d", s.ID, pid)
 	conn, err := s.sandboxConnect()
@@ -431,7 +432,7 @@ func (s *Sandbox) StartSubcontainer(spec *specs.Spec, conf *config.Config, cid s
 }
 
 // Restore sends the restore call for a container in the sandbox.
-func (s *Sandbox) Restore(cid string, spec *specs.Spec, conf *config.Config, filename string) error {
+func (s *Sandbox) Restore(conf *config.Config, cid string, filename string) error {
 	log.Debugf("Restore sandbox %q", s.ID)
 
 	rf, err := os.Open(filename)
@@ -577,12 +578,9 @@ func (s *Sandbox) Execute(conf *config.Config, args *control.ExecArgs) (int32, e
 func (s *Sandbox) Event(cid string) (*boot.EventOut, error) {
 	log.Debugf("Getting events for container %q in sandbox %q", cid, s.ID)
 	var e boot.EventOut
-	// TODO(b/129292330): Pass in the container id (cid) here. The sandbox
-	// should return events only for that container.
-	if err := s.call(boot.ContMgrEvent, nil, &e); err != nil {
+	if err := s.call(boot.ContMgrEvent, &cid, &e); err != nil {
 		return nil, fmt.Errorf("retrieving event data from sandbox: %w", err)
 	}
-	e.Event.ID = cid
 	return &e, nil
 }
 
@@ -686,6 +684,9 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 			return err
 		}
 	}
+	if err := donations.DonateDebugLogFile("profiling-metrics-fd", conf.ProfilingMetricsLog, "metrics", test); err != nil {
+		return err
+	}
 
 	// Relay all the config flags to the sandbox process.
 	cmd := exec.Command(specutils.ExePath, conf.ToFlags()...)
@@ -707,6 +708,12 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 	//
 	// All flags after this must be for the boot command
 	cmd.Args = append(cmd.Args, "boot", "--bundle="+args.BundleDir)
+
+	// Clear environment variables, unless --TESTONLY-unsafe-nonroot is set.
+	if !conf.TestOnlyAllowRunAsCurrentUserWithoutChroot {
+		// Setting cmd.Env = nil causes cmd to inherit the current process's env.
+		cmd.Env = []string{}
+	}
 
 	// If there is a gofer, sends all socket ends to the sandbox.
 	donations.DonateAndClose("io-fds", args.IOFiles...)
@@ -734,7 +741,7 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 	}
 
 	// Pass overlay mediums.
-	cmd.Args = append(cmd.Args, "--overlay-mediums="+boot.ToOverlayMediumFlags(args.OverlayMediums))
+	cmd.Args = append(cmd.Args, "--overlay-mediums="+args.OverlayMediums.String())
 
 	// Create a socket for the control server and donate it to the sandbox.
 	controlAddress, sockFD, err := createControlSocket(conf.RootDir, s.ID)
@@ -816,7 +823,7 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 	// filesystem is required. These features require to run inside the user
 	// namespace specified in the spec or the current namespace if none is
 	// configured.
-	rootlessEUID := unix.Getuid() != 0
+	rootlessEUID := unix.Geteuid() != 0
 	setUserMappings := false
 	if conf.Network == config.NetworkHost || conf.DirectFS {
 		if userns, ok := specutils.GetNS(specs.UserNamespace, args.Spec); ok {
@@ -972,11 +979,13 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 	// because it relies on stdin being the next FD donated.
 	donations.Donate("stdio-fds", stdios[:]...)
 
-	mem, err := totalSystemMemory()
+	totalSysMem, err := totalSystemMemory()
 	if err != nil {
 		return err
 	}
+	cmd.Args = append(cmd.Args, "--total-host-memory", strconv.FormatUint(totalSysMem, 10))
 
+	mem := totalSysMem
 	if s.CgroupJSON.Cgroup != nil {
 		cpuNum, err := s.CgroupJSON.Cgroup.NumCPU()
 		if err != nil {
@@ -1212,9 +1221,10 @@ func (s *Sandbox) SignalProcess(cid string, pid int32, sig unix.Signal, fgProces
 
 // Checkpoint sends the checkpoint call for a container in the sandbox.
 // The statefile will be written to f.
-func (s *Sandbox) Checkpoint(cid string, f *os.File) error {
-	log.Debugf("Checkpoint sandbox %q", s.ID)
+func (s *Sandbox) Checkpoint(cid string, f *os.File, options statefile.Options) error {
+	log.Debugf("Checkpoint sandbox %q, options %+v", s.ID, options)
 	opt := control.SaveOpts{
+		Metadata: options.WriteToMetadata(map[string]string{}),
 		FilePayload: urpc.FilePayload{
 			Files: []*os.File{f},
 		},
@@ -1576,7 +1586,7 @@ func ConfigureCmdForRootless(cmd *exec.Cmd, donations *donation.Agency) (*os.Fil
 	if err != nil {
 		return nil, err
 	}
-	f := os.NewFile(uintptr(fds[1]), "sync other FD")
+	f := os.NewFile(uintptr(fds[1]), "userns sync other FD")
 	donations.DonateAndClose("sync-userns-fd", f)
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &unix.SysProcAttr{}
@@ -1597,7 +1607,7 @@ func ConfigureCmdForRootless(cmd *exec.Cmd, donations *donation.Agency) (*os.Fil
 		// Needed to be able to clear bounding set (PR_CAPBSET_DROP).
 		unix.CAP_SETPCAP,
 	}
-	return os.NewFile(uintptr(fds[0]), "sync FD"), nil
+	return os.NewFile(uintptr(fds[0]), "userns sync FD"), nil
 }
 
 // SetUserMappings uses newuidmap/newgidmap programs to set up user ID mappings

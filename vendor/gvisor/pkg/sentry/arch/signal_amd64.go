@@ -24,8 +24,10 @@ import (
 	"gvisor.dev/gvisor/pkg/abi/linux"
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/cpuid"
+	"gvisor.dev/gvisor/pkg/errors/linuxerr"
 	"gvisor.dev/gvisor/pkg/hostarch"
 	"gvisor.dev/gvisor/pkg/marshal/primitive"
+	"gvisor.dev/gvisor/pkg/sentry/arch/fpu"
 	"gvisor.dev/gvisor/pkg/usermem"
 )
 
@@ -83,35 +85,6 @@ type UContext64 struct {
 	Sigset   linux.SignalSet
 }
 
-// FPSoftwareFrame is equivalent to struct _fpx_sw_bytes, the data stored by
-// Linux in bytes 464:511 of the fxsave/xsave frame.
-//
-// +marshal
-type FPSoftwareFrame struct {
-	Magic1       uint32
-	ExtendedSize uint32
-	Xfeatures    uint64
-	XstateSize   uint32
-	Padding      [7]uint32
-}
-
-// From Linux's arch/x86/include/uapi/asm/sigcontext.h.
-const (
-	// Value of FPSoftwareFrame.Magic1.
-	_FP_XSTATE_MAGIC1 = 0x46505853
-
-	// Value written to the 4 bytes inserted by Linux after the fxsave/xsave
-	// area in the signal frame.
-	_FP_XSTATE_MAGIC2      = 0x46505845
-	_FP_XSTATE_MAGIC2_SIZE = 4
-)
-
-// From Linux's arch/x86/include/asm/fpu/types.h.
-const (
-	// xsave features that are always enabled in signal frame fpstate.
-	_XFEATURE_MASK_FPSSE = 0x3
-)
-
 // SignalSetup implements Context.SignalSetup. (Compare to Linux's
 // arch/x86/kernel/signal.c:__setup_rt_frame().)
 func (c *Context64) SignalSetup(st *Stack, act *linux.SigAction, info *linux.SignalInfo, alt *linux.SignalStack, sigset linux.SignalSet, featureSet cpuid.FeatureSet) error {
@@ -129,12 +102,9 @@ func (c *Context64) SignalSetup(st *Stack, act *linux.SigAction, info *linux.Sig
 	}
 
 	// Allocate space for floating point state on the stack.
-	fpSize, fpAlign := featureSet.ExtendedStateSize()
-	if fpSize < 512 {
-		// We expect support for at least FXSAVE.
-		fpSize = 512
-	}
-	fpSize += _FP_XSTATE_MAGIC2_SIZE
+	_, fpAlign := featureSet.ExtendedStateSize()
+	fpState := c.fpState.Slice()
+	fpSize := len(fpState) + fpu.FP_XSTATE_MAGIC2_SIZE
 	fpStart := (sp - hostarch.Addr(fpSize)) & ^hostarch.Addr(fpAlign-1)
 
 	// Construct the UContext64 now since we need its size.
@@ -197,26 +167,26 @@ func (c *Context64) SignalSetup(st *Stack, act *linux.SigAction, info *linux.Sig
 
 	// Set up floating point state on the stack. Compare Linux's
 	// arch/x86/kernel/fpu/signal.c:copy_fpstate_to_sigframe().
-	if _, err := st.IO.CopyOut(context.Background(), fpStart, c.fpState[:464], usermem.IOOpts{}); err != nil {
+	if _, err := st.IO.CopyOut(context.Background(), fpStart, fpState[:fpu.FP_SW_FRAME_OFFSET], usermem.IOOpts{}); err != nil {
 		return err
 	}
-	fpsw := FPSoftwareFrame{
-		Magic1:       _FP_XSTATE_MAGIC1,
+	fpsw := fpu.FPSoftwareFrame{
+		Magic1:       fpu.FP_XSTATE_MAGIC1,
 		ExtendedSize: uint32(fpSize),
-		Xfeatures:    _XFEATURE_MASK_FPSSE | featureSet.ValidXCR0Mask(),
-		XstateSize:   uint32(fpSize) - _FP_XSTATE_MAGIC2_SIZE,
+		Xfeatures:    fpu.XFEATURE_MASK_FPSSE | featureSet.ValidXCR0Mask(),
+		XstateSize:   uint32(fpSize) - fpu.FP_XSTATE_MAGIC2_SIZE,
 	}
 	st.Bottom = fpStart + 512
 	if _, err := fpsw.CopyOut(st, StackBottomMagic); err != nil {
 		return err
 	}
-	if len(c.fpState) > 512 {
-		if _, err := st.IO.CopyOut(context.Background(), fpStart+512, c.fpState[512:], usermem.IOOpts{}); err != nil {
+	if len(fpState) > 512 {
+		if _, err := st.IO.CopyOut(context.Background(), fpStart+512, fpState[512:], usermem.IOOpts{}); err != nil {
 			return err
 		}
 	}
 	st.Bottom = fpStart + hostarch.Addr(fpSize)
-	if _, err := primitive.CopyUint32Out(st, StackBottomMagic, _FP_XSTATE_MAGIC2); err != nil {
+	if _, err := primitive.CopyUint32Out(st, StackBottomMagic, fpu.FP_XSTATE_MAGIC2); err != nil {
 		return err
 	}
 
@@ -304,7 +274,28 @@ func (c *Context64) SignalRestore(st *Stack, rt bool, featureSet cpuid.FeatureSe
 	if uc.MContext.Fpstate == 0 {
 		c.fpState.Reset()
 	} else {
-		if _, err := st.IO.CopyIn(context.Background(), hostarch.Addr(uc.MContext.Fpstate), c.fpState, usermem.IOOpts{}); err != nil {
+		fpsw := fpu.FPSoftwareFrame{}
+		st.Bottom = hostarch.Addr(uc.MContext.Fpstate + fpu.FP_SW_FRAME_OFFSET)
+		if _, err := fpsw.CopyIn(st, StackBottomMagic); err != nil {
+			c.fpState.Reset()
+			return 0, linux.SignalStack{}, err
+		}
+		if fpsw.Magic1 != fpu.FP_XSTATE_MAGIC1 ||
+			fpsw.XstateSize < fpu.FXSAVE_AREA_SIZE ||
+			fpsw.XstateSize > fpsw.ExtendedSize {
+			c.fpState.Reset()
+			return 0, linux.SignalStack{}, linuxerr.EFAULT
+		}
+
+		fpState := c.fpState.Slice()
+		fpSize := fpsw.XstateSize
+		if int(fpSize) < len(fpState) {
+			// The signal frame FPU state is smaller than expected. This can happen after S/R.
+			c.fpState.Reset()
+			fpState = fpState[:fpSize]
+		}
+
+		if _, err := st.IO.CopyIn(context.Background(), hostarch.Addr(uc.MContext.Fpstate), fpState, usermem.IOOpts{}); err != nil {
 			c.fpState.Reset()
 			return 0, linux.SignalStack{}, err
 		}

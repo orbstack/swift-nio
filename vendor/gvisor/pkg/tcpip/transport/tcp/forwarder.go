@@ -96,6 +96,7 @@ func (f *Forwarder) HandlePacket(id stack.TransportEndpointID, pkt stack.PacketB
 
 	// Ignore the segment if we're beyond the limit.
 	if len(f.inFlight) >= f.maxInFlight {
+		f.stack.Stats().TCP.ForwardMaxInFlightDrop.Increment()
 		return true
 	}
 

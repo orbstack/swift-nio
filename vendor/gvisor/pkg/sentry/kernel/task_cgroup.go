@@ -25,13 +25,18 @@ import (
 )
 
 // EnterInitialCgroups moves t into an initial set of cgroups.
+// If initCgroups is not nil, the new task will be placed in the specified cgroups.
+// Otherwise, if parent is not nil, the new task will be placed in the parent's cgroups.
+// If neither is specified, the new task will be in the root cgroups.
 //
 // This is analogous to Linux's kernel/cgroup/cgroup.c:cgroup_css_set_fork().
 //
 // Precondition: t isn't in any cgroups yet, t.cgroups is empty.
-func (t *Task) EnterInitialCgroups(parent *Task) {
+func (t *Task) EnterInitialCgroups(parent *Task, initCgroups map[Cgroup]struct{}) {
 	var inherit map[Cgroup]struct{}
-	if parent != nil {
+	if initCgroups != nil {
+		inherit = initCgroups
+	} else if parent != nil {
 		parent.mu.Lock()
 		defer parent.mu.Unlock()
 		inherit = parent.cgroups
@@ -46,6 +51,33 @@ func (t *Task) EnterInitialCgroups(parent *Task) {
 		// Since t isn't in any cgroup yet, we can skip the check against
 		// existing cgroups.
 		c.Enter(t)
+		t.SetMemCgIDFromCgroup(c)
+	}
+}
+
+// SetMemCgID sets the given memory cgroup id to the task.
+func (t *Task) SetMemCgID(memCgID uint32) {
+	t.memCgID.Store(memCgID)
+}
+
+// SetMemCgIDFromCgroup sets the id of the given memory cgroup to the task.
+func (t *Task) SetMemCgIDFromCgroup(cg Cgroup) {
+	for _, ctl := range cg.Controllers() {
+		if ctl.Type() == CgroupControllerMemory {
+			t.SetMemCgID(cg.ID())
+			return
+		}
+	}
+}
+
+// ResetMemCgIDFromCgroup sets the memory cgroup id to zero, if the task has
+// a memory cgroup.
+func (t *Task) ResetMemCgIDFromCgroup(cg Cgroup) {
+	for _, ctl := range cg.Controllers() {
+		if ctl.Type() == CgroupControllerMemory {
+			t.SetMemCgID(0)
+			return
+		}
 	}
 }
 
@@ -77,6 +109,7 @@ func (t *Task) enterCgroupLocked(c Cgroup) {
 	c.IncRef()
 	t.cgroups[c] = struct{}{}
 	c.Enter(t)
+	t.SetMemCgIDFromCgroup(c)
 }
 
 // +checklocks:t.mu
@@ -96,6 +129,7 @@ func (t *Task) LeaveCgroups() {
 	for c := range cgs {
 		c.Leave(t)
 	}
+	t.SetMemCgID(0)
 	t.mu.Unlock()
 	t.tg.pidns.owner.mu.Unlock()
 

@@ -46,7 +46,9 @@ import (
 	"gvisor.dev/gvisor/pkg/eventchannel"
 	"gvisor.dev/gvisor/pkg/fspath"
 	"gvisor.dev/gvisor/pkg/log"
+	"gvisor.dev/gvisor/pkg/refs"
 	"gvisor.dev/gvisor/pkg/sentry/arch"
+	"gvisor.dev/gvisor/pkg/sentry/fsimpl/nsfs"
 	"gvisor.dev/gvisor/pkg/sentry/fsimpl/pipefs"
 	"gvisor.dev/gvisor/pkg/sentry/fsimpl/sockfs"
 	"gvisor.dev/gvisor/pkg/sentry/fsimpl/timerfd"
@@ -251,9 +253,6 @@ type Kernel struct {
 	// by extMu.
 	nextSocketRecord uint64
 
-	// deviceRegistry is used to save/restore device.SimpleDevices.
-	deviceRegistry struct{} `state:".(*device.Registry)"`
-
 	// unimplementedSyscallEmitterOnce is used in the initialization of
 	// unimplementedSyscallEmitter.
 	unimplementedSyscallEmitterOnce sync.Once `state:"nosave"`
@@ -277,6 +276,9 @@ type Kernel struct {
 	// syscalls (as opposed to named pipes created by mknod()).
 	pipeMount *vfs.Mount
 
+	// nsfsMount is the Mount used for namespaces.
+	nsfsMount *vfs.Mount
+
 	// shmMount is the Mount used for anonymous files created by the
 	// memfd_create() syscalls. It is analogous to Linux's shm_mnt.
 	shmMount *vfs.Mount
@@ -288,6 +290,15 @@ type Kernel struct {
 	// 2. Socket fds imported from the host (Kernel.hostMount is used for these)
 	// 3. Socket files created by binding Unix sockets to a file path
 	socketMount *vfs.Mount
+
+	// sysVShmDevID is the device number used by SysV shm segments. In Linux,
+	// SysV shm uses shmem_file_setup() and thus uses shm_mnt's device number.
+	// In gVisor, the shm implementation does not use shmMount, extracting
+	// shmMount's device number is inconvenient, applications accept a
+	// different device number in practice, and using a distinct device number
+	// avoids the possibility of inode number collisions due to the hack
+	// described in shm.Shm.InodeID().
+	sysVShmDevID uint32
 
 	// If set to true, report address space activation waits as if the task is in
 	// external wait so that the watchdog doesn't report the task stuck.
@@ -389,7 +400,7 @@ func (k *Kernel) Init(args InitKernelArgs) error {
 	k.rootAbstractSocketNamespace = args.RootAbstractSocketNamespace
 	k.rootNetworkNamespace = args.RootNetworkNamespace
 	if k.rootNetworkNamespace == nil {
-		k.rootNetworkNamespace = inet.NewRootNamespace(nil, nil)
+		k.rootNetworkNamespace = inet.NewRootNamespace(nil, nil, args.RootUserNamespace)
 	}
 	k.runningTasksCond.L = &k.runningTasksMu
 	k.cpuClockTickerWakeCh = make(chan struct{}, 1)
@@ -433,7 +444,25 @@ func (k *Kernel) Init(args InitKernelArgs) error {
 	pipeMount := k.vfs.NewDisconnectedMount(pipeFilesystem, nil, &vfs.MountOptions{})
 	k.pipeMount = pipeMount
 
-	tmpfsFilesystem, tmpfsRoot, err := tmpfs.NewFilesystem(ctx, &k.vfs, auth.NewRootCredentials(k.rootUserNamespace))
+	nsfsFilesystem, err := nsfs.NewFilesystem(&k.vfs)
+	if err != nil {
+		return fmt.Errorf("failed to create nsfs filesystem: %v", err)
+	}
+	defer nsfsFilesystem.DecRef(ctx)
+	k.nsfsMount = k.vfs.NewDisconnectedMount(nsfsFilesystem, nil, &vfs.MountOptions{})
+	k.rootNetworkNamespace.SetInode(nsfs.NewInode(ctx, k.nsfsMount, k.rootNetworkNamespace))
+	k.rootIPCNamespace.SetInode(nsfs.NewInode(ctx, k.nsfsMount, k.rootIPCNamespace))
+	k.rootUTSNamespace.SetInode(nsfs.NewInode(ctx, k.nsfsMount, k.rootUTSNamespace))
+
+	tmpfsOpts := vfs.GetFilesystemOptions{
+		InternalData: tmpfs.FilesystemOpts{
+			// See mm/shmem.c:shmem_init() => vfs_kern_mount(flags=SB_KERNMOUNT).
+			// Note how mm/shmem.c:shmem_fill_super() does not provide a default
+			// value for sbinfo->max_blocks when SB_KERNMOUNT is set.
+			DisableDefaultSizeLimit: true,
+		},
+	}
+	tmpfsFilesystem, tmpfsRoot, err := tmpfs.FilesystemType{}.GetFilesystem(ctx, &k.vfs, auth.NewRootCredentials(k.rootUserNamespace), "", tmpfsOpts)
 	if err != nil {
 		return fmt.Errorf("failed to create tmpfs filesystem: %v", err)
 	}
@@ -447,6 +476,12 @@ func (k *Kernel) Init(args InitKernelArgs) error {
 	}
 	defer socketFilesystem.DecRef(ctx)
 	k.socketMount = k.vfs.NewDisconnectedMount(socketFilesystem, nil, &vfs.MountOptions{})
+
+	sysVShmDevMinor, err := k.vfs.GetAnonBlockDevMinor()
+	if err != nil {
+		return fmt.Errorf("failed to get device number for SysV shm: %v", err)
+	}
+	k.sysVShmDevID = linux.MakeDeviceID(linux.UNNAMED_MAJOR, sysVShmDevMinor)
 
 	k.sockets = make(map[*vfs.FileDescription]*SocketRecord)
 
@@ -655,7 +690,7 @@ type CreateProcessArgs struct {
 	// This is checked if and only if Filename is "".
 	File *vfs.FileDescription
 
-	// Argvv is a list of arguments.
+	// Argv is a list of arguments.
 	Argv []string
 
 	// Envv is a list of environment variables.
@@ -676,7 +711,7 @@ type CreateProcessArgs struct {
 	// Umask is the initial umask.
 	Umask uint
 
-	// Limits is the initial resource limits.
+	// Limits are the initial resource limits.
 	Limits *limits.LimitSet
 
 	// MaxSymlinkTraversals is the maximum number of symlinks to follow
@@ -704,6 +739,9 @@ type CreateProcessArgs struct {
 
 	// ContainerID is the container that the process belongs to.
 	ContainerID string
+
+	// InitialCgroups are the cgroups the container is initialized to.
+	InitialCgroups map[Cgroup]struct{}
 }
 
 // NewContext returns a context.Context that represents the task that will be
@@ -732,7 +770,9 @@ func (ctx *createProcessContext) Value(key any) any {
 	case CtxPIDNamespace:
 		return ctx.args.PIDNamespace
 	case CtxUTSNamespace:
-		return ctx.args.UTSNamespace
+		utsns := ctx.args.UTSNamespace
+		utsns.IncRef()
+		return utsns
 	case ipc.CtxIPCNamespace:
 		ipcns := ctx.args.IPCNamespace
 		ipcns.IncRef()
@@ -743,8 +783,7 @@ func (ctx *createProcessContext) Value(key any) any {
 		if ctx.args.MountNamespace == nil {
 			return nil
 		}
-		root := ctx.args.MountNamespace.Root()
-		root.IncRef()
+		root := ctx.args.MountNamespace.Root(ctx)
 		return root
 	case vfs.CtxMountNamespace:
 		if ctx.kernel.globalInit == nil {
@@ -759,6 +798,8 @@ func (ctx *createProcessContext) Value(key any) any {
 		return ctx.kernel.RealtimeClock()
 	case limits.CtxLimits:
 		return ctx.args.Limits
+	case pgalloc.CtxMemoryCgroupID:
+		return ctx.getMemoryCgroupID()
 	case pgalloc.CtxMemoryFile:
 		return ctx.kernel.mf
 	case pgalloc.CtxMemoryFileProvider:
@@ -776,6 +817,17 @@ func (ctx *createProcessContext) Value(key any) any {
 	default:
 		return nil
 	}
+}
+
+func (ctx *createProcessContext) getMemoryCgroupID() uint32 {
+	for cg := range ctx.args.InitialCgroups {
+		for _, ctl := range cg.Controllers() {
+			if ctl.Type() == CgroupControllerMemory {
+				return cg.ID()
+			}
+		}
+	}
+	return InvalidCgroupID
 }
 
 // CreateProcess creates a new task in a new thread group with the given
@@ -805,8 +857,7 @@ func (k *Kernel) CreateProcess(args CreateProcessArgs) (*ThreadGroup, ThreadID, 
 		mntns.IncRef()
 	}
 	// Get the root directory from the MountNamespace.
-	root := mntns.Root()
-	root.IncRef()
+	root := mntns.Root(ctx)
 	defer root.DecRef(ctx)
 
 	// Grab the working directory.
@@ -899,6 +950,7 @@ func (k *Kernel) CreateProcess(args CreateProcessArgs) (*ThreadGroup, ThreadID, 
 		AbstractSocketNamespace: args.AbstractSocketNamespace,
 		MountNamespace:          mntns,
 		ContainerID:             args.ContainerID,
+		InitialCgroups:          args.InitialCgroups,
 		UserCounters:            k.GetUserCounters(args.Credentials.RealKUID),
 	}
 	config.NetworkNamespace.IncRef()
@@ -1159,11 +1211,33 @@ func (k *Kernel) SendExternalSignal(info *linux.SignalInfo, context string) {
 }
 
 // SendExternalSignalThreadGroup injects a signal into an specific ThreadGroup.
+//
 // This function doesn't skip signals like SendExternalSignal does.
 func (k *Kernel) SendExternalSignalThreadGroup(tg *ThreadGroup, info *linux.SignalInfo) error {
 	k.extMu.Lock()
 	defer k.extMu.Unlock()
 	return tg.SendSignal(info)
+}
+
+// SendExternalSignalProcessGroup sends a signal to all ThreadGroups in the
+// given process group.
+//
+// This function doesn't skip signals like SendExternalSignal does.
+func (k *Kernel) SendExternalSignalProcessGroup(pg *ProcessGroup, info *linux.SignalInfo) error {
+	k.extMu.Lock()
+	defer k.extMu.Unlock()
+	// If anything goes wrong, we'll return the error, but still try our
+	// best to deliver to other processes in the group.
+	var firstErr error
+	for _, tg := range k.TaskSet().Root.ThreadGroups() {
+		if tg.ProcessGroup() != pg {
+			continue
+		}
+		if err := tg.SendSignal(info); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // SendContainerSignal sends the given signal to all processes inside the
@@ -1233,6 +1307,7 @@ func (k *Kernel) RootUserNamespace() *auth.UserNamespace {
 
 // RootUTSNamespace returns the root UTSNamespace.
 func (k *Kernel) RootUTSNamespace() *UTSNamespace {
+	k.rootUTSNamespace.IncRef()
 	return k.rootUTSNamespace
 }
 
@@ -1476,7 +1551,9 @@ func (ctx *supervisorContext) Value(key any) any {
 	case CtxPIDNamespace:
 		return ctx.Kernel.tasks.Root
 	case CtxUTSNamespace:
-		return ctx.Kernel.rootUTSNamespace
+		utsns := ctx.Kernel.rootUTSNamespace
+		utsns.IncRef()
+		return utsns
 	case ipc.CtxIPCNamespace:
 		ipcns := ctx.Kernel.rootIPCNamespace
 		ipcns.IncRef()
@@ -1488,8 +1565,7 @@ func (ctx *supervisorContext) Value(key any) any {
 		if ctx.Kernel.globalInit == nil {
 			return vfs.VirtualDentry{}
 		}
-		root := ctx.Kernel.GlobalInit().Leader().MountNamespace().Root()
-		root.IncRef()
+		root := ctx.Kernel.GlobalInit().Leader().MountNamespace().Root(ctx)
 		return root
 	case vfs.CtxMountNamespace:
 		if ctx.Kernel.globalInit == nil {
@@ -1570,6 +1646,11 @@ func (k *Kernel) PipeMount() *vfs.Mount {
 	return k.pipeMount
 }
 
+// GetNamespaceInode returns a new nsfs inode which serves as a reference counter for the namespace.
+func (k *Kernel) GetNamespaceInode(ctx context.Context, ns vfs.Namespace) refs.TryRefCounter {
+	return nsfs.NewInode(ctx, k.nsfsMount, ns)
+}
+
 // ShmMount returns the tmpfs mount.
 func (k *Kernel) ShmMount() *vfs.Mount {
 	return k.shmMount
@@ -1593,12 +1674,13 @@ func (k *Kernel) Release() {
 	ctx := k.SupervisorContext()
 	k.hostMount.DecRef(ctx)
 	k.pipeMount.DecRef(ctx)
+	k.nsfsMount.DecRef(ctx)
 	k.shmMount.DecRef(ctx)
 	k.socketMount.DecRef(ctx)
 	k.vfs.Release(ctx)
 	k.timekeeper.Destroy()
 	k.vdso.Release(ctx)
-	k.RootNetworkNamespace().DecRef()
+	k.RootNetworkNamespace().DecRef(ctx)
 }
 
 // PopulateNewCgroupHierarchy moves all tasks into a newly created cgroup
@@ -1640,6 +1722,7 @@ func (k *Kernel) ReleaseCgroupHierarchy(hid uint32) {
 		for cg := range t.cgroups {
 			if cg.HierarchyID() == hid {
 				cg.Leave(t)
+				t.ResetMemCgIDFromCgroup(cg)
 				delete(t.cgroups, cg)
 				releasedCGs = append(releasedCGs, cg)
 				// A task can't be part of multiple cgroups from the same

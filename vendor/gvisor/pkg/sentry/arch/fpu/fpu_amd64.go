@@ -18,13 +18,52 @@
 package fpu
 
 import (
+	"fmt"
 	"io"
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/cpuid"
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
 	"gvisor.dev/gvisor/pkg/hostarch"
+	"gvisor.dev/gvisor/pkg/safecopy"
 	"gvisor.dev/gvisor/pkg/sync"
+)
+
+// FPSoftwareFrame is equivalent to struct _fpx_sw_bytes, the data stored by
+// Linux in bytes 464:511 of the fxsave/xsave frame.
+//
+// +marshal
+type FPSoftwareFrame struct {
+	Magic1       uint32
+	ExtendedSize uint32
+	Xfeatures    uint64
+	XstateSize   uint32
+	Padding      [7]uint32
+}
+
+// From Linux's arch/x86/include/uapi/asm/sigcontext.h.
+const (
+	// FP_XSTATE_MAGIC1 is the value of FPSoftwareFrame.Magic1.
+	FP_XSTATE_MAGIC1 = 0x46505853
+	// FP_SW_FRAME_OFFSET is the offset of FPSoftwareFrame in the
+	// fxsave/xsave area.
+	FP_SW_FRAME_OFFSET = 464
+
+	// FP_XSTATE_MAGIC2 is the value written to the 4 bytes inserted by
+	// Linux after the fxsave/xsave area in the signal frame.
+	FP_XSTATE_MAGIC2 = 0x46505845
+	// FP_XSTATE_MAGIC2_SIZE is the size of FP_XSTATE_MAGIC2.
+	FP_XSTATE_MAGIC2_SIZE = 4
+)
+
+// From Linux's arch/x86/include/asm/fpu/types.h.
+const (
+	// XFEATURE_MASK_FPSSE is xsave features that are always enabled in
+	// signal frame fpstate.
+	XFEATURE_MASK_FPSSE = 0x3
+
+	// FXSAVE_AREA_SIZE is the size of the FXSAVE area.
+	FXSAVE_AREA_SIZE = 512
 )
 
 // initX86FPState (defined in asm files) sets up initial state.
@@ -32,7 +71,7 @@ func initX86FPState(data *byte, useXsave bool)
 
 func newX86FPStateSlice() State {
 	size, align := cpuid.HostFeatureSet().ExtendedStateSize()
-	capacity := size
+	capacity := size + FP_XSTATE_MAGIC2_SIZE
 	// Always use at least 4096 bytes.
 	//
 	// For the KVM platform, this state is a fixed 4096 bytes, so make sure
@@ -41,7 +80,13 @@ func newX86FPStateSlice() State {
 	if capacity < 4096 {
 		capacity = 4096
 	}
-	return alignedBytes(capacity, align)[:size]
+	return alignedBytes(capacity, align)[:size+FP_XSTATE_MAGIC2_SIZE]
+}
+
+// Slice returns the byte array that contains only the fpu state. `s` has the
+// fpu state and FP_XSTATE_MAGIC2.
+func (s State) Slice() []byte {
+	return s[:len(s)-FP_XSTATE_MAGIC2_SIZE]
 }
 
 // NewState returns an initialized floating point state.
@@ -70,6 +115,23 @@ func (s *State) Reset() {
 		f[i] = 0
 	}
 	initX86FPState(&f[0], cpuid.HostFeatureSet().UseXsave())
+}
+
+var (
+	hostXCR0Mask      uint64
+	hostFPSize        uint
+	hostUseXsave      bool
+	initHostStateOnce sync.Once
+)
+
+// InitHostState initializes host parameters.
+func InitHostState() {
+	initHostStateOnce.Do(func() {
+		featureSet := cpuid.HostFeatureSet()
+		hostXCR0Mask = featureSet.ValidXCR0Mask()
+		hostUseXsave = featureSet.UseXsave()
+		hostFPSize, _ = featureSet.ExtendedStateSize()
+	})
 }
 
 // ptraceFPRegsSize is the size in bytes of Linux's user_i387_struct, the type
@@ -245,6 +307,11 @@ func (s *State) SetMXCSR(mxcsr uint32) {
 	hostarch.ByteOrder.PutUint32((*s)[mxcsrOffset:], mxcsr)
 }
 
+// GetMXCSR gets the MXCSR control/status register in the state.
+func (s *State) GetMXCSR() uint32 {
+	return hostarch.ByteOrder.Uint32((*s)[mxcsrOffset:])
+}
+
 // BytePointer returns a pointer to the first byte of the state.
 //
 //go:nosplit
@@ -259,7 +326,7 @@ const fxsaveBV uint64 = cpuid.XSAVEFeatureX87 | cpuid.XSAVEFeatureSSE
 // AfterLoad converts the loaded state to the format that compatible with the
 // current processor.
 func (s *State) AfterLoad() {
-	old := *s
+	old := s.Slice()
 
 	// Recreate the slice. This is done to ensure that it is aligned
 	// appropriately in memory, and large enough to accommodate any new
@@ -282,25 +349,36 @@ func (s *State) AfterLoad() {
 	// FeatureSet. However, because we do not *prevent* them from using
 	// this state, we must verify here that there is no in-use state
 	// (according to XSTATE_BV) which we do not support.
-	if len(*s) < len(old) {
-		// What do we support?
-		supportedBV := fxsaveBV
-		if fs := cpuid.HostFeatureSet(); fs.UseXsave() {
-			supportedBV = fs.ValidXCR0Mask()
-		}
+	// What do we support?
+	supportedBV := fxsaveBV
+	hostFeatureSet := cpuid.HostFeatureSet()
+	if hostFeatureSet.UseXsave() {
+		supportedBV = hostFeatureSet.ValidXCR0Mask()
+	}
 
-		// What was in use?
-		savedBV := fxsaveBV
-		if len(old) >= xstateBVOffset+8 {
-			savedBV = hostarch.ByteOrder.Uint64(old[xstateBVOffset:])
-		}
+	// What was in use?
+	savedBV := fxsaveBV
+	if len(old) >= xstateBVOffset+8 {
+		savedBV = hostarch.ByteOrder.Uint64(old[xstateBVOffset:])
+	}
 
-		// Supported features must be a superset of saved features.
-		if savedBV&^supportedBV != 0 {
-			panic(ErrLoadingState{supportedFeatures: supportedBV, savedFeatures: savedBV})
-		}
+	// Supported features must be a superset of saved features.
+	if savedBV&^supportedBV != 0 {
+		panic(ErrLoadingState{supportedFeatures: supportedBV, savedFeatures: savedBV})
 	}
 
 	// Copy to the new, aligned location.
 	copy(*s, old)
+
+	mxcsrBefore := s.GetMXCSR()
+	sanitizeMXCSR(*s)
+	mxcsrAfter := s.GetMXCSR()
+	if mxcsrBefore != mxcsrAfter {
+		panic(fmt.Sprintf("incompatible mxcsr value: %x (%x)", mxcsrBefore, mxcsrAfter))
+	}
+	if hostFeatureSet.UseXsave() {
+		if err := safecopy.CheckXstate(s.BytePointer()); err != nil {
+			panic(fmt.Sprintf("incompatible state: %s (%#v)", err, *s))
+		}
+	}
 }

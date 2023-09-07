@@ -15,12 +15,18 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/log"
+	"gvisor.dev/gvisor/runsc/cmd/util"
+	"gvisor.dev/gvisor/runsc/config"
 	"gvisor.dev/gvisor/runsc/specutils"
 )
 
@@ -78,7 +84,7 @@ func copyFile(dst, src string) error {
 
 // setUpChroot creates an empty directory with runsc mounted at /runsc and proc
 // mounted at /proc.
-func setUpChroot(pidns bool) error {
+func setUpChroot(pidns bool, spec *specs.Spec, conf *config.Config) error {
 	// We are a new mount namespace, so we can use /tmp as a directory to
 	// construct a new root.
 	chroot := os.TempDir()
@@ -92,7 +98,7 @@ func setUpChroot(pidns bool) error {
 	}
 
 	if err := specutils.SafeMount("runsc-root", chroot, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC, "", "/proc"); err != nil {
-		return fmt.Errorf("error mounting tmpfs in choot: %v", err)
+		return fmt.Errorf("error mounting tmpfs in chroot: %v", err)
 	}
 
 	if err := os.Mkdir(filepath.Join(chroot, "etc"), 0755); err != nil {
@@ -114,9 +120,91 @@ func setUpChroot(pidns bool) error {
 		}
 	}
 
+	if err := nvproxyUpdateChroot(chroot, spec, conf); err != nil {
+		return fmt.Errorf("error configuring chroot for Nvidia GPUs: %w", err)
+	}
+	if err := tpuProxyUpdateChroot(chroot, conf); err != nil {
+		return fmt.Errorf("error configuring chroot for TPU devices: %w", err)
+	}
+
 	if err := specutils.SafeMount("", chroot, "", unix.MS_REMOUNT|unix.MS_RDONLY|unix.MS_BIND, "", "/proc"); err != nil {
 		return fmt.Errorf("error remounting chroot in read-only: %v", err)
 	}
 
 	return pivotRoot(chroot)
+}
+
+func tpuProxyUpdateChroot(chroot string, conf *config.Config) error {
+	if !conf.TPUProxy {
+		return nil
+	}
+	devices, err := util.EnumerateHostTPUDevices()
+	if err != nil {
+		return fmt.Errorf("enumerating TPU device files: %w", err)
+	}
+	for _, deviceNum := range devices {
+		devPath := fmt.Sprintf("/dev/accel%d", deviceNum)
+		if err := mountInChroot(chroot, devPath, devPath, "bind", unix.MS_BIND); err != nil {
+			return fmt.Errorf("error mounting %q in chroot: %v", devPath, err)
+		}
+		finfo, err := os.Stat(path.Join(chroot, devPath))
+		if err != nil {
+			return fmt.Errorf("error statting %q: %v", devPath, err)
+		}
+		// Ensure the file mounted in was a char device file.
+		if finfo.Mode()&os.ModeType != os.ModeCharDevice|os.ModeDevice {
+			return fmt.Errorf("unexpected file type for %q, want %s, got %s", path.Join(chroot, devPath), os.ModeCharDevice|os.ModeDevice, finfo.Mode()&os.ModeType)
+
+		}
+		// Multiple paths link to the /sys/devices/pci0000:00/<pci_address>
+		// directory that contains all relevant sysfs accel device info that we need
+		// bind mounted into the sandbox chroot. We can construct this path by
+		// reading the link below, which points to
+		// /sys/devices/pci0000:00/<pci_address>/accel/accel# and traversing up 2
+		// directories.
+		sysAccelPath := fmt.Sprintf("/sys/class/accel/accel%d", deviceNum)
+		sysAccelLink, err := os.Readlink(sysAccelPath)
+		if err != nil {
+			return fmt.Errorf("error reading %q: %v", sysAccelPath, err)
+		}
+		// Ensure the link is in the form we expect.
+		sysAccelLinkMatcher := regexp.MustCompile(fmt.Sprintf(`../../devices/pci0000:00/(\d+:\d+:\d+\.\d+)/accel/accel%d`, deviceNum))
+		if !sysAccelLinkMatcher.MatchString(sysAccelLink) {
+			return fmt.Errorf("unexpected link %q -> %q, link should have %q format", sysAccelPath, sysAccelLink, sysAccelLinkMatcher.String())
+		}
+		sysPCIDeviceDir, err := filepath.Abs(path.Join(filepath.Dir(sysAccelPath), sysAccelLink, "../.."))
+		if err != nil {
+			return fmt.Errorf("error parsing path %q: %v", sysAccelPath, err)
+		}
+		if err := mountInChroot(chroot, sysPCIDeviceDir, sysPCIDeviceDir, "bind", unix.MS_BIND|unix.MS_RDONLY); err != nil {
+			return fmt.Errorf("error mounting %q in chroot: %v", sysAccelPath, err)
+		}
+	}
+	return nil
+}
+
+func nvproxyUpdateChroot(chroot string, spec *specs.Spec, conf *config.Config) error {
+	if !specutils.GPUFunctionalityRequested(spec, conf) {
+		return nil
+	}
+	if err := os.Mkdir(filepath.Join(chroot, "dev"), 0755); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("error creating /dev in chroot: %w", err)
+	}
+	if err := mountInChroot(chroot, "/dev/nvidiactl", "/dev/nvidiactl", "bind", unix.MS_BIND); err != nil {
+		return fmt.Errorf("error mounting /dev/nvidiactl in chroot: %w", err)
+	}
+	if err := mountInChroot(chroot, "/dev/nvidia-uvm", "/dev/nvidia-uvm", "bind", unix.MS_BIND); err != nil {
+		return fmt.Errorf("error mounting /dev/nvidia-uvm in chroot: %w", err)
+	}
+	deviceIDs, err := specutils.NvidiaDeviceNumbers(spec, conf)
+	if err != nil {
+		return fmt.Errorf("enumerating nvidia device IDs: %w", err)
+	}
+	for _, deviceID := range deviceIDs {
+		path := fmt.Sprintf("/dev/nvidia%d", deviceID)
+		if err := mountInChroot(chroot, path, path, "bind", unix.MS_BIND); err != nil {
+			return fmt.Errorf("error mounting %q in chroot: %v", path, err)
+		}
+	}
+	return nil
 }

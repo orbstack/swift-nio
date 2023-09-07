@@ -18,7 +18,7 @@ package muxed
 import (
 	"sync"
 
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -124,7 +124,7 @@ func (m *InjectableEndpoint) WritePackets(pkts stack.PacketBufferList) (int, tcp
 
 // InjectOutbound writes outbound packets to the appropriate
 // LinkInjectableEndpoint based on the dest address.
-func (m *InjectableEndpoint) InjectOutbound(dest tcpip.Address, packet *bufferv2.View) tcpip.Error {
+func (m *InjectableEndpoint) InjectOutbound(dest tcpip.Address, packet *buffer.View) tcpip.Error {
 	endpoint, ok := m.routes[dest]
 	if !ok {
 		return &tcpip.ErrHostUnreachable{}
@@ -146,6 +146,9 @@ func (*InjectableEndpoint) ARPHardwareType() header.ARPHardwareType {
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
 func (*InjectableEndpoint) AddHeader(stack.PacketBufferPtr) {}
+
+// ParseHeader implements stack.LinkEndpoint.ParseHeader.
+func (*InjectableEndpoint) ParseHeader(stack.PacketBufferPtr) bool { return true }
 
 // NewInjectableEndpoint creates a new multi-endpoint injectable endpoint.
 func NewInjectableEndpoint(routes map[tcpip.Address]stack.InjectableLinkEndpoint) *InjectableEndpoint {

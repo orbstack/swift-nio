@@ -91,13 +91,12 @@ type Accessor struct {
 // NewAccessor returns an Accessor that supports creation of device special
 // files in the devtmpfs instance registered with name fsTypeName in vfsObj.
 func NewAccessor(ctx context.Context, vfsObj *vfs.VirtualFilesystem, creds *auth.Credentials, fsTypeName string) (*Accessor, error) {
-	mntns, err := vfsObj.NewMountNamespace(ctx, creds, "devtmpfs" /* source */, fsTypeName, &vfs.MountOptions{})
+	mntns, err := vfsObj.NewMountNamespace(ctx, creds, "devtmpfs" /* source */, fsTypeName, &vfs.MountOptions{}, nil)
 	if err != nil {
 		return nil, err
 	}
 	// Pass a reference on root to the Accessor.
-	root := mntns.Root()
-	root.IncRef()
+	root := mntns.Root(ctx)
 	return &Accessor{
 		vfsObj: vfsObj,
 		mntns:  mntns,
@@ -168,7 +167,7 @@ func (a *Accessor) CreateDeviceFile(ctx context.Context, pathname string, kind v
 	parent := path.Dir(pathname)
 	if err := a.vfsObj.MkdirAllAt(ctx, parent, a.root, a.creds, &vfs.MkdirOptions{
 		Mode: 0755,
-	}); err != nil {
+	}, true /* mustBeDir */); err != nil {
 		return fmt.Errorf("failed to create device parent directory %q: %v", parent, err)
 	}
 

@@ -74,7 +74,7 @@ type Task struct {
 	taskWorkCount atomicbitops.Int32
 
 	// taskWorkMu protects taskWork.
-	taskWorkMu sync.Mutex `state:"nosave"`
+	taskWorkMu taskWorkMutex `state:"nosave"`
 
 	// taskWork is a queue of work to be executed before resuming user execution.
 	// It is similar to the task_work mechanism in Linux.
@@ -506,8 +506,10 @@ type Task struct {
 	numaPolicy   linux.NumaPolicy
 	numaNodeMask uint64
 
-	// netns is the task's network namespace. netns is never nil.
-	netns inet.NamespaceAtomicPtr
+	// netns is the task's network namespace. It has to be changed under mu
+	// so that GetNetworkNamespace can take a reference before it is
+	// released. It is changed only from the task goroutine.
+	netns *inet.Namespace
 
 	// If rseqPreempted is true, before the next call to p.Switch(),
 	// interrupt rseq critical regions as defined by rseqAddr and
@@ -587,6 +589,9 @@ type Task struct {
 	//
 	// +checklocks:mu
 	cgroups map[Cgroup]struct{}
+
+	// memCgID is the memory cgroup id.
+	memCgID atomicbitops.Uint32
 
 	// userCounters is a pointer to a set of user counters.
 	//
@@ -704,7 +709,8 @@ func (t *Task) SyscallRestartBlock() SyscallRestartBlock {
 // Preconditions: The caller must be running on the task goroutine, or t.mu
 // must be locked.
 func (t *Task) IsChrooted() bool {
-	realRoot := t.mountNamespace.Root()
+	realRoot := t.mountNamespace.Root(t)
+	defer realRoot.DecRef(t)
 	root := t.fsContext.RootDirectory()
 	defer root.DecRef(t)
 	return root != realRoot
@@ -778,12 +784,23 @@ func (t *Task) WithMuLocked(f func(*Task)) {
 	t.mu.Unlock()
 }
 
-// MountNamespace returns t's MountNamespace. A reference is taken on the
-// returned mount namespace.
+// MountNamespace returns t's MountNamespace.
 func (t *Task) MountNamespace() *vfs.MountNamespace {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.mountNamespace
+}
+
+// GetMountNamespace returns t's MountNamespace. A reference is taken on the
+// returned mount namespace.
+func (t *Task) GetMountNamespace() *vfs.MountNamespace {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	mntns := t.mountNamespace
+	if mntns != nil {
+		mntns.IncRef()
+	}
+	return mntns
 }
 
 // AbstractSockets returns t's AbstractSocketNamespace.

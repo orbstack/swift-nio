@@ -4,7 +4,6 @@ package kernel
 
 import (
 	"gvisor.dev/gvisor/pkg/bpf"
-	"gvisor.dev/gvisor/pkg/sentry/device"
 	"gvisor.dev/gvisor/pkg/state"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -137,9 +136,11 @@ func (r *CgroupRegistry) StateTypeName() string {
 func (r *CgroupRegistry) StateFields() []string {
 	return []string{
 		"lastHierarchyID",
+		"lastCgroupID",
 		"controllers",
 		"hierarchies",
 		"hierarchiesByName",
+		"cgroups",
 	}
 }
 
@@ -149,9 +150,11 @@ func (r *CgroupRegistry) beforeSave() {}
 func (r *CgroupRegistry) StateSave(stateSinkObject state.Sink) {
 	r.beforeSave()
 	stateSinkObject.Save(0, &r.lastHierarchyID)
-	stateSinkObject.Save(1, &r.controllers)
-	stateSinkObject.Save(2, &r.hierarchies)
-	stateSinkObject.Save(3, &r.hierarchiesByName)
+	stateSinkObject.Save(1, &r.lastCgroupID)
+	stateSinkObject.Save(2, &r.controllers)
+	stateSinkObject.Save(3, &r.hierarchies)
+	stateSinkObject.Save(4, &r.hierarchiesByName)
+	stateSinkObject.Save(5, &r.cgroups)
 }
 
 func (r *CgroupRegistry) afterLoad() {}
@@ -159,9 +162,11 @@ func (r *CgroupRegistry) afterLoad() {}
 // +checklocksignore
 func (r *CgroupRegistry) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.lastHierarchyID)
-	stateSourceObject.Load(1, &r.controllers)
-	stateSourceObject.Load(2, &r.hierarchies)
-	stateSourceObject.Load(3, &r.hierarchiesByName)
+	stateSourceObject.Load(1, &r.lastCgroupID)
+	stateSourceObject.Load(2, &r.controllers)
+	stateSourceObject.Load(3, &r.hierarchies)
+	stateSourceObject.Load(4, &r.hierarchiesByName)
+	stateSourceObject.Load(5, &r.cgroups)
 }
 
 func (f *FDFlags) StateTypeName() string {
@@ -338,7 +343,7 @@ func (i *IPCNamespace) StateTypeName() string {
 
 func (i *IPCNamespace) StateFields() []string {
 	return []string{
-		"IPCNamespaceRefs",
+		"inode",
 		"userNS",
 		"queues",
 		"semaphores",
@@ -352,7 +357,7 @@ func (i *IPCNamespace) beforeSave() {}
 // +checklocksignore
 func (i *IPCNamespace) StateSave(stateSinkObject state.Sink) {
 	i.beforeSave()
-	stateSinkObject.Save(0, &i.IPCNamespaceRefs)
+	stateSinkObject.Save(0, &i.inode)
 	stateSinkObject.Save(1, &i.userNS)
 	stateSinkObject.Save(2, &i.queues)
 	stateSinkObject.Save(3, &i.semaphores)
@@ -364,36 +369,12 @@ func (i *IPCNamespace) afterLoad() {}
 
 // +checklocksignore
 func (i *IPCNamespace) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.Load(0, &i.IPCNamespaceRefs)
+	stateSourceObject.Load(0, &i.inode)
 	stateSourceObject.Load(1, &i.userNS)
 	stateSourceObject.Load(2, &i.queues)
 	stateSourceObject.Load(3, &i.semaphores)
 	stateSourceObject.Load(4, &i.shms)
 	stateSourceObject.Load(5, &i.posixQueues)
-}
-
-func (r *IPCNamespaceRefs) StateTypeName() string {
-	return "pkg/sentry/kernel.IPCNamespaceRefs"
-}
-
-func (r *IPCNamespaceRefs) StateFields() []string {
-	return []string{
-		"refCount",
-	}
-}
-
-func (r *IPCNamespaceRefs) beforeSave() {}
-
-// +checklocksignore
-func (r *IPCNamespaceRefs) StateSave(stateSinkObject state.Sink) {
-	r.beforeSave()
-	stateSinkObject.Save(0, &r.refCount)
-}
-
-// +checklocksignore
-func (r *IPCNamespaceRefs) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.Load(0, &r.refCount)
-	stateSourceObject.AfterLoad(r.afterLoad)
 }
 
 func (uc *userCounters) StateTypeName() string {
@@ -454,13 +435,14 @@ func (k *Kernel) StateFields() []string {
 		"danglingEndpoints",
 		"sockets",
 		"nextSocketRecord",
-		"deviceRegistry",
 		"SpecialOpts",
 		"vfs",
 		"hostMount",
 		"pipeMount",
+		"nsfsMount",
 		"shmMount",
 		"socketMount",
+		"sysVShmDevID",
 		"SleepForAddressSpaceActivation",
 		"ptraceExceptions",
 		"YAMAPtraceScope",
@@ -477,9 +459,6 @@ func (k *Kernel) StateSave(stateSinkObject state.Sink) {
 	var danglingEndpointsValue []tcpip.Endpoint
 	danglingEndpointsValue = k.saveDanglingEndpoints()
 	stateSinkObject.SaveValue(21, danglingEndpointsValue)
-	var deviceRegistryValue *device.Registry
-	deviceRegistryValue = k.saveDeviceRegistry()
-	stateSinkObject.SaveValue(24, deviceRegistryValue)
 	stateSinkObject.Save(0, &k.featureSet)
 	stateSinkObject.Save(1, &k.timekeeper)
 	stateSinkObject.Save(2, &k.tasks)
@@ -503,17 +482,19 @@ func (k *Kernel) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(20, &k.netlinkPorts)
 	stateSinkObject.Save(22, &k.sockets)
 	stateSinkObject.Save(23, &k.nextSocketRecord)
-	stateSinkObject.Save(25, &k.SpecialOpts)
-	stateSinkObject.Save(26, &k.vfs)
-	stateSinkObject.Save(27, &k.hostMount)
-	stateSinkObject.Save(28, &k.pipeMount)
+	stateSinkObject.Save(24, &k.SpecialOpts)
+	stateSinkObject.Save(25, &k.vfs)
+	stateSinkObject.Save(26, &k.hostMount)
+	stateSinkObject.Save(27, &k.pipeMount)
+	stateSinkObject.Save(28, &k.nsfsMount)
 	stateSinkObject.Save(29, &k.shmMount)
 	stateSinkObject.Save(30, &k.socketMount)
-	stateSinkObject.Save(31, &k.SleepForAddressSpaceActivation)
-	stateSinkObject.Save(32, &k.ptraceExceptions)
-	stateSinkObject.Save(33, &k.YAMAPtraceScope)
-	stateSinkObject.Save(34, &k.cgroupRegistry)
-	stateSinkObject.Save(35, &k.userCountersMap)
+	stateSinkObject.Save(31, &k.sysVShmDevID)
+	stateSinkObject.Save(32, &k.SleepForAddressSpaceActivation)
+	stateSinkObject.Save(33, &k.ptraceExceptions)
+	stateSinkObject.Save(34, &k.YAMAPtraceScope)
+	stateSinkObject.Save(35, &k.cgroupRegistry)
+	stateSinkObject.Save(36, &k.userCountersMap)
 }
 
 func (k *Kernel) afterLoad() {}
@@ -543,19 +524,20 @@ func (k *Kernel) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(20, &k.netlinkPorts)
 	stateSourceObject.Load(22, &k.sockets)
 	stateSourceObject.Load(23, &k.nextSocketRecord)
-	stateSourceObject.Load(25, &k.SpecialOpts)
-	stateSourceObject.Load(26, &k.vfs)
-	stateSourceObject.Load(27, &k.hostMount)
-	stateSourceObject.Load(28, &k.pipeMount)
+	stateSourceObject.Load(24, &k.SpecialOpts)
+	stateSourceObject.Load(25, &k.vfs)
+	stateSourceObject.Load(26, &k.hostMount)
+	stateSourceObject.Load(27, &k.pipeMount)
+	stateSourceObject.Load(28, &k.nsfsMount)
 	stateSourceObject.Load(29, &k.shmMount)
 	stateSourceObject.Load(30, &k.socketMount)
-	stateSourceObject.Load(31, &k.SleepForAddressSpaceActivation)
-	stateSourceObject.Load(32, &k.ptraceExceptions)
-	stateSourceObject.Load(33, &k.YAMAPtraceScope)
-	stateSourceObject.Load(34, &k.cgroupRegistry)
-	stateSourceObject.Load(35, &k.userCountersMap)
+	stateSourceObject.Load(31, &k.sysVShmDevID)
+	stateSourceObject.Load(32, &k.SleepForAddressSpaceActivation)
+	stateSourceObject.Load(33, &k.ptraceExceptions)
+	stateSourceObject.Load(34, &k.YAMAPtraceScope)
+	stateSourceObject.Load(35, &k.cgroupRegistry)
+	stateSourceObject.Load(36, &k.userCountersMap)
 	stateSourceObject.LoadValue(21, new([]tcpip.Endpoint), func(y any) { k.loadDanglingEndpoints(y.([]tcpip.Endpoint)) })
-	stateSourceObject.LoadValue(24, new(*device.Registry), func(y any) { k.loadDeviceRegistry(y.(*device.Registry)) })
 }
 
 func (s *SocketRecord) StateTypeName() string {
@@ -1305,6 +1287,7 @@ func (t *Task) StateFields() []string {
 		"startTime",
 		"kcov",
 		"cgroups",
+		"memCgID",
 		"userCounters",
 	}
 }
@@ -1383,7 +1366,8 @@ func (t *Task) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(62, &t.startTime)
 	stateSinkObject.Save(63, &t.kcov)
 	stateSinkObject.Save(64, &t.cgroups)
-	stateSinkObject.Save(65, &t.userCounters)
+	stateSinkObject.Save(65, &t.memCgID)
+	stateSinkObject.Save(66, &t.userCounters)
 }
 
 // +checklocksignore
@@ -1451,7 +1435,8 @@ func (t *Task) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(62, &t.startTime)
 	stateSourceObject.Load(63, &t.kcov)
 	stateSourceObject.Load(64, &t.cgroups)
-	stateSourceObject.Load(65, &t.userCounters)
+	stateSourceObject.Load(65, &t.memCgID)
+	stateSourceObject.Load(66, &t.userCounters)
 	stateSourceObject.LoadValue(32, new(*Task), func(y any) { t.loadPtraceTracer(y.(*Task)) })
 	stateSourceObject.LoadValue(49, new([]bpf.Program), func(y any) { t.loadSyscallFilters(y.([]bpf.Program)) })
 	stateSourceObject.AfterLoad(t.afterLoad)
@@ -2031,6 +2016,8 @@ func (tg *ThreadGroup) StateFields() []string {
 		"oldRSeqCritical",
 		"tty",
 		"oomScoreAdj",
+		"isChildSubreaper",
+		"hasChildSubreaper",
 	}
 }
 
@@ -2073,6 +2060,8 @@ func (tg *ThreadGroup) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(28, &tg.execed)
 	stateSinkObject.Save(30, &tg.tty)
 	stateSinkObject.Save(31, &tg.oomScoreAdj)
+	stateSinkObject.Save(32, &tg.isChildSubreaper)
+	stateSinkObject.Save(33, &tg.hasChildSubreaper)
 }
 
 func (tg *ThreadGroup) afterLoad() {}
@@ -2110,6 +2099,8 @@ func (tg *ThreadGroup) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(28, &tg.execed)
 	stateSourceObject.Load(30, &tg.tty)
 	stateSourceObject.Load(31, &tg.oomScoreAdj)
+	stateSourceObject.Load(32, &tg.isChildSubreaper)
+	stateSourceObject.Load(33, &tg.hasChildSubreaper)
 	stateSourceObject.LoadValue(29, new(*OldRSeqCriticalRegion), func(y any) { tg.loadOldRSeqCritical(y.(*OldRSeqCriticalRegion)) })
 }
 
@@ -2175,6 +2166,7 @@ func (ns *PIDNamespace) StateFields() []string {
 		"owner",
 		"parent",
 		"userns",
+		"id",
 		"last",
 		"tasks",
 		"tids",
@@ -2196,16 +2188,17 @@ func (ns *PIDNamespace) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(0, &ns.owner)
 	stateSinkObject.Save(1, &ns.parent)
 	stateSinkObject.Save(2, &ns.userns)
-	stateSinkObject.Save(3, &ns.last)
-	stateSinkObject.Save(4, &ns.tasks)
-	stateSinkObject.Save(5, &ns.tids)
-	stateSinkObject.Save(6, &ns.tgids)
-	stateSinkObject.Save(7, &ns.sessions)
-	stateSinkObject.Save(8, &ns.sids)
-	stateSinkObject.Save(9, &ns.processGroups)
-	stateSinkObject.Save(10, &ns.pgids)
-	stateSinkObject.Save(11, &ns.exiting)
-	stateSinkObject.Save(12, &ns.extra)
+	stateSinkObject.Save(3, &ns.id)
+	stateSinkObject.Save(4, &ns.last)
+	stateSinkObject.Save(5, &ns.tasks)
+	stateSinkObject.Save(6, &ns.tids)
+	stateSinkObject.Save(7, &ns.tgids)
+	stateSinkObject.Save(8, &ns.sessions)
+	stateSinkObject.Save(9, &ns.sids)
+	stateSinkObject.Save(10, &ns.processGroups)
+	stateSinkObject.Save(11, &ns.pgids)
+	stateSinkObject.Save(12, &ns.exiting)
+	stateSinkObject.Save(13, &ns.extra)
 }
 
 func (ns *PIDNamespace) afterLoad() {}
@@ -2215,16 +2208,17 @@ func (ns *PIDNamespace) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &ns.owner)
 	stateSourceObject.Load(1, &ns.parent)
 	stateSourceObject.Load(2, &ns.userns)
-	stateSourceObject.Load(3, &ns.last)
-	stateSourceObject.Load(4, &ns.tasks)
-	stateSourceObject.Load(5, &ns.tids)
-	stateSourceObject.Load(6, &ns.tgids)
-	stateSourceObject.Load(7, &ns.sessions)
-	stateSourceObject.Load(8, &ns.sids)
-	stateSourceObject.Load(9, &ns.processGroups)
-	stateSourceObject.Load(10, &ns.pgids)
-	stateSourceObject.Load(11, &ns.exiting)
-	stateSourceObject.Load(12, &ns.extra)
+	stateSourceObject.Load(3, &ns.id)
+	stateSourceObject.Load(4, &ns.last)
+	stateSourceObject.Load(5, &ns.tasks)
+	stateSourceObject.Load(6, &ns.tids)
+	stateSourceObject.Load(7, &ns.tgids)
+	stateSourceObject.Load(8, &ns.sessions)
+	stateSourceObject.Load(9, &ns.sids)
+	stateSourceObject.Load(10, &ns.processGroups)
+	stateSourceObject.Load(11, &ns.pgids)
+	stateSourceObject.Load(12, &ns.exiting)
+	stateSourceObject.Load(13, &ns.extra)
 }
 
 func (t *threadGroupNode) StateTypeName() string {
@@ -2415,6 +2409,7 @@ func (u *UTSNamespace) StateFields() []string {
 		"hostName",
 		"domainName",
 		"userns",
+		"inode",
 	}
 }
 
@@ -2426,6 +2421,7 @@ func (u *UTSNamespace) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(0, &u.hostName)
 	stateSinkObject.Save(1, &u.domainName)
 	stateSinkObject.Save(2, &u.userns)
+	stateSinkObject.Save(3, &u.inode)
 }
 
 func (u *UTSNamespace) afterLoad() {}
@@ -2435,6 +2431,7 @@ func (u *UTSNamespace) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &u.hostName)
 	stateSourceObject.Load(1, &u.domainName)
 	stateSourceObject.Load(2, &u.userns)
+	stateSourceObject.Load(3, &u.inode)
 }
 
 func (v *VDSOParamPage) StateTypeName() string {
@@ -2484,7 +2481,6 @@ func init() {
 	state.Register((*FSContext)(nil))
 	state.Register((*FSContextRefs)(nil))
 	state.Register((*IPCNamespace)(nil))
-	state.Register((*IPCNamespaceRefs)(nil))
 	state.Register((*userCounters)(nil))
 	state.Register((*Kernel)(nil))
 	state.Register((*SocketRecord)(nil))

@@ -84,6 +84,7 @@ const (
 	moptLimitHostFDTranslation   = "limit_host_fd_translation"
 	moptOverlayfsStaleRead       = "overlayfs_stale_read"
 	moptDisableFileHandleSharing = "disable_file_handle_sharing"
+	moptDisableFifoOpen          = "disable_fifo_open"
 
 	// Directfs options.
 	moptDirectfs = "directfs"
@@ -276,6 +277,10 @@ type filesystemOptions struct {
 	// supported with overlayfsStaleRead for now.
 	regularFilesUseSpecialFileFD bool
 
+	// If disableFifoOpen is true, application attempts to open(2) a host FIFO
+	// are disallowed.
+	disableFifoOpen bool
+
 	// directfs holds options for directfs mode.
 	directfs directfsOpts
 }
@@ -459,6 +464,10 @@ func (fstype FilesystemType) GetFilesystem(ctx context.Context, vfsObj *vfs.Virt
 	if _, ok := mopts[moptDisableFileHandleSharing]; ok {
 		delete(mopts, moptDisableFileHandleSharing)
 		fsopts.regularFilesUseSpecialFileFD = true
+	}
+	if _, ok := mopts[moptDisableFifoOpen]; ok {
+		delete(mopts, moptDisableFifoOpen)
+		fsopts.disableFifoOpen = true
 	}
 	if _, ok := mopts[moptForcePageCache]; ok {
 		delete(mopts, moptForcePageCache)
@@ -1390,7 +1399,7 @@ func (d *dentry) checkPermissions(creds *auth.Credentials, ats vfs.AccessTypes) 
 }
 
 func (d *dentry) checkXattrPermissions(creds *auth.Credentials, name string, ats vfs.AccessTypes) error {
-	// Deny access to the "security" and "system" namespaces since applications
+	// Deny access to the "system" namespaces since applications
 	// may expect these to affect kernel behavior in unimplemented ways
 	// (b/148380782). Allow all other extended attributes to be passed through
 	// to the remote filesystem. This is inconsistent with Linux's 9p client,
@@ -1398,7 +1407,7 @@ func (d *dentry) checkXattrPermissions(creds *auth.Credentials, name string, ats
 	//
 	// NOTE(b/202533394): Also disallow "trusted" namespace for now. This is
 	// consistent with the VFS1 gofer client.
-	if strings.HasPrefix(name, linux.XATTR_SECURITY_PREFIX) || strings.HasPrefix(name, linux.XATTR_SYSTEM_PREFIX) || strings.HasPrefix(name, linux.XATTR_TRUSTED_PREFIX) {
+	if strings.HasPrefix(name, linux.XATTR_SYSTEM_PREFIX) || strings.HasPrefix(name, linux.XATTR_TRUSTED_PREFIX) {
 		return linuxerr.EOPNOTSUPP
 	}
 	mode := linux.FileMode(d.mode.Load())
@@ -1726,7 +1735,10 @@ func (d *dentry) evictLocked(ctx context.Context) {
 		if !d.vfsd.IsDead() {
 			// Note that d can't be a mount point (in any mount namespace), since VFS
 			// holds references on mount points.
-			d.fs.vfsfs.VirtualFilesystem().InvalidateDentry(ctx, &d.vfsd)
+			rcs := d.fs.vfsfs.VirtualFilesystem().InvalidateDentry(ctx, &d.vfsd)
+			for _, rc := range rcs {
+				rc.DecRef(ctx)
+			}
 
 			d.parent.childrenMu.Lock()
 			delete(d.parent.children, d.name)

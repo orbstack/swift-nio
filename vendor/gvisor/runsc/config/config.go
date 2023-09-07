@@ -155,6 +155,21 @@ type Config struct {
 	// The value of this flag must also match across the two command lines.
 	MetricServer string `flag:"metric-server"`
 
+	// ProfilingMetrics is a comma separated list of metric names which are
+	// going to be written to the ProfilingMetricsLog file from within the
+	// sentry in CSV format. ProfilingMetrics will be snapshotted at a rate
+	// specified by ProfilingMetricsRate. Requires ProfilingMetricsLog to be
+	// set.
+	ProfilingMetrics string `flag:"profiling-metrics"`
+
+	// ProfilingMetricsLog is the file name to use for ProfilingMetrics
+	// output.
+	ProfilingMetricsLog string `flag:"profiling-metrics-log"`
+
+	// ProfilingMetricsRate is the target rate (in microseconds) at which
+	// profiling metrics will be snapshotted.
+	ProfilingMetricsRate int `flag:"profiling-metrics-rate-us"`
+
 	// Strace indicates that strace should be enabled.
 	Strace bool `flag:"strace"`
 
@@ -282,6 +297,17 @@ type Config struct {
 	// exists, but is mostly idle. Not supported in rootless mode.
 	DirectFS bool `flag:"directfs"`
 
+	// NVProxy enables support for Nvidia GPUs.
+	NVProxy bool `flag:"nvproxy"`
+
+	// NVProxyDocker exposes GPUs to containers based on the
+	// NVIDIA_VISIBLE_DEVICES container environment variable, as requested by
+	// containers or set by `docker --gpus`.
+	NVProxyDocker bool `flag:"nvproxy-docker"`
+
+	// TPUProxy enables support for TPUs.
+	TPUProxy bool `flag:"tpuproxy"`
+
 	// TestOnlyAllowRunAsCurrentUserWithoutChroot should only be used in
 	// tests. It allows runsc to start the sandbox process as the current
 	// user, and without chrooting the sandbox process. This can be
@@ -336,6 +362,9 @@ func (c *Config) validate() error {
 		// Deprecated flag was used together with flag that replaced it.
 		return fmt.Errorf("fsgofer-host-uds has been replaced with host-uds flag")
 	}
+	if len(c.ProfilingMetrics) > 0 && len(c.ProfilingMetricsLog) == 0 {
+		return fmt.Errorf("profiling-metrics flag requires defining a profiling-metrics-log for output")
+	}
 	return nil
 }
 
@@ -388,8 +417,24 @@ func (b Bundle) Validate() error {
 	return nil
 }
 
+// MetricMetadataKeys is the set of keys of metric metadata labels
+// as returned by `Config.MetricMetadata`.
+var MetricMetadataKeys = []string{
+	"version",
+	"platform",
+	"network",
+	"numcores",
+	"coretags",
+	"overlay",
+	"fsmode",
+	"cpuarch",
+	"go",
+	"experiment",
+}
+
 // MetricMetadata returns key-value pairs that are useful to include in metrics
 // exported about the sandbox this config represents.
+// It must return the same set of labels as listed in `MetricMetadataKeys`.
 func (c *Config) MetricMetadata() map[string]string {
 	var fsMode = "goferfs"
 	if c.DirectFS {
@@ -435,7 +480,7 @@ func fileAccessTypePtr(v FileAccessType) *FileAccessType {
 	return &v
 }
 
-// Set implements flag.Value.
+// Set implements flag.Value. Set(String()) should be idempotent.
 func (f *FileAccessType) Set(v string) error {
 	switch v {
 	case "shared":
@@ -482,7 +527,7 @@ func networkTypePtr(v NetworkType) *NetworkType {
 	return &v
 }
 
-// Set implements flag.Value.
+// Set implements flag.Value. Set(String()) should be idempotent.
 func (n *NetworkType) Set(v string) error {
 	switch v {
 	case "sandbox":
@@ -531,7 +576,7 @@ func queueingDisciplinePtr(v QueueingDiscipline) *QueueingDiscipline {
 	return &v
 }
 
-// Set implements flag.Value.
+// Set implements flag.Value. Set(String()) should be idempotent.
 func (q *QueueingDiscipline) Set(v string) error {
 	switch v {
 	case "none":
@@ -589,7 +634,7 @@ func hostUDSPtr(v HostUDS) *HostUDS {
 	return &v
 }
 
-// Set implements flag.Value.
+// Set implements flag.Value. Set(String()) should be idempotent.
 func (g *HostUDS) Set(v string) error {
 	switch v {
 	case "", "none":
@@ -613,20 +658,18 @@ func (g *HostUDS) Get() any {
 
 // String implements flag.Value.
 func (g HostUDS) String() string {
-	// Note: the order of operations is important given that HostUDS is a bitmap.
-	if g == HostUDSNone {
+	switch g {
+	case HostUDSNone:
 		return "none"
-	}
-	if g == HostUDSAll {
-		return "all"
-	}
-	if g == HostUDSOpen {
+	case HostUDSOpen:
 		return "open"
-	}
-	if g == HostUDSCreate {
+	case HostUDSCreate:
 		return "create"
+	case HostUDSAll:
+		return "all"
+	default:
+		panic(fmt.Sprintf("Invalid host UDS type %d", g))
 	}
-	panic(fmt.Sprintf("Invalid host UDS type %d", g))
 }
 
 // AllowOpen returns true if it can consume UDS from the host.
@@ -655,7 +698,7 @@ func hostFifoPtr(v HostFifo) *HostFifo {
 	return &v
 }
 
-// Set implements flag.Value.
+// Set implements flag.Value. Set(String()) should be idempotent.
 func (g *HostFifo) Set(v string) error {
 	switch v {
 	case "", "none":
@@ -675,13 +718,14 @@ func (g *HostFifo) Get() any {
 
 // String implements flag.Value.
 func (g HostFifo) String() string {
-	if g == HostFifoNone {
+	switch g {
+	case HostFifoNone:
 		return "none"
-	}
-	if g == HostFifoOpen {
+	case HostFifoOpen:
 		return "open"
+	default:
+		panic(fmt.Sprintf("Invalid host fifo type %d", g))
 	}
-	panic(fmt.Sprintf("Invalid host fifo type %d", g))
 }
 
 // AllowOpen returns true if it can consume FIFOs from the host.
@@ -702,7 +746,7 @@ func defaultOverlay2() *Overlay2 {
 	return &Overlay2{rootMount: true, subMounts: false, medium: "self"}
 }
 
-// Set implements flag.Value.
+// Set implements flag.Value. Set(String()) should be idempotent.
 func (o *Overlay2) Set(v string) error {
 	if v == "none" {
 		o.rootMount = false

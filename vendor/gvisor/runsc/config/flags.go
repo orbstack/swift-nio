@@ -52,12 +52,18 @@ func RegisterFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool("log-packets", false, "enable network packet logging.")
 	flagSet.String("pcap-log", "", "location of PCAP log file.")
 	flagSet.String("debug-log-format", "text", "log format: text (default), json, or json-k8s.")
-	flagSet.Bool("alsologtostderr", false, "send log messages to stderr.")
+	// Only register -alsologtostderr flag if it is not already defined on this flagSet.
+	if flagSet.Lookup("alsologtostderr") == nil {
+		flagSet.Bool("alsologtostderr", false, "send log messages to stderr.")
+	}
 	flagSet.Bool("allow-flag-override", false, "allow OCI annotations (dev.gvisor.flag.<name>) to override flags for debugging.")
 	flagSet.String("traceback", "system", "golang runtime's traceback level")
 
 	// Metrics flags.
 	flagSet.String("metric-server", "", "if set, export metrics on this address. This may either be 1) 'addr:port' to export metrics on a specific network interface address, 2) ':port' for exporting metrics on all interfaces, or 3) an absolute path to a Unix Domain Socket. The substring '%ID%' will be replaced by the container ID, and '%RUNTIME_ROOT%' by the root. This flag must be specified in both `runsc metric-server` and `runsc create`, and their values must match.")
+	flagSet.String("profiling-metrics", "", "comma separated list of metric names which are going to be written to the profiling-metrics-log file from within the sentry in CSV format. profiling-metrics will be snapshotted at a rate specified by profiling-metrics-rate-us. Requires profiling-metrics-log to be set. (DO NOT USE IN PRODUCTION).")
+	flagSet.String("profiling-metrics-log", "", "file name to use for profiling-metrics output. (DO NOT USE IN PRODUCTION)")
+	flagSet.Int("profiling-metrics-rate-us", 1000, "the target rate (in microseconds) at which profiling metrics will be snapshotted.")
 
 	// Debugging flags: strace related
 	flagSet.Bool("strace", false, "enable strace.")
@@ -66,7 +72,7 @@ func RegisterFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool("strace-event", false, "send strace to event.")
 
 	// Flags that control sandbox runtime behavior.
-	flagSet.String("platform", "ptrace", "specifies which platform to use: ptrace (default), kvm.")
+	flagSet.String("platform", "systrap", "specifies which platform to use: systrap (default), ptrace, kvm.")
 	flagSet.String("platform_device_path", "", "path to a platform-specific device file (e.g. /dev/kvm for KVM platform). If unset, will use a sane platform-specific default.")
 	flagSet.Var(watchdogActionPtr(watchdog.LogWarning), "watchdog-action", "sets what action the watchdog takes when triggered: log (default), panic.")
 	flagSet.Int("panic-signal", -1, "register signal handling that panics. Usually set to SIGUSR2(12) to troubleshoot hangs. -1 disables it.")
@@ -100,7 +106,7 @@ func RegisterFlags(flagSet *flag.FlagSet) {
 	flagSet.Int("fdlimit", -1, "Specifies a limit on the number of host file descriptors that can be open. Applies separately to the sentry and gofer. Note: each file in the sandbox holds more than one host FD open.")
 	flagSet.Int("dcache", -1, "Set the global dentry cache size. This acts as a coarse-grained control on the number of host FDs simultaneously open by the sentry. If negative, per-mount caches are used.")
 	flagSet.Bool("iouring", false, "TEST ONLY; Enables io_uring syscalls in the sentry. Support is experimental and very limited.")
-	flagSet.Bool("directfs", false, "directly access the container filesystems from the sentry. Sentry runs with higher privileges.")
+	flagSet.Bool("directfs", true, "directly access the container filesystems from the sentry. Sentry runs with higher privileges.")
 
 	// Flags that control sandbox runtime behavior: network related.
 	flagSet.Var(networkTypePtr(NetworkSandbox), "network", "specifies which network to use: sandbox (default), host, none. Using network inside the sandbox is more secure because it's isolated from the host network.")
@@ -114,6 +120,11 @@ func RegisterFlags(flagSet *flag.FlagSet) {
 	flagSet.Int("num-network-channels", 1, "number of underlying channels(FDs) to use for network link endpoints.")
 	flagSet.Bool("buffer-pooling", true, "enable allocation of buffers from a shared pool instead of the heap.")
 	flagSet.Bool("EXPERIMENTAL-afxdp", false, "EXPERIMENTAL. Use an AF_XDP socket to receive packets.")
+
+	// Flags that control sandbox runtime behavior: accelerator related.
+	flagSet.Bool("nvproxy", false, "EXPERIMENTAL: enable support for Nvidia GPUs")
+	flagSet.Bool("nvproxy-docker", false, "Expose GPUs to containers based on NVIDIA_VISIBLE_DEVICES, as requested by the container or set by `docker --gpus`. Allows containers to self-serve GPU access and thus disabled by default for security. libnvidia-container must be installed on the host. No effect unless --nvproxy is enabled.")
+	flagSet.Bool("tpuproxy", false, "EXPERIMENTAL: enable support for TPU device passthrough.")
 
 	// Test flags, not to be used outside tests, ever.
 	flagSet.Bool("TESTONLY-unsafe-nonroot", false, "TEST ONLY; do not ever use! This skips many security measures that isolate the host from the sandbox.")
@@ -133,6 +144,7 @@ var overrideAllowlist = map[string]struct {
 	"strace":          {},
 	"strace-syscalls": {},
 	"strace-log-size": {},
+	"host-uds":        {},
 
 	"oci-seccomp": {check: checkOciSeccomp},
 }

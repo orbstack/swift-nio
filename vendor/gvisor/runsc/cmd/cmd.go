@@ -17,8 +17,10 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
+	"strings"
 
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"golang.org/x/sys/unix"
@@ -26,12 +28,17 @@ import (
 	"gvisor.dev/gvisor/runsc/specutils"
 )
 
-// intFlags can be used with int flags that appear multiple times.
+// intFlags can be used with int flags that appear multiple times. It supports
+// comma-separated lists too.
 type intFlags []int
 
 // String implements flag.Value.
 func (i *intFlags) String() string {
-	return fmt.Sprintf("%v", *i)
+	sInts := make([]string, 0, len(*i))
+	for _, fd := range *i {
+		sInts = append(sInts, strconv.Itoa(fd))
+	}
+	return strings.Join(sInts, ",")
 }
 
 // Get implements flag.Value.
@@ -44,16 +51,18 @@ func (i *intFlags) GetArray() []int {
 	return *i
 }
 
-// Set implements flag.Value.
+// Set implements flag.Value. Set(String()) should be idempotent.
 func (i *intFlags) Set(s string) error {
-	fd, err := strconv.Atoi(s)
-	if err != nil {
-		return fmt.Errorf("invalid flag value: %v", err)
+	for _, sFD := range strings.Split(s, ",") {
+		fd, err := strconv.Atoi(sFD)
+		if err != nil {
+			return fmt.Errorf("invalid flag value: %v", err)
+		}
+		if fd < -1 {
+			return fmt.Errorf("flag value must be >= -1: %d", fd)
+		}
+		*i = append(*i, fd)
 	}
-	if fd < -1 {
-		return fmt.Errorf("flag value must be >= -1: %d", fd)
-	}
-	*i = append(*i, fd)
 	return nil
 }
 
@@ -71,7 +80,7 @@ func setCapsAndCallSelf(args []string, caps *specs.LinuxCapabilities) error {
 	binPath := specutils.ExePath
 
 	log.Infof("Execve %q again, bye!", binPath)
-	err := unix.Exec(binPath, args, []string{})
+	err := unix.Exec(binPath, args, os.Environ())
 	return fmt.Errorf("error executing %s: %v", binPath, err)
 }
 
@@ -97,6 +106,6 @@ func callSelfAsNobody(args []string) error {
 	binPath := specutils.ExePath
 
 	log.Infof("Execve %q again, bye!", binPath)
-	err := unix.Exec(binPath, args, []string{})
+	err := unix.Exec(binPath, args, os.Environ())
 	return fmt.Errorf("error executing %s: %v", binPath, err)
 }
