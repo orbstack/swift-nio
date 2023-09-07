@@ -594,12 +594,22 @@ private struct DockerLogsContentView: View {
     let cid: DockerContainerId?
     // individual container, not compose
     let standalone: Bool
-    let extraComposeArgs: [String]?
+    let extraComposeArgs: [String]
+    let allDisabled: Bool
+
+    init(cid: DockerContainerId?, standalone: Bool, extraComposeArgs: [String] = [], allDisabled: Bool = false) {
+        self.cid = cid
+        self.standalone = standalone
+        self.extraComposeArgs = extraComposeArgs
+        self.allDisabled = allDisabled
+    }
 
     var body: some View {
         DockerStateWrapperView(\.dockerContainers) { containers, _ in
-            if case let .container(containerId) = cid,
-               let container = containers.first(where: { $0.id == containerId }) {
+            if allDisabled {
+                ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
+            } else if case let .container(containerId) = cid,
+                      let container = containers.first(where: { $0.id == containerId }) {
                 LogsView(cmdExe: AppConfig.dockerExe,
                         args: ["logs", "-f", "-n", String(maxLines), containerId],
                         extraArgs: [],
@@ -621,7 +631,7 @@ private struct DockerLogsContentView: View {
             } else if case let .compose(composeProject) = cid {
                 LogsView(cmdExe: AppConfig.dockerComposeExe,
                         args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
-                        extraArgs: extraComposeArgs ?? [],
+                        extraArgs: extraComposeArgs,
                         model: model)
             } else {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
@@ -647,7 +657,7 @@ struct DockerLogsWindow: View {
     var body: some View {
         Group {
             if let containerId {
-                DockerLogsContentView(cid: .container(id: containerId), standalone: true, extraComposeArgs: nil)
+                DockerLogsContentView(cid: .container(id: containerId), standalone: true)
                 .onAppear {
                     windowTracker.openDockerLogWindowIds.insert(.container(id: containerId))
                 }
@@ -657,7 +667,7 @@ struct DockerLogsWindow: View {
             } else {
                 // must always have a view, or the window doesn't open on macOS 12{ url in  }
                 // EmptyView and Spacer don't work
-                DockerLogsContentView(cid: nil, standalone: true, extraComposeArgs: nil)
+                DockerLogsContentView(cid: nil, standalone: true)
             }
         }
         .environmentObject(commandModel)
@@ -702,9 +712,11 @@ struct DockerComposeLogsWindow: View {
                             children
                             .map { $0.userName }
                             .filter { !disabledChildren.contains($0) }
+                    let allDisabled = disabledChildren.count == children.count && !children.isEmpty
 
                     NavigationLink(destination: DockerLogsContentView(cid: .compose(project: composeProject),
-                            standalone: false, extraComposeArgs: projectLogArgs), tag: "all", selection: selBinding) {
+                            standalone: false, extraComposeArgs: projectLogArgs,
+                            allDisabled: allDisabled), tag: "all", selection: selBinding) {
                         Label("All", systemImage: "square.stack.3d.up")
                     }
                     .onAppear {
@@ -717,7 +729,7 @@ struct DockerComposeLogsWindow: View {
                     Section("Services") {
                         ForEach(children, id: \.id) { container in
                             NavigationLink(destination: DockerLogsContentView(cid: container.cid,
-                                    standalone: false, extraComposeArgs: nil), tag: "container:\(container.id)", selection: selBinding) {
+                                    standalone: false), tag: "container:\(container.id)", selection: selBinding) {
                                 HStack {
                                     let serviceName = container.userName
                                     Label {
