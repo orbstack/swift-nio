@@ -8,6 +8,8 @@
 	<string>nuUHoUatJ4OxpNCGb5NJ7s5WQYBG4iiZ6rm8JCk0sNQ=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUShowReleaseNotes</key>
+	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>14400</integer>
 	<key>SUEnableSystemProfiling</key>
