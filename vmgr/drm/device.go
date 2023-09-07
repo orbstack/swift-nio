@@ -45,6 +45,24 @@ func hashPieces(salt string, pieces ...string) string {
 	return hex.EncodeToString(hash)
 }
 
+func ReadInstallID() (string, error) {
+	installIDData, err := os.ReadFile(conf.InstallIDFile())
+	var installID string
+	if err == nil {
+		installID = strings.TrimSpace(string(installIDData))
+	}
+	if err != nil || !uuidRegexp.MatchString(installID) {
+		// write a new one
+		installID = uuid.NewString()
+		err = os.WriteFile(conf.InstallIDFile(), []byte(installID), 0644)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return installID, nil
+}
+
 func deriveIdentifiers() (*drmtypes.Identifiers, error) {
 	ids := &drmtypes.Identifiers{}
 
@@ -67,18 +85,9 @@ func deriveIdentifiers() (*drmtypes.Identifiers, error) {
 	ids.DeviceID = hashPieces(saltDeviceIDBin, hwUuid, serial, mac)
 
 	// install id = from file
-	installIDData, err := os.ReadFile(conf.InstallIDFile())
-	var installID string
-	if err == nil {
-		installID = strings.TrimSpace(string(installIDData))
-	}
-	if err != nil || !uuidRegexp.MatchString(installID) {
-		// write a new one
-		installID = uuid.NewString()
-		err = os.WriteFile(conf.InstallIDFile(), []byte(installID), 0644)
-		if err != nil {
-			logError(err)
-		}
+	installID, err := ReadInstallID()
+	if err != nil {
+		logError(err)
 	}
 
 	ids.InstallID = hashPieces(saltInstallIDBin, installID)

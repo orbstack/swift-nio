@@ -402,6 +402,17 @@ func runVmManager() {
 		if err != nil {
 			logrus.WithError(err).Error("failed to init Sentry")
 		}
+
+		sentry.ConfigureScope(func(scope *sentry.Scope) {
+			installID, err := drm.ReadInstallID()
+			if err != nil {
+				return
+			}
+
+			logrus.WithField("installID", installID).Debug("setting user")
+			scope.SetUser(sentry.User{ID: installID})
+		})
+
 		defer sentry.Flush(sentryconf.FlushTimeout)
 	}
 	// sentry.Recover() suppresses panic
