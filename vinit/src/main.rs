@@ -8,6 +8,7 @@ use tokio::{signal::unix::{signal, SignalKind}, sync::{Mutex, mpsc::{self, Sende
 
 mod action;
 use action::SystemAction;
+use tracing::debug;
 mod vcontrol;
 mod service;
 mod blockdev;
@@ -138,7 +139,7 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
                         println!("  !  Service {} exited: status {}", service, status);
                     }
                 } else {
-                    println!("  !  Untracked process {} exited: status {}", pid, status);
+                    debug!("  !  Untracked process {} exited: status {}", pid, status);
                 }
             },
             WaitStatus::Signaled(pid, signal, _) => {
@@ -146,7 +147,7 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
                     // don't restart on kill. kill must be intentional
                     println!("  !  Service {} exited: signal {}", service, signal);
                 } else {
-                    println!("  !  Untracked process {} exited: signal {}", pid, signal);
+                    debug!("  !  Untracked process {} exited: signal {}", pid, signal);
                 }
             },
             _ => {
