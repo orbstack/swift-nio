@@ -730,8 +730,18 @@ struct DockerComposeLogsWindow: View {
                         ForEach(children, id: \.id) { container in
                             NavigationLink(destination: DockerLogsContentView(cid: container.cid,
                                     standalone: false), tag: "container:\(container.id)", selection: selBinding) {
+                                let serviceName = container.userName
+                                let enabledBinding = Binding<Bool>(get: {
+                                    !disabledChildren.contains(serviceName)
+                                }, set: {
+                                    if $0 {
+                                        disabledChildren.remove(serviceName)
+                                    } else {
+                                        disabledChildren.insert(serviceName)
+                                    }
+                                })
+
                                 HStack {
-                                    let serviceName = container.userName
                                     Label {
                                         Text(serviceName)
                                     } icon: {
@@ -741,19 +751,15 @@ struct DockerComposeLogsWindow: View {
 
                                     Spacer()
 
-                                    let enabledBinding = Binding<Bool>(get: {
-                                        !disabledChildren.contains(serviceName)
-                                    }, set: {
-                                        if $0 {
-                                            disabledChildren.remove(serviceName)
-                                        } else {
-                                            disabledChildren.insert(serviceName)
-                                        }
-                                    })
                                     Toggle(isOn: enabledBinding) { EmptyView() }
                                     .labelsHidden()
                                     .toggleStyle(.checkbox)
                                     .help("Show in All")
+                                }
+                                .contextMenu {
+                                    Toggle(isOn: enabledBinding) {
+                                        Text("Show in All")
+                                    }
                                 }
                             }
                         }
