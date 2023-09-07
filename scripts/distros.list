@@ -11,6 +11,8 @@ alt:p9
 amazonlinux:current
 apertis:v2020
 apertis:v2021
+apertis:v2022
+apertis:v2023
 archlinux:current
 busybox:1.34.1
 centos:7
