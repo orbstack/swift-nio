@@ -241,6 +241,19 @@ struct MainWindow: View {
             ToolbarItem(placement: .automatic) {
                 if selection == "docker-volumes" {
                     Button(action: {
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: Folders.nfsDockerVolumes)
+                    }) {
+                        Label("Open Volumes", systemImage: "folder")
+                    }
+                    .help("Open Volumes")
+                    .disabled(model.state != .running)
+                    .keyboardShortcut("o", modifiers: [.command])
+                }
+            }
+
+            ToolbarItem(placement: .automatic) {
+                if selection == "docker-volumes" {
+                    Button(action: {
                         model.presentCreateVolume = true
                     }) {
                         Label("New Volume", systemImage: "plus")
