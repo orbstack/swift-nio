@@ -14,6 +14,10 @@ LONG_VER=$(git describe --tags --always --dirty)
 SHORT_VER=$(git describe --tag --abbrev=0)
 COMMITS=$(git rev-list --count HEAD)
 
+if [[ -z "$OVERRIDE_ARCHS" ]]; then
+    ARCHS=($OVERRIDE_ARCHS)
+fi
+
 VMGR_BIN="OrbStack Helper (VM)"
 
 cd "$(dirname "$0")"
