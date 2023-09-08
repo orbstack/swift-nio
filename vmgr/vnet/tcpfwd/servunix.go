@@ -67,7 +67,7 @@ func (f *UnixNATForward) handleConn(conn net.Conn) {
 	}
 	defer unixConn.Close()
 
-	pump2SpUnixGv(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
+	pump2SshAgent(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
 }
 
 func (f *UnixNATForward) Close() error {
