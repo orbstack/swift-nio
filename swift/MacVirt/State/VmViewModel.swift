@@ -1122,7 +1122,9 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    private func doTryDockerComposeAction(_ label: String, cid: DockerContainerId, args: [String], requiresConfig: Bool = false) async {
+    private func doTryDockerComposeAction(_ label: String, cid: DockerContainerId,
+                                          args: [String], requiresConfig: Bool = false,
+                                          ignoreError: Bool = false) async {
         if case let .compose(project) = cid {
             // find working dir from containers
             if let containers = dockerContainers,
@@ -1156,12 +1158,16 @@ class VmViewModel: ObservableObject {
                             ["-p", project] + configArgs + args,
                             env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
                 } catch {
-                    setError(.dockerComposeActionError(action: "\(label)", cause: error))
+                    if !ignoreError {
+                        setError(.dockerComposeActionError(action: "\(label)", cause: error))
+                    }
                 }
             }
         } else {
             // should never happen
-            setError(.dockerComposeActionError(action: "\(label)", cause: DockerComposeError.composeCidExpected))
+            if !ignoreError {
+                setError(.dockerComposeActionError(action: "\(label)", cause: DockerComposeError.composeCidExpected))
+            }
         }
     }
 
@@ -1182,6 +1188,12 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerComposeRemove(_ cid: DockerContainerId) async {
+        // first try a 'down' to remove networks
+        // fails if config is missing
+        // TODO just remove networks directly after 'rm'
+        await doTryDockerComposeAction("down", cid: cid, args: ["down", "--remove-orphans"],
+                requiresConfig: true, ignoreError: true)
+
         await doTryDockerComposeAction("delete", cid: cid, args: ["rm", "-f", "--stop"])
     }
 
