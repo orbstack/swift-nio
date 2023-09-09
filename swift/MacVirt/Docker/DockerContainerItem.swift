@@ -68,6 +68,49 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             // crash on macOS 12 without nested HStack
             HStack {
+                if isRunning, let domain = container.preferredDomain {
+                    ProgressIconButton(systemImage: "link",
+                            actionInProgress: false) {
+                        if let url = URL(string: "http://\(domain)") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .help("Open in Browser")
+                    .if(isFirstInList) {
+                        $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .leading) {
+                            HStack {
+                                Image(systemName: "network")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.accentColor)
+                                .padding(.trailing, 4)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("New: Domain names for services")
+                                    .font(.headline)
+
+                                    Text("See all containers at [orb.local](http://orb.local)")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(20)
+                            .overlay(alignment: .topLeading) { // opposite side of arrow edge
+                                Button(action: {
+                                    tipsContainerDomainsShow = false
+                                }) {
+                                    Image(systemName: "xmark")
+                                    .resizable()
+                                    .frame(width: 8, height: 8)
+                                    .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(8)
+                            }
+                        }
+                    }
+                }
+
                 ProgressIconButton(systemImage: "info.circle.fill",
                         actionInProgress: false) {
                     presentPopover = true
@@ -75,39 +118,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 .help("Get info")
                 .popover(isPresented: $presentPopover, arrowEdge: .leading) {
                     detailsView
-                }
-                .if(isFirstInList) {
-                    $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .leading) {
-                        HStack {
-                            Image(systemName: "network")
-                            .resizable()
-                            .frame(width: 32, height: 32)
-                            .foregroundColor(.accentColor)
-                            .padding(.trailing, 4)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("New: Domain names for services")
-                                .font(.headline)
-
-                                Text("See all containers at [orb.local](http://orb.local)")
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(20)
-                        .overlay(alignment: .topLeading) { // opposite side of arrow edge
-                            Button(action: {
-                                tipsContainerDomainsShow = false
-                            }) {
-                                Image(systemName: "xmark")
-                                .resizable()
-                                .frame(width: 8, height: 8)
-                                .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(8)
-                        }
-                    }
                 }
 
                 if isRunning {
