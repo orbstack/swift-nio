@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	VmgrExeName = "OrbStack Helper (VM)"
+	VmgrExeName = "OrbStack Helper"
 
 	K8sContext = appid.AppName
 )

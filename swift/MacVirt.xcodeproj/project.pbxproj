@@ -109,7 +109,7 @@
 		D8715C572A1FEF260047A9BE /* CBridge.h in Headers */ = {isa = PBXBuildFile; fileRef = D8715C562A1FEF260047A9BE /* CBridge.h */; };
 		D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8715CC12A208C640047A9BE /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8715CC02A208C640047A9BE /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D8715CC32A208C750047A9BE /* OrbStack Helper (VM).app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D8715CC32A208C750047A9BE /* OrbStack Helper.app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D87745FC2A7CBB1800739040 /* Blessed in Frameworks */ = {isa = PBXBuildFile; productRef = D87745FB2A7CBB1800739040 /* Blessed */; };
 		D87745FF2A7CBB2000739040 /* EmbeddedPropertyList in Frameworks */ = {isa = PBXBuildFile; productRef = D87745FE2A7CBB2000739040 /* EmbeddedPropertyList */; };
 		D87746022A7CBB2E00739040 /* SecureXPC in Frameworks */ = {isa = PBXBuildFile; productRef = D87746012A7CBB2E00739040 /* SecureXPC */; };
@@ -192,7 +192,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				D8715CC32A208C750047A9BE /* OrbStack Helper (VM).app in Embed Go VM helper bundle */,
+				D8715CC32A208C750047A9BE /* OrbStack Helper.app in Embed Go VM helper bundle */,
 			);
 			name = "Embed Go VM helper bundle";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -336,7 +336,7 @@
 		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BridgeNet.swift; sourceTree = "<group>"; };
 		D8715C562A1FEF260047A9BE /* CBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CBridge.h; path = ../CBridge/CBridge.h; sourceTree = "<group>"; };
 		D8715CC02A208C640047A9BE /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../out/scli; sourceTree = "<group>"; };
-		D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper (VM).app"; path = "../out/OrbStack Helper (VM).app"; sourceTree = "<group>"; };
+		D8715CC22A208C750047A9BE /* OrbStack Helper.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper.app"; path = "../out/OrbStack Helper.app"; sourceTree = "<group>"; };
 		D87745F92A7CB84C00739040 /* guihelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = guihelper.entitlements; sourceTree = "<group>"; };
 		D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dev.orbstack.OrbStack.privhelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		D87746142A7CC0B700739040 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -600,7 +600,7 @@
 			isa = PBXGroup;
 			children = (
 				D85EC4632A9CEBA800300ABE /* kubectl */,
-				D8715CC22A208C750047A9BE /* OrbStack Helper (VM).app */,
+				D8715CC22A208C750047A9BE /* OrbStack Helper.app */,
 				D8715CC02A208C640047A9BE /* scli */,
 				D81E786429A7012900A1D8AC /* docker-buildx */,
 				D81E7859299F059700A1D8AC /* sparkle-cli */,

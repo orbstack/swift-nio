@@ -12,7 +12,7 @@ struct Constants {
 }
 
 struct AppConfig {
-    static let vmgrExeName = "OrbStack Helper (VM)"
+    static let vmgrExeName = "OrbStack Helper"
 #if DEBUG
     static let debug = true
     static let vmgrExe = "\(Folders.home)/code/projects/macvirt/out/\(vmgrExeName).app/Contents/MacOS/\(vmgrExeName)"

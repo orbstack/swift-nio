@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VMGR_BIN="OrbStack Helper (VM)"
+VMGR_BIN="OrbStack Helper"
 
 # default dev signing cert
 SIGNING_CERT="${SIGNING_CERT:-"Apple Development: Danny Lin (A2LS84RQFY)"}"

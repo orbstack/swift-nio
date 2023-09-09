@@ -9,7 +9,7 @@
             "type": "go",
             "request": "launch",
             "mode": "exec",
-            "program": "${workspaceFolder}/OrbStack Helper (VM)",
+            "program": "${workspaceFolder}/OrbStack Helper",
             "args": ["vmgr"],
             "preLaunchTask": "go: build (debug)",
         }

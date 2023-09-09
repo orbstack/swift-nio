@@ -18,7 +18,7 @@ if [[ -z "$OVERRIDE_ARCHS" ]]; then
     ARCHS=($OVERRIDE_ARCHS)
 fi
 
-VMGR_BIN="OrbStack Helper (VM)"
+VMGR_BIN="OrbStack Helper"
 
 cd "$(dirname "$0")"
 source config.sh
