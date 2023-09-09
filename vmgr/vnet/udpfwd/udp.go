@@ -71,10 +71,13 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			}
 
 			// explicit bind is conservative. fall back to dynamic if port is used
-			logrus.WithFields(logrus.Fields{
-				"localPort": r.ID().LocalPort,
-				"remote":    dialDestAddr,
-			}).WithError(err).Debug("explicit UDP dial failed")
+			// too much mutex contention when running amass
+			/*
+				logrus.WithFields(logrus.Fields{
+					"localPort": r.ID().LocalPort,
+					"remote":    dialDestAddr,
+				}).WithError(err).Debug("explicit UDP dial failed")
+			*/
 
 			return net.DialUDP("udp", nil, dialDestAddr)
 		}, true)
