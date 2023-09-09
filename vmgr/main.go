@@ -97,6 +97,8 @@ func extractSparse(file io.ReadCloser) {
 	cmd.Stdin = file
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// bsdtar: Failed to set default locale
+	cmd.Env = append(os.Environ(), "LANG=C")
 	err := cmd.Run()
 	check(err)
 }
