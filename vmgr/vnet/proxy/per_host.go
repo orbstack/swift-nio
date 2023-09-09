@@ -100,6 +100,8 @@ func (p *PerHost) AddFromString(host string) {
 	if len(host) == 0 {
 		return
 	}
+	// fix invalid format: 'example.com/'
+	host = strings.TrimSuffix(host, "/")
 	if strings.Contains(host, "/") {
 		// We assume that it's a CIDR address like 127.0.0.0/8
 		host = convertLazyCidr(host)
