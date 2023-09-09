@@ -5,22 +5,22 @@
 import Foundation
 import SwiftUI
 
-struct CopyableText: View {
-    private let text: String
+struct CopyableText<Content: View>: View {
+    @ViewBuilder private let textBuilder: () -> Content
     private let copyAs: String
 
     @State private var isCopied = false
     @State private var hoverOpacity = 0.0
 
-    init(_ text: String, copyAs: String? = nil) {
-        self.text = text
-        self.copyAs = copyAs ?? text
+    init(copyAs: String, @ViewBuilder text: @escaping () -> Content) {
+        self.copyAs = copyAs
+        self.textBuilder = text
     }
 
     var body: some View {
         Button(action: copy) {
             HStack {
-                Text(text)
+                textBuilder()
 
                 Image(systemName: isCopied ? "checkmark.circle.fill" : "doc.on.doc")
                 .resizable()
@@ -51,6 +51,14 @@ struct CopyableText: View {
     private func copy() {
         NSPasteboard.copy(copyAs)
         isCopied = true
+    }
+}
+
+extension CopyableText where Content == Text {
+    init(_ text: String, copyAs: String? = nil) {
+        self.init(copyAs: copyAs ?? text) {
+            Text(text)
+        }
     }
 }
 

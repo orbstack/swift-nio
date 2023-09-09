@@ -82,13 +82,18 @@ private struct CommandBox: View {
                 if selectable {
                     Text(command)
                     .textSelectionWithWorkaround()
+                    .font(.body.monospaced())
+                    .padding(4)
+                    .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
                 } else {
-                    CopyableText(command)
+                    CopyableText(copyAs: command) {
+                        Text(command)
+                        .font(.body.monospaced())
+                        .padding(4)
+                        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                    }
                 }
             }
-            .font(.body.monospaced())
-            .padding(4)
-            .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

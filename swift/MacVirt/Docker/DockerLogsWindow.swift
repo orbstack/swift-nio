@@ -219,7 +219,7 @@ private class LogsViewModel: ObservableObject {
         var args = args
         if clearAndRestart {
             // clear for compose checkbox disabledChildren change
-            contents = NSMutableAttributedString()
+            clear()
         } else {
             // append arg to filter since last received line, for restart
             if let lastLineDate {
