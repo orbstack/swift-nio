@@ -587,6 +587,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	defer r.mu.Unlock()
 
 	// we don't validate these b/c it's not under the user's control
+	// TODO allow '_' and translate w/ alias to '-' like Docker
 	treeKey := reverse(name)
 	entry := &mdnsEntry{
 		Type:       MdnsEntryMachine,

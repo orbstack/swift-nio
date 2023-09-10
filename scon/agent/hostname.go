@@ -18,6 +18,13 @@ func WriteHostnameFiles(rootfs string, oldName string, newName string, runComman
 	}
 	defer fs.Close()
 
+	// NixOS special case
+	// TODO workaround: https://github.com/NixOS/nixpkgs/issues/94011
+	if _, err := fs.Stat("/etc/nixos/lxd.nix"); err == nil {
+		oldName = strings.ReplaceAll(oldName, ".", "-")
+		newName = strings.ReplaceAll(newName, ".", "-")
+	}
+
 	readFile := func(path string) (string, error) {
 		bytes, err := fs.ReadFile(path)
 		if err != nil {

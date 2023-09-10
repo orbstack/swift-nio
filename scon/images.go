@@ -392,6 +392,12 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	}
 	defer fs.Close()
 
+	// NixOS special case
+	hostName := containerName
+	if spec.Distro == images.ImageNixos {
+		hostName = strings.ReplaceAll(hostName, ".", "-")
+	}
+
 	// apply templates
 	logrus.Info("applying templates")
 	for relPath, templateSpec := range meta.Templates {
@@ -408,7 +414,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 
 		// terrible...
 		// TODO proper templating
-		tmpl = strings.ReplaceAll(tmpl, "{{ container.name }}", containerName)
+		tmpl = strings.ReplaceAll(tmpl, "{{ container.name }}", hostName)
 
 		// make dirs
 		err = fs.MkdirAll(path.Dir(relPath), 0755)
