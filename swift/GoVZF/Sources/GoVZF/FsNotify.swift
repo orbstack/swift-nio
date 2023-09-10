@@ -201,10 +201,16 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
         }
         if fseFlags & kFSEventStreamEventFlagItemRenamed != 0 {
             // mainly important for atomic save
+            // krpc doesn't do anything for this either; it triggers FUSE event generator
             npFlags |= npFlagRename
         }
         if fseFlags & kFSEventStreamEventFlagItemModified != 0 {
             npFlags |= npFlagModify
+        }
+        if fseFlags & kFSEventStreamEventFlagItemRemoved != 0 {
+            // krpc doesn't do anything for this; it simply causes FUSE changed_on_revalidate to generate an event
+            // because lookup will fail
+            npFlags |= npFlagRemove
         }
         // ignore FinderInfo, linux doesn't care about that
         // ignore ChangeOwner, virtiofs doesn't use real owner
@@ -216,6 +222,16 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
             //    -> which we translate as: MODIFY, ATTRIB, CLOSE_WRITE
             // necessary, as we can't tell InodeMetaMod+Modified apart frm other attribute changes
             npFlags |= npFlagStatAttr
+        }
+
+        // if we have other events, then remove ATTRIB, unless it's a remove event
+        // on Linux ATTRIB should only be sent on remove.
+        // Go fsnotify lib recommends ignoring ATTRIB (which it translates to fsnotify.Chmod), and Revel framework follows it
+        // but on macOS, chmod = ChangeOwner???
+        // https://github.com/fsnotify/fsnotify/blob/9342b6df577910c6eac718dc62845d8c95f8548b/backend_inotify.go#L114
+        // https://github.com/revel/cmd/blob/4c7ddf5567b1f9facb0dbf9bf4511e2da1934fdb/watcher/watcher.go#L289
+        if (npFlags & npFlagRemove == 0) && (npFlags != npFlagStatAttr) {
+            npFlags &= ~npFlagStatAttr
         }
 
         // dir-only watcher's events normally have flags=0
