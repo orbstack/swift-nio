@@ -14,18 +14,23 @@ const (
 	// v2: added container state machine (replaces running/deleting flags)
 	dbVersion = 2
 
-	bktMeta       = "meta"
-	bktState      = "state"
-	bktContainers = "containers"
-
+	bktMeta   = "meta"
 	kmVersion = "version"
 
+	bktState             = "state"
 	ksLastContainerID    = "lastContainerID"
 	ksDefaultContainerID = "defaultContainerID"
 	ksDefaultUsername    = "defaultUsername"
+	ksDnsLastQueries     = "dnsLastQueries"
+
+	bktContainers = "containers"
 
 	containerIDLastUsed = "01GRWR24S00000000LAST0USED"
 )
+
+type DnsLastQueries struct {
+	Queries map[string]mdnsQueryInfo
+}
 
 var (
 	ErrKeyNotFound = errors.New("key not found")
@@ -265,6 +270,20 @@ func (db *Database) GetDefaultUsername() (string, error) {
 
 func (db *Database) SetDefaultUsername(username string) error {
 	return db.setSimpleStr(bktState, ksDefaultUsername, username)
+}
+
+func (db *Database) GetDnsRecentQueries() (map[string]mdnsQueryInfo, error) {
+	v, err := getSimpleGob[DnsLastQueries](db, bktState, ksDnsLastQueries)
+	if err != nil {
+		return nil, err
+	}
+	return v.Queries, nil
+}
+
+func (db *Database) SetDnsRecentQueries(recentQueries map[string]mdnsQueryInfo) error {
+	return setSimpleGob(db, bktState, ksDnsLastQueries, DnsLastQueries{
+		Queries: recentQueries,
+	})
 }
 
 func (db *Database) GetContainer(id string) (*types.ContainerRecord, error) {

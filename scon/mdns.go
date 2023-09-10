@@ -110,18 +110,33 @@ type mdnsRegistry struct {
 	pendingFlushes map[string]struct{}
 
 	host *hclient.Client
+	db   *Database
 
 	httpServer *http.Server
 }
 
-func newMdnsRegistry(host *hclient.Client) *mdnsRegistry {
+func newMdnsRegistry(host *hclient.Client, db *Database) *mdnsRegistry {
 	r := &mdnsRegistry{
 		tree:           radix.New(),
-		recentQueries:  make(map[string]mdnsQueryInfo),
 		pendingFlushes: make(map[string]struct{}),
 		host:           host,
+		db:             db,
 	}
 	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
+
+	// try to restore recent queries for cross-restart cache invalidation
+	// because IPs can shift around if containers are restarted in a diff order
+	// and very quickly too, in case user applied update
+	// this is a best-effort thing, so don't worry about errors
+	recentQueries, err := db.GetDnsRecentQueries()
+	if err == nil {
+		r.recentQueries = recentQueries
+	} else {
+		r.recentQueries = make(map[string]mdnsQueryInfo)
+		if err != ErrKeyNotFound {
+			logrus.WithError(err).Error("failed to restore recent queries")
+		}
+	}
 
 	// add initial index record
 	r.tree.Insert(reverse(mdnsIndexDomain), &mdnsEntry{
@@ -235,8 +250,17 @@ func (r *mdnsRegistry) StopServer() error {
 	if r.server != nil {
 		err := r.server.Shutdown()
 		r.server = nil
-		return err
+		if err != nil {
+			return err
+		}
 	}
+
+	// save recent queries
+	err := r.db.SetDnsRecentQueries(r.recentQueries)
+	if err != nil {
+		logrus.WithError(err).Error("failed to save recent queries")
+	}
+
 	return nil
 }
 

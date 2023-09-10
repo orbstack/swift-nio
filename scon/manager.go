@@ -152,7 +152,7 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 		stopChan:      make(chan struct{}),
 		earlyStopChan: make(chan struct{}),
 	}
-	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host)
+	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db)
 	mgr.nfsForAll = NewMultiNfsMirror(mgr.nfsRoot, mgr.nfsForMachines)
 	mgr.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
 		// wait for initial starts
