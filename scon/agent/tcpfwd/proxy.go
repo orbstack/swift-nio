@@ -13,20 +13,22 @@ var (
 )
 
 type TCPProxy struct {
-	listener    net.Listener
-	preferV6    bool
-	port        uint16
-	registry    *registry.LocalTCPRegistry
-	forceDialIP net.IP
+	listener         net.Listener
+	preferV6         bool
+	port             uint16
+	registry         *registry.LocalTCPRegistry
+	forceDialIP      net.IP
+	forceDialOtherIP net.IP
 }
 
-func NewTCPProxy(listener net.Listener, preferV6 bool, port uint16, registry *registry.LocalTCPRegistry, forceDialIP net.IP) *TCPProxy {
+func NewTCPProxy(listener net.Listener, preferV6 bool, port uint16, registry *registry.LocalTCPRegistry, forceDialIP net.IP, forceDialOtherIP net.IP) *TCPProxy {
 	return &TCPProxy{
-		listener:    listener,
-		preferV6:    preferV6,
-		port:        port,
-		registry:    registry,
-		forceDialIP: forceDialIP,
+		listener:         listener,
+		preferV6:         preferV6,
+		port:             port,
+		registry:         registry,
+		forceDialIP:      forceDialIP,
+		forceDialOtherIP: forceDialOtherIP,
 	}
 }
 
@@ -64,6 +66,11 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 	}
 	if p.forceDialIP != nil {
 		dialAddr.IP = p.forceDialIP
+		if p.forceDialOtherIP != nil {
+			otherIP = p.forceDialOtherIP
+		} else {
+			otherIP = nil
+		}
 	}
 
 	dialConn, err := netx.DialTCP("tcp", nil, &dialAddr)
@@ -72,7 +79,7 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 
 		// if conn refused (i.e. no listener) but our proxy is still registered,
 		// try dialing the other v4/v6 protocol
-		if p.forceDialIP == nil {
+		if otherIP != nil {
 			dialAddr.IP = otherIP
 			logrus.WithField("dialAddr", dialAddr).Debug("retrying with other protocol")
 			dialConn, err = netx.DialTCP("tcp", nil, &dialAddr)

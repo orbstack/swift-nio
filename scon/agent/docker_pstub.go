@@ -21,7 +21,11 @@ type PstubServer struct {
 	unixListener net.Listener
 
 	mu         sync.Mutex
-	serverKeys map[sysnet.ListenerKey]struct{}
+	serverKeys map[sysnet.ListenerKey]pstubServerInfo
+}
+
+type pstubServerInfo struct {
+	DialIP net.IP
 }
 
 // Docker userland-proxy server to reduce memory usage, speed up startup, and track listeners easily for iptables accel
@@ -33,7 +37,7 @@ func NewPstubServer() (*PstubServer, error) {
 
 	return &PstubServer{
 		unixListener: l,
-		serverKeys:   make(map[sysnet.ListenerKey]struct{}),
+		serverKeys:   make(map[sysnet.ListenerKey]pstubServerInfo),
 	}, nil
 }
 
@@ -77,7 +81,7 @@ func (s *PstubServer) handleConn(conn *net.UnixConn) error {
 	args := strings.Split(string(argBuf[:n]), "\x00")
 	logrus.WithField("args", args).Debug("start pstub")
 
-	proxy, key, err := s.startServer(args)
+	proxy, key, info, err := s.startServer(args)
 	if err != nil {
 		// send error
 		_, _ = conn.Write([]byte(fmt.Sprintf("1\n%+v", err)))
@@ -85,7 +89,7 @@ func (s *PstubServer) handleConn(conn *net.UnixConn) error {
 	}
 	defer proxy.Close()
 
-	s.addServerKey(key)
+	s.addServerKey(key, info)
 	defer s.removeServerKey(key)
 
 	// send success
@@ -97,7 +101,7 @@ func (s *PstubServer) handleConn(conn *net.UnixConn) error {
 	return nil
 }
 
-func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey, error) {
+func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey, pstubServerInfo, error) {
 	flags := flag.NewFlagSet("pstub", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.Usage = func() {}
@@ -115,19 +119,19 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 
 	err := flags.Parse(args)
 	if err != nil {
-		return nil, sysnet.ListenerKey{}, err
+		return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
 	}
 	if proto == "" || hostIPRaw == "" || hostPort == 0 || containerIP == "" || containerPort == 0 {
-		return nil, sysnet.ListenerKey{}, fmt.Errorf("missing required argument")
+		return nil, sysnet.ListenerKey{}, pstubServerInfo{}, fmt.Errorf("missing required argument")
 	}
 
 	hostIP := net.ParseIP(hostIPRaw)
 	if hostIP == nil {
-		return nil, sysnet.ListenerKey{}, fmt.Errorf("invalid host IP")
+		return nil, sysnet.ListenerKey{}, pstubServerInfo{}, fmt.Errorf("invalid host IP")
 	}
 	dialIP := net.ParseIP(containerIP)
 	if dialIP == nil {
-		return nil, sysnet.ListenerKey{}, fmt.Errorf("invalid container IP")
+		return nil, sysnet.ListenerKey{}, pstubServerInfo{}, fmt.Errorf("invalid container IP")
 	}
 
 	// don't do tcp46
@@ -144,12 +148,27 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 			Port: hostPort,
 		})
 		if err != nil {
-			return nil, sysnet.ListenerKey{}, err
+			return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
 		}
 
-		proxy := tcpfwd.NewTCPProxy(l, false, uint16(containerPort), nil, dialIP)
+		var otherDialIP net.IP
+		thisKey := makeServerKey(proto, hostIP, hostPort)
+		if ipVer == "6" {
+			// we know of two equivalent IPv4 hosts. look up their proxies and use that as the other dial IP
+			// docker always registers v4 first so this simple lookup works
+			otherKey := otherKeyFor(thisKey)
+			if otherInfo, ok := s.serverKeys[otherKey]; ok {
+				otherDialIP = otherInfo.DialIP
+			}
+		}
+
+		proxy := tcpfwd.NewTCPProxy(l, false, uint16(containerPort), nil, dialIP, otherDialIP)
 		go proxy.Run()
-		return proxy, makeServerKey(proto, hostIP, hostPort), nil
+
+		info := pstubServerInfo{
+			DialIP: dialIP,
+		}
+		return proxy, thisKey, info, nil
 
 	case "udp":
 		l, err := net.ListenUDP("udp"+ipVer, &net.UDPAddr{
@@ -157,7 +176,7 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 			Port: hostPort,
 		})
 		if err != nil {
-			return nil, sysnet.ListenerKey{}, err
+			return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
 		}
 
 		dialer := func(clientAddr *net.UDPAddr) (net.Conn, error) {
@@ -168,14 +187,17 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 		}
 		proxy, err := udpfwd.NewUDPProxy(l, dialer)
 		if err != nil {
-			return nil, sysnet.ListenerKey{}, err
+			return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
 		}
 
 		go proxy.Run()
-		return proxy, makeServerKey(proto, hostIP, hostPort), nil
+		info := pstubServerInfo{
+			DialIP: dialIP,
+		}
+		return proxy, makeServerKey(proto, hostIP, hostPort), info, nil
 
 	default:
-		return nil, sysnet.ListenerKey{}, fmt.Errorf("unsupported protocol %s", proto)
+		return nil, sysnet.ListenerKey{}, pstubServerInfo{}, fmt.Errorf("unsupported protocol %s", proto)
 	}
 }
 
@@ -196,11 +218,28 @@ func makeServerKey(proto string, hostIP net.IP, hostPort int) sysnet.ListenerKey
 	}
 }
 
-func (s *PstubServer) addServerKey(key sysnet.ListenerKey) {
+func otherKeyFor(key sysnet.ListenerKey) sysnet.ListenerKey {
+	switch key.Addr() {
+	case netip.IPv6Unspecified():
+		return sysnet.ListenerKey{
+			AddrPort: netip.AddrPortFrom(netip.IPv4Unspecified(), key.Port()),
+			Proto:    key.Proto,
+		}
+	case netip.IPv6Loopback():
+		return sysnet.ListenerKey{
+			AddrPort: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), key.Port()),
+			Proto:    key.Proto,
+		}
+	default:
+		return sysnet.ListenerKey{}
+	}
+}
+
+func (s *PstubServer) addServerKey(key sysnet.ListenerKey, info pstubServerInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.serverKeys[key] = struct{}{}
+	s.serverKeys[key] = info
 }
 
 func (s *PstubServer) removeServerKey(key sysnet.ListenerKey) {

@@ -28,7 +28,7 @@ func (a *AgentServer) StartProxyTCP(args StartProxyArgs, reply *ProxyResult) err
 	// Docker: always prefer v4 because Docker is traditionally v4-only
 	// still try v6 in case of host net and v6-only servers
 	preferV6 := spec.IsIPv6 && a.docker == nil
-	proxy := tcpfwd.NewTCPProxy(listener, preferV6, spec.Port, a.localTCPRegistry, nil)
+	proxy := tcpfwd.NewTCPProxy(listener, preferV6, spec.Port, a.localTCPRegistry, nil, nil)
 	a.tcpProxies[spec] = proxy
 	go proxy.Run()
 
