@@ -16,3 +16,14 @@
 - Register device with Apple Developer
 - Generate and install Apple Development provisioning profile
 - Build and run app in Xcode
+
+## Licenses generation
+
+To install tools for generating licenses:
+
+```bash
+go install github.com/google/go-licenses@latest
+cargo install --locked cargo-about
+```
+
+Then run `scripts/gen-licenses.sh`.
