@@ -134,6 +134,10 @@ struct DockerImageItem: View, Equatable {
             }) {
                 Label("Copy ID", systemImage: "doc.on.doc")
             }
+
+            Button("Copy Path") {
+                NSPasteboard.copy("\(Folders.nfsDockerImages)/\(image.userTag))")
+            }
         }
     }
 
