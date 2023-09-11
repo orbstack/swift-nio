@@ -33,7 +33,7 @@ class ApiClient {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(FeedbackRequest(text: text, email: email))
         let (_, resp) = try await URLSession.shared.data(for: request)
-        print("got: \(resp)")
+        NSLog("API call => \(resp)")
         if let resp = resp as? HTTPURLResponse {
             if resp.statusCode != 200 {
                 throw HttpError(statusCode: resp.statusCode)
