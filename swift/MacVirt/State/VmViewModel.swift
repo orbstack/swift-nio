@@ -803,8 +803,10 @@ class VmViewModel: ObservableObject {
         do {
             try await vmgr.guiReportStarted()
             try await scon.internalGuiReportStarted()
-        } catch RPCError.request, RPCError.eof {
+        } catch RPCError.request, RPCError.eof, RPCError.app {
             // ignore
+
+            // ignore app - "Method not found" on error
         } catch {
             setError(.reportStartError(cause: error))
             return
@@ -815,10 +817,12 @@ class VmViewModel: ObservableObject {
     private func onDaemonReady() async {
         do {
             try await vmgr.guiReportStarted()
-        } catch RPCError.eof {
+        } catch RPCError.eof, RPCError.app {
             // connected to vmgr too fast. it probably crashed
             // (vmcontrol is guaranteed to be up at this point)
             // ignore and let the kqueue pid monitor handle it
+
+            // ignore app - "Method not found" on error
         } catch {
             setError(.reportStartError(cause: error))
             return
