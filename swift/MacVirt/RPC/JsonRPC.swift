@@ -29,13 +29,13 @@ enum RPCError: LocalizedError {
         case .httpStatus(let status):
             return "HTTP status \(status)"
         case .decode(let cause):
-            return "Decode error: \(cause.localizedDescription)"
+            return "Decode error: \(cause)"
         case .encode(let cause):
-            return "Encode error: \(cause.localizedDescription)"
+            return "Encode error: \(cause)"
         case .request(let cause):
-            return "Request error: \(cause.localizedDescription)"
+            return "Request error: \(cause)"
         case .readResponse(let cause):
-            return "Read response error: \(cause.localizedDescription)"
+            return "Read response error: \(cause)"
 
         case .app(_, let message):
             return message
@@ -82,8 +82,10 @@ class JsonRPCClient {
 
     init(unixSocket: String) {
         var config = HTTPClient.Configuration()
-        // this is a unix socket
+        // this is a unix socket, waiting for internet won't help
         config.networkFrameworkWaitForConnectivity = false
+        // fix error when stopping many containers concurrently, if they take a while to stop
+        config.connectionPool.concurrentHTTP1ConnectionsPerHostSoftLimit = 32
         config.timeout.connect = connectTimeout
         config.timeout.read = readTimeout
         client = HTTPClient(configuration: config)
