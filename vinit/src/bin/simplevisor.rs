@@ -4,6 +4,9 @@ use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use signal_hook::iterator::Signals;
 use serde::{Serialize, Deserialize};
 
+const SERVICE_ID_DOCKER: usize = 0;
+const SERVICE_ID_K8S: usize = 1;
+
 struct MonitoredChild {
     process: std::process::Child,
     args: Vec<String>,
@@ -140,8 +143,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                             st_code = 128 + signal;
                         }
 
+                        // sometimes k8s exits with status 1 after SIGTERM. ignore it
+                        if is_shutting_down && st_code == 1 && i == SERVICE_ID_K8S {
+                            st_code = 0;
+                        }
+
                         out_status.exit_statuses[i] = st_code;
-                        if !is_shutting_down || i == 0 {
+                        if !is_shutting_down || i == SERVICE_ID_DOCKER {
                             // write out status
                             let out_status_str = serde_json::to_string(&out_status)?;
                             fs::create_dir_all("/.orb")?;
