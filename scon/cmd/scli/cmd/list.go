@@ -28,8 +28,8 @@ func init() {
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all Linux machines",
-	Long: `List all Linux machines and their statuses.
+	Short: "List machines",
+	Long: `List machines and their respective status.
 `,
 	Example: "  " + appid.ShortCmd + " list",
 	Args:    cobra.NoArgs,

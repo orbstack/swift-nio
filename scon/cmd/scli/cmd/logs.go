@@ -18,8 +18,8 @@ func init() {
 var logsCmd = &cobra.Command{
 	Use:     "logs [ID/NAME]",
 	Aliases: []string{"log", "console"},
-	Short:   "Show logs for a Linux machine",
-	Long: `Show the unified logs for the specified Linux machine, by ID or name.
+	Short:   "Show logs for a machine",
+	Long: `Show the unified logs for the specified machine, by ID or name.
 `,
 	Example: "  " + appid.ShortCmd + " logs ubuntu",
 	Args:    cobra.ExactArgs(1),

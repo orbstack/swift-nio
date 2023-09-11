@@ -17,8 +17,8 @@ func init() {
 
 var restartCmd = &cobra.Command{
 	Use:   "restart [flags] [ID/NAME]..",
-	Short: "Restart a Linux machine",
-	Long: `Restart the specified Linux machine(s), by ID or name.
+	Short: "Restart a machine",
+	Long: `Restart the specified machine(s), by ID or name.
 `,
 	Example: "  " + appid.ShortCmd + " restart ubuntu",
 	Args:    cobra.ArbitraryArgs,

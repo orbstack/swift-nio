@@ -20,8 +20,8 @@ func init() {
 
 var startCmd = &cobra.Command{
 	Use:   "start [flags] [ID/NAME]...",
-	Short: "Start Linux machines",
-	Long: `Start the specified Linux machine(s), by ID or name.
+	Short: "Start OrbStack or a machine",
+	Long: `Start the specified machine(s), by ID or name.
 
 If no machines are specified, the command will start all machines that were running when it was last stopped.
 `,

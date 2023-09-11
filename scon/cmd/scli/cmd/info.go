@@ -17,8 +17,8 @@ func init() {
 var infoCmd = &cobra.Command{
 	Use:     "info [ID/NAME]",
 	Aliases: []string{"i"},
-	Short:   "Get information about a Linux machine",
-	Long: `Get information about the specified Linux machine, by ID or name.
+	Short:   "Get info about a machine",
+	Long: `Get info about the specified machine, by ID or name.
 `,
 	Example: "  " + appid.ShortCmd + " list",
 	Args:    cobra.ExactArgs(1),

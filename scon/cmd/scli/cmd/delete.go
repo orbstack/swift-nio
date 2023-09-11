@@ -23,8 +23,8 @@ func init() {
 
 var deleteCmd = &cobra.Command{
 	Use:   "delete [flags] [ID/NAME]...",
-	Short: "Delete a Linux machine",
-	Long: `Delete the specified Linux machine, by ID or name.
+	Short: "Delete a machine",
+	Long: `Delete the specified machine, by ID or name.
 
 The machine will be stopped if it is running.
 All files stored in the machine will be PERMANENTLY LOST without warning!

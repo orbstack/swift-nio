@@ -66,7 +66,7 @@ func printShortHelp() {
    Usage: orb
 
 %s
-   Prefix any command with "orb" to run it on Linux.
+   Prefix any command with "orb" to run it in Linux.
    Usage: orb [flags] <command> [args...]
    Example: orb uname -a
 
@@ -82,7 +82,7 @@ func printShortHelp() {
 
    Use "orbctl --help" for a list of subcommands.
 
-For Docker containers, use the "docker" command. "orb" is generally for full Linux machines.
+For Docker containers, use the "docker" command. "orb" is for managing OrbStack and machines.
 `, bold("1. Start a Linux shell."), bold(`2. Run commands on Linux, like "orbctl run".`), bold(`3. Control Linux machines, like "orbctl".`))
 	os.Exit(0)
 }

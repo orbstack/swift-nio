@@ -30,8 +30,8 @@ func init() {
 var createCmd = &cobra.Command{
 	Use:     "create [flags] DISTRO[:VERSION] [MACHINE_NAME]",
 	Aliases: []string{"add", "new"},
-	Short:   "Create a new Linux machine",
-	Long: `Create a new Linux machine with the specified distribution.
+	Short:   "Create a new machine",
+	Long: `Create a new machine with the specified distribution.
 
 Version is optional; the latest stable version will be used if not specified.
 To remove a machine, use "` + appid.ShortCmd + ` delete".
