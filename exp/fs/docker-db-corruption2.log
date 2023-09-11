@@ -1,0 +1,243 @@
+ERRO[2023-09-11T11:32:08.230791114-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:49529->198.19.248.200:53: i/o timeout"
+I0911 11:32:08.714140      39 prober_manager.go:287] "Failed to trigger a manual run" probe="Readiness"
+ERRO[2023-09-11T11:32:09.457621060-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:43920->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:10.512736509-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:32:10.513947083-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:32:10.514042082-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:32:10.514056707-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:32:10.737319093-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:46183->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:11.958907621-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:42417->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:13.459434268-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:33267->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:32:13.548630865-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:32:13.548663281-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:32:13.548668615-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:32:13.548698073-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:32:13.807839846-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:43109->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:16.312699255-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:39764->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:16.631739978-07:00] ignoring event                                container=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:32:16.631784978-07:00] shim disconnected                             id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+WARN[2023-09-11T11:32:16.631863269-07:00] cleaning up after shim disconnected           id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+INFO[2023-09-11T11:32:16.631875727-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:32:17.811160834-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:54455->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:32:17.875543833-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:32:17.875605749-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:32:17.875621957-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:32:17.875657624-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:32:18.074632282-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:47675->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:19.114783307-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:32:19.114770140-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:32:19.114915097-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:32:19.114945722-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:32:20.586706593-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:33067->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:22.080358252-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:56312->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:32:22.152542940-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:32:22.152623272-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:32:22.152637731-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:32:22.152681314-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:32:22.314646010-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:53023->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:24.825141458-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:36378->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:26.315870723-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:51998->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:26.681105337-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:36243->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:27.725285288-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:32:27.725357913-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:32:27.725410787-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:32:27.725425745-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:32:29.182966144-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:55453->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:30.181157411-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:38681->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:30.697078102-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:33215->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:32:30.750843225-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:32:30.751026348-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:32:30.751036098-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:32:30.751087098-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:32:32.695415663-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:57479->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:35.098041285-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:38522->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:35.305462044-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:38583->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:36.342650050-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:32:36.342794549-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:32:36.342869048-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:32:36.342877381-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:32:37.609434351-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:46345->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:37.814084840-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:53120->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:37.919271063-07:00] shim disconnected                             id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+WARN[2023-09-11T11:32:37.919307271-07:00] cleaning up after shim disconnected           id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+INFO[2023-09-11T11:32:37.919311062-07:00] cleaning up dead shim                         namespace=moby
+INFO[2023-09-11T11:32:37.919342062-07:00] ignoring event                                container=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+ERRO[2023-09-11T11:32:39.102826345-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:54373->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:32:39.189476212-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:32:39.189509545-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:32:39.189515003-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:32:39.189544753-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:32:39.306350426-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:41911->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:32:39.340236537-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:32:39.340320954-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:32:39.340340120-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:32:39.340388828-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:32:43.676212518-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:49766->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:43.864665801-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:52759->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:44.913428758-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:32:44.915035453-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:32:44.915144578-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:32:44.915154286-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:32:46.184183986-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:37659->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:46.373781134-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:50564->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:47.681308076-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:40758->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:47.867947789-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:59498->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:32:48.183785454-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:32:48.184254367-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:32:48.184266867-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:32:48.184371158-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:32:50.470991224-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:48912->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:52.713654717-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:55052->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:52.975091805-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:39257->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:53.762537714-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:32:53.762800962-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:32:53.762814046-07:00] cleaning up dead shim                         namespace=moby
+INFO[2023-09-11T11:32:53.762826420-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+ERRO[2023-09-11T11:32:54.479711087-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:52505->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:55.220071071-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:45581->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:56.369806784-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:59245->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:56.718047821-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:34208->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:32:58.876077764-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:47280->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:32:59.142265066-07:00] ignoring event                                container=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:32:59.143354974-07:00] shim disconnected                             id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+WARN[2023-09-11T11:32:59.143403516-07:00] cleaning up after shim disconnected           id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+INFO[2023-09-11T11:32:59.143410141-07:00] cleaning up dead shim                         namespace=moby
+time="2023-09-11T11:33:00.201097695-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:33:00.201144903-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:33:00.201150819-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:33:00.201187611-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:33:00.374874341-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:56891->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:33:00.418733000-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:33:00.418780666-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:33:00.418789499-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:33:00.418834207-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:33:04.737721196-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:53592->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:04.882560527-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:50473->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:33:05.791492614-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:33:05.791550531-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:33:05.791616488-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:33:05.791627030-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:33:07.245270834-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:41270->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:07.390837200-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:38806->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:08.740171400-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:33239->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:08.884025154-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:40992->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:11.358959046-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:43591->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:13.864089285-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:34891->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:15.365013138-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:57800->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:17.612971838-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:48795->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:33:18.652772782-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:33:18.652867990-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:33:18.652888239-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:33:18.652936656-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:33:20.122893832-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:49757->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:33:20.383980257-07:00] ignoring event                                container=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:33:20.384043799-07:00] shim disconnected                             id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+WARN[2023-09-11T11:33:20.384087840-07:00] cleaning up after shim disconnected           id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+INFO[2023-09-11T11:33:20.384092882-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:33:21.614291676-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:58953->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:33:21.683081473-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:33:21.683343013-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:33:21.683350471-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:33:21.683401471-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:33:23.189846947-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:35769->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:33:24.229326268-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:33:24.229531974-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:33:24.229656140-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:33:24.229669640-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:33:25.693208450-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:56646->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:26.119367798-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:35614->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:27.191472156-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:60991->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:28.622502136-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:60642->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:30.123573071-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:41274->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:32.784480889-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:50021->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:35.291034076-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:42819->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:36.791049060-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:58395->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:38.812961105-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:55718->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:41.317069227-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:57476->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:33:41.629101797-07:00] shim disconnected                             id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+WARN[2023-09-11T11:33:41.629181921-07:00] cleaning up after shim disconnected           id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+INFO[2023-09-11T11:33:41.629195421-07:00] cleaning up dead shim                         namespace=moby
+INFO[2023-09-11T11:33:41.629279921-07:00] ignoring event                                container=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+ERRO[2023-09-11T11:33:42.823850325-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:43820->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:33:42.919602371-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:33:42.919641413-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:33:42.919647954-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:33:42.919695704-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:33:47.350475946-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:37203->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:49.851358344-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:59673->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:33:49.897912357-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:33:49.898357728-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:33:49.898381228-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:33:49.898465436-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+WARN[2023-09-11T11:33:51.013344878-07:00] no trace recorder found, skipping
+ERRO[2023-09-11T11:33:51.356881536-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:42880->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:53.575883337-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:52277->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:54.419167519-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:43380->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:33:55.438178041-07:00] ignoring event                                container=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:33:55.438367623-07:00] shim disconnected                             id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+WARN[2023-09-11T11:33:55.438730037-07:00] cleaning up after shim disconnected           id=1494f66b75d2f9fe19289acb46fdc8ba89e110d49f089793601a9baaf347501f namespace=moby
+INFO[2023-09-11T11:33:55.438759579-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:33:56.085039962-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:37884->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:56.928499143-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:46380->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:57.581692431-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:41262->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:58.419916944-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.3:40160->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:33:59.956816266-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:53278->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:34:02.461789924-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:43176->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:34:02.722079355-07:00] ignoring event                                container=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+INFO[2023-09-11T11:34:02.722218979-07:00] shim disconnected                             id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+WARN[2023-09-11T11:34:02.722257103-07:00] cleaning up after shim disconnected           id=ea258360a3913cdc7cb94b302711ff255f56a6c85fde89f62e9dd608a11fa53a namespace=moby
+INFO[2023-09-11T11:34:02.722272062-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:34:03.960832374-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:49048->198.19.248.200:53: i/o timeout"
+time="2023-09-11T11:34:04.004636366-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:34:04.004669366-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:34:04.004676282-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:34:04.004706491-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:34:08.514593825-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:52246->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:34:11.022897975-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:41238->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:34:12.515900318-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:44539->198.19.248.200:53: i/o timeout"
+WARN[2023-09-11T11:34:13.977919609-07:00] no trace recorder found, skipping
+time="2023-09-11T11:34:14.503479928-07:00" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+time="2023-09-11T11:34:14.503563183-07:00" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+time="2023-09-11T11:34:14.503618396-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+time="2023-09-11T11:34:14.503665774-07:00" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+ERRO[2023-09-11T11:34:14.731844449-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:58140->198.19.248.200:53: i/o timeout"
+INFO[2023-09-11T11:34:16.301666401-07:00] shim disconnected                             id=d03a0bf1e0a4b2ffb9c64c99b7d17292469eb3cc80572898ae235e19175c1015 namespace=moby
+INFO[2023-09-11T11:34:16.301684694-07:00] ignoring event                                container=d03a0bf1e0a4b2ffb9c64c99b7d17292469eb3cc80572898ae235e19175c1015 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+WARN[2023-09-11T11:34:16.301792535-07:00] cleaning up after shim disconnected           id=d03a0bf1e0a4b2ffb9c64c99b7d17292469eb3cc80572898ae235e19175c1015 namespace=moby
+INFO[2023-09-11T11:34:16.301812286-07:00] cleaning up dead shim                         namespace=moby
+ERRO[2023-09-11T11:34:17.237967653-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:58827->198.19.248.200:53: i/o timeout"
+ERRO[2023-09-11T11:34:18.732601565-07:00] [resolver] failed to query DNS server: 198.19.248.200:53, query: ;db.	IN	 A  error="read udp 192.168.227.2:36944->198.19.248.200:53: i/o timeout"
+panic: page 5893 already freed
+
+goroutine 1093 [running]:
+go.etcd.io/bbolt.(*freelist).free(0x40007e8580, 0x63f9e, 0xfffeb1105000)
+	/go/src/github.com/docker/docker/vendor/go.etcd.io/bbolt/freelist.go:175 +0x2a4
+go.etcd.io/bbolt.(*node).spill(0x4000be0a10)
+	/go/src/github.com/docker/docker/vendor/go.etcd.io/bbolt/node.go:363 +0x160
+go.etcd.io/bbolt.(*node).spill(0x4000be09a0)
+	/go/src/github.com/docker/docker/vendor/go.etcd.io/bbolt/node.go:350 +0xa0
+go.etcd.io/bbolt.(*node).spill(0x4000be0930)
+	/go/src/github.com/docker/docker/vendor/go.etcd.io/bbolt/node.go:350 +0xa0
+go.etcd.io/bbolt.(*Bucket).spill(0x4002392800)
+	/go/src/github.com/docker/docker/vendor/go.etcd.io/bbolt/bucket.go:584 +0x274
+go.etcd.io/bbolt.(*Bucket).spill(0x40015de718)
+	/go/src/github.com/docker/docker/vendor/go.etcd.io/bbolt/bucket.go:551 +0xc4
+go.etcd.io/bbolt.(*Tx).Commit(0x40015de700)
+	/go/src/github.com/docker/docker/vendor/go.etcd.io/bbolt/tx.go:163 +0xdc
+go.etcd.io/bbolt.(*DB).Update(0x4002e292c8?, 0x4002e292c0)
+	/go/src/github.com/docker/docker/vendor/go.etcd.io/bbolt/db.go:869 +0xc8
+github.com/moby/buildkit/solver/bboltcachestorage.(*Store).AddLink(0x400005c910?, {0x40028295e0?, 0x40045456e0?}, {0x1, 0x0, {0x4002d98280, 0x47}, {0x4002d982d0, 0x47}}, {0x40045456e0?, ...})
+	/go/src/github.com/docker/docker/vendor/github.com/moby/buildkit/solver/bboltcachestorage/storage.go:294 +0x94
+github.com/moby/buildkit/solver.(*cacheManager).Query(0x400005c910, {0x4001cea780, 0x2, 0x1?}, 0x1, {0x4002d98280, 0x47}, 0x0)
+	/go/src/github.com/docker/docker/vendor/github.com/moby/buildkit/solver/cachemanager.go:89 +0x7ec
+github.com/moby/buildkit/solver.(*edge).processUpdate(0x4002be6500, {0x2513358, 0x4001ba9d60})
+	/go/src/github.com/docker/docker/vendor/github.com/moby/buildkit/solver/edge.go:523 +0x1c00
+github.com/moby/buildkit/solver.(*edge).unpark(0x4002be6500, {0x40016086c0, 0x1, 0x1}, {0x40016086e0?, 0x1, 0x1}, {0x40016086d0, 0x1, 0x1}, ...)
+	/go/src/github.com/docker/docker/vendor/github.com/moby/buildkit/solver/edge.go:329 +0x74
+github.com/moby/buildkit/solver.(*scheduler).dispatch(0x40007708c0, 0x4002be6500)
+	/go/src/github.com/docker/docker/vendor/github.com/moby/buildkit/solver/scheduler.go:136 +0x3a4
+github.com/moby/buildkit/solver.(*scheduler).loop(0x40007708c0)
+	/go/src/github.com/docker/docker/vendor/github.com/moby/buildkit/solver/scheduler.go:104 +0x284
+created by github.com/moby/buildkit/solver.newScheduler
+	/go/src/github.com/docker/docker/vendor/github.com/moby/buildkit/solver/scheduler.go:35 +0x218
+ [*] service 0 exited with exit status: 2
