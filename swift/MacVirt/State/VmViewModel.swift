@@ -765,8 +765,10 @@ class VmViewModel: ObservableObject {
             return
         }
 
-        // async part
+        // async part once spawn-daemon finishes
+        // to avoid sending gui report during 'updating'
         Task { @MainActor in
+            await waitForStateEquals(.starting)
             await tryStartDaemon(doSpawn: false)
         }
     }
@@ -806,7 +808,7 @@ class VmViewModel: ObservableObject {
         } catch RPCError.request, RPCError.eof, RPCError.app {
             // ignore
 
-            // ignore app - "Method not found" on error
+            // ignore app - "Method not found" on update
         } catch {
             setError(.reportStartError(cause: error))
             return
@@ -822,7 +824,7 @@ class VmViewModel: ObservableObject {
             // (vmcontrol is guaranteed to be up at this point)
             // ignore and let the kqueue pid monitor handle it
 
-            // ignore app - "Method not found" on error
+            // ignore app - "Method not found" on update
         } catch {
             setError(.reportStartError(cause: error))
             return
