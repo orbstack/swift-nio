@@ -4,7 +4,6 @@
 
 import Foundation
 import SwiftUI
-import SwiftJSONRPC
 import Sentry
 import Virtualization
 import Combine
@@ -57,6 +56,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case configUpdateError(cause: Error)
     case resetDataError(cause: Error)
     case eventDecodeError(cause: Error)
+    case reportStartError(cause: Error)
 
     // vmgr - async
     case drmWarning(event: UIEvent.DrmWarning)
@@ -118,6 +118,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t reset data"
         case .eventDecodeError:
             return "Can’t get info"
+        case .reportStartError:
+            return "Can’t connect to service"
 
         case .drmWarning:
             return "Can’t verify license. OrbStack will stop working soon."
@@ -286,6 +288,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .eventDecodeError(let cause):
             return cause
+        case .reportStartError(let cause):
+            return cause
 
         case .drmWarning:
             return nil
@@ -368,25 +372,10 @@ private enum DockerComposeError: Error {
 
 private func fmtRpc(_ error: Error) -> String {
     switch error {
-    case InvocationError.rpcError(let rpcError):
-        return rpcError.message
-    case InvocationError.applicationError(let cause):
-        switch cause {
-        case let httpError as HTTPRequestExecutorError:
-            switch httpError.reason {
-            case .httpClientError(let clientError):
-                return clientError.localizedDescription
-            case .httpRequestError(let requestError):
-                return requestError.localizedDescription
-            case .httpResponseError(let responseError):
-                return responseError.localizedDescription
-            }
-        default:
-            return "Unknown error: \(cause)"
-        }
-    case is ProcessError:
-        let processError = error as! ProcessError
-        return "Exited with status \(processError.status):\n\(processError.output)"
+    case let error as ProcessError:
+        return "Exited with status \(error.status):\n\(error.output)"
+    case let error as RPCError:
+        return error.errorDescription ?? "\(error)"
     default:
         // prefer info, not localized "operation could not be completed"
         return "\(error)"
@@ -404,8 +393,8 @@ struct AddPathsAlert {
 @MainActor
 class VmViewModel: ObservableObject {
     private let daemon = DaemonManager()
-    private let vmgr = VmService(client: newRPCClient("http://127.0.0.1:42506"))
-    private let scon = SconService(client: newRPCClient("http://127.0.0.1:42507"))
+    private let vmgr = VmService(client: JsonRPCClient(unixSocket: Files.vmgrSocket))
+    private let scon = SconService(client: JsonRPCClient(unixSocket: Files.sconSocket))
 
     let privHelper = PHClient()
 
@@ -814,8 +803,11 @@ class VmViewModel: ObservableObject {
         do {
             try await vmgr.guiReportStarted()
             try await scon.internalGuiReportStarted()
-        } catch {
+        } catch RPCError.request, RPCError.eof {
             // ignore
+        } catch {
+            setError(.reportStartError(cause: error))
+            return
         }
     }
 
@@ -823,10 +815,12 @@ class VmViewModel: ObservableObject {
     private func onDaemonReady() async {
         do {
             try await vmgr.guiReportStarted()
-            try await scon.internalGuiReportStarted()
+        } catch RPCError.eof {
+            // connected to vmgr too fast. it probably crashed
+            // (vmcontrol is guaranteed to be up at this point)
+            // ignore and let the kqueue pid monitor handle it
         } catch {
-            NSLog("refresh: start: report started: \(error)")
-            // don't do setup
+            setError(.reportStartError(cause: error))
             return
         }
 
@@ -843,18 +837,8 @@ class VmViewModel: ObservableObject {
         self.state = .stopping
         do {
             try await vmgr.stop()
-        } catch {
-            // if it's stopped, ignore the error. ("The network connection was lost." NSURLErrorNetworkConnectionLost)
-            if case let InvocationError.applicationError(cause) = error,
-               let execError = cause as? HTTPRequestExecutorError,
-               case let .httpClientError(clientError) = execError.reason,
-               let nestedError = clientError as? NestedError<Error>,
-               let urlError = nestedError.cause as? URLError,
-               urlError.code == .networkConnectionLost {
-                return
-            } else {
-                throw error
-            }
+        } catch RPCError.eof {
+            // ignore: stopped
         }
         // we don't set state. daemonManager callback must do it
     }
@@ -1019,18 +1003,8 @@ class VmViewModel: ObservableObject {
     func resetData() async throws {
         do {
             try await vmgr.resetData()
-        } catch {
-            // if it's stopped, ignore the error. ("The network connection was lost." NSURLErrorNetworkConnectionLost)
-            if case let InvocationError.applicationError(cause) = error,
-               let execError = cause as? HTTPRequestExecutorError,
-               case let .httpClientError(clientError) = execError.reason,
-               let nestedError = clientError as? NestedError<Error>,
-               let urlError = nestedError.cause as? URLError,
-               urlError.code == .networkConnectionLost {
-                return
-            } else {
-                throw error
-            }
+        } catch RPCError.eof {
+            // ignore: stopped
         }
     }
 

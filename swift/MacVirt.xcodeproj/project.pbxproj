@@ -92,7 +92,7 @@
 		D804440F2A1B404E00ED59C5 /* NetworkSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D52A1B404E00ED59C5 /* NetworkSettingsView.swift */; };
 		D80444112A1B404E00ED59C5 /* ActionTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D72A1B404E00ED59C5 /* ActionTracker.swift */; };
 		D80444122A1B404E00ED59C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D82A1B404E00ED59C5 /* DoubleClick.swift */; };
-		D80444132A1B404E00ED59C5 /* RPCExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DA2A1B404E00ED59C5 /* RPCExecutor.swift */; };
+		D80444132A1B404E00ED59C5 /* JsonRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DA2A1B404E00ED59C5 /* JsonRPC.swift */; };
 		D80444142A1B404E00ED59C5 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DB2A1B404E00ED59C5 /* SconRPC.swift */; };
 		D80444152A1B404E00ED59C5 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DC2A1B404E00ED59C5 /* VmRPC.swift */; };
 		D80444162A1B404E00ED59C5 /* DockerRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */; };
@@ -102,7 +102,7 @@
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D85EC4642A9CEBA800300ABE /* kubectl in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D85EC4632A9CEBA800300ABE /* kubectl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D86614182A38061700EA0995 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D86614172A38061700EA0995 /* Defaults */; };
-		D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A352991D8160046B6B6 /* SwiftJSONRPC */; };
+		D86637E72AAF4D2B00630A01 /* AsyncHTTPClient in Frameworks */ = {isa = PBXBuildFile; productRef = D86637E62AAF4D2B00630A01 /* AsyncHTTPClient */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
@@ -314,7 +314,7 @@
 		D80443D52A1B404E00ED59C5 /* NetworkSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NetworkSettingsView.swift; sourceTree = "<group>"; };
 		D80443D72A1B404E00ED59C5 /* ActionTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActionTracker.swift; sourceTree = "<group>"; };
 		D80443D82A1B404E00ED59C5 /* DoubleClick.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DoubleClick.swift; path = ../DoubleClick.swift; sourceTree = "<group>"; };
-		D80443DA2A1B404E00ED59C5 /* RPCExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RPCExecutor.swift; sourceTree = "<group>"; };
+		D80443DA2A1B404E00ED59C5 /* JsonRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = JsonRPC.swift; sourceTree = "<group>"; };
 		D80443DB2A1B404E00ED59C5 /* SconRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
 		D80443DC2A1B404E00ED59C5 /* VmRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
 		D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerRPC.swift; sourceTree = "<group>"; };
@@ -391,13 +391,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				D86614182A38061700EA0995 /* Defaults in Frameworks */,
+				D86637E72AAF4D2B00630A01 /* AsyncHTTPClient in Frameworks */,
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D87746022A7CBB2E00739040 /* SecureXPC in Frameworks */,
 				D87745FC2A7CBB1800739040 /* Blessed in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
 				D87745FF2A7CBB2000739040 /* EmbeddedPropertyList in Frameworks */,
-				D8694A362991D8160046B6B6 /* SwiftJSONRPC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -540,7 +540,7 @@
 		D80443D92A1B404E00ED59C5 /* RPC */ = {
 			isa = PBXGroup;
 			children = (
-				D80443DA2A1B404E00ED59C5 /* RPCExecutor.swift */,
+				D80443DA2A1B404E00ED59C5 /* JsonRPC.swift */,
 				D80443DB2A1B404E00ED59C5 /* SconRPC.swift */,
 				D80443DC2A1B404E00ED59C5 /* VmRPC.swift */,
 				D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */,
@@ -786,7 +786,6 @@
 			);
 			name = MacVirt;
 			packageProductDependencies = (
-				D8694A352991D8160046B6B6 /* SwiftJSONRPC */,
 				D8694A392991F3C10046B6B6 /* LaunchAtLogin */,
 				D8694A48299464810046B6B6 /* Sparkle */,
 				D855F1EF2998B6A700B62588 /* Sentry */,
@@ -794,6 +793,7 @@
 				D87745FB2A7CBB1800739040 /* Blessed */,
 				D87745FE2A7CBB2000739040 /* EmbeddedPropertyList */,
 				D87746012A7CBB2E00739040 /* SecureXPC */,
+				D86637E62AAF4D2B00630A01 /* AsyncHTTPClient */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -836,7 +836,6 @@
 			);
 			mainGroup = D8A32B85296F839100E56EEF;
 			packageReferences = (
-				D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */,
 				D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
 				D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
@@ -844,6 +843,7 @@
 				D87745FA2A7CBB1800739040 /* XCRemoteSwiftPackageReference "Blessed" */,
 				D87745FD2A7CBB2000739040 /* XCRemoteSwiftPackageReference "EmbeddedPropertyList" */,
 				D87746002A7CBB2E00739040 /* XCRemoteSwiftPackageReference "SecureXPC" */,
+				D86637E52AAF4D2B00630A01 /* XCRemoteSwiftPackageReference "async-http-client" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -998,7 +998,7 @@
 				D80443F52A1B404E00ED59C5 /* Utils.swift in Sources */,
 				D80444022A1B404E00ED59C5 /* DockerViewModel.swift in Sources */,
 				D80444032A1B404E00ED59C5 /* DockerVolumeItem.swift in Sources */,
-				D80444132A1B404E00ED59C5 /* RPCExecutor.swift in Sources */,
+				D80444132A1B404E00ED59C5 /* JsonRPC.swift in Sources */,
 				D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */,
 				D80443FB2A1B404E00ED59C5 /* DockerLogsWindow.swift in Sources */,
 				D80443EE2A1B404E00ED59C5 /* StateWrapperView.swift in Sources */,
@@ -1499,12 +1499,12 @@
 				minimumVersion = 7.2.0;
 			};
 		};
-		D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */ = {
+		D86637E52AAF4D2B00630A01 /* XCRemoteSwiftPackageReference "async-http-client" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/orbstack/SwiftJSONRPC.git";
+			repositoryURL = "https://github.com/swift-server/async-http-client.git";
 			requirement = {
-				kind = revision;
-				revision = 0f198bdcd82ffacb97188422b3b68fea4b453cd8;
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
 			};
 		};
 		D8694A382991F3C10046B6B6 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */ = {
@@ -1560,10 +1560,10 @@
 			package = D86614162A38061700EA0995 /* XCRemoteSwiftPackageReference "defaults" */;
 			productName = Defaults;
 		};
-		D8694A352991D8160046B6B6 /* SwiftJSONRPC */ = {
+		D86637E62AAF4D2B00630A01 /* AsyncHTTPClient */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = D8694A342991D8160046B6B6 /* XCRemoteSwiftPackageReference "SwiftJSONRPC" */;
-			productName = SwiftJSONRPC;
+			package = D86637E52AAF4D2B00630A01 /* XCRemoteSwiftPackageReference "async-http-client" */;
+			productName = AsyncHTTPClient;
 		};
 		D8694A392991F3C10046B6B6 /* LaunchAtLogin */ = {
 			isa = XCSwiftPackageProductDependency;

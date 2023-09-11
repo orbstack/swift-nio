@@ -5,8 +5,6 @@ const (
 	HostDebugSSH      = 2222 // debug
 	HostKubernetes    = 26443
 	HostSconSSHPublic = 32222
-	HostVmControl     = 42506 // for Swift
-	HostSconRPC       = 42507 // for Swift
 	// host NFS is dynamically assigned
 
 	// guest
@@ -33,5 +31,6 @@ const (
 	SecureSvcHcontrol        = 8300
 	SecureSvcDockerRemoteCtx = 2376
 
-	DockerMachineK8s = 26443
+	DockerMachineK8s       = 26443
+	DockerMachineHttpProxy = 30817
 )

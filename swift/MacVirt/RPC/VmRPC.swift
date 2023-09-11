@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftJSONRPC
 
 struct VmConfig: Codable, Equatable {
     var memoryMib: UInt64
@@ -50,92 +49,98 @@ private struct K8sNameRequest: Codable {
     let name: String
 }
 
-class VmService: RPCService {
+class VmService {
+    private let c: JsonRPCClient
+
+    init(client: JsonRPCClient) {
+        c = client
+    }
+
     func ping() async throws {
-        try await invoke("Ping")
+        try await c.call("Ping")
     }
 
     func stop() async throws {
-        try await invoke("Stop")
+        try await c.call("Stop")
         // TODO handle EOF
     }
 
     func forceStop() async throws {
-        try await invoke("ForceStop")
+        try await c.call("ForceStop")
         // TODO handle EOF
     }
 
     func resetData() async throws {
-        try await invoke("ResetData")
+        try await c.call("ResetData")
     }
 
     func setConfig(_ config: VmConfig) async throws {
-        try await invoke("SetConfig", params: config)
+        try await c.call("SetConfig", args: config)
     }
 
     func resetConfig() async throws {
-        try await invoke("ResetConfig")
+        try await c.call("ResetConfig")
     }
 
     func startSetup() async throws -> SetupInfo {
-        try await invoke("StartSetup")
+        try await c.call("StartSetup")
     }
 
     func isSshConfigWritable() async throws -> Bool {
-        try await invoke("IsSshConfigWritable")
+        try await c.call("IsSshConfigWritable")
     }
 
     // MARK: - Docker
     func dockerContainerStart(_ id: String) async throws {
-        try await invoke("DockerContainerStart", params: IDRequest(id: id))
+        try await c.call("DockerContainerStart", args: IDRequest(id: id))
     }
 
     func dockerContainerStop(_ id: String) async throws {
-        try await invoke("DockerContainerStop", params: IDRequest(id: id))
+        try await c.call("DockerContainerStop", args: IDRequest(id: id))
     }
 
     func dockerContainerKill(_ id: String) async throws {
-        try await invoke("DockerContainerKill", params: IDRequest(id: id))
+        try await c.call("DockerContainerKill", args: IDRequest(id: id))
     }
 
     func dockerContainerRestart(_ id: String) async throws {
-        try await invoke("DockerContainerRestart", params: IDRequest(id: id))
+        try await c.call("DockerContainerRestart", args: IDRequest(id: id))
     }
 
     func dockerContainerPause(_ id: String) async throws {
-        try await invoke("DockerContainerPause", params: IDRequest(id: id))
+        try await c.call("DockerContainerPause", args: IDRequest(id: id))
     }
 
     func dockerContainerUnpause(_ id: String) async throws {
-        try await invoke("DockerContainerUnpause", params: IDRequest(id: id))
+        try await c.call("DockerContainerUnpause", args: IDRequest(id: id))
     }
 
     func dockerContainerRemove(_ id: String) async throws {
-        try await invoke("DockerContainerDelete", params: IDRequest(id: id))
+        try await c.call("DockerContainerDelete", args: IDRequest(id: id))
     }
 
     func dockerVolumeCreate(_ options: DKVolumeCreateOptions) async throws {
-        try await invoke("DockerVolumeCreate", params: options)
+        try await c.call("DockerVolumeCreate", args: options)
     }
 
     func dockerVolumeRemove(_ id: String) async throws {
-        try await invoke("DockerVolumeDelete", params: IDRequest(id: id))
+        try await c.call("DockerVolumeDelete", args: IDRequest(id: id))
     }
 
     func dockerImageRemove(_ id: String) async throws {
-        try await invoke("DockerImageDelete", params: IDRequest(id: id))
+        try await c.call("DockerImageDelete", args: IDRequest(id: id))
     }
 
     // MARK: - K8s
     func k8sPodDelete(namespace: String, name: String) async throws {
-        try await invoke("K8sPodDelete", params: K8sNameRequest(namespace: namespace, name: name))
+        try await c.call("K8sPodDelete", args: K8sNameRequest(namespace: namespace, name: name))
     }
 
     func k8sServiceDelete(namespace: String, name: String) async throws {
-        try await invoke("K8sServiceDelete", params: K8sNameRequest(namespace: namespace, name: name))
+        try await c.call("K8sServiceDelete", args: K8sNameRequest(namespace: namespace, name: name))
     }
 
     func guiReportStarted() async throws {
-        try await invoke("GuiReportStarted")
+        try await c.call("GuiReportStarted")
     }
 }

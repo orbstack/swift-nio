@@ -5,6 +5,7 @@ const (
 	VnetSubnet4CIDR   = VnetSubnet4 + ".0/24"
 	VnetGatewayIP4    = VnetSubnet4 + ".1"
 	VnetGuestIP4      = VnetSubnet4 + ".2"
+	VnetHttpProxyIP4  = VnetSubnet4 + ".199"
 	VnetServicesIP4   = VnetSubnet4 + ".200"
 	VnetSecureSvcIP4  = VnetSubnet4 + ".201"
 	VnetExtHostNatIP4 = VnetSubnet4 + ".253"
@@ -14,6 +15,7 @@ const (
 	VnetSubnet6CIDR   = VnetSubnet6 + ":/64"
 	VnetGatewayIP6    = VnetSubnet6 + ":1"
 	VnetGuestIP6      = VnetSubnet6 + ":2"
+	VnetHttpProxyIP6  = VnetSubnet6 + ":c7"
 	VnetExtHostNatIP6 = VnetSubnet6 + ":fd"
 	VnetHostNatIP6    = VnetSubnet6 + ":fe"
 )

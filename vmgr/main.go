@@ -717,9 +717,6 @@ func runVmManager() {
 
 	// Host forwards (setup vsock)
 	essentialForwards := map[string]string{
-		// for Swift
-		"tcp:127.0.0.1:" + str(ports.HostSconRPC): "tcp:" + str(ports.GuestScon),
-		"tcp:[::1]:" + str(ports.HostSconRPC):     "tcp:" + str(ports.GuestScon),
 		// unix sockets
 		"unix:" + conf.DockerSocket():  "tcp:" + str(ports.GuestDocker),
 		"unix:" + conf.SconSSHSocket(): "tcp:" + str(ports.GuestSconSSH),

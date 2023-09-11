@@ -18,7 +18,6 @@ var (
 		ports.GuestDocker:   {}, // Docker
 		ports.GuestNFS:      {}, // NFS
 		ports.GuestVcontrol: {}, // vcontrol
-		ports.HostVmControl: {}, // hcontrol
 	}
 )
 

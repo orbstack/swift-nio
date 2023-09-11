@@ -18,9 +18,7 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
-	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm"
@@ -403,11 +401,6 @@ func (s *VmControlServer) Serve() (func() error, error) {
 	server := &http.Server{
 		Handler: mux,
 	}
-	listenerTcp, err := netx.Listen("tcp", "127.0.0.1:"+str(ports.HostVmControl))
-	if err != nil {
-		return nil, fmt.Errorf("listen vmcontrol: %w", err)
-	}
-	go func() { _ = server.Serve(listenerTcp) }()
 
 	listenerUnix, err := net.Listen("unix", conf.VmControlSocket())
 	if err != nil {
@@ -425,7 +418,6 @@ func (s *VmControlServer) Serve() (func() error, error) {
 	return func() error {
 		// to prevent race, leave open conns open until process exit, like flock
 		// just close listeners. Go already sets SO_REUSEADDR
-		_ = listenerTcp.Close()
 		_ = listenerUnix.Close()
 		return nil
 	}, nil

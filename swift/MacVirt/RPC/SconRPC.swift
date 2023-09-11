@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftJSONRPC
 
 enum ContainerState: String, Codable {
     case creating = "creating"
@@ -66,16 +65,20 @@ private struct ContainerRenameRequest: Codable {
     var newName: String
 }
 
-class SconService: RPCService {
-    static let shared = SconService(client: RPCClient(url: URL(string: "http://127.0.0.1:42507")!))
+class SconService {
+    private let c: JsonRPCClient
+
+    init(client: JsonRPCClient) {
+        c = client
+    }
 
     func ping() async throws {
-        try await invoke("Ping")
+        try await c.call("Ping")
     }
 
     @discardableResult
     func create(name: String, image: ImageSpec, userPassword: String?) async throws -> ContainerRecord {
-        return try await invoke("Create", params: CreateRequest(
+        return try await c.call("Create", args: CreateRequest(
             name: name,
             image: image,
             userPassword: userPassword
@@ -83,54 +86,54 @@ class SconService: RPCService {
     }
     
     func listContainers() async throws -> [ContainerRecord] {
-        return try await invoke("ListContainers")
+        return try await c.call("ListContainers")
     }
     
     func getById(_ id: String) async throws -> ContainerRecord {
-        return try await invoke("GetByID", params: GetByIDRequest(id: id))
+        return try await c.call("GetByID", args: GetByIDRequest(id: id))
     }
     
     func getByName(_ name: String) async throws -> ContainerRecord {
-        return try await invoke("GetByName", params: GetByNameRequest(name: name))
+        return try await c.call("GetByName", args: GetByNameRequest(name: name))
     }
     
     func getDefaultContainer() async throws -> ContainerRecord {
-        return try await invoke("GetDefaultContainer")
+        return try await c.call("GetDefaultContainer")
     }
 
     func setDefaultContainer(_ record: ContainerRecord) async throws {
-        try await invoke("SetDefaultContainer", params: record)
+        try await c.call("SetDefaultContainer", args: record)
     }
 
     func clearDefaultContainer() async throws {
-        try await invoke("ClearDefaultContainer")
+        try await c.call("ClearDefaultContainer")
     }
 
     func containerStart(_ record: ContainerRecord) async throws {
-        try await invoke("ContainerStart", params: record)
+        try await c.call("ContainerStart", args: record)
     }
 
     func containerStop(_ record: ContainerRecord) async throws {
-        try await invoke("ContainerStop", params: record)
+        try await c.call("ContainerStop", args: record)
     }
 
     func containerRestart(_ record: ContainerRecord) async throws {
-        try await invoke("ContainerRestart", params: record)
+        try await c.call("ContainerRestart", args: record)
     }
 
     func containerDelete(_ record: ContainerRecord) async throws {
-        try await invoke("ContainerDelete", params: record)
+        try await c.call("ContainerDelete", args: record)
     }
 
     func containerRename(_ record: ContainerRecord, newName: String) async throws {
-        try await invoke("ContainerRename", params: ContainerRenameRequest(container: record, newName: newName))
+        try await c.call("ContainerRename", args: ContainerRenameRequest(container: record, newName: newName))
     }
 
     func internalDeleteK8s() async throws {
-        try await invoke("InternalDeleteK8s")
+        try await c.call("InternalDeleteK8s")
     }
 
     func internalGuiReportStarted() async throws {
-        try await invoke("InternalGuiReportStarted")
+        try await c.call("InternalGuiReportStarted")
     }
 }

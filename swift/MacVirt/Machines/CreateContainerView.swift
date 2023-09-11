@@ -57,7 +57,7 @@ struct CreateContainerView: View {
 
                     Picker("Distribution", selection: $distro) {
                         ForEach(Distro.allCases, id: \.self) { distro in
-                            Text(distro.friendlyName).tag(distro)
+                            Text(distro.friendlyName)
                         }
                     }
 

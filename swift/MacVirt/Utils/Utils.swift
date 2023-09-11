@@ -195,6 +195,8 @@ struct Folders {
 struct Files {
     static let dockerDaemonConfig = "\(Folders.config)/docker.json"
     static let dockerSocket = "\(Folders.run)/docker.sock"
+    static let vmgrSocket = "\(Folders.run)/vmcontrol.sock"
+    static let sconSocket = "\(Folders.run)/sconrpc.sock"
     static let vmgrLog = "\(Folders.log)/vmgr.log"
 }
 
