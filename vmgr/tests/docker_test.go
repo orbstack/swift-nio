@@ -103,7 +103,7 @@ var expectDockerSystemInfo = `
   "HttpProxy": "",
   "HttpsProxy": "",
   "NoProxy": "",
-  "Name": "docker",
+  "Name": "orbstack",
   "Labels": [],
   "ExperimentalBuild": false,
   "Runtimes": {
@@ -127,13 +127,14 @@ var expectDockerSystemInfo = `
   "Isolation": "",
   "InitBinary": "docker-init",
   "InitCommit": {
-    "ID": "",
-    "Expected": ""
+    "ID": "de40ad0",
+    "Expected": "de40ad0"
   },
   "SecurityOptions": [
     "name=seccomp,profile=builtin",
     "name=cgroupns"
   ],
+  "ProductLicense": "Community Engine",
   "DefaultAddressPools": [
     {
       "Base": "192.168.215.0/24",
@@ -196,10 +197,6 @@ var expectDockerSystemInfo = `
       "Size": 24
     },
     {
-      "Base": "192.168.194.0/24",
-      "Size": 24
-    },
-    {
       "Base": "192.168.147.0/24",
       "Size": 24
     },
@@ -257,10 +254,6 @@ var expectDockerSystemInfo = `
     },
     {
       "Base": "192.168.172.0/24",
-      "Size": 24
-    },
-    {
-      "Base": "192.168.138.0/24",
       "Size": 24
     },
     {
