@@ -572,9 +572,9 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    private func spawnDaemon() throws {
+    private func spawnDaemon() throws -> Task<Void, Never>? {
         guard state == .stopped else {
-            return
+            return nil
         }
 
         guard !processIsTranslated() else {
@@ -591,7 +591,7 @@ class VmViewModel: ObservableObject {
 
         // on MainActor
         state = .spawning
-        Task {
+        return Task {
             do {
                 let newPidStr = try await runProcessChecked(AppConfig.vmgrExe, ["spawn-daemon"])
                 let newPid = Int(newPidStr.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -761,43 +761,48 @@ class VmViewModel: ObservableObject {
 
     func initLaunch() {
         // do this part synchronously to avoid UI flicker on launch
-        if !_trySpawnDaemon() {
+        let (spawned, task) = _trySpawnDaemon()
+        if !spawned {
             return
         }
 
         // async part once spawn-daemon finishes
         // to avoid sending gui report during 'updating'
         Task { @MainActor in
-            await waitForStateEquals(.starting)
+            // wait for spawn-daemon to finish before making requests
+            await task?.value
             await tryStartDaemon(doSpawn: false)
         }
     }
 
-    private func _trySpawnDaemon() -> Bool {
+    private func _trySpawnDaemon() -> (spawned: Bool, task: Task<Void, Never>?) {
         do {
-            try spawnDaemon()
+            return (true, try spawnDaemon())
         } catch VmError.wrongArch {
             setError(.wrongArch)
-            return false
+            return (false, nil)
         } catch VmError.virtUnsupported {
             setError(.virtUnsupported)
-            return false
+            return (false, nil)
         } catch VmError.killswitchExpired {
             setError(.killswitchExpired)
-            return false
+            return (false, nil)
         } catch {
             setError(.spawnError(cause: error))
-            return false
+            return (false, nil)
         }
-        return true
     }
 
     @MainActor
     func tryStartDaemon(doSpawn: Bool = true) async {
         if doSpawn {
-            if !_trySpawnDaemon() {
+            let (spawned, task) = _trySpawnDaemon()
+            if !spawned {
                 return
             }
+
+            // wait for spawn-daemon to finish before making a request
+            await task?.value
         }
 
         // this will fail if just started, but succeed if already running
