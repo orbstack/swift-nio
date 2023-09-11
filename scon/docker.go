@@ -27,6 +27,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -571,7 +572,8 @@ func (h *DockerHooks) PostStop(c *Container) error {
 		// check for exit statuses
 		for i, status := range svStatus.ExitStatuses {
 			// -1 = did not exit before simplevisor stopped
-			if status != 0 && status != -1 {
+			// also ignore signal exits - we requested those
+			if status != 0 && status != -1 && status != (128+int(unix.SIGTERM)) && status != (128+int(unix.SIGINT)) && status != (128+int(unix.SIGKILL)) {
 				logrus.WithField("status", status).WithField("service", i).Error("docker service exited with non-zero status")
 				exitStatus = status
 			}

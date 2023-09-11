@@ -1,4 +1,4 @@
-use std::{error::Error, process::Command, fs};
+use std::{error::Error, process::Command, fs, os::unix::process::ExitStatusExt};
 
 use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use signal_hook::iterator::Signals;
@@ -133,7 +133,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                         // this covers cases of dockerd and k8s crashing
                         // but on orderly shutdown (SIGTERM) we want to wait for dockerd. k8s shuts down faster
                         println!(" [*] service {} exited with {}", i, status);
-                        let st_code = status.code().unwrap_or(1);
+                        let mut st_code = status.code().unwrap_or(1);
+                        // check signal
+                        if let Some(signal) = status.signal() {
+                            // convert signal to exit code
+                            st_code = 128 + signal;
+                        }
+
                         out_status.exit_statuses[i] = st_code;
                         if !is_shutting_down || i == 0 {
                             // write out status
