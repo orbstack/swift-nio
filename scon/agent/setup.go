@@ -251,10 +251,7 @@ func configureSystemStandard(args InitialSetupArgs) error {
 	// we do this for all distros just in case there's a race condition where resolv.conf isn't set up yet at this point
 	// because we install packages below, and that requires network
 	logrus.Debug("linking resolv.conf")
-	err = os.Remove("/etc/resolv.conf")
-	if err != nil {
-		return err
-	}
+	_ = os.Remove("/etc/resolv.conf")
 	// Kali doesn't like this, networking fails to start
 	if args.Distro == images.ImageKali {
 		resolvConf, err := os.ReadFile(mounts.ResolvConf)
@@ -268,7 +265,13 @@ func configureSystemStandard(args InitialSetupArgs) error {
 	} else {
 		err = os.Symlink(mounts.ResolvConf, "/etc/resolv.conf")
 		if err != nil {
-			return err
+			// try one more time in case of race w/ dhcp
+			// scon_test.go:110: [-32098] create 'itest-2309541203348582721-openeuler-20d03-amd64': setup: do initial setup: symlink /opt/orbstack-guest/etc/resolv.conf /etc/resolv.conf: file exists
+			_ = os.Remove("/etc/resolv.conf")
+			err = os.Symlink(mounts.ResolvConf, "/etc/resolv.conf")
+			if err != nil {
+				return err
+			}
 		}
 	}
 
