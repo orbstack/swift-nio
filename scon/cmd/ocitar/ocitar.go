@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -105,12 +106,18 @@ func main() {
 	}
 	defer unix.Close(dirfd)
 
+	// null terminated
+	pathBuf := make([]byte, unix.PathMax)
+
 	// parse json records
 	decoder := json.NewDecoder(bytes.NewReader(tarSplitData))
-	for decoder.More() {
-		var record TarSplitRecord
+	var record TarSplitRecord
+	for {
 		err := decoder.Decode(&record)
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			panic(err)
 		}
 
@@ -122,8 +129,13 @@ func main() {
 			}
 
 			// read file
-			// dirfd makes this code 100% allocation-free
-			err = Sendfile(dirfd, record.Name, writer, record.Size)
+			// dirfd + pathBuf makes this code 100% allocation-free
+			if len(record.Name) > unix.PathMax-1 {
+				panic("name too long")
+			}
+			copy(pathBuf, record.Name)
+			pathBuf[len(record.Name)] = 0
+			err = Sendfile(dirfd, pathBuf, writer, record.Size)
 			if err != nil {
 				panic(err)
 			}
@@ -138,18 +150,20 @@ func main() {
 	}
 }
 
-func Sendfile(dirfd int, path string, writer io.Writer, size int64) error {
-	fd, err := unix.Openat(dirfd, path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
-	if err != nil {
+func Sendfile(dirfd int, pathBuf []byte, writer io.Writer, size int64) error {
+	// null terminated
+	// RawSyscall avoids calling runtime funcs
+	fd, _, err := unix.RawSyscall(unix.SYS_OPENAT, uintptr(dirfd), uintptr(unsafe.Pointer(&pathBuf[0])), unix.O_RDONLY|unix.O_CLOEXEC|unix.O_LARGEFILE)
+	if err != 0 {
 		return fmt.Errorf("openat: %w", err)
 	}
-	defer unix.Close(fd)
+	defer unix.RawSyscall(unix.SYS_CLOSE, uintptr(fd), 0, 0)
 
 	writeFd := int(writer.(*os.File).Fd())
 	rem := size
 	for rem > 0 {
-		written, err := unix.Sendfile(writeFd, fd, nil, int(rem))
-		if err != nil {
+		written, _, err := unix.RawSyscall6(unix.SYS_SENDFILE, uintptr(writeFd), uintptr(fd), 0, uintptr(rem), 0, 0)
+		if err != 0 {
 			return fmt.Errorf("sendfile: %w", err)
 		}
 		rem -= int64(written)
