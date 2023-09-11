@@ -206,9 +206,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
                 return """
                        OrbStack data is corrupted and cannot be recovered.
 
-                       To delete the data and start fresh, run "orb reset" in Terminal.
+                       To fix this, run "orb reset" in Terminal to delete your old data and start fresh.
 
-                       In the future, avoid unclean shutdowns to prevent this from happening again.
+                       In the future, avoid unclean shutdowns to prevent this from happening again. This can also happen when Migration Assistant corrupts the data while it's being copied.
                        """
             default:
                 return output
