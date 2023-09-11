@@ -77,6 +77,9 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 	go runOne("host service proxy ssh-agent", func() error {
 		return RunHostServiceProxy(mounts.SshAgentSocket, ports.SecureSvcHostSSHAgent, u.Uid)
 	})
+	go runOne("host service proxy ssh-agent for docker", func() error {
+		return RunHostServiceProxy(mounts.DockerSshAgentProxySocket, ports.SecureSvcHostSSHAgent, u.Uid)
+	})
 	go runOne("vscode ssh agent proxy", func() error {
 		return RunSshAgentProxy(u.Uid, u.Gid)
 	})

@@ -67,10 +67,6 @@ var dockerInitCommands = [][]string{
 	// match systemd
 	{"mount", "--make-rshared", "/"},
 
-	// Docker Desktop compat
-	{"mkdir", "/run/host-services"},
-	{"ln", "-sf", "/opt/orbstack-guest/run/host-ssh-agent.sock", "/run/host-services/ssh-auth.sock"},
-
 	{"iptables", "-t", "nat", "-N", "ORB-PREROUTING"},
 	{"iptables", "-t", "nat", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
 	// 172.17.0.1 IP gateway compat. people hard code this...
@@ -207,6 +203,8 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	cm.bind(conf.C().K8sDataDir+"/etc-node", "/etc/rancher/node", "")
 	// tmp (like dind)
 	cm.set("lxc.mount.entry", "none run tmpfs rw,nosuid,nodev,mode=755 0 0")
+	// writable for chmod/chown, + at path for Docker Desktop compat
+	cm.bind(mounts.DockerSshAgentProxySocket, "/run/host-services/ssh-auth.sock", "")
 	// match docker dind
 	cm.set("lxc.mount.entry", "none dev/shm tmpfs rw,nosuid,nodev,noexec,relatime,size=65536k,create=dir 0 0")
 	// alternate tmpfs because our /tmp is symlinked to /private/tmp

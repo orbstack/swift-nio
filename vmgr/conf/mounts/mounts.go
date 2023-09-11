@@ -39,7 +39,8 @@ const (
 	ExtraCerts          = Run + "/extra-certs.crt"
 
 	// host paths
-	LaunchdSshAgentListeners = "/opt/orb/launchd-ssh-agent-listeners"
+	LaunchdSshAgentListeners  = "/opt/orb/launchd-ssh-agent-listeners"
+	DockerSshAgentProxySocket = "/run/docker-ssh-agent-proxy.sock"
 )
 
 // mac
