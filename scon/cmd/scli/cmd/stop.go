@@ -9,6 +9,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	flagForce bool
+)
+
 func init() {
 	rootCmd.AddCommand(stopCmd)
 	stopCmd.Flags().BoolVarP(&flagAll, "all", "a", false, "Stop all machines")
@@ -17,13 +21,15 @@ func init() {
 
 var stopCmd = &cobra.Command{
 	Use:   "stop [flags] [ID/NAME]..",
-	Short: "Stop a Linux machine",
-	Long: `Stop the specified Linux machine(s), by ID or name.
+	Short: "Stop OrbStack or a machine",
+	Long: `Stop the specified machines(s), by ID or name.
 
 If no arguments are provided, this command will stop the entire OrbStack service, including Docker and all machines.
 `,
 	Example: "  " + appid.ShortCmd + " stop ubuntu",
 	Args:    cobra.ArbitraryArgs,
+	// compat with legacy syntax
+	Aliases: []string{"shutdown"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !vmclient.IsRunning() {
 			cmd.PrintErrln("OrbStack is not running")
@@ -41,7 +47,7 @@ If no arguments are provided, this command will stop the entire OrbStack service
 		} else {
 			if len(args) == 0 {
 				// no args = stop VM (shutdown)
-				spinner := spinutil.Start("red", "Stopping Docker and machines")
+				spinner := spinutil.Start("red", "Stopping OrbStack")
 				var err error
 				if flagForce {
 					err = vmclient.Client().SyntheticForceStopOrKill()

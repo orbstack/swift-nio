@@ -101,7 +101,7 @@ Some options will only take effect after restarting the virtual machine.
 		checkCLI(err)
 
 		if rebootRequired {
-			cmd.Println(`Restart OrbStack with "` + appid.ShortCmd + ` shutdown" to apply changes.`)
+			cmd.Println(`Restart OrbStack with "` + appid.ShortCmd + ` stop" to apply changes.`)
 		}
 		if key == "network_bridge" && config.NetworkBridge != oldConfig.NetworkBridge {
 			// restart docker machine if changed and already running
