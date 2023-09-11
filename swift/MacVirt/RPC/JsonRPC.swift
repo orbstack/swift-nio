@@ -7,6 +7,11 @@ import NIO
 import AsyncHTTPClient
 import Atomics
 
+// retry: exponential backoff up to 5 sec
+private let connectTimeout: TimeAmount = .seconds(5)
+// for long downloads/machine creation
+private let readTimeout: TimeAmount = .minutes(30)
+
 enum RPCError: LocalizedError {
     case httpStatus(Int)
     case decode(cause: Error)
@@ -79,10 +84,8 @@ class JsonRPCClient {
         var config = HTTPClient.Configuration()
         // this is a unix socket
         config.networkFrameworkWaitForConnectivity = false
-        // retry: exponential backoff up to 5 sec
-        config.timeout.connect = .seconds(5)
-        // for long downloads/machine creation
-        config.timeout.read = .minutes(30)
+        config.timeout.connect = connectTimeout
+        config.timeout.read = readTimeout
         client = HTTPClient(configuration: config)
 
         self.baseURL = URL(httpURLWithSocketPath: unixSocket, uri: "/")!.absoluteString
@@ -135,7 +138,7 @@ class JsonRPCClient {
 
         var response: HTTPClientResponse
         do {
-            response = try await client.execute(req, deadline: .distantFuture)
+            response = try await client.execute(req, timeout: readTimeout)
         } catch let e as HTTPClientError where e == .remoteConnectionClosed {
             throw RPCError.eof
         } catch {
