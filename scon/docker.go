@@ -73,16 +73,21 @@ var dockerInitCommands = [][]string{
 
 	{"iptables", "-t", "nat", "-N", "ORB-PREROUTING"},
 	{"iptables", "-t", "nat", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
+	// 172.17.0.1 IP gateway compat. people hard code this...
 	{"iptables", "-t", "nat", "-A", "ORB-PREROUTING", "-s", "192.168.215.0/24,192.168.228.0/24,192.168.247.0/24,192.168.207.0/24,192.168.167.0/24,192.168.107.0/24,192.168.237.0/24,192.168.148.0/24,192.168.214.0/24,192.168.165.0/24,192.168.227.0/24,192.168.181.0/24,192.168.158.0/24,192.168.117.0/24,192.168.155.0/24", "-d", "172.17.0.1", "-j", "DNAT", "--to-destination", "198.19.249.2"},
 	{"iptables", "-t", "nat", "-N", "ORB-POSTROUTING"},
 	{"iptables", "-t", "nat", "-A", "POSTROUTING", "-j", "ORB-POSTROUTING"},
+	// "fix" ipv4 docker port forward source IPs. normally docker only does DNAT w/o MASQUERADE to preserve source IP, but our source IP is internal vnet and people expect it to come from the machine like normal linux loopback
+	// needed because people make assumptions about source IPs
 	{"iptables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "198.19.248.1/32", "!", "-d", "127.0.0.0/8", "!", "-o", "eth0", "-j", "MASQUERADE"},
 
 	{"ip6tables", "-t", "nat", "-N", "ORB-POSTROUTING"},
 	{"ip6tables", "-t", "nat", "-A", "POSTROUTING", "-j", "ORB-POSTROUTING"},
+	// masquerade outgoing IPv6 traffic to internet, from a ULA that's not ours. fixes kind ipv6 access
 	{"ip6tables", "-t", "nat", "-N", "ORB-POSTROUTING-S1"},
 	{"ip6tables", "-t", "nat", "-A", "ORB-POSTROUTING-S1", "!", "-s", "fd07:b51a:cc66::/64", "-j", "MASQUERADE"},
 	{"ip6tables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "fc00::/7", "-o", "eth0", "-j", "ORB-POSTROUTING-S1"},
+	// "fix" ipv6 docker port forward source IPs. same logic as v4 - currently useless b/c v6 uses userspace proxy
 	{"ip6tables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "fd07:b51a:cc66:f0::1/128", "!", "-d", "::1/128", "!", "-o", "eth0", "-j", "MASQUERADE"},
 }
 
