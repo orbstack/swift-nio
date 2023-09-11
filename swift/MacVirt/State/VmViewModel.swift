@@ -243,7 +243,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .virtUnsupported:
             return "OrbStack cannot run because your computer does not support virtualization."
         case .killswitchExpired:
-            return "This beta version of OrbStack is too old. Please update to continue."
+            return "This beta version of OrbStack is too old. Please update to continue.\n\nStable versions will not require updates."
 
         default:
             return nil
