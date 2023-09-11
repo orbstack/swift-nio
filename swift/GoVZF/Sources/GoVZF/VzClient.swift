@@ -65,6 +65,7 @@ func asyncifyError(_ fn: @escaping (@escaping (Error?) -> Void) -> Void) async t
 
 private enum GovzfError: Error {
     case invalidNetIndex
+    case rosettaInstallCanceled
 }
 
 class VmWrapper: NSObject, VZVirtualMachineDelegate {
@@ -155,6 +156,32 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         vzQueue.async {
             govzf_event_Machine_onStateChange(self.goHandle, Int32(state.rawValue))
         }
+    }
+}
+
+private func installRosetta() async throws {
+    //
+    do {
+        // run binary directly so that we get output and can check whether it was canceled
+        // and also to wait for it (like open -W)
+        // this works even for unpriv users. it's special
+        let output = try await runProcessChecked("/System/Library/CoreServices/Rosetta 2 Updater.app/Contents/MacOS/Rosetta 2 Updater", [])
+        NSLog("[VZF] Rosetta install result: \(output)")
+
+        // we kind of just ignore errors and report canceled, e.g. on network failure
+        if output.contains("Code=3072") {
+            // 
+            throw GovzfError.rosettaInstallCanceled
+        } else if output.contains("Success") {
+            return
+        } else {
+            throw GovzfError.rosettaInstallCanceled
+        }
+    } catch {
+        NSLog("[VZF] Failed to install Rosetta with updater: \(error)")
+
+        // next: try VZLinuxRosettaDirectoryShare (buggy and gets stuck on Finding update)
+        try await VZLinuxRosettaDirectoryShare.installRosetta()
     }
 }
 
@@ -266,7 +293,7 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
                     // do nothing
                     break
                 case .notInstalled:
-                    try await VZLinuxRosettaDirectoryShare.installRosetta()
+                    try await installRosetta()
                     fallthrough
                 case .installed:
                     let dir = try VZLinuxRosettaDirectoryShare()
@@ -277,15 +304,9 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
                     break
                 }
                 // check for VZErrorDomain code 9
-            } catch let error as VZError {
-                switch error.code {
-                case .operationCancelled:
-                    // do nothing
-                    rosettaCanceled = true
-                    break
-                default:
-                    throw error
-                }
+            } catch let error as VZError where error.code == .operationCancelled {
+                // do nothing
+                rosettaCanceled = true
             } catch {
                 throw error
             }
