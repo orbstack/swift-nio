@@ -350,16 +350,6 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ListenerInfo
 	return nil
 }
 
-func filterMapSlice[T any, N any](s []T, f func(T) (N, bool)) []N {
-	var out []N
-	for _, v := range s {
-		if nv, ok := f(v); ok {
-			out = append(out, nv)
-		}
-	}
-	return out
-}
-
 func readOneIptablesListeners(ipVer int, listeners []sysnet.ListenerInfo, forceRestrictLocalhost bool) ([]sysnet.ListenerInfo, error) {
 	cmd := "iptables"
 	if ipVer == 6 {
