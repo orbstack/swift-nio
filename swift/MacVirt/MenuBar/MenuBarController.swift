@@ -36,6 +36,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private var lastTargetIsActive = false
     var quitInitiated = false
 
+    private var cancellables: Set<AnyCancellable> = []
+
     init(updaterController: SPUStandardUpdaterController,
          actionTracker: ActionTracker, windowTracker: WindowTracker, vmModel: VmViewModel) {
         self.updaterController = updaterController
@@ -78,8 +80,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
 
         // observe relevant states
-        Task { @MainActor in
-            for await state in vmModel.$state.values {
+        vmModel.$state
+            .combineLatest(vmModel.$containers, vmModel.$dockerContainers, vmModel.$isVmRestarting) {
+                ($0, $1, $2, $3)
+            }
+            .sink { [self] state, machines, dockerContainers, isVmRestarting in
                 // we don't need to trigger any Docker refreshes here.
                 // 3 cases:
                 // - already running when GUI started
@@ -90,33 +95,22 @@ class MenuBarController: NSObject, NSMenuDelegate {
                 //   - will dispatch docker UI change event
 
                 let syntheticState = deriveSyntheticVmState(vmState: state,
-                        machines: vmModel.containers,
-                        dockerContainers: vmModel.dockerContainers)
-                updateSyntheticVmState(syntheticState)
-            }
-        }
-        // need to observe these too, to exit synthetic starting state at the right time
-        Task { @MainActor in
-            for await machines in vmModel.$containers.values {
-                let syntheticState = deriveSyntheticVmState(vmState: vmModel.state,
                         machines: machines,
-                        dockerContainers: vmModel.dockerContainers)
+                        dockerContainers: dockerContainers,
+                        isVmRestarting: isVmRestarting)
                 updateSyntheticVmState(syntheticState)
             }
-        }
-        Task { @MainActor in
-            for await dockerContainers in vmModel.$dockerContainers.values {
-                let syntheticState = deriveSyntheticVmState(vmState: vmModel.state,
-                        machines: vmModel.containers,
-                        dockerContainers: dockerContainers)
-                updateSyntheticVmState(syntheticState)
-            }
-        }
+            .store(in: &cancellables)
     }
 
     private func deriveSyntheticVmState(vmState: VmState,
                                         machines: [ContainerRecord]?,
-                                        dockerContainers: [DKContainer]?) -> VmState {
+                                        dockerContainers: [DKContainer]?,
+                                        isVmRestarting: Bool) -> VmState {
+        if isVmRestarting {
+            return .starting
+        }
+
         // check for machine and docker containers too
         // if we're waiting for any to load, then still consider it starting for animation purposes
         if vmState != .running {
@@ -305,6 +299,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         helpMenu.addSeparator()
+
+        helpMenu.addActionItem("Restart", shortcut: "r") { [self] in
+            await vmModel.tryRestart()
+        }
 
         helpMenu.addActionItem("Collect Diagnostics") {
             openDiagReporter()
