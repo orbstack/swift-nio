@@ -98,6 +98,9 @@ struct MacVirtApp: App {
                 updaterController.updater.checkForUpdates()
             }
         }
+        
+        // redirect logs
+        freopen(Files.guiLog, "w+", stderr);
     }
 
     var body: some Scene {
