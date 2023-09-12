@@ -348,6 +348,20 @@ func (e StopDeadlockError) Error() string {
 	return "stop deadlock: " + e.stack
 }
 
+func filterStacks(str string) string {
+	var newStacks []string
+	for _, stk := range strings.Split(str, "\n\n") {
+		if !strings.Contains(stk, "github.com/orbstack") {
+			continue
+		}
+		if strings.Contains(stk, "Killswitch") || strings.Contains(stk, "netx") {
+			continue
+		}
+		newStacks = append(newStacks, stk)
+	}
+	return strings.Join(newStacks, "\n\n")
+}
+
 func enforceStopDeadline() {
 	go func() {
 		time.Sleep(deferredCleanupTimeout)
@@ -356,7 +370,7 @@ func enforceStopDeadline() {
 		// dump goroutine stacks
 		buf := make([]byte, 65536)
 		n := runtime.Stack(buf, true)
-		err := StopDeadlockError{string(buf[:n])}
+		err := StopDeadlockError{filterStacks(string(buf[:n]))}
 		fmt.Fprintln(os.Stderr, err.Error())
 
 		// try to report to sentry
