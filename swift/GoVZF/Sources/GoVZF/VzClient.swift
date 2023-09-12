@@ -159,6 +159,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     }
 }
 
+#if arch(arm64)
 @available(macOS 13.0, *)
 private func installRosetta() async throws {
     //
@@ -184,6 +185,7 @@ private func installRosetta() async throws {
         try await VZLinuxRosettaDirectoryShare.installRosetta()
     }
 }
+#endif
 
 private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrapper, Bool) {
     let minCpus = VZVirtualMachineConfiguration.minimumAllowedCPUCount
