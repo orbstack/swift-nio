@@ -944,4 +944,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
+- swift-nio
+- Required
+- Blessed
+- swift-atomics
+- LaunchAtLogin
+- swift-nio-ssl
+- SecureXPC
+- Sparkle
+- Defaults
+- swift-nio-extras
+- swift-collections
+- Sentry
+- async-http-client
+- EmbeddedPropertyList
+- swift-nio-transport-services
+- swift-log
+- swift-nio-http
+- Authorized
+
 <!-- End misc -->
