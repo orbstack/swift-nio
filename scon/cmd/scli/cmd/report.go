@@ -59,7 +59,7 @@ You can review the generated report at ~/.orbstack/diag.
 		machineModel, err := osutil.MachineModel()
 		checkCLI(err)
 		fmt.Fprintf(writer, "  Model: %s\n", machineModel)
-		fmt.Fprintf(writer, "  Memory: %d GiB\n", mem.PhysicalMemory()/1024/1024)
+		fmt.Fprintf(writer, "  Memory: %d GiB\n", mem.PhysicalMemory()/1024/1024/1024)
 		fmt.Fprintln(writer, "")
 
 		// generate zip w/ spinner
