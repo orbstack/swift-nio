@@ -31,9 +31,10 @@ const (
 )
 
 type DockerAgent struct {
-	mu      syncx.Mutex
-	client  *dockerclient.Client
-	Running syncx.CondBool
+	mu       syncx.Mutex
+	client   *dockerclient.Client
+	Running  syncx.CondBool
+	InitDone syncx.CondBool
 
 	host *hclient.Client
 	scon *sgclient.Client
@@ -79,7 +80,8 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 			},
 		}, nil),
 
-		Running: syncx.NewCondBool(),
+		Running:  syncx.NewCondBool(),
+		InitDone: syncx.NewCondBool(),
 
 		fullImageCache: make(map[string]cachedImage),
 
@@ -112,13 +114,13 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 		}
 	})
 	dockerAgent.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
-		// do not consider us started until first event is sent.
-		dockerAgent.Running.Set(true)
-
 		err := dockerAgent.doSendUIEvent()
 		if err != nil {
 			logrus.WithError(err).Error("failed to send UI event")
 		}
+
+		// do not consider us fully started (freezable) until first event is sent.
+		dockerAgent.InitDone.Set(true)
 	}, uitypes.UIEventDebounce)
 
 	if isK8s {
@@ -187,7 +189,7 @@ func (a *AgentServer) DockerHandleConn(fdxSeq uint64, _ *None) error {
 }
 
 func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
-	a.docker.Running.Wait()
+	a.docker.InitDone.Wait()
 	return nil
 }
 
@@ -221,6 +223,8 @@ func (d *DockerAgent) PostStart() error {
 		// enter PostStart again to continue
 		return d.PostStart()
 	}
+
+	d.Running.Set(true)
 
 	// no point in doing this async. main goroutine exits after PostStart
 	hConn, err := net.Dial("unix", mounts.HcontrolSocket)
@@ -314,6 +318,9 @@ func (d *DockerAgent) triggerAllUIEvents() {
 }
 
 func (d *DockerAgent) doSendUIEvent() error {
+	// can be triggered by UI before dockerd starts
+	d.Running.Wait()
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
