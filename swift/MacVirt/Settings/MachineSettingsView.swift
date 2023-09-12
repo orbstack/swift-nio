@@ -49,7 +49,11 @@ struct MachineSettingsView: View {
                 #endif
 
                 Group {
-                    let maxMemoryMib = Double(ProcessInfo.processInfo.physicalMemory) * 0.75 / 1024.0 / 1024.0
+                    let systemMemMib = Double(ProcessInfo.processInfo.physicalMemory / 1024 / 1024)
+                    // 80% or (max - 4 GiB), whichever is greater
+                    // e.g. up to 28 GiB on 32 GiB Macs
+                    // OK because of macOS compression
+                    let maxMemoryMib = max(systemMemMib * 0.80, systemMemMib - 4096)
                     Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
                         VStack(alignment: .trailing) {
                             Text("Memory limit")
@@ -157,7 +161,10 @@ struct MachineSettingsView: View {
     }
 
     private func updateFrom(_ config: VmConfig) {
-        memoryMib = Double(config.memoryMib)
+        // fix slider oscillating
+        if memoryMib == 0.0 {
+            memoryMib = Double(config.memoryMib)
+        }
         cpu = Double(config.cpu)
         enableRosetta = config.rosetta
         dockerSetContext = config.dockerSetContext
