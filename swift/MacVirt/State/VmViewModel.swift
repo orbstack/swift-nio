@@ -1124,14 +1124,14 @@ class VmViewModel: ObservableObject {
                 var configArgs = [String]()
                 if requiresConfig {
                     // handle multiple compose files
-                    let configFiles = container.labels[DockerLabels.composeConfigFiles] ?? "docker-compose.yml"
+                    let configFiles = container.labels?[DockerLabels.composeConfigFiles] ?? "docker-compose.yml"
                     for configFile in configFiles.split(separator: ",") {
                         configArgs.append("-f")
                         configArgs.append(String(configFile))
                     }
 
                     // pass working dir if we have it
-                    if let workingDir = container.labels[DockerLabels.composeWorkingDir],
+                    if let workingDir = container.labels?[DockerLabels.composeWorkingDir],
                        FileManager.default.fileExists(atPath: workingDir) {
                         configArgs.append("--project-directory")
                         configArgs.append(workingDir)

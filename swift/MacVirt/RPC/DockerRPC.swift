@@ -21,7 +21,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
     var ports: [DKPort]
     var sizeRw: Int64?
     var sizeRootFs: Int64?
-    var labels: [String: String]
+    var labels: [String: String]?
     var state: String
     var status: String
     //var hostConfig: HostConfig
@@ -43,11 +43,11 @@ struct DKContainer: Codable, Identifiable, Hashable {
     }
 
     var composeProject: String? {
-        labels[DockerLabels.composeProject]
+        labels?[DockerLabels.composeProject]
     }
 
     var composeService: String? {
-        labels[DockerLabels.composeService]
+        labels?[DockerLabels.composeService]
     }
 
     var isFullCompose: Bool {
@@ -55,13 +55,13 @@ struct DKContainer: Codable, Identifiable, Hashable {
     }
 
     var isK8s: Bool {
-        labels[DockerLabels.k8sType] != nil
+        labels?[DockerLabels.k8sType] != nil
     }
 
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
-        if let k8sType = labels[DockerLabels.k8sType],
-           let k8sPodName = labels[DockerLabels.k8sPodName] {
+        if let k8sType = labels?[DockerLabels.k8sType],
+           let k8sPodName = labels?[DockerLabels.k8sPodName] {
             return "\(k8sPodName) (\(k8sType))"
         } else if let composeService = composeService {
             return composeService
@@ -96,7 +96,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
             return nil
         }
 
-        if let label = labels[DockerLabels.customDomains],
+        if let label = labels?[DockerLabels.customDomains],
            let _domain = label.split(separator: ",").first {
             // remove wildcard
             let domain = String(_domain)
