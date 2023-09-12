@@ -13,3 +13,7 @@ func OsProductVersion() (string, error) {
 func CpuModel() (string, error) {
 	return "", nil
 }
+
+func MachineModel() (string, error) {
+	return "", nil
+}

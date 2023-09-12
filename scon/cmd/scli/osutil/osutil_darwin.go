@@ -15,3 +15,7 @@ func OsProductVersion() (string, error) {
 func CpuModel() (string, error) {
 	return unix.Sysctl("machdep.cpu.brand_string")
 }
+
+func MachineModel() (string, error) {
+	return unix.Sysctl("hw.model")
+}

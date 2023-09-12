@@ -170,7 +170,6 @@ private func installRosetta() async throws {
 
         // we kind of just ignore errors and report canceled, e.g. on network failure
         if output.contains("Code=3072") {
-            // 
             throw GovzfError.rosettaInstallCanceled
         } else if output.contains("Success") {
             return

@@ -14,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
+	"github.com/orbstack/macvirt/vmgr/conf/mem"
 	"github.com/spf13/cobra"
 )
 
@@ -55,6 +56,10 @@ You can review the generated report at ~/.orbstack/diag.
 		cpuModel, err := osutil.CpuModel()
 		checkCLI(err)
 		fmt.Fprintf(writer, "  CPU model: %s\n", cpuModel)
+		machineModel, err := osutil.MachineModel()
+		checkCLI(err)
+		fmt.Fprintf(writer, "  Model: %s\n", machineModel)
+		fmt.Fprintf(writer, "  Memory: %d GiB\n", mem.PhysicalMemory()/1024/1024)
 		fmt.Fprintln(writer, "")
 
 		// generate zip w/ spinner
