@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
@@ -689,7 +690,9 @@ func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {
 	// OK to do this before dataFsReady because btrfs qgroup rfer can exceed fs size
 	err := h.Vclient.DoCheckin()
 	if err != nil {
-		return fmt.Errorf("vc checkin: %w", err)
+		// not fatal
+		logrus.WithError(err).Error("early checkin failed")
+		sentry.CaptureException(fmt.Errorf("vc checkin: %w", err))
 	}
 
 	*reply = htypes.InitConfig{}

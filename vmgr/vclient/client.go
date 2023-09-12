@@ -138,19 +138,29 @@ func (vc *VClient) Post(endpoint string, body any, out any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("HTTP %d", resp.StatusCode)
+		return readError(resp)
 	}
 
 	if out != nil {
 		err = json.NewDecoder(resp.Body).Decode(out)
 		if err != nil {
-			return err
+			return fmt.Errorf("decode resp: %w", err)
 		}
 	} else {
 		io.Copy(io.Discard, resp.Body)
 	}
 
 	return nil
+}
+
+func readError(resp *http.Response) error {
+	// read error message
+	errBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read error body: %s (%s)", err, resp.Status)
+	}
+
+	return fmt.Errorf("[vc] %s (%s)", string(errBody), resp.Status)
 }
 
 func (vc *VClient) StartBackground() error {
