@@ -173,7 +173,7 @@ func Update(cb func(*VmConfig)) error {
 
 	// broadcast the change from old, if anything changed
 	if newConfig != *oldConfig {
-		diffBroadcaster.Emit(VmConfigChange{
+		diffBroadcaster.EmitQueued(VmConfigChange{
 			Old: oldConfig,
 			New: &newConfig,
 		})
