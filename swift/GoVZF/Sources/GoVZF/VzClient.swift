@@ -159,6 +159,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     }
 }
 
+@available(macOS 13.0, *)
 private func installRosetta() async throws {
     //
     do {
