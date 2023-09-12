@@ -824,6 +824,7 @@ class VmViewModel: ObservableObject {
     private func onDaemonReady() async {
         do {
             try await vmgr.guiReportStarted()
+            try await scon.internalGuiReportStarted()
         } catch RPCError.eof, RPCError.app {
             // connected to vmgr too fast. it probably crashed
             // (vmcontrol is guaranteed to be up at this point)
