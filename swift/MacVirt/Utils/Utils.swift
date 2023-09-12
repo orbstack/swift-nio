@@ -198,6 +198,7 @@ struct Files {
     static let vmgrSocket = "\(Folders.run)/vmcontrol.sock"
     static let sconSocket = "\(Folders.run)/sconrpc.sock"
     static let vmgrLog = "\(Folders.log)/vmgr.log"
+    static let guiLog = "\(Folders.log)/gui.log"
 }
 
 struct ContainerIds {
