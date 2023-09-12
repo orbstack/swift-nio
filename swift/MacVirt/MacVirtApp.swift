@@ -184,7 +184,7 @@ struct MacVirtApp: App {
 
                 Divider()
 
-                Button("Collect Diagnostics") {
+                Button("Upload Diagnostics") {
                     openDiagReporter()
                 }
             }

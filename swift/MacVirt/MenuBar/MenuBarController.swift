@@ -304,7 +304,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             await vmModel.tryRestart()
         }
 
-        helpMenu.addActionItem("Collect Diagnostics") {
+        helpMenu.addActionItem("Upload Diagnostics") {
             openDiagReporter()
         }
 
