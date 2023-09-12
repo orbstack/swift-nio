@@ -112,6 +112,9 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 		}
 	})
 	dockerAgent.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
+		// do not consider us started until first event is sent.
+		dockerAgent.Running.Set(true)
+
 		err := dockerAgent.doSendUIEvent()
 		if err != nil {
 			logrus.WithError(err).Error("failed to send UI event")
@@ -218,8 +221,6 @@ func (d *DockerAgent) PostStart() error {
 		// enter PostStart again to continue
 		return d.PostStart()
 	}
-
-	d.Running.Set(true)
 
 	// no point in doing this async. main goroutine exits after PostStart
 	hConn, err := net.Dial("unix", mounts.HcontrolSocket)
