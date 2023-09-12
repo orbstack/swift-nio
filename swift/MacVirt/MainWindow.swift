@@ -374,12 +374,13 @@ struct MainWindow: View {
                 }
 
             default:
-                Button("OK") {
-                    model.dismissError()
-
-                    // quit if the error is fatal
-                    if model.state == .stopped && !model.reachedRunning {
+                if model.state == .stopped && !model.reachedRunning {
+                    Button("Quit") {
                         model.terminateAppNow()
+                    }
+                } else {
+                    Button("OK") {
+                        model.dismissError()
                     }
                 }
 
