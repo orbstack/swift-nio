@@ -825,7 +825,7 @@ class VmViewModel: ObservableObject {
         do {
             try await vmgr.guiReportStarted()
             try await scon.internalGuiReportStarted()
-        } catch RPCError.eof, RPCError.app {
+        } catch RPCError.request, RPCError.eof, RPCError.app {
             // connected to vmgr too fast. it probably crashed
             // (vmcontrol is guaranteed to be up at this point)
             // ignore and let the kqueue pid monitor handle it
