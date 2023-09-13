@@ -723,7 +723,7 @@ private extension NSMenu {
         }
 
         // show extras in submenu
-        if items.count > maxQuickAccessItems || overflowItems != nil {
+        if items.count > maxQuickAccessItems || overflowItems?.isEmpty == false {
             let submenu = NSMenu()
             let extraItem = NSMenuItem(title: "",
                     action: nil,
