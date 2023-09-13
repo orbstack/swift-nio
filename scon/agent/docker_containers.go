@@ -51,23 +51,7 @@ func (d *DockerAgent) refreshContainers() error {
 		logrus.WithError(err).Error("failed to update scon containers")
 	}
 
-	// on start, delete k8s containers if we're not in k8s mode
-	if !d.hasRefreshedContainers && d.k8s == nil {
-		for _, c := range added {
-			if c.Labels != nil {
-				if _, ok := c.Labels["io.kubernetes.pod.namespace"]; ok {
-					// delete it
-					err := d.client.Call("DELETE", "/containers/"+c.ID+"?force=true", nil, nil)
-					if err != nil {
-						logrus.WithError(err).WithField("cid", c.ID).Error("failed to delete k8s container")
-					}
-				}
-			}
-		}
-	}
-
 	d.lastContainers = newContainers
-	d.hasRefreshedContainers = true
 	return nil
 }
 

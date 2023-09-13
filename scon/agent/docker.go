@@ -39,11 +39,10 @@ type DockerAgent struct {
 	host *hclient.Client
 	scon *sgclient.Client
 
-	containerBinds         map[string][]string
-	lastContainers         []dockertypes.ContainerSummaryMin // minimized struct to save memory
-	hasRefreshedContainers bool
-	lastNetworks           []dockertypes.Network
-	lastVolumes            []*dockertypes.Volume
+	containerBinds map[string][]string
+	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
+	lastNetworks   []dockertypes.Network
+	lastVolumes    []*dockertypes.Volume
 
 	lastImages     []*sgtypes.TaggedImage
 	fullImageCache map[string]cachedImage
@@ -363,6 +362,32 @@ func (d *DockerAgent) doSendUIEvent() error {
 	return nil
 }
 
+func (d *DockerAgent) deleteK8sContainers() error {
+	if d.k8s != nil {
+		return nil
+	}
+
+	containers, err := d.client.ListContainers(true /*all*/)
+	if err != nil {
+		return err
+	}
+
+	// on start, delete k8s containers if we're not in k8s mode
+	for _, c := range containers {
+		if c.Labels != nil {
+			if _, ok := c.Labels["io.kubernetes.pod.namespace"]; ok {
+				// delete it
+				err := d.client.Call("DELETE", "/containers/"+c.ID+"?force=true", nil, nil)
+				if err != nil {
+					logrus.WithError(err).WithField("cid", c.ID).Error("failed to delete k8s container")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func (d *DockerAgent) monitorEvents() error {
 	eventsConn, err := d.client.StreamRead("GET", "/events", nil)
 	if err != nil {
@@ -379,6 +404,13 @@ func (d *DockerAgent) monitorEvents() error {
 	// also kick all initial UI events for menu bar bg start
 	d.triggerAllUIEvents()
 
+	// delete k8s containers
+	go func() {
+		err := d.deleteK8sContainers()
+		if err != nil {
+			logrus.WithError(err).Error("failed to delete k8s containers")
+		}
+	}()
 
 	dec := json.NewDecoder(eventsConn)
 	for {

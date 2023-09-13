@@ -447,36 +447,11 @@ func SwextIpcNotifyUIEvent(ev uitypes.UIEvent) {
 
 // raw is for more efficient sending from VM, via gob rpc
 func SwextIpcNotifyUIEventRaw(eventJsonStr string) {
-	logrus.Info("sending UI event: type=", getEvType(eventJsonStr))
+	logrus.Debug("sending UI event")
 
 	cStr := C.CString(eventJsonStr)
 	defer C.free(unsafe.Pointer(cStr))
 	C.swext_ipc_notify_uievent(cStr)
-}
-
-func getEvType(str string) string {
-	var ev uitypes.UIEvent
-	err := json.Unmarshal([]byte(str), &ev)
-	if err != nil {
-		logrus.WithError(err).Error("failed to unmarshal event")
-		return "unknown"
-	}
-	if ev.Vmgr != nil {
-		return "vmgr"
-	}
-	if ev.Scon != nil {
-		return "scon"
-	}
-	if ev.Docker != nil {
-		return "docker"
-	}
-	if ev.DrmWarning != nil {
-		return "drm"
-	}
-	if ev.K8s != nil {
-		return "k8s"
-	}
-	return "<nil>"
 }
 
 /*
