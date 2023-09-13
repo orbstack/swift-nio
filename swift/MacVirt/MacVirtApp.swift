@@ -100,7 +100,9 @@ struct MacVirtApp: App {
         }
         
         // redirect logs
-        freopen(Files.guiLog, "w+", stderr);
+        #if !DEBUG
+        freopen(Files.guiLog, "w+", stderr)
+        #endif
     }
 
     var body: some Scene {
