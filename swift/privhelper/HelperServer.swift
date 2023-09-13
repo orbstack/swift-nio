@@ -14,17 +14,20 @@ struct HelperServer {
         }
 
         // skip if already exists with correct dest
-        var oldSrc: String?
         do {
-            oldSrc = try FileManager.default.destinationOfSymbolicLink(atPath: req.dest)
+            let oldSrc = try FileManager.default.destinationOfSymbolicLink(atPath: req.dest)
+            if oldSrc == req.src {
+                return
+            }
         } catch {
             // doesn't exist
         }
-        if oldSrc == req.src {
-            return
-        } else if oldSrc != nil {
+
+        do {
             // delete the old one
             try FileManager.default.removeItem(atPath: req.dest)
+        } catch {
+            // doesn't exist
         }
 
         // create dir (mkdir -p)
