@@ -68,6 +68,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case dockerComposeActionError(action: String, cause: Error)
     case dockerConfigSaveError(cause: Error)
     case dockerExitError(status: Int, message: String?)
+    case dockerDfError(cause: Error)
     // migration
     case dockerMigrationError(status: Int, output: String)
 
@@ -136,6 +137,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t apply Docker config"
         case .dockerExitError(let status, _):
             return "Docker stopped with error \(status)"
+        case .dockerDfError:
+            return "Can’t get volume sizes"
         case .dockerMigrationError:
             return "Can’t migrate Docker data"
 
@@ -306,6 +309,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case .dockerExitError:
             return nil
+        case .dockerDfError(let cause):
+            return cause
         case .dockerMigrationError:
             return nil
 
@@ -453,6 +458,8 @@ class VmViewModel: ObservableObject {
 
     @Published private(set) var dockerEnableIPv6 = false
     @Published var dockerConfigJson = "{\n}"
+
+    private var dockerSystemDfRunning = false
 
     var netBridgeAvailable: Bool {
         config?.networkBridge != false
@@ -1263,6 +1270,24 @@ class VmViewModel: ObservableObject {
             dockerEnableIPv6 = enableIpv6
         } catch {
             setError(.dockerConfigSaveError(cause: error))
+        }
+    }
+
+    @MainActor
+    func tryDockerSystemDf() async {
+        if dockerSystemDfRunning {
+            return
+        }
+        dockerSystemDfRunning = true
+        defer {
+            dockerSystemDfRunning = false
+        }
+
+        do {
+            NSLog("running volume df")
+            dockerSystemDf = try await scon.internalDockerFastDf()
+        } catch {
+            setError(.dockerDfError(cause: error))
         }
     }
 

@@ -241,10 +241,14 @@ func (m *ConManager) Start() error {
 	if err != nil {
 		return err
 	}
+	dockerMachine, err := m.GetByID(ContainerIDDocker)
+	if err != nil {
+		return err
+	}
 	go runOne("device monitor", m.runDeviceMonitor)
 	// RPC only once other services are up
 	go runOne("RPC server", func() error {
-		return ListenScon(m)
+		return ListenScon(m, dockerMachine)
 	})
 	go runOne("guest RPC server", func() error {
 		return ListenSconGuest(m)

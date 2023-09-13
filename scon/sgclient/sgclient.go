@@ -53,3 +53,8 @@ func (c *Client) OnDockerVolumesChanged(diff sgtypes.Diff[*dockertypes.Volume]) 
 	var noResult None
 	return c.rpc.Call("scg.OnDockerVolumesChanged", diff, &noResult)
 }
+
+func (c *Client) OnDockerRefsChanged() error {
+	var noResult None
+	return c.rpc.Call("scg.OnDockerRefsChanged", None{}, &noResult)
+}

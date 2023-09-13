@@ -40,7 +40,7 @@ type SystemDf struct {
 	Images     []ImageSummary `json:",omitempty"`
 	//Layers
 	//Containers, etc
-	Volumes []Volume
+	Volumes []*Volume
 }
 
 type VolumeCreateRequest struct {

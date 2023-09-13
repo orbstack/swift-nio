@@ -6,6 +6,8 @@ import Foundation
 import SwiftUI
 
 struct DockerVolumesRootView: View {
+    @Environment(\.controlActiveState) private var controlActiveState: ControlActiveState
+
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
@@ -39,6 +41,14 @@ struct DockerVolumesRootView: View {
                     }
                     .if(totalSizeFormatted != nil) { list in
                         list.navigationSubtitle(totalSizeFormatted ?? "")
+                    }
+                    .onAppear {
+                        maybeRefreshDf()
+                    }
+                    .onChange(of: controlActiveState) { state in
+                        if state == .key {
+                            maybeRefreshDf()
+                        }
                     }
                 } else {
                     Spacer()
@@ -98,5 +108,18 @@ struct DockerVolumesRootView: View {
         }
 
         return nil
+    }
+
+    private func maybeRefreshDf() {
+        // only refresh if we're missing df info for some volumes
+        if let volumes = vmModel.dockerVolumes,
+           volumes.contains(where: { vol in
+               vmModel.dockerSystemDf?.volumes
+                .first(where: { $0.name == vol.name }) == nil
+           }) {
+            Task { @MainActor in
+                await vmModel.tryDockerSystemDf()
+            }
+        }
     }
 }

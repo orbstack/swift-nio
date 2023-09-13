@@ -50,6 +50,9 @@ func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState,
 	freezer := c.Freezer()
 	if freezer != nil {
 		freezer.incRefCLocked()
+		// unfreeze to prevent it from getting stuck in case of error (failed stop)
+		// we close the freezer so it's a no-op if it's not stuck
+		defer freezer.decRefCLocked()
 	}
 
 	// tell agent to prepare for stop

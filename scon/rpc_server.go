@@ -17,11 +17,13 @@ import (
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 )
 
 type SconServer struct {
-	m *ConManager
+	m             *ConManager
+	dockerMachine *Container
 }
 
 func (s *SconServer) Ping(ctx context.Context) error {
@@ -190,76 +192,37 @@ func (s *SconServer) InternalReportStopped(ctx context.Context, req types.Intern
 }
 
 func (s *SconServer) InternalDockerMigrationLoadImage(ctx context.Context, req types.InternalDockerMigrationLoadImageRequest) error {
-	c, err := s.m.GetByID(ContainerIDDocker)
-	if err != nil {
-		return err
-	}
-
-	err = c.UseAgent(func(a *agent.Client) error {
+	return s.dockerMachine.UseAgent(func(a *agent.Client) error {
 		return a.DockerMigrationLoadImage(req)
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *SconServer) InternalDockerMigrationRunSyncServer(ctx context.Context, req types.InternalDockerMigrationRunSyncServerRequest) error {
-	c, err := s.m.GetByID(ContainerIDDocker)
-	if err != nil {
-		return err
-	}
-
-	err = c.UseAgent(func(a *agent.Client) error {
+	return s.dockerMachine.UseAgent(func(a *agent.Client) error {
 		return a.DockerMigrationRunSyncServer(req)
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *SconServer) InternalDockerMigrationWaitSync(ctx context.Context, req types.InternalDockerMigrationWaitSyncRequest) error {
-	c, err := s.m.GetByID(ContainerIDDocker)
-	if err != nil {
-		return err
-	}
-
-	err = c.UseAgent(func(a *agent.Client) error {
+	return s.dockerMachine.UseAgent(func(a *agent.Client) error {
 		return a.DockerMigrationWaitSync(req)
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *SconServer) InternalDockerMigrationStopSyncServer(ctx context.Context) error {
-	c, err := s.m.GetByID(ContainerIDDocker)
-	if err != nil {
-		return err
-	}
-
-	err = c.UseAgent(func(a *agent.Client) error {
+	return s.dockerMachine.UseAgent(func(a *agent.Client) error {
 		return a.DockerMigrationStopSyncServer()
 	})
-	if err != nil {
-		return err
-	}
+}
 
-	return nil
+func (s *SconServer) InternalDockerFastDf(ctx context.Context) (*dockertypes.SystemDf, error) {
+	return UseAgentRet(s.dockerMachine, func(a *agent.Client) (*dockertypes.SystemDf, error) {
+		return a.DockerFastDf()
+	})
 }
 
 func (s *SconServer) InternalDeleteK8s(ctx context.Context) error {
-	c, err := s.m.GetByID(ContainerIDDocker)
-	if err != nil {
-		return err
-	}
-
-	return c.DeleteK8s()
+	return s.dockerMachine.DeleteK8s()
 }
 
 func (s *SconServer) InternalGuiReportStarted(ctx context.Context) error {
@@ -301,6 +264,7 @@ func (s *SconServer) Serve() error {
 		"InternalDockerMigrationRunSyncServer":  handler.New(s.InternalDockerMigrationRunSyncServer),
 		"InternalDockerMigrationWaitSync":       handler.New(s.InternalDockerMigrationWaitSync),
 		"InternalDockerMigrationStopSyncServer": handler.New(s.InternalDockerMigrationStopSyncServer),
+		"InternalDockerFastDf":                  handler.New(s.InternalDockerFastDf),
 		// TODO better alias
 		"InternalDeleteK8s":        handler.New(s.InternalDeleteK8s),
 		"InternalGuiReportStarted": handler.New(s.InternalGuiReportStarted),
@@ -326,7 +290,10 @@ func (s *SconServer) Serve() error {
 	return server.Serve(listener)
 }
 
-func ListenScon(m *ConManager) error {
-	s := &SconServer{m: m}
+func ListenScon(m *ConManager, dockerMachine *Container) error {
+	s := &SconServer{
+		m:             m,
+		dockerMachine: dockerMachine,
+	}
 	return s.Serve()
 }

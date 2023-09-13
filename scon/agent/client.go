@@ -9,6 +9,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"golang.org/x/sys/unix"
 )
 
@@ -266,6 +267,16 @@ func (c *Client) DockerGuiReportStarted() error {
 	}
 
 	return nil
+}
+
+func (c *Client) DockerFastDf() (*dockertypes.SystemDf, error) {
+	var df dockertypes.SystemDf
+	err := c.rpc.Call("a.DockerFastDf", None{}, &df)
+	if err != nil {
+		return nil, err
+	}
+
+	return &df, nil
 }
 
 func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
