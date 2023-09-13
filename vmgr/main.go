@@ -28,6 +28,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/drm"
+	"github.com/orbstack/macvirt/vmgr/drm/drmid"
 	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
 	_ "github.com/orbstack/macvirt/vmgr/earlyinit"
 	"github.com/orbstack/macvirt/vmgr/flock"
@@ -420,11 +421,7 @@ func runVmManager() {
 		}
 
 		sentry.ConfigureScope(func(scope *sentry.Scope) {
-			installID, err := drm.ReadInstallID()
-			if err != nil {
-				return
-			}
-
+			installID := drmid.ReadInstallID()
 			logrus.WithField("installID", installID).Debug("setting user")
 			scope.SetUser(sentry.User{ID: installID})
 		})

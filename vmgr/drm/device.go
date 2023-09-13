@@ -4,13 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
-	"regexp"
-	"strings"
-	"sync"
 
-	"github.com/google/uuid"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/drm/drmid"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/drm/ioreg"
 	"github.com/sirupsen/logrus"
@@ -28,10 +24,6 @@ const (
 	saltClientIDBin  = "\xd6\x7d\x02\x36\xdc\xb9\x48\xd2\x85\x4d\xae\xd7\xc5\xa0\x22\x79"
 )
 
-var (
-	uuidRegexp = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-)
-
 func hashPieces(salt string, pieces ...string) string {
 	// hash = sha256(salt + pieces...)
 	h := sha256.New()
@@ -45,24 +37,6 @@ func hashPieces(salt string, pieces ...string) string {
 	hash := h.Sum(nil)
 	return hex.EncodeToString(hash)
 }
-
-var ReadInstallID = sync.OnceValues(func() (string, error) {
-	installIDData, err := os.ReadFile(conf.InstallIDFile())
-	var installID string
-	if err == nil {
-		installID = strings.TrimSpace(string(installIDData))
-	}
-	if err != nil || !uuidRegexp.MatchString(installID) {
-		// write a new one
-		installID = uuid.NewString()
-		err = os.WriteFile(conf.InstallIDFile(), []byte(installID), 0644)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return installID, nil
-})
 
 func deriveIdentifiers() (*drmtypes.Identifiers, error) {
 	ids := &drmtypes.Identifiers{}
@@ -86,11 +60,7 @@ func deriveIdentifiers() (*drmtypes.Identifiers, error) {
 	ids.DeviceID = hashPieces(saltDeviceIDBin, hwUuid, serial, mac)
 
 	// install id = from file
-	installID, err := ReadInstallID()
-	if err != nil {
-		logError(err)
-	}
-
+	installID := drmid.ReadInstallID()
 	ids.InstallID = hashPieces(saltInstallIDBin, installID)
 
 	// client id = (birth time of home directory)

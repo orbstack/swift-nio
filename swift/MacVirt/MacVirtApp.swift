@@ -37,11 +37,45 @@ extension View {
 }
 
 class UpdateDelegate: NSObject, SPUUpdaterDelegate {
+    private func readInstallID() -> UUID {
+        // match file like vmgr drm/device.go
+        do {
+            let oldID = try String(contentsOfFile: Files.installId)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // try to parse it as UUID
+            if let uuid = UUID(uuidString: oldID) {
+                return uuid
+            }
+        } catch {
+            // fallthrough
+        }
+
+        // write a new one
+        let newID = UUID()
+        do {
+            try newID.uuidString
+                .lowercased()
+                .write(toFile: Files.installId, atomically: false, encoding: .utf8)
+        } catch {
+            NSLog("failed to write install ID: \(error)")
+        }
+        return newID
+    }
+
     func feedURLString(for updater: SPUUpdater) -> String? {
+        // installID % 100
+        let uuidBytes = readInstallID().uuid
+        // take a big endian uint32 of the first 4 bytes
+        let id4 = (UInt32(uuidBytes.0) << 24) |
+                (UInt32(uuidBytes.1) << 16) |
+                (UInt32(uuidBytes.2) << 8) |
+                UInt32(uuidBytes.3)
+        let bucket = id4 % 100
+
         #if arch(arm64)
-        "https://api-updates.orbstack.dev/arm64/appcast.xml"
+        return "https://api-updates.orbstack.dev/arm64/appcast.xml?bucket=\(bucket)"
         #else
-        "https://api-updates.orbstack.dev/amd64/appcast.xml"
+        return "https://api-updates.orbstack.dev/amd64/appcast.xml?bucket=\(bucket)"
         #endif
     }
 

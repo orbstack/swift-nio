@@ -1,6 +1,8 @@
 package updates
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
+	"github.com/orbstack/macvirt/vmgr/drm/drmid"
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
@@ -32,11 +35,25 @@ type Updater struct {
 }
 
 func NewUpdater() *Updater {
+	getFeedURL()
 	return &Updater{}
 }
 
 func getFeedURL() string {
-	return fmt.Sprintf("https://api-updates.orbstack.dev/%s/appcast.xml", runtime.GOARCH)
+	// bucket logic matches Swift
+	installID := drmid.ReadInstallID()
+
+	// decode first 4 bytes as hex
+	uuidBytes, err := hex.DecodeString(installID[:4*2])
+	if err != nil {
+		panic("invalid uuid: " + installID)
+	}
+
+	// bucket is the first 4 bytes of the install id
+	id4 := binary.BigEndian.Uint32(uuidBytes)
+	bucket := id4 % 100
+
+	return fmt.Sprintf("https://api-updates.orbstack.dev/%s/appcast.xml?bucket=%d", runtime.GOARCH, bucket)
 }
 
 func NewSparkleCommand(args ...string) (*exec.Cmd, error) {

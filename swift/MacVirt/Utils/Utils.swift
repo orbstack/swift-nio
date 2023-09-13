@@ -199,6 +199,7 @@ struct Files {
     static let sconSocket = "\(Folders.run)/sconrpc.sock"
     static let vmgrLog = "\(Folders.log)/vmgr.log"
     static let guiLog = "\(Folders.log)/gui.log"
+    static let installId = "\(Folders.appData)/.installid"
 }
 
 struct ContainerIds {

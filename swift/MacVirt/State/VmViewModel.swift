@@ -1286,6 +1286,8 @@ class VmViewModel: ObservableObject {
         do {
             NSLog("running volume df")
             dockerSystemDf = try await scon.internalDockerFastDf()
+        } catch RPCError.eof {
+            // ignore: stopped
         } catch {
             setError(.dockerDfError(cause: error))
         }
