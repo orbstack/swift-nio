@@ -300,6 +300,7 @@ func (d *DockerAgent) OnStop() error {
 }
 
 func (d *DockerAgent) triggerUIEvent(entity uitypes.DockerEntity) {
+	logrus.Info("ev: queue ", entity)
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -308,6 +309,7 @@ func (d *DockerAgent) triggerUIEvent(entity uitypes.DockerEntity) {
 }
 
 func (d *DockerAgent) triggerAllUIEvents() {
+	logrus.Info("ev: TA")
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -319,10 +321,13 @@ func (d *DockerAgent) triggerAllUIEvents() {
 
 func (d *DockerAgent) doSendUIEvent() error {
 	// can be triggered by UI before dockerd starts
+	logrus.Info("do send 1")
 	d.Running.Wait()
+	logrus.Info("do send 2")
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	logrus.Info("do send 3")
 
 	event := uitypes.DockerEvent{}
 
@@ -350,6 +355,7 @@ func (d *DockerAgent) doSendUIEvent() error {
 		event.CurrentImages = images
 	}
 
+	logrus.Info("do send 4")
 	err := d.host.OnUIEvent(uitypes.UIEvent{
 		Docker: &event,
 	})
@@ -357,6 +363,7 @@ func (d *DockerAgent) doSendUIEvent() error {
 		return err
 	}
 
+	logrus.Info("do send 5")
 	for i := range d.pendingUIEntities {
 		d.pendingUIEntities[i] = false
 	}
@@ -364,6 +371,7 @@ func (d *DockerAgent) doSendUIEvent() error {
 }
 
 func (d *DockerAgent) monitorEvents() error {
+	logrus.Info("get ev 1")
 	eventsConn, err := d.client.StreamRead("GET", "/events", nil)
 	if err != nil {
 		return err
@@ -378,6 +386,7 @@ func (d *DockerAgent) monitorEvents() error {
 	d.imageRefreshDebounce.Call()
 	// also kick all initial UI events for menu bar bg start
 	d.triggerAllUIEvents()
+	logrus.Info("get ev 2")
 
 	dec := json.NewDecoder(eventsConn)
 	for {
@@ -436,6 +445,7 @@ func (d *DockerAgent) monitorEvents() error {
 }
 
 func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
+	logrus.Info("ev: report")
 	a.docker.triggerAllUIEvents()
 	return nil
 }
