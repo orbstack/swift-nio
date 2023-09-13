@@ -117,12 +117,12 @@ struct CommandsRootView: View {
                     CommandSection(systemImage: "shippingbox.fill", title: "Docker", desc: "Use the included Docker commands directly from macOS. No Linux machines needed.") {
                         CommandBox(
                             title: "Main command",
-                            desc: "Build and run Docker containers, and more.",
+                            desc: "Build and run containers, and more.",
                             command: "docker help"
                         )
 
                         CommandBox(
-                            title: "Docker Compose",
+                            title: "Compose",
                             desc: "Build and run multiple containers at once.",
                             command: "docker compose"
                         )
