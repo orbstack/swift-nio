@@ -173,14 +173,6 @@ func (s *VmControlServer) doGetUserDetailsAndSetupEnv() (*UserDetails, error) {
 	return details, nil
 }
 
-func (s *VmControlServer) getUserDetailsAndSetupEnv() (*UserDetails, error) {
-	result := s.setupUserDetailsOnce.Do(func() Result[*UserDetails] {
-		details, err := s.doGetUserDetailsAndSetupEnv()
-		return Result[*UserDetails]{details, err}
-	})
-	return result.Value, result.Err
-}
-
 /*
 1. ~/bin IF exists AND in path (or ~/.local/bin)
 2. /usr/local/bin IF root
@@ -425,7 +417,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		}
 	}()
 
-	details, err := s.getUserDetailsAndSetupEnv()
+	details, err := s.setupUserDetailsOnce()
 	if err != nil {
 		return nil, err
 	}

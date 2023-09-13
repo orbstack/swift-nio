@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/orbstack/macvirt/vmgr/conf"
@@ -17,9 +18,9 @@ import (
 )
 
 const (
-	saltDeviceID  = "0b196157-7644-4a11-80fe-20f42cf7f69a"
-	saltInstallID = "f3f58b2c-c40f-4489-bbef-3f69020b965f"
-	saltClientID  = "d67d0236-dcb9-48d2-854d-aed7c5a02279"
+	//saltDeviceID  = "0b196157-7644-4a11-80fe-20f42cf7f69a"
+	//saltInstallID = "f3f58b2c-c40f-4489-bbef-3f69020b965f"
+	//saltClientID  = "d67d0236-dcb9-48d2-854d-aed7c5a02279"
 
 	// bin versions
 	saltDeviceIDBin  = "\x0b\x19\x61\x57\x76\x44\x4a\x11\x80\xfe\x20\xf4\x2c\xf7\xf6\x9a"
@@ -45,7 +46,7 @@ func hashPieces(salt string, pieces ...string) string {
 	return hex.EncodeToString(hash)
 }
 
-func ReadInstallID() (string, error) {
+var ReadInstallID = sync.OnceValues(func() (string, error) {
 	installIDData, err := os.ReadFile(conf.InstallIDFile())
 	var installID string
 	if err == nil {
@@ -61,7 +62,7 @@ func ReadInstallID() (string, error) {
 	}
 
 	return installID, nil
-}
+})
 
 func deriveIdentifiers() (*drmtypes.Identifiers, error) {
 	ids := &drmtypes.Identifiers{}

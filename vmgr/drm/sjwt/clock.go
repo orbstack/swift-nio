@@ -1,22 +1,15 @@
 package sjwt
 
 import (
+	"sync"
 	"time"
-
-	"github.com/orbstack/macvirt/vmgr/syncx"
 )
 
 const (
 	clockSyncInterval = 12 * time.Hour
 )
 
-var (
-	onceClockSource syncx.Once[ClockSource]
-)
-
-func currentClock() ClockSource {
-	return onceClockSource.Do(newSyncedClock)
-}
+var currentClock = sync.OnceValue(newSyncedClock)
 
 type ClockSource interface {
 	Now() time.Time

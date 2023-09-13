@@ -1,13 +1,10 @@
 package scli
 
 import (
-	"github.com/orbstack/macvirt/scon/sclient"
-	"github.com/orbstack/macvirt/vmgr/syncx"
-	"github.com/orbstack/macvirt/vmgr/vmclient"
-)
+	"sync"
 
-var (
-	onceClient syncx.Once[*sclient.SconClient]
+	"github.com/orbstack/macvirt/scon/sclient"
+	"github.com/orbstack/macvirt/vmgr/vmclient"
 )
 
 func check(err error) {
@@ -16,16 +13,14 @@ func check(err error) {
 	}
 }
 
-func Client() *sclient.SconClient {
-	return onceClient.Do(func() *sclient.SconClient {
-		if Conf().ControlVM {
-			err := vmclient.EnsureSconVM()
-			check(err)
-		}
-
-		client, err := sclient.New(Conf().RpcNetwork, Conf().RpcAddr)
+var Client = sync.OnceValue(func() *sclient.SconClient {
+	if Conf().ControlVM {
+		err := vmclient.EnsureSconVM()
 		check(err)
+	}
 
-		return client
-	})
-}
+	client, err := sclient.New(Conf().RpcNetwork, Conf().RpcAddr)
+	check(err)
+
+	return client
+})

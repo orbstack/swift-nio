@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -12,12 +13,12 @@ import (
 	"github.com/orbstack/macvirt/vmgr/buildid"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
-	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"golang.org/x/term"
 )
 
 const (
+	// for easy editing/reference purposes
 	refMsg = `
     ╭───────────────────────────────────────────────────────╮
     │                                                       │
@@ -30,8 +31,6 @@ const (
     ╰───────────────────────────────────────────────────────╯
 `
 )
-
-var ensureOnce syncx.Once[bool]
 
 func checkCLI(err error) {
 	if err != nil {
@@ -111,17 +110,19 @@ func updateVmgr() bool {
 	return true
 }
 
+var ensureOnce = sync.OnceValue(func() bool {
+	if vmclient.IsRunning() {
+		if !updateVmgr() {
+			return true
+		}
+	}
+
+	return false
+})
+
 func EnsureVMWithSpinner() {
 	// true = early return
-	shouldReturn := ensureOnce.Do(func() bool {
-		if vmclient.IsRunning() {
-			if !updateVmgr() {
-				return true
-			}
-		}
-
-		return false
-	})
+	shouldReturn := ensureOnce()
 	if shouldReturn {
 		return
 	}
@@ -134,15 +135,7 @@ func EnsureVMWithSpinner() {
 
 func EnsureSconVMWithSpinner() {
 	// good enough. delay is short and this is much faster
-	shouldReturn := ensureOnce.Do(func() bool {
-		if vmclient.IsRunning() {
-			if !updateVmgr() {
-				return true
-			}
-		}
-
-		return false
-	})
+	shouldReturn := ensureOnce()
 	if shouldReturn {
 		return
 	}

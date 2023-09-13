@@ -718,6 +718,7 @@ func runVmManager() {
 		network:      vnetwork,
 		hcontrol:     hcServer,
 	}
+	controlServer.setupUserDetailsOnce = sync.OnceValues(controlServer.doGetUserDetailsAndSetupEnv)
 	controlServer.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
 		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 			Vmgr: &uitypes.VmgrEvent{
@@ -782,7 +783,7 @@ func runVmManager() {
 	runAsyncInitTask("Docker context", func() error {
 		// PATH for hostssh, DOCKER_CONFIG for docker cli
 		// blocking here because docker depends on it
-		_, err := controlServer.getUserDetailsAndSetupEnv()
+		_, err := controlServer.setupUserDetailsOnce()
 		if err != nil {
 			logrus.WithError(err).Error("failed to set up environment")
 		}

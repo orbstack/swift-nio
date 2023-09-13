@@ -60,14 +60,9 @@ type VmControlServer struct {
 	setupDone            bool
 	setupMu              sync.Mutex
 	setupEnvChan         atomic.Pointer[chan *vmtypes.EnvReport]
-	setupUserDetailsOnce syncx.Once[Result[*UserDetails]]
+	setupUserDetailsOnce func() (*UserDetails, error)
 
 	uiEventDebounce syncx.LeadingFuncDebounce
-}
-
-type Result[T any] struct {
-	Value T
-	Err   error
 }
 
 func (s *VmControlServer) Ping(ctx context.Context) error {

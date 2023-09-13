@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/creachadair/jrpc2"
@@ -12,7 +13,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/flock"
-	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"golang.org/x/sys/unix"
@@ -24,8 +24,7 @@ const (
 )
 
 var (
-	onceClient syncx.Once[*VmClient]
-	noResult   interface{}
+	noResult interface{}
 )
 
 type VmClient struct {
@@ -39,17 +38,15 @@ func checkCLI(err error) {
 	}
 }
 
-func Client() *VmClient {
-	return onceClient.Do(func() *VmClient {
-		err := EnsureVM()
-		checkCLI(err)
+var Client = sync.OnceValue(func() *VmClient {
+	err := EnsureVM()
+	checkCLI(err)
 
-		client, err := NewClient()
-		checkCLI(err)
+	client, err := NewClient()
+	checkCLI(err)
 
-		return client
-	})
-}
+	return client
+})
 
 func NewClient() (*VmClient, error) {
 	httpClient := &http.Client{

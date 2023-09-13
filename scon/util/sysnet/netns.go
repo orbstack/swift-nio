@@ -3,24 +3,18 @@ package sysnet
 import (
 	"os"
 	"runtime"
+	"sync"
 
-	"github.com/orbstack/macvirt/vmgr/syncx"
 	"golang.org/x/sys/unix"
 )
 
-var (
-	hostNetnsFdOnce syncx.Once[int]
-)
-
-func getHostNetnsFd() int {
-	return hostNetnsFdOnce.Do(func() int {
-		fd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
-		if err != nil {
-			panic(err)
-		}
-		return fd
-	})
-}
+var getHostNetnsFd = sync.OnceValue(func() int {
+	fd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		panic(err)
+	}
+	return fd
+})
 
 func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 	var zero T

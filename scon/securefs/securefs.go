@@ -6,13 +6,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
-	"github.com/orbstack/macvirt/vmgr/syncx"
 	"golang.org/x/sys/unix"
-)
-
-var (
-	onceDefaultFS syncx.Once[*FS]
 )
 
 type FS struct {
@@ -32,16 +28,14 @@ func NewFS(root string) (*FS, error) {
 	}, nil
 }
 
-func Default() *FS {
-	return onceDefaultFS.Do(func() *FS {
-		fs, err := NewFS("/")
-		if err != nil {
-			panic(err)
-		}
+var Default = sync.OnceValue(func() *FS {
+	fs, err := NewFS("/")
+	if err != nil {
+		panic(err)
+	}
 
-		return fs
-	})
-}
+	return fs
+})
 
 func (fs *FS) Close() error {
 	return unix.Close(fs.dfd)

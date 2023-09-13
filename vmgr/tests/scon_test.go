@@ -5,16 +5,12 @@ import (
 	"math/rand"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/syncx"
-)
-
-var (
-	onceTestPrefix syncx.Once[string]
 )
 
 func init() {
@@ -22,11 +18,9 @@ func init() {
 	scli.Conf().ControlVM = false
 }
 
-func testPrefix() string {
-	return onceTestPrefix.Do(func() string {
-		return fmt.Sprintf("itest-%d", rand.Uint64())
-	})
-}
+var testPrefix = sync.OnceValue(func() string {
+	return fmt.Sprintf("itest-%d", rand.Uint64())
+})
 
 func checkT(t *testing.T, err error) {
 	t.Helper()

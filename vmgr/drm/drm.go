@@ -25,7 +25,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/updates"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
-	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vnet"
@@ -75,8 +74,6 @@ var (
 )
 
 var (
-	onceClient syncx.Once[*DrmClient]
-
 	ErrVerify = errors.New("verification failed")
 	ErrSleep  = errors.New("sleep")
 	ErrGrace  = errors.New("grace")
@@ -633,13 +630,11 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 	return &response, nil
 }
 
-func Client() *DrmClient {
-	return onceClient.Do(func() *DrmClient {
-		client := newDrmClient()
-		go client.Run()
-		return client
-	})
-}
+var Client = sync.OnceValue(func() *DrmClient {
+	client := newDrmClient()
+	go client.Run()
+	return client
+})
 
 func dlog(msg string, args ...interface{}) {
 	if verboseDebug {

@@ -2,14 +2,10 @@ package osver
 
 import (
 	"strings"
+	"sync"
 
-	"github.com/orbstack/macvirt/vmgr/syncx"
 	"golang.org/x/mod/semver"
 	"golang.org/x/sys/unix"
-)
-
-var (
-	onceVersion syncx.Once[string]
 )
 
 func readVersion() (string, error) {
@@ -21,16 +17,14 @@ func readVersion() (string, error) {
 	return "v" + vstr, nil
 }
 
-func Get() string {
-	return onceVersion.Do(func() string {
-		v, err := readVersion()
-		if err != nil {
-			panic(err)
-		}
+var Get = sync.OnceValue(func() string {
+	v, err := readVersion()
+	if err != nil {
+		panic(err)
+	}
 
-		return v
-	})
-}
+	return v
+})
 
 func IsAtLeast(v string) bool {
 	return semver.Compare(Get(), v) >= 0
