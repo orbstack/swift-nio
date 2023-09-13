@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
@@ -38,6 +39,8 @@ type DockerAgent struct {
 
 	host *hclient.Client
 	scon *sgclient.Client
+
+	wakeRefs atomic.Int32
 
 	containerBinds map[string][]string
 	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
@@ -89,30 +92,45 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 	}
 
 	dockerAgent.containerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		dockerAgent.incWakeRef()
+		defer dockerAgent.decWakeRef()
+
 		err := dockerAgent.refreshContainers()
 		if err != nil {
 			logrus.WithError(err).Error("failed to refresh containers")
 		}
 	})
 	dockerAgent.networkRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		dockerAgent.incWakeRef()
+		defer dockerAgent.decWakeRef()
+
 		err := dockerAgent.refreshNetworks()
 		if err != nil {
 			logrus.WithError(err).Error("failed to refresh networks")
 		}
 	})
 	dockerAgent.volumeRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		dockerAgent.incWakeRef()
+		defer dockerAgent.decWakeRef()
+
 		err := dockerAgent.refreshVolumes()
 		if err != nil {
 			logrus.WithError(err).Error("failed to refresh volumes")
 		}
 	})
 	dockerAgent.imageRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+		dockerAgent.incWakeRef()
+		defer dockerAgent.decWakeRef()
+
 		err := dockerAgent.refreshImages()
 		if err != nil {
 			logrus.WithError(err).Error("failed to refresh networks")
 		}
 	})
 	dockerAgent.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
+		dockerAgent.incWakeRef()
+		defer dockerAgent.decWakeRef()
+
 		err := dockerAgent.doSendUIEvent()
 		if err != nil {
 			logrus.WithError(err).Error("failed to send UI event")
@@ -148,6 +166,12 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
  */
 
 func (a *AgentServer) DockerCheckIdle(_ None, reply *bool) error {
+	// an early predicate check
+	if a.docker.wakeRefs.Load() > 0 {
+		*reply = false
+		return nil
+	}
+
 	// only includes running
 	var containers []dockertypes.ContainerSummaryMin
 	err := a.docker.client.Call("GET", "/containers/json", nil, &containers)
@@ -156,6 +180,12 @@ func (a *AgentServer) DockerCheckIdle(_ None, reply *bool) error {
 	}
 
 	*reply = len(containers) == 0
+
+	// a late predicate check in case of race
+	if a.docker.wakeRefs.Load() > 0 {
+		*reply = false
+	}
+
 	return nil
 }
 
@@ -473,4 +503,24 @@ func (d *DockerAgent) monitorEvents() error {
 func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
 	a.docker.triggerAllUIEvents()
 	return nil
+}
+
+// mini freezer refcount tracker
+// need this in order to act as a wakelock and guard UI event refreshes, and other important refreshes
+// otherwise a freeze before refresh finishes = indefinite UI freeze
+// TODO - this is not 100% perfect in terms of race
+func (d *DockerAgent) incWakeRef() {
+	// simply add and do nothing
+	// if we're currently running then we will stay running until scon calls the predicate, at which point it'll read the atomic and return
+	d.wakeRefs.Add(1)
+}
+
+func (d *DockerAgent) decWakeRef() {
+	// remove...
+	d.wakeRefs.Add(-1)
+	// ... and re-trigger the predicate check to reconsider a freeze if scon's refcount is still 0
+	err := d.scon.OnDockerRefsChanged()
+	if err != nil {
+		logrus.WithError(err).Error("failed to update scon refs")
+	}
 }

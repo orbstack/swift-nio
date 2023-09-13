@@ -179,6 +179,16 @@ func (s *SconGuestServer) OnDockerVolumesChanged(diff sgtypes.Diff[*dockertypes.
 	return nil
 }
 
+func (s *SconGuestServer) OnDockerRefsChanged(_ None, _ *None) error {
+	freezer := s.dockerMachine.Freezer()
+	if freezer != nil {
+		freezer.IncRef()
+		freezer.DecRef()
+	}
+
+	return nil
+}
+
 func ListenSconGuest(m *ConManager) error {
 	dockerContainer, err := m.GetByID(ContainerIDDocker)
 	if err != nil {
