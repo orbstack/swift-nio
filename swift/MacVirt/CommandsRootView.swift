@@ -106,11 +106,11 @@ struct CommandsRootView: View {
         ScrollView {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 32) {
-                    CommandSection(systemImage: "info.circle.fill", title: "Get started with machines") {
+                    CommandSection(systemImage: "info.circle.fill", title: "Get started") {
                         CommandBox(
                             title: "All-purpose command: orb",
                             desc: "Manage OrbStack and its machines, start a shell, or run a Linux command.",
-                            command: "orb help"
+                            command: "orb"
                         )
                     }
 
@@ -155,7 +155,7 @@ struct CommandsRootView: View {
                     }
 
                     let sshConfigMsg = vmModel.isSshConfigWritable ? "" : "\nSee “orb ssh” for instructions to add OrbStack to your SSH config."
-                    CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code and JetBrains IDEs.\(sshConfigMsg)") {
+                    CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code.\(sshConfigMsg)") {
                         CommandBox(
                                 title: "Log in",
                                 desc: "Run a command or log in to the default machine.",
@@ -181,16 +181,16 @@ struct CommandsRootView: View {
                         )
                     }
 
-                    CommandSection(systemImage: "macwindow", title: "macOS from Linux") {
+                    CommandSection(systemImage: "macwindow", title: "Linux → macOS") {
                         CommandBox(
                                 title: "Start a Mac shell",
-                                desc: "Start a shell on macOS from within Linux.",
+                                desc: "Start a shell from Linux.",
                                 command: "mac"
                         )
 
                         CommandBox(
                                 title: "Run a Mac command",
-                                desc: "Run a command on macOS from within Linux.",
+                                desc: "Run a command from Linux.",
                                 command: "mac uname -a"
                         )
                     }
