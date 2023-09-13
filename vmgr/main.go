@@ -352,13 +352,10 @@ func (e StopDeadlockError) Error() string {
 func filterStacks(str string) string {
 	var newStacks []string
 	for _, stk := range strings.Split(str, "\n\n") {
-		if !strings.Contains(stk, "github.com/orbstack") {
-			continue
+		// problem is in host bridge
+		if strings.Contains(stk, "/vnet/") && !strings.Contains(stk, "gvisor") && !strings.Contains(stk, "gonet") && !strings.Contains(stk, "dglink") {
+			newStacks = append(newStacks, stk)
 		}
-		if strings.Contains(stk, "Killswitch") || strings.Contains(stk, "netx") {
-			continue
-		}
-		newStacks = append(newStacks, stk)
 	}
 	return strings.Join(newStacks, "\n\n")
 }
