@@ -340,16 +340,6 @@ func (d *DockerAgent) doSendUIEvent() error {
 			return err
 		}
 		event.CurrentVolumes = volumes
-
-		// a volume was added or removed, so we need to update system df
-		// limiting it to volumes is less expensive
-		// TODO invalidate df every hour
-		var df dockertypes.SystemDf
-		err = d.client.Call("GET", "/system/df?type=volume", nil, &df)
-		if err != nil {
-			return err
-		}
-		event.CurrentSystemDf = &df
 	}
 
 	if d.pendingUIEntities[uitypes.DockerEntityImage] {
