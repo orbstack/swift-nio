@@ -408,10 +408,12 @@ func (d *DockerAgent) monitorEvents() error {
 
 		case "volume":
 			switch event.Action {
-			// include mount, unmount because UI shows used/unused
-			case "create", "destroy", "mount", "unmount":
-				d.triggerUIEvent(uitypes.DockerEntityVolume)
-				d.volumeRefreshDebounce.Call()
+			// exclude "mount"/"unmount". UI's "in use" / "unused" is based on container's declared mounts, which will be handled by container events. it's not based on current *actively* mounted volumes
+			case "create", "destroy":
+				if event.Scope == "local" {
+					d.triggerUIEvent(uitypes.DockerEntityVolume)
+					d.volumeRefreshDebounce.Call()
+				}
 			}
 
 		case "image":
