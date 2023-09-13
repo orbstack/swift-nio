@@ -72,3 +72,25 @@ func TestLeadingFuncDebounceSlow(t *testing.T) {
 		t.Fatalf("expected count to be 3; got %d", count)
 	}
 }
+
+func TestLeadingFuncDebounceRealWorld(t *testing.T) {
+	t.Parallel()
+
+	var count int
+	debounced := NewLeadingFuncDebounce(func() {
+		time.Sleep(1 * time.Second)
+		count++
+	}, 100*time.Millisecond)
+
+	debounced.Trigger()
+
+	time.Sleep(50 * time.Millisecond)
+
+	debounced.Trigger()
+
+	time.Sleep(3 * time.Second)
+
+	if count != 2 {
+		t.Fatal("expected count to be 2")
+	}
+}
