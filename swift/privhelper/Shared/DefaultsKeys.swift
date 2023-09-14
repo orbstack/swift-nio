@@ -25,4 +25,6 @@ extension Defaults.Keys {
     static let globalStayInBackground = Key<Bool>("global_stayInBackground2", default: false)
 
     static let adminDismissCount = Key<Int>("admin_dismissCount", default: 0)
+
+    static let updatesOptinChannel = Key<String>("updates_optinChannel", default: "stable")
 }

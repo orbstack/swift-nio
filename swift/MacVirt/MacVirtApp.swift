@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Sparkle
+import Defaults
 
 extension Scene {
     func windowResizabilityContentSize() -> some Scene {
@@ -80,7 +81,7 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
     }
 
     func allowedChannels(for updater: SPUUpdater) -> Set<String> {
-        Set(["beta"])
+        Set(["stable", Defaults[.updatesOptinChannel]])
     }
 
     func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
