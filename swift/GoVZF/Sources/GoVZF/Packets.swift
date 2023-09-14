@@ -548,7 +548,7 @@ class GuestReader {
         iovs = UnsafeMutablePointer<iovec>.allocate(capacity: 1)
         iovs[0].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
 
-        source = DispatchSource.makeReadSource(fileDescriptor: guestFd, queue: vmnetQueue)
+        source = DispatchSource.makeReadSource(fileDescriptor: guestFd, queue: vmnetPktQueue)
         source.setEventHandler { [self] in
             // read from
             let buf = iovs[0].iov_base!

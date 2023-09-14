@@ -11,7 +11,9 @@ import CBridge
 
 // vmnet is ok with concurrent queue
 // gets us from 21 -> 30 Gbps
-let vmnetQueue = DispatchQueue(label: "dev.orbstack.swext.bridge", attributes: .concurrent)
+let vmnetPktQueue = DispatchQueue(label: "dev.orbstack.brnet.1", attributes: .concurrent)
+// avoid stop barrier deadlock
+let vmnetControlQueue = DispatchQueue(label: "dev.orbstack.brnet.2", attributes: .concurrent)
 
 private let dgramSockBuf = 512 * 1024
 private let maxPacketsPerRead = 64
@@ -71,7 +73,7 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
     var outIfParam: xpc_object_t?
     var outStatus: vmnet_return_t = .VMNET_FAILURE
 
-    let interfaceRef = vmnet_start_interface(ifDesc, vmnetQueue) { (status, ifParam) in
+    let interfaceRef = vmnet_start_interface(ifDesc, vmnetControlQueue) { (status, ifParam) in
         outStatus = status
         outIfParam = ifParam
         sem.signal()
@@ -157,7 +159,7 @@ class BridgeNetwork {
         // enable TSO if link MTU allows
         xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, config.maxLinkMtu >= 65535)
 
-        let (_ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: vmnetQueue)
+        let (_ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: vmnetControlQueue)
         self.ifRef = _ifRef
         //print("if param: \(ifParam)")
         let maxPacketSize = xpc_dictionary_get_uint64(ifParam, vmnet_max_packet_size_key)
@@ -188,7 +190,7 @@ class BridgeNetwork {
         vnetHdr = UnsafeMutablePointer<virtio_net_hdr>.allocate(capacity: 1)
 
         // must keep self ref to prevent deinit while referenced
-        let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, vmnetQueue) { [self] (eventMask, event) in
+        let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, vmnetPktQueue) { [self] (eventMask, event) in
             //print("num packets: \(xpc_dictionary_get_uint64(event, vmnet_estimated_packets_available_key))")
 
             // read as many packets as we can
@@ -323,9 +325,9 @@ class BridgeNetwork {
 
         // drain packets w/ barrier
         let sem = DispatchSemaphore(value: 0)
-        ret = vmnetQueue.sync(flags: .barrier) {
+        ret = vmnetPktQueue.sync(flags: .barrier) {
             // sem still needed to wait for vmnet_stop_interface completion
-            return vmnet_stop_interface(ifRef, vmnetQueue) { status in
+            return vmnet_stop_interface(ifRef, vmnetControlQueue) { status in
                 if status != .VMNET_SUCCESS {
                     NSLog("[brnet] stop status: \(VmnetError.from(status))")
                 }
