@@ -1,13 +1,17 @@
 package vnet
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
+	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -37,6 +41,18 @@ func init() {
 	brMacSconHost = mustParseUint16Mac(netconf.HostMACSconBridge)
 	brMacSconGuest = mustParseUint16Mac(netconf.GuestMACSconBridge)
 	brMacVlanRouterTemplate = mustParseUint16Mac(netconf.VlanRouterMACTemplate)
+}
+
+type createBridgeError struct {
+	cause error
+}
+
+func (e createBridgeError) Error() string {
+	return "create bridge: " + e.cause.Error()
+}
+
+func (e createBridgeError) Unwrap() error {
+	return e.cause
 }
 
 func mustParseUint16Mac(mac string) []uint16 {
@@ -355,8 +371,14 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		config.Ip4Mask = ""
 	}
 
-	err := n.createHostBridge(brIndexSconMachine, config)
+	// can hang due to an unknown deadlock OR hang on vmnet side
+	_, err := util.WithTimeout(func() (struct{}, error) {
+		return struct{}{}, n.createHostBridge(brIndexSconMachine, config)
+	}, 10*time.Second)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			sentry.CaptureException(&createBridgeError{cause: err})
+		}
 		return err
 	}
 
