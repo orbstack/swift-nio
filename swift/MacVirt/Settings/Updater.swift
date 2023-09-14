@@ -62,10 +62,6 @@ struct UpdaterSettingsView: View {
                     Text("Stable").tag("stable")
                     Text("Canary").tag("canary")
                 }
-                .onChange(of: updatesOptinChannel) { _ in
-                    // trigger an update check on change
-                    updater.checkForUpdates()
-                }
             }.frame(maxWidth: 200)
         }
     }
