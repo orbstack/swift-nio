@@ -548,6 +548,9 @@ class GuestReader {
         iovs = UnsafeMutablePointer<iovec>.allocate(capacity: 1)
         iovs[0].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
 
+        // make sure it's nonblock again
+        _ = fcntl(guestFd, F_SETFL, O_NONBLOCK)
+
         source = DispatchSource.makeReadSource(fileDescriptor: guestFd, queue: vmnetPktQueue)
         source.setEventHandler { [self] in
             // read from
