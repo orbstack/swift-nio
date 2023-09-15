@@ -420,6 +420,7 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 		case nil:
 		case *tcpip.ErrWouldBlock:
 			if ch == nil {
+				// this is actually negligible overhead even though it's per call
 				entry, ch = waiter.NewChannelEntry(waiter.WritableEvents)
 				c.wq.EventRegister(&entry)
 				defer c.wq.EventUnregister(&entry)
