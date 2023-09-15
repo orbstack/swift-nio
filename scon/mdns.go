@@ -523,7 +523,7 @@ func (r *mdnsRegistry) flushReusedCache() {
 	}
 	if len(flushRecords) > 0 {
 		if verboseDebug {
-			logrus.WithField("records", flushRecords).Debug("mdns: sending cache flush")
+			logrus.WithField("records", flushRecords).Debug("dns: sending cache flush")
 		}
 
 		// careful: if any records are invalid, this will fail with rrdata error
@@ -564,7 +564,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 	logrus.WithFields(logrus.Fields{
 		"names": names,
 		"ips":   ips,
-	}).Debug("mdns: add container")
+	}).Debug("dns: add container")
 
 	// we still *add* records if empty IPs (i.e. no netns, like k8s pods) to give them immediate NXDOMAIN in case people do $CONTAINER.orb.local, but hide them to avoid cluttering index
 	allHidden := len(ips) == 0
@@ -573,6 +573,15 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 	defer r.mu.Unlock()
 	now := time.Now()
 	for _, name := range names {
+		treeKey := reverse(name.Name)
+		if _, ok := r.tree.Get(treeKey); ok {
+			// we used to allow overriding, but this makes more sense because of cases like https://github.com/orbstack/orbstack/issues/650
+			// we could ignore com.docker.compose.oneoff but what if that's not the desired behavior?
+			// simply following standard listener/port rules is better
+			logrus.WithField("name", name.Name).Warn("dns: name already in use")
+			continue
+		}
+
 		entry := &mdnsEntry{
 			Type:       MdnsEntryContainer,
 			IsWildcard: name.Wildcard,
@@ -580,7 +589,6 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 			IsHidden: allHidden || name.Hidden,
 			ips:      ips,
 		}
-		treeKey := reverse(name.Name)
 		r.tree.Insert(treeKey, entry)
 
 		// need to flush any caches? what names were we queried under? (wildcard)
@@ -592,7 +600,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	names := r.containerToMdnsNames(ctr, false /*notifyInvalid*/)
-	logrus.WithField("names", names).Debug("mdns: remove container")
+	logrus.WithField("names", names).Debug("dns: remove container")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -605,7 +613,7 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 
 func (r *mdnsRegistry) AddMachine(c *Container) {
 	name := c.Name + mdnsMachineSuffix
-	logrus.WithField("name", name).Debug("mdns: add machine")
+	logrus.WithField("name", name).Debug("dns: add machine")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -613,6 +621,14 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	// we don't validate these b/c it's not under the user's control
 	// TODO allow '_' and translate w/ alias to '-' like Docker
 	treeKey := reverse(name)
+	if _, ok := r.tree.Get(treeKey); ok {
+		// we used to allow overriding, but this makes more sense because of cases like https://github.com/orbstack/orbstack/issues/650
+		// we could ignore com.docker.compose.oneoff but what if that's not the desired behavior?
+		// simply following standard listener/port rules is better
+		logrus.WithField("name", name).Warn("dns: name already in use")
+		return
+	}
+
 	entry := &mdnsEntry{
 		Type:       MdnsEntryMachine,
 		IsWildcard: true,
@@ -628,7 +644,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 
 func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	name := c.Name + mdnsMachineSuffix
-	logrus.WithField("name", name).Debug("mdns: remove machine")
+	logrus.WithField("name", name).Debug("dns: remove machine")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -722,7 +738,7 @@ func (r *mdnsRegistry) handleQuery(q dns.Question) []dns.RR {
 	}
 
 	if verboseDebug { // avoid allocations
-		logrus.WithField("name", q.Name).Debug("mdns: lookup")
+		logrus.WithField("name", q.Name).Debug("dns: lookup")
 	}
 
 	r.mu.Lock()
@@ -759,7 +775,7 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 			"matchedKey": matchedKey,
 			"entry":      _entry,
 			"ok":         ok,
-		}).Debug("mdns: lookup result")
+		}).Debug("dns: lookup result")
 	}
 	if !ok {
 		// no match at all.
@@ -813,7 +829,7 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 
 func (r *mdnsRegistry) proxyToHost(q dns.Question) []dns.RR {
 	if verboseDebug {
-		logrus.WithField("name", q.Name).Debug("mdns: proxy to host")
+		logrus.WithField("name", q.Name).Debug("dns: proxy to host")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), mdnsProxyTimeout)
 	defer cancel()
