@@ -38,6 +38,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/services/sshagent"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -99,8 +100,10 @@ type HcontrolServer struct {
 	fsnotifyRefs map[string]int
 	FsNotifier   *fsnotify.VmNotifier
 
-	NfsPort    int
-	nfsMounted bool
+	NfsPort          int
+	nfsMounted       bool
+	nfsHolderFd      uintptr
+	nfsHolderMapping []byte
 
 	k8sMu             sync.Mutex
 	k8sClient         *kubernetes.Clientset
@@ -465,6 +468,55 @@ func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
 
 	logrus.Info("NFS mounted")
 	h.nfsMounted = true
+
+	// attempt to open nfs holder
+	err = h.openNfsHolder()
+	if err != nil {
+		logrus.WithError(err).Error("failed to open NFS holder")
+	}
+
+	return nil
+}
+
+func (h *HcontrolServer) openNfsHolder() error {
+	// on laptops, macOS NFS client sets is_mobile and squishy_flags to reduce deadtimeout and force-unmount soft mounts that have: no dirty pages, no files open for write, no files mmapped
+	// so to prevent unmounts and instead let nfs keep reconnecting and recovering from a dead mount, we mmap README.txt (which is always guaranteed to exist, and cannot be opened for write as it's read-only) and keep it open
+	// if vmgr exits, the mmap will be closed and the mount will be unmounted
+	fd, err := unix.Open(coredir.NfsMountpoint()+"/README.txt", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return err
+	}
+
+	// mmap
+	mapping, err := unix.Mmap(fd, 0, 1, unix.PROT_READ, unix.MAP_PRIVATE)
+	if err != nil {
+		unix.Close(fd)
+		return err
+	}
+
+	// TODO consider increasing/decreasing deadtimeout. what if vmgr is killed or panics?
+	h.nfsHolderFd = uintptr(fd)
+	h.nfsHolderMapping = mapping
+	return nil
+}
+
+func (h *HcontrolServer) closeNfsHolder() error {
+	if h.nfsHolderMapping == nil {
+		return nil
+	}
+
+	err := unix.Munmap(h.nfsHolderMapping)
+	if err != nil {
+		return err
+	}
+
+	err = unix.Close(int(h.nfsHolderFd))
+	if err != nil {
+		return nil
+	}
+
+	h.nfsHolderFd = 0
+	h.nfsHolderMapping = nil
 	return nil
 }
 
@@ -670,8 +722,14 @@ func (h *HcontrolServer) InternalUnmountNfs() error {
 		return nil
 	}
 
+	// attempt to close nfs holder
+	err := h.closeNfsHolder()
+	if err != nil {
+		logrus.WithError(err).Error("failed to close NFS holder")
+	}
+
 	logrus.Info("Unmounting NFS...")
-	_, err := util.WithTimeout(func() (struct{}, error) {
+	_, err = util.WithTimeout(func() (struct{}, error) {
 		return struct{}{}, nfsmnt.UnmountNfs()
 	}, nfsUnmountTimeout)
 	if err != nil {
