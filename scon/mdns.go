@@ -22,7 +22,8 @@ import (
 )
 
 // in the future we should add machines using container.IPAddresses() on .orb.local
-var mdnsContainerSuffixes = []string{".orb.local.", ".docker.local."}
+// we don't do .docker.local anymore - no one used it
+var mdnsContainerSuffixes = []string{".orb.local."}
 
 const mdnsMachineSuffix = ".orb.local."
 
@@ -65,8 +66,10 @@ type mdnsEntry struct {
 
 	Type MdnsEntryType
 	// net.IP more efficient b/c dns is in bytes
-	ips     []net.IP
-	machine *Container
+	ips []net.IP
+
+	owningMachine   *Container
+	owningDockerCid string
 }
 
 type mdnsQueryInfo struct {
@@ -265,10 +268,10 @@ func (r *mdnsRegistry) StopServer() error {
 }
 
 func (e mdnsEntry) IPs() []net.IP {
-	if e.machine != nil {
-		ips, err := e.machine.GetIPAddrs()
+	if e.owningMachine != nil {
+		ips, err := e.owningMachine.GetIPAddrs()
 		if err != nil {
-			logrus.WithError(err).WithField("name", e.machine.Name).Error("failed to get machine IPs for DNS")
+			logrus.WithError(err).WithField("name", e.owningMachine.Name).Error("failed to get machine IPs for DNS")
 			return nil
 		}
 
@@ -400,17 +403,19 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 	}
 
 	// all names above should have suffixes appended
-	for i, name := range names {
+	suffixedNames := make([]dnsName, 0, len(names))
+	for _, name := range names {
 		for j, suffix := range mdnsContainerSuffixes {
 			// reuse existing array element for first suffix
-			if j == 0 {
-				names[i].Name += suffix
-			} else {
+			suffixedNames = append(suffixedNames, dnsName{
+				Name: name.Name + suffix,
 				// alias suffixes are always hidden
-				names = append(names, dnsName{Name: name.Name, Hidden: true, Wildcard: true})
-			}
+				Hidden:   name.Hidden || j != 0,
+				Wildcard: true,
+			})
 		}
 	}
+	names = suffixedNames
 
 	if ctr.Labels != nil {
 		if extraNames, ok := ctr.Labels["dev.orbstack.domains"]; ok && extraNames != "" {
@@ -588,6 +593,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 			// short-ID and aliases are hidden, real names and custom names are not
 			IsHidden: allHidden || name.Hidden,
 			ips:      ips,
+			owningDockerCid: ctr.ID,
 		}
 		r.tree.Insert(treeKey, entry)
 
@@ -604,9 +610,20 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	now := time.Now()
 	for _, name := range names {
-		r.tree.Delete(reverse(name.Name))
+		// don't delete if we're not the owner (e.g. if another container owns it)
+		treeKey := reverse(name.Name)
+		if oldEntry, ok := r.tree.Get(treeKey); ok {
+			entry := oldEntry.(*mdnsEntry)
+			if entry.owningDockerCid != ctr.ID {
+				logrus.WithField("name", name).Debug("dns: ignoring non-owner delete")
+				return
+			}
+		}
+
+		r.tree.Delete(treeKey)
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
 }
@@ -633,8 +650,8 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 		Type:       MdnsEntryMachine,
 		IsWildcard: true,
 		// machines only have one name, but hide docker
-		IsHidden: c.builtin,
-		machine:  c,
+		IsHidden:      c.builtin,
+		owningMachine: c,
 	}
 	r.tree.Insert(treeKey, entry)
 
@@ -648,7 +665,18 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.tree.Delete(reverse(name))
+
+	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
+	treeKey := reverse(name)
+	if oldEntry, ok := r.tree.Get(treeKey); ok {
+		entry := oldEntry.(*mdnsEntry)
+		if entry.owningMachine != c {
+			logrus.WithField("name", name).Debug("dns: ignoring non-owner delete")
+			return
+		}
+	}
+
+	r.tree.Delete(treeKey)
 	r.maybeFlushCacheLocked(time.Now(), name)
 }
 
