@@ -344,7 +344,9 @@ func writeShellProfileSnippets() error {
 	shells := conf.ShellInitDir()
 	bin := conf.UserAppBinDir()
 
-	bashSnippet := fmt.Sprintf(`export PATH=%s:"$PATH"`+"\n", shellescape.Quote(bin))
+	// append, not prepend.
+	// cmdlinks should probably be prepended but it causes issues with kubectl/docker/etc. overrides
+	bashSnippet := fmt.Sprintf(`export PATH="$PATH":%s`+"\n", shellescape.Quote(bin))
 	err := os.WriteFile(shells+"/init.bash", []byte(bashSnippet), 0644)
 	if err != nil {
 		return err
@@ -356,7 +358,7 @@ func writeShellProfileSnippets() error {
 		return err
 	}
 
-	fishSnippet := fmt.Sprintf(`set -gxp PATH %s`+"\n", shellescape.Quote(bin))
+	fishSnippet := fmt.Sprintf(`set -gxa PATH %s`+"\n", shellescape.Quote(bin))
 	err = os.WriteFile(shells+"/init.fish", []byte(fishSnippet), 0644)
 	if err != nil {
 		return err
@@ -462,7 +464,6 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	}
 
 	// first, always put them in ~/.orbstack/bin
-	// check each bin command
 	for _, cmd := range binCommands {
 		cmdSrc := conf.CliBinDir() + "/" + cmd
 		err = linkToAppBin(cmdSrc)
@@ -470,8 +471,6 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 			return nil, err
 		}
 	}
-
-	// check each xbin command
 	for _, cmd := range xbinCommands {
 		cmdSrc := conf.CliXbinDir() + "/" + cmd
 		err = linkToAppBin(cmdSrc)
