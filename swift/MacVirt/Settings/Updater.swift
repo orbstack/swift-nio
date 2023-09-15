@@ -60,9 +60,9 @@ struct UpdaterSettingsView: View {
             VStack {
                 Picker("Update channel", selection: $updatesOptinChannel) {
                     Text("Stable").tag("stable")
-                    Text("Canary").tag("canary")
+                    Text("Canary (faster)").tag("canary")
                 }
-            }.frame(maxWidth: 200)
+            }.frame(maxWidth: 256)
         }
     }
 }
