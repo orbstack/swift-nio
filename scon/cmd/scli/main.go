@@ -10,6 +10,7 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -106,10 +107,25 @@ func shouldCallRunCtl(args []string) bool {
 		return true
 	}
 
+	// requested subcommand = first arg that doesn't start with '-'
+	var subCmd string
+	for _, arg := range remArgs {
+		if len(arg) > 0 && arg[0] != '-' {
+			subCmd = arg
+			break
+		}
+	}
+
 	// is this help command or -h/--help flag? if so, let root cmd handle it
-	if cmd.FlagWantHelp || (len(remArgs) > 0 && remArgs[0] == "help") {
+	if cmd.FlagWantHelp || subCmd == "help" {
 		// print our help instead
 		printShortHelp()
+	}
+
+	// special cases: late-registered completion subcommands
+	switch subCmd {
+	case "completion", cobra.ShellCompRequestCmd, cobra.ShellCompNoDescRequestCmd:
+		return false
 	}
 
 	return true
