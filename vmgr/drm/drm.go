@@ -53,9 +53,6 @@ const (
 	// this is 4 burst reqs * 2 secs interval * 2x syncs + margin = 30 secs
 	sleepSyncPeriod = 30 * time.Second
 
-	// temporary preview refresh token
-	previewRefreshToken = "1181201e-23f8-41f6-9660-b7110f4bfedb"
-
 	apiBaseUrlProd = "https://api-license.orbstack.dev"
 	apiBaseUrlDev  = "http://localhost:8400"
 
@@ -132,10 +129,8 @@ func newDrmClient() *DrmClient {
 
 		lastResult: nil,
 
-		//TODO accounts
-		refreshToken: previewRefreshToken,
-		identifiers:  ids,
-		appVersion:   appVersion,
+		identifiers: ids,
+		appVersion:  appVersion,
 		startTime:/*mono*/ timex.NowMonoSleep(),
 
 		updater: updates.NewUpdater(),
@@ -602,10 +597,10 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		return nil, err
 	}
 
-	resp, err := c.http.Post(c.apiBaseURL+"/api/v0/drm/preview/entitlement", "application/json", bytes.NewReader(reqBytes))
+	resp, err := c.http.Post(c.apiBaseURL+"/api/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
 	if err != nil {
 		// hide the path part of the URL
-		return nil, errors.New(strings.Replace(err.Error(), "/api/v0/drm/preview/entitlement", "/...", 1))
+		return nil, errors.New(strings.Replace(err.Error(), "/api/v1/drm/entitlement", "/...", 1))
 	}
 	defer resp.Body.Close()
 
