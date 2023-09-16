@@ -327,7 +327,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                            let domain,
                            let url = URL(string: "http://\(domain)") {
                             if vmModel.netBridgeAvailable {
-                                CustomLink(domain, url: url)
+                                CopyableText(copyAs: domain) {
+                                    CustomLink(domain, url: url)
+                                }
                             } else {
                                 CopyableText(ipAddress)
                             }

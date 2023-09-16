@@ -24,13 +24,7 @@ struct CustomLink: View {
     var body: some View {
         Text(text)
         .foregroundColor(.blue)
-        .onHover { inside in
-            if inside {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
+        .cursorRect(.pointingHand)
         .onTapGesture {
             onClick()
         }
