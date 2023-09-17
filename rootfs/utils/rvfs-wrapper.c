@@ -82,6 +82,12 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, 
         return EMU_QEMU;
     }
 
+    // fix IBM DB2 shm issue: https://github.com/orbstack/orbstack/issues/642
+    if (strncmp(exe_name, "db2", 3) == 0) {
+        if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
+        return EMU_QEMU;
+    }
+
     // if we have no access to /proc/self/exe, use qemu
     // this applies to buildkit's amd64 detection stub, which runs in a chroot
     // Rosetta requires /proc/self/exe for ioctl
