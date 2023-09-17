@@ -434,11 +434,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             if vmModel.netBridgeAvailable {
                 if let domain = container.preferredDomain {
                     submenu.addActionItem("Address: \(domain)") {
-                        // dupe of "Open in Browser" but more common
-                        if let url = URL(string: "http://\(domain)") {
-                            NSWorkspace.shared.open(url)
-                        }
-                        // but also copy it
+                        // copy it. Open in Browser is for opening
                         NSPasteboard.copy(domain)
                     }
                 }
