@@ -646,9 +646,13 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         // then register real rosetta with comm=rvk1 key '('
         // '.' to make it hidden
         env::set_current_dir("/mnt/rv").unwrap();
-        let real_res = add_binfmt(".rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags);
+        // use zero-width spaces to make it hard to inspect
+        let real_res = add_binfmt(".rosetta\u{200b}", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags);
+        // rvk3 variant without preserve-argv0 flag, to work around bug for swift-driver
+        let real_res2 = add_binfmt(".rosetta\u{200b}\u{200b}", r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", "CF[");
         env::set_current_dir("/").unwrap();
         real_res.unwrap();
+        real_res2.unwrap();
     } else {
         // qemu
         println!("  -  Using QEMU");

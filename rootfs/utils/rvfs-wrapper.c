@@ -25,6 +25,7 @@
 // task comm keys used to select either rosetta or qemu as real binfmt_misc interpreter
 static const char rvk1_data[16] = "\x03\x47\x20\xe0\xe4\x79\x3f\xbe\xae\xeb\xc7\xd6\x66\xe9\x09\x00";
 static const char rvk2_data[16] = "\x20\xc2\xdc\x2b\xc5\x1f\xfe\x6b\x73\x73\x96\xee\x69\x1a\x93\x00";
+static const char rvk3_data[16] = "\x20\xc2\xdc\x2b\xc5\x1f\xfe\x6b\x73\x73\x96\xee\x69\x1a\x93\x00";
 
 struct elf_info {
     // interpreter (dynamic linker) path
@@ -408,6 +409,19 @@ int main(int argc, char **argv) {
     // this indicates to kernel (binfmt_misc) which handler to use
     // do this last to minimize time window with garbage in comm
     const char *rvk_data = emu == EMU_ROSETTA ? rvk1_data : rvk2_data;
+
+    // HACK: fix dupe arg in /proc/self/cmdline for swift driver
+    // rosetta preserve-argv0 is buggy so disable it for swift-driver
+    // docker run -it --rm --platform linux/x86_64 swift:5.8-amazonlinux2
+    // run 'swift'
+    //
+    // openat(AT_FDCWD, "/tmp/rosetta.11.0", O_RDWR|O_CREAT|O_EXCL, 0444) = 10
+    // pwrite64(10, "/usr/bin/swift-driver\0/usr/bin/swift-driver\0--driver-mode=swift\0-Xfrontend\0-new-driver-path\0-Xfrontend\0/usr/bin/swift-driver\0", 125, 0) = 125
+    // TODO: move to userspace ELF loader instead
+    if (emu == EMU_ROSETTA && strcmp(exe_name, "swift-driver") == 0) {
+        rvk_data = rvk3_data;
+    }
+
     if (prctl(PR_SET_NAME, rvk_data, 0, 0, 0) != 0) {
         return orb_perror("prctl");
     }
