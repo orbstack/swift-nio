@@ -65,7 +65,7 @@ private struct MigrationHintBox: View {
                 .font(.body)
                 .padding(.bottom, 12)
             Button(action: {
-                NSWorkspace.shared.open(URL(string: "orbstack://docker/migration")!)
+                NSWorkspace.openSubwindow("docker/migration")
             }) {
                 Text("Migrate")
                     .padding(6)

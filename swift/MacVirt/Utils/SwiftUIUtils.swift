@@ -245,3 +245,9 @@ extension Text {
             .textSelection(.enabled)
     }
 }
+
+extension NSWorkspace {
+    static func openSubwindow(_ path: String) {
+        NSWorkspace.shared.open(URL(string: "orbstack://\(path)")!)
+    }
+}

@@ -22,8 +22,9 @@ type EntitlementTier int
 
 const (
 	EntitlementTierNone EntitlementTier = iota
-	EntitlementTierPersonal
-	EntitlementTierBusiness
+	EntitlementTierPro
+	_EntitlementTierReserved
+	EntitlementTierEnterprise
 )
 
 type EntitlementType int
@@ -42,9 +43,10 @@ type Identifiers struct {
 
 type JwtClaims struct {
 	// user
-	UserID          string          `json:"sub"`
-	EntitlementTier EntitlementTier `json:"ent"`
-	EntitlementType EntitlementType `json:"etp"`
+	UserID             string          `json:"sub"`
+	EntitlementTier    EntitlementTier `json:"ent"`
+	EntitlementType    EntitlementType `json:"etp"`
+	EntitlementMessage *string         `json:"emg"`
 
 	// app
 	AppName    string     `json:"aud"`
@@ -96,7 +98,8 @@ type Result struct {
 	EntitlementToken string
 	RefreshToken     string
 	ClaimInfo        *ClaimInfo
-	CheckedAt        timex.MonoSleepTime
+	// vmgr mod
+	CheckedAt timex.MonoSleepTime
 }
 
 type AppVersion struct {
@@ -128,9 +131,11 @@ type UploadDiagReportResponse struct {
 	DownloadURL string `json:"download_url"`
 }
 
-// saved as generic app password in keychain
-type PersistentState struct {
-	RefreshToken     string              `json:"refresh_token"`
-	EntitlementToken string              `json:"entitlement_token"`
-	FetchedAt        timex.MonoSleepTime `json:"fetched_at"`
+type StartAppAuthResponse struct {
+	AuthURL   string `json:"auth_url"`
+	SessionID string `json:"session_id"`
+}
+
+type WaitAppAuthResponse struct {
+	RefreshToken string `json:"refresh_token"`
 }

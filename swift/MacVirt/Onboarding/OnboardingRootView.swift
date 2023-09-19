@@ -81,7 +81,7 @@ struct OnboardingRootView: View, OnboardingController {
     func finish() {
         onboardingCompleted = true
         windowHolder.window?.close()
-        NSWorkspace.shared.open(URL(string: "orbstack://main")!)
+        NSWorkspace.openSubwindow("main")
 
         // ok to re-enable menu bar now
         Defaults[.globalShowMenubarExtra] = true

@@ -647,7 +647,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if !NSApp.windows.contains(where: { $0.isUserFacing }) || windowTracker.openMainWindowCount == 0 {
             // if we just opened window, then activate later to work around focus menubar bug
             NSLog("open main")
-            NSWorkspace.shared.open(URL(string: "orbstack://main")!)
+            NSWorkspace.openSubwindow("main")
         } else {
             // already have a window, so activate now, no workaround needed
             NSLog("activate main")

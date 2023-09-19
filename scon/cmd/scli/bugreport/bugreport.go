@@ -2,14 +2,12 @@ package bugreport
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
-	"time"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/appapi"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
@@ -19,11 +17,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
-)
-
-const (
-	apiBaseURL = "https://api-misc.orbstack.dev"
-	// apiBaseURL = "http://localhost:8400"
 )
 
 type ReportPackage struct {
@@ -145,35 +138,22 @@ func BuildZip(infoTxt []byte) (*ReportPackage, error) {
 	return r.Finish()
 }
 
-func (r *ReportPackage) getPresignedURL(httpClient *http.Client) (*drmtypes.UploadDiagReportResponse, error) {
+func (r *ReportPackage) getPresignedURL(client *appapi.Client) (*drmtypes.UploadDiagReportResponse, error) {
 	uploadReq := drmtypes.UploadDiagReportRequest{
 		Name: r.Name,
 		Size: int64(len(r.Data)),
 	}
-	uploadReqBytes, err := json.Marshal(uploadReq)
-	if err != nil {
-		return nil, err
-	}
-	req, err := httpClient.Post(apiBaseURL+"/api/v1/debug/diag_reports", "application/json", bytes.NewReader(uploadReqBytes))
-	if err != nil {
-		return nil, err
-	}
-	defer req.Body.Close()
-
-	if req.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to get presigned url: %s", req.Status)
-	}
 
 	var uploadResp drmtypes.UploadDiagReportResponse
-	err = json.NewDecoder(req.Body).Decode(&uploadResp)
+	err := client.Post("/debug/diag_reports", uploadReq, &uploadResp)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get presigned url: %w", err)
 	}
 
 	return &uploadResp, nil
 }
 
-func (r *ReportPackage) uploadToURL(httpClient *http.Client, uploadURL string) error {
+func (r *ReportPackage) uploadToURL(client *appapi.Client, uploadURL string) error {
 	req, err := http.NewRequest("PUT", uploadURL, bytes.NewReader(r.Data))
 	if err != nil {
 		return err
@@ -182,7 +162,7 @@ func (r *ReportPackage) uploadToURL(httpClient *http.Client, uploadURL string) e
 	req.Header.Set("Content-Type", "application/zip")
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(r.Data)))
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -195,26 +175,16 @@ func (r *ReportPackage) uploadToURL(httpClient *http.Client, uploadURL string) e
 }
 
 func (r *ReportPackage) Upload() (string, error) {
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    3,
-			IdleConnTimeout: 60 * time.Second,
-			// TODO this may be the wrong proxy
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return http.ProxyFromEnvironment(req)
-			},
-		},
-	}
+	client := appapi.NewClient()
 
 	// get a presigned url
-	resp, err := r.getPresignedURL(httpClient)
+	resp, err := r.getPresignedURL(client)
 	if err != nil {
 		return "", err
 	}
 
 	// upload to url
-	err = r.uploadToURL(httpClient, resp.UploadURL)
+	err = r.uploadToURL(client, resp.UploadURL)
 	if err != nil {
 		return "", err
 	}

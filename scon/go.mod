@@ -4,6 +4,8 @@ go 1.21
 
 replace github.com/orbstack/macvirt/vmgr => ../vmgr
 
+replace gvisor.dev/gvisor => ../vendor/gvisor
+
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
 require (
@@ -13,7 +15,7 @@ require (
 	github.com/lxc/go-lxc v0.0.0-20230621012608-be98af2b8b9f
 	github.com/orbstack/macvirt/vmgr v0.0.0-00010101000000-000000000000
 	github.com/sirupsen/logrus v1.9.3
-	github.com/vishvananda/netlink v1.1.0
+	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54
 	golang.org/x/sys v0.11.0
 )
 
@@ -43,7 +45,11 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/google/btree v1.1.2 // indirect
+	github.com/google/uuid v1.3.0 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.4 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/keybase/go-keychain v0.0.0-20230523030712-b5615109f100 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
@@ -54,7 +60,9 @@ require (
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/text v0.12.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.12.1-0.20230815132531-74c255bcf846 // indirect
+	gvisor.dev/gvisor v0.0.0-20230918234652-8a7617aed21c // indirect
 )
 
 require (

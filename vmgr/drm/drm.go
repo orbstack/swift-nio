@@ -13,12 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/keybase/go-keychain"
 	"github.com/orbstack/macvirt/scon/isclient"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/drm/drmcore"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
@@ -55,12 +54,6 @@ const (
 
 	apiBaseUrlProd = "https://api-license.orbstack.dev"
 	apiBaseUrlDev  = "http://localhost:8400"
-
-	// avoid perm issues bug for diff bundle IDs
-	keychainService     = appid.BundleID // user-facing "Where"
-	keychainAccount     = "license_state"
-	keychainLabel       = "OrbStack" // user-facing "Name"
-	keychainAccessGroup = "HUAQ24HBR6.dev.orbstack"
 )
 
 var (
@@ -234,7 +227,7 @@ func (c *DrmClient) Run() {
 
 func (c *DrmClient) restoreState() error {
 	dlog("restoreState")
-	data, err := keychain.GetGenericPassword(keychainService, keychainAccount, keychainLabel, keychainAccessGroup)
+	data, err := drmcore.ReadKeychainState()
 	if err != nil {
 		return err
 	}
@@ -255,14 +248,19 @@ func (c *DrmClient) restoreState() error {
 	claimInfo, err := c.verifier.Verify(state.EntitlementToken, sjwt.TokenVerifyParams{
 		StrictVersion: false,
 	})
+
 	c.mu.Lock() // take it here for setting refresh token
 	defer c.mu.Unlock()
+
+	// always salvage the refresh token
+	if c.refreshToken == "" {
+		dlog("restore: use refresh token: ", state.RefreshToken)
+		c.refreshToken = state.RefreshToken
+	}
+
 	if err != nil {
 		// never dispatch invalid results here, just get it from the server again
 		dlog("restore: verify failed: ", err)
-		// still, we can salvage the refresh token
-		dlog("restore: use refresh token: ", state.RefreshToken)
-		c.refreshToken = state.RefreshToken
 		return errors.Join(ErrVerify, err)
 	}
 
@@ -306,15 +304,7 @@ func (c *DrmClient) persistState(result *drmtypes.Result) error {
 		return err
 	}
 
-	// delete old if necessary
-	// update is too complicated
-	// also helps fix permissinos in case signing ID changed
-	_ = keychain.DeleteGenericPasswordItem(keychainService, keychainAccount)
-
-	item := keychain.NewGenericPassword(keychainService, keychainAccount, keychainLabel, data, keychainAccessGroup)
-	item.SetSynchronizable(keychain.SynchronizableNo) // tokens are tied to device
-	item.SetAccessible(keychain.AccessibleAlways)     // for headless usage
-	err = keychain.AddItem(item)
+	err = drmcore.SetKeychainState(data)
 	if err != nil {
 		return err
 	}

@@ -187,7 +187,7 @@ struct MacVirtApp: App {
             }
             CommandGroup(before: .importExport) {
                 Button("Migrate Docker Data…") {
-                    NSWorkspace.shared.open(URL(string: "orbstack://docker/migration")!)
+                    NSWorkspace.openSubwindow("docker/migration")
                 }
             }
             //TODO command to create container
@@ -294,21 +294,38 @@ struct MacVirtApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
-        WindowGroup("Diagnostic Report", id: "diagreport") {
-            DiagReporterView(isBugReport: false)
-            .onAppear {
-                windowTracker.onWindowAppear()
+        Group {
+            WindowGroup("Diagnostic Report", id: "diagreport") {
+                DiagReporterView(isBugReport: false)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
             }
-        }
-        .commands {
-            CommandGroup(replacing: .newItem) {}
-        }
-        .handlesExternalEvents(matching: ["diagreport"])
-        .windowStyle(.hiddenTitleBar)
-        .windowResizabilityContentSize()
+            .commands {
+                CommandGroup(replacing: .newItem) {
+                }
+            }
+            .handlesExternalEvents(matching: ["diagreport"])
+            .windowStyle(.hiddenTitleBar)
+            .windowResizabilityContentSize()
 
-        WindowGroup("Report Bug", id: "bugreport") {
-            DiagReporterView(isBugReport: true)
+            WindowGroup("Report Bug", id: "bugreport") {
+                DiagReporterView(isBugReport: true)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
+            }
+            .commands {
+                CommandGroup(replacing: .newItem) {
+                }
+            }
+            .handlesExternalEvents(matching: ["bugreport"])
+            .windowStyle(.hiddenTitleBar)
+            .windowResizabilityContentSize()
+        }
+
+        WindowGroup("Sign In", id: "auth") {
+            AuthView()
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -316,7 +333,7 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        .handlesExternalEvents(matching: ["bugreport"])
+        .handlesExternalEvents(matching: ["auth"])
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 
@@ -357,13 +374,13 @@ func getConfigDir() -> String {
 }
 
 func openDiagReporter() {
-    NSWorkspace.shared.open(URL(string: "orbstack://diagreport")!)
+    NSWorkspace.openSubwindow("diagreport")
 }
 
 func openBugReport() {
-    NSWorkspace.shared.open(URL(string: "orbstack://bugreport")!)
+    NSWorkspace.openSubwindow("bugreport")
 }
 
 func openFeedbackWindow() {
-    NSWorkspace.shared.open(URL(string: "orbstack://feedback")!)
+    NSWorkspace.openSubwindow("feedback")
 }

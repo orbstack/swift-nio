@@ -20,7 +20,7 @@ struct OnboardingManager {
                 }
             }
 
-            NSWorkspace.shared.open(URL(string: "orbstack://onboarding")!)
+            NSWorkspace.openSubwindow("onboarding")
         }
     }
 }

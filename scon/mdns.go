@@ -591,8 +591,8 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 			Type:       MdnsEntryContainer,
 			IsWildcard: name.Wildcard,
 			// short-ID and aliases are hidden, real names and custom names are not
-			IsHidden: allHidden || name.Hidden,
-			ips:      ips,
+			IsHidden:        allHidden || name.Hidden,
+			ips:             ips,
 			owningDockerCid: ctr.ID,
 		}
 		r.tree.Insert(treeKey, entry)

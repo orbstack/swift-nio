@@ -101,5 +101,5 @@ require (
 	golang.org/x/mod v0.12.0
 	golang.org/x/net v0.14.0
 	golang.org/x/time v0.3.0 // indirect
-	gvisor.dev/gvisor v0.0.0-20221220191351-8ea7ab01ea4e
+	gvisor.dev/gvisor v0.0.0-20230918234652-8a7617aed21c
 )

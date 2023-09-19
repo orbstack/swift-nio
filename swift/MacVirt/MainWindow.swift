@@ -20,6 +20,22 @@ func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
     })
 }
 
+private struct NavTab: View {
+    private let label: String
+    private let systemImage: String
+
+    init(_ label: String, systemImage: String) {
+        self.label = label
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        Label(label, systemImage: systemImage)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+    }
+}
+
 struct MainWindow: View {
     @Environment(\.controlActiveState) var controlActiveState
     @EnvironmentObject private var model: VmViewModel
@@ -56,22 +72,19 @@ struct MainWindow: View {
                 NavigationLink(tag: "docker", selection: selBinding) {
                     DockerContainersRootView(selection: initialDockerContainerSelection, searchQuery: "")
                 } label: {
-                    Label("Containers", systemImage: "shippingbox")
-                        .padding(.vertical, 3)
+                    NavTab("Containers", systemImage: "shippingbox")
                 }
                 
                 NavigationLink(tag: "docker-volumes", selection: selBinding) {
                     DockerVolumesRootView()
                 } label: {
-                    Label("Volumes", systemImage: "externaldrive")
-                        .padding(.vertical, 3)
+                    NavTab("Volumes", systemImage: "externaldrive")
                 }
                 
                 NavigationLink(tag: "docker-images", selection: selBinding) {
                     DockerImagesRootView()
                 } label: {
-                    Label("Images", systemImage: "doc.zipper")
-                        .padding(.vertical, 3)
+                    NavTab("Images", systemImage: "doc.zipper")
                 }
             }
             .tag("docker")
@@ -80,15 +93,13 @@ struct MainWindow: View {
                 NavigationLink(tag: "k8s-pods", selection: selBinding) {
                     K8SPodsView()
                 } label: {
-                    Label("Pods", systemImage: "helm")
-                        .padding(.vertical, 3)
+                    NavTab("Pods", systemImage: "helm")
                 }
 
                 NavigationLink(tag: "k8s-services", selection: selBinding) {
                     K8SServicesView()
                 } label: {
-                    Label("Services", systemImage: "network")
-                        .padding(.vertical, 3)
+                    NavTab("Services", systemImage: "network")
                 }
             }
             
@@ -96,8 +107,7 @@ struct MainWindow: View {
                 NavigationLink(tag: "machines", selection: selBinding) {
                     MachinesRootView()
                 } label: {
-                    Label("Machines", systemImage: "desktopcomputer")
-                        .padding(.vertical, 3)
+                    NavTab("Machines", systemImage: "desktopcomputer")
                 }
             }
             
@@ -105,13 +115,42 @@ struct MainWindow: View {
                 NavigationLink(tag: "cli", selection: selBinding) {
                     CommandsRootView()
                 } label: {
-                    Label("Commands", systemImage: "terminal")
-                        .padding(.vertical, 3)
+                    NavTab("Commands", systemImage: "terminal")
                 }
             }
         }
         .listStyle(.sidebar)
         .background(SplitViewAccessor(sideCollapsed: $collapsed))
+        // "Personal use only" subheadline
+        .frame(minWidth: 165)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack {
+                Button {
+                    NSWorkspace.openSubwindow("auth")
+                } label: {
+                    HStack {
+                        Image(systemName: "person.circle")
+                        .resizable()
+                        .frame(width: 24, height: 24)
+                        .foregroundColor(.accentColor)
+                        .padding(.trailing, 2)
+
+                        VStack(alignment: .leading) {
+                            Text("Sign in")
+                            .font(.headline)
+
+                            Text("Personal use only")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+                    // occupy full rect
+                    .onRawDoubleClick { }
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.vertical, 8)
+        }
     }
 
     @available(macOS 14, *)
@@ -119,44 +158,37 @@ struct MainWindow: View {
         List(selection: $selection) {
             Section(header: Text("Docker")) {
                 NavigationLink(value: "docker") {
-                    Label("Containers", systemImage: "shippingbox")
-                    .padding(.vertical, 3)
+                    NavTab("Containers", systemImage: "shippingbox")
                 }
 
                 NavigationLink(value: "docker-volumes") {
-                    Label("Volumes", systemImage: "externaldrive")
-                    .padding(.vertical, 3)
+                    NavTab("Volumes", systemImage: "externaldrive")
                 }
 
                 NavigationLink(value: "docker-images") {
-                    Label("Images", systemImage: "doc.zipper")
-                    .padding(.vertical, 3)
+                    NavTab("Images", systemImage: "doc.zipper")
                 }
             }
 
             Section(header: Text("Kubernetes")) {
                 NavigationLink(value: "k8s-pods") {
-                    Label("Pods", systemImage: "helm")
-                    .padding(.vertical, 3)
+                    NavTab("Pods", systemImage: "helm")
                 }
 
                 NavigationLink(value: "k8s-services") {
-                    Label("Services", systemImage: "network")
-                    .padding(.vertical, 3)
+                    NavTab("Services", systemImage: "network")
                 }
             }
 
             Section(header: Text("Linux")) {
                 NavigationLink(value: "machines") {
-                    Label("Machines", systemImage: "desktopcomputer")
-                    .padding(.vertical, 3)
+                    NavTab("Machines", systemImage: "desktopcomputer")
                 }
             }
 
             Section(header: Text("Help")) {
                 NavigationLink(value: "cli") {
-                    Label("Commands", systemImage: "terminal")
-                    .padding(.vertical, 3)
+                    NavTab("Commands", systemImage: "terminal")
                 }
             }
         }
@@ -357,7 +389,7 @@ struct MainWindow: View {
             switch error {
             case VmError.killswitchExpired:
                 Button("Update") {
-                    NSWorkspace.shared.open(URL(string: "orbstack://update")!)
+                    NSWorkspace.openSubwindow("update")
                 }
 
                 Button("Quit") {
@@ -407,7 +439,7 @@ struct MainWindow: View {
             if error == VmError.killswitchExpired {
                 // trigger updater as well
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    NSWorkspace.shared.open(URL(string: "orbstack://update")!)
+                    NSWorkspace.openSubwindow("update")
                 }
             }
         })
