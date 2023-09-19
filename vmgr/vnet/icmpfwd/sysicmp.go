@@ -162,6 +162,12 @@ func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
 	ipHdr := pkt.Network()
 	icmpMsg := extractPacketPayload(pkt)
 	dstAddrGv := ipHdr.DestinationAddress()
+	// ignore host NAT IPs. reply is handled by gvisor
+	if dstAddrGv == ipv4.KAddrHost4 || dstAddrGv == ipv6.KAddrHost6 {
+		logrus.Trace("discarding ICMP packet: host")
+		return false
+	}
+
 	dstAddr := &net.UDPAddr{
 		IP: net.IP(dstAddrGv.AsSlice()),
 	}
