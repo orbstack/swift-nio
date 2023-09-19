@@ -206,6 +206,10 @@ func (h *VmControlServer) InternalSetDockerRemoteCtxAddr(ctx context.Context, re
 	return nil
 }
 
+func (h *VmControlServer) InternalUpdateToken(ctx context.Context, req *vmtypes.InternalUpdateTokenRequest) error {
+	return h.drm.UpdateRefreshToken(req.RefreshToken)
+}
+
 func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmtypes.EnvReport, error) {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -350,6 +354,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"IsSshConfigWritable":            handler.New(s.IsSshConfigWritable),
 		"InternalReportEnv":              handler.New(s.InternalReportEnv),
 		"InternalSetDockerRemoteCtxAddr": handler.New(s.InternalSetDockerRemoteCtxAddr),
+		"InternalUpdateToken":            handler.New(s.InternalUpdateToken),
 
 		"DockerContainerStart":   handler.New(s.DockerContainerStart),
 		"DockerContainerStop":    handler.New(s.DockerContainerStop),

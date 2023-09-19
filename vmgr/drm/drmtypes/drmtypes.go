@@ -81,6 +81,16 @@ func (c *JwtClaims) Valid() error {
 	return nil
 }
 
+// from clerk
+type RefreshClaims struct {
+	TargetClient string `json:"_ocl"`
+	OrgID        string `json:"_oid"`
+	OrgName      string `json:"_onm"`
+	OrgRole      string `json:"_orl"`
+	UserImageURL string `json:"_uim"`
+	UserFullName string `json:"_unm"`
+}
+
 type ClaimInfo struct {
 	UserID   string
 	IssuedAt time.Time
@@ -89,8 +99,9 @@ type ClaimInfo struct {
 	LicenseEndsAt time.Time
 	WarnAt        time.Time
 
-	EntitlementTier EntitlementTier
-	EntitlementType EntitlementType
+	EntitlementTier    EntitlementTier
+	EntitlementType    EntitlementType
+	EntitlementMessage *string
 }
 
 type Result struct {

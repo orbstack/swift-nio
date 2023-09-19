@@ -194,12 +194,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             switch url.host {
             case "update":
                 updaterController?.updater.checkForUpdates()
+
+            case "complete_auth":
+                NSApp.activate(ignoringOtherApps: true)
+
+                if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                   let queryItems = components.queryItems,
+                   let token = queryItems.first(where: { $0.name == "token" })?.value {
+                    var state = vmModel.drmState
+                    state.refreshToken = token
+                    vmModel.drmState = state
+
+                    // auth CLI will update token in vmgr
+                }
+
             case "settings":
                 if #available(macOS 13, *) {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 } else {
                     NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
                 }
+
             default:
                 break
             }

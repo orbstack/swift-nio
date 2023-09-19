@@ -20,13 +20,17 @@ struct AuthView: View {
     @StateObject private var model = AuthViewModel()
     @StateObject private var windowHolder = WindowHolder()
 
+    let sheetPresented: Binding<Bool>?
+
     var body: some View {
         VStack {
+            Spacer()
+
             switch model.state {
             case .loading:
                 VStack(spacing: 16) {
                     ProgressView()
-                    Text("Sign in via browser")
+                    Text("Continue in your browser…")
                 }
             case .error(let message):
                 VStack(spacing: 16) {
@@ -47,9 +51,27 @@ struct AuthView: View {
                 }
                 .onAppear {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        windowHolder.window?.close()
+                        if isSheet {
+                            sheetPresented?.wrappedValue = false
+                        } else {
+                            windowHolder.window?.close()
+                        }
                     }
                 }
+            }
+
+            Spacer()
+
+            // TODO use .overlay to avoid shifting layout up
+            if isSheet {
+                HStack {
+                    Button("Cancel", role: .cancel) {
+                        sheetPresented?.wrappedValue = false
+                    }
+
+                    Spacer()
+                }
+                .padding(16)
             }
         }
         .frame(width: 300, height: 300)
@@ -67,15 +89,19 @@ struct AuthView: View {
         .background(VisualEffectView().ignoresSafeArea())
         .background(WindowAccessor(holder: windowHolder))
         .onAppear {
-            if let window = windowHolder.window {
+            if !isSheet, let window = windowHolder.window {
                 window.isRestorable = false
             }
         }
         .onChange(of: windowHolder.window) { window in
-            if let window {
+            if !isSheet, let window {
                 // unrestorable: is ephemeral, and also restored doesn't preserve url
                 window.isRestorable = false
             }
         }
+    }
+
+    private var isSheet: Bool {
+        sheetPresented != nil
     }
 }

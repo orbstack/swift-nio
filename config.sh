@@ -2,6 +2,7 @@
 # signing ID must be changed in other places too
 VMGR_SIGNING_ID="dev.kdrag0n.MacVirt.vmgr"
 SIGNING_CERT="Developer ID Application: Orbital Labs, LLC (U.S.) (HUAQ24HBR6)"
+SIGNING_CERT_DEV="Apple Development: Danny Lin (A2LS84RQFY)"
 
 # Keychain profile for notary submissions
 # To create/log in: xcrun notarytool store-credentials

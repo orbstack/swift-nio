@@ -50,6 +50,7 @@ struct MainWindow: View {
     // with searchable, this breaks if it's on model, but works as state
     @State private var presentDockerFilter = false
     @State private var presentK8sFilter = false
+    @State private var presentAuth = false
 
     @State private var initialDockerContainerSelection: Set<DockerContainerId> = []
 
@@ -122,13 +123,21 @@ struct MainWindow: View {
         .listStyle(.sidebar)
         .background(SplitViewAccessor(sideCollapsed: $collapsed))
         // "Personal use only" subheadline
-        .frame(minWidth: 165)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .frame(minWidth: 160, maxWidth: 500)
+        .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             VStack {
                 Button {
-                    NSWorkspace.openSubwindow("auth")
+                    if model.drmState.refreshToken != nil {
+                        // manage account
+                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+                    } else {
+                        presentAuth = true
+                    }
                 } label: {
                     HStack {
+                        //TODO load and cache avatar image
+                        var drmState = model.drmState
+
                         Image(systemName: "person.circle")
                         .resizable()
                         .frame(width: 24, height: 24)
@@ -136,20 +145,42 @@ struct MainWindow: View {
                         .padding(.trailing, 2)
 
                         VStack(alignment: .leading) {
-                            Text("Sign in")
+                            Text(drmState.title ?? "Sign in")
                             .font(.headline)
 
-                            Text("Personal use only")
+                            Text(drmState.subtitle ?? "Personal use only")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         }
                     }
+                    .padding(16)
                     // occupy full rect
                     .onRawDoubleClick { }
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button("Manage…") {
+                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+                    }
+
+                    Button("Switch Organization…") {
+                        // simple: just reauth and use web org picker
+                        presentAuth = true
+                    }
+
+                    Divider()
+
+                    Button("Sign Out") {
+                        Task { @MainActor in
+                            await model.trySignOut()
+                        }
+                    }
+                }
             }
-            .padding(.vertical, 8)
+            .border(width: 1, edges: [.top], color: Color(NSColor.separatorColor).opacity(0.5))
+        }
+        .sheet(isPresented: $presentAuth) {
+            AuthView(sheetPresented: $presentAuth)
         }
     }
 

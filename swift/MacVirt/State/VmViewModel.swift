@@ -88,6 +88,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     // helper
     case privHelperUninstallError(cause: Error)
 
+    // accounts
+    case signOutError(cause: Error)
+
     var errorUserInfo: [String : Any] {
         // debug desc gives most info for sentry
         [NSDebugDescriptionErrorKey: "\(self)"]
@@ -164,6 +167,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
         case .privHelperUninstallError:
             return "Can’t uninstall helper"
+
+        case .signOutError:
+            return "Can’t sign out"
         }
     }
 
@@ -336,6 +342,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
         case .privHelperUninstallError(let cause):
             return cause
+
+        case .signOutError(let cause):
+            return cause
         }
     }
 
@@ -432,14 +441,10 @@ class VmViewModel: ObservableObject {
     @Published private(set) var containers: [ContainerRecord]?
     @Published private(set) var error: VmError?
 
+    // vmgr basic state
     @Published private(set) var appliedConfig: VmConfig? // usually from last start
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false
-
-    @Published var presentProfileChanged: ProfileChangedAlert?
-    @Published var presentAddPaths: AddPathsAlert?
-    @Published var presentCreateMachine = false
-    @Published var presentCreateVolume = false
 
     // Docker
     @Published private(set) var dockerContainers: [DKContainer]?
@@ -450,6 +455,26 @@ class VmViewModel: ObservableObject {
     // Kubernetes
     @Published private(set) var k8sPods: [K8SPod]?
     @Published private(set) var k8sServices: [K8SService]?
+
+    // other UI state from vmgr
+    // initialize with default values for drm
+    @Published var drmState: DrmState = .init(
+        refreshToken: nil,
+        entitlementTier: .none,
+        entitlementType: .none,
+        entitlementMessage: nil
+    ) {
+        didSet {
+            Defaults[.drmLastState] = drmState
+        }
+    }
+
+    // present bindings
+    // TODO move to MainWindow, pass down by environment?
+    @Published var presentProfileChanged: ProfileChangedAlert?
+    @Published var presentAddPaths: AddPathsAlert?
+    @Published var presentCreateMachine = false
+    @Published var presentCreateVolume = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -466,6 +491,10 @@ class VmViewModel: ObservableObject {
     }
 
     init() {
+        if let lastState = Defaults[.drmLastState] {
+            drmState = lastState
+        }
+
         daemon.monitorNotifications()
 
         daemon.uiEvents.sink { [weak self] rawEvent in
@@ -486,6 +515,9 @@ class VmViewModel: ObservableObject {
                     }
                     if let vmConfig = event.vmConfig {
                         self.onNewVmgrConfig(config: vmConfig)
+                    }
+                    if let drmState = event.drmState {
+                        self.drmState = drmState
                     }
                 }
 
@@ -1358,5 +1390,13 @@ class VmViewModel: ObservableObject {
         // so applicationShouldTerminate doesn't do anything special
         AppLifecycle.forceTerminate = true
         NSApp.terminate(nil)
+    }
+
+    func trySignOut() async {
+        do {
+            try await runProcessChecked(AppConfig.ctlExe, ["logout"])
+        } catch {
+            setError(.signOutError(cause: error))
+        }
     }
 }

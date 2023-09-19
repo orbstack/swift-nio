@@ -4,6 +4,7 @@
 
 import Foundation
 import Combine
+import Defaults
 
 private enum StopExitCode: Int {
     case logFatal = 1
@@ -98,6 +99,7 @@ struct UIEvent: Codable {
         let newDaemonPid: Int?
         let stateReady: Bool
         let vmConfig: VmConfig?
+        let drmState: DrmState?
     }
 
     struct Docker: Codable {

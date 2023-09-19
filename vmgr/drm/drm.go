@@ -24,7 +24,9 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/updates"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
+	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vzf"
@@ -72,6 +74,7 @@ var (
 type DrmClient struct {
 	mu         sync.Mutex
 	checkMu    sync.Mutex
+	keychainMu sync.Mutex // can hang on permission prompt
 	verifier   *sjwt.Verifier
 	http       *http.Client
 	apiBaseURL string
@@ -88,6 +91,7 @@ type DrmClient struct {
 	vnet            *vnet.Network
 	sconInternal    *isclient.Client
 	sconHasReported bool
+	restored        syncx.CondBool
 
 	updater *updates.Updater
 
@@ -125,6 +129,8 @@ func newDrmClient() *DrmClient {
 		identifiers: ids,
 		appVersion:  appVersion,
 		startTime:/*mono*/ timex.NowMonoSleep(),
+
+		restored: syncx.NewCondBool(),
 
 		updater: updates.NewUpdater(),
 
@@ -187,7 +193,7 @@ func (c *DrmClient) LastResult() *drmtypes.Result {
 }
 
 func (c *DrmClient) UpdateResult() (*drmtypes.Result, error) {
-	return c.KickCheck()
+	return c.KickCheck(false)
 }
 
 func (c *DrmClient) Run() {
@@ -198,17 +204,34 @@ func (c *DrmClient) Run() {
 	defer ticker.Stop()
 
 	go c.runStatePersister()
+	var restoreWg sync.WaitGroup
+	restoreWg.Add(1)
 	go func() {
+		defer restoreWg.Done()
 		err := c.restoreState()
 		if err != nil {
 			dlog("restore state failed: ", err)
 		}
 	}()
 
+	// spend up to 15 sec witing for restoring refresh token before giving up
+	_, err := util.WithTimeout(func() (struct{}, error) {
+		restoreWg.Wait()
+		return struct{}{}, nil
+	}, 15*time.Second)
+	c.restored.Set(true)
+	if err != nil {
+		dlog("restore state timed out: ", err)
+	}
+
+	// force first check after restored
+	shouldForce := true
+
 	// this includes a first iteration
 	for ; true; <-ticker.C {
 		dlog("periodic/init check")
-		result, err := c.KickCheck()
+		result, err := c.KickCheck(shouldForce)
+		shouldForce = false
 		if err != nil {
 			dlog("periodic check failed: ", err)
 			// only log in release if we got something (bad/good)
@@ -227,7 +250,9 @@ func (c *DrmClient) Run() {
 
 func (c *DrmClient) restoreState() error {
 	dlog("restoreState")
+	c.keychainMu.Lock()
 	data, err := drmcore.ReadKeychainState()
+	c.keychainMu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -245,14 +270,14 @@ func (c *DrmClient) restoreState() error {
 
 	// use non-strict version check for restore
 	dlog("restore: verify token")
-	claimInfo, err := c.verifier.Verify(state.EntitlementToken, sjwt.TokenVerifyParams{
+	claims, err := c.verifier.Verify(state.EntitlementToken, sjwt.TokenVerifyParams{
 		StrictVersion: false,
 	})
 
 	c.mu.Lock() // take it here for setting refresh token
 	defer c.mu.Unlock()
 
-	// always salvage the refresh token
+	// always salvage the refresh token, if we don't already have one
 	if c.refreshToken == "" {
 		dlog("restore: use refresh token: ", state.RefreshToken)
 		c.refreshToken = state.RefreshToken
@@ -276,16 +301,18 @@ func (c *DrmClient) restoreState() error {
 		State:            drmtypes.StateValid,
 		EntitlementToken: state.EntitlementToken,
 		RefreshToken:     state.RefreshToken,
-		ClaimInfo:        claimInfo,
+		ClaimInfo:        claims,
 		// needed to prevent re-check from being deferred for too long
 		CheckedAt:/*wall*/ state.FetchedAt,
 	}
 	c.dispatchResultLocked(result)
-	c.refreshToken = state.RefreshToken
 	return nil
 }
 
 func (c *DrmClient) persistState(result *drmtypes.Result) error {
+	c.keychainMu.Lock()
+	defer c.keychainMu.Unlock()
+
 	// only persist valid states, no point in saving invalid if this is for optimistic cache on start
 	if result.State != drmtypes.StateValid {
 		dlog("persistState: skip invalid state")
@@ -414,7 +441,7 @@ func (c *DrmClient) UseSconInternalClient(fn func(*isclient.Client) error) error
 	return fn(c.sconInternal)
 }
 
-func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
+func (c *DrmClient) KickCheck(force bool) (*drmtypes.Result, error) {
 	dlog("kick check")
 
 	c.checkMu.Lock()
@@ -422,17 +449,17 @@ func (c *DrmClient) KickCheck() (*drmtypes.Result, error) {
 
 	lastResult := c.LastResult()
 	dlog("last result: ", lastResult)
-	if lastResult != nil && lastResult.State == drmtypes.StateValid && /*mono*/ timex.SinceMonoSleep(lastResult.CheckedAt) < checkinLifetime && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
+	if !force && lastResult != nil && lastResult.State == drmtypes.StateValid && /*mono*/ timex.SinceMonoSleep(lastResult.CheckedAt) < checkinLifetime && /*wall*/ time.Now().Before(lastResult.ClaimInfo.ExpiresAt.Add(sjwt.NotAfterLeeway)) {
 		dlog("skipping checkin due to valid result")
 		return lastResult, nil
 	}
 
-	if iokit.IsAsleep() {
+	if !force && iokit.IsAsleep() {
 		dlog("skipping checkin due to sleep")
 		return nil, ErrSleep
 	}
 
-	if !c.Valid() {
+	if !force && !c.Valid() {
 		dlog("skipping checkin due to invalid state")
 		return nil, errors.New("invalid state")
 	}
@@ -549,8 +576,9 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.dispatchResultLocked(result)
 	c.refreshToken = resp.RefreshToken
+	c.dispatchResultLocked(result)
+	c.sendUIEventLocked()
 	return result, nil
 }
 
@@ -571,6 +599,39 @@ func (c *DrmClient) dispatchResultLocked(result *drmtypes.Result) {
 			logrus.WithError(err).Error("failed to report to scon")
 		}
 	}()
+}
+
+func (c *DrmClient) generateUIStateLocked() *uitypes.DrmState {
+	dlog("notify UI")
+	state := &uitypes.DrmState{
+		RefreshToken: c.refreshToken,
+	}
+	if c.lastResult != nil {
+		claims := c.lastResult.ClaimInfo
+		state.EntitlementTier = claims.EntitlementTier
+		state.EntitlementType = claims.EntitlementType
+		state.EntitlementMessage = claims.EntitlementMessage
+	}
+
+	return state
+}
+
+func (c *DrmClient) GenerateUIState() *uitypes.DrmState {
+	c.restored.Wait()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.generateUIStateLocked()
+}
+
+func (c *DrmClient) sendUIEventLocked() {
+	state := c.generateUIStateLocked()
+	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		Vmgr: &uitypes.VmgrEvent{
+			DrmState: state,
+		},
+	})
 }
 
 func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error) {
@@ -613,6 +674,35 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 
 	dlog("response: ", response)
 	return &response, nil
+}
+
+func (c *DrmClient) UpdateRefreshToken(refreshToken string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	dlog("update refresh token: ", refreshToken)
+	c.refreshToken = refreshToken
+	// save just the refresh token to keychain. must be async to avoid holding drm lock hostage oin case of permission prompt
+	go func() {
+		c.keychainMu.Lock()
+		defer c.keychainMu.Unlock()
+
+		err := drmcore.SaveRefreshToken(refreshToken)
+		if err != nil {
+			logrus.WithError(err).Error("failed to save refresh token")
+		}
+	}()
+
+	// force a checkin
+	go func() {
+		_, err := c.KickCheck(true)
+		if err != nil {
+			logrus.WithError(err).Error("failed to kick check")
+		}
+	}()
+
+	c.sendUIEventLocked()
+	return nil
 }
 
 var Client = sync.OnceValue(func() *DrmClient {

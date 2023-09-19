@@ -65,6 +65,10 @@ private struct ContainerRenameRequest: Codable {
     var newName: String
 }
 
+private struct InternalUpdateTokenRequest: Codable {
+    var refreshToken: String?
+}
+
 class SconService {
     private let c: JsonRPCClient
 
@@ -139,5 +143,9 @@ class SconService {
 
     func internalGuiReportStarted() async throws {
         try await c.call("InternalGuiReportStarted")
+    }
+
+    func internalUpdateToken(_ token: String?) async throws {
+        try await c.call("InternalUpdateToken", args: InternalUpdateTokenRequest(refreshToken: token))
     }
 }

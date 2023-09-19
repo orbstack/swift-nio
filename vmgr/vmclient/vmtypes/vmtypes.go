@@ -28,3 +28,7 @@ type K8sNameRequest struct {
 type InternalSetDockerRemoteCtxAddrRequest struct {
 	Addr string `json:"addr"`
 }
+
+type InternalUpdateTokenRequest struct {
+	RefreshToken string `json:"refresh_token,omitempty"`
+}

@@ -213,3 +213,9 @@ func (c *VmClient) InternalSetDockerRemoteCtxAddr(addr string) error {
 		Addr: addr,
 	}, &noResult)
 }
+
+func (c *VmClient) InternalUpdateToken(token string) error {
+	return c.rpc.CallResult(context.TODO(), "InternalUpdateToken", &vmtypes.InternalUpdateTokenRequest{
+		RefreshToken: token,
+	}, &noResult)
+}

@@ -134,8 +134,9 @@ func (v *Verifier) Verify(token string, params TokenVerifyParams) (*drmtypes.Cla
 		LicenseEndsAt: time.Unix(claims.LicenseEndsAt, 0).UTC(),
 		WarnAt:        time.Unix(claims.WarnAt, 0).UTC(),
 
-		EntitlementTier: drmtypes.EntitlementTier(claims.EntitlementTier),
-		EntitlementType: drmtypes.EntitlementType(claims.EntitlementType),
+		EntitlementTier:    drmtypes.EntitlementTier(claims.EntitlementTier),
+		EntitlementType:    drmtypes.EntitlementType(claims.EntitlementType),
+		EntitlementMessage: claims.EntitlementMessage,
 	}, nil
 }
 

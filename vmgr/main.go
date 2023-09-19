@@ -708,7 +708,7 @@ func runVmManager() {
 		doneCh:       doneCh,
 		stopCh:       stopCh,
 		dockerClient: makeDockerClient(),
-		drm:          drm.Client(),
+		drm:          drmClient,
 		network:      vnetwork,
 		hcontrol:     hcServer,
 	}
@@ -717,6 +717,7 @@ func runVmManager() {
 		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 			Vmgr: &uitypes.VmgrEvent{
 				VmConfig: vmconfig.Get(),
+				DrmState: drmClient.GenerateUIState(),
 			},
 		})
 	}, uitypes.UIEventDebounce)
@@ -811,6 +812,7 @@ func runVmManager() {
 			StateReady: true,
 			// and give it an initial config
 			VmConfig: vmconfig.Get(),
+			// DRM state is probably not ready yet, don't try to seed it early
 		},
 	})
 
@@ -902,6 +904,8 @@ func main() {
 		runReportEnv()
 	case "uninstall-privhelper":
 		runUninstallPrivhelper()
+	case "set-refresh-token":
+		runSetRefreshToken()
 	case "vmgr", "":
 		runVmManager()
 	default:

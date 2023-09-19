@@ -5,6 +5,7 @@ import (
 
 	stypes "github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 )
 
 // now that we use leading debounce, this is fast enough
@@ -23,7 +24,8 @@ type VmgrEvent struct {
 	NewDaemonPid *int `json:"newDaemonPid"`
 	StateReady   bool `json:"stateReady"`
 	// also to avoid importing vmconfig pkg
-	VmConfig any `json:"vmConfig"`
+	VmConfig any       `json:"vmConfig"`
+	DrmState *DrmState `json:"drmState"`
 }
 
 type SconEvent struct {
@@ -56,4 +58,11 @@ type DrmWarningEvent struct {
 type ExitEvent struct {
 	Status  int    `json:"status"`
 	Message string `json:"message,omitempty"`
+}
+
+type DrmState struct {
+	RefreshToken       string                   `json:"refreshToken,omitempty"`
+	EntitlementTier    drmtypes.EntitlementTier `json:"entitlementTier"`
+	EntitlementType    drmtypes.EntitlementType `json:"entitlementType"`
+	EntitlementMessage *string                  `json:"entitlementMessage,omitempty"`
 }

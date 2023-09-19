@@ -192,6 +192,30 @@ struct MacVirtApp: App {
             }
             //TODO command to create container
 
+            CommandMenu("Account") {
+                Button("Sign In…") {
+                    NSWorkspace.openSubwindow("auth")
+                }
+                .disabled(vmModel.drmState.refreshToken != nil)
+
+                Button("Sign Out") {
+                    Task { @MainActor in
+                        await vmModel.trySignOut()
+                    }
+                }
+                .disabled(vmModel.drmState.refreshToken == nil)
+
+                Divider()
+
+                Button("Manage…") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+                }
+
+                Button("Switch Organization…") {
+                    NSWorkspace.openSubwindow("authwindow")
+                }
+            }
+
             CommandGroup(after: .help) {
                 Divider()
 
@@ -325,7 +349,7 @@ struct MacVirtApp: App {
         }
 
         WindowGroup("Sign In", id: "auth") {
-            AuthView()
+            AuthView(sheetPresented: nil)
             .onAppear {
                 windowTracker.onWindowAppear()
             }
@@ -333,7 +357,8 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        .handlesExternalEvents(matching: ["auth"])
+        // workaround for complete_auth matching this
+        .handlesExternalEvents(matching: ["authwindow"])
         .windowStyle(.hiddenTitleBar)
         .windowResizabilityContentSize()
 

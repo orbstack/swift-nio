@@ -8,3 +8,7 @@ type PersistentState struct {
 	EntitlementToken string              `json:"entitlement_token,omitempty"`
 	FetchedAt        timex.MonoSleepTime `json:"fetched_at,omitempty"`
 }
+
+type AppDrmMeta struct {
+	
+}
