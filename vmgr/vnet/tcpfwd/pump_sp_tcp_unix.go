@@ -2,6 +2,7 @@ package tcpfwd
 
 import (
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -16,7 +17,8 @@ func pump1SpTcpUnix(errc chan<- error, src *net.TCPConn, dst *net.UnixConn) {
 		}
 	}()
 
-	_, err := pumpCopyBuffer(dst, src, nil)
+	buf := make([]byte, 512*1024)
+	_, err := io.CopyBuffer(dst, src, buf)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
@@ -33,7 +35,8 @@ func pump1SpUnixTcp(errc chan<- error, src *net.UnixConn, dst *net.TCPConn) {
 		}
 	}()
 
-	_, err := pumpCopyBuffer(dst, src, nil)
+	buf := make([]byte, 512*1024)
+	_, err := io.CopyBuffer(dst, src, buf)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()

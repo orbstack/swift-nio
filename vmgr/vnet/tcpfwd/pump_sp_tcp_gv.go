@@ -23,7 +23,8 @@ func pump1SpTcpGv(errc chan<- error, src *net.TCPConn, dst *gonet.TCPConn) {
 		}
 	}()
 
-	_, err := pumpCopyBuffer(dst, src, nil)
+	buf := make([]byte, 512*1024)
+	_, err := io.CopyBuffer(dst, src, buf)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
@@ -32,9 +33,9 @@ func pump1SpTcpGv(errc chan<- error, src *net.TCPConn, dst *gonet.TCPConn) {
 	errc <- err
 }
 
-func copyViewBufferGvTcp(dst *net.TCPConn, src *gonet.TCPConn, vw *gonet.ViewWriter) (written int64, err error) {
+func copyViewBuffer(dst *net.TCPConn, src *gonet.TCPConn, vw *gonet.ViewWriter) (written int64, err error) {
 	for {
-		vw.Reset(zeroCopyGvBufferSize)
+		vw.Reset(512 * 1024)
 		_nr, er := src.ReadViews(vw)
 		nr := int64(_nr)
 		if nr > 0 {
@@ -76,7 +77,7 @@ func pump1SpGvTcp(errc chan<- error, src *gonet.TCPConn, dst *net.TCPConn) {
 
 	vw := gonet.NewViewWriter(2)
 	defer vw.Reset(0)
-	_, err := copyViewBufferGvTcp(dst, src, vw)
+	_, err := copyViewBuffer(dst, src, vw)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()

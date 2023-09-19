@@ -2,6 +2,7 @@ package tcpfwd
 
 import (
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -21,7 +22,8 @@ func pump1(errc chan<- error, src, dst FullDuplexConn) {
 		}
 	}()
 
-	_, err := pumpCopyBuffer(dst, src, nil)
+	buf := make([]byte, 512*1024)
+	_, err := io.CopyBuffer(dst, src, buf)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
