@@ -68,6 +68,7 @@ struct AuthView: View {
                     Button("Cancel", role: .cancel) {
                         sheetPresented?.wrappedValue = false
                     }
+                    .controlSize(.large)
 
                     Spacer()
                 }

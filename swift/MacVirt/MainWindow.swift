@@ -125,57 +125,63 @@ struct MainWindow: View {
         // "Personal use only" subheadline
         .frame(minWidth: 160, maxWidth: 500)
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
-            VStack {
-                Button {
-                    if model.drmState.refreshToken != nil {
-                        // manage account
-                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
-                    } else {
-                        presentAuth = true
-                    }
-                } label: {
-                    HStack {
-                        //TODO load and cache avatar image
-                        var drmState = model.drmState
+            HStack {
+                VStack {
+                    Button {
+                        if model.drmState.refreshToken != nil {
+                            // manage account
+                            NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+                        } else {
+                            presentAuth = true
+                        }
+                    } label: {
+                        HStack {
+                            //TODO load and cache avatar image
+                            var drmState = model.drmState
 
-                        Image(systemName: "person.circle")
-                        .resizable()
-                        .frame(width: 24, height: 24)
-                        .foregroundColor(.accentColor)
-                        .padding(.trailing, 2)
+                            Image(systemName: "person.circle")
+                            .resizable()
+                            .frame(width: 24, height: 24)
+                            .foregroundColor(.accentColor)
+                            .padding(.trailing, 2)
 
-                        VStack(alignment: .leading) {
-                            Text(drmState.title ?? "Sign in")
-                            .font(.headline)
+                            VStack(alignment: .leading) {
+                                Text(drmState.title ?? "Sign in")
+                                .font(.headline)
 
-                            Text(drmState.subtitle ?? "Personal use only")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                                Text(drmState.subtitle ?? "Personal use only")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(16)
+                        // occupy full rect
+                        .onRawDoubleClick {
                         }
                     }
-                    .padding(16)
-                    // occupy full rect
-                    .onRawDoubleClick { }
-                }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    Button("Manage…") {
-                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
-                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Manage…") {
+                            NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+                        }
 
-                    Button("Switch Organization…") {
-                        // simple: just reauth and use web org picker
-                        presentAuth = true
-                    }
+                        Button("Switch Organization…") {
+                            // simple: just reauth and use web org picker
+                            presentAuth = true
+                        }
 
-                    Divider()
+                        Divider()
 
-                    Button("Sign Out") {
-                        Task { @MainActor in
-                            await model.trySignOut()
+                        Button("Sign Out") {
+                            Task { @MainActor in
+                                await model.trySignOut()
+                            }
                         }
                     }
                 }
+
+                // occupy all right space for border
+                Spacer()
             }
             .border(width: 1, edges: [.top], color: Color(NSColor.separatorColor).opacity(0.5))
         }
