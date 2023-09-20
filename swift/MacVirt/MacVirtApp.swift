@@ -214,6 +214,14 @@ struct MacVirtApp: App {
                 Button("Switch Organization…") {
                     NSWorkspace.openSubwindow("authwindow")
                 }
+
+                Divider()
+
+                Button("Refresh") {
+                    Task { @MainActor in
+                        await vmModel.tryRefreshDrm()
+                    }
+                }
             }
 
             CommandGroup(after: .help) {

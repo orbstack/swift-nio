@@ -148,4 +148,8 @@ class SconService {
     func internalUpdateToken(_ token: String?) async throws {
         try await c.call("InternalUpdateToken", args: InternalUpdateTokenRequest(refreshToken: token))
     }
+
+    func internalRefreshDrm() async throws {
+        try await c.call("InternalRefreshDrm")
+    }
 }

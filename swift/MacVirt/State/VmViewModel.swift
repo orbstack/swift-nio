@@ -90,6 +90,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
     // accounts
     case signOutError(cause: Error)
+    case refreshDrmError(cause: Error)
 
     var errorUserInfo: [String : Any] {
         // debug desc gives most info for sentry
@@ -170,6 +171,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
         case .signOutError:
             return "Can’t sign out"
+        case .refreshDrmError:
+            return "Can’t refresh account"
         }
     }
 
@@ -344,6 +347,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
 
         case .signOutError(let cause):
+            return cause
+        case .refreshDrmError(let cause):
             return cause
         }
     }
@@ -1397,6 +1402,14 @@ class VmViewModel: ObservableObject {
             try await runProcessChecked(AppConfig.ctlExe, ["logout"])
         } catch {
             setError(.signOutError(cause: error))
+        }
+    }
+
+    func tryRefreshDrm() async {
+        do {
+            try await runProcessChecked(AppConfig.ctlExe, ["logout"])
+        } catch {
+            setError(.refreshDrmError(cause: error))
         }
     }
 }

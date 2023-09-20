@@ -210,6 +210,11 @@ func (h *VmControlServer) InternalUpdateToken(ctx context.Context, req *vmtypes.
 	return h.drm.UpdateRefreshToken(req.RefreshToken)
 }
 
+func (h *VmControlServer) InternalRefreshDrm(ctx context.Context) error {
+	_, err := h.drm.KickCheck(true)
+	return err
+}
+
 func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmtypes.EnvReport, error) {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -355,6 +360,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"InternalReportEnv":              handler.New(s.InternalReportEnv),
 		"InternalSetDockerRemoteCtxAddr": handler.New(s.InternalSetDockerRemoteCtxAddr),
 		"InternalUpdateToken":            handler.New(s.InternalUpdateToken),
+		"InternalRefreshDrm":             handler.New(s.InternalRefreshDrm),
 
 		"DockerContainerStart":   handler.New(s.DockerContainerStart),
 		"DockerContainerStop":    handler.New(s.DockerContainerStop),

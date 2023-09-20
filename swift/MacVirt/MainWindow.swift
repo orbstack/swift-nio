@@ -31,8 +31,7 @@ private struct NavTab: View {
 
     var body: some View {
         Label(label, systemImage: systemImage)
-        .padding(.vertical, 6)
-        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
     }
 }
 
@@ -123,7 +122,7 @@ struct MainWindow: View {
         .listStyle(.sidebar)
         .background(SplitViewAccessor(sideCollapsed: $collapsed))
         // "Personal use only" subheadline
-        .frame(minWidth: 160, maxWidth: 500)
+        .frame(minWidth: 165, maxWidth: 500)
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             HStack {
                 VStack {
@@ -135,7 +134,7 @@ struct MainWindow: View {
                             presentAuth = true
                         }
                     } label: {
-                        HStack {
+                        HStack(spacing: 12) {
                             //TODO load and cache avatar image
                             var drmState = model.drmState
 
@@ -143,7 +142,6 @@ struct MainWindow: View {
                             .resizable()
                             .frame(width: 24, height: 24)
                             .foregroundColor(.accentColor)
-                            .padding(.trailing, 2)
 
                             VStack(alignment: .leading) {
                                 Text(drmState.title ?? "Sign in")
@@ -154,7 +152,7 @@ struct MainWindow: View {
                                 .foregroundColor(.secondary)
                             }
                         }
-                        .padding(16)
+                        .padding(12)
                         // occupy full rect
                         .onRawDoubleClick {
                         }
@@ -171,6 +169,12 @@ struct MainWindow: View {
                         }
 
                         Divider()
+
+                        Button("Refresh") {
+                            Task { @MainActor in
+                                await model.tryRefreshDrm()
+                            }
+                        }
 
                         Button("Sign Out") {
                             Task { @MainActor in
