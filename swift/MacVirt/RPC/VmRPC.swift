@@ -49,6 +49,10 @@ private struct K8sNameRequest: Codable {
     let name: String
 }
 
+private struct InternalUpdateTokenRequest: Codable {
+    var refreshToken: String?
+}
+
 class VmService {
     private let c: JsonRPCClient
 
@@ -142,5 +146,13 @@ class VmService {
 
     func guiReportStarted() async throws {
         try await c.call("GuiReportStarted")
+    }
+
+    func internalUpdateToken(_ token: String?) async throws {
+        try await c.call("InternalUpdateToken", args: InternalUpdateTokenRequest(refreshToken: token))
+    }
+
+    func internalRefreshDrm() async throws {
+        try await c.call("InternalRefreshDrm")
     }
 }

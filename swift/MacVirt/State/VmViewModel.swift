@@ -1407,7 +1407,7 @@ class VmViewModel: ObservableObject {
 
     func tryRefreshDrm() async {
         do {
-            try await runProcessChecked(AppConfig.ctlExe, ["logout"])
+            try await vmgr.internalRefreshDrm()
         } catch {
             setError(.refreshDrmError(cause: error))
         }

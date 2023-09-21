@@ -55,7 +55,8 @@ const (
 	sleepSyncPeriod = 30 * time.Second
 
 	apiBaseUrlProd = "https://api-license.orbstack.dev"
-	apiBaseUrlDev  = "http://localhost:8400"
+	// http.ProxyFromEnvironment ignores localhost
+	apiBaseUrlDev = "http://0.0.0.0:8400"
 )
 
 var (
@@ -576,7 +577,6 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.refreshToken = resp.RefreshToken
 	c.dispatchResultLocked(result)
 	c.sendUIEventLocked()
 	return result, nil
@@ -585,6 +585,7 @@ func (c *DrmClient) doCheckinLocked() (*drmtypes.Result, error) {
 func (c *DrmClient) dispatchResultLocked(result *drmtypes.Result) {
 	dlog("dispatchResult: ", result)
 	c.lastResult = result
+	c.refreshToken = result.RefreshToken
 	c.setState(result.State)
 	// don't block if perm prompt is stuck
 	select {
