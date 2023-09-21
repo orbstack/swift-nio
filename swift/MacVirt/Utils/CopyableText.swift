@@ -67,3 +67,52 @@ struct CopyableText_Previews: PreviewProvider {
         CopyableText("Hello, world!")
     }
 }
+
+struct AuxiliaryCopyableText<Content: View>: View {
+    @ViewBuilder private let textBuilder: () -> Content
+    private let copyAs: String
+
+    @State private var isCopied = false
+    @State private var hoverOpacity = 0.0
+
+    init(copyAs: String, @ViewBuilder text: @escaping () -> Content) {
+        self.copyAs = copyAs
+        self.textBuilder = text
+    }
+
+    var body: some View {
+        HStack {
+            textBuilder()
+
+            Button(action: copy) {
+                Image(systemName: isCopied ? "checkmark.circle.fill" : "doc.on.doc")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .foregroundColor(.secondary)
+                // avoid checkmark and doc.on.doc having diff widths
+                // (maxWidth: 12, maxHeight: .infinity) steals height from other Texts in CommandsRootView
+                .frame(width: 12, height: NSFont.systemFontSize)
+                .opacity(hoverOpacity)
+                .help("Copy")
+            }
+            .buttonStyle(.plain)
+            .onTapGesture(perform: copy)
+            .accessibilityLabel("Copy \(copyAs)")
+        }
+        .onHover { hovered in
+            if hovered {
+                // reset before next hover to avoid flash on unhover
+                isCopied = false
+            }
+
+            withAnimation(.spring().speed(2)) {
+                hoverOpacity = hovered ? 1 : 0
+            }
+        }
+    }
+
+    private func copy() {
+        NSPasteboard.copy(copyAs)
+        isCopied = true
+    }
+}
