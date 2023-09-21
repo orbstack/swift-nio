@@ -4,7 +4,8 @@
 
 import AppKit
 
-private let KILLSWITCH_EXPIRE_DAYS = 30.0
+// TODO based on beta
+private let KILLSWITCH_EXPIRE_DAYS = -1.0
 
 func processIsTranslated() -> Bool {
     var ret = Int32(0)
@@ -31,6 +32,10 @@ func readKillswitchTime() throws -> NSDate {
 
 // not important for security, just UX
 func killswitchExpired() -> Bool {
+    if KILLSWITCH_EXPIRE_DAYS < 0 {
+        return false
+    }
+
     do {
         let killswitchTime = try readKillswitchTime()
         let now = NSDate()

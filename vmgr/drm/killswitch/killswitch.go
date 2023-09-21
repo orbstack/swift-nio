@@ -2,8 +2,6 @@ package killswitch
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"time"
 )
 
@@ -20,51 +18,61 @@ var (
 )
 
 func Check() error {
-	now := time.Now().Unix()
-	if now > killswitchTimestamp {
-		return ErrKillswitch
-	}
-
+	// TODO restore this for beta
 	return nil
+
+	// now := time.Now().Unix()
+	// if now > killswitchTimestamp {
+	// 	return ErrKillswitch
+	// }
+
+	// return nil
 }
 
 func MonitorAndExit() error {
-	// initial check
-	err := Check()
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		err := WaitForExpiry()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-	}()
-
+	// TODO restore this for beta
 	return nil
+
+	// // initial check
+	// err := Check()
+	// if err != nil {
+	// 	return err
+	// }
+
+	// go func() {
+	// 	err := WaitForExpiry()
+	// 	if err != nil {
+	// 		fmt.Fprintln(os.Stderr, err)
+	// 		os.Exit(1)
+	// 	}
+	// }()
+
+	// return nil
 }
 
 func WaitForExpiry() error {
-	ticker := time.NewTicker(checkInterval)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		err := Check()
-		if err != nil {
-			return err
-		}
-	}
-
+	// TODO restore this for beta
 	return nil
+	// ticker := time.NewTicker(checkInterval)
+	// defer ticker.Stop()
+
+	// for range ticker.C {
+	// 	err := Check()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+
+	// return nil
 }
 
 func Watch(fn func(error)) {
-	go func() {
-		err := WaitForExpiry()
-		if err != nil {
-			fn(err)
-		}
-	}()
+	// TODO restore this for beta
+	return
+	// go func() {
+	// 	err := WaitForExpiry()
+	// 	if err != nil {
+	// 		fn(err)
+	// 	}
+	// }()
 }
