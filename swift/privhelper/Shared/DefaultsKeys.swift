@@ -31,7 +31,9 @@ struct DrmState: Codable, Defaults.Serializable {
     }
 
     //TODO deal with mutation
-    private lazy var claims: [String: Any]? = {
+    private lazy var claims: [String: Any]? = decodeClaims()
+
+    private func decodeClaims() -> [String: Any]? {
         guard let refreshToken else {
             return nil
         }
@@ -40,11 +42,11 @@ struct DrmState: Codable, Defaults.Serializable {
             return nil
         }
         let claims = parts[1]
-        guard let data = Data(base64Encoded: String(claims) + "==") else {
+        guard let data = Data(base64URLEncoded: String(claims)) else {
             return nil
         }
         return try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
-    }()
+    }
 
     //TODO err cond
     var imageURL: URL? {
@@ -114,4 +116,48 @@ extension Defaults.Keys {
 
     // login
     static let drmLastState = Key<DrmState?>("drm_lastState", default: nil)
+}
+// https://stackoverflow.com/questions/39075043/how-to-convert-data-to-hex-string-in-swift
+import Foundation
+
+/// Extension for making base64 representations of `Data` safe for
+/// transmitting via URL query parameters
+extension Data {
+
+    /// Instantiates data by decoding a base64url string into base64
+    ///
+    /// - Parameter string: A base64url encoded string
+    init?(base64URLEncoded string: String) {
+        self.init(base64Encoded: string.base64URLToBase64())
+    }
+
+    /// Encodes the string into a base64url safe representation
+    ///
+    /// - Returns: A string that is base64 encoded but made safe for passing
+    ///            in as a query parameter into a URL string
+    func base64URLEncodedString() -> String {
+        return self.base64EncodedString().base64ToBase64URL()
+    }
+
+}
+
+private extension String {
+    func base64ToBase64URL() -> String {
+        // Make base64 string safe for passing into URL query params
+        let base64url = self.replacingOccurrences(of: "/", with: "_")
+        .replacingOccurrences(of: "+", with: "-")
+        .replacingOccurrences(of: "=", with: "")
+        return base64url
+    }
+
+    func base64URLToBase64() -> String {
+        // Return to base64 encoding
+        var base64 = self.replacingOccurrences(of: "_", with: "/")
+        .replacingOccurrences(of: "-", with: "+")
+        // Add any necessary padding with `=`
+        if base64.count % 4 != 0 {
+            base64.append(String(repeating: "=", count: 4 - base64.count % 4))
+        }
+        return base64
+    }
 }
