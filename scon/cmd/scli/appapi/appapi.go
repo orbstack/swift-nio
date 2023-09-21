@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	// BaseURL = "https://api-misc.orbstack.dev/api/v1"
+	BaseURL = "https://api-license.orbstack.dev/api/v1"
 	// this way we still use proxy
-	BaseURL = "http://0.0.0.0:8400/api/v1"
+	// BaseURL = "http://0.0.0.0:8400/api/v1"
 )
 
 type Client struct {
