@@ -19,6 +19,8 @@ var (
 )
 
 func Check() error {
+	// TODO restore
+	return nil
 	now := time.Now().Unix()
 	if now > killswitchTimestamp {
 		return ErrKillswitch
@@ -28,6 +30,8 @@ func Check() error {
 }
 
 func MonitorAndExit() error {
+	// TODO restore
+	return nil
 	// initial check
 	err := Check()
 	if err != nil {
@@ -46,6 +50,8 @@ func MonitorAndExit() error {
 }
 
 func WaitForExpiry() error {
+	// TODO restore
+	return nil
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
 
@@ -60,6 +66,8 @@ func WaitForExpiry() error {
 }
 
 func Watch(fn func(error)) {
+	// TODO restore
+	return
 	go func() {
 		err := WaitForExpiry()
 		if err != nil {
