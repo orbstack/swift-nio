@@ -194,7 +194,7 @@ struct MacVirtApp: App {
 
             CommandMenu("Account") {
                 Button("Sign In…") {
-                    NSWorkspace.openSubwindow("auth")
+                    NSWorkspace.openSubwindow("authwindow")
                 }
                 .disabled(vmModel.drmState.refreshToken != nil)
 

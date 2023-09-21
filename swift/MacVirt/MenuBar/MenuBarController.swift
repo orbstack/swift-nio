@@ -304,6 +304,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
             await vmModel.tryRestart()
         }
 
+        helpMenu.addActionItem("Sign Out") { [self] in
+            await vmModel.trySignOut()
+        }
+
         helpMenu.addActionItem("Upload Diagnostics") {
             openDiagReporter()
         }
@@ -313,6 +317,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
         helpMenu.addActionItem("Check for Updates…") { [self] in
             updaterController.checkForUpdates(nil)
             NSApp.activate(ignoringOtherApps: true)
+        }
+
+        if vmModel.drmState.refreshToken == nil {
+            menu.addActionItem("Sign In…") {
+                NSWorkspace.openSubwindow("authwindow")
+            }
         }
 
         menu.addActionItem("Settings…", shortcut: ",") {
