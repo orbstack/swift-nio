@@ -126,8 +126,9 @@ struct MainWindow: View {
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             HStack {
                 VStack {
+                    let isLoggedIn = model.drmState.refreshToken != nil
                     Button {
-                        if model.drmState.refreshToken != nil {
+                        if isLoggedIn {
                             // manage account
                             NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
                         } else {
@@ -153,20 +154,22 @@ struct MainWindow: View {
                             }
                         }
                         .padding(12)
-                        // occupy full rect
-                        .onRawDoubleClick {
-                        }
                     }
                     .buttonStyle(.plain)
+                    // occupy full rect
+                    .onRawDoubleClick {
+                    }
                     .contextMenu {
                         Button("Manage…") {
                             NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
                         }
+                        .disabled(!isLoggedIn)
 
                         Button("Switch Organization…") {
                             // simple: just reauth and use web org picker
                             presentAuth = true
                         }
+                        .disabled(!isLoggedIn)
 
                         Divider()
 
@@ -175,12 +178,14 @@ struct MainWindow: View {
                                 await model.tryRefreshDrm()
                             }
                         }
+                        .disabled(!isLoggedIn)
 
                         Button("Sign Out") {
                             Task { @MainActor in
                                 await model.trySignOut()
                             }
                         }
+                        .disabled(!isLoggedIn)
                     }
                 }
 
