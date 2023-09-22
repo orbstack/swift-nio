@@ -201,9 +201,6 @@ struct MainWindow: View {
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             UserSwitcherButton(presentAuth: $presentAuth)
         }
-        .sheet(isPresented: $presentAuth) {
-            AuthView(sheetPresented: $presentAuth)
-        }
     }
 
     @available(macOS 14, *)
@@ -292,6 +289,9 @@ struct MainWindow: View {
                     ContentUnavailableViewCompat("No Tab Selected", systemImage: "questionmark.app.fill")
                 }
             }
+        }
+        .sheet(isPresented: $presentAuth) {
+            AuthView(sheetPresented: $presentAuth)
         }
         .onOpenURL { url in
             // for menu bar
