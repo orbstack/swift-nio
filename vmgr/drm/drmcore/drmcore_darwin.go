@@ -17,14 +17,15 @@ const (
 	// bumped when migrating to access group
 	keychainAccount     = "license_state2"
 	keychainAccountOld  = "license_state"
-	keychainLabel       = "OrbStack" // user-facing "Name"
+	keychainLabelOld    = "OrbStack"         // user-facing "Name"
+	keychainLabel       = "OrbStack account" // user-facing "Name"
 	keychainAccessGroup = "HUAQ24HBR6.dev.orbstack"
 )
 
 func SaveRefreshToken(refreshToken string) error {
-	data, err := keychain.GetGenericPassword(keychainService, keychainAccount, keychainLabel, keychainAccessGroup)
+	data, err := ReadKeychainState()
 	if err != nil {
-		// fail is ok, just start fresh
+		// failed is ok, just start fresh
 	}
 
 	var state drmtypes.PersistentState
@@ -53,7 +54,7 @@ func ReadKeychainState() ([]byte, error) {
 	if err != nil {
 		// retry w/ old, for seamless migration
 		// next SetKeychainState call should move it
-		data, err = keychain.GetGenericPassword(keychainService, keychainAccountOld, keychainLabel, keychainAccessGroup)
+		data, err = keychain.GetGenericPassword(keychainService, keychainAccountOld, keychainLabelOld, keychainAccessGroup)
 		if err != nil {
 			// use new
 			return nil, err
