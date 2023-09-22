@@ -16,6 +16,8 @@ replace github.com/fsnotify/fsnotify => github.com/orbstack/fsnotify-macvirt v0.
 
 replace github.com/buildbarn/go-xdr => github.com/kdrag0n/go-xdr-macvirt v0.0.0-20230326123001-605de85becc7
 
+replace github.com/keybase/go-keychain => github.com/orbstack/go-keychain v0.0.0-20230922005607-1d526cf2beed
+
 require (
 	github.com/creachadair/jrpc2 v1.0.1
 	github.com/creack/pty v1.1.18

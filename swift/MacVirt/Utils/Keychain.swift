@@ -7,7 +7,7 @@ import Security
 
 struct Keychain {
     private static let service = Bundle.main.bundleIdentifier!
-    private static let account = "license_state"
+    private static let account = "license_state2"
     private static let label = "OrbStack"
     private static let accessGroup = "HUAQ24HBR6.dev.orbstack"
 

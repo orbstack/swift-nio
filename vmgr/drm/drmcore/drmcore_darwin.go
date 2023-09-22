@@ -13,8 +13,10 @@ import (
 
 const (
 	// avoid perm issues bug for diff bundle IDs
-	keychainService     = appid.BundleID // user-facing "Where"
-	keychainAccount     = "license_state"
+	keychainService = appid.BundleID // user-facing "Where"
+	// bumped when migrating to access group
+	keychainAccount     = "license_state2"
+	keychainAccountOld  = "license_state"
 	keychainLabel       = "OrbStack" // user-facing "Name"
 	keychainAccessGroup = "HUAQ24HBR6.dev.orbstack"
 )
@@ -47,21 +49,37 @@ func SaveRefreshToken(refreshToken string) error {
 }
 
 func ReadKeychainState() ([]byte, error) {
-	return keychain.GetGenericPassword(keychainService, keychainAccount, keychainLabel, keychainAccessGroup)
+	data, err := keychain.GetGenericPassword(keychainService, keychainAccount, keychainLabel, keychainAccessGroup)
+	if err != nil {
+		// retry w/ old, for seamless migration
+		// next SetKeychainState call should move it
+		data, err = keychain.GetGenericPassword(keychainService, keychainAccountOld, keychainLabel, keychainAccessGroup)
+		if err != nil {
+			// use new
+			return nil, err
+		}
+	}
+
+	return data, nil
 }
 
 func SetKeychainState(data []byte) error {
 	// delete old if necessary
 	// update is too complicated
 	// also helps fix permissinos in case signing ID changed
-	_ = keychain.DeleteGenericPasswordItem(keychainService, keychainAccount)
+	deleteErr := keychain.DeleteGenericPasswordItem(keychainService, keychainAccount)
+
+	// also delete pre-migration if necessary
+	_ = keychain.DeleteGenericPasswordItem(keychainService, keychainAccountOld)
 
 	item := keychain.NewGenericPassword(keychainService, keychainAccount, keychainLabel, data, keychainAccessGroup)
+	// enable dataProtection for iOS permissions mode - otherwise access group doesn't work
+	item.SetDataProtection()
 	item.SetSynchronizable(keychain.SynchronizableNo) // tokens are tied to device
 	item.SetAccessible(keychain.AccessibleAlways)     // for headless usage
 	err := keychain.AddItem(item)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w (delete: %w)", err, deleteErr)
 	}
 
 	return nil
