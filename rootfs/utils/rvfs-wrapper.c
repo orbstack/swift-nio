@@ -423,8 +423,10 @@ int main(int argc, char **argv) {
     //
     // openat(AT_FDCWD, "/tmp/rosetta.11.0", O_RDWR|O_CREAT|O_EXCL, 0444) = 10
     // pwrite64(10, "/usr/bin/swift-driver\0/usr/bin/swift-driver\0--driver-mode=swift\0-Xfrontend\0-new-driver-path\0-Xfrontend\0/usr/bin/swift-driver\0", 125, 0) = 125
+    //
+    // swift-help breaks too: Error: The value '/usr/bin/swift-help' is invalid for '<topic>'
     // TODO: move to userspace ELF loader instead
-    if (emu == EMU_ROSETTA && strcmp(exe_name, "swift-driver") == 0) {
+    if (emu == EMU_ROSETTA && strncmp(exe_name, "swift", 5) == 0) {
         rvk_data = rvk3_data;
     }
 
