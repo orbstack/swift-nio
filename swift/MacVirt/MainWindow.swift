@@ -197,7 +197,7 @@ struct MainWindow: View {
         .listStyle(.sidebar)
         .background(SplitViewAccessor(sideCollapsed: $collapsed))
         // "Personal use only" subheadline
-        .frame(minWidth: 170, maxWidth: 500)
+        .frame(minWidth: 165)
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             UserSwitcherButton(presentAuth: $presentAuth)
         }
@@ -247,6 +247,8 @@ struct MainWindow: View {
         }
         .listStyle(.sidebar)
         .background(SplitViewAccessor(sideCollapsed: $collapsed))
+        // "Personal use only" subheadline
+        .frame(minWidth: 165)
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             UserSwitcherButton(presentAuth: $presentAuth)
         }
