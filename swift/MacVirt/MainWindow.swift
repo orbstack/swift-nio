@@ -35,6 +35,83 @@ private struct NavTab: View {
     }
 }
 
+private struct UserSwitcherButton: View {
+    @EnvironmentObject private var vmModel: VmViewModel
+
+    @Binding var presentAuth: Bool
+
+    var body: some View {
+        VStack {
+            let isLoggedIn = vmModel.drmState.isSignedIn
+            Button {
+                if isLoggedIn {
+                    // manage account
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+                } else {
+                    presentAuth = true
+                }
+            } label: {
+                HStack(spacing: 0) {
+                    //TODO load and cache avatar image
+                    var drmState = vmModel.drmState
+
+                    Image(systemName: "person.circle")
+                    .resizable()
+                    .frame(width: 24, height: 24)
+                    .foregroundColor(.accentColor)
+                    .padding(.trailing, 12)
+
+                    VStack(alignment: .leading) {
+                        Text(drmState.title ?? "Sign in")
+                        .font(.headline)
+
+                        Text(drmState.subtitle ?? "Personal use only")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    }
+
+                    // occupy all right space for border
+                    Spacer()
+                }
+                .padding(12)
+                .onRawDoubleClick {
+                }
+            }
+            .buttonStyle(.plain)
+            // occupy full rect
+            .contextMenu {
+                Button("Manage…") {
+                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+                }
+                .disabled(!isLoggedIn)
+
+                Button("Switch Organization…") {
+                    // simple: just reauth and use web org picker
+                    presentAuth = true
+                }
+                .disabled(!isLoggedIn)
+
+                Divider()
+
+                Button("Refresh") {
+                    Task { @MainActor in
+                        await vmModel.tryRefreshDrm()
+                    }
+                }
+                .disabled(!isLoggedIn)
+
+                Button("Sign Out") {
+                    Task { @MainActor in
+                        await vmModel.trySignOut()
+                    }
+                }
+                .disabled(!isLoggedIn)
+            }
+        }
+        .border(width: 1, edges: [.top], color: Color(NSColor.separatorColor).opacity(0.5))
+    }
+}
+
 struct MainWindow: View {
     @Environment(\.controlActiveState) var controlActiveState
     @EnvironmentObject private var model: VmViewModel
@@ -124,74 +201,7 @@ struct MainWindow: View {
         // "Personal use only" subheadline
         .frame(minWidth: 165, maxWidth: 500)
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
-            VStack {
-                let isLoggedIn = model.drmState.isSignedIn
-                Button {
-                    if isLoggedIn {
-                        // manage account
-                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
-                    } else {
-                        presentAuth = true
-                    }
-                } label: {
-                    HStack(spacing: 0) {
-                        //TODO load and cache avatar image
-                        var drmState = model.drmState
-
-                        Image(systemName: "person.circle")
-                        .resizable()
-                        .frame(width: 24, height: 24)
-                        .foregroundColor(.accentColor)
-                        .padding(.trailing, 12)
-
-                        VStack(alignment: .leading) {
-                            Text(drmState.title ?? "Sign in")
-                            .font(.headline)
-
-                            Text(drmState.subtitle ?? "Personal use only")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        }
-
-                        // occupy all right space for border
-                        Spacer()
-                    }
-                    .padding(12)
-                    .onRawDoubleClick {
-                    }
-                }
-                .buttonStyle(.plain)
-                // occupy full rect
-                .contextMenu {
-                    Button("Manage…") {
-                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
-                    }
-                    .disabled(!isLoggedIn)
-
-                    Button("Switch Organization…") {
-                        // simple: just reauth and use web org picker
-                        presentAuth = true
-                    }
-                    .disabled(!isLoggedIn)
-
-                    Divider()
-
-                    Button("Refresh") {
-                        Task { @MainActor in
-                            await model.tryRefreshDrm()
-                        }
-                    }
-                    .disabled(!isLoggedIn)
-
-                    Button("Sign Out") {
-                        Task { @MainActor in
-                            await model.trySignOut()
-                        }
-                    }
-                    .disabled(!isLoggedIn)
-                }
-            }
-            .border(width: 1, edges: [.top], color: Color(NSColor.separatorColor).opacity(0.5))
+            UserSwitcherButton(presentAuth: $presentAuth)
         }
         .sheet(isPresented: $presentAuth) {
             AuthView(sheetPresented: $presentAuth)
@@ -239,6 +249,9 @@ struct MainWindow: View {
         }
         .listStyle(.sidebar)
         .background(SplitViewAccessor(sideCollapsed: $collapsed))
+        .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
+            UserSwitcherButton(presentAuth: $presentAuth)
+        }
     }
 
     var body: some View {
