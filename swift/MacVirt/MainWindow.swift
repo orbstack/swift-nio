@@ -41,72 +41,70 @@ private struct UserSwitcherButton: View {
     @Binding var presentAuth: Bool
 
     var body: some View {
-        VStack {
-            let isLoggedIn = vmModel.drmState.isSignedIn
-            Button {
-                if isLoggedIn {
-                    // manage account
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
-                } else {
-                    presentAuth = true
+        let isLoggedIn = vmModel.drmState.isSignedIn
+        Button {
+            if isLoggedIn {
+                // manage account
+                NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+            } else {
+                presentAuth = true
+            }
+        } label: {
+            HStack(spacing: 0) {
+                //TODO load and cache avatar image
+                var drmState = vmModel.drmState
+
+                Image(systemName: "person.circle")
+                .resizable()
+                .frame(width: 24, height: 24)
+                .foregroundColor(.accentColor)
+                .padding(.trailing, 12)
+
+                VStack(alignment: .leading) {
+                    Text(drmState.title ?? "Sign in")
+                    .font(.headline)
+
+                    Text(drmState.subtitle ?? "Personal use only")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
                 }
-            } label: {
-                HStack(spacing: 0) {
-                    //TODO load and cache avatar image
-                    var drmState = vmModel.drmState
 
-                    Image(systemName: "person.circle")
-                    .resizable()
-                    .frame(width: 24, height: 24)
-                    .foregroundColor(.accentColor)
-                    .padding(.trailing, 12)
+                // occupy all right space for border
+                Spacer()
+            }
+            .padding(12)
+            .onRawDoubleClick {
+            }
+        }
+        .buttonStyle(.plain)
+        // occupy full rect
+        .contextMenu {
+            Button("Manage…") {
+                NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+            }
+            .disabled(!isLoggedIn)
 
-                    VStack(alignment: .leading) {
-                        Text(drmState.title ?? "Sign in")
-                        .font(.headline)
+            Button("Switch Organization…") {
+                // simple: just reauth and use web org picker
+                presentAuth = true
+            }
+            .disabled(!isLoggedIn)
 
-                        Text(drmState.subtitle ?? "Personal use only")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    }
+            Divider()
 
-                    // occupy all right space for border
-                    Spacer()
-                }
-                .padding(12)
-                .onRawDoubleClick {
+            Button("Refresh") {
+                Task { @MainActor in
+                    await vmModel.tryRefreshDrm()
                 }
             }
-            .buttonStyle(.plain)
-            // occupy full rect
-            .contextMenu {
-                Button("Manage…") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
-                }
-                .disabled(!isLoggedIn)
+            .disabled(!isLoggedIn)
 
-                Button("Switch Organization…") {
-                    // simple: just reauth and use web org picker
-                    presentAuth = true
+            Button("Sign Out") {
+                Task { @MainActor in
+                    await vmModel.trySignOut()
                 }
-                .disabled(!isLoggedIn)
-
-                Divider()
-
-                Button("Refresh") {
-                    Task { @MainActor in
-                        await vmModel.tryRefreshDrm()
-                    }
-                }
-                .disabled(!isLoggedIn)
-
-                Button("Sign Out") {
-                    Task { @MainActor in
-                        await vmModel.trySignOut()
-                    }
-                }
-                .disabled(!isLoggedIn)
             }
+            .disabled(!isLoggedIn)
         }
         .border(width: 1, edges: [.top], color: Color(NSColor.separatorColor).opacity(0.5))
     }
@@ -199,7 +197,7 @@ struct MainWindow: View {
         .listStyle(.sidebar)
         .background(SplitViewAccessor(sideCollapsed: $collapsed))
         // "Personal use only" subheadline
-        .frame(minWidth: 165, maxWidth: 500)
+        .frame(minWidth: 170, maxWidth: 500)
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             UserSwitcherButton(presentAuth: $presentAuth)
         }
