@@ -196,14 +196,14 @@ struct MacVirtApp: App {
                 Button("Sign In…") {
                     NSWorkspace.openSubwindow("authwindow")
                 }
-                .disabled(vmModel.drmState.refreshToken != nil)
+                .disabled(vmModel.drmState.isSignedIn)
 
                 Button("Sign Out") {
                     Task { @MainActor in
                         await vmModel.trySignOut()
                     }
                 }
-                .disabled(vmModel.drmState.refreshToken == nil)
+                .disabled(!vmModel.drmState.isSignedIn)
 
                 Divider()
 

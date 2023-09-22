@@ -5,6 +5,9 @@
 import Foundation
 import Defaults
 
+// doesn't count as logged in
+private let previewRefreshToken = "1181201e-23f8-41f6-9660-b7110f4bfedb"
+
 enum EntitlementTier: Int, Codable {
     case none = 0
     case pro = 1
@@ -88,6 +91,10 @@ struct DrmState: Codable, Defaults.Serializable {
         }
 
         // 3. Personal use only
+    }
+
+    var isSignedIn: Bool {
+        refreshToken != nil && refreshToken != previewRefreshToken
     }
 }
 

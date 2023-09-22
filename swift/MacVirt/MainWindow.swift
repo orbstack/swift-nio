@@ -125,7 +125,7 @@ struct MainWindow: View {
         .frame(minWidth: 165, maxWidth: 500)
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             VStack {
-                let isLoggedIn = model.drmState.refreshToken != nil
+                let isLoggedIn = model.drmState.isSignedIn
                 Button {
                     if isLoggedIn {
                         // manage account

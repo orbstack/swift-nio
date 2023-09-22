@@ -319,7 +319,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             NSApp.activate(ignoringOtherApps: true)
         }
 
-        if vmModel.drmState.refreshToken == nil {
+        if !vmModel.drmState.isSignedIn {
             menu.addActionItem("Sign In…") {
                 NSWorkspace.openSubwindow("authwindow")
             }
