@@ -63,6 +63,7 @@ private struct UserSwitcherButton: View {
                 VStack(alignment: .leading) {
                     Text(drmState.title ?? "Sign in")
                     .font(.headline)
+                    .lineLimit(1)
 
                     Text(drmState.subtitle ?? "Personal use only")
                     .font(.subheadline)
@@ -197,7 +198,7 @@ struct MainWindow: View {
         .listStyle(.sidebar)
         .background(SplitViewAccessor(sideCollapsed: $collapsed))
         // "Personal use only" subheadline
-        .frame(minWidth: 165)
+        .frame(minWidth: 175)
         .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
             UserSwitcherButton(presentAuth: $presentAuth)
         }
