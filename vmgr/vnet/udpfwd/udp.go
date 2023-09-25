@@ -3,6 +3,8 @@ package udpfwd
 import (
 	"errors"
 	"net"
+	"os"
+	"syscall"
 
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gvaddr"
@@ -18,6 +20,77 @@ import (
 
 type icmpSender interface {
 	InjectDestUnreachable6(stack.PacketBufferPtr, header.ICMPv6Code) error
+}
+
+func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr) (*net.UDPConn, error) {
+	ip4 := daddr.IP.To4()
+	family := syscall.AF_INET
+	if ip4 == nil {
+		family = syscall.AF_INET6
+	}
+
+	// do it ourselves to set socket options
+	syscall.ForkLock.RLock()
+	sfd, err := unix.Socket(family, unix.SOCK_DGRAM, unix.IPPROTO_UDP)
+	if err != nil {
+		syscall.ForkLock.RUnlock()
+		return nil, err
+	}
+
+	// set O_CLOEXEC and O_NONBLOCK
+	unix.CloseOnExec(sfd)
+	syscall.ForkLock.RUnlock()
+	unix.SetNonblock(sfd, true)
+
+	// need to set SO_REUSEPORT to fix tailscale MappingVariesByDestIP causing DERP to be used
+	// it allows reusing src-dest 5-tuple
+	// unlike Linux it does NOT cause load balancing. same 5-tuple will return EADDRINUSE
+	if err := unix.SetsockoptInt(sfd, unix.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
+		unix.Close(sfd)
+		return nil, err
+	}
+
+	// bind to source port
+	if ip4 != nil {
+		err = unix.Bind(sfd, &unix.SockaddrInet4{
+			Port: srcPort,
+		})
+	} else {
+		err = unix.Bind(sfd, &unix.SockaddrInet6{
+			Port: srcPort,
+		})
+	}
+	if err != nil {
+		unix.Close(sfd)
+		return nil, err
+	}
+
+	// connect to dest
+	if ip4 != nil {
+		err = unix.Connect(sfd, &unix.SockaddrInet4{
+			Port: daddr.Port,
+			Addr: [4]byte(ip4),
+		})
+	} else {
+		err = unix.Connect(sfd, &unix.SockaddrInet6{
+			Port: daddr.Port,
+			Addr: [16]byte(daddr.IP),
+		})
+	}
+	if err != nil {
+		unix.Close(sfd)
+		return nil, err
+	}
+
+	file := os.NewFile(uintptr(sfd), "udp conn")
+	conn, err := net.FileConn(file)
+	if err != nil {
+		file.Close()
+		return nil, err
+	}
+	file.Close()
+
+	return conn.(*net.UDPConn), nil
 }
 
 func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *udp.Forwarder {
@@ -59,9 +132,7 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			// do it conservatively, without SO_REUSEADDR or SO_REUSEPORT, to avoid port conflicts
 			// not needed for external (non-loopback) conns because there's usually internet NAT anyway
 			// remote port = VM client port
-			conn, err := net.DialUDP("udp", &net.UDPAddr{
-				Port: int(r.ID().RemotePort),
-			}, dialDestAddr)
+			conn, err := dialUDPSourceBind(int(r.ID().LocalPort), dialDestAddr)
 			if err == nil {
 				return conn, nil
 			}
