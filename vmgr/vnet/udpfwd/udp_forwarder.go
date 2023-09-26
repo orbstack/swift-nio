@@ -174,9 +174,9 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 						err = rawConn.Control(func(fd uintptr) {
 							var err error
 							if extConn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
-								err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, int(newTtl))
+								err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TTL, int(newTtl))
 							} else {
-								err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_UNICAST_HOPS, int(newTtl))
+								err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_UNICAST_HOPS, int(newTtl))
 							}
 							if err != nil {
 								logrus.Error("UDP set TTL failed ", err)
