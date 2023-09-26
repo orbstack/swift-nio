@@ -41,7 +41,12 @@ func newConnTrackKey(addr *net.UDPAddr) *connTrackKey {
 	}
 }
 
-type connTrackMap map[connTrackKey]net.Conn
+type extConnEntry struct {
+	conn    net.Conn
+	lastTTL uint8
+}
+
+type connTrackMap map[connTrackKey]*extConnEntry
 
 // UDPProxy is proxy for which handles UDP datagrams. It implements the Proxy
 // interface to handle UDP traffic forwarding between the frontend and backend
@@ -124,7 +129,6 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 	defer proxy.Close()
 
 	readBuf := make([]byte, 65536)
-	lastTtl := uint8(64)
 	for {
 		read, from, err := proxy.listener.ReadFrom(readBuf)
 		if err != nil {
@@ -139,41 +143,44 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 
 		fromKey := newConnTrackKey(from.(*net.UDPAddr))
 		proxy.connTrackLock.Lock()
-		extConn, hit := proxy.connTrackTable[*fromKey]
+		ext, hit := proxy.connTrackTable[*fromKey]
 		if !hit {
-			extConn, err = proxy.dialer(from.(*net.UDPAddr))
+			newConn, err := proxy.dialer(from.(*net.UDPAddr))
 			if err != nil {
 				logrus.Error("UDP dial failed: ", err)
 				proxy.connTrackLock.Unlock()
 				continue
 			}
-			proxy.connTrackTable[*fromKey] = extConn
+			ext = &extConnEntry{
+				conn:    newConn,
+				lastTTL: uint8(64),
+			}
+			proxy.connTrackTable[*fromKey] = ext
 
 			// Track local source address
-			localExtKey := newConnTrackKey(extConn.LocalAddr().(*net.UDPAddr))
+			localExtKey := newConnTrackKey(ext.conn.LocalAddr().(*net.UDPAddr))
 			if proxy.trackExtConn {
 				localExtConnsLock.Lock()
 				localExtConns[*localExtKey] = from.(*net.UDPAddr)
 				localExtConnsLock.Unlock()
 			}
 
-			go proxy.replyLoop(extConn, from, fromKey, localExtKey)
+			go proxy.replyLoop(ext.conn, from, fromKey, localExtKey)
 		}
 		proxy.connTrackLock.Unlock()
 
 		// Set TTL
 		if useTtl {
-			connWrapper, ok := proxy.listener.(*autoStoppingListener)
-			if ok {
+			if connWrapper, ok := proxy.listener.(*autoStoppingListener); ok {
 				newTtl := connWrapper.UDPConn.LastTTL
-				if newTtl != lastTtl {
-					rawConn, err := extConn.(*net.UDPConn).SyscallConn()
+				if newTtl != ext.lastTTL {
+					rawConn, err := ext.conn.(*net.UDPConn).SyscallConn()
 					if err != nil {
 						logrus.Error("UDP set TTL failed ", err)
 					} else {
 						err = rawConn.Control(func(fd uintptr) {
 							var err error
-							if extConn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
+							if ext.conn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
 								err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TTL, int(newTtl))
 							} else {
 								err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_UNICAST_HOPS, int(newTtl))
@@ -187,13 +194,13 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 						}
 					}
 					// if setting it this time failed, it probably won't work next time
-					lastTtl = newTtl
+					ext.lastTTL = newTtl
 				}
 			}
 		}
 
-		_ = extConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
-		written, err := extConn.Write(readBuf[:read])
+		_ = ext.conn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
+		written, err := ext.conn.Write(readBuf[:read])
 		if err != nil {
 			if !errors.Is(err, unix.ENOBUFS) {
 				logrus.Error("UDP write failed", err)
@@ -211,8 +218,8 @@ func (proxy *UDPProxy) Close() error {
 	proxy.listener.Close()
 	proxy.connTrackLock.Lock()
 	defer proxy.connTrackLock.Unlock()
-	for _, conn := range proxy.connTrackTable {
-		conn.Close()
+	for _, entry := range proxy.connTrackTable {
+		entry.conn.Close()
 	}
 	return nil
 }
