@@ -67,13 +67,13 @@ private struct UserSwitcherButton: View {
                         .foregroundColor(.accentColor)
                     }
                     .frame(width: 24, height: 24)
-                    .padding(.trailing, 12)
+                    .padding(.trailing, 8)
                 } else {
                     Image(systemName: "person.circle")
                     .resizable()
                     .foregroundColor(.accentColor)
                     .frame(width: 24, height: 24)
-                    .padding(.trailing, 12)
+                    .padding(.trailing, 8)
                 }
 
                 VStack(alignment: .leading) {
