@@ -142,7 +142,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database) *mdnsRegistry {
 	}
 
 	// add initial index record
-	r.tree.Insert(reverse(mdnsIndexDomain), &mdnsEntry{
+	r.tree.Insert(toTreeKey(mdnsIndexDomain), &mdnsEntry{
 		Type:       MdnsEntryStatic,
 		IsWildcard: false,
 		IsHidden:   true, // don't show itself
@@ -154,7 +154,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database) *mdnsRegistry {
 
 	// add k8s alias
 	k8sIP4 := net.ParseIP(netconf.SconK8sIP4)
-	r.tree.Insert(reverse("k8s.orb.local."), &mdnsEntry{
+	r.tree.Insert(toTreeKey("k8s.orb.local."), &mdnsEntry{
 		Type:       MdnsEntryStatic,
 		IsWildcard: true,
 		IsHidden:   false,
@@ -212,7 +212,7 @@ func (r *mdnsRegistry) listIndexDomains() mdnsIndexResult {
 			return false
 		}
 
-		name := strings.TrimSuffix(reverse(s), ".")
+		name := strings.TrimSuffix(fromTreeKey(s), ".")
 		switch entry.Type {
 		case MdnsEntryContainer:
 			res.ContainerDomains = append(res.ContainerDomains, name)
@@ -350,12 +350,22 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 }
 
 func reverse(s string) string {
-	// simply reversing the entire thing is fine - as long as we do it consistently
 	buf := make([]byte, 0, len(s))
 	for i := len(s) - 1; i >= 0; i-- {
 		buf = append(buf, s[i])
 	}
 	return string(buf)
+}
+
+func toTreeKey(s string) string {
+	// simply reversing the entire thing is fine - as long as we do it consistently
+	// also enforce case-insensitivity here, otherwise all-caps machine name breaks if resolved with uppercase chars first
+	// mDNSResponder elides cache - it's case insensitive
+	return strings.ToLower(reverse(s))
+}
+
+func fromTreeKey(s string) string {
+	return reverse(s)
 }
 
 func mapToNat64(ip4 net.IP) net.IP {
@@ -578,7 +588,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 	defer r.mu.Unlock()
 	now := time.Now()
 	for _, name := range names {
-		treeKey := reverse(name.Name)
+		treeKey := toTreeKey(name.Name)
 		if _, ok := r.tree.Get(treeKey); ok {
 			// we used to allow overriding, but this makes more sense because of cases like https://github.com/orbstack/orbstack/issues/650
 			// we could ignore com.docker.compose.oneoff but what if that's not the desired behavior?
@@ -614,7 +624,7 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	now := time.Now()
 	for _, name := range names {
 		// don't delete if we're not the owner (e.g. if another container owns it)
-		treeKey := reverse(name.Name)
+		treeKey := toTreeKey(name.Name)
 		if oldEntry, ok := r.tree.Get(treeKey); ok {
 			entry := oldEntry.(*mdnsEntry)
 			if entry.owningDockerCid != ctr.ID {
@@ -637,7 +647,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 
 	// we don't validate these b/c it's not under the user's control
 	// TODO allow '_' and translate w/ alias to '-' like Docker
-	treeKey := reverse(name)
+	treeKey := toTreeKey(name)
 	if _, ok := r.tree.Get(treeKey); ok {
 		// we used to allow overriding, but this makes more sense because of cases like https://github.com/orbstack/orbstack/issues/650
 		// we could ignore com.docker.compose.oneoff but what if that's not the desired behavior?
@@ -667,7 +677,7 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	defer r.mu.Unlock()
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
-	treeKey := reverse(name)
+	treeKey := toTreeKey(name)
 	if oldEntry, ok := r.tree.Get(treeKey); ok {
 		entry := oldEntry.(*mdnsEntry)
 		if entry.owningMachine != c {
@@ -795,7 +805,7 @@ func (r *mdnsRegistry) handleQuery(q dns.Question) []dns.RR {
 // the idea: we return NSEC if not found AND we know we're in control of the name
 // that means we either got a tree match but rejected it, or it's under our suffix
 func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV6 bool) []dns.RR {
-	treeKey := reverse(q.Name)
+	treeKey := toTreeKey(q.Name)
 	matchedKey, _entry, ok := r.tree.LongestPrefix(treeKey)
 	if verboseDebug {
 		logrus.WithFields(logrus.Fields{
