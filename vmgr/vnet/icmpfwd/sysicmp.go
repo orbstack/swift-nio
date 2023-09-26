@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
@@ -36,10 +37,12 @@ func init() {
 }
 
 type IcmpFwd struct {
-	stack *stack.Stack
-	nicId tcpip.NICID
-	conn4 *goipv4.PacketConn
-	conn6 *goipv6.PacketConn
+	stack   *stack.Stack
+	nicId   tcpip.NICID
+	conn4   *goipv4.PacketConn
+	conn4Mu sync.Mutex
+	conn6   *goipv6.PacketConn
+	conn6Mu sync.Mutex
 
 	// to send reply packets
 	// TODO proper connection tracking
@@ -192,10 +195,13 @@ func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
 		// TTL
 		ip4Hdr := ipHdr.(header.IPv4)
 		tos, _ := ip4Hdr.TOS()
+		// lock to prevent TTL/TOS race on shared socket
+		i.conn4Mu.Lock()
 		i.conn4.SetTTL(int(ip4Hdr.TTL()))
 		i.conn4.SetTOS(int(tos))
 
 		_, err := i.conn4.WriteTo(icmpMsg, nil, dstAddr)
+		i.conn4Mu.Unlock()
 		if err != nil {
 			logrus.WithError(err).Error("icmp4 write failed")
 			if errors.Is(err, unix.ENETUNREACH) {
@@ -228,10 +234,13 @@ func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
 		// TTL
 		ip6Hdr := ipHdr.(header.IPv6)
 		trafficClass, _ := ip6Hdr.TOS()
+		// lock to prevent TTL/TOS race on shared socket
+		i.conn6Mu.Lock()
 		i.conn6.SetHopLimit(int(ip6Hdr.HopLimit()))
 		i.conn6.SetTrafficClass(int(trafficClass))
 
 		_, err := i.conn6.WriteTo(icmpMsg, nil, dstAddr)
+		i.conn6Mu.Unlock()
 		if err != nil {
 			logrus.WithError(err).Error("icmp6 write failed")
 			if errors.Is(err, unix.ENETUNREACH) {
