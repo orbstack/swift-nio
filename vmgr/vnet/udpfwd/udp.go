@@ -16,13 +16,17 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
-	"gvisor.dev/gvisor/pkg/waiter"
 )
 
 const verboseDebug = false
 
 type icmpSender interface {
 	InjectDestUnreachable6(stack.PacketBufferPtr, header.ICMPv6Code) error
+}
+
+// private API
+type udpPrivateEndpoint interface {
+	HandlePacket(id stack.TransportEndpointID, pkt stack.PacketBufferPtr)
 }
 
 // SO_REUSEPORT requires an explicit IP bind, not wildcard
@@ -143,16 +147,28 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			localAddress = gvaddr.LoopbackGvIP6
 		}
 
-		var wq waiter.Queue
-		ep, tcpErr := r.CreateEndpoint(&wq)
-		if tcpErr != nil {
-			logrus.Error("create endpoint: ", tcpErr)
+		// like r.CreateEndpoint, but unconnected raddr
+		// the server so this allows reuse
+		// should also help with amass: less endpoints to iterate through
+		epConn, err := gonet.DialUDP(s, &tcpip.FullAddress{
+			NIC:  r.Packet().NICID,
+			Addr: r.ID().LocalAddress,
+			Port: r.ID().LocalPort,
+		}, nil, r.Packet().NetworkProtocolNumber)
+		if err != nil {
+			logrus.WithError(err).Error("create UDP endpoint failed")
 			return
 		}
+		ep := epConn.Endpoint()
 
 		// TTL info
 		ep.SocketOptions().SetReceiveTTL(true)
 		ep.SocketOptions().SetReceiveHopLimit(true)
+
+		// inject this packet like r.CreateEndpoint
+		// TODO: could drop packets in bind race? but r.CreateEndpoint is no diff...
+		ep.(udpPrivateEndpoint).HandlePacket(r.ID(), r.Packet())
+
 		if verboseDebug {
 			logrus.WithFields(logrus.Fields{
 				"src":   r.ID().LocalAddress,
@@ -167,7 +183,7 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			IP:   net.IP(localAddress.AsSlice()),
 			Port: int(r.ID().LocalPort),
 		}
-		proxy, err := NewUDPProxy(&autoStoppingListener{UDPConn: gonet.NewUDPConn(s, &wq, ep)}, func(fromAddr *net.UDPAddr) (net.Conn, error) {
+		proxy, err := NewUDPProxy(&autoStoppingListener{UDPConn: epConn}, func(fromAddr *net.UDPAddr) (net.Conn, error) {
 			// try to reuse the source port if possible
 			// this helps preserve connection after conntrack timeouts, as it's expected that Docker host net doesn't involve NAT and thus will never time out
 			// do it conservatively, without SO_REUSEADDR or SO_REUSEPORT, to avoid port conflicts

@@ -808,3 +808,7 @@ func (vw *ViewWriter) Buffers() net.Buffers {
 
 // ADDED: for comparison
 var ErrTimeout = &timeoutError{}
+
+func (c *UDPConn) Endpoint() tcpip.Endpoint {
+	return c.ep
+}
