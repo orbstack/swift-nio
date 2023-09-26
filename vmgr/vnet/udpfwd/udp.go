@@ -1,6 +1,7 @@
 package udpfwd
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -43,11 +44,11 @@ func getLaddrForDest(dest *net.UDPAddr) (net.IP, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP, nil
 }
 
-func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr) (*net.UDPConn, error) {
+func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr, srcWildcard bool) (*net.UDPConn, error) {
 	destIP4 := daddr.IP.To4()
-	family := syscall.AF_INET
+	family := unix.AF_INET
 	if destIP4 == nil {
-		family = syscall.AF_INET6
+		family = unix.AF_INET6
 	}
 
 	// do it ourselves to set socket options
@@ -79,20 +80,24 @@ func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr) (*net.UDPConn, error) {
 		return nil, fmt.Errorf("setsockopt: %w", err)
 	}
 
-	srcIP, err := getLaddrForDest(daddr)
-	if err != nil {
-		return nil, fmt.Errorf("resolve route: %w", err)
+	var srcIP net.IP
+	if srcWildcard {
+		if family == unix.AF_INET {
+			srcIP = net.IPv4zero
+		} else {
+			srcIP = net.IPv6zero
+		}
+	} else {
+		srcIP, err = getLaddrForDest(daddr)
+		if err != nil {
+			return nil, fmt.Errorf("resolve route: %w", err)
+		}
 	}
 
 	// bind to source port, plus explicit IP
-	if destIP4 != nil {
-		srcIP4 := srcIP.To4()
-		if srcIP4 == nil {
-			return nil, fmt.Errorf("bad IP")
-		}
-
+	if family == unix.AF_INET {
 		err = unix.Bind(sfd, &unix.SockaddrInet4{
-			Addr: [4]byte(srcIP4),
+			Addr: [4]byte(srcIP.To4()),
 			Port: srcPort,
 		})
 	} else {
@@ -106,7 +111,7 @@ func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr) (*net.UDPConn, error) {
 	}
 
 	// connect to dest
-	if destIP4 != nil {
+	if family == unix.AF_INET {
 		err = unix.Connect(sfd, &unix.SockaddrInet4{
 			Port: daddr.Port,
 			Addr: [4]byte(destIP4),
@@ -188,7 +193,7 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			// do it conservatively, without SO_REUSEADDR or SO_REUSEPORT, to avoid port conflicts
 			// not needed for external (non-loopback) conns because there's usually internet NAT anyway
 			// remote port = VM client port
-			conn, err := dialUDPSourceBind(fromAddr.Port, dialDestAddr)
+			conn, err := dialUDPSourceBind(fromAddr.Port, dialDestAddr, false)
 			if err == nil {
 				return conn, nil
 			}
@@ -198,6 +203,18 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			//   * could fix this by giving up SO_REUSEPORT and retrying with wildcard, but not worth it. NATs are allowed to translate src port and we are officially NAT
 			// - No route to host: race w/ route change
 			// so always fall back to dynamic bind
+
+			// special case: if EACCES, try again with wildcard (which disables SO_REUSEPORT)
+			if errors.Is(err, unix.EACCES) {
+				logrus.WithFields(logrus.Fields{
+					"localPort": fromAddr.Port,
+					"remote":    dialDestAddr,
+				}).WithError(err).Debug("explicit UDP dial failed, retry PERM")
+				conn, err = dialUDPSourceBind(fromAddr.Port, dialDestAddr, true)
+				if err == nil {
+					return conn, nil
+				}
+			}
 
 			// explicit bind is conservative. fall back to dynamic if port is used
 			// too much mutex contention when running amass
