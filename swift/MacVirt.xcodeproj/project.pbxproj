@@ -128,6 +128,7 @@
 		D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8212A2B22A0002CF279 /* Proxy.swift */; };
 		D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */; };
 		D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8292A2B40C7002CF279 /* VlanRouter.swift */; };
+		D88F08232AC12F5200454098 /* CachedAsyncImage in Frameworks */ = {isa = PBXBuildFile; productRef = D88F08222AC12F5200454098 /* CachedAsyncImage */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D88F4EDC299A131B00419B5C /* docker in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDD299A131B00419B5C /* docker-compose in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -399,6 +400,7 @@
 				D86614182A38061700EA0995 /* Defaults in Frameworks */,
 				D86637E72AAF4D2B00630A01 /* AsyncHTTPClient in Frameworks */,
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
+				D88F08232AC12F5200454098 /* CachedAsyncImage in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D87746022A7CBB2E00739040 /* SecureXPC in Frameworks */,
 				D87745FC2A7CBB1800739040 /* Blessed in Frameworks */,
@@ -803,6 +805,7 @@
 				D87745FE2A7CBB2000739040 /* EmbeddedPropertyList */,
 				D87746012A7CBB2E00739040 /* SecureXPC */,
 				D86637E62AAF4D2B00630A01 /* AsyncHTTPClient */,
+				D88F08222AC12F5200454098 /* CachedAsyncImage */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -853,6 +856,7 @@
 				D87745FD2A7CBB2000739040 /* XCRemoteSwiftPackageReference "EmbeddedPropertyList" */,
 				D87746002A7CBB2E00739040 /* XCRemoteSwiftPackageReference "SecureXPC" */,
 				D86637E52AAF4D2B00630A01 /* XCRemoteSwiftPackageReference "async-http-client" */,
+				D88F08212AC12F5200454098 /* XCRemoteSwiftPackageReference "swiftui-cached-async-image" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -1560,6 +1564,14 @@
 				minimumVersion = 0.8.0;
 			};
 		};
+		D88F08212AC12F5200454098 /* XCRemoteSwiftPackageReference "swiftui-cached-async-image" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/lorenzofiamingo/swiftui-cached-async-image";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1612,6 +1624,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D87745FD2A7CBB2000739040 /* XCRemoteSwiftPackageReference "EmbeddedPropertyList" */;
 			productName = EmbeddedPropertyList;
+		};
+		D88F08222AC12F5200454098 /* CachedAsyncImage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D88F08212AC12F5200454098 /* XCRemoteSwiftPackageReference "swiftui-cached-async-image" */;
+			productName = CachedAsyncImage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

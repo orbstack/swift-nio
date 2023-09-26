@@ -55,7 +55,7 @@ struct DrmState: Codable, Defaults.Serializable {
     var imageURL: URL? {
         mutating get {
             if let claims,
-               let imageURL = claims["imageURL"] as? String {
+               let imageURL = claims["_uim"] as? String {
                 return URL(string: imageURL)
             } else {
                 return nil

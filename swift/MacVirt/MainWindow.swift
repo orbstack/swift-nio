@@ -9,6 +9,7 @@ import SwiftUI
 import UserNotifications
 import Sparkle
 import Defaults
+import CachedAsyncImage
 
 func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
     Binding<Bool>(get: {
@@ -54,11 +55,26 @@ private struct UserSwitcherButton: View {
                 //TODO load and cache avatar image
                 var drmState = vmModel.drmState
 
-                Image(systemName: "person.circle")
-                .resizable()
-                .frame(width: 24, height: 24)
-                .foregroundColor(.accentColor)
-                .padding(.trailing, 12)
+                if let imageURL = drmState.imageURL {
+                    CachedAsyncImage(url: imageURL) { image in
+                        image
+                        .resizable()
+                        // clip to circle
+                        .clipShape(Circle())
+                    } placeholder: {
+                        Image(systemName: "person.circle")
+                        .resizable()
+                        .foregroundColor(.accentColor)
+                    }
+                    .frame(width: 24, height: 24)
+                    .padding(.trailing, 12)
+                } else {
+                    Image(systemName: "person.circle")
+                    .resizable()
+                    .foregroundColor(.accentColor)
+                    .frame(width: 24, height: 24)
+                    .padding(.trailing, 12)
+                }
 
                 VStack(alignment: .leading) {
                     Text(drmState.title ?? "Sign in")
