@@ -1,10 +1,10 @@
 package udpfwd
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"syscall"
 
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
@@ -19,6 +19,17 @@ import (
 )
 
 const verboseDebug = false
+
+type udpManager struct {
+	// write once, read many times
+	// TODO separate v4 and v6
+	srcPortMap sync.Map // map[int]int
+
+	s          *stack.Stack
+	i          icmpSender
+	hostNatIP4 tcpip.Address
+	hostNatIP6 tcpip.Address
+}
 
 type icmpSender interface {
 	InjectDestUnreachable6(stack.PacketBufferPtr, header.ICMPv6Code) error
@@ -44,7 +55,7 @@ func getLaddrForDest(dest *net.UDPAddr) (net.IP, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP, nil
 }
 
-func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr, srcWildcard bool) (*net.UDPConn, error) {
+func (m *udpManager) dialUDPSourceBind(srcPort int, daddr *net.UDPAddr, srcWildcard bool) (*net.UDPConn, error) {
 	destIP4 := daddr.IP.To4()
 	family := unix.AF_INET
 	if destIP4 == nil {
@@ -134,102 +145,115 @@ func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr, srcWildcard bool) (*net.
 	return conn.(*net.UDPConn), nil
 }
 
+func (m *udpManager) handleNewPacket(r *udp.ForwarderRequest) {
+	localAddress := r.ID().LocalAddress
+	if !netutil.ShouldForward(localAddress) {
+		return
+	}
+
+	// host NAT: match source v4/v6
+	// can't fall back for UDP because we don't know if anyone received it
+	if localAddress == m.hostNatIP4 {
+		localAddress = gvaddr.LoopbackGvIP4
+	} else if localAddress == m.hostNatIP6 {
+		localAddress = gvaddr.LoopbackGvIP6
+	}
+
+	// like r.CreateEndpoint, but unconnected raddr
+	// the server so this allows reuse
+	// should also help with amass: less endpoints to iterate through
+	epConn, err := gonet.DialUDP(m.s, &tcpip.FullAddress{
+		NIC:  r.Packet().NICID,
+		Addr: r.ID().LocalAddress,
+		Port: r.ID().LocalPort,
+	}, nil, r.Packet().NetworkProtocolNumber)
+	if err != nil {
+		logrus.WithError(err).Error("create UDP endpoint failed")
+		return
+	}
+	ep := epConn.Endpoint()
+
+	// TTL info
+	ep.SocketOptions().SetReceiveTTL(true)
+	ep.SocketOptions().SetReceiveHopLimit(true)
+
+	// inject this packet like r.CreateEndpoint
+	// TODO: could drop packets in bind race? but r.CreateEndpoint is no diff...
+	ep.(udpPrivateEndpoint).HandlePacket(r.ID(), r.Packet())
+
+	if verboseDebug {
+		logrus.WithFields(logrus.Fields{
+			"src":   r.ID().LocalAddress,
+			"srcP":  r.ID().LocalPort,
+			"dest":  r.ID().RemoteAddress,
+			"destP": r.ID().RemotePort,
+		}).Debug("UDP forwarder: new endpoint")
+	}
+
+	// remember: local = target (because we're acting as proxy)
+	dialDestAddr := &net.UDPAddr{
+		IP:   net.IP(localAddress.AsSlice()),
+		Port: int(r.ID().LocalPort),
+	}
+	proxy, err := NewUDPProxy(&autoStoppingListener{UDPConn: epConn}, func(fromAddr *net.UDPAddr) (net.Conn, error) {
+		reqSrcPort := fromAddr.Port
+
+		// map the source port, if there's a mapping for this port
+		// keeps mtr *and* Tailscale happy: it uses privileged <1024 ports
+		mappedSrcPort := reqSrcPort
+		if v, ok := m.srcPortMap.Load(reqSrcPort); ok {
+			mappedSrcPort = v.(int)
+		}
+
+		// try to reuse the source port if possible
+		// this helps preserve connection after conntrack timeouts, as it's expected that Docker host net doesn't involve NAT and thus will never time out
+		// do it conservatively, without SO_REUSEADDR or SO_REUSEPORT, to avoid port conflicts
+		// not needed for external (non-loopback) conns because there's usually internet NAT anyway
+		// remote port = VM client port
+		conn, err := m.dialUDPSourceBind(mappedSrcPort, dialDestAddr, false)
+		if err == nil {
+			return conn, nil
+		}
+		// could get:
+		// - EADDRINUSE: if used by another process
+		// - EACCES: privileged port
+		//   * could fix this by giving up SO_REUSEPORT and retrying with wildcard, but not worth it. NATs are allowed to translate src port and we are officially NAT
+		// - No route to host: race w/ route change
+		// so always fall back to dynamic bind
+
+		// explicit bind is conservative. fall back to dynamic if port is used
+		// too much mutex contention when running amass
+		logrus.WithFields(logrus.Fields{
+			"localPort": reqSrcPort,
+			"remote":    dialDestAddr,
+		}).WithError(err).Debug("explicit UDP dial failed")
+
+		conn, err = net.DialUDP("udp", nil, dialDestAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		// explicit dial failed, so we got a new mapping for this src port. remember it
+		m.srcPortMap.Store(reqSrcPort, conn.LocalAddr().(*net.UDPAddr).Port)
+
+		return conn, nil
+	}, true)
+	if err != nil {
+		logrus.Error("NewUDPProxy() =", err)
+		return
+	}
+
+	go proxy.Run(true)
+}
+
 func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *udp.Forwarder {
+	m := &udpManager{
+		s:          s,
+		i:          i,
+		hostNatIP4: hostNatIP4,
+		hostNatIP6: hostNatIP6,
+	}
 	// can't move to goroutine - packet ref issue: PullUp failed; see udp-goroutine-panic.log
 	// happens with DNS packets (to 192.168.66.1 nameserver)
-	return udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
-		localAddress := r.ID().LocalAddress
-		if !netutil.ShouldForward(localAddress) {
-			return
-		}
-
-		// host NAT: match source v4/v6
-		// can't fall back for UDP because we don't know if anyone received it
-		if localAddress == hostNatIP4 {
-			localAddress = gvaddr.LoopbackGvIP4
-		} else if localAddress == hostNatIP6 {
-			localAddress = gvaddr.LoopbackGvIP6
-		}
-
-		// like r.CreateEndpoint, but unconnected raddr
-		// the server so this allows reuse
-		// should also help with amass: less endpoints to iterate through
-		epConn, err := gonet.DialUDP(s, &tcpip.FullAddress{
-			NIC:  r.Packet().NICID,
-			Addr: r.ID().LocalAddress,
-			Port: r.ID().LocalPort,
-		}, nil, r.Packet().NetworkProtocolNumber)
-		if err != nil {
-			logrus.WithError(err).Error("create UDP endpoint failed")
-			return
-		}
-		ep := epConn.Endpoint()
-
-		// TTL info
-		ep.SocketOptions().SetReceiveTTL(true)
-		ep.SocketOptions().SetReceiveHopLimit(true)
-
-		// inject this packet like r.CreateEndpoint
-		// TODO: could drop packets in bind race? but r.CreateEndpoint is no diff...
-		ep.(udpPrivateEndpoint).HandlePacket(r.ID(), r.Packet())
-
-		if verboseDebug {
-			logrus.WithFields(logrus.Fields{
-				"src":   r.ID().LocalAddress,
-				"srcP":  r.ID().LocalPort,
-				"dest":  r.ID().RemoteAddress,
-				"destP": r.ID().RemotePort,
-			}).Debug("UDP forwarder: new endpoint")
-		}
-
-		// remember: local = target (because we're acting as proxy)
-		dialDestAddr := &net.UDPAddr{
-			IP:   net.IP(localAddress.AsSlice()),
-			Port: int(r.ID().LocalPort),
-		}
-		proxy, err := NewUDPProxy(&autoStoppingListener{UDPConn: epConn}, func(fromAddr *net.UDPAddr) (net.Conn, error) {
-			// try to reuse the source port if possible
-			// this helps preserve connection after conntrack timeouts, as it's expected that Docker host net doesn't involve NAT and thus will never time out
-			// do it conservatively, without SO_REUSEADDR or SO_REUSEPORT, to avoid port conflicts
-			// not needed for external (non-loopback) conns because there's usually internet NAT anyway
-			// remote port = VM client port
-			conn, err := dialUDPSourceBind(fromAddr.Port, dialDestAddr, false)
-			if err == nil {
-				return conn, nil
-			}
-			// could get:
-			// - EADDRINUSE: if used by another process
-			// - EACCES: privileged port
-			//   * could fix this by giving up SO_REUSEPORT and retrying with wildcard, but not worth it. NATs are allowed to translate src port and we are officially NAT
-			// - No route to host: race w/ route change
-			// so always fall back to dynamic bind
-
-			// special case: if EACCES, try again with wildcard (which disables SO_REUSEPORT)
-			if errors.Is(err, unix.EACCES) {
-				logrus.WithFields(logrus.Fields{
-					"localPort": fromAddr.Port,
-					"remote":    dialDestAddr,
-				}).WithError(err).Debug("explicit UDP dial failed, retry PERM")
-				conn, err = dialUDPSourceBind(fromAddr.Port, dialDestAddr, true)
-				if err == nil {
-					return conn, nil
-				}
-			}
-
-			// explicit bind is conservative. fall back to dynamic if port is used
-			// too much mutex contention when running amass
-			logrus.WithFields(logrus.Fields{
-				"localPort": fromAddr.Port,
-				"remote":    dialDestAddr,
-			}).WithError(err).Debug("explicit UDP dial failed")
-
-			return net.DialUDP("udp", nil, dialDestAddr)
-		}, true)
-		if err != nil {
-			logrus.Error("NewUDPProxy() =", err)
-			return
-		}
-
-		go proxy.Run(true)
-	})
+	return udp.NewForwarder(s, m.handleNewPacket)
 }
