@@ -1,7 +1,6 @@
 package udpfwd
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -193,19 +192,19 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			if err == nil {
 				return conn, nil
 			}
-			// also bail out if it's not an address-in-use error
-			if err != nil && !errors.Is(err, unix.EADDRINUSE) {
-				return nil, err
-			}
+			// could get:
+			// - EADDRINUSE: if used by another process
+			// - EACCES: privileged port
+			//   * could fix this by giving up SO_REUSEPORT and retrying with wildcard, but not worth it. NATs are allowed to translate src port and we are officially NAT
+			// - No route to host: race w/ route change
+			// so always fall back to dynamic bind
 
 			// explicit bind is conservative. fall back to dynamic if port is used
 			// too much mutex contention when running amass
-			if verboseDebug {
-				logrus.WithFields(logrus.Fields{
-					"localPort": fromAddr.Port,
-					"remote":    dialDestAddr,
-				}).WithError(err).Debug("explicit UDP dial failed")
-			}
+			logrus.WithFields(logrus.Fields{
+				"localPort": fromAddr.Port,
+				"remote":    dialDestAddr,
+			}).WithError(err).Debug("explicit UDP dial failed")
 
 			return net.DialUDP("udp", nil, dialDestAddr)
 		}, true)
