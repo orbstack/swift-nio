@@ -18,14 +18,47 @@ func pump1SpUnixGv(errc chan<- error, src *net.UnixConn, dst *gonet.TCPConn) {
 		}
 	}()
 
-	buf := make([]byte, 512*1024)
-	_, err := io.CopyBuffer(dst, src, buf)
+	_, err := pumpCopyBuffer(dst, src, nil)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
 	src.CloseRead()
 
 	errc <- err
+}
+
+func copyViewBufferGvUnix(dst *net.UnixConn, src *gonet.TCPConn, vw *gonet.ViewWriter) (written int64, err error) {
+	for {
+		vw.Reset(zeroCopyGvBufferSize)
+		_nr, er := src.ReadViews(vw)
+		nr := int64(_nr)
+		if nr > 0 {
+			buffers := vw.Buffers()
+			nw, ew := buffers.WriteTo(dst)
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errInvalidWrite
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
 }
 
 func pump1SpGvUnix(errc chan<- error, src *gonet.TCPConn, dst *net.UnixConn) {
@@ -36,8 +69,9 @@ func pump1SpGvUnix(errc chan<- error, src *gonet.TCPConn, dst *net.UnixConn) {
 		}
 	}()
 
-	buf := make([]byte, 512*1024)
-	_, err := io.CopyBuffer(dst, src, buf)
+	vw := gonet.NewViewWriter(2)
+	defer vw.Reset(0)
+	_, err := copyViewBufferGvUnix(dst, src, vw)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()

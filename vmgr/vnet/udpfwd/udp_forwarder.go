@@ -20,6 +20,9 @@ import (
 const (
 	// UDPConnTrackTimeout is the timeout used for UDP connection tracking
 	UDPConnTrackTimeout = 30 * time.Second
+
+	// one packet. we can't do recvmsg_x/sendmsg_x
+	defaultBufferSize = 65536
 )
 
 // A net.Addr where the IP is split into two fields so you can use it as a key
@@ -98,7 +101,7 @@ func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKe
 		extConn.Close()
 	}()
 
-	readBuf := make([]byte, 65536)
+	readBuf := make([]byte, defaultBufferSize)
 	for {
 		_ = extConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
 	again:
@@ -128,7 +131,7 @@ func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKe
 func (proxy *UDPProxy) Run(useTtl bool) {
 	defer proxy.Close()
 
-	readBuf := make([]byte, 65536)
+	readBuf := make([]byte, defaultBufferSize)
 	for {
 		read, from, err := proxy.listener.ReadFrom(readBuf)
 		if err != nil {
