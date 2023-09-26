@@ -2,6 +2,7 @@ package udpfwd
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"syscall"
@@ -18,58 +19,94 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
+const verboseDebug = false
+
 type icmpSender interface {
 	InjectDestUnreachable6(stack.PacketBufferPtr, header.ICMPv6Code) error
 }
 
+// SO_REUSEPORT requires an explicit IP bind, not wildcard
+// this is slow but no choice
+// caching this is racy and error prone in case of diff VPN routes
+// so we have to take the hit for applications like amass
+// TODO; consider custom demux for up to 64k local sockets?
+// helps with amass perf
+func getLaddrForDest(dest *net.UDPAddr) (net.IP, error) {
+	conn, err := net.DialUDP("udp", nil, dest)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP, nil
+}
+
 func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr) (*net.UDPConn, error) {
-	ip4 := daddr.IP.To4()
+	destIP4 := daddr.IP.To4()
 	family := syscall.AF_INET
-	if ip4 == nil {
+	if destIP4 == nil {
 		family = syscall.AF_INET6
 	}
 
 	// do it ourselves to set socket options
 	syscall.ForkLock.RLock()
 	sfd, err := unix.Socket(family, unix.SOCK_DGRAM, unix.IPPROTO_UDP)
+	if err == nil {
+		unix.CloseOnExec(sfd)
+	}
+	syscall.ForkLock.RUnlock()
 	if err != nil {
-		syscall.ForkLock.RUnlock()
-		return nil, err
+		return nil, fmt.Errorf("socket: %w", err)
 	}
 
-	// set O_CLOEXEC and O_NONBLOCK
-	unix.CloseOnExec(sfd)
-	syscall.ForkLock.RUnlock()
+	// set O_NONBLOCK and set up file
 	unix.SetNonblock(sfd, true)
+	file := os.NewFile(uintptr(sfd), "udp conn")
+	// always closed:
+	// on error, close early
+	// on success, handed off to net.FileConn which does a dup
+	defer file.Close()
 
 	// need to set SO_REUSEPORT to fix tailscale MappingVariesByDestIP causing DERP to be used
 	// it allows reusing src-dest 5-tuple
 	// unlike Linux it does NOT cause load balancing. same 5-tuple will return EADDRINUSE
+	if err := unix.SetsockoptInt(sfd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1); err != nil {
+		return nil, fmt.Errorf("setsockopt: %w", err)
+	}
 	if err := unix.SetsockoptInt(sfd, unix.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
-		unix.Close(sfd)
-		return nil, err
+		return nil, fmt.Errorf("setsockopt: %w", err)
 	}
 
-	// bind to source port
-	if ip4 != nil {
+	srcIP, err := getLaddrForDest(daddr)
+	if err != nil {
+		return nil, fmt.Errorf("resolve route: %w", err)
+	}
+
+	// bind to source port, plus explicit IP
+	if destIP4 != nil {
+		srcIP4 := srcIP.To4()
+		if srcIP4 == nil {
+			return nil, fmt.Errorf("bad IP")
+		}
+
 		err = unix.Bind(sfd, &unix.SockaddrInet4{
+			Addr: [4]byte(srcIP4),
 			Port: srcPort,
 		})
 	} else {
 		err = unix.Bind(sfd, &unix.SockaddrInet6{
+			Addr: [16]byte(srcIP.To16()),
 			Port: srcPort,
 		})
 	}
 	if err != nil {
-		unix.Close(sfd)
-		return nil, err
+		return nil, fmt.Errorf("bind: %w", err)
 	}
 
 	// connect to dest
-	if ip4 != nil {
+	if destIP4 != nil {
 		err = unix.Connect(sfd, &unix.SockaddrInet4{
 			Port: daddr.Port,
-			Addr: [4]byte(ip4),
+			Addr: [4]byte(destIP4),
 		})
 	} else {
 		err = unix.Connect(sfd, &unix.SockaddrInet6{
@@ -78,17 +115,13 @@ func dialUDPSourceBind(srcPort int, daddr *net.UDPAddr) (*net.UDPConn, error) {
 		})
 	}
 	if err != nil {
-		unix.Close(sfd)
-		return nil, err
+		return nil, fmt.Errorf("connect: %w", err)
 	}
 
-	file := os.NewFile(uintptr(sfd), "udp conn")
 	conn, err := net.FileConn(file)
 	if err != nil {
-		file.Close()
-		return nil, err
+		return nil, fmt.Errorf("fileconn: %w", err)
 	}
-	file.Close()
 
 	return conn.(*net.UDPConn), nil
 }
@@ -113,13 +146,21 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)
 		if tcpErr != nil {
-			logrus.Error("r.CreateEndpoint() =", tcpErr)
+			logrus.Error("create endpoint: ", tcpErr)
 			return
 		}
 
 		// TTL info
 		ep.SocketOptions().SetReceiveTTL(true)
 		ep.SocketOptions().SetReceiveHopLimit(true)
+		if verboseDebug {
+			logrus.WithFields(logrus.Fields{
+				"src":   r.ID().LocalAddress,
+				"srcP":  r.ID().LocalPort,
+				"dest":  r.ID().RemoteAddress,
+				"destP": r.ID().RemotePort,
+			}).Debug("UDP forwarder: new endpoint")
+		}
 
 		// remember: local = target (because we're acting as proxy)
 		dialDestAddr := &net.UDPAddr{
@@ -132,7 +173,7 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 			// do it conservatively, without SO_REUSEADDR or SO_REUSEPORT, to avoid port conflicts
 			// not needed for external (non-loopback) conns because there's usually internet NAT anyway
 			// remote port = VM client port
-			conn, err := dialUDPSourceBind(int(r.ID().LocalPort), dialDestAddr)
+			conn, err := dialUDPSourceBind(fromAddr.Port, dialDestAddr)
 			if err == nil {
 				return conn, nil
 			}
@@ -143,12 +184,12 @@ func NewUdpForwarder(s *stack.Stack, i icmpSender, hostNatIP4 tcpip.Address, hos
 
 			// explicit bind is conservative. fall back to dynamic if port is used
 			// too much mutex contention when running amass
-			/*
+			if verboseDebug {
 				logrus.WithFields(logrus.Fields{
-					"localPort": r.ID().LocalPort,
+					"localPort": fromAddr.Port,
 					"remote":    dialDestAddr,
 				}).WithError(err).Debug("explicit UDP dial failed")
-			*/
+			}
 
 			return net.DialUDP("udp", nil, dialDestAddr)
 		}, true)
