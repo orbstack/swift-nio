@@ -97,8 +97,21 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 
 				spinner := spinutil.Start("red", "Deleting k8s")
 				err = scli.Client().InternalDeleteK8s()
+				if err != nil {
+					spinner.Stop()
+					checkCLI(err)
+				}
+
+				// restart if docker was running
+				if c.State == types.ContainerStateRunning {
+					err = scli.Client().ContainerStart(c)
+					if err != nil {
+						spinner.Stop()
+						checkCLI(err)
+					}
+				}
+
 				spinner.Stop()
-				checkCLI(err)
 
 				continue
 			}
