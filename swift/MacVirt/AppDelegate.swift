@@ -150,6 +150,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     finishTerminate()
                 }
 
+                // and finally, a timeout
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                    NSLog("timeout terminating")
+                    finishTerminate()
+                }
+
                 return .terminateLater
             }
         } else {
