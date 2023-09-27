@@ -68,6 +68,11 @@ struct DrmState: Codable, Defaults.Serializable {
             if let claims,
                let title = claims["_unm"] as? String {
                 return title
+            } else if let claims,
+              let email = claims["_uem"] as? String {
+                // fallback to email. not all users have name
+                return email.components(separatedBy: "@").first
+                    ?? "(no name)"
             } else {
                 return nil
             }
