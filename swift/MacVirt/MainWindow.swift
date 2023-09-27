@@ -83,7 +83,6 @@ private struct UserSwitcherButton: View {
 
                     Text(drmState.subtitle ?? "Personal use only")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
                 }
 
                 // occupy all right space for border
