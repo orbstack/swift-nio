@@ -104,69 +104,61 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             return .terminateNow
         }
 
-        if sender.activationPolicy() == .accessory || !Defaults[.globalShowMenubarExtra] || menuBar?.quitInitiated == true {
-            // we're already in menu bar mode, or menu bar is disabled, or user initiated quit from menu bar.
-            // in all cases, we stop VM and then terminate
+        // in all other cases, we stop VM and then terminate
+        // if users want to keep menu bar open, they should use Cmd-W or close window
+        // Cmd-Q should quit the app
+        // this fixes a lot of issues. for example, for logout/restart, macOS issues terminate,
+        // and .terminateCancel causes immediate "OrbStack interrupted restart"
 
-            // exception: if user enabled "stay in background" then don't stop VM
-            if Defaults[.globalStayInBackground] {
-                return .terminateNow
-            }
+        // exception: if user enabled "stay in background" then don't stop VM
+        if Defaults[.globalStayInBackground] {
+            return .terminateNow
+        }
 
-            // also exception if option key pressed
-            if CGKeyCode.optionKeyPressed {
-                return .terminateNow
-            }
+        // also exception if option key pressed
+        if CGKeyCode.optionKeyPressed {
+            return .terminateNow
+        }
 
-            // is VM running?
-            if vmModel.state == .stopped {
-                // already fully stopped, so safe to terminate now
-                return .terminateNow
-            } else {
-                // VM is running, so do a graceful shutdown and terminate later
-                func finishTerminate() {
-                    menuBar?.hide()
-                    sender.reply(toApplicationShouldTerminate: true)
-
-                    // if it's not working, just terminate now
-                    // could happen if user keeps menu open when we reply to terminate
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        NSLog("force terminating")
-                        sender.terminate(nil)
-                    }
-                }
-                Task { @MainActor in
-                    // we don't care if this fails or succeeds, just give it best effort and terminate when done
-                    NSLog("preparing to terminate")
-                    await vmModel.tryStop()
-
-                    NSLog("terminating from stop")
-                    finishTerminate()
-                }
-                // also listen for stop events
-                Task { @MainActor in
-                    await vmModel.waitForStateEquals(.stopped)
-                    NSLog("terminating from state")
-                    finishTerminate()
-                }
-
-                // and finally, a timeout
-                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                    NSLog("timeout terminating")
-                    finishTerminate()
-                }
-
-                return .terminateLater
-            }
+        // is VM running?
+        if vmModel.state == .stopped {
+            // already fully stopped, so safe to terminate now
+            return .terminateNow
         } else {
-            // we're not in menu bar mode, but menu bar is enabled.
-            // enter menu bar mode by closing all windows, then cancel termination
-            for window in NSApp.windows {
-                if window.isUserFacing {
-                    window.close()
+            // VM is running, so do a graceful shutdown and terminate later
+            func finishTerminate() {
+                menuBar?.hide()
+                sender.reply(toApplicationShouldTerminate: true)
+
+                // if it's not working, just terminate now
+                // could happen if user keeps menu open when we reply to terminate
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    NSLog("force terminating")
+                    sender.terminate(nil)
                 }
             }
-            return .terminateCancel
+            Task { @MainActor in
+                // we don't care if this fails or succeeds, just give it best effort and terminate when done
+                NSLog("preparing to terminate")
+                await vmModel.tryStop()
+
+                NSLog("terminating from stop")
+                finishTerminate()
+            }
+            // also listen for stop events
+            Task { @MainActor in
+                await vmModel.waitForStateEquals(.stopped)
+                NSLog("terminating from state")
+                finishTerminate()
+            }
+
+            // and finally, a timeout
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                NSLog("timeout terminating")
+                finishTerminate()
+            }
+
+            return .terminateLater
         }
     }
 
