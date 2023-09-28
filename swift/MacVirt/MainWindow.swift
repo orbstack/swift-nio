@@ -11,6 +11,10 @@ import Sparkle
 import Defaults
 import CachedAsyncImage
 
+private let avatarRadius: Float = 32
+private let statusDotRadius: Float = 8
+private let statusMarginRadius: Float = 12
+
 func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
     Binding<Bool>(get: {
         binding.wrappedValue != nil
@@ -52,29 +56,57 @@ private struct UserSwitcherButton: View {
             }
         } label: {
             HStack(spacing: 0) {
-                //TODO load and cache avatar image
                 var drmState = vmModel.drmState
 
-                if let imageURL = drmState.imageURL {
-                    CachedAsyncImage(url: imageURL) { image in
-                        image
-                        .resizable()
-                        // clip to circle
-                        .clipShape(Circle())
-                    } placeholder: {
+                let statusColor = drmState.entitlementTier == .none ?
+                        Color.red : Color.green
+                Group {
+                    if let imageURL = drmState.imageURL {
+                        CachedAsyncImage(url: imageURL) { image in
+                            image
+                            .resizable()
+                            // better interp to fix pixelation
+                            .interpolation(.high)
+                            // clip to circle
+                            .clipShape(Circle())
+                        } placeholder: {
+                            Image(systemName: "person.circle")
+                            .resizable()
+                            .foregroundColor(.accentColor)
+                        }
+                    } else {
                         Image(systemName: "person.circle")
                         .resizable()
                         .foregroundColor(.accentColor)
                     }
-                    .frame(width: 24, height: 24)
-                    .padding(.trailing, 8)
-                } else {
-                    Image(systemName: "person.circle")
-                    .resizable()
-                    .foregroundColor(.accentColor)
-                    .frame(width: 24, height: 24)
-                    .padding(.trailing, 8)
                 }
+                .frame(width: CGFloat(avatarRadius), height: CGFloat(avatarRadius))
+                // mask
+                .mask {
+                    Rectangle()
+                    .overlay(alignment: .topLeading) {
+                        // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                        let x = avatarRadius * cos(Float.pi / 4) + (statusDotRadius / 2)
+                        let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
+
+                        Circle()
+                        .frame(width: CGFloat(statusMarginRadius), height: CGFloat(statusMarginRadius))
+                        .position(x: CGFloat(x), y: CGFloat(y))
+                        .blendMode(.destinationOut)
+                    }
+                }
+                // status dot
+                .overlay(alignment: .topLeading) {
+                    // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                    let x = avatarRadius * cos(Float.pi / 4) + (statusDotRadius / 2)
+                    let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
+
+                    Circle()
+                    .fill(statusColor.opacity(0.75))
+                    .frame(width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius))
+                    .position(x: CGFloat(x), y: CGFloat(y))
+                }
+                .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
                     Text(drmState.title ?? "Sign in")
@@ -82,7 +114,7 @@ private struct UserSwitcherButton: View {
                     .lineLimit(1)
 
                     Text(drmState.subtitle ?? "Personal use only")
-                    .font(.subheadline)
+                    .font(.subheadline.weight(.medium))
                 }
 
                 // occupy all right space for border
