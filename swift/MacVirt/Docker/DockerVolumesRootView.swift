@@ -27,13 +27,13 @@ struct DockerVolumesRootView: View {
                 if !filteredVolumes.isEmpty {
                     let totalSizeFormatted = calcTotalSize(filteredVolumes)
                     let listData = [
-                        AKSection("In Use", filteredVolumes.filter { isMounted($0) }),
-                        AKSection("Unused", filteredVolumes.filter { !isMounted($0) })
+                        AKSection("In Use", filteredVolumes.filter { vmModel.volumeIsMounted($0) }),
+                        AKSection("Unused", filteredVolumes.filter { !vmModel.volumeIsMounted($0) })
                     ]
 
                     AKList(listData, selection: $selection, rowHeight: 48) { volume in
-                        // TODO optimize: pass section info
-                        DockerVolumeItem(volume: volume, isMounted: isMounted(volume))
+                        // TODO optimize: pass isMounted section info
+                        DockerVolumeItem(volume: volume)
                         .id(volume.name)
                         .environmentObject(vmModel)
                         .environmentObject(windowTracker)
@@ -77,19 +77,6 @@ struct DockerVolumesRootView: View {
         .sheet(isPresented: $vmModel.presentCreateVolume) {
             CreateVolumeView(isPresented: $vmModel.presentCreateVolume)
         }
-    }
-
-    private func isMounted(_ volume: DKVolume) -> Bool {
-        guard let containers = vmModel.dockerContainers else {
-            return false
-        }
-
-        return containers.first { container in
-            container.mounts.contains { mount in
-                mount.type == .volume &&
-                    mount.name == volume.name
-            }
-        } != nil
     }
 
     private func calcTotalSize(_ filteredVolumes: [DKVolume]) -> String? {

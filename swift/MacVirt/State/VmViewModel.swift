@@ -1412,4 +1412,25 @@ class VmViewModel: ObservableObject {
             setError(.refreshDrmError(cause: error))
         }
     }
+
+    func volumeIsMounted(_ volume: DKVolume) -> Bool {
+        guard let containers = dockerContainers else {
+            return false
+        }
+
+        return containers.first { container in
+            container.mounts.contains { mount in
+                mount.type == .volume &&
+                        mount.name == volume.name
+            }
+        } != nil
+    }
+
+    func usedImageIds() -> Set<String> {
+        guard let containers = dockerContainers else {
+            return []
+        }
+
+        return Set(containers.map { $0.imageId })
+    }
 }

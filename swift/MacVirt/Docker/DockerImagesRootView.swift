@@ -28,17 +28,20 @@ struct DockerImagesRootView: View {
                     let totalSize = filteredImages.reduce(0) { $0 + $1.size - $1.sharedSize }
                     let totalSizeFormatted = ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
 
-                    let taggedImages = filteredImages.filter { $0.hasTag }
-                    let untaggedImages = filteredImages.filter { !$0.hasTag }
+                    let usedImageIds = vmModel.usedImageIds()
+                    let usedImages = filteredImages.filter { usedImageIds.contains($0.id) }
+                    let unusedImages = filteredImages.filter { !usedImageIds.contains($0.id) && $0.hasTag }
+                    let danglingImages = filteredImages.filter { !usedImageIds.contains($0.id) && !$0.hasTag }
                     let listData = [
-                        AKSection(nil, taggedImages),
-                        AKSection("Untagged", untaggedImages)
+                        AKSection("In Use", usedImages),
+                        AKSection("Unused", unusedImages),
+                        AKSection("Dangling", danglingImages)
                     ]
 
                     // 46 is empirically correct, matches auto height. not sure where it comes from
                     AKList(listData, selection: $selection, rowHeight: 46) { image in
                         DockerImageItem(image: image,
-                                isFirstInList: image.id == taggedImages.first?.id)
+                                isFirstInList: image.id == usedImages.first?.id)
                         .equatable()
                         .environmentObject(vmModel)
                         .environmentObject(windowTracker)

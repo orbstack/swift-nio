@@ -33,17 +33,27 @@ enum EntitlementType: Int, Codable {
     case trial = 3
 }
 
+enum EntitlementStatus: Int, Codable {
+    case red = 0
+    case yellow = 1
+    case green = 2
+}
+
 struct DrmState: Codable, Defaults.Serializable {
     var refreshToken: String?
     var entitlementTier: EntitlementTier
     var entitlementType: EntitlementType
     var entitlementMessage: String?
+    var entitlementStatus: EntitlementStatus?
 
-    init(refreshToken: String? = nil, entitlementTier: EntitlementTier = .none, entitlementType: EntitlementType = .none, entitlementMessage: String? = nil) {
+    init(refreshToken: String? = nil, entitlementTier: EntitlementTier = .none,
+         entitlementType: EntitlementType = .none, entitlementMessage: String? = nil,
+         entitlementStatus: EntitlementStatus = .red) {
         self.refreshToken = refreshToken
         self.entitlementTier = entitlementTier
         self.entitlementType = entitlementType
         self.entitlementMessage = entitlementMessage
+        self.entitlementStatus = entitlementStatus
     }
 
     //TODO deal with mutation
@@ -94,10 +104,10 @@ struct DrmState: Codable, Defaults.Serializable {
     }
 
     var subtitle: String {
+        return "Personal use only\nTrial (30 days)"
         // 1. entitlement message
         if let entitlementMessage {
-            //return entitlementMessage
-            return "Personal use only (in 30"
+            return entitlementMessage
         }
 
         // 2. tier
@@ -114,15 +124,16 @@ struct DrmState: Codable, Defaults.Serializable {
     }
 
     var statusDotColor: Color {
-        if entitlementTier == .none {
+        switch entitlementStatus {
+        case .red:
             return .red
-        }
-
-        if entitlementType == .trial {
+        case .yellow:
             return .yellow
+        case .green:
+            return .green
+        case nil:
+            return .gray
         }
-
-        return .green
     }
 
     var isSignedIn: Bool {

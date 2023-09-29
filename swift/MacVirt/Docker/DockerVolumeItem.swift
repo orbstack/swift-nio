@@ -11,7 +11,6 @@ struct DockerVolumeItem: View {
     @EnvironmentObject var listModel: AKListModel
 
     var volume: DKVolume
-    var isMounted: Bool
     var selection: Set<String> {
         listModel.selection as! Set<String>
     }
@@ -20,6 +19,7 @@ struct DockerVolumeItem: View {
 
     var body: some View {
         let actionInProgress = actionTracker.ongoingFor(volume: volume) != nil
+        let isMounted = vmModel.volumeIsMounted(volume)
 
         let deletionList = resolveActionList()
         let deleteConfirmMsg = deletionList.count > 1 ?
