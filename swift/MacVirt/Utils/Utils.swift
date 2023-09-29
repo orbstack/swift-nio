@@ -245,9 +245,8 @@ struct InstalledApps {
         "com.apple.Terminal", // Terminal.app
         alacritty, // Alacritty
         "net.kovidgoyal.kitty", // kitty
-        // doesn't support opening
-        //"dev.warp.Warp-Stable", // Warp
-        //"dev.warp.Warp-Preview", // WarpPreview (guess)
+        "dev.warp.Warp-Stable", // Warp
+        "dev.warp.Warp-Preview", // WarpPreview (guess)
         "com.github.wez.wezterm", // WezTerm
         "co.zeit.hyper", // Hyper
     ]
