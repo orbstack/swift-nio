@@ -83,10 +83,12 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
 
     // write command to tmp file
     // use cleanup function to do escape
+    // and to work around Warp not running with "; exit 0", kill ppid. clean exit not needed
     let command = """
     #!/bin/sh -e
     cleanup() {
         rm -f \(escapeShellArg(tmpFileURL.path))
+        kill -9 $PPID
     }
     trap cleanup EXIT
     \(escapeShellArgs([command] + args))
