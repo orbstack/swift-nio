@@ -4,6 +4,7 @@
 
 import Foundation
 import Defaults
+import SwiftUI
 
 // doesn't count as logged in
 private let previewRefreshToken = "1181201e-23f8-41f6-9660-b7110f4bfedb"
@@ -12,12 +13,24 @@ enum EntitlementTier: Int, Codable {
     case none = 0
     case pro = 1
     case enterprise = 3
+
+    var desc: String? {
+        switch self {
+        case .none:
+            return nil
+        case .pro:
+            return "Pro"
+        case .enterprise:
+            return "Enterprise"
+        }
+    }
 }
 
 enum EntitlementType: Int, Codable {
     case none = 0
     case subMonthly = 1
     case subYearly = 2
+    case trial = 3
 }
 
 struct DrmState: Codable, Defaults.Serializable {
@@ -63,7 +76,7 @@ struct DrmState: Codable, Defaults.Serializable {
         }
     }
 
-    var title: String? {
+    var title: String {
         mutating get {
             if let claims,
                let title = claims["_unm"] as? String {
@@ -74,28 +87,42 @@ struct DrmState: Codable, Defaults.Serializable {
                 return email.components(separatedBy: "@").first
                     ?? "(no name)"
             } else {
-                return nil
+                // nothing
+                return "Sign in"
             }
         }
     }
 
-    var subtitle: String? {
+    var subtitle: String {
         // 1. entitlement message
         if let entitlementMessage {
-            return entitlementMessage
+            //return entitlementMessage
+            return "Personal use only (in 30"
         }
 
         // 2. tier
-        switch entitlementTier {
-        case .none:
-            return nil
-        case .pro:
-            return "Pro"
-        case .enterprise:
-            return "Enterprise"
+        if let desc = entitlementTier.desc {
+            if entitlementType == .trial {
+                return "\(desc) Trial"
+            } else {
+                return desc
+            }
         }
 
         // 3. Personal use only
+        return "Personal use only"
+    }
+
+    var statusDotColor: Color {
+        if entitlementTier == .none {
+            return .red
+        }
+
+        if entitlementType == .trial {
+            return .yellow
+        }
+
+        return .green
     }
 
     var isSignedIn: Bool {

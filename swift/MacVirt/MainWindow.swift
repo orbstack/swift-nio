@@ -58,8 +58,6 @@ private struct UserSwitcherButton: View {
             HStack(spacing: 0) {
                 var drmState = vmModel.drmState
 
-                let statusColor = drmState.entitlementTier == .none ?
-                        Color.red : Color.green
                 Group {
                     if let imageURL = drmState.imageURL {
                         CachedAsyncImage(url: imageURL) { image in
@@ -102,19 +100,19 @@ private struct UserSwitcherButton: View {
                     let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
 
                     Circle()
-                    .fill(statusColor.opacity(0.75))
+                    .fill(drmState.statusDotColor.opacity(0.75))
                     .frame(width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius))
                     .position(x: CGFloat(x), y: CGFloat(y))
                 }
                 .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
-                    Text(drmState.title ?? "Sign in")
+                    Text(drmState.title)
                     .font(.headline)
                     .lineLimit(1)
 
-                    Text(drmState.subtitle ?? "Personal use only")
-                    .font(.subheadline.weight(.medium))
+                    Text(drmState.subtitle)
+                    .font(.subheadline)
                 }
 
                 // occupy all right space for border
