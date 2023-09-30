@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	minBufferSize     = 4096
+	minBufferSize     = 16384
 	maxBufferSize     = 2 * 1024 * 1024 // 2 MiB
 	defaultBufferSize = 65536
 
@@ -60,8 +60,8 @@ func pumpCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, er
 			// TODO consider jumping by 2 powers of 2
 			newAvg := uint64(avg.Update(float32(nr)))
 			if newAvg > bufThresHi && len(buf) < maxBufferSize {
-				// next pow2 - move up 1
-				targetSize := 1 << ewma.CeilILog2(uint(len(buf)+1))
+				// next pow2 - move up 2 powers of 2
+				targetSize := nextPow2(nextPow2(len(buf)))
 				targetSize = min(maxBufferSize, targetSize)
 				targetSize = max(minBufferSize, targetSize)
 
@@ -77,4 +77,8 @@ func pumpCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, er
 		}
 	}
 	return written, err
+}
+
+func nextPow2(x int) int {
+	return 1 << ewma.CeilILog2(uint(x+1))
 }
