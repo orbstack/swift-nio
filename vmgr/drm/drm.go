@@ -216,9 +216,8 @@ func (c *DrmClient) Run() {
 	}()
 
 	// spend up to 15 sec witing for restoring refresh token before giving up
-	_, err := util.WithTimeout(func() (struct{}, error) {
+	err := util.WithTimeout0(func() {
 		restoreWg.Wait()
-		return struct{}{}, nil
 	}, 15*time.Second)
 	c.restored.Set(true)
 	if err != nil {

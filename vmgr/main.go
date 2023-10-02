@@ -331,8 +331,8 @@ func ensureDataLock() error {
 	}
 	defer dataImg.Close()
 
-	_, err = util.WithTimeout(func() (struct{}, error) {
-		return struct{}{}, flock.WaitLock(dataImg)
+	err = util.WithTimeout1(func() error {
+		return flock.WaitLock(dataImg)
 	}, handoffWaitLockTimeout)
 	if err != nil {
 		return fmt.Errorf("wait data lock: %w", err)
@@ -372,10 +372,9 @@ func enforceStopDeadline() {
 		fmt.Fprintln(os.Stderr, err.Error())
 
 		// try to report to sentry
-		_, _ = util.WithTimeout(func() (struct{}, error) {
+		_ = util.WithTimeout0(func() {
 			sentry.CaptureException(err)
 			sentry.Flush(sentryconf.FlushTimeout)
-			return struct{}{}, nil
 		}, sentryconf.FlushTimeout)
 
 		os.Exit(1)
@@ -470,8 +469,8 @@ func runVmManager() {
 	check(err)
 	if waitLock {
 		// wait lock for spawn-daemon handoff
-		_, err = util.WithTimeout(func() (struct{}, error) {
-			return struct{}{}, flock.WaitLock(lockFile)
+		err = util.WithTimeout1(func() error {
+			return flock.WaitLock(lockFile)
 		}, handoffWaitLockTimeout)
 		if err != nil {
 			errorx.Fatalf("vmgr is already running (wait lock): %w", err)

@@ -6,7 +6,22 @@ import (
 	"time"
 )
 
-func WithTimeout[T any](fn func() (T, error), timeout time.Duration) (T, error) {
+func WithTimeout0(fn func(), timeout time.Duration) error {
+	_, err := WithTimeout2(func() (struct{}, error) {
+		fn()
+		return struct{}{}, nil
+	}, timeout)
+	return err
+}
+
+func WithTimeout1(fn func() error, timeout time.Duration) error {
+	_, err := WithTimeout2(func() (struct{}, error) {
+		return struct{}{}, fn()
+	}, timeout)
+	return err
+}
+
+func WithTimeout2[T any](fn func() (T, error), timeout time.Duration) (T, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 

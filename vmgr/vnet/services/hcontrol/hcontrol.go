@@ -729,8 +729,8 @@ func (h *HcontrolServer) InternalUnmountNfs() error {
 	}
 
 	logrus.Info("Unmounting NFS...")
-	_, err = util.WithTimeout(func() (struct{}, error) {
-		return struct{}{}, nfsmnt.UnmountNfs()
+	err = util.WithTimeout1(func() error {
+		return nfsmnt.UnmountNfs()
 	}, nfsUnmountTimeout)
 	if err != nil {
 		logrus.WithError(err).Error("NFS unmount failed")
