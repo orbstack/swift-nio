@@ -11,7 +11,7 @@ const (
 	maxBufferSize     = 2 * 1024 * 1024 // 2 MiB
 	defaultBufferSize = 65536
 
-	zeroCopyGvBufferSize = 512 * 1024
+	zeroCopyGvBufferSize = 1 * 1024 * 1024 // 1 MiB
 
 	ewmaWeight = 1.0 / 128.0
 )
