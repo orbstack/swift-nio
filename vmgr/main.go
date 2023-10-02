@@ -827,8 +827,10 @@ func runVmManager() {
 		case stopReq := <-stopCh:
 			logrus.WithField("reason", stopReq.Reason).Info("stop requested")
 			lastStopReason = stopReq.Reason
-			// unmount nfs first
-			_ = hcServer.InternalUnmountNfs()
+			// unmount nfs first, unless it's a kernel panic or health check, in which case VM is dead and closing holder fd will hang
+			if stopReq.Reason != types.StopReasonKernelPanic && stopReq.Reason != types.StopReasonHealthCheck {
+				_ = hcServer.InternalUnmountNfs()
+			}
 
 			go func() {
 				switch stopReq.Type {
