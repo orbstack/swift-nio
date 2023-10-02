@@ -372,9 +372,7 @@ func (n *Network) CreateSconMachineHostBridge() error {
 	}
 
 	// can hang due to an unknown deadlock OR hang on vmnet side
-	_, err := util.WithTimeout(func() (struct{}, error) {
-		return struct{}{}, n.createHostBridge(brIndexSconMachine, config)
-	}, 10*time.Second)
+	err := n.createHostBridge(brIndexSconMachine, config)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			sentry.CaptureException(&createBridgeError{cause: err})
@@ -405,7 +403,9 @@ func (n *Network) closeSconMachineHostBridgeLocked() error {
 }
 
 func (n *Network) createHostBridge(index int, config vzf.BridgeNetworkConfig) error {
-	brnet, err := vzf.SwextNewBrnet(config)
+	brnet, err := util.WithTimeout(func() (HostBridge, error) {
+		return vzf.SwextNewBrnet(config)
+	}, 10*time.Second)
 	if err != nil {
 		return err
 	}
