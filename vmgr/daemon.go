@@ -101,8 +101,10 @@ func runSpawnDaemon() {
 	exe, err := os.Executable()
 	check(err)
 
+	// remove legacy .1 log
+	_ = os.Remove(conf.VmgrLog() + ".1")
 	// rotate the log if needed (avoid TOCTOU - this is before vmgr start)
-	err = os.Rename(conf.VmgrLog(), conf.VmgrLog()+".1")
+	err = os.Rename(conf.VmgrLog(), conf.VmgrLog1())
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		check(err)
 	}

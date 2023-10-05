@@ -157,6 +157,11 @@ func VmgrLog() string {
 	return LogDir() + "/vmgr.log"
 }
 
+func VmgrLog1() string {
+	// should be .log.1 but this is easier to view on macOS and iOS
+	return LogDir() + "/vmgr.1.log"
+}
+
 func VmgrVersionFile() string {
 	return RunDir() + "/vmgr.version"
 }
