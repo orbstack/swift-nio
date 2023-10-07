@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -153,9 +154,17 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 
 	// build exceptions list
 	p.perHostFilter = proxy.NewPerHost()
-	for _, host := range settings.ExceptionsList {
-		logrus.WithField("host", host).Debug("adding host to proxy exclusion list")
-		p.perHostFilter.AddFromString(host)
+	for _, item := range settings.ExceptionsList {
+		// some people stuff everything into one entry with \n?
+		// split it up
+		for _, host := range strings.Fields(item) {
+			if host == "" {
+				continue
+			}
+
+			logrus.WithField("host", host).Debug("adding host to proxy exclusion list")
+			p.perHostFilter.AddFromString(host)
+		}
 	}
 
 	// pick behavior based on config
