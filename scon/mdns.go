@@ -400,6 +400,11 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 					names[i].Hidden = true
 				}
 
+				// for --scale: if this is not primary container, append the number
+				if composeNum, ok := ctr.Labels["com.docker.compose.container-number"]; ok && composeNum != "1" {
+					composeService += "-" + composeNum
+				}
+
 				name := composeService + "." + composeProject
 				// translate _ to - for RFC compliance, but keep orig $CONTAINER_NAME for convenience, for apps that don't care
 				if strings.Contains(name, "_") {

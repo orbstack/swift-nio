@@ -50,6 +50,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         labels?[DockerLabels.composeService]
     }
 
+    var composeNumber: String? {
+        labels?[DockerLabels.composeNumber]
+    }
+
     var isFullCompose: Bool {
         composeProject != nil && composeService != nil
     }
@@ -63,8 +67,14 @@ struct DKContainer: Codable, Identifiable, Hashable {
         if let k8sType = labels?[DockerLabels.k8sType],
            let k8sPodName = labels?[DockerLabels.k8sPodName] {
             return "\(k8sPodName) (\(k8sType))"
-        } else if let composeService = composeService {
-            return composeService
+        } else if let composeService {
+            // all containers have numbers, even w/o scale
+            if let composeNumber, composeNumber != "1" {
+                // for --scale
+                return "\(composeService) (\(composeNumber))"
+            } else {
+                return composeService
+            }
         } else {
             return names
                 .lazy
@@ -107,8 +117,14 @@ struct DKContainer: Codable, Identifiable, Hashable {
                 .replacingOccurrences(of: "_", with: "-")
         } else if let project = composeProject,
                   let service = composeService {
+            var optNum = ""
+            if let composeNumber, composeNumber != "1" {
+                // for --scale
+                optNum = "-\(composeNumber)"
+            }
+
             // make it RFC 1035 compliant, or Tomcat complains
-            return "\(service).\(project).orb.local"
+            return "\(service)\(optNum).\(project).orb.local"
                 .replacingOccurrences(of: "_", with: "-")
         } else {
             return "\(userName).orb.local"
@@ -425,6 +441,8 @@ struct DockerLabels {
     static let composeService = "com.docker.compose.service"
     static let composeConfigFiles = "com.docker.compose.project.config_files"
     static let composeWorkingDir = "com.docker.compose.project.working_dir"
+    // for --scale
+    static let composeNumber = "com.docker.compose.container-number"
 
     static let k8sType = "io.kubernetes.docker.type"
     static let k8sPodName = "io.kubernetes.pod.name"
