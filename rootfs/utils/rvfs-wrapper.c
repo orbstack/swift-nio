@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/prctl.h>
 #include <sys/auxv.h>
+#include <sys/resource.h>
 #include <sys/syscall.h>
 #include <sys/sendfile.h>
 #include <sys/mman.h>
@@ -408,6 +409,22 @@ int main(int argc, char **argv) {
             strcat(new_path_buf, "/");
             strcat(new_path_buf, exe_path);
             exe_path = new_path_buf;
+        }
+    }
+
+    // workaround for Rosetta not supporting RLIM_INFINITY stack rlimit
+    // https://github.com/orbstack/orbstack/issues/573
+    struct rlimit stack_lim;
+    if (getrlimit(RLIMIT_STACK, &stack_lim) != 0) {
+        return orb_perror("getrlimit");
+    }
+    if (stack_lim.rlim_cur == RLIM_INFINITY && stack_lim.rlim_max == RLIM_INFINITY) {
+        // TODO: a syscall-hook shim would intercept getrlimit instead, so that application sees the correct value?
+        if (DEBUG) fprintf(stderr, "setting stack rlimit to 1 GiB\n");
+        // 1 GiB (virtual memory)
+        stack_lim.rlim_cur = 1024 * 1024 * 1024;
+        if (setrlimit(RLIMIT_STACK, &stack_lim) != 0) {
+            return orb_perror("setrlimit");
         }
     }
 
