@@ -442,9 +442,40 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 	return nbytes, nil
 }
 
+func (c *TCPConn) tryClose() (err error) {
+	defer func() {
+		if err := recover(); err != nil {
+			err = fmt.Errorf("gtcp: close panic: %v", err)
+		}
+	}()
+
+	c.ep.Close()
+	return
+}
+
+func (c *TCPConn) tryAbort() (err error) {
+	defer func() {
+		if err := recover(); err != nil {
+			err = fmt.Errorf("gtcp: abort panic: %v", err)
+		}
+	}()
+
+	c.ep.Abort()
+	return
+}
+
 // Close implements net.Conn.Close.
 func (c *TCPConn) Close() error {
-	c.ep.Close()
+	err := c.tryClose()
+	if err != nil {
+		err2 := c.tryAbort()
+		if err2 != nil {
+			return fmt.Errorf("gtcp: close: %v (abort: %v)", err, err2)
+		}
+
+		return err
+	}
+
 	return nil
 }
 

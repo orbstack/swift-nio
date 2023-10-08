@@ -3,7 +3,6 @@ package tcpfwd
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -28,36 +27,6 @@ const (
 	// set very high for nmap
 	listenBacklog = 65535
 )
-
-func tryClose(conn *gonet.TCPConn) (err error) {
-	defer func() {
-		if err := recover(); err != nil {
-			err = fmt.Errorf("tcpfwd: close panic: %v", err)
-		}
-	}()
-
-	conn.Close()
-	return
-}
-
-func tryAbort(conn *gonet.TCPConn) (err error) {
-	defer func() {
-		if err := recover(); err != nil {
-			err = fmt.Errorf("tcpfwd: abort panic: %v", err)
-		}
-	}()
-
-	conn.Endpoint().Abort()
-	return
-}
-
-func tryBestCleanup(conn *gonet.TCPConn) error {
-	err := tryClose(conn)
-	if err != nil {
-		return err
-	}
-	return tryAbort(conn)
-}
 
 func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address, bridgeRouteMon *bridge.RouteMon) (*tcp.Forwarder, *ProxyManager) {
 	proxyMgr := newProxyManager(hostNatIP4, hostNatIP6)
@@ -164,9 +133,9 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 
 		virtConn := gonet.NewTCPConn(&wq, ep)
 		defer func() {
-			err := tryBestCleanup(virtConn)
+			err := virtConn.Close()
 			if err != nil {
-				logrus.Error("tcpfwd: cleanup panic", err)
+				logrus.WithError(err).Error("TCP forward: close failed")
 			}
 		}()
 
