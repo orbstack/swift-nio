@@ -63,7 +63,7 @@ func ListenHostSSHAgent(stack *stack.Stack, address tcpip.Address) error {
 	_, err := tcpfwd.ListenUnixNATForward(stack, tcpip.FullAddress{
 		Addr: address,
 		Port: ports.SecureSvcHostSSHAgent,
-	}, agentSock)
+	}, agentSock, true)
 	if err != nil {
 		return err
 	}

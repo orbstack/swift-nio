@@ -15,9 +15,10 @@ type UnixNATForward struct {
 	listener    net.Listener
 	mu          sync.Mutex
 	connectAddr string
+	isSshAgent  bool
 }
 
-func ListenUnixNATForward(s *stack.Stack, listenAddr tcpip.FullAddress, connectAddr string) (*UnixNATForward, error) {
+func ListenUnixNATForward(s *stack.Stack, listenAddr tcpip.FullAddress, connectAddr string, isSshAgent bool) (*UnixNATForward, error) {
 	listener, err := gonet.ListenTCP(s, listenAddr, ipv4.ProtocolNumber)
 	if err != nil {
 		return nil, err
@@ -26,6 +27,7 @@ func ListenUnixNATForward(s *stack.Stack, listenAddr tcpip.FullAddress, connectA
 	f := &UnixNATForward{
 		listener:    listener,
 		connectAddr: connectAddr,
+		isSshAgent:  isSshAgent,
 	}
 
 	go f.listen()
@@ -67,7 +69,11 @@ func (f *UnixNATForward) handleConn(conn net.Conn) {
 	}
 	defer unixConn.Close()
 
-	pump2SshAgent(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
+	if f.isSshAgent {
+		pump2SshAgent(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
+	} else {
+		pump2SpUnixGv(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
+	}
 }
 
 func (f *UnixNATForward) Close() error {
