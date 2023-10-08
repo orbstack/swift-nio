@@ -59,21 +59,51 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerSummary, userNa
 			EndpointsConfig: fullCtr.NetworkSettings.Networks,
 		},
 	}
+
 	// translate network IDs
 	m.mu.Lock()
 	for _, n := range newCtrReq.NetworkingConfig.EndpointsConfig {
 		n.NetworkID = m.networkIDMap[n.NetworkID]
 	}
 	m.mu.Unlock()
-	platform := fullCtr.Platform
+
+	// can only connect 1 endpoint at creation time
+	// if more, save them for later
+	extraEndpoints := make(map[string]*dockertypes.NetworkEndpointSettings)
+	if len(newCtrReq.NetworkingConfig.EndpointsConfig) > 1 {
+		isFirst := true
+		for k, v := range newCtrReq.NetworkingConfig.EndpointsConfig {
+			if isFirst {
+				isFirst = false
+				continue
+			}
+
+			extraEndpoints[k] = v
+			delete(newCtrReq.NetworkingConfig.EndpointsConfig, k)
+		}
+	}
+
 	// if no architecture set, use docker default image selection logic
 	// this fixes amd64 migration when no explicit arch was specified in the source container
+	platform := fullCtr.Platform
 	if platform == "linux" {
 		platform = ""
 	}
+
 	err = m.destClient.Call("POST", "/containers/create?name="+url.QueryEscape(fullCtr.Name)+"&platform="+url.QueryEscape(platform), newCtrReq, &newCtrResp)
 	if err != nil {
 		return fmt.Errorf("create container: %w", err)
+	}
+
+	// [dest] connect extra net endpoints
+	for k, v := range extraEndpoints {
+		err = m.destClient.Call("POST", "/networks/"+k+"/connect", dockertypes.NetworkConnectRequest{
+			Container:      newCtrResp.ID,
+			EndpointConfig: v,
+		}, nil)
+		if err != nil {
+			return fmt.Errorf("connect net endpoint: %w", err)
+		}
 	}
 
 	// [dest] get new full info
