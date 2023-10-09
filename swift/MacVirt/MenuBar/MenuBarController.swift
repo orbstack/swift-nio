@@ -622,21 +622,21 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addSeparator()
 
+        submenu.addActionItem("Terminal", icon: systemImage("terminal")) {
+            await record.openInTerminal()
+        }
+
+        submenu.addActionItem("Files", icon: systemImage("folder")) {
+            record.openNfsDirectory()
+        }
+
+        submenu.addSeparator()
+
         if running {
             let domain = "\(record.name).orb.local"
             submenu.addActionItem("Address: \(domain)", disabled: !vmModel.netBridgeAvailable) {
                 NSPasteboard.copy(domain)
             }
-        }
-
-        submenu.addSeparator()
-
-        submenu.addActionItem("Open Terminal") {
-            await record.openInTerminal()
-        }
-
-        submenu.addActionItem("Open Files") {
-            record.openNfsDirectory()
         }
 
         return machineItem
