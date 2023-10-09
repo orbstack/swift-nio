@@ -14,6 +14,8 @@
 #include <sys/syscall.h>
 #include <sys/sendfile.h>
 #include <sys/mman.h>
+#include <sched.h>
+#include <time.h>
 #include <limits.h>
 #include <stdbool.h>
 
@@ -27,6 +29,11 @@
 static const char rvk1_data[16] = "\x03\x47\x20\xe0\xe4\x79\x3f\xbe\xae\xeb\xc7\xd6\x66\xe9\x09\x00";
 static const char rvk2_data[16] = "\x20\xc2\xdc\x2b\xc5\x1f\xfe\x6b\x73\x73\x96\xee\x69\x1a\x93\x00";
 static const char rvk3_data[16] = "\x41\xba\x68\x70\x7c\x66\x31\xec\x80\xe3\x2a\x30\x31\x3b\xd4\x00";
+
+// config variables
+#define FLAG_BROKEN_TSO (1 << 0)
+__attribute__((section(".c0")))
+const volatile uint32_t config_flags = 0;
 
 struct elf_info {
     // interpreter (dynamic linker) path
@@ -408,6 +415,48 @@ int main(int argc, char **argv) {
             stack_lim.rlim_cur = 1024 * 1024 * 1024;
             if (setrlimit(RLIMIT_STACK, &stack_lim) != 0) {
                 return orb_perror("setrlimit");
+            }
+        }
+
+        // workaround: macOS 14.0 (23A344) is missing TSO
+        // limit rosetta processes to 1 cpu
+        // TODO: check and respect existing mask if multiple cpus are in it. if only 1, then pick a new cpu (likely inherited from other rosetta).
+        if (config_flags & FLAG_BROKEN_TSO) {
+            // seed rng
+            struct timespec ts;
+            if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+                return orb_perror("clock_gettime");
+            }
+            srand(ts.tv_nsec);
+
+            // get number of cpus
+            // this is based on sched_getaffinity count, so reset it first
+            cpu_set_t mask;
+            CPU_ZERO(&mask);
+            for (int i = 0; i < CPU_SETSIZE; i++) {
+                CPU_SET(i, &mask);
+            }
+            if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
+                return orb_perror("sched_setaffinity");
+            }
+            int nproc = sysconf(_SC_NPROCESSORS_ONLN);
+            if (nproc == -1) {
+                return orb_perror("sysconf");
+            }
+            if (DEBUG) fprintf(stderr, "nproc: %d\n", nproc);
+
+            // select random cpu. current (sched_getcpu) would be nice to prevent overload, but it has problems with inheriting
+            // core scheduling can't do the job.
+            // TODO: syscall-hook can reset affinity on fork if we changed it, and user program has not modified it
+            int cur_cpu = rand() % nproc;
+            if (DEBUG) fprintf(stderr, "affine to cpu %d\n", cur_cpu);
+
+            cpu_set_t new_mask;
+            CPU_ZERO(&new_mask);
+            CPU_SET(cur_cpu, &new_mask);
+            if (sched_setaffinity(0, sizeof(new_mask), &new_mask) != 0) {
+                // fatal: if it fails, lack of TSO will cause crashes
+                return orb_perror("sched_setaffinity");
             }
         }
     }
