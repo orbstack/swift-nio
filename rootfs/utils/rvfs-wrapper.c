@@ -376,22 +376,40 @@ int main(int argc, char **argv) {
         emu = EMU_ROSETTA;
     }
 
-    // add arguments:
-    // Fix Node.js programs hanging
-    // "pnpm install" with large packages.json/pkgs, e.g. TypeScript, locks up with TurboFan JIT
-    // webpack also freezes so it could be anything, really: https://github.com/orbstack/orbstack/issues/390
-    // this is still way faster than qemu without TurboFan, and we still have Sparkplug compiler
-    // --jitless works too but disables expose-wasm and requires Node 12+
     char *node_argv_buf[(exe_argc + 1) + 1];
-    if (!PASSTHROUGH && strcmp(exe_name, "node") == 0) {
-        if (DEBUG) fprintf(stderr, "disabling Node.js TurboFan JIT\n");
+    if (emu == EMU_ROSETTA && !PASSTHROUGH) {
+        // add arguments:
+        // Fix Node.js programs hanging
+        // "pnpm install" with large packages.json/pkgs, e.g. TypeScript, locks up with TurboFan JIT
+        // webpack also freezes so it could be anything, really: https://github.com/orbstack/orbstack/issues/390
+        // this is still way faster than qemu without TurboFan, and we still have Sparkplug compiler
+        // --jitless works too but disables expose-wasm and requires Node 12+
+        if (strcmp(exe_name, "node") == 0) {
+            if (DEBUG) fprintf(stderr, "disabling Node.js TurboFan JIT\n");
 
-        // need to insert an argument
-        node_argv_buf[0] = exe_argv[0];
-        node_argv_buf[1] = "--no-opt";
-        memcpy(&node_argv_buf[2], &exe_argv[1], (exe_argc - 1) * sizeof(char*));
-        node_argv_buf[exe_argc + 1] = NULL;
-        exe_argv = node_argv_buf;
+            // need to insert an argument
+            node_argv_buf[0] = exe_argv[0];
+            node_argv_buf[1] = "--no-opt";
+            memcpy(&node_argv_buf[2], &exe_argv[1], (exe_argc - 1) * sizeof(char*));
+            node_argv_buf[exe_argc + 1] = NULL;
+            exe_argv = node_argv_buf;
+        }
+
+        // workaround for Rosetta not supporting RLIM_INFINITY stack rlimit
+        // https://github.com/orbstack/orbstack/issues/573
+        struct rlimit stack_lim;
+        if (getrlimit(RLIMIT_STACK, &stack_lim) != 0) {
+            return orb_perror("getrlimit");
+        }
+        if (stack_lim.rlim_cur == RLIM_INFINITY && stack_lim.rlim_max == RLIM_INFINITY) {
+            // TODO: a syscall-hook shim would intercept getrlimit instead, so that application sees the correct value?
+            if (DEBUG) fprintf(stderr, "setting stack rlimit to 1 GiB\n");
+            // 1 GiB (virtual memory)
+            stack_lim.rlim_cur = 1024 * 1024 * 1024;
+            if (setrlimit(RLIMIT_STACK, &stack_lim) != 0) {
+                return orb_perror("setrlimit");
+            }
+        }
     }
 
     // resolve to absolute path, if relative
@@ -412,22 +430,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    // workaround for Rosetta not supporting RLIM_INFINITY stack rlimit
-    // https://github.com/orbstack/orbstack/issues/573
-    struct rlimit stack_lim;
-    if (getrlimit(RLIMIT_STACK, &stack_lim) != 0) {
-        return orb_perror("getrlimit");
-    }
-    if (stack_lim.rlim_cur == RLIM_INFINITY && stack_lim.rlim_max == RLIM_INFINITY) {
-        // TODO: a syscall-hook shim would intercept getrlimit instead, so that application sees the correct value?
-        if (DEBUG) fprintf(stderr, "setting stack rlimit to 1 GiB\n");
-        // 1 GiB (virtual memory)
-        stack_lim.rlim_cur = 1024 * 1024 * 1024;
-        if (setrlimit(RLIMIT_STACK, &stack_lim) != 0) {
-            return orb_perror("setrlimit");
-        }
-    }
-
     // set task comm key
     // this indicates to kernel (binfmt_misc) which handler to use
     // do this last to minimize time window with garbage in comm
@@ -443,7 +445,7 @@ int main(int argc, char **argv) {
     //
     // swift-help breaks too: Error: The value '/usr/bin/swift-help' is invalid for '<topic>'
     // TODO: move to userspace ELF loader instead
-    if (emu == EMU_ROSETTA && strncmp(exe_name, "swift", 5) == 0) {
+    if (emu == EMU_ROSETTA && !PASSTHROUGH && strncmp(exe_name, "swift", 5) == 0) {
         rvk_data = rvk3_data;
     }
 
