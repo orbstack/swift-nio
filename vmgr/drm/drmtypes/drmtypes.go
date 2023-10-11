@@ -44,19 +44,18 @@ type Identifiers struct {
 type EntitlementStatus int
 
 const (
-	EntitlementStatusGray EntitlementStatus = iota
-	EntitlementStatusRed
+	EntitlementStatusRed EntitlementStatus = iota
 	EntitlementStatusYellow
 	EntitlementStatusGreen
 )
 
 type JwtClaims struct {
 	// user
-	UserID             string            `json:"sub"`
-	EntitlementTier    EntitlementTier   `json:"ent"`
-	EntitlementType    EntitlementType   `json:"etp"`
-	EntitlementMessage *string           `json:"emg"`
-	EntitlementStatus  EntitlementStatus `json:"est"`
+	UserID             string             `json:"sub"`
+	EntitlementTier    EntitlementTier    `json:"ent"`
+	EntitlementType    EntitlementType    `json:"etp"`
+	EntitlementMessage *string            `json:"emg"`
+	EntitlementStatus  *EntitlementStatus `json:"est"`
 
 	// app
 	AppName    string     `json:"aud"`
@@ -112,7 +111,7 @@ type ClaimInfo struct {
 	EntitlementTier    EntitlementTier
 	EntitlementType    EntitlementType
 	EntitlementMessage *string
-	EntitlementStatus  EntitlementStatus
+	EntitlementStatus  *EntitlementStatus
 }
 
 type Result struct {

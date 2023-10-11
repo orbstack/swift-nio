@@ -34,10 +34,9 @@ enum EntitlementType: Int, Codable {
 }
 
 enum EntitlementStatus: Int, Codable {
-    case gray = 0
-    case red = 1
-    case yellow = 2
-    case green = 3
+    case red = 0
+    case yellow = 1
+    case green = 2
 }
 
 struct DrmState: Codable, Defaults.Serializable {
@@ -131,8 +130,9 @@ struct DrmState: Codable, Defaults.Serializable {
             return .yellow
         case .green:
             return .green
-        case .gray, nil:
-            return .gray
+        case nil:
+            // fallback for version upgrade w/ old token
+            return entitlementTier == .none ? .red : .green
         }
     }
 
