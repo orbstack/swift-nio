@@ -24,6 +24,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sync"
@@ -44,6 +45,16 @@ type timeoutError struct{}
 func (e *timeoutError) Error() string   { return "i/o timeout" }
 func (e *timeoutError) Timeout() bool   { return true }
 func (e *timeoutError) Temporary() bool { return true }
+
+type tcpPanicError struct {
+	err     error
+	epInfo  tcpip.EndpointInfo
+	epStats tcpip.EndpointStats
+}
+
+func (e *tcpPanicError) Error() string {
+	return fmt.Sprintf("tcp panic: %v\nInfo:%+v\nStats:%+v", e.err, e.epInfo, e.epStats)
+}
 
 // A TCPListener is a wrapper around a TCP tcpip.Endpoint that implements
 // net.Listener.
@@ -437,10 +448,17 @@ func (c *TCPConn) Write(b []byte) (int, error) {
 	return nbytes, nil
 }
 
-func (c *TCPConn) tryClose() (err error) {
+func (c *TCPConn) tryClose() (retErr error) {
 	defer func() {
 		if err := recover(); err != nil {
-			err = fmt.Errorf("gtcp: close panic: %v", err)
+			retErr = fmt.Errorf("gtcp: close panic: %v", retErr)
+
+			// record error in sentry
+			sentry.CaptureException(&tcpPanicError{
+				err:     retErr,
+				epInfo:  c.ep.Info(),
+				epStats: c.ep.Stats(),
+			})
 		}
 	}()
 
@@ -448,10 +466,10 @@ func (c *TCPConn) tryClose() (err error) {
 	return
 }
 
-func (c *TCPConn) tryAbort() (err error) {
+func (c *TCPConn) tryAbort() (retErr error) {
 	defer func() {
 		if err := recover(); err != nil {
-			err = fmt.Errorf("gtcp: abort panic: %v", err)
+			retErr = fmt.Errorf("gtcp: abort panic: %v", retErr)
 		}
 	}()
 
