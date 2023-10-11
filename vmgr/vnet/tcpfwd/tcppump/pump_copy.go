@@ -30,11 +30,15 @@ func CopyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err er
 		return wt.WriteTo(dst)
 	}
 	// Similarly, if the writer has a ReadFrom method, use it to do the copy.
+	// MOD: but only if BOTH sides have it. (i.e. both are tcp or unix)
 	if rt, ok := dst.(io.ReaderFrom); ok {
-		return rt.ReadFrom(src)
+		if _, ok := src.(io.ReaderFrom); ok {
+			return rt.ReadFrom(src)
+		}
 	}
 	if buf == nil {
 		// TODO use gvisor view pooling
+		// this is also good to avoid allocating buffer if using ReadFrom
 		buf = make([]byte, defaultBufferSize)
 	}
 	avg := ewma.NewF32(float32(len(buf)), ewmaWeight)
