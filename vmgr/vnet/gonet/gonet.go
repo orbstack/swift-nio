@@ -35,8 +35,7 @@ import (
 )
 
 var (
-	errCanceled   = errors.New("operation canceled")
-	errWouldBlock = errors.New("operation would block")
+	errCanceled = errors.New("operation canceled")
 )
 
 // timeoutError is how the net package reports timeouts.
@@ -184,7 +183,7 @@ func (d *deadlineTimer) setDeadline(cancelCh *chan struct{}, timer **time.Timer,
 		return
 	}
 
-	timeout := t.Sub(time.Now())
+	timeout := time.Until(t)
 	if timeout <= 0 {
 		close(*cancelCh)
 		return
@@ -241,10 +240,6 @@ type TCPConn struct {
 	// If both readMu and deadlineTimer.mu are to be used in a single
 	// request, readMu must be acquired before deadlineTimer.mu.
 	readMu sync.Mutex
-
-	// read contains bytes that have been read from the endpoint,
-	// but haven't yet been returned.
-	read []byte
 }
 
 // NewTCPConn creates a new TCPConn.
