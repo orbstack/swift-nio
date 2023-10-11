@@ -7,7 +7,7 @@ use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::Time
 use futures_util::TryStreamExt;
 use tracing::log::debug;
 
-use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, Timeline, vcontrol, action::SystemAction, rosetta::RSTUB_FLAG_TSO_WORKAROUND};
+use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, Timeline, vcontrol, action::SystemAction};
 use crate::service::{ServiceTracker, Service};
 use tokio::{sync::{Mutex, mpsc::{Sender}}};
 
@@ -599,7 +599,10 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
     Ok(patched)
 }
 
+#[cfg(target_arch = "aarch64")]
 fn prepare_rstub(host_major_version: u32) -> Result<(), Box<dyn Error>> {
+    use crate::rosetta::RSTUB_FLAG_TSO_WORKAROUND;
+
     // copy rstub binary
     fs::copy("/opt/orb/rstub", "/tmp/rstub")?;
     fs::set_permissions("/tmp/rstub", Permissions::from_mode(0o755))?;
