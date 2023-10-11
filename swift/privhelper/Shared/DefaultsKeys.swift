@@ -34,9 +34,10 @@ enum EntitlementType: Int, Codable {
 }
 
 enum EntitlementStatus: Int, Codable {
-    case red = 0
-    case yellow = 1
-    case green = 2
+    case gray = 0
+    case red = 1
+    case yellow = 2
+    case green = 3
 }
 
 struct DrmState: Codable, Defaults.Serializable {
@@ -104,7 +105,6 @@ struct DrmState: Codable, Defaults.Serializable {
     }
 
     var subtitle: String {
-        return "Personal use only\nTrial (30 days)"
         // 1. entitlement message
         if let entitlementMessage {
             return entitlementMessage
@@ -131,7 +131,7 @@ struct DrmState: Codable, Defaults.Serializable {
             return .yellow
         case .green:
             return .green
-        case nil:
+        case .gray, nil:
             return .gray
         }
     }

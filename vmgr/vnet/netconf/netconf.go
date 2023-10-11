@@ -152,3 +152,7 @@ const K8sClusterCIDR6 = "fd07:b51a:cc66:a::/72"
 const K8sServiceCIDR6 = "fd07:b51a:cc66:a:8000::/112"
 const K8sNodeCIDRMaskSize6 = "72"
 const K8sMergedCIDR6 = "fd07:b51a:cc66:a::/64" // remember: macOS can only do /64
+
+// this is a safe assumption. check orb-coredns.yaml
+// it's first services IP (.0) + 10
+const K8sCorednsIP4 = "192.168.194.138"

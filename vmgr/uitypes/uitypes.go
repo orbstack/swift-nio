@@ -61,8 +61,9 @@ type ExitEvent struct {
 }
 
 type DrmState struct {
-	RefreshToken       string                   `json:"refreshToken,omitempty"`
-	EntitlementTier    drmtypes.EntitlementTier `json:"entitlementTier"`
-	EntitlementType    drmtypes.EntitlementType `json:"entitlementType"`
-	EntitlementMessage *string                  `json:"entitlementMessage,omitempty"`
+	RefreshToken       string                     `json:"refreshToken,omitempty"`
+	EntitlementTier    drmtypes.EntitlementTier   `json:"entitlementTier"`
+	EntitlementType    drmtypes.EntitlementType   `json:"entitlementType"`
+	EntitlementMessage *string                    `json:"entitlementMessage,omitempty"`
+	EntitlementStatus  drmtypes.EntitlementStatus `json:"entitlementStatus"`
 }

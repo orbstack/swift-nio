@@ -137,6 +137,7 @@ func (v *Verifier) Verify(token string, params TokenVerifyParams) (*drmtypes.Cla
 		EntitlementTier:    drmtypes.EntitlementTier(claims.EntitlementTier),
 		EntitlementType:    drmtypes.EntitlementType(claims.EntitlementType),
 		EntitlementMessage: claims.EntitlementMessage,
+		EntitlementStatus:  claims.EntitlementStatus,
 	}, nil
 }
 

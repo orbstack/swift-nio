@@ -611,6 +611,7 @@ func (c *DrmClient) generateUIStateLocked() *uitypes.DrmState {
 		state.EntitlementTier = claims.EntitlementTier
 		state.EntitlementType = claims.EntitlementType
 		state.EntitlementMessage = claims.EntitlementMessage
+		state.EntitlementStatus = claims.EntitlementStatus
 	}
 
 	return state
