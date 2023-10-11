@@ -132,7 +132,8 @@ struct DrmState: Codable, Defaults.Serializable {
             return .green
         case nil:
             // fallback for version upgrade w/ old token
-            return entitlementTier == .none ? .red : .green
+            return entitlementType == .trial ? .yellow :
+                    (entitlementTier == .none ? .red : .green)
         }
     }
 
