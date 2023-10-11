@@ -1,4 +1,4 @@
-package tcpfwd
+package tcppump
 
 import (
 	"fmt"
@@ -7,13 +7,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type FullDuplexConn interface {
-	net.Conn
-	CloseRead() error
-	CloseWrite() error
-}
-
-func pump1(errc chan<- error, src, dst FullDuplexConn) {
+// monomorphized copy of pump.go
+func pump1SpTcpTcp(errc chan<- error, src *net.TCPConn, dst *net.TCPConn) {
 	// Workaround for NFS panic
 	defer func() {
 		if err := recover(); err != nil {
@@ -21,20 +16,19 @@ func pump1(errc chan<- error, src, dst FullDuplexConn) {
 		}
 	}()
 
-	_, err := pumpCopyBuffer(dst, src, nil)
+	_, err := CopyBuffer(dst, src, nil)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
-	// this is useless, doesn't send anything, but it's a good precaution
 	src.CloseRead()
 
 	errc <- err
 }
 
-func pump2(c1, c2 FullDuplexConn) {
+func Pump2SpTcpTcp(c1 *net.TCPConn, c2 *net.TCPConn) {
 	errChan := make(chan error, 2)
-	go pump1(errChan, c1, c2)
-	go pump1(errChan, c2, c1)
+	go pump1SpTcpTcp(errChan, c1, c2)
+	go pump1SpTcpTcp(errChan, c2, c1)
 
 	// Don't wait for both if one side failed (not EOF)
 	if err1 := <-errChan; err1 != nil {

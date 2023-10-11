@@ -11,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/icmpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -151,7 +152,7 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 			pump2SpTcpGv(extTcpConn, virtConn)
 		} else {
 			// generic (proxy case / TLS)
-			pump2(extConn, virtConn)
+			tcppump.Pump2(extConn, virtConn)
 		}
 	}), proxyMgr
 }

@@ -14,12 +14,12 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 )
 
@@ -130,8 +130,7 @@ Expect: 100-continue
 	}
 
 	// splice chunked data
-	buf := make([]byte, tcpfwd.BufferSize)
-	io.CopyBuffer(localConn, remoteConn, buf)
+	tcppump.CopyBuffer(localConn, remoteConn, nil)
 
 	// read response
 	localResp2, err := http.ReadResponse(bufio.NewReader(localConn), nil)

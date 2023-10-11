@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,7 +19,7 @@ func pump1SpUnixGv(errc chan<- error, src *net.UnixConn, dst *gonet.TCPConn) {
 		}
 	}()
 
-	_, err := pumpCopyBuffer(dst, src, nil)
+	_, err := tcppump.CopyBuffer(dst, src, nil)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
@@ -29,7 +30,7 @@ func pump1SpUnixGv(errc chan<- error, src *net.UnixConn, dst *gonet.TCPConn) {
 
 func copyViewBufferGvUnix(dst *net.UnixConn, src *gonet.TCPConn, vw *gonet.ViewWriter) (written int64, err error) {
 	for {
-		vw.Reset(zeroCopyGvBufferSize)
+		vw.Reset(tcppump.ZeroCopyGvBufferSize)
 		_nr, er := src.ReadViews(vw)
 		nr := int64(_nr)
 		if nr > 0 {
@@ -38,7 +39,7 @@ func copyViewBufferGvUnix(dst *net.UnixConn, src *gonet.TCPConn, vw *gonet.ViewW
 			if nw < 0 || nr < nw {
 				nw = 0
 				if ew == nil {
-					ew = errInvalidWrite
+					ew = tcppump.ErrInvalidWrite
 				}
 			}
 			written += int64(nw)

@@ -1,15 +1,10 @@
-package tcpfwd
+package tcppump
 
 import (
-	"io"
+	"fmt"
 	"net"
 
 	"github.com/sirupsen/logrus"
-)
-
-const (
-	//TODO
-	BufferSize = 256 * 1024
 )
 
 type FullDuplexConn interface {
@@ -18,15 +13,22 @@ type FullDuplexConn interface {
 	CloseWrite() error
 }
 
-func pump1(errC chan<- error, src, dst FullDuplexConn) {
-	buf := make([]byte, BufferSize)
-	_, err := io.CopyBuffer(dst, src, buf)
+func pump1(errc chan<- error, src, dst FullDuplexConn) {
+	// Workaround for NFS panic
+	defer func() {
+		if err := recover(); err != nil {
+			errc <- fmt.Errorf("tcp pump1: panic: %v", err)
+		}
+	}()
+
+	_, err := CopyBuffer(dst, src, nil)
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
+	// this is useless, doesn't send anything, but it's a good precaution
 	src.CloseRead()
 
-	errC <- err
+	errc <- err
 }
 
 func Pump2(c1, c2 FullDuplexConn) {

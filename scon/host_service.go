@@ -3,10 +3,10 @@ package main
 import (
 	"net"
 
-	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 )
 
 type HostServiceProxy struct {
@@ -53,7 +53,7 @@ func (p *HostServiceProxy) Serve() error {
 			}
 			defer extConn.Close()
 
-			tcpfwd.Pump2SpTcpUnix(extConn, conn.(*net.UnixConn))
+			tcppump.Pump2SpTcpUnix(extConn, conn.(*net.UnixConn))
 		}(conn)
 	}
 }

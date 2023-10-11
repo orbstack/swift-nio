@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy"
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy/socks"
 	dnssrv "github.com/orbstack/macvirt/vmgr/vnet/services/dns"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -388,7 +389,7 @@ func (p *ProxyManager) Refresh() error {
 	return nil
 }
 
-func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, port int, tcpipAddr tcpip.Address) (FullDuplexConn, error) {
+func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, port int, tcpipAddr tcpip.Address) (tcppump.FullDuplexConn, error) {
 	var dialer proxy.ContextDialer
 	// skip everything if not eligible for proxying
 	if p.isProxyEligibleIPPost(tcpipAddr) {
@@ -451,7 +452,7 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 	return conn.(*net.TCPConn), nil
 }
 
-func (p *ProxyManager) DialForward(localAddress tcpip.Address, extPort int) (FullDuplexConn, string, error) {
+func (p *ProxyManager) DialForward(localAddress tcpip.Address, extPort int) (tcppump.FullDuplexConn, string, error) {
 	// host NAT: try dial preferred v4/v6 first, then fall back to the other one
 	var altHostIP tcpip.Address
 	if localAddress == p.hostNatIP4 {

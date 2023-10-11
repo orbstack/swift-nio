@@ -1,9 +1,14 @@
-package tcpfwd
+package tcppump
 
 import (
+	"errors"
 	"io"
 
 	"github.com/orbstack/macvirt/vmgr/util/ewma"
+)
+
+var (
+	ErrInvalidWrite = errors.New("invalid write result")
 )
 
 const (
@@ -11,14 +16,14 @@ const (
 	maxBufferSize     = 2 * 1024 * 1024 // 2 MiB
 	defaultBufferSize = 65536
 
-	zeroCopyGvBufferSize = 1 * 1024 * 1024 // 1 MiB
+	ZeroCopyGvBufferSize = 1 * 1024 * 1024 // 1 MiB
 
 	ewmaWeight = 1.0 / 128.0
 )
 
 // io.CopyBuffer with ewma
 // TODO: study generics, gcshape stenciling, dictionaries. does this get devirtualized? do we need monomorphized copies?
-func pumpCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err error) {
+func CopyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err error) {
 	// If the reader has a WriteTo method, use it to do the copy.
 	// Avoids an allocation and a copy.
 	if wt, ok := src.(io.WriterTo); ok {
@@ -41,7 +46,7 @@ func pumpCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, er
 			if nw < 0 || nr < nw {
 				nw = 0
 				if ew == nil {
-					ew = errInvalidWrite
+					ew = ErrInvalidWrite
 				}
 			}
 			written += int64(nw)

@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -141,7 +141,7 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 		defer realConn.Close()
 
 		// proxy data
-		tcpfwd.Pump2(conn, realConn.(*net.UnixConn))
+		tcppump.Pump2SshAgent(conn, realConn.(*net.UnixConn))
 		return nil
 	})
 }

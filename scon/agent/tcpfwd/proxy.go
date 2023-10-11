@@ -5,6 +5,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/agent/registry"
 	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 )
 
@@ -96,7 +97,7 @@ func (p *TCPProxy) handleConn(conn net.Conn) {
 	// set TCP_NODELAY for localhost
 	dialConn.SetNoDelay(true)
 
-	Pump2SpTcpTcp(conn.(*net.TCPConn), dialConn)
+	tcppump.Pump2SpTcpTcp(conn.(*net.TCPConn), dialConn)
 }
 
 func (p *TCPProxy) Close() error {

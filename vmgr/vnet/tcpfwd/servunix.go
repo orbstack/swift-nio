@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -70,7 +71,7 @@ func (f *UnixNATForward) handleConn(conn net.Conn) {
 	defer unixConn.Close()
 
 	if f.isSshAgent {
-		pump2SshAgent(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
+		tcppump.Pump2SshAgent(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
 	} else {
 		pump2SpUnixGv(unixConn.(*net.UnixConn), conn.(*gonet.TCPConn))
 	}

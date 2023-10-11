@@ -5,15 +5,16 @@ import (
 	"net"
 	"time"
 
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 )
 
 type InstrumentedConn struct {
 	tag string
-	FullDuplexConn
+	tcppump.FullDuplexConn
 }
 
-func NewInstrumentedConn(tag string, c FullDuplexConn) FullDuplexConn {
+func NewInstrumentedConn(tag string, c tcppump.FullDuplexConn) tcppump.FullDuplexConn {
 	return &InstrumentedConn{
 		tag:            tag,
 		FullDuplexConn: c,

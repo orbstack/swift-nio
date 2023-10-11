@@ -1,4 +1,4 @@
-package tcpfwd
+package tcppump
 
 import (
 	"encoding/binary"
@@ -53,7 +53,7 @@ func pump1SshAgent(errc chan<- error, src, dst FullDuplexConn) {
 	errc <- err
 }
 
-func pump2SshAgent(c1, c2 FullDuplexConn) {
+func Pump2SshAgent(c1, c2 FullDuplexConn) {
 	errChan := make(chan error, 2)
 	go pump1SshAgent(errChan, c1, c2)
 	go pump1SshAgent(errChan, c2, c1)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/sockets"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 )
 
@@ -124,11 +125,11 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 	// specialized fast paths
 	virtUnixConn := virtConn.(*net.UnixConn)
 	if hostTcpConn, ok := conn.(*net.TCPConn); ok {
-		pump2SpTcpUnix(hostTcpConn, virtUnixConn)
+		tcppump.Pump2SpTcpUnix(hostTcpConn, virtUnixConn)
 	} else if hostUnixConn, ok := conn.(*net.UnixConn); ok {
-		pump2SpUnixUnix(hostUnixConn, virtUnixConn)
+		tcppump.Pump2SpUnixUnix(hostUnixConn, virtUnixConn)
 	} else {
-		pump2(conn.(FullDuplexConn), virtUnixConn)
+		tcppump.Pump2(conn.(tcppump.FullDuplexConn), virtUnixConn)
 	}
 }
 
