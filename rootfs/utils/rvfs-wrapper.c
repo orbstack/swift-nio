@@ -31,7 +31,7 @@ static const char rvk2_data[16] = "\x20\xc2\xdc\x2b\xc5\x1f\xfe\x6b\x73\x73\x96\
 static const char rvk3_data[16] = "\x41\xba\x68\x70\x7c\x66\x31\xec\x80\xe3\x2a\x30\x31\x3b\xd4\x00";
 
 // config variables
-#define FLAG_BROKEN_TSO (1 << 0)
+#define RSTUB_FLAG_TSO_WORKAROUND (1 << 0)
 __attribute__((section(".c0")))
 const volatile uint32_t config_flags = 0;
 
@@ -421,7 +421,7 @@ int main(int argc, char **argv) {
         // workaround: macOS 14.0 (23A344) is missing TSO
         // limit rosetta processes to 1 cpu
         // TODO: check and respect existing mask if multiple cpus are in it. if only 1, then pick a new cpu (likely inherited from other rosetta).
-        if (config_flags & FLAG_BROKEN_TSO) {
+        if (config_flags & RSTUB_FLAG_TSO_WORKAROUND) {
             // seed rng
             struct timespec ts;
             if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {

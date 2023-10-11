@@ -1,12 +1,13 @@
-use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instant, Duration}, os::{unix::{prelude::PermissionsExt, fs::chroot}}, process::{Command, Stdio}, io::{Write}, net::UdpSocket, sync::Arc};
+use std::{env, error::Error, fs::{self, Permissions, OpenOptions, File}, time::{Instant, Duration}, os::{unix::{prelude::{PermissionsExt, FileExt}, fs::chroot}}, process::{Command, Stdio}, io::{Write}, net::UdpSocket, sync::Arc};
 
+use elf::{ElfBytes, endian::{LittleEndian, NativeEndian}, ElfStream};
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link, FR_ACT_TO_TBL};
 use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags}, unistd::{sethostname}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId, clock_gettime}};
 use futures_util::TryStreamExt;
 use tracing::log::debug;
 
-use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, Timeline, vcontrol, action::SystemAction};
+use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, Timeline, vcontrol, action::SystemAction, rosetta::RSTUB_FLAG_TSO_WORKAROUND};
 use crate::service::{ServiceTracker, Service};
 use tokio::{sync::{Mutex, mpsc::{Sender}}};
 
@@ -598,6 +599,34 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
     Ok(patched)
 }
 
+fn prepare_rstub(host_major_version: u32) -> Result<(), Box<dyn Error>> {
+    // copy rstub binary
+    fs::copy("/opt/orb/rstub", "/tmp/rstub")?;
+    fs::set_permissions("/tmp/rstub", Permissions::from_mode(0o755))?;
+
+    // parse elf
+    let file = OpenOptions::new().read(true).write(true).open("/tmp/rstub")?;
+    let mut elf = ElfStream::<NativeEndian, _>::open_stream(&file)?;
+
+    // get config block
+    let shdr = elf.section_header_by_name(".c0")?
+        .ok_or(InitError::InvalidElf)?;
+    // get offset in file
+    let cfg_offset = shdr.sh_offset;
+
+    // create config
+    let mut flags = 0u32;
+    if host_major_version == 14 {
+        // macOS 14 has broken TSO
+        flags |= RSTUB_FLAG_TSO_WORKAROUND;
+    }
+
+    // write 32-bit config flags to section
+    file.write_all_at(&flags.to_le_bytes(), cfg_offset)?;
+
+    Ok(())
+}
+
 #[cfg(target_arch = "aarch64")]
 fn setup_arch_emulators_early() -> Result<(), Box<dyn Error>> {
     // install a dummy to prevent the native architecture from being emulated
@@ -632,6 +661,9 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         if patched || host_major_version >= 14 {
             rosetta_flags += "P"
         }
+
+        // prepare rosetta wrapper
+        prepare_rstub(host_major_version).unwrap();
 
         // if we're using Rosetta, we'll do it through the RVFS wrapper.
         // add flag to register qemu-x86_64 as a hidden handler that the RVFS wrapper can use, via comm=rvk2

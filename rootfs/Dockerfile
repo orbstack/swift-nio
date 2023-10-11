@@ -395,7 +395,7 @@ mkdir /mnt/rosetta
 mkdir /mnt/rv
 
 # binfmt vanity links
-ln -s /opt/orb/rstub '[rosetta]' # (real rosetta is in rvfs)
+ln -s /tmp/rstub '[rosetta]' # (real rosetta is in rvfs)
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
 ln -s /opt/orb/qemu-arm '[qemu-arm32]'

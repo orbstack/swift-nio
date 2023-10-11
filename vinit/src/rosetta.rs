@@ -6,6 +6,8 @@ const KRPC_IOC: u8 = 0xDA;
 const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orb\x00rosetta\x00fp";
 const ROSETTA_BUFFER: usize = 524288;
 
+pub const RSTUB_FLAG_TSO_WORKAROUND: u32 = 1 << 0;
+
 #[derive(thiserror::Error, Debug)]
 pub enum RosettaError {
     #[error("unknown build: {}", .0)]

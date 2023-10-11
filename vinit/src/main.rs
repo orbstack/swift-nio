@@ -50,6 +50,8 @@ pub enum InitError {
     SpawnService { service: Service, #[source] error: std::io::Error },
     #[error("missing data partition: {}", .0)]
     MissingDataPartition(Box<dyn Error>),
+    #[error("invalid elf")]
+    InvalidElf,
 }
 
 #[derive(Clone)]
