@@ -649,10 +649,10 @@ func (c *DrmClient) fetchNewEntitlement() (*drmtypes.EntitlementResponse, error)
 		return nil, err
 	}
 
-	resp, err := c.http.Post(c.apiBaseURL+"/api/v1/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
+	resp, err := c.http.Post(c.apiBaseURL+"/api/v2/drm/entitlement", "application/json", bytes.NewReader(reqBytes))
 	if err != nil {
 		// hide the path part of the URL
-		return nil, errors.New(strings.Replace(err.Error(), "/api/v1/drm/entitlement", "/...", 1))
+		return nil, errors.New(strings.Replace(err.Error(), "/api/v2/drm/entitlement", "/...", 1))
 	}
 	defer resp.Body.Close()
 
