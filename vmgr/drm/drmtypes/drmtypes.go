@@ -33,6 +33,7 @@ const (
 	EntitlementTypeNone EntitlementType = iota
 	EntitlementTypeSubMonthly
 	EntitlementTypeSubYearly
+	EntitlementTypeTrial
 )
 
 type Identifiers struct {
@@ -159,4 +160,8 @@ type StartAppAuthResponse struct {
 
 type WaitAppAuthResponse struct {
 	RefreshToken string `json:"refresh_token"`
+}
+
+type FinishAppAuthResponse struct {
+	AppToken string `json:"appToken"`
 }
