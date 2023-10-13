@@ -100,11 +100,8 @@ func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 		return false
 	}
 
-	if *result.ClaimInfo != *claimInfo {
-		dlog("fail: claim info mismatch")
-		return false
-	}
-
+	// update the claim info that we save
+	result.ClaimInfo = claimInfo
 	m.lastResult = result
 	dlog("dispatch: ok", m.lastResult)
 	return true
