@@ -100,7 +100,7 @@ private struct UserSwitcherButton: View {
                     let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
 
                     Circle()
-                    .fill(drmState.statusDotColor.opacity(0.75))
+                    .fill(drmState.statusDotColor.opacity(0.85))
                     .frame(width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius))
                     .position(x: CGFloat(x), y: CGFloat(y))
                 }
