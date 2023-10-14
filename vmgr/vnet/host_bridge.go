@@ -1,17 +1,13 @@
 package vnet
 
 import (
-	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net"
 	"net/netip"
-	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
-	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -19,8 +15,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
-
-const vmnetTimeout = 12 * time.Second
 
 const (
 	brIndexSconMachine = iota
@@ -43,30 +37,6 @@ func init() {
 	brMacSconHost = mustParseUint16Mac(netconf.HostMACSconBridge)
 	brMacSconGuest = mustParseUint16Mac(netconf.GuestMACSconBridge)
 	brMacVlanRouterTemplate = mustParseUint16Mac(netconf.VlanRouterMACTemplate)
-}
-
-type createBridgeError struct {
-	cause error
-}
-
-func (e createBridgeError) Error() string {
-	return "create bridge: " + e.cause.Error()
-}
-
-func (e createBridgeError) Unwrap() error {
-	return e.cause
-}
-
-type closeBridgeError struct {
-	cause error
-}
-
-func (e closeBridgeError) Error() string {
-	return "close bridge: " + e.cause.Error()
-}
-
-func (e closeBridgeError) Unwrap() error {
-	return e.cause
 }
 
 func mustParseUint16Mac(mac string) []uint16 {
@@ -124,36 +94,27 @@ func (n *Network) AddHostBridgeFd(fd int) error {
 }
 
 func (n *Network) ClearVlanBridges(includeScon bool) error {
-	// wrap the entire thing in WithTimeout for consistency
-	// otherwise we could end up with swift/go state mismatch, since Swift part will keep running and finish clearing eventually
-	// so just let it deadlock hostBridgeMu but don't block caller indefinitely
-	err := util.WithTimeout1(func() error {
-		n.hostBridgeMu.Lock()
-		defer n.hostBridgeMu.Unlock()
+	n.hostBridgeMu.Lock()
+	defer n.hostBridgeMu.Unlock()
 
-		// clear first to prevent feedback loop
-		logrus.Debug("clearing vlan bridges")
-		n.bridgeRouteMon.ClearVlanSubnets()
+	// clear first to prevent feedback loop
+	logrus.Debug("clearing vlan bridges")
+	n.bridgeRouteMon.ClearVlanSubnets()
 
-		err := n.vlanRouter.ClearBridges()
+	err := n.vlanRouter.ClearBridges()
+	if err != nil {
+		return err
+	}
+
+	if includeScon {
+		err = n.closeSconMachineHostBridgeLocked()
 		if err != nil {
 			return err
 		}
-
-		if includeScon {
-			err = n.closeSconMachineHostBridgeLocked()
-			if err != nil {
-				return err
-			}
-		}
-
-		n.vlanIndices = make(map[sgtypes.DockerBridgeConfig]int)
-		return nil
-	}, vmnetTimeout)
-	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		sentry.CaptureException(&closeBridgeError{cause: fmt.Errorf("[virt][A] %w", err)})
 	}
-	return err
+
+	n.vlanIndices = make(map[sgtypes.DockerBridgeConfig]int)
+	return nil
 }
 
 func (n *Network) enableHostBridges() error {
@@ -203,139 +164,122 @@ func (n *Network) MonitorHostBridgeSetting() {
 }
 
 func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) {
-	ret, err := util.WithTimeout2(func() (int, error) {
+	n.hostBridgeMu.Lock()
+	defer n.hostBridgeMu.Unlock()
+
+	// strip interface name so we can use it as a key for ip4/ip6 subnets
+	config.GuestInterfaceName = ""
+
+	if _, ok := n.vlanIndices[config]; ok {
+		return 0, fmt.Errorf("bridge already exists for config %+v", config)
+	}
+
+	if !vmconfig.Get().NetworkBridge {
+		return 0, fmt.Errorf("bridges disabled")
+	}
+
+	vmnetConfig := vzf.BridgeNetworkConfig{
+		GuestFd:         n.hostBridgeFds[brIndexVlanRouter],
+		ShouldReadGuest: false, // handled by vlan router
+
+		UUID: deriveBridgeConfigUuid(config),
+		// this is a template. updated by VlanRouter when it gets index
+		HostOverrideMAC: brMacVlanRouterTemplate,
+		GuestMAC:        brMacVlanRouterTemplate,
+		// doesn't work well
+		AllowMulticast: false,
+
+		MaxLinkMTU: int(n.LinkMTU),
+	}
+
+	if config.IP4Subnet.IsValid() {
+		hostIP := config.HostIP4()
+		vmnetConfig.Ip4Address = hostIP.IP.String()
+		vmnetConfig.Ip4Mask = net.IP(hostIP.Mask).String()
+	}
+
+	if config.IP6Subnet.IsValid() {
+		// macOS mask is always /64. we check this on docker side too
+		hostIP := config.HostIP6()
+		vmnetConfig.Ip6Address = hostIP.IP.String()
+		// NDP proxy
+		vmnetConfig.NDPReplyPrefix = slicePrefix6(config.IP6Subnet)
+	}
+
+	// if addr part of the prefix == 0, then macOS will add RTF_GLOBAL to the routing entry
+	// since we skip RTF_GLOBAL, it creates an infinite loop.
+	// to be more conservative, exclude all 0.0.0.0/8. they don't work anyway on macOS; only Linux allows them
+	if zeroNetIPv4.Contains(config.IP4Subnet.Addr()) {
+		return 0, fmt.Errorf("0.0.0.0/8 not allowed on macOS: %s", config.IP4Subnet)
+	}
+	// for IPv6, just check for all zeros like macOS
+	if config.IP6Subnet.Addr().IsUnspecified() {
+		return 0, fmt.Errorf("'::' route not allowed on macOS: %s", config.IP6Subnet)
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"uuid":    vmnetConfig.UUID,
+		"ip4":     vmnetConfig.Ip4Address,
+		"ip4mask": vmnetConfig.Ip4Mask,
+		"ip6":     vmnetConfig.Ip6Address,
+		"mac":     vmnetConfig.HostOverrideMAC,
+	}).Debug("adding vlan bridge")
+
+	// before actually adding the bridge, let's check for an existing VPN/LAN route.
+	// if so, let's not fight with it, just effectively disable our bridge
+	hasRoutes, err := bridge.HasAnyValidRoutes(nil, config.IP4Subnet, config.IP6Subnet)
+	if err != nil {
+		return 0, fmt.Errorf("check routes: %w", err)
+	}
+	if hasRoutes {
+		return 0, errors.New("conflict with existing route")
+	}
+
+	index, err := n.vlanRouter.AddBridge(vmnetConfig)
+	if err != nil {
+		return 0, err
+	}
+
+	// monitor route and renew when overridden
+	n.bridgeRouteMon.SetSubnet(index, config.IP4Subnet, config.IP6Subnet, func() error {
 		n.hostBridgeMu.Lock()
 		defer n.hostBridgeMu.Unlock()
 
-		// strip interface name so we can use it as a key for ip4/ip6 subnets
-		config.GuestInterfaceName = ""
-
-		if _, ok := n.vlanIndices[config]; ok {
-			return 0, fmt.Errorf("bridge already exists for config %+v", config)
-		}
-
-		if !vmconfig.Get().NetworkBridge {
-			return 0, fmt.Errorf("bridges disabled")
-		}
-
-		vmnetConfig := vzf.BridgeNetworkConfig{
-			GuestFd:         n.hostBridgeFds[brIndexVlanRouter],
-			ShouldReadGuest: false, // handled by vlan router
-
-			UUID: deriveBridgeConfigUuid(config),
-			// this is a template. updated by VlanRouter when it gets index
-			HostOverrideMAC: brMacVlanRouterTemplate,
-			GuestMAC:        brMacVlanRouterTemplate,
-			// doesn't work well
-			AllowMulticast: false,
-
-			MaxLinkMTU: int(n.LinkMTU),
-		}
-
-		if config.IP4Subnet.IsValid() {
-			hostIP := config.HostIP4()
-			vmnetConfig.Ip4Address = hostIP.IP.String()
-			vmnetConfig.Ip4Mask = net.IP(hostIP.Mask).String()
-		}
-
-		if config.IP6Subnet.IsValid() {
-			// macOS mask is always /64. we check this on docker side too
-			hostIP := config.HostIP6()
-			vmnetConfig.Ip6Address = hostIP.IP.String()
-			// NDP proxy
-			vmnetConfig.NDPReplyPrefix = slicePrefix6(config.IP6Subnet)
-		}
-
-		// if addr part of the prefix == 0, then macOS will add RTF_GLOBAL to the routing entry
-		// since we skip RTF_GLOBAL, it creates an infinite loop.
-		// to be more conservative, exclude all 0.0.0.0/8. they don't work anyway on macOS; only Linux allows them
-		if zeroNetIPv4.Contains(config.IP4Subnet.Addr()) {
-			return 0, fmt.Errorf("0.0.0.0/8 not allowed on macOS: %s", config.IP4Subnet)
-		}
-		// for IPv6, just check for all zeros like macOS
-		if config.IP6Subnet.Addr().IsUnspecified() {
-			return 0, fmt.Errorf("'::' route not allowed on macOS: %s", config.IP6Subnet)
-		}
-
-		logrus.WithFields(logrus.Fields{
-			"uuid":    vmnetConfig.UUID,
-			"ip4":     vmnetConfig.Ip4Address,
-			"ip4mask": vmnetConfig.Ip4Mask,
-			"ip6":     vmnetConfig.Ip6Address,
-			"mac":     vmnetConfig.HostOverrideMAC,
-		}).Debug("adding vlan bridge")
-
-		// before actually adding the bridge, let's check for an existing VPN/LAN route.
-		// if so, let's not fight with it, just effectively disable our bridge
-		hasRoutes, err := bridge.HasAnyValidRoutes(nil, config.IP4Subnet, config.IP6Subnet)
+		logrus.WithField("config", config).Debug("renewing vlan bridge")
+		err := n.vlanRouter.RenewBridge(index)
 		if err != nil {
-			return 0, fmt.Errorf("check routes: %w", err)
-		}
-		if hasRoutes {
-			return 0, errors.New("conflict with existing route")
+			return err
 		}
 
-		index, err := n.vlanRouter.AddBridge(vmnetConfig)
-		if err != nil {
-			return 0, err
-		}
+		return nil
+	})
 
-		// monitor route and renew when overridden
-		n.bridgeRouteMon.SetSubnet(index, config.IP4Subnet, config.IP6Subnet, func() error {
-			n.hostBridgeMu.Lock()
-			defer n.hostBridgeMu.Unlock()
-
-			logrus.WithField("config", config).Debug("renewing vlan bridge")
-			err := util.WithTimeout1(func() error {
-				return n.vlanRouter.RenewBridge(index)
-			}, vmnetTimeout)
-			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					sentry.CaptureException(&closeBridgeError{cause: fmt.Errorf("[virt][R] %w", err)})
-				}
-				return err
-			}
-
-			return nil
-		})
-
-		n.vlanIndices[config] = index
-		return index, nil
-	}, vmnetTimeout)
-	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		sentry.CaptureException(&createBridgeError{cause: fmt.Errorf("[virt] %w", err)})
-	}
-	return ret, err
+	n.vlanIndices[config] = index
+	return index, nil
 }
 
 func (n *Network) RemoveVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) {
-	ret, err := util.WithTimeout2(func() (int, error) {
-		n.hostBridgeMu.Lock()
-		defer n.hostBridgeMu.Unlock()
+	n.hostBridgeMu.Lock()
+	defer n.hostBridgeMu.Unlock()
 
-		// strip interface name so we can use it as a key for ip4/ip6 subnets
-		config.GuestInterfaceName = ""
+	// strip interface name so we can use it as a key for ip4/ip6 subnets
+	config.GuestInterfaceName = ""
 
-		index, ok := n.vlanIndices[config]
-		if !ok {
-			return 0, fmt.Errorf("bridge does not exist for config %+v", config)
-		}
-
-		n.bridgeRouteMon.ClearSubnet(index)
-
-		logrus.WithField("config", config).Debug("removing vlan bridge")
-		err := n.vlanRouter.RemoveBridge(index)
-		if err != nil {
-			return 0, err
-		}
-
-		delete(n.vlanIndices, config)
-		return index, nil
-	}, vmnetTimeout)
-	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		sentry.CaptureException(&closeBridgeError{cause: fmt.Errorf("[virt] %w", err)})
+	index, ok := n.vlanIndices[config]
+	if !ok {
+		return 0, fmt.Errorf("bridge does not exist for config %+v", config)
 	}
-	return ret, err
+
+	n.bridgeRouteMon.ClearSubnet(index)
+
+	logrus.WithField("config", config).Debug("removing vlan bridge")
+	err := n.vlanRouter.RemoveBridge(index)
+	if err != nil {
+		return 0, err
+	}
+
+	delete(n.vlanIndices, config)
+	return index, nil
 }
 
 func deriveBridgeConfigUuid(config sgtypes.DockerBridgeConfig) string {
@@ -347,88 +291,81 @@ func deriveBridgeConfigUuid(config sgtypes.DockerBridgeConfig) string {
 }
 
 func (n *Network) CreateSconMachineHostBridge() error {
-	// can hang due to an unknown deadlock OR hang on vmnet side
-	err := util.WithTimeout1(func() error {
-		n.hostBridgeMu.Lock()
-		defer n.hostBridgeMu.Unlock()
+	n.hostBridgeMu.Lock()
+	defer n.hostBridgeMu.Unlock()
 
-		// recreate if needed
-		oldBrnet := n.hostBridges[brIndexSconMachine]
-		if oldBrnet != nil {
-			logrus.Debug("renewing scon machine host bridge")
-			oldBrnet.Close()
-		} else {
-			logrus.Debug("creating scon machine host bridge")
+	// recreate if needed
+	oldBrnet := n.hostBridges[brIndexSconMachine]
+	if oldBrnet != nil {
+		logrus.Debug("renewing scon machine host bridge")
+		oldBrnet.Close()
+	} else {
+		logrus.Debug("creating scon machine host bridge")
 
-			// first time, so add to route monitor - either after adding (if OK), or after error (if not OK)
-			// if sucessful, then we don't want to add it until creation done, to avoid feedback loop
-			prefix4 := netip.MustParsePrefix(netconf.SconSubnet4CIDR)
-			prefix6 := netip.MustParsePrefix(netconf.SconSubnet6CIDR)
-			defer n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, prefix4, prefix6, func() error {
-				return n.CreateSconMachineHostBridge()
-			})
+		// first time, so add to route monitor - either after adding (if OK), or after error (if not OK)
+		// if sucessful, then we don't want to add it until creation done, to avoid feedback loop
+		prefix4 := netip.MustParsePrefix(netconf.SconSubnet4CIDR)
+		prefix6 := netip.MustParsePrefix(netconf.SconSubnet6CIDR)
+		defer n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, prefix4, prefix6, func() error {
+			return n.CreateSconMachineHostBridge()
+		})
 
-			// if this is the first time, check if there's an existing VPN or LAN route.
-			// if so, let's not fight with it, just effectively disable our bridge
-			hasRoutes, err := bridge.HasAnyValidRoutes(nil, prefix4, prefix6)
+		// if this is the first time, check if there's an existing VPN or LAN route.
+		// if so, let's not fight with it, just effectively disable our bridge
+		hasRoutes, err := bridge.HasAnyValidRoutes(nil, prefix4, prefix6)
+		if err != nil {
+			return fmt.Errorf("check routes: %w", err)
+		}
+		if hasRoutes {
+			// there's a conflict. can we get away with v6 only?
+			hasRoutes, err := bridge.HasAnyValidRoutes(nil, netip.Prefix{}, prefix6)
 			if err != nil {
-				return fmt.Errorf("check routes: %w", err)
+				return fmt.Errorf("check routes (v6): %w", err)
 			}
 			if hasRoutes {
-				// there's a conflict. can we get away with v6 only?
-				hasRoutes, err := bridge.HasAnyValidRoutes(nil, netip.Prefix{}, prefix6)
-				if err != nil {
-					return fmt.Errorf("check routes (v6): %w", err)
-				}
-				if hasRoutes {
-					return errors.New("conflict with existing route")
-				}
-
-				// v4 conflicts but v6 doesn't. let's just use v6
-				// as persistent flag to avoid breaking stuff later if they restart VPN
-				// usually this is only Surge/v2ray anyway
-				n.disableMachineBridgeV4 = true
+				return errors.New("conflict with existing route")
 			}
 
-			// we still register the subnet monitor via defer,
-			// so we'll try again later if the VPN is turned off
+			// v4 conflicts but v6 doesn't. let's just use v6
+			// as persistent flag to avoid breaking stuff later if they restart VPN
+			// usually this is only Surge/v2ray anyway
+			n.disableMachineBridgeV4 = true
 		}
 
-		config := vzf.BridgeNetworkConfig{
-			GuestFd:         n.hostBridgeFds[brIndexSconMachine],
-			ShouldReadGuest: true,
-
-			UUID:       brUuidSconMachine,
-			Ip4Address: netconf.SconHostBridgeIP4,
-			Ip4Mask:    netconf.SconSubnet4Mask,
-			Ip6Address: netconf.SconHostBridgeIP6,
-
-			HostOverrideMAC: brMacSconHost,
-			// scon machine bridge doesn't use ip forward/proxy arp - it bridges machines directly
-			// so this is just the VM's MAC for NDP responder use
-			GuestMAC:       brMacSconGuest,
-			NDPReplyPrefix: slicePrefix6(nat64Subnet),
-			// for .local names
-			AllowMulticast: true,
-
-			MaxLinkMTU: int(n.LinkMTU),
-		}
-		if n.disableMachineBridgeV4 {
-			config.Ip4Address = ""
-			config.Ip4Mask = ""
-		}
-
-		err := n.createHostBridge(brIndexSconMachine, config)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}, vmnetTimeout)
-	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		sentry.CaptureException(&createBridgeError{cause: fmt.Errorf("[phys] %w", err)})
+		// we still register the subnet monitor via defer,
+		// so we'll try again later if the VPN is turned off
 	}
-	return err
+
+	config := vzf.BridgeNetworkConfig{
+		GuestFd:         n.hostBridgeFds[brIndexSconMachine],
+		ShouldReadGuest: true,
+
+		UUID:       brUuidSconMachine,
+		Ip4Address: netconf.SconHostBridgeIP4,
+		Ip4Mask:    netconf.SconSubnet4Mask,
+		Ip6Address: netconf.SconHostBridgeIP6,
+
+		HostOverrideMAC: brMacSconHost,
+		// scon machine bridge doesn't use ip forward/proxy arp - it bridges machines directly
+		// so this is just the VM's MAC for NDP responder use
+		GuestMAC:       brMacSconGuest,
+		NDPReplyPrefix: slicePrefix6(nat64Subnet),
+		// for .local names
+		AllowMulticast: true,
+
+		MaxLinkMTU: int(n.LinkMTU),
+	}
+	if n.disableMachineBridgeV4 {
+		config.Ip4Address = ""
+		config.Ip4Mask = ""
+	}
+
+	err := n.createHostBridge(brIndexSconMachine, config)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (n *Network) closeSconMachineHostBridgeLocked() error {

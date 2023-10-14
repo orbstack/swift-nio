@@ -12,11 +12,16 @@ import CBridge
 // vmnet is ok with concurrent queue
 // gets us from 21 -> 30 Gbps
 let vmnetPktQueue = DispatchQueue(label: "dev.orbstack.brnet.1", attributes: .concurrent)
-// avoid stop barrier deadlock
-let vmnetControlQueue = DispatchQueue(label: "dev.orbstack.brnet.2", attributes: .concurrent)
+// avoid stop barrier deadlock by using a separate queue
+// also use serial queue to be safe in case vmnet isn't thread safe
+let vmnetControlQueue = DispatchQueue(label: "dev.orbstack.brnet.2")
 
 private let dgramSockBuf = 512 * 1024
 private let maxPacketsPerRead = 64
+
+// sometimes hangs for unknown reasons
+// short timeout because vmnet_start_interface already returned; just hasn't run block yet
+private let vmnetControlTimeout: TimeInterval = 8 // sec
 
 private enum VmnetError: Error {
     case generalFailure
@@ -30,6 +35,8 @@ private enum VmnetError: Error {
     case sharingServiceBusy
 
     case noInterfaceRef
+    case startTimeout
+    case stopTimeout
 
     static func from(_ status: vmnet_return_t) -> VmnetError {
         switch status {
@@ -73,17 +80,24 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
     var outIfParam: xpc_object_t?
     var outStatus: vmnet_return_t = .VMNET_FAILURE
 
-    let interfaceRef = vmnet_start_interface(ifDesc, vmnetControlQueue) { (status, ifParam) in
+    print("begin call")
+    let interfaceRef = vmnet_start_interface(ifDesc, queue) { (status, ifParam) in
+        print("begin block")
         outStatus = status
         outIfParam = ifParam
+        print("end block")
         sem.signal()
     }
+    print("end call")
 
     guard let interfaceRef else {
         throw VmnetError.noInterfaceRef
     }
 
-    sem.wait()
+    guard sem.wait(timeout: .now() + vmnetControlTimeout) == .success else {
+        vmnet_stop_interface(interfaceRef, queue) { _ in }
+        throw VmnetError.startTimeout
+    }
     guard outStatus == .VMNET_SUCCESS, let outIfParam else {
         throw VmnetError.from(outStatus)
     }
@@ -339,7 +353,10 @@ class BridgeNetwork {
             NSLog("[brnet] stop error: \(VmnetError.from(ret))")
             return
         }
-        sem.wait()
+        guard sem.wait(timeout: .now() + vmnetControlTimeout) == .success else {
+            NSLog("[brnet] stop timeout")
+            return
+        }
     }
 
     deinit {
