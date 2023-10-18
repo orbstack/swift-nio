@@ -8,13 +8,23 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/orbstack/macvirt/scon/conf"
 )
 
 const (
-	BaseURL = "https://api-license.orbstack.dev/api/v1"
+	baseURLRelease = "https://api-license.orbstack.dev/api/v1"
 	// this way we still use proxy
-	// BaseURL = "http://0.0.0.0:8400/api/v1"
+	baseURLDebug = "http://0.0.0.0:8400/api/v1"
 )
+
+func baseURL() string {
+	if conf.Debug() {
+		return baseURLDebug
+	} else {
+		return baseURLRelease
+	}
+}
 
 type Client struct {
 	*http.Client
@@ -46,7 +56,7 @@ func NewClient() *Client {
 }
 
 func (c *Client) Get(endpoint string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", BaseURL+endpoint, nil)
+	req, err := http.NewRequest("GET", baseURL()+endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +80,7 @@ func (c *Client) Post(endpoint string, body any, out any) error {
 	}
 
 	reader := bytes.NewReader(msg)
-	req, err := http.NewRequest("POST", BaseURL+endpoint, reader)
+	req, err := http.NewRequest("POST", baseURL()+endpoint, reader)
 	if err != nil {
 		return err
 	}
@@ -109,7 +119,7 @@ func readError(resp *http.Response) error {
 }
 
 func (c *Client) LongGet(endpoint string, out any) error {
-	req, err := http.NewRequest("GET", BaseURL+endpoint, nil)
+	req, err := http.NewRequest("GET", baseURL()+endpoint, nil)
 	if err != nil {
 		return err
 	}
