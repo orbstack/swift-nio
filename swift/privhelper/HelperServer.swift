@@ -26,14 +26,18 @@ struct HelperServer {
         do {
             // delete the old one
             try FileManager.default.removeItem(atPath: req.dest)
-        } catch {
+        } catch CocoaError.fileNoSuchFile {
             // doesn't exist
         }
 
         // create dir (mkdir -p)
         let destDir = URL(fileURLWithPath: req.dest).deletingLastPathComponent().path
-        try FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true, attributes: nil)
-
-        try FileManager.default.createSymbolicLink(atPath: req.dest, withDestinationPath: req.src)
+        do {
+            try FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true, attributes: nil)
+            try FileManager.default.createSymbolicLink(atPath: req.dest, withDestinationPath: req.src)
+        } catch CocoaError.fileWriteFileExists {
+            // already exists
+            // probably raced with another setup instance somehow? (app vs. cli background)
+        }
     }
 }
