@@ -16,7 +16,7 @@ require (
 	github.com/orbstack/macvirt/vmgr v0.0.0-00010101000000-000000000000
 	github.com/sirupsen/logrus v1.9.3
 	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54
-	golang.org/x/sys v0.11.0
+	golang.org/x/sys v0.13.0
 )
 
 require (
@@ -35,8 +35,8 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.2
 	go.etcd.io/bbolt v1.3.7
-	golang.org/x/net v0.14.0
-	golang.org/x/term v0.11.0
+	golang.org/x/net v0.17.0
+	golang.org/x/term v0.13.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 )
@@ -45,11 +45,7 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/google/btree v1.1.2 // indirect
-	github.com/google/uuid v1.3.0 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.4 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/keybase/go-keychain v0.0.0-20230523030712-b5615109f100 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
@@ -59,15 +55,13 @@ require (
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/text v0.12.0 // indirect
-	golang.org/x/time v0.3.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/tools v0.12.1-0.20230815132531-74c255bcf846 // indirect
-	gvisor.dev/gvisor v0.0.0-20230918234652-8a7617aed21c // indirect
 )
 
 require (
 	github.com/alessio/shellescape v1.4.1
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
-	golang.org/x/crypto v0.12.0
+	golang.org/x/crypto v0.14.0
 )
