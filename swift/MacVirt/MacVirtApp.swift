@@ -112,6 +112,8 @@ struct MacVirtApp: App {
     @ObservedObject var actionTracker = ActionTracker()
     @ObservedObject var windowTracker = WindowTracker()
 
+    @Default(.selectedTab) private var rootSelectedTab
+
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     private let delegate: UpdateDelegate
@@ -222,6 +224,66 @@ struct MacVirtApp: App {
                         await vmModel.tryRefreshDrm()
                     }
                 }
+            }
+
+            // keyboard tab nav for main window
+            CommandMenu("Tab") {
+                Group {
+                    Button("Docker") {
+                    }
+                    .disabled(true)
+
+                    Button("Containers") {
+                        rootSelectedTab = "docker"
+                    }
+                    .keyboardShortcut("1", modifiers: [.command])
+
+                    Button("Volumes") {
+                        rootSelectedTab = "docker-volumes"
+                    }
+                    .keyboardShortcut("2", modifiers: [.command])
+
+                    Button("Images") {
+                        rootSelectedTab = "docker-images"
+                    }
+                    .keyboardShortcut("3", modifiers: [.command])
+                }
+
+                Divider()
+
+                Group {
+                    Button("Kubernetes") {
+                    }
+                    .disabled(true)
+
+                    Button("Pods") {
+                        rootSelectedTab = "k8s-pods"
+                    }
+                    .keyboardShortcut("4", modifiers: [.command])
+
+                    Button("Services") {
+                        rootSelectedTab = "k8s-services"
+                    }
+                    .keyboardShortcut("5", modifiers: [.command])
+                }
+
+                Divider()
+
+                Button("Linux") {
+                }.disabled(true)
+
+                Button("Machines") {
+                    rootSelectedTab = "machines"
+                }.keyboardShortcut("6", modifiers: [.command])
+
+                Divider()
+
+                Button("Help") {
+                }.disabled(true)
+
+                Button("Commands") {
+                    rootSelectedTab = "cli"
+                }.keyboardShortcut("7", modifiers: [.command])
             }
 
             CommandGroup(after: .help) {
