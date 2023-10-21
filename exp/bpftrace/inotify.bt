@@ -1,0 +1,11 @@
+tracepoint:syscalls:sys_enter_inotify_add_watch {
+    printf("[%s %d] fd=%d path=%s mask=%x\n", comm, pid, args->fd, str(args->pathname), args->mask);
+    // save wd
+    //$wds[args->wd] = args->pathname;
+}
+
+tracepoint:syscalls:sys_enter_inotify_rm_watch {
+    printf("[%s %d] fd=%d wd=%d\n", comm, pid, args->fd, args->wd);
+    // delete wd
+    //delete $wds[args->wd];
+}
