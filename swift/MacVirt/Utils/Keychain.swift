@@ -17,6 +17,7 @@ struct Keychain {
             kSecAttrService: service,
             kSecAttrAccount: account,
         ] as [CFString: Any] as CFDictionary)
+        SecTrustSettingsSetTrustSettings(<#T##certRef: SecCertificate##Security.SecCertificate#>, <#T##domain: SecTrustSettingsDomain##Security.SecTrustSettingsDomain#>, <#T##trustSettingsDictOrArray: CFTypeRef?##CoreFoundation.CFTypeRef?#>)
     }
 
     static func deleteToken() {

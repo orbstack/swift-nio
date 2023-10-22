@@ -6,6 +6,8 @@ import Foundation
 import Defaults
 import SwiftUI
 
+private let guiBundleId = "dev.kdrag0n.MacVirt"
+
 // doesn't count as logged in
 private let previewRefreshToken = "1181201e-23f8-41f6-9660-b7110f4bfedb"
 
@@ -143,31 +145,44 @@ struct DrmState: Codable, Defaults.Serializable {
 }
 
 extension Defaults.Keys {
-    static let selectedTab = Key<String>("root_selectedTab", default: "docker")
+    // shared with swext in vmgr, which may have diff bundle ID
+    private static let suite = getDefaultsSuite()
 
-    static let dockerFilterShowStopped = Key<Bool>("docker_filterShowStopped", default: true)
-    static let dockerMigrationDismissed = Key<Bool>("docker_migrationDismissed", default: false)
+    static let selectedTab = Key<String>("root_selectedTab", default: "docker", suite: suite)
 
-    static let k8sFilterShowSystemNs = Key<Bool>("k8s_filterShowSystemNs", default: false)
+    static let dockerFilterShowStopped = Key<Bool>("docker_filterShowStopped", default: true, suite: suite)
+    static let dockerMigrationDismissed = Key<Bool>("docker_migrationDismissed", default: false, suite: suite)
 
-    static let onboardingCompleted = Key<Bool>("onboardingCompleted", default: false)
+    static let k8sFilterShowSystemNs = Key<Bool>("k8s_filterShowSystemNs", default: false, suite: suite)
+
+    static let onboardingCompleted = Key<Bool>("onboardingCompleted", default: false, suite: suite)
 
     // key changed because initial release was flaky
-    static let tipsMenubarBgShown = Key<Bool>("tips_menubarBgShown2", default: false)
-    static let tipsContainerDomainsShow = Key<Bool>("tips_containerDomainsShow", default: true)
-    static let tipsImageMountsShow = Key<Bool>("tips_imageMountsShow", default: true)
+    static let tipsMenubarBgShown = Key<Bool>("tips_menubarBgShown2", default: false, suite: suite)
+    static let tipsContainerDomainsShow = Key<Bool>("tips_containerDomainsShow", default: true, suite: suite)
+    static let tipsImageMountsShow = Key<Bool>("tips_imageMountsShow", default: true, suite: suite)
 
-    static let globalShowMenubarExtra = Key<Bool>("global_showMenubarExtra", default: true)
+    static let globalShowMenubarExtra = Key<Bool>("global_showMenubarExtra", default: true, suite: suite)
     // changed key in v0.14.0: setting was renamed and people enabled it due to misunderstanding in prev versions
-    static let globalStayInBackground = Key<Bool>("global_stayInBackground2", default: false)
+    static let globalStayInBackground = Key<Bool>("global_stayInBackground2", default: false, suite: suite)
 
-    static let adminDismissCount = Key<Int>("admin_dismissCount", default: 0)
+    static let adminDismissCount = Key<Int>("admin_dismissCount", default: 0, suite: suite)
 
-    static let updatesOptinChannel = Key<String>("updates_optinChannel", default: "stable")
+    static let updatesOptinChannel = Key<String>("updates_optinChannel", default: "stable", suite: suite)
 
     // login
-    static let drmLastState = Key<DrmState?>("drm_lastState", default: nil)
+    static let drmLastState = Key<DrmState?>("drm_lastState", default: nil, suite: suite)
+
+    private static func getDefaultsSuite() -> UserDefaults {
+        // vmgr has different bundle id, depending on signing id
+        if Bundle.main.bundleIdentifier == guiBundleId {
+            return UserDefaults.standard
+        } else {
+            return UserDefaults(suiteName: guiBundleId)!
+        }
+    }
 }
+
 // https://stackoverflow.com/questions/39075043/how-to-convert-data-to-hex-string-in-swift
 import Foundation
 

@@ -5,6 +5,7 @@
 import Foundation
 import AppKit
 import CBridge
+import Defaults
 
 private let guiBundleId = "dev.kdrag0n.MacVirt"
 
@@ -13,21 +14,9 @@ struct UserSettings: Codable {
 }
 
 private func getUserSettings() -> UserSettings {
-    // vmgr has different bundle id, depending on signing id
-    let defaults: UserDefaults
-    if Bundle.main.bundleIdentifier == guiBundleId {
-        defaults = UserDefaults.standard
-    } else {
-        defaults = UserDefaults(suiteName: guiBundleId)!
-    }
-
-    defaults.register(defaults: [
-        "global_showMenubarExtra": true,
-    ])
-
     return UserSettings(
         // TODO better way to tell Go about GUI running
-        showMenubarExtra: defaults.bool(forKey: "global_showMenubarExtra") && !isGuiRunning()
+        showMenubarExtra: Defaults[.globalShowMenubarExtra] && !isGuiRunning()
     )
 }
 

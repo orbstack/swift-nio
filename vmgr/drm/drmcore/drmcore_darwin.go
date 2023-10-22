@@ -1,5 +1,7 @@
 //go:build darwin
 
+// TODO: these are almost all keychain functions. should be a kcutil package instead
+
 package drmcore
 
 import (
