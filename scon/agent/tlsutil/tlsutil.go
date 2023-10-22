@@ -59,7 +59,8 @@ func GenerateCert(rootCert *x509.Certificate, rootKey crypto.PrivateKey, host st
 		Subject: pkix.Name{
 			Organization:       []string{appid.UserAppName + " Development"},
 			OrganizationalUnit: []string{"Containers & Services"},
-			// CommonName not needed - we only use SAN
+			// CommonName for visual purposes in browser
+			CommonName: host,
 		},
 		DNSNames: []string{host},
 
@@ -132,7 +133,7 @@ func GenerateRoot() (string, string, error) {
 	template := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			Organization:       []string{appid.UserAppName + " Development Root CA"},
+			Organization:       []string{appid.UserAppName + " Development"},
 			OrganizationalUnit: []string{"Containers & Services"},
 
 			CommonName: appid.UserAppName + " Development Root CA",
