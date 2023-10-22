@@ -20,6 +20,7 @@ char* swext_proxy_get_settings(bool need_auth);
 struct GResultErr swext_proxy_monitor_changes(void);
 
 char* swext_security_get_extra_ca_certs(void);
+struct GResultErr swext_security_import_certificate(const char* cert_der_b64);
 
 char* swext_fsevents_monitor_dirs(void);
 void* swext_fsevents_VmNotifier_new(void);
@@ -321,6 +322,14 @@ func SwextSecurityGetExtraCaCerts() ([]string, error) {
 	}
 
 	return certs, nil
+}
+
+func SwextSecurityImportCertificate(certDerB64 string) error {
+	cStr := C.CString(certDerB64)
+	defer C.free(unsafe.Pointer(cStr))
+
+	res := C.swext_security_import_certificate(cStr)
+	return errFromResult(res)
 }
 
 /*

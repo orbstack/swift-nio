@@ -32,7 +32,6 @@
 		B118B662209189FEF0B61F9F /* CursorRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BEBDA570BE498B231235 /* CursorRegion.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
 		B118B773879397647B754ADE /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */; };
-		B118B7A70986233549693A3A /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BFC3B7229270B6D3D706 /* Keychain.swift */; };
 		B118B81365EA43CD9BD5FFF1 /* K8sRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1E2A991085A29F40FB3 /* K8sRPC.swift */; };
 		B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */; };
 		B118B8D281CB560AA13AD3FB /* K8SPodsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B530786FB12B0A422003 /* K8SPodsView.swift */; };
@@ -278,7 +277,6 @@
 		B118BEDAA62E1455A02C177D /* KeychainFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeychainFFI.swift; sourceTree = "<group>"; };
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
 		B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
-		B118BFC3B7229270B6D3D706 /* Keychain.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingCreateView.swift; sourceTree = "<group>"; };
 		D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
 		D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
@@ -495,7 +493,6 @@
 				B118B06A59C6893760E5F9AA /* ThinEnvironment.swift */,
 				B118B56B2F68D469F76481FD /* CopyableText.swift */,
 				B118BEBDA570BE498B231235 /* CursorRegion.swift */,
-				B118BFC3B7229270B6D3D706 /* Keychain.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1086,7 +1083,6 @@
 				B118B908C12CA46A45B5EF1F /* CopyableText.swift in Sources */,
 				B118B662209189FEF0B61F9F /* CursorRegion.swift in Sources */,
 				B118B773879397647B754ADE /* AuthView.swift in Sources */,
-				B118B7A70986233549693A3A /* Keychain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

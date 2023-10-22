@@ -11,7 +11,7 @@ private let guiBundleId = "dev.kdrag0n.MacVirt"
 
 struct UserSettings: Codable {
     let showMenubarExtra: Bool
-    let updatesOptinChannel: string
+    let updatesOptinChannel: String
 }
 
 private func getUserSettings() -> UserSettings {

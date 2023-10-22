@@ -791,6 +791,22 @@ func (h *HcontrolServer) GetTLSRootData(_ None, reply *htypes.KeychainTLSData) e
 	return nil
 }
 
+func (h *HcontrolServer) ImportCertificate(certDerB64 string, reply *None) error {
+	// import to keychain
+	// careful: this is missing PEM headers. just raw b64
+	err := vzf.SwextSecurityImportCertificate(certDerB64)
+	if err != nil {
+		return err
+	}
+
+	// if it succeeded, that means user accepted and authorized the trust settings prompt, since we don't have a timeout at this level.
+	// so also add the cert to Firefox profile's nss database
+	// at this point it's no longer a violation of trust for us to do this
+	//TODO
+
+	return nil
+}
+
 type None struct{}
 
 func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, error) {

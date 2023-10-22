@@ -5,18 +5,21 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -29,6 +32,8 @@ const (
 
 	// fast
 	certsLRUSize = 100
+
+	certImportTimeout = 10 * time.Second
 )
 
 type tlsProxy struct {
@@ -39,6 +44,8 @@ type tlsProxy struct {
 	rootKey  crypto.PrivateKey
 
 	host *hclient.Client
+
+	firstConnDone atomic.Bool
 }
 
 type hostDialInfo struct {
@@ -67,11 +74,11 @@ func newTLSProxy() *tlsProxy {
 
 func tcpAddrToSockaddr(a *net.TCPAddr) unix.Sockaddr {
 	if ip4 := a.IP.To4(); ip4 != nil {
-		sa := &unix.SockaddrInet4{Port: a.Port}
+		sa := &unix.SockaddrInet4{Port: 0}
 		copy(sa.Addr[:], ip4)
 		return sa
 	} else {
-		sa := &unix.SockaddrInet6{Port: a.Port}
+		sa := &unix.SockaddrInet6{Port: 0}
 		copy(sa.Addr[:], a.IP)
 		return sa
 	}
@@ -148,7 +155,19 @@ func (t *tlsProxy) Start() error {
 					return nil, fmt.Errorf("generate cert: %w", err)
 				}
 
+				// add to LRU immediately
 				t.certsLRU.Add(hlo.ServerName, cert)
+
+				// now, if this is the first connection, we may want to hang for a bit (below browser timeout, i.e. up to 10 sec) and import cert to system keychain and ask for trust settings
+				if !t.firstConnDone.Swap(true) {
+					err := util.WithTimeout1(func() error {
+						return t.host.ImportCertificate(base64.StdEncoding.EncodeToString(t.rootCert.Raw))
+					}, certImportTimeout)
+					if err != nil {
+						logrus.WithError(err).Error("failed to import certificate")
+					}
+				}
+
 				return cert, nil
 			},
 		},
