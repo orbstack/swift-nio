@@ -74,6 +74,21 @@ private struct Keychain {
             throw KeychainFFIError.addToKeychainFailed(status)
         }
 
+        // if duplicate, skip trust settings update (to avoid auth prompt) by validating for SSL
+        var trust: SecTrust?
+        let policy = SecPolicyCreateSSL(true, nil)
+        SecTrustCreateWithCertificates(cert, policy, &trust)
+        if let trust {
+            // disable network fetch - can't block here
+            SecTrustSetNetworkFetchAllowed(trust, false)
+
+            var error: CFError?
+            let result = SecTrustEvaluateWithError(trust, &error)
+            if result && error == nil {
+                return
+            }
+        }
+
         // mark as trusted but only for SSL and X509 basic policy
         status = SecTrustSettingsSetTrustSettings(cert, .user, [
             [
