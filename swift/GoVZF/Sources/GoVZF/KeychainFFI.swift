@@ -75,7 +75,16 @@ private struct Keychain {
         }
 
         // mark as trusted but only for SSL and X509 basic policy
-        status = SecTrustSettingsSetTrustSettings(cert, .user, nil)
+        status = SecTrustSettingsSetTrustSettings(cert, .user, [
+            [
+                kSecTrustSettingsResult: NSNumber(value: SecTrustSettingsResult.trustRoot.rawValue),
+                kSecTrustSettingsPolicy: SecPolicyCreateSSL(true, nil),
+            ] as [String: Any] as CFDictionary,
+            [
+                kSecTrustSettingsResult: NSNumber(value: SecTrustSettingsResult.trustRoot.rawValue),
+                kSecTrustSettingsPolicy: SecPolicyCreateBasicX509(),
+            ] as [String: Any] as CFDictionary,
+        ] as CFArray)
         guard status == errSecSuccess else {
             throw KeychainFFIError.setTrustSettingsFailed(status)
         }
