@@ -80,15 +80,11 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
     var outIfParam: xpc_object_t?
     var outStatus: vmnet_return_t = .VMNET_FAILURE
 
-    print("begin call")
     let interfaceRef = vmnet_start_interface(ifDesc, queue) { (status, ifParam) in
-        print("begin block")
         outStatus = status
         outIfParam = ifParam
-        print("end block")
         sem.signal()
     }
-    print("end call")
 
     guard let interfaceRef else {
         throw VmnetError.noInterfaceRef

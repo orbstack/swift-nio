@@ -64,8 +64,9 @@ type DockerAgent struct {
 	dirSyncListener net.Listener
 	dirSyncJobs     map[uint64]chan error
 
-	k8s   *K8sAgent
-	pstub *PstubServer
+	k8s      *K8sAgent
+	pstub    *PstubServer
+	tlsProxy *tlsProxy
 }
 
 func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
@@ -89,6 +90,7 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 
 		containerBinds: make(map[string][]string),
 		dirSyncJobs:    make(map[uint64]chan error),
+		tlsProxy:       newTLSProxy(),
 	}
 
 	dockerAgent.containerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
@@ -157,6 +159,12 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 			logrus.WithError(err).Error("pstub server failed")
 		}
 	}()
+
+	// start tls proxy
+	err = dockerAgent.tlsProxy.Start()
+	if err != nil {
+		return nil, err
+	}
 
 	return dockerAgent, nil
 }

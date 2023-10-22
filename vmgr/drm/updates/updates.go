@@ -49,7 +49,7 @@ func getFeedURL() string {
 		panic("invalid uuid: " + installID)
 	}
 
-	// bucket is the first 4 bytes of the install id
+	// bucket is the first 4 bytes of the install id as uint32, mod 100
 	id4 := binary.BigEndian.Uint32(uuidBytes)
 	bucket := id4 % 100
 

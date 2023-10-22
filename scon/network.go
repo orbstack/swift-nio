@@ -469,6 +469,9 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	// 5353/udp: allow machines to use mDNS server
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-p", "udp", "--dport", "5353", "-j", "ACCEPT"})
 
+	// 5354/udp: allow machines to use unicast mDNS server
+	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-p", "udp", "--dport", "5354", "-j", "ACCEPT"})
+
 	// allow mac host bridge to access web server port 80
 	// block machines because it could leak info to isolated machines
 	// TODO this needs ip/mac spoofing protection

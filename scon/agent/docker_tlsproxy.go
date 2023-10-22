@@ -1,0 +1,260 @@
+package agent
+
+import (
+	"context"
+	"crypto"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strconv"
+	"syscall"
+	"time"
+
+	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
+)
+
+const (
+	// in case of extremely high load
+	// limited to prevent mem leak in case of wildcard scanning
+	hostDialLRUSize = 250
+
+	// fast
+	certsLRUSize = 100
+)
+
+type tlsProxy struct {
+	hostDialLRU *lru.Cache[string, hostDialInfo]
+	certsLRU    *lru.Cache[string, *tls.Certificate]
+
+	rootCert *x509.Certificate
+	rootKey  crypto.PrivateKey
+}
+
+type hostDialInfo struct {
+	bindAddr *net.TCPAddr
+	// *net.TCPAddr would be nice, but Dialer has no context-aware DialTCP
+	// https://github.com/golang/go/issues/49097
+	dialAddr string
+}
+
+func newTLSProxy() *tlsProxy {
+	hostDialLRU, err := lru.New[string, hostDialInfo](hostDialLRUSize)
+	if err != nil {
+		panic(err)
+	}
+
+	certsLRU, err := lru.New[string, *tls.Certificate](certsLRUSize)
+	if err != nil {
+		panic(err)
+	}
+
+	return &tlsProxy{
+		hostDialLRU: hostDialLRU,
+		certsLRU:    certsLRU,
+	}
+}
+
+func tcpAddrToSockaddr(a *net.TCPAddr) unix.Sockaddr {
+	if ip4 := a.IP.To4(); ip4 != nil {
+		sa := &unix.SockaddrInet4{Port: a.Port}
+		copy(sa.Addr[:], ip4)
+		return sa
+	} else {
+		sa := &unix.SockaddrInet6{Port: a.Port}
+		copy(sa.Addr[:], a.IP)
+		return sa
+	}
+}
+
+func (t *tlsProxy) Start() error {
+	// load root cert
+	rootCert, rootKey, err := loadRoot()
+	if err != nil {
+		return fmt.Errorf("load root: %w", err)
+	}
+	t.rootCert = rootCert
+	t.rootKey = rootKey
+
+	lcfg := net.ListenConfig{
+		// set IP_TRANSPARENT to accept TPROXY connections
+		Control: func(network, address string, c syscall.RawConn) error {
+			var err error
+			c.Control(func(fd uintptr) {
+				// Go sets SO_REUSEADDR by default
+				err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
+			})
+			return err
+		},
+	}
+
+	ln, err := lcfg.Listen(context.TODO(), "tcp", netconf.VnetTlsProxyIP4+":1984")
+	if err != nil {
+		return err
+	}
+
+	// we *could* do a raw TLS proxy, but I did it this way for flexibility.
+	// in the future we could offer request-capturing with this method
+	// this is more complicated but that's really not an impossible feature
+	// another slightly-nice thing is that this provides HTTP/2
+	// SNI proxy could also result in unexpected CORS values (https:// instead of http://) so this is needed for correctness
+	httpProxy := &httputil.ReverseProxy{
+		// TODO: consider FlushInterval=100ms to avoid streaming side effects
+		Rewrite: func(r *httputil.ProxyRequest) {
+			err := t.rewriteRequest(r)
+			if err != nil {
+				logrus.WithError(err).Error("failed to rewrite request")
+			}
+		},
+		Transport: &http.Transport{
+			DialContext: t.dialUpstream,
+			// establishing conns is cheap locally
+			// do not limit MaxConnsPerHost in case of load testing
+			IdleConnTimeout: 5 * time.Second,
+			// allow more idle conns to avoid TIME_WAIT hogging all ports under load test (default 2)
+			// otherwise we get "connect: cannot assign requested address" after too long
+			MaxIdleConnsPerHost: 200,
+		},
+	}
+
+	server := &http.Server{
+		Handler: httpProxy,
+		TLSConfig: &tls.Config{
+			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				// TODO for security, only allow SNIs in mdnsRegistry
+				if cert, ok := t.certsLRU.Get(hlo.ServerName); ok {
+					return cert, nil
+				}
+
+				cert, err := t.generateCert(hlo.ServerName)
+				if err != nil {
+					return nil, fmt.Errorf("generate cert: %w", err)
+				}
+
+				t.certsLRU.Add(hlo.ServerName, cert)
+				return cert, nil
+			},
+		},
+	}
+
+	go func() {
+		// we use TLSConfig.GetCertificate instead
+		err := server.ServeTLS(ln, "", "")
+		if err != nil {
+			logrus.WithError(err).Error("tls proxy server failed")
+		}
+	}()
+
+	return nil
+}
+
+func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
+	// use SNI if Host is missing
+	host := r.In.Host
+	if host == "" {
+		host = r.In.TLS.ServerName
+	}
+
+	// passthrough URL to host
+	r.SetURL(&url.URL{
+		Scheme: "http",
+		// Host is mandatory. we don't have access to SNI here
+		Host: host,
+		// this is *base* path
+		Path: "/",
+	})
+	r.Out.Host = host
+
+	// let's record the target IP
+	// client thinks each, so this is OK
+	// if we ever change this and allow connecting through proxy without, we'll have to revisit this and query from dns server instead
+	// but until then, I believe that this is more reliable. for example, it preserves ipv4 vs. v6 intention (but that could also be done with dns A vs. AAAA)
+	// localAddr = getsockname(), which is connection dest addr due to TPROXY
+	localAddr := r.In.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+
+	// also record the last requested dial IP (probably host bridge IP) for this addr
+	// always accurate because macOS only has 1 IP per interface, and containers are only reachable from 1 interface
+	remoteAddrStr, remotePortStr, err := net.SplitHostPort(r.In.RemoteAddr)
+	if err != nil {
+		return err
+	}
+	remoteAddr := net.ParseIP(remoteAddrStr)
+	if remoteAddr == nil {
+		return fmt.Errorf("invalid remote addr: %s", remoteAddrStr)
+	}
+	remotePort, err := strconv.Atoi(remotePortStr)
+	if err != nil {
+		return err
+	}
+
+	// port is always 80 because we proxy to plaintext HTTP upstream
+	// this port 80 relies on bpf cfwd port scanning
+	localAddr.Port = 80
+
+	// save all the IP info
+	t.hostDialLRU.Add(host, hostDialInfo{
+		// looks reversed but this is correct due to proxy/server roles
+		bindAddr: &net.TCPAddr{
+			IP:   remoteAddr,
+			Port: remotePort,
+		},
+		dialAddr: localAddr.String(),
+	})
+
+	return nil
+}
+func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
+	dialHost, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	// resolve dial info from request's host
+	dialInfo, ok := t.hostDialLRU.Get(dialHost)
+	if !ok {
+		return nil, fmt.Errorf("no dial info for host: %s", dialHost)
+	}
+
+	// dial the host
+	// need to use Dialer for context awareness, then implement bind and Control ourselves
+	dialer := net.Dialer{
+		ControlContext: func(ctx context.Context, network, address string, c syscall.RawConn) error {
+			var retErr error
+			err2 := c.Control(func(fd uintptr) {
+				// set IP_FREEBIND to be able to bind to this
+				err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_FREEBIND, 1)
+				if err != nil {
+					retErr = fmt.Errorf("failed to set opt 1: %w", err)
+					return
+				}
+
+				// set SO_MARK to prevent TPROXY routing loop (since is also going to the dest IP)
+				err = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, TlsProxyUpstreamMark)
+				if err != nil {
+					retErr = fmt.Errorf("failed to set opt 2: %w", err)
+					return
+				}
+
+				// bind laddr
+				// err = unix.Bind(int(fd), tcpAddrToSockaddr(dialInfo.bindAddr))
+				// if err != nil {
+				// 	// just a warning. continue but with wrong src IP
+				// 	logrus.WithError(err).Warn("failed to bind to laddr")
+				// }
+			})
+			if err2 != nil {
+				return err2
+			}
+			return retErr
+		},
+	}
+
+	logrus.WithField("bindAddr", dialInfo.bindAddr).WithField("dialAddr", dialInfo.dialAddr).Trace("dialing upstream")
+	return dialer.DialContext(ctx, "tcp", dialInfo.dialAddr)
+}

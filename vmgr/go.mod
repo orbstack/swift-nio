@@ -34,7 +34,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/getsentry/sentry-go v0.23.0
 	github.com/google/uuid v1.3.0
-	github.com/hashicorp/golang-lru/v2 v2.0.4
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/keybase/go-keychain v0.0.0-20230523030712-b5615109f100
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.28.1

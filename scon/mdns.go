@@ -198,6 +198,13 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		return r.httpServer.Serve(l)
 	})
 
+	go runOne("unicast mdns server (udp)", func() error {
+		return dns.ListenAndServe(":5354", "udp", r)
+	})
+	go runOne("unicast mdns server (tcp)", func() error {
+		return dns.ListenAndServe(":5354", "tcp", r)
+	})
+
 	return nil
 }
 
@@ -892,4 +899,38 @@ func (r *mdnsRegistry) proxyToHost(q dns.Question) []dns.RR {
 	}
 
 	return reply.Answer
+}
+
+// unicast
+func (r *mdnsRegistry) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
+	msg := new(dns.Msg)
+	msg.SetReply(req)
+	for _, q := range req.Question {
+		msg.Answer = append(msg.Answer, r.handleQuery(q)...)
+	}
+	isUdp := w.RemoteAddr().Network() == "udp"
+	sendDnsReply(w, req, msg, isUdp)
+}
+
+func sendDnsReply(w dns.ResponseWriter, req *dns.Msg, msg *dns.Msg, isUdp bool) {
+	// EDNS and truncation
+	ednsOpt := req.IsEdns0()
+	if ednsOpt != nil {
+		msg.SetEdns0(ednsOpt.UDPSize(), false)
+		if isUdp {
+			msg.Truncate(int(ednsOpt.UDPSize()))
+		} else {
+			msg.Truncate(dns.MaxMsgSize)
+		}
+	} else {
+		if isUdp {
+			msg.Truncate(dns.MinMsgSize)
+		} else {
+			msg.Truncate(dns.MaxMsgSize)
+		}
+	}
+
+	if err := w.WriteMsg(msg); err != nil {
+		logrus.Error("w.WriteMsg() =", err)
+	}
 }

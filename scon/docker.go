@@ -86,6 +86,31 @@ var dockerInitCommands = [][]string{
 	{"ip6tables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "fc00::/7", "-o", "eth0", "-j", "ORB-POSTROUTING-S1"},
 	// "fix" ipv6 docker port forward source IPs. same logic as v4 - currently useless b/c v6 uses userspace proxy
 	{"ip6tables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "fd07:b51a:cc66:f0::1/128", "!", "-d", "::1/128", "!", "-o", "eth0", "-j", "MASQUERADE"},
+
+	// TLS proxy: special listener address for TPROXY redirect
+	{"ip", "addr", "add", netconf.VnetTlsProxyIP4 + "/32", "dev", "lo"},
+	{"ip", "addr", "add", netconf.VnetTlsProxyIP6 + "/128", "dev", "lo"},
+
+	// TLS proxy: loopback routing for connection to TLS proxy
+	// busybox only supports table ID < 1024 but kernel can do 32-bit(? or is it just string?)
+	{"ip", "rule", "add", "fwmark", agent.TlsProxyLocalRouteMarkStr, "table", "984"},
+	{"ip", "route", "add", "local", "default", "dev", "lo", "table", "984"},
+
+	// mixed ipv4 and ipv6 hash set
+	{"ipset", "create", agent.IpsetHostBridge4, "hash:ip"},
+	{"ipset", "create", agent.IpsetHostBridge6, "hash:ip", "family", "inet6"},
+	// add nat64 IP - always counts as host
+	{"ipset", "add", agent.IpsetHostBridge4, netconf.NAT64SourceIP4},
+
+	// TLS proxy (v4): TPROXY redirect incoming port 443 traffic from macOS to our proxy
+	{"iptables", "-t", "mangle", "-N", "ORB-PREROUTING"},
+	{"iptables", "-t", "mangle", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
+	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge4, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", "1984", "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
+
+	// TLS proxy (v6): TPROXY redirect incoming port 443 traffic from macOS to our proxy
+	{"ip6tables", "-t", "mangle", "-N", "ORB-PREROUTING"},
+	{"ip6tables", "-t", "mangle", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
+	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge6, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", "1984", "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 }
 
 // changes here:
@@ -212,6 +237,16 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	cm.set("lxc.mount.entry", "none realtmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
 	// extra linked path: /System
 	cm.bind(mounts.Virtiofs+"/System", "/System", "")
+
+	hostUser, err := c.manager.host.GetUser()
+	if err != nil {
+		return "", fmt.Errorf("get user: %w", err)
+	}
+
+	// special case: make ~/.orbstack/run/docker.sock bind mount work (if people bind mount the docker context socket)
+	// all mounts are optional so it's OK if this fails
+	//cm.bind(mounts.DockerSocket, mounts.Virtiofs+hostUser.HomeDir+"/.orbstack/run/docker.sock", "")
+	_ = hostUser
 
 	// configure network statically
 	cm.set("lxc.net.0.flags", "up")

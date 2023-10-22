@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"log"
 	"net"
 	"net/rpc"
 	"os"
@@ -148,10 +149,13 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
+	logPrefix := "🌸 agent:" + hostname + " | "
 	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
-	}, "🌸 agent:"+hostname+" | "))
+	}, logPrefix))
+	// set prefix for default logger (used by httputil) as well
+	log.Default().SetPrefix(logPrefix)
 
 	fdx := NewFdx(fdxConn)
 	server := &AgentServer{

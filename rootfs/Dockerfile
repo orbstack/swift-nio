@@ -131,7 +131,9 @@ RUN apk add --no-cache \
     # /etc/localtime for containers
     tzdata \
     # for kubectl port-forward
-    socat
+    socat \
+    # for tls proxy
+    ipset
 
 # Official Docker engine build
 RUN <<EOT sh -eux

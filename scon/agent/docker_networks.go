@@ -19,6 +19,16 @@ const (
 	DockerBridgeMirrorPrefix   = ".orbmirror"
 )
 
+const (
+	IpsetHostBridge4 = "orb-tp4"
+	IpsetHostBridge6 = "orb-tp6"
+
+	TlsProxyUpstreamMark    = 0x9fbf6bbf
+	TlsProxyUpstreamMarkStr = "0x9fbf6bbf"
+
+	TlsProxyLocalRouteMarkStr = "0xbac63adb"
+)
+
 func compareNetworks(a, b dockertypes.Network) int {
 	// always rank default bridge network first
 	if a.Name == dockerDefaultBridgeNetwork {
@@ -207,6 +217,22 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		return err
 	}
 
+	// add host IPs to ipset
+	if config.IP4Subnet.IsValid() {
+		hostIP := config.HostIP4().IP
+		err = util.Run("ipset", "add", IpsetHostBridge4, hostIP.String())
+		if err != nil {
+			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
+		}
+	}
+	if config.IP6Subnet.IsValid() {
+		hostIP := config.HostIP6().IP
+		err = util.Run("ipset", "add", IpsetHostBridge6, hostIP.String())
+		if err != nil {
+			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
+		}
+	}
+
 	return nil
 }
 
@@ -221,6 +247,22 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 	err := d.scon.DockerRemoveBridge(config)
 	if err != nil {
 		return err
+	}
+
+	// remove host IPs from ipset
+	if config.IP4Subnet.IsValid() {
+		hostIP := config.HostIP4().IP
+		err = util.Run("ipset", "del", IpsetHostBridge4, hostIP.String())
+		if err != nil {
+			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove host ip from set")
+		}
+	}
+	if config.IP6Subnet.IsValid() {
+		hostIP := config.HostIP6().IP
+		err = util.Run("ipset", "del", IpsetHostBridge6, hostIP.String())
+		if err != nil {
+			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove host ip from set")
+		}
 	}
 
 	return nil
