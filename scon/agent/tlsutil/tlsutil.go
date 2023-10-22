@@ -79,11 +79,10 @@ func GenerateCert(rootCert *x509.Certificate, rootKey crypto.PrivateKey, host st
 	// skip tls.X509KeyPair and pass data directly for efficiency and simplicity
 	return &tls.Certificate{
 		// DER block
-		// no root CA in chain:
-		// - if we pass it, user still needs to install cert in system and mark as trusted, or verify fails
-		// - if we don't pass it, it's no different
-		// TODO test with curl -k and chrome when cert is not present in system store
-		Certificate: [][]byte{cert},
+		// passing full chain with root CA doesn't really help with anything (because it wouldn't be trusted anyway if not installed in system), but still do it
+		// otherwise it's technically an invalid chain
+		// changes curl error from "unable to get local issuer certificate" to "self signed certificate in certificate chain"
+		Certificate: [][]byte{cert, rootCert.Raw},
 		PrivateKey:  sk,
 	}, nil
 }
