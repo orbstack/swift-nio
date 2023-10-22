@@ -14,6 +14,7 @@ private enum StopExitCode: Int {
     case drm = 102
     case healthCheck = 103
     case dataCorruption = 104
+    case ioError = 105
 }
 
 enum ExitReason: Equatable, CustomStringConvertible {
@@ -28,6 +29,7 @@ enum ExitReason: Equatable, CustomStringConvertible {
     case drm
     case healthCheck
     case dataCorruption
+    case ioError
 
     // from signal
     case killed
@@ -54,6 +56,8 @@ enum ExitReason: Equatable, CustomStringConvertible {
             return "VM not responding"
         case .dataCorruption:
             return "data is corrupted"
+        case .ioError:
+            return "I/O error"
 
         case .killed:
             return "killed (SIGKILL)"
@@ -268,6 +272,8 @@ class DaemonManager {
                     reason = .healthCheck
                 case .dataCorruption:
                     reason = .dataCorruption
+                case .ioError:
+                    reason = .ioError
                 default:
                     reason = .status(status)
                 }

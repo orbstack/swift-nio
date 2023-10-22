@@ -225,6 +225,11 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 						}
 						sentry.CaptureException(err)
 					})
+				} else if strings.Contains(line, "] BTRFS info (device vdb1: state E): forced readonly") {
+					// too many i/o errors: force shut down. clean shutdown won't work due to read-only fs
+					// can happen if very low space on disk
+					// everything blows up if fs is read-only
+					stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonIOError}
 				} else if matchWarnPattern(line) {
 					// record warning log
 					warnRecorder.Start(kernelWarnRecordDuration, func(output string) {

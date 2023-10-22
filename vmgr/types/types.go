@@ -23,6 +23,7 @@ const (
 	StopReasonDrm
 	StopReasonHealthCheck
 	StopReasonDataCorruption
+	StopReasonIOError
 )
 
 type StopRequest struct {
