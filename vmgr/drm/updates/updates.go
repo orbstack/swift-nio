@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -72,7 +73,18 @@ func NewSparkleCommand(args ...string) (*exec.Cmd, error) {
 		sparkleExe = bundlePath + "/Contents/MacOS/sparkle-cli"
 	}
 
-	baseArgs := []string{"--user-agent-name", userAgent, "--feed-url", feedURL, "--send-profile", "--grant-automatic-checks", "--channels", "beta", "--allow-major-upgrades", bundlePath}
+	settings, err := vzf.SwextDefaultsGetUserSettings()
+	if err != nil {
+		return nil, fmt.Errorf("get user settings: %w", err)
+	}
+
+	// canary channel?
+	channels := []string{"stable"}
+	if settings.UpdatesOptinChannel != "stable" {
+		channels = append(channels, settings.UpdatesOptinChannel)
+	}
+
+	baseArgs := []string{"--user-agent-name", userAgent, "--feed-url", feedURL, "--send-profile", "--grant-automatic-checks", "--channels", strings.Join(channels, ","), "--allow-major-upgrades", bundlePath}
 	allArgs := append(baseArgs, args...)
 	cmd := exec.Command(sparkleExe, allArgs...)
 	logrus.WithField("args", allArgs).Debug("sparkle-cli command")

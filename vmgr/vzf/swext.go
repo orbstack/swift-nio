@@ -31,7 +31,8 @@ type SwextProxySettings struct {
 }
 
 type SwextUserSettings struct {
-	ShowMenubarExtra bool `json:"showMenubarExtra"`
+	ShowMenubarExtra    bool   `json:"showMenubarExtra"`
+	UpdatesOptinChannel string `json:"updatesOptinChannel"`
 }
 
 type BridgeNetworkConfig struct {

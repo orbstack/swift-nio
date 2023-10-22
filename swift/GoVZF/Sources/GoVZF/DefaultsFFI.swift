@@ -11,12 +11,14 @@ private let guiBundleId = "dev.kdrag0n.MacVirt"
 
 struct UserSettings: Codable {
     let showMenubarExtra: Bool
+    let updatesOptinChannel: string
 }
 
 private func getUserSettings() -> UserSettings {
     return UserSettings(
         // TODO better way to tell Go about GUI running
-        showMenubarExtra: Defaults[.globalShowMenubarExtra] && !isGuiRunning()
+        showMenubarExtra: Defaults[.globalShowMenubarExtra] && !isGuiRunning(),
+        updatesOptinChannel: Defaults[.updatesOptinChannel]
     )
 }
 
