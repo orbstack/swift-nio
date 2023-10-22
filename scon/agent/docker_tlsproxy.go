@@ -15,6 +15,8 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/orbstack/macvirt/scon/agent/tlsutil"
+	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -35,6 +37,8 @@ type tlsProxy struct {
 
 	rootCert *x509.Certificate
 	rootKey  crypto.PrivateKey
+
+	host *hclient.Client
 }
 
 type hostDialInfo struct {
@@ -74,8 +78,14 @@ func tcpAddrToSockaddr(a *net.TCPAddr) unix.Sockaddr {
 }
 
 func (t *tlsProxy) Start() error {
+	// TODO move to thread in case it blocks
+	certData, err := t.host.GetTLSRootData()
+	if err != nil {
+		return fmt.Errorf("get root data: %w", err)
+	}
+
 	// load root cert
-	rootCert, rootKey, err := loadRoot()
+	rootCert, rootKey, err := tlsutil.LoadRoot([]byte(certData.CertPEM), []byte(certData.KeyPEM))
 	if err != nil {
 		return fmt.Errorf("load root: %w", err)
 	}
@@ -132,7 +142,8 @@ func (t *tlsProxy) Start() error {
 					return cert, nil
 				}
 
-				cert, err := t.generateCert(hlo.ServerName)
+				// cert generation is fast (~3 ms) but still cache in LRU for consistent cert identity and minor optimization
+				cert, err := tlsutil.GenerateCert(t.rootCert, t.rootKey, hlo.ServerName)
 				if err != nil {
 					return nil, fmt.Errorf("generate cert: %w", err)
 				}

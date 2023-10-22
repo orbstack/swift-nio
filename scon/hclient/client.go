@@ -195,6 +195,16 @@ func (c *Client) GetInitConfig() (*htypes.InitConfig, error) {
 	return &config, nil
 }
 
+func (c *Client) GetTLSRootData() (*htypes.KeychainTLSData, error) {
+	var data htypes.KeychainTLSData
+	err := c.rpc.Call("hc.GetTLSRootData", None{}, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data, nil
+}
+
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }

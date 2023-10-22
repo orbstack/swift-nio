@@ -29,3 +29,8 @@ type DockerExitInfo struct {
 	Async     bool
 	ExitEvent *uitypes.ExitEvent
 }
+
+type KeychainTLSData struct {
+	CertPEM string
+	KeyPEM  string
+}

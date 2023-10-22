@@ -17,12 +17,14 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/nfsmnt"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/drm"
+	"github.com/orbstack/macvirt/vmgr/drm/drmcore"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
@@ -754,6 +756,38 @@ func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {
 	}
 
 	*reply = htypes.InitConfig{}
+	return nil
+}
+
+func (h *HcontrolServer) GetTLSRootData(_ None, reply *htypes.KeychainTLSData) error {
+	// get cert data from keychain
+	// we always need something, so similar to DRM, delete old cert and regenerate if there's somehow an error
+	// (with keychain access groups, though, we should never be getting an error here unless our app has a code signing issue. users can't mess with the perms)
+	certData, err := drmcore.ReadKeychainTLSData()
+	if err != nil {
+		logrus.WithError(err).Error("failed to read keychain TLS data")
+	}
+
+	// generate a new root if nil (or error)
+	if certData == nil {
+		certPEM, keyPEM, err := tlsutil.GenerateRoot()
+		if err != nil {
+			return err
+		}
+
+		certData = &htypes.KeychainTLSData{
+			CertPEM: certPEM,
+			KeyPEM:  keyPEM,
+		}
+
+		// persist it
+		err = drmcore.SetKeychainTLSData(certData)
+		if err != nil {
+			return err
+		}
+	}
+
+	*reply = *certData
 	return nil
 }
 

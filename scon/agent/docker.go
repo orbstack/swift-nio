@@ -160,6 +160,16 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 		}
 	}()
 
+	hConn, err := net.Dial("unix", mounts.HcontrolSocket)
+	if err != nil {
+		return nil, err
+	}
+	dockerAgent.host, err = hclient.New(hConn)
+	if err != nil {
+		return nil, err
+	}
+	dockerAgent.tlsProxy.host = dockerAgent.host
+
 	// start tls proxy
 	err = dockerAgent.tlsProxy.Start()
 	if err != nil {
@@ -264,15 +274,6 @@ func (d *DockerAgent) PostStart() error {
 	d.Running.Set(true)
 
 	// no point in doing this async. main goroutine exits after PostStart
-	hConn, err := net.Dial("unix", mounts.HcontrolSocket)
-	if err != nil {
-		return err
-	}
-	d.host, err = hclient.New(hConn)
-	if err != nil {
-		return err
-	}
-
 	sConn, err := net.Dial("unix", mounts.SconGuestSocket)
 	if err != nil {
 		return err

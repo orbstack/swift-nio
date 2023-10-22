@@ -251,7 +251,7 @@ func (c *DrmClient) Run() {
 func (c *DrmClient) restoreState() error {
 	dlog("restoreState")
 	c.keychainMu.Lock()
-	data, err := drmcore.ReadKeychainState()
+	data, err := drmcore.ReadKeychainDrmState()
 	c.keychainMu.Unlock()
 	if err != nil {
 		return err
@@ -331,7 +331,7 @@ func (c *DrmClient) persistState(result *drmtypes.Result) error {
 		return err
 	}
 
-	err = drmcore.SetKeychainState(data)
+	err = drmcore.SetKeychainDrmState(data)
 	if err != nil {
 		return err
 	}
