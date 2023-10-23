@@ -48,11 +48,14 @@ extension DKContainer {
 extension DKPort {
     var formatted: String {
         let ctrPort = privatePort
-        let localPort = publicPort ?? privatePort
         let protoSuffix = type == "tcp" ? "" : "  (\(type.uppercased()))"
         let portStr = ctrPort == localPort ? "\(ctrPort)" : "\(ctrPort) → \(localPort)"
 
         return "\(portStr)\(protoSuffix)"
+    }
+
+    var localPort: UInt16 {
+        publicPort ?? privatePort
     }
 
     func openUrl() {

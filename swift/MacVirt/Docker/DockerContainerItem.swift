@@ -345,8 +345,10 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(container.ports) { port in
-                            CustomLink(port.formatted) {
-                                port.openUrl()
+                            CopyableText(copyAs: "\(port.localPort)") {
+                                CustomLink(port.formatted) {
+                                    port.openUrl()
+                                }
                             }
                         }
                     }
