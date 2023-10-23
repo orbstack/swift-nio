@@ -54,8 +54,9 @@ func queryOne(name string, rtype uint16) ([]QueryAnswer, error) {
 
 	nameC := C.CString(name)
 	defer C.free(unsafe.Pointer(nameC))
-	queryId := nextSeq.Add(1)
+
 	var sdRef C.DNSServiceRef
+	queryId := nextSeq.Add(1)
 	ret := C.start_query_record(&sdRef, C.kDNSServiceFlagsTimeout|C.kDNSServiceFlagsReturnIntermediates, 0, nameC, C.ushort(rtype), C.ushort(rclass), C.uint64_t(queryId))
 	if ret != C.kDNSServiceErr_NoError {
 		if verboseTrace {
@@ -65,11 +66,14 @@ func queryOne(name string, rtype uint16) ([]QueryAnswer, error) {
 		}
 		return nil, mapError(int(ret))
 	}
+	// guarantee free on error path
+	defer C.DNSServiceRefDeallocate(sdRef)
 
 	query := &queryState{
 		ref: sdRef,
 	}
 
+	// homegrown cgo.Handle
 	queryMapMu.Lock()
 	queryMap[queryId] = query
 	queryMapMu.Unlock()

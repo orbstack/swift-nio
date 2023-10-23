@@ -44,7 +44,6 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 	if errorCode != 0 {
 		query.err = mapError(int(errorCode))
 		query.done = true
-		C.DNSServiceRefDeallocate(query.ref)
 		return
 	}
 
@@ -59,6 +58,5 @@ func go_dnssd_callback(context uint64, flags C.DNSServiceFlags, interfaceIndex C
 
 	if flags&C.kDNSServiceFlagsMoreComing == 0 {
 		query.done = true
-		C.DNSServiceRefDeallocate(query.ref)
 	}
 }
