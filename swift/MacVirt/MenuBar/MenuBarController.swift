@@ -259,15 +259,16 @@ class MenuBarController: NSObject, NSMenuDelegate {
            machines.contains(where: { !$0.builtin }) {
             menu.addSectionHeader("Machines")
 
-            // only show running in menu bar
             let runningMachines = machines.filter { $0.running && !$0.builtin }
-            menu.addTruncatedItems(runningMachines) { machine in
-                makeMachineItem(record: machine)
-            }
+            let stoppedMachines = machines.filter { !$0.running && !$0.builtin }
 
             // placeholder if no machines
             if runningMachines.isEmpty {
                 menu.addInfoLine("None running")
+            }
+
+            menu.addTruncatedItems(runningMachines, overflowHeader: "Stopped", overflowItems: stoppedMachines) { machine in
+                makeMachineItem(record: machine)
             }
 
             menu.addSeparator()
