@@ -176,68 +176,81 @@ struct MainWindow: View {
 
     @ViewBuilder
     private var sidebarContents12: some View {
-        List {
-            // List(selection:) should NOT be used for navigation: https://kean.blog/post/triple-trouble
-            // NavigationLink(tag:selection:) expects Binding<String?> so make a binding to ignore nil
-            let selBinding = Binding<String?>(get: {
-                selection
-            }, set: {
-                if let sel = $0 {
-                    selection = sel
-                }
-            })
+        let selBinding = Binding<String?>(get: {
+            selection
+        }, set: {
+            if let sel = $0 {
+                selection = sel
+            }
+        })
 
-            // on macOS 14, must put .tag() on Label or it crashes
+        // List(selection:) should NOT be used for navigation: https://kean.blog/post/triple-trouble
+        // it's a bit buggy when programmatically controlling selection (can have two nav links showing up as active at the same time for a few frames)
+        // but...
+        // the alternatives, NavigationLink(tag:selection:destination:label:), and NavigationLink(isActive:destination:label:), are more buggy
+        // if you hold up and down arrow keys, it consistently crashes on macOS 13.6 when transitioning between k8s pods/services tabs (when k8s is diasbled)
+        // so we still have to use this "wrong" method
+        // NavigationSplitView has no such bug, but it has the issue with slow sidebar show/hide
+        List(selection: selBinding) {
+            // on early macOS 14 betas, must put .tag() on Label or it crashes
             // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
+            // we use NavigationSplitView path for stability on macOS 14, so this doesn't matter
             Section(header: Text("Docker")) {
-                NavigationLink(tag: "docker", selection: selBinding) {
+                NavigationLink {
                     DockerContainersRootView(selection: initialDockerContainerSelection, searchQuery: "")
                 } label: {
                     NavTab("Containers", systemImage: "shippingbox")
                 }
+                .tag("docker")
                 
-                NavigationLink(tag: "docker-volumes", selection: selBinding) {
+                NavigationLink {
                     DockerVolumesRootView()
                 } label: {
                     NavTab("Volumes", systemImage: "externaldrive")
                 }
+                .tag("docker-volumes")
                 
-                NavigationLink(tag: "docker-images", selection: selBinding) {
+                NavigationLink {
                     DockerImagesRootView()
                 } label: {
                     NavTab("Images", systemImage: "doc.zipper")
                 }
+                .tag("docker-images")
             }
             .tag("docker")
 
             Section(header: Text("Kubernetes")) {
-                NavigationLink(tag: "k8s-pods", selection: selBinding) {
+                NavigationLink {
                     K8SPodsView()
                 } label: {
                     NavTab("Pods", systemImage: "helm")
                 }
+                .tag("k8s-pods")
 
-                NavigationLink(tag: "k8s-services", selection: selBinding) {
+                NavigationLink {
                     K8SServicesView()
                 } label: {
                     NavTab("Services", systemImage: "network")
                 }
+                .tag("k8s-services")
             }
             
             Section(header: Text("Linux")) {
-                NavigationLink(tag: "machines", selection: selBinding) {
+                NavigationLink {
                     MachinesRootView()
                 } label: {
                     NavTab("Machines", systemImage: "desktopcomputer")
                 }
+                .tag("machines")
             }
             
             Section(header: Text("Help")) {
-                NavigationLink(tag: "cli", selection: selBinding) {
+                NavigationLink {
                     CommandsRootView()
                 } label: {
                     NavTab("Commands", systemImage: "terminal")
                 }
+                .tag("cli")
             }
         }
         .listStyle(.sidebar)
