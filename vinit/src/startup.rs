@@ -1,5 +1,6 @@
 use std::{env, error::Error, fs::{self, Permissions, OpenOptions, File}, time::{Instant, Duration}, os::{unix::{prelude::{PermissionsExt, FileExt}, fs::chroot}}, process::{Command, Stdio}, io::{Write}, net::UdpSocket, sync::Arc};
 
+use anyhow::anyhow;
 use elf::{ElfBytes, endian::{LittleEndian, NativeEndian}, ElfStream};
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link, FR_ACT_TO_TBL};
@@ -600,7 +601,7 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn prepare_rstub(host_major_version: u32) -> Result<(), Box<dyn Error>> {
+fn prepare_rstub(host_build: &str) -> Result<(), Box<dyn Error>> {
     use crate::rosetta::RSTUB_FLAG_TSO_WORKAROUND;
 
     // copy rstub binary
@@ -619,8 +620,9 @@ fn prepare_rstub(host_major_version: u32) -> Result<(), Box<dyn Error>> {
 
     // create config
     let mut flags = 0u32;
-    if host_major_version == 14 {
-        // macOS 14 has broken TSO
+    if host_build.starts_with("23A") {
+        // macOS 14.0.x has broken TSO
+        // fixed in 14.1 RC (23B73)
         flags |= RSTUB_FLAG_TSO_WORKAROUND;
     }
 
@@ -657,16 +659,17 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 
         // add preserve-argv0 flag on Sonoma Rosetta 309+
         let mut rosetta_flags = "CF(".to_string();
-        let host_major_version = match sys_info.seed_configs.get("host_major_version") {
-            Some(value) => value.parse::<u32>()?,
-            None => 0,
-        };
+        let host_major_version = sys_info.seed_configs.get("host_major_version")
+            .ok_or_else(|| anyhow!("Missing version"))?
+            .parse::<u32>()?;
         if patched || host_major_version >= 14 {
             rosetta_flags += "P"
         }
 
         // prepare rosetta wrapper
-        prepare_rstub(host_major_version).unwrap();
+        let host_build: &String = sys_info.seed_configs.get("host_build_version")
+            .ok_or_else(|| anyhow!("Missing version"))?;
+        prepare_rstub(host_build).unwrap();
 
         // if we're using Rosetta, we'll do it through the RVFS wrapper.
         // add flag to register qemu-x86_64 as a hidden handler that the RVFS wrapper can use, via comm=rvk2

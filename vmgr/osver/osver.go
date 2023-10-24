@@ -33,3 +33,12 @@ func IsAtLeast(v string) bool {
 func Major() string {
 	return strings.TrimPrefix(semver.Major(Get()), "v")
 }
+
+func Build() string {
+	ver, err := unix.Sysctl("kern.osversion")
+	if err != nil {
+		panic(err)
+	}
+
+	return ver
+}
