@@ -102,14 +102,42 @@ var dockerInitCommands = [][]string{
 	// add nat64 IP - always counts as host
 	{"ipset", "add", agent.IpsetHostBridge4, netconf.NAT64SourceIP4},
 
-	// TLS proxy (v4): TPROXY redirect incoming port 443 traffic from macOS to our proxy
+	// prepare chains for TLS proxy
 	{"iptables", "-t", "mangle", "-N", "ORB-PREROUTING"},
 	{"iptables", "-t", "mangle", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
+	{"iptables", "-t", "mangle", "-N", "ORB-OUTPUT"},
+	{"iptables", "-t", "mangle", "-A", "OUTPUT", "-j", "ORB-OUTPUT"},
+
+	// *** TLS proxy (v4)
+	// complicated routing to make source IP spoofing work:
+	// 1. outgoing socket has SO_MARK set to TlsProxyUpstreamMarkStr
+	// 2. on OUTPUT path, save the OUTGOING mark to conntrack metadata for this 5-tuple
+	{"iptables", "-t", "mangle", "-A", "ORB-OUTPUT", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "CONNMARK", "--save-mark"},
+	// 3. on *input* PREROUTING path, restore the mark from conntrack metadata
+	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "connmark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "CONNMARK", "--restore-mark"},
+	// 4. on *input* path ONLY, *change* mark from OUTGOING (UpstreamMark) to LOCAL_ROUTE (LocalRouteMark)
+	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
+	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
+	// TPROXY: redirect incoming port 443 traffic from macOS to our proxies
 	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge4, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", "1984", "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 
-	// TLS proxy (v6): TPROXY redirect incoming port 443 traffic from macOS to our proxy
+	// prepare chains for TLS proxy
 	{"ip6tables", "-t", "mangle", "-N", "ORB-PREROUTING"},
 	{"ip6tables", "-t", "mangle", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
+	{"ip6tables", "-t", "mangle", "-N", "ORB-OUTPUT"},
+	{"ip6tables", "-t", "mangle", "-A", "OUTPUT", "-j", "ORB-OUTPUT"},
+
+	// *** TLS proxy (v6)
+	// complicated routing to make source IP spoofing work:
+	// 1. outgoing socket has SO_MARK set to TlsProxyUpstreamMarkStr
+	// 2. on OUTPUT path, save the OUTGOING mark to conntrack metadata for this 5-tuple
+	{"ip6tables", "-t", "mangle", "-A", "ORB-OUTPUT", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "CONNMARK", "--save-mark"},
+	// 3. on *input* PREROUTING path, restore the mark from conntrack metadata
+	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "connmark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "CONNMARK", "--restore-mark"},
+	// 4. on *input* path ONLY, *change* mark from OUTGOING (UpstreamMark) to LOCAL_ROUTE (LocalRouteMark)
+	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
+	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
+	// TPROXY redirect incoming port 443 traffic from macOS to our proxy
 	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge6, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", "1984", "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 }
 

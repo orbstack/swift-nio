@@ -73,6 +73,11 @@ func newTLSProxy() *tlsProxy {
 }
 
 func tcpAddrToSockaddr(a *net.TCPAddr) unix.Sockaddr {
+	// we use a zero port because
+	// - binding to the same 2-tuple as client (getpeername) fails with EADDRINUSE
+	// - even if we pick an ephemeral port that conflicts with one that macOS is using, it's ok, because the 5-tuple is different (different dest port: 80 vs. 443) and Linux conntrack only requires unique 5-tuple. therefore no conflict is possible
+	//   - especially because macOS doesn't reuse same src ports
+	// - src port doesn't matter for HTTPS or even websocket
 	if ip4 := a.IP.To4(); ip4 != nil {
 		sa := &unix.SockaddrInet4{Port: 0}
 		copy(sa.Addr[:], ip4)
@@ -239,6 +244,7 @@ func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 
 	return nil
 }
+
 func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
 	dialHost, _, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -257,26 +263,28 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 		ControlContext: func(ctx context.Context, network, address string, c syscall.RawConn) error {
 			var retErr error
 			err2 := c.Control(func(fd uintptr) {
-				// set IP_FREEBIND to be able to bind to this
-				err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_FREEBIND, 1)
+				// set IP_TRANSPARENT to be able to bind to any IP
+				// IP_FREEBIND doesn't work for some reason
+				err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
 				if err != nil {
 					retErr = fmt.Errorf("failed to set opt 1: %w", err)
 					return
 				}
 
 				// set SO_MARK to prevent TPROXY routing loop (since is also going to the dest IP)
+				// also, this mark provides routing for the return path when we spoof source IP
 				err = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, TlsProxyUpstreamMark)
 				if err != nil {
 					retErr = fmt.Errorf("failed to set opt 2: %w", err)
 					return
 				}
 
-				// bind laddr
-				// err = unix.Bind(int(fd), tcpAddrToSockaddr(dialInfo.bindAddr))
-				// if err != nil {
-				// 	// just a warning. continue but with wrong src IP
-				// 	logrus.WithError(err).Warn("failed to bind to laddr")
-				// }
+				// bind to local address, spoof source IP of client (but not port)
+				err = unix.Bind(int(fd), tcpAddrToSockaddr(dialInfo.bindAddr))
+				if err != nil {
+					// just a warning. continue but with wrong src IP
+					logrus.WithError(err).Warn("failed to bind to laddr")
+				}
 			})
 			if err2 != nil {
 				return err2

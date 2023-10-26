@@ -148,7 +148,10 @@ func GenerateRoot() (string, string, error) {
 
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		MaxPathLenZero:        true,
+		// don't set path length constraint to prevent intermediate CAs (MaxPathLenZero)
+		// it's pointless:
+		//  - if root key is leaked, they could issue intermediates, but... they can also just use it to issue leaf certs
+		//  - path len constraint doesn't prevent them from issuing arbitrary leaf certs
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader, template, template, pk, sk)
