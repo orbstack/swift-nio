@@ -38,6 +38,8 @@ const (
 var (
 	extraImages = map[types.ImageSpec]RawImage{
 		// too much work to keep sha256 and size up to date
+		// [BREAKING] for legacy compat reasons we keep urls for these version combos,
+		// but now we use lxc-ci images because it's much faster than nixos hydra server
 		{Distro: images.ImageNixos, Version: "22.11", Arch: "amd64", Variant: "default"}: {
 			MetadataURL:    "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdMeta.x86_64-linux/latest/download-by-type/file/system-tarball",
 			MetadataSha256: "",
@@ -223,7 +225,7 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 }
 
 func isImageDistroInLxdRepo(image string) bool {
-	return image != images.ImageNixos && image != images.ImageDocker
+	return image != images.ImageDocker
 }
 
 func downloadFile(url string, outPath string, expectSha256 string) error {
@@ -415,6 +417,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 		// terrible...
 		// TODO proper templating
 		tmpl = strings.ReplaceAll(tmpl, "{{ container.name }}", hostName)
+		tmpl = strings.ReplaceAll(tmpl, "{{ instance.name }}", hostName)
 
 		// make dirs
 		err = fs.MkdirAll(path.Dir(relPath), 0755)
