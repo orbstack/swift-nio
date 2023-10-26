@@ -38,7 +38,8 @@ var (
 		images.ImageVoid:      {"xbps-install -Sy curl"},
 
 		images.ImageDevuan: nil, // no need
-		images.ImageAlma:   nil, // no need
+		// need to install `tar` for vscode server
+		images.ImageAlma: {"dnf install -y tar"},
 		//images.ImageAmazon: {"yum install -y curl"},
 		images.ImageOracle: nil, // no need
 		images.ImageRocky:  nil, // no need
