@@ -9,12 +9,24 @@ import Combine
 import Sparkle
 import Defaults
 
+// need class to store published
+private class MachineSettingsViewModel: ObservableObject {
+    @Published var memoryMib = 0.0
+
+    var memoryMibThrottled: Publishers.Throttle<Published<Double>.Publisher, DispatchQueue>?
+
+    init() {
+        // prevent slider from oscillating
+        memoryMibThrottled = $memoryMib.throttle(for: 0.1, scheduler: DispatchQueue.main, latest: true)
+    }
+}
+
 struct MachineSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
+    @StateObject private var model = MachineSettingsViewModel()
     @StateObject private var windowHolder = WindowHolder()
 
-    @State private var memoryMib = 0.0
     @State private var cpu = 1.0
     @State private var enableRosetta = true
     @State private var dockerSetContext = true
@@ -54,10 +66,10 @@ struct MachineSettingsView: View {
                     // e.g. up to 28 GiB on 32 GiB Macs
                     // OK because of macOS compression
                     let maxMemoryMib = max(systemMemMib * 0.80, systemMemMib - 4096)
-                    Slider(value: $memoryMib, in: 1024...maxMemoryMib, step: 1024) {
+                    Slider(value: $model.memoryMib, in: 1024...maxMemoryMib, step: 1024) {
                         VStack(alignment: .trailing) {
                             Text("Memory limit")
-                            Text("\(memoryMib / 1024, specifier: "%.0f") GiB")
+                            Text("\(model.memoryMib / 1024, specifier: "%.0f") GiB")
                             .font(.caption.monospacedDigit())
                             .foregroundColor(.secondary)
                         }
@@ -66,7 +78,7 @@ struct MachineSettingsView: View {
                     } maximumValueLabel: {
                         Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
                     }
-                    .onChange(of: memoryMib) { newValue in
+                    .onReceive(model.memoryMibThrottled!) { newValue in
                         vmModel.trySetConfigKey(\.memoryMib, UInt64(newValue))
                     }
 
@@ -161,10 +173,7 @@ struct MachineSettingsView: View {
     }
 
     private func updateFrom(_ config: VmConfig) {
-        // fix slider oscillating
-        if memoryMib == 0.0 {
-            memoryMib = Double(config.memoryMib)
-        }
+        model.memoryMib = Double(config.memoryMib)
         cpu = Double(config.cpu)
         enableRosetta = config.rosetta
         dockerSetContext = config.dockerSetContext
