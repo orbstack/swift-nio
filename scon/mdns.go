@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/netip"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
+	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/syncx"
@@ -27,7 +29,7 @@ var mdnsContainerSuffixes = []string{".orb.local."}
 
 const mdnsMachineSuffix = ".orb.local."
 
-const mdnsIndexDomain = "orb.local."
+const mdnsIndexDomain = "orb.local"
 
 const (
 	// long because we have cache flushing on reuse
@@ -142,7 +144,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database) *mdnsRegistry {
 	}
 
 	// add initial index record
-	r.tree.Insert(toTreeKey(mdnsIndexDomain), &mdnsEntry{
+	r.tree.Insert(toTreeKey(mdnsIndexDomain+"."), &mdnsEntry{
 		Type:       MdnsEntryStatic,
 		IsWildcard: false,
 		IsHidden:   true, // don't show itself
@@ -178,24 +180,58 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		return err
 	}
 
+	tlsController, err := tlsutil.NewTLSController(r.host)
+	if err != nil {
+		return err
+	}
+
+	err = tlsController.LoadRoot()
+	if err != nil {
+		return err
+	}
+
 	// start HTTP index server
 	r.httpServer = &http.Server{
 		Handler: r,
+		TLSConfig: &tls.Config{
+			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				// only allow `orb.local` SNI for this server
+				if hlo.ServerName != mdnsIndexDomain {
+					return nil, nil
+				}
+				return tlsController.MakeCertForHost(hlo.ServerName)
+			},
+		},
 	}
-	go runOne("dns index server (v4)", func() error {
+	go runOne("dns index server (http, v4)", func() error {
 		l, err := net.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "80"))
 		if err != nil {
 			return err
 		}
 		return r.httpServer.Serve(l)
 	})
-	go runOne("dns index server (v6)", func() error {
+	go runOne("dns index server (http, v6)", func() error {
 		// breaks with DAD on bridge interface
 		l, err := net.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "80"))
 		if err != nil {
 			return err
 		}
 		return r.httpServer.Serve(l)
+	})
+	go runOne("dns index server (https, v4)", func() error {
+		l, err := net.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "443"))
+		if err != nil {
+			return err
+		}
+		return r.httpServer.ServeTLS(l, "", "")
+	})
+	go runOne("dns index server (https, v6)", func() error {
+		// breaks with DAD on bridge interface
+		l, err := net.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "443"))
+		if err != nil {
+			return err
+		}
+		return r.httpServer.ServeTLS(l, "", "")
 	})
 
 	return nil

@@ -2,24 +2,19 @@ package agent
 
 import (
 	"context"
-	"crypto"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strconv"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/hclient"
-	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -29,23 +24,12 @@ const (
 	// in case of extremely high load
 	// limited to prevent mem leak in case of wildcard scanning
 	hostDialLRUSize = 250
-
-	// fast
-	certsLRUSize = 100
-
-	certImportTimeout = 10 * time.Second
 )
 
 type tlsProxy struct {
 	hostDialLRU *lru.Cache[string, hostDialInfo]
-	certsLRU    *lru.Cache[string, *tls.Certificate]
 
-	rootCert *x509.Certificate
-	rootKey  crypto.PrivateKey
-
-	host *hclient.Client
-
-	firstConnDone atomic.Bool
+	controller *tlsutil.TLSController
 }
 
 type hostDialInfo struct {
@@ -55,21 +39,21 @@ type hostDialInfo struct {
 	dialAddr string
 }
 
-func newTLSProxy() *tlsProxy {
+func newTLSProxy(host *hclient.Client) (*tlsProxy, error) {
 	hostDialLRU, err := lru.New[string, hostDialInfo](hostDialLRUSize)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	certsLRU, err := lru.New[string, *tls.Certificate](certsLRUSize)
+	tlsController, err := tlsutil.NewTLSController(host)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return &tlsProxy{
 		hostDialLRU: hostDialLRU,
-		certsLRU:    certsLRU,
-	}
+		controller:  tlsController,
+	}, nil
 }
 
 func tcpAddrToSockaddr(a *net.TCPAddr) unix.Sockaddr {
@@ -90,19 +74,10 @@ func tcpAddrToSockaddr(a *net.TCPAddr) unix.Sockaddr {
 }
 
 func (t *tlsProxy) Start() error {
-	// TODO move to thread in case it blocks
-	certData, err := t.host.GetTLSRootData()
+	err := t.controller.LoadRoot()
 	if err != nil {
-		return fmt.Errorf("get root data: %w", err)
+		return err
 	}
-
-	// load root cert
-	rootCert, rootKey, err := tlsutil.LoadRoot([]byte(certData.CertPEM), []byte(certData.KeyPEM))
-	if err != nil {
-		return fmt.Errorf("load root: %w", err)
-	}
-	t.rootCert = rootCert
-	t.rootKey = rootKey
 
 	lcfg := net.ListenConfig{
 		// set IP_TRANSPARENT to accept TPROXY connections
@@ -150,30 +125,7 @@ func (t *tlsProxy) Start() error {
 		TLSConfig: &tls.Config{
 			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				// TODO for security, only allow SNIs in mdnsRegistry
-				if cert, ok := t.certsLRU.Get(hlo.ServerName); ok {
-					return cert, nil
-				}
-
-				// cert generation is fast (~3 ms) but still cache in LRU for consistent cert identity and minor optimization
-				cert, err := tlsutil.GenerateCert(t.rootCert, t.rootKey, hlo.ServerName)
-				if err != nil {
-					return nil, fmt.Errorf("generate cert: %w", err)
-				}
-
-				// add to LRU immediately
-				t.certsLRU.Add(hlo.ServerName, cert)
-
-				// now, if this is the first connection, we may want to hang for a bit (below browser timeout, i.e. up to 10 sec) and import cert to system keychain and ask for trust settings
-				if !t.firstConnDone.Swap(true) {
-					err := util.WithTimeout1(func() error {
-						return t.host.ImportCertificate(base64.StdEncoding.EncodeToString(t.rootCert.Raw))
-					}, certImportTimeout)
-					if err != nil {
-						logrus.WithError(err).Error("failed to import certificate")
-					}
-				}
-
-				return cert, nil
+				return t.controller.MakeCertForHost(hlo.ServerName)
 			},
 		},
 	}

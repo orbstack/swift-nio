@@ -469,10 +469,10 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 	// 5353/udp: allow machines to use mDNS server
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-p", "udp", "--dport", "5353", "-j", "ACCEPT"})
 
-	// allow mac host bridge to access web server port 80
+	// allow mac host bridge to access web server ports 80 and 443
 	// block machines because it could leak info to isolated machines
 	// TODO this needs ip/mac spoofing protection
-	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-s", hostBridgeIP, "-d", webIndexIP, "--proto", "tcp", "--dport", "80", "-j", "ACCEPT"})
+	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-s", hostBridgeIP, "-d", webIndexIP, "--proto", "tcp", "-m", "multiport", "--dports", "80,443", "-j", "ACCEPT"})
 
 	// explicitly block machines from accessing VM init-net servers that are intended for host vmgr to connect to
 	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"})

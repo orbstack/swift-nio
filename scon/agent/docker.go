@@ -90,7 +90,6 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 
 		containerBinds: make(map[string][]string),
 		dirSyncJobs:    make(map[uint64]chan error),
-		tlsProxy:       newTLSProxy(),
 	}
 
 	dockerAgent.containerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
@@ -168,9 +167,12 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 	if err != nil {
 		return nil, err
 	}
-	dockerAgent.tlsProxy.host = dockerAgent.host
 
 	// start tls proxy
+	dockerAgent.tlsProxy, err = newTLSProxy(dockerAgent.host)
+	if err != nil {
+		return nil, err
+	}
 	err = dockerAgent.tlsProxy.Start()
 	if err != nil {
 		return nil, err

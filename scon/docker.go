@@ -138,6 +138,7 @@ var dockerInitCommands = [][]string{
 	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
 	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
 	// TPROXY redirect incoming port 443 traffic from macOS to our proxy
+	// TODO - reuse same proxy dest port for ports 80 and 22
 	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge6, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", "1984", "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 }
 
