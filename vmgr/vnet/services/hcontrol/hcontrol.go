@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -111,6 +112,8 @@ type HcontrolServer struct {
 	k8sClient         *kubernetes.Clientset
 	k8sNotifyDebounce *vmgrsyncx.LeadingFuncDebounce
 	k8sInformerStopCh chan struct{}
+
+	certImportAttempted atomic.Bool
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -792,6 +795,14 @@ func (h *HcontrolServer) GetTLSRootData(_ None, reply *htypes.KeychainTLSData) e
 }
 
 func (h *HcontrolServer) ImportCertificate(certDerB64 string, reply *None) error {
+	// both vmgr and docker agent can call this, so keep the flag here
+	// don't annoy user with multiple import attempts if they already declined once
+	// flag is also in vm side to save an RPC
+	if h.certImportAttempted.Swap(true) {
+		// don't return error - that causes it to get logged
+		return nil
+	}
+
 	// import to keychain
 	// careful: this is missing PEM headers. just raw b64
 	err := vzf.SwextSecurityImportCertificate(certDerB64)
