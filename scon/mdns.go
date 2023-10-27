@@ -83,6 +83,7 @@ type mdnsQueryInfo struct {
 }
 
 type mdnsIndexResult struct {
+	Proto            string
 	ContainerDomains []string
 	MachineDomains   []string
 }
@@ -273,6 +274,13 @@ func (r *mdnsRegistry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// build a list of domains to show
 	res := r.listIndexDomains()
+
+	// match request protocol for urls
+	proto := "https"
+	if req.TLS == nil {
+		proto = "http"
+	}
+	res.Proto = proto
 
 	// respond with html
 	w.Header().Set("Content-Type", "text/html")
