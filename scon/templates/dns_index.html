@@ -510,7 +510,7 @@ a {
         <ul>
             {{ range $domain := .ContainerDomains }}
             <li>
-                <a href="{{ .Proto }}://{{ $domain }}">{{ $domain }}</a>
+                <a href="{{ $.Proto }}://{{ $domain }}">{{ $domain }}</a>
             </li>
             {{ end }}
         </ul>

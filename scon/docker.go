@@ -119,7 +119,8 @@ var dockerInitCommands = [][]string{
 	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
 	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
 	// TPROXY: redirect incoming port 443 traffic from macOS to our proxies
-	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge4, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", "1984", "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
+	// TODO: what about 80/443 listeners on docker machine? this should only affect container IPs but NOT gateway (docker machine)
+	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge4, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 
 	// prepare chains for TLS proxy
 	{"ip6tables", "-t", "mangle", "-N", "ORB-PREROUTING"},
@@ -139,7 +140,7 @@ var dockerInitCommands = [][]string{
 	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
 	// TPROXY redirect incoming port 443 traffic from macOS to our proxy
 	// TODO - reuse same proxy dest port for ports 80 and 22
-	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge6, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", "1984", "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
+	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge6, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 }
 
 // changes here:
