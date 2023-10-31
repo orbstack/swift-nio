@@ -76,6 +76,7 @@ var dockerInitCommands = [][]string{
 	{"iptables", "-t", "nat", "-A", "POSTROUTING", "-j", "ORB-POSTROUTING"},
 	// "fix" ipv4 docker port forward source IPs. normally docker only does DNAT w/o MASQUERADE to preserve source IP, but our source IP is internal vnet and people expect it to come from the machine like normal linux loopback
 	// needed because people make assumptions about source IPs
+	// IMPORTANT: we CANNOT masquerade for NAT64 10.183 IP because cfwd needs it as a port scanning signal, and mark will be lost when it reaches the container
 	{"iptables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "198.19.248.1/32", "!", "-d", "127.0.0.0/8", "!", "-o", "eth0", "-j", "MASQUERADE"},
 
 	{"ip6tables", "-t", "nat", "-N", "ORB-POSTROUTING"},
