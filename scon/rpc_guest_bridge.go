@@ -3,13 +3,28 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
+
+var (
+	vnetPrefix4 = netip.MustParsePrefix(netconf.VnetSubnet4)
+	sconPrefix4 = netip.MustParsePrefix(netconf.SconSubnet4)
+
+	vnetPrefix6 = netip.MustParsePrefix(netconf.VnetSubnet6)
+	sconPrefix6 = netip.MustParsePrefix(netconf.SconSubnet6)
+)
+
+func prefixIntersects(a, b netip.Prefix) bool {
+	// check first IPs
+	return a.Contains(b.Masked().Addr()) || b.Contains(a.Masked().Addr())
+}
 
 // we only use Linux proxy_arp for IPv4. IPv6 is handled by NDP responder in Swift,
 // because Linux NDP proxy can only do individual IPv6 addrs via "ip neigh", not entire subnets
@@ -54,6 +69,14 @@ func enableProxyNdp(intf string) error {
 // - more reliable. for example, no need to deal with 30-sec negative ARP cache if host tried to ping the container before it started
 //   - docker container MACs are static for the same IP, so not a big issue in practice
 func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *None) (retErr error) {
+	// network must not conflict with internal
+	if config.IP4Subnet.IsValid() && (prefixIntersects(config.IP4Subnet, vnetPrefix4) || prefixIntersects(config.IP4Subnet, sconPrefix4)) {
+		return fmt.Errorf("subnet %s conflicts with internal OrbStack IPs", config.IP4Subnet)
+	}
+	if config.IP6Subnet.IsValid() && (prefixIntersects(config.IP6Subnet, vnetPrefix6) || prefixIntersects(config.IP6Subnet, sconPrefix6)) {
+		return fmt.Errorf("subnet %s conflicts with internal OrbStack IPs", config.IP6Subnet)
+	}
+
 	// assign vlan ID, create vmnet bridge on host, add to VlanRouter
 	vlanId, err := s.m.host.AddDockerBridge(config)
 	if err != nil {
