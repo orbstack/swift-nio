@@ -8,9 +8,7 @@ type Broadcaster[T any] struct {
 }
 
 func NewBroadcaster[T any]() *Broadcaster[T] {
-	return &Broadcaster[T]{
-		subscribers: make([]chan T, 1),
-	}
+	return &Broadcaster[T]{}
 }
 
 func (b *Broadcaster[T]) Subscribe() chan T {
