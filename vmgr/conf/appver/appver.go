@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+const expSuffix = "canary"
+
 //go:generate ./gen_version.sh
 
 var (
@@ -28,10 +30,10 @@ var Get = sync.OnceValue(func() *Version {
 	dashParts := strings.Split(describe, "-")
 	dashParts[0] = strings.TrimPrefix(dashParts[0], "v")
 	var rcNum int
-	if strings.Contains(describe, "-rc") {
+	if strings.Contains(describe, "-"+expSuffix) {
 		short = dashParts[0] + "-" + dashParts[1]
 		var err error
-		rcNum, err = strconv.Atoi(strings.TrimPrefix(dashParts[1], "rc"))
+		rcNum, err = strconv.Atoi(strings.TrimPrefix(dashParts[1], expSuffix))
 		if err != nil {
 			panic(err)
 		}
