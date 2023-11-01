@@ -14,11 +14,11 @@ import (
 )
 
 var (
-	vnetPrefix4 = netip.MustParsePrefix(netconf.VnetSubnet4)
-	sconPrefix4 = netip.MustParsePrefix(netconf.SconSubnet4)
+	vnetPrefix4 = netip.MustParsePrefix(netconf.VnetSubnet4CIDR)
+	sconPrefix4 = netip.MustParsePrefix(netconf.SconSubnet4CIDR)
 
-	vnetPrefix6 = netip.MustParsePrefix(netconf.VnetSubnet6)
-	sconPrefix6 = netip.MustParsePrefix(netconf.SconSubnet6)
+	vnetPrefix6 = netip.MustParsePrefix(netconf.VnetSubnet6CIDR)
+	sconPrefix6 = netip.MustParsePrefix(netconf.SconSubnet6CIDR)
 )
 
 func prefixIntersects(a, b netip.Prefix) bool {
