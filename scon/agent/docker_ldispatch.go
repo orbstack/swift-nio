@@ -31,6 +31,10 @@ func NewDispatchedListener(orig net.Listener, callback func(net.Conn) (bool, err
 func (l *DispatchedListener) Run() {
 	for {
 		conn, err := l.orig.Accept()
+		// don't send anything if closed, or we'll get a panic
+		if l.closed.Load() {
+			return
+		}
 		if err != nil {
 			// return error to next accept call
 			l.passthruErrors <- err
