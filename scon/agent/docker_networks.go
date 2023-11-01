@@ -21,7 +21,9 @@ const (
 
 const (
 	IpsetHostBridge4 = "orb-tp4"
+	IpsetGateway4    = "orb-tp4-gw"
 	IpsetHostBridge6 = "orb-tp6"
+	IpsetGateway6    = "orb-tp6-gw"
 
 	TlsProxyUpstreamMark    = 0x9fbf6bbf
 	TlsProxyUpstreamMarkStr = "0x9fbf6bbf"
@@ -151,6 +153,7 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 	var ip4Subnet netip.Prefix
 	var ip4Gateway netip.Addr
 	var ip6Subnet netip.Prefix
+	var ip6Gateway netip.Addr
 	for _, ipam := range n.IPAM.Config {
 		subnet, err := netip.ParsePrefix(ipam.Subnet)
 		if err != nil {
@@ -185,6 +188,12 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 			}
 
 			ip6Subnet = subnet
+			ip6Gateway, err = netip.ParseAddr(ipam.Gateway)
+			if err != nil {
+				// default = first addr in subnet
+				// get the zero addr (masked), then add one
+				ip6Gateway = subnet.Masked().Addr().Next()
+			}
 		}
 	}
 
@@ -200,6 +209,7 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 		IP4Subnet:          ip4Subnet,
 		IP4Gateway:         ip4Gateway,
 		IP6Subnet:          ip6Subnet,
+		IP6Gateway:         ip6Gateway,
 		GuestInterfaceName: ifName,
 	}, true
 }
@@ -217,12 +227,17 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		return err
 	}
 
-	// add host IPs to ipset
+	// add host and gateway IPs to ipsets
 	if config.IP4Subnet.IsValid() {
 		hostIP := config.HostIP4().IP
 		err = util.Run("ipset", "add", IpsetHostBridge4, hostIP.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
+		}
+
+		err = util.Run("ipset", "add", IpsetGateway4, config.IP4Gateway.String())
+		if err != nil {
+			logrus.WithError(err).WithField("ip", config.IP4Gateway).Error("failed to add gateway ip to set")
 		}
 	}
 	if config.IP6Subnet.IsValid() {
@@ -230,6 +245,11 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		err = util.Run("ipset", "add", IpsetHostBridge6, hostIP.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
+		}
+
+		err = util.Run("ipset", "add", IpsetGateway6, config.IP6Gateway.String())
+		if err != nil {
+			logrus.WithError(err).WithField("ip", config.IP6Gateway).Error("failed to add gateway ip to set")
 		}
 	}
 
@@ -249,12 +269,17 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 		return err
 	}
 
-	// remove host IPs from ipset
+	// remove host and gateway IPs from ipsets
 	if config.IP4Subnet.IsValid() {
 		hostIP := config.HostIP4().IP
 		err = util.Run("ipset", "del", IpsetHostBridge4, hostIP.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove host ip from set")
+		}
+
+		err = util.Run("ipset", "del", IpsetGateway4, config.IP4Gateway.String())
+		if err != nil {
+			logrus.WithError(err).WithField("ip", config.IP4Gateway).Error("failed to remove gateway ip from set")
 		}
 	}
 	if config.IP6Subnet.IsValid() {
@@ -262,6 +287,11 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 		err = util.Run("ipset", "del", IpsetHostBridge6, hostIP.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove host ip from set")
+		}
+
+		err = util.Run("ipset", "del", IpsetGateway6, config.IP6Gateway.String())
+		if err != nil {
+			logrus.WithError(err).WithField("ip", config.IP6Gateway).Error("failed to remove gateway ip from set")
 		}
 	}
 

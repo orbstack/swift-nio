@@ -12,6 +12,7 @@ type DockerBridgeConfig struct {
 	IP4Subnet  netip.Prefix
 	IP4Gateway netip.Addr // for checking bip/lastIP conflict
 	IP6Subnet  netip.Prefix
+	IP6Gateway netip.Addr // ipv6 should not conflict, but this is used for tls proxy ipset
 
 	// for scon
 	GuestInterfaceName string

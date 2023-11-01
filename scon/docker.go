@@ -99,7 +99,9 @@ var dockerInitCommands = [][]string{
 
 	// mixed ipv4 and ipv6 hash set
 	{"ipset", "create", agent.IpsetHostBridge4, "hash:ip"},
+	{"ipset", "create", agent.IpsetGateway4, "hash:ip"},
 	{"ipset", "create", agent.IpsetHostBridge6, "hash:ip", "family", "inet6"},
+	{"ipset", "create", agent.IpsetGateway6, "hash:ip", "family", "inet6"},
 	// add nat64 IP - always counts as host
 	{"ipset", "add", agent.IpsetHostBridge4, netconf.NAT64SourceIP4},
 
@@ -120,8 +122,8 @@ var dockerInitCommands = [][]string{
 	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
 	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
 	// TPROXY: redirect incoming port 443 traffic from macOS to our proxies
-	// TODO: what about 80/443 listeners on docker machine? this should only affect container IPs but NOT gateway (docker machine)
-	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge4, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
+	// exclude gateway to avoid interfering with user's port 443 forwards
+	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge4, "src", "-m", "set", "!", "--match-set", agent.IpsetGateway4, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 
 	// prepare chains for TLS proxy
 	{"ip6tables", "-t", "mangle", "-N", "ORB-PREROUTING"},
@@ -140,8 +142,9 @@ var dockerInitCommands = [][]string{
 	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
 	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
 	// TPROXY redirect incoming port 443 traffic from macOS to our proxy
+	// exclude gateway to avoid interfering with user's port 443 forwards
 	// TODO - reuse same proxy dest port for ports 80 and 22
-	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge6, "src", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
+	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge6, "src", "-m", "set", "!", "--match-set", agent.IpsetGateway6, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 }
 
 // changes here:
