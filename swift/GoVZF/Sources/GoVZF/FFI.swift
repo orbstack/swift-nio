@@ -20,6 +20,20 @@ class ResultWrapper<T: Any> {
     }
 }
 
+func doGenericErr(_ block: @escaping () async throws -> Void) -> GResultErr {
+    let result = ResultWrapper<GResultErr>()
+    Task.detached {
+        do {
+            try await block()
+            result.set(GResultErr(err: nil))
+        } catch {
+            let prettyError = "\(error)"
+            result.set(GResultErr(err: strdup(prettyError)))
+        }
+    }
+    return result.wait()
+}
+
 func doGenericErr<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, _ block: @escaping (T) async throws -> Void) -> GResultErr {
     let result = ResultWrapper<GResultErr>()
     Task.detached {
@@ -33,6 +47,16 @@ func doGenericErr<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, _ block: @escapi
         }
     }
     return result.wait()
+}
+
+func doGenericErr(_ block: @escaping () throws -> Void) -> GResultErr {
+    do {
+        try block()
+        return GResultErr(err: nil)
+    } catch {
+        let prettyError = "\(error)"
+        return GResultErr(err: strdup(prettyError))
+    }
 }
 
 func doGenericErr<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, _ block: @escaping (T) throws -> Void) -> GResultErr {

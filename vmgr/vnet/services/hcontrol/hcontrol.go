@@ -810,10 +810,14 @@ func (h *HcontrolServer) ImportCertificate(certDerB64 string, reply *None) error
 		return err
 	}
 
-	// if it succeeded, that means user accepted and authorized the trust settings prompt, since we don't have a timeout at this level.
-	// so also add the cert to Firefox profile's nss database
-	// at this point it's no longer a violation of trust for us to do this
-	//TODO
+	// if it succeeded, that means user accepted and authorized the trust settings prompt, since timeout is on the scon sode
+	// that means we should also add it to firefox
+	// 2 ways:
+	//   - edit nss db at profile/cert9.db. requires FF restart to load.
+	//   - enable security.enterprise_roots.enabled
+	// it's enabled by default in FF 120, but as of writing, latest stable is FF 119
+	// conds: if FF profile AND app last used within a year, then open docs page. don't tamper with FF prefs.js or risk corruption
+	vzf.SwextImportFirefoxCerts()
 
 	return nil
 }

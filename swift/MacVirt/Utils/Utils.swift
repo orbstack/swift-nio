@@ -264,11 +264,10 @@ struct InstalledApps {
                     return (BundleInfo(id: bundleId, url: bundleURL), true, launchDate)
                 }
 
-                if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-                    let attributes = NSMetadataItem(url: bundleUrl)
-                    if let date = attributes?.value(forAttribute: kMDItemLastUsedDate as String) as? Date {
-                        return (BundleInfo(id: bundleId, url: bundleUrl), false, date)
-                    }
+                if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+                   let attributes = NSMetadataItem(url: bundleUrl),
+                   let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date {
+                    return (BundleInfo(id: bundleId, url: bundleUrl), false, date)
                 }
 
                 return nil

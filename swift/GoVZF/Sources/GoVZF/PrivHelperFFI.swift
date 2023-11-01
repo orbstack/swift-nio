@@ -7,7 +7,6 @@ import CBridge
 import Defaults
 
 private let client = PHClient()
-private let dummyPtr = Unmanaged.passRetained(client).toOpaque()
 
 private let maxAdminDismissCount = 2 // auto-disable
 
@@ -27,8 +26,7 @@ func swext_privhelper_symlink(srcC: UnsafePointer<CChar>, destC: UnsafePointer<C
     let dest = String(cString: destC)
     NSLog("symlink: \(src) -> \(dest)")
 
-    // need a dummy pointer to use async wrapper
-    return doGenericErr(dummyPtr) { (_: PHClient) in
+    return doGenericErr {
         do {
             try await client.symlink(src: src, dest: dest)
         } catch PHError.canceled {
@@ -43,7 +41,7 @@ func swext_privhelper_symlink(srcC: UnsafePointer<CChar>, destC: UnsafePointer<C
 
 @_cdecl("swext_privhelper_uninstall")
 func swext_privhelper_uninstall() -> GResultErr {
-    doGenericErr(dummyPtr) { (_: PHClient) in
+    doGenericErr {
         try await client.uninstall()
     }
 }

@@ -6,8 +6,6 @@ import Foundation
 import Security
 import CBridge
 
-private let dummyPtr = Unmanaged.passRetained(NSObject()).toOpaque()
-
 private enum KeychainFFIError: Error {
     case certificateInvalid
     case addToKeychainFailed(OSStatus)
@@ -113,8 +111,7 @@ func swext_security_import_certificate(certDerB64C: UnsafePointer<CChar>) -> GRe
     let certDerB64 = String(cString: certDerB64C)
     let certDer = Data(base64Encoded: certDerB64)!
 
-    // need a dummy pointer to use wrapper
-    return doGenericErr(dummyPtr) { (_: PHClient) in
+    return doGenericErr {
         try Keychain.importAndTrustCertificate(certDer: certDer)
     }
 }
