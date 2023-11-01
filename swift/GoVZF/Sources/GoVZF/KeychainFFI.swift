@@ -5,6 +5,39 @@
 import Foundation
 import Security
 import CBridge
+import AppKit
+
+private let firefoxRecentPeriod: TimeInterval = 3 * 30 * 24 * 60 * 60
+private let firefoxBundleIds = [
+    // stable / beta
+    "org.mozilla.firefox",
+    // nightly
+    "org.mozilla.nightly",
+    // developer edition
+    "org.mozilla.firefoxdeveloperedition",
+]
+
+private func isFirefoxRecentlyUsed() -> Bool {
+    return firefoxBundleIds.contains { bundleId in
+        if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+           let attributes = NSMetadataItem(url: bundleUrl),
+           let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date,
+           date.timeIntervalSinceNow < 365 * 24 * 60 * 60 {
+            return true
+        } else {
+            return false
+        }
+    }
+}
+
+private func importFirefoxCerts() {
+    // conds: firefox last used within a year
+    // this avoids triggering suspicious filesystem accesses (if we check profile dates)
+    if isFirefoxRecentlyUsed() {
+        // open docs page
+        NSWorkspace.shared.open(URL(string: "https://go.orbstack.dev/firefox-cert")!)
+    }
+}
 
 private enum KeychainFFIError: Error {
     case certificateInvalid
@@ -61,7 +94,7 @@ private struct Keychain {
         return String(data: data, encoding: .utf8)
     }
 
-    static func importAndTrustCertificate(certDer: Data) throws {
+    static func importAndTrustCertificate(certDer: Data) throws -> Bool {
         let cert = SecCertificateCreateWithData(nil, certDer as CFData)
         guard let cert else {
             throw KeychainFFIError.certificateInvalid
@@ -84,7 +117,7 @@ private struct Keychain {
                 var error: CFError?
                 let result = SecTrustEvaluateWithError(trust, &error)
                 if result && error == nil {
-                    return
+                    return false
                 }
             }
         }
@@ -103,6 +136,8 @@ private struct Keychain {
         guard status == errSecSuccess else {
             throw KeychainFFIError.setTrustSettingsFailed(status)
         }
+
+        return true
     }
 }
 
@@ -112,6 +147,9 @@ func swext_security_import_certificate(certDerB64C: UnsafePointer<CChar>) -> GRe
     let certDer = Data(base64Encoded: certDerB64)!
 
     return doGenericErr {
-        try Keychain.importAndTrustCertificate(certDer: certDer)
+        let imported = try Keychain.importAndTrustCertificate(certDer: certDer)
+        if imported {
+            importFirefoxCerts()
+        }
     }
 }

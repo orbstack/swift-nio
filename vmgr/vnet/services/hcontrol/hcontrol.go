@@ -803,21 +803,12 @@ func (h *HcontrolServer) ImportCertificate(certDerB64 string, reply *None) error
 		return nil
 	}
 
-	// import to keychain
+	// import to keychain, and open firefox dialog if necessary
 	// careful: this is missing PEM headers. just raw b64
 	err := vzf.SwextSecurityImportCertificate(certDerB64)
 	if err != nil {
 		return err
 	}
-
-	// if it succeeded, that means user accepted and authorized the trust settings prompt, since timeout is on the scon sode
-	// that means we should also add it to firefox
-	// 2 ways:
-	//   - edit nss db at profile/cert9.db. requires FF restart to load.
-	//   - enable security.enterprise_roots.enabled
-	// it's enabled by default in FF 120, but as of writing, latest stable is FF 119
-	// conds: if FF profile AND app last used within a year, then open docs page. don't tamper with FF prefs.js or risk corruption
-	vzf.SwextImportFirefoxCerts()
 
 	return nil
 }

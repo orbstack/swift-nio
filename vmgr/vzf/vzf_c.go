@@ -43,7 +43,6 @@ void swext_vlanrouter_clearBridges(void* ptr);
 void swext_vlanrouter_close(void* ptr);
 
 struct GResultErr swext_gui_run_as_admin(char* shell_script, char* prompt);
-void swext_import_firefox_certs(void);
 
 struct GResultErr swext_privhelper_symlink(const char* src, const char* dst);
 struct GResultErr swext_privhelper_uninstall(void);
@@ -663,10 +662,6 @@ func SwextGuiRunAsAdmin(shellScript string, prompt string) error {
 	defer C.free(unsafe.Pointer(cPrompt))
 	res := C.swext_gui_run_as_admin(cShellScript, cPrompt)
 	return errFromResult(res)
-}
-
-func SwextImportFirefoxCerts() {
-	C.swext_import_firefox_certs()
 }
 
 /*
