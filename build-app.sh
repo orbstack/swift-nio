@@ -129,6 +129,9 @@ function package_one() {
     local dmg_title="Install OrbStack $SHORT_VER"
     create-dmg --overwrite --identity="$SIGNING_CERT" --dmg-title="${dmg_title:0:27}" $arch/OrbStack.app $arch
 
+    name="$(basename $arch/*.dmg .dmg)"
+    mv $arch/*.dmg "$arch/OrbStack_${LONG_VER}_${COMMITS}_$arch.dmg"
+
     if $NOTARIZE; then
         # notarize
         xcrun notarytool submit $arch/*.dmg --keychain-profile main --wait
@@ -136,9 +139,6 @@ function package_one() {
         # staple
         xcrun stapler staple $arch/*.dmg
     fi
-
-    name="$(basename $arch/*.dmg .dmg)"
-    mv $arch/*.dmg "$arch/OrbStack_${LONG_VER}_${COMMITS}_$arch.dmg"
 }
 
 pushd swift/out
