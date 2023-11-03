@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-const expSuffix = "canary"
+const expSuffix = "rc"
 
 //go:generate ./gen_version.sh
 
