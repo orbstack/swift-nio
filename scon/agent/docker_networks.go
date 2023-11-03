@@ -25,10 +25,11 @@ const (
 	IpsetHostBridge6 = "orb-tp6"
 	IpsetGateway6    = "orb-tp6-gw"
 
-	TlsProxyUpstreamMark    = 0x9fbf6bbf
-	TlsProxyUpstreamMarkStr = "0x9fbf6bbf"
+	// avoid conflict with flannel masquerade rule for 0x2000/0x2000
+	TlsProxyUpstreamMark    = 0x9f7a0000
+	TlsProxyUpstreamMarkStr = "0x9f7a0000"
 
-	TlsProxyLocalRouteMarkStr = "0xbac63adb"
+	TlsProxyLocalRouteMarkStr = "0xb3c60000"
 )
 
 func compareNetworks(a, b dockertypes.Network) int {
@@ -137,8 +138,9 @@ func (d *DockerAgent) refreshNetworks() error {
 }
 
 func dockerNetworkToInterfaceName(n *dockertypes.Network) string {
-	if n.Name == "bridge" {
-		return "docker0"
+	if name, ok := n.Options["com.docker.network.bridge.name"]; ok {
+		// covers docker0, docker_gwbridge cases
+		return name
 	} else {
 		return "br-" + n.ID[:12]
 	}
