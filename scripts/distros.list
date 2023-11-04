@@ -18,6 +18,7 @@ debian:bookworm
 debian:bullseye
 debian:buster
 debian:sid
+debian:trixie
 devuan:beowulf
 devuan:chimaera
 devuan:daedalus
