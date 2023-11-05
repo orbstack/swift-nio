@@ -624,6 +624,11 @@ fn prepare_rstub(host_build: &str) -> Result<(), Box<dyn Error>> {
         // macOS 14.0.x has broken TSO
         // fixed in 14.1 RC (23B73)
         flags |= RSTUB_FLAG_TSO_WORKAROUND;
+
+        // careful with this workaround.
+        // it can break stuff, I guess because nproc returns 1.
+        // example: `docker run -it --rm -e CEPH_PUBLIC_NETWORK=0.0.0.0/0 -e MON_IP=127.0.0.1 -e CEPH_DEMO_UID=demo quay.io/ceph/demo:latest-quincy` gets stuck at `changed ownership of '/var/lib/ceph/osd/ceph-0' from root:root to ceph:ceph`
+        // also (allegedly): https://github.com/orbstack/orbstack/issues/730
     }
 
     // write 32-bit config flags to section
