@@ -170,6 +170,8 @@ extension Defaults.Keys {
 
     static let updatesOptinChannel = Key<String>("updates_optinChannel", default: "stable", suite: suite)
 
+    static let networkUseHttps = Key<Bool>("network_useHttps", default: true, suite: suite)
+
     // login
     static let drmLastState = Key<DrmState?>("drm_lastState", default: nil, suite: suite)
 

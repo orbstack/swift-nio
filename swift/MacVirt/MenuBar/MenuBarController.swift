@@ -419,10 +419,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         if vmModel.netBridgeAvailable {
+            let proto = container.preferredProto
             let preferredDomain = container.preferredDomain
             submenu.addActionItem("Open in Browser", icon: systemImage("link"), disabled: !container.running || preferredDomain == nil) {
                 if let preferredDomain,
-                   let url = URL(string: "http://\(preferredDomain)") {
+                   let url = URL(string: "\(proto)://\(preferredDomain)") {
                     NSWorkspace.shared.open(url)
                 }
             }

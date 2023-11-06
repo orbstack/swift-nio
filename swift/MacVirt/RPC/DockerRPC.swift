@@ -3,6 +3,7 @@
 //
 
 import Foundation
+import Defaults
 
 private let relativeDateFormatter = RelativeDateTimeFormatter()
 private let nowTimeThreshold: TimeInterval = 5 // sec
@@ -93,6 +94,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
 
     var ipAddress: String? {
         ipAddresses.first
+    }
+
+    var preferredProto: String {
+        Defaults[.networkUseHttps] ? "https" : "http"
     }
 
     // use same logic as scon server
