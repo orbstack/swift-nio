@@ -68,11 +68,10 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             // crash on macOS 12 without nested HStack
             HStack {
-                let proto = container.preferredProto
                 if isRunning, let domain = container.preferredDomain {
                     ProgressIconButton(systemImage: "link",
                             actionInProgress: false) {
-                        if let url = URL(string: "\(proto)://\(domain)") {
+                        if let url = URL(string: "\(container.preferredProto)://\(domain)") {
                             NSWorkspace.shared.open(url)
                         }
                     }
@@ -214,7 +213,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 let preferredDomain = container.preferredDomain
                 Button(action: {
                     if let preferredDomain,
-                       let url = URL(string: "\(proto)://\(preferredDomain)") {
+                       let url = URL(string: "\(container.preferredProto)://\(preferredDomain)") {
                         NSWorkspace.shared.open(url)
                     }
                 }) {
@@ -323,10 +322,12 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         CopyableText(String(container.id.prefix(12)), copyAs: container.id)
                             .font(.body.monospaced())
                         CopyableText(container.image)
+                            .frame(maxWidth: 300)
+                            .truncationMode(.tail)
                         // needs to be running w/ ip to have domain
                         if let ipAddress,
                            let domain,
-                           let url = URL(string: "\(proto)://\(domain)") {
+                           let url = URL(string: "\(container.preferredProto)://\(domain)") {
                             if vmModel.netBridgeAvailable {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)
