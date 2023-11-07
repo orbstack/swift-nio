@@ -198,8 +198,9 @@ int cfwd_sk_lookup(struct bpf_sk_lookup *ctx) {
         if (cfwd_try_assign_port(ctx, 8000)) return SK_PASS; // python common
 
         // now try ranges
-        // 8000-9000: most likely to be used for HTTP ports. (we've already checked 80 and other common ports)
-        if (cfwd_try_port_range(ctx, 8000, 9000)) return SK_PASS;
+        // 8000-9000: most likely to be used for HTTP ports, but exclude 8443 because it's HTTPS. (we've already checked 80 and other common ports)
+        if (cfwd_try_port_range(ctx, 8000, 8443)) return SK_PASS;
+        if (cfwd_try_port_range(ctx, 8444, 9000)) return SK_PASS;
         // 81-8000: try the lower half next. (start at 81 b/c we've already checked 80)
         // lower ports are all SSH, telnet, mail, etc.
         if (cfwd_try_port_range(ctx, 81, 8000)) return SK_PASS;
