@@ -106,7 +106,7 @@ var (
 		ImageCentos:    "9-Stream",
 		ImageDebian:    "bookworm",
 		ImageDevuan:    "daedalus",
-		ImageFedora:    "38",
+		ImageFedora:    "39",
 		ImageGentoo:    "current",
 		ImageKali:      "current",
 		ImageNixos:     "23.05",
