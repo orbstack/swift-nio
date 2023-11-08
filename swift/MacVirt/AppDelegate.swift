@@ -207,11 +207,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 }
 
             case "settings":
-                if #available(macOS 13, *) {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                } else {
-                    NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                }
+                Self.showSettingsWindow()
 
             default:
                 break
@@ -224,5 +220,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if let url = (response.notification.request.content.userInfo["url"] as? String)?.toURL() {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    static func showSettingsWindow() {
+        // macOS 14 breaks the "showSettingsWindow" private API, so we have to do this...
+        // simulate Cmd-, shortcut
+        let fakeEvent = NSEvent.keyEvent(with: .keyDown,
+                location: .zero,
+                modifierFlags: [.command],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: ",",
+                charactersIgnoringModifiers: ",",
+                isARepeat: false,
+                keyCode: 0)!
+        NSApp.mainMenu?.performKeyEquivalent(with: fakeEvent)
     }
 }

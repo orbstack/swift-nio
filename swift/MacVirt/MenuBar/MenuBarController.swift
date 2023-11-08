@@ -327,11 +327,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         menu.addActionItem("Settings…", shortcut: ",") {
-            if #available(macOS 13, *) {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            } else {
-                NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-            }
+            AppDelegate.showSettingsWindow()
 
             // focus app
             NSApp.activate(ignoringOtherApps: true)
