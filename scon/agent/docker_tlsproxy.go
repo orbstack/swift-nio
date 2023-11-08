@@ -84,17 +84,17 @@ func (t *tlsProxy) dispatchConn(conn net.Conn) (bool, error) {
 	// EXCEPT: if dest is a machine and user installed ufw, then ufw will drop the packet and we'll get a timeout
 	//   * workaround: short connection timeout
 	//     * this works: if load test is causing listen backlog to be full, we will get immediate RST because port is open in firewall
+	// still need to bind to host to get correct cfwd behavior, especially for 443->8443 or 443->https_port case
 	// TODO: how can we do this in kernel, without userspace proxying? is SOCKMAP good?
-	dialer := net.Dialer{
-		Timeout: 500 * time.Millisecond,
-	}
+	dialer := dialerForTransparentBind(conn.RemoteAddr().(*net.TCPAddr))
+	dialer.Timeout = 500 * time.Millisecond
 	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", conn.LocalAddr().String())
 	if err == nil {
 		// connection succeeded. proxy it
 		defer upstreamConn.Close()
 		defer conn.Close()
 		tcppump.Pump2SpTcpTcp(conn.(*net.TCPConn), upstreamConn.(*net.TCPConn))
-		return true, nil
+		return false, nil
 	}
 
 	switch destPort {
@@ -258,21 +258,8 @@ func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	return nil
 }
 
-func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
-	dialHost, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	// resolve dial info from request's host
-	dialInfo, ok := t.hostDialLRU.Get(dialHost)
-	if !ok {
-		return nil, fmt.Errorf("no dial info for host: %s", dialHost)
-	}
-
-	// dial the host
-	// need to use Dialer for context awareness, then implement bind and Control ourselves
-	dialer := net.Dialer{
+func dialerForTransparentBind(bindAddr *net.TCPAddr) *net.Dialer {
+	return &net.Dialer{
 		ControlContext: func(ctx context.Context, network, address string, c syscall.RawConn) error {
 			var retErr error
 			err2 := c.Control(func(fd uintptr) {
@@ -293,7 +280,7 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 				}
 
 				// bind to local address, spoof source IP of client (but not port)
-				err = unix.Bind(int(fd), tcpAddrToSockaddr(dialInfo.bindAddr))
+				err = unix.Bind(int(fd), tcpAddrToSockaddr(bindAddr))
 				if err != nil {
 					// just a warning. continue but with wrong src IP
 					logrus.WithError(err).Warn("failed to bind to laddr")
@@ -305,6 +292,23 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 			return retErr
 		},
 	}
+}
+
+func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
+	dialHost, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	// resolve dial info from request's host
+	dialInfo, ok := t.hostDialLRU.Get(dialHost)
+	if !ok {
+		return nil, fmt.Errorf("no dial info for host: %s", dialHost)
+	}
+
+	// dial the host
+	// need to use Dialer for context awareness, then implement bind and Control ourselves
+	dialer := dialerForTransparentBind(dialInfo.bindAddr)
 
 	logrus.WithField("bindAddr", dialInfo.bindAddr).WithField("dialAddr", dialInfo.dialAddr).Trace("dialing upstream")
 	return dialer.DialContext(ctx, "tcp", dialInfo.dialAddr)
