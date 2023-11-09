@@ -3,7 +3,6 @@ package dockerconf
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/sirupsen/logrus"
@@ -27,24 +26,20 @@ func FixDockerCredsStore() error {
 
 		// check if it's set to desktop
 		if config["credsStore"] == "desktop" {
-			// does it exist? if so, keep it
-			if _, err := exec.LookPath("docker-credential-desktop"); err == nil {
-				logrus.Debug("docker-credential-desktop exists, keeping credsStore=desktop")
-			} else {
-				// otherwise, change it
-				logrus.Debug("docker-credential-desktop doesn't exist, changing credsStore to osxkeychain")
-				// change it to osxkeychain
-				config["credsStore"] = "osxkeychain"
+			// regardless of whether docker-credential-desktop exists, change it to osxkeychain.
+			// because "desktop" doesn't work without dialing desktop socket
+			logrus.Debug("docker-credential-desktop doesn't exist, changing credsStore to osxkeychain")
+			// change it to osxkeychain
+			config["credsStore"] = "osxkeychain"
 
-				// write it back
-				data, err := json.MarshalIndent(config, "", "  ")
-				if err != nil {
-					return err
-				}
-				err = os.WriteFile(dockerConfigPath, data, 0644)
-				if err != nil {
-					return err
-				}
+			// write it back
+			data, err := json.MarshalIndent(config, "", "  ")
+			if err != nil {
+				return err
+			}
+			err = os.WriteFile(dockerConfigPath, data, 0644)
+			if err != nil {
+				return err
 			}
 		}
 	}
