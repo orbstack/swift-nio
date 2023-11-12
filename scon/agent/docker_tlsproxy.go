@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -177,7 +178,12 @@ func (t *tlsProxy) Start() error {
 		Handler: httpProxy,
 		TLSConfig: &tls.Config{
 			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				// TODO for security, only allow SNIs in mdnsRegistry
+				// for security, only allow .local SNIs
+				// no need to check mdns registry (which is expensive RPC) because any .local domain containers are allowed to register could be registered by user anyway
+				if !strings.HasSuffix(hlo.ServerName, ".local") {
+					return nil, nil
+				}
+
 				return t.controller.MakeCertForHost(hlo.ServerName)
 			},
 		},
