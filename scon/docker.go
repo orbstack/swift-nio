@@ -68,6 +68,9 @@ var dockerInitCommands = [][]string{
 	// match systemd
 	{"mount", "--make-rshared", "/"},
 
+	// compat for kruise expecting containerd OR docker+dockershim: https://github.com/openkruise/kruise/blob/4e80be556726e60f54abaa3e8ba133ce114c4f64/pkg/daemon/criruntime/factory.go#L200
+	{"ln", "-sf", "/var/run/k3s/cri-dockerd/cri-dockerd.sock", "/var/run/dockershim.sock"},
+
 	{"iptables", "-t", "nat", "-N", "ORB-PREROUTING"},
 	{"iptables", "-t", "nat", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
 	// 172.17.0.1 IP gateway compat. people hard code this...
