@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -112,8 +111,6 @@ type HcontrolServer struct {
 	k8sClient         *kubernetes.Clientset
 	k8sNotifyDebounce *vmgrsyncx.LeadingFuncDebounce
 	k8sInformerStopCh chan struct{}
-
-	certImportAttempted atomic.Bool
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -758,7 +755,9 @@ func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {
 		sentry.CaptureException(fmt.Errorf("vc checkin: %w", err))
 	}
 
-	*reply = htypes.InitConfig{}
+	*reply = htypes.InitConfig{
+		VmConfig: vmconfig.Get(),
+	}
 	return nil
 }
 
@@ -794,19 +793,34 @@ func (h *HcontrolServer) GetTLSRootData(_ None, reply *htypes.KeychainTLSData) e
 	return nil
 }
 
-func (h *HcontrolServer) ImportCertificate(certDerB64 string, reply *None) error {
-	// both vmgr and docker agent can call this, so keep the flag here
-	// don't annoy user with multiple import attempts if they already declined once
-	// flag is also in vm side to save an RPC
-	if h.certImportAttempted.Swap(true) {
-		// don't return error - that causes it to get logged
-		return nil
+func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
+	// slower, but for security reasons, VM should not be able to import any arbitrary cert
+	var certData htypes.KeychainTLSData
+	err := h.GetTLSRootData(None{}, &certData)
+	if err != nil {
+		return err
 	}
+
+	// strip PEM headers
+	pem := strings.ReplaceAll(certData.CertPEM, "\n", "")
+	pem = strings.TrimPrefix(pem, "-----BEGIN CERTIFICATE-----")
+	pem = strings.TrimSuffix(pem, "-----END CERTIFICATE-----")
 
 	// import to keychain, and open firefox dialog if necessary
 	// careful: this is missing PEM headers. just raw b64
-	err := vzf.SwextSecurityImportCertificate(certDerB64)
+	err = vzf.SwextSecurityImportCertificate(pem)
 	if err != nil {
+		// tooManyDeclines? auto-disable the config
+		if strings.HasPrefix(err.Error(), "tooManyDeclines") {
+			err2 := vmconfig.Update(func(cfg *vmconfig.VmConfig) {
+				cfg.NetworkHttps = false
+			})
+			if err2 != nil {
+				return fmt.Errorf("import cert: disable https: %w (orig: %w)", err2, err)
+			}
+		}
+
+		// still return error even if disabled
 		return err
 	}
 

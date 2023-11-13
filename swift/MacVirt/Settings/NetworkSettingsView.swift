@@ -14,6 +14,7 @@ struct NetworkSettingsView: View {
     @State private var proxyText = ""
     @State private var proxyMode = "auto"
     @State private var networkBridge = true
+    @State private var networkHttps = false
 
     var body: some View {
         SettingsStateWrapperView {
@@ -40,6 +41,13 @@ struct NetworkSettingsView: View {
                 Text("This also includes Linux machines. [Learn more](https://go.orbstack.dev/container-domains)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
+
+                Toggle("Enable HTTPS for container domains", isOn: $networkHttps)
+                .onChange(of: networkHttps) { newValue in
+                    // this one is live-reload
+                    vmModel.trySetConfigKey(\.networkHttps, newValue)
+                }
+                .disabled(!networkBridge)
 
                 Spacer().frame(height: 32)
 
@@ -117,5 +125,6 @@ struct NetworkSettingsView: View {
         }
 
         networkBridge = config.networkBridge
+        networkHttps = config.networkHttps
     }
 }

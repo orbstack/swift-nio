@@ -5,15 +5,18 @@ import (
 	"net/rpc"
 	"strconv"
 
+	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 )
 
 type SconInternalServer struct {
-	m          *ConManager
-	drmMonitor *DrmMonitor
+	m             *ConManager
+	dockerMachine *Container
+	drmMonitor    *DrmMonitor
 }
 
 func (s *SconInternalServer) Ping(_ None, _ *None) error {
@@ -26,13 +29,36 @@ func (s *SconInternalServer) OnDrmResult(result drmtypes.Result, _ *None) error 
 	return nil
 }
 
+func (s *SconInternalServer) OnVmconfigUpdate(config *vmconfig.VmConfig, _ *None) error {
+	dlog("on vmconfig update reported")
+	s.m.vmConfig = config
+
+	// if needed, update docker agent state
+	if s.dockerMachine.Running() {
+		err := s.dockerMachine.UseAgent(func(a *agent.Client) error {
+			return a.DockerOnVmconfigUpdate(config)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func ListenSconInternal(m *ConManager, drmMonitor *DrmMonitor) (*SconInternalServer, error) {
+	dockerMachine, err := m.GetByID(ContainerIDDocker)
+	if err != nil {
+		return nil, err
+	}
+
 	server := &SconInternalServer{
-		m:          m,
-		drmMonitor: drmMonitor,
+		m:             m,
+		dockerMachine: dockerMachine,
+		drmMonitor:    drmMonitor,
 	}
 	rpcServer := rpc.NewServer()
-	err := rpcServer.RegisterName("sci", server)
+	err = rpcServer.RegisterName("sci", server)
 	if err != nil {
 		return nil, err
 	}

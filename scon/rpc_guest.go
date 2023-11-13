@@ -190,7 +190,7 @@ func (s *SconGuestServer) OnDockerRefsChanged(_ None, _ *None) error {
 }
 
 func ListenSconGuest(m *ConManager) error {
-	dockerContainer, err := m.GetByID(ContainerIDDocker)
+	dockerMachine, err := m.GetByID(ContainerIDDocker)
 	if err != nil {
 		return err
 	}
@@ -207,7 +207,7 @@ func ListenSconGuest(m *ConManager) error {
 
 	server := &SconGuestServer{
 		m:               m,
-		dockerMachine:   dockerContainer,
+		dockerMachine:   dockerMachine,
 		vlanRouterIfi:   vlanRouterIf.Index,
 		vlanMacTemplate: vlanMacTemplate,
 	}

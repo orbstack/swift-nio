@@ -803,6 +803,10 @@ func (c *Container) startAgentLocked() error {
 	args := []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd)), "fork"}
 	if c.ID == ContainerIDDocker {
 		args = append(args, "-docker")
+		// TODO: fix race if TLS setting changed between container start (initCommands) and agent start
+		if c.manager.vmConfig.NetworkHttps {
+			args = append(args, "-tls")
+		}
 	}
 	if c.ID == ContainerIDK8s && c.manager.k8sEnabled {
 		args = append(args, "-k8s")

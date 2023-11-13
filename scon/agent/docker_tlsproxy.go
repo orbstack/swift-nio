@@ -16,7 +16,9 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
@@ -40,6 +42,19 @@ type hostDialInfo struct {
 	// *net.TCPAddr would be nice, but Dialer has no context-aware DialTCP
 	// https://github.com/golang/go/issues/49097
 	dialAddr string
+}
+
+func DockerTlsInitCommands(action string) [][]string {
+	return [][]string{
+		// TPROXY: redirect incoming port 443 traffic from macOS to our proxies
+		// exclude gateway to avoid interfering with user's port 443 forwards
+		{"iptables", "-t", "mangle", action, "ORB-PREROUTING", "-m", "set", "--match-set", IpsetHostBridge4, "src", "-m", "set", "!", "--match-set", IpsetGateway4, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", TlsProxyLocalRouteMarkStr},
+
+		// TPROXY redirect incoming port 443 traffic from macOS to our proxy
+		// exclude gateway to avoid interfering with user's port 443 forwards
+		// TODO - reuse same proxy dest port for ports 80 and 22
+		{"ip6tables", "-t", "mangle", action, "ORB-PREROUTING", "-m", "set", "--match-set", IpsetHostBridge6, "src", "-m", "set", "!", "--match-set", IpsetGateway6, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", TlsProxyLocalRouteMarkStr},
+	}
 }
 
 func newTLSProxy(host *hclient.Client) (*tlsProxy, error) {
@@ -318,4 +333,35 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 
 	logrus.WithField("bindAddr", dialInfo.bindAddr).WithField("dialAddr", dialInfo.dialAddr).Trace("dialing upstream")
 	return dialer.DialContext(ctx, "tcp", dialInfo.dialAddr)
+}
+
+// single-threaded, so no lock needed
+func (d *DockerAgent) OnVmconfigUpdate(config *vmconfig.VmConfig) error {
+	// TLS change?
+	old := d.tlsProxyEnabled
+	new := config.NetworkHttps
+	if old == new {
+		return nil
+	}
+
+	if new {
+		// add rules
+		for _, cmd := range DockerTlsInitCommands("-A") {
+			err := util.Run(cmd...)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		// remove rules
+		for _, cmd := range DockerTlsInitCommands("-D") {
+			err := util.Run(cmd...)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	d.tlsProxyEnabled = new
+	return nil
 }

@@ -6,6 +6,11 @@ import Foundation
 import Security
 import CBridge
 import AppKit
+import Defaults
+
+// must match maxCertDismissCount in Go (scon/agent)
+// after 2 dismissals, we auto-disable the HTTPS config
+private let maxCertDismissCount = 2
 
 private let firefoxRecentPeriod: TimeInterval = 3 * 30 * 24 * 60 * 60
 private let firefoxBundleIds = [
@@ -43,6 +48,8 @@ private enum KeychainFFIError: Error {
     case certificateInvalid
     case addToKeychainFailed(OSStatus)
     case setTrustSettingsFailed(OSStatus)
+
+    case tooManyDeclines(Error)
 }
 
 private struct Keychain {
@@ -147,9 +154,20 @@ func swext_security_import_certificate(certDerB64C: UnsafePointer<CChar>) -> GRe
     let certDer = Data(base64Encoded: certDerB64)!
 
     return doGenericErr {
-        let imported = try Keychain.importAndTrustCertificate(certDer: certDer)
-        if imported {
-            importFirefoxCerts()
+        do {
+            let imported = try Keychain.importAndTrustCertificate(certDer: certDer)
+            if imported {
+                importFirefoxCerts()
+            }
+        } catch {
+            // consider every error
+            // not really true but in practice it's the same
+            Defaults[.networkHttpsDismissCount] += 1
+            if Defaults[.networkHttpsDismissCount] >= maxCertDismissCount {
+                throw KeychainFFIError.tooManyDeclines(error)
+            }
+
+            throw error
         }
     }
 }

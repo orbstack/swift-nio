@@ -64,10 +64,10 @@ type iptablesForwardMeta struct {
 	toMachineIP      net.IP
 }
 
-func NewNetwork(dataDir string, host *hclient.Client, db *Database) *Network {
+func NewNetwork(dataDir string, host *hclient.Client, db *Database, manager *ConManager) *Network {
 	return &Network{
 		dataDir:      dataDir,
-		mdnsRegistry: newMdnsRegistry(host, db),
+		mdnsRegistry: newMdnsRegistry(host, db, manager),
 		iptForwards:  make(map[sysnet.ListenerKey]iptablesForwardMeta),
 		iptBlocks:    make(map[netip.Prefix]struct{}),
 	}

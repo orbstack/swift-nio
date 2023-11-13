@@ -37,6 +37,7 @@ type VmConfig struct {
 	Rosetta           bool   `json:"rosetta"`
 	NetworkProxy      string `json:"network_proxy"`
 	NetworkBridge     bool   `json:"network_bridge"`
+	NetworkHttps      bool   `json:"network.https"`
 	MountHideShared   bool   `json:"mount_hide_shared"`
 	DataDir           string `json:"data_dir,omitempty"`
 	DockerSetContext  bool   `json:"docker.set_context"`
@@ -228,6 +229,7 @@ func Defaults() *VmConfig {
 		Rosetta:           true,
 		NetworkProxy:      ProxyAuto,
 		NetworkBridge:     true,
+		NetworkHttps:      true,
 		MountHideShared:   false,
 		DataDir:           "",
 		DockerSetContext:  true,

@@ -124,9 +124,6 @@ var dockerInitCommands = [][]string{
 	// 4. on *input* path ONLY, *change* mark from OUTGOING (UpstreamMark) to LOCAL_ROUTE (LocalRouteMark)
 	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
 	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
-	// TPROXY: redirect incoming port 443 traffic from macOS to our proxies
-	// exclude gateway to avoid interfering with user's port 443 forwards
-	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge4, "src", "-m", "set", "!", "--match-set", agent.IpsetGateway4, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 
 	// prepare chains for TLS proxy
 	{"ip6tables", "-t", "mangle", "-N", "ORB-PREROUTING"},
@@ -144,10 +141,6 @@ var dockerInitCommands = [][]string{
 	// 4. on *input* path ONLY, *change* mark from OUTGOING (UpstreamMark) to LOCAL_ROUTE (LocalRouteMark)
 	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
 	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
-	// TPROXY redirect incoming port 443 traffic from macOS to our proxy
-	// exclude gateway to avoid interfering with user's port 443 forwards
-	// TODO - reuse same proxy dest port for ports 80 and 22
-	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "set", "--match-set", agent.IpsetHostBridge6, "src", "-m", "set", "!", "--match-set", agent.IpsetGateway6, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", agent.TlsProxyLocalRouteMarkStr},
 }
 
 // changes here:
@@ -522,6 +515,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		Services: [][]string{
 			{"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},
+	}
+	// add TLS proxy iptables rules
+	if c.manager.vmConfig.NetworkHttps {
+		svConfig.InitCommands = append(svConfig.InitCommands, agent.DockerTlsInitCommands("-A")...)
 	}
 	// add k8s service
 	if c.manager.k8sEnabled {

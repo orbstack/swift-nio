@@ -25,6 +25,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/logutil"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -49,15 +50,15 @@ func runPprof() {
 	}
 }
 
-func doSystemInitTasksEarly(host *hclient.Client) error {
+func doSystemInitTasksEarly(host *hclient.Client) (*htypes.InitConfig, error) {
 	// ask host to update disk stats BEFORE we open the db
 	// to recover from low space if quota was set too low last boot
-	_, err := host.GetInitConfig()
+	config, err := host.GetInitConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return config, nil
 }
 
 func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
@@ -242,11 +243,11 @@ func runContainerManager() {
 	check(err)
 
 	// system init tasks (early)
-	err = doSystemInitTasksEarly(hostClient)
+	initConfig, err := doSystemInitTasksEarly(hostClient)
 	check(err)
 
 	// create container manager
-	mgr, err := NewConManager(conf.C().SconDataDir, hostClient)
+	mgr, err := NewConManager(conf.C().SconDataDir, hostClient, initConfig)
 	check(err)
 
 	// system init tasks

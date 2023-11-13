@@ -115,18 +115,20 @@ type mdnsRegistry struct {
 	recentQueries  map[string]mdnsQueryInfo
 	pendingFlushes map[string]struct{}
 
-	host *hclient.Client
-	db   *Database
+	manager *ConManager
+	host    *hclient.Client
+	db      *Database
 
 	httpServer *http.Server
 }
 
-func newMdnsRegistry(host *hclient.Client, db *Database) *mdnsRegistry {
+func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *mdnsRegistry {
 	r := &mdnsRegistry{
 		tree:           radix.New(),
 		pendingFlushes: make(map[string]struct{}),
 		host:           host,
 		db:             db,
+		manager:        manager,
 	}
 	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
 
@@ -197,7 +199,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		TLSConfig: &tls.Config{
 			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				// only allow `orb.local` SNI for this server
-				if hlo.ServerName != mdnsIndexDomain {
+				if !r.manager.vmConfig.NetworkHttps || hlo.ServerName != mdnsIndexDomain {
 					return nil, nil
 				}
 				return tlsController.MakeCertForHost(hlo.ServerName)
@@ -267,6 +269,27 @@ func (r *mdnsRegistry) listIndexDomains() mdnsIndexResult {
 func (r *mdnsRegistry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 
+	proto := "https"
+	if req.TLS == nil {
+		proto = "http"
+
+		if r.manager.vmConfig.NetworkHttps {
+			// attempt to redirect to https:
+			// try to import cert
+			// if fail, don't redirect
+			// if succcess, redirect
+			// we ONLY do this for http://orb.local. leave domains alone to avoid breaking curl commands without -L
+			err := r.host.ImportTLSCertificate()
+			if err != nil {
+				logrus.WithError(err).Error("failed to import certificate")
+			} else {
+				// redirect
+				http.Redirect(w, req, "https://"+req.Host+req.URL.Path, http.StatusFound)
+				return
+			}
+		}
+	}
+
 	if req.URL.Path != "/" || req.Method != http.MethodGet {
 		http.NotFound(w, req)
 		return
@@ -276,10 +299,6 @@ func (r *mdnsRegistry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	res := r.listIndexDomains()
 
 	// match request protocol for urls
-	proto := "https"
-	if req.TLS == nil {
-		proto = "http"
-	}
 	res.Proto = proto
 
 	// respond with html

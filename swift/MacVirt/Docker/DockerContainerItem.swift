@@ -71,7 +71,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 if isRunning, let domain = container.preferredDomain {
                     ProgressIconButton(systemImage: "link",
                             actionInProgress: false) {
-                        if let url = URL(string: "\(container.preferredProto)://\(domain)") {
+                        if let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)") {
                             NSWorkspace.shared.open(url)
                         }
                     }
@@ -213,7 +213,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 let preferredDomain = container.preferredDomain
                 Button(action: {
                     if let preferredDomain,
-                       let url = URL(string: "\(container.preferredProto)://\(preferredDomain)") {
+                       let url = URL(string: "\(container.getPreferredProto(vmModel))://\(preferredDomain)") {
                         NSWorkspace.shared.open(url)
                     }
                 }) {
@@ -327,7 +327,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         // needs to be running w/ ip to have domain
                         if let ipAddress,
                            let domain,
-                           let url = URL(string: "\(container.preferredProto)://\(domain)") {
+                           let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)") {
                             if vmModel.netBridgeAvailable {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)

@@ -18,6 +18,7 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
+	"github.com/orbstack/macvirt/scon/isclient"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -418,6 +419,18 @@ func (s *VmControlServer) Serve() (func() error, error) {
 	go func() {
 		for range vmconfig.SubscribeDiff() {
 			s.uiEventDebounce.Trigger()
+		}
+	}()
+
+	// send new configs to scon
+	go func() {
+		for change := range vmconfig.SubscribeDiff() {
+			err := s.drm.UseSconInternalClient(func(scon *isclient.Client) error {
+				return scon.OnVmconfigUpdate(change.New)
+			})
+			if err != nil {
+				logrus.WithError(err).Error("failed to send vmconfig update to scon")
+			}
 		}
 	}()
 

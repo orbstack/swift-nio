@@ -24,6 +24,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -59,6 +61,7 @@ type ConManager struct {
 	k8sExposeServices bool
 	uiEventDebounce   syncx.LeadingFuncDebounce
 	uiInitContainers  sync.WaitGroup
+	vmConfig          *vmconfig.VmConfig
 
 	// auto forward
 	forwards   map[sysnet.ListenerKey]ForwardState
@@ -77,7 +80,7 @@ type ConManager struct {
 	net *Network
 }
 
-func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
+func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitConfig) (*ConManager, error) {
 	// tmp dir
 	tmpDir, err := os.MkdirTemp("", AppName)
 	if err != nil {
@@ -151,8 +154,10 @@ func NewConManager(dataDir string, hc *hclient.Client) (*ConManager, error) {
 
 		stopChan:      make(chan struct{}),
 		earlyStopChan: make(chan struct{}),
+
+		vmConfig: initConfig.VmConfig,
 	}
-	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db)
+	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db, mgr)
 	mgr.nfsForAll = NewMultiNfsMirror(mgr.nfsRoot, mgr.nfsForMachines)
 	mgr.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
 		// wait for initial starts

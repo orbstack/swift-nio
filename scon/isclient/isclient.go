@@ -5,6 +5,7 @@ import (
 	"net/rpc"
 
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 )
 
 type None struct{}
@@ -31,4 +32,9 @@ func (c *Client) Ping() error {
 func (c *Client) OnDrmResult(result *drmtypes.Result) error {
 	var noResult None
 	return c.rpc.Call("sci.OnDrmResult", result, &noResult)
+}
+
+func (c *Client) OnVmconfigUpdate(config *vmconfig.VmConfig) error {
+	var noResult None
+	return c.rpc.Call("sci.OnVmconfigUpdate", config, &noResult)
 }

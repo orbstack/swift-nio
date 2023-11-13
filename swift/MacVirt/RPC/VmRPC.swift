@@ -13,6 +13,7 @@ struct VmConfig: Codable, Equatable {
     var rosetta: Bool
     var networkProxy: String
     var networkBridge: Bool
+    var networkHttps: Bool
     var mountHideShared: Bool
     var dataDir: String?
     var dockerSetContext: Bool
@@ -28,6 +29,7 @@ struct VmConfig: Codable, Equatable {
         case rosetta = "rosetta"
         case networkProxy = "networkProxy"
         case networkBridge = "networkBridge"
+        case networkHttps = "network.https"
         case mountHideShared = "mountHideShared"
         case dataDir = "dataDir"
         case dockerSetContext = "docker.setContext"

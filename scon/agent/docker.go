@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 )
@@ -64,12 +65,13 @@ type DockerAgent struct {
 	dirSyncListener net.Listener
 	dirSyncJobs     map[uint64]chan error
 
-	k8s      *K8sAgent
-	pstub    *PstubServer
-	tlsProxy *tlsProxy
+	k8s             *K8sAgent
+	pstub           *PstubServer
+	tlsProxy        *tlsProxy
+	tlsProxyEnabled bool
 }
 
-func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
+func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 	dockerAgent := &DockerAgent{
 		// use default unix socket
 		client: dockerclient.NewWithHTTP(&http.Client{
@@ -90,6 +92,8 @@ func NewDockerAgent(isK8s bool) (*DockerAgent, error) {
 
 		containerBinds: make(map[string][]string),
 		dirSyncJobs:    make(map[uint64]chan error),
+
+		tlsProxyEnabled: isTls,
 	}
 
 	dockerAgent.containerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
@@ -514,6 +518,10 @@ func (d *DockerAgent) monitorEvents() error {
 func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
 	a.docker.triggerAllUIEvents()
 	return nil
+}
+
+func (a *AgentServer) DockerOnVmconfigUpdate(config *vmconfig.VmConfig, _ *None) error {
+	return a.docker.OnVmconfigUpdate(config)
 }
 
 // mini freezer refcount tracker

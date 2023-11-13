@@ -110,6 +110,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// read args before we zero it out
 	isDocker := slices.Contains(os.Args, "-docker")
 	isK8s := slices.Contains(os.Args, "-k8s")
+	isTls := slices.Contains(os.Args, "-tls")
 
 	// set process name
 	err = setProcessCmdline(ProcessName)
@@ -172,7 +173,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	}
 
 	if isDocker {
-		server.docker, err = NewDockerAgent(isK8s)
+		server.docker, err = NewDockerAgent(isK8s, isTls)
 		if err != nil {
 			return err
 		}

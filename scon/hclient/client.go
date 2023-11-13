@@ -205,9 +205,9 @@ func (c *Client) GetTLSRootData() (*htypes.KeychainTLSData, error) {
 	return &data, nil
 }
 
-func (c *Client) ImportCertificate(certPem string) error {
+func (c *Client) ImportTLSCertificate() error {
 	var none None
-	return c.rpc.Call("hc.ImportCertificate", certPem, &none)
+	return c.rpc.Call("hc.ImportTLSCertificate", None{}, &none)
 }
 
 func (c *Client) Close() error {

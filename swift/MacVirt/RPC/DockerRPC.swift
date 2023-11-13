@@ -96,8 +96,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         ipAddresses.first
     }
 
-    var preferredProto: String {
-        Defaults[.networkUseHttps] ? "https" : "http"
+    @MainActor
+    func getPreferredProto(_ model: VmViewModel) -> String {
+        // "!= false" because default is true
+        (model.config?.networkHttps != false) ? "https" : "http"
     }
 
     // use same logic as scon server

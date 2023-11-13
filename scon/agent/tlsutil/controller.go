@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -19,7 +18,9 @@ const (
 	// fast to generate
 	certsLRUSize = 100
 
-	certImportTimeout = 10 * time.Second
+	// must match maxCertDismissCount in Swift
+	maxCertDismissCount = 2
+	certImportTimeout   = 10 * time.Second
 )
 
 type TLSController struct {
@@ -31,7 +32,7 @@ type TLSController struct {
 	// set in docker.go init
 	host *hclient.Client
 
-	firstConnDone atomic.Bool
+	connCount atomic.Uint64
 }
 
 func NewTLSController(host *hclient.Client) (*TLSController, error) {
@@ -78,10 +79,11 @@ func (t *TLSController) MakeCertForHost(hostname string) (*tls.Certificate, erro
 	// add to LRU immediately
 	t.certsLRU.Add(hostname, cert)
 
-	// now, if this is the first connection, we may want to hang for a bit (below browser timeout, i.e. up to 10 sec) and import cert to system keychain and ask for trust settings
-	if !t.firstConnDone.Swap(true) {
+	// now, if this is the first OR second connection, we may want to hang for a bit (below browser timeout, i.e. up to 10 sec) and import cert to system keychain and ask for trust settings
+	// TODO: browser could issue multiple conns in a short span of time, but risk is negligible. hard to accidentally decline anyway.
+	if t.connCount.Add(1) <= maxCertDismissCount {
 		err := util.WithTimeout1(func() error {
-			return t.host.ImportCertificate(base64.StdEncoding.EncodeToString(t.rootCert.Raw))
+			return t.host.ImportTLSCertificate()
 		}, certImportTimeout)
 		if err != nil {
 			logrus.WithError(err).Error("failed to import certificate")
