@@ -136,7 +136,7 @@ struct DockerImageItem: View, Equatable {
             }
 
             Button("Copy Path") {
-                NSPasteboard.copy("\(Folders.nfsDockerImages)/\(image.userTag))")
+                NSPasteboard.copy("\(Folders.nfsDockerImages)/\(image.userTag)")
             }
         }
     }
