@@ -125,7 +125,7 @@ spec:
         imagePullPolicy: IfNotPresent
         resources:
           limits:
-            memory: 170Mi
+            memory: 340Mi
           requests:
             cpu: 100m
             memory: 70Mi
@@ -155,16 +155,6 @@ spec:
             drop:
             - all
           readOnlyRootFilesystem: true
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8181
-            scheme: HTTP
-          initialDelaySeconds: 0
-          periodSeconds: 2
-          timeoutSeconds: 1
-          successThreshold: 1
-          failureThreshold: 3
       dnsPolicy: Default
       volumes:
         - name: config-volume

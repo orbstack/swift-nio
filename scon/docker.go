@@ -146,6 +146,8 @@ var dockerInitCommands = [][]string{
 // changes here:
 //   - removed "health" from config (can't be overridden in custom config map)
 //   - removed livenessProbe that uses /health. there's still a readinessProbe
+//   - removed readinessProbe and increased memory limit to fix UDP conn refused under load
+//   - readinessProbe can cause UDP conn refused (ICMP port unreachable), and since we only have 1 replica, directing traffic away is pointless (https://github.com/orbstack/orbstack/issues/763)
 //   - added static NodeHosts to "coredns" ConfigMap (normally added by k3s)
 //
 //go:embed k8s/orb-coredns.yml
