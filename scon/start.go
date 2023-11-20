@@ -270,6 +270,7 @@ func (c *Container) configureLxc() error {
 		addDevOptional("/dev/fuse")
 		addDevOptional("/dev/net/tun")
 		addDevOptional("/dev/ppp")
+		addDevOptional("/dev/vhost-net")
 		if !c.isolated {
 			addDevOptional("/dev/kmsg")
 			addDevOptional("/dev/loop-control")
