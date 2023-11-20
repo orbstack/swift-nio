@@ -2,8 +2,8 @@ package main
 
 import (
 	"os"
+	"strconv"
 
-	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 )
 
@@ -27,9 +27,15 @@ func runSshPredicate() {
 		return
 	}
 
-	// Nix build user doesn't have a $HOME
-	coredir.SetOverrideHomeDir(os.Args[2])
+	// it's not valid to start vmgr as another user.
+	// (e.g. when running as Nix build user)
+	// in that case just fail if it's not already running
+	expectedUid, err := strconv.Atoi(os.Args[2])
+	check(err)
+	if os.Getuid() != expectedUid {
+		return
+	}
 
-	err := vmclient.EnsureSconVM()
+	err = vmclient.EnsureSconVM()
 	check(err)
 }
