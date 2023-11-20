@@ -153,6 +153,8 @@ extension Defaults.Keys {
     static let dockerFilterShowStopped = Key<Bool>("docker_filterShowStopped", default: true, suite: suite)
     static let dockerMigrationDismissed = Key<Bool>("docker_migrationDismissed", default: false, suite: suite)
 
+    static let logsWordWrap = Key<Bool>("logs_wordWrap", default: true, suite: suite)
+
     static let k8sFilterShowSystemNs = Key<Bool>("k8s_filterShowSystemNs", default: false, suite: suite)
 
     static let onboardingCompleted = Key<Bool>("onboardingCompleted", default: false, suite: suite)

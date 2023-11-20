@@ -5,6 +5,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import Defaults
 
 private let maxLines = 5000
 private let maxChars = maxLines * 150 // avg line len - easier to do it like this
@@ -496,16 +497,23 @@ private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
 private struct LogsTextView: NSViewRepresentable {
     let model: LogsViewModel
     let commandModel: CommandViewModel
+    let wordWrap: Bool
 
     class Coordinator {
         var cancellables = Set<AnyCancellable>()
         var layoutManagerDelegate: NSLayoutManagerDelegate?
         var didBecomeFirstResponder = false
+        var lastWordWrap = true
     }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
         let textView = scrollView.documentView as! NSTextView
+
+        // enable horizontal scroll for non-wrapped case
+        textView.isHorizontallyResizable = true
+        scrollView.hasHorizontalScroller = true
+        textView.maxSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
 
         // textView.font and textView.isAutomaticLinkDetectionEnabled don't work
         if let layoutManager = textView.layoutManager {
@@ -553,15 +561,38 @@ private struct LogsTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        if wordWrap != context.coordinator.lastWordWrap {
+            setWordWrap(scrollView: nsView, wrap: wordWrap)
+            context.coordinator.lastWordWrap = wordWrap
+        }
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
+
+    func setWordWrap(scrollView: NSScrollView, wrap: Bool) {
+        let textView = scrollView.documentView as! NSTextView
+
+        if wrap {
+            let sz = scrollView.contentSize
+            textView.frame = CGRect(x: 0, y: 0, width: sz.width, height: 0)
+            textView.textContainer?.containerSize = CGSize(width: sz.width, height: CGFloat.greatestFiniteMagnitude)
+            textView.textContainer?.widthTracksTextView = true
+        } else {
+            textView.textContainer?.widthTracksTextView = false
+            textView.textContainer?.containerSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        }
+
+        // otherwise it scrolls to top when re-enabling word wrap
+        textView.scrollToEndOfDocument(nil)
+    }
 }
 
 private struct LogsView: View {
     @EnvironmentObject private var commandModel: CommandViewModel
+
+    @Default(.logsWordWrap) private var wordWrap
 
     let cmdExe: String
     let args: [String]
@@ -569,7 +600,7 @@ private struct LogsView: View {
     let model: LogsViewModel
 
     var body: some View {
-        LogsTextView(model: model, commandModel: commandModel)
+        LogsTextView(model: model, commandModel: commandModel, wordWrap: wordWrap)
         .onAppear {
             model.start(cmdExe: cmdExe, args: args + extraArgs)
         }

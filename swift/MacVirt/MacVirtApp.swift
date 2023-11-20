@@ -349,6 +349,12 @@ struct MacVirtApp: App {
                 windowTracker.onWindowAppear()
             }
         }
+        // globally visible across all scenes!
+        .commands {
+            CommandGroup(after: .toolbar) {
+                Defaults.Toggle("Word Wrap", key: .logsWordWrap)
+            }
+        }
         .handlesExternalEvents(matching: ["docker/container-logs/"])
         .windowDefaultSize(width: 800, height: 600)
         .windowToolbarStyle(.unifiedCompact)
