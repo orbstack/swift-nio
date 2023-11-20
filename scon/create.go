@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/netip"
 	"regexp"
 	"slices"
@@ -203,7 +204,11 @@ func (c *Container) setupInitial(args CreateParams) error {
 		})
 	})
 	if err != nil {
-		return fmt.Errorf("do initial setup: %w", err)
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			return errors.New("do initial setup: canceled by machine shutdown")
+		} else {
+			return fmt.Errorf("do initial setup: %w", err)
+		}
 	}
 
 	return nil
