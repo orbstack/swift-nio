@@ -109,9 +109,6 @@ struct FeedbackView: View {
                     Task {
                         sendInProgress = true
                         do {
-                            if #available(macOS 13.0, *) {
-                                try await Task.sleep(for: .seconds(1))
-                            }
                             try await feedbackModel.apiClient.sendFeedback(text: feedbackText, email: email)
                             windowHolder.window?.close()
                         } catch {
