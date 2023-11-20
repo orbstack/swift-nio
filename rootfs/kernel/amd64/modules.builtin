@@ -249,6 +249,9 @@ kernel/drivers/hid/hid-lg-g15.ko
 kernel/drivers/hid/hid-logitech-dj.ko
 kernel/drivers/hid/hid-logitech-hidpp.ko
 kernel/drivers/hid/usbhid/usbhid.ko
+kernel/drivers/vhost/vhost_net.ko
+kernel/drivers/vhost/vhost.ko
+kernel/drivers/vhost/vhost_iotlb.ko
 kernel/drivers/android/binder.ko
 kernel/net/core/selftests.ko
 kernel/net/core/failover.ko
