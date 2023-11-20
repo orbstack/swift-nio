@@ -899,8 +899,8 @@ func main() {
 	switch cmd {
 	case "spawn-daemon":
 		runSpawnDaemon()
-	case "ssh-proxy-fdpass":
-		runSshProxyFdpass()
+	case "ssh-predicate":
+		runSshPredicate()
 	case "report-env":
 		runReportEnv()
 	case "uninstall-privhelper":

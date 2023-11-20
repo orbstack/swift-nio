@@ -30,6 +30,27 @@ func Run(combinedArgs ...string) (string, error) {
 	return string(output), nil
 }
 
+func RunWithEnv(extraEnv []string, combinedArgs ...string) (string, error) {
+	logrus.Tracef("run: %v", combinedArgs)
+	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		// without this, running interactive shell breaks ctrl-c SIGINT
+		Setsid: true,
+	}
+	// inherit env
+	cmd.Env = os.Environ()
+	// avoid triggering iterm2 shell integration
+	cmd.Env = append(cmd.Env, "TERM=dumb")
+	// add extra env
+	cmd.Env = append(cmd.Env, extraEnv...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
+	}
+
+	return string(output), nil
+}
+
 func RunLoginShell(ctx context.Context, combinedArgs ...string) error {
 	logrus.Tracef("run: %v", combinedArgs)
 	cmd := exec.CommandContext(ctx, combinedArgs[0], combinedArgs[1:]...)
