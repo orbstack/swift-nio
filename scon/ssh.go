@@ -618,6 +618,9 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 			},
 			SubsystemHandlers: make(map[string]ssh.SubsystemHandler),
 			RequestHandlers:   make(map[string]ssh.RequestHandler),
+			ConnectionFailedCallback: func(conn net.Conn, err error) {
+				logrus.WithError(err).Error("SSH connection failed")
+			},
 		},
 	}
 	sshServerPub.Handler = sshServerPub.handleConn
