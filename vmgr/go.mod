@@ -1,6 +1,6 @@
 module github.com/orbstack/macvirt/vmgr
 
-go 1.21
+go 1.21.1
 
 replace github.com/orbstack/macvirt/scon => ../scon
 
@@ -70,7 +70,7 @@ require (
 	golang.org/x/oauth2 v0.8.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
@@ -87,20 +87,20 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/sync v0.3.0 // indirect
+	golang.org/x/sync v0.4.0 // indirect
 	golang.org/x/term v0.13.0
 )
 
 require (
 	github.com/miekg/dns v1.1.55
 	golang.org/x/crypto v0.14.0
-	golang.org/x/tools v0.12.1-0.20230815132531-74c255bcf846 // indirect
+	golang.org/x/tools v0.14.0 // indirect
 )
 
 require (
 	github.com/google/btree v1.1.2 // indirect
 	github.com/sirupsen/logrus v1.9.3
-	golang.org/x/mod v0.12.0
+	golang.org/x/mod v0.13.0
 	golang.org/x/net v0.17.0
 	golang.org/x/time v0.3.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20230918234652-8a7617aed21c
