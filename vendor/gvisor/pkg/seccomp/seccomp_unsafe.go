@@ -21,11 +21,10 @@ import (
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/abi/linux"
-	"gvisor.dev/gvisor/pkg/bpf"
 )
 
 // SetFilter installs the given BPF program.
-func SetFilter(instrs []bpf.Instruction) error {
+func SetFilter(instrs []linux.BPFInstruction) error {
 	// PR_SET_NO_NEW_PRIVS is required in order to enable seccomp. See
 	// seccomp(2) for details.
 	//
@@ -74,7 +73,7 @@ func SetFilter(instrs []bpf.Instruction) error {
 //
 //go:norace
 //go:nosplit
-func SetFilterInChild(instrs []bpf.Instruction) unix.Errno {
+func SetFilterInChild(instrs []linux.BPFInstruction) unix.Errno {
 	if _, _, errno := unix.RawSyscall6(unix.SYS_PRCTL, linux.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0); errno != 0 {
 		return errno
 	}

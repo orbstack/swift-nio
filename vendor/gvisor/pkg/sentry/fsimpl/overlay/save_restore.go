@@ -23,13 +23,3 @@ func (d *dentry) afterLoad() {
 		refs.Register(d)
 	}
 }
-
-// saveParent is called by stateify.
-func (d *dentry) saveParent() *dentry {
-	return d.parent.Load()
-}
-
-// loadParent is called by stateify.
-func (d *dentry) loadParent(parent *dentry) {
-	d.parent.Store(parent)
-}

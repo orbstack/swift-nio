@@ -645,7 +645,3 @@ func (e *connectionedEndpoint) EventUnregister(we *waiter.Entry) {
 		fdnotifier.UpdateFD(bsFD.NotificationFD())
 	}
 }
-
-func (e *connectionedEndpoint) GetAcceptConn() bool {
-	return e.Listening()
-}

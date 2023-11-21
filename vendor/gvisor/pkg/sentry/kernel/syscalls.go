@@ -20,7 +20,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 	"gvisor.dev/gvisor/pkg/abi"
-	"gvisor.dev/gvisor/pkg/abi/sentry"
 	"gvisor.dev/gvisor/pkg/atomicbitops"
 	"gvisor.dev/gvisor/pkg/bits"
 	"gvisor.dev/gvisor/pkg/hostarch"
@@ -31,6 +30,17 @@ import (
 	"gvisor.dev/gvisor/pkg/sync"
 )
 
+const (
+	// maxSyscallNum is the highest supported syscall number.
+	//
+	// The types below create fast lookup slices for all syscalls. This maximum
+	// serves as a sanity check that we don't allocate huge slices for a very large
+	// syscall. This is checked during registration.
+	// LINT.IfChange
+	maxSyscallNum = 2000
+	// LINT.ThenChange(../seccheck/syscall.go)
+)
+
 // outOfRangeSyscallNumber is used to represent a syscall number that is out of the
 // range [0, maxSyscallNum] in monitoring.
 var outOfRangeSyscallNumber = []*metric.FieldValue{&metric.FieldValue{"-1"}}
@@ -38,7 +48,7 @@ var outOfRangeSyscallNumber = []*metric.FieldValue{&metric.FieldValue{"-1"}}
 // SyscallSupportLevel is a syscall support levels.
 type SyscallSupportLevel int
 
-// String returns a human readable representation of the support level.
+// String returns a human readable represetation of the support level.
 func (l SyscallSupportLevel) String() string {
 	switch l {
 	case SupportUnimplemented:
@@ -139,7 +149,7 @@ type SyscallFlagsTable struct {
 	//
 	// missing syscalls have the same value in enable as missingEnable to
 	// avoid an extra branch in Word.
-	enable [sentry.MaxSyscallNum + 1]atomicbitops.Uint32
+	enable [maxSyscallNum + 1]atomicbitops.Uint32
 
 	// missingEnable contains the enable bits for missing syscalls.
 	missingEnable atomicbitops.Uint32
@@ -163,7 +173,7 @@ func (e *SyscallFlagsTable) init(table map[uintptr]Syscall) {
 func (e *SyscallFlagsTable) UpdateSecCheck(state *seccheck.State) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for sysno := uintptr(0); sysno <= sentry.MaxSyscallNum; sysno++ {
+	for sysno := uintptr(0); sysno < maxSyscallNum; sysno++ {
 		oldFlags := e.enable[sysno].Load()
 		if !bits.IsOn32(oldFlags, syscallPresent) {
 			continue
@@ -197,7 +207,7 @@ func (e *SyscallFlagsTable) UpdateSecCheck(state *seccheck.State) {
 
 // Word returns the enable bitfield for sysno.
 func (e *SyscallFlagsTable) Word(sysno uintptr) uint32 {
-	if sysno <= sentry.MaxSyscallNum {
+	if sysno <= maxSyscallNum {
 		return e.enable[sysno].Load()
 	}
 	return e.missingEnable.Load()
@@ -298,12 +308,12 @@ type SyscallTable struct {
 
 	// lookup is a fixed-size array that holds the syscalls (indexed by
 	// their numbers). It is used for fast look ups.
-	lookup [sentry.MaxSyscallNum + 1]SyscallFn
+	lookup [maxSyscallNum + 1]SyscallFn
 
 	// pointCallbacks is a fixed-size array that holds SyscallToProto callbacks
 	// (indexed by syscall numbers). It is used for fast lookups when
 	// seccheck.Point is enabled for the syscall.
-	pointCallbacks [sentry.MaxSyscallNum + 1]SyscallToProto
+	pointCallbacks [maxSyscallNum + 1]SyscallToProto
 
 	// Emulate is a collection of instruction addresses to emulate. The
 	// keys are addresses, and the values are system call numbers.
@@ -376,7 +386,7 @@ func LookupSyscallTable(os abi.OS, a arch.Arch) (*SyscallTable, bool) {
 
 // RegisterSyscallTable registers a new syscall table for use by a Kernel.
 func RegisterSyscallTable(s *SyscallTable) {
-	if max := s.MaxSysno(); max > sentry.MaxSyscallNum {
+	if max := s.MaxSysno(); max > maxSyscallNum {
 		panic(fmt.Sprintf("SyscallTable %+v contains too large syscall number %d", s, max))
 	}
 	if _, ok := LookupSyscallTable(s.OS, s.Arch); ok {
@@ -384,9 +394,9 @@ func RegisterSyscallTable(s *SyscallTable) {
 	}
 	allSyscallTables = append(allSyscallTables, s)
 	unimplementedSyscallCounterInit.Do(func() {
-		allowedValues := make([]*metric.FieldValue, sentry.MaxSyscallNum+2)
+		allowedValues := make([]*metric.FieldValue, maxSyscallNum+2)
 		unimplementedSyscallNumbers = make(map[uintptr][]*metric.FieldValue, len(allowedValues))
-		for i := uintptr(0); i <= sentry.MaxSyscallNum; i++ {
+		for i := uintptr(0); i <= maxSyscallNum; i++ {
 			s := &metric.FieldValue{strconv.Itoa(int(i))}
 			allowedValues[i] = s
 			unimplementedSyscallNumbers[i] = []*metric.FieldValue{s}
@@ -424,7 +434,7 @@ func (s *SyscallTable) Init() {
 
 // Lookup returns the syscall implementation, if one exists.
 func (s *SyscallTable) Lookup(sysno uintptr) SyscallFn {
-	if sysno <= sentry.MaxSyscallNum {
+	if sysno <= maxSyscallNum {
 		return s.lookup[sysno]
 	}
 	return nil
@@ -466,7 +476,7 @@ func (s *SyscallTable) mapLookup(sysno uintptr) SyscallFn {
 // LookupSyscallToProto looks up the SyscallToProto callback for the given
 // syscall. It may return nil if none is registered.
 func (s *SyscallTable) LookupSyscallToProto(sysno uintptr) SyscallToProto {
-	if sysno > sentry.MaxSyscallNum {
+	if sysno > maxSyscallNum {
 		return nil
 	}
 	return s.pointCallbacks[sysno]

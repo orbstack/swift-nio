@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !kvm_profiling
-// +build !kvm_profiling
+//go:build amd64
+// +build amd64
 
-package kvm
+package checksum
 
-import (
-	"gvisor.dev/gvisor/pkg/metric"
-)
-
-// KVMProfiling is a builder that produces conditionally compiled metrics.
-// Metrics made from this are compiled and active at runtime when the
-// "kvm_profiling" go-tag is specified at compilation.
-var KVMProfiling = metric.FakeMetricBuilder{}
+// Note: odd indicates whether initial is a partial checksum over an odd number
+// of bytes.
+//
+// calculateChecksum is defined in assembly.
+func calculateChecksum(buf []byte, odd bool, initial uint16) (uint16, bool)

@@ -124,7 +124,7 @@ func (r *SimpleReader) Read(p []byte) (int, error) {
 	}
 
 	toRead := uint32(len(p))
-	// can't read more than what's left
+	// can't read more than whats left
 	if toRead > r.chunkSize-r.done {
 		toRead = r.chunkSize - r.done
 	}

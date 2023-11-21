@@ -100,7 +100,7 @@ type MountFlags struct {
 	NoSUID bool
 }
 
-// MountOptions contains options to VirtualFilesystem.MountAt(), and VirtualFilesystem.RemountAt()
+// MountOptions contains options to VirtualFilesystem.MountAt().
 //
 // +stateify savable
 type MountOptions struct {

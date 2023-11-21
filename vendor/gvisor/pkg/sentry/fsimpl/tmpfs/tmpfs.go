@@ -33,7 +33,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"sync/atomic"
 
 	"gvisor.dev/gvisor/pkg/abi/linux"
 	"gvisor.dev/gvisor/pkg/atomicbitops"
@@ -412,7 +411,7 @@ type dentry struct {
 	// parent is this dentry's parent directory. Each referenced dentry holds a
 	// reference on parent.dentry. If this dentry is a filesystem root, parent
 	// is nil. parent is protected by filesystem.mu.
-	parent atomic.Pointer[dentry] `state:".(*dentry)"`
+	parent *dentry
 
 	// name is the name of this dentry in its parent. If this dentry is a
 	// filesystem root, name is the empty string. name is protected by
@@ -469,9 +468,8 @@ func (d *dentry) InotifyWithParent(ctx context.Context, events, cookie uint32, e
 
 	d.inode.fs.mu.RLock()
 	// The ordering below is important, Linux always notifies the parent first.
-	parent := d.parent.Load()
-	if parent != nil {
-		parent.inode.watches.Notify(ctx, d.name, events, cookie, et, deleted)
+	if d.parent != nil {
+		d.parent.inode.watches.Notify(ctx, d.name, events, cookie, et, deleted)
 	}
 	d.inode.watches.Notify(ctx, "", events, cookie, et, deleted)
 	d.inode.fs.mu.RUnlock()
@@ -503,7 +501,7 @@ type inode struct {
 	xattrs memxattr.SimpleExtendedAttributes
 
 	// Inode metadata. Writing multiple fields atomically requires holding
-	// mu, otherwise atomic operations can be used.
+	// mu, othewise atomic operations can be used.
 	mu    inodeMutex          `state:"nosave"`
 	mode  atomicbitops.Uint32 // file type and mode
 	nlink atomicbitops.Uint32 // protected by filesystem.mu instead of inode.mu
@@ -644,6 +642,7 @@ func (i *inode) statTo(stat *linux.Statx) {
 	stat.DevMinor = i.fs.devMinor
 	switch impl := i.impl.(type) {
 	case *regularFile:
+		stat.Mask |= linux.STATX_SIZE | linux.STATX_BLOCKS
 		stat.Size = uint64(impl.size.Load())
 		// TODO(jamieliu): This should be impl.data.Span() / 512, but this is
 		// too expensive to compute here. Cache it in regularFile.
@@ -822,7 +821,7 @@ func (i *inode) isDir() bool {
 }
 
 func (i *inode) touchAtime(mnt *vfs.Mount) {
-	if mnt.Options().Flags.NoATime {
+	if mnt.Flags.NoATime {
 		return
 	}
 	if err := mnt.CheckBeginWrite(); err != nil {

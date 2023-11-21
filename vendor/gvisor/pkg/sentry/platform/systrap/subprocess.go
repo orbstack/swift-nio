@@ -228,20 +228,6 @@ func (s *subprocess) handlePtraceSyscallRequest(req any) {
 			panic(fmt.Sprintf("error waiting for new clone: expected SIGSTOP, got %v", sig))
 		}
 
-		t.initRegs = ptraceThread.initRegs
-		// Set the parent death signal to SIGKILL.
-		_, err = t.syscallIgnoreInterrupt(&t.initRegs, unix.SYS_PRCTL,
-			arch.SyscallArgument{Value: linux.PR_SET_PDEATHSIG},
-			arch.SyscallArgument{Value: uintptr(unix.SIGKILL)},
-			arch.SyscallArgument{Value: 0},
-			arch.SyscallArgument{Value: 0},
-			arch.SyscallArgument{Value: 0},
-			arch.SyscallArgument{Value: 0},
-		)
-		if err != nil {
-			panic(fmt.Sprintf("prctl: %v", err))
-		}
-
 		id, ok := s.sysmsgStackPool.Get()
 		if !ok {
 			panic("unable to allocate a sysmsg stub thread")
@@ -254,6 +240,7 @@ func (s *subprocess) handlePtraceSyscallRequest(req any) {
 
 		// Detach the thread.
 		t.detach()
+		t.initRegs = ptraceThread.initRegs
 
 		// Return the thread.
 		r.thread <- t
@@ -428,7 +415,7 @@ func (s *subprocess) unmap() {
 
 // Release kills the subprocess.
 //
-// Just kidding! We can't safely coordinate the detaching of all the
+// Just kidding! We can't safely co-ordinate the detaching of all the
 // tracees (since the tracers are random runtime threads, and the process
 // won't exit until tracers have been notifier).
 //
@@ -701,7 +688,10 @@ func (s *subprocess) incAwakeContexts() {
 	if nr > uint32(maxSysmsgThreads) {
 		return
 	}
-	fpState.nrMaxAwakeStubThreads.Add(1)
+	nr = nrMaxAwakeStubThreads.Add(1)
+	if nr > fastPathContextLimit {
+		dispatcher.disableStubFastPath()
+	}
 }
 
 func (s *subprocess) decAwakeContexts() {
@@ -709,7 +699,7 @@ func (s *subprocess) decAwakeContexts() {
 	if nr >= uint32(maxSysmsgThreads) {
 		return
 	}
-	fpState.nrMaxAwakeStubThreads.Add(^uint32(0))
+	nrMaxAwakeStubThreads.Add(^uint32(0))
 }
 
 // switchToApp is called from the main SwitchToApp entrypoint.
@@ -744,9 +734,10 @@ func (s *subprocess) switchToApp(c *context, ac *arch.Context64) (isSyscall bool
 		ctx.sleeping = false
 		s.incAwakeContexts()
 	}
+	stubFastPathEnabled := dispatcher.stubFastPathEnabled()
 	ctx.setState(sysmsg.ContextStateNone)
-	s.contextQueue.add(ctx)
-	s.waitOnState(ctx)
+	s.contextQueue.add(ctx, stubFastPathEnabled)
+	s.waitOnState(ctx, stubFastPathEnabled)
 
 	// Check if there's been an error.
 	threadID := ctx.threadID()
@@ -785,10 +776,12 @@ func (s *subprocess) switchToApp(c *context, ac *arch.Context64) (isSyscall bool
 	return false, false, nil
 }
 
-func (s *subprocess) waitOnState(ctx *sharedContext) {
+func (s *subprocess) waitOnState(ctx *sharedContext, stubFastPathEnabled bool) {
 	ctx.kicked = false
 	slowPath := false
-	if !s.contextQueue.fastPathEnabled() || atomic.LoadUint32(&s.contextQueue.numActiveThreads) == 0 {
+	start := cputicks()
+	ctx.startWaitingTS = start
+	if !stubFastPathEnabled || atomic.LoadUint32(&s.contextQueue.numActiveThreads) == 0 {
 		ctx.kicked = s.kickSysmsgThread()
 	}
 	for curState := ctx.state(); curState == sysmsg.ContextStateNone; curState = ctx.state() {
@@ -822,8 +815,7 @@ func (s *subprocess) waitOnState(ctx *sharedContext) {
 		}
 	}
 
-	ctx.recordLatency()
-	ctx.resetLatencyMeasures()
+	ctx.resetAcked()
 	ctx.enableSentryFastPath()
 }
 
@@ -852,8 +844,6 @@ func (s *subprocess) canKickSysmsgThread() (bool, uint32) {
 	return true, nrActiveThreads
 }
 
-// kickSysmsgThread returns true if it was able to wake up or create a new sysmsg
-// stub thread.
 func (s *subprocess) kickSysmsgThread() bool {
 	kick, _ := s.canKickSysmsgThread()
 	if !kick {
@@ -866,7 +856,6 @@ func (s *subprocess) kickSysmsgThread() bool {
 		s.sysmsgThreadsMu.Unlock()
 		return false
 	}
-	numTimesStubKicked.Increment()
 	atomic.AddUint32(&s.contextQueue.numThreadsToWakeup, 1)
 	if s.numSysmsgThreads < maxSysmsgThreads && s.numSysmsgThreads < int(nrThreads) {
 		s.numSysmsgThreads++
@@ -882,7 +871,7 @@ func (s *subprocess) kickSysmsgThread() bool {
 	}
 	s.contextQueue.wakeupSysmsgThread()
 
-	return true
+	return false
 }
 
 // syscall executes the given system call without handling interruptions.

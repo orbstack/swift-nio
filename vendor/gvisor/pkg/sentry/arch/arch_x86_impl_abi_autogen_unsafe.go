@@ -6,9 +6,9 @@
 // is filtered based on pre-defined file suffixes related to build constraints,
 // see tools/defs.bzl:calculate_sets().
 
-//go:build (amd64 || 386) && !false
+//go:build (amd64 || 386) && go1.1
 // +build amd64 386
-// +build !false
+// +build go1.1
 
 package arch
 

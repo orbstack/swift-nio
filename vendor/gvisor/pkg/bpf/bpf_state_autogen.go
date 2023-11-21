@@ -3,27 +3,8 @@
 package bpf
 
 import (
-	"gvisor.dev/gvisor/pkg/abi/linux"
 	"gvisor.dev/gvisor/pkg/state"
 )
-
-func (ins *Instruction) StateTypeName() string {
-	return "pkg/bpf.Instruction"
-}
-
-func (ins *Instruction) StateFields() []string {
-	return (*linux.BPFInstruction)(ins).StateFields()
-}
-
-// +checklocksignore
-func (ins *Instruction) StateSave(stateSinkObject state.Sink) {
-	(*linux.BPFInstruction)(ins).StateSave(stateSinkObject)
-}
-
-// +checklocksignore
-func (ins *Instruction) StateLoad(stateSourceObject state.Source) {
-	(*linux.BPFInstruction)(ins).StateLoad(stateSourceObject)
-}
 
 func (p *Program) StateTypeName() string {
 	return "pkg/bpf.Program"
@@ -51,6 +32,5 @@ func (p *Program) StateLoad(stateSourceObject state.Source) {
 }
 
 func init() {
-	state.Register((*Instruction)(nil))
 	state.Register((*Program)(nil))
 }

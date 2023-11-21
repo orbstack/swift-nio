@@ -21,7 +21,6 @@ import (
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/abi/linux"
-	"gvisor.dev/gvisor/pkg/bpf"
 	"gvisor.dev/gvisor/pkg/hostarch"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/safecopy"
@@ -56,15 +55,16 @@ func unsafeSlice(addr uintptr, length int) (slice []byte) {
 //
 //go:nosplit
 func prepareSeccompRules(stubSysmsgStart, stubSysmsgRules, stubSysmsgRulesLen uintptr) {
+
 	instrs := sysmsgThreadRules(stubSysmsgStart)
-	progLen := len(instrs) * int(unsafe.Sizeof(bpf.Instruction{}))
+	progLen := len(instrs) * int(unsafe.Sizeof(linux.BPFInstruction{}))
 	progPtr := stubSysmsgRules + unsafe.Sizeof(linux.SockFprog{})
 
 	if progLen+int(unsafe.Sizeof(linux.SockFprog{})) > int(stubSysmsgRulesLen) {
 		panic("not enough space for sysmsg seccomp rules")
 	}
 
-	var targetSlice []bpf.Instruction
+	var targetSlice []linux.BPFInstruction
 	sh := (*reflect.SliceHeader)(unsafe.Pointer(&targetSlice))
 	sh.Data = progPtr
 	sh.Cap = len(instrs)

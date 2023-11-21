@@ -22,13 +22,3 @@ func (fs *filesystem) afterLoad() {
 	}
 	fs.mf = fs.mfp.MemoryFile()
 }
-
-// saveParent is called by stateify.
-func (d *dentry) saveParent() *dentry {
-	return d.parent.Load()
-}
-
-// saveParent is called by stateify.
-func (d *dentry) loadParent(parent *dentry) {
-	d.parent.Store(parent)
-}

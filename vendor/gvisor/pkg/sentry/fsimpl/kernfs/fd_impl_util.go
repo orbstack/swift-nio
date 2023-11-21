@@ -117,12 +117,12 @@ func (fd *GenericDirectoryFD) ConfigureMMap(ctx context.Context, opts *memmap.MM
 	return fd.FileDescriptionDefaultImpl.ConfigureMMap(ctx, opts)
 }
 
-// Read implements vfs.FileDescriptionImpl.Read.
+// Read implmenets vfs.FileDescriptionImpl.Read.
 func (fd *GenericDirectoryFD) Read(ctx context.Context, dst usermem.IOSequence, opts vfs.ReadOptions) (int64, error) {
 	return fd.DirectoryFileDescriptionDefaultImpl.Read(ctx, dst, opts)
 }
 
-// PRead implements vfs.FileDescriptionImpl.PRead.
+// PRead implmenets vfs.FileDescriptionImpl.PRead.
 func (fd *GenericDirectoryFD) PRead(ctx context.Context, dst usermem.IOSequence, offset int64, opts vfs.ReadOptions) (int64, error) {
 	return fd.DirectoryFileDescriptionDefaultImpl.PRead(ctx, dst, offset, opts)
 }

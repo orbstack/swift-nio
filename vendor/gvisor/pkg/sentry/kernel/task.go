@@ -441,6 +441,11 @@ type Task struct {
 	// ipcns is protected by mu. ipcns is owned by the task goroutine.
 	ipcns *IPCNamespace
 
+	// abstractSockets tracks abstract sockets that are in use.
+	//
+	// abstractSockets is protected by mu.
+	abstractSockets *AbstractSocketNamespace
+
 	// mountNamespace is the task's mount namespace.
 	//
 	// It is protected by mu. It is owned by the task goroutine.
@@ -593,24 +598,18 @@ type Task struct {
 	// The userCounters pointer is exclusive to the task goroutine, but the
 	// userCounters instance must be atomically accessed.
 	userCounters *userCounters
-
-	// sessionKeyring is a pointer to the task's session keyring, if set.
-	// It is guaranteed to be of type "keyring".
-	//
-	// +checklocks:mu
-	sessionKeyring *auth.Key
 }
 
 // Task related metrics
 var (
 	// syscallCounter is a metric that tracks how many syscalls the sentry has
 	// executed.
-	syscallCounter = metric.SentryProfiling.MustCreateNewUint64Metric(
+	syscallCounter = metric.MustCreateNewProfilingUint64Metric(
 		"/task/syscalls", false, "The number of syscalls the sentry has executed for the user.")
 
 	// faultCounter is a metric that tracks how many faults the sentry has had to
 	// handle.
-	faultCounter = metric.SentryProfiling.MustCreateNewUint64Metric(
+	faultCounter = metric.MustCreateNewProfilingUint64Metric(
 		"/task/faults", false, "The number of faults the sentry has handled.")
 )
 
@@ -802,6 +801,11 @@ func (t *Task) GetMountNamespace() *vfs.MountNamespace {
 		mntns.IncRef()
 	}
 	return mntns
+}
+
+// AbstractSockets returns t's AbstractSocketNamespace.
+func (t *Task) AbstractSockets() *AbstractSocketNamespace {
+	return t.abstractSockets
 }
 
 // ContainerID returns t's container ID.

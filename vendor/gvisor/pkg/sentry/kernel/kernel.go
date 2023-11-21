@@ -139,17 +139,18 @@ type Kernel struct {
 	mf *pgalloc.MemoryFile `state:"nosave"`
 
 	// See InitKernelArgs for the meaning of these fields.
-	featureSet           cpuid.FeatureSet
-	timekeeper           *Timekeeper
-	tasks                *TaskSet
-	rootUserNamespace    *auth.UserNamespace
-	rootNetworkNamespace *inet.Namespace
-	applicationCores     uint
-	useHostCores         bool
-	extraAuxv            []arch.AuxEntry
-	vdso                 *loader.VDSO
-	rootUTSNamespace     *UTSNamespace
-	rootIPCNamespace     *IPCNamespace
+	featureSet                  cpuid.FeatureSet
+	timekeeper                  *Timekeeper
+	tasks                       *TaskSet
+	rootUserNamespace           *auth.UserNamespace
+	rootNetworkNamespace        *inet.Namespace
+	applicationCores            uint
+	useHostCores                bool
+	extraAuxv                   []arch.AuxEntry
+	vdso                        *loader.VDSO
+	rootUTSNamespace            *UTSNamespace
+	rootIPCNamespace            *IPCNamespace
+	rootAbstractSocketNamespace *AbstractSocketNamespace
 
 	// futexes is the "root" futex.Manager, from which all others are forked.
 	// This is necessary to ensure that shared futexes are coherent across all
@@ -365,6 +366,9 @@ type InitKernelArgs struct {
 	// RootIPCNamespace is the root IPC namespace.
 	RootIPCNamespace *IPCNamespace
 
+	// RootAbstractSocketNamespace is the root Abstract Socket namespace.
+	RootAbstractSocketNamespace *AbstractSocketNamespace
+
 	// PIDNamespace is the root PID namespace.
 	PIDNamespace *PIDNamespace
 }
@@ -393,6 +397,7 @@ func (k *Kernel) Init(args InitKernelArgs) error {
 	k.rootUserNamespace = args.RootUserNamespace
 	k.rootUTSNamespace = args.RootUTSNamespace
 	k.rootIPCNamespace = args.RootIPCNamespace
+	k.rootAbstractSocketNamespace = args.RootAbstractSocketNamespace
 	k.rootNetworkNamespace = args.RootNetworkNamespace
 	if k.rootNetworkNamespace == nil {
 		k.rootNetworkNamespace = inet.NewRootNamespace(nil, nil, args.RootUserNamespace)
@@ -722,6 +727,9 @@ type CreateProcessArgs struct {
 	// PIDNamespace is the initial PID Namespace.
 	PIDNamespace *PIDNamespace
 
+	// AbstractSocketNamespace is the initial Abstract Socket namespace.
+	AbstractSocketNamespace *AbstractSocketNamespace
+
 	// MountNamespace optionally contains the mount namespace for this
 	// process. If nil, the init process's mount namespace is used.
 	//
@@ -929,22 +937,21 @@ func (k *Kernel) CreateProcess(args CreateProcessArgs) (*ThreadGroup, ThreadID, 
 
 	// Create the task.
 	config := &TaskConfig{
-		Kernel:           k,
-		ThreadGroup:      tg,
-		TaskImage:        image,
-		FSContext:        fsContext,
-		FDTable:          args.FDTable,
-		Credentials:      args.Credentials,
-		NetworkNamespace: k.RootNetworkNamespace(),
-		AllowedCPUMask:   sched.NewFullCPUSet(k.applicationCores),
-		UTSNamespace:     args.UTSNamespace,
-		IPCNamespace:     args.IPCNamespace,
-		MountNamespace:   mntns,
-		ContainerID:      args.ContainerID,
-		InitialCgroups:   args.InitialCgroups,
-		UserCounters:     k.GetUserCounters(args.Credentials.RealKUID),
-		// A task with no parent starts out with no session keyring.
-		SessionKeyring: nil,
+		Kernel:                  k,
+		ThreadGroup:             tg,
+		TaskImage:               image,
+		FSContext:               fsContext,
+		FDTable:                 args.FDTable,
+		Credentials:             args.Credentials,
+		NetworkNamespace:        k.RootNetworkNamespace(),
+		AllowedCPUMask:          sched.NewFullCPUSet(k.applicationCores),
+		UTSNamespace:            args.UTSNamespace,
+		IPCNamespace:            args.IPCNamespace,
+		AbstractSocketNamespace: args.AbstractSocketNamespace,
+		MountNamespace:          mntns,
+		ContainerID:             args.ContainerID,
+		InitialCgroups:          args.InitialCgroups,
+		UserCounters:            k.GetUserCounters(args.Credentials.RealKUID),
 	}
 	config.NetworkNamespace.IncRef()
 	t, err := k.tasks.NewTask(ctx, config)
@@ -1014,7 +1021,7 @@ func (k *Kernel) Start() error {
 func (k *Kernel) pauseTimeLocked(ctx context.Context) {
 	// Since all task goroutines have been stopped by precondition, the CPU clock
 	// ticker should stop on its own; wait for it to do so, waking it up from
-	// sleeping between ticks if necessary.
+	// sleeping betwen ticks if necessary.
 	k.runningTasksMu.Lock()
 	for k.cpuClockTickerRunning {
 		select {
@@ -1313,6 +1320,11 @@ func (k *Kernel) RootIPCNamespace() *IPCNamespace {
 // RootPIDNamespace returns the root PIDNamespace.
 func (k *Kernel) RootPIDNamespace() *PIDNamespace {
 	return k.tasks.Root
+}
+
+// RootAbstractSocketNamespace returns the root AbstractSocketNamespace.
+func (k *Kernel) RootAbstractSocketNamespace() *AbstractSocketNamespace {
+	return k.rootAbstractSocketNamespace
 }
 
 // RootNetworkNamespace returns the root network namespace, always non-nil.

@@ -18,83 +18,41 @@ import (
 	"encoding/binary"
 )
 
-// Input represents a source of input data for a BPF program. (BPF
-// documentation sometimes refers to the input data as the "packet" due to its
-// origins as a packet processing DSL.)
-// Unaligned loads are supported.
-type Input []byte
+// InputBytes implements the Input interface by providing access to a byte
+// slice. Unaligned loads are supported.
+type InputBytes struct {
+	// Data is the data accessed through the Input interface.
+	Data []byte
 
-// These type definitions must have different GC shapes to ensure that
-// the Go compiler generates distinct code paths for them.
-// These do not have anything to do with the bit sizes of the loads
-// later on; all that matters is that these types have distinct sizes
-// from one another.
-type (
-	// BigEndian uses big-endian byte ordering.
-	BigEndian uint8
-
-	// LittleEndian uses little-endian byte ordering.
-	LittleEndian uint16
-
-	// NativeEndian uses native byte ordering.
-	NativeEndian uint32
-)
-
-// Endianness represents a byte order.
-type Endianness interface {
-	BigEndian | LittleEndian | NativeEndian
+	// Order is the byte order the data is accessed with.
+	Order binary.ByteOrder
 }
 
-// load32 loads a 32-bit value.
-//
-//go:nosplit
-func load32[endian Endianness](in Input, off uint32) (uint32, bool) {
-	if uint64(off)+4 > uint64(len(in)) {
+// Load32 implements Input.Load32.
+func (i InputBytes) Load32(off uint32) (uint32, bool) {
+	if uint64(off)+4 > uint64(len(i.Data)) {
 		return 0, false
 	}
-	// Casting to any is needed here to avoid a compilation error:
-	// https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#why-not-permit-type-assertions-on-values-whose-type-is-a-type-parameter
-	var e endian
-	switch any(e).(type) {
-	case BigEndian:
-		return binary.BigEndian.Uint32(in[int(off):]), true
-	case LittleEndian:
-		return binary.LittleEndian.Uint32(in[int(off):]), true
-	case NativeEndian:
-		return binary.NativeEndian.Uint32(in[int(off):]), true
-	default:
-		panic("unreachable")
-	}
+	return i.Order.Uint32(i.Data[int(off):]), true
 }
 
-// load16 loads a 16-bit value.
-//
-//go:nosplit
-func load16[endian Endianness](in Input, off uint32) (uint16, bool) {
-	if uint64(off)+2 > uint64(len(in)) {
+// Load16 implements Input.Load16.
+func (i InputBytes) Load16(off uint32) (uint16, bool) {
+	if uint64(off)+2 > uint64(len(i.Data)) {
 		return 0, false
 	}
-	// Casting to any is needed here to avoid a compilation error:
-	// https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#why-not-permit-type-assertions-on-values-whose-type-is-a-type-parameter
-	var e endian
-	switch any(e).(type) {
-	case BigEndian:
-		return binary.BigEndian.Uint16(in[int(off):]), true
-	case LittleEndian:
-		return binary.LittleEndian.Uint16(in[int(off):]), true
-	case NativeEndian:
-		return binary.NativeEndian.Uint16(in[int(off):]), true
-	default:
-		panic("unreachable")
-	}
+	return i.Order.Uint16(i.Data[int(off):]), true
 }
 
-// load8 loads a single byte.
-//
-//go:nosplit
-func load8(in Input, off uint32) (uint8, bool) {
-	if uint64(off)+1 > uint64(len(in)) {
+// Load8 implements Input.Load8.
+func (i InputBytes) Load8(off uint32) (uint8, bool) {
+	if uint64(off)+1 > uint64(len(i.Data)) {
 		return 0, false
 	}
-	return in[int(off)], true
+	return i.Data[int(off)], true
+}
+
+// Length implements Input.Length.
+func (i InputBytes) Length() uint32 {
+	return uint32(len(i.Data))
 }

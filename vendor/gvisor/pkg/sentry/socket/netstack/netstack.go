@@ -1076,8 +1076,13 @@ func getSockOptSocket(t *kernel.Task, s socket.Socket, ep commonEndpoint, family
 			return nil, syserr.ErrInvalidArgument
 		}
 
-		v := primitive.Int32(boolToInt32(ep.SocketOptions().GetAcceptConn()))
-		return &v, nil
+		// This option is only viable for TCP endpoints.
+		var v bool
+		if socket.IsTCP(s) {
+			v = tcp.EndpointState(ep.State()) == tcp.StateListen
+		}
+		vP := primitive.Int32(boolToInt32(v))
+		return &vP, nil
 
 	case linux.SO_RCVLOWAT:
 		if outLen < sizeOfInt32 {

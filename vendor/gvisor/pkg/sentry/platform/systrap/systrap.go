@@ -102,10 +102,6 @@ var (
 	// stubInitialized controls one-time stub initialization.
 	stubInitialized sync.Once
 
-	// latencyMonitoring controls one-time initialization of the fastpath
-	// control goroutine.
-	latencyMonitoring sync.Once
-
 	// archState stores architecture-specific details used in the platform.
 	archState sysmsg.ArchState
 )
@@ -339,10 +335,6 @@ func New() (*Systrap, error) {
 		globalPool.source = source
 
 		initSysmsgThreadPriority()
-	})
-
-	latencyMonitoring.Do(func() {
-		go controlFastPath()
 	})
 
 	return &Systrap{memoryFile: mf}, nil

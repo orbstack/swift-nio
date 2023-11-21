@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !false
-// +build !false
+//go:build go1.1
+// +build go1.1
 
 package filter
 
@@ -24,11 +24,13 @@ import (
 
 // profileFilters returns extra syscalls made by runtime/pprof package.
 func profileFilters() seccomp.SyscallRules {
-	return seccomp.MakeSyscallRules(map[uintptr]seccomp.SyscallRule{
-		unix.SYS_OPENAT: seccomp.PerArg{
-			seccomp.AnyValue{},
-			seccomp.AnyValue{},
-			seccomp.EqualTo(unix.O_RDONLY | unix.O_LARGEFILE | unix.O_CLOEXEC),
+	return seccomp.SyscallRules{
+		unix.SYS_OPENAT: []seccomp.Rule{
+			{
+				seccomp.MatchAny{},
+				seccomp.MatchAny{},
+				seccomp.EqualTo(unix.O_RDONLY | unix.O_LARGEFILE | unix.O_CLOEXEC),
+			},
 		},
-	})
+	}
 }

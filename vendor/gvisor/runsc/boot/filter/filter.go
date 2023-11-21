@@ -37,8 +37,8 @@ type Options struct {
 	ControllerFD          int
 }
 
-// Rules returns the seccomp (rules, denyRules) to use for the Sentry.
-func Rules(opt Options) (seccomp.SyscallRules, seccomp.SyscallRules) {
+// Install seccomp filters based on the given platform.
+func Install(opt Options) error {
 	s := allowedSyscalls
 	s.Merge(controlServerFilters(opt.ControllerFD))
 
@@ -73,13 +73,7 @@ func Rules(opt Options) (seccomp.SyscallRules, seccomp.SyscallRules) {
 
 	s.Merge(opt.Platform.SyscallFilters())
 
-	return s, seccomp.DenyNewExecMappings
-}
-
-// Install seccomp filters based on the given platform.
-func Install(opt Options) error {
-	rules, denyRules := Rules(opt)
-	return seccomp.Install(rules, denyRules)
+	return seccomp.Install(s, seccomp.DenyNewExecMappings)
 }
 
 // Report writes a warning message to the log.

@@ -15,7 +15,7 @@
 // Package nvproxy implements proxying for the Nvidia GPU Linux kernel driver:
 // https://github.com/NVIDIA/open-gpu-kernel-modules.
 //
-// Supported Nvidia GPUs: T4, L4, A100, A10G and H100.
+// Supported Nvidia GPUs: T4, L4, A100, A10G, V100 and H100.
 package nvproxy
 
 import (
@@ -35,22 +35,21 @@ import (
 func Register(vfsObj *vfs.VirtualFilesystem, uvmDevMajor uint32) error {
 	// The kernel driver's interface is unstable, so only allow versions of the
 	// driver that are known to be supported.
-	versionStr, err := hostDriverVersion()
+	version, err := hostDriverVersion()
 	if err != nil {
 		return fmt.Errorf("failed to get Nvidia driver version: %w", err)
 	}
-	log.Debugf("NVIDIA driver version: %s", versionStr)
-	version, err := DriverVersionFrom(versionStr)
-	if err != nil {
-		return fmt.Errorf("failed to parse Nvidia driver version %s: %w", versionStr, err)
+	switch version {
+	case
+		"525.60.13",
+		"525.105.17":
+		log.Infof("Nvidia driver version: %s", version)
+	default:
+		return fmt.Errorf("unsupported Nvidia driver version: %s", version)
 	}
-	abiCons, ok := abis[version]
-	if !ok {
-		return fmt.Errorf("unsupported Nvidia driver version: %s", versionStr)
-	}
+
 	nvp := &nvproxy{
 		objsLive: make(map[nvgpu.Handle]*object),
-		abi:      abiCons.cons(),
 	}
 	for minor := uint32(0); minor <= nvgpu.NV_CONTROL_DEVICE_MINOR; minor++ {
 		if err := vfsObj.RegisterDevice(vfs.CharDevice, nvgpu.NV_MAJOR_DEVICE_NUMBER, minor, &frontendDevice{
@@ -87,15 +86,14 @@ func CreateDriverDevtmpfsFiles(ctx context.Context, dev *devtmpfs.Accessor, uvmD
 
 // CreateIndexDevtmpfsFile creates the device special file in dev for the
 // device with the given index.
-func CreateIndexDevtmpfsFile(ctx context.Context, dev *devtmpfs.Accessor, minor uint32) error {
-	return dev.CreateDeviceFile(ctx, fmt.Sprintf("nvidia%d", minor), vfs.CharDevice, nvgpu.NV_MAJOR_DEVICE_NUMBER, minor, 0666)
+func CreateIndexDevtmpfsFile(ctx context.Context, dev *devtmpfs.Accessor, index uint32) error {
+	return dev.CreateDeviceFile(ctx, fmt.Sprintf("nvidia%d", index), vfs.CharDevice, nvgpu.NV_MAJOR_DEVICE_NUMBER, index, 0666)
 }
 
 // +stateify savable
 type nvproxy struct {
-	objsMu   objsMutex `state:"nosave"`
+	objsMu   objsMutex
 	objsLive map[nvgpu.Handle]*object
-	abi      *driverABI
 }
 
 // object tracks an object allocated through the driver.

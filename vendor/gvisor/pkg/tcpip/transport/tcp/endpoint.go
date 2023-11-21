@@ -2059,16 +2059,11 @@ func (e *endpoint) GetSockOptInt(opt tcpip.SockOptInt) (int, tcpip.Error) {
 		return v, nil
 
 	case tcpip.MaxSegOption:
-		// Linux only returns user_mss value if user_mss is set and the socket is
-		// unconnected. Otherwise Linux returns the actual current MSS. Netstack
-		// mimics the user_mss behavior, but otherwise just returns the defaultMSS
-		// for now.
+		// This is just stubbed out. Linux never returns the user_mss
+		// value as it either returns the defaultMSS or returns the
+		// actual current MSS. Netstack just returns the defaultMSS
+		// always for now.
 		v := header.TCPDefaultMSS
-		e.LockUser()
-		if state := e.EndpointState(); e.userMSS > 0 && (state.internal() || state == StateClose || state == StateListen) {
-			v = int(e.userMSS)
-		}
-		e.UnlockUser()
 		return v, nil
 
 	case tcpip.MTUDiscoverOption:
@@ -3324,8 +3319,4 @@ func (e *endpoint) computeTCPSendBufferSize() int64 {
 	}
 
 	return newSndBufSz
-}
-
-func (e *endpoint) GetAcceptConn() bool {
-	return EndpointState(e.State()) == StateListen
 }

@@ -586,7 +586,7 @@ func (igmp *igmpState) softLeaveAll() {
 	igmp.genericMulticastProtocol.MakeAllNonMemberLocked()
 }
 
-// initializeAll attempts to initialize the IGMP state for each group that has
+// initializeAll attemps to initialize the IGMP state for each group that has
 // been joined locally.
 //
 // +checklocks:igmp.ep.mu

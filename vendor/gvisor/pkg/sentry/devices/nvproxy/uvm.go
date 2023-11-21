@@ -23,7 +23,6 @@ import (
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
 	"gvisor.dev/gvisor/pkg/fdnotifier"
 	"gvisor.dev/gvisor/pkg/hostarch"
-	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/marshal"
 	"gvisor.dev/gvisor/pkg/sentry/arch"
 	"gvisor.dev/gvisor/pkg/sentry/kernel"
@@ -125,10 +124,6 @@ func (fd *uvmFD) Ioctl(ctx context.Context, uio usermem.IO, sysno uintptr, args 
 		panic("Ioctl should be called from a task context")
 	}
 
-	if log.IsLogging(log.Debug) {
-		ctx.Debugf("nvproxy: frontend ioctl %#08x", cmd)
-	}
-
 	ui := uvmIoctlState{
 		fd:              fd,
 		ctx:             ctx,
@@ -136,12 +131,46 @@ func (fd *uvmFD) Ioctl(ctx context.Context, uio usermem.IO, sysno uintptr, args 
 		cmd:             cmd,
 		ioctlParamsAddr: argPtr,
 	}
-	handler := fd.nvp.abi.uvmIoctl[cmd]
-	if handler == nil {
+
+	switch cmd {
+	case nvgpu.UVM_INITIALIZE:
+		return uvmInitialize(&ui)
+	case nvgpu.UVM_DEINITIALIZE:
+		return uvmIoctlInvoke[byte](&ui, nil)
+	case nvgpu.UVM_CREATE_RANGE_GROUP:
+		return uvmIoctlSimple[nvgpu.UVM_CREATE_RANGE_GROUP_PARAMS](&ui)
+	case nvgpu.UVM_DESTROY_RANGE_GROUP:
+		return uvmIoctlSimple[nvgpu.UVM_DESTROY_RANGE_GROUP_PARAMS](&ui)
+	case nvgpu.UVM_REGISTER_GPU_VASPACE:
+		return uvmIoctlHasRMCtrlFD[nvgpu.UVM_REGISTER_GPU_VASPACE_PARAMS](&ui)
+	case nvgpu.UVM_UNREGISTER_GPU_VASPACE:
+		return uvmIoctlSimple[nvgpu.UVM_UNREGISTER_GPU_VASPACE_PARAMS](&ui)
+	case nvgpu.UVM_REGISTER_CHANNEL:
+		return uvmIoctlHasRMCtrlFD[nvgpu.UVM_REGISTER_CHANNEL_PARAMS](&ui)
+	case nvgpu.UVM_UNREGISTER_CHANNEL:
+		return uvmIoctlSimple[nvgpu.UVM_UNREGISTER_CHANNEL_PARAMS](&ui)
+	case nvgpu.UVM_MAP_EXTERNAL_ALLOCATION:
+		return uvmIoctlHasRMCtrlFD[nvgpu.UVM_MAP_EXTERNAL_ALLOCATION_PARAMS](&ui)
+	case nvgpu.UVM_FREE:
+		return uvmIoctlSimple[nvgpu.UVM_FREE_PARAMS](&ui)
+	case nvgpu.UVM_REGISTER_GPU:
+		return uvmIoctlHasRMCtrlFD[nvgpu.UVM_REGISTER_GPU_PARAMS](&ui)
+	case nvgpu.UVM_UNREGISTER_GPU:
+		return uvmIoctlSimple[nvgpu.UVM_UNREGISTER_GPU_PARAMS](&ui)
+	case nvgpu.UVM_PAGEABLE_MEM_ACCESS:
+		return uvmIoctlSimple[nvgpu.UVM_PAGEABLE_MEM_ACCESS_PARAMS](&ui)
+	case nvgpu.UVM_MAP_DYNAMIC_PARALLELISM_REGION:
+		return uvmIoctlSimple[nvgpu.UVM_MAP_DYNAMIC_PARALLELISM_REGION_PARAMS](&ui)
+	case nvgpu.UVM_ALLOC_SEMAPHORE_POOL:
+		return uvmIoctlSimple[nvgpu.UVM_ALLOC_SEMAPHORE_POOL_PARAMS](&ui)
+	case nvgpu.UVM_VALIDATE_VA_RANGE:
+		return uvmIoctlSimple[nvgpu.UVM_VALIDATE_VA_RANGE_PARAMS](&ui)
+	case nvgpu.UVM_CREATE_EXTERNAL_RANGE:
+		return uvmIoctlSimple[nvgpu.UVM_CREATE_EXTERNAL_RANGE_PARAMS](&ui)
+	default:
 		ctx.Warningf("nvproxy: unknown uvm ioctl %d", cmd)
 		return 0, linuxerr.EINVAL
 	}
-	return handler(&ui)
 }
 
 // uvmIoctlState holds the state of a call to uvmFD.Ioctl().
@@ -151,10 +180,6 @@ type uvmIoctlState struct {
 	t               *kernel.Task
 	cmd             uint32
 	ioctlParamsAddr hostarch.Addr
-}
-
-func uvmIoctlNoParams(ui *uvmIoctlState) (uintptr, error) {
-	return uvmIoctlInvoke[byte](ui, nil)
 }
 
 func uvmIoctlSimple[Params any, PParams marshalPtr[Params]](ui *uvmIoctlState) (uintptr, error) {
@@ -189,44 +214,6 @@ func uvmInitialize(ui *uvmIoctlState) (uintptr, error) {
 	// Only expose the MULTI_PROCESS_SHARING_MODE flag if it was present in
 	// ioctlParams.
 	outIoctlParams.Flags &^= ^ioctlParams.Flags & nvgpu.UVM_INIT_FLAGS_MULTI_PROCESS_SHARING_MODE
-	if _, err := outIoctlParams.CopyOut(ui.t, ui.ioctlParamsAddr); err != nil {
-		return n, err
-	}
-	return n, nil
-}
-
-func uvmMMInitialize(ui *uvmIoctlState) (uintptr, error) {
-	var ioctlParams nvgpu.UVM_MM_INITIALIZE_PARAMS
-	if _, err := ioctlParams.CopyIn(ui.t, ui.ioctlParamsAddr); err != nil {
-		return 0, err
-	}
-
-	failWithStatus := func(status uint32) error {
-		outIoctlParams := ioctlParams
-		outIoctlParams.Status = status
-		_, err := outIoctlParams.CopyOut(ui.t, ui.ioctlParamsAddr)
-		return err
-	}
-
-	uvmFileGeneric, _ := ui.t.FDTable().Get(ioctlParams.UvmFD)
-	if uvmFileGeneric == nil {
-		return 0, failWithStatus(nvgpu.NV_ERR_INVALID_ARGUMENT)
-	}
-	defer uvmFileGeneric.DecRef(ui.ctx)
-	uvmFile, ok := uvmFileGeneric.Impl().(*uvmFD)
-	if !ok {
-		return 0, failWithStatus(nvgpu.NV_ERR_INVALID_ARGUMENT)
-	}
-
-	sentryIoctlParams := ioctlParams
-	sentryIoctlParams.UvmFD = uvmFile.hostFD
-	n, err := uvmIoctlInvoke(ui, &sentryIoctlParams)
-	if err != nil {
-		return n, err
-	}
-
-	outIoctlParams := sentryIoctlParams
-	outIoctlParams.UvmFD = ioctlParams.UvmFD
 	if _, err := outIoctlParams.CopyOut(ui.t, ui.ioctlParamsAddr); err != nil {
 		return n, err
 	}

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package gofer provides a filesystem implementation that is backed by a 9p
-// server, interchangeably referred to as "gofers" throughout this package.
+// server, interchangably referred to as "gofers" throughout this package.
 //
 // Lock order:
 //
@@ -44,7 +44,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/abi/linux"
@@ -147,7 +146,7 @@ type dentryCache struct {
 	dentries dentryList
 	// dentriesLen is the number of dentries in dentries.
 	dentriesLen uint64
-	// maxCachedDentries is the maximum number of cacheable dentries.
+	// maxCachedDentries is the maximum number of cachable dentries.
 	maxCachedDentries uint64
 }
 
@@ -789,7 +788,7 @@ type dentry struct {
 	// parent is this dentry's parent directory. Each dentry holds a reference
 	// on its parent. If this dentry is a filesystem root, parent is nil.
 	// parent is protected by filesystem.renameMu.
-	parent atomic.Pointer[dentry] `state:".(*dentry)"`
+	parent *dentry
 
 	// name is the name of this dentry in its parent. If this dentry is a
 	// filesystem root, name is the empty string. name is protected by
@@ -951,7 +950,7 @@ type dentry struct {
 	// tracks dirty segments in cache. dirty is protected by dataMu.
 	dirty fsutil.DirtySet
 
-	// pf implements memmap.File for mappings of hostFD.
+	// pf implements platform.File for mappings of hostFD.
 	pf dentryPlatformFile
 
 	// If this dentry represents a symbolic link, InteropModeShared is not in
@@ -1517,8 +1516,8 @@ func (d *dentry) InotifyWithParent(ctx context.Context, events, cookie uint32, e
 
 	d.fs.renameMu.RLock()
 	// The ordering below is important, Linux always notifies the parent first.
-	if parent := d.parent.Load(); parent != nil {
-		parent.watches.Notify(ctx, d.name, events, cookie, et, d.isDeleted())
+	if d.parent != nil {
+		d.parent.watches.Notify(ctx, d.name, events, cookie, et, d.isDeleted())
 	}
 	d.watches.Notify(ctx, "", events, cookie, et, d.isDeleted())
 	d.fs.renameMu.RUnlock()
@@ -1624,10 +1623,10 @@ func (d *dentry) checkCachingLocked(ctx context.Context, renameMuWriteLocked boo
 			d.fs.renameMu.Lock()
 			defer d.fs.renameMu.Unlock()
 		}
-		if parent := d.parent.Load(); parent != nil {
-			parent.childrenMu.Lock()
-			delete(parent.children, d.name)
-			parent.childrenMu.Unlock()
+		if d.parent != nil {
+			d.parent.childrenMu.Lock()
+			delete(d.parent.children, d.name)
+			d.parent.childrenMu.Unlock()
 		}
 		d.destroyLocked(ctx) // +checklocksforce: see above.
 		return
@@ -1731,8 +1730,8 @@ func (d *dentry) evictLocked(ctx context.Context) {
 		d.cachingMu.Unlock()
 		return
 	}
-	if parent := d.parent.Load(); parent != nil {
-		parent.opMu.Lock()
+	if d.parent != nil {
+		d.parent.opMu.Lock()
 		if !d.vfsd.IsDead() {
 			// Note that d can't be a mount point (in any mount namespace), since VFS
 			// holds references on mount points.
@@ -1741,15 +1740,15 @@ func (d *dentry) evictLocked(ctx context.Context) {
 				rc.DecRef(ctx)
 			}
 
-			parent.childrenMu.Lock()
-			delete(parent.children, d.name)
-			parent.childrenMu.Unlock()
+			d.parent.childrenMu.Lock()
+			delete(d.parent.children, d.name)
+			d.parent.childrenMu.Unlock()
 
 			// We're only deleting the dentry, not the file it
 			// represents, so we don't need to update
 			// victim parent.dirents etc.
 		}
-		parent.opMu.Unlock()
+		d.parent.opMu.Unlock()
 	}
 	// Safe to unlock cachingMu now that d.vfsd.IsDead(). Henceforth any
 	// concurrent caching attempts on d will attempt to destroy it and so will
@@ -1849,9 +1848,8 @@ func (d *dentry) destroyLocked(ctx context.Context) {
 
 	// Drop the reference held by d on its parent without recursively locking
 	// d.fs.renameMu.
-
-	if parent := d.parent.Load(); parent != nil && parent.decRefNoCaching() == 0 {
-		parent.checkCachingLocked(ctx, true /* renameMuWriteLocked */)
+	if d.parent != nil && d.parent.decRefNoCaching() == 0 {
+		d.parent.checkCachingLocked(ctx, true /* renameMuWriteLocked */)
 	}
 }
 

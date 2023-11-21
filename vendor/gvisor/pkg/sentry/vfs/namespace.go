@@ -15,6 +15,8 @@
 package vfs
 
 import (
+	"fmt"
+
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
 	"gvisor.dev/gvisor/pkg/refs"
@@ -54,9 +56,6 @@ type MountNamespace struct {
 
 	// mounts is the total number of mounts in this mount namespace.
 	mounts uint32
-
-	// pending is the total number of pending mounts in this mount namespace.
-	pending uint32
 }
 
 // Namespace is the namespace interface.
@@ -128,22 +127,28 @@ func (vfs *VirtualFilesystem) NewMountNamespaceFrom(
 	return mntns
 }
 
-type cloneEntry struct {
-	prevMount   *Mount
-	parentMount *Mount
-}
-
 // +checklocks:vfs.mountMu
-func (vfs *VirtualFilesystem) updateRootAndCWD(ctx context.Context, root *VirtualDentry, cwd *VirtualDentry, src *Mount, dst *Mount) {
-	if root.mount == src {
-		vfs.delayDecRef(root.mount)
-		root.mount = dst
-		root.mount.IncRef()
+func (vfs *VirtualFilesystem) updateRootAndCWD(ctx context.Context, root *VirtualDentry, cwd *VirtualDentry, srcRoot *Mount, dstRoot *Mount) {
+	// The mount trees are exact copies of each other so submountsLocked will
+	// return corresponding mounts in the same order.
+	srcMounts := srcRoot.submountsLocked()
+	dstMounts := dstRoot.submountsLocked()
+	if len(srcMounts) != len(dstMounts) {
+		panic(fmt.Sprintf("mount trees are not the same size: len(srcTree) = %d, len(dstTree) = %d", len(srcMounts), len(dstMounts)))
 	}
-	if cwd.mount == src {
-		vfs.delayDecRef(cwd.mount)
-		cwd.mount = dst
-		cwd.mount.IncRef()
+	for i := 0; i < len(srcMounts); i++ {
+		old := srcMounts[i]
+		new := dstMounts[i]
+		if root.mount == old {
+			vfs.delayDecRef(root.mount)
+			root.mount = new
+			root.mount.IncRef()
+		}
+		if cwd.mount == old {
+			vfs.delayDecRef(cwd.mount)
+			cwd.mount = new
+			cwd.mount.IncRef()
+		}
 	}
 }
 
@@ -173,21 +178,16 @@ func (vfs *VirtualFilesystem) CloneMountNamespace(
 	vfs.lockMounts()
 	defer vfs.unlockMounts(ctx)
 
-	cloneType := 0
-	if ns.Owner != newns.Owner {
-		cloneType = sharedToFollowerClone
-	}
-	newRoot, err := vfs.cloneMountTree(ctx, ns.root, ns.root.root, cloneType,
-		func(ctx context.Context, src, dst *Mount) {
-			vfs.updateRootAndCWD(ctx, root, cwd, src, dst) // +checklocksforce: vfs.mountMu is locked.
-		})
+	newRoot, err := vfs.cloneMountTree(ctx, ns.root, ns.root.root)
 	if err != nil {
 		newns.DecRef(ctx)
+		vfs.abortTree(ctx, newRoot)
 		return nil, err
 	}
 	newns.root = newRoot
 	newns.root.ns = newns
-	vfs.commitChildren(ctx, newRoot)
+	vfs.commitTree(ctx, newRoot)
+	vfs.updateRootAndCWD(ctx, root, cwd, ns.root, newns.root)
 	return newns, nil
 }
 
@@ -244,19 +244,4 @@ func (mntns *MountNamespace) Root(ctx context.Context) VirtualDentry {
 	vd.dentry = m.root
 	vd.dentry.IncRef()
 	return vd
-}
-
-func (mntns *MountNamespace) checkMountCount(ctx context.Context, mnt *Mount) error {
-	if mntns.mounts > MountMax {
-		return linuxerr.ENOSPC
-	}
-	if mntns.mounts+mntns.pending > MountMax {
-		return linuxerr.ENOSPC
-	}
-	mnts := mnt.countSubmountsLocked()
-	if mntns.mounts+mntns.pending+mnts > MountMax {
-		return linuxerr.ENOSPC
-	}
-	mntns.pending += mnts
-	return nil
 }

@@ -113,7 +113,7 @@ func dumpRegs(regs *arch.Registers) string {
 }
 
 // adjustInitregsRip adjust the current register RIP value to
-// be just before the system call instruction execution
+// be just before the system call instruction excution
 func (t *thread) adjustInitRegsRip() {
 	t.initRegs.Pc -= initRegsRipAdjustment
 }

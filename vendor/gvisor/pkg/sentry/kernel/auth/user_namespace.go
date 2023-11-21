@@ -33,9 +33,6 @@ type UserNamespace struct {
 	// namespace. owner is immutable.
 	owner KUID
 
-	// Keys is the set of keys in this namespace.
-	Keys KeySet
-
 	// mu protects the following fields.
 	//
 	// If mu will be locked in multiple UserNamespaces, it must be locked in

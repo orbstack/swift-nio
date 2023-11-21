@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !false
-// +build !false
+//go:build go1.1
+// +build go1.1
 
 package v14
 

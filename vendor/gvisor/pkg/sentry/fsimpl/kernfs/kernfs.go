@@ -30,7 +30,7 @@
 // Reference Model:
 //
 // Kernfs dentries represents named pointers to inodes. Kernfs is solely
-// responsible for maintaining and modifying its dentry tree; inode
+// reponsible for maintaining and modifying its dentry tree; inode
 // implementations can not access the tree. Dentries and inodes have
 // independent lifetimes and reference counts. A child dentry unconditionally
 // holds a reference on its parent directory's dentry. A dentry also holds a
@@ -60,7 +60,6 @@ package kernfs
 
 import (
 	"fmt"
-	"sync/atomic"
 
 	"gvisor.dev/gvisor/pkg/abi/linux"
 	"gvisor.dev/gvisor/pkg/atomicbitops"
@@ -227,9 +226,8 @@ type Dentry struct {
 	// dflags* consts above.
 	flags atomicbitops.Uint32
 
-	parent atomic.Pointer[Dentry] `state:".(*Dentry)"`
-
-	name string
+	parent *Dentry
+	name   string
 
 	// If cached is true, dentryEntry links dentry into
 	// Filesystem.cachedDentries. cached and dentryEntry are protected by
@@ -344,7 +342,7 @@ func (d *Dentry) cacheLocked(ctx context.Context) {
 	// because it has zero references.
 	// Note that a dentry may not always have a parent; for example magic links
 	// as described in Inode.Getlink.
-	if isDead, parent := d.VFSDentry().IsDead(), d.parent.Load(); isDead || parent == nil {
+	if isDead := d.VFSDentry().IsDead(); isDead || d.parent == nil {
 		if !isDead {
 			rcs := d.fs.vfsfs.VirtualFilesystem().InvalidateDentry(ctx, d.VFSDentry())
 			for _, rc := range rcs {
@@ -360,8 +358,8 @@ func (d *Dentry) cacheLocked(ctx context.Context) {
 			d.inode.Watches().HandleDeletion(ctx)
 		}
 		d.destroy(ctx)
-		if parent != nil {
-			parent.decRefLocked(ctx)
+		if d.parent != nil {
+			d.parent.decRefLocked(ctx)
 		}
 		return
 	}
@@ -411,20 +409,19 @@ func (d *Dentry) evictLocked(ctx context.Context) {
 	// after it was inserted into fs.cachedDentries.
 	if d.refs.Load() == 0 {
 		if !d.vfsd.IsDead() {
-			parent := d.parent.Load()
-			parent.dirMu.Lock()
+			d.parent.dirMu.Lock()
 			// Note that victim can't be a mount point (in any mount
 			// namespace), since VFS holds references on mount points.
 			rcs := d.fs.vfsfs.VirtualFilesystem().InvalidateDentry(ctx, d.VFSDentry())
 			for _, rc := range rcs {
 				d.fs.deferDecRef(rc)
 			}
-			delete(parent.children, d.name)
-			parent.dirMu.Unlock()
+			delete(d.parent.children, d.name)
+			d.parent.dirMu.Unlock()
 		}
 		d.destroy(ctx)
-		if parent := d.parent.Load(); parent != nil {
-			parent.decRefLocked(ctx)
+		if d.parent != nil {
+			d.parent.decRefLocked(ctx)
 		}
 	}
 }
@@ -538,8 +535,8 @@ func (d *Dentry) InotifyWithParent(ctx context.Context, events, cookie uint32, e
 	// won't have one.
 	if !d.inode.Anonymous() {
 		d.fs.mu.RLock()
-		if parent := d.parent.Load(); parent != nil {
-			parent.inode.Watches().Notify(ctx, d.name, events, cookie, et, d.isDeleted())
+		if d.parent != nil {
+			d.parent.inode.Watches().Notify(ctx, d.name, events, cookie, et, d.isDeleted())
 		}
 		d.fs.mu.RUnlock()
 	}
@@ -580,7 +577,7 @@ func (d *Dentry) insertChildLocked(name string, child *Dentry) {
 		panic(fmt.Sprintf("insertChildLocked called on non-directory Dentry: %+v.", d))
 	}
 	d.IncRef() // DecRef in child's Dentry.destroy.
-	child.parent.Store(d)
+	child.parent = d
 	child.name = name
 	if d.children == nil {
 		d.children = make(map[string]*Dentry)
@@ -635,7 +632,7 @@ func (d *Dentry) WalkDentryTree(ctx context.Context, vfsObj *vfs.VirtualFilesyst
 				// Don't let .. traverse above the start point of the walk.
 				continue
 			}
-			target = target.parent.Load()
+			target = target.parent
 			// Parent doesn't need revalidation since we revalidated it on the
 			// way to the child, and we're still holding fs.mu.
 		default:
@@ -663,7 +660,7 @@ func (d *Dentry) WalkDentryTree(ctx context.Context, vfsObj *vfs.VirtualFilesyst
 // filesystem may concurrently move d elsewhere. The caller is responsible for
 // ensuring the returned result remains valid while it is used.
 func (d *Dentry) Parent() *Dentry {
-	return d.parent.Load()
+	return d.parent
 }
 
 // The Inode interface maps filesystem-level operations that operate on paths to

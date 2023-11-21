@@ -120,9 +120,9 @@ func (c *Client) StartChannels() error {
 	c.availableChannels = make([]*channel, 0, maxChans)
 	c.channelsMu.Unlock()
 
-	// Create channels parallelly so that channels can be used to create more
+	// Create channels parallely so that channels can be used to create more
 	// channels and costly initialization like flipcall.Endpoint.Connect can
-	// proceed parallelly.
+	// proceed parallely.
 	var channelsWg sync.WaitGroup
 	for i := 0; i < maxChans; i++ {
 		channelsWg.Add(1)

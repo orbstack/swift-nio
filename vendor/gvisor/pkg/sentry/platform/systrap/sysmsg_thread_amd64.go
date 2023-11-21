@@ -24,37 +24,37 @@ func appendSysThreadArchSeccompRules(rules []seccomp.RuleSet) []seccomp.RuleSet 
 	return append(rules, []seccomp.RuleSet{
 		{
 			// Rules for trapping vsyscall access.
-			Rules: seccomp.MakeSyscallRules(map[uintptr]seccomp.SyscallRule{
-				unix.SYS_GETTIMEOFDAY: seccomp.MatchAll{},
-				unix.SYS_TIME:         seccomp.MatchAll{},
-				unix.SYS_GETCPU:       seccomp.MatchAll{}, // SYS_GETCPU was not defined in package syscall on amd64.
-			}),
+			Rules: seccomp.SyscallRules{
+				unix.SYS_GETTIMEOFDAY: {},
+				unix.SYS_TIME:         {},
+				unix.SYS_GETCPU:       {}, // SYS_GETCPU was not defined in package syscall on amd64.
+			},
 			Action:   linux.SECCOMP_RET_TRAP,
 			Vsyscall: true,
 		},
 		{
-			Rules: seccomp.MakeSyscallRules(map[uintptr]seccomp.SyscallRule{
-				unix.SYS_ARCH_PRCTL: seccomp.Or{
-					seccomp.PerArg{
+			Rules: seccomp.SyscallRules{
+				unix.SYS_ARCH_PRCTL: {
+					{
 						seccomp.EqualTo(linux.ARCH_SET_FS),
-						seccomp.AnyValue{},
-						seccomp.AnyValue{},
-						seccomp.AnyValue{},
-						seccomp.AnyValue{},
-						seccomp.AnyValue{},
+						seccomp.MatchAny{},
+						seccomp.MatchAny{},
+						seccomp.MatchAny{},
+						seccomp.MatchAny{},
+						seccomp.MatchAny{},
 						seccomp.GreaterThan(stubStart), // rip
 					},
-					seccomp.PerArg{
+					{
 						seccomp.EqualTo(linux.ARCH_GET_FS),
-						seccomp.AnyValue{},
-						seccomp.AnyValue{},
-						seccomp.AnyValue{},
-						seccomp.AnyValue{},
-						seccomp.AnyValue{},
+						seccomp.MatchAny{},
+						seccomp.MatchAny{},
+						seccomp.MatchAny{},
+						seccomp.MatchAny{},
+						seccomp.MatchAny{},
 						seccomp.GreaterThan(stubStart), // rip
 					},
 				},
-			}),
+			},
 			Action: linux.SECCOMP_RET_ALLOW,
 		},
 	}...)
