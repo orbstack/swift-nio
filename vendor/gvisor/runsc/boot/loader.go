@@ -38,6 +38,7 @@ import (
 	"gvisor.dev/gvisor/pkg/rand"
 	"gvisor.dev/gvisor/pkg/refs"
 	"gvisor.dev/gvisor/pkg/sentry/control"
+	"gvisor.dev/gvisor/pkg/sentry/devices/nvproxy"
 	"gvisor.dev/gvisor/pkg/sentry/fdimport"
 	"gvisor.dev/gvisor/pkg/sentry/fsimpl/host"
 	"gvisor.dev/gvisor/pkg/sentry/fsimpl/tmpfs"
@@ -111,14 +112,14 @@ type containerInfo struct {
 	// goferFDs are the FDs that attach the sandbox to the gofers.
 	goferFDs []*fd.FD
 
-	// overlayFilestoreFDs are the FDs to the regular files that will back the
-	// tmpfs upper mount in the overlay mounts.
-	overlayFilestoreFDs []*fd.FD
+	// goferFilestoreFDs are FDs to the regular files that will back the tmpfs or
+	// overlayfs mount for certain gofer mounts.
+	goferFilestoreFDs []*fd.FD
 
-	// overlayMediums contains information about how the gofer mounts have been
-	// overlaid. The first entry is for rootfs and the following entries are for
-	// bind mounts in spec.Mounts (in the same order).
-	overlayMediums []OverlayMedium
+	// goferMountConfs contains information about how the gofer mounts have been
+	// configured. The first entry is for rootfs and the following entries are
+	// for bind mounts in Spec.Mounts (in the same order).
+	goferMountConfs []GoferMountConf
 
 	// nvidiaUVMDevMajor is the device major number used for nvidia-uvm.
 	nvidiaUVMDevMajor uint32
@@ -158,10 +159,6 @@ type Loader struct {
 	// apply to the entire pod.
 	mountHints *PodMountHints
 
-	// sharedMountKey holds VFS mounts that may be shared between containers
-	// within the same pod. It is mapped by mount source.
-	sharedMounts map[string]*vfs.Mount
-
 	// productName is the value to show in
 	// /sys/devices/virtual/dmi/id/product_name.
 	productName string
@@ -169,8 +166,12 @@ type Loader struct {
 	// nvidiaUVMDevMajor is the device major number used for nvidia-uvm.
 	nvidiaUVMDevMajor uint32
 
-	// mu guards processes and porForwardProxies.
+	// mu guards the fields below.
 	mu sync.Mutex
+
+	// sharedMounts holds VFS mounts that may be shared between containers within
+	// the same pod. It is mapped by mount source.
+	sharedMounts map[string]*vfs.Mount
 
 	// processes maps containers init process and invocation of exec. Root
 	// processes are keyed with container ID and pid=0, while exec invocations
@@ -253,13 +254,13 @@ type Args struct {
 	PassFDs []FDMapping
 	// ExecFD is the host file descriptor used for program execution.
 	ExecFD int
-	// OverlayFilestoreFDs are the FDs to the regular files that will back the
-	// tmpfs upper mount in the overlay mounts.
-	OverlayFilestoreFDs []int
-	// OverlayMediums contains information about how the gofer mounts have been
-	// overlaid. The first entry is for rootfs and the following entries are for
-	// bind mounts in Spec.Mounts (in the same order).
-	OverlayMediums []OverlayMedium
+	// GoferFilestoreFDs are FDs to the regular files that will back the tmpfs or
+	// overlayfs mount for certain gofer mounts.
+	GoferFilestoreFDs []int
+	// GoferMountConfs contains information about how the gofer mounts have been
+	// configured. The first entry is for rootfs and the following entries are
+	// for bind mounts in Spec.Mounts (in the same order).
+	GoferMountConfs []GoferMountConf
 	// NumCPU is the number of CPUs to create inside the sandbox.
 	NumCPU int
 	// TotalMem is the initial amount of total memory to report back to the
@@ -304,12 +305,16 @@ func New(args Args) (*Loader, error) {
 		return nil, fmt.Errorf("setting up memory usage: %w", err)
 	}
 
+	if specutils.NVProxyEnabled(args.Spec, args.Conf) {
+		nvproxy.Init()
+	}
+
 	kernel.IOUringEnabled = args.Conf.IOUring
 
 	info := containerInfo{
-		conf:           args.Conf,
-		spec:           args.Spec,
-		overlayMediums: args.OverlayMediums,
+		conf:            args.Conf,
+		spec:            args.Spec,
+		goferMountConfs: args.GoferMountConfs,
 	}
 
 	// Make host FDs stable between invocations. Host FDs must map to the exact
@@ -337,8 +342,8 @@ func New(args Args) (*Loader, error) {
 	for _, goferFD := range args.GoferFDs {
 		info.goferFDs = append(info.goferFDs, fd.New(goferFD))
 	}
-	for _, overlayFD := range args.OverlayFilestoreFDs {
-		info.overlayFilestoreFDs = append(info.overlayFilestoreFDs, fd.New(overlayFD))
+	for _, filestoreFD := range args.GoferFilestoreFDs {
+		info.goferFilestoreFDs = append(info.goferFilestoreFDs, fd.New(filestoreFD))
 	}
 
 	if args.ExecFD >= 0 {
@@ -357,7 +362,7 @@ func New(args Args) (*Loader, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating platform: %w", err)
 	}
-	if args.Conf.NVProxy && p.OwnsPageTables() {
+	if specutils.NVProxyEnabled(args.Spec, args.Conf) && p.OwnsPageTables() {
 		return nil, fmt.Errorf("--nvproxy is incompatible with platform %s: owns page tables", args.Conf.Platform)
 	}
 	k := &kernel.Kernel{
@@ -436,16 +441,15 @@ func New(args Args) (*Loader, error) {
 	// Initiate the Kernel object, which is required by the Context passed
 	// to createVFS in order to mount (among other things) procfs.
 	if err = k.Init(kernel.InitKernelArgs{
-		FeatureSet:                  cpuid.HostFeatureSet().Fixed(),
-		Timekeeper:                  tk,
-		RootUserNamespace:           creds.UserNamespace,
-		RootNetworkNamespace:        netns,
-		ApplicationCores:            uint(args.NumCPU),
-		Vdso:                        vdso,
-		RootUTSNamespace:            kernel.NewUTSNamespace(args.Spec.Hostname, args.Spec.Hostname, creds.UserNamespace),
-		RootIPCNamespace:            kernel.NewIPCNamespace(creds.UserNamespace),
-		RootAbstractSocketNamespace: kernel.NewAbstractSocketNamespace(),
-		PIDNamespace:                kernel.NewRootPIDNamespace(creds.UserNamespace),
+		FeatureSet:           cpuid.HostFeatureSet().Fixed(),
+		Timekeeper:           tk,
+		RootUserNamespace:    creds.UserNamespace,
+		RootNetworkNamespace: netns,
+		ApplicationCores:     uint(args.NumCPU),
+		Vdso:                 vdso,
+		RootUTSNamespace:     kernel.NewUTSNamespace(args.Spec.Hostname, args.Spec.Hostname, creds.UserNamespace),
+		RootIPCNamespace:     kernel.NewIPCNamespace(creds.UserNamespace),
+		PIDNamespace:         kernel.NewRootPIDNamespace(creds.UserNamespace),
 	}); err != nil {
 		return nil, fmt.Errorf("initializing kernel: %w", err)
 	}
@@ -504,6 +508,7 @@ func New(args Args) (*Loader, error) {
 		sandboxID:         args.ID,
 		processes:         map[execID]*execProcess{eid: {}},
 		mountHints:        mountHints,
+		sharedMounts:      make(map[string]*vfs.Mount),
 		root:              info,
 		stopProfiling:     stopProfiling,
 		productName:       args.ProductName,
@@ -554,18 +559,17 @@ func createProcessArgs(id string, spec *specs.Spec, creds *auth.Credentials, k *
 
 	// Create the process arguments.
 	procArgs := kernel.CreateProcessArgs{
-		Argv:                    spec.Process.Args,
-		Envv:                    env,
-		WorkingDirectory:        wd,
-		Credentials:             creds,
-		Umask:                   0022,
-		Limits:                  ls,
-		MaxSymlinkTraversals:    linux.MaxSymlinkTraversals,
-		UTSNamespace:            k.RootUTSNamespace(),
-		IPCNamespace:            k.RootIPCNamespace(),
-		AbstractSocketNamespace: k.RootAbstractSocketNamespace(),
-		ContainerID:             id,
-		PIDNamespace:            pidns,
+		Argv:                 spec.Process.Args,
+		Envv:                 env,
+		WorkingDirectory:     wd,
+		Credentials:          creds,
+		Umask:                0022,
+		Limits:               ls,
+		MaxSymlinkTraversals: linux.MaxSymlinkTraversals,
+		UTSNamespace:         k.RootUTSNamespace(),
+		IPCNamespace:         k.RootIPCNamespace(),
+		ContainerID:          id,
+		PIDNamespace:         pidns,
 	}
 
 	return procArgs, nil
@@ -652,8 +656,8 @@ func (l *Loader) installSeccompFilters() error {
 			HostNetworkRawSockets: hostnet && l.root.conf.EnableRaw,
 			HostFilesystem:        l.root.conf.DirectFS,
 			ProfileEnable:         l.root.conf.ProfileEnable,
-			NVProxy:               l.root.conf.NVProxy,
-			TPUProxy:              l.root.conf.TPUProxy,
+			NVProxy:               specutils.NVProxyEnabled(l.root.spec, l.root.conf),
+			TPUProxy:              specutils.TPUProxyIsEnabled(l.root.spec, l.root.conf),
 			ControllerFD:          l.ctrl.srv.FD(),
 		}
 		if err := filter.Install(opts); err != nil {
@@ -717,7 +721,7 @@ func (l *Loader) run() error {
 			tg  *kernel.ThreadGroup
 			err error
 		)
-		tg, ep.tty, err = l.createContainerProcess(true, l.sandboxID, &l.root)
+		tg, ep.tty, err = l.createContainerProcess(l.sandboxID, &l.root)
 		if err != nil {
 			return err
 		}
@@ -791,7 +795,7 @@ func (l *Loader) createSubcontainer(cid string, tty *fd.FD) error {
 // startSubcontainer starts a child container. It returns the thread group ID of
 // the newly created process. Used FDs are either closed or released. It's safe
 // for the caller to close any remaining files upon return.
-func (l *Loader) startSubcontainer(spec *specs.Spec, conf *config.Config, cid string, stdioFDs, goferFDs, overlayFilestoreFDs []*fd.FD, overlayMediums []OverlayMedium) error {
+func (l *Loader) startSubcontainer(spec *specs.Spec, conf *config.Config, cid string, stdioFDs, goferFDs, goferFilestoreFDs []*fd.FD, goferMountConfs []GoferMountConf) error {
 	// Create capabilities.
 	caps, err := specutils.Capabilities(conf.EnableRaw, spec.Process.Capabilities)
 	if err != nil {
@@ -844,12 +848,12 @@ func (l *Loader) startSubcontainer(spec *specs.Spec, conf *config.Config, cid st
 	}
 
 	info := &containerInfo{
-		conf:                conf,
-		spec:                spec,
-		goferFDs:            goferFDs,
-		overlayFilestoreFDs: overlayFilestoreFDs,
-		overlayMediums:      overlayMediums,
-		nvidiaUVMDevMajor:   l.nvidiaUVMDevMajor,
+		conf:              conf,
+		spec:              spec,
+		goferFDs:          goferFDs,
+		goferFilestoreFDs: goferFilestoreFDs,
+		goferMountConfs:   goferMountConfs,
+		nvidiaUVMDevMajor: l.nvidiaUVMDevMajor,
 	}
 	info.procArgs, err = createProcessArgs(cid, spec, creds, l.k, pidns)
 	if err != nil {
@@ -870,7 +874,7 @@ func (l *Loader) startSubcontainer(spec *specs.Spec, conf *config.Config, cid st
 		info.stdioFDs = stdioFDs
 	}
 
-	ep.tg, ep.tty, err = l.createContainerProcess(false, cid, info)
+	ep.tg, ep.tty, err = l.createContainerProcess(cid, info)
 	if err != nil {
 		return err
 	}
@@ -899,7 +903,8 @@ func (l *Loader) startSubcontainer(spec *specs.Spec, conf *config.Config, cid st
 	return nil
 }
 
-func (l *Loader) createContainerProcess(root bool, cid string, info *containerInfo) (*kernel.ThreadGroup, *host.TTYFileDescription, error) {
+// +checklocks:l.mu
+func (l *Loader) createContainerProcess(cid string, info *containerInfo) (*kernel.ThreadGroup, *host.TTYFileDescription, error) {
 	// Create the FD map, which will set stdin, stdout, and stderr.
 	ctx := info.procArgs.NewContext(l.k)
 	fdTable, ttyFile, err := createFDTable(ctx, info.spec.Process.Terminal, info.stdioFDs, info.passFDs, info.spec.Process.User)
@@ -936,11 +941,8 @@ func (l *Loader) createContainerProcess(root bool, cid string, info *containerIn
 	}
 	l.startGoferMonitor(cid, int32(info.goferFDs[0].FD()))
 
-	if root {
-		if err := l.processHints(info.conf, info.procArgs.Credentials); err != nil {
-			return nil, nil, err
-		}
-	}
+	// We can share l.sharedMounts with containerMounter since l.mu is locked.
+	// Hence, mntr must only be used within this function (while l.mu is locked).
 	mntr := newContainerMounter(info, l.k, l.mountHints, l.sharedMounts, l.productName, l.sandboxID)
 	if err := setupContainerVFS(ctx, info, mntr, &info.procArgs); err != nil {
 		return nil, nil, err

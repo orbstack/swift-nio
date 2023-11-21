@@ -29,15 +29,6 @@ import (
 	"gvisor.dev/gvisor/pkg/sentry/vfs"
 )
 
-type saveRestoreContextID int
-
-const (
-	// CtxRestoreServerFDMap is a Context.Value key for a map[string]int
-	// mapping filesystem unique IDs (cf. InternalFilesystemOptions.UniqueID)
-	// to host FDs.
-	CtxRestoreServerFDMap saveRestoreContextID = iota
-)
-
 // +stateify savable
 type savedDentryRW struct {
 	read  bool
@@ -168,10 +159,20 @@ func (fd *specialFileFD) afterLoad() {
 	}
 }
 
+// saveParent is called by stateify.
+func (d *dentry) saveParent() *dentry {
+	return d.parent.Load()
+}
+
+// loadParent is called by stateify.
+func (d *dentry) loadParent(parent *dentry) {
+	d.parent.Store(parent)
+}
+
 // CompleteRestore implements
 // vfs.FilesystemImplSaveRestoreExtension.CompleteRestore.
 func (fs *filesystem) CompleteRestore(ctx context.Context, opts vfs.CompleteRestoreOptions) error {
-	fdmapv := ctx.Value(CtxRestoreServerFDMap)
+	fdmapv := ctx.Value(vfs.CtxRestoreFilesystemFDMap)
 	if fdmapv == nil {
 		return fmt.Errorf("no server FD map available")
 	}

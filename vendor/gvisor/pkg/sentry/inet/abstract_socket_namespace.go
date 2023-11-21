@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kernel
+package inet
 
 import (
 	"fmt"
+	"math/rand"
 
-	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/refs"
 	"gvisor.dev/gvisor/pkg/sentry/socket/unix/transport"
-	"gvisor.dev/gvisor/pkg/sync"
+	"gvisor.dev/gvisor/pkg/syserr"
 )
 
 // +stateify savable
@@ -36,7 +36,7 @@ type abstractEndpoint struct {
 //
 // +stateify savable
 type AbstractSocketNamespace struct {
-	mu sync.Mutex `state:"nosave"`
+	mu abstractSocketNamespaceMutex `state:"nosave"`
 
 	// Keeps a mapping from name to endpoint. AbstractSocketNamespace does not hold
 	// any references on any sockets that it contains; when retrieving a socket,
@@ -44,13 +44,6 @@ type AbstractSocketNamespace struct {
 	// destroyed. It is the responsibility of the socket to remove itself from the
 	// abstract socket namespace when it is destroyed.
 	endpoints map[string]abstractEndpoint
-}
-
-// NewAbstractSocketNamespace returns a new AbstractSocketNamespace.
-func NewAbstractSocketNamespace() *AbstractSocketNamespace {
-	return &AbstractSocketNamespace{
-		endpoints: make(map[string]abstractEndpoint),
-	}
 }
 
 // A boundEndpoint wraps a transport.BoundEndpoint to maintain a reference on
@@ -64,6 +57,10 @@ type boundEndpoint struct {
 func (e *boundEndpoint) Release(ctx context.Context) {
 	e.socket.DecRef(ctx)
 	e.BoundEndpoint.Release(ctx)
+}
+
+func (a *AbstractSocketNamespace) init() {
+	a.endpoints = make(map[string]abstractEndpoint)
 }
 
 // BoundEndpoint retrieves the endpoint bound to the given name. The return
@@ -89,22 +86,41 @@ func (a *AbstractSocketNamespace) BoundEndpoint(name string) transport.BoundEndp
 //
 // When the last reference managed by socket is dropped, ep may be removed from the
 // namespace.
-func (a *AbstractSocketNamespace) Bind(ctx context.Context, name string, ep transport.BoundEndpoint, socket refs.TryRefCounter) error {
+func (a *AbstractSocketNamespace) Bind(ctx context.Context, path string, ep transport.BoundEndpoint, socket refs.TryRefCounter) (string, *syserr.Error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// Check if there is already a socket (which has not yet been destroyed) bound at name.
-	if ep, ok := a.endpoints[name]; ok {
-		if ep.socket.TryIncRef() {
-			ep.socket.DecRef(ctx)
-			return unix.EADDRINUSE
+	name := ""
+	if path == "" {
+		// Autobind feature.
+		mask := uint32(0xFFFFF)
+		r := rand.Uint32()
+		for i := uint32(0); i <= mask; i++ {
+			p := fmt.Sprintf("X%05x", (r+i)&mask)
+			if _, ok := a.endpoints[p[1:]]; ok {
+				continue
+			}
+			b := ([]byte)(p)
+			b[0] = 0
+			path = string(b)
+			break
+		}
+		if path == "" {
+			return "", syserr.ErrNoSpace
+		}
+		name = path[1:]
+	} else {
+		name = path[1:]
+		// Check if there is already a socket (which has not yet been destroyed) bound at name.
+		if _, ok := a.endpoints[name]; ok {
+			return "", syserr.ErrPortInUse
 		}
 	}
 
 	ae := abstractEndpoint{ep: ep, name: name, ns: a}
 	ae.socket = socket
 	a.endpoints[name] = ae
-	return nil
+	return path, nil
 }
 
 // Remove removes the specified socket at name from the abstract socket

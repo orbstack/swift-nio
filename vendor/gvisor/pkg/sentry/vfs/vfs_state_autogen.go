@@ -1167,17 +1167,19 @@ func (mnt *Mount) StateFields() []string {
 		"fs",
 		"root",
 		"ID",
-		"Flags",
+		"flags",
 		"key",
 		"ns",
 		"refs",
 		"children",
 		"isShared",
 		"sharedEntry",
+		"followerList",
+		"followerEntry",
+		"leader",
 		"groupID",
 		"umounted",
 		"writers",
-		"pendingChildren",
 	}
 }
 
@@ -1193,16 +1195,18 @@ func (mnt *Mount) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &mnt.fs)
 	stateSinkObject.Save(2, &mnt.root)
 	stateSinkObject.Save(3, &mnt.ID)
-	stateSinkObject.Save(4, &mnt.Flags)
+	stateSinkObject.Save(4, &mnt.flags)
 	stateSinkObject.Save(6, &mnt.ns)
 	stateSinkObject.Save(7, &mnt.refs)
 	stateSinkObject.Save(8, &mnt.children)
 	stateSinkObject.Save(9, &mnt.isShared)
 	stateSinkObject.Save(10, &mnt.sharedEntry)
-	stateSinkObject.Save(11, &mnt.groupID)
-	stateSinkObject.Save(12, &mnt.umounted)
-	stateSinkObject.Save(13, &mnt.writers)
-	stateSinkObject.Save(14, &mnt.pendingChildren)
+	stateSinkObject.Save(11, &mnt.followerList)
+	stateSinkObject.Save(12, &mnt.followerEntry)
+	stateSinkObject.Save(13, &mnt.leader)
+	stateSinkObject.Save(14, &mnt.groupID)
+	stateSinkObject.Save(15, &mnt.umounted)
+	stateSinkObject.Save(16, &mnt.writers)
 }
 
 // +checklocksignore
@@ -1211,16 +1215,18 @@ func (mnt *Mount) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(1, &mnt.fs)
 	stateSourceObject.Load(2, &mnt.root)
 	stateSourceObject.Load(3, &mnt.ID)
-	stateSourceObject.Load(4, &mnt.Flags)
+	stateSourceObject.Load(4, &mnt.flags)
 	stateSourceObject.Load(6, &mnt.ns)
 	stateSourceObject.Load(7, &mnt.refs)
 	stateSourceObject.Load(8, &mnt.children)
 	stateSourceObject.Load(9, &mnt.isShared)
 	stateSourceObject.Load(10, &mnt.sharedEntry)
-	stateSourceObject.Load(11, &mnt.groupID)
-	stateSourceObject.Load(12, &mnt.umounted)
-	stateSourceObject.Load(13, &mnt.writers)
-	stateSourceObject.Load(14, &mnt.pendingChildren)
+	stateSourceObject.Load(11, &mnt.followerList)
+	stateSourceObject.Load(12, &mnt.followerEntry)
+	stateSourceObject.Load(13, &mnt.leader)
+	stateSourceObject.Load(14, &mnt.groupID)
+	stateSourceObject.Load(15, &mnt.umounted)
+	stateSourceObject.Load(16, &mnt.writers)
 	stateSourceObject.LoadValue(5, new(VirtualDentry), func(y any) { mnt.loadKey(y.(VirtualDentry)) })
 	stateSourceObject.AfterLoad(mnt.afterLoad)
 }
@@ -1251,6 +1257,62 @@ func (u *umountRecursiveOptions) afterLoad() {}
 func (u *umountRecursiveOptions) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &u.eager)
 	stateSourceObject.Load(1, &u.disconnectHierarchy)
+}
+
+func (l *followerList) StateTypeName() string {
+	return "pkg/sentry/vfs.followerList"
+}
+
+func (l *followerList) StateFields() []string {
+	return []string{
+		"head",
+		"tail",
+	}
+}
+
+func (l *followerList) beforeSave() {}
+
+// +checklocksignore
+func (l *followerList) StateSave(stateSinkObject state.Sink) {
+	l.beforeSave()
+	stateSinkObject.Save(0, &l.head)
+	stateSinkObject.Save(1, &l.tail)
+}
+
+func (l *followerList) afterLoad() {}
+
+// +checklocksignore
+func (l *followerList) StateLoad(stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &l.head)
+	stateSourceObject.Load(1, &l.tail)
+}
+
+func (e *followerEntry) StateTypeName() string {
+	return "pkg/sentry/vfs.followerEntry"
+}
+
+func (e *followerEntry) StateFields() []string {
+	return []string{
+		"next",
+		"prev",
+	}
+}
+
+func (e *followerEntry) beforeSave() {}
+
+// +checklocksignore
+func (e *followerEntry) StateSave(stateSinkObject state.Sink) {
+	e.beforeSave()
+	stateSinkObject.Save(0, &e.next)
+	stateSinkObject.Save(1, &e.prev)
+}
+
+func (e *followerEntry) afterLoad() {}
+
+// +checklocksignore
+func (e *followerEntry) StateLoad(stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &e.next)
+	stateSourceObject.Load(1, &e.prev)
 }
 
 func (r *namespaceRefs) StateTypeName() string {
@@ -1319,6 +1381,7 @@ func (mntns *MountNamespace) StateFields() []string {
 		"root",
 		"mountpoints",
 		"mounts",
+		"pending",
 	}
 }
 
@@ -1332,6 +1395,7 @@ func (mntns *MountNamespace) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(2, &mntns.root)
 	stateSinkObject.Save(3, &mntns.mountpoints)
 	stateSinkObject.Save(4, &mntns.mounts)
+	stateSinkObject.Save(5, &mntns.pending)
 }
 
 func (mntns *MountNamespace) afterLoad() {}
@@ -1343,6 +1407,7 @@ func (mntns *MountNamespace) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(2, &mntns.root)
 	stateSourceObject.Load(3, &mntns.mountpoints)
 	stateSourceObject.Load(4, &mntns.mounts)
+	stateSourceObject.Load(5, &mntns.pending)
 }
 
 func (fd *opathFD) StateTypeName() string {
@@ -2108,6 +2173,8 @@ func init() {
 	state.Register((*FileLocks)(nil))
 	state.Register((*Mount)(nil))
 	state.Register((*umountRecursiveOptions)(nil))
+	state.Register((*followerList)(nil))
+	state.Register((*followerEntry)(nil))
 	state.Register((*namespaceRefs)(nil))
 	state.Register((*mountEntry)(nil))
 	state.Register((*MountNamespace)(nil))

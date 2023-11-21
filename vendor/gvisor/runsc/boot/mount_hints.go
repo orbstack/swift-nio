@@ -62,37 +62,6 @@ func (s ShareType) String() string {
 	}
 }
 
-// LifecycleType indicates whether creation/deletion of the volume is tied to
-// the pod or container's lifecycle.
-type LifecycleType int
-
-const (
-	// sharedLife indicates that the volume's lifecycle is not tied to the pod.
-	// The volume persists beyond the pod's life. This is the safe default.
-	sharedLife LifecycleType = iota
-
-	// podLife indicates that the volume's lifecycle is tied to the pod's
-	// lifecycle. The volume is destroyed with the pod.
-	podLife
-
-	// containerLife indicates that the volume's lifecycle is tied to the
-	// container's lifecycle. The volume is destroyed with the container.
-	containerLife
-)
-
-func (o LifecycleType) String() string {
-	switch o {
-	case sharedLife:
-		return "shared"
-	case podLife:
-		return "pod"
-	case containerLife:
-		return "container"
-	default:
-		return fmt.Sprintf("invalid lifecycle value %d", o)
-	}
-}
-
 // PodMountHints contains a collection of mountHints for the pod.
 type PodMountHints struct {
 	Mounts map[string]*MountHint `json:"mounts"`
@@ -149,10 +118,9 @@ func NewPodMountHints(spec *specs.Spec) (*PodMountHints, error) {
 // so that mounts can be correctly shared inside the pod.
 // It is part of the sandbox.Sandbox struct, so it must be serializable.
 type MountHint struct {
-	Name      string        `json:"name"`
-	Share     ShareType     `json:"share"`
-	Mount     specs.Mount   `json:"mount"`
-	Lifecycle LifecycleType `json:"lifecycle"`
+	Name  string      `json:"name"`
+	Share ShareType   `json:"share"`
+	Mount specs.Mount `json:"mount"`
 }
 
 func (m *MountHint) setField(key, val string) error {
@@ -168,8 +136,6 @@ func (m *MountHint) setField(key, val string) error {
 		return m.setShare(val)
 	case "options":
 		m.Mount.Options = specutils.FilterMountOptions(strings.Split(val, ","))
-	case "lifecycle":
-		return m.setLifecycle(val)
 	default:
 		return fmt.Errorf("invalid mount annotation: %s=%s", key, val)
 	}
@@ -200,33 +166,16 @@ func (m *MountHint) setShare(val string) error {
 	return nil
 }
 
-func (m *MountHint) setLifecycle(val string) error {
-	switch val {
-	case containerLife.String():
-		m.Lifecycle = containerLife
-	case podLife.String():
-		m.Lifecycle = podLife
-	case sharedLife.String():
-		m.Lifecycle = sharedLife
-	default:
-		return fmt.Errorf("invalid lifecycle %q", val)
-	}
-	return nil
-}
-
-// shouldShareMount returns true if this mount should be configured as a shared
+// ShouldShareMount returns true if this mount should be configured as a shared
 // mount that is shared among multiple containers in a pod.
-func (m *MountHint) shouldShareMount() bool {
-	// TODO(b/142076984): Only support tmpfs for now. Bind mounts require a
-	// common gofer to mount all shared volumes.
-	return m.Mount.Type == tmpfs.Name && m.Share == pod
-}
-
-// ShouldOverlay returns true if this mount should be overlaid.
-func (m *MountHint) ShouldOverlay() bool {
-	// TODO(b/142076984): Only support share=container for now. Once shared gofer
-	// support is added, we can overlay shared bind mounts too.
-	return m.Mount.Type == Bind && m.Share == container && m.Lifecycle != sharedLife
+func (m *MountHint) ShouldShareMount() bool {
+	// Only support tmpfs for now. Bind mounts require a common gofer to mount
+	// all shared volumes.
+	return m.Mount.Type == tmpfs.Name &&
+		// A shared mount should be configured for share=container too so:
+		// 1. Restarting the container does not lose the tmpfs data.
+		// 2. Repeated mounts in the container reuse the same tmpfs instance.
+		(m.Share == container || m.Share == pod)
 }
 
 // checkCompatible verifies that shared mount is compatible with master.
@@ -248,12 +197,11 @@ func (m *MountHint) checkCompatible(replica *specs.Mount) error {
 	return nil
 }
 
-// Precondition: m.mount.Type == Bind.
 func (m *MountHint) fileAccessType() config.FileAccessType {
 	if m.Share == shared {
 		return config.FileAccessShared
 	}
-	if m.shouldShareMount() {
+	if m.ShouldShareMount() {
 		return config.FileAccessExclusive
 	}
 	if m.Share == container {
@@ -263,9 +211,9 @@ func (m *MountHint) fileAccessType() config.FileAccessType {
 }
 
 // FindMount finds the MountHint that applies to this mount.
-func (p *PodMountHints) FindMount(mount *specs.Mount) *MountHint {
+func (p *PodMountHints) FindMount(mountSrc string) *MountHint {
 	for _, m := range p.Mounts {
-		if m.Mount.Source == mount.Source {
+		if m.Mount.Source == mountSrc {
 			return m
 		}
 	}

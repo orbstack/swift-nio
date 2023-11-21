@@ -244,7 +244,6 @@ const (
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl90e6.h:
 const (
-	NV90E6_CTRL_CMD_MASTER_GET_ERROR_INTR_OFFSET_MASK                = 0x90e60101
 	NV90E6_CTRL_CMD_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK = 0x90e60102
 )
 
@@ -253,4 +252,9 @@ const (
 	NVA06C_CTRL_CMD_GPFIFO_SCHEDULE = 0xa06c0101
 	NVA06C_CTRL_CMD_SET_TIMESLICE   = 0xa06c0103
 	NVA06C_CTRL_CMD_PREEMPT         = 0xa06c0105
+)
+
+// From src/common/sdk/nvidia/inc/ctrl/ctrlcb33.h:
+const (
+	NV_CONF_COMPUTE_CTRL_CMD_SYSTEM_GET_CAPABILITIES = 0xcb330101
 )

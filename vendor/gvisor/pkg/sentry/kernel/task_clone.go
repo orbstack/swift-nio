@@ -165,6 +165,7 @@ func (t *Task) Clone(args *linux.CloneArgs) (ThreadID, *SyscallControl, error) {
 	// above Task.mu. So we copy t.image with t.mu held and call Fork() on the copy.
 	t.mu.Lock()
 	curImage := t.image
+	sessionKeyring := t.sessionKeyring
 	t.mu.Unlock()
 	image, err := curImage.Fork(t, t.k, args.Flags&linux.CLONE_VM != 0)
 	if err != nil {
@@ -173,6 +174,12 @@ func (t *Task) Clone(args *linux.CloneArgs) (ThreadID, *SyscallControl, error) {
 	cu.Add(func() {
 		image.release(t)
 	})
+
+	if args.Flags&linux.CLONE_NEWUSER != 0 {
+		// If the task is in a new user namespace, it cannot share keys.
+		sessionKeyring = nil
+	}
+
 	// clone() returns 0 in the child.
 	image.Arch.SetReturn(0)
 	if args.Stack != 0 {
@@ -241,24 +248,24 @@ func (t *Task) Clone(args *linux.CloneArgs) (ThreadID, *SyscallControl, error) {
 	}
 
 	cfg := &TaskConfig{
-		Kernel:                  t.k,
-		ThreadGroup:             tg,
-		SignalMask:              t.SignalMask(),
-		TaskImage:               image,
-		FSContext:               fsContext,
-		FDTable:                 fdTable,
-		Credentials:             creds,
-		Niceness:                t.Niceness(),
-		NetworkNamespace:        netns,
-		AllowedCPUMask:          t.CPUMask(),
-		UTSNamespace:            utsns,
-		IPCNamespace:            ipcns,
-		AbstractSocketNamespace: t.abstractSockets,
-		MountNamespace:          mntns,
-		RSeqAddr:                rseqAddr,
-		RSeqSignature:           rseqSignature,
-		ContainerID:             t.ContainerID(),
-		UserCounters:            uc,
+		Kernel:           t.k,
+		ThreadGroup:      tg,
+		SignalMask:       t.SignalMask(),
+		TaskImage:        image,
+		FSContext:        fsContext,
+		FDTable:          fdTable,
+		Credentials:      creds,
+		Niceness:         t.Niceness(),
+		NetworkNamespace: netns,
+		AllowedCPUMask:   t.CPUMask(),
+		UTSNamespace:     utsns,
+		IPCNamespace:     ipcns,
+		MountNamespace:   mntns,
+		RSeqAddr:         rseqAddr,
+		RSeqSignature:    rseqSignature,
+		ContainerID:      t.ContainerID(),
+		UserCounters:     uc,
+		SessionKeyring:   sessionKeyring,
 	}
 	if args.Flags&linux.CLONE_THREAD == 0 {
 		cfg.Parent = t
