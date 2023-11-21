@@ -294,7 +294,12 @@ RUN apk add --no-cache \
     # scon deps
     lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz btrfs-progs \
     # modprobe metadata
-    kmod
+    kmod \
+    # qemu for other archs, common between x86 and arm.
+    # latest is probably best, esp. for riscv which is less mature
+    # also saves build time on arm64
+    # no one uses 32-bit ppc for docker (28 images total on docker hub)
+    qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el
 
 # debug deps
 ARG TYPE=release
@@ -402,6 +407,10 @@ ln -s /opt/orb/qemu-x86_64 '[qemu]'
 ln -s /opt/orb/qemu-i386 '[qemu32]'
 ln -s /opt/orb/qemu-arm '[qemu-arm32]'
 ln -s /usr/bin/qemu-aarch64 '[qemu-arm64]'
+ln -s /usr/bin/qemu-riscv64 '[qemu-riscv64]'
+ln -s /usr/bin/qemu-ppc64le '[qemu-ppc64le]'
+ln -s /usr/bin/qemu-s390x '[qemu-s390x]'
+ln -s /usr/bin/qemu-mips64el '[qemu-mips64el]'
 ln -s /opt/orbstack-guest/bin/macctl '[mac]'
 
 # Guest tools
