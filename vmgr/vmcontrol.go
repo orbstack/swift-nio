@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +25,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm"
+	"github.com/orbstack/macvirt/vmgr/earlyinit"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/types"
@@ -216,6 +219,26 @@ func (h *VmControlServer) InternalRefreshDrm(ctx context.Context) error {
 	return err
 }
 
+func (h *VmControlServer) InternalDumpDebugInfo(ctx context.Context) (*vmtypes.DebugInfo, error) {
+	var buf bytes.Buffer
+	if earlyinit.AllowProdHeapProfile {
+		err := pprof.WriteHeapProfile(&buf)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// apply XOR for obfuscation
+	arr := buf.Bytes()
+	for i := 0; i < len(arr); i++ {
+		arr[i] ^= 0x5a
+	}
+
+	return &vmtypes.DebugInfo{
+		HeapProfile: arr,
+	}, nil
+}
+
 func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmtypes.EnvReport, error) {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -362,6 +385,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"InternalSetDockerRemoteCtxAddr": handler.New(s.InternalSetDockerRemoteCtxAddr),
 		"InternalUpdateToken":            handler.New(s.InternalUpdateToken),
 		"InternalRefreshDrm":             handler.New(s.InternalRefreshDrm),
+		"InternalDumpDebugInfo":          handler.New(s.InternalDumpDebugInfo),
 
 		"DockerContainerStart":   handler.New(s.DockerContainerStart),
 		"DockerContainerStop":    handler.New(s.DockerContainerStop),

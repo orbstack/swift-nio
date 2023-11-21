@@ -12,6 +12,10 @@ type SetupInfo struct {
 	AlertRequestAddPaths []string           `json:"alert_request_add_paths"`
 }
 
+type DebugInfo struct {
+	HeapProfile []byte
+}
+
 type EnvReport struct {
 	Environ []string `json:"environ"`
 }

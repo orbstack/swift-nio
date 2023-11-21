@@ -219,3 +219,13 @@ func (c *VmClient) InternalUpdateToken(token string) error {
 		RefreshToken: token,
 	}, &noResult)
 }
+
+func (c *VmClient) InternalDumpDebugInfo() (*vmtypes.DebugInfo, error) {
+	var info vmtypes.DebugInfo
+	err := c.rpc.CallResult(context.TODO(), "InternalDumpDebugInfo", nil, &info)
+	if err != nil {
+		return nil, err
+	}
+
+	return &info, nil
+}

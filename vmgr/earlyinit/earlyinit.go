@@ -6,8 +6,19 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 )
 
+const AllowProdHeapProfile = false
+
 func init() {
 	if !conf.Debug() {
-		runtime.MemProfileRate = 0
+		if AllowProdHeapProfile {
+			runtime.MemProfileRate = 1
+		} else {
+			runtime.MemProfileRate = 0
+		}
+	} else {
+		// for testing prod heap profile in debug
+		if AllowProdHeapProfile {
+			runtime.MemProfileRate = 1
+		}
 	}
 }

@@ -70,6 +70,18 @@ func addSconParts(r *ReportWriter) {
 	}
 }
 
+func addVmgrParts(r *ReportWriter) {
+	debugInfo, err := vmclient.Client().InternalDumpDebugInfo()
+	if err != nil {
+		logrus.WithError(err).Error("failed to get debug info")
+	} else {
+		err = r.addFileBytes("vmgr_debug/heap.prof", debugInfo.HeapProfile)
+		if err != nil {
+			logrus.WithError(err).Error("failed to add debug info")
+		}
+	}
+}
+
 func BuildZip(infoTxt []byte) (*ReportPackage, error) {
 	// start zip
 	r := newReport()
@@ -98,6 +110,7 @@ func BuildZip(infoTxt []byte) (*ReportPackage, error) {
 
 	if vmclient.IsRunning() {
 		addSconParts(r)
+		addVmgrParts(r)
 	}
 
 	// add netstat -rn
