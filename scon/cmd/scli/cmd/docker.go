@@ -19,7 +19,7 @@ var dockerCmd = &cobra.Command{
 	Long: `Show commands and instructions for using Docker.
 This includes building and running Docker containers, as well as using Docker Compose.
 `,
-	Example: "  " + appid.ShortCmd + " ssh",
+	Example: "  " + appid.ShortCmd + " docker",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
@@ -40,6 +40,12 @@ Compose and buildx are also included:
 
 To migrate containers, volumes, and images from Docker Desktop:
     orb migrate docker
+
+OrbStack's cluster is configured as the "orbstack" context.
+To prevent OrbStack from changing the active Docker context automatically:
+	orb config set docker.set_context false
+
+For more info: https://go.orbstack.dev/docker
 `, "<HOST>", appid.AppName, -1))
 
 		return nil
