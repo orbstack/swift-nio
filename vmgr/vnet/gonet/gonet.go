@@ -479,16 +479,11 @@ func (c *TCPConn) tryAbort() (retErr error) {
 
 // Close implements net.Conn.Close.
 func (c *TCPConn) Close() error {
-	err := c.tryClose()
-	if err != nil {
-		err2 := c.tryAbort()
-		if err2 != nil {
-			return fmt.Errorf("gtcp: close: %v (abort: %v)", err, err2)
-		}
-
-		return err
+	err1 := c.tryClose()
+	err2 := c.tryAbort()
+	if err1 != nil || err2 != nil {
+		return fmt.Errorf("gtcp: close failed: %w, abort failed: %w", err1, err2)
 	}
-
 	return nil
 }
 
