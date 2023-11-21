@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 )
@@ -24,6 +25,10 @@ import (
 func runSshPredicate() {
 	// prevent recursion from setup/scon "ssh -G" command causing deadlock
 	if os.Getenv("_ORB_CALLER") != "" {
+		return
+	}
+	// also prevent recursion from older callers (in case of downgrade)
+	if os.Getenv("TERM") == "dumb" || os.Getenv("__CFBundleIdentifier") == "dev.kdrag0n.MacVirt" || strings.HasSuffix(os.Getenv("_"), "/OrbStack Helper") {
 		return
 	}
 
