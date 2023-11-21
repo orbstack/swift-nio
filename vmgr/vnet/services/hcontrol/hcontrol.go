@@ -614,6 +614,12 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 		return err
 	}
 
+	// write unmerged config out for user convenience
+	err = os.WriteFile(conf.OrbK8sConfigFile(), []byte(kubeConfigStr), 0600)
+	if err != nil {
+		return err
+	}
+
 	// create k8s client proxy for GUI
 	k8sConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeConfigStr))
 	if err != nil {

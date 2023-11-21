@@ -129,6 +129,14 @@ func KubeConfigFile() string {
 	return KubeDir() + "/config"
 }
 
+func OrbK8sDir() string {
+	return ensureDir(AppDir() + "/k8s")
+}
+
+func OrbK8sConfigFile() string {
+	return OrbK8sDir() + "/config.yml"
+}
+
 func SconSSHSocket() string {
 	return RunDir() + "/sconssh.sock"
 }
