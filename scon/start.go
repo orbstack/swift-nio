@@ -198,6 +198,11 @@ func (c *Container) configureLxc() error {
 		return err
 	}
 
+	blockDevs, err := os.ReadDir("/sys/block")
+	if err != nil {
+		return err
+	}
+
 	// set configs!
 	err = func() (err error) {
 		defer func() {
@@ -287,6 +292,12 @@ func (c *Container) configureLxc() error {
 		} else {
 			// non-isolated should still be able to stat, for k3s. just deny it via devices cgroup
 			bind(conf.C().DataFsDevice, conf.C().DataFsDevice, "")
+		}
+
+		// other block devices should be added to make some apps happy
+		// just don't allow in devices cgroup, so there's no real harm
+		for _, entry := range blockDevs {
+			bind("/dev/"+entry.Name(), "/dev/"+entry.Name(), "")
 		}
 
 		// Default mounts
