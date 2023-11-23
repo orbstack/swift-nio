@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 )
@@ -28,7 +27,7 @@ func runSshPredicate() {
 		return
 	}
 	// also prevent recursion from older callers (in case of downgrade)
-	if os.Getenv("TERM") == "dumb" || os.Getenv("__CFBundleIdentifier") == "dev.kdrag0n.MacVirt" || strings.HasSuffix(os.Getenv("_"), "/OrbStack Helper") {
+	if os.Getenv("TERM") == "dumb" || os.Getenv("__CFBundleIdentifier") == "dev.kdrag0n.MacVirt" {
 		return
 	}
 
