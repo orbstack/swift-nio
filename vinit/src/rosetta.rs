@@ -6,6 +6,10 @@ const KRPC_IOC: u8 = 0xDA;
 const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orb\x00rosetta\x00fp";
 const ROSETTA_BUFFER: usize = 524288;
 
+// docs in rvfs-wrapper.c
+const NODEJS_PRELOAD_SCRIPT: &[u8] = b"const p=require('process');p.execArgv=p.execArgv.slice(3)";
+const PROCP_SIZE: usize = 256;
+
 pub const RSTUB_FLAG_TSO_WORKAROUND: u32 = 1 << 0;
 
 #[derive(thiserror::Error, Debug)]
@@ -28,6 +32,7 @@ mod ioctl {
 
     nix::ioctl_write_int!(adopt_rvfs_fd0, KRPC_IOC, 3);
     nix::ioctl_write_int!(adopt_rvfs_fd1, KRPC_IOC, 4);
+    nix::ioctl_write_buf!(set_procp, KRPC_IOC, 5, u8);
 }
 
 // redirect new_file ioctls to real_rosetta
@@ -36,6 +41,14 @@ pub fn adopt_rvfs_files(real_rosetta: File, new_file: File) -> Result<(), Box<dy
     unsafe {
         ioctl::adopt_rvfs_fd0(krpc_dev.as_raw_fd(), real_rosetta.as_raw_fd() as u64)?;
         ioctl::adopt_rvfs_fd1(krpc_dev.as_raw_fd(), new_file.as_raw_fd() as u64)?;
+    }
+
+    // while we're at it, also set the procp data to the nodejs preload script for no-opt execArgv
+    // this is a null-terminated buffer of up to 256 bytes
+    let mut procp = [0u8; PROCP_SIZE];
+    procp[..NODEJS_PRELOAD_SCRIPT.len()].copy_from_slice(NODEJS_PRELOAD_SCRIPT);
+    unsafe {
+        ioctl::set_procp(krpc_dev.as_raw_fd(), &procp)?;
     }
 
     Ok(())

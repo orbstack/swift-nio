@@ -383,7 +383,7 @@ int main(int argc, char **argv) {
         emu = EMU_ROSETTA;
     }
 
-    char *node_argv_buf[(exe_argc + 1) + 1];
+    char *node_argv_buf[(exe_argc + 3) + 1];
     if (emu == EMU_ROSETTA && !PASSTHROUGH) {
         // add arguments:
         // Fix Node.js programs hanging
@@ -394,11 +394,19 @@ int main(int argc, char **argv) {
         if (strcmp(exe_name, "node") == 0) {
             if (DEBUG) fprintf(stderr, "disabling Node.js TurboFan JIT\n");
 
-            // need to insert an argument
+            // insert argument (--no-opt)
+            // then, to avoid breaking Yarn and other programs that use workers + execArgv,
+            // inject a preload script to clean up process.execArgv.
+            // node uses readlink, so we have to use a real /proc/.p file instead of memfd
+            // can't use NODE_OPTIONS env var due to limited options. --jitless causes warning,
+            // and --no-expose-wasm is not an allowed option
+
             node_argv_buf[0] = exe_argv[0];
             node_argv_buf[1] = "--no-opt";
-            memcpy(&node_argv_buf[2], &exe_argv[1], (exe_argc - 1) * sizeof(char*));
-            node_argv_buf[exe_argc + 1] = NULL;
+            node_argv_buf[2] = "-r"; // --require
+            node_argv_buf[3] = "/proc/.p";
+            memcpy(&node_argv_buf[4], &exe_argv[1], (exe_argc - 1) * sizeof(char*));
+            node_argv_buf[exe_argc + 3] = NULL;
             exe_argv = node_argv_buf;
         }
 
