@@ -178,6 +178,6 @@ struct DockerImageItem: View, Equatable {
     }
 
     private func openFolder() {
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerImages)/\(image.userTag)")
+        NSWorkspace.openFolder("\(Folders.nfsDockerImages)/\(image.userTag)")
     }
 }

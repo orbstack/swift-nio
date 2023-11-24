@@ -77,9 +77,9 @@ extension DKMountPoint {
     func openSourceDirectory() {
         if let volName = name,
            type == .volume {
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerVolumes)/\(volName)")
+            NSWorkspace.openFolder("\(Folders.nfsDockerVolumes)/\(volName)")
         } else {
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: source)
+            NSWorkspace.openFolder(source)
         }
     }
 }

@@ -15,5 +15,6 @@ extension ContainerRecord {
     }
 
     func openNfsDirectory() {
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfs)/\(name)")    }
+        NSWorkspace.openFolder("\(Folders.nfs)/\(name)")
+    }
 }

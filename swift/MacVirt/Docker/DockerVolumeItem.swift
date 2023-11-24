@@ -137,7 +137,7 @@ struct DockerVolumeItem: View {
     }
 
     private func openFolder() {
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: "\(Folders.nfsDockerVolumes)/\(volume.name)")
+        NSWorkspace.openFolder("\(Folders.nfsDockerVolumes)/\(volume.name)")
     }
 
     private func finishDelete() {

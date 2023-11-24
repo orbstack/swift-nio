@@ -250,4 +250,8 @@ extension NSWorkspace {
     static func openSubwindow(_ path: String) {
         NSWorkspace.shared.open(URL(string: "orbstack://\(path)")!)
     }
+
+    static func openFolder(_ path: String) {
+        NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
+    }
 }

@@ -390,7 +390,7 @@ struct MainWindow: View {
             ToolbarItem(placement: .automatic) {
                 if selection == "docker-images" {
                     Button(action: {
-                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: Folders.nfsDockerImages)
+                        NSWorkspace.openFolder(Folders.nfsDockerImages)
                     }) {
                         Label("Open Images", systemImage: "folder")
                     }
@@ -403,7 +403,7 @@ struct MainWindow: View {
             ToolbarItem(placement: .automatic) {
                 if selection == "docker-volumes" {
                     Button(action: {
-                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: Folders.nfsDockerVolumes)
+                        NSWorkspace.openFolder(Folders.nfsDockerVolumes)
                     }) {
                         Label("Open Volumes", systemImage: "folder")
                     }
