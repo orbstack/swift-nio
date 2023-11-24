@@ -43,7 +43,11 @@ const FS_CORRUPTED_MSG: &str = r#"
 
 // binfmt magics
 const ELF_MAGIC_X86_64: &str = r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#;
-const ELF_MASK_X86_64: &str = r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#;
+// the 3 bytes after ELF-02-01-01-00 are: ABI version (0x00) and 7 bytes of padding
+// AppImage puts 0x414902 magic there: ABI version = 0x41, first 2 padding bytes = 0x49, 0x02
+// union of (0x41 | 0x49 | 0x02), inverted, is 0x34
+// this makes the matching as strict as possible while letting these magic bytes through
+const ELF_MASK_X86_64: &str = r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\x34\x34\x34\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#;
 
 fn set_basic_env() -> Result<(), Box<dyn Error>> {
     // umask: self write, others read
