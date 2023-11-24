@@ -85,7 +85,7 @@ func tryPrintUpdateWarning() {
 		yellow.Fprint(os.Stderr, `│
     │`)
 		fmt.Fprint(os.Stderr, `            This version expires in `)
-		purple.Fprintf(os.Stderr, `%2d`, int(math.Round(time.Until(killswitch.ExpiryTime).Hours()/24)))
+		purple.Fprintf(os.Stderr, `%2d`, int(math.Round(max(time.Until(killswitch.ExpiryTime).Hours()/24, 0))))
 		fmt.Fprint(os.Stderr, ` days.           `)
 		yellow.Fprint(os.Stderr, `│
     │                                                       │
