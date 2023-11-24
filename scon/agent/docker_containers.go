@@ -2,6 +2,7 @@ package agent
 
 import (
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -58,13 +59,20 @@ func (d *DockerAgent) refreshContainers() error {
 func translateDockerPathToMac(p string) string {
 	p = path.Clean(p)
 
+	// need to resolve symlinks for /var/folders, /tmp, etc. to work correctly (extra symlinked dirs in docker machine)
+	newPath, err := filepath.EvalSymlinks(p)
+	if err == nil {
+		p = newPath
+	} else {
+		logrus.WithError(err).WithField("path", p).Warn("failed to resolve symlink")
+	}
+
 	// if under /mnt/mac, translate
 	if p == mounts.Virtiofs || strings.HasPrefix(p, mounts.Virtiofs+"/") {
 		return strings.TrimPrefix(p, mounts.Virtiofs)
 	}
 
 	// if linked, do nothing
-	// extra Docker /var/folders and /tmp links can be ignored because they link to virtiofs, and docker bind mount sources resolve links
 	for _, linkPrefix := range mounts.LinkedPaths {
 		if p == linkPrefix || strings.HasPrefix(p, linkPrefix+"/") {
 			return p
@@ -124,13 +132,13 @@ func (d *DockerAgent) onContainerStart(ctr dockertypes.ContainerSummaryMin) erro
 	logrus.WithField("cid", cid).WithField("binds", binds).Debug("adding container binds")
 	for _, path := range binds {
 		// path translation:
-		path = translateDockerPathToMac(path)
-		if path == "" {
+		newPath := translateDockerPathToMac(path)
+		if newPath == "" {
 			logrus.WithField("path", path).Debug("ignoring bind mount")
 			continue
 		}
 
-		err := d.host.AddFsnotifyRef(path)
+		err := d.host.AddFsnotifyRef(newPath)
 		if err != nil {
 			return err
 		}
