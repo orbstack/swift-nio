@@ -171,6 +171,19 @@ func enumerateSource(client *dockerclient.Client) (*engineManifest, error) {
 		return nil, fmt.Errorf("get volumes: %w", err)
 	}
 
+	// workaround for docker desktop bug: fetch each volume individually to get correct "device" label for bind mount vols
+	// otherwise we get a host_mnt path
+	// docker volume create -o o=bind -o type=none -o device=$PWD dockerdev-elastic-volume
+	newVolumes := make([]*dockertypes.Volume, 0, len(volumes))
+	for _, v := range volumes {
+		vol, err := client.GetVolume(v.Name)
+		if err != nil {
+			return nil, fmt.Errorf("get volume: %w", err)
+		}
+		newVolumes = append(newVolumes, vol)
+	}
+	volumes = newVolumes
+
 	return &engineManifest{
 		Images:     images,
 		Containers: containers,
