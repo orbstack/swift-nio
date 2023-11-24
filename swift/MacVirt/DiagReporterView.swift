@@ -71,7 +71,7 @@ struct DiagReporterView: View {
                     diagModel.state = .done
                 }
             } catch let processError as ProcessError {
-                diagModel.state = .error("(status \(processError.status))\n\(processError.output)")
+                diagModel.state = .error("(status \(processError.status)) \(processError.output)")
             } catch {
                 diagModel.state = .error(error.localizedDescription)
             }
