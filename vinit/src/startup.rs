@@ -41,6 +41,10 @@ const FS_CORRUPTED_MSG: &str = r#"
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 "#;
 
+// binfmt magics
+const ELF_MAGIC_X86_64: &str = r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#;
+const ELF_MASK_X86_64: &str = r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#;
+
 fn set_basic_env() -> Result<(), Box<dyn Error>> {
     // umask: self write, others read
     umask(Mode::from_bits_truncate(0o022));
@@ -684,15 +688,15 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         // entries added later take priority, so MUST register first to avoid infinite loop
         // WARNING: NOT THREAD SAFE! this uses chdir.
         //          luckily init doesn't care about cwd during early boot (but later, it matters for spawned processes)
-        add_binfmt("rosetta", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", "POCF").unwrap();
+        add_binfmt("rosetta", ELF_MAGIC_X86_64, Some(ELF_MASK_X86_64), "[rosetta]", "POCF").unwrap();
 
         // then register real rosetta with comm=rvk1 key '('
         // '.' to make it hidden
         env::set_current_dir("/mnt/rv").unwrap();
         // use zero-width spaces to make it hard to inspect
-        let real_res = add_binfmt("rosetta\u{200b}", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", &rosetta_flags);
+        let real_res = add_binfmt("rosetta\u{200b}", ELF_MAGIC_X86_64, Some(ELF_MASK_X86_64), "[rosetta]", &rosetta_flags);
         // rvk3 variant without preserve-argv0 flag, to work around bug for swift-driver
-        let real_res2 = add_binfmt("rosetta\u{200b}\u{200b}", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[rosetta]", "CF[");
+        let real_res2 = add_binfmt("rosetta\u{200b}\u{200b}", ELF_MAGIC_X86_64, Some(ELF_MASK_X86_64), "[rosetta]", "CF[");
         env::set_current_dir("/").unwrap();
         real_res.unwrap();
         real_res2.unwrap();
@@ -705,7 +709,7 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // if Rosetta mode: RVFS wrapper may choose to invoke it via task comm=rvk2 key (we add ')' flag)
     // if QEMU mode: it will always be used
     // this also helps occupy the name so that distros don't try to install it
-    add_binfmt("qemu-x86_64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", &qemu_flags)?;
+    add_binfmt("qemu-x86_64", ELF_MAGIC_X86_64, Some(ELF_MASK_X86_64), "[qemu]", &qemu_flags)?;
 
     // always use qemu for i386 (32-bit)
     // Rosetta doesn't support 32-bit
