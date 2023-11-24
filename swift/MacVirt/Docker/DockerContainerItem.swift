@@ -322,7 +322,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         CopyableText(String(container.id.prefix(12)), copyAs: container.id)
                             .font(.body.monospaced())
                         CopyableText(container.image)
-                            .frame(maxWidth: 300)
+                            .frame(maxWidth: 300, alignment: .leading)
                             .truncationMode(.tail)
                         // needs to be running w/ ip to have domain
                         if let ipAddress,
