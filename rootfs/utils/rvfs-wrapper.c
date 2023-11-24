@@ -495,6 +495,7 @@ int main(int argc, char **argv) {
     // swift-help breaks too: Error: The value '/usr/bin/swift-help' is invalid for '<topic>'
     // TODO: move to userspace ELF loader instead
     if (emu == EMU_ROSETTA && !PASSTHROUGH && strncmp(exe_name, "swift", 5) == 0) {
+        if (DEBUG) fprintf(stderr, "swift-driver workaround\n");
         rvk_data = rvk3_data;
     }
 
