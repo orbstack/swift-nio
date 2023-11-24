@@ -13,6 +13,11 @@ const (
 	verboseDebug = false
 )
 
+func prefixIntersects(a, b netip.Prefix) bool {
+	// check first IPs
+	return a.Contains(b.Masked().Addr()) || b.Contains(a.Masked().Addr())
+}
+
 func getRoutingTable() ([]route.Message, error) {
 	// must check the entire routing table so we can ignore HOST routes
 	// RTM_GET gives us any matching route, including host
@@ -29,6 +34,8 @@ func getRoutingTable() ([]route.Message, error) {
 	return msgs, nil
 }
 
+// goal: we should never be causing a problem
+// worst case: our domains don't work
 func HasValidRoute(routingTable []route.Message, targetSubnet netip.Prefix) (bool, error) {
 	if verboseDebug {
 		logMessages(routingTable)
@@ -67,7 +74,7 @@ func HasValidRoute(routingTable []route.Message, targetSubnet netip.Prefix) (boo
 				return false, fmt.Errorf("prefix: %w", err)
 			}
 
-			if prefix.Contains(targetSubnet.Addr()) {
+			if prefixIntersects(prefix, targetSubnet) {
 				// found a route that matches our subnet/IP
 				if verboseDebug {
 					fmt.Println("consider matching route:", dstIP, netmaskIP, prefix, msg.Flags)
