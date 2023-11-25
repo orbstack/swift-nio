@@ -62,7 +62,6 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	defer unix.Close(fd)
 
 	// create dir in nfs containers
-	// TODO use container name instead of ID
 	// validate ID to prevent escape - this is untrusted data
 	if strings.Contains(ctr.ID, "/") {
 		return fmt.Errorf("invalid container ID: %s", ctr.ID)
@@ -77,6 +76,16 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	err = unix.MoveMount(fd, "", unix.AT_FDCWD, dest, unix.MOVE_MOUNT_F_EMPTY_PATH)
 	if err != nil {
 		return fmt.Errorf("move mount: %w", err)
+	}
+
+	// symlink by name
+	if len(ctr.Names) > 0 {
+		linkPath := mounts.NfsContainers + "/" + ctr.Names[0]
+		_ = os.Remove(linkPath)
+		err = os.Symlink(ctr.ID, linkPath)
+		if err != nil {
+			return fmt.Errorf("create symlink: %w", err)
+		}
 	}
 
 	return nil
@@ -113,6 +122,12 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 			dest := mounts.NfsContainers + "/" + ctr.ID
 			_ = unix.Unmount(dest, unix.MNT_DETACH)
 			_ = os.Remove(dest)
+
+			// remove symlink by name
+			if len(ctr.Names) > 0 {
+				linkPath := mounts.NfsContainers + "/" + ctr.Names[0]
+				_ = os.Remove(linkPath)
+			}
 		}
 	}
 	for i, ctr := range diff.Added {
