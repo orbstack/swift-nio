@@ -79,14 +79,21 @@ EXTRA_LDFLAGS="-s -w" make static
 mv runc /out/
 EOT
 
-# Build C - vsocknfs, rvfs-wrapper
+# Build C - vsocknfs, rvfs-wrapper, fuse passthrough_ll
 FROM base AS c-base
-RUN apk add --no-cache alpine-sdk linux-headers
+RUN apk add --no-cache alpine-sdk linux-headers fuse3-dev
 FROM c-base AS c-build
 COPY rootfs/utils/*.c /build/
 COPY --from=runc-build /out/runc /build/
 RUN <<EOT sh -eux
 mkdir /out /out-guest
+
+wget -O fuse.tar.gz https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
+tar xf fuse.tar.gz
+cd fuse-3.16.2/example
+gcc -O2 -Wall passthrough_ll.c $(pkg-config fuse3 --cflags --libs) -o /out/fpll
+EOT
+RUN <<EOT sh -eux
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
 gcc -O2 -Wall -static -o /out/rstub /build/rvfs-wrapper.c
 gcc -O2 -Wall -static -o /out-guest/pstub /build/pstub.c
@@ -301,7 +308,7 @@ RUN apk add --no-cache \
     # no one uses 32-bit ppc for docker (28 images total on docker hub)
     qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el \
     # for nfs containers
-    fuse-overlayfs
+    fuse3-libs
 
 # debug deps
 ARG TYPE=release

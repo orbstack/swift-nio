@@ -47,7 +47,7 @@ impl Service {
         clean_stop: false,
     };
 
-    pub const FUSE_OVERLAYFS: Service = Service {
+    pub const FUSE_PASSTHROUGH: Service = Service {
         name: "pfs",
         critical: false,
         restartable: true,

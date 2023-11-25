@@ -828,11 +828,11 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
     // this is only for USB devices, nbd, etc. so no need to wait for it to settle
     service_tracker.spawn(Service::UDEV, &mut Command::new("/sbin/udevd"))?;
 
-    // fuse-overlayfs for nfs containers
+    // fuse passthrough fs for nfs containers
     // must start before scon sets up nfs exports
-    service_tracker.spawn(Service::FUSE_OVERLAYFS, &mut Command::new("fuse-overlayfs")
+    service_tracker.spawn(Service::FUSE_PASSTHROUGH, &mut Command::new("/opt/orb/fpll")
         .arg("-f") // foreground
-        .arg("-o").arg("lowerdir=/nfs/containers")
+        .arg("-o").arg("source=/nfs/containers")
         .arg("/nfs/root/ro/docker/containers"))?;
 
     // rpc.mountd
