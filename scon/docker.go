@@ -690,6 +690,12 @@ func (h *DockerHooks) PostStop(c *Container) error {
 		return fmt.Errorf("clear iptables: %w", err)
 	}
 
+	// unmount NFS images, volumes, containers
+	err = c.manager.nfsForAll.UnmountAll("docker/")
+	if err != nil {
+		return fmt.Errorf("unmount nfs: %w", err)
+	}
+
 	return nil
 }
 

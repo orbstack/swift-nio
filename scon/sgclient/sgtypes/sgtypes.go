@@ -60,6 +60,11 @@ type Diff[T any] struct {
 	Added   []T
 }
 
+type ContainersDiff struct {
+	Diff[dockertypes.ContainerSummaryMin]
+	AddedRootfsFdxSeqs []uint64
+}
+
 type TaggedImage struct {
 	Tag   string
 	Image *dockertypes.FullImage

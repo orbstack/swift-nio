@@ -37,6 +37,10 @@ func NewClient(initialProcess *os.Process, rpcConn net.Conn, fdxConn net.Conn) *
 	}
 }
 
+func (c *Client) Fdx() *Fdx {
+	return c.fdx
+}
+
 func (c *Client) Close() error {
 	c.rpc.Close()
 	c.fdx.Close()

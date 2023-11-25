@@ -109,6 +109,10 @@ func (m *NfsMirrorManager) Unmount(subdest string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	return m.unmountLocked(subdest)
+}
+
+func (m *NfsMirrorManager) unmountLocked(subdest string) error {
 	backingPath := m.rwDir + subdest
 	mountPath := m.roDir + subdest
 
@@ -140,19 +144,25 @@ func (m *NfsMirrorManager) Unmount(subdest string) error {
 	return nil
 }
 
-func (m *NfsMirrorManager) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+func (m *NfsMirrorManager) UnmountAll(prefix string) error {
 	var errs []error
 	for dest := range m.dests {
-		err := unix.Unmount(dest, unix.MNT_DETACH)
-		if err != nil && !errors.Is(err, unix.EINVAL) {
+		subdest := strings.TrimPrefix(dest, m.roDir)
+		if !strings.HasPrefix(subdest, prefix) {
+			continue
+		}
+
+		err := m.unmountLocked(subdest)
+		if err != nil {
 			errs = append(errs, fmt.Errorf("unmount %s: %w", dest, err))
 		}
 	}
 
 	return errors.Join(errs...)
+}
+
+func (m *NfsMirrorManager) Close() error {
+	return m.UnmountAll("")
 }
 
 func (m *ConManager) onRestoreContainer(c *Container) error {
@@ -267,9 +277,11 @@ func (m *NfsMirrorManager) updateExports() error {
 
 	// 127.0.0.8 = vsock
 	// root export needs to be rw for machines
+	// docker/volumes export has different uid/gid
 	exportsBase := fmt.Sprintf(`
 /nfs/root/ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
 /nfs/root/ro/docker/volumes 127.0.0.8(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
+/nfs/root/ro/docker/containers 127.0.0.8(rw,async,fsid=2,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
 `, m.hostUid, m.hostUid)
 
 	destLines := make([]string, 0, len(m.dests))

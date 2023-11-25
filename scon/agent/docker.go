@@ -38,6 +38,8 @@ type DockerAgent struct {
 	Running  syncx.CondBool
 	InitDone syncx.CondBool
 
+	agent *AgentServer
+
 	host *hclient.Client
 	scon *sgclient.Client
 
