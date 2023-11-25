@@ -299,7 +299,9 @@ RUN apk add --no-cache \
     # latest is probably best, esp. for riscv which is less mature
     # also saves build time on arm64
     # no one uses 32-bit ppc for docker (28 images total on docker hub)
-    qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el
+    qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el \
+    # for nfs containers
+    fuse-overlayfs
 
 # debug deps
 ARG TYPE=release

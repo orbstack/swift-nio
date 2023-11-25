@@ -525,7 +525,9 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     // create mergerfs and volume mountpoint dirs
     fs::create_dir_all(format!("{}/docker/volumes", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/images", rw_root)).unwrap();
+    fs::create_dir_all(format!("{}/docker/containers", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/volumes", rw_for_machines)).unwrap();
+    fs::create_dir("/nfs/containers").unwrap();
     fs::create_dir("/tmp/empty").unwrap();
 
     Ok(())
@@ -826,13 +828,15 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
     // this is only for USB devices, nbd, etc. so no need to wait for it to settle
     service_tracker.spawn(Service::UDEV, &mut Command::new("/sbin/udevd"))?;
 
-    // scon
-    service_tracker.spawn(Service::SCON, &mut Command::new("/opt/orb/scon")
-        .arg("mgr")
-        // pass cmdline for console detection
-        .args(&sys_info.cmdline))?;
+    // fuse-overlayfs for nfs containers
+    // must start before scon sets up nfs exports
+    service_tracker.spawn(Service::FUSE_OVERLAYFS, &mut Command::new("fuse-overlayfs")
+        .arg("-f") // foreground
+        .arg("-o").arg("lowerdir=/nfs/containers")
+        .arg("/nfs/root/ro/docker/containers"))?;
 
     // rpc.mountd
+    // must start before scon sets up nfs exports
     service_tracker.spawn(Service::NFS_MOUNTD, &mut Command::new("/opt/pkg/rpc.mountd")
         .arg("--no-udp")
         .arg("--no-nfs-version").arg("2")
@@ -841,6 +845,12 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
         .arg("--foreground")
         // hide debug output
         .stdout(Stdio::null()))?;
+
+    // scon
+    service_tracker.spawn(Service::SCON, &mut Command::new("/opt/orb/scon")
+        .arg("mgr")
+        // pass cmdline for console detection
+        .args(&sys_info.cmdline))?;
 
     // ssh
     if DEBUG {
