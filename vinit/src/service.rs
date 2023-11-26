@@ -50,7 +50,7 @@ impl Service {
     pub const FUSE_PASSTHROUGH: Service = Service {
         name: "pfs",
         critical: false,
-        restartable: true,
+        restartable: false,
         clean_stop: false,
     };
 
