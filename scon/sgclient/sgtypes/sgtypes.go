@@ -66,7 +66,8 @@ type TaggedImage struct {
 }
 
 func (t *TaggedImage) Identifier() string {
-	return t.Tag
+	// we do need to diff by ID to catch changed (rebuilt) images with same tag
+	return t.Image.ID
 }
 
 func prefixToMask(prefix netip.Prefix) net.IPMask {
