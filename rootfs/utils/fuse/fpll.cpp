@@ -53,6 +53,7 @@
 #include <sys/xattr.h>
 
 #include "passthrough_helpers.h"
+#include "parallel_hashmap/phmap.h"
 
 /* We are re-using pointers to our `struct lo_inode` and `struct
    lo_dirp` elements as inodes. This means that we must be able to
@@ -67,6 +68,9 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 			((sizeof(fuse_ino_t) >= sizeof(uintptr_t)) ? 1 : -1); };
 #endif
 
+static fuse_ino_t next_ino = FUSE_ROOT_ID + 1;
+static phmap::parallel_flat_hash_map_m<fuse_ino_t, struct lo_inode *> ino_to_ptr;
+
 struct lo_inode {
 	struct lo_inode *next; /* protected by lo->mutex */
 	struct lo_inode *prev; /* protected by lo->mutex */
@@ -74,6 +78,7 @@ struct lo_inode {
 	ino_t ino;
 	dev_t dev;
 	uint64_t refcount; /* protected by lo->mutex */
+	fuse_ino_t nodeid;
 };
 
 enum {
@@ -134,7 +139,7 @@ static struct lo_inode *lo_inode(fuse_req_t req, fuse_ino_t ino)
 	if (ino == FUSE_ROOT_ID)
 		return &lo_data(req)->root;
 	else
-		return (struct lo_inode *) (uintptr_t) ino;
+		return ino_to_ptr[ino];
 }
 
 static int lo_fd(fuse_req_t req, fuse_ino_t ino)
@@ -333,9 +338,11 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 		inode->next = next;
 		inode->prev = prev;
 		prev->next = inode;
+		inode->nodeid = ++next_ino;
+		ino_to_ptr[inode->nodeid] = inode;
 		pthread_mutex_unlock(&lo->mutex);
 	}
-	e->ino = (uintptr_t) inode;
+	e->ino = inode->nodeid;
 
 	if (lo_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
@@ -441,7 +448,7 @@ static void lo_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
 	pthread_mutex_lock(&lo->mutex);
 	inode->refcount++;
 	pthread_mutex_unlock(&lo->mutex);
-	e.ino = (uintptr_t) inode;
+	e.ino = inode->nodeid;
 
 	if (lo_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
@@ -506,6 +513,8 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 		next = inode->next;
 		next->prev = prev;
 		prev->next = next;
+
+		ino_to_ptr.erase(inode->nodeid);
 
 		pthread_mutex_unlock(&lo->mutex);
 		close(inode->fd);
