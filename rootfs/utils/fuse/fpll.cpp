@@ -34,7 +34,6 @@
  * \include passthrough_ll.c
  */
 
-#define _GNU_SOURCE
 #define FUSE_USE_VERSION 34
 
 #include <fuse_lowlevel.h>
@@ -335,7 +334,7 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 		struct lo_inode *prev, *next;
 
 		saverr = ENOMEM;
-		inode = calloc(1, sizeof(struct lo_inode));
+		inode = (struct lo_inode *) calloc(1, sizeof(struct lo_inode));
 		if (!inode)
 			goto out_err;
 
@@ -600,7 +599,7 @@ static void lo_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 	struct lo_dirp *d;
 	int fd;
 
-	d = calloc(1, sizeof(struct lo_dirp));
+	d = (struct lo_dirp *) calloc(1, sizeof(struct lo_dirp));
 	if (d == NULL)
 		goto out_err;
 
@@ -649,7 +648,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
 	(void) ino;
 
-	buf = calloc(1, size);
+	buf = (char *) calloc(1, size);
 	if (!buf) {
 		err = ENOMEM;
 		goto error;
@@ -686,7 +685,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 			if (is_dot_or_dotdot(name)) {
 				e = (struct fuse_entry_param) {
 					.attr.st_ino = d->entry->d_ino,
-					.attr.st_mode = d->entry->d_type << 12,
+					.attr.st_mode = static_cast<mode_t>(d->entry->d_type << 12),
 				};
 			} else {
 				err = lo_do_lookup(req, ino, name, &e);
@@ -700,7 +699,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 		} else {
 			struct stat st = {
 				.st_ino = d->entry->d_ino,
-				.st_mode = d->entry->d_type << 12,
+				.st_mode = static_cast<mode_t>(d->entry->d_type << 12),
 			};
 			entsize = fuse_add_direntry(req, p, rem, name,
 						    &st, nextoff);
@@ -876,7 +875,7 @@ static void lo_read(fuse_req_t req, fuse_ino_t ino, size_t size,
 		fuse_log(FUSE_LOG_DEBUG, "lo_read(ino=%" PRIu64 ", size=%zd, "
 			"off=%lu)\n", ino, size, (unsigned long) offset);
 
-	buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
+	buf.buf[0].flags = static_cast<fuse_buf_flags>(FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK);
 	buf.buf[0].fd = fi->fh;
 	buf.buf[0].pos = offset;
 
@@ -891,7 +890,7 @@ static void lo_write_buf(fuse_req_t req, fuse_ino_t ino,
 	ssize_t res;
 	struct fuse_bufvec out_buf = FUSE_BUFVEC_INIT(fuse_buf_size(in_buf));
 
-	out_buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
+	out_buf.buf[0].flags = static_cast<fuse_buf_flags>(FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK);
 	out_buf.buf[0].fd = fi->fh;
 	out_buf.buf[0].pos = off;
 
@@ -899,7 +898,7 @@ static void lo_write_buf(fuse_req_t req, fuse_ino_t ino,
 		fuse_log(FUSE_LOG_DEBUG, "lo_write(ino=%" PRIu64 ", size=%zd, off=%lu)\n",
 			ino, out_buf.buf[0].size, (unsigned long) off);
 
-	res = fuse_buf_copy(&out_buf, in_buf, 0);
+	res = fuse_buf_copy(&out_buf, in_buf, static_cast<fuse_buf_copy_flags>(0));
 	if(res < 0)
 		fuse_reply_err(req, -res);
 	else
@@ -973,7 +972,7 @@ static void lo_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
 	sprintf(procname, "/proc/self/fd/%i", inode->fd);
 
 	if (size) {
-		value = malloc(size);
+		value = (char *) malloc(size);
 		if (!value)
 			goto out_err;
 
@@ -1023,7 +1022,7 @@ static void lo_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
 	sprintf(procname, "/proc/self/fd/%i", inode->fd);
 
 	if (size) {
-		value = malloc(size);
+		value = (char *) malloc(size);
 		if (!value)
 			goto out_err;
 
@@ -1146,37 +1145,37 @@ static const struct fuse_lowlevel_ops lo_oper = {
 	.init		= lo_init,
 	.destroy	= lo_destroy,
 	.lookup		= lo_lookup,
-	.mkdir		= lo_mkdir,
-	.mknod		= lo_mknod,
-	.symlink	= lo_symlink,
-	.link		= lo_link,
-	.unlink		= lo_unlink,
-	.rmdir		= lo_rmdir,
-	.rename		= lo_rename,
 	.forget		= lo_forget,
-	.forget_multi	= lo_forget_multi,
 	.getattr	= lo_getattr,
 	.setattr	= lo_setattr,
 	.readlink	= lo_readlink,
+	.mknod		= lo_mknod,
+	.mkdir		= lo_mkdir,
+	.unlink		= lo_unlink,
+	.rmdir		= lo_rmdir,
+	.symlink	= lo_symlink,
+	.rename		= lo_rename,
+	.link		= lo_link,
+	.open		= lo_open,
+	.read		= lo_read,
+	.flush		= lo_flush,
+	.release	= lo_release,
+	.fsync		= lo_fsync,
 	.opendir	= lo_opendir,
 	.readdir	= lo_readdir,
-	.readdirplus	= lo_readdirplus,
 	.releasedir	= lo_releasedir,
 	.fsyncdir	= lo_fsyncdir,
-	.create		= lo_create,
-	.open		= lo_open,
-	.release	= lo_release,
-	.flush		= lo_flush,
-	.fsync		= lo_fsync,
-	.read		= lo_read,
-	.write_buf      = lo_write_buf,
 	.statfs		= lo_statfs,
-	.fallocate	= lo_fallocate,
-	.flock		= lo_flock,
+	.setxattr	= lo_setxattr,
 	.getxattr	= lo_getxattr,
 	.listxattr	= lo_listxattr,
-	.setxattr	= lo_setxattr,
 	.removexattr	= lo_removexattr,
+	.create		= lo_create,
+	.write_buf      = lo_write_buf,
+	.forget_multi	= lo_forget_multi,
+	.flock		= lo_flock,
+	.fallocate	= lo_fallocate,
+	.readdirplus	= lo_readdirplus,
 #ifdef HAVE_COPY_FILE_RANGE
 	.copy_file_range = lo_copy_file_range,
 #endif
