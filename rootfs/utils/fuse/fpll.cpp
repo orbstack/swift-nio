@@ -586,7 +586,7 @@ static void lo_forget_multi(fuse_req_t req, size_t count,
 {
 	int i;
 
-	for (i = 0; i < count; i++)
+	for (i = 0; (size_t)i < count; i++)
 		lo_forget_one(req, forgets[i].ino, forgets[i].nlookup);
 	fuse_reply_none(req);
 }
@@ -710,10 +710,9 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 		if (plus) {
 			struct fuse_entry_param e;
 			if (is_dot_or_dotdot(name)) {
-				e = (struct fuse_entry_param) {
-					.attr.st_ino = d->entry->d_ino,
-					.attr.st_mode = static_cast<mode_t>(d->entry->d_type << 12),
-				};
+				e = {};
+				e.attr.st_ino = d->entry->d_ino;
+				e.attr.st_mode = static_cast<mode_t>(d->entry->d_type << 12);
 			} else {
 				err = lo_do_lookup(req, ino, name, &e);
 				if (err)
