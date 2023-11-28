@@ -79,19 +79,16 @@ EXTRA_LDFLAGS="-s -w" make static
 mv runc /out/
 EOT
 
-# Build C - vsocknfs, rvfs-wrapper, fuse passthrough_ll
+# Build C - vsocknfs, rvfs-wrapper, fuse passthrough "fpll"
 FROM base AS c-base
 RUN apk add --no-cache alpine-sdk linux-headers fuse3-dev
 FROM c-base AS c-build
 COPY rootfs/utils/*.c /build/
+COPY rootfs/utils/fuse /build/fuse
 COPY --from=runc-build /out/runc /build/
 RUN <<EOT sh -eux
 mkdir /out /out-guest
-
-wget -O fuse.tar.gz https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
-tar xf fuse.tar.gz
-cd fuse-3.16.2/example
-gcc -O2 -Wall passthrough_ll.c $(pkg-config fuse3 --cflags --libs) -o /out/fpll
+g++ -O2 -Wall /build/fuse/fpll.cpp $(pkg-config fuse3 --cflags --libs) -o /out/fpll
 EOT
 RUN <<EOT sh -eux
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
