@@ -68,8 +68,11 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 			((sizeof(fuse_ino_t) >= sizeof(uintptr_t)) ? 1 : -1); };
 #endif
 
+#define trace_printf(...) do {} while (0)
+
 static fuse_ino_t next_ino = FUSE_ROOT_ID + 1;
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, struct lo_inode *> ino_to_ptr;
+static phmap::parallel_flat_hash_map_m<fuse_ino_t, std::string> forgotten_inodes;
 
 struct lo_inode {
 	struct lo_inode *next; /* protected by lo->mutex */
@@ -301,12 +304,31 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 	int saverr;
 	struct lo_data *lo = lo_data(req);
 	struct lo_inode *inode;
+	bool recovered = false;
 
 	memset(e, 0, sizeof(*e));
 	e->attr_timeout = lo->timeout;
 	e->entry_timeout = lo->timeout;
 
-	newfd = openat(lo_fd(req, parent), name, O_PATH | O_NOFOLLOW);
+	// parent fd:
+	auto forgotten = forgotten_inodes[parent];
+	if (forgotten != "") {
+		// cases are '.' and '..' (or other path)
+		if (!strcmp(name, ".")) {
+			trace_printf("recovering [file, %s] fd %lu from %s\n", name, parent, forgotten.c_str());
+			newfd = openat(AT_FDCWD, forgotten.c_str(), O_PATH | O_NOFOLLOW);
+			recovered = true;
+
+			// TODO it is now safe to delete this forgotten inode entry
+		} else {
+			char new_path[PATH_MAX];
+			snprintf(new_path, PATH_MAX, "%s/%s", forgotten.c_str(), name);
+			trace_printf("recovering [dir, %s] fd %lu from %s\n", name, parent, new_path);
+			newfd = openat(AT_FDCWD, new_path, O_PATH | O_NOFOLLOW);
+		}
+	} else {
+		newfd = openat(lo_fd(req, parent), name, O_PATH | O_NOFOLLOW);
+	}
 	if (newfd == -1)
 		goto out_err;
 
@@ -338,7 +360,7 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 		inode->next = next;
 		inode->prev = prev;
 		prev->next = inode;
-		inode->nodeid = ++next_ino;
+		inode->nodeid = recovered ? parent : ++next_ino;
 		ino_to_ptr[inode->nodeid] = inode;
 		pthread_mutex_unlock(&lo->mutex);
 	}
@@ -508,12 +530,25 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 	inode->refcount -= n;
 	if (!inode->refcount) {
 		struct lo_inode *prev, *next;
+		char procname[64];
 
 		prev = inode->prev;
 		next = inode->next;
 		next->prev = prev;
 		prev->next = next;
 
+		// read and save full path
+		sprintf(procname, "/proc/self/fd/%i", inode->fd);
+		char buf[PATH_MAX + 1];
+		int res = readlink(procname, buf, PATH_MAX);
+		if (res == -1) {
+			fprintf(stderr, "failed to readlink\n");
+		} else {
+			// add to map
+			buf[res] = '\0';
+			trace_printf("storing fd %lu from path %s\n", inode->nodeid, buf);
+			forgotten_inodes[inode->nodeid] = std::string(buf);
+		}
 		ino_to_ptr.erase(inode->nodeid);
 
 		pthread_mutex_unlock(&lo->mutex);
