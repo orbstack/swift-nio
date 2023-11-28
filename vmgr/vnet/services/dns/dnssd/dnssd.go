@@ -23,6 +23,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -114,7 +115,11 @@ func queryOne(name string, rtype uint16) ([]QueryAnswer, error) {
 func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
 	// Keep CNAME at the top even if we're not looking for it
 	allAnswers := []QueryAnswer{}
+	var resolvedNames [maxCnameRecursion]string
+outer:
 	for i := 0; i < maxCnameRecursion; i++ {
+		resolvedNames[i] = name
+
 		if verboseTrace {
 			logrus.WithFields(logrus.Fields{
 				"name": name,
@@ -154,17 +159,20 @@ func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
 						return nil, err
 					}
 
-					name = string(rr.(*dns.CNAME).Target)
-				} else {
-					// We got a non-CNAME answer, so we're done
-					return allAnswers, nil
+					// to prevent loop, make sure we haven't already resolved this name
+					newName := rr.(*dns.CNAME).Target
+					if !slices.Contains(resolvedNames[:], newName) {
+						name = newName
+						continue outer
+					}
 				}
 			}
-		} else {
-			return allAnswers, nil
 		}
+
+		break
 	}
 
+	// We got a non-CNAME answer, so we're done
 	return allAnswers, nil
 }
 
