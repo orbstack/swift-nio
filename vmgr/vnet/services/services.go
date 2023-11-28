@@ -18,10 +18,13 @@ import (
 
 var (
 	staticDnsHosts = map[string]dnssrv.StaticHost{
-		"vm.orb.internal":         {IP4: netconf.VnetGuestIP4, IP6: netconf.VnetGuestIP6},
-		"host.internal":           {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
-		"host.orb.internal":       {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
-		"host.docker.internal":    {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"vm.orb.internal":   {IP4: netconf.VnetGuestIP4, IP6: netconf.VnetGuestIP6},
+		"host.internal":     {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"host.orb.internal": {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		// compat: some apps have trouble with v6 (e.g. envoy: https://mail.google.com/mail/u/1/#inbox/FMfcgzGtxKQRRSpLCKZDxmZSBLCjFHXq)
+		// docker can't run in v6-only anyway, and v6 rarely helps with anything (even for ::1 because we have fallback dial)
+		// keep it for machines, but docker ecosystem is *bad* with v6
+		"host.docker.internal":    {IP4: netconf.VnetHostNatIP4},
 		"host.lima.internal":      {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
 		"docker.orb.internal":     {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
 		"services.orb.internal":   {IP4: netconf.VnetServicesIP4},
