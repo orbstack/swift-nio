@@ -318,8 +318,6 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 			trace_printf("recovering [file, %s] fd %lu from %s\n", name, parent, forgotten.c_str());
 			newfd = openat(AT_FDCWD, forgotten.c_str(), O_PATH | O_NOFOLLOW);
 			recovered = true;
-
-			// TODO it is now safe to delete this forgotten inode entry
 		} else {
 			char new_path[PATH_MAX];
 			snprintf(new_path, PATH_MAX, "%s/%s", forgotten.c_str(), name);
@@ -362,6 +360,10 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 		prev->next = inode;
 		inode->nodeid = recovered ? parent : ++next_ino;
 		ino_to_ptr[inode->nodeid] = inode;
+		// MUST now delete this forgotten inode entry. it's recovered and available again
+		if (recovered) {
+			forgotten_inodes.erase(parent);
+		}
 		pthread_mutex_unlock(&lo->mutex);
 	}
 	e->ino = inode->nodeid;
