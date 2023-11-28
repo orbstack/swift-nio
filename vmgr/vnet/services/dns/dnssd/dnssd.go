@@ -32,6 +32,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// prevent loop when domain keeps resolving to same CNAME
+const maxCnameRecursion = 5
+
 var (
 	queryMap   = map[uint64]*queryState{}
 	queryMapMu = sync.Mutex{}
@@ -111,7 +114,7 @@ func queryOne(name string, rtype uint16) ([]QueryAnswer, error) {
 func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
 	// Keep CNAME at the top even if we're not looking for it
 	allAnswers := []QueryAnswer{}
-	for {
+	for i := 0; i < maxCnameRecursion; i++ {
 		if verboseTrace {
 			logrus.WithFields(logrus.Fields{
 				"name": name,
@@ -161,6 +164,8 @@ func QueryRecursive(name string, rtype uint16) ([]QueryAnswer, error) {
 			return allAnswers, nil
 		}
 	}
+
+	return allAnswers, nil
 }
 
 func validateType(rtype uint16) bool {
