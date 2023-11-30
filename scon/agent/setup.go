@@ -549,7 +549,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 				if err != nil {
 					return err
 				}
-				err = os.Chown(home+"/.ssh/"+sshFile.Name(), args.Uid, gid)
+				err = os.Lchown(home+"/.ssh/"+sshFile.Name(), args.Uid, gid)
 				if err != nil {
 					return err
 				}
