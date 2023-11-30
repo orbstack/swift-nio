@@ -70,13 +70,14 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 
 #define trace_printf(...) do {} while (0)
 
+typedef std::pair<dev_t, ino_t> fs_inode_key;
+
 static fuse_ino_t next_ino = FUSE_ROOT_ID + 1;
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, struct lo_inode *> ino_to_ptr;
+static phmap::parallel_flat_hash_map<fs_inode_key, struct lo_inode *> fs_ino_to_ptr;
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, std::string> forgotten_inodes;
 
 struct lo_inode {
-	struct lo_inode *next; /* protected by lo->mutex */
-	struct lo_inode *prev; /* protected by lo->mutex */
 	int fd;
 	ino_t ino;
 	dev_t dev;
@@ -178,12 +179,9 @@ static void lo_init(void *userdata,
 
 static void lo_destroy(void *userdata)
 {
-	struct lo_data *lo = (struct lo_data*) userdata;
-
-	while (lo->root.next != &lo->root) {
-		struct lo_inode* next = lo->root.next;
-		lo->root.next = next->next;
-		free(next);
+	for (auto it = fs_ino_to_ptr.begin(); it != fs_ino_to_ptr.end(); ++it) {
+		struct lo_inode *inode = it->second;
+		free(inode);
 	}
 }
 
@@ -280,20 +278,17 @@ out_err:
 
 static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st)
 {
-	struct lo_inode *p;
-	struct lo_inode *ret = NULL;
-
 	pthread_mutex_lock(&lo->mutex);
-	for (p = lo->root.next; p != &lo->root; p = p->next) {
-		if (p->ino == st->st_ino && p->dev == st->st_dev) {
-			assert(p->refcount > 0);
-			ret = p;
-			ret->refcount++;
-			break;
-		}
+	struct lo_inode *ret = fs_ino_to_ptr[{st->st_dev, st->st_ino}];
+	if (ret) {
+		assert(ret->refcount > 0);
+		ret->refcount++;
+		pthread_mutex_unlock(&lo->mutex);
+		return ret;
 	}
+
 	pthread_mutex_unlock(&lo->mutex);
-	return ret;
+	return NULL;
 }
 
 static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
@@ -339,8 +334,6 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 		close(newfd);
 		newfd = -1;
 	} else {
-		struct lo_inode *prev, *next;
-
 		saverr = ENOMEM;
 		inode = (struct lo_inode *) calloc(1, sizeof(struct lo_inode));
 		if (!inode)
@@ -352,12 +345,7 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 		inode->dev = e->attr.st_dev;
 
 		pthread_mutex_lock(&lo->mutex);
-		prev = &lo->root;
-		next = prev->next;
-		next->prev = inode;
-		inode->next = next;
-		inode->prev = prev;
-		prev->next = inode;
+		fs_ino_to_ptr[{inode->dev, inode->ino}] = inode;
 		inode->nodeid = recovered ? parent : ++next_ino;
 		ino_to_ptr[inode->nodeid] = inode;
 		// MUST now delete this forgotten inode entry. it's recovered and available again
@@ -531,13 +519,9 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 	assert(inode->refcount >= n);
 	inode->refcount -= n;
 	if (!inode->refcount) {
-		struct lo_inode *prev, *next;
 		char procname[64];
 
-		prev = inode->prev;
-		next = inode->next;
-		next->prev = prev;
-		prev->next = next;
+		fs_ino_to_ptr.erase({inode->dev, inode->ino});
 
 		// read and save full path
 		sprintf(procname, "/proc/self/fd/%i", inode->fd);
@@ -1224,7 +1208,6 @@ int main(int argc, char *argv[])
 	umask(0);
 
 	pthread_mutex_init(&lo.mutex, NULL);
-	lo.root.next = lo.root.prev = &lo.root;
 	lo.root.fd = -1;
 	lo.cache = CACHE_NORMAL;
 
