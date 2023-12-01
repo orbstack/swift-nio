@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -385,27 +386,38 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	}
 
 	// merge features map
-	newFeatures := config["features"].(map[string]any)
-	for k, v := range newFeatures {
-		baseFeatures[k] = v
+	// each merge must use if-ok assertion to avoid panic on nil or unexpected type
+	if newFeatures, ok := config["features"].(map[string]any); ok {
+		for k, v := range newFeatures {
+			baseFeatures[k] = v
+		}
+		config["features"] = baseFeatures
 	}
-	config["features"] = baseFeatures
 
 	// merge builder map
-	newBuilder := config["builder"].(map[string]any)
-	for k, v := range newBuilder {
-		// merge GC map
-		if k == "gc" {
-			newBuilderGC := v.(map[string]any)
-			for k, v := range newBuilderGC {
-				baseBuilderGC[k] = v
+	if newBuilder, ok := config["builder"].(map[string]any); ok {
+		for k, v := range newBuilder {
+			// merge GC map
+			if k == "gc" {
+				newBuilderGC := v.(map[string]any)
+				for k, v := range newBuilderGC {
+					baseBuilderGC[k] = v
+				}
+				v = baseBuilderGC
 			}
-			v = baseBuilderGC
-		}
 
-		baseBuilder[k] = v
+			baseBuilder[k] = v
+		}
+		config["builder"] = baseBuilder
 	}
-	config["builder"] = baseBuilder
+
+	// merge hosts list: make sure /var/run/docker.sock is always there if users add TCP hosts
+	if newHosts, ok := config["hosts"].([]any); ok {
+		if !slices.Contains(newHosts, "unix:///var/run/docker.sock") {
+			newHosts = append(newHosts, "unix:///var/run/docker.sock")
+		}
+		config["hosts"] = newHosts
+	}
 
 	// iff IPv6 is enabled and user did not set a CIDR, set our default
 	// otherwise keep it unset to avoid adding IPv6 to bridge IPAM
