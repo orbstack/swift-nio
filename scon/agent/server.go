@@ -177,6 +177,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		if err != nil {
 			return err
 		}
+		server.docker.agent = server
 	}
 
 	// Go sets soft rlimit = hard. bring it back down to avoid perf issues with fd closing in bad processes

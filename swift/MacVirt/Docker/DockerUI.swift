@@ -17,6 +17,10 @@ extension DKContainer {
         }
     }
 
+    func openFolder() {
+        NSWorkspace.openFolder("\(Folders.nfsDockerContainers)/\(id)")
+    }
+
     @MainActor
     func showLogs(windowTracker: WindowTracker) {
         if !windowTracker.openDockerLogWindowIds.contains(DockerContainerId.container(id: id)) {

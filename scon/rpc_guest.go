@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/securefs"
@@ -47,12 +48,57 @@ func containerToCfwdMeta(ctr *dockertypes.ContainerSummaryMin) bpf.CfwdContainer
 	return meta
 }
 
+func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.ContainerSummaryMin, fdxSeq uint64) error {
+	var fd int
+	// locked by caller
+	err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
+		var err error
+		fd, err = a.Fdx().RecvFdInt(fdxSeq)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("receive rootfs fd: %w", err)
+	}
+	defer unix.Close(fd)
+
+	// create dir in nfs containers
+	// validate ID to prevent escape - this is untrusted data
+	if strings.Contains(ctr.ID, "/") {
+		return fmt.Errorf("invalid container ID: %s", ctr.ID)
+	}
+	dest := mounts.NfsContainers + "/" + ctr.ID
+	err = os.MkdirAll(dest, 0755)
+	if err != nil {
+		return fmt.Errorf("create container dir: %w", err)
+	}
+
+	// move mount
+	err = unix.MoveMount(fd, "", unix.AT_FDCWD, dest, unix.MOVE_MOUNT_F_EMPTY_PATH)
+	if err != nil {
+		return fmt.Errorf("move mount: %w", err)
+	}
+
+	// symlink by name
+	if len(ctr.Names) > 0 {
+		linkPath := mounts.NfsContainers + "/" + ctr.Names[0]
+		_ = os.Remove(linkPath)
+		err = os.Symlink(ctr.ID, linkPath)
+		if err != nil {
+			return fmt.Errorf("create symlink: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // note: this is for start/stop, not create/delete
-func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertypes.ContainerSummaryMin], _ *None) error {
+func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff, _ *None) error {
 	// must not release lock - bpf is protected by c.mu
 	s.dockerMachine.mu.RLock()
 	defer s.dockerMachine.mu.RUnlock()
 	dockerBpf := s.dockerMachine.bpf // nil if not running anymore
+
+	// IMPORTANT: must not return from this function before reading and closing fds from AddedRootfsFdxSeqs
 
 	// update mDNS registry
 	// must remove before adding in case of recreate with same IPs/domain
@@ -68,8 +114,23 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 				}
 			}
 		}
+
+		// unmount from nfs (ignore error)
+		if strings.Contains(ctr.ID, "/") {
+			logrus.WithField("cid", ctr.ID).Error("invalid container ID")
+		} else {
+			dest := mounts.NfsContainers + "/" + ctr.ID
+			_ = unix.Unmount(dest, unix.MNT_DETACH)
+			_ = os.Remove(dest)
+
+			// remove symlink by name
+			if len(ctr.Names) > 0 {
+				linkPath := mounts.NfsContainers + "/" + ctr.Names[0]
+				_ = os.Remove(linkPath)
+			}
+		}
 	}
-	for _, ctr := range diff.Added {
+	for i, ctr := range diff.Added {
 		ctrIPs := s.m.net.mdnsRegistry.AddContainer(&ctr)
 
 		if dockerBpf != nil {
@@ -78,6 +139,16 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.Diff[dockertype
 				err := dockerBpf.CfwdAddContainerMeta(ctrIP, meta)
 				if err != nil {
 					logrus.WithError(err).WithField("ip", ctrIP).Error("failed to add container to cfwd")
+				}
+			}
+
+			// mount nfs in shadow dir
+			// this is under bpf check because that checks whether the machine is running
+			fdxSeq := diff.AddedRootfsFdxSeqs[i]
+			if fdxSeq != 0 {
+				err := s.recvAndMountRootfsFdxLocked(&ctr, fdxSeq)
+				if err != nil {
+					logrus.WithError(err).WithField("cid", ctr.ID).Error("failed to mount rootfs")
 				}
 			}
 		}

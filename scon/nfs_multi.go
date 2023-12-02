@@ -13,6 +13,7 @@ type NfsMirror interface {
 	Unmount(subdest string) error
 	Close() error
 	MountImage(img *dockertypes.FullImage, tag string, fs *securefs.FS) error
+	UnmountAll(prefix string) error
 }
 
 type MultiNfsMirror struct {
@@ -73,6 +74,17 @@ func (m *MultiNfsMirror) MountImage(img *dockertypes.FullImage, tag string, fs *
 	var errs []error
 	for _, mirror := range m.mirrors {
 		err := mirror.MountImage(img, tag, fs)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (m *MultiNfsMirror) UnmountAll(prefix string) error {
+	var errs []error
+	for _, mirror := range m.mirrors {
+		err := mirror.UnmountAll(prefix)
 		if err != nil {
 			errs = append(errs, err)
 		}

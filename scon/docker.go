@@ -690,6 +690,27 @@ func (h *DockerHooks) PostStop(c *Container) error {
 		return fmt.Errorf("clear iptables: %w", err)
 	}
 
+	// unmount NFS images, volumes, containers
+	err = c.manager.nfsForAll.UnmountAll("docker/")
+	if err != nil {
+		return fmt.Errorf("unmount nfs: %w", err)
+	}
+
+	// unmount everything from /nfs/containers
+	entries, err := os.ReadDir("/nfs/containers")
+	if err != nil {
+		return fmt.Errorf("read nfs containers: %w", err)
+	}
+	for _, entry := range entries {
+		// dirs = mountpoints
+		// else = symlink
+		path := "/nfs/containers/" + entry.Name()
+		if entry.IsDir() {
+			_ = unix.Unmount(path, unix.MNT_DETACH)
+		}
+		_ = os.Remove(path)
+	}
+
 	return nil
 }
 

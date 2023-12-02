@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"path"
 	"path/filepath"
 	"slices"
@@ -8,10 +9,35 @@ import (
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
+
+func openPidRootfsAndSend(pid int, fdx *Fdx) (uint64, error) {
+	pidfd, err := unix.PidfdOpen(pid, 0) // cloexec safe
+	if err != nil {
+		return 0, fmt.Errorf("open pidfd: %w", err)
+	}
+	defer unix.Close(pidfd)
+
+	fd, err := sysns.WithMountNs(pidfd, func() (int, error) {
+		return unix.OpenTree(unix.AT_FDCWD, "/", unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE)
+	})
+	if err != nil {
+		return 0, fmt.Errorf("open rootfs: %w", err)
+	}
+	defer unix.Close(fd)
+
+	seq, err := fdx.SendFdInt(fd)
+	if err != nil {
+		return 0, fmt.Errorf("send fd: %w", err)
+	}
+
+	return seq, nil
+}
 
 func (d *DockerAgent) refreshContainers() error {
 	// no mu needed: FuncDebounce has mutex
@@ -36,17 +62,34 @@ func (d *DockerAgent) refreshContainers() error {
 	}
 
 	// then add
-	for _, c := range added {
+	rootfsFdxSeqs := make([]uint64, len(added))
+	for i, c := range added {
+		fullCtr, err := d.client.InspectContainer(c.ID)
+		if err != nil {
+			logrus.WithError(err).WithField("cid", c.ID).Warn("failed to inspect container")
+			continue
+		}
+
 		err = d.onContainerStart(c)
 		if err != nil {
 			logrus.WithError(err).Error("failed to add container")
 		}
+
+		// open rootfs (/) mount and send over fdx
+		// do it one at a time to allow for failures, and b/c 16-fd limit
+		rootfsFdxSeqs[i], err = openPidRootfsAndSend(fullCtr.State.Pid, d.agent.fdx)
+		if err != nil {
+			logrus.WithError(err).Error("failed to send rootfs fd")
+		}
 	}
 
 	// tell scon
-	err = d.scon.OnDockerContainersChanged(sgtypes.Diff[dockertypes.ContainerSummaryMin]{
-		Added:   added,
-		Removed: removed,
+	err = d.scon.OnDockerContainersChanged(sgtypes.ContainersDiff{
+		Diff: sgtypes.Diff[dockertypes.ContainerSummaryMin]{
+			Added:   added,
+			Removed: removed,
+		},
+		AddedRootfsFdxSeqs: rootfsFdxSeqs,
 	})
 	if err != nil {
 		logrus.WithError(err).Error("failed to update scon containers")

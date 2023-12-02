@@ -16,7 +16,7 @@ pub struct Service {
     pub name: &'static str,
     pub critical: bool,
     pub restartable: bool,
-    pub needs_clean_shutdown: bool,
+    pub clean_stop: bool,
 }
 
 impl Service {
@@ -25,26 +25,33 @@ impl Service {
         name: "time-sync",
         critical: true,
         restartable: true,
-        needs_clean_shutdown: false,
+        clean_stop: false,
     };
     pub const UDEV: Service = Service {
         name: "udev",
         critical: true,
         restartable: true,
-        needs_clean_shutdown: false,
+        clean_stop: false,
     };
     pub const SCON: Service = Service {
         name: "scon",
         critical: true,
         restartable: false,
-        needs_clean_shutdown: true,
+        clean_stop: true,
     };
 
     pub const SSH: Service = Service {
         name: "ssh",
         critical: true,
         restartable: true,
-        needs_clean_shutdown: false,
+        clean_stop: false,
+    };
+
+    pub const FUSE_PASSTHROUGH: Service = Service {
+        name: "pfs",
+        critical: false,
+        restartable: false,
+        clean_stop: false,
     };
 
     // critical because macOS NFS can freeze, or even worse, kernel panic if it crashes
@@ -53,21 +60,21 @@ impl Service {
         name: "mountd",
         critical: true,
         restartable: true,
-        needs_clean_shutdown: false,
+        clean_stop: false,
     };
 
     pub const MERGERFS_IMAGES: Service = Service {
         name: "images-fs",
         critical: false,
         restartable: true,
-        needs_clean_shutdown: false,
+        clean_stop: false,
     };
 
     pub const MERGERFS_CONTAINERS: Service = Service {
         name: "containers-fs",
         critical: false,
         restartable: true,
-        needs_clean_shutdown: false,
+        clean_stop: false,
     };
 }
 
@@ -133,7 +140,7 @@ impl ServiceTracker {
     pub fn stop_for_shutdown(&mut self, signal: Signal) -> std::io::Result<Vec<PidFd>> {
         let mut pidfds = Vec::new();
         for (pid, service) in self.pids.iter() {
-            if service.needs_clean_shutdown {
+            if service.clean_stop {
                 let pidfd = PidFd::open(*pid as i32)?;
                 pidfd.kill(signal)?;
                 pidfds.push(pidfd);

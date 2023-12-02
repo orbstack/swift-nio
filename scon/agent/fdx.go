@@ -104,6 +104,7 @@ func (f *Fdx) Close() error {
 	return f.closeWithErr(net.ErrClosed)
 }
 
+// first seq = 1, so 0 is invalid
 func (f *Fdx) nextSeq() uint64 {
 	return f.seq.Add(1)
 }

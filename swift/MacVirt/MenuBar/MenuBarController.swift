@@ -414,6 +414,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
             container.openInTerminal()
         }
 
+        submenu.addActionItem("Files", icon: systemImage("folder"), disabled: !container.running) {
+            container.openFolder()
+        }
+
         if vmModel.netBridgeAvailable {
             let proto = container.getPreferredProto(vmModel)
             let preferredDomain = container.preferredDomain

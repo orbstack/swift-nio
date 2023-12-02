@@ -79,14 +79,18 @@ EXTRA_LDFLAGS="-s -w" make static
 mv runc /out/
 EOT
 
-# Build C - vsocknfs, rvfs-wrapper
+# Build C - vsocknfs, rvfs-wrapper, fuse passthrough "fpll"
 FROM base AS c-base
-RUN apk add --no-cache alpine-sdk linux-headers
+RUN apk add --no-cache alpine-sdk linux-headers fuse3-dev
 FROM c-base AS c-build
 COPY rootfs/utils/*.c /build/
+COPY rootfs/utils/fuse /build/fuse
 COPY --from=runc-build /out/runc /build/
 RUN <<EOT sh -eux
 mkdir /out /out-guest
+g++ -O2 -Wall /build/fuse/fpll.cpp $(pkg-config fuse3 --cflags --libs) -o /out/fpll
+EOT
+RUN <<EOT sh -eux
 gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
 gcc -O2 -Wall -static -o /out/rstub /build/rvfs-wrapper.c
 gcc -O2 -Wall -static -o /out-guest/pstub /build/pstub.c
@@ -299,7 +303,9 @@ RUN apk add --no-cache \
     # latest is probably best, esp. for riscv which is less mature
     # also saves build time on arm64
     # no one uses 32-bit ppc for docker (28 images total on docker hub)
-    qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el
+    qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el \
+    # for nfs containers
+    fuse3-libs
 
 # debug deps
 ARG TYPE=release

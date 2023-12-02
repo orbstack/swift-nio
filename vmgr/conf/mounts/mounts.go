@@ -43,6 +43,7 @@ const (
 	// host paths
 	LaunchdSshAgentListeners  = "/opt/orb/launchd-ssh-agent-listeners"
 	DockerSshAgentProxySocket = "/run/docker-ssh-agent-proxy.sock"
+	NfsContainers             = "/nfs/containers"
 )
 
 // mac
