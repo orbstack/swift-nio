@@ -194,19 +194,26 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 Button(action: {
                     presentPopover = true
                 }) {
-                    Label("Get Info", systemImage: "terminal")
+                    Label("Get Info", systemImage: "")
                 }
 
                 Button(action: {
                     container.showLogs(windowTracker: windowTracker)
                 }) {
-                    Label("Show Logs", systemImage: "terminal")
+                    Label("Show Logs", systemImage: "")
                 }
 
                 Button(action: {
                     container.openInTerminal()
                 }) {
-                    Label("Open Terminal", systemImage: "terminal")
+                    Label("Open Terminal", systemImage: "")
+                }
+                .disabled(!isRunning)
+
+                Button(action: {
+                    container.openFolder()
+                }) {
+                    Label("Open Files", systemImage: "")
                 }
                 .disabled(!isRunning)
 
@@ -217,7 +224,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         NSWorkspace.shared.open(url)
                     }
                 }) {
-                    Label("Open in Browser", systemImage: "terminal")
+                    Label("Open in Browser", systemImage: "")
                 }
                 .disabled(!isRunning || !vmModel.netBridgeAvailable || preferredDomain == nil)
             }
@@ -292,6 +299,10 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     }) {
                         Label("IP", systemImage: "doc.on.doc")
                     }.disabled(ipAddress == nil)
+
+                    Button("Path") {
+                        NSPasteboard.copy("\(Folders.nfsDockerContainers)/\(container.id)")
+                    }
                 }
             }
         }
@@ -389,12 +400,19 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             Label("Terminal", systemImage: "terminal")
                         }
                         .controlSize(.large)
+
+                        Button {
+                            container.openFolder()
+                        } label: {
+                            Label("Files", systemImage: "folder")
+                        }
+                        .controlSize(.large)
                     }
                 }
 
                 if isRunning && container.image == "docker/getting-started" {
                     Spacer()
-                            .frame(height: 20)
+                    .frame(height: 20)
 
                     // special case for more seamless onboarding
                     Button {
