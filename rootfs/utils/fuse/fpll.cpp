@@ -54,6 +54,7 @@
 
 #include "passthrough_helpers.h"
 #include "parallel_hashmap/phmap.h"
+#include "wyhash.h"
 
 /* We are re-using pointers to our `struct lo_inode` and `struct
    lo_dirp` elements as inodes. This means that we must be able to
@@ -70,12 +71,9 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 
 #define trace_printf(...) do {} while (0)
 
-typedef std::pair<dev_t, ino_t> fs_inode_key;
-
-static fuse_ino_t next_ino = FUSE_ROOT_ID + 1;
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, struct lo_inode *> ino_to_ptr;
-static phmap::parallel_flat_hash_map<fs_inode_key, struct lo_inode *> fs_ino_to_ptr;
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, std::string> forgotten_inodes;
+static std::pair<dev_t, ino_t> root_inode_key = {0, 0};
 
 struct lo_inode {
 	int fd;
@@ -146,6 +144,19 @@ static struct lo_inode *lo_inode(fuse_req_t req, fuse_ino_t ino)
 		return ino_to_ptr[ino];
 }
 
+static uint64_t hash_st_ino(dev_t dev, ino_t ino) {
+	// root must always be 1
+	if (dev == root_inode_key.first && ino == root_inode_key.second) {
+		return FUSE_ROOT_ID;
+	}
+
+	// need a better hash than XOR. XOR causes stale file handle very quickly
+	char buf[16] = {0};
+	memcpy(buf, &dev, sizeof(dev_t));
+	memcpy(buf + sizeof(dev_t), &ino, sizeof(ino_t));
+	return wyhash(buf, sizeof(dev_t) + sizeof(ino_t), 0, _wyp);
+}
+
 static int lo_fd(fuse_req_t req, fuse_ino_t ino)
 {
 	return lo_inode(req, ino)->fd;
@@ -179,7 +190,7 @@ static void lo_init(void *userdata,
 
 static void lo_destroy(void *userdata)
 {
-	for (auto it = fs_ino_to_ptr.begin(); it != fs_ino_to_ptr.end(); ++it) {
+	for (auto it = ino_to_ptr.begin(); it != ino_to_ptr.end(); ++it) {
 		struct lo_inode *inode = it->second;
 		free(inode);
 	}
@@ -279,7 +290,7 @@ out_err:
 static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st)
 {
 	pthread_mutex_lock(&lo->mutex);
-	struct lo_inode *ret = fs_ino_to_ptr[{st->st_dev, st->st_ino}];
+	struct lo_inode *ret = ino_to_ptr[hash_st_ino(st->st_dev, st->st_ino)];
 	if (ret) {
 		assert(ret->refcount > 0);
 		ret->refcount++;
@@ -345,8 +356,7 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 		inode->dev = e->attr.st_dev;
 
 		pthread_mutex_lock(&lo->mutex);
-		fs_ino_to_ptr[{inode->dev, inode->ino}] = inode;
-		inode->nodeid = recovered ? parent : ++next_ino;
+		inode->nodeid = recovered ? parent : hash_st_ino(inode->dev, inode->ino);
 		ino_to_ptr[inode->nodeid] = inode;
 		// MUST now delete this forgotten inode entry. it's recovered and available again
 		if (recovered) {
@@ -520,8 +530,6 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 	inode->refcount -= n;
 	if (!inode->refcount) {
 		char procname[64];
-
-		fs_ino_to_ptr.erase({inode->dev, inode->ino});
 
 		// read and save full path
 		sprintf(procname, "/proc/self/fd/%i", inode->fd);
@@ -1279,6 +1287,15 @@ int main(int argc, char *argv[])
 			 lo.source);
 		exit(1);
 	}
+
+	struct stat st;
+	if (fstat(lo.root.fd, &st) == -1) {
+		fuse_log(FUSE_LOG_ERR, "fstat(\"%s\"): %m\n",
+			 lo.source);
+		exit(1);
+	}
+	root_inode_key = { st.st_dev, st.st_ino };
+	ino_to_ptr[hash_st_ino(st.st_dev, st.st_ino)] = &lo.root;
 
 	se = fuse_session_new(&args, &lo_oper, sizeof(lo_oper), &lo);
 	if (se == NULL)
