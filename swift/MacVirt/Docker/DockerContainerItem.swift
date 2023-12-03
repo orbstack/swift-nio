@@ -13,6 +13,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var listModel: AKListModel
 
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
+    @Default(.tipsContainerFilesShow) private var tipsContainerFilesShow
 
     var container: DKContainer
     var selection: Set<DockerContainerId> {
@@ -69,8 +70,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             // crash on macOS 12 without nested HStack
             HStack {
                 if isRunning, let domain = container.preferredDomain {
-                    ProgressIconButton(systemImage: "link",
-                            actionInProgress: false) {
+                    ProgressIconButton(systemImage: "link", actionInProgress: false) {
                         if let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)") {
                             NSWorkspace.shared.open(url)
                         }
@@ -98,6 +98,48 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                             .overlay(alignment: .topLeading) { // opposite side of arrow edge
                                 Button(action: {
                                     tipsContainerDomainsShow = false
+                                }) {
+                                    Image(systemName: "xmark")
+                                    .resizable()
+                                    .frame(width: 8, height: 8)
+                                    .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(8)
+                            }
+                        }
+                    }
+                }
+
+                if isRunning {
+                    ProgressIconButton(systemImage: "folder.fill", actionInProgress: false) {
+                        container.openFolder()
+                    }
+                    .help("Open Files")
+                    // show domains first, then files
+                    .if(isFirstInList && !tipsContainerDomainsShow) {
+                        // TODO fix code dupe
+                        $0.popover(isPresented: $tipsContainerFilesShow, arrowEdge: .leading) {
+                            HStack {
+                                Image(systemName: "folder.circle")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.accentColor)
+                                .padding(.trailing, 4)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("New: Container files in Finder & terminal")
+                                    .font(.headline)
+
+                                    Text("Easily edit and copy files natively")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(20)
+                            .overlay(alignment: .topLeading) { // opposite side of arrow edge
+                                Button(action: {
+                                    tipsContainerFilesShow = false
                                 }) {
                                     Image(systemName: "xmark")
                                     .resizable()

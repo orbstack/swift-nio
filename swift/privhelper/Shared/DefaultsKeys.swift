@@ -162,6 +162,7 @@ extension Defaults.Keys {
     // key changed because initial release was flaky
     static let tipsMenubarBgShown = Key<Bool>("tips_menubarBgShown2", default: false, suite: suite)
     static let tipsContainerDomainsShow = Key<Bool>("tips_containerDomainsShow", default: true, suite: suite)
+    static let tipsContainerFilesShow = Key<Bool>("tips_containerFilesShow", default: true, suite: suite)
     static let tipsImageMountsShow = Key<Bool>("tips_imageMountsShow", default: true, suite: suite)
 
     static let globalShowMenubarExtra = Key<Bool>("global_showMenubarExtra", default: true, suite: suite)

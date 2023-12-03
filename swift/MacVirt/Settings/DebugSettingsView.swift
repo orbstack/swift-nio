@@ -24,6 +24,7 @@ struct DebugSettingsView: View {
             Button(action: {
                 Defaults[.tipsMenubarBgShown] = false
                 Defaults[.tipsContainerDomainsShow] = true
+                Defaults[.tipsContainerFilesShow] = true
                 Defaults[.tipsImageMountsShow] = true
                 Defaults[.dockerMigrationDismissed] = false
             }) {
