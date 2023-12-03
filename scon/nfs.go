@@ -61,7 +61,7 @@ func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
 	return m
 }
 
-func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string) error {
+func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFd int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -83,9 +83,16 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	_ = unix.Unmount(destPath, unix.MNT_DETACH)
 
 	// bind mount
-	err = unix.Mount(source, destPath, fstype, flags, data)
-	if err != nil {
-		return fmt.Errorf("mount %s: %w", destPath, err)
+	if mountFd == -1 {
+		err = unix.Mount(source, destPath, fstype, flags, data)
+		if err != nil {
+			return fmt.Errorf("mount %s: %w", destPath, err)
+		}
+	} else {
+		err = unix.MoveMount(mountFd, "", unix.AT_FDCWD, destPath, unix.MOVE_MOUNT_F_EMPTY_PATH)
+		if err != nil {
+			return fmt.Errorf("move mount %s: %w", destPath, err)
+		}
 	}
 
 	// fsid is only needed for overlay and fuse (non-bind mounts)
@@ -102,7 +109,7 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 }
 
 func (m *NfsMirrorManager) MountBind(source string, subdest string) error {
-	return m.Mount(source, subdest, "", unix.MS_BIND, "")
+	return m.Mount(source, subdest, "", unix.MS_BIND, "", -1)
 }
 
 func (m *NfsMirrorManager) Unmount(subdest string) error {
@@ -263,7 +270,7 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string, fs
 	}
 
 	subDest := "docker/images/" + tag
-	err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"))
+	err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"), -1)
 	if err != nil {
 		return fmt.Errorf("mount overlay on %s: %w", subDest, err)
 	}
