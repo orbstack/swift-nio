@@ -305,7 +305,7 @@ RUN apk add --no-cache \
     # no one uses 32-bit ppc for docker (28 images total on docker hub)
     qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el \
     # for nfs containers
-    fuse3-libs
+    fuse3-libs libstdc++
 
 # debug deps
 ARG TYPE=release
