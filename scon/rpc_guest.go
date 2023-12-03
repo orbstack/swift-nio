@@ -66,21 +66,16 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	if strings.Contains(ctr.ID, "/") {
 		return fmt.Errorf("invalid container ID: %s", ctr.ID)
 	}
-	dest := mounts.NfsContainers + "/" + ctr.ID
-	err = os.MkdirAll(dest, 0755)
-	if err != nil {
-		return fmt.Errorf("create container dir: %w", err)
-	}
 
 	// move mount
-	err = unix.MoveMount(fd, "", unix.AT_FDCWD, dest, unix.MOVE_MOUNT_F_EMPTY_PATH)
+	err = s.m.nfsContainers.Mount("", ctr.ID, "", 0, "", fd)
 	if err != nil {
 		return fmt.Errorf("move mount: %w", err)
 	}
 
 	// symlink by name
 	if len(ctr.Names) > 0 {
-		linkPath := mounts.NfsContainers + "/" + ctr.Names[0]
+		linkPath := mounts.NfsContainers + "/rw/" + ctr.Names[0]
 		_ = os.Remove(linkPath)
 		err = os.Symlink(ctr.ID, linkPath)
 		if err != nil {
@@ -119,13 +114,14 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 		if strings.Contains(ctr.ID, "/") {
 			logrus.WithField("cid", ctr.ID).Error("invalid container ID")
 		} else {
-			dest := mounts.NfsContainers + "/" + ctr.ID
-			_ = unix.Unmount(dest, unix.MNT_DETACH)
-			_ = os.Remove(dest)
+			err := s.m.nfsContainers.Unmount(ctr.ID)
+			if err != nil {
+				logrus.WithError(err).WithField("cid", ctr.ID).Error("failed to unmount rootfs")
+			}
 
 			// remove symlink by name
 			if len(ctr.Names) > 0 {
-				linkPath := mounts.NfsContainers + "/" + ctr.Names[0]
+				linkPath := mounts.NfsContainers + "/rw/" + ctr.Names[0]
 				_ = os.Remove(linkPath)
 			}
 		}

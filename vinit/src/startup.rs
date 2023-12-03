@@ -518,6 +518,7 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     // perf matters more for volumes so it uses raw binds instead of mergerfs
     let (_, rw_root) = create_mirror_dir("/nfs/root").unwrap();
     let (_, rw_for_machines) = create_mirror_dir("/nfs/for-machines").unwrap();
+    _ = create_mirror_dir("/nfs/containers").unwrap();
 
     // readme in root
     fs::copy("/opt/orb/nfs-readme.txt", format!("{}/README.txt", rw_root)).unwrap();
@@ -527,7 +528,6 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(format!("{}/docker/images", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/containers", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/volumes", rw_for_machines)).unwrap();
-    fs::create_dir("/nfs/containers").unwrap();
     fs::create_dir("/tmp/empty").unwrap();
 
     Ok(())
@@ -832,7 +832,7 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
     // must start before scon sets up nfs exports
     service_tracker.spawn(Service::FUSE_PASSTHROUGH, &mut Command::new("/opt/orb/fpll")
         .arg("-f") // foreground
-        .arg("-o").arg("source=/nfs/containers")
+        .arg("-o").arg("source=/nfs/containers/ro")
         .arg("/nfs/root/ro/docker/containers"))?;
 
     // rpc.mountd

@@ -20,6 +20,7 @@ import (
 
 const (
 	nfsDirRoot        = "/nfs/root"
+	nfsDirContainers  = "/nfs/containers"
 	nfsDirForMachines = "/nfs/for-machines"
 
 	nfsExportsDebounce = 250 * time.Millisecond

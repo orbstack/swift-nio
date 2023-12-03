@@ -69,6 +69,7 @@ type ConManager struct {
 
 	// nfs
 	nfsRoot        *NfsMirrorManager
+	nfsContainers  *NfsMirrorManager
 	nfsForMachines *NfsMirrorManager
 	nfsForAll      NfsMirror
 
@@ -150,6 +151,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		forwards: make(map[sysnet.ListenerKey]ForwardState),
 
 		nfsRoot:        newNfsMirror(nfsDirRoot, true),
+		nfsContainers:  newNfsMirror(nfsDirContainers, false),
 		nfsForMachines: newNfsMirror(nfsDirForMachines, false),
 
 		stopChan:      make(chan struct{}),
