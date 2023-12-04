@@ -36,12 +36,13 @@ var (
 		"loop",
 		"nbd",
 		"zram",
+		"vdc2", // allow swapoff
 	}
 
-	extraDeviceExcludes = []string{
-		// allows reading ram contents
-		"zram0",
-	}
+	// unfortunately we CANNOT exclude zram0 for non-isolated machines,
+	// because it breaks swapoff
+	// this risks leaking RAM from scon and VM host.
+	extraDeviceExcludes = []string{}
 )
 
 func MatchesExtraDevice(name string) bool {
