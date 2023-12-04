@@ -81,6 +81,7 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	}
 
 	// unmount first
+	// MNT_DETACH is recursive
 	_ = unix.Unmount(destPath, unix.MNT_DETACH)
 
 	// bind mount
@@ -133,6 +134,7 @@ func (m *NfsMirrorManager) unmountLocked(subdest string) error {
 		logrus.WithField("dst", mountPath).Trace("unmounting nfs dir")
 	}
 	// unmount
+	// MNT_DETACH is recursive
 	err := unix.Unmount(mountPath, unix.MNT_DETACH)
 	if err != nil && !errors.Is(err, unix.EINVAL) {
 		// EINVAL = not mounted
