@@ -85,7 +85,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
     }
 
     var nameOrId: String {
-        names.first ?? id
+        names.first?.deletingPrefix("/") ?? id
     }
 
     var ipAddresses: [String] {
