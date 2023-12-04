@@ -697,18 +697,9 @@ func (h *DockerHooks) PostStop(c *Container) error {
 	}
 
 	// unmount everything from /nfs/containers
-	entries, err := os.ReadDir("/nfs/containers")
+	err = c.manager.nfsContainers.UnmountAll("")
 	if err != nil {
-		return fmt.Errorf("read nfs containers: %w", err)
-	}
-	for _, entry := range entries {
-		// dirs = mountpoints
-		// else = symlink
-		path := "/nfs/containers/" + entry.Name()
-		if entry.IsDir() {
-			_ = unix.Unmount(path, unix.MNT_DETACH)
-		}
-		_ = os.Remove(path)
+		return fmt.Errorf("unmount nfs containers: %w", err)
 	}
 
 	return nil
