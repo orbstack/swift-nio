@@ -24,7 +24,7 @@ func openPidRootfsAndSend(pid int, fdx *Fdx) (uint64, error) {
 	defer unix.Close(pidfd)
 
 	fd, err := sysns.WithMountNs(pidfd, func() (int, error) {
-		return unix.OpenTree(unix.AT_FDCWD, "/", unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE)
+		return unix.OpenTree(unix.AT_FDCWD, "/", unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 	})
 	if err != nil {
 		return 0, fmt.Errorf("open rootfs: %w", err)
