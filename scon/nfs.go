@@ -95,6 +95,25 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 		if err != nil {
 			return fmt.Errorf("move mount %s: %w", destPath, err)
 		}
+
+		// this is a recursive mount (open_tree was called with AT_RECURSIVE)
+		// now unmount undesired /proc, /dev, /sys recursively
+		// too many files and not very useful
+		err = unix.Unmount(destPath+"/proc", unix.MNT_DETACH)
+		if err != nil && !errors.Is(err, unix.EINVAL) {
+			// EINVAL = not mounted
+			return fmt.Errorf("unmount %s/proc: %w", destPath, err)
+		}
+		err = unix.Unmount(destPath+"/dev", unix.MNT_DETACH)
+		if err != nil && !errors.Is(err, unix.EINVAL) {
+			// EINVAL = not mounted
+			return fmt.Errorf("unmount %s/dev: %w", destPath, err)
+		}
+		err = unix.Unmount(destPath+"/sys", unix.MNT_DETACH)
+		if err != nil && !errors.Is(err, unix.EINVAL) {
+			// EINVAL = not mounted
+			return fmt.Errorf("unmount %s/sys: %w", destPath, err)
+		}
 	}
 
 	// fsid is only needed for overlay and fuse (non-bind mounts)
