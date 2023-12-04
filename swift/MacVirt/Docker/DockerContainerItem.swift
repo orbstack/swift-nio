@@ -343,7 +343,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     }.disabled(ipAddress == nil)
 
                     Button("Path") {
-                        NSPasteboard.copy("\(Folders.nfsDockerContainers)/\(container.id)")
+                        NSPasteboard.copy("\(Folders.nfsDockerContainers)/\(container.nameOrId)")
                     }
                 }
             }

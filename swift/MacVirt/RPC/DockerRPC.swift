@@ -84,6 +84,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         }
     }
 
+    var nameOrId: String {
+        names.first ?? id
+    }
+
     var ipAddresses: [String] {
         networkSettings?.networks.values
             .lazy
