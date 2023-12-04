@@ -9,7 +9,6 @@ alt:p10
 alt:p9
 amazonlinux:2
 amazonlinux:2023
-amazonlinux:current
 archlinux:current
 busybox:1.36.1
 centos:7
