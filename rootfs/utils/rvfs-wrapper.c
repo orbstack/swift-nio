@@ -349,7 +349,7 @@ int main(int argc, char **argv) {
                             "  1. Use an Intel (amd64) %s to run this program; or\n"
                             "  2. Install multi-arch libraries in this %s.\n"
                             "\n"
-                            "This can also be caused by running a glibc executable in a musl distro, or vice versa.\n"
+                            "This can also be caused by running a glibc executable in a musl distro (e.g. Alpine), or vice versa.\n"
                             "\n"
                             "For more details and instructions, see https://go.orbstack.dev/multiarch\n"
                             "", elf_info.interpreter, env_type, env_type);
