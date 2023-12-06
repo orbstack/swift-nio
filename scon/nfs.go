@@ -19,9 +19,12 @@ import (
 )
 
 const (
-	nfsDirRoot        = "/nfs/root"
-	nfsDirContainers  = "/nfs/containers"
-	nfsDirForMachines = "/nfs/for-machines"
+	nfsDirRoot           = "/nfs/root"
+	nfsDirContainers     = "/nfs/containers"
+	nfsDirContainersFuse = "/nfs/containers-export"
+	nfsDirForMachines    = "/nfs/for-machines"
+
+	fstypeFuseBind = "fbind"
 
 	nfsExportsDebounce = 250 * time.Millisecond
 )
@@ -63,6 +66,14 @@ func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
 }
 
 func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFd int) error {
+	// special case for FUSE bind mount for nfs containers-export
+	needsExports := fstype != "" // typically for overlay or fuse
+	if fstype == fstypeFuseBind {
+		// FUSE bind mount does also need fsid
+		needsExports = true
+		fstype = ""
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -125,7 +136,7 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 
 	// fsid is only needed for overlay and fuse (non-bind mounts)
 	var entry nfsMountEntry
-	if fstype != "" && m.controlsExports {
+	if needsExports && m.controlsExports {
 		m.nextFsid++
 		entry = nfsMountEntry{
 			Fsid: m.nextFsid,

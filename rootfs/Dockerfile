@@ -396,12 +396,8 @@ rm -f /etc/motd
 # liblxc requires this to start
 mkdir -p /usr/lib/lxc/rootfs
 
-# NFS
-mkdir -p /nfs/root/ro /nfs/root/rw
-mkdir -p /nfs/images/ro /nfs/images/rw
-mkdir -p /nfs/containers/ro /nfs/containers/rw
-
 # Mountpoints
+mkdir /nfs
 mkdir /data
 mkdir /mnt/mac
 mkdir /mnt/rosetta

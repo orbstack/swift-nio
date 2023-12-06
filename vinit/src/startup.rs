@@ -529,6 +529,7 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(format!("{}/docker/containers", rw_root)).unwrap();
     fs::create_dir_all(format!("{}/docker/volumes", rw_for_machines)).unwrap();
     fs::create_dir("/tmp/empty").unwrap();
+    fs::create_dir("/nfs/containers-export").unwrap();
 
     Ok(())
 }
@@ -833,7 +834,7 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
     service_tracker.spawn(Service::FUSE_PASSTHROUGH, &mut Command::new("/opt/orb/fpll")
         .arg("-f") // foreground
         .arg("-o").arg("source=/nfs/containers/ro")
-        .arg("/nfs/root/ro/docker/containers"))?;
+        .arg("/nfs/containers-export"))?;
 
     // rpc.mountd
     // must start before scon sets up nfs exports

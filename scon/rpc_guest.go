@@ -78,6 +78,12 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 		return fmt.Errorf("move mount: %w", err)
 	}
 
+	// mount to export with new fsid
+	err = s.m.nfsRoot.Mount(nfsDirContainersFuse+"/"+name, "docker/containers/"+name, fstypeFuseBind, unix.MS_BIND|unix.MS_REC, "", -1)
+	if err != nil {
+		return fmt.Errorf("bind mount: %w", err)
+	}
+
 	return nil
 }
 
@@ -113,7 +119,12 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 		if strings.Contains(name, "/") {
 			logrus.WithField("cid", name).Error("invalid container ID")
 		} else {
-			err := s.m.nfsContainers.Unmount(name)
+			err := s.m.nfsRoot.Unmount("docker/containers/" + name)
+			if err != nil {
+				logrus.WithError(err).WithField("cid", name).Error("failed to unmount container")
+			}
+			// TODO: fuse delete
+			err = s.m.nfsContainers.Unmount(name)
 			if err != nil {
 				logrus.WithError(err).WithField("cid", name).Error("failed to unmount rootfs")
 			}
