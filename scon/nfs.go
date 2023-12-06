@@ -96,23 +96,30 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 			return fmt.Errorf("move mount %s: %w", destPath, err)
 		}
 
+		// make rprivate to prevent unmounts from propagating
+		// otherwise it breaks kind, which uses systemd, which remounts all as shared
+		err = unix.Mount("", destPath, "", unix.MS_REC|unix.MS_PRIVATE, "")
+		if err != nil {
+			return fmt.Errorf("remount %s: %w", destPath, err)
+		}
+
 		// this is a recursive mount (open_tree was called with AT_RECURSIVE)
 		// now unmount undesired /proc, /dev, /sys recursively
 		// too many files and not very useful
 		err = unix.Unmount(destPath+"/proc", unix.MNT_DETACH)
 		if err != nil && !errors.Is(err, unix.EINVAL) {
 			// EINVAL = not mounted
-			return fmt.Errorf("unmount %s/proc: %w", destPath, err)
+			return fmt.Errorf("unmount %s/p: %w", destPath, err)
 		}
 		err = unix.Unmount(destPath+"/dev", unix.MNT_DETACH)
 		if err != nil && !errors.Is(err, unix.EINVAL) {
 			// EINVAL = not mounted
-			return fmt.Errorf("unmount %s/dev: %w", destPath, err)
+			return fmt.Errorf("unmount %s/d: %w", destPath, err)
 		}
 		err = unix.Unmount(destPath+"/sys", unix.MNT_DETACH)
 		if err != nil && !errors.Is(err, unix.EINVAL) {
 			// EINVAL = not mounted
-			return fmt.Errorf("unmount %s/sys: %w", destPath, err)
+			return fmt.Errorf("unmount %s/s: %w", destPath, err)
 		}
 	}
 
