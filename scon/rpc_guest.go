@@ -123,7 +123,20 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 			if err != nil {
 				logrus.WithError(err).WithField("cid", name).Error("failed to unmount container")
 			}
-			// TODO: fuse delete
+
+			// delete from FUSE server
+			// has to be done in this order
+			fpllClient, err := NewFpllClient()
+			if err != nil {
+				logrus.WithError(err).Error("failed to connect to fpll")
+			} else {
+				// subpath under /nfs/containers-export - only 1 level supported, direct child of root
+				err = fpllClient.NotifyDeleteSubdir(name)
+				if err != nil {
+					logrus.WithError(err).Error("failed to notify fpll")
+				}
+			}
+
 			err = s.m.nfsContainers.Unmount(name)
 			if err != nil {
 				logrus.WithError(err).WithField("cid", name).Error("failed to unmount rootfs")
