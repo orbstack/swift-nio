@@ -44,6 +44,7 @@ type NfsMirrorManager struct {
 
 type nfsMountEntry struct {
 	Fsid int
+	Rw   bool
 }
 
 func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
@@ -140,6 +141,7 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 		m.nextFsid++
 		entry = nfsMountEntry{
 			Fsid: m.nextFsid,
+			Rw:   flags&unix.MS_RDONLY == 0,
 		}
 		m.exportsDebounce.Call()
 	}
@@ -338,7 +340,11 @@ func (m *NfsMirrorManager) updateExports() error {
 			continue
 		}
 
-		destLines = append(destLines, fmt.Sprintf("%s 127.0.0.8(ro,async,fsid=%d,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", path, entry.Fsid))
+		perms := "ro"
+		if entry.Rw {
+			perms = "rw"
+		}
+		destLines = append(destLines, fmt.Sprintf("%s 127.0.0.8(%s,async,fsid=%d,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", path, perms, entry.Fsid))
 	}
 	exportsBase += strings.Join(destLines, "\n")
 
