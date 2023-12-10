@@ -76,8 +76,6 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, struct lo_inode *> ino_to_ptr;
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, std::string> forgotten_inodes;
-static phmap::parallel_flat_hash_map_m<std::string, fuse_ino_t> root_dir_inodes;
-static phmap::parallel_flat_hash_map_m<fuse_ino_t, std::string> root_dir_names;
 static std::pair<dev_t, ino_t> root_inode_key = {0, 0};
 
 struct lo_inode {
@@ -384,13 +382,6 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 			forgotten_inodes.erase(parent);
 		}
 		pthread_mutex_unlock(&lo->mutex);
-
-		if (parent == FUSE_ROOT_ID) {
-			// root dir
-			std::string name_str(name);
-			root_dir_inodes[name_str] = inode->nodeid;
-			root_dir_names[inode->nodeid] = name_str;
-		}
 	}
 	e->ino = inode->nodeid;
 
@@ -583,12 +574,6 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 			if (strncmp(buf, lo->source, strlen(lo->source)) == 0) {
 				forgotten_inodes[inode->nodeid] = std::string(buf);
 			}
-		}
-		auto root_dir_name = root_dir_names[inode->nodeid];
-		if (root_dir_name != "" && root_dir_inodes[root_dir_name] == inode->nodeid) {
-			trace_printf("removing root dir %s\n", root_dir_name.c_str());
-			root_dir_inodes.erase(root_dir_name);
-			root_dir_names.erase(inode->nodeid);
 		}
 		ino_to_ptr.erase(inode->nodeid);
 
@@ -1266,101 +1251,6 @@ static const struct fuse_lowlevel_ops lo_oper = {
 	.lseek		= lo_lseek,
 };
 
-static int rpc_handle_delete(struct fuse_session *se, const char *path) {
-	std::string child_name(path);
-	auto ino = root_dir_inodes[child_name];
-	if (ino == 0) {
-		fprintf(stderr, "unknown child %s\n", path);
-		return -ECHILD;
-	}
-
-	trace_printf("begin delete %s %lu\n", path, ino);
-	int ret = fuse_lowlevel_notify_delete(se, FUSE_ROOT_ID, ino, child_name.c_str(), child_name.size());
-	if (ret != 0) {
-		fprintf(stderr, "failed to delete: %d\n", ret);
-		return ret;
-	}
-	trace_printf("end delete %s %lu\n", path, ino);
-
-	return 0;
-}
-
-static void serve_rpc_conn(struct fuse_session *se, int conn_fd) {
-	char path_buf[PATH_MAX];
-	while (true) {
-		int len;
-		int ret = read(conn_fd, &len, sizeof(len));
-		if (ret == 0) {
-			break;
-		} else if (ret != sizeof(len)) {
-			fprintf(stderr, "failed to read len\n");
-			break;
-		}
-
-		if (len > PATH_MAX - 1) {
-			fprintf(stderr, "len too large\n");
-			break;
-		}
-
-		ret = read(conn_fd, path_buf, len);
-		if (ret != len) {
-			fprintf(stderr, "failed to read path\n");
-			break;
-		}
-		path_buf[len] = '\0';
-
-		ret = rpc_handle_delete(se, path_buf);
-		if (ret != 0) {
-			fprintf(stderr, "failed to handle delete\n");
-		}
-
-		// return response
-		ret = write(conn_fd, &ret, sizeof(ret));
-		if (ret != sizeof(ret)) {
-			fprintf(stderr, "failed to write response\n");
-			break;
-		}
-	}
-
-	close(conn_fd);
-}
-
-static void listen_rpc(struct fuse_session *se) {
-	int listen_fd = socket(AF_UNIX, SOCK_STREAM|SOCK_CLOEXEC, 0);
-	if (listen_fd == -1) {
-		fprintf(stderr, "failed to create socket\n");
-		return;
-	}
-
-	struct sockaddr_un addr = { .sun_family = AF_UNIX };
-	strcpy(addr.sun_path, "/run/fpll.sock");
-
-	unlink(addr.sun_path);
-	int ret = bind(listen_fd, (struct sockaddr *) &addr, sizeof(addr));
-	if (ret == -1) {
-		fprintf(stderr, "failed to bind\n");
-		return;
-	}
-
-	ret = listen(listen_fd, 1);
-	if (ret == -1) {
-		fprintf(stderr, "failed to listen\n");
-		return;
-	}
-
-
-	// single-threaded server
-	while (true) {
-		int conn_fd = accept4(listen_fd, NULL, NULL, SOCK_CLOEXEC);
-		if (conn_fd == -1) {
-			fprintf(stderr, "failed to accept\n");
-			return;
-		}
-
-		std::thread(serve_rpc_conn, se, conn_fd).detach();
-	}
-}
-
 int main(int argc, char *argv[])
 {
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
@@ -1467,11 +1357,6 @@ int main(int argc, char *argv[])
 	    goto err_out3;
 
 	fuse_daemonize(opts.foreground);
-
-	// XXX: it's NOT safe to stop this server!
-	// RPC server does not safely setop using 'se' before fuse_session_destroy
-	// so that could cause crashes
-	std::thread(listen_rpc, se).detach();
 
 	/* Block until ctrl+c or fusermount -u */
 	if (opts.singlethread)
