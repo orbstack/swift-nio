@@ -56,13 +56,6 @@ func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
 		controlsExports: controlsExports,
 	}
 
-	m.exportsDebounce = syncx.NewFuncDebounce(nfsExportsDebounce, func() {
-		err := m.updateExports()
-		if err != nil {
-			logrus.WithError(err).Error("failed to update exports")
-		}
-	})
-
 	return m
 }
 
@@ -143,7 +136,11 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 			Fsid: m.nextFsid,
 			Rw:   flags&unix.MS_RDONLY == 0,
 		}
-		m.exportsDebounce.Call()
+
+		err := m.updateExportsLocked()
+		if err != nil {
+			return fmt.Errorf("update exports: %w", err)
+		}
 	}
 	m.dests[destPath] = entry
 	return nil
@@ -188,7 +185,10 @@ func (m *NfsMirrorManager) unmountLocked(subdest string) error {
 
 	delete(m.dests, mountPath)
 	if entry.Fsid != 0 {
-		m.exportsDebounce.Call()
+		err := m.updateExportsLocked()
+		if err != nil {
+			return fmt.Errorf("update exports: %w", err)
+		}
 	}
 	return nil
 }
@@ -320,10 +320,14 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string, fs
 	return nil
 }
 
-func (m *NfsMirrorManager) updateExports() error {
+func (m *NfsMirrorManager) UpdateExports() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	return m.updateExportsLocked()
+}
+
+func (m *NfsMirrorManager) updateExportsLocked() error {
 	// 127.0.0.8 = vsock
 	// root export needs to be rw for machines
 	// docker/volumes export has different uid/gid

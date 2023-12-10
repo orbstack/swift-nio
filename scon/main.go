@@ -114,7 +114,7 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 		mgr.nfsRoot.hostUid = u.Uid
 		go func() {
 			// update exports
-			err := mgr.nfsRoot.updateExports()
+			err := mgr.nfsRoot.UpdateExports()
 			if err != nil {
 				logrus.WithError(err).Error("failed to update nfs exports")
 				return
