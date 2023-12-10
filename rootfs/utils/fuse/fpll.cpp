@@ -164,7 +164,13 @@ static uint64_t hash_st_ino(dev_t dev, ino_t ino) {
 
 static int lo_fd(fuse_req_t req, fuse_ino_t ino)
 {
-	return lo_inode(req, ino)->fd;
+	struct lo_inode *inode = lo_inode(req, ino);
+	if (!inode) {
+		// will naturally return EBADF
+		return -1;
+	}
+
+	return inode->fd;
 }
 
 static bool lo_debug(fuse_req_t req)
@@ -223,6 +229,10 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
 	int saverr;
 	char procname[64];
 	struct lo_inode *inode = lo_inode(req, ino);
+	if (!inode) {
+		fuse_reply_err(req, EBADF);
+		return;
+	}
 	int ifd = inode->fd;
 	int res;
 
@@ -414,6 +424,10 @@ static void lo_mknod_symlink(fuse_req_t req, fuse_ino_t parent,
 	int res;
 	int saverr;
 	struct lo_inode *dir = lo_inode(req, parent);
+	if (!dir) {
+		fuse_reply_err(req, EBADF);
+		return;
+	}
 	struct fuse_entry_param e;
 
 	res = mknod_wrapper(dir->fd, name, link, mode, rdev);
@@ -461,6 +475,10 @@ static void lo_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
 	int res;
 	struct lo_data *lo = lo_data(req);
 	struct lo_inode *inode = lo_inode(req, ino);
+	if (!inode) {
+		fuse_reply_err(req, EBADF);
+		return;
+	}
 	struct fuse_entry_param e;
 	char procname[64];
 	int saverr;
@@ -576,6 +594,10 @@ static void lo_forget_one(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 {
 	struct lo_data *lo = lo_data(req);
 	struct lo_inode *inode = lo_inode(req, ino);
+	if (!inode) {
+		fuse_reply_err(req, EBADF);
+		return;
+	}
 
 	if (lo_debug(req)) {
 		fuse_log(FUSE_LOG_DEBUG, "  forget %lli %lli -%lli\n",
@@ -993,6 +1015,10 @@ static void lo_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
 	char *value = NULL;
 	char procname[64];
 	struct lo_inode *inode = lo_inode(req, ino);
+	if (!inode) {
+		fuse_reply_err(req, EBADF);
+		return;
+	}
 	ssize_t ret;
 	int saverr;
 
@@ -1043,6 +1069,10 @@ static void lo_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
 	char *value = NULL;
 	char procname[64];
 	struct lo_inode *inode = lo_inode(req, ino);
+	if (!inode) {
+		fuse_reply_err(req, EBADF);
+		return;
+	}
 	ssize_t ret;
 	int saverr;
 
@@ -1093,6 +1123,10 @@ static void lo_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
 {
 	char procname[64];
 	struct lo_inode *inode = lo_inode(req, ino);
+	if (!inode) {
+		fuse_reply_err(req, EBADF);
+		return;
+	}
 	ssize_t ret;
 	int saverr;
 
@@ -1118,6 +1152,10 @@ static void lo_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name)
 {
 	char procname[64];
 	struct lo_inode *inode = lo_inode(req, ino);
+	if (!inode) {
+		fuse_reply_err(req, EBADF);
+		return;
+	}
 	ssize_t ret;
 	int saverr;
 
