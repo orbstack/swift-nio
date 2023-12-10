@@ -47,13 +47,6 @@ impl Service {
         clean_stop: false,
     };
 
-    pub const FUSE_PASSTHROUGH: Service = Service {
-        name: "pfs",
-        critical: false,
-        restartable: false,
-        clean_stop: false,
-    };
-
     // critical because macOS NFS can freeze, or even worse, kernel panic if it crashes
     // nfs4 still needs this - kernel nfsd talks to it
     pub const NFS_MOUNTD: Service = Service {

@@ -27,6 +27,7 @@ type SconGuestServer struct {
 	dockerMachine   *Container
 	vlanRouterIfi   int
 	vlanMacTemplate net.HardwareAddr
+	fpll            *FpllManager
 }
 
 func (s *SconGuestServer) Ping(_ None, _ *None) error {
@@ -73,13 +74,49 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	}
 
 	// move mount
-	err = s.m.nfsContainers.Mount("", name, "", 0, "", fd)
+	err = s.m.nfsContainers.Mount("", name, "", 0, "", func(destPath string) error {
+		err := unix.MoveMount(fd, "", unix.AT_FDCWD, destPath, unix.MOVE_MOUNT_F_EMPTY_PATH)
+		if err != nil {
+			return fmt.Errorf("move mount %s: %w", destPath, err)
+		}
+
+		// make rprivate to prevent unmounts from propagating
+		// otherwise it breaks kind, which uses systemd, which remounts all as shared
+		err = unix.Mount("", destPath, "", unix.MS_REC|unix.MS_PRIVATE, "")
+		if err != nil {
+			return fmt.Errorf("remount %s: %w", destPath, err)
+		}
+
+		// this is a recursive mount (open_tree was called with AT_RECURSIVE)
+		// now unmount undesired /proc, /dev, /sys recursively
+		// too many files and not very useful
+		err = unix.Unmount(destPath+"/proc", unix.MNT_DETACH)
+		if err != nil && !errors.Is(err, unix.EINVAL) {
+			// EINVAL = not mounted
+			return fmt.Errorf("unmount %s/p: %w", destPath, err)
+		}
+		err = unix.Unmount(destPath+"/dev", unix.MNT_DETACH)
+		if err != nil && !errors.Is(err, unix.EINVAL) {
+			// EINVAL = not mounted
+			return fmt.Errorf("unmount %s/d: %w", destPath, err)
+		}
+		err = unix.Unmount(destPath+"/sys", unix.MNT_DETACH)
+		if err != nil && !errors.Is(err, unix.EINVAL) {
+			// EINVAL = not mounted
+			return fmt.Errorf("unmount %s/s: %w", destPath, err)
+		}
+
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("move mount: %w", err)
 	}
 
 	// mount to export with new fsid
-	err = s.m.nfsRoot.Mount(nfsDirContainersFuse+"/"+name, "docker/containers/"+name, fstypeFuseBind, unix.MS_BIND|unix.MS_REC, "", -1)
+	err = s.m.nfsRoot.Mount("", "docker/containers/"+name, fstypeFuseBind, 0, "", func(destPath string) error {
+		// TODO: shadow mount is NOT needed for /nfs/containers
+		return s.fpll.StartMount(nfsDirContainers+"/ro/"+name, destPath)
+	})
 	if err != nil {
 		return fmt.Errorf("bind mount: %w", err)
 	}
@@ -124,19 +161,10 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 				logrus.WithError(err).WithField("cid", name).Error("failed to unmount container")
 			}
 
-			// delete from FUSE server
-			// has to be done in this order
-			fpllClient, err := NewFpllClient()
+			// kill fuse server to release fds
+			err = s.fpll.StopMount(nfsDirRoot + "/ro/docker/containers/" + name)
 			if err != nil {
-				logrus.WithError(err).Error("failed to connect to fpll")
-			} else {
-				defer fpllClient.Close()
-				// TODO: this can take a relatively long time, and holds machine.mu for read
-				// subpath under /nfs/containers-export - only 1 level supported, direct child of root
-				err = fpllClient.NotifyDeleteSubdir(name)
-				if err != nil {
-					logrus.WithError(err).Error("failed to notify fpll")
-				}
+				logrus.WithError(err).WithField("cid", name).Error("failed to stop fs server")
 			}
 
 			err = s.m.nfsContainers.Unmount(name)
@@ -296,6 +324,7 @@ func ListenSconGuest(m *ConManager) error {
 		dockerMachine:   dockerMachine,
 		vlanRouterIfi:   vlanRouterIf.Index,
 		vlanMacTemplate: vlanMacTemplate,
+		fpll:            NewFpllManager(),
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("scg", server)

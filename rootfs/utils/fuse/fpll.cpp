@@ -1356,6 +1356,9 @@ int main(int argc, char *argv[])
 	if (fuse_session_mount(se, opts.mountpoint) != 0)
 	    goto err_out3;
 
+	// notify parent that mount was successful
+	write(STDOUT_FILENO, "0", 1);
+
 	fuse_daemonize(opts.foreground);
 
 	/* Block until ctrl+c or fusermount -u */

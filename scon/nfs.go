@@ -19,10 +19,9 @@ import (
 )
 
 const (
-	nfsDirRoot           = "/nfs/root"
-	nfsDirContainers     = "/nfs/containers"
-	nfsDirContainersFuse = "/nfs/containers-export"
-	nfsDirForMachines    = "/nfs/for-machines"
+	nfsDirRoot        = "/nfs/root"
+	nfsDirContainers  = "/nfs/containers"
+	nfsDirForMachines = "/nfs/for-machines"
 
 	fstypeFuseBind = "fbind"
 
@@ -59,7 +58,7 @@ func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
 	return m
 }
 
-func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFd int) error {
+func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFunc func(destPath string) error) error {
 	// special case for FUSE bind mount for nfs containers-export
 	needsExports := fstype != "" // typically for overlay or fuse
 	if fstype == fstypeFuseBind {
@@ -90,62 +89,39 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	_ = unix.Unmount(destPath, unix.MNT_DETACH)
 
 	// bind mount
-	if mountFd == -1 {
+	if mountFunc != nil {
+		err = mountFunc(destPath)
+		if err != nil {
+			return fmt.Errorf("mount func: %w", err)
+		}
+	} else {
 		err = unix.Mount(source, destPath, fstype, flags, data)
 		if err != nil {
 			return fmt.Errorf("mount %s: %w", destPath, err)
 		}
-	} else {
-		err = unix.MoveMount(mountFd, "", unix.AT_FDCWD, destPath, unix.MOVE_MOUNT_F_EMPTY_PATH)
-		if err != nil {
-			return fmt.Errorf("move mount %s: %w", destPath, err)
-		}
-
-		// make rprivate to prevent unmounts from propagating
-		// otherwise it breaks kind, which uses systemd, which remounts all as shared
-		err = unix.Mount("", destPath, "", unix.MS_REC|unix.MS_PRIVATE, "")
-		if err != nil {
-			return fmt.Errorf("remount %s: %w", destPath, err)
-		}
-
-		// this is a recursive mount (open_tree was called with AT_RECURSIVE)
-		// now unmount undesired /proc, /dev, /sys recursively
-		// too many files and not very useful
-		err = unix.Unmount(destPath+"/proc", unix.MNT_DETACH)
-		if err != nil && !errors.Is(err, unix.EINVAL) {
-			// EINVAL = not mounted
-			return fmt.Errorf("unmount %s/p: %w", destPath, err)
-		}
-		err = unix.Unmount(destPath+"/dev", unix.MNT_DETACH)
-		if err != nil && !errors.Is(err, unix.EINVAL) {
-			// EINVAL = not mounted
-			return fmt.Errorf("unmount %s/d: %w", destPath, err)
-		}
-		err = unix.Unmount(destPath+"/sys", unix.MNT_DETACH)
-		if err != nil && !errors.Is(err, unix.EINVAL) {
-			// EINVAL = not mounted
-			return fmt.Errorf("unmount %s/s: %w", destPath, err)
-		}
 	}
 
 	// fsid is only needed for overlay and fuse (non-bind mounts)
+	entry := nfsMountEntry{
+		Rw: flags&unix.MS_RDONLY == 0,
+	}
 	if needsExports && m.controlsExports {
 		m.nextFsid++
-		m.dests[destPath] = nfsMountEntry{
-			Fsid: m.nextFsid,
-			Rw:   flags&unix.MS_RDONLY == 0,
-		}
+		entry.Fsid = m.nextFsid
+		m.dests[destPath] = entry
 
 		err := m.updateExportsLocked()
 		if err != nil {
 			return fmt.Errorf("update exports: %w", err)
 		}
+	} else {
+		m.dests[destPath] = entry
 	}
 	return nil
 }
 
 func (m *NfsMirrorManager) MountBind(source string, subdest string) error {
-	return m.Mount(source, subdest, "", unix.MS_BIND, "", -1)
+	return m.Mount(source, subdest, "", unix.MS_BIND, "", nil)
 }
 
 func (m *NfsMirrorManager) Unmount(subdest string) error {
@@ -310,7 +286,7 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string, fs
 	}
 
 	subDest := "docker/images/" + tag
-	err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"), -1)
+	err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"), nil)
 	if err != nil {
 		return fmt.Errorf("mount overlay on %s: %w", subDest, err)
 	}
