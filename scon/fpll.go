@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 )
 
@@ -31,5 +32,22 @@ func (c *FpllClient) NotifyDeleteSubdir(subdir string) error {
 		return err
 	}
 
+	// wait for response
+	var buf [4]byte
+	_, err = c.conn.Read(buf[:])
+	if err != nil {
+		return err
+	}
+
+	// decode int
+	resp := int32(binary.LittleEndian.Uint32(buf[:]))
+	if resp != 0 {
+		return fmt.Errorf("fpll: %d", resp)
+	}
+
 	return nil
+}
+
+func (c *FpllClient) Close() error {
+	return c.conn.Close()
 }

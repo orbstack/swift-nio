@@ -1218,43 +1218,63 @@ static const struct fuse_lowlevel_ops lo_oper = {
 	.lseek		= lo_lseek,
 };
 
+static int rpc_handle_delete(struct fuse_session *se, const char *path) {
+	std::string child_name(path);
+	auto ino = root_dir_inodes[child_name];
+	if (ino == 0) {
+		fprintf(stderr, "unknown child %s\n", path);
+		return -ECHILD;
+	}
+
+	trace_printf("begin delete %s %lu\n", path, ino);
+	int ret = fuse_lowlevel_notify_delete(se, FUSE_ROOT_ID, ino, child_name.c_str(), child_name.size());
+	if (ret != 0) {
+		fprintf(stderr, "failed to delete: %d\n", ret);
+		return ret;
+	}
+	trace_printf("end delete %s %lu\n", path, ino);
+
+	return 0;
+}
+
 static void serve_rpc_conn(struct fuse_session *se, int conn_fd) {
-	char buf[PATH_MAX];
+	char path_buf[PATH_MAX];
 	while (true) {
 		int len;
 		int ret = read(conn_fd, &len, sizeof(len));
 		if (ret == 0) {
-			return;
+			break;
 		} else if (ret != sizeof(len)) {
 			fprintf(stderr, "failed to read len\n");
-			return;
+			break;
 		}
 
 		if (len > PATH_MAX - 1) {
 			fprintf(stderr, "len too large\n");
-			return;
+			break;
 		}
 
-		ret = read(conn_fd, buf, len);
+		ret = read(conn_fd, path_buf, len);
 		if (ret != len) {
 			fprintf(stderr, "failed to read path\n");
-			return;
+			break;
 		}
-		buf[len] = '\0';
+		path_buf[len] = '\0';
 
-		std::string child_name(buf);
-		auto ino = root_dir_inodes[child_name];
-		if (ino == 0) {
-			fprintf(stderr, "unknown child %s\n", buf);
-			continue;
-		}
-
-		ret = fuse_lowlevel_notify_delete(se, FUSE_ROOT_ID, ino, child_name.c_str(), child_name.size());
+		ret = rpc_handle_delete(se, path_buf);
 		if (ret != 0) {
-			fprintf(stderr, "failed to delete: %d\n", ret);
-			return;
+			fprintf(stderr, "failed to handle delete\n");
+		}
+
+		// return response
+		ret = write(conn_fd, &ret, sizeof(ret));
+		if (ret != sizeof(ret)) {
+			fprintf(stderr, "failed to write response\n");
+			break;
 		}
 	}
+
+	close(conn_fd);
 }
 
 static void listen_rpc(struct fuse_session *se) {
@@ -1283,13 +1303,13 @@ static void listen_rpc(struct fuse_session *se) {
 
 	// single-threaded server
 	while (true) {
-		int conn_fd = accept(listen_fd, NULL, NULL);
+		int conn_fd = accept4(listen_fd, NULL, NULL, SOCK_CLOEXEC);
 		if (conn_fd == -1) {
 			fprintf(stderr, "failed to accept\n");
 			return;
 		}
 
-		serve_rpc_conn(se, conn_fd);
+		std::thread(serve_rpc_conn, se, conn_fd).detach();
 	}
 }
 

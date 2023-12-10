@@ -130,6 +130,8 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 			if err != nil {
 				logrus.WithError(err).Error("failed to connect to fpll")
 			} else {
+				defer fpllClient.Close()
+				// TODO: this can take a relatively long time, and holds machine.mu for read
 				// subpath under /nfs/containers-export - only 1 level supported, direct child of root
 				err = fpllClient.NotifyDeleteSubdir(name)
 				if err != nil {
