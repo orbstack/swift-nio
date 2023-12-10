@@ -156,6 +156,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 		if strings.Contains(name, "/") {
 			logrus.WithField("cid", name).Error("invalid container ID")
 		} else {
+			// detach fuse mount first to avoid user-facing errors (socket not connected)
 			err := s.m.nfsRoot.Unmount("docker/containers/" + name)
 			if err != nil {
 				logrus.WithError(err).WithField("cid", name).Error("failed to unmount container")
@@ -167,6 +168,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 				logrus.WithError(err).WithField("cid", name).Error("failed to stop fs server")
 			}
 
+			// finally unmount underlying overlayfs
 			err = s.m.nfsContainers.Unmount(name)
 			if err != nil {
 				logrus.WithError(err).WithField("cid", name).Error("failed to unmount rootfs")

@@ -1371,6 +1371,9 @@ int main(int argc, char *argv[])
 	}
 
 	fuse_session_unmount(se);
+	// no point in cleaning up
+	// SIGSEGV on free when mountpoint is unmounted (detached)
+	return ret ? 1 : 0;
 err_out3:
 	fuse_remove_signal_handlers(se);
 err_out2:
