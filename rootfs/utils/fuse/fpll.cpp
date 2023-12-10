@@ -332,21 +332,27 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 	e->entry_timeout = lo->timeout;
 
 	// parent fd:
-	auto forgotten = forgotten_inodes[parent];
-	if (forgotten != "") {
-		// cases are '.' and '..' (or other path)
-		if (!strcmp(name, ".")) {
-			trace_printf("recovering [file, %s] fd %lu from %s\n", name, parent, forgotten.c_str());
-			newfd = openat(AT_FDCWD, forgotten.c_str(), O_PATH | O_NOFOLLOW);
-			recovered = true;
+	int parent_fd = lo_fd(req, parent);
+	if (parent_fd == -1) {
+		// only check forgotten and recover if parent is not found
+		auto forgotten = forgotten_inodes[parent];
+		if (forgotten != "") {
+			// cases are '.' and '..' (or other path)
+			if (!strcmp(name, ".")) {
+				trace_printf("recovering [file, %s] fd %lu from %s\n", name, parent, forgotten.c_str());
+				newfd = openat(AT_FDCWD, forgotten.c_str(), O_PATH | O_NOFOLLOW);
+				recovered = true;
+			} else {
+				char new_path[PATH_MAX];
+				snprintf(new_path, PATH_MAX, "%s/%s", forgotten.c_str(), name);
+				trace_printf("recovering [dir, %s] fd %lu from %s\n", name, parent, new_path);
+				newfd = openat(AT_FDCWD, new_path, O_PATH | O_NOFOLLOW);
+			}
 		} else {
-			char new_path[PATH_MAX];
-			snprintf(new_path, PATH_MAX, "%s/%s", forgotten.c_str(), name);
-			trace_printf("recovering [dir, %s] fd %lu from %s\n", name, parent, new_path);
-			newfd = openat(AT_FDCWD, new_path, O_PATH | O_NOFOLLOW);
+			return EBADF;
 		}
 	} else {
-		newfd = openat(lo_fd(req, parent), name, O_PATH | O_NOFOLLOW);
+		newfd = openat(parent_fd, name, O_PATH | O_NOFOLLOW);
 	}
 	if (newfd == -1)
 		goto out_err;
@@ -570,11 +576,16 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 		} else {
 			// add to map
 			buf[res] = '\0';
-			trace_printf("storing fd %lu from path %s\n", inode->nodeid, buf);
-			forgotten_inodes[inode->nodeid] = std::string(buf);
+			trace_printf("storing fd %lu from path %s - source %s\n", inode->nodeid, buf, lo->source);
+			// sanity check for security: MUST be under source. '/' can happen if bind mount was detached and raced
+			// not possible to have '..' in readlink path so that's safe
+			// this also prevents weird ENOENT errors after NFS container remount
+			if (strncmp(buf, lo->source, strlen(lo->source)) == 0) {
+				forgotten_inodes[inode->nodeid] = std::string(buf);
+			}
 		}
 		auto root_dir_name = root_dir_names[inode->nodeid];
-		if (root_dir_name != "") {
+		if (root_dir_name != "" && root_dir_inodes[root_dir_name] == inode->nodeid) {
 			trace_printf("removing root dir %s\n", root_dir_name.c_str());
 			root_dir_inodes.erase(root_dir_name);
 			root_dir_names.erase(inode->nodeid);
@@ -584,7 +595,6 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 		pthread_mutex_unlock(&lo->mutex);
 		close(inode->fd);
 		free(inode);
-
 	} else {
 		pthread_mutex_unlock(&lo->mutex);
 	}
