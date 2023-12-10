@@ -129,10 +129,9 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	}
 
 	// fsid is only needed for overlay and fuse (non-bind mounts)
-	var entry nfsMountEntry
 	if needsExports && m.controlsExports {
 		m.nextFsid++
-		entry = nfsMountEntry{
+		m.dests[destPath] = nfsMountEntry{
 			Fsid: m.nextFsid,
 			Rw:   flags&unix.MS_RDONLY == 0,
 		}
@@ -142,7 +141,6 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 			return fmt.Errorf("update exports: %w", err)
 		}
 	}
-	m.dests[destPath] = entry
 	return nil
 }
 
