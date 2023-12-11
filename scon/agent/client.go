@@ -183,20 +183,25 @@ func (c *Client) WaitPid(pid int) (int, error) {
 	return status, nil
 }
 
-func (c *Client) DockerHandleConn(conn net.Conn) error {
-	file, err := conn.(*net.TCPConn).File()
+func (c *Client) DockerDialSocket() (net.Conn, error) {
+	var seq uint64
+	err := c.rpc.Call("a.DockerDialSocket", None{}, &seq)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	seq, err := c.fdx.SendFile(file)
-	file.Close()
+	file, err := c.fdx.RecvFile(seq)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	defer file.Close()
 
+	return net.FileConn(file)
+}
+
+func (c *Client) DockerSyncEvents() error {
 	var none None
-	err = c.rpc.Call("a.DockerHandleConn", seq, &none)
+	err := c.rpc.Call("a.DockerSyncEvents", None{}, &none)
 	if err != nil {
 		return err
 	}

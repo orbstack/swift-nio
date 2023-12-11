@@ -23,7 +23,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
-	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 )
 
@@ -215,20 +214,7 @@ func (a *AgentServer) DockerCheckIdle(_ None, reply *bool) error {
 	return nil
 }
 
-func (a *AgentServer) DockerHandleConn(fdxSeq uint64, _ *None) error {
-	// receive fd
-	file, err := a.fdx.RecvFile(fdxSeq)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	extConn, err := net.FileConn(file)
-	if err != nil {
-		return err
-	}
-	defer extConn.Close()
-
+func (a *AgentServer) DockerDialSocket(_ None, reply *uint64) error {
 	// wait for docker
 	a.docker.Running.Wait()
 
@@ -239,7 +225,22 @@ func (a *AgentServer) DockerHandleConn(fdxSeq uint64, _ *None) error {
 	}
 	defer dockerConn.Close()
 
-	tcppump.Pump2SpTcpUnix(extConn.(*net.TCPConn), dockerConn.(*net.UnixConn))
+	// send file
+	file, err := dockerConn.(*net.UnixConn).File()
+	if err != nil {
+		return err
+	}
+	seq, err := a.fdx.SendFile(file)
+	if err != nil {
+		return err
+	}
+
+	*reply = seq
+	return nil
+}
+
+func (a *AgentServer) DockerSyncEvents(_ None, _ *None) error {
+	a.docker.containerRefreshDebounce.CallNow()
 	return nil
 }
 

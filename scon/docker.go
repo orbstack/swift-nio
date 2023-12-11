@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httputil"
 	"net/netip"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -709,6 +713,7 @@ type DockerProxy struct {
 	container *Container
 	manager   *ConManager
 	l         net.Listener
+	revProxy  *httputil.ReverseProxy
 }
 
 func (m *ConManager) startDockerProxy() error {
@@ -726,10 +731,33 @@ func (m *ConManager) startDockerProxy() error {
 		return err
 	}
 
+	baseURL := &url.URL{
+		Scheme: "http",
+		Host:   "docker",
+		Path:   "/",
+	}
+	revProxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(baseURL)
+		},
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				// must use agent for blocking wait-for-start
+				return UseAgentRet(c, func(a *agent.Client) (net.Conn, error) {
+					return a.DockerDialSocket()
+				})
+			},
+			// mostly copied from tlsproxy
+			IdleConnTimeout:     15 * time.Second,
+			MaxIdleConnsPerHost: 200,
+		},
+	}
+
 	proxy := &DockerProxy{
 		manager:   m,
 		container: c,
 		l:         l,
+		revProxy:  revProxy,
 	}
 	m.dockerProxy = proxy
 
@@ -752,46 +780,46 @@ func (p *DockerProxy) kickStart(freezer *Freezer) {
 	freezer.DecRef()
 }
 
-func (p *DockerProxy) Run() error {
-	for {
-		conn, err := p.l.Accept()
-		if err != nil {
-			return err
-		}
-
-		go func() {
-			err := p.handleConn(conn)
-			if err != nil {
-				logrus.WithError(err).Error("failed to handle docker connection")
-			}
-		}()
-	}
-}
-
-func (p *DockerProxy) handleConn(conn net.Conn) error {
-	defer conn.Close()
-
+func (p *DockerProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// start docker container if not running
 	if !p.container.Running() {
 		logrus.Debug("docker not running, starting")
 		err := p.container.Start()
 		if err != nil {
-			return err
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
 
-	// tell agent to handle this conn
-	// UseAgent holds freezer ref
-	// this also waits for docker start on the agent side, so no need to call waitStart
-	err := p.container.UseAgent(func(a *agent.Client) error {
-		return a.DockerHandleConn(conn)
-	})
-	if err != nil {
-		return err
+	// take freezer ref
+	// only possible to do it race-free from scon side
+	freezer := p.container.Freezer()
+	if freezer == nil {
+		http.Error(w, "docker not running, stopped", http.StatusInternalServerError)
+		return
 	}
-	// after the RPC call returns, we know the conn is closed
+	freezer.IncRef()
+	defer freezer.DecRef()
 
-	return nil
+	// if we're starting a container, we need to synchronize container change events for NFS unmount
+	// this prevents overlayfs upperdir/workdir concurrent reuse race
+	// TODO check full path. this skips /containers/ check because of optional API version prefix
+	if strings.HasSuffix(r.URL.Path, "/start") {
+		logrus.Debug("synchronizing events for container start")
+		err := p.container.UseAgent(func(a *agent.Client) error {
+			return a.DockerSyncEvents()
+		})
+		if err != nil {
+			logrus.WithError(err).Error("failed to synchronize events for container start")
+		}
+	}
+
+	// normal reverse proxy path
+	p.revProxy.ServeHTTP(w, r)
+}
+
+func (p *DockerProxy) Run() error {
+	return http.Serve(p.l, p)
 }
 
 func (p *DockerProxy) Close() error {

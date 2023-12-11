@@ -48,3 +48,15 @@ func (d *FuncDebounce) Cancel() {
 		d.timer = nil
 	}
 }
+
+func (d *FuncDebounce) CallNow() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.timer != nil {
+		d.timer.Stop()
+		d.timer = nil
+	}
+
+	d.timerCallback()
+}
