@@ -139,10 +139,9 @@ func (p *ProxyManager) excludeProxyHost(hostPort string) error {
 
 // general idea:
 // SOCKS: use it for everything
-// HTTP: use it for HTTP *and* HTTPS
-// HTTPS: use it for HTTP *and* HTTPS
-// determined by ports 80 and 443
-// because proxies tend to block other ports
+// HTTP/HTTPS: use it for HTTP (special case) and everything
+// http proxies tend to block CONNECT to non-443 ports,
+// but if there's a proxy set, outgoing conns will probably get blocked anyway
 func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL, error) {
 	p.dialerMu.Lock()
 	defer p.dialerMu.Unlock()
@@ -200,22 +199,11 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 		}
 
 		// overrides are a bit special, because there's only one setting
-		// if SOCKS: use it for everything
-		// if HTTP: use it for HTTP *and* HTTPS
-		// if HTTPS: use it for HTTP *and* HTTPS
+		// use all proxies for everything in this case
 		ctxDialer := proxyDialer.(proxy.ContextDialer)
-		switch u.Scheme {
-		case proxyProtoSocks:
-			p.dialerAll = ctxDialer
-			p.dialerHttp = ctxDialer
-			p.dialerHttps = ctxDialer
-		case proxyProtoHttp, proxyProtoHttps:
-			p.dialerAll = nil
-			p.dialerHttp = ctxDialer
-			p.dialerHttps = ctxDialer
-		default:
-			return nil, errors.New("invalid proxy scheme: " + u.Scheme)
-		}
+		p.dialerAll = ctxDialer
+		p.dialerHttp = ctxDialer
+		p.dialerHttps = ctxDialer
 
 		// exclude the proxy from filter to prevent infinite loop
 		err = p.excludeProxyHost(u.Host)
@@ -337,6 +325,13 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 
 		p.dialerHttp = proxyDialer.(proxy.ContextDialer)
 		lastProxyUrl = u
+	}
+
+	// if both HTTP and HTTPS proxies are enabled, and they're the same, then use it for all ports
+	// only for automatic macOS settings. explicit override with http:// proxy is used
+	if settings.HTTPEnable && settings.HTTPSEnable && settings.HTTPProxy == settings.HTTPSProxy && settings.HTTPPort == settings.HTTPSPort {
+		// https dialer is the one that uses CONNECT
+		p.dialerAll = p.dialerHttps
 	}
 
 	// if we have a last proxy url, return it
