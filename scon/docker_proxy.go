@@ -23,6 +23,7 @@ import (
 // must have constant size for bufio, but we use EWMA for copying
 const dockerProxyBufferSize = 65536
 
+// sentinel to exit nested func
 var errCloseConn = errors.New("close conn")
 
 type DockerProxy struct {
@@ -189,8 +190,8 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			// this is the complicated part.
 			// to allow connection reuse:
 			// - if switching protocols (101), copy BOTH directions until EOF, and close conns (fast)
-			// - if we have a Content-Length, copy that many bytes, and loop for next request (SLOW-ish!!!)
-			// - if Transfer-Encoding = chunked, copy by chunks. (SLOW!!!)
+			// - if we have a Content-Length, copy that many bytes, and loop for next request (SLOW-ish b/c LimitedReader blocks splice)
+			// - if Transfer-Encoding = chunked, copy by chunks. (SLOW!!)
 			// - else, copy until EOF, and close conns (fast)
 			inBody = true
 			if resp.StatusCode == http.StatusSwitchingProtocols {
