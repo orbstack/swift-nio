@@ -63,13 +63,16 @@ func (m *ConManager) startDockerProxy() error {
 // preserves 1-to-1 connection mapping for simplicity
 //   - less conn reuse - worse for perf, but much simpler
 //   - but there's no reason this can't be implemented with a conn pool + TTL
+//
+// handles all cases of body copying: TCP upgrades, half duplex, chunked TE, content-length, Connection=close
+// copies much faster than httputil.ReverseProxy
 func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 	defer clientConn.Close()
 
-	inBody := false
+	inRequest := false
 	defer func() {
-		// if we're not in a response body, then it's OK to send the error to the client
-		if retErr != nil && !inBody {
+		// if we're in a request but NOT a response body, then it's OK to send the error to the client
+		if retErr != nil && inRequest {
 			// send 502 error with body
 			resp := &http.Response{
 				StatusCode: http.StatusBadGateway,
@@ -112,6 +115,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			}
 			return fmt.Errorf("read request: %w", err)
 		}
+		inRequest = true
 
 		// restore Host (deleted by ReadRequest)
 		req.Header.Set("Host", req.Host)
@@ -131,6 +135,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 
 		err = func() error {
 			// take freezer ref on a per-request level
+			// fixes idle conns from user's tools keeping machine alive
 			// only possible to do it race-free from scon side
 			freezer := p.container.Freezer()
 			if freezer == nil {
@@ -176,6 +181,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			if err != nil {
 				return fmt.Errorf("write response: %w", err)
 			}
+			inRequest = false // we've started responding, so can't send an error response until next req
 			err = resp.Header.Write(clientConn)
 			if err != nil {
 				return fmt.Errorf("write response header: %w", err)
@@ -193,7 +199,6 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			// - if we have a Content-Length, copy that many bytes, and loop for next request (SLOW-ish b/c LimitedReader blocks splice)
 			// - if Transfer-Encoding = chunked, copy by chunks. (SLOW!!)
 			// - else, copy until EOF, and close conns (fast)
-			inBody = true
 			if resp.StatusCode == http.StatusSwitchingProtocols {
 				// flush remaining bufio data
 				// ignore errors in case one side is already closed for write
@@ -222,7 +227,6 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 					return errCloseConn
 				}
 			}
-			inBody = false
 
 			return nil
 		}()
