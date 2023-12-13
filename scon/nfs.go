@@ -143,6 +143,7 @@ func (m *NfsMirrorManager) unmountLocked(subdest string) error {
 	if verboseDebug {
 		logrus.WithField("dst", mountPath).Trace("unmounting nfs dir")
 	}
+
 	// unmount
 	// MNT_DETACH is recursive
 	err := unix.Unmount(mountPath, unix.MNT_DETACH)

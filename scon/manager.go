@@ -351,6 +351,7 @@ func (m *ConManager) Close() error {
 	m.bpf.Close()
 	m.nfsRoot.Close()
 	m.nfsForMachines.Close()
+	m.nfsContainers.Close()
 	close(m.stopChan)          // this acts as broadcast
 	_ = os.RemoveAll(m.tmpDir) // seccomp and lxc
 	return nil
