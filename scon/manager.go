@@ -72,6 +72,7 @@ type ConManager struct {
 	nfsContainers  *NfsMirrorManager
 	nfsForMachines *NfsMirrorManager
 	nfsForAll      NfsMirror
+	fpll           *FpllManager
 
 	// stop
 	stopChan      chan struct{}
@@ -153,6 +154,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		nfsRoot:        newNfsMirror(nfsDirRoot, true),
 		nfsContainers:  newNfsMirror(nfsDirContainers, false),
 		nfsForMachines: newNfsMirror(nfsDirForMachines, false),
+		fpll:           NewFpllManager(),
 
 		stopChan:      make(chan struct{}),
 		earlyStopChan: make(chan struct{}),

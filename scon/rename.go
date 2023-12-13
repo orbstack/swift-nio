@@ -40,6 +40,7 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	if err != nil {
 		return "", err
 	}
+	defer c.manager.nfsForAll.Flush()
 	// past this point, recover by remounting old name
 	defer func() {
 		if retErr != nil {

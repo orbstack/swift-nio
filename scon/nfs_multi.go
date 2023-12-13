@@ -11,6 +11,7 @@ type NfsMirror interface {
 	Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFunc func(destPath string) error) error
 	MountBind(source string, subdest string) error
 	Unmount(subdest string) error
+	Flush() error
 	Close() error
 	MountImage(img *dockertypes.FullImage, tag string, fs *securefs.FS) error
 	UnmountAll(prefix string) error
@@ -52,6 +53,17 @@ func (m *MultiNfsMirror) Unmount(subdest string) error {
 	var errs []error
 	for _, mirror := range m.mirrors {
 		err := mirror.Unmount(subdest)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (m *MultiNfsMirror) Flush() error {
+	var errs []error
+	for _, mirror := range m.mirrors {
+		err := mirror.Flush()
 		if err != nil {
 			errs = append(errs, err)
 		}

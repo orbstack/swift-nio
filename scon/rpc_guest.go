@@ -27,7 +27,6 @@ type SconGuestServer struct {
 	dockerMachine   *Container
 	vlanRouterIfi   int
 	vlanMacTemplate net.HardwareAddr
-	fpll            *FpllManager
 }
 
 func (s *SconGuestServer) Ping(_ None, _ *None) error {
@@ -115,7 +114,7 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	// mount to export with new fsid
 	err = s.m.nfsRoot.Mount("", "docker/containers/"+name, fstypeFuseBind, 0, "", func(destPath string) error {
 		// TODO: shadow mount is NOT needed for /nfs/containers
-		return s.fpll.StartMount(nfsDirContainers+"/ro/"+name, destPath)
+		return s.m.fpll.StartMount(nfsDirContainers+"/ro/"+name, destPath)
 	})
 	if err != nil {
 		return fmt.Errorf("bind mount: %w", err)
@@ -162,8 +161,14 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 				logrus.WithError(err).WithField("cid", name).Error("failed to unmount container")
 			}
 
+			// must flush exports immediately for nfsd to close fds
+			err = s.m.nfsRoot.Flush()
+			if err != nil {
+				logrus.WithError(err).Error("failed to flush nfs")
+			}
+
 			// kill fuse server to release fds
-			err = s.fpll.StopMount(nfsDirRoot + "/ro/docker/containers/" + name)
+			err = s.m.fpll.StopMount(nfsDirRoot + "/ro/docker/containers/" + name)
 			if err != nil {
 				logrus.WithError(err).WithField("cid", name).Error("failed to stop fs server")
 			}
@@ -220,6 +225,12 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 		}
 	}
 
+	// flush exports for newly mounted containers
+	err := s.m.nfsRoot.Flush()
+	if err != nil {
+		logrus.WithError(err).Error("failed to flush nfs")
+	}
+
 	return nil
 }
 
@@ -246,6 +257,11 @@ func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[sgtypes.Tagged
 		if err != nil {
 			logrus.WithError(err).Error("failed to mount docker image")
 		}
+	}
+
+	err = s.m.nfsRoot.Flush()
+	if err != nil {
+		logrus.WithError(err).Error("failed to flush nfs")
 	}
 
 	return nil
@@ -292,6 +308,11 @@ func (s *SconGuestServer) OnDockerVolumesChanged(diff sgtypes.Diff[*dockertypes.
 		}
 	}
 
+	err = s.m.nfsRoot.Flush()
+	if err != nil {
+		logrus.WithError(err).Error("failed to flush nfs")
+	}
+
 	return nil
 }
 
@@ -326,7 +347,6 @@ func ListenSconGuest(m *ConManager) error {
 		dockerMachine:   dockerMachine,
 		vlanRouterIfi:   vlanRouterIf.Index,
 		vlanMacTemplate: vlanMacTemplate,
-		fpll:            NewFpllManager(),
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("scg", server)

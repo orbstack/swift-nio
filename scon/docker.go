@@ -694,6 +694,12 @@ func (h *DockerHooks) PostStop(c *Container) error {
 		return fmt.Errorf("unmount nfs: %w", err)
 	}
 
+	// kill fpll servers
+	err = c.manager.fpll.StopAll()
+	if err != nil {
+		return fmt.Errorf("stop fpll: %w", err)
+	}
+
 	// unmount everything from /nfs/containers
 	err = c.manager.nfsContainers.UnmountAll("")
 	if err != nil {

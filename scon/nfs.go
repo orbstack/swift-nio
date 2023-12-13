@@ -11,7 +11,6 @@ import (
 
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/securefs"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
@@ -37,8 +36,8 @@ type NfsMirrorManager struct {
 
 	nextFsid        int
 	hostUid         int
-	exportsDebounce syncx.FuncDebounce
 	controlsExports bool
+	exportsDirty    bool
 }
 
 type nfsMountEntry struct {
@@ -108,15 +107,9 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	if needsExports && m.controlsExports {
 		m.nextFsid++
 		entry.Fsid = m.nextFsid
-		m.dests[destPath] = entry
-
-		err := m.updateExportsLocked()
-		if err != nil {
-			return fmt.Errorf("update exports: %w", err)
-		}
-	} else {
-		m.dests[destPath] = entry
+		m.exportsDirty = true
 	}
+	m.dests[destPath] = entry
 	return nil
 }
 
@@ -160,15 +153,15 @@ func (m *NfsMirrorManager) unmountLocked(subdest string) error {
 
 	delete(m.dests, mountPath)
 	if entry.Fsid != 0 {
-		err := m.updateExportsLocked()
-		if err != nil {
-			return fmt.Errorf("update exports: %w", err)
-		}
+		m.exportsDirty = true
 	}
 	return nil
 }
 
 func (m *NfsMirrorManager) UnmountAll(prefix string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	var errs []error
 	for dest := range m.dests {
 		subdest := strings.TrimPrefix(dest, m.roDir)
@@ -179,7 +172,17 @@ func (m *NfsMirrorManager) UnmountAll(prefix string) error {
 		err := m.unmountLocked(subdest)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("unmount %s: %w", dest, err))
+			if verboseDebug {
+				logrus.WithError(err).WithField("dst", dest).Debug("failed to unmount nfs dir")
+			}
 		}
+	}
+
+	// deferred update at the end so all unmounts (esp. FUSE container servers) take effect
+	// prevents ECONNABORTED when unmounting images *while* containers are exiting (i.e. on scon shutdown)
+	err := m.updateExportsLocked()
+	if err != nil {
+		errs = append(errs, fmt.Errorf("update exports: %w", err))
 	}
 
 	return errors.Join(errs...)
@@ -198,6 +201,10 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 		}
 
 		err := m.nfsForAll.MountBind(c.rootfsDir, c.Name)
+		if err != nil {
+			return err
+		}
+		err = m.nfsForAll.Flush()
 		if err != nil {
 			return err
 		}
@@ -220,6 +227,10 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 		}
 
 		err := m.nfsForAll.Unmount(c.Name)
+		if err != nil {
+			return err
+		}
+		err = m.nfsForAll.Flush()
 		if err != nil {
 			return err
 		}
@@ -295,7 +306,7 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string, fs
 	return nil
 }
 
-func (m *NfsMirrorManager) UpdateExports() error {
+func (m *NfsMirrorManager) Flush() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -303,6 +314,10 @@ func (m *NfsMirrorManager) UpdateExports() error {
 }
 
 func (m *NfsMirrorManager) updateExportsLocked() error {
+	if !m.exportsDirty {
+		return nil
+	}
+
 	// 127.0.0.8 = vsock
 	// root export needs to be rw for machines
 	// docker/volumes export has different uid/gid
@@ -338,5 +353,6 @@ func (m *NfsMirrorManager) updateExportsLocked() error {
 		return err
 	}
 
+	m.exportsDirty = false
 	return nil
 }

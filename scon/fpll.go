@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -78,4 +79,27 @@ func (f *FpllManager) StopMount(dest string) error {
 
 	delete(f.processes, dest)
 	return nil
+}
+
+func (f *FpllManager) StopAll() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var errs []error
+	for dest, process := range f.processes {
+		err := process.Kill()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("kill fpll: %w", err))
+		}
+
+		// must wait for fds to close
+		_, err = process.Wait()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("wait fpll: %w", err))
+		}
+
+		delete(f.processes, dest)
+	}
+
+	return errors.Join(errs...)
 }
