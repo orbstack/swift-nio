@@ -230,6 +230,7 @@ func (a *AgentServer) DockerDialSocket(_ None, reply *uint64) error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	seq, err := a.fdx.SendFile(file)
 	if err != nil {
 		return err
