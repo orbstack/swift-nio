@@ -189,7 +189,9 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                             Text("External IP")
                         }
                         */
-                        Text("Address")
+                        if let url = URL(string: address) {
+                            Text("Address")
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
