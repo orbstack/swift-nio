@@ -11,6 +11,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 mkdir /out
 cd /build/scon
 CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o /out/ocitar ./cmd/ocitar
+strip /out/ocitar
 EOT
 
 FROM base AS final

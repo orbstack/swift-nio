@@ -24,6 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 <<EOT sh -eux
 cd /build/vmgr
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/macctl ./cmd/macctl
+strip /out/macctl
 EOT
 ARG TYPE=release
 # eBPF
@@ -76,6 +77,7 @@ git clone --depth 1 -b v1.1.7 https://github.com/opencontainers/runc
 cd runc
 patch -p1 < ../runc.patch
 EXTRA_LDFLAGS="-s -w" make static
+strip runc
 mv runc /out/
 EOT
 
