@@ -18,11 +18,13 @@ import (
 	"net/http/httptrace"
 	"net/textproto"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/httputilx/ascii"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -781,7 +783,16 @@ func (p *ReverseProxy) handleUpgradeResponse(rw http.ResponseWriter, req *http.R
 	spc := switchProtocolCopier{user: conn, backend: backConn}
 	go spc.copyToBackend(errc)
 	go spc.copyFromBackend(errc)
-	<-errc
+
+	// Don't wait for both if one side failed (not EOF)
+	if err1 := <-errc; err1 != nil {
+		logrus.WithError(err1).Debug("tcp pump2 error 1")
+		return
+	}
+	if err2 := <-errc; err2 != nil {
+		logrus.WithError(err2).Debug("tcp pump2 error 2")
+		return
+	}
 }
 
 // switchProtocolCopier exists so goroutines proxying data back and
@@ -790,13 +801,26 @@ type switchProtocolCopier struct {
 	user, backend io.ReadWriter
 }
 
+type fullDuplex interface {
+	CloseWrite() error
+}
+
 func (c switchProtocolCopier) copyFromBackend(errc chan<- error) {
 	_, err := io.Copy(c.user, c.backend)
+	if tcpConn, ok := c.user.(fullDuplex); ok {
+		tcpConn.CloseWrite()
+	}
 	errc <- err
 }
 
 func (c switchProtocolCopier) copyToBackend(errc chan<- error) {
 	_, err := io.Copy(c.backend, c.user)
+	// use reflection to access "ReadWriteCloser" field of *http.readWriteCloserBody
+	reflected := reflect.ValueOf(c.backend).Elem()
+	conn := reflected.FieldByName("ReadWriteCloser").Interface()
+	if unixConn, ok := conn.(fullDuplex); ok {
+		unixConn.CloseWrite()
+	}
 	errc <- err
 }
 
