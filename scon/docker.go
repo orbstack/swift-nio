@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/netip"
 	"net/url"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/dockerdb"
+	"github.com/orbstack/macvirt/scon/httputilx"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
@@ -713,7 +713,7 @@ type DockerProxy struct {
 	container *Container
 	manager   *ConManager
 	l         net.Listener
-	revProxy  *httputil.ReverseProxy
+	revProxy  *httputilx.ReverseProxy
 }
 
 func (m *ConManager) startDockerProxy() error {
@@ -736,8 +736,8 @@ func (m *ConManager) startDockerProxy() error {
 		Host:   "docker",
 		Path:   "/",
 	}
-	revProxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
+	revProxy := &httputilx.ReverseProxy{
+		Rewrite: func(r *httputilx.ProxyRequest) {
 			r.SetURL(baseURL)
 		},
 		Transport: &http.Transport{
