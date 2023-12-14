@@ -18,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 // must have constant size for bufio, but we use EWMA for copying
@@ -307,7 +308,8 @@ func (p *DockerProxy) Run() error {
 
 		go func() {
 			err := p.serveConn(clientConn)
-			if err != nil {
+			// no point in logging broken pipe. that's "normal"
+			if err != nil && !errors.Is(err, unix.EPIPE) {
 				logrus.WithError(err).Error("docker conn failed")
 			}
 		}()
