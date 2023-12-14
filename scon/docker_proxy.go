@@ -308,7 +308,7 @@ func (p *DockerProxy) Run() error {
 		go func() {
 			err := p.serveConn(clientConn)
 			if err != nil {
-				logrus.WithError(err).Error("docker proxy conn failed")
+				logrus.WithError(err).Error("docker conn failed")
 			}
 		}()
 	}
