@@ -35,7 +35,7 @@ go generate ./conf/appver ./drm/killswitch
 
 CGO_CFLAGS="-mmacosx-version-min=12.3" \
 CGO_LDFLAGS="-mmacosx-version-min=12.3" \
-go build -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
+go build -buildmode=pie -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
 
 # strip for release
 if [[ "${BUILD_TYPE:-debug}" == "release" ]]; then
