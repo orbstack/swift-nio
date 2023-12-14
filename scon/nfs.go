@@ -52,6 +52,8 @@ func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
 		dests:           make(map[string]nfsMountEntry),
 		nextFsid:        100,
 		controlsExports: controlsExports,
+		// start as dirty so initial flush works, before nfs init
+		exportsDirty: controlsExports,
 	}
 
 	return m
