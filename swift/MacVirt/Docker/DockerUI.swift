@@ -10,7 +10,8 @@ extension DKContainer {
     func openInTerminal() {
         Task {
             do {
-                try await openTerminal(AppConfig.dockerExe, ["--context", "orbstack", "exec", "-it", id, "sh"])
+                // prefer bash, otherwise use sh
+                try await openTerminal(AppConfig.dockerExe, ["--context", "orbstack", "exec", "-it", id, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }
