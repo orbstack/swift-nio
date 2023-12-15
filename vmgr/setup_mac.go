@@ -573,8 +573,14 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		}
 	}
 
-	// do we need to add to $PATH?
-	if targetCmdPath != nil {
+	// only add to PATH if ~/.orbstack
+	// so, if people delete it from ~/bin or ~/.local/bin, we're still good
+	// this is no worse than default behavior for most users in that case, because
+	//   - many users will get ~/bin or ~/.local/bin, not /usr/local/bin
+	//   - that's non-default and needs to be added to bashrc/zshrc anyway
+	//   - so, if a tool sees it, that means it already has correct shell PATH
+	// in that case, ~/.orbstack/bin will be in that PATH too
+	if targetCmdPath != nil && !slices.Contains(pathItems, conf.UserAppBinDir()) {
 		doLinkCommand := func(src string) error {
 			dest := targetCmdPath.Dir + "/" + filepath.Base(src)
 
