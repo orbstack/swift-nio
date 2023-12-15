@@ -229,6 +229,24 @@ func (h *DockerHooks) createDataDirs() error {
 	return nil
 }
 
+// symlink everything from /mnt/mac/opt into /opt
+// TODO: reverse proxy + path translation
+func (h *DockerHooks) symlinkDirs() error {
+	entries, err := os.ReadDir(mounts.Virtiofs + "/opt")
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		err = h.rootfs.Symlink(mounts.Virtiofs+"/opt/"+entry.Name(), "/opt/"+entry.Name())
+		if err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, error) {
 	// env from Docker
 	cm.set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
@@ -585,6 +603,12 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	err = h.createDataDirs()
 	if err != nil {
 		return fmt.Errorf("create data: %w", err)
+	}
+
+	// symlink /opt dirs
+	err = h.symlinkDirs()
+	if err != nil {
+		return fmt.Errorf("symlink dirs: %w", err)
 	}
 
 	return nil
