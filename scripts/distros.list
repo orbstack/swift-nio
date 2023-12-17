@@ -25,6 +25,7 @@ devuan:daedalus
 fedora:37
 fedora:38
 fedora:39
+funtoo:1.4
 gentoo:current
 kali:current
 mint:ulyana
@@ -34,7 +35,9 @@ mint:una
 mint:vanessa
 mint:vera
 mint:victoria
+nixos:23.11
 nixos:current
+nixos:unstable
 openeuler:20.03
 openeuler:22.03
 openeuler:23.03
