@@ -309,8 +309,12 @@ func lookPathXbinRelink(pathEnv string, cmd string) (string, error) {
 	return path, nil
 }
 
-func shouldUpdateSymlink(src, dest string) bool {
+func shouldUpdateSymlink(src, dest string, linkIfNotExists bool) bool {
 	currentSrc, err := os.Readlink(dest)
+	// if doesn't exist, return linkIfNotExists
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		return linkIfNotExists
+	}
 	if err == nil && currentSrc == src {
 		// already linked
 		return false
@@ -320,7 +324,7 @@ func shouldUpdateSymlink(src, dest string) bool {
 }
 
 func symlinkIfNotExists(src, dest string) error {
-	if !shouldUpdateSymlink(src, dest) {
+	if !shouldUpdateSymlink(src, dest, true) {
 		return nil
 	}
 
@@ -580,12 +584,14 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	//   - that's non-default and needs to be added to bashrc/zshrc anyway
 	//   - so, if a tool sees it, that means it already has correct shell PATH
 	// in that case, ~/.orbstack/bin will be in that PATH too
-	if targetCmdPath != nil && !slices.Contains(pathItems, conf.UserAppBinDir()) {
+	// however, we SHOULD update link if it's already there, in case app bundle moved
+	linkIfNotExists := !slices.Contains(pathItems, conf.UserAppBinDir())
+	if targetCmdPath != nil {
 		doLinkCommand := func(src string) error {
 			dest := targetCmdPath.Dir + "/" + filepath.Base(src)
 
 			// skip if link update is not needed
-			if !shouldUpdateSymlink(src, dest) {
+			if !shouldUpdateSymlink(src, dest, linkIfNotExists) {
 				logrus.WithFields(logrus.Fields{
 					"src": src,
 					"dst": dest,
