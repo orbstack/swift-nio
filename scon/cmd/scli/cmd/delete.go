@@ -13,6 +13,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func init() {
@@ -32,8 +33,8 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 	Example: "  " + appid.ShortCmd + " delete ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// confirm
-		if !flagForce && (flagAll || len(args) > 0) {
+		// confirm if tty
+		if !flagForce && (flagAll || len(args) > 0) && term.IsTerminal(int(os.Stdin.Fd())) {
 			red := color.New(color.FgRed)
 			if flagAll {
 				red.Fprintln(os.Stderr, "WARNING: This will PERMANENTLY DELETE ALL DATA in ALL machines!")
