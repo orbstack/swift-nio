@@ -5,6 +5,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
@@ -45,6 +46,26 @@ var restartCmd = &cobra.Command{
 		}
 
 		for _, containerName := range containerNames {
+			// k8s special case: enable config and restart docker machine
+			if containerName == types.ContainerNameK8s {
+				// enable config
+				config, err := vmclient.Client().GetConfig()
+				checkCLI(err)
+				config.K8sEnable = true
+				err = vmclient.Client().SetConfig(config)
+				checkCLI(err)
+
+				c, err := scli.Client().GetByID(types.ContainerIDDocker)
+				checkCLI(err)
+
+				spinner := spinutil.Start("green", "Restarting k8s")
+				err = scli.Client().ContainerRestart(c)
+				spinner.Stop()
+				checkCLI(err)
+
+				continue
+			}
+
 			// try ID first
 			c, err := scli.Client().GetByID(containerName)
 			if err != nil {
