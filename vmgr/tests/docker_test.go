@@ -2,11 +2,13 @@ package tests
 
 import (
 	"encoding/json"
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
+	"github.com/orbstack/macvirt/vmgr/util"
 )
 
 // verify overlay2, btrfs, cgroups, etc.
@@ -341,5 +343,19 @@ func TestDockerEngineVersion(t *testing.T) {
 	// compare
 	if obj["Version"] != expectedVersion {
 		t.Fatalf("Docker CLI and engine version mismatch. got: %+v\nwant: %+v", obj["Version"], expectedVersion)
+	}
+}
+
+func TestDockerCommands(t *testing.T) {
+	t.Parallel()
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = util.Run(cwd + "/docker.sh")
+	if err != nil {
+		t.Fatal(err)
 	}
 }
