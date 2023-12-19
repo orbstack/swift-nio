@@ -226,7 +226,9 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 				logrus.Trace("hp: copying 101")
 				tcppump.Pump2SpTcpUnix(clientConn.(*net.TCPConn), upstreamConn.(*net.UnixConn))
 				return errCloseConn
-			} else if resp.Body != nil {
+			} else if resp.Body != nil && req.Method != http.MethodHead {
+				// must NOT copy body for HEAD requests
+				// it still sends same Content-Length response, but no body, so proxy hangs
 				logrus.Trace("hp: copying body")
 				closeConn, err := copyBody(resp.ContentLength, resp.TransferEncoding, clientConn, upstreamBufReader)
 				if err != nil {
