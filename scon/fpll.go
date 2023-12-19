@@ -63,7 +63,8 @@ func (f *FpllManager) StopMount(dest string) error {
 
 	process, ok := f.processes[dest]
 	if !ok {
-		return fmt.Errorf("not mounted: %s", dest)
+		// similar to NfsMountManager, don't return error if not mounted
+		return nil
 	}
 
 	err := process.Kill()

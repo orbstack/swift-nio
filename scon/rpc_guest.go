@@ -168,6 +168,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 			}
 
 			// kill fuse server to release fds
+			// note: we may enter this code path even if it was never mounted (i.e. too fast)
 			err = s.m.fpll.StopMount(nfsDirRoot + "/ro/docker/containers/" + name)
 			if err != nil {
 				logrus.WithError(err).WithField("cid", name).Error("failed to stop fs server")

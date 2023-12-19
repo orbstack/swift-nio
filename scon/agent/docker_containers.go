@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -16,10 +17,17 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var errContainerExited = errors.New("container exited")
+
 func openPidRootfsAndSend(pid int, fdx *Fdx) (uint64, error) {
 	pidfd, err := unix.PidfdOpen(pid, 0) // cloexec safe
 	if err != nil {
-		return 0, fmt.Errorf("open pidfd: %w", err)
+		// EINVAL means the pid is invalid, i.e. container is no longer running (exited quickly)
+		if err == unix.EINVAL {
+			return 0, errContainerExited
+		} else {
+			return 0, fmt.Errorf("open pidfd: %w", err)
+		}
 	}
 	defer unix.Close(pidfd)
 
@@ -62,6 +70,7 @@ func (d *DockerAgent) refreshContainers() error {
 	}
 
 	// then add
+	// fdx seqs can't be 0, so zero = missing
 	rootfsFdxSeqs := make([]uint64, len(added))
 	for i, c := range added {
 		fullCtr, err := d.client.InspectContainer(c.ID)
@@ -78,8 +87,9 @@ func (d *DockerAgent) refreshContainers() error {
 		// open rootfs (/) mount and send over fdx
 		// do it one at a time to allow for failures, and b/c 16-fd limit
 		rootfsFdxSeqs[i], err = openPidRootfsAndSend(fullCtr.State.Pid, d.agent.fdx)
-		if err != nil {
-			logrus.WithError(err).Error("failed to send rootfs fd")
+		if err != nil && !errors.Is(err, errContainerExited) {
+			// container exited is normal - just don't mount
+			logrus.WithError(err).Error("failed to send rfd")
 		}
 	}
 
