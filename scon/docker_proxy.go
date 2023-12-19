@@ -109,6 +109,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 	clientBufReader := bufio.NewReaderSize(clientConn, dockerProxyBufferSize)
 	for {
 		// read request
+		logrus.Trace("hp: reading request")
 		req, err := http.ReadRequest(clientBufReader)
 		if err != nil {
 			if err == io.EOF {
@@ -146,12 +147,14 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			defer freezer.DecRef()
 
 			// send request
+			logrus.Trace("hp: writing request")
 			err = req.Write(upstreamConn)
 			if err != nil {
 				return fmt.Errorf("write request: %w", err)
 			}
 
 			// read response
+			logrus.Trace("hp: reading response")
 			upstreamBufReader := bufio.NewReaderSize(upstreamConn, dockerProxyBufferSize)
 			resp, err := http.ReadResponse(upstreamBufReader, req)
 			if err != nil {
@@ -160,9 +163,11 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 
 			// restore Content-Length and Transfer-Encoding (deleted by ReadResponse)
 			if resp.ContentLength != -1 {
+				logrus.Tracef("hp: restoring Content-Length %d", resp.ContentLength)
 				resp.Header.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
 			}
 			if len(resp.TransferEncoding) > 0 {
+				logrus.Tracef("hp: restoring Transfer-Encoding %s", strings.Join(resp.TransferEncoding, ", "))
 				resp.Header.Set("Transfer-Encoding", strings.Join(resp.TransferEncoding, ", "))
 			}
 
@@ -178,6 +183,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			// send response *without* body, but with Content-Length and Transfer-Encoding
 			// Response.Write excludes those headers, so roll our own
 			// complicated status text is to preserve original status line w/o duplicate status code
+			logrus.Trace("hp: writing response")
 			_, err = fmt.Fprintf(clientConn, "HTTP/%d.%d %03d %s\r\n", resp.ProtoMajor, resp.ProtoMinor, resp.StatusCode, strings.TrimPrefix(resp.Status, strconv.Itoa(resp.StatusCode)+" "))
 			if err != nil {
 				return fmt.Errorf("write response: %w", err)
@@ -203,6 +209,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			if resp.StatusCode == http.StatusSwitchingProtocols {
 				// flush remaining bufio data
 				// ignore errors in case one side is already closed for write
+				logrus.Trace("hp: flushing")
 				var flushBuf [dockerProxyBufferSize]byte
 				n, err := clientBufReader.Read(flushBuf[:clientBufReader.Buffered()])
 				if err == nil {
@@ -216,9 +223,11 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 				}
 
 				// copy the rest in both directions, then close conns
+				logrus.Trace("hp: copying 101")
 				tcppump.Pump2SpTcpUnix(clientConn.(*net.TCPConn), upstreamConn.(*net.UnixConn))
 				return errCloseConn
 			} else if resp.Body != nil {
+				logrus.Trace("hp: copying body")
 				closeConn, err := copyBody(resp.ContentLength, resp.TransferEncoding, clientConn, upstreamBufReader)
 				if err != nil {
 					return fmt.Errorf("copy body: %w", err)
@@ -247,6 +256,7 @@ func copyBody(contentLength int64, transferEncoding []string, dst io.Writer, src
 	if slices.Contains(transferEncoding, "chunked") {
 		// this is the tricky, and slow, part
 		// need chunked reader and writer, plus bufio part
+		logrus.Trace("hp: copyBody: copying TE chunked body")
 		chunkedReader := httputil.NewChunkedReader(src)
 		chunkedWriter := httputil.NewChunkedWriter(dst)
 		_, err := tcppump.CopyBuffer(chunkedWriter, chunkedReader, nil)
@@ -265,6 +275,7 @@ func copyBody(contentLength int64, transferEncoding []string, dst io.Writer, src
 		return false, nil
 	} else if contentLength != -1 {
 		// TODO: can we use splice here?
+		logrus.Trace("hp: copyBody: copying CL body")
 		limitReader := io.LimitReader(src, contentLength)
 		_, err := tcppump.CopyBuffer(dst, limitReader, nil)
 		if err != nil {
@@ -275,6 +286,7 @@ func copyBody(contentLength int64, transferEncoding []string, dst io.Writer, src
 	} else {
 		// single-direction upstream->client copy, then close conns
 		// we already set Connection=close
+		logrus.Trace("hp: copyBody: copying body until EOF")
 		_, err := tcppump.CopyBuffer(dst, src, nil)
 		if err != nil {
 			return false, fmt.Errorf("copy CC: %w", err)
