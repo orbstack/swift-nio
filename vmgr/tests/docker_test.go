@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
@@ -357,5 +359,79 @@ func TestDockerCommands(t *testing.T) {
 	_, err = util.Run(cwd + "/docker.sh")
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// privileged dind
+func TestDockerDindPrivileged(t *testing.T) {
+	t.Parallel()
+
+	// start dind
+	_, err := util.Run("docker", "run", "--privileged", "--rm", "-d", "--name", "otest-dind", "docker:dind")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer util.Run("docker", "rm", "-f", "otest-dind")
+
+	// wait for start
+	time.Sleep(3 * time.Second)
+
+	// attempt to run a privileged container
+	out, err := util.Run("docker", "exec", "otest-dind", "docker", "run", "--privileged", "--rm", "alpine", "uname")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.HasSuffix(out, "Linux\n") {
+		t.Fatalf("expected Linux, got: %s", out)
+	}
+}
+
+// port forward
+func TestDockerPortForward(t *testing.T) {
+	t.Parallel()
+
+	// start nginx
+	_, err := util.Run("docker", "run", "--rm", "-d", "--name", "otest-nginx", "-p", "8934:80", "nginx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer util.Run("docker", "rm", "-f", "otest-nginx")
+
+	// wait for start
+	time.Sleep(3 * time.Second)
+
+	// curl ipv4
+	out, err := util.Run("curl", "-4", "http://localhost:8934")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(out, "Welcome to nginx!") {
+		t.Fatalf("expected Welcome to nginx!, got: %s", out)
+	}
+
+	// curl ipv6
+	out, err = util.Run("curl", "-6", "http://localhost:8934")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(out, "Welcome to nginx!") {
+		t.Fatalf("expected Welcome to nginx!, got: %s", out)
+	}
+}
+
+// 172.17.0.1 compatibility NAT
+func TestDocker172NAT(t *testing.T) {
+	t.Parallel()
+
+	out, err := util.Run("docker", "run", "--rm", "alpine", "ping", "-c", "1", "172.17.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(out, "1 packets transmitted, 1 packets received, 0% packet loss") {
+		t.Fatalf("expected 1 packets transmitted, 1 packets received, 0%% packet loss, got: %s", out)
 	}
 }

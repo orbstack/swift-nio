@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
+	"github.com/orbstack/macvirt/vmgr/util"
 )
 
 const (
@@ -55,5 +58,58 @@ func TestNfsMachineUserPermissions(t *testing.T) {
 	err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.NfsMountpoint(), singleTestMachine, hostUsername(t)))
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNfsContainerWrite(t *testing.T) {
+	t.Parallel()
+
+	// start container
+	_, err := util.Run("docker", "run", "--rm", "-d", "--name", "otest-nfs", "alpine", "sleep", "infinity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer util.Run("docker", "rm", "-f", "otest-nfs")
+
+	// wait for start
+	time.Sleep(3 * time.Second)
+
+	// write file via nfs
+	err = os.WriteFile(coredir.NfsMountpoint()+"/docker/containers/otest-nfs/etc/testfile", []byte("test"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// read file via container
+	out, err := util.Run("docker", "exec", "otest-nfs", "cat", "/etc/testfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out != "test" {
+		t.Fatalf("expected test, got: %s", out)
+	}
+
+	// delete file
+	err = os.Remove(coredir.NfsMountpoint() + "/docker/containers/otest-nfs/etc/testfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// read file via container
+	out, err = util.Run("docker", "exec", "otest-nfs", "cat", "/etc/testfile")
+	if err == nil || !strings.Contains(err.Error(), "No such file or directory") {
+		t.Fatal(err)
+	}
+
+	// read file via nfs
+	data, err := os.ReadFile(coredir.NfsMountpoint() + "/docker/containers/otest-nfs/etc/passwd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check data
+	if !strings.Contains(string(data), "root") {
+		t.Fatalf("expected root, got: %s", string(data))
 	}
 }
