@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -19,7 +18,6 @@ import (
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/images"
-	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -314,6 +312,11 @@ func (c *Container) configureLxc() error {
 			// this is recursive (rbind) so no need for /sys/kernel/debug/tracing
 			bind("/sys/kernel/debug", "/sys/kernel/debug", "")
 		}
+
+		// kernel modules used to be a symlink, but bind mount plays nicer with running containers
+		// for both docker machine and docker in users' machines
+		// this makes "-v /lib/modules:/lib/modules" work when running containers
+		bind(conf.C().GuestMountSrc+"/lib/modules/current", "/lib/modules/"+c.manager.kernelVersion, "ro")
 
 		// nesting (proc not needed because it's rw)
 		// this is in .lxc not .orbstack because of lxc systemd-generator's conditions
@@ -622,26 +625,6 @@ func (c *Container) startLxcLocked() error {
 	return c.lxc.Start()
 }
 
-func (c *Container) prepareFsStart() error {
-	fs, err := securefs.NewFS(c.rootfsDir)
-	if err != nil {
-		return err
-	}
-	defer fs.Close()
-
-	// create /lib/modules/<version> symlink
-	err = fs.MkdirAll("/lib/modules", 0755)
-	if err != nil {
-		return err
-	}
-	err = fs.Symlink("/opt/orbstack-guest/lib/modules/current", "/lib/modules/"+c.manager.kernelVersion)
-	if err != nil && !errors.Is(err, os.ErrExist) {
-		return err
-	}
-
-	return nil
-}
-
 func (c *Container) startLocked(isInternal bool) (retErr error) {
 	if c.runningLocked() {
 		return nil
@@ -682,13 +665,6 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 	err = c.setLxcConfig("lxc.cgroup.dir.container", "scon.container."+randSuffix)
 	if err != nil {
 		return fmt.Errorf("set cgroup: %w", err)
-	}
-
-	// fs
-	err = c.prepareFsStart()
-	if err != nil {
-		logrus.WithError(err).WithField("container", c.Name).Error("failed to prepare fs")
-		// ignore, not critical
 	}
 
 	// hook
