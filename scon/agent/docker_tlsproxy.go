@@ -48,12 +48,14 @@ func DockerTlsInitCommands(action string) [][]string {
 	return [][]string{
 		// TPROXY: redirect incoming port 443 traffic from macOS to our proxies
 		// exclude gateway to avoid interfering with user's port 443 forwards
-		{"iptables", "-t", "mangle", action, "ORB-PREROUTING", "-m", "set", "--match-set", IpsetHostBridge4, "src", "-m", "set", "!", "--match-set", IpsetGateway4, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", TlsProxyLocalRouteMarkStr},
+		// we used to check whether source IP is macOS, but as it turns out, users want container-to-container HTTPS too
+		// just need to be careful about false-positive open ports in that case
+		{"iptables", "-t", "mangle", action, "ORB-PREROUTING", "-m", "set", "!", "--match-set", IpsetGateway4, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", TlsProxyLocalRouteMarkStr},
 
 		// TPROXY redirect incoming port 443 traffic from macOS to our proxy
 		// exclude gateway to avoid interfering with user's port 443 forwards
 		// TODO - reuse same proxy dest port for ports 80 and 22
-		{"ip6tables", "-t", "mangle", action, "ORB-PREROUTING", "-m", "set", "--match-set", IpsetHostBridge6, "src", "-m", "set", "!", "--match-set", IpsetGateway6, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", TlsProxyLocalRouteMarkStr},
+		{"ip6tables", "-t", "mangle", action, "ORB-PREROUTING", "-m", "set", "!", "--match-set", IpsetGateway6, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", TlsProxyUpstreamMarkStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", TlsProxyLocalRouteMarkStr},
 	}
 }
 
