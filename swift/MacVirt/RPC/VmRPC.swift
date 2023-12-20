@@ -17,6 +17,7 @@ struct VmConfig: Codable, Equatable {
     var mountHideShared: Bool
     var dataDir: String?
     var dockerSetContext: Bool
+    var dockerNodeName: String
     var setupUseAdmin: Bool
     var k8sEnable: Bool
     var k8sExposeServices: Bool
@@ -33,6 +34,7 @@ struct VmConfig: Codable, Equatable {
         case mountHideShared = "mountHideShared"
         case dataDir = "dataDir"
         case dockerSetContext = "docker.setContext"
+        case dockerNodeName = "docker.nodeName"
         case setupUseAdmin = "setup.useAdmin"
         case k8sEnable = "k8s.enable"
         case k8sExposeServices = "k8s.exposeServices"

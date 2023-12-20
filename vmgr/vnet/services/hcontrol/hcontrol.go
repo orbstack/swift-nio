@@ -260,6 +260,7 @@ func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error 
 func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMachineConfig) error {
 	cfg := vmconfig.Get()
 	*reply = htypes.DockerMachineConfig{
+		DockerNodeName:    cfg.DockerNodeName,
 		K8sEnable:         cfg.K8sEnable,
 		K8sExposeServices: cfg.K8sExposeServices,
 	}

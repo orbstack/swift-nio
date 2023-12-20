@@ -41,6 +41,7 @@ type VmConfig struct {
 	MountHideShared   bool   `json:"mount_hide_shared"`
 	DataDir           string `json:"data_dir,omitempty"`
 	DockerSetContext  bool   `json:"docker.set_context"`
+	DockerNodeName    string `json:"docker.node_name,omitempty"`
 	SetupUseAdmin     bool   `json:"setup.use_admin"`
 	K8sEnable         bool   `json:"k8s.enable"`
 	K8sExposeServices bool   `json:"k8s.expose_services"`
@@ -233,6 +234,7 @@ func Defaults() *VmConfig {
 		MountHideShared:   false,
 		DataDir:           "",
 		DockerSetContext:  true,
+		DockerNodeName:    "orbstack",
 		SetupUseAdmin:     true,
 		K8sEnable:         false,
 		K8sExposeServices: false,

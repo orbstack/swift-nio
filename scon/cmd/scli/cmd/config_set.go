@@ -77,6 +77,9 @@ Some options will only take effect after restarting the virtual machine.
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
 			config.DockerSetContext = val
+		case "docker.node_name":
+			config.DockerNodeName = value
+			rebootRequired = true
 		case "setup.use_admin":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)

@@ -254,9 +254,6 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// dind does some setup and mounts
 	cm.set("lxc.init.cmd", "/usr/local/bin/docker-init -- /opt/init")
 
-	// vanity name for k8s node name
-	cm.set("lxc.uts.name", "orbstack")
-
 	err := h.createDataDirs()
 	if err != nil {
 		return "", fmt.Errorf("create data: %w", err)
@@ -605,6 +602,16 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	err = h.symlinkDirs()
 	if err != nil {
 		return fmt.Errorf("symlink dirs: %w", err)
+	}
+
+	// vanity name for k8s/swarm node name
+	err = c.setLxcConfig("lxc.uts.name", cfg.DockerNodeName)
+	if err != nil {
+		return fmt.Errorf("set hostname: %w", err)
+	}
+	err = h.rootfs.WriteFile("/etc/hostname", []byte(cfg.DockerNodeName), 0644)
+	if err != nil {
+		return fmt.Errorf("write hostname: %w", err)
 	}
 
 	return nil
