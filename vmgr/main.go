@@ -66,15 +66,19 @@ const (
 const stopExitCodeBase = 100
 
 // host -> guest
-var optionalForwards = map[string]string{
+var optionalForwardsLocalhost = map[string]string{
 	// public SSH
 	"tcp:127.0.0.1:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
 	"tcp:[::1]:" + str(ports.HostSconSSHPublic):     "tcp:" + str(ports.GuestSconSSHPublic),
 }
+var optionalForwardsPublic = map[string]string{
+	// public SSH
+	"tcp:[::]:" + str(ports.HostSconSSHPublic): "tcp:" + str(ports.GuestSconSSHPublic),
+}
 
 func init() {
 	if conf.Debug() {
-		optionalForwards["tcp:127.0.0.1:"+str(ports.HostDebugSSH)] = "tcp:" + str(ports.GuestDebugSSH)
+		optionalForwardsLocalhost["tcp:127.0.0.1:"+str(ports.HostDebugSSH)] = "tcp:" + str(ports.GuestDebugSSH)
 	}
 }
 
@@ -746,6 +750,10 @@ func runVmManager() {
 		if err != nil {
 			errorx.Fatalf("host forward failed: spec=%v err=%w", spec, err)
 		}
+	}
+	optionalForwards := optionalForwardsLocalhost
+	if vmconfig.Get().SSHExposePort {
+		optionalForwards = optionalForwardsPublic
 	}
 	for fromSpec, toSpec := range optionalForwards {
 		spec := vnet.ForwardSpec{Host: fromSpec, Guest: toSpec}

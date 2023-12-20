@@ -45,6 +45,7 @@ type VmConfig struct {
 	SetupUseAdmin     bool   `json:"setup.use_admin"`
 	K8sEnable         bool   `json:"k8s.enable"`
 	K8sExposeServices bool   `json:"k8s.expose_services"`
+	SSHExposePort     bool   `json:"ssh.expose_port"`
 }
 
 type VmConfigChange struct {
@@ -238,6 +239,7 @@ func Defaults() *VmConfig {
 		SetupUseAdmin:     true,
 		K8sEnable:         false,
 		K8sExposeServices: false,
+		SSHExposePort:     false,
 	}
 }
 

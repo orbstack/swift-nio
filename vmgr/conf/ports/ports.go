@@ -32,6 +32,6 @@ const (
 	SecureSvcDockerRemoteCtx = 2376
 
 	DockerMachineK8s         = 26443
-	DockerMachineTlsProxy   = 30817
+	DockerMachineTlsProxy    = 30817
 	DockerMachineTlsProxyStr = "30817"
 )

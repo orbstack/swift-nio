@@ -95,6 +95,11 @@ Some options will only take effect after restarting the virtual machine.
 			checkCLI(err)
 			config.K8sExposeServices = val
 			rebootRequired = true
+		case "ssh.expose_port":
+			val, err := strconv.ParseBool(value)
+			checkCLI(err)
+			config.SSHExposePort = val
+			rebootRequired = true
 		default:
 			cmd.PrintErrln("Unknown configuration key:", key)
 			os.Exit(1)
