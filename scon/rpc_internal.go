@@ -5,6 +5,7 @@ import (
 	"net/rpc"
 	"strconv"
 
+	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -43,6 +44,12 @@ func (s *SconInternalServer) OnVmconfigUpdate(config *vmconfig.VmConfig, _ *None
 		}
 	}
 
+	return nil
+}
+
+func (s *SconInternalServer) MdnsHandleQuery(q dns.Question, rrs *[]dns.RR) error {
+	dlog("mdns handle query reported")
+	*rrs = s.m.net.mdnsRegistry.handleQuery(q)
 	return nil
 }
 

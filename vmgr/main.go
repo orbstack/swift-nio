@@ -643,7 +643,7 @@ func runVmManager() {
 	}()
 
 	// Services
-	hcServer := services.StartNetServices(vnetwork)
+	hcServer := services.StartNetServices(vnetwork, drmClient)
 
 	// VM control server client
 	vc, err := vclient.NewWithNetwork(vnetwork, vm, stopCh, healthCheckCh)

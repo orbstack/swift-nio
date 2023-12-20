@@ -612,7 +612,7 @@ func (r *mdnsRegistry) flushReusedCache() {
 		// careful: if any records are invalid, this will fail with rrdata error
 		// but it's ok: cache flushing is based on queried records.
 		// if a name is invalid (>63 component / >255), it's not possible to query it
-		err := r.server.SendCacheFlush(flushRecords)
+		err := r.host.MdnsSendCacheFlush(flushRecords)
 		if err != nil {
 			logrus.WithError(err).Error("failed to flush cache")
 		}
@@ -808,21 +808,8 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		return nil
 	}
 
-	// this is a dual-purpose server:
-	//   - if query came from Linux, proxy out to macOS host and let mDNSResponder take care of it
-	//     * this is OK because domains handled by us will just loop back. less efficient, but much simpler
-	//   - if query came from macOS, we're the authoritative server
-	//
-	// this prevents looping to/from macOS,
-	// check by blocking v6: works b/c we block v4 multicast in brnet and only send v6, while machines will probably query both
-	// TODO: properly check macOS IPv6 link-local addr
-	if fromUDP, ok := from.(*net.UDPAddr); ok && fromUDP.IP.To4() != nil {
-		// this query is from Linux because it's IPv4
-		return r.proxyToHost(q)
-	} else {
-		// this query is from macOS because it's IPv6
-		return r.handleQuery(q)
-	}
+	// TODO explain
+	return r.proxyToHost(q)
 }
 
 // authoritative server

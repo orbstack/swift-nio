@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/rpc"
 
+	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 )
@@ -37,4 +38,10 @@ func (c *Client) OnDrmResult(result *drmtypes.Result) error {
 func (c *Client) OnVmconfigUpdate(config *vmconfig.VmConfig) error {
 	var noResult None
 	return c.rpc.Call("sci.OnVmconfigUpdate", config, &noResult)
+}
+
+func (c *Client) MdnsHandleQuery(q dns.Question) ([]dns.RR, error) {
+	var result []dns.RR
+	err := c.rpc.Call("sci.MdnsHandleQuery", q, &result)
+	return result, err
 }

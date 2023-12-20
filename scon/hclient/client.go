@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/rpc"
 
+	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
@@ -208,6 +209,11 @@ func (c *Client) GetTLSRootData() (*htypes.KeychainTLSData, error) {
 func (c *Client) ImportTLSCertificate() error {
 	var none None
 	return c.rpc.Call("hc.ImportTLSCertificate", None{}, &none)
+}
+
+func (c *Client) MdnsSendCacheFlush(rrs []dns.RR) error {
+	var none None
+	return c.rpc.Call("hc.MdnsSendCacheFlush", rrs, &none)
 }
 
 func (c *Client) Close() error {

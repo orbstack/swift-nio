@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
@@ -37,6 +38,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hostmdns"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/sshagent"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
@@ -97,6 +99,7 @@ type HcontrolServer struct {
 	n         *vnet.Network
 	drmClient *drm.DrmClient
 	Vclient   *vclient.VClient
+	hostMdns  *hostmdns.HostMdnsServer
 
 	fsnotifyMu   sync.Mutex
 	fsnotifyRefs map[string]int
@@ -427,6 +430,10 @@ func (h *HcontrolServer) clearFsnotifyRefs() error {
 func (h *HcontrolServer) OnUIEvent(ev string, _ *None) error {
 	vzf.SwextIpcNotifyUIEventRaw(ev)
 	return nil
+}
+
+func (h *HcontrolServer) MdnsSendCacheFlush(rrs []dns.RR, _ *None) error {
+	return h.hostMdns.SendCacheFlush(rrs)
 }
 
 func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
@@ -836,11 +843,17 @@ func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
 
 type None struct{}
 
-func ListenHcontrol(n *vnet.Network, address tcpip.Address) (*HcontrolServer, error) {
+func ListenHcontrol(n *vnet.Network, address tcpip.Address, drmClient *drm.DrmClient) (*HcontrolServer, error) {
+	hostMdns, err := hostmdns.NewHostMdnsServer(drmClient)
+	if err != nil {
+		return nil, err
+	}
+
 	server := &HcontrolServer{
 		n:            n,
 		drmClient:    drm.Client(),
 		fsnotifyRefs: make(map[string]int),
+		hostMdns:     hostMdns,
 	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)

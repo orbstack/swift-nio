@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
@@ -49,7 +50,7 @@ var (
 	}
 )
 
-func StartNetServices(n *vnet.Network) *hcsrv.HcontrolServer {
+func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) *hcsrv.HcontrolServer {
 	addr := netutil.ParseTcpipAddress(netconf.VnetServicesIP4)
 	secureAddr := netutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
 
@@ -73,7 +74,7 @@ func StartNetServices(n *vnet.Network) *hcsrv.HcontrolServer {
 	}
 
 	// Host control (8300): HTTP API
-	hcServer, err := hcsrv.ListenHcontrol(n, secureAddr)
+	hcServer, err := hcsrv.ListenHcontrol(n, secureAddr, drmClient)
 	if err != nil {
 		logrus.Error("Failed to start host control server: ", err)
 	}

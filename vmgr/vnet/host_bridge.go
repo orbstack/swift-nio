@@ -350,8 +350,8 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		// so this is just the VM's MAC for NDP responder use
 		GuestMAC:       brMacSconGuest,
 		NDPReplyPrefix: slicePrefix6(nat64Subnet),
-		// for .local names
-		AllowMulticast: true,
+		// prevent mDNS loop
+		AllowMulticast: false,
 
 		MaxLinkMTU: int(n.LinkMTU),
 	}

@@ -4,6 +4,7 @@
 package mdns
 
 import (
+	"encoding/gob"
 	"fmt"
 	"net"
 	"strings"
@@ -32,6 +33,84 @@ var (
 		Port: mdnsPort,
 	}
 )
+
+func init() {
+	// generated from go/pkg/mod/github.com/miekg/dns@v1.1.55/types.go
+	// allows sending dns RRs over gob rpc. fixes: rpc: gob error encoding body: gob: type not registered for interface: dns.AAAA
+	gob.Register(&dns.A{})
+	gob.Register(&dns.AAAA{})
+	gob.Register(&dns.AFSDB{})
+	gob.Register(&dns.AMTRELAY{})
+	gob.Register(&dns.ANY{})
+	gob.Register(&dns.APL{})
+	gob.Register(&dns.AVC{})
+	gob.Register(&dns.CAA{})
+	gob.Register(&dns.CDNSKEY{})
+	gob.Register(&dns.CDS{})
+	gob.Register(&dns.CERT{})
+	gob.Register(&dns.CNAME{})
+	gob.Register(&dns.CSYNC{})
+	gob.Register(&dns.DHCID{})
+	gob.Register(&dns.DLV{})
+	gob.Register(&dns.DNAME{})
+	gob.Register(&dns.DNSKEY{})
+	gob.Register(&dns.DS{})
+	gob.Register(&dns.EID{})
+	gob.Register(&dns.EUI48{})
+	gob.Register(&dns.EUI64{})
+	gob.Register(&dns.GID{})
+	gob.Register(&dns.GPOS{})
+	gob.Register(&dns.HINFO{})
+	gob.Register(&dns.HIP{})
+	gob.Register(&dns.IPSECKEY{})
+	gob.Register(&dns.KEY{})
+	gob.Register(&dns.KX{})
+	gob.Register(&dns.L32{})
+	gob.Register(&dns.L64{})
+	gob.Register(&dns.LOC{})
+	gob.Register(&dns.LP{})
+	gob.Register(&dns.MB{})
+	gob.Register(&dns.MD{})
+	gob.Register(&dns.MF{})
+	gob.Register(&dns.MG{})
+	gob.Register(&dns.MINFO{})
+	gob.Register(&dns.MR{})
+	gob.Register(&dns.MX{})
+	gob.Register(&dns.NAPTR{})
+	gob.Register(&dns.NID{})
+	gob.Register(&dns.NIMLOC{})
+	gob.Register(&dns.NINFO{})
+	gob.Register(&dns.NS{})
+	gob.Register(&dns.NSAPPTR{})
+	gob.Register(&dns.NSEC{})
+	gob.Register(&dns.NSEC3{})
+	gob.Register(&dns.NSEC3PARAM{})
+	gob.Register(&dns.NULL{})
+	gob.Register(&dns.OPENPGPKEY{})
+	gob.Register(&dns.PTR{})
+	gob.Register(&dns.PX{})
+	gob.Register(&dns.RFC3597{})
+	gob.Register(&dns.RKEY{})
+	gob.Register(&dns.RP{})
+	gob.Register(&dns.RRSIG{})
+	gob.Register(&dns.RT{})
+	gob.Register(&dns.SIG{})
+	gob.Register(&dns.SMIMEA{})
+	gob.Register(&dns.SOA{})
+	gob.Register(&dns.SPF{})
+	gob.Register(&dns.SRV{})
+	gob.Register(&dns.SSHFP{})
+	gob.Register(&dns.TA{})
+	gob.Register(&dns.TALINK{})
+	gob.Register(&dns.TKEY{})
+	gob.Register(&dns.TLSA{})
+	gob.Register(&dns.TXT{})
+	gob.Register(&dns.UID{})
+	gob.Register(&dns.UINFO{})
+	gob.Register(&dns.URI{})
+	gob.Register(&dns.X25{})
+	gob.Register(&dns.ZONEMD{})
+}
 
 type Zone interface {
 	// Records returns DNS records in response to a DNS question.
