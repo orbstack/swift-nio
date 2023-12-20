@@ -1,0 +1,12 @@
+#cloud-config
+groups:
+  - admingroup: [root]
+  - cloud-users
+
+packages:
+  - git
+
+write_files:
+- content: |
+    it works!
+  path: /etc/cltest

@@ -39,3 +39,24 @@ func TestScliCreateStopStartDelete(t *testing.T) {
 	_, err = util.Run("orb", "delete", "otest2")
 	checkT(t, err)
 }
+
+func TestScliCloudInit(t *testing.T) {
+	t.Parallel()
+
+	defer util.Run("orb", "delete", "otest3")
+
+	// create with cloud-init
+	_, err := util.Run("orb", "create", "ubuntu", "otest3", "--user-data", "cloud-init.yml")
+	checkT(t, err)
+
+	// check file
+	out, err := util.Run("orb", "-m", "otest3", "cat", "/etc/cltest")
+	checkT(t, err)
+	if out != "it works!\n" {
+		t.Fatalf("expected test, got: %s", out)
+	}
+
+	// delete
+	_, err = util.Run("orb", "delete", "otest3")
+	checkT(t, err)
+}
