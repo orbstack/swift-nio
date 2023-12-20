@@ -36,6 +36,13 @@ const (
 	imageDownloadTimeout = 15 * time.Minute
 )
 
+// fix growpart and resizefs errors on boot when using cloud-init
+const cloudInitVendorData = `#cloud-config
+resize_rootfs: false
+growpart:
+  mode: 'off'
+`
+
 var (
 	extraImages = map[types.ImageSpec]RawImage{
 		// too much work to keep sha256 and size up to date
@@ -420,6 +427,8 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 		"config_get": func(key string, def any) any {
 			if key == "user.user-data" {
 				return cloudInitUserData
+			} else if key == "user.vendor-data" {
+				return cloudInitVendorData
 			}
 
 			return def
