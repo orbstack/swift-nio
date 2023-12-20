@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
@@ -35,9 +36,14 @@ var configShowCmd = &cobra.Command{
 		err = json.Unmarshal(jsonData, &configMap)
 		checkCLI(err)
 
-		// print keys
+		// print keys in sorted order
+		lines := make([]string, 0, len(configMap))
 		for key, value := range configMap {
-			fmt.Printf("%s: %v\n", key, value)
+			lines = append(lines, fmt.Sprintf("%s: %v", key, value))
+		}
+		slices.Sort(lines)
+		for _, line := range lines {
+			fmt.Println(line)
 		}
 
 		return nil
