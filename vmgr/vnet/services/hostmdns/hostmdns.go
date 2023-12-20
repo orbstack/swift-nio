@@ -44,6 +44,10 @@ func NewHostMdnsServer(drm *drm.DrmClient) (*HostMdnsServer, error) {
 
 func (s *HostMdnsServer) Records(q dns.Question, from net.Addr) []dns.RR {
 	// pre-filter to match scon and reduce RPCs: only A, AAAA, ANY
+	qclass := q.Qclass &^ (1 << 15)
+	if qclass != dns.ClassINET {
+		return nil
+	}
 	if q.Qtype != dns.TypeA && q.Qtype != dns.TypeAAAA && q.Qtype != dns.TypeANY {
 		return nil
 	}
