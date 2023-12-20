@@ -90,7 +90,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 	}
 
 	// extract seccomp policy
-	seccompPolicyPaths, err := writeSeecompPolicies(tmpDir)
+	seccompPolicyPaths, err := writeSeccompPolicies(tmpDir)
 	if err != nil {
 		return nil, err
 	}

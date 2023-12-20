@@ -39,7 +39,7 @@ kexec_load errno 1
 open_by_handle_at errno 1
 `
 
-func writeSeecompPolicies(tmpDir string) ([_seccompPolicyMax]string, error) {
+func writeSeccompPolicies(tmpDir string) ([_seccompPolicyMax]string, error) {
 	policies := map[SeccompPolicyType]string{
 		SeccompPolicyDefault:          seccompPolicyBase,
 		SeccompPolicyIsolated:         seccompPolicyBase + seccompPolicyIsolated,
