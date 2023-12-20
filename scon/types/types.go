@@ -1,7 +1,6 @@
 package types
 
 const (
-	ContainerIDDocker = "01GQQVF6C60000000000DOCKER"
 	// sentinel
 	DockerMigrationSyncDirImageLoad = "//..__orb_migrate_docker_image_load__"
 

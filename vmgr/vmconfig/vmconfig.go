@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/mem"
 	"github.com/orbstack/macvirt/vmgr/syncx"
@@ -41,7 +42,7 @@ type VmConfig struct {
 	MountHideShared   bool   `json:"mount_hide_shared"`
 	DataDir           string `json:"data_dir,omitempty"`
 	DockerSetContext  bool   `json:"docker.set_context"`
-	DockerNodeName    string `json:"docker.node_name,omitempty"`
+	DockerNodeName    string `json:"docker.node_name"`
 	SetupUseAdmin     bool   `json:"setup.use_admin"`
 	K8sEnable         bool   `json:"k8s.enable"`
 	K8sExposeServices bool   `json:"k8s.expose_services"`
@@ -101,6 +102,10 @@ func (c *VmConfig) Validate() error {
 		if err != nil {
 			return fmt.Errorf("validate data dir: %w", err)
 		}
+	}
+
+	if !types.ContainerNameRegex.MatchString(c.DockerNodeName) {
+		return fmt.Errorf("invalid docker node name: %s", c.DockerNodeName)
 	}
 
 	return nil

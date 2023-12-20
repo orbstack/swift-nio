@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
-	"regexp"
 	"slices"
 	"time"
 
@@ -20,16 +19,8 @@ const (
 	ipPollInterval = 100 * time.Millisecond
 )
 
-var (
-	// min 2 chars, disallows hidden files (^.)
-	// hostname rules: can't contain _, can't start with -, and '.' has special meaning (nixos doesn't like it)
-	containerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-.]+$`)
-	// .orb.internal domains, plus "default" special ssh name
-	containerNameBlacklist = []string{"default", "vm", "host", "services", "gateway", ContainerK8s, ContainerDocker}
-)
-
 func validateContainerName(name string) error {
-	if !containerNameRegex.MatchString(name) || slices.Contains(containerNameBlacklist, name) {
+	if !types.ContainerNameRegex.MatchString(name) || slices.Contains(types.ContainerNameBlacklist, name) {
 		return fmt.Errorf("invalid machine name '%s'", name)
 	}
 	return nil

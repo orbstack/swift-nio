@@ -30,12 +30,12 @@ import (
 )
 
 const (
-	ContainerDocker   = "docker"
-	ContainerIDDocker = "01GQQVF6C60000000000DOCKER"
+	ContainerDocker   = types.ContainerDocker
+	ContainerIDDocker = types.ContainerIDDocker
 
 	// currently same
-	ContainerK8s   = "k8s"
-	ContainerIDK8s = "01GQQVF6C60000000000DOCKER"
+	ContainerK8s   = types.ContainerK8s
+	ContainerIDK8s = types.ContainerIDK8s
 
 	// takes ~3 ms to unfreeze
 	dockerFreezeDebounce = 2 * time.Second
@@ -605,6 +605,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	}
 
 	// vanity name for k8s/swarm node name
+	if c.manager.k8sEnabled && cfg.DockerNodeName != "orbstack" {
+		// swarm only for now. to avoid broken k8s node, don't allow changing node name
+		return fmt.Errorf("cannot change docker.node_name when k8s is enabled")
+	}
 	err = c.setLxcConfig("lxc.uts.name", cfg.DockerNodeName)
 	if err != nil {
 		return fmt.Errorf("set hostname: %w", err)
