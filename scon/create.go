@@ -28,13 +28,6 @@ var (
 	containerNameBlacklist = []string{"default", "vm", "host", "services", "gateway", ContainerK8s, ContainerDocker}
 )
 
-type CreateParams struct {
-	Name  string
-	Image types.ImageSpec
-
-	UserPassword string
-}
-
 func validateContainerName(name string) error {
 	if !containerNameRegex.MatchString(name) || slices.Contains(containerNameBlacklist, name) {
 		return fmt.Errorf("invalid machine name '%s'", name)
@@ -42,7 +35,7 @@ func validateContainerName(name string) error {
 	return nil
 }
 
-func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpec, error) {
+func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.ImageSpec, error) {
 	if m.stopping {
 		return nil, nil, errors.New("machine manager is stopping")
 	}
@@ -56,6 +49,15 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 	}
 	if _, err := m.GetByName(name); err == nil {
 		return nil, nil, fmt.Errorf("machine already exists: '%s'", name)
+	}
+
+	// for cloud-init, variant must be "cloud", and that variant must be available
+	if args.CloudInitUserData != "" {
+		if _, ok := images.ImagesWithCloudVariant[image.Distro]; !ok {
+			return nil, nil, fmt.Errorf("cloud-init not supported for '%s'", image.Distro)
+		}
+
+		image.Variant = "cloud"
 	}
 
 	// image defaults
@@ -96,7 +98,7 @@ func (m *ConManager) beginCreate(args CreateParams) (*Container, *types.ImageSpe
 	return c, &image, nil
 }
 
-func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
+func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error) {
 	c, image, err := m.beginCreate(args)
 	if err != nil {
 		return
@@ -111,7 +113,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 		}
 	}()
 
-	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir)
+	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir, args.CloudInitUserData)
 	if err != nil {
 		err = fmt.Errorf("make rootfs: %w", err)
 		return
@@ -151,7 +153,7 @@ func (m *ConManager) Create(args CreateParams) (c *Container, err error) {
 	return
 }
 
-func (c *Container) setupInitial(args CreateParams) error {
+func (c *Container) setupInitial(args *types.CreateRequest) error {
 	// get host user
 	hostUser, err := c.manager.host.GetUser()
 	if err != nil {

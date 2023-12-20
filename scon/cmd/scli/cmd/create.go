@@ -19,12 +19,14 @@ import (
 var (
 	flagArch        string
 	flagSetPassword bool
+	flagUserData    string
 )
 
 func init() {
 	rootCmd.AddCommand(createCmd)
 	createCmd.Flags().BoolVarP(&flagSetPassword, "set-password", "p", false, "Set a password for the default user")
 	createCmd.Flags().StringVarP(&flagArch, "arch", "a", "", "Override the default architecture")
+	createCmd.Flags().StringVarP(&flagUserData, "user-data", "c", "", "Path to Cloud-init user data file (for automatic setup)")
 }
 
 var createCmd = &cobra.Command{
@@ -55,14 +57,13 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 		}
 
 		// ask for password
-		var password *string
+		var password string
 		if flagSetPassword {
 			// prompt for password
 			fmt.Print("Password for Linux user: ")
 			pwdData, err := term.ReadPassword(int(os.Stdin.Fd()))
 			checkCLI(err)
-			str := string(pwdData)
-			password = &str
+			password = string(pwdData)
 
 			fmt.Println()
 		}
@@ -85,6 +86,14 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 			name = args[1]
 		}
 
+		// read cloud init file
+		var userData string
+		if flagUserData != "" {
+			data, err := os.ReadFile(flagUserData)
+			checkCLI(err)
+			userData = string(data)
+		}
+
 		// spinner
 		scli.EnsureSconVMWithSpinner()
 		spinner := spinutil.Start("blue", "Creating "+name)
@@ -95,7 +104,8 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 				Version: version,
 				Arch:    arch,
 			},
-			UserPassword: password,
+			UserPassword:      password,
+			CloudInitUserData: userData,
 		})
 		spinner.Stop()
 		if err != nil {

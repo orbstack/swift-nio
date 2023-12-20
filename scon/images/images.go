@@ -123,6 +123,23 @@ var (
 		// default and recommended over systemd
 		ImageGentoo: "openrc",
 	}
+
+	// distros with "cloud" variant on images.linuxcontainers.org
+	ImagesWithCloudVariant = map[string]bool{
+		ImageAlma:   true,
+		ImageAlpine: true,
+		// no arch. only for amd64
+		ImageCentos:    true,
+		ImageDebian:    true,
+		ImageDevuan:    true,
+		ImageFedora:    true,
+		ImageKali:      true,
+		ImageOpeneuler: true,
+		ImageOpensuse:  true,
+		ImageOracle:    true,
+		ImageRocky:     true,
+		ImageUbuntu:    true,
+	}
 )
 
 func Distros() []string {

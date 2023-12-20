@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flosch/pongo2/v6"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
@@ -285,7 +286,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	return nil
 }
 
-func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string) error {
+func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string, cloudInitUserData string) error {
 	// create temp in subdir
 	downloadDir, err := os.MkdirTemp(m.subdir("images"), "download")
 	if err != nil {
@@ -402,29 +403,55 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 
 	// apply templates
 	logrus.Info("applying templates")
+	ctx := pongo2.Context{
+		"container": map[string]string{
+			"name": containerName,
+		},
+		"instance": map[string]string{
+			"name": containerName,
+			"type": "container", // not virtual-machine. for cloud-init network-config
+		},
+		"properties": map[string]string{
+			// used by cloud-init templates as default value for config_get
+			"default": "",
+		},
+		// cloud-init.user-data is newer. new images still have compat for user.user-data
+		// so use user.user-data for better compat with old images
+		"config_get": func(key string, def any) any {
+			if key == "user.user-data" {
+				return cloudInitUserData
+			}
+
+			return def
+		},
+	}
 	for relPath, templateSpec := range meta.Templates {
 		logrus.WithField("path", relPath).Debug("applying template")
 		if strings.ContainsRune(templateSpec.Template, '/') {
 			return errors.New("template path must not contain '/': " + templateSpec.Template)
 		}
 
-		tmplBytes, err := os.ReadFile(path.Join(metadataDir, "templates", templateSpec.Template))
+		tplBytes, err := os.ReadFile(path.Join(metadataDir, "templates", templateSpec.Template))
 		if err != nil {
 			return err
 		}
-		tmpl := string(tmplBytes)
 
-		// terrible...
-		// TODO proper templating
-		tmpl = strings.ReplaceAll(tmpl, "{{ container.name }}", hostName)
-		tmpl = strings.ReplaceAll(tmpl, "{{ instance.name }}", hostName)
+		tpl, err := pongo2.FromString("{% autoescape off %}" + string(tplBytes) + "{% endautoescape %}")
+		if err != nil {
+			return fmt.Errorf("parse template: %w", err)
+		}
+
+		result, err := tpl.Execute(ctx)
+		if err != nil {
+			return fmt.Errorf("execute template: %w", err)
+		}
 
 		// make dirs
 		err = fs.MkdirAll(path.Dir(relPath), 0755)
 		if err != nil {
 			return err
 		}
-		err = fs.WriteFile(relPath, []byte(tmpl), 0644)
+		err = fs.WriteFile(relPath, []byte(result), 0644)
 		if err != nil {
 			return err
 		}

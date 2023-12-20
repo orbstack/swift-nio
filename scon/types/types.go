@@ -52,7 +52,9 @@ type MachineConfig struct {
 type CreateRequest struct {
 	Name         string    `json:"name"`
 	Image        ImageSpec `json:"image"`
-	UserPassword *string   `json:"user_password"`
+	UserPassword string    `json:"user_password,omitempty"`
+
+	CloudInitUserData string `json:"cloud_init_user_data"`
 }
 
 type GetByIDRequest struct {

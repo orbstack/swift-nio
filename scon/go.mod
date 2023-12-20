@@ -48,6 +48,7 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/flosch/pongo2/v6 v6.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

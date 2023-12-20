@@ -30,16 +30,8 @@ func (s *SconServer) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *SconServer) Create(ctx context.Context, req types.CreateRequest) (*types.ContainerRecord, error) {
-	pwd := ""
-	if req.UserPassword != nil {
-		pwd = *req.UserPassword
-	}
-	c, err := s.m.Create(CreateParams{
-		Name:         req.Name,
-		Image:        req.Image,
-		UserPassword: pwd,
-	})
+func (s *SconServer) Create(ctx context.Context, req *types.CreateRequest) (*types.ContainerRecord, error) {
+	c, err := s.m.Create(req)
 	if err != nil {
 		return nil, fmt.Errorf("create '%s': %w", req.Name, err)
 	}
