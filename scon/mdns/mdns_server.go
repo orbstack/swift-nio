@@ -51,6 +51,9 @@ type Config struct {
 	// LogEmptyResponses indicates the server should print an informative message
 	// when there is an mDNS query for which the server has no response.
 	LogEmptyResponses bool
+
+	// IP_MULTICAST_LOOP?
+	Loopback bool
 }
 
 // mDNS server is used to listen for mDNS queries and respond if we
@@ -87,6 +90,7 @@ func NewServer(config *Config) (*Server, error) {
 		// SHOULD set TTL to 255 (mdns-scan checks this)
 		// https://www.rfc-editor.org/rfc/rfc6762.html sec. 11
 		packetConn := ipv4.NewPacketConn(ipv4List)
+		packetConn.SetMulticastLoopback(config.Loopback)
 		packetConn.SetMulticastTTL(255)
 		packetConn.SetTTL(255) // yes, even for unicast
 		go s.recv(s.ipv4List)
@@ -94,6 +98,7 @@ func NewServer(config *Config) (*Server, error) {
 
 	if ipv6List != nil {
 		packetConn := ipv6.NewPacketConn(ipv6List)
+		packetConn.SetMulticastLoopback(config.Loopback)
 		packetConn.SetMulticastHopLimit(255)
 		packetConn.SetHopLimit(255)
 		go s.recv(s.ipv6List)
