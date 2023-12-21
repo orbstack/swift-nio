@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -485,6 +486,12 @@ func (d *DockerAgent) monitorEvents() error {
 				d.containerRefreshDebounce.Call()
 				// also need to trigger networks refresh, because networks depends on active containers
 				d.networkRefreshDebounce.Call()
+			default:
+				// UI needs updating for health status, but nothing else
+				// action format: "health_status: healthy"
+				if strings.HasPrefix(event.Action, "health_status:") {
+					d.triggerUIEvent(uitypes.DockerEntityContainer)
+				}
 			}
 
 		case "volume":
