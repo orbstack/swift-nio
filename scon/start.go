@@ -197,7 +197,8 @@ func (c *Container) configureLxc() error {
 		return err
 	}
 
-	blockDevs, err := os.ReadDir("/sys/block")
+	// /sys/block only includes disks. /sys/class/block includes partitions too
+	blockDevs, err := os.ReadDir("/sys/class/block")
 	if err != nil {
 		return err
 	}
