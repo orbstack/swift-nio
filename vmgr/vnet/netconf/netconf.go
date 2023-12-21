@@ -158,3 +158,12 @@ const K8sMergedCIDR6 = "fd07:b51a:cc66:a::/64" // remember: macOS can only do /6
 // this is a safe assumption. check orb-coredns.yaml
 // it's first services IP (.0) + 10
 const K8sCorednsIP4 = "192.168.194.138"
+
+// marks used in docker machine
+const (
+	// avoid conflict with flannel masquerade rule for 0x2000/0x2000
+	DockerMarkTlsProxyUpstream    = 0x9f7a0000
+	DockerMarkTlsProxyUpstreamStr = "0x9f7a0000"
+
+	DockerMarkTlsProxyLocalRouteStr = "0xb3c60000"
+)

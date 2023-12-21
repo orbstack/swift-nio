@@ -24,12 +24,6 @@ const (
 	IpsetGateway4    = "orb-tp4-gw"
 	IpsetHostBridge6 = "orb-tp6"
 	IpsetGateway6    = "orb-tp6-gw"
-
-	// avoid conflict with flannel masquerade rule for 0x2000/0x2000
-	TlsProxyUpstreamMark    = 0x9f7a0000
-	TlsProxyUpstreamMarkStr = "0x9f7a0000"
-
-	TlsProxyLocalRouteMarkStr = "0xb3c60000"
 )
 
 func compareNetworks(a, b dockertypes.Network) int {

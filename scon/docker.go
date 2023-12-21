@@ -96,7 +96,7 @@ var dockerInitCommands = [][]string{
 
 	// TLS proxy: loopback routing for connection to TLS proxy
 	// busybox only supports table ID < 1024 but kernel can do 32-bit(? or is it just string?)
-	{"ip", "rule", "add", "fwmark", agent.TlsProxyLocalRouteMarkStr, "table", "984"},
+	{"ip", "rule", "add", "fwmark", netconf.DockerMarkTlsProxyLocalRouteStr, "table", "984"},
 	{"ip", "route", "add", "local", "default", "dev", "lo", "table", "984"},
 
 	// mixed ipv4 and ipv6 hash set
@@ -115,12 +115,12 @@ var dockerInitCommands = [][]string{
 	// complicated routing to make source IP spoofing work:
 	// 1. outgoing socket has SO_MARK set to TlsProxyUpstreamMarkStr
 	// 2. on OUTPUT path, save the OUTGOING mark to conntrack metadata for this 5-tuple
-	{"iptables", "-t", "mangle", "-A", "ORB-OUTPUT", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "CONNMARK", "--save-mark"},
+	{"iptables", "-t", "mangle", "-A", "ORB-OUTPUT", "-m", "mark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "CONNMARK", "--save-mark"},
 	// 3. on *input* PREROUTING path, restore the mark from conntrack metadata
-	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "connmark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "CONNMARK", "--restore-mark"},
+	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "connmark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "CONNMARK", "--restore-mark"},
 	// 4. on *input* path ONLY, *change* mark from OUTGOING (UpstreamMark) to LOCAL_ROUTE (LocalRouteMark)
 	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
-	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
+	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "MARK", "--set-mark", netconf.DockerMarkTlsProxyLocalRouteStr},
 
 	// prepare chains for TLS proxy
 	{"ip6tables", "-t", "mangle", "-N", "ORB-PREROUTING"},
@@ -132,12 +132,12 @@ var dockerInitCommands = [][]string{
 	// complicated routing to make source IP spoofing work:
 	// 1. outgoing socket has SO_MARK set to TlsProxyUpstreamMarkStr
 	// 2. on OUTPUT path, save the OUTGOING mark to conntrack metadata for this 5-tuple
-	{"ip6tables", "-t", "mangle", "-A", "ORB-OUTPUT", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "CONNMARK", "--save-mark"},
+	{"ip6tables", "-t", "mangle", "-A", "ORB-OUTPUT", "-m", "mark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "CONNMARK", "--save-mark"},
 	// 3. on *input* PREROUTING path, restore the mark from conntrack metadata
-	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "connmark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "CONNMARK", "--restore-mark"},
+	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "connmark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "CONNMARK", "--restore-mark"},
 	// 4. on *input* path ONLY, *change* mark from OUTGOING (UpstreamMark) to LOCAL_ROUTE (LocalRouteMark)
 	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
-	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", agent.TlsProxyUpstreamMarkStr, "-j", "MARK", "--set-mark", agent.TlsProxyLocalRouteMarkStr},
+	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "MARK", "--set-mark", netconf.DockerMarkTlsProxyLocalRouteStr},
 }
 
 // changes here:
