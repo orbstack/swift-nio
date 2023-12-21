@@ -435,3 +435,12 @@ func TestDocker172NAT(t *testing.T) {
 		t.Fatalf("expected 1 packets transmitted, 1 packets received, 0%% packet loss, got: %s", out)
 	}
 }
+
+func TestDockerOutgoingHTTPS(t *testing.T) {
+	t.Parallel()
+
+	_, err := util.Run("docker", "run", "--rm", "alpine", "sh", "-c", "wget -O- https://www.google.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
