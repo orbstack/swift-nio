@@ -231,10 +231,9 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 
 	// add host and gateway IPs to ipsets
 	if config.IP4Subnet.IsValid() {
-		hostIP := config.HostIP4().IP
-		err = util.Run("ipset", "add", IpsetHostBridge4, hostIP.String())
+		err = util.Run("ipset", "add", IpsetHostBridge4, config.IP4Subnet.String())
 		if err != nil {
-			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
+			logrus.WithError(err).WithField("net", config.IP4Subnet).Error("failed to add bridge net to set")
 		}
 
 		err = util.Run("ipset", "add", IpsetGateway4, config.IP4Gateway.String())
@@ -243,10 +242,9 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		}
 	}
 	if config.IP6Subnet.IsValid() {
-		hostIP := config.HostIP6().IP
-		err = util.Run("ipset", "add", IpsetHostBridge6, hostIP.String())
+		err = util.Run("ipset", "add", IpsetHostBridge6, config.IP6Subnet.String())
 		if err != nil {
-			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
+			logrus.WithError(err).WithField("net", config.IP6Subnet).Error("failed to add bridge net to set")
 		}
 
 		err = util.Run("ipset", "add", IpsetGateway6, config.IP6Gateway.String())
@@ -273,10 +271,9 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 
 	// remove host and gateway IPs from ipsets
 	if config.IP4Subnet.IsValid() {
-		hostIP := config.HostIP4().IP
-		err = util.Run("ipset", "del", IpsetHostBridge4, hostIP.String())
+		err = util.Run("ipset", "del", IpsetHostBridge4, config.IP4Subnet.String())
 		if err != nil {
-			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove host ip from set")
+			logrus.WithError(err).WithField("ip", config.IP4Subnet).Error("failed to remove bridge net from set")
 		}
 
 		err = util.Run("ipset", "del", IpsetGateway4, config.IP4Gateway.String())
@@ -285,10 +282,9 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 		}
 	}
 	if config.IP6Subnet.IsValid() {
-		hostIP := config.HostIP6().IP
-		err = util.Run("ipset", "del", IpsetHostBridge6, hostIP.String())
+		err = util.Run("ipset", "del", IpsetHostBridge6, config.IP6Subnet.String())
 		if err != nil {
-			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove host ip from set")
+			logrus.WithError(err).WithField("ip", config.IP6Subnet).Error("failed to remove bridge net from set")
 		}
 
 		err = util.Run("ipset", "del", IpsetGateway6, config.IP6Gateway.String())

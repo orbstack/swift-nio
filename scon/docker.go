@@ -100,12 +100,10 @@ var dockerInitCommands = [][]string{
 	{"ip", "route", "add", "local", "default", "dev", "lo", "table", "984"},
 
 	// mixed ipv4 and ipv6 hash set
-	{"ipset", "create", agent.IpsetHostBridge4, "hash:ip"},
+	{"ipset", "create", agent.IpsetHostBridge4, "hash:net"},
 	{"ipset", "create", agent.IpsetGateway4, "hash:ip"},
-	{"ipset", "create", agent.IpsetHostBridge6, "hash:ip", "family", "inet6"},
+	{"ipset", "create", agent.IpsetHostBridge6, "hash:net", "family", "inet6"},
 	{"ipset", "create", agent.IpsetGateway6, "hash:ip", "family", "inet6"},
-	// add nat64 IP - always counts as host
-	{"ipset", "add", agent.IpsetHostBridge4, netconf.NAT64SourceIP4},
 
 	// prepare chains for TLS proxy
 	{"iptables", "-t", "mangle", "-N", "ORB-PREROUTING"},
