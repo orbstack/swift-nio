@@ -17,26 +17,26 @@ import (
 )
 
 const (
-	ipv4mdns              = "224.0.0.251"
-	ipv6mdns              = "ff02::fb"
+	IPv4mdns              = "224.0.0.251"
+	IPv6mdns              = "ff02::fb"
 	mdnsPort              = 5353
 	forceUnicastResponses = false
 )
 
 var (
 	ipv4Addr = &net.UDPAddr{
-		IP:   net.ParseIP(ipv4mdns),
+		IP:   net.ParseIP(IPv4mdns),
 		Port: mdnsPort,
 	}
 	ipv6Addr = &net.UDPAddr{
-		IP:   net.ParseIP(ipv6mdns),
+		IP:   net.ParseIP(IPv6mdns),
 		Port: mdnsPort,
 	}
 )
 
 type Zone interface {
 	// Records returns DNS records in response to a DNS question.
-	Records(q dns.Question, from net.Addr) []dns.RR
+	Records(q dns.Question, from net.Addr, pktMark uint32) []dns.RR
 }
 
 // Config is used to configure the mDNS server
@@ -88,6 +88,11 @@ func NewServer(config *Config) (*Server, error) {
 	}
 
 	if ipv4List != nil {
+		err := setSoRcvmark(ipv4List)
+		if err != nil {
+			return nil, err
+		}
+
 		// SHOULD set TTL to 255 (mdns-scan checks this)
 		// https://www.rfc-editor.org/rfc/rfc6762.html sec. 11
 		packetConn := ipv4.NewPacketConn(ipv4List)
@@ -98,6 +103,11 @@ func NewServer(config *Config) (*Server, error) {
 	}
 
 	if ipv6List != nil {
+		err := setSoRcvmark(ipv6List)
+		if err != nil {
+			return nil, err
+		}
+
 		packetConn := ipv6.NewPacketConn(ipv6List)
 		packetConn.SetMulticastLoopback(config.Loopback)
 		packetConn.SetMulticastHopLimit(255)
@@ -132,30 +142,33 @@ func (s *Server) recv(c *net.UDPConn) {
 		return
 	}
 	buf := make([]byte, 65536)
+	oob := make([]byte, 128)
 	for atomic.LoadInt32(&s.shutdown) == 0 {
-		n, from, err := c.ReadFrom(buf)
+		n, oobn, _, from, err := c.ReadMsgUDP(buf, oob)
 
 		if err != nil {
 			continue
 		}
-		if err := s.parsePacket(buf[:n], from); err != nil {
+
+		mark := parseMark(oob[:oobn])
+		if err := s.parsePacket(buf[:n], from, mark); err != nil {
 			logrus.Errorf("mdns: Failed to handle query: %v", err)
 		}
 	}
 }
 
 // parsePacket is used to parse an incoming packet
-func (s *Server) parsePacket(packet []byte, from net.Addr) error {
+func (s *Server) parsePacket(packet []byte, from net.Addr, mark uint32) error {
 	var msg dns.Msg
 	if err := msg.Unpack(packet); err != nil {
 		logrus.Errorf("mdns: Failed to unpack packet: %v", err)
 		return err
 	}
-	return s.handleQuery(&msg, from)
+	return s.handleQuery(&msg, from, mark)
 }
 
 // handleQuery is used to handle an incoming query
-func (s *Server) handleQuery(query *dns.Msg, from net.Addr) error {
+func (s *Server) handleQuery(query *dns.Msg, from net.Addr, mark uint32) error {
 	if query.Opcode != dns.OpcodeQuery {
 		// "In both multicast query and multicast response messages, the OPCODE MUST
 		// be zero on transmission (only standard queries are currently supported
@@ -184,7 +197,7 @@ func (s *Server) handleQuery(query *dns.Msg, from net.Addr) error {
 
 	// Handle each question
 	for _, q := range query.Question {
-		mrecs, urecs := s.handleQuestion(q, from)
+		mrecs, urecs := s.handleQuestion(q, from, mark)
 		multicastAnswer = append(multicastAnswer, mrecs...)
 		unicastAnswer = append(unicastAnswer, urecs...)
 	}
@@ -309,8 +322,8 @@ func (s *Server) SendCacheFlush(records []dns.RR) error {
 //
 // The response to a question may be transmitted over multicast, unicast, or
 // both.  The return values are DNS records for each transmission type.
-func (s *Server) handleQuestion(q dns.Question, from net.Addr) (multicastRecs, unicastRecs []dns.RR) {
-	records := s.config.Zone.Records(q, from)
+func (s *Server) handleQuestion(q dns.Question, from net.Addr, mark uint32) (multicastRecs, unicastRecs []dns.RR) {
+	records := s.config.Zone.Records(q, from, mark)
 
 	if len(records) == 0 {
 		return nil, nil

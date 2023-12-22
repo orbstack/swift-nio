@@ -37,6 +37,7 @@ type SwextUserSettings struct {
 
 type BridgeNetworkConfig struct {
 	GuestFd         int  `json:"guestFd"`
+	GuestSconFd     int  `json:"guestSconFd"`
 	ShouldReadGuest bool `json:"shouldReadGuest"`
 
 	UUID       string `json:"uuid"`

@@ -180,6 +180,7 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 
 	vmnetConfig := vzf.BridgeNetworkConfig{
 		GuestFd:         n.hostBridgeFds[brIndexVlanRouter],
+		GuestSconFd:     n.hostBridgeFds[brIndexSconMachine],
 		ShouldReadGuest: false, // handled by vlan router
 
 		UUID: deriveBridgeConfigUuid(config),
@@ -338,6 +339,7 @@ func (n *Network) CreateSconMachineHostBridge() error {
 
 	config := vzf.BridgeNetworkConfig{
 		GuestFd:         n.hostBridgeFds[brIndexSconMachine],
+		GuestSconFd:     n.hostBridgeFds[brIndexSconMachine],
 		ShouldReadGuest: true,
 
 		UUID:       brUuidSconMachine,
@@ -350,8 +352,8 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		// so this is just the VM's MAC for NDP responder use
 		GuestMAC:       brMacSconGuest,
 		NDPReplyPrefix: slicePrefix6(nat64Subnet),
-		// prevent mDNS loop
-		AllowMulticast: false,
+		// allow all multicast, not just mDNs
+		AllowMulticast: true,
 
 		MaxLinkMTU: int(n.LinkMTU),
 	}

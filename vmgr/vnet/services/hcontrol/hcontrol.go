@@ -844,16 +844,11 @@ func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
 type None struct{}
 
 func ListenHcontrol(n *vnet.Network, address tcpip.Address, drmClient *drm.DrmClient) (*HcontrolServer, error) {
-	hostMdns, err := hostmdns.NewHostMdnsServer(drmClient)
-	if err != nil {
-		return nil, err
-	}
-
 	server := &HcontrolServer{
 		n:            n,
 		drmClient:    drm.Client(),
 		fsnotifyRefs: make(map[string]int),
-		hostMdns:     hostMdns,
+		// TODO: start hostMdns for LAN mDNS
 	}
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)

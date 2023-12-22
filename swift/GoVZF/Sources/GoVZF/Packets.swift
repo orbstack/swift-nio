@@ -32,6 +32,12 @@ private let macAddrBroadcast: [UInt8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
 private let macAddrIpv4MulticastPrefix: [UInt8] = [0x01, 0x00, 0x5e]
 private let macAddrIpv6MulticastPrefix: [UInt8] = [0x33, 0x33]
 private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
+private let macAddrIpv4MulticastMdns: [UInt8] = [0x01, 0x00, 0x5e, 0x00, 0x00, 0xfb]
+private let macAddrIpv6MulticastMdns: [UInt8] = [0x33, 0x33, 0x00, 0x00, 0x00, 0xfb]
+
+// 198.19.249.3
+private let sconHostBridgeIpv4: [UInt8] = [198, 19, 249, 3]
+private let sconHostBridgeIpv6: [UInt8] = [0xfd, 0x07, 0xb5, 0x1a, 0xcc, 0x66, 0x00, 0x00, 0xa6, 0x17, 0xdb, 0x5e, 0x0a, 0xb7, 0xe9, 0xf1]
 
 typealias BrnetInterfaceIndex = UInt
 let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
@@ -233,6 +239,90 @@ class PacketProcessor {
     }
 
     /*
+     * Workaround for macOS mDNSResponder bug from ~14.2:
+     * - in some cases (network setups? corporate managed?), mDNSResponder tries to send queries to all interfaces as
+     *   expected, but ends up sending a bunch of duplicates to only one interface instead
+     * - that one interface is usually the most recently added one (i.e. bridge101 / bridge102, *not* bridge100)
+     * - lo0 is also missing queries in this case, so we can't simply move mDNS to lo0
+     * - tcpdump receives all the different interfaces' queries on lo0 - but they seem to be sent with IP_MULTICAST_LOOP
+     *   off, so we can't receive them
+     * - > workaround: receive mDNS queries on ALL bridge interfaces, and redirect them to scon machine bridge100
+     *   * scon's mDNS server runs *only* on this interface
+     *   * macOS doesn't care which interface it gets responses on
+     *     * for all it knows, we could've just happened to preemptively advertise the domain right after the query
+     * - to distinguish between macOS and Linux mDNS queries, we use iptables marking in the VM, and SO_RCVMARK in mDNS
+     *   server
+     * - this is basically guaranteed to work b/c macOS will always send the queries out on *some* interface
+     *   ... unless said interface happens to be wifi, somehow? (VPNs / utun aren't eligible)
+     */
+    private func filterDestMacAndRedirect(pkt: Packet) throws -> (pass: Bool, redirectToScon: Bool) {
+        let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
+
+        // filter IPv6 multicast
+        if memcmp(dstMacPtr, macAddrIpv6MulticastPrefix, macAddrIpv6MulticastPrefix.count) == 0 {
+            // allow NDP (33:33:FF:XX:XX:XX)
+            let nextByte: UInt8 = try pkt.load(offset: 0 + 2)
+            if nextByte == 0xff {
+                return (true, false)
+            }
+
+            // allow mDNS (33:33:00:00:00:FB) but redirect to scon bridge (macvlan can't handle it)
+            if memcmp(dstMacPtr, macAddrIpv6MulticastMdns, macAddrIpv6MulticastMdns.count) == 0 {
+                // replace source IP as part of redirection
+                let srcIpPtr = try pkt.slicePtr(offset: 14 + 8, len: 16)
+                var oldSrcIp = [UInt8](repeating: 0, count: 16)
+                memcpy(&oldSrcIp, srcIpPtr, 16)
+                srcIpPtr.copyMemory(from: sconHostBridgeIpv6, byteCount: 16)
+
+                // fix checksum incrementally (UDP+IPv6)
+                let oldChecksum = (try pkt.load(offset: 14 + 40 + 6) as UInt16).bigEndian
+                let newChecksum = Checksum.update(oldChecksum: oldChecksum,
+                        oldData: oldSrcIp, newData: sconHostBridgeIpv6)
+                try pkt.store(offset: 14 + 40 + 6, value: newChecksum.bigEndian)
+
+                return (true, true)
+            }
+
+            // drop all other multicast (to save CPU and avoid weird macvlan behavior),
+            // unless allowMulticast is enabled (which includes *all* multicast)
+            return (allowMulticast, false)
+        }
+
+        // filter IPv4 multicast
+        if memcmp(dstMacPtr, macAddrIpv4MulticastPrefix, macAddrIpv4MulticastPrefix.count) == 0 {
+            // allow mDNS (01:00:5E:00:00:FB) but redirect to scon bridge (macvlan can't handle it)
+            if memcmp(dstMacPtr, macAddrIpv4MulticastMdns, macAddrIpv4MulticastMdns.count) == 0 {
+                // replace source IP as part of redirection
+                let srcIpPtr = try pkt.slicePtr(offset: 14 + 12, len: 4)
+                var oldSrcIp = [UInt8](repeating: 0, count: 4)
+                memcpy(&oldSrcIp, srcIpPtr, 4)
+                srcIpPtr.copyMemory(from: sconHostBridgeIpv4, byteCount: 4)
+
+                // fix IPv4 checksum incrementally
+                let oldChecksum = (try pkt.load(offset: 14 + 10) as UInt16).bigEndian
+                let newChecksum = Checksum.update(oldChecksum: oldChecksum,
+                        oldData: oldSrcIp, newData: sconHostBridgeIpv4)
+                try pkt.store(offset: 14 + 10, value: newChecksum.bigEndian)
+
+                // fix UDP checksum incrementally
+                let oldUdpChecksum = (try pkt.load(offset: 14 + 20 + 6) as UInt16).bigEndian
+                let newUdpChecksum = Checksum.update(oldChecksum: oldUdpChecksum,
+                        oldData: oldSrcIp, newData: sconHostBridgeIpv4)
+                try pkt.store(offset: 14 + 20 + 6, value: newUdpChecksum.bigEndian)
+
+                return (true, true)
+            }
+
+            // drop all other multicast (to save CPU and avoid weird macvlan behavior),
+            // unless allowMulticast is enabled (which includes *all* multicast)
+            return (allowMulticast, false)
+        }
+
+        // allow everything else (unicast, and IPv4 broadcast for ARP)
+        return (true, false)
+    }
+
+    /*
     OUTGOING PACKET PROCESSING
     --------------------------
     1. build vnet hdr
@@ -241,7 +331,7 @@ class PacketProcessor {
       - must do this because macOS doesn't let us change the vmnet bridge100's MAC addr
     */
     // warning: can be called concurrently!
-    func processToGuest(pkt: Packet) throws {
+    func processToGuest(pkt: Packet) throws -> /*redirectToScon*/ Bool {
         // save the actual macOS source MAC if needed (for later translation) - Ethernet[6]
         let srcMacPtr = try pkt.slicePtr(offset: macAddrSize, len: macAddrSize)
         if hostRealMac == nil {
@@ -249,23 +339,10 @@ class PacketProcessor {
             hostRealMac = Array(UnsafeBufferPointer(start: srcMacPtr.assumingMemoryBound(to: UInt8.self), count: macAddrSize))
         }
 
-        // allow IPv4 broadcast so ARP works
-        // drop all IPv4 multicast (to save CPU from mDNS)
-        // macOS broadcasts mDNS to v4 and v6 simultaneously. v6 is less likely to conflict, so just drop v4 to save CPU
-        let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
-        if memcmp(dstMacPtr, macAddrIpv4MulticastPrefix, macAddrIpv4MulticastPrefix.count) == 0 {
+        // filter by destination MAC (to deal with multicast, broadcast, etc.)
+        let (pass, redirectToScon) = try filterDestMacAndRedirect(pkt: pkt)
+        if !pass {
             throw BrnetError.dropPacket
-        }
-
-        if !allowMulticast {
-            // allow IPv6 multicast to NDP prefix (33:33:FF:XX:XX:XX) so NDP works
-            // drop all other IPv6 multicast (to save CPU from mDNS)
-            if memcmp(dstMacPtr, macAddrIpv6MulticastPrefix, macAddrIpv6MulticastPrefix.count) == 0 {
-                let nextByte: UInt8 = try pkt.load(offset: 0 + 2)
-                if nextByte != 0xff {
-                    throw BrnetError.dropPacket
-                }
-            }
         }
 
         // rewrite source MAC (Ethernet[6])
@@ -326,6 +403,8 @@ class PacketProcessor {
                 }
             }
         }
+
+        return redirectToScon
     }
 
     func maybeRespondNdp(pkt: Packet) throws {

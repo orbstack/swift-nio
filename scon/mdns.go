@@ -612,7 +612,8 @@ func (r *mdnsRegistry) flushReusedCache() {
 		// careful: if any records are invalid, this will fail with rrdata error
 		// but it's ok: cache flushing is based on queried records.
 		// if a name is invalid (>63 component / >255), it's not possible to query it
-		err := r.host.MdnsSendCacheFlush(flushRecords)
+		// TODO: for LAN mDNS, call r.host.MdnsSendCacheFlush RPC to send to LAN
+		err := r.server.SendCacheFlush(flushRecords)
 		if err != nil {
 			logrus.WithError(err).Error("failed to flush cache")
 		}
@@ -800,7 +801,7 @@ func nxdomain(q dns.Question) []dns.RR {
 }
 
 // dispatcher, to either host proxy or our server
-func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
+func (r *mdnsRegistry) Records(q dns.Question, from net.Addr, pktMark uint32) []dns.RR {
 	// top bit = "QU" (unicast) flag
 	// mDNSResponder sends QU first. not responding causes 1-sec delay
 	qclass := q.Qclass &^ (1 << 15)
@@ -808,8 +809,14 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 		return nil
 	}
 
-	// TODO explain
-	return r.proxyToHost(q)
+	// check packet mark:
+	// - if marked with 0x1, it's from macOS, and should be handled as a query
+	// - if not marked, it's from a machine, and should be handled as reflector
+	if pktMark == netconf.VmMarkHostMdns {
+		return r.handleQuery(q)
+	} else {
+		return r.proxyToHost(q)
+	}
 }
 
 // authoritative server

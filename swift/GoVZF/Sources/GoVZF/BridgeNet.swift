@@ -103,6 +103,7 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
 
 struct BridgeNetworkConfig: Codable {
     let guestFd: Int32
+    let guestSconFd: Int32
     let shouldReadGuest: Bool
 
     let uuid: String
@@ -222,9 +223,13 @@ class BridgeNetwork {
                     continue
                 }
 
+                var guestFd = config.guestFd
                 let pkt = Packet(desc: pktDesc)
                 do {
-                    try processor.processToGuest(pkt: pkt)
+                    let redirectToScon = try processor.processToGuest(pkt: pkt)
+                    if redirectToScon {
+                        guestFd = config.guestSconFd
+                    }
                     vnetHdr[0] = try processor.buildVnetHdr(pkt: pkt)
                 } catch {
                     switch error {
@@ -246,7 +251,7 @@ class BridgeNetwork {
                 ]
                 let totalSize = pkt.len + vnetHdrSize
                 //print("writing \(totalSize) bytes to tap")
-                let ret = writev(config.guestFd, &iovs, 2)
+                let ret = writev(guestFd, &iovs, 2)
                 guard ret == totalSize else {
                     if errno != ENOBUFS {
                         NSLog("[brnet] write error: \(errno)")
