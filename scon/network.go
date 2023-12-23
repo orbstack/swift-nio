@@ -525,17 +525,6 @@ func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, ho
 		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.VnetSubnet6CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
 	}
 
-	/*
-	 * mdns
-	 */
-
-	// mark incoming mDNS packets from macOS, for mDNS server to distinguish
-	if proto == iptables.ProtocolIPv4 {
-		rules = append(rules, []string{"mangle", "PREROUTING", "-i", ifVmnetMachine, "-p", "udp", "--dport", "5353", "-d", mdns.IPv4mdns, "-j", "MARK", "--set-mark", netconf.VmMarkHostMdnsStr})
-	} else {
-		rules = append(rules, []string{"mangle", "PREROUTING", "-i", ifVmnetMachine, "-p", "udp", "--dport", "5353", "-d", mdns.IPv6mdns, "-j", "MARK", "--set-mark", netconf.VmMarkHostMdnsStr})
-	}
-
 	// add rules
 	for _, rule := range rules {
 		err = ipt.Append(rule[0], rule[1], rule[2:]...)

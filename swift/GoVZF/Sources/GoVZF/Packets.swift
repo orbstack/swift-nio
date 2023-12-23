@@ -269,6 +269,7 @@ class PacketProcessor {
             // allow mDNS (33:33:00:00:00:FB) but redirect to scon bridge (macvlan can't handle it)
             if memcmp(dstMacPtr, macAddrIpv6MulticastMdns, macAddrIpv6MulticastMdns.count) == 0 {
                 // replace source IP as part of redirection
+                // macOS normally uses link-local IPv6 for mDNS, but it's ok with responses to unicast IP
                 let srcIpPtr = try pkt.slicePtr(offset: 14 + 8, len: 16)
                 var oldSrcIp = [UInt8](repeating: 0, count: 16)
                 memcpy(&oldSrcIp, srcIpPtr, 16)

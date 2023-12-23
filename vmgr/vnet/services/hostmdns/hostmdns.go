@@ -42,7 +42,7 @@ func NewHostMdnsServer(drm *drm.DrmClient) (*HostMdnsServer, error) {
 	return s, nil
 }
 
-func (s *HostMdnsServer) Records(q dns.Question, from net.Addr, pktMark uint32) []dns.RR {
+func (s *HostMdnsServer) Records(q dns.Question, from net.Addr) []dns.RR {
 	// pre-filter to match scon and reduce RPCs: only A, AAAA, ANY
 	qclass := q.Qclass &^ (1 << 15)
 	if qclass != dns.ClassINET {

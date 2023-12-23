@@ -50,6 +50,9 @@ const (
 
 var (
 	nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
+
+	sconHostBridgeIp4 = net.ParseIP(netconf.SconHostBridgeIP4)
+	sconHostBridgeIp6 = net.ParseIP(netconf.SconHostBridgeIP6)
 )
 
 func mustParseCIDR(s string) *net.IPNet {
@@ -801,7 +804,7 @@ func nxdomain(q dns.Question) []dns.RR {
 }
 
 // dispatcher, to either host proxy or our server
-func (r *mdnsRegistry) Records(q dns.Question, from net.Addr, pktMark uint32) []dns.RR {
+func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	// top bit = "QU" (unicast) flag
 	// mDNSResponder sends QU first. not responding causes 1-sec delay
 	qclass := q.Qclass &^ (1 << 15)
@@ -809,10 +812,13 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr, pktMark uint32) []
 		return nil
 	}
 
-	// check packet mark:
-	// - if marked with 0x1, it's from macOS, and should be handled as a query
-	// - if not marked, it's from a machine, and should be handled as reflector
-	if pktMark == netconf.VmMarkHostMdns {
+	// check src addr:
+	// - from macOS: handle as query
+	//   * works because swift packet processor redirects and
+	//     translates source IPs to known v6, not link local
+	// - from a machine: handle as reflector
+	fromAddr := from.(*net.UDPAddr)
+	if fromAddr.IP.Equal(sconHostBridgeIp4) || fromAddr.IP.Equal(sconHostBridgeIp6) {
 		return r.handleQuery(q)
 	} else {
 		return r.proxyToHost(q)
