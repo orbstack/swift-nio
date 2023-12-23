@@ -12,6 +12,7 @@ import (
 
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
+	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
@@ -34,7 +35,8 @@ const mdnsIndexDomain = "orb.local"
 const (
 	// long because we have cache flushing on reuse
 	// ARP cache is a non-issue. Docker generates MAC from IP within the subnet, so it doesn't change
-	mdnsTTLSeconds = 5 * 60 // = 5 min
+	mdnsTTLSeconds    = 5 * 60 // = 5 min
+	kubeDnsTTLSeconds = 5      // = 5 sec (default kube-dns)
 
 	// flush cache this long after a name was reused
 	mdnsCacheFlushDebounce = 250 * time.Millisecond
@@ -807,7 +809,7 @@ func nxdomain(q dns.Question) []dns.RR {
 func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	// top bit = "QU" (unicast) flag
 	// mDNSResponder sends QU first. not responding causes 1-sec delay
-	qclass := q.Qclass &^ (1 << 15)
+	qclass := q.Qclass &^ mdnsCacheFlushRrclass
 	if qclass != dns.ClassINET {
 		return nil
 	}
@@ -847,6 +849,11 @@ func (r *mdnsRegistry) handleQuery(q dns.Question) []dns.RR {
 		logrus.WithField("name", q.Name).Debug("dns: lookup")
 	}
 
+	// cluster.local is forwarded to k8s kubedns
+	if r.manager.k8sEnabled && strings.HasSuffix(q.Name, ".cluster.local.") {
+		return r.queryKubeDns(q)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -868,6 +875,87 @@ func (r *mdnsRegistry) handleQuery(q dns.Question) []dns.RR {
 	}
 
 	return records
+}
+
+func (r *mdnsRegistry) queryKubeDns(q dns.Question) []dns.RR {
+	// add .default to .svc.cluster.local
+	// we're not querying from a pod, so we don't have a default namespace
+	// save original name so we can translate back in received rrs
+	origName := q.Name
+	names := strings.Split(q.Name, ".")
+	// example: traefik, svc, cluster, local, ''
+	// example: traefik, default, svc, cluster, local, ''
+	if len(names) == 5 && names[1] == "svc" && names[2] == "cluster" && names[3] == "local" && names[4] == "" {
+		q.Name = names[0] + ".default.svc.cluster.local."
+	}
+
+	k8sMachine, err := r.manager.GetByID(ContainerIDK8s)
+	if err != nil {
+		logrus.WithError(err).Error("failed to get k8s machine")
+		return nil
+	}
+
+	// remove QU bit before forwarding query. that makes qclass invalid for unicast DNS
+	q.Qclass &^= mdnsCacheFlushRrclass
+
+	// forward to k8s
+	// use short TTL (default kubedns = 5 sec) to avoid tracking queries for cache flushing
+	rrs, err := UseAgentRet(k8sMachine, func(a *agent.Client) ([]dns.RR, error) {
+		rrs, err := a.DockerQueryKubeDns(q)
+		if err != nil {
+			return nil, err
+		}
+
+		// similar to machines code path, successful A + NSEC for AAAA doesn't work, and causes 5-sec delay
+		if q.Qtype == dns.TypeAAAA && len(rrs) == 0 {
+			// retry as A. if that works, use NAT64
+			aRrs, err := a.DockerQueryKubeDns(dns.Question{
+				Name:   q.Name,
+				Qtype:  dns.TypeA,
+				Qclass: q.Qclass,
+			})
+			if err != nil {
+				// if fallback A query failed, return none
+				return nil, nil
+			}
+
+			// if fallback A query succeeded, use NAT64 to create AAAA
+			for _, rr := range aRrs {
+				if a, ok := rr.(*dns.A); ok {
+					rrs = append(rrs, &dns.AAAA{
+						Hdr: dns.RR_Header{
+							Name:   q.Name,
+							Rrtype: dns.TypeAAAA,
+							Class:  dns.ClassINET | mdnsCacheFlushRrclass,
+							Ttl:    kubeDnsTTLSeconds,
+						},
+						AAAA: mapToNat64(a.A),
+					})
+				}
+			}
+		}
+
+		return rrs, nil
+	})
+	if err != nil {
+		logrus.WithError(err).Error("failed to query kubedns")
+		return nil
+	}
+
+	// 0 rrs = nxdomain (NSEC)
+	if len(rrs) == 0 {
+		return nxdomain(q)
+	}
+
+	// set cache flush on all records, and translate names back (if we changed to default ns)
+	for _, rr := range rrs {
+		rr.Header().Class |= mdnsCacheFlushRrclass
+		if rr.Header().Name == q.Name {
+			rr.Header().Name = origName
+		}
+	}
+
+	return rrs
 }
 
 // the idea: we return NSEC if not found AND we know we're in control of the name
@@ -939,6 +1027,10 @@ func (r *mdnsRegistry) proxyToHost(q dns.Question) []dns.RR {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), mdnsProxyTimeout)
 	defer cancel()
+
+	// remove QU bit before forwarding query. that makes qclass invalid for unicast DNS
+	// even though end goal is mDNS, we still need to send a valid qclass to mDNSResponder
+	q.Qclass &^= mdnsCacheFlushRrclass
 
 	// ask host mDNSResponder. it can handle .local queries
 	msg := new(dns.Msg)

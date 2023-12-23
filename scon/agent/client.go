@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync/atomic"
 
+	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -227,6 +228,16 @@ func (c *Client) DockerWaitStart() error {
 	}
 
 	return nil
+}
+
+func (c *Client) DockerQueryKubeDns(q dns.Question) ([]dns.RR, error) {
+	var reply []dns.RR
+	err := c.rpc.Call("a.DockerQueryKubeDns", q, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	return reply, nil
 }
 
 func (c *Client) DockerMigrationLoadImage(params types.InternalDockerMigrationLoadImageRequest) error {

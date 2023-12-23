@@ -13,8 +13,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
+	_ "github.com/orbstack/macvirt/scon/mdns/mdnsgob"
 	"github.com/orbstack/macvirt/scon/sgclient"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/syncx"
@@ -24,12 +26,17 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )
 
 const (
 	dockerRefreshDebounce   = 100 * time.Millisecond
 	dockerAPISocketUpstream = "/var/run/docker.sock"
+
+	// matches mDNSResponder timeout
+	mdnsProxyTimeout = 5 * time.Second
+	kubeDnsUpstream  = netconf.K8sCorednsIP4 + ":53"
 )
 
 type DockerAgent struct {
@@ -248,6 +255,25 @@ func (a *AgentServer) DockerSyncEvents(_ None, _ *None) error {
 
 func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 	a.docker.InitDone.Wait()
+	return nil
+}
+
+func (a *AgentServer) DockerQueryKubeDns(q dns.Question, rrs *[]dns.RR) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mdnsProxyTimeout)
+	defer cancel()
+
+	// forward to kubedns (static IP)
+	msg := new(dns.Msg)
+	msg.SetQuestion(q.Name, q.Qtype)
+	msg.RecursionDesired = false // mDNS
+	// this value is from dig
+	msg.SetEdns0(1232, false)
+	reply, err := dns.ExchangeContext(ctx, msg, kubeDnsUpstream)
+	if err != nil {
+		return nil
+	}
+
+	*rrs = reply.Answer
 	return nil
 }
 
