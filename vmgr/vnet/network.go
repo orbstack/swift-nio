@@ -341,6 +341,10 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	return network, nil
 }
 
+func (n *Network) SetOnRefreshMdns(fn func() error) {
+	n.bridgeRouteMon.SetOnRefreshMdns(fn)
+}
+
 func (n *Network) stopForwards() {
 	n.hostForwardMu.Lock()
 	defer n.hostForwardMu.Unlock()

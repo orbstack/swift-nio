@@ -644,6 +644,8 @@ func runVmManager() {
 
 	// Services
 	hcServer := services.StartNetServices(vnetwork, drmClient)
+	// TODO: for LAN mDNS - refresh default interface
+	//vnetwork.SetOnRefreshMdns(hcServer.HostMdns.UpdateInterfaces)
 
 	// VM control server client
 	vc, err := vclient.NewWithNetwork(vnetwork, vm, stopCh, healthCheckCh)

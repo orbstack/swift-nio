@@ -44,6 +44,14 @@ func NewRouteMon() (*RouteMon, error) {
 
 		logrus.Debug("checking for renew")
 
+		// check mDNS listener interfaces
+		if m.onRefreshMdns != nil {
+			err := m.onRefreshMdns()
+			if err != nil {
+				logrus.WithError(err).Error("failed to refresh mDNS")
+			}
+		}
+
 		// get routing table once (full table needed to make accurate decision)
 		routingTable, err := getRoutingTable()
 		if err != nil {
@@ -91,6 +99,13 @@ type RouteMon struct {
 	renewMu       sync.Mutex // separate mutex to prevent deadlock
 	renewLimiter  *simplerate.Limiter
 	renewDebounce syncx.FuncDebounce
+
+	onRefreshMdns func() error
+}
+
+// can't import hostmdns due to import cycle
+func (m *RouteMon) SetOnRefreshMdns(fn func() error) {
+	m.onRefreshMdns = fn
 }
 
 func (m *RouteMon) Close() error {

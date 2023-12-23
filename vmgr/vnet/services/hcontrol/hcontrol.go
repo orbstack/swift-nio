@@ -99,7 +99,7 @@ type HcontrolServer struct {
 	n         *vnet.Network
 	drmClient *drm.DrmClient
 	Vclient   *vclient.VClient
-	hostMdns  *hostmdns.HostMdnsServer
+	HostMdns  *hostmdns.HostMdnsServer
 
 	fsnotifyMu   sync.Mutex
 	fsnotifyRefs map[string]int
@@ -433,7 +433,7 @@ func (h *HcontrolServer) OnUIEvent(ev string, _ *None) error {
 }
 
 func (h *HcontrolServer) MdnsSendCacheFlush(rrs []dns.RR, _ *None) error {
-	return h.hostMdns.SendCacheFlush(rrs)
+	return h.HostMdns.SendCacheFlush(rrs)
 }
 
 func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
