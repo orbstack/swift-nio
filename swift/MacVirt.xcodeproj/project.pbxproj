@@ -28,6 +28,7 @@
 		B118B4DC48A219728BE68C4F /* K8SServiceItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B37A6E9BB62F82BD7354 /* K8SServiceItemView.swift */; };
 		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
 		B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */; };
+		B118B55A04BDC43EB62C4F9B /* Locks.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B67B66A855D49B729379 /* Locks.swift */; };
 		B118B5BB973EBC5FD60C865B /* K8SSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BA158D66536A2AA036FB /* K8SSettingsView.swift */; };
 		B118B662209189FEF0B61F9F /* CursorRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BEBDA570BE498B231235 /* CursorRegion.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
@@ -254,6 +255,7 @@
 		B118B56B2F68D469F76481FD /* CopyableText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CopyableText.swift; sourceTree = "<group>"; };
 		B118B5B2CF0210C1D968C7AC /* PHShared.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHShared.swift; sourceTree = "<group>"; };
 		B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerMigrationWindow.swift; sourceTree = "<group>"; };
+		B118B67B66A855D49B729379 /* Locks.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Locks.swift; sourceTree = "<group>"; };
 		B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SharedUtils.swift; sourceTree = "<group>"; };
 		B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		B118B82B52FEEB467CDA5C7A /* DockerSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerSettingsView.swift; sourceTree = "<group>"; };
@@ -601,6 +603,7 @@
 				B118BB2A7BF402695260775E /* IPC.swift */,
 				B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */,
 				B118BEDAA62E1455A02C177D /* KeychainFFI.swift */,
+				B118B67B66A855D49B729379 /* Locks.swift */,
 			);
 			name = GoVZF;
 			path = GoVZF/Sources/GoVZF;
@@ -978,6 +981,7 @@
 				B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */,
 				B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */,
 				B118B30635EF5873545E0BE1 /* KeychainFFI.swift in Sources */,
+				B118B55A04BDC43EB62C4F9B /* Locks.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

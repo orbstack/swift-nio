@@ -39,6 +39,9 @@ private let macAddrIpv6MulticastMdns: [UInt8] = [0x33, 0x33, 0x00, 0x00, 0x00, 0
 private let sconHostBridgeIpv4: [UInt8] = [198, 19, 249, 3]
 private let sconHostBridgeIpv6: [UInt8] = [0xfd, 0x07, 0xb5, 0x1a, 0xcc, 0x66, 0x00, 0x00, 0xa6, 0x17, 0xdb, 0x5e, 0x0a, 0xb7, 0xe9, 0xf1]
 
+// 1 ms, in nanosec
+private let mdnsDebounceInterval = 1_000_000
+
 typealias BrnetInterfaceIndex = UInt
 let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
 
@@ -78,7 +81,7 @@ struct Packet {
 
     func slicePtr(offset: Int, len: Int) throws -> UnsafeMutableRawPointer {
         // bounds check
-        if offset + len > self.len {
+        if len < 0 || offset + len > self.len {
             throw BrnetError.invalidPacket
         }
 
@@ -92,6 +95,30 @@ struct Packet {
             // fallback: invalid type - causes passthrough in packet processor
             return 0
         }
+    }
+}
+
+// globals for all PacketProcessors
+private enum PacketCoordinator {
+    private static let lock = UnfairLock()
+    private static var lastMdnsPayload = [UInt8]()
+    private static var lastMdnsTime: UInt64 = 0
+
+    // simple leading-edge 1-ms debounce for consecutive, identical mDNS packets
+    // covers most bursts of duplicate v4/v6 + multiple bridge interfaces, w/o timer or async
+    static func shouldPassMdns(payload: [UInt8]) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+        // if payload is the same, and it's been less than 1 ms, drop it
+        if lastMdnsPayload == payload && now - lastMdnsTime < mdnsDebounceInterval {
+            return false
+        }
+
+        lastMdnsPayload = payload
+        lastMdnsTime = now
+        return true
     }
 }
 
@@ -268,11 +295,23 @@ class PacketProcessor {
 
             // allow mDNS (33:33:00:00:00:FB) but redirect to scon bridge (macvlan can't handle it)
             if memcmp(dstMacPtr, macAddrIpv6MulticastMdns, macAddrIpv6MulticastMdns.count) == 0 {
+                // debounce from mDNS payload (MACs and IP headers will be different for v4/v6 and diff bridges)
+                // skip udp header (8) and last byte (1) of mDNS packet:
+                // mDNSResponder sends 14-byte "Owner" OPT at the end, in additional section, with sequence number
+                // too much work to parse questions section and exclude additional, so just skip last byte for debounce
+                let payloadLen = (try pkt.load(offset: 14 + 40 + 2 + 2) as UInt16).bigEndian - 8 - 1
+                print("payload len: \(payloadLen)")
+                let payloadPtr = try pkt.slicePtr(offset: 14 + 40 + 8, len: Int(payloadLen))
+                let payload = Array(UnsafeBufferPointer(start: payloadPtr.bindMemory(to: UInt8.self, capacity: Int(payloadLen)), count: Int(payloadLen)))
+                if !PacketCoordinator.shouldPassMdns(payload: payload) {
+                    // drop if debounced
+                    return (false, false)
+                }
+
                 // replace source IP as part of redirection
                 // macOS normally uses link-local IPv6 for mDNS, but it's ok with responses to unicast IP
                 let srcIpPtr = try pkt.slicePtr(offset: 14 + 8, len: 16)
-                var oldSrcIp = [UInt8](repeating: 0, count: 16)
-                memcpy(&oldSrcIp, srcIpPtr, 16)
+                let oldSrcIp = Array(UnsafeBufferPointer(start: srcIpPtr.bindMemory(to: UInt8.self, capacity: 16), count: 16))
                 srcIpPtr.copyMemory(from: sconHostBridgeIpv6, byteCount: 16)
 
                 // fix checksum incrementally (UDP+IPv6)
@@ -293,10 +332,21 @@ class PacketProcessor {
         if memcmp(dstMacPtr, macAddrIpv4MulticastPrefix, macAddrIpv4MulticastPrefix.count) == 0 {
             // allow mDNS (01:00:5E:00:00:FB) but redirect to scon bridge (macvlan can't handle it)
             if memcmp(dstMacPtr, macAddrIpv4MulticastMdns, macAddrIpv4MulticastMdns.count) == 0 {
+                // debounce from mDNS payload (MACs and IP headers will be different for v4/v6 and diff bridges)
+                // skip udp header (8) and last byte (1) of mDNS packet:
+                // mDNSResponder sends 14-byte "Owner" OPT at the end, in additional section, with sequence number
+                // too much work to parse questions section and exclude additional, so just skip last byte for debounce
+                let payloadLen = (try pkt.load(offset: 14 + 20 + 2 + 2) as UInt16).bigEndian - 8 - 1
+                let payloadPtr = try pkt.slicePtr(offset: 14 + 20 + 8, len: Int(payloadLen))
+                let payload = Array(UnsafeBufferPointer(start: payloadPtr.bindMemory(to: UInt8.self, capacity: Int(payloadLen)), count: Int(payloadLen)))
+                if !PacketCoordinator.shouldPassMdns(payload: payload) {
+                    // drop if debounced
+                    return (false, false)
+                }
+
                 // replace source IP as part of redirection
                 let srcIpPtr = try pkt.slicePtr(offset: 14 + 12, len: 4)
-                var oldSrcIp = [UInt8](repeating: 0, count: 4)
-                memcpy(&oldSrcIp, srcIpPtr, 4)
+                let oldSrcIp = Array(UnsafeBufferPointer(start: srcIpPtr.bindMemory(to: UInt8.self, capacity: 4), count: 4))
                 srcIpPtr.copyMemory(from: sconHostBridgeIpv4, byteCount: 4)
 
                 // fix IPv4 checksum incrementally
