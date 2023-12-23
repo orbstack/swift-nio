@@ -207,9 +207,9 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        CopyableText(pod.statusStr)
-                        CopyableText("\(pod.restartCount)")
-                        CopyableText(pod.ageStr)
+                        Text(pod.statusStr)
+                        Text("\(pod.restartCount)")
+                        Text(pod.ageStr)
                         // needs to be running w/ ip to have domain
                         if let ipAddress, let url = URL(string: "http://\(domain)") {
                             if vmModel.netBridgeAvailable {
