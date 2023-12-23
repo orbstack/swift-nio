@@ -352,7 +352,6 @@ kernel/net/netfilter/xt_MASQUERADE.ko
 kernel/net/netfilter/xt_SECMARK.ko
 kernel/net/netfilter/xt_TPROXY.ko
 kernel/net/netfilter/xt_TCPMSS.ko
-kernel/net/netfilter/xt_TCPOPTSTRIP.ko
 kernel/net/netfilter/xt_TRACE.ko
 kernel/net/netfilter/xt_addrtype.ko
 kernel/net/netfilter/xt_bpf.ko
@@ -492,6 +491,11 @@ kernel/net/bridge/netfilter/nft_meta_bridge.ko
 kernel/net/bridge/netfilter/nft_reject_bridge.ko
 kernel/net/bridge/netfilter/nf_conntrack_bridge.ko
 kernel/net/bridge/netfilter/ebtables.ko
+kernel/net/bridge/netfilter/ebtable_filter.ko
+kernel/net/bridge/netfilter/ebt_ip.ko
+kernel/net/bridge/netfilter/ebt_ip6.ko
+kernel/net/bridge/netfilter/ebt_pkttype.ko
+kernel/net/bridge/netfilter/ebt_mark.ko
 kernel/net/can/can.ko
 kernel/net/can/can-raw.ko
 kernel/net/sunrpc/sunrpc.ko
