@@ -162,7 +162,8 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			}
 
 			// restore Content-Length and Transfer-Encoding (deleted by ReadResponse)
-			if resp.ContentLength != -1 {
+			// must not send Content-Length=0 for 101 UPGRADED, or JetBrains client breaks
+			if resp.ContentLength != -1 && resp.StatusCode != http.StatusSwitchingProtocols {
 				logrus.Tracef("hp: restoring Content-Length %d", resp.ContentLength)
 				resp.Header.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
 			}
