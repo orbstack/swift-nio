@@ -300,7 +300,6 @@ class PacketProcessor {
                 // mDNSResponder sends 14-byte "Owner" OPT at the end, in additional section, with sequence number
                 // too much work to parse questions section and exclude additional, so just skip last byte for debounce
                 let payloadLen = (try pkt.load(offset: 14 + 40 + 2 + 2) as UInt16).bigEndian - 8 - 1
-                print("payload len: \(payloadLen)")
                 let payloadPtr = try pkt.slicePtr(offset: 14 + 40 + 8, len: Int(payloadLen))
                 let payload = Array(UnsafeBufferPointer(start: payloadPtr.bindMemory(to: UInt8.self, capacity: Int(payloadLen)), count: Int(payloadLen)))
                 if !PacketCoordinator.shouldPassMdns(payload: payload) {
