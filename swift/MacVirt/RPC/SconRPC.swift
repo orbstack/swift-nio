@@ -46,10 +46,11 @@ struct MachineConfig: Codable, Equatable {
     var isolated: Bool
 }
 
-private struct CreateRequest: Codable {
+struct CreateRequest: Codable {
     var name: String
     var image: ImageSpec
     var userPassword: String?
+    var cloudInitUserData: String?
 }
 
 private struct GetByIDRequest: Codable {
@@ -77,12 +78,8 @@ class SconService {
     }
 
     @discardableResult
-    func create(name: String, image: ImageSpec, userPassword: String?) async throws -> ContainerRecord {
-        return try await c.call("Create", args: CreateRequest(
-            name: name,
-            image: image,
-            userPassword: userPassword
-        ))
+    func create(_ req: CreateRequest) async throws -> ContainerRecord {
+        return try await c.call("Create", args: req)
     }
     
     func listContainers() async throws -> [ContainerRecord] {

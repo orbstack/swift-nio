@@ -152,7 +152,6 @@ struct StorageSettingsView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
         panel.canDownloadUbiquitousContents = false
         panel.canResolveUbiquitousConflicts = false
         // initial directory

@@ -105,4 +105,23 @@ enum Distro: String, CaseIterable {
         case .void:     return [v("current", as: "Latest")]
         }
     }
+
+    var hasCloudVariant: Bool {
+        switch self {
+        case .alma: return true
+        case .alpine: return true
+        // arch only has cloud for amd64
+        case .centos: return true
+        case .debian: return true
+        case .devuan: return true
+        case .fedora: return true
+        case .kali: return true
+        case .openeuler: return true
+        case .opensuse: return true
+        case .oracle: return true
+        case .rocky: return true
+        case .ubuntu: return true
+        default: return false
+        }
+    }
 }

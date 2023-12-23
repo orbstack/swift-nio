@@ -10,8 +10,16 @@ private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9]
 // .orb.internal domains, plus "default" special ssh name
 private let containerNameBlacklist = ["default", "vm", "host", "services", "gateway"]
 
+private enum FileItem: Hashable {
+    case none
+    case file(URL)
+    case other
+}
+
 struct CreateContainerView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+
+    @StateObject private var windowHolder = WindowHolder()
 
     @State private var name = "ubuntu"
     @State private var nameChanged = false
@@ -25,11 +33,12 @@ struct CreateContainerView: View {
     #endif
     @State private var distro = Distro.ubuntu
     @State private var version = Distro.ubuntu.versions.last!.key
+    @State private var cloudInitFile: URL? = nil
 
     @Binding var isPresented: Bool
 
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("New Machine")
                     .font(.headline.weight(.semibold))
                     .padding(.bottom, 8)
@@ -55,6 +64,9 @@ struct CreateContainerView: View {
                             .frame(maxHeight: duplicateHeight)
                             .clipped()
 
+                    Spacer()
+                    .frame(height: 20)
+
                     Picker("Distribution", selection: $distro) {
                         ForEach(Distro.allCases, id: \.self) { distro in
                             Text(distro.friendlyName)
@@ -78,6 +90,40 @@ struct CreateContainerView: View {
                             .pickerStyle(.segmented)
                             .disabled(distro == .nixos)
                     #endif
+
+                    Spacer()
+                        .frame(height: 20)
+
+                    DisclosureGroup("Advanced") {
+                        let userDataBinding = Binding<FileItem> {
+                            if let cloudInitFile {
+                                return FileItem.file(cloudInitFile)
+                            } else {
+                                return FileItem.none
+                            }
+                        } set: {
+                            switch $0 {
+                            case .none:
+                                cloudInitFile = nil
+                            case .other:
+                                selectCloudInitFile()
+                            default:
+                                break
+                            }
+                        }
+                        Picker(selection: userDataBinding, label: Text("Cloud-init")) {
+                            Text("None").tag(FileItem.none)
+                            Divider()
+                            if let cloudInitFile {
+                                Text(cloudInitFile.lastPathComponent).tag(FileItem.file(cloudInitFile))
+                            }
+                            Divider()
+                            Text("Select User Data…").tag(FileItem.other)
+                        }
+                        .disabled(!distro.hasCloudVariant)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: 24, alignment: .leading)
+                    .padding(.bottom, 20)
                 }
             }
 
@@ -95,11 +141,11 @@ struct CreateContainerView: View {
                 }) {
                     Text("Create")
                 }
-                        .keyboardShortcut(.defaultAction)
-                        // empty is disabled but not error
-                        .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
+                .keyboardShortcut(.defaultAction)
+                // empty is disabled but not error
+                .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
             }
-                    .padding(.top, 8)
+            .padding(.top, 8)
         }
         .padding(20)
         .onChange(of: distro) {
@@ -124,6 +170,22 @@ struct CreateContainerView: View {
         }
         .onChange(of: vmModel.containers) { _ in
             checkName(name)
+        }
+        .background(WindowAccessor(holder: windowHolder))
+    }
+
+    private func selectCloudInitFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+
+        let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
+        panel.beginSheetModal(for: window) { result in
+            if result == .OK,
+               let url = panel.url {
+                cloudInitFile = url
+            }
         }
     }
 
@@ -164,7 +226,8 @@ struct CreateContainerView: View {
         }
 
         Task { @MainActor in
-            await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch)
+            await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch,
+                    cloudInitUserData: cloudInitFile)
         }
         isPresented = false
     }
