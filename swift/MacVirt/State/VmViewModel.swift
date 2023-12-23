@@ -999,7 +999,7 @@ class VmViewModel: ObservableObject {
     }
 
     func createContainer(name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL?) async throws {
-        let userData = cloudInitUserData.flatMap { try? String(contentsOf: $0) }
+        let userData = try cloudInitUserData.flatMap { try String(contentsOf: $0) }
 
         try await scon.create(CreateRequest(name: name,
                 image: ImageSpec(distro: distro.imageKey,
