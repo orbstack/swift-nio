@@ -290,13 +290,12 @@ struct K8SService: K8SResource, Codable, Equatable, Hashable {
     }
 
     var preferredDomain: String {
-        // TODO domains
-        //"\(name).\(namespace).svc.cluster.local"
         switch spec.type {
         case .loadBalancer:
             return "k8s.orb.local"
         case .clusterIP:
-            return spec.clusterIP ?? "localhost"
+            // domains are always available when IPs (bridge) are
+            return "\(name).\(namespace).svc.cluster.local"
         case .externalName:
             return "localhost"
         case .nodePort:

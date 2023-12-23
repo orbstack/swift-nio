@@ -417,8 +417,10 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(container.mounts) { mount in
-                            CustomLink(mount.formatted) {
-                                mount.openSourceDirectory()
+                            CopyableText(copyAs: mount.getOpenPath()) {
+                                CustomLink(mount.formatted) {
+                                    mount.openSourceDirectory()
+                                }
                             }
                         }
                     }

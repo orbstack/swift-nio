@@ -207,7 +207,9 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                          */
                         if let url = URL(string: address) {
                             if isWebService {
-                                CustomLink(addressVisible, url: url)
+                                CopyableText(copyAs: service.preferredDomainAndPort) {
+                                    CustomLink(addressVisible, url: url)
+                                }
                             } else {
                                 CopyableText(addressVisible)
                             }
