@@ -3,6 +3,7 @@ package tests
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/vmgr/util"
 )
 
 func init() {
@@ -216,4 +218,47 @@ func TestSconListAfterDelete(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestSconCloudInit(t *testing.T) {
+	t.Parallel()
+
+	userData, err := os.ReadFile("cloud-init.yml")
+	checkT(t, err)
+
+	for _, distro := range images.Distros() {
+		// short test: only test alpine
+		if testing.Short() && distro != "alpine" {
+			continue
+		}
+
+		distro := distro
+		t.Run(distro, func(t *testing.T) {
+			t.Parallel()
+
+			machineName := fmt.Sprintf("%s-clinit-%s", testPrefix(), distro)
+			c, err := scli.Client().Create(types.CreateRequest{
+				Name: machineName,
+				Image: types.ImageSpec{
+					Distro: images.DistroToImage[distro],
+				},
+				CloudInitUserData: string(userData),
+			})
+			if err != nil {
+				if strings.Contains(err.Error(), "cloud-init not supported") {
+					t.Skip("cloud-init not supported")
+				} else {
+					checkT(t, err)
+				}
+			}
+			defer scli.Client().ContainerDelete(c)
+
+			// check file
+			out, err := util.Run("orb", "-m", machineName, "cat", "/etc/cltest")
+			checkT(t, err)
+			if out != "it works!\n" {
+				t.Fatalf("expected test, got: %s", out)
+			}
+		})
+	}
 }
