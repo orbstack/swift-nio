@@ -31,14 +31,6 @@ class NewMainViewController: NSViewController {
 
     var isFirstUpdate = true
 
-    lazy var toggleSidebarButton = makeToolbarItem(
-        itemIdentifier: .toggleSidebarButton,
-        icon: "sidebar.left",
-        title: "Toggle Sidebar",
-        action: #selector(actionToggleSidebar),
-        isEnabledFollowsModelState: false
-    )
-
     lazy var toggleInspectorButton = makeToolbarItem(
         itemIdentifier: .toggleInspectorButton,
         icon: "sidebar.right",

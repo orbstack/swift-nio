@@ -44,21 +44,20 @@ enum NavTabId: String {
 
 extension NSToolbarItem.Identifier {
     // use custom buttons for more flexibility
-    static let toggleSidebarButton = NSToolbarItem.Identifier(rawValue: "toggleSidebarButton")
-    static let toggleInspectorButton = NSToolbarItem.Identifier(rawValue: "toggleInspectorButton")
+    static let toggleInspectorButton = NSToolbarItem.Identifier("toggleInspectorButton")
 
-    static let dockerContainersFilter = NSToolbarItem.Identifier(rawValue: "dockerContainersFilter")
-    static let dockerVolumesOpen = NSToolbarItem.Identifier(rawValue: "dockerVolumesOpen")
-    static let dockerVolumesNew = NSToolbarItem.Identifier(rawValue: "dockerVolumesNew")
-    static let dockerImagesOpen = NSToolbarItem.Identifier(rawValue: "dockerImagesOpen")
+    static let dockerContainersFilter = NSToolbarItem.Identifier("dockerContainersFilter")
+    static let dockerVolumesOpen = NSToolbarItem.Identifier("dockerVolumesOpen")
+    static let dockerVolumesNew = NSToolbarItem.Identifier("dockerVolumesNew")
+    static let dockerImagesOpen = NSToolbarItem.Identifier("dockerImagesOpen")
 
-    static let k8sEnable = NSToolbarItem.Identifier(rawValue: "k8sEnable")
-    static let k8sPodsFilter = NSToolbarItem.Identifier(rawValue: "k8sPodsFilter")
-    static let k8sServicesFilter = NSToolbarItem.Identifier(rawValue: "k8sServicesFilter")
+    static let k8sEnable = NSToolbarItem.Identifier("k8sEnable")
+    static let k8sPodsFilter = NSToolbarItem.Identifier("k8sPodsFilter")
+    static let k8sServicesFilter = NSToolbarItem.Identifier("k8sServicesFilter")
 
-    static let machinesNew = NSToolbarItem.Identifier(rawValue: "machinesNew")
+    static let machinesNew = NSToolbarItem.Identifier("machinesNew")
 
-    static let cliHelp = NSToolbarItem.Identifier(rawValue: "cliHelp")
+    static let cliHelp = NSToolbarItem.Identifier("cliHelp")
 
     static let searchItem = NSToolbarItem.Identifier("searchItem")
 
@@ -71,7 +70,7 @@ extension NSToolbarItem.Identifier {
     }()
 
     static let leadingItems: [NSToolbarItem.Identifier] =
-        [.toggleSidebarButton, .sidebarTrackingSeparator]
+        [.toggleSidebar, .sidebarTrackingSeparator]
     static let trailingItems: [NSToolbarItem.Identifier] =
         [.inspectorTrackingSeparatorCompat, .flexibleSpace, .toggleInspectorButton]
 }

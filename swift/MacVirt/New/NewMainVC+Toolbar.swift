@@ -39,8 +39,6 @@ extension NewMainViewController: NSToolbarDelegate {
 
     func toolbar(_: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar _: Bool) -> NSToolbarItem? {
         switch itemIdentifier {
-        case .toggleSidebarButton:
-            return toggleSidebarButton
         case .toggleInspectorButton:
             return toggleInspectorButton
 
@@ -76,10 +74,6 @@ extension NewMainViewController: NSToolbarDelegate {
 
         // non-custom, system toolbar items
         return NSToolbarItem(itemIdentifier: itemIdentifier)
-    }
-
-    @objc func actionToggleSidebar(_: NSButton?) {
-        splitViewController.itemA.animator().isCollapsed.toggle()
     }
 
     @objc func actionToggleInspector(_: NSButton?) {
