@@ -147,15 +147,7 @@ struct MacVirtApp: App {
          */
 
         WindowGroup {
-            // MARK: - Old app
-
-            //            MainWindow()
-            //                .environmentObject(NewToolbarViewModel()) // for testing
-
-            // MARK: - New app
-
             NewMainView()
-
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
                 .environmentObject(actionTracker)
@@ -199,7 +191,7 @@ struct MacVirtApp: App {
                     }
 
                     switch vmModel.selection {
-                    case .volumes:
+                    case .dockerVolumes:
                         Divider()
                         Button("New Volume") {
                             vmModel.menuActionRouter.send(.newVolume)
@@ -210,7 +202,7 @@ struct MacVirtApp: App {
                             vmModel.menuActionRouter.send(.openVolumes)
                         }
                         .keyboardShortcut("o")
-                    case .images:
+                    case .dockerImages:
                         Divider()
                         Button("Open Images") {
                             vmModel.menuActionRouter.send(.openImages)
@@ -269,17 +261,17 @@ struct MacVirtApp: App {
                         .disabled(true)
 
                     Button("Containers") {
-                        vmModel.selection = .containers
+                        vmModel.selection = .dockerContainers
                     }
                     .keyboardShortcut("1", modifiers: [.command])
 
                     Button("Volumes") {
-                        vmModel.selection = .volumes
+                        vmModel.selection = .dockerVolumes
                     }
                     .keyboardShortcut("2", modifiers: [.command])
 
                     Button("Images") {
-                        vmModel.selection = .images
+                        vmModel.selection = .dockerImages
                     }
                     .keyboardShortcut("3", modifiers: [.command])
                 }
@@ -291,12 +283,12 @@ struct MacVirtApp: App {
                         .disabled(true)
 
                     Button("Pods") {
-                        vmModel.selection = .pods
+                        vmModel.selection = .k8sPods
                     }
                     .keyboardShortcut("4", modifiers: [.command])
 
                     Button("Services") {
-                        vmModel.selection = .services
+                        vmModel.selection = .k8sServices
                     }
                     .keyboardShortcut("5", modifiers: [.command])
                 }
@@ -314,7 +306,7 @@ struct MacVirtApp: App {
                 Button("Help") {}.disabled(true)
 
                 Button("Commands") {
-                    vmModel.selection = .commands
+                    vmModel.selection = .cli
                 }.keyboardShortcut("7", modifiers: [.command])
             }
 

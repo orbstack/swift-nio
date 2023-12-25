@@ -40,7 +40,7 @@ struct SidebarView: View {
 extension SidebarView {
     @ViewBuilder
     private var sidebarContents12: some View {
-        let selBinding = Binding<NewToolbarIdentifier?>(get: {
+        let selBinding = Binding<NavTabId?>(get: {
             model.selection
         }, set: {
             if let sel = $0 {
@@ -80,31 +80,31 @@ extension SidebarView {
     @ViewBuilder var listContents: some View {
         Section(header: Text("Docker")) {
             NavTab("Containers", systemImage: "shippingbox")
-                .tag(NewToolbarIdentifier.containers)
+                .tag(NavTabId.dockerContainers)
 
             NavTab("Volumes", systemImage: "externaldrive")
-                .tag(NewToolbarIdentifier.volumes)
+                .tag(NavTabId.dockerVolumes)
 
             NavTab("Images", systemImage: "doc.zipper")
-                .tag(NewToolbarIdentifier.images)
+                .tag(NavTabId.dockerImages)
         }
 
         Section(header: Text("Kubernetes")) {
             NavTab("Pods", systemImage: "helm")
-                .tag(NewToolbarIdentifier.pods)
+                .tag(NavTabId.k8sPods)
 
             NavTab("Services", systemImage: "network")
-                .tag(NewToolbarIdentifier.services)
+                .tag(NavTabId.k8sServices)
         }
 
         Section(header: Text("Linux")) {
             NavTab("Machines", systemImage: "desktopcomputer")
-                .tag(NewToolbarIdentifier.machines)
+                .tag(NavTabId.machines)
         }
 
         Section(header: Text("Help")) {
             NavTab("Commands", systemImage: "terminal")
-                .tag(NewToolbarIdentifier.commands)
+                .tag(NavTabId.cli)
         }
     }
 }

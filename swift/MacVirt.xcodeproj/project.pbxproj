@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		3C00901E2B26CBD30000DFFA /* NewMainVC+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */; };
-		3C0090232B26D7B80000DFFA /* NewToolbarIdentifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090222B26D7B80000DFFA /* NewToolbarIdentifier.swift */; };
+		3C0090232B26D7B80000DFFA /* NavTabId.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090222B26D7B80000DFFA /* NavTabId.swift */; };
 		3C0090252B2723E10000DFFA /* NewMainVC+Listen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */; };
 		3C0090272B27272E0000DFFA /* PublishedAppStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */; };
 		3C1935F22B313034009D2929 /* NewMainVC+SplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */; };
@@ -247,7 +247,7 @@
 
 /* Begin PBXFileReference section */
 		3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+Toolbar.swift"; sourceTree = "<group>"; };
-		3C0090222B26D7B80000DFFA /* NewToolbarIdentifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewToolbarIdentifier.swift; sourceTree = "<group>"; };
+		3C0090222B26D7B80000DFFA /* NavTabId.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavTabId.swift; sourceTree = "<group>"; };
 		3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+Listen.swift"; sourceTree = "<group>"; };
 		3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedAppStorage.swift; sourceTree = "<group>"; };
 		3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+SplitView.swift"; sourceTree = "<group>"; };
@@ -470,7 +470,7 @@
 			children = (
 				3CD16B6E2B10864E002FBB00 /* NewMainView.swift */,
 				3CD16B702B108654002FBB00 /* NewMainViewController.swift */,
-				3C0090222B26D7B80000DFFA /* NewToolbarIdentifier.swift */,
+				3C0090222B26D7B80000DFFA /* NavTabId.swift */,
 				3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */,
 				3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */,
 				3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */,
@@ -1074,7 +1074,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3C0090232B26D7B80000DFFA /* NewToolbarIdentifier.swift in Sources */,
+				3C0090232B26D7B80000DFFA /* NavTabId.swift in Sources */,
 				D80443F92A1B404E00ED59C5 /* CommandsRootView.swift in Sources */,
 				D80443F42A1B404E00ED59C5 /* Operators.swift in Sources */,
 				D80444122A1B404E00ED59C5 /* DoubleClick.swift in Sources */,

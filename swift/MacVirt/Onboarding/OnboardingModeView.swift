@@ -109,7 +109,7 @@ struct OnboardingModeView: View {
                     title: "Docker",
                     desc: "Build & run Docker containers",
                     action: {
-                        vmModel.selection = .containers
+                        vmModel.selection = .dockerContainers
                         continueWith(.docker)
                     }
                 )
@@ -119,7 +119,7 @@ struct OnboardingModeView: View {
                     title: "Kubernetes",
                     desc: "Test Kubernetes deployments",
                     action: {
-                        vmModel.selection = .pods
+                        vmModel.selection = .k8sPods
                         continueWith(.k8s)
                     }
                 )

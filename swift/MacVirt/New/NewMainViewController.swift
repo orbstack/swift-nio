@@ -26,13 +26,13 @@ class NewMainViewController: NSViewController {
 
     // MARK: - Toolbar
 
-    var toolbar = NSToolbar(identifier: NewToolbarIdentifier.containers.rawValue)
+    var toolbar = NSToolbar(identifier: NavTabId.dockerContainers.rawValue)
 
     lazy var toggleSidebarButton = makeToolbarItem(
         itemIdentifier: .toggleSidebarButton,
         icon: "sidebar.left",
         title: "Toggle Sidebar",
-        action: #selector(toggleSidebarButton),
+        action: #selector(actionToggleSidebar),
         isEnabledFollowsModelState: false
     )
 
@@ -40,16 +40,16 @@ class NewMainViewController: NSViewController {
         itemIdentifier: .toggleInspectorButton,
         icon: "sidebar.right",
         title: "Toggle Inspector",
-        action: #selector(toggleInspectorButton),
+        action: #selector(actionToggleInspector),
         isEnabledFollowsModelState: false
     )
 
     lazy var containersFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show stopped containers", action: #selector(containersFilterMenu1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(title: "Show stopped containers", action: #selector(actionDockerContainersFilter1), keyEquivalent: "")
         menuItem1.target = self
 
         let item = makeMenuToolbarItem(
-            itemIdentifier: .containersFilterMenu,
+            itemIdentifier: .dockerContainersFilter,
             icon: "line.3.horizontal.circle",
             title: "Filter Containers",
             menuItems: [menuItem1]
@@ -62,41 +62,32 @@ class NewMainViewController: NSViewController {
         return item
     }()
 
-    lazy var volumesFolderButton = {
-        let item = makeToolbarItem(
-            itemIdentifier: .volumesFolderButton,
-            icon: "folder",
-            title: "Open Volumes",
-            action: #selector(volumesFolderButton)
-        )
-        return item
-    }()
+    lazy var volumesFolderButton = makeToolbarItem(
+        itemIdentifier: .dockerVolumesOpen,
+        icon: "folder",
+        title: "Open Volumes",
+        action: #selector(actionDockerVolumesOpen)
+    )
 
-    lazy var volumesPlusButton = {
-        let item = makeToolbarItem(
-            itemIdentifier: .volumesPlusButton,
-            icon: "plus",
-            title: "New Volume",
-            action: #selector(volumesPlusButton)
-        )
-        return item
-    }()
+    lazy var volumesPlusButton = makeToolbarItem(
+        itemIdentifier: .dockerVolumesNew,
+        icon: "plus",
+        title: "New Volume",
+        action: #selector(actionDockerVolumesNew)
+    )
 
-    lazy var imagesFolderButton = {
-        let item = makeToolbarItem(
-            itemIdentifier: .imagesFolderButton,
-            icon: "folder",
-            title: "Open Images",
-            action: #selector(imagesFolderButton)
-        )
-        return item
-    }()
+    lazy var imagesFolderButton = makeToolbarItem(
+        itemIdentifier: .dockerImagesOpen,
+        icon: "folder",
+        title: "Open Images",
+        action: #selector(actionDockerImagesOpen)
+    )
 
     lazy var podsStartToggle = {
-        let item = NSToolbarItem(itemIdentifier: .podsStartToggle)
+        let item = NSToolbarItem(itemIdentifier: .k8sEnable)
         let toggle = NSSwitch()
         toggle.target = self
-        toggle.action = #selector(podsStartToggle)
+        toggle.action = #selector(actionK8sToggle)
         item.view = toggle
         item.label = "Enable Kubernetes"
         item.toolTip = "Enable Kubernetes"
@@ -110,11 +101,11 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var podsFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show system namespace", action: #selector(podsFilterMenu1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(title: "Show system namespace", action: #selector(actionK8sPodsFilter1), keyEquivalent: "")
         menuItem1.target = self
 
         let item = makeMenuToolbarItem(
-            itemIdentifier: .podsFilterMenu,
+            itemIdentifier: .k8sPodsFilter,
             icon: "line.3.horizontal.circle",
             title: "Filter",
             menuItems: [menuItem1]
@@ -128,13 +119,13 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var servicesFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show system namespace", action: #selector(servicesFilterMenu1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(title: "Show system namespace", action: #selector(actionK8sServicesFilter1), keyEquivalent: "")
         menuItem1.target = self
 
         menuItem1.state = .on
 
         let item = makeMenuToolbarItem(
-            itemIdentifier: .servicesFilterMenu,
+            itemIdentifier: .k8sServicesFilter,
             icon: "line.3.horizontal.circle",
             title: "Filter",
             menuItems: [menuItem1]
@@ -147,25 +138,19 @@ class NewMainViewController: NSViewController {
         return item
     }()
 
-    lazy var machinesPlusButton = {
-        let item = makeToolbarItem(
-            itemIdentifier: .machinesPlusButton,
-            icon: "plus",
-            title: "New Machine",
-            action: #selector(machinesPlusButton)
-        )
-        return item
-    }()
+    lazy var machinesPlusButton = makeToolbarItem(
+        itemIdentifier: .machinesNew,
+        icon: "plus",
+        title: "New Machine",
+        action: #selector(actionMachinesNew)
+    )
 
-    lazy var commandsHelpButton = {
-        let item = makeToolbarItem(
-            itemIdentifier: .commandsHelpButton,
-            icon: "questionmark.circle",
-            title: "Go to Docs",
-            action: #selector(commandsHelpButton)
-        )
-        return item
-    }()
+    lazy var commandsHelpButton = makeToolbarItem(
+        itemIdentifier: .cliHelp,
+        icon: "questionmark.circle",
+        title: "Go to Docs",
+        action: #selector(actionCliHelp)
+    )
 
     lazy var searchItem = {
         let item = NSSearchToolbarItem(itemIdentifier: .searchItem)

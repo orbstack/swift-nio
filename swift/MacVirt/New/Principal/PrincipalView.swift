@@ -30,19 +30,19 @@ struct PrincipalView: View {
     var body: some View {
         Group {
             switch model.selection {
-            case .containers:
+            case .dockerContainers:
                 DockerContainersRootView(selection: model.initialDockerContainerSelection)
-            case .volumes:
+            case .dockerVolumes:
                 DockerVolumesRootView()
-            case .images:
+            case .dockerImages:
                 DockerImagesRootView()
-            case .pods:
+            case .k8sPods:
                 K8SPodsView()
-            case .services:
+            case .k8sServices:
                 K8SServicesView()
             case .machines:
                 MachinesRootView()
-            case .commands:
+            case .cli:
                 CommandsRootView()
             }
         }

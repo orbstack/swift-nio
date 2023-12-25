@@ -21,13 +21,13 @@ extension NewMainViewController {
 
             switch router {
             case .newVolume:
-                self.volumesPlusButton(nil)
+                self.actionDockerVolumesNew(nil)
             case .openVolumes:
-                self.volumesFolderButton(nil)
+                self.actionDockerVolumesOpen(nil)
             case .openImages:
-                self.imagesFolderButton(nil)
+                self.actionDockerImagesOpen(nil)
             case .newMachine:
-                self.machinesPlusButton(nil)
+                self.actionMachinesNew(nil)
             }
         }
         .store(in: &cancellables)
@@ -52,7 +52,7 @@ extension NewMainViewController {
         }
     }
 
-    func updateToolbarFromSelectionChange(toolbarIdentifier: NewToolbarIdentifier) {
+    func updateToolbarFromSelectionChange(toolbarIdentifier: NavTabId) {
         let toolbar = NSToolbar(identifier: toolbarIdentifier.rawValue)
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly

@@ -428,7 +428,7 @@ class VmViewModel: ObservableObject {
 
     // MARK: - New
 
-    @PublishedAppStorage("selectedTab") var selection = NewToolbarIdentifier.containers
+    @PublishedAppStorage("selectedTab") var selection = NavTabId.dockerContainers
     @Published var searchText = ""
     @Published var initialDockerContainerSelection: Set<DockerContainerId> = []
     @Published var collapsed = false

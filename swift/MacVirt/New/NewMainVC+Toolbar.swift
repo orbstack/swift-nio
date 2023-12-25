@@ -11,8 +11,8 @@ import SwiftUI
 
 extension NewMainViewController: NSToolbarDelegate {
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        guard let toolbarIdentifier = NewToolbarIdentifier(rawValue: toolbar.identifier) else {
-            print("Allow - no matching toolbar identifier! \(toolbar.identifier)")
+        guard let toolbarIdentifier = NavTabId(rawValue: toolbar.identifier) else {
+            NSLog("Allow - no matching toolbar identifier! \(toolbar.identifier)")
             return []
         }
 
@@ -24,8 +24,8 @@ extension NewMainViewController: NSToolbarDelegate {
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        guard let toolbarIdentifier = NewToolbarIdentifier(rawValue: toolbar.identifier) else {
-            print("Default - no matching toolbar identifier! \(toolbar.identifier)")
+        guard let toolbarIdentifier = NavTabId(rawValue: toolbar.identifier) else {
+            NSLog("Default - no matching toolbar identifier! \(toolbar.identifier)")
             return []
         }
 
@@ -43,24 +43,29 @@ extension NewMainViewController: NSToolbarDelegate {
             return toggleSidebarButton
         case .toggleInspectorButton:
             return toggleInspectorButton
-        case .containersFilterMenu:
+
+        case .dockerContainersFilter:
             return containersFilterMenu
-        case .volumesFolderButton:
+        case .dockerVolumesOpen:
             return volumesFolderButton
-        case .volumesPlusButton:
+        case .dockerVolumesNew:
             return volumesPlusButton
-        case .imagesFolderButton:
+        case .dockerImagesOpen:
             return imagesFolderButton
-        case .podsStartToggle:
+
+        case .k8sEnable:
             return podsStartToggle
-        case .podsFilterMenu:
+        case .k8sPodsFilter:
             return podsFilterMenu
-        case .servicesFilterMenu:
+        case .k8sServicesFilter:
             return servicesFilterMenu
-        case .machinesPlusButton:
+
+        case .machinesNew:
             return machinesPlusButton
-        case .commandsHelpButton:
+
+        case .cliHelp:
             return commandsHelpButton
+
         case .searchItem:
             return searchItem
         default:
@@ -71,50 +76,50 @@ extension NewMainViewController: NSToolbarDelegate {
         return NSToolbarItem(itemIdentifier: itemIdentifier)
     }
 
-    @objc func toggleSidebarButton(_: NSButton?) {
+    @objc func actionToggleSidebar(_: NSButton?) {
         splitViewController.itemA.animator().isCollapsed.toggle()
     }
 
-    @objc func toggleInspectorButton(_: NSButton?) {
+    @objc func actionToggleInspector(_: NSButton?) {
         splitViewController.itemC.animator().isCollapsed.toggle()
     }
 
-    @objc func containersFilterMenu1(_: Any?) {
+    @objc func actionDockerContainersFilter1(_: Any?) {
         model.dockerFilterShowStopped.toggle()
     }
 
-    @objc func volumesFolderButton(_: NSButton?) {
+    @objc func actionDockerVolumesOpen(_: NSButton?) {
         NSWorkspace.openFolder(Folders.nfsDockerVolumes)
     }
 
-    @objc func volumesPlusButton(_: NSButton?) {
+    @objc func actionDockerVolumesNew(_: NSButton?) {
         model.presentCreateVolume = true
     }
 
-    @objc func imagesFolderButton(_: NSButton?) {
+    @objc func actionDockerImagesOpen(_: NSButton?) {
         NSWorkspace.openFolder(Folders.nfsDockerImages)
     }
 
-    @objc func podsStartToggle(_ sender: NSSwitch?) {
+    @objc func actionK8sToggle(_ sender: NSSwitch?) {
         guard let sender else { return }
         Task { @MainActor in
             await model.tryStartStopK8s(enable: sender.state == .on)
         }
     }
 
-    @objc func podsFilterMenu1(_: Any?) {
+    @objc func actionK8sPodsFilter1(_: Any?) {
         model.k8sFilterShowSystemNs.toggle()
     }
 
-    @objc func servicesFilterMenu1(_: Any?) {
+    @objc func actionK8sServicesFilter1(_: Any?) {
         model.k8sFilterShowSystemNs.toggle()
     }
 
-    @objc func machinesPlusButton(_: NSButton?) {
+    @objc func actionMachinesNew(_: NSButton?) {
         model.presentCreateMachine = true
     }
 
-    @objc func commandsHelpButton(_: NSButton?) {
+    @objc func actionCliHelp(_: NSButton?) {
         NSWorkspace.shared.open(URL(string: "https://go.orbstack.dev/cli")!)
     }
 }
