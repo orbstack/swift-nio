@@ -45,7 +45,7 @@ class NewMainViewController: NSViewController {
     )
 
     lazy var containersFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show stopped containers", action: #selector(actionDockerContainersFilter1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(title: "Show Stopped Containers", action: #selector(actionDockerContainersFilter1), keyEquivalent: "")
         menuItem1.target = self
 
         let item = makeMenuToolbarItem(
@@ -101,7 +101,7 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var podsFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show system namespace", action: #selector(actionK8sPodsFilter1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(title: "Show System Namespace", action: #selector(actionK8sPodsFilter1), keyEquivalent: "")
         menuItem1.target = self
 
         let item = makeMenuToolbarItem(
@@ -119,7 +119,7 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var servicesFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show system namespace", action: #selector(actionK8sServicesFilter1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(title: "Show System Namespace", action: #selector(actionK8sServicesFilter1), keyEquivalent: "")
         menuItem1.target = self
 
         menuItem1.state = .on
