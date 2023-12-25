@@ -31,6 +31,7 @@ class NewMainViewController: NSViewController {
 
     var isFirstUpdate = true
 
+    // polyfill for macOS <14, with Show/Hide title
     lazy var toggleInspectorButton = makeToolbarItem(
         itemIdentifier: .toggleInspectorButton,
         icon: "sidebar.right",
