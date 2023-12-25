@@ -22,8 +22,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
     var isFirstInList: Bool
 
-    @State private var presentPopover = false
-
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
         lhs.container == rhs.container
     }
@@ -154,16 +152,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     }
                 }
 
-                ProgressIconButton(systemImage: "info.circle.fill",
-                                   actionInProgress: false)
-                {
-                    presentPopover = true
-                }
-                .help("Get info")
-                .popover(isPresented: $presentPopover, arrowEdge: .leading) {
-                    detailsView
-                }
-
                 if isRunning {
                     ProgressIconButton(systemImage: "stop.fill",
                                        actionInProgress: actionInProgress?.isStartStop == true)
@@ -192,9 +180,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
         }
         .padding(.vertical, 8)
-        .akListOnDoubleClick {
-            presentPopover = true
-        }
         .akListContextMenu {
             Group {
                 if isRunning {
@@ -238,12 +223,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Divider()
 
             Group {
-                Button(action: {
-                    presentPopover = true
-                }) {
-                    Label("Get Info", systemImage: "")
-                }
-
                 Button(action: {
                     container.showLogs(windowTracker: windowTracker)
                 }) {
@@ -353,6 +332,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     }
                 }
             }
+        }
+        .inspectorContents(key: container.cid, listModel: listModel) {
+            detailsView
         }
     }
 

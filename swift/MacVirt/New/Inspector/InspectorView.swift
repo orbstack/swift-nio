@@ -25,17 +25,48 @@ class InspectorViewController: NSViewController {
 }
 
 struct InspectorView: View {
+    @EnvironmentObject var model: VmViewModel
+    @EnvironmentObject var navModel: MainNavViewModel
+
     var body: some View {
-        ScrollView {
-            VStack {
-                ForEach(0 ..< 30) { _ in
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(.teal)
-                        .frame(height: 50)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical)
+        if let wrapper = navModel.inspectorContents {
+            wrapper.contents
+        } else {
+            EmptyView()
+        }
+    }
+}
+
+struct InspectorWrapper: Equatable {
+    let key: AnyHashable
+    let contents: AnyView
+
+    static func == (lhs: InspectorWrapper, rhs: InspectorWrapper) -> Bool {
+        lhs.key == rhs.key
+    }
+}
+
+private enum InspectorContentsKeys {
+    case def
+}
+
+struct InspectorContentsKey: PreferenceKey {
+    static var defaultValue: InspectorWrapper =
+            InspectorWrapper(key: InspectorContentsKeys.def, contents: AnyView(EmptyView()))
+
+    static func reduce(value: inout InspectorWrapper, nextValue: () -> InspectorWrapper) {
+        let nextVal = nextValue()
+        if nextVal.key != AnyHashable(InspectorContentsKeys.def) {
+            value = nextVal
+        }
+    }
+}
+
+extension View {
+    func inspectorContents<Key: Hashable>(key: Key, listModel: AKListModel, _ contents: @escaping () -> some View) -> some View {
+        self.if(listModel.selection.contains(AnyHashable(key))) { view in
+            view.preference(key: InspectorContentsKey.self,
+                            value: InspectorWrapper(key: AnyHashable(key), contents: AnyView(contents())))
         }
     }
 }

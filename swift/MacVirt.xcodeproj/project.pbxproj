@@ -44,6 +44,7 @@
 		B118B5BB973EBC5FD60C865B /* K8SSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BA158D66536A2AA036FB /* K8SSettingsView.swift */; };
 		B118B662209189FEF0B61F9F /* CursorRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BEBDA570BE498B231235 /* CursorRegion.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
+		B118B6C34CBA6697634108B6 /* MainNavViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B8CEB4860DFE6B9BEFBD /* MainNavViewModel.swift */; };
 		B118B773879397647B754ADE /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */; };
 		B118B81365EA43CD9BD5FFF1 /* K8sRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1E2A991085A29F40FB3 /* K8sRPC.swift */; };
 		B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */; };
@@ -282,6 +283,7 @@
 		B118B82B52FEEB467CDA5C7A /* DockerSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerSettingsView.swift; sourceTree = "<group>"; };
 		B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentUnavailableViewCompat.swift; sourceTree = "<group>"; };
 		B118B88B9296701977A1F286 /* CodeInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CodeInfo.swift; sourceTree = "<group>"; };
+		B118B8CEB4860DFE6B9BEFBD /* MainNavViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainNavViewModel.swift; sourceTree = "<group>"; };
 		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
 		B118B9305764473F5CD0B8A4 /* AKList.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AKList.swift; sourceTree = "<group>"; };
 		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
@@ -473,6 +475,7 @@
 				3CBBBF882B1AC37700BDBC87 /* Sidebar */,
 				3CBBBF892B1AC37A00BDBC87 /* Principal */,
 				3CBBBF8A2B1AC37F00BDBC87 /* Inspector */,
+				B118B8CEB4860DFE6B9BEFBD /* MainNavViewModel.swift */,
 			);
 			path = New;
 			sourceTree = "<group>";
@@ -1159,6 +1162,7 @@
 				B118B908C12CA46A45B5EF1F /* CopyableText.swift in Sources */,
 				B118B662209189FEF0B61F9F /* CursorRegion.swift in Sources */,
 				B118B773879397647B754ADE /* AuthView.swift in Sources */,
+				B118B6C34CBA6697634108B6 /* MainNavViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

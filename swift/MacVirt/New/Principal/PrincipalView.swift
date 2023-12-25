@@ -31,6 +31,7 @@ class PrincipalViewController: NSViewController {
 
 struct PrincipalView: View {
     @EnvironmentObject var model: VmViewModel
+    @EnvironmentObject var navModel: MainNavViewModel
 
     var onTabChange: (NavTabId) -> Void
 
@@ -59,6 +60,9 @@ struct PrincipalView: View {
         }
         .onChange(of: model.selectedTab) { tab in
             onTabChange(tab)
+        }
+        .onPreferenceChange(InspectorContentsKey.self) { value in
+            navModel.inspectorContents = value
         }
     }
 }

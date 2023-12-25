@@ -12,6 +12,8 @@ struct NewMainView: View {
     @EnvironmentObject var model: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
 
+    @ObservedObject private var navModel = MainNavViewModel()
+
     @State private var presentError = false
 
     var body: some View {
@@ -21,6 +23,7 @@ struct NewMainView: View {
                 model: model
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .environmentObject(navModel)
         }
         .ignoresSafeArea()
         .sheet(isPresented: $model.presentCreateMachine) {
