@@ -8,12 +8,12 @@
 import Foundation
 
 enum ContainerState: String, Codable {
-    case creating = "creating"
-    case starting = "starting"
-    case running = "running"
-    case stopping = "stopping"
-    case stopped = "stopped"
-    case deleting = "deleting"
+    case creating
+    case starting
+    case running
+    case stopping
+    case stopped
+    case deleting
 }
 
 struct ImageSpec: Codable, Equatable {
@@ -81,19 +81,19 @@ class SconService {
     func create(_ req: CreateRequest) async throws -> ContainerRecord {
         return try await c.call("Create", args: req)
     }
-    
+
     func listContainers() async throws -> [ContainerRecord] {
         return try await c.call("ListContainers")
     }
-    
+
     func getById(_ id: String) async throws -> ContainerRecord {
         return try await c.call("GetByID", args: GetByIDRequest(id: id))
     }
-    
+
     func getByName(_ name: String) async throws -> ContainerRecord {
         return try await c.call("GetByName", args: GetByNameRequest(name: name))
     }
-    
+
     func getDefaultContainer() async throws -> ContainerRecord {
         return try await c.call("GetDefaultContainer")
     }

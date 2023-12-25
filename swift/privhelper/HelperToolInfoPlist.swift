@@ -1,12 +1,12 @@
 //
-//  HelperToolInfoPropertyList.swift
+//  HelperToolInfoPlist.swift
 //  SwiftAuthorizationSample
 //
 //  Created by Josh Kaplan on 2021-10-23
 //
 
-import Foundation
 import EmbeddedPropertyList
+import Foundation
 
 /// Read only representation of the helper tool's info property list.
 struct HelperToolInfoPlist: Decodable {
@@ -28,7 +28,7 @@ struct HelperToolInfoPlist: Decodable {
     static var main: HelperToolInfoPlist {
         get throws {
             try PropertyListDecoder().decode(HelperToolInfoPlist.self,
-                    from: try EmbeddedPropertyListReader.info.readInternal())
+                                             from: EmbeddedPropertyListReader.info.readInternal())
         }
     }
 
@@ -37,6 +37,6 @@ struct HelperToolInfoPlist: Decodable {
     /// - Parameter url: Location of the helper tool on disk.
     init(from url: URL) throws {
         self = try PropertyListDecoder().decode(HelperToolInfoPlist.self,
-                from: try EmbeddedPropertyListReader.info.readExternal(from: url))
+                                                from: EmbeddedPropertyListReader.info.readExternal(from: url))
     }
 }

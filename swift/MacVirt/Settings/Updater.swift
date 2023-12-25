@@ -2,10 +2,10 @@
 // Created by Danny Lin on 2/8/23.
 //
 
-import Foundation
-import SwiftUI
-import Sparkle
 import Defaults
+import Foundation
+import Sparkle
+import SwiftUI
 
 // This view model class publishes when new updates can be checked by the user
 final class CheckForUpdatesViewModel: ObservableObject {
@@ -13,7 +13,7 @@ final class CheckForUpdatesViewModel: ObservableObject {
 
     init(updater: SPUUpdater) {
         updater.publisher(for: \.canCheckForUpdates)
-                .assign(to: &$canCheckForUpdates)
+            .assign(to: &$canCheckForUpdates)
     }
 }
 
@@ -28,12 +28,12 @@ struct CheckForUpdatesView: View {
         self.updater = updater
 
         // Create our view model for our CheckForUpdatesView
-        self.checkForUpdatesViewModel = CheckForUpdatesViewModel(updater: updater)
+        checkForUpdatesViewModel = CheckForUpdatesViewModel(updater: updater)
     }
 
     var body: some View {
         Button("Check for Updates…", action: updater.checkForUpdates)
-                .disabled(!checkForUpdatesViewModel.canCheckForUpdates)
+            .disabled(!checkForUpdatesViewModel.canCheckForUpdates)
     }
 }
 
@@ -50,12 +50,12 @@ struct UpdaterSettingsView: View {
     var body: some View {
         Group {
             Toggle("Automatically download updates", isOn: $automaticallyDownloadsUpdates)
-            .onAppear {
-                automaticallyDownloadsUpdates = updater.automaticallyDownloadsUpdates
-            }
-            .onChange(of: automaticallyDownloadsUpdates) { newValue in
-                updater.automaticallyDownloadsUpdates = newValue
-            }
+                .onAppear {
+                    automaticallyDownloadsUpdates = updater.automaticallyDownloadsUpdates
+                }
+                .onChange(of: automaticallyDownloadsUpdates) { newValue in
+                    updater.automaticallyDownloadsUpdates = newValue
+                }
 
             VStack {
                 Picker("Update channel", selection: $updatesOptinChannel) {

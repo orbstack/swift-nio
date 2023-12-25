@@ -2,9 +2,9 @@
 // Created by Danny Lin on 4/14/23.
 //
 
-import Foundation
-import CoreServices
 import CBridge
+import CoreServices
+import Foundation
 
 private let debugPrintEvents = false
 
@@ -124,7 +124,7 @@ private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePoint
 
     // dedupe and coalesce flags by path
     var pathsAndFlags = [String: FSEventStreamEventFlags]()
-    for i in 0..<numEvents {
+    for i in 0 ..< numEvents {
         let path = String(cString: paths[i])
         var flags = flags[i]
         var flagsInt = Int(flags)
@@ -141,9 +141,10 @@ private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePoint
         // sometimes a relatively new file that's modified will have (created | modified) set
         // differentiate: real modification always has (inode meta mod)
         // the weird events have all set: [created] [inode meta mod] [modified] [is file]
-        if flagsInt & kFSEventStreamEventFlagItemCreated != 0 &&
-           flagsInt & kFSEventStreamEventFlagItemModified != 0 &&
-           flagsInt & kFSEventStreamEventFlagItemInodeMetaMod != 0 {
+        if flagsInt & kFSEventStreamEventFlagItemCreated != 0,
+           flagsInt & kFSEventStreamEventFlagItemModified != 0,
+           flagsInt & kFSEventStreamEventFlagItemInodeMetaMod != 0
+        {
             flags = FSEventStreamEventFlags(flagsInt & ~kFSEventStreamEventFlagItemCreated)
             flagsInt = Int(flags)
         }
@@ -170,7 +171,7 @@ private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePoint
 
 // krpc
 private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], isDirChange: Bool) -> (UnsafeMutablePointer<UInt8>, Int) {
-    var totalPathLen: Int = 0
+    var totalPathLen = 0
     for (path, _) in pathsAndFlags {
         // with null terminator
         totalPathLen += path.utf8.count + 1
@@ -178,7 +179,7 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
 
     // prepare buffer
     let eventCount = pathsAndFlags.count
-    let totalLen = 8 + 8 + eventCount*8 + totalPathLen
+    let totalLen = 8 + 8 + eventCount * 8 + totalPathLen
     let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: totalLen)
 
     // write header
@@ -230,7 +231,7 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
         // but on macOS, chmod = ChangeOwner???
         // https://github.com/fsnotify/fsnotify/blob/9342b6df577910c6eac718dc62845d8c95f8548b/backend_inotify.go#L114
         // https://github.com/revel/cmd/blob/4c7ddf5567b1f9facb0dbf9bf4511e2da1934fdb/watcher/watcher.go#L289
-        if (npFlags & npFlagRemove == 0) && (npFlags != npFlagStatAttr) {
+        if npFlags & npFlagRemove == 0, npFlags != npFlagStatAttr {
             npFlags &= ~npFlagStatAttr
         }
 
@@ -241,7 +242,7 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
             npFlags |= npFlagDirChange
         }
 
-        // TODO filter out zero flags
+        // TODO: filter out zero flags
 
         var desc = UInt64(npFlags) | (UInt64(path.utf8.count) << 32)
         memcpy(buf.advanced(by: offset), &desc, 8)
@@ -263,7 +264,7 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
 
 @_cdecl("swext_fsevents_monitor_dirs")
 func swext_fsevents_monitor_dirs() -> UnsafeMutablePointer<CChar> {
-    func callback(stream: ConstFSEventStreamRef, info: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids: UnsafePointer<FSEventStreamEventId>) {
+    func callback(stream _: ConstFSEventStreamRef, info _: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids _: UnsafePointer<FSEventStreamEventId>) {
         let pathsAndFlags = dedupeEvents(paths, flags, numEvents)
 
         // send to krpc
@@ -277,8 +278,8 @@ func swext_fsevents_monitor_dirs() -> UnsafeMutablePointer<CChar> {
     // not to mention machines
     let paths = ["/"] as CFArray
     let stream = FSEventStreamCreate(nil, callback, nil, paths,
-            UInt64(kFSEventStreamEventIdSinceNow), dirChangeDebounce,
-            UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer))
+                                     UInt64(kFSEventStreamEventIdSinceNow), dirChangeDebounce,
+                                     UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer))
     guard let stream else {
         return strdup("FSEventStreamCreate failed")
     }
@@ -314,7 +315,7 @@ private class VmNotifier {
     }
 
     private func newStream(paths: [String], lastEventId: UInt64 = UInt64(kFSEventStreamEventIdSinceNow)) throws {
-        func callback(stream: ConstFSEventStreamRef, info: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids: UnsafePointer<FSEventStreamEventId>) {
+        func callback(stream _: ConstFSEventStreamRef, info _: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids _: UnsafePointer<FSEventStreamEventId>) {
             let pathsAndFlags = dedupeEvents(paths, flags, numEvents)
 
             // send to krpc
@@ -324,9 +325,9 @@ private class VmNotifier {
         }
 
         let stream = FSEventStreamCreate(nil, callback, nil, paths as CFArray,
-                lastEventId, fileWatchDebounce,
-                UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer |
-                        kFSEventStreamCreateFlagFileEvents))
+                                         lastEventId, fileWatchDebounce,
+                                         UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer |
+                                             kFSEventStreamCreateFlagFileEvents))
         guard let stream else {
             throw SwextFseventsError.createFail
         }
@@ -392,7 +393,7 @@ func swext_fsevents_VmNotifier_new() -> UnsafeMutableRawPointer? {
 @_cdecl("swext_fsevents_VmNotifier_updatePaths")
 func swext_fsevents_VmNotifier_updatePaths(ptr: UnsafeMutableRawPointer, _ paths: UnsafeMutablePointer<UnsafeMutablePointer<CChar>>, _ numPaths: Int) -> GResultErr {
     var newPaths: [String] = []
-    for i in 0..<numPaths {
+    for i in 0 ..< numPaths {
         newPaths.append(String(cString: paths[i]))
     }
 

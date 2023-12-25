@@ -5,8 +5,8 @@
 //  Created by Josh Kaplan on 2021-10-24
 //
 
-import Foundation
 import EmbeddedPropertyList
+import Foundation
 
 /// An in-place updater for the helper tool.
 ///
@@ -34,7 +34,7 @@ enum Updater {
             NSLog("downgrade")
             throw PHUpdateError.downgrade(from: curVersion.rawValue, to: newVersion.rawValue)
         }
-        
+
         guard try checkLaunchdPlistMatches(helperUrl: req.helperURL) else {
             NSLog("launchd property lists don't match")
             throw PHUpdateError.launchdPlistChanged
@@ -55,6 +55,6 @@ enum Updater {
 
     private static func checkLaunchdPlistMatches(helperUrl: URL) throws -> Bool {
         try EmbeddedPropertyListReader.launchd.readInternal() ==
-                EmbeddedPropertyListReader.launchd.readExternal(from: helperUrl)
+            EmbeddedPropertyListReader.launchd.readExternal(from: helperUrl)
     }
 }

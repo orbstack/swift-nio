@@ -25,8 +25,8 @@ struct RenameContainerView: View {
     var body: some View {
         VStack(alignment: .leading) {
             Text("Rename “\(record.name)”")
-                    .font(.headline.weight(.semibold))
-                    .padding(.bottom, 8)
+                .font(.headline.weight(.semibold))
+                .padding(.bottom, 8)
 
             Form {
                 Section {
@@ -38,16 +38,16 @@ struct RenameContainerView: View {
                     })
 
                     TextField("Name", text: nameBinding)
-                    .onSubmit {
-                        create()
-                    }
+                        .onSubmit {
+                            create()
+                        }
 
                     let errorText = isNameInvalid ? "Invalid name" : "Already exists"
                     Text(errorText)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .frame(maxHeight: duplicateHeight)
-                            .clipped()
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .frame(maxHeight: duplicateHeight)
+                        .clipped()
                 }
             }
 
@@ -65,11 +65,11 @@ struct RenameContainerView: View {
                 }) {
                     Text("Rename")
                 }
-                        .keyboardShortcut(.defaultAction)
-                        // empty is disabled but not error
-                        .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
+                .keyboardShortcut(.defaultAction)
+                // empty is disabled but not error
+                .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
             }
-                    .padding(.top, 8)
+            .padding(.top, 8)
         }
         .padding(20)
         .onChange(of: name) { newName in
@@ -86,7 +86,8 @@ struct RenameContainerView: View {
 
     private func checkName(_ newName: String, animate: Bool = true) {
         if let containers = vmModel.containers,
-           containers.contains(where: { $0.name == newName && $0.id != record.id }) {
+           containers.contains(where: { $0.name == newName && $0.id != record.id })
+        {
             // renaming to same isn't considered duplicate
             isNameDuplicate = true
         } else {
@@ -95,7 +96,7 @@ struct RenameContainerView: View {
 
         // regex
         let isValid = containerNameRegex.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) != nil &&
-                !containerNameBlacklist.contains(newName)
+            !containerNameBlacklist.contains(newName)
         if !newName.isEmpty && !isValid {
             isNameInvalid = true
         } else {

@@ -16,17 +16,17 @@ struct CustomLink: View {
 
     init(_ text: String, url: URL) {
         self.text = text
-        self.onClick = {
+        onClick = {
             NSWorkspace.shared.open(url)
         }
     }
 
     var body: some View {
         Text(text)
-        .foregroundColor(.blue)
-        .cursorRect(.pointingHand)
-        .onTapGesture {
-            onClick()
-        }
+            .foregroundColor(.blue)
+            .cursorRect(.pointingHand)
+            .onTapGesture {
+                onClick()
+            }
     }
 }

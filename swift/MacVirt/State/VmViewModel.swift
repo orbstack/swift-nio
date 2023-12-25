@@ -27,7 +27,7 @@ enum VmState: Int, Comparable {
     case running
     case stopping
 
-    static func <(lhs: VmState, rhs: VmState) -> Bool {
+    static func < (lhs: VmState, rhs: VmState) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
 
@@ -108,9 +108,9 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         switch self {
         case .spawnError:
             return "Can’t start helper"
-        case .spawnExit(let status, _):
+        case let .spawnExit(status, _):
             return "Start failed with error \(status)"
-        case .vmgrExit(let reason, _):
+        case let .vmgrExit(reason, _):
             return "Stopped unexpectedly: \(reason)"
         case .wrongArch:
             return "Wrong CPU type"
@@ -136,24 +136,24 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .drmWarning:
             return "Can’t verify license. OrbStack will stop working soon."
 
-        case .dockerContainerActionError(let action, _):
+        case let .dockerContainerActionError(action, _):
             return "Can’t \(action) container"
-        case .dockerVolumeActionError(let action, _):
+        case let .dockerVolumeActionError(action, _):
             return "Can’t \(action) volume"
-        case .dockerImageActionError(let action, _):
+        case let .dockerImageActionError(action, _):
             return "Can’t \(action) image"
-        case .dockerComposeActionError(let action, _):
+        case let .dockerComposeActionError(action, _):
             return "Can’t \(action) project"
         case .dockerConfigSaveError:
             return "Can’t apply Docker config"
-        case .dockerExitError(let status, _):
+        case let .dockerExitError(status, _):
             return "Docker stopped with error \(status)"
         case .dockerDfError:
             return "Can’t get volume sizes"
         case .dockerMigrationError:
             return "Can’t migrate Docker data"
 
-        case .k8sResourceActionError(let kid, let action, _):
+        case let .k8sResourceActionError(kid, action, _):
             return "Can’t \(action.userDesc) \(kid.typeDesc)"
 
         case .startError:
@@ -205,13 +205,13 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
     private var errorDesc: String? {
         switch self {
-        case .spawnError(let cause):
+        case let .spawnError(cause):
             return cause.localizedDescription
-        case .spawnExit(_, let output):
+        case let .spawnExit(_, output):
             return output
-        case .dockerExitError(_, let message):
+        case let .dockerExitError(_, message):
             return message
-        case .vmgrExit(let reason, let output):
+        case let .vmgrExit(reason, output):
             switch reason {
             case .drm:
                 return """
@@ -232,7 +232,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             default:
                 return output
             }
-        case .drmWarning(let event):
+        case let .drmWarning(event):
             return """
             \(event.lastError)
 
@@ -283,7 +283,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
 
     var cause: Error? {
         switch self {
-        case .spawnError(let cause):
+        case let .spawnError(cause):
             return cause
         case .spawnExit:
             return nil
@@ -295,67 +295,67 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return nil
         case .killswitchExpired:
             return nil
-        case .startTimeout(let cause):
+        case let .startTimeout(cause):
             return cause
-        case .stopError(let cause):
+        case let .stopError(cause):
             return cause
-        case .setupError(let cause):
+        case let .setupError(cause):
             return cause
-        case .configUpdateError(let cause):
+        case let .configUpdateError(cause):
             return cause
-        case .resetDataError(let cause):
+        case let .resetDataError(cause):
             return cause
-        case .eventDecodeError(let cause):
+        case let .eventDecodeError(cause):
             return cause
-        case .reportStartError(let cause):
+        case let .reportStartError(cause):
             return cause
 
         case .drmWarning:
             return nil
 
-        case .dockerContainerActionError(_, let cause):
+        case let .dockerContainerActionError(_, cause):
             return cause
-        case .dockerVolumeActionError(_, let cause):
+        case let .dockerVolumeActionError(_, cause):
             return cause
-        case .dockerImageActionError(_, let cause):
+        case let .dockerImageActionError(_, cause):
             return cause
-        case .dockerComposeActionError(_, let cause):
+        case let .dockerComposeActionError(_, cause):
             return cause
-        case .dockerConfigSaveError(let cause):
+        case let .dockerConfigSaveError(cause):
             return cause
         case .dockerExitError:
             return nil
-        case .dockerDfError(let cause):
+        case let .dockerDfError(cause):
             return cause
         case .dockerMigrationError:
             return nil
 
-        case .k8sResourceActionError(_, _, let cause):
+        case let .k8sResourceActionError(_, _, cause):
             return cause
 
-        case .startError(let cause):
+        case let .startError(cause):
             return cause
-        case .defaultError(let cause):
+        case let .defaultError(cause):
             return cause
-        case .containerStopError(let cause):
+        case let .containerStopError(cause):
             return cause
-        case .containerStartError(let cause):
+        case let .containerStartError(cause):
             return cause
-        case .containerRestartError(let cause):
+        case let .containerRestartError(cause):
             return cause
-        case .containerDeleteError(let cause):
+        case let .containerDeleteError(cause):
             return cause
-        case .containerCreateError(let cause):
+        case let .containerCreateError(cause):
             return cause
-        case .containerRenameError(let cause):
-            return cause
-
-        case .privHelperUninstallError(let cause):
+        case let .containerRenameError(cause):
             return cause
 
-        case .signOutError(let cause):
+        case let .privHelperUninstallError(cause):
             return cause
-        case .refreshDrmError(let cause):
+
+        case let .signOutError(cause):
+            return cause
+        case let .refreshDrmError(cause):
             return cause
         }
     }
@@ -369,13 +369,13 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return true
         case .killswitchExpired:
             return true
-        case .dockerVolumeActionError(let action, let cause):
+        case let .dockerVolumeActionError(action, cause):
             if action == "delete",
                fmtRpc(cause) == "volume in use"
             {
                 return true
             }
-        case .dockerImageActionError(let action, let cause):
+        case let .dockerImageActionError(action, cause):
             if action == "delete",
                fmtRpc(cause) == "image in use"
             {
@@ -389,7 +389,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         return false
     }
 
-    static func ==(lhs: VmError, rhs: VmError) -> Bool {
+    static func == (lhs: VmError, rhs: VmError) -> Bool {
         lhs.errorDescription == rhs.errorDescription
     }
 }
@@ -433,15 +433,14 @@ class VmViewModel: ObservableObject {
     @Published var initialDockerContainerSelection: Set<DockerContainerId> = []
     @Published var collapsed = false
     @Published var presentAuth = false
-    
+
     // the user's choice when the window is big enough
     var sidebarPrefersCollapsed = false
     var inspectorPrefersCollapsed = false
-    
+
     // when pressing sidebar when super small
     var collapsedPanelOverride: Panel?
     var menuActionRouter = PassthroughSubject<MenuActionRouter, Never>()
-    
 
     // MARK: - Filter defaults
 
@@ -695,7 +694,7 @@ class VmViewModel: ObservableObject {
 
     private func onPidExit(_ reason: ExitReason) {
         switch reason {
-        case .status(let status):
+        case let .status(status):
             DispatchQueue.main.async {
                 self.state = .stopped
                 if status != 0 {
@@ -1035,12 +1034,12 @@ class VmViewModel: ObservableObject {
         let userData = try cloudInitUserData.flatMap { try String(contentsOf: $0) }
 
         try await scon.create(CreateRequest(name: name,
-                image: ImageSpec(distro: distro.imageKey,
-                        version: version,
-                        arch: arch,
-                        variant: ""),
-                userPassword: nil,
-                cloudInitUserData: userData))
+                                            image: ImageSpec(distro: distro.imageKey,
+                                                             version: version,
+                                                             arch: arch,
+                                                             variant: ""),
+                                            userPassword: nil,
+                                            cloudInitUserData: userData))
     }
 
     @MainActor
@@ -1192,7 +1191,7 @@ class VmViewModel: ObservableObject {
                                           args: [String], requiresConfig: Bool = false,
                                           ignoreError: Bool = false) async
     {
-        if case .compose(let project) = cid {
+        if case let .compose(project) = cid {
             // find working dir from containers
             if let containers = dockerContainers,
                let container = containers.first(where: { container in

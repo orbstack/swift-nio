@@ -38,8 +38,8 @@ func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]
             let status = process.terminationStatus
             Task {
                 continuation.resume(returning: ProcessResult(
-                        output: await readOutputTask.value,
-                        status: status
+                    output: await readOutputTask.value,
+                    status: status
                 ))
             }
         }

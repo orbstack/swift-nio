@@ -5,7 +5,7 @@
 //  Created by A. Zheng (github.com/aheze) on 4/19/23.
 //  Copyright © 2023 A. Zheng. All rights reserved.
 //
-    
+
 import Combine
 import SwiftUI
 
@@ -13,29 +13,29 @@ import SwiftUI
 @propertyWrapper
 public struct PublishedAppStorage<Value> {
     // Based on: https://github.com/OpenCombine/OpenCombine/blob/master/Sources/OpenCombine/Published.swift
-    
+
     @AppStorage
     private var storedValue: Value
-    
+
     private var publisher: Publisher?
-    internal var objectWillChange: ObservableObjectPublisher?
-    
+    var objectWillChange: ObservableObjectPublisher?
+
     /// A publisher for properties marked with the `@Published` attribute.
     public struct Publisher: Combine.Publisher {
         public typealias Output = Value
-        
+
         public typealias Failure = Never
-        
+
         public func receive<Downstream: Subscriber>(subscriber: Downstream)
             where Downstream.Input == Value, Downstream.Failure == Never
         {
             subject.subscribe(subscriber)
         }
-        
+
         fileprivate let subject: Combine.CurrentValueSubject<Value, Never>
-        
+
         fileprivate init(_ output: Output) {
-            self.subject = .init(output)
+            subject = .init(output)
         }
     }
 
@@ -49,7 +49,7 @@ public struct PublishedAppStorage<Value> {
             return publisher
         }
     }
-    
+
     @available(*, unavailable, message: """
     @Published is only available on properties of classes
     """)
@@ -57,10 +57,10 @@ public struct PublishedAppStorage<Value> {
         get { fatalError() }
         set { fatalError() }
     }
-    
+
     public static subscript<EnclosingSelf: ObservableObject>(
         _enclosingInstance object: EnclosingSelf,
-        wrapped wrappedKeyPath: ReferenceWritableKeyPath<EnclosingSelf, Value>,
+        wrapped _: ReferenceWritableKeyPath<EnclosingSelf, Value>,
         storage storageKeyPath: ReferenceWritableKeyPath<EnclosingSelf, PublishedAppStorage<Value>>
     ) -> Value {
         get {
@@ -73,41 +73,41 @@ public struct PublishedAppStorage<Value> {
             object[keyPath: storageKeyPath].storedValue = newValue
         }
     }
-    
+
     // MARK: - Initializers
 
     // RawRepresentable
     init(wrappedValue: Value, _ key: String, store: UserDefaults? = nil) where Value: RawRepresentable, Value.RawValue == String {
-        self._storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
+        _storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
     }
-    
+
     // String
     init(wrappedValue: String, _ key: String, store: UserDefaults? = nil) where Value == String {
-        self._storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
+        _storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
     }
 
     // Data
     init(wrappedValue: Data, _ key: String, store: UserDefaults? = nil) where Value == Data {
-        self._storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
+        _storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
     }
-    
+
     // Int
     init(wrappedValue: Int, _ key: String, store: UserDefaults? = nil) where Value == Int {
-        self._storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
+        _storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
     }
-    
+
     // URL
     init(wrappedValue: URL, _ key: String, store: UserDefaults? = nil) where Value == URL {
-        self._storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
+        _storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
     }
-    
+
     // Double
     init(wrappedValue: Double, _ key: String, store: UserDefaults? = nil) where Value == Double {
-        self._storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
+        _storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
     }
 
     // Bool
     init(wrappedValue: Bool, _ key: String, store: UserDefaults? = nil) where Value == Bool {
-        self._storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
+        _storedValue = AppStorage(wrappedValue: wrappedValue, key, store: store)
     }
 }

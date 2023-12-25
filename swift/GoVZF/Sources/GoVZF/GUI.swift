@@ -2,8 +2,8 @@
 // Created by Danny Lin on 6/22/23.
 //
 
-import Foundation
 import CBridge
+import Foundation
 
 @_cdecl("swext_gui_run_as_admin")
 func swext_gui_run_as_admin(shellScriptC: UnsafePointer<CChar>, promptC: UnsafePointer<CChar>) -> GResultErr {
@@ -11,7 +11,7 @@ func swext_gui_run_as_admin(shellScriptC: UnsafePointer<CChar>, promptC: UnsafeP
     let prompt = String(cString: promptC)
 
     let escapedSh = shellScript.replacingOccurrences(of: "\\", with: "\\\\")
-    .replacingOccurrences(of: "\"", with: "\\\"")
+        .replacingOccurrences(of: "\"", with: "\\\"")
     let appleScript = "do shell script \"\(escapedSh)\" with administrator privileges with prompt \"\(prompt)\""
     let script = NSAppleScript(source: appleScript)
     guard script != nil else {

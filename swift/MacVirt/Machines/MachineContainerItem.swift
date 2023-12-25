@@ -20,17 +20,17 @@ struct MachineContainerItem: View {
 
         HStack {
             Image("distro_\(record.image.distro)")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 32, height: 32)
-                    .padding(.trailing, 8)
-                    .opacity(running ? 1 : 0.5)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 32, height: 32)
+                .padding(.trailing, 8)
+                .opacity(running ? 1 : 0.5)
             VStack(alignment: .leading) {
                 Text(record.name)
-                        .font(.body)
+                    .font(.body)
                 Text("\(record.image.version), \(record.image.arch)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
             .opacity(running ? 1 : 0.5)
 
@@ -40,8 +40,8 @@ struct MachineContainerItem: View {
                 record.openNfsDirectory()
             }) {
                 Image(systemName: "folder.fill")
-                        // match ProgressIconButton size
-                .frame(width: 24, height: 24)
+                    // match ProgressIconButton size
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(.borderless)
             .disabled(actionInProgress)
@@ -49,7 +49,8 @@ struct MachineContainerItem: View {
 
             if running {
                 ProgressIconButton(systemImage: "stop.fill",
-                        actionInProgress: actionInProgress || record.state == .creating) {
+                                   actionInProgress: actionInProgress || record.state == .creating)
+                {
                     Task { @MainActor in
                         await actionTracker.with(machine: record, action: .stop) {
                             await vmModel.tryStopContainer(record)
@@ -59,7 +60,8 @@ struct MachineContainerItem: View {
                 .help("Stop \(record.name)")
             } else {
                 ProgressIconButton(systemImage: "play.fill",
-                        actionInProgress: actionInProgress || record.state == .creating) {
+                                   actionInProgress: actionInProgress || record.state == .creating)
+                {
                     Task { @MainActor in
                         await actionTracker.with(machine: record, action: .start) {
                             await vmModel.tryStartContainer(record)
@@ -157,7 +159,8 @@ struct MachineContainerItem: View {
             }.disabled(!running || !vmModel.netBridgeAvailable)
         }
         .confirmationDialog("Delete \(record.name)?",
-                isPresented: $presentConfirmDelete) {
+                            isPresented: $presentConfirmDelete)
+        {
             Button("Delete", role: .destructive) {
                 finishDelete()
             }

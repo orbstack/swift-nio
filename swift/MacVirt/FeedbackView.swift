@@ -2,9 +2,9 @@
 // Created by Danny Lin on 5/7/23.
 //
 
+import Combine
 import Foundation
 import SwiftUI
-import Combine
 
 private let charLimit = 30000
 private let emailCharLimit = 256
@@ -57,12 +57,12 @@ struct FeedbackView: View {
     var body: some View {
         VStack {
             Text("Send Feedback")
-            .font(.title)
-            .fontWeight(.bold)
-            .padding(.bottom, 8)
+                .font(.title)
+                .fontWeight(.bold)
+                .padding(.bottom, 8)
             Text("What's on your mind? An issue, suggestion, or a nice note?")
-            .foregroundColor(.secondary)
-            .padding(.bottom, 16)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 16)
 
             ZStack(alignment: .center) {
                 // fix layout shift: must always be here...
@@ -73,29 +73,29 @@ struct FeedbackView: View {
 
                 VStack {
                     let textBinding = Binding<String>(
-                            get: { feedbackText },
-                            set: {
-                                feedbackText = String($0.prefix(charLimit))
-                            }
+                        get: { feedbackText },
+                        set: {
+                            feedbackText = String($0.prefix(charLimit))
+                        }
                     )
                     TextEditor(text: textBinding)
-                    .frame(height: 200)
-                    // rounded
-                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    .padding(.bottom, 16)
-                    .font(.body)
+                        .frame(height: 200)
+                        // rounded
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .padding(.bottom, 16)
+                        .font(.body)
 
                     Text("Should we follow up via email?")
-                    .padding(.bottom, 8)
+                        .padding(.bottom, 8)
                     TextField("Email (optional)", text: $email)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.bottom, 16)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .padding(.bottom, 16)
 
                     if let sendError {
                         Text("Failed to send: \(sendError.localizedDescription)")
-                        .lineLimit(2)
-                        .foregroundColor(.red)
-                        .padding(.bottom, 16)
+                            .lineLimit(2)
+                            .foregroundColor(.red)
+                            .padding(.bottom, 16)
                     }
                 }
                 .opacity(sendInProgress ? 0 : 1)

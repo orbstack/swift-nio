@@ -2,11 +2,11 @@
 // Created by Danny Lin on 5/20/23.
 //
 
+import AppKit
+import Combine
+import Defaults
 import Foundation
 import SwiftUI
-import AppKit
-import Defaults
-import Combine
 
 // helps for e.g. onboarding flow, when we sometimes momentarily have no windows
 private let policyDebounce = 0.1
@@ -52,12 +52,12 @@ class WindowTracker: ObservableObject {
         // monitor close notifications
         // no equivalent for open, so rely on SwiftUI .onAppear callbacks
         NotificationCenter.default
-                // nil = all windows
-                .publisher(for: NSWindow.willCloseNotification, object: nil)
-                .sink { [weak self] notification in
-                    self?.onWindowDisappear(closingWindow: notification.object as? NSWindow)
-                }
-                .store(in: &cancellables)
+            // nil = all windows
+            .publisher(for: NSWindow.willCloseNotification, object: nil)
+            .sink { [weak self] notification in
+                self?.onWindowDisappear(closingWindow: notification.object as? NSWindow)
+            }
+            .store(in: &cancellables)
     }
 
     func onWindowAppear() {
@@ -84,9 +84,9 @@ class WindowTracker: ObservableObject {
         // this is for when we have a menu bar app:
         // check windows
         let windowCount = NSApp.windows
-                .filter { $0.isUserFacing && $0 != closingWindow }
-                // onAppear is *before* window created
-                .count + (isWindowAppearing ? 1 : 0)
+            .filter { $0.isUserFacing && $0 != closingWindow }
+            // onAppear is *before* window created
+            .count + (isWindowAppearing ? 1 : 0)
         if windowCount == 0 {
             return .accessory
         } else {
@@ -106,7 +106,7 @@ class WindowTracker: ObservableObject {
                 // if we're already active (on reopen), then give focus to dock and back
                 if NSApp.isActive {
                     NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock")
-                            .first?.activate()
+                        .first?.activate()
                 }
 
                 // otherwise just delay activation

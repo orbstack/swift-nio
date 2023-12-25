@@ -2,10 +2,10 @@
 // Created by Danny Lin on 4/1/23.
 //
 
-import Foundation
-import SystemConfiguration
-import Security
 import CBridge
+import Foundation
+import Security
+import SystemConfiguration
 
 struct ProxySettings: Codable {
     var httpEnable: Bool
@@ -98,7 +98,8 @@ private func getProxyPassword(proto: String, server: String, port: Int) -> Strin
     let status = SecItemCopyMatching(query as CFDictionary, &result)
     if status == errSecSuccess,
        let dict = result as? [String: Any],
-       let data = dict[kSecValueData as String] as? Data {
+       let data = dict[kSecValueData as String] as? Data
+    {
         return String(data: data, encoding: .utf8)
     }
 
@@ -127,7 +128,8 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
     let extraCaCerts = certs.filter { certificate in
         // skip Avast trusted CA as workaround for >800 certs. checking trust settings doesn't work properly
         if let summary = SecCertificateCopySubjectSummary(certificate) as String?,
-           summary == "Avast trusted CA" {
+           summary == "Avast trusted CA"
+        {
             return false
         }
 
@@ -143,7 +145,7 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
             var error: CFError?
             let result = SecTrustEvaluateWithError(trust, &error)
             // check validity
-            guard result && error == nil else {
+            guard result, error == nil else {
                 return false
             }
 
@@ -167,11 +169,11 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
 
         let base64EncodedData = data.base64EncodedString(options: .lineLength64Characters)
         return """
-               -----BEGIN CERTIFICATE-----
-               \(base64EncodedData)
-               -----END CERTIFICATE-----
+        -----BEGIN CERTIFICATE-----
+        \(base64EncodedData)
+        -----END CERTIFICATE-----
 
-               """
+        """
     }
 }
 
@@ -189,7 +191,7 @@ private let scKeyProxies = "State:/Network/Global/Proxies"
 
 @_cdecl("swext_proxy_monitor_changes")
 func swext_proxy_monitor_changes() -> GResultErr {
-    func callback(store: SCDynamicStore, changedKeys: CFArray, info: UnsafeMutableRawPointer?) {
+    func callback(store _: SCDynamicStore, changedKeys: CFArray, info _: UnsafeMutableRawPointer?) {
         let keys = changedKeys as! [String]
         if keys.contains(scKeyProxies) {
             swext_proxy_cb_changed()

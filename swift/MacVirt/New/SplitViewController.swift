@@ -52,7 +52,7 @@ class SplitViewController: NSSplitViewController {
     // this gets called both when we manually set `isCollapsed` on window resize,
     // and also when the user drags to hide the panel.
     // we differentiate between these two cases by checking if the window width is the same.
-    override func splitViewDidResizeSubviews(_ notification: Notification) {
+    override func splitViewDidResizeSubviews(_: Notification) {
         if itemA.isCollapsed != itemACurrentlyCollapsed, lastKnownWidth == view.bounds.width {
             if itemA.isCollapsed {
                 userGestureCollapsedPanel?(.sidebar)

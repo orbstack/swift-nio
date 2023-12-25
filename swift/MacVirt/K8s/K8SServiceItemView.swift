@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
     @EnvironmentObject var vmModel: VmViewModel
@@ -30,15 +30,15 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                 // this way it's consistent
                 let color = SystemColors.desaturate(Color(service.spec.type.uiColor))
                 Image(systemName: service.systemImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .padding(8)
-                .foregroundColor(Color(hex: 0xfafafa))
-                .background(Circle().fill(color))
-                // rasterize so opacity works on it as one big image
-                .drawingGroup(opaque: true)
-                .padding(.trailing, 8)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .padding(8)
+                    .foregroundColor(Color(hex: 0xFAFAFA))
+                    .background(Circle().fill(color))
+                    // rasterize so opacity works on it as one big image
+                    .drawingGroup(opaque: true)
+                    .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
                     Text(service.name)
@@ -47,12 +47,12 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
 
                     // TODO: show deployment here
                     /*
-                    Text(service.image)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .truncationMode(.tail)
-                        .lineLimit(1)
-                     */
+                     Text(service.image)
+                         .font(.subheadline)
+                         .foregroundColor(.secondary)
+                         .truncationMode(.tail)
+                         .lineLimit(1)
+                      */
                 }
             }
             // padding for expand arrow
@@ -64,7 +64,8 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             HStack {
                 if let urlStr = service.wrapURL(host: service.preferredDomain) {
                     ProgressIconButton(systemImage: "link",
-                            actionInProgress: false) {
+                                       actionInProgress: false)
+                    {
                         if let url = URL(string: urlStr) {
                             NSWorkspace.shared.open(url)
                         }
@@ -73,7 +74,8 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                 }
 
                 ProgressIconButton(systemImage: "info.circle.fill",
-                        actionInProgress: false) {
+                                   actionInProgress: false)
+                {
                     presentPopover = true
                 }
                 .help("Get Info")
@@ -82,7 +84,8 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                 }
 
                 ProgressIconButton(systemImage: "trash.fill",
-                        actionInProgress: actionInProgress == .delete) {
+                                   actionInProgress: actionInProgress == .delete)
+                {
                     finishDelete()
                 }
                 .disabled(actionInProgress != nil)
@@ -114,7 +117,8 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
 
                 Button(action: {
                     if let urlStr = service.wrapURL(host: service.preferredDomain),
-                          let url = URL(string: urlStr) {
+                       let url = URL(string: urlStr)
+                    {
                         NSWorkspace.shared.open(url)
                     }
                 }) {
@@ -135,7 +139,7 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
 
                     Button(action: {
                         NSPasteboard.copy(service.wrapURL(host: service.preferredDomain) ??
-                                service.preferredDomainAndPort)
+                            service.preferredDomainAndPort)
                     }) {
                         Label("Address", systemImage: "")
                     }.disabled(vmModel.config?.networkBridge == false)
@@ -150,15 +154,15 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                     }.disabled(clusterIP == nil)
 
                     /*
-                    let externalIP = service.externalIP
-                    Button(action: {
-                        if let externalIP {
-                            NSPasteboard.copy(externalIP)
-                        }
-                    }) {
-                        Label("External IP", systemImage: "")
-                    }.disabled(externalIP == nil)
-                     */
+                     let externalIP = service.externalIP
+                     Button(action: {
+                         if let externalIP {
+                             NSPasteboard.copy(externalIP)
+                         }
+                     }) {
+                         Label("External IP", systemImage: "")
+                     }.disabled(externalIP == nil)
+                      */
                 }
             }
         }
@@ -168,12 +172,12 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Info")
-                .font(.headline)
+                    .font(.headline)
                 HStack(spacing: 12) {
                     let domain = service.preferredDomain
                     let clusterIP = service.spec.clusterIP
                     // redundant. our external ip is always the same as node
-                    //let externalIP = service.externalIP
+                    // let externalIP = service.externalIP
                     let address = service.wrapURL(host: domain) ?? service.preferredDomainAndPort
                     let addressVisible = service.wrapURLNoScheme(host: domain) ?? service.preferredDomainAndPort
                     let isWebService = service.isWebService
@@ -185,10 +189,10 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                             Text("Cluster IP")
                         }
                         /*
-                        if externalIP != nil {
-                            Text("External IP")
-                        }
-                        */
+                         if externalIP != nil {
+                             Text("External IP")
+                         }
+                         */
                         if let url = URL(string: address) {
                             Text("Address")
                         }
@@ -201,10 +205,10 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                             CopyableText(clusterIP)
                         }
                         /*
-                        if let externalIP {
-                            CopyableText(externalIP)
-                        }
-                         */
+                         if let externalIP {
+                             CopyableText(externalIP)
+                         }
+                          */
                         if let url = URL(string: address) {
                             if isWebService {
                                 CopyableText(copyAs: service.preferredDomainAndPort) {
@@ -222,10 +226,10 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             if service.spec.ports?.isEmpty == false {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Ports")
-                    .font(.headline)
+                        .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(service.spec.ports ?? []) { port in
-                            // TODO dedupe logic
+                            // TODO: dedupe logic
                             let portNumber = service.spec.type == .loadBalancer ? port.port : (port.nodePort ?? port.port)
                             // avoid pretty commas num format
                             if port.proto != "TCP" {

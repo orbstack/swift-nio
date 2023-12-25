@@ -4,7 +4,5 @@
 
 import Foundation
 
-//TODO move into here
-class DockerViewModel: ObservableObject {
-
-}
+// TODO: move into here
+class DockerViewModel: ObservableObject {}

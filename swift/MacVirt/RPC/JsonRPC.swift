@@ -2,10 +2,10 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
-import NIO
 import AsyncHTTPClient
 import Atomics
+import Foundation
+import NIO
 
 // retry: exponential backoff up to 5 sec
 private let connectTimeout: TimeAmount = .seconds(5)
@@ -26,18 +26,18 @@ enum RPCError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .httpStatus(let status):
+        case let .httpStatus(status):
             return "HTTP status \(status)"
-        case .decode(let cause):
+        case let .decode(cause):
             return "Decode error: \(cause)"
-        case .encode(let cause):
+        case let .encode(cause):
             return "Encode error: \(cause)"
-        case .request(let cause):
+        case let .request(cause):
             return "Request error: \(cause)"
-        case .readResponse(let cause):
+        case let .readResponse(cause):
             return "Read response error: \(cause)"
 
-        case .app(_, let message):
+        case let .app(_, message):
             return message
         case .noResult:
             return "No result"
@@ -90,7 +90,7 @@ class JsonRPCClient {
         config.timeout.read = readTimeout
         client = HTTPClient(configuration: config)
 
-        self.baseURL = URL(httpURLWithSocketPath: unixSocket, uri: "/")!.absoluteString
+        baseURL = URL(httpURLWithSocketPath: unixSocket, uri: "/")!.absoluteString
 
         encoder.keyEncodingStrategy = .convertToSnakeCase
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -130,9 +130,9 @@ class JsonRPCClient {
         req.headers.add(name: "User-Agent", value: "OrbStack-GUI")
         do {
             let body = try encoder.encode(JsonRPCRequest(jsonrpc: "2.0",
-                    id: nextReqId(),
-                    method: method,
-                    params: args))
+                                                         id: nextReqId(),
+                                                         method: method,
+                                                         params: args))
             req.body = .bytes(body)
         } catch {
             throw RPCError.encode(cause: error)
@@ -154,7 +154,7 @@ class JsonRPCClient {
 
         var respData: ByteBuffer
         do {
-            respData = try await response.body.collect(upTo: 1024*1024) // 1 MiB
+            respData = try await response.body.collect(upTo: 1024 * 1024) // 1 MiB
         } catch let e as HTTPClientError where e == .remoteConnectionClosed {
             throw RPCError.eof
         } catch {

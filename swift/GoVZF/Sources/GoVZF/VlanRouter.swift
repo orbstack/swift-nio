@@ -1,12 +1,12 @@
 //
-//  Macvlan.swift
+//  VlanRouter.swift
 //  GoVZF
 //
 //  Created by Danny Lin on 6/2/23.
 //
 
-import Foundation
 import CBridge
+import Foundation
 import Network
 
 private let verboseDebug = false
@@ -29,38 +29,38 @@ struct VlanRouterConfig: Codable {
 class VlanRouter {
     // static circular array of slots
     private var interfaces: [BridgeNetwork?]
-    private var guestReader: GuestReader! = nil
+    private var guestReader: GuestReader!
     private let pathMonitor = NWPathMonitor()
 
     init(config: VlanRouterConfig) {
         interfaces = [BridgeNetwork?](repeating: nil, count: config.maxVlanInterfaces)
         guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPossiblePacketSize,
-                onPacket: { [self] iov, len in
-                    let pkt = Packet(iov: iov, len: len)
-                    do {
-                        let ifi = try PacketProcessor.extractInterfaceIndexToHost(pkt: pkt, macPrefix: config.macPrefix)
-                        if ifi == ifiBroadcast {
-                            // broadcast to all interfaces
-                            for bridge in interfaces {
-                                if let bridge {
-                                    bridge.tryWriteToHost(iov: iov, len: len)
-                                }
-                            }
-                        } else {
-                            // unicast
-                            let bridge = try interfaceAt(index: ifi)
-                            bridge.tryWriteToHost(iov: iov, len: len)
-                        }
-                    } catch {
-                        switch error {
-                        case BrnetError.interfaceNotFound:
-                            // normal that some packets get dropped for no vlan match
-                            break
-                        default:
-                            NSLog("[brnet/router] failed to extract pkt routing info: \(error)")
-                        }
-                    }
-                })
+                                  onPacket: { [self] iov, len in
+                                      let pkt = Packet(iov: iov, len: len)
+                                      do {
+                                          let ifi = try PacketProcessor.extractInterfaceIndexToHost(pkt: pkt, macPrefix: config.macPrefix)
+                                          if ifi == ifiBroadcast {
+                                              // broadcast to all interfaces
+                                              for bridge in interfaces {
+                                                  if let bridge {
+                                                      bridge.tryWriteToHost(iov: iov, len: len)
+                                                  }
+                                              }
+                                          } else {
+                                              // unicast
+                                              let bridge = try interfaceAt(index: ifi)
+                                              bridge.tryWriteToHost(iov: iov, len: len)
+                                          }
+                                      } catch {
+                                          switch error {
+                                          case BrnetError.interfaceNotFound:
+                                              // normal that some packets get dropped for no vlan match
+                                              break
+                                          default:
+                                              NSLog("[brnet/router] failed to extract pkt routing info: \(error)")
+                                          }
+                                      }
+                                  })
 
         // monitor route for renewal
         // more reliable per-NWConnection UDP pathUpdateHandler, which is more granular:
@@ -87,8 +87,8 @@ class VlanRouter {
             // lower 7 bits = index
             // upper 1 bit = 0 (host)
             var config = config
-            config.hostOverrideMac[5] = UInt8(index & 0x7f)
-            config.guestMac[5] = UInt8((index & 0x7f) | 0x80)
+            config.hostOverrideMac[5] = UInt8(index & 0x7F)
+            config.guestMac[5] = UInt8((index & 0x7F) | 0x80)
 
             let bridge = try BridgeNetwork(config: config)
             interfaces[Int(index)] = bridge
@@ -165,7 +165,7 @@ func swext_vlanrouter_new(configJsonStr: UnsafePointer<CChar>) -> UnsafeMutableR
 func swext_vlanrouter_addBridge(ptr: UnsafeMutableRawPointer, configJsonStr: UnsafePointer<CChar>) -> GResultIntErr {
     let config: BridgeNetworkConfig = decodeJson(configJsonStr)
     return doGenericErrInt(ptr) { (router: VlanRouter) in
-        return Int64(try router.addBridge(config: config))
+        try Int64(router.addBridge(config: config))
     }
 }
 

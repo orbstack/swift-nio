@@ -2,9 +2,9 @@
 // Created by Danny Lin on 5/6/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
@@ -18,6 +18,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     var selection: Set<DockerContainerId> {
         listModel.selection as! Set<DockerContainerId>
     }
+
     var isFirstInList: Bool
 
     static func == (lhs: DockerComposeGroupItem, rhs: DockerComposeGroupItem) -> Bool {
@@ -32,44 +33,44 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             HStack {
                 let color = SystemColors.forString(composeGroup.project)
                 Image(systemName: "square.stack.3d.up.fill")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
-                        .padding(.trailing, 8)
-                        .foregroundColor(color)
-                .if(isFirstInList) {
-                    $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .trailing) {
-                        HStack {
-                            Image(systemName: "network")
-                            .resizable()
-                            .frame(width: 32, height: 32)
-                            .foregroundColor(.accentColor)
-                            .padding(.trailing, 4)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 32, height: 32)
+                    .padding(.trailing, 8)
+                    .foregroundColor(color)
+                    .if(isFirstInList) {
+                        $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .trailing) {
+                            HStack {
+                                Image(systemName: "network")
+                                    .resizable()
+                                    .frame(width: 32, height: 32)
+                                    .foregroundColor(.accentColor)
+                                    .padding(.trailing, 4)
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("New: Domain names for services")
-                                .font(.headline)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("New: Domain names for services")
+                                        .font(.headline)
 
-                                Text("See all containers at [orb.local](http://orb.local)")
-                                .font(.body)
-                                .foregroundColor(.secondary)
+                                    Text("See all containers at [orb.local](http://orb.local)")
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
+                                }
                             }
-                        }
-                        .padding(20)
-                        .overlay(alignment: .topTrailing) {
-                            Button(action: {
-                                tipsContainerDomainsShow = false
-                            }) {
-                                Image(systemName: "xmark")
-                                .resizable()
-                                .frame(width: 8, height: 8)
-                                .foregroundColor(.secondary)
+                            .padding(20)
+                            .overlay(alignment: .topTrailing) {
+                                Button(action: {
+                                    tipsContainerDomainsShow = false
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .resizable()
+                                        .frame(width: 8, height: 8)
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(8)
                             }
-                            .buttonStyle(.plain)
-                            .padding(8)
                         }
                     }
-                }
 
                 VStack(alignment: .leading) {
                     Text(composeGroup.project)
@@ -88,14 +89,16 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             HStack {
                 if isRunning {
                     ProgressIconButton(systemImage: "stop.fill",
-                            actionInProgress: actionInProgress?.isStartStop == true) {
+                                       actionInProgress: actionInProgress?.isStartStop == true)
+                    {
                         finishStop()
                     }
                     .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
                     .help("Stop project")
                 } else {
                     ProgressIconButton(systemImage: "play.fill",
-                            actionInProgress: actionInProgress?.isStartStop == true) {
+                                       actionInProgress: actionInProgress?.isStartStop == true)
+                    {
                         finishStart()
                     }
                     .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
@@ -103,7 +106,8 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 ProgressIconButton(systemImage: "trash.fill",
-                        actionInProgress: actionInProgress == .delete) {
+                                   actionInProgress: actionInProgress == .delete)
+                {
                     finishDelete()
                 }
                 .disabled(actionInProgress != nil || !composeGroup.isFullCompose)

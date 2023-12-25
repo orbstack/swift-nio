@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
@@ -19,6 +19,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     var selection: Set<DockerContainerId> {
         listModel.selection as! Set<DockerContainerId>
     }
+
     var isFirstInList: Bool
 
     @State private var presentPopover = false
@@ -40,7 +41,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 16, height: 16)
                     .padding(8)
-                    .foregroundColor(Color(hex: 0xfafafa))
+                    .foregroundColor(Color(hex: 0xFAFAFA))
                     .background(Circle().fill(color))
                     // rasterize so opacity works on it as one big image
                     .drawingGroup(opaque: true)
@@ -80,18 +81,18 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .leading) {
                             HStack {
                                 Image(systemName: "network")
-                                .resizable()
-                                .frame(width: 32, height: 32)
-                                .foregroundColor(.accentColor)
-                                .padding(.trailing, 4)
+                                    .resizable()
+                                    .frame(width: 32, height: 32)
+                                    .foregroundColor(.accentColor)
+                                    .padding(.trailing, 4)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("New: Domain names for services")
-                                    .font(.headline)
+                                        .font(.headline)
 
                                     Text("See all containers at [orb.local](http://orb.local)")
-                                    .font(.body)
-                                    .foregroundColor(.secondary)
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                             .padding(20)
@@ -100,9 +101,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                     tipsContainerDomainsShow = false
                                 }) {
                                     Image(systemName: "xmark")
-                                    .resizable()
-                                    .frame(width: 8, height: 8)
-                                    .foregroundColor(.secondary)
+                                        .resizable()
+                                        .frame(width: 8, height: 8)
+                                        .foregroundColor(.secondary)
                                 }
                                 .buttonStyle(.plain)
                                 .padding(8)
@@ -118,22 +119,22 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     .help("Open Files")
                     // show domains first, then files
                     .if(isFirstInList && !tipsContainerDomainsShow) {
-                        // TODO fix code dupe
+                        // TODO: fix code dupe
                         $0.popover(isPresented: $tipsContainerFilesShow, arrowEdge: .leading) {
                             HStack {
                                 Image(systemName: "folder.circle")
-                                .resizable()
-                                .frame(width: 32, height: 32)
-                                .foregroundColor(.accentColor)
-                                .padding(.trailing, 4)
+                                    .resizable()
+                                    .frame(width: 32, height: 32)
+                                    .foregroundColor(.accentColor)
+                                    .padding(.trailing, 4)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("New: Container files in Finder & terminal")
-                                    .font(.headline)
+                                        .font(.headline)
 
                                     Text("Easily edit and copy files natively")
-                                    .font(.body)
-                                    .foregroundColor(.secondary)
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                             .padding(20)
@@ -142,9 +143,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                     tipsContainerFilesShow = false
                                 }) {
                                     Image(systemName: "xmark")
-                                    .resizable()
-                                    .frame(width: 8, height: 8)
-                                    .foregroundColor(.secondary)
+                                        .resizable()
+                                        .frame(width: 8, height: 8)
+                                        .foregroundColor(.secondary)
                                 }
                                 .buttonStyle(.plain)
                                 .padding(8)
@@ -154,7 +155,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 ProgressIconButton(systemImage: "info.circle.fill",
-                        actionInProgress: false) {
+                                   actionInProgress: false)
+                {
                     presentPopover = true
                 }
                 .help("Get info")
@@ -164,14 +166,16 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
                 if isRunning {
                     ProgressIconButton(systemImage: "stop.fill",
-                            actionInProgress: actionInProgress?.isStartStop == true) {
+                                       actionInProgress: actionInProgress?.isStartStop == true)
+                    {
                         finishStop()
                     }
                     .disabled(actionInProgress != nil)
                     .help("Stop container")
                 } else {
                     ProgressIconButton(systemImage: "play.fill",
-                            actionInProgress: actionInProgress?.isStartStop == true) {
+                                       actionInProgress: actionInProgress?.isStartStop == true)
+                    {
                         finishStart()
                     }
                     .disabled(actionInProgress != nil)
@@ -179,7 +183,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 ProgressIconButton(systemImage: "trash.fill",
-                        actionInProgress: actionInProgress == .delete) {
+                                   actionInProgress: actionInProgress == .delete)
+                {
                     finishDelete()
                 }
                 .disabled(actionInProgress != nil)
@@ -262,7 +267,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 let preferredDomain = container.preferredDomain
                 Button(action: {
                     if let preferredDomain,
-                       let url = URL(string: "\(container.getPreferredProto(vmModel))://\(preferredDomain)") {
+                       let url = URL(string: "\(container.getPreferredProto(vmModel))://\(preferredDomain)")
+                    {
                         NSWorkspace.shared.open(url)
                     }
                 }) {
@@ -276,7 +282,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Group {
                 if container.ports.isEmpty && container.mounts.isEmpty {
                     Button("No Ports or Mounts") {}
-                            .disabled(true)
+                        .disabled(true)
                 }
 
                 if !container.ports.isEmpty {
@@ -356,7 +362,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Info")
-                        .font(.headline)
+                    .font(.headline)
                 HStack(spacing: 12) {
                     let domain = container.preferredDomain
                     let ipAddress = container.ipAddress
@@ -380,7 +386,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         // needs to be running w/ ip to have domain
                         if let ipAddress,
                            let domain,
-                           let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)") {
+                           let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                        {
                             if vmModel.netBridgeAvailable {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)
@@ -397,7 +404,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             if !container.ports.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Ports")
-                            .font(.headline)
+                        .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(container.ports) { port in
                             CopyableText(copyAs: "\(port.localPort)") {
@@ -456,7 +463,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
                 if isRunning && container.image == "docker/getting-started" {
                     Spacer()
-                    .frame(height: 20)
+                        .frame(height: 20)
 
                     // special case for more seamless onboarding
                     Button {
@@ -507,7 +514,7 @@ extension BaseDockerContainerItem {
             Task { @MainActor in
                 await actionTracker.with(cid: item, action: .stop) {
                     switch item {
-                    case .container(let id):
+                    case let .container(id):
                         await vmModel.tryDockerContainerStop(id)
                     case .compose:
                         await vmModel.tryDockerComposeStop(item)
@@ -525,7 +532,7 @@ extension BaseDockerContainerItem {
             Task { @MainActor in
                 await actionTracker.with(cid: item, action: .kill) {
                     switch item {
-                    case .container(let id):
+                    case let .container(id):
                         await vmModel.tryDockerContainerKill(id)
                     case .compose:
                         await vmModel.tryDockerComposeKill(item)
@@ -543,7 +550,7 @@ extension BaseDockerContainerItem {
             Task { @MainActor in
                 await actionTracker.with(cid: item, action: .start) {
                     switch item {
-                    case .container(let id):
+                    case let .container(id):
                         await vmModel.tryDockerContainerStart(id)
                     case .compose:
                         await vmModel.tryDockerComposeStart(item)
@@ -561,7 +568,7 @@ extension BaseDockerContainerItem {
             for item in resolveActionList() {
                 await actionTracker.with(cid: item, action: .restart) {
                     switch item {
-                    case .container(let id):
+                    case let .container(id):
                         await vmModel.tryDockerContainerRestart(id)
                     case .compose:
                         await vmModel.tryDockerComposeRestart(item)
@@ -579,7 +586,7 @@ extension BaseDockerContainerItem {
             Task { @MainActor in
                 await actionTracker.with(cid: item, action: .delete) {
                     switch item {
-                    case .container(let id):
+                    case let .container(id):
                         await vmModel.tryDockerContainerRemove(id)
                     case .compose:
                         await vmModel.tryDockerComposeRemove(item)
@@ -605,9 +612,10 @@ extension BaseDockerContainerItem {
                 // in that case, skip containers that are under an existing group to avoid racing
                 return selection.filter { sel in
                     switch sel {
-                    case .container(let id):
+                    case let .container(id):
                         if let container = containers.first(where: { container in container.id == id }),
-                           let composeProject = container.composeProject {
+                           let composeProject = container.composeProject
+                        {
                             return !selection.contains(.compose(project: composeProject))
                         } else {
                             // not a compose project

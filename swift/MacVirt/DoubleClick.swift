@@ -31,10 +31,11 @@ struct DoubleClickHandler: ViewModifier {
 
 struct DoubleClickListeningViewRepresentable: NSViewRepresentable {
     let handler: () -> Void
-    func makeNSView(context: Context) -> DoubleClickListeningView {
+    func makeNSView(context _: Context) -> DoubleClickListeningView {
         DoubleClickListeningView(handler: handler)
     }
-    func updateNSView(_ nsView: DoubleClickListeningView, context: Context) {}
+
+    func updateNSView(_: DoubleClickListeningView, context _: Context) {}
 }
 
 class DoubleClickListeningView: NSView {
@@ -45,7 +46,8 @@ class DoubleClickListeningView: NSView {
         super.init(frame: .zero)
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 

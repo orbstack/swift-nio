@@ -2,10 +2,10 @@
 // Created by Danny Lin on 2/8/23.
 //
 
-import Foundation
-import SwiftUI
 import Combine
 import CoreGraphics
+import Foundation
+import SwiftUI
 
 // this new impl from https://stackoverflow.com/a/72676028, combined with weak WindowHolder, fixes duplicate windows opening on alert
 // but still not 100% reliable
@@ -18,8 +18,7 @@ struct WindowAccessor: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: NSView, context: Context) {
-    }
+    func updateNSView(_: NSView, context _: Context) {}
 
     func makeCoordinator() -> WindowMonitor {
         WindowMonitor {
@@ -38,26 +37,26 @@ struct WindowAccessor: NSViewRepresentable {
         /// This function uses KVO to observe the `window` property of `view` and calls `onChange()`
         func monitorView(_ view: NSView) {
             view.publisher(for: \.window)
-                    .removeDuplicates()
-                    .dropFirst()
-                    .sink { [weak self] newWindow in
-                        self?.onChange(newWindow)
-                        if let newWindow {
-                            self?.monitorClosing(of: newWindow)
-                        }
+                .removeDuplicates()
+                .dropFirst()
+                .sink { [weak self] newWindow in
+                    self?.onChange(newWindow)
+                    if let newWindow {
+                        self?.monitorClosing(of: newWindow)
                     }
-                    .store(in: &cancellables)
+                }
+                .store(in: &cancellables)
         }
 
         /// This function uses notifications to track closing of `window`
         private func monitorClosing(of window: NSWindow) {
             NotificationCenter.default
-                    .publisher(for: NSWindow.willCloseNotification, object: window)
-                    .sink { [weak self] notification in
-                        self?.onChange(nil)
-                        self?.cancellables.removeAll()
-                    }
-                    .store(in: &cancellables)
+                .publisher(for: NSWindow.willCloseNotification, object: window)
+                .sink { [weak self] _ in
+                    self?.onChange(nil)
+                    self?.cancellables.removeAll()
+                }
+                .store(in: &cancellables)
         }
     }
 }
@@ -67,7 +66,7 @@ class WindowHolder: ObservableObject {
 }
 
 func rectReader(_ binding: Binding<CGRect>, _ space: CoordinateSpace = .global) -> some View {
-    GeometryReader { (geometry) -> Color in
+    GeometryReader { geometry -> Color in
         let rect = geometry.frame(in: space)
         DispatchQueue.main.async {
             if rect != binding.wrappedValue {
@@ -79,7 +78,7 @@ func rectReader(_ binding: Binding<CGRect>, _ space: CoordinateSpace = .global) 
 }
 
 extension CGKeyCode {
-    static let kVK_Option     : CGKeyCode = 0x3A
+    static let kVK_Option: CGKeyCode = 0x3A
     static let kVK_RightOption: CGKeyCode = 0x3D
 
     var isPressed: Bool {
@@ -87,30 +86,30 @@ extension CGKeyCode {
     }
 
     static var optionKeyPressed: Bool {
-        return Self.kVK_Option.isPressed || Self.kVK_RightOption.isPressed
+        return kVK_Option.isPressed || kVK_RightOption.isPressed
     }
 }
 
-struct SystemColors {
+enum SystemColors {
     private static let all = [
         // removed due to semantic meaning
-        //Color(.systemRed),
+        // Color(.systemRed),
         Color(.systemGreen),
         Color(.systemBlue),
         // removed: semantic, could be confusing in k8s case
-        //Color(.systemOrange),
+        // Color(.systemOrange),
         // removed due to poor contrast on light
-        //Color(.systemYellow),
+        // Color(.systemYellow),
         Color(.systemBrown),
         // removed: too close to red
-        //Color(.systemPink),
+        // Color(.systemPink),
         Color(.systemPurple),
         Color(.systemGray),
         Color(.systemTeal),
         Color(.systemIndigo),
         Color(.systemMint),
         // removed: poor contrast, too bright in dark
-        //Color(.systemCyan),
+        // Color(.systemCyan),
     ]
 
     static func forString(_ str: String) -> Color {
@@ -129,7 +128,7 @@ private func stableStringHash(_ str: String) -> UInt64 {
     var result = UInt64(5381)
     let buf = [UInt8](str.utf8)
     for b in buf {
-        result = 127 * (result & 0x00ffffffffffffff) + UInt64(b)
+        result = 127 * (result & 0x00FF_FFFF_FFFF_FFFF) + UInt64(b)
     }
     return result
 }
@@ -207,9 +206,9 @@ extension Color {
     init(hex: UInt, alpha: Double = 1) {
         self.init(
             .sRGB,
-            red: Double((hex >> 16) & 0xff) / 255,
-            green: Double((hex >> 08) & 0xff) / 255,
-            blue: Double((hex >> 00) & 0xff) / 255,
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 08) & 0xFF) / 255,
+            blue: Double((hex >> 00) & 0xFF) / 255,
             opacity: alpha
         )
     }
@@ -218,9 +217,9 @@ extension Color {
 extension NSColor {
     convenience init(hex: UInt, alpha: Double = 1) {
         self.init(
-            srgbRed: CGFloat((hex >> 16) & 0xff) / 255,
-            green: CGFloat((hex >> 08) & 0xff) / 255,
-            blue: CGFloat((hex >> 00) & 0xff) / 255,
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 08) & 0xFF) / 255,
+            blue: CGFloat((hex >> 00) & 0xFF) / 255,
             alpha: CGFloat(alpha)
         )
     }
@@ -240,8 +239,7 @@ struct ToggleSidebarButton: View {
 extension Text {
     func textSelectionWithWorkaround() -> some View {
         // WA: selecting text in dark mode changes color to black when on material bg
-        self
-            .foregroundColor(.primary)
+        foregroundColor(.primary)
             .textSelection(.enabled)
     }
 }

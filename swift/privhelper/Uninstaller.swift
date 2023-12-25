@@ -22,9 +22,9 @@ enum Uninstaller {
         case launchctlFailure(statusCode: Int32)
         case notProcessId(invalidArgument: String)
     }
-    
+
     static let cliCommand = "uninstall"
-    
+
     /// Indirectly uninstalls this helper tool. Calling this function will terminate this process unless an error is throw.
     ///
     /// Uninstalls this helper tool by relaunching itself not via XPC such that the installation can occur succesfully.
@@ -42,7 +42,7 @@ enum Uninstaller {
         process.launch()
         exit(0)
     }
-    
+
     static func uninstallFromCli(withArguments arguments: [String]) throws -> Never {
         if arguments.count == 1 {
             try uninstallNow()
@@ -63,10 +63,10 @@ enum Uninstaller {
             NSLog("waiting for parent \(pid) to exit")
         }
         NSLog("parent exited, uninstalling")
-        
+
         try uninstallNow()
     }
-    
+
     /// Uninstalls this helper tool.
     ///
     /// This function will not work if called when this helper tool was started by an XPC call because `launchctl` will be unable to unload.

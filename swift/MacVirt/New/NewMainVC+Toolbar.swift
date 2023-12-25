@@ -37,7 +37,7 @@ extension NewMainViewController: NSToolbarDelegate {
         return items
     }
 
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+    func toolbar(_: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar _: Bool) -> NSToolbarItem? {
         switch itemIdentifier {
         case .toggleSidebarButton:
             return toggleSidebarButton
@@ -71,27 +71,27 @@ extension NewMainViewController: NSToolbarDelegate {
         return NSToolbarItem(itemIdentifier: itemIdentifier)
     }
 
-    @objc func toggleSidebarButton(_ sender: NSButton?) {
+    @objc func toggleSidebarButton(_: NSButton?) {
         splitViewController.itemA.animator().isCollapsed.toggle()
     }
 
-    @objc func toggleInspectorButton(_ sender: NSButton?) {
+    @objc func toggleInspectorButton(_: NSButton?) {
         splitViewController.itemC.animator().isCollapsed.toggle()
     }
 
-    @objc func containersFilterMenu1(_ sender: Any?) {
+    @objc func containersFilterMenu1(_: Any?) {
         model.dockerFilterShowStopped.toggle()
     }
 
-    @objc func volumesFolderButton(_ sender: NSButton?) {
+    @objc func volumesFolderButton(_: NSButton?) {
         NSWorkspace.openFolder(Folders.nfsDockerVolumes)
     }
 
-    @objc func volumesPlusButton(_ sender: NSButton?) {
+    @objc func volumesPlusButton(_: NSButton?) {
         model.presentCreateVolume = true
     }
 
-    @objc func imagesFolderButton(_ sender: NSButton?) {
+    @objc func imagesFolderButton(_: NSButton?) {
         NSWorkspace.openFolder(Folders.nfsDockerImages)
     }
 
@@ -102,19 +102,19 @@ extension NewMainViewController: NSToolbarDelegate {
         }
     }
 
-    @objc func podsFilterMenu1(_ sender: Any?) {
+    @objc func podsFilterMenu1(_: Any?) {
         model.k8sFilterShowSystemNs.toggle()
     }
 
-    @objc func servicesFilterMenu1(_ sender: Any?) {
+    @objc func servicesFilterMenu1(_: Any?) {
         model.k8sFilterShowSystemNs.toggle()
     }
 
-    @objc func machinesPlusButton(_ sender: NSButton?) {
+    @objc func machinesPlusButton(_: NSButton?) {
         model.presentCreateMachine = true
     }
 
-    @objc func commandsHelpButton(_ sender: NSButton?) {
+    @objc func commandsHelpButton(_: NSButton?) {
         NSWorkspace.shared.open(URL(string: "https://go.orbstack.dev/cli")!)
     }
 }

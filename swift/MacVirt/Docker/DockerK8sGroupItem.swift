@@ -2,9 +2,9 @@
 // Created by Danny Lin on 8/28/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct DockerK8sGroupItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
@@ -24,20 +24,20 @@ struct DockerK8sGroupItem: View, Equatable {
             HStack {
                 let color = SystemColors.desaturate(Color(.systemBlue))
                 Image(systemName: "helm")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .padding(8)
-                .foregroundColor(Color(hex: 0xfafafa))
-                .background(Circle().fill(color))
-                // rasterize so opacity works on it as one big image
-                .drawingGroup(opaque: true)
-                .padding(.trailing, 8)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .padding(8)
+                    .foregroundColor(Color(hex: 0xFAFAFA))
+                    .background(Circle().fill(color))
+                    // rasterize so opacity works on it as one big image
+                    .drawingGroup(opaque: true)
+                    .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
                     Text("Kubernetes")
-                    .font(.body)
-                    .lineLimit(1)
+                        .font(.body)
+                        .lineLimit(1)
                 }
             }
             .opacity(isRunning ? 1 : 0.5)

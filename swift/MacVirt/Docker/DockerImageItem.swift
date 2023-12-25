@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct DockerImageItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
@@ -17,6 +17,7 @@ struct DockerImageItem: View, Equatable {
     var selection: Set<String> {
         listModel.selection as! Set<String>
     }
+
     var isFirstInList: Bool
 
     static func == (lhs: DockerImageItem, rhs: DockerImageItem) -> Bool {
@@ -31,13 +32,13 @@ struct DockerImageItem: View, Equatable {
             HStack {
                 VStack(alignment: .leading) {
                     Text(image.userTag)
-                            .font(.body)
-                            .truncationMode(.tail)
-                            .lineLimit(1)
+                        .font(.body)
+                        .truncationMode(.tail)
+                        .lineLimit(1)
 
                     Text("\(image.formattedSize), created \(image.formattedCreated)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
             }
             Spacer()
@@ -47,8 +48,8 @@ struct DockerImageItem: View, Equatable {
                     openFolder()
                 }) {
                     Image(systemName: "folder.fill")
-                            // match ProgressIconButton size
-                    .frame(width: 24, height: 24)
+                        // match ProgressIconButton size
+                        .frame(width: 24, height: 24)
                 }
                 .buttonStyle(.borderless)
                 .disabled(actionInProgress)
@@ -89,8 +90,9 @@ struct DockerImageItem: View, Equatable {
             }
 
             ProgressIconButton(systemImage: "trash.fill",
-                    actionInProgress: actionInProgress,
-                    role: .destructive) {
+                               actionInProgress: actionInProgress,
+                               role: .destructive)
+            {
                 finishDelete()
             }
             .disabled(actionInProgress || isInUse)

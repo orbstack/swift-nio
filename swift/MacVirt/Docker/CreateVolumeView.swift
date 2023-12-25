@@ -21,8 +21,8 @@ struct CreateVolumeView: View {
     var body: some View {
         VStack(alignment: .leading) {
             Text("New Volume")
-                    .font(.headline.weight(.semibold))
-                    .padding(.bottom, 8)
+                .font(.headline.weight(.semibold))
+                .padding(.bottom, 8)
 
             Form {
                 Section {
@@ -31,15 +31,15 @@ struct CreateVolumeView: View {
                     })
 
                     TextField("Name", text: nameBinding)
-                            .onSubmit {
-                                submit()
-                            }
+                        .onSubmit {
+                            submit()
+                        }
                     let errorText = isNameInvalid ? "Invalid name" : "Already exists"
                     Text(errorText)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .frame(maxHeight: duplicateHeight)
-                            .clipped()
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .frame(maxHeight: duplicateHeight)
+                        .clipped()
                 }
             }
 
@@ -61,7 +61,7 @@ struct CreateVolumeView: View {
                 // empty is disabled but not error
                 .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
             }
-                    .padding(.top, 8)
+            .padding(.top, 8)
         }
         .padding(20)
         .onChange(of: name) { newName in
@@ -77,7 +77,8 @@ struct CreateVolumeView: View {
 
     private func checkName(_ newName: String, animate: Bool = true) {
         if let volumes = vmModel.dockerVolumes,
-           volumes.contains(where: { $0.name == newName }) {
+           volumes.contains(where: { $0.name == newName })
+        {
             isNameDuplicate = true
         } else {
             isNameDuplicate = false

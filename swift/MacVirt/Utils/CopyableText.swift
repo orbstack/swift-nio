@@ -14,7 +14,7 @@ struct CopyableText<Content: View>: View {
 
     init(copyAs: String, @ViewBuilder text: @escaping () -> Content) {
         self.copyAs = copyAs
-        self.textBuilder = text
+        textBuilder = text
     }
 
     var body: some View {
@@ -23,14 +23,14 @@ struct CopyableText<Content: View>: View {
                 textBuilder()
 
                 Image(systemName: isCopied ? "checkmark.circle.fill" : "doc.on.doc")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .foregroundColor(.secondary)
-                // avoid checkmark and doc.on.doc having diff widths
-                // (maxWidth: 12, maxHeight: .infinity) steals height from other Texts in CommandsRootView
-                .frame(width: 12, height: NSFont.systemFontSize)
-                .opacity(hoverOpacity)
-                .help("Copy")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundColor(.secondary)
+                    // avoid checkmark and doc.on.doc having diff widths
+                    // (maxWidth: 12, maxHeight: .infinity) steals height from other Texts in CommandsRootView
+                    .frame(width: 12, height: NSFont.systemFontSize)
+                    .opacity(hoverOpacity)
+                    .help("Copy")
             }
         }
         .buttonStyle(.plain)
@@ -77,7 +77,7 @@ struct AuxiliaryCopyableText<Content: View>: View {
 
     init(copyAs: String, @ViewBuilder text: @escaping () -> Content) {
         self.copyAs = copyAs
-        self.textBuilder = text
+        textBuilder = text
     }
 
     var body: some View {
@@ -86,14 +86,14 @@ struct AuxiliaryCopyableText<Content: View>: View {
 
             Button(action: copy) {
                 Image(systemName: isCopied ? "checkmark.circle.fill" : "doc.on.doc")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .foregroundColor(.secondary)
-                // avoid checkmark and doc.on.doc having diff widths
-                // (maxWidth: 12, maxHeight: .infinity) steals height from other Texts in CommandsRootView
-                .frame(width: 12, height: NSFont.systemFontSize)
-                .opacity(hoverOpacity)
-                .help("Copy")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundColor(.secondary)
+                    // avoid checkmark and doc.on.doc having diff widths
+                    // (maxWidth: 12, maxHeight: .infinity) steals height from other Texts in CommandsRootView
+                    .frame(width: 12, height: NSFont.systemFontSize)
+                    .opacity(hoverOpacity)
+                    .help("Copy")
             }
             .buttonStyle(.plain)
             .onTapGesture(perform: copy)

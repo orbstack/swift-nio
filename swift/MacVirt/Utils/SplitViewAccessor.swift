@@ -8,25 +8,24 @@ import SwiftUI
 struct SplitViewAccessor: NSViewRepresentable {
     @Binding var sideCollapsed: Bool
 
-    func makeNSView(context: Context) -> some NSView {
+    func makeNSView(context _: Context) -> some NSView {
         let view = MyView()
         view.sideCollapsed = _sideCollapsed
         return view
     }
 
-    func updateNSView(_ nsView: NSViewType, context: Context) {
-    }
+    func updateNSView(_: NSViewType, context _: Context) {}
 
     class MyView: NSView {
         var sideCollapsed: Binding<Bool>?
         private var hasSetValue = false
 
-        weak private var controller: NSSplitViewController?
+        private weak var controller: NSSplitViewController?
         private var observer: Any?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            var sview = self.superview
+            var sview = superview
 
             // find split view through hierarchy
             while sview != nil, !sview!.isKind(of: NSSplitView.self) {
@@ -34,8 +33,8 @@ struct SplitViewAccessor: NSViewRepresentable {
             }
             guard let sview = sview as? NSSplitView else { return }
 
-            controller = sview.delegate as? NSSplitViewController   // delegate is our controller
-            if let sideBar = controller?.splitViewItems.first {     // now observe for state
+            controller = sview.delegate as? NSSplitViewController // delegate is our controller
+            if let sideBar = controller?.splitViewItems.first { // now observe for state
                 publishValue(sideBar.isCollapsed)
                 observer = sideBar.observe(\.isCollapsed, options: [.new]) { [weak self] _, change in
                     if let value = change.newValue {

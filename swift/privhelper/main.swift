@@ -1,7 +1,6 @@
 import Foundation
 import SecureXPC
 
-
 if CommandLine.arguments.count > 1 {
     // CLI
     var arguments = CommandLine.arguments

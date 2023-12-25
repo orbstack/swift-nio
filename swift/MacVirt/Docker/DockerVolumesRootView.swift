@@ -29,7 +29,7 @@ struct DockerVolumesRootView: View {
                     let totalSizeFormatted = calcTotalSize(filteredVolumes)
                     let listData = [
                         AKSection("In Use", filteredVolumes.filter { vmModel.volumeIsMounted($0) }),
-                        AKSection("Unused", filteredVolumes.filter { !vmModel.volumeIsMounted($0) })
+                        AKSection("Unused", filteredVolumes.filter { !vmModel.volumeIsMounted($0) }),
                     ]
 
                     AKList(listData, selection: $selection, rowHeight: 48) { volume in

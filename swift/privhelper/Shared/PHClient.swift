@@ -1,16 +1,16 @@
 //
-//  PrivHelperManager.swift
+//  PHClient.swift
 //  MacVirt
 //
 //  Created by Danny Lin on 8/3/23.
 //
 
-import Foundation
 import Authorized
 import Blessed
-import EmbeddedPropertyList
-import SecureXPC
 import Defaults
+import EmbeddedPropertyList
+import Foundation
+import SecureXPC
 
 class PHClient {
     // sameTeamIdentifierIfPresent -> teamIdentifierForThisProcess -> SecCodeCopySigningInformation shouldn't be called on main thread
@@ -69,7 +69,7 @@ class PHClient {
     private func update() async throws {
         do {
             try await xpcClient.sendMessage(PHUpdateRequest(helperURL: PHShared.bundledURL),
-                    to: PHShared.updateRoute)
+                                            to: PHShared.updateRoute)
         } catch XPCError.connectionInterrupted {
             // ignore: normal
             NSLog("updated privhelper")
@@ -77,7 +77,7 @@ class PHClient {
             // ignore: normal - no upgrade needed
         }
     }
-    
+
     func uninstall() async throws {
         if !(await checkInstalled()) {
             return
@@ -97,7 +97,7 @@ class PHClient {
     func symlink(src: String, dest: String) async throws {
         try await ensureReady()
         try await xpcClient.sendMessage(PHSymlinkRequest(src: src, dest: dest),
-                to: PHShared.symlinkRoute)
+                                        to: PHShared.symlinkRoute)
     }
 
     private func checkInstalled() async -> Bool {

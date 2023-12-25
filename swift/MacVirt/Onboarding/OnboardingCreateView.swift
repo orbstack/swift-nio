@@ -21,9 +21,9 @@ struct OnboardingCreateView: View {
     @State private var isNameInvalid = false
     @State private var duplicateHeight = 0.0
     #if arch(arm64)
-    @State private var arch = "arm64"
+        @State private var arch = "arm64"
     #else
-    @State private var arch = "amd64"
+        @State private var arch = "amd64"
     #endif
     @State private var distro = Distro.ubuntu
     @State private var version = Distro.ubuntu.versions.last!.key
@@ -55,16 +55,16 @@ struct OnboardingCreateView: View {
 
                     Form {
                         TextField("Name", text: nameBinding)
-                                .onSubmit {
-                                    create()
-                                }
+                            .onSubmit {
+                                create()
+                            }
 
                         let errorText = isNameInvalid ? "Invalid name" : "Already exists"
                         Text(errorText)
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .frame(maxHeight: duplicateHeight)
-                                .clipped()
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .frame(maxHeight: duplicateHeight)
+                            .clipped()
 
                         Picker("Distribution", selection: $distro) {
                             ForEach(Distro.allCases, id: \.self) { distro in
@@ -77,10 +77,10 @@ struct OnboardingCreateView: View {
                             }
 
                             #if arch(arm64)
-                            // NixOS doesn't work with Rosetta
-                            if $0 == .nixos {
-                                arch = "arm64"
-                            }
+                                // NixOS doesn't work with Rosetta
+                                if $0 == .nixos {
+                                    arch = "arm64"
+                                }
                             #endif
 
                             version = $0.versions.last!.key
@@ -116,12 +116,12 @@ struct OnboardingCreateView: View {
                         }.disabled(distro.versions.count == 1)
 
                         #if arch(arm64)
-                        Picker("CPU type", selection: $arch) {
-                            Text("Apple").tag("arm64")
-                            Text("Intel").tag("amd64")
-                        }
-                        .pickerStyle(.segmented)
-                        .disabled(distro == .nixos)
+                            Picker("CPU type", selection: $arch) {
+                                Text("Apple").tag("arm64")
+                                Text("Intel").tag("amd64")
+                            }
+                            .pickerStyle(.segmented)
+                            .disabled(distro == .nixos)
                         #endif
                     }.frame(minWidth: 200)
                 }.fixedSize()
@@ -150,7 +150,8 @@ struct OnboardingCreateView: View {
 
     private func checkName(_ newName: String) {
         if let containers = vmModel.containers,
-           containers.contains(where: { $0.name == newName }) {
+           containers.contains(where: { $0.name == newName })
+        {
             isNameDuplicate = true
         } else {
             isNameDuplicate = false
@@ -158,7 +159,7 @@ struct OnboardingCreateView: View {
 
         // regex
         let isValid = containerNameRegex.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) != nil &&
-                !containerNameBlacklist.contains(newName)
+            !containerNameBlacklist.contains(newName)
         if !newName.isEmpty && !isValid {
             isNameInvalid = true
         } else {
@@ -178,7 +179,8 @@ struct OnboardingCreateView: View {
 
             // user picked linux, so stop docker container to save memory
             if let machines = vmModel.containers,
-               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }) {
+               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
+            {
                 await vmModel.tryStopContainer(dockerRecord)
             }
 

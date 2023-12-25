@@ -149,19 +149,19 @@ struct NewMainViewControllerRepresentable: NSViewControllerRepresentable {
     var size: CGSize
     var model: VmViewModel
 
-    func makeNSViewController(context: Context) -> NewMainViewController {
+    func makeNSViewController(context _: Context) -> NewMainViewController {
         let controller = NewMainViewController(model: model)
         controller.horizontalConstraint = controller.view.widthAnchor.constraint(equalToConstant: size.width)
         controller.verticalConstraint = controller.view.heightAnchor.constraint(equalToConstant: size.height)
         NSLayoutConstraint.activate([
             controller.horizontalConstraint,
-            controller.verticalConstraint
+            controller.verticalConstraint,
         ])
 
         return controller
     }
 
-    func updateNSViewController(_ nsViewController: NewMainViewController, context: Context) {
+    func updateNSViewController(_ nsViewController: NewMainViewController, context _: Context) {
         nsViewController.horizontalConstraint.constant = size.width
         nsViewController.verticalConstraint.constant = size.height
     }

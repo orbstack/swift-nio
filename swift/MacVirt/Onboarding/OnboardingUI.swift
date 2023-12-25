@@ -36,31 +36,31 @@ struct CtaButton: View {
         Button(action: action) {
             VStack {
                 Text(label)
-                        .font(.title3)
-                        .fontWeight(.medium)
-                        .foregroundColor(colorScheme == .light && controlActiveState == .key ? .white : .primary)
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .foregroundColor(colorScheme == .light && controlActiveState == .key ? .white : .primary)
             }
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 16)
-                    .background(Color(NSColor.controlAccentColor), in: RoundedRectangle(cornerRadius: Self.radius))
-                    .cornerRadius(Self.radius)
-                    .overlay(
-                            RoundedRectangle(cornerRadius: Self.radius)
-                                    .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
-                    )
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(Color(NSColor.controlAccentColor), in: RoundedRectangle(cornerRadius: Self.radius))
+            .cornerRadius(Self.radius)
+            .overlay(
+                RoundedRectangle(cornerRadius: Self.radius)
+                    .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
+            )
         }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.defaultAction)
-                .onHover {
-                    if $0 {
-                        withAnimation(.spring().speed(2)) {
-                            hoverOpacity = 1
-                        }
-                    } else {
-                        withAnimation(.spring().speed(2)) {
-                            hoverOpacity = 0
-                        }
-                    }
+        .buttonStyle(.plain)
+        .keyboardShortcut(.defaultAction)
+        .onHover {
+            if $0 {
+                withAnimation(.spring().speed(2)) {
+                    hoverOpacity = 1
                 }
+            } else {
+                withAnimation(.spring().speed(2)) {
+                    hoverOpacity = 0
+                }
+            }
+        }
     }
 }

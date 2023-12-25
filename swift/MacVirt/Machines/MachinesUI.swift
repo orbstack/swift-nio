@@ -2,8 +2,8 @@
 // Created by Danny Lin on 5/21/23.
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 extension ContainerRecord {
     func openInTerminal() async {

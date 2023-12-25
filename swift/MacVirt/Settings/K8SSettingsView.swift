@@ -2,12 +2,12 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
-import SwiftUI
-import LaunchAtLogin
 import Combine
-import Sparkle
 import Defaults
+import Foundation
+import LaunchAtLogin
+import Sparkle
+import SwiftUI
 
 struct K8SSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
@@ -23,26 +23,26 @@ struct K8SSettingsView: View {
         SettingsStateWrapperView {
             Form {
                 Toggle("Enable Kubernetes cluster", isOn: $k8sEnable)
-                .onChange(of: k8sEnable) { newValue in
-                    vmModel.trySetConfigKey(\.k8sEnable, newValue)
-                }
+                    .onChange(of: k8sEnable) { newValue in
+                        vmModel.trySetConfigKey(\.k8sEnable, newValue)
+                    }
                 Text("Lightweight local cluster with UI & network integration. [Learn more](https://go.orbstack.dev/k8s)")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
 
                 Spacer()
-                .frame(height: 32)
+                    .frame(height: 32)
 
                 Toggle("Expose services to local network devices", isOn: $k8sExposeServices)
-                .onChange(of: k8sExposeServices) { newValue in
-                    vmModel.trySetConfigKey(\.k8sExposeServices, newValue)
-                }
+                    .onChange(of: k8sExposeServices) { newValue in
+                        vmModel.trySetConfigKey(\.k8sExposeServices, newValue)
+                    }
                 Text("Includes NodePorts, LoadBalancers, and the Kubernetes API.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
 
                 Spacer()
-                .frame(height: 32)
+                    .frame(height: 32)
 
                 HStack(spacing: 16) {
                     Button(action: {

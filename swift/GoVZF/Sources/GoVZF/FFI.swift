@@ -2,8 +2,8 @@
 // Created by Danny Lin on 6/3/23.
 //
 
-import Foundation
 import CBridge
+import Foundation
 
 class ResultWrapper<T: Any> {
     var result: T?

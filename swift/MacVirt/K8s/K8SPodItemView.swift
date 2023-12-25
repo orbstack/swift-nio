@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
     @EnvironmentObject var vmModel: VmViewModel
@@ -35,38 +35,38 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                     switch state {
                     case .running, .completed:
                         Image(systemName: "helm")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                        .padding(8)
-                        .foregroundColor(Color(hex: 0xfafafa))
-                        .background(Circle().fill(color))
-                        // rasterize so opacity works on it as one big image
-                        .drawingGroup(opaque: true)
-                        .padding(.trailing, 8)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 16, height: 16)
+                            .padding(8)
+                            .foregroundColor(Color(hex: 0xFAFAFA))
+                            .background(Circle().fill(color))
+                            // rasterize so opacity works on it as one big image
+                            .drawingGroup(opaque: true)
+                            .padding(.trailing, 8)
 
                     case .loading:
                         // can't rasterize this so only do opacity on bg
                         ProgressView()
-                        .scaleEffect(0.5)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                        .padding(8)
-                        .foregroundColor(Color(hex: 0xfafafa))
-                        .background(Circle().fill(color).opacity(0.5))
-                        .padding(.trailing, 8)
+                            .scaleEffect(0.5)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 16, height: 16)
+                            .padding(8)
+                            .foregroundColor(Color(hex: 0xFAFAFA))
+                            .background(Circle().fill(color).opacity(0.5))
+                            .padding(.trailing, 8)
 
                     case .error:
                         Image(systemName: "exclamationmark")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                        .padding(8)
-                        .foregroundColor(Color(hex: 0xfafafa))
-                        .background(Circle().fill(SystemColors.desaturate(Color(.systemRed))))
-                        // rasterize so opacity works on it as one big image
-                        .drawingGroup(opaque: true)
-                        .padding(.trailing, 8)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 16, height: 16)
+                            .padding(8)
+                            .foregroundColor(Color(hex: 0xFAFAFA))
+                            .background(Circle().fill(SystemColors.desaturate(Color(.systemRed))))
+                            // rasterize so opacity works on it as one big image
+                            .drawingGroup(opaque: true)
+                            .padding(.trailing, 8)
                     }
                 }
                 .opacity((state == .completed) ? 0.5 : 1)
@@ -78,12 +78,12 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
                     // TODO: show deployment here
                     /*
-                    Text(pod.image)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .truncationMode(.tail)
-                        .lineLimit(1)
-                     */
+                     Text(pod.image)
+                         .font(.subheadline)
+                         .foregroundColor(.secondary)
+                         .truncationMode(.tail)
+                         .lineLimit(1)
+                      */
                 }
                 .opacity((state == .loading || state == .completed) ? 0.5 : 1)
             }
@@ -95,7 +95,8 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             // WA: crash on macOS 12 without nested HStack
             HStack {
                 ProgressIconButton(systemImage: "info.circle.fill",
-                        actionInProgress: false) {
+                                   actionInProgress: false)
+                {
                     presentPopover = true
                 }
                 .help("Get Info")
@@ -104,7 +105,8 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 }
 
                 ProgressIconButton(systemImage: "trash.fill",
-                        actionInProgress: actionInProgress == .delete) {
+                                   actionInProgress: actionInProgress == .delete)
+                {
                     finishDelete()
                 }
                 .disabled(actionInProgress != nil)
@@ -192,7 +194,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Info")
-                .font(.headline)
+                    .font(.headline)
                 HStack(spacing: 12) {
                     let domain = pod.preferredDomain
                     let ipAddress = pod.status.podIP
@@ -228,11 +230,11 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             if pod.status.containerStatuses?.isEmpty == false {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Containers")
-                    .font(.headline)
+                        .font(.headline)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(pod.status.containerStatuses ?? []) { container in
                             if let name = container.name {
-                                //TODO link
+                                // TODO: link
                                 Label {
                                     CopyableText(name)
                                 } icon: {
@@ -319,7 +321,7 @@ extension BaseK8SResourceItem {
         // otherwise only use volume
         if isSelected() {
             // if we're doing a batch action, we could have deployments *and* other resources selected
-            // TODO similar to docker, skip Pods/ReplicaSets under a Deployment/StatefulSet/DaemonSet if the higher-up item is selected
+            // TODO: similar to docker, skip Pods/ReplicaSets under a Deployment/StatefulSet/DaemonSet if the higher-up item is selected
             return selection
         } else {
             return [selfId]

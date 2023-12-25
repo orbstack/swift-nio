@@ -2,9 +2,9 @@
 // Created by Danny Lin on 6/3/23.
 //
 
+import CBridge
 import Foundation
 import vmnet
-import CBridge
 
 private let VIRTIO_NET_HDR_F_NEEDS_CSUM: UInt8 = 1 << 0
 private let VIRTIO_NET_HDR_F_DATA_VALID: UInt8 = 1 << 1
@@ -28,22 +28,22 @@ private let ICMPV6_OPTION_SOURCE_LLADDR: UInt8 = 1
 private let ICMPV6_OPTION_TARGET_LLADDR: UInt8 = 2
 
 private let macAddrSize = 6
-private let macAddrBroadcast: [UInt8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
-private let macAddrIpv4MulticastPrefix: [UInt8] = [0x01, 0x00, 0x5e]
+private let macAddrBroadcast: [UInt8] = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+private let macAddrIpv4MulticastPrefix: [UInt8] = [0x01, 0x00, 0x5E]
 private let macAddrIpv6MulticastPrefix: [UInt8] = [0x33, 0x33]
-private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xff]
-private let macAddrIpv4MulticastMdns: [UInt8] = [0x01, 0x00, 0x5e, 0x00, 0x00, 0xfb]
-private let macAddrIpv6MulticastMdns: [UInt8] = [0x33, 0x33, 0x00, 0x00, 0x00, 0xfb]
+private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xFF]
+private let macAddrIpv4MulticastMdns: [UInt8] = [0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB]
+private let macAddrIpv6MulticastMdns: [UInt8] = [0x33, 0x33, 0x00, 0x00, 0x00, 0xFB]
 
 // 198.19.249.3
 private let sconHostBridgeIpv4: [UInt8] = [198, 19, 249, 3]
-private let sconHostBridgeIpv6: [UInt8] = [0xfd, 0x07, 0xb5, 0x1a, 0xcc, 0x66, 0x00, 0x00, 0xa6, 0x17, 0xdb, 0x5e, 0x0a, 0xb7, 0xe9, 0xf1]
+private let sconHostBridgeIpv6: [UInt8] = [0xFD, 0x07, 0xB5, 0x1A, 0xCC, 0x66, 0x00, 0x00, 0xA6, 0x17, 0xDB, 0x5E, 0x0A, 0xB7, 0xE9, 0xF1]
 
 // 1 ms, in nanosec
 private let mdnsDebounceInterval = 1_000_000
 
 typealias BrnetInterfaceIndex = UInt
-let ifiBroadcast: BrnetInterfaceIndex = 0xffffffff
+let ifiBroadcast: BrnetInterfaceIndex = 0xFFFF_FFFF
 
 struct PacketWriteOptions {
     var sendDuplicate: Bool
@@ -90,7 +90,7 @@ struct Packet {
 
     var etherType: UInt16 {
         do {
-            return (try load(offset: 12) as UInt16).bigEndian
+            return try (load(offset: 12) as UInt16).bigEndian
         } catch {
             // fallback: invalid type - causes passthrough in packet processor
             return 0
@@ -137,7 +137,8 @@ class PacketProcessor {
     private var guestMac: [UInt8]?
 
     init(realExternalMtu: Int = 1500, hostOverrideMac: [UInt8], allowMulticast: Bool = false,
-            ndpReplyPrefix: [UInt8]? = nil, guestMac: [UInt8]? = nil) {
+         ndpReplyPrefix: [UInt8]? = nil, guestMac: [UInt8]? = nil)
+    {
         self.realExternalMtu = realExternalMtu
         self.hostOverrideMac = hostOverrideMac
         self.allowMulticast = allowMulticast
@@ -146,13 +147,13 @@ class PacketProcessor {
     }
 
     /*
-    INCOMING PACKET PROCESSING
-    --------------------------
-    1. rewrite destination MAC address from assigned host MAC to macOS
-      - only if it equals the expected MAC for the interface
+     INCOMING PACKET PROCESSING
+     --------------------------
+     1. rewrite destination MAC address from assigned host MAC to macOS
+       - only if it equals the expected MAC for the interface
 
-    (see below for MAC routing)
-    */
+     (see below for MAC routing)
+     */
     // warning: can be called concurrently! and multiple times per packet!
     func processToHost(pkt: Packet) throws -> PacketWriteOptions {
         // if we have actual host MAC...
@@ -175,18 +176,18 @@ class PacketProcessor {
 
             // also rewrite IPv6 NDP destination MAC (Ethernet + IPv6 + NDP[8])
             /*
-            Internet Control Message Protocol v6
-                Type: Neighbor Advertisement (136)
-                Code: 0
-                Checksum: 0x8f04 [correct]
-                [Checksum Status: Good]
-                Flags: 0x60000000, Solicited, Override
-                Target Address: fd07:b51a:cc66:1:0:242:ac11:2
-                ICMPv6 Option (Target link-layer address : 02:42:ac:11:00:02)
-                    Type: Target link-layer address (2)
-                    Length: 1 (8 bytes)
-                    Link-layer address: 02:42:ac:11:00:02 (02:42:ac:11:00:02)
-             */
+             Internet Control Message Protocol v6
+                 Type: Neighbor Advertisement (136)
+                 Code: 0
+                 Checksum: 0x8f04 [correct]
+                 [Checksum Status: Good]
+                 Flags: 0x60000000, Solicited, Override
+                 Target Address: fd07:b51a:cc66:1:0:242:ac11:2
+                 ICMPv6 Option (Target link-layer address : 02:42:ac:11:00:02)
+                     Type: Target link-layer address (2)
+                     Length: 1 (8 bytes)
+                     Link-layer address: 02:42:ac:11:00:02 (02:42:ac:11:00:02)
+              */
             if etherType == ETHTYPE_IPV6 {
                 let nextHeader: UInt8 = try pkt.load(offset: 14 + 6)
                 if nextHeader == IPPROTO_ICMPV6 {
@@ -202,9 +203,9 @@ class PacketProcessor {
                                     icmpv6DstMacPtr.copyMemory(from: hostRealMac, byteCount: macAddrSize)
 
                                     // fix checksum incrementally
-                                    let oldChecksum = (try pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
+                                    let oldChecksum = try (pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
                                     let newChecksum = Checksum.update(oldChecksum: oldChecksum,
-                                            oldData: hostOverrideMac, newData: hostRealMac)
+                                                                      oldData: hostOverrideMac, newData: hostRealMac)
                                     try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
                                 }
                             }
@@ -228,21 +229,21 @@ class PacketProcessor {
     }
 
     /*
-    (below part is a static helper so VlanRouter can call it)
-    2. map to interface (VlanRouter only)
-      - extract index from dest MAC
-        - should have DynBrnet prefix if unicast
-      - if broadcast (ARP) or specific IPv6 multicast (NDP), send to all interfaces (ifiBroadcast)
-      - drop other multicast. not supported - too hard to identify interface.
-      - cannot use src MAC because it's a Docker container
-     */
+     (below part is a static helper so VlanRouter can call it)
+     2. map to interface (VlanRouter only)
+       - extract index from dest MAC
+         - should have DynBrnet prefix if unicast
+       - if broadcast (ARP) or specific IPv6 multicast (NDP), send to all interfaces (ifiBroadcast)
+       - drop other multicast. not supported - too hard to identify interface.
+       - cannot use src MAC because it's a Docker container
+      */
     static func extractInterfaceIndexToHost(pkt: Packet, macPrefix: [UInt8]) throws -> BrnetInterfaceIndex {
         // check if destination MAC matches prefix
         let dstMacPtr = try pkt.slicePtr(offset: 0, len: macAddrSize)
         if memcmp(dstMacPtr, macPrefix, macPrefix.count) == 0 {
             // extract interface index from destination MAC
             let dstMacLastByte = try pkt.load(offset: 0 + 5) as UInt8
-            return BrnetInterfaceIndex(dstMacLastByte & 0x7f)
+            return BrnetInterfaceIndex(dstMacLastByte & 0x7F)
         }
 
         // no point in checking source MAC. it's either a Docker container or the Docker bridge.
@@ -261,7 +262,7 @@ class PacketProcessor {
         }
 
         // give up, drop packet
-        // TODO support multicast?
+        // TODO: support multicast?
         throw BrnetError.interfaceNotFound
     }
 
@@ -289,7 +290,7 @@ class PacketProcessor {
         if memcmp(dstMacPtr, macAddrIpv6MulticastPrefix, macAddrIpv6MulticastPrefix.count) == 0 {
             // allow NDP (33:33:FF:XX:XX:XX)
             let nextByte: UInt8 = try pkt.load(offset: 0 + 2)
-            if nextByte == 0xff {
+            if nextByte == 0xFF {
                 return (true, false)
             }
 
@@ -299,7 +300,7 @@ class PacketProcessor {
                 // skip udp header (8) and last byte (1) of mDNS packet:
                 // mDNSResponder sends 14-byte "Owner" OPT at the end, in additional section, with sequence number
                 // too much work to parse questions section and exclude additional, so just skip last byte for debounce
-                let payloadLen = (try pkt.load(offset: 14 + 40 + 2 + 2) as UInt16).bigEndian - 8 - 1
+                let payloadLen = try (pkt.load(offset: 14 + 40 + 2 + 2) as UInt16).bigEndian - 8 - 1
                 let payloadPtr = try pkt.slicePtr(offset: 14 + 40 + 8, len: Int(payloadLen))
                 let payload = Array(UnsafeBufferPointer(start: payloadPtr.bindMemory(to: UInt8.self, capacity: Int(payloadLen)), count: Int(payloadLen)))
                 if !PacketCoordinator.shouldPassMdns(payload: payload) {
@@ -314,9 +315,9 @@ class PacketProcessor {
                 srcIpPtr.copyMemory(from: sconHostBridgeIpv6, byteCount: 16)
 
                 // fix checksum incrementally (UDP+IPv6)
-                let oldChecksum = (try pkt.load(offset: 14 + 40 + 6) as UInt16).bigEndian
+                let oldChecksum = try (pkt.load(offset: 14 + 40 + 6) as UInt16).bigEndian
                 let newChecksum = Checksum.update(oldChecksum: oldChecksum,
-                        oldData: oldSrcIp, newData: sconHostBridgeIpv6)
+                                                  oldData: oldSrcIp, newData: sconHostBridgeIpv6)
                 try pkt.store(offset: 14 + 40 + 6, value: newChecksum.bigEndian)
 
                 return (true, true)
@@ -335,7 +336,7 @@ class PacketProcessor {
                 // skip udp header (8) and last byte (1) of mDNS packet:
                 // mDNSResponder sends 14-byte "Owner" OPT at the end, in additional section, with sequence number
                 // too much work to parse questions section and exclude additional, so just skip last byte for debounce
-                let payloadLen = (try pkt.load(offset: 14 + 20 + 2 + 2) as UInt16).bigEndian - 8 - 1
+                let payloadLen = try (pkt.load(offset: 14 + 20 + 2 + 2) as UInt16).bigEndian - 8 - 1
                 let payloadPtr = try pkt.slicePtr(offset: 14 + 20 + 8, len: Int(payloadLen))
                 let payload = Array(UnsafeBufferPointer(start: payloadPtr.bindMemory(to: UInt8.self, capacity: Int(payloadLen)), count: Int(payloadLen)))
                 if !PacketCoordinator.shouldPassMdns(payload: payload) {
@@ -349,15 +350,15 @@ class PacketProcessor {
                 srcIpPtr.copyMemory(from: sconHostBridgeIpv4, byteCount: 4)
 
                 // fix IPv4 checksum incrementally
-                let oldChecksum = (try pkt.load(offset: 14 + 10) as UInt16).bigEndian
+                let oldChecksum = try (pkt.load(offset: 14 + 10) as UInt16).bigEndian
                 let newChecksum = Checksum.update(oldChecksum: oldChecksum,
-                        oldData: oldSrcIp, newData: sconHostBridgeIpv4)
+                                                  oldData: oldSrcIp, newData: sconHostBridgeIpv4)
                 try pkt.store(offset: 14 + 10, value: newChecksum.bigEndian)
 
                 // fix UDP checksum incrementally
-                let oldUdpChecksum = (try pkt.load(offset: 14 + 20 + 6) as UInt16).bigEndian
+                let oldUdpChecksum = try (pkt.load(offset: 14 + 20 + 6) as UInt16).bigEndian
                 let newUdpChecksum = Checksum.update(oldChecksum: oldUdpChecksum,
-                        oldData: oldSrcIp, newData: sconHostBridgeIpv4)
+                                                     oldData: oldSrcIp, newData: sconHostBridgeIpv4)
                 try pkt.store(offset: 14 + 20 + 6, value: newUdpChecksum.bigEndian)
 
                 return (true, true)
@@ -373,15 +374,15 @@ class PacketProcessor {
     }
 
     /*
-    OUTGOING PACKET PROCESSING
-    --------------------------
-    1. build vnet hdr
-      - reconstruct checksum and TSO metadata from packet
-    2. rewrite source MAC address from macOS to match assigned host MAC
-      - must do this because macOS doesn't let us change the vmnet bridge100's MAC addr
-    */
+     OUTGOING PACKET PROCESSING
+     --------------------------
+     1. build vnet hdr
+       - reconstruct checksum and TSO metadata from packet
+     2. rewrite source MAC address from macOS to match assigned host MAC
+       - must do this because macOS doesn't let us change the vmnet bridge100's MAC addr
+     */
     // warning: can be called concurrently!
-    func processToGuest(pkt: Packet) throws -> /*redirectToScon*/ Bool {
+    func processToGuest(pkt: Packet) throws -> /* redirectToScon */ Bool {
         // save the actual macOS source MAC if needed (for later translation) - Ethernet[6]
         let srcMacPtr = try pkt.slicePtr(offset: macAddrSize, len: macAddrSize)
         if hostRealMac == nil {
@@ -407,18 +408,18 @@ class PacketProcessor {
 
         // also rewrite IPv6 NDP source MAC (Ethernet + IPv6 + NDP[8])
         /*
-        Internet Control Message Protocol v6
-            Type: Neighbor Solicitation (135)
-            Code: 0
-            Checksum: 0x1aca [correct]
-            [Checksum Status: Good]
-            Reserved: 00000000
-            Target Address: fd07:b51a:cc66:1:0:242:ac11:2
-            ICMPv6 Option (Source link-layer address : be:d0:74:22:80:65)
-                Type: Source link-layer address (1)
-                Length: 1 (8 bytes)
-                Link-layer address: be:d0:74:22:80:65 (be:d0:74:22:80:65)
-         */
+         Internet Control Message Protocol v6
+             Type: Neighbor Solicitation (135)
+             Code: 0
+             Checksum: 0x1aca [correct]
+             [Checksum Status: Good]
+             Reserved: 00000000
+             Target Address: fd07:b51a:cc66:1:0:242:ac11:2
+             ICMPv6 Option (Source link-layer address : be:d0:74:22:80:65)
+                 Type: Source link-layer address (1)
+                 Length: 1 (8 bytes)
+                 Link-layer address: be:d0:74:22:80:65 (be:d0:74:22:80:65)
+          */
         if etherType == ETHTYPE_IPV6 {
             let nextHeader: UInt8 = try pkt.load(offset: 14 + 6)
             if nextHeader == IPPROTO_ICMPV6 {
@@ -431,13 +432,14 @@ class PacketProcessor {
                         if icmpv6OptionType == ICMPV6_OPTION_SOURCE_LLADDR || icmpv6OptionType == ICMPV6_OPTION_TARGET_LLADDR {
                             let icmpv6SrcMacPtr = try pkt.slicePtr(offset: 14 + 40 + 26, len: macAddrSize)
                             if let hostRealMac,
-                               memcmp(icmpv6SrcMacPtr, hostRealMac, macAddrSize) == 0 {
+                               memcmp(icmpv6SrcMacPtr, hostRealMac, macAddrSize) == 0
+                            {
                                 icmpv6SrcMacPtr.copyMemory(from: hostOverrideMac, byteCount: macAddrSize)
 
                                 // fix checksum incrementally
-                                let oldChecksum = (try pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
+                                let oldChecksum = try (pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
                                 let newChecksum = Checksum.update(oldChecksum: oldChecksum,
-                                        oldData: hostRealMac, newData: hostOverrideMac)
+                                                                  oldData: hostRealMac, newData: hostOverrideMac)
                                 try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
                             }
                         }
@@ -470,7 +472,7 @@ class PacketProcessor {
 
         // copy the entire old packet, but skip the ethernet header
         let oldPacketBuf = [UInt8](UnsafeBufferPointer(start: pkt.data.advanced(by: 14).assumingMemoryBound(to: UInt8.self),
-                count: pkt.len - 14))
+                                                       count: pkt.len - 14))
 
         // 1. new dest MAC = src MAC
         let srcMacPtr = try pkt.slicePtr(offset: macAddrSize, len: macAddrSize)
@@ -492,7 +494,7 @@ class PacketProcessor {
         try pkt.store(offset: 14 + 40, value: ICMPV6_NEIGHBOR_ADVERTISEMENT)
 
         // flags
-        try pkt.store(offset: 14 + 40 + 4, value: (0x60000000 as UInt32).bigEndian) // solicited, override
+        try pkt.store(offset: 14 + 40 + 4, value: (0x6000_0000 as UInt32).bigEndian) // solicited, override
 
         // 6. new ICMPv6 option = target link-layer address
         do {
@@ -504,12 +506,12 @@ class PacketProcessor {
         }
 
         // 7. new ICMPv6 checksum
-        let oldChecksum = (try pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
+        let oldChecksum = try (pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
         // need to create [UInt8] from the buffers
         let newPacketBuf = [UInt8](UnsafeBufferPointer(start: pkt.data.advanced(by: 14).assumingMemoryBound(to: UInt8.self),
-                count: pkt.len - 14))
+                                                       count: pkt.len - 14))
         let newChecksum = Checksum.update(oldChecksum: oldChecksum,
-                oldData: oldPacketBuf, newData: newPacketBuf)
+                                          oldData: oldPacketBuf, newData: newPacketBuf)
         try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
 
         // 8. redirect packet to host
@@ -527,16 +529,16 @@ class PacketProcessor {
         var transportProto: UInt8 = 0
         var ipHdrLen = 0
         if etherType == ETHTYPE_IPV4 {
-            //print("ipv4")
+            // print("ipv4")
             transportProto = try pkt.load(offset: ipStartOff + 9)
             // not always 20 bytes
-            ipHdrLen = Int(((try pkt.load(offset: ipStartOff) as UInt8) & 0x0F) * 4)
+            ipHdrLen = try Int(((pkt.load(offset: ipStartOff) as UInt8) & 0x0F) * 4)
         } else if etherType == ETHTYPE_IPV6 {
-            //print("ipv6")
+            // print("ipv6")
             let nextHeader: UInt8 = try pkt.load(offset: ipStartOff + 6)
             // handle hop-by-hop extension header
             if nextHeader == 0 {
-                //print("hop-by-hop")
+                // print("hop-by-hop")
                 transportProto = try pkt.load(offset: ipStartOff + 40)
                 ipHdrLen = 40 + 8
             } else {
@@ -545,48 +547,48 @@ class PacketProcessor {
             }
         }
         let transportStartOff = ipStartOff + ipHdrLen
-        //print("etherType: \(String(etherType, radix: 16))")
-        //print("transportProto: \(String(transportProto, radix: 16))")
-        //print("ipHdrLen: \(ipHdrLen)")
-        //print("transportStartOff: \(transportStartOff)")
+        // print("etherType: \(String(etherType, radix: 16))")
+        // print("transportProto: \(String(transportProto, radix: 16))")
+        // print("ipHdrLen: \(ipHdrLen)")
+        // print("transportStartOff: \(transportStartOff)")
 
         // csum: for TCP and UDP
         var transportHdrLen = 0
         if transportProto == IPPROTO_TCP {
-            //print("tcp")
+            // print("tcp")
             hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
             hdr.csum_start = UInt16(transportStartOff)
             hdr.csum_offset = UInt16(16)
-            //print("csum start: \(hdr.csum_start)")
-            //print("csum offset: \(hdr.csum_offset)")
+            // print("csum start: \(hdr.csum_start)")
+            // print("csum offset: \(hdr.csum_offset)")
         } else if transportProto == IPPROTO_UDP {
-            //print("udp")
+            // print("udp")
             hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
             hdr.csum_start = UInt16(transportStartOff)
             hdr.csum_offset = UInt16(6)
-            //print("csum start: \(hdr.csum_start)")
-            //print("csum offset: \(hdr.csum_offset)")
+            // print("csum start: \(hdr.csum_start)")
+            // print("csum offset: \(hdr.csum_offset)")
             transportHdrLen = 8
         }
 
         // gso: if TCP data segment > MSS (1500 - IP - TCP)
         if transportProto == IPPROTO_TCP {
-            let tcpHdrLen = ((try pkt.load(offset: transportStartOff + 12) as UInt8) >> 4) * 4
+            let tcpHdrLen = try ((pkt.load(offset: transportStartOff + 12) as UInt8) >> 4) * 4
             let tcpDataLen = pkt.len - transportStartOff - Int(tcpHdrLen)
             let tcpMss = realExternalMtu - ipHdrLen - Int(tcpHdrLen)
-            //print("tcp hdr len: \(tcpHdrLen)")
-            //print("tcp data len: \(tcpDataLen)")
-            //print("tcp mss: \(tcpMss)")
+            // print("tcp hdr len: \(tcpHdrLen)")
+            // print("tcp data len: \(tcpDataLen)")
+            // print("tcp mss: \(tcpMss)")
             if tcpDataLen > tcpMss {
-                //print("tcp GSO > MSS")
+                // print("tcp GSO > MSS")
                 if etherType == ETHTYPE_IPV4 {
                     hdr.gso_type = UInt8(VIRTIO_NET_HDR_GSO_TCPV4)
                 } else if etherType == ETHTYPE_IPV6 {
                     hdr.gso_type = UInt8(VIRTIO_NET_HDR_GSO_TCPV6)
                 }
                 hdr.gso_size = UInt16(tcpMss)
-                //print("gso type: \(hdr.gso_type)")
-                //print("gso size: \(hdr.gso_size)")
+                // print("gso type: \(hdr.gso_type)")
+                // print("gso size: \(hdr.gso_size)")
             }
 
             transportHdrLen = Int(tcpHdrLen)
@@ -623,16 +625,16 @@ class PacketProcessor {
         var transportProto: UInt8 = 0
         var ipHdrLen = 0
         if etherType == ETHTYPE_IPV4 {
-            //print("ipv4")
+            // print("ipv4")
             transportProto = try pkt.load(offset: ipStartOff + 9)
             // not always 20 bytes
-            ipHdrLen = Int(((try pkt.load(offset: ipStartOff) as UInt8) & 0x0F) * 4)
+            ipHdrLen = try Int(((pkt.load(offset: ipStartOff) as UInt8) & 0x0F) * 4)
         } else if etherType == ETHTYPE_IPV6 {
-            //print("ipv6")
+            // print("ipv6")
             let nextHeader: UInt8 = try pkt.load(offset: ipStartOff + 6)
             // handle hop-by-hop extension header
             if nextHeader == 0 {
-                //print("hop-by-hop")
+                // print("hop-by-hop")
                 transportProto = try pkt.load(offset: ipStartOff + 40)
                 ipHdrLen = 40 + 8
             } else {
@@ -648,7 +650,7 @@ class PacketProcessor {
         }
 
         // flags = RST + ACK
-        let tcpFlags = try pkt.load(offset: transportStartOff + 2+2+4+4+1) as UInt8
+        let tcpFlags = try pkt.load(offset: transportStartOff + 2 + 2 + 4 + 4 + 1) as UInt8
         guard tcpFlags == 0x14 else {
             return false
         }
@@ -656,8 +658,8 @@ class PacketProcessor {
         // setup stage:
         // seq = 1, win = 0. (ack is relative so it's harder to check)
         // should also check seq = 1 but it's misaligned
-        //let tcpSeq = try pkt.load(offset: transportStartOff + 2+2) as UInt32
-        let tcpWin = try pkt.load(offset: transportStartOff + 2+2+4+4+2) as UInt16
+        // let tcpSeq = try pkt.load(offset: transportStartOff + 2+2) as UInt32
+        let tcpWin = try pkt.load(offset: transportStartOff + 2 + 2 + 4 + 4 + 2) as UInt16
         guard tcpWin == 0 else {
             return false
         }
@@ -673,7 +675,8 @@ class GuestReader {
     private let iovs: UnsafeMutablePointer<iovec>
 
     init(guestFd: Int32, maxPacketSize: UInt64,
-         onPacket: @escaping (UnsafeMutablePointer<iovec>, Int) -> Void) {
+         onPacket: @escaping (UnsafeMutablePointer<iovec>, Int) -> Void)
+    {
         iovs = UnsafeMutablePointer<iovec>.allocate(capacity: 1)
         iovs[0].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
 
@@ -686,7 +689,7 @@ class GuestReader {
             let buf = iovs[0].iov_base!
             let n = read(guestFd, buf, Int(maxPacketSize))
             guard n > 0 else {
-                if errno != EAGAIN && errno != EWOULDBLOCK {
+                if errno != EAGAIN, errno != EWOULDBLOCK {
                     NSLog("[brnet] guest read error: \(errno)")
                 }
                 return
@@ -716,11 +719,11 @@ class GuestReader {
 }
 
 // internet checksum
-private struct Checksum {
+private enum Checksum {
     // from gvisor
     private static func combine(_ a: UInt16, _ b: UInt16) -> UInt16 {
         let sum = UInt32(a) + UInt32(b)
-        return UInt16((sum &+ (sum >> 16)) & 0xffff)
+        return UInt16((sum &+ (sum >> 16)) & 0xFFFF)
     }
 
     private static func incrementalUpdate(xsum: UInt16, old: UInt16, new: UInt16) -> UInt16 {
@@ -732,8 +735,8 @@ private struct Checksum {
         var i = 0
         while i < oldData.count {
             checksum = incrementalUpdate(xsum: checksum,
-                    old: (UInt16(oldData[i]) << 8) &+ UInt16(oldData[i + 1]),
-                    new: (UInt16(newData[i]) << 8) &+ UInt16(newData[i + 1]))
+                                         old: (UInt16(oldData[i]) << 8) &+ UInt16(oldData[i + 1]),
+                                         new: (UInt16(newData[i]) << 8) &+ UInt16(newData[i + 1]))
             i += 2
         }
         return ~checksum

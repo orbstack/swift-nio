@@ -15,7 +15,7 @@ extension NSView {
             topAnchor.constraint(equalTo: superview.topAnchor),
             rightAnchor.constraint(equalTo: superview.rightAnchor),
             bottomAnchor.constraint(equalTo: superview.bottomAnchor),
-            leftAnchor.constraint(equalTo: superview.leftAnchor)
+            leftAnchor.constraint(equalTo: superview.leftAnchor),
         ])
     }
 }
@@ -45,7 +45,6 @@ extension NSViewController {
     }
 
     func removeChildViewController(_ childViewController: NSViewController) {
-
         /// Remove child view from superview
         childViewController.view.removeFromSuperview()
 
@@ -57,7 +56,7 @@ extension NSViewController {
 class WindowGrabberView: NSView {
     var movedToWindow = false
     var onMoveToWindow: ((NSWindow) -> Void)?
-    
+
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if let window = newWindow {
             if movedToWindow {
@@ -65,7 +64,7 @@ class WindowGrabberView: NSView {
             } else {
                 movedToWindow = true
             }
-            
+
             onMoveToWindow?(window)
         }
     }

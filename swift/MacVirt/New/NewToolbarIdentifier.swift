@@ -1,5 +1,5 @@
 //
-//  NewToolbarIdentifiers.swift
+//  NewToolbarIdentifier.swift
 //  MacVirt
 //
 //  Created by Andrew Zheng on 12/10/23.
@@ -13,7 +13,7 @@ enum NewToolbarIdentifier: String {
     case images = "docker-images"
     case pods = "k8s-pods"
     case services = "k8s-services"
-    case machines = "machines"
+    case machines
     case commands = "cli"
 
     var defaultItemIdentifiers: [NSToolbarItem.Identifier] {
@@ -37,11 +37,10 @@ enum NewToolbarIdentifier: String {
 }
 
 extension NSToolbarItem.Identifier {
-    
     // use custom buttons for more flexibility
     static let toggleSidebarButton = NSToolbarItem.Identifier(rawValue: "toggleSidebarButton")
     static let toggleInspectorButton = NSToolbarItem.Identifier(rawValue: "toggleInspectorButton")
-    
+
     static let containersFilterMenu = NSToolbarItem.Identifier(rawValue: "containersFilterMenu")
     static let volumesFolderButton = NSToolbarItem.Identifier(rawValue: "volumesFolderButton")
     static let volumesPlusButton = NSToolbarItem.Identifier(rawValue: "volumesPlusButton")

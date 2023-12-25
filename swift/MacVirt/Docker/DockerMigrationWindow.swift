@@ -2,10 +2,10 @@
 // Created by Danny Lin on 5/7/23.
 //
 
-import Foundation
-import SwiftUI
 import Defaults
+import Foundation
 import Sentry
+import SwiftUI
 
 private class MigrationViewModel: ObservableObject {
     @Published var statusLine = "Preparing"
@@ -105,7 +105,8 @@ struct DockerMigrationWindow: View {
 
             if vmModel.dockerContainers?.isEmpty ?? true,
                vmModel.dockerImages?.isEmpty ?? true,
-               vmModel.dockerVolumes?.isEmpty ?? true {
+               vmModel.dockerVolumes?.isEmpty ?? true
+            {
                 // empty = OK to start
                 model.start()
             } else {
@@ -133,7 +134,8 @@ struct DockerMigrationWindow: View {
             }
         }
         .alert(model.entityMigrationStarted ? "Some data couldn’t be migrated" : "Failed to start migration",
-                isPresented: $presentErrors) {
+               isPresented: $presentErrors)
+        {
             Button("OK", role: .cancel) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     windowHolder.window?.close()

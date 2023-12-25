@@ -2,11 +2,11 @@
 // Created by Danny Lin on 5/20/23.
 //
 
+import AppKit
+import Combine
+import Defaults
 import Foundation
 import Sparkle
-import AppKit
-import Defaults
-import Combine
 import SwiftUI
 
 private let maxQuickAccessItems = 5
@@ -39,7 +39,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private var cancellables: Set<AnyCancellable> = []
 
     init(updaterController: SPUStandardUpdaterController,
-         actionTracker: ActionTracker, windowTracker: WindowTracker, vmModel: VmViewModel) {
+         actionTracker: ActionTracker, windowTracker: WindowTracker, vmModel: VmViewModel)
+    {
         self.updaterController = updaterController
         self.actionTracker = actionTracker
         self.windowTracker = windowTracker
@@ -95,9 +96,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
                 //   - will dispatch docker UI change event
 
                 let syntheticState = deriveSyntheticVmState(vmState: state,
-                        machines: machines,
-                        dockerContainers: dockerContainers,
-                        isVmRestarting: isVmRestarting)
+                                                            machines: machines,
+                                                            dockerContainers: dockerContainers,
+                                                            isVmRestarting: isVmRestarting)
                 updateSyntheticVmState(syntheticState)
             }
             .store(in: &cancellables)
@@ -106,7 +107,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private func deriveSyntheticVmState(vmState: VmState,
                                         machines: [ContainerRecord]?,
                                         dockerContainers: [DKContainer]?,
-                                        isVmRestarting: Bool) -> VmState {
+                                        isVmRestarting: Bool) -> VmState
+    {
         if isVmRestarting {
             return .starting
         }
@@ -197,7 +199,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
+    func menuWillOpen(_: NSMenu) {
         updateMenu()
         closeBgTip()
     }
@@ -232,16 +234,17 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
             // placeholder if no containers
             if runningItems.isEmpty ||
-               runningItems.allSatisfy({ if case .k8sGroup = $0 { return true } else { return false } }) {
+                runningItems.allSatisfy({ if case .k8sGroup = $0 { return true } else { return false } })
+            {
                 menu.addInfoLine("None running")
             }
 
             // group by Compose
             menu.addTruncatedItems(runningItems, overflowHeader: "Stopped", overflowItems: stoppedItems) { item in
                 switch item {
-                case .container(let container):
-                    return makeContainerItem(container: container, collapseIfStopped: true /* overflow */)
-                case .compose(let group, let children):
+                case let .container(container):
+                    return makeContainerItem(container: container, collapseIfStopped: true /* overflow */ )
+                case let .compose(group, children):
                     return makeComposeGroupItem(group: group, children: children)
                 case .k8sGroup:
                     // ignore
@@ -256,7 +259,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Machines (exclude docker)
         if let machines = vmModel.containers,
-           machines.contains(where: { !$0.builtin }) {
+           machines.contains(where: { !$0.builtin })
+        {
             menu.addSectionHeader("Machines")
 
             let runningMachines = machines.filter { $0.running && !$0.builtin }
@@ -347,7 +351,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     private func makeContainerItem(container: DKContainer,
                                    showStatus: Bool = false,
-                                   collapseIfStopped: Bool = false) -> NSMenuItem {
+                                   collapseIfStopped: Bool = false) -> NSMenuItem
+    {
         // special case: a stopped item goes in overflow menu and should not have a submenu;
         // only action should be "start"
         if collapseIfStopped && !container.running {
@@ -374,14 +379,16 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if container.running {
             submenu.addActionItem("Stop", icon: systemImage("stop.fill"),
-                    disabled: actionInProgress) { [self] in
+                                  disabled: actionInProgress)
+            { [self] in
                 await actionTracker.with(cid: container.cid, action: .stop) {
                     await vmModel.tryDockerContainerStop(container.id)
                 }
             }
         } else {
             submenu.addActionItem("Start", icon: systemImage("play.fill"),
-                    disabled: actionInProgress) { [self] in
+                                  disabled: actionInProgress)
+            { [self] in
                 await actionTracker.with(cid: container.cid, action: .start) {
                     await vmModel.tryDockerContainerStart(container.id)
                 }
@@ -390,7 +397,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if container.running {
             submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
-                    disabled: actionInProgress) { [self] in
+                                  disabled: actionInProgress)
+            { [self] in
                 await actionTracker.with(cid: container.cid, action: .restart) {
                     await vmModel.tryDockerContainerRestart(container.id)
                 }
@@ -398,7 +406,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         submenu.addActionItem("Delete", icon: systemImage("trash.fill"),
-                disabled: actionInProgress) { [self] in
+                              disabled: actionInProgress)
+        { [self] in
             await actionTracker.with(cid: container.cid, action: .delete) {
                 await vmModel.tryDockerContainerRemove(container.id)
             }
@@ -423,7 +432,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
             let preferredDomain = container.preferredDomain
             submenu.addActionItem("Open in Browser", icon: systemImage("link"), disabled: !container.running || preferredDomain == nil) {
                 if let preferredDomain,
-                   let url = URL(string: "\(proto)://\(preferredDomain)") {
+                   let url = URL(string: "\(proto)://\(preferredDomain)")
+                {
                     NSWorkspace.shared.open(url)
                 }
             }
@@ -437,7 +447,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // in case of pinned hashes
         let truncatedImage = container.image.prefix(lineLimit) +
-                (container.image.count > lineLimit ? "…" : "")
+            (container.image.count > lineLimit ? "…" : "")
         submenu.addActionItem("Image: \(truncatedImage)") {
             NSPasteboard.copy(container.image)
         }
@@ -493,7 +503,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if !group.anyRunning {
             var icon: NSImage? = nil
             if let a = systemImage("play.fill"),
-               let b = systemImage("square.stack.3d.up.fill") {
+               let b = systemImage("square.stack.3d.up.fill")
+            {
                 icon = NSImage.mergeX(a: a, b: b, xPadding: 6)
                 icon!.isTemplate = true
             }
@@ -517,14 +528,16 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // actions
         if group.anyRunning {
             submenu.addActionItem("Stop", icon: systemImage("stop.fill"),
-                    disabled: actionInProgress || !isFullCompose) { [self] in
+                                  disabled: actionInProgress || !isFullCompose)
+            { [self] in
                 await actionTracker.with(cid: group.cid, action: .stop) {
                     await vmModel.tryDockerComposeStop(group.cid)
                 }
             }
         } else {
             submenu.addActionItem("Start", icon: systemImage("play.fill"),
-                    disabled: actionInProgress || !isFullCompose) { [self] in
+                                  disabled: actionInProgress || !isFullCompose)
+            { [self] in
                 await actionTracker.with(cid: group.cid, action: .start) {
                     await vmModel.tryDockerComposeStart(group.cid)
                 }
@@ -533,7 +546,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if group.anyRunning {
             submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
-                    disabled: actionInProgress || !isFullCompose) { [self] in
+                                  disabled: actionInProgress || !isFullCompose)
+            { [self] in
                 await actionTracker.with(cid: group.cid, action: .restart) {
                     await vmModel.tryDockerComposeRestart(group.cid)
                 }
@@ -541,7 +555,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         submenu.addActionItem("Delete", icon: systemImage("trash.fill"),
-                disabled: actionInProgress || !isFullCompose) { [self] in
+                              disabled: actionInProgress || !isFullCompose)
+        { [self] in
             await actionTracker.with(cid: group.cid, action: .delete) {
                 await vmModel.tryDockerComposeRemove(group.cid)
             }
@@ -588,7 +603,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private func makeMachineItem(record: ContainerRecord) -> NSMenuItem {
         let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
         let icon = actionInProgress ? systemImage("circle.dotted") : nil
-        let running = record.running // TODO check restartingMachines?
+        let running = record.running // TODO: check restartingMachines?
 
         let machineItem = newActionItem(record.name, icon: icon) {
             await record.openInTerminal()
@@ -597,14 +612,16 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if running {
             submenu.addActionItem("Stop", icon: systemImage("stop.fill"),
-                    disabled: actionInProgress) { [self] in
+                                  disabled: actionInProgress)
+            { [self] in
                 await actionTracker.with(machine: record, action: .stop) {
                     await vmModel.tryStopContainer(record)
                 }
             }
         } else {
             submenu.addActionItem("Start", icon: systemImage("play.fill"),
-                    disabled: actionInProgress) { [self] in
+                                  disabled: actionInProgress)
+            { [self] in
                 await actionTracker.with(machine: record, action: .start) {
                     await vmModel.tryStartContainer(record)
                 }
@@ -613,7 +630,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if running {
             submenu.addActionItem("Restart", icon: systemImage("arrow.clockwise"),
-                    disabled: actionInProgress) { [self] in
+                                  disabled: actionInProgress)
+            { [self] in
                 await actionTracker.with(machine: record, action: .restart) {
                     await vmModel.tryRestartContainer(record)
                 }
@@ -676,7 +694,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func showBgTip() {
-        guard let button = self.statusItem.button else {
+        guard let button = statusItem.button else {
             return
         }
         // don't show duplicate
@@ -692,7 +710,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             self.closeBgTip()
         })
         popover.contentViewController = NSHostingController(rootView: contentView)
-        self.bgTipPopover = popover
+        bgTipPopover = popover
 
         // show
         NSLog("show tip")
@@ -721,12 +739,13 @@ private extension NSMenu {
     func addTruncatedItems<T>(_ items: [T],
                               overflowHeader: String? = nil,
                               overflowItems: [T]? = nil,
-                              makeItem: (T) -> NSMenuItem?) {
+                              makeItem: (T) -> NSMenuItem?)
+    {
         // limit 5
         for container in items.prefix(maxQuickAccessItems) {
             let item = makeItem(container)
             if let item {
-                self.addItem(item)
+                addItem(item)
             }
         }
 
@@ -734,11 +753,11 @@ private extension NSMenu {
         if items.count > maxQuickAccessItems || overflowItems?.isEmpty == false {
             let submenu = NSMenu()
             let extraItem = NSMenuItem(title: "",
-                    action: nil,
-                    keyEquivalent: "")
+                                       action: nil,
+                                       keyEquivalent: "")
             extraItem.image = systemImage("ellipsis", alt: "More")
             extraItem.submenu = submenu
-            self.addItem(extraItem)
+            addItem(extraItem)
 
             for container in items.dropFirst(maxQuickAccessItems) {
                 let item = makeItem(container)
@@ -767,7 +786,7 @@ private extension NSMenu {
     func addInfoLine(_ text: String) {
         let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
         item.isEnabled = false
-        self.addItem(item)
+        addItem(item)
     }
 
     func addSectionHeader(_ title: String) {
@@ -775,38 +794,40 @@ private extension NSMenu {
         // use attributedTitle for emphasis
         item.attributedTitle = NSAttributedString(string: title, attributes: [
             NSAttributedString.Key.font: NSFont.systemFont(ofSize: 12, weight: .bold),
-            NSAttributedString.Key.foregroundColor: NSColor.labelColor
+            NSAttributedString.Key.foregroundColor: NSColor.labelColor,
         ])
         item.isEnabled = false
-        self.addItem(item)
+        addItem(item)
     }
 
     func addSeparator() {
-        self.addItem(NSMenuItem.separator())
+        addItem(NSMenuItem.separator())
     }
 
     func addActionItem(_ title: String,
                        shortcut: String = "",
                        icon: NSImage? = nil,
                        disabled: Bool = false,
-                       action: @escaping () -> Void) {
-        self.addItem(newActionItem(title,
-                shortcut: shortcut,
-                icon: icon,
-                disabled: disabled,
-                action: action))
+                       action: @escaping () -> Void)
+    {
+        addItem(newActionItem(title,
+                              shortcut: shortcut,
+                              icon: icon,
+                              disabled: disabled,
+                              action: action))
     }
 
     func addActionItem(_ title: String,
                        shortcut: String = "",
                        icon: NSImage? = nil,
                        disabled: Bool = false,
-                       asyncAction: @escaping () async -> Void) {
-        self.addItem(newActionItem(title,
-                shortcut: shortcut,
-                icon: icon,
-                disabled: disabled,
-                asyncAction: asyncAction))
+                       asyncAction: @escaping () async -> Void)
+    {
+        addItem(newActionItem(title,
+                              shortcut: shortcut,
+                              icon: icon,
+                              disabled: disabled,
+                              asyncAction: asyncAction))
     }
 }
 
@@ -821,13 +842,14 @@ private extension NSMenuItem {
 }
 
 private func newActionItem(_ title: String,
-                   shortcut: String = "",
-                   icon: NSImage? = nil,
-                   disabled: Bool = false,
-                   action: @escaping () -> Void) -> NSMenuItem {
+                           shortcut: String = "",
+                           icon: NSImage? = nil,
+                           disabled: Bool = false,
+                           action: @escaping () -> Void) -> NSMenuItem
+{
     let controller = ActionItemController(action: action)
     let item = NSMenuItem(title: title, action: #selector(controller.action),
-            keyEquivalent: shortcut)
+                          keyEquivalent: shortcut)
     item.target = controller
     item.image = icon
     item.isEnabled = !disabled
@@ -840,11 +862,13 @@ private func newActionItem(_ title: String,
                            shortcut: String = "",
                            icon: NSImage? = nil,
                            disabled: Bool = false,
-                           asyncAction: @escaping () async -> Void) -> NSMenuItem {
+                           asyncAction: @escaping () async -> Void) -> NSMenuItem
+{
     return newActionItem(title,
-            shortcut: shortcut,
-            icon: icon,
-            disabled: disabled) {
+                         shortcut: shortcut,
+                         icon: icon,
+                         disabled: disabled)
+    {
         Task { @MainActor in
             await asyncAction()
         }
@@ -859,7 +883,7 @@ private class ActionItemController: NSObject {
         super.init()
     }
 
-    @objc func action(_ sender: NSMenuItem) {
+    @objc func action(_: NSMenuItem) {
         action()
     }
 }
@@ -883,7 +907,7 @@ private func systemImage(_ name: String, bold: Bool = false, small: Bool = false
     return nil
 }
 
-struct SystemImages {
+enum SystemImages {
     static func statusDot(isRunning: Bool) -> NSImage {
         statusDot(isRunning ? .green : .red)
     }

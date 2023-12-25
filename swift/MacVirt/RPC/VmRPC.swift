@@ -25,14 +25,14 @@ struct VmConfig: Codable, Equatable {
     // camel case due to keyDecodingStrategy translating snake_case before it hits this
     // these are NOT the keys in the real json
     enum CodingKeys: String, CodingKey {
-        case memoryMib = "memoryMib"
-        case cpu = "cpu"
-        case rosetta = "rosetta"
-        case networkProxy = "networkProxy"
-        case networkBridge = "networkBridge"
+        case memoryMib
+        case cpu
+        case rosetta
+        case networkProxy
+        case networkBridge
         case networkHttps = "network.https"
-        case mountHideShared = "mountHideShared"
-        case dataDir = "dataDir"
+        case mountHideShared
+        case dataDir
         case dockerSetContext = "docker.setContext"
         case dockerNodeName = "docker.nodeName"
         case setupUseAdmin = "setup.useAdmin"
@@ -70,12 +70,12 @@ class VmService {
 
     func stop() async throws {
         try await c.call("Stop")
-        // TODO handle EOF
+        // TODO: handle EOF
     }
 
     func forceStop() async throws {
         try await c.call("ForceStop")
-        // TODO handle EOF
+        // TODO: handle EOF
     }
 
     func resetData() async throws {
@@ -99,6 +99,7 @@ class VmService {
     }
 
     // MARK: - Docker
+
     func dockerContainerStart(_ id: String) async throws {
         try await c.call("DockerContainerStart", args: IDRequest(id: id))
     }
@@ -140,6 +141,7 @@ class VmService {
     }
 
     // MARK: - K8s
+
     func k8sPodDelete(namespace: String, name: String) async throws {
         try await c.call("K8sPodDelete", args: K8sNameRequest(namespace: namespace, name: name))
     }

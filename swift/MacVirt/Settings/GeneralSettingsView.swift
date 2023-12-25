@@ -2,12 +2,12 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
-import SwiftUI
-import LaunchAtLogin
 import Combine
-import Sparkle
 import Defaults
+import Foundation
+import LaunchAtLogin
+import Sparkle
+import SwiftUI
 
 struct GeneralSettingsView: View {
     let updaterController: SPUStandardUpdaterController
@@ -29,7 +29,7 @@ struct GeneralSettingsView: View {
             }
 
             Spacer()
-                    .frame(height: 20)
+                .frame(height: 20)
 
             UpdaterSettingsView(updater: updaterController.updater)
         }

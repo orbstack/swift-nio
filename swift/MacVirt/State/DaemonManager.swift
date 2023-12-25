@@ -2,9 +2,9 @@
 // Created by Danny Lin on 3/5/23.
 //
 
-import Foundation
 import Combine
 import Defaults
+import Foundation
 
 private enum StopExitCode: Int {
     case logFatal = 1
@@ -38,9 +38,9 @@ enum ExitReason: Equatable, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .status(let status):
+        case let .status(status):
             return "status \(status)"
-        case .signal(let signal):
+        case let .signal(signal):
             return "signal \(signal)"
 
         case .logFatal:
@@ -175,7 +175,7 @@ class DaemonManager {
         }
 
         // safeguard: never return pid -1 in case of wrong lock type
-        guard lock.l_pid != -1 && lock.l_pid != 0 else {
+        guard lock.l_pid != -1, lock.l_pid != 0 else {
             return nil
         }
 
@@ -207,7 +207,7 @@ class DaemonManager {
                 NSLog("Error creating kqueue: \(errno)")
                 return
             }
-            let _ = fcntl(kqFd, F_SETFD, FD_CLOEXEC)
+            _ = fcntl(kqFd, F_SETFD, FD_CLOEXEC)
             defer {
                 close(kqFd)
             }
@@ -249,8 +249,8 @@ class DaemonManager {
             let waitStatus = kev2.data
             // extract status or signal
             var reason: ExitReason
-            if waitStatus & 0x7f != 0 {
-                let signal = waitStatus & 0x7f
+            if waitStatus & 0x7F != 0 {
+                let signal = waitStatus & 0x7F
                 switch signal {
                 case 9: // SIGKILL
                     reason = .killed
@@ -278,7 +278,7 @@ class DaemonManager {
                     reason = .status(status)
                 }
             }
-            //TODO may not be right
+            // TODO: may not be right
             if pid == lastPid {
                 callback(reason)
             } else {
@@ -301,7 +301,7 @@ class DaemonManager {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
 
         let nc = DistributedNotificationCenter.default()
-        // TODO security
+        // TODO: security
         nc.addObserver(forName: .init("\(getuid()).dev.orbstack.vmgr.private.UIEvent"), object: nil, queue: nil) { notification in
             guard let eventJson = notification.userInfo?["event"] as? String else {
                 NSLog("Notification is missing data: \(notification)")

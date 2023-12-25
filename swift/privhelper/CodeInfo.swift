@@ -26,7 +26,7 @@ enum CodeInfo {
     /// - Returns: On disk location of this helper tool.
     static func currentCodeLocation() throws -> URL {
         var path: CFURL?
-        let status = SecCodeCopyPath(try copyCurrentStaticCode(), SecCSFlags(), &path)
+        let status = try SecCodeCopyPath(copyCurrentStaticCode(), SecCSFlags(), &path)
         guard status == errSecSuccess, let path = path as URL? else {
             throw CodeInfoError.getSelfPath(status)
         }

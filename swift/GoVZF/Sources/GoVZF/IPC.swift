@@ -10,7 +10,7 @@ func swext_ipc_notify_uievent(eventJsonStr: UnsafePointer<CChar>) {
     // deliverImmediately sends even if GUI is in background
     let eventJson = String(cString: eventJsonStr)
     nc.postNotificationName(.init("\(getuid()).dev.orbstack.vmgr.private.UIEvent"),
-            object: nil,
-            userInfo: ["event": eventJson],
-            deliverImmediately: true)
+                            object: nil,
+                            userInfo: ["event": eventJson],
+                            deliverImmediately: true)
 }

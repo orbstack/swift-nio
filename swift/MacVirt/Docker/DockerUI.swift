@@ -2,9 +2,9 @@
 // Created by Danny Lin on 5/20/23.
 //
 
-import Foundation
 import AppKit
 import Defaults
+import Foundation
 
 extension DKContainer {
     func openInTerminal() {
@@ -40,8 +40,8 @@ extension DKContainer {
     func copyRunCommand() async {
         do {
             let runCmd = try await runProcessChecked(AppConfig.dockerExe,
-                    ["inspect", "--format", DKInspectRunCommandTemplate, id],
-                    env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
+                                                     ["inspect", "--format", DKInspectRunCommandTemplate, id],
+                                                     env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
 
             NSPasteboard.copy(runCmd)
         } catch {
@@ -81,7 +81,8 @@ extension DKMountPoint {
 
     func getOpenPath() -> String {
         if let volName = name,
-           type == .volume {
+           type == .volume
+        {
             return "\(Folders.nfsDockerVolumes)/\(volName)"
         } else {
             return source
@@ -115,7 +116,7 @@ extension NSPasteboard {
     }
 }
 
-struct WindowTitles {
+enum WindowTitles {
     static let projectLogsBase = "Project Logs"
     static func projectLogs(_ project: String?) -> String {
         if let project {
@@ -156,11 +157,11 @@ enum DockerListItem: Identifiable, Equatable, AKListItem {
 
     var id: DockerContainerId {
         switch self {
-        case .sectionLabel(let label):
+        case let .sectionLabel(label):
             return .sectionLabel(label)
-        case .container(let container):
+        case let .container(container):
             return .container(id: container.id)
-        case .compose(let group, _):
+        case let .compose(group, _):
             return .compose(project: group.project)
         case .k8sGroup:
             return .k8sGroup
@@ -169,9 +170,9 @@ enum DockerListItem: Identifiable, Equatable, AKListItem {
 
     var containerName: String {
         switch self {
-        case .container(let container):
+        case let .container(container):
             return container.names.first ?? ""
-        case .compose(let group, _):
+        case let .compose(group, _):
             return group.project
         case .k8sGroup:
             return "Kubernetes"
@@ -191,20 +192,21 @@ enum DockerListItem: Identifiable, Equatable, AKListItem {
 
     var listChildren: [any AKListItem]? {
         switch self {
-        case .compose(_, let children):
+        case let .compose(_, children):
             return children
-        case .k8sGroup(_, let children):
+        case let .k8sGroup(_, children):
             return children
         default:
             return nil
         }
     }
+
     var textLabel: String? {
         containerName
     }
 }
 
-struct DockerContainerLists {
+enum DockerContainerLists {
     static func makeListItems(filteredContainers: [DKContainer]) -> (running: [DockerListItem], stopped: [DockerListItem]) {
         var runningItems: [DockerListItem] = []
         var stoppedItems: [DockerListItem] = []

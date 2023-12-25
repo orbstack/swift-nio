@@ -2,9 +2,9 @@
 // Created by Danny Lin on 5/7/23.
 //
 
+import Combine
 import Foundation
 import SwiftUI
-import Combine
 
 private enum DiagReporterState {
     case loading
@@ -30,7 +30,7 @@ struct DiagReporterView: View {
                     ProgressView()
                     Text("Generating report…")
                 }
-            case .error(let message):
+            case let .error(message):
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.circle.fill")
                         .resizable()

@@ -5,14 +5,14 @@
 import Foundation
 import SecureXPC
 
-struct PHShared {
+enum PHShared {
     static let symlinkRoute = XPCRoute.named("symlink")
-            .withMessageType(PHSymlinkRequest.self)
-            .throwsType(PHSymlinkError.self)
+        .withMessageType(PHSymlinkRequest.self)
+        .throwsType(PHSymlinkError.self)
     static let uninstallRoute = XPCRoute.named("uninstall")
     static let updateRoute = XPCRoute.named("update")
-            .withMessageType(PHUpdateRequest.self)
-            .throwsType(PHUpdateError.self)
+        .withMessageType(PHUpdateRequest.self)
+        .throwsType(PHUpdateError.self)
 
     // lazy init
     // = bundle ID = signing ID = binary name = XPC service name

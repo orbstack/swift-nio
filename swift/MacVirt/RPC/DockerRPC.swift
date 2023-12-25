@@ -2,8 +2,8 @@
 // Created by Danny Lin on 3/19/23.
 //
 
-import Foundation
 import Defaults
+import Foundation
 
 private let relativeDateFormatter = RelativeDateTimeFormatter()
 private let nowTimeThreshold: TimeInterval = 5 // sec
@@ -25,7 +25,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
     var labels: [String: String]?
     var state: String
     var status: String
-    //var hostConfig: HostConfig
+    // var hostConfig: HostConfig
     var networkSettings: DKSummaryNetworkSettings?
     var mounts: [DKMountPoint]
 
@@ -66,7 +66,8 @@ struct DKContainer: Codable, Identifiable, Hashable {
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
         if let k8sType = labels?[DockerLabels.k8sType],
-           let k8sPodName = labels?[DockerLabels.k8sPodName] {
+           let k8sPodName = labels?[DockerLabels.k8sPodName]
+        {
             return "\(k8sPodName) (\(k8sType))"
         } else if let composeService {
             // all containers have numbers, even w/o scale
@@ -118,7 +119,8 @@ struct DKContainer: Codable, Identifiable, Hashable {
         }
 
         if let label = labels?[DockerLabels.customDomains],
-           let _domain = label.split(separator: ",").first {
+           let _domain = label.split(separator: ",").first
+        {
             // remove wildcard
             let domain = String(_domain)
             // make it RFC 1035 compliant, or Tomcat complains
@@ -127,7 +129,8 @@ struct DKContainer: Codable, Identifiable, Hashable {
             return String(domain.deletingPrefix("*."))
                 .replacingOccurrences(of: "_", with: "-")
         } else if let project = composeProject,
-                  let service = composeService {
+                  let service = composeService
+        {
             var optNum = ""
             if let composeNumber, composeNumber != "1" {
                 // for --scale
@@ -159,7 +162,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
         case labels = "Labels"
         case state = "State"
         case status = "Status"
-        //case hostConfig = "HostConfig"
+        // case hostConfig = "HostConfig"
         case networkSettings = "NetworkSettings"
         case mounts = "Mounts"
     }
@@ -178,7 +181,7 @@ struct DKSummaryNetworkSettings: Codable, Identifiable, Hashable {
 }
 
 struct DKNetworkEndpointSettings: Codable, Identifiable, Hashable {
-    //var ipamConfig: DKEndpointIPAMConfig?
+    // var ipamConfig: DKEndpointIPAMConfig?
     var links: [String]?
     var aliases: [String]?
     // Operational data
@@ -198,7 +201,7 @@ struct DKNetworkEndpointSettings: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        //case ipamConfig = "IPAMConfig"
+        // case ipamConfig = "IPAMConfig"
         case links = "Links"
         case aliases = "Aliases"
         case networkId = "NetworkID"
@@ -237,20 +240,20 @@ struct DKPort: Codable, Identifiable, Hashable {
 }
 
 enum DKMountType: String, Codable, Hashable {
-    case bind = "bind"
-    case volume = "volume"
-    case tmpfs = "tmpfs"
-    case npipe = "npipe"
-    case cluster = "cluster"
+    case bind
+    case volume
+    case tmpfs
+    case npipe
+    case cluster
 }
 
 enum DKMountPropagation: String, Codable, Hashable {
-    case rprivate = "rprivate"
+    case rprivate
     case privat = "private"
-    case rshared = "rshared"
-    case shared = "shared"
-    case rslave = "rslave"
-    case slave = "slave"
+    case rshared
+    case shared
+    case rslave
+    case slave
 }
 
 struct DKMountPoint: Codable, Identifiable, Hashable {
@@ -284,14 +287,14 @@ struct DKVolumeCreateOptions: Codable {
     let labels: [String: String]?
     let driver: String?
     let driverOpts: [String: String]?
-    //let clusterVolumeSpec: ClusterVolumeSpec?
+    // let clusterVolumeSpec: ClusterVolumeSpec?
 
     enum CodingKeys: String, CodingKey {
         case name = "Name"
         case labels = "Labels"
         case driver = "Driver"
         case driverOpts = "DriverOpts"
-        //case clusterVolumeSpec = "ClusterVolumeSpec"
+        // case clusterVolumeSpec = "ClusterVolumeSpec"
     }
 }
 
@@ -303,7 +306,7 @@ struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
     let name: String
     let options: [String: String]?
     let scope: String
-    //let status: [String: any Codable]?
+    // let status: [String: any Codable]?
     let usageData: DKVolumeUsageData?
 
     var id: String {
@@ -333,7 +336,7 @@ struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
         case name = "Name"
         case options = "Options"
         case scope = "Scope"
-        //case status = "Status"
+        // case status = "Status"
         case usageData = "UsageData"
     }
 }
@@ -436,8 +439,8 @@ struct DKImage: AKListItem, Codable, Identifiable {
 struct DKSystemDf: Codable {
     let layersSize: Int64
     let images: [DKImage]?
-    //layers
-    //containers, etc
+    // layers
+    // containers, etc
     let volumes: [DKVolume]
 
     enum CodingKeys: String, CodingKey {
@@ -447,7 +450,7 @@ struct DKSystemDf: Codable {
     }
 }
 
-struct DockerLabels {
+enum DockerLabels {
     static let composeProject = "com.docker.compose.project"
     static let composeService = "com.docker.compose.service"
     static let composeConfigFiles = "com.docker.compose.project.config_files"

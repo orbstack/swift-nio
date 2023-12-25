@@ -21,8 +21,8 @@
  */
 
 import AppKit
-import SwiftUI
 import Combine
+import SwiftUI
 
 private let maxReuseSlots = 2
 
@@ -66,9 +66,10 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
          selection: Binding<Set<Item.ID>>,
          rowHeight: CGFloat? = nil,
          flat: Bool = true,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
+    {
         self.sections = sections
-        self._selection = selection
+        _selection = selection
         self.rowHeight = rowHeight
         self.makeRowView = makeRowView
         self.flat = flat
@@ -76,16 +77,16 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
 
     var body: some View {
         AKTreeListImpl(envModel: envModel,
-                sections: sections,
-                rowHeight: rowHeight,
-                singleSelection: singleSelection,
-                isFlat: flat,
-                makeRowView: makeRowView)
-                // fix toolbar color and blur (fullSizeContentView)
-        .ignoresSafeArea()
-        .onReceive(envModel.$selection) { selection in
-            self.selection = selection as! Set<Item.ID>
-        }
+                       sections: sections,
+                       rowHeight: rowHeight,
+                       singleSelection: singleSelection,
+                       isFlat: flat,
+                       makeRowView: makeRowView)
+            // fix toolbar color and blur (fullSizeContentView)
+            .ignoresSafeArea()
+            .onReceive(envModel.$selection) { selection in
+                self.selection = selection as! Set<Item.ID>
+            }
     }
 }
 
@@ -96,24 +97,26 @@ extension AKList {
          selection singleBinding: Binding<Item.ID?>,
          rowHeight: CGFloat? = nil,
          flat: Bool = true,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
+    {
         let selBinding = Binding<Set<Item.ID>>(
-                get: {
-                    if let id = singleBinding.wrappedValue {
-                        return [id]
-                    } else {
-                        return []
-                    }
-                },
-                set: {
-                    singleBinding.wrappedValue = $0.first
-                })
+            get: {
+                if let id = singleBinding.wrappedValue {
+                    return [id]
+                } else {
+                    return []
+                }
+            },
+            set: {
+                singleBinding.wrappedValue = $0.first
+            }
+        )
         self.init(sections,
-                selection: selBinding,
-                rowHeight: rowHeight,
-                flat: flat,
-                makeRowView: makeRowView)
-        self.singleSelection = true
+                  selection: selBinding,
+                  rowHeight: rowHeight,
+                  flat: flat,
+                  makeRowView: makeRowView)
+        singleSelection = true
     }
 
     // hierarchical OR flat, no sections, multiple selection
@@ -121,12 +124,13 @@ extension AKList {
          selection: Binding<Set<Item.ID>>,
          rowHeight: CGFloat? = nil,
          flat: Bool = true,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
+    {
         self.init(AKSection.single(items),
-                selection: selection,
-                rowHeight: rowHeight,
-                flat: flat,
-                makeRowView: makeRowView)
+                  selection: selection,
+                  rowHeight: rowHeight,
+                  flat: flat,
+                  makeRowView: makeRowView)
     }
 
     // hierarchical OR flat, no sections, single selection
@@ -134,13 +138,14 @@ extension AKList {
          selection singleBinding: Binding<Item.ID?>,
          rowHeight: CGFloat? = nil,
          flat: Bool = true,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView) {
+         @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
+    {
         self.init(AKSection.single(items),
-                selection: singleBinding,
-                rowHeight: rowHeight,
-                flat: flat,
-                makeRowView: makeRowView)
-        self.singleSelection = true
+                  selection: singleBinding,
+                  rowHeight: rowHeight,
+                  flat: flat,
+                  makeRowView: makeRowView)
+        singleSelection = true
     }
 }
 
@@ -160,7 +165,8 @@ private class AKOutlineView: NSOutlineView {
 
         // find the clicked view
         if targetRow != -1,
-           let view = self.view(atColumn: 0, row: targetRow, makeIfNecessary: false) {
+           let view = view(atColumn: 0, row: targetRow, makeIfNecessary: false)
+        {
             // make a fake event for its center
             let center = CGPointMake(NSMidX(view.frame), NSMidY(view.frame))
             // ... relative to the window
@@ -247,7 +253,7 @@ private class CachedViewHolder<V: View> {
     }
 }
 
-typealias AKListItemBase = Identifiable & Equatable
+typealias AKListItemBase = Equatable & Identifiable
 
 protocol AKListItem: AKListItemBase {
     var listChildren: [any AKListItem]? { get }
@@ -293,7 +299,7 @@ private class AKNode: NSObject {
     var children: [AKNode]?
     var value: any Equatable
 
-    func actuallyEqual<Item: AKListItemBase>(_ other: AKNode, itemType: Item.Type) -> Bool {
+    func actuallyEqual<Item: AKListItemBase>(_ other: AKNode, itemType _: Item.Type) -> Bool {
         switch (type, other.type) {
         case (.section, .section):
             return value as! String == other.value as! String
@@ -319,8 +325,8 @@ private struct HostedItemView<Item: AKListItem, ItemView: View>: View {
     var body: some View {
         if let item = itemModel.item {
             makeRowView(item as! Item)
-            .environmentObject(envModel)
-            .environmentObject(itemModel)
+                .environmentObject(envModel)
+                .environmentObject(itemModel)
         } else {
             EmptyView()
         }
@@ -366,7 +372,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         /*
          * data source
          */
-        func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+        func outlineView(_: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
             if let item = item as? AKNode {
                 return item.children?.count ?? 0
             } else {
@@ -374,7 +380,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
         }
 
-        func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        func outlineView(_: NSOutlineView, isItemExpandable item: Any) -> Bool {
             if let item = item as? AKNode {
                 return item.children != nil
             } else {
@@ -382,7 +388,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
         }
 
-        func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+        func outlineView(_: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
             if item == nil {
                 return rootNodes[index]
             } else if let item = item as? AKNode {
@@ -412,8 +418,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             let itemModel = AKListItemModel(itemId: itemId as AnyHashable)
             // doing .environmentObject in the SwiftUI view lets us avoid AnyView here
             let hostedView = HostedItemView(envModel: parent.envModel,
-                    itemModel: itemModel,
-                    makeRowView: parent.makeRowView)
+                                            itemModel: itemModel,
+                                            makeRowView: parent.makeRowView)
             let nsView = AKHostingView(rootView: hostedView)
             nsView.outlineParent = (outlineView as! AKOutlineView)
 
@@ -437,7 +443,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         }
 
         // make views
-        func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+        func outlineView(_ outlineView: NSOutlineView, viewFor _: NSTableColumn?, item: Any) -> NSView? {
             let node = item as! AKNode
             if node.type == .item {
                 let value = node.value as! Item
@@ -477,7 +483,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 
         // at first glance this isn't needed because section nodes don't render selections,
         // but it still gets selected internally and breaks the rounding of adjacent rows
-        func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+        func outlineView(_: NSOutlineView, shouldSelectItem item: Any) -> Bool {
             let item = item as! AKNode
             return item.type == .item
         }
@@ -494,7 +500,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
         }
 
-        func outlineView(_ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any) -> String? {
+        func outlineView(_: NSOutlineView, typeSelectStringFor _: NSTableColumn?, item: Any) -> String? {
             let item = item as! AKNode
             if item.type == .item {
                 return (item.value as! Item).textLabel
@@ -600,7 +606,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             return newNodes
         }
 
-        func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+        func outlineView(_: NSOutlineView, isGroupItem item: Any) -> Bool {
             let item = item as! AKNode
             return item.type == .section
         }
@@ -623,8 +629,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 }
 
             let newSelection = Set(selectedIds)
-            if self.parent.envModel.selection != newSelection {
-                self.parent.envModel.selection = newSelection
+            if parent.envModel.selection != newSelection {
+                parent.envModel.selection = newSelection
             }
         }
     }
@@ -701,7 +707,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             .map { outlineView.item(atRow: $0) as! AKNode }
 
         // update
-        // TODO add animations and fix reloading of children
+        // TODO: add animations and fix reloading of children
         coordinator.rootNodes = newNodes
         outlineView.reloadData()
 
@@ -750,24 +756,22 @@ private struct DoubleClickViewModifier: ViewModifier {
 }
 
 private struct BoundingBoxOverlayView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
+    func makeNSView(context _: Context) -> NSView {
         NSView(frame: .zero)
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-    }
+    func updateNSView(_: NSView, context _: Context) {}
 }
 
 extension View {
     // SwiftUI rejects menu(forEvent:) unless it thinks it owns the view at which
     // the click occurred. add a big NSView overlay to fix it
     func akListContextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
-        self
-            .overlay { BoundingBoxOverlayView() }
+        overlay { BoundingBoxOverlayView() }
             .contextMenu(menuItems: menuItems)
     }
 
     func akListOnDoubleClick(perform action: @escaping () -> Void) -> some View {
-        self.modifier(DoubleClickViewModifier(action: action))
+        modifier(DoubleClickViewModifier(action: action))
     }
 }

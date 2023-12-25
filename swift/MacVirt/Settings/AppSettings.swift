@@ -3,10 +3,10 @@
 //
 
 import Foundation
-import SwiftUI
 import Sparkle
+import SwiftUI
 
-// TODO remove dep on service
+// TODO: remove dep on service
 typealias SettingsStateWrapperView = StateWrapperView
 
 struct AppSettings: View {
@@ -27,43 +27,43 @@ struct AppSettings: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             GeneralSettingsView(updaterController: updaterController)
-            .tabItem {
-                Label("General", systemImage: "gear")
-            }
-            .tag(Tabs.general)
+                .tabItem {
+                    Label("General", systemImage: "gear")
+                }
+                .tag(Tabs.general)
 
             MachineSettingsView()
-            .tabItem {
-                Label("System", systemImage: "cpu")
-            }
-            .tag(Tabs.machine)
+                .tabItem {
+                    Label("System", systemImage: "cpu")
+                }
+                .tag(Tabs.machine)
 
             DockerSettingsView()
-            .tabItem {
-                Label("Docker", systemImage: "shippingbox")
-            }
-            .tag(Tabs.docker)
+                .tabItem {
+                    Label("Docker", systemImage: "shippingbox")
+                }
+                .tag(Tabs.docker)
 
             K8SSettingsView()
-            .tabItem {
-                Label("Kubernetes", systemImage: "helm")
-            }
-            .tag(Tabs.k8s)
+                .tabItem {
+                    Label("Kubernetes", systemImage: "helm")
+                }
+                .tag(Tabs.k8s)
 
             NetworkSettingsView()
-            .tabItem {
-                Label("Network", systemImage: "network")
-            }
-            .tag(Tabs.network)
+                .tabItem {
+                    Label("Network", systemImage: "network")
+                }
+                .tag(Tabs.network)
 
             StorageSettingsView()
-            .tabItem {
-                Label("Storage", systemImage: "externaldrive")
-            }
-            .tag(Tabs.storage)
+                .tabItem {
+                    Label("Storage", systemImage: "externaldrive")
+                }
+                .tag(Tabs.storage)
 
             #if DEBUG
-            DebugSettingsView(updaterController: updaterController)
+                DebugSettingsView(updaterController: updaterController)
                     .tabItem {
                         Label("Debug", systemImage: "hammer")
                     }

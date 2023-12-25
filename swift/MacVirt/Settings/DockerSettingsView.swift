@@ -2,11 +2,11 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
-import SwiftUI
-import LaunchAtLogin
 import Combine
+import Foundation
+import LaunchAtLogin
 import Sparkle
+import SwiftUI
 
 struct DockerSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
@@ -26,23 +26,24 @@ struct DockerSettingsView: View {
 
             Group {
                 Text("Advanced engine config")
-                        .font(.headline)
-                        .padding(.bottom, 4)
+                    .font(.headline)
+                    .padding(.bottom, 4)
 
                 TextEditor(text: $configJson)
-                        .font(.body.monospaced())
-                        .frame(minHeight: 150)
-                        .autocorrectionDisabled()
+                    .font(.body.monospaced())
+                    .frame(minHeight: 150)
+                    .autocorrectionDisabled()
 
                 Text("You can also [edit the config file](https://docs.orbstack.dev/docker/#engine-config) directly.\nInvalid configs will prevent Docker from starting.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
-                        .padding(.bottom, 8)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
 
                 if vmModel.state == .running,
                    let machines = vmModel.containers,
-                   let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }) {
+                   let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
+                {
                     Button("Apply") {
                         Task.detached {
                             let saved = await save()
@@ -94,9 +95,9 @@ struct DockerSettingsView: View {
 
 // HACK to work-around the smart quote issue
 extension NSTextView {
-    open override var frame: CGRect {
+    override open var frame: CGRect {
         didSet {
-            self.isAutomaticQuoteSubstitutionEnabled = false
+            isAutomaticQuoteSubstitutionEnabled = false
         }
     }
 }

@@ -6,14 +6,15 @@ import PackageDescription
 let package = Package(
     name: "GoVZF",
     platforms: [
-        .macOS("12.3")
+        .macOS("12.3"),
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "GoVZF",
             type: .static,
-            targets: ["GoVZF"]),
+            targets: ["GoVZF"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/trilemma-dev/Blessed.git", from: "0.6.0"),
@@ -26,11 +27,13 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "GoVZF",
-            dependencies: ["CBridge", "Blessed", "EmbeddedPropertyList", "SecureXPC", "Defaults"]),
+            dependencies: ["CBridge", "Blessed", "EmbeddedPropertyList", "SecureXPC", "Defaults"]
+        ),
         .systemLibrary(
             name: "CBridge"),
         .testTarget(
             name: "GoVZFTests",
-            dependencies: ["GoVZF"]),
+            dependencies: ["GoVZF"]
+        ),
     ]
 )

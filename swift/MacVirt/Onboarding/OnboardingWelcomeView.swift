@@ -14,8 +14,8 @@ struct OnboardingWelcomeView: View {
 
     private var repeatingAnimation: Animation {
         Animation
-                .linear(duration: 30)
-                .repeatForever()
+            .linear(duration: 30)
+            .repeatForever()
     }
 
     var body: some View {
@@ -24,22 +24,22 @@ struct OnboardingWelcomeView: View {
 
             ZStack {
                 Image("AppIconBG")
-                        .resizable()
-                        .frame(width: 150, height: 150)
+                    .resizable()
+                    .frame(width: 150, height: 150)
 
                 Image("AppIconFG")
-                        .resizable()
-                        .frame(width: 150, height: 150)
-                        .hueRotation(.degrees(hueRotation))
-                        .task {
-                            // delay start
-                            do {
-                                try await Task.sleep(nanoseconds: 1_000_000_000)
-                                withAnimation(repeatingAnimation) {
-                                    hueRotation = -360
-                                }
-                            } catch {}
-                        }
+                    .resizable()
+                    .frame(width: 150, height: 150)
+                    .hueRotation(.degrees(hueRotation))
+                    .task {
+                        // delay start
+                        do {
+                            try await Task.sleep(nanoseconds: 1_000_000_000)
+                            withAnimation(repeatingAnimation) {
+                                hueRotation = -360
+                            }
+                        } catch {}
+                    }
             }
             .padding(.bottom, 24)
 

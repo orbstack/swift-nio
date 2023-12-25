@@ -13,7 +13,8 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
     let content: ([Entity], ContainerRecord) -> Content
 
     init(_ keyPath: KeyPath<VmViewModel, [Entity]?>,
-         @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content) {
+         @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content)
+    {
         self.keyPath = keyPath
         self.content = content
     }
@@ -28,7 +29,7 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
                 }
             }) {
                 Text("Turn On")
-                .padding(.horizontal, 4)
+                    .padding(.horizontal, 4)
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
@@ -47,13 +48,15 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
 
     var body: some View {
         StateWrapperView {
-            // TODO return verdict as enum and use switch{} to fix loading flicker
+            // TODO: return verdict as enum and use switch{} to fix loading flicker
             if let machines = vmModel.containers,
                let k8sRecord = machines.first(where: { $0.id == ContainerIds.k8s }),
-               let config = vmModel.appliedConfig { // applied config, not current
+               let config = vmModel.appliedConfig
+            { // applied config, not current
                 if let entities = vmModel[keyPath: keyPath],
                    k8sRecord.state != .stopped,
-                   !isK8sClusterCreating {
+                   !isK8sClusterCreating
+                {
                     content(entities, k8sRecord)
                 } else if (k8sRecord.state == .stopped || !config.k8sEnable) && !vmModel.restartingMachines.contains(ContainerIds.k8s) {
                     disabledView

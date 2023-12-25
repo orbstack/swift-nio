@@ -2,9 +2,9 @@
 // Created by Danny Lin on 5/7/23.
 //
 
+import Combine
 import Foundation
 import SwiftUI
-import Combine
 
 private enum AuthState {
     case loading
@@ -32,7 +32,7 @@ struct AuthView: View {
                     ProgressView()
                     Text("Continue in your browser…")
                 }
-            case .error(let message):
+            case let .error(message):
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.circle.fill")
                         .resizable()
@@ -62,7 +62,7 @@ struct AuthView: View {
 
             Spacer()
 
-            // TODO use .overlay to avoid shifting layout up
+            // TODO: use .overlay to avoid shifting layout up
             if isSheet {
                 HStack {
                     Button("Cancel", role: .cancel) {

@@ -2,9 +2,9 @@
 // Created by Danny Lin on 3/1/23.
 //
 
+import CBridge
 import Foundation
 import Virtualization
-import CBridge
 
 let vzQueue = DispatchQueue(label: "dev.orbstack.swext.vzf")
 
@@ -39,9 +39,9 @@ func asyncifyResult<T>(_ fn: @escaping (@escaping (Result<T, Error>) -> Void) ->
         vzQueue.async {
             fn { result in
                 switch result {
-                case .success(let value):
+                case let .success(value):
                     continuation.resume(returning: value)
-                case .failure(let error):
+                case let .failure(error):
                     continuation.resume(throwing: error)
                 }
             }
@@ -49,7 +49,7 @@ func asyncifyResult<T>(_ fn: @escaping (@escaping (Result<T, Error>) -> Void) ->
     }
 }
 
-func asyncifyError(_ fn: @escaping (@escaping (Error?) -> Void) -> Void) async throws -> Void {
+func asyncifyError(_ fn: @escaping (@escaping (Error?) -> Void) -> Void) async throws {
     return try await withCheckedThrowingContinuation { continuation in
         vzQueue.async {
             fn { error in
@@ -77,14 +77,14 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     init(goHandle: uintptr_t, vz: VZVirtualMachine) {
         // must init before calling super
         self.vz = vz
-        self.vsockDevice = vz.socketDevices[0] as! VZVirtioSocketDevice
+        vsockDevice = vz.socketDevices[0] as! VZVirtioSocketDevice
         self.goHandle = goHandle
 
         // init the rest
         super.init()
         vz.delegate = self
 
-        stateObserver = vz.observe(\.state, options: [.new]) { [weak self] (vz, change) in
+        stateObserver = vz.observe(\.state, options: [.new]) { [weak self] vz, _ in
             guard let self = self else { return }
             let state = vz.state
             self.dispatchOnStateChange(state: state)
@@ -95,15 +95,15 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         govzf_event_Machine_deinit(self.goHandle)
     }
 
-    func guestDidStop(_ virtualMachine: VZVirtualMachine) {
+    func guestDidStop(_: VZVirtualMachine) {
         NSLog("[VZF] Guest stopped")
     }
 
-    func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: Error) {
+    func virtualMachine(_: VZVirtualMachine, didStopWithError error: Error) {
         NSLog("[VZF] Guest stopped with error: \(error)")
     }
 
-    func virtualMachine(_ virtualMachine: VZVirtualMachine, networkDevice: VZNetworkDevice, attachmentWasDisconnectedWithError error: Error) {
+    func virtualMachine(_: VZVirtualMachine, networkDevice: VZNetworkDevice, attachmentWasDisconnectedWithError error: Error) {
         NSLog("[VZF] Network device \(networkDevice) disconnected: \(error)")
     }
 
@@ -160,35 +160,35 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 }
 
 #if arch(arm64)
-@available(macOS 13.0, *)
-private func installRosetta() async throws {
-    // VZLinuxRosettaDirectoryShare.installRosetta is buggy and gets stuck on "Finding update"
-    do {
-        // use open -W to get output and check for canceled. can't run binary directly due to launch constraints
-        // this works even for unpriv users. it's special
-        // stdout doesn't work with /dev/stdout or /dev/fd/1 (perm denied), but file works
-        let uuid = UUID().uuidString.prefix(8)
-        let tmpFile = FileManager.default.temporaryDirectory
-        .appendingPathComponent("orbstack-install-rosetta_\(uuid).sh")
-        defer {
-            try? FileManager.default.removeItem(at: tmpFile)
-        }
-        try await runProcessChecked("/usr/bin/open", ["-W", "-o", tmpFile.path, "--stderr", tmpFile.path, "/System/Library/CoreServices/Rosetta 2 Updater.app"])
-        let output = try String(contentsOf: tmpFile)
-        NSLog("[VZF] Rosetta install result: \(output)")
+    @available(macOS 13.0, *)
+    private func installRosetta() async throws {
+        // VZLinuxRosettaDirectoryShare.installRosetta is buggy and gets stuck on "Finding update"
+        do {
+            // use open -W to get output and check for canceled. can't run binary directly due to launch constraints
+            // this works even for unpriv users. it's special
+            // stdout doesn't work with /dev/stdout or /dev/fd/1 (perm denied), but file works
+            let uuid = UUID().uuidString.prefix(8)
+            let tmpFile = FileManager.default.temporaryDirectory
+                .appendingPathComponent("orbstack-install-rosetta_\(uuid).sh")
+            defer {
+                try? FileManager.default.removeItem(at: tmpFile)
+            }
+            try await runProcessChecked("/usr/bin/open", ["-W", "-o", tmpFile.path, "--stderr", tmpFile.path, "/System/Library/CoreServices/Rosetta 2 Updater.app"])
+            let output = try String(contentsOf: tmpFile)
+            NSLog("[VZF] Rosetta install result: \(output)")
 
-        // we kind of just ignore errors and report canceled, e.g. on network failure
-        if output.contains("Code=3072") {
-            throw GovzfError.rosettaInstallCanceled
-        } else if output.contains("Success") {
-            return
-        } else {
-            throw GovzfError.rosettaInstallCanceled
+            // we kind of just ignore errors and report canceled, e.g. on network failure
+            if output.contains("Code=3072") {
+                throw GovzfError.rosettaInstallCanceled
+            } else if output.contains("Success") {
+                return
+            } else {
+                throw GovzfError.rosettaInstallCanceled
+            }
+        } catch {
+            NSLog("[VZF] Failed to install Rosetta with updater: \(error)")
         }
-    } catch {
-        NSLog("[VZF] Failed to install Rosetta with updater: \(error)")
     }
-}
 #endif
 
 private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrapper, Bool) {
@@ -207,8 +207,9 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
     // console
     if let consoleSpec = spec.console {
         let attachment = VZFileHandleSerialPortAttachment(
-                fileHandleForReading: FileHandle(fileDescriptor: consoleSpec.readFd, closeOnDealloc: false),
-                fileHandleForWriting: FileHandle(fileDescriptor: consoleSpec.writeFd, closeOnDealloc: false))
+            fileHandleForReading: FileHandle(fileDescriptor: consoleSpec.readFd, closeOnDealloc: false),
+            fileHandleForWriting: FileHandle(fileDescriptor: consoleSpec.writeFd, closeOnDealloc: false)
+        )
         let console = VZVirtioConsoleDeviceSerialPortConfiguration()
         console.attachment = attachment
         config.serialPorts = [console]
@@ -248,14 +249,14 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
     // 1. rootfs
     if let diskRootfs = spec.diskRootfs {
         let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: diskRootfs),
-                readOnly: true, cachingMode: .cached, synchronizationMode: .none)
+                                                                readOnly: true, cachingMode: .cached, synchronizationMode: .none)
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
     // 2. data
     if let diskData = spec.diskData {
         let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: diskData),
-                readOnly: false, cachingMode: .cached, synchronizationMode: .full)
+                                                                readOnly: false, cachingMode: .cached, synchronizationMode: .full)
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
@@ -263,7 +264,7 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
     if let diskSwap = spec.diskSwap {
         // no fsync needed for swap
         let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: diskSwap),
-                readOnly: false, cachingMode: .cached, synchronizationMode: .none)
+                                                                readOnly: false, cachingMode: .cached, synchronizationMode: .none)
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
@@ -291,33 +292,33 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
     // Rosetta
     var rosettaCanceled = false
     #if arch(arm64)
-    if #available(macOS 13, *) {
-        if spec.rosetta {
-            do {
-                switch VZLinuxRosettaDirectoryShare.availability {
-                case .notSupported:
+        if #available(macOS 13, *) {
+            if spec.rosetta {
+                do {
+                    switch VZLinuxRosettaDirectoryShare.availability {
+                    case .notSupported:
+                        // do nothing
+                        break
+                    case .notInstalled:
+                        try await installRosetta()
+                        fallthrough
+                    case .installed:
+                        let dir = try VZLinuxRosettaDirectoryShare()
+                        let fs = VZVirtioFileSystemDeviceConfiguration(tag: "rosetta")
+                        fs.share = dir
+                        fsDevices.append(fs)
+                    @unknown default:
+                        break
+                    }
+                    // check for VZErrorDomain code 9
+                } catch let error as VZError where error.code == .operationCancelled {
                     // do nothing
-                    break
-                case .notInstalled:
-                    try await installRosetta()
-                    fallthrough
-                case .installed:
-                    let dir = try VZLinuxRosettaDirectoryShare()
-                    let fs = VZVirtioFileSystemDeviceConfiguration(tag: "rosetta")
-                    fs.share = dir
-                    fsDevices.append(fs)
-                @unknown default:
-                    break
+                    rosettaCanceled = true
+                } catch {
+                    throw error
                 }
-                // check for VZErrorDomain code 9
-            } catch let error as VZError where error.code == .operationCancelled {
-                // do nothing
-                rosettaCanceled = true
-            } catch {
-                throw error
             }
         }
-    }
     #endif
     config.directorySharingDevices = fsDevices
 
@@ -394,7 +395,7 @@ func run_Machine_Resume(ptr: UnsafeMutableRawPointer) -> GResultErr {
 @_cdecl("govzf_run_Machine_ConnectVsock")
 func run_Machine_ConnectVsock(ptr: UnsafeMutableRawPointer, port: UInt32) -> GResultIntErr {
     doGenericErrInt(ptr) { (wrapper: VmWrapper) in
-        Int64(try await wrapper.connectVsock(port))
+        try Int64(await wrapper.connectVsock(port))
     }
 }
 

@@ -2,11 +2,11 @@
 // Created by Danny Lin on 9/18/23.
 //
 
+import AppKit
+import CBridge
+import Defaults
 import Foundation
 import Security
-import CBridge
-import AppKit
-import Defaults
 
 // must match maxCertDismissCount in Go (scon/agent)
 // after 2 dismissals, we auto-disable the HTTPS config
@@ -27,7 +27,8 @@ private func isFirefoxRecentlyUsed() -> Bool {
         if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
            let attributes = NSMetadataItem(url: bundleUrl),
            let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date,
-           date.timeIntervalSinceNow < 365 * 24 * 60 * 60 {
+           date.timeIntervalSinceNow < 365 * 24 * 60 * 60
+        {
             return true
         } else {
             return false
@@ -52,7 +53,7 @@ private enum KeychainFFIError: Error {
     case tooManyDeclines(Error)
 }
 
-private struct Keychain {
+private enum Keychain {
     private static let service = Bundle.main.bundleIdentifier!
     private static let accountDrm = "license_state2"
     private static let label = "OrbStack"

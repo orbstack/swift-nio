@@ -36,7 +36,7 @@ struct DockerImagesRootView: View {
                     let listData = [
                         AKSection("In Use", usedImages),
                         AKSection("Unused", unusedImages),
-                        AKSection("Dangling", danglingImages)
+                        AKSection("Dangling", danglingImages),
                     ]
 
                     // 46 is empirically correct, matches auto height. not sure where it comes from

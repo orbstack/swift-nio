@@ -2,8 +2,8 @@
 // Created by Danny Lin on 2/8/23.
 //
 
-import Foundation
 import Defaults
+import Foundation
 import SwiftUI
 
 private let guiBundleId = "dev.kdrag0n.MacVirt"
@@ -50,7 +50,8 @@ struct DrmState: Codable, Defaults.Serializable {
 
     init(refreshToken: String? = nil, entitlementTier: EntitlementTier = .none,
          entitlementType: EntitlementType = .none, entitlementMessage: String? = nil,
-         entitlementStatus: EntitlementStatus = .red) {
+         entitlementStatus: EntitlementStatus = .red)
+    {
         self.refreshToken = refreshToken
         self.entitlementTier = entitlementTier
         self.entitlementType = entitlementType
@@ -58,7 +59,7 @@ struct DrmState: Codable, Defaults.Serializable {
         self.entitlementStatus = entitlementStatus
     }
 
-    //TODO deal with mutation
+    // TODO: deal with mutation
     private lazy var claims: [String: Any]? = decodeClaims()
 
     private func decodeClaims() -> [String: Any]? {
@@ -76,11 +77,12 @@ struct DrmState: Codable, Defaults.Serializable {
         return try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
     }
 
-    //TODO err cond
+    // TODO: err cond
     var imageURL: URL? {
         mutating get {
             if let claims,
-               let imageURL = claims["_uim"] as? String {
+               let imageURL = claims["_uim"] as? String
+            {
                 return URL(string: imageURL)
             } else {
                 return nil
@@ -91,10 +93,12 @@ struct DrmState: Codable, Defaults.Serializable {
     var title: String {
         mutating get {
             if let claims,
-               let title = claims["_unm"] as? String {
+               let title = claims["_unm"] as? String
+            {
                 return title
             } else if let claims,
-              let email = claims["_uem"] as? String {
+                      let email = claims["_uem"] as? String
+            {
                 // fallback to email. not all users have name
                 return email.components(separatedBy: "@").first
                     ?? "(no name)"
@@ -135,7 +139,7 @@ struct DrmState: Codable, Defaults.Serializable {
         case nil:
             // fallback for version upgrade w/ old token
             return entitlementType == .trial ? .yellow :
-                    (entitlementTier == .none ? .red : .green)
+                (entitlementTier == .none ? .red : .green)
         }
     }
 
@@ -195,7 +199,6 @@ import Foundation
 /// Extension for making base64 representations of `Data` safe for
 /// transmitting via URL query parameters
 extension Data {
-
     /// Instantiates data by decoding a base64url string into base64
     ///
     /// - Parameter string: A base64url encoded string
@@ -208,24 +211,23 @@ extension Data {
     /// - Returns: A string that is base64 encoded but made safe for passing
     ///            in as a query parameter into a URL string
     func base64URLEncodedString() -> String {
-        return self.base64EncodedString().base64ToBase64URL()
+        return base64EncodedString().base64ToBase64URL()
     }
-
 }
 
 private extension String {
     func base64ToBase64URL() -> String {
         // Make base64 string safe for passing into URL query params
-        let base64url = self.replacingOccurrences(of: "/", with: "_")
-        .replacingOccurrences(of: "+", with: "-")
-        .replacingOccurrences(of: "=", with: "")
+        let base64url = replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "=", with: "")
         return base64url
     }
 
     func base64URLToBase64() -> String {
         // Return to base64 encoding
-        var base64 = self.replacingOccurrences(of: "_", with: "/")
-        .replacingOccurrences(of: "-", with: "+")
+        var base64 = replacingOccurrences(of: "_", with: "/")
+            .replacingOccurrences(of: "-", with: "+")
         // Add any necessary padding with `=`
         if base64.count % 4 != 0 {
             base64.append(String(repeating: "=", count: 4 - base64.count % 4))

@@ -2,12 +2,12 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
-import SwiftUI
-import LaunchAtLogin
 import Combine
-import Sparkle
 import Defaults
+import Foundation
+import LaunchAtLogin
+import Sparkle
+import SwiftUI
 
 struct DebugSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel

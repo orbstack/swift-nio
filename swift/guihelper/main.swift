@@ -26,7 +26,7 @@ func mainNotify(_ args: [String]) -> Int32 {
     let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.001, repeats: false)
     let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
     let center = UNUserNotificationCenter.current()
-    center.add(request) { (error) in
+    center.add(request) { error in
         if let error {
             print("Failed to post notification: \(error)")
             exit(1)

@@ -5,9 +5,9 @@
 //  Created by Danny Lin on 5/13/23.
 //
 
+import CBridge
 import Foundation
 import vmnet
-import CBridge
 
 // vmnet is ok with concurrent queue
 // gets us from 21 -> 30 Gbps
@@ -80,7 +80,7 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
     var outIfParam: xpc_object_t?
     var outStatus: vmnet_return_t = .VMNET_FAILURE
 
-    let interfaceRef = vmnet_start_interface(ifDesc, queue) { (status, ifParam) in
+    let interfaceRef = vmnet_start_interface(ifDesc, queue) { status, ifParam in
         outStatus = status
         outIfParam = ifParam
         sem.signal()
@@ -126,7 +126,7 @@ class BridgeNetwork {
 
     private let ifRef: interface_ref
     private let processor: PacketProcessor
-    private var guestReader: GuestReader? = nil
+    private var guestReader: GuestReader?
     private let hostReadIovs: UnsafeMutablePointer<iovec>
     private let vnetHdr: UnsafeMutablePointer<virtio_net_hdr>
 
@@ -134,10 +134,10 @@ class BridgeNetwork {
 
     init(config: BridgeNetworkConfig) throws {
         self.config = config
-        self.processor = PacketProcessor(hostOverrideMac: config.hostOverrideMac,
-                allowMulticast: config.allowMulticast,
-                ndpReplyPrefix: config.ndpReplyPrefix,
-                guestMac: config.guestMac)
+        processor = PacketProcessor(hostOverrideMac: config.hostOverrideMac,
+                                    allowMulticast: config.allowMulticast,
+                                    ndpReplyPrefix: config.ndpReplyPrefix,
+                                    guestMac: config.guestMac)
 
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
         xpc_dictionary_set_uint64(ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))
@@ -171,8 +171,8 @@ class BridgeNetwork {
         xpc_dictionary_set_bool(ifDesc, vmnet_enable_tso_key, config.maxLinkMtu >= 65535)
 
         let (_ifRef, ifParam) = try vmnetStartInterface(ifDesc: ifDesc, queue: vmnetControlQueue)
-        self.ifRef = _ifRef
-        //print("if param: \(ifParam)")
+        ifRef = _ifRef
+        // print("if param: \(ifParam)")
         let maxPacketSize = xpc_dictionary_get_uint64(ifParam, vmnet_max_packet_size_key)
         // vnet header only if mtu = max
         let needsVnetHdr = maxPacketSize >= 65535
@@ -184,16 +184,16 @@ class BridgeNetwork {
         pktDescs.reserveCapacity(maxPacketsPerRead)
 
         // update iov pointers
-        for i in 0..<maxPacketsPerRead {
+        for i in 0 ..< maxPacketsPerRead {
             // allocate buf and set in iov
             hostReadIovs[i].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
             hostReadIovs[i].iov_len = Int(maxPacketSize)
 
             // set in pktDesc
             let pktDesc = vmpktdesc(vm_pkt_size: Int(maxPacketSize),
-                vm_pkt_iov: hostReadIovs.advanced(by: i),
-                vm_pkt_iovcnt: 1,
-                vm_flags: 0)
+                                    vm_pkt_iov: hostReadIovs.advanced(by: i),
+                                    vm_pkt_iovcnt: 1,
+                                    vm_flags: 0)
             pktDescs.append(pktDesc)
         }
 
@@ -201,8 +201,8 @@ class BridgeNetwork {
         vnetHdr = UnsafeMutablePointer<virtio_net_hdr>.allocate(capacity: 1)
 
         // must keep self ref to prevent deinit while referenced
-        let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, vmnetPktQueue) { [self] (eventMask, event) in
-            //print("num packets: \(xpc_dictionary_get_uint64(event, vmnet_estimated_packets_available_key))")
+        let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, vmnetPktQueue) { [self] _, _ in
+            // print("num packets: \(xpc_dictionary_get_uint64(event, vmnet_estimated_packets_available_key))")
 
             // read as many packets as we can
             var pktsRead = Int32(maxPacketsPerRead) // max
@@ -213,13 +213,13 @@ class BridgeNetwork {
             }
 
             // send packets to tap
-            for i in 0..<Int(pktsRead) {
+            for i in 0 ..< Int(pktsRead) {
                 let pktDesc = pktDescs[i]
 
                 // sanity: never write a packet > 65535 bytes. that breaks the network, so just drop it
                 let vnetHdrSize = needsVnetHdr ? MemoryLayout<virtio_net_hdr>.size : 0
                 guard pktDesc.vm_pkt_size + vnetHdrSize <= 65535 else {
-                    //print("packet too big: \(pktDesc.vm_pkt_size + vnetHdrSize)")
+                    // print("packet too big: \(pktDesc.vm_pkt_size + vnetHdrSize)")
                     continue
                 }
 
@@ -247,10 +247,10 @@ class BridgeNetwork {
                 }
                 var iovs = [
                     iovec(iov_base: vnetHdr, iov_len: vnetHdrSize),
-                    iovec(iov_base: pkt.data, iov_len: pkt.len)
+                    iovec(iov_base: pkt.data, iov_len: pkt.len),
                 ]
                 let totalSize = pkt.len + vnetHdrSize
-                //print("writing \(totalSize) bytes to tap")
+                // print("writing \(totalSize) bytes to tap")
                 let ret = writev(guestFd, &iovs, 2)
                 guard ret == totalSize else {
                     if errno != ENOBUFS {
@@ -261,7 +261,7 @@ class BridgeNetwork {
             }
 
             // reset descs
-            for i in 0..<Int(pktsRead) {
+            for i in 0 ..< Int(pktsRead) {
                 pktDescs[i].vm_pkt_size = Int(maxPacketSize)
                 pktDescs[i].vm_pkt_iovcnt = 1
                 pktDescs[i].vm_flags = 0
@@ -269,7 +269,7 @@ class BridgeNetwork {
         }
         guard ret == .VMNET_SUCCESS else {
             // dealloc
-            for i in 0..<maxPacketsPerRead {
+            for i in 0 ..< maxPacketsPerRead {
                 hostReadIovs[i].iov_base?.deallocate()
             }
             hostReadIovs.deallocate()
@@ -281,9 +281,9 @@ class BridgeNetwork {
         // read from guest, write to vmnet
         if config.shouldReadGuest {
             guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPacketSize,
-                    onPacket: { [self] iov, len in
-                        tryWriteToHost(iov: iov, len: len)
-                    })
+                                      onPacket: { [self] iov, len in
+                                          tryWriteToHost(iov: iov, len: len)
+                                      })
         }
     }
 
@@ -300,9 +300,9 @@ class BridgeNetwork {
 
         // write to vmnet
         var pktDesc = vmpktdesc(vm_pkt_size: len,
-                vm_pkt_iov: iov,
-                vm_pkt_iovcnt: 1,
-                vm_flags: 0)
+                                vm_pkt_iov: iov,
+                                vm_pkt_iovcnt: 1,
+                                vm_flags: 0)
         var pktsWritten: Int32 = 1
         let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
         guard ret2 == .VMNET_SUCCESS else {
@@ -342,7 +342,7 @@ class BridgeNetwork {
         let sem = DispatchSemaphore(value: 0)
         ret = vmnetPktQueue.sync(flags: .barrier) {
             // sem still needed to wait for vmnet_stop_interface completion
-            return vmnet_stop_interface(ifRef, vmnetControlQueue) { status in
+            vmnet_stop_interface(ifRef, vmnetControlQueue) { status in
                 if status != .VMNET_SUCCESS {
                     NSLog("[brnet] stop status: \(VmnetError.from(status))")
                 }
@@ -363,7 +363,7 @@ class BridgeNetwork {
     deinit {
         // guestReader will get deinited too
         // safe to deallocate now that refs from callbacks are gone
-        for i in 0..<maxPacketsPerRead {
+        for i in 0 ..< maxPacketsPerRead {
             hostReadIovs[i].iov_base.deallocate()
         }
         hostReadIovs.deallocate()

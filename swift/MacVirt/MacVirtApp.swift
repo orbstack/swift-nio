@@ -63,7 +63,7 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
         return newID
     }
 
-    func feedURLString(for updater: SPUUpdater) -> String? {
+    func feedURLString(for _: SPUUpdater) -> String? {
         // installID % 100
         let uuidBytes = readInstallID().uuid
         // take a big endian uint32 of the first 4 bytes
@@ -74,17 +74,17 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
         let bucket = id4 % 100
 
         #if arch(arm64)
-        return "https://api-updates.orbstack.dev/arm64/appcast.xml?bucket=\(bucket)"
+            return "https://api-updates.orbstack.dev/arm64/appcast.xml?bucket=\(bucket)"
         #else
-        return "https://api-updates.orbstack.dev/amd64/appcast.xml?bucket=\(bucket)"
+            return "https://api-updates.orbstack.dev/amd64/appcast.xml?bucket=\(bucket)"
         #endif
     }
 
-    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+    func allowedChannels(for _: SPUUpdater) -> Set<String> {
         Set(["stable", Defaults[.updatesOptinChannel]])
     }
 
-    func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
+    func updaterWillRelaunchApplication(_: SPUUpdater) {
         // bypass menu bar termination hook
         AppLifecycle.forceTerminate = true
 
@@ -136,7 +136,7 @@ struct MacVirtApp: App {
 
         // redirect logs
         #if !DEBUG
-        freopen(Files.guiLog, "w+", stderr)
+            freopen(Files.guiLog, "w+", stderr)
         #endif
     }
 

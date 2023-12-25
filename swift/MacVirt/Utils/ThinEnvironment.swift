@@ -2,9 +2,9 @@
 // Created by Danny Lin on 9/5/23.
 //
 
+import Combine
 import Foundation
 import SwiftUI
-import Combine
 
 extension ObservableObject {
     func freeze() -> FrozenObservableObject<Self> {
@@ -28,8 +28,7 @@ class FrozenObservableObject<Object: ObservableObject>: ObservableObject {
 
 extension View {
     func environmentObjectWithFreeze<Object: ObservableObject>(_ obj: Object) -> some View {
-        self
-            .environmentObject(obj)
+        environmentObject(obj)
             .environmentObject(obj.freeze())
     }
 }
@@ -62,7 +61,8 @@ struct FrozenEnvKey<Object: ObservableObject, Value>: DynamicProperty {
     }
 
     init(_ valueKeyPath: KeyPath<Object, Value>,
-         _ publisherKeyPath: KeyPath<Object, Published<Value>.Publisher>) {
+         _ publisherKeyPath: KeyPath<Object, Published<Value>.Publisher>)
+    {
         keyObserver.setup(initialValue: frozenObj.obj[keyPath: valueKeyPath],
                           publisher: frozenObj.obj[keyPath: publisherKeyPath])
     }

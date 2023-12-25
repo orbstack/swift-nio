@@ -2,11 +2,11 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
-import SwiftUI
-import LaunchAtLogin
 import Combine
+import Foundation
+import LaunchAtLogin
 import Sparkle
+import SwiftUI
 
 private enum DirItem: Hashable {
     case def
@@ -50,16 +50,16 @@ struct StorageSettingsView: View {
                 }
 
                 Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
-                .onChange(of: mountHideShared) { newValue in
-                    vmModel.trySetConfigKey(\.mountHideShared, newValue)
-                }
+                    .onChange(of: mountHideShared) { newValue in
+                        vmModel.trySetConfigKey(\.mountHideShared, newValue)
+                    }
                 VStack {
                     Picker(selection: selBinding, label: Text("Data location")) {
                         Text("Default").tag(DirItem.def)
                         Divider()
                         if let dataDir {
                             Text(dataDir.split(separator: "/").last ?? "Custom")
-                            .tag(DirItem.custom(dataDir))
+                                .tag(DirItem.custom(dataDir))
                         }
                         Divider()
                         Text("Other…").tag(DirItem.other)
@@ -68,7 +68,7 @@ struct StorageSettingsView: View {
                 .frame(maxWidth: 256)
 
                 Spacer()
-                .frame(height: 32)
+                    .frame(height: 32)
 
                 Button("Reset Docker Data", role: .destructive) {
                     presentConfirmResetDockerData = true
@@ -83,7 +83,7 @@ struct StorageSettingsView: View {
                 }
 
                 Spacer()
-                .frame(height: 32)
+                    .frame(height: 32)
 
                 Button(action: {
                     Task {
@@ -160,7 +160,8 @@ struct StorageSettingsView: View {
         let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
         panel.beginSheetModal(for: window) { result in
             if result == .OK,
-               let url = panel.url {
+               let url = panel.url
+            {
                 if url.path == Folders.userData {
                     vmModel.trySetConfigKey(\.dataDir, nil)
                 } else {

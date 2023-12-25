@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct MachinesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
@@ -23,9 +23,9 @@ struct MachinesRootView: View {
                         // see DockerContainerItem for rowHeight calculation
                         AKList(filteredContainers, selection: $selection, rowHeight: 48) { container in
                             MachineContainerItem(record: container)
-                            .environmentObject(vmModel)
-                            .environmentObject(windowTracker)
-                            .environmentObject(actionTracker)
+                                .environmentObject(vmModel)
+                                .environmentObject(windowTracker)
+                                .environmentObject(actionTracker)
                         }
                     } else {
                         Spacer()
@@ -51,11 +51,11 @@ struct MachinesRootView: View {
                             Spacer()
                             VStack(spacing: 8) {
                                 Text("Looking for Docker?")
-                                        .font(.title3)
-                                        .bold()
+                                    .font(.title3)
+                                    .bold()
                                 Text("You don’t need a Linux machine.")
-                                        .font(.body)
-                                        .padding(.bottom, 8)
+                                    .font(.body)
+                                    .padding(.bottom, 8)
                                 Button(action: {
                                     vmModel.selection = .containers
                                 }) {
@@ -75,13 +75,13 @@ struct MachinesRootView: View {
                     HStack {
                         Text("Creating")
                         ProgressView()
-                                .scaleEffect(0.5)
-                                .frame(width: 16, height: 16)
+                            .scaleEffect(0.5)
+                            .frame(width: 16, height: 16)
                     }
-                            .padding(8)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                            .opacity(creatingOpacity)
-                            .padding(16)
+                    .padding(8)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .opacity(creatingOpacity)
+                    .padding(16)
                 })
             } else {
                 ProgressView(label: {

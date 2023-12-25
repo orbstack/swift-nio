@@ -27,9 +27,9 @@ struct CreateContainerView: View {
     @State private var isNameInvalid = false
     @State private var duplicateHeight = 0.0
     #if arch(arm64)
-    @State private var arch = "arm64"
+        @State private var arch = "arm64"
     #else
-    @State private var arch = "amd64"
+        @State private var arch = "amd64"
     #endif
     @State private var distro = Distro.ubuntu
     @State private var version = Distro.ubuntu.versions.last!.key
@@ -40,8 +40,8 @@ struct CreateContainerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("New Machine")
-                    .font(.headline.weight(.semibold))
-                    .padding(.bottom, 8)
+                .font(.headline.weight(.semibold))
+                .padding(.bottom, 8)
 
             Form {
                 Section {
@@ -53,19 +53,19 @@ struct CreateContainerView: View {
                     })
 
                     TextField("Name", text: nameBinding)
-                    .onSubmit {
-                        create()
-                    }
+                        .onSubmit {
+                            create()
+                        }
 
                     let errorText = isNameInvalid ? "Invalid name" : "Already exists"
                     Text(errorText)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .frame(maxHeight: duplicateHeight)
-                            .clipped()
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .frame(maxHeight: duplicateHeight)
+                        .clipped()
 
                     Spacer()
-                    .frame(height: 20)
+                        .frame(height: 20)
 
                     Picker("Distribution", selection: $distro) {
                         ForEach(Distro.allCases, id: \.self) { distro in
@@ -83,12 +83,12 @@ struct CreateContainerView: View {
                     }.disabled(distro.versions.count == 1)
 
                     #if arch(arm64)
-                    Picker("CPU type", selection: $arch) {
-                        Text("Apple").tag("arm64")
-                        Text("Intel").tag("amd64")
-                    }
-                            .pickerStyle(.segmented)
-                            .disabled(distro == .nixos)
+                        Picker("CPU type", selection: $arch) {
+                            Text("Apple").tag("arm64")
+                            Text("Intel").tag("amd64")
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(distro == .nixos)
                     #endif
 
                     Spacer()
@@ -154,10 +154,10 @@ struct CreateContainerView: View {
             }
 
             #if arch(arm64)
-            // NixOS doesn't work with Rosetta
-            if $0 == .nixos {
-                arch = "arm64"
-            }
+                // NixOS doesn't work with Rosetta
+                if $0 == .nixos {
+                    arch = "arm64"
+                }
             #endif
 
             version = $0.versions.last!.key
@@ -184,7 +184,8 @@ struct CreateContainerView: View {
         let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
         panel.beginSheetModal(for: window) { result in
             if result == .OK,
-               let url = panel.url {
+               let url = panel.url
+            {
                 cloudInitFile = url
             }
         }
@@ -192,7 +193,8 @@ struct CreateContainerView: View {
 
     private func checkName(_ newName: String, animate: Bool = true) {
         if let containers = vmModel.containers,
-           containers.contains(where: { $0.name == newName }) {
+           containers.contains(where: { $0.name == newName })
+        {
             isNameDuplicate = true
         } else {
             isNameDuplicate = false
@@ -200,7 +202,7 @@ struct CreateContainerView: View {
 
         // regex
         let isValid = containerNameRegex.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) != nil &&
-                !containerNameBlacklist.contains(newName)
+            !containerNameBlacklist.contains(newName)
         if !newName.isEmpty && !isValid {
             isNameInvalid = true
         } else {
@@ -228,7 +230,7 @@ struct CreateContainerView: View {
 
         Task { @MainActor in
             await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch,
-                    cloudInitUserData: cloudInitFile)
+                                             cloudInitUserData: cloudInitFile)
         }
         isPresented = false
     }

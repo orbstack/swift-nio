@@ -38,7 +38,7 @@ class ActivityTracker {
 
     init() {
         // can't set self closure until fields inited
-        debounce = FuncDebounce(delay: idleDelay) { }
+        debounce = FuncDebounce(delay: idleDelay) {}
         debounce.action = onIdle
     }
 

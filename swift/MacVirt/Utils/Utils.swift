@@ -4,7 +4,7 @@
 
 import AppKit
 
-// TODO based on beta
+// TODO: based on beta
 private let KILLSWITCH_EXPIRE_DAYS = -1.0
 
 func processIsTranslated() -> Bool {
@@ -26,7 +26,7 @@ func readKillswitchTime() throws -> NSDate {
     }
 
     throw NSError(domain: "MacVirt", code: 1, userInfo: [
-        NSLocalizedDescriptionKey: "Failed to read killswitch time"
+        NSLocalizedDescriptionKey: "Failed to read killswitch time",
     ])
 }
 
@@ -104,7 +104,7 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
 
 func runAsAdmin(script shellScript: String, prompt: String = "") throws {
     let escapedSh = shellScript.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
+        .replacingOccurrences(of: "\"", with: "\\\"")
     let appleScript = "do shell script \"\(escapedSh)\" with administrator privileges with prompt \"\(prompt)\""
     let script = NSAppleScript(source: appleScript)
     guard script != nil else {
@@ -183,7 +183,7 @@ extension String {
     }
 }
 
-struct Folders {
+enum Folders {
     static let home = FileManager.default.homeDirectoryForCurrentUser.path
     static let nfsName = "OrbStack"
     static let nfs = "\(home)/\(nfsName)"
@@ -199,7 +199,7 @@ struct Folders {
     static let userData = "\(appData)/data"
 }
 
-struct Files {
+enum Files {
     static let dockerDaemonConfig = "\(Folders.config)/docker.json"
     static let dockerSocket = "\(Folders.run)/docker.sock"
     static let vmgrSocket = "\(Folders.run)/vmcontrol.sock"
@@ -209,25 +209,25 @@ struct Files {
     static let installId = "\(Folders.appData)/.installid"
 }
 
-struct ContainerIds {
+enum ContainerIds {
     static let docker = "01GQQVF6C60000000000DOCKER"
     static let k8s = docker
 }
 
-struct AppleEvents {
+enum AppleEvents {
     static func sendReopen(targetDescriptor: NSAppleEventDescriptor) {
         let event = NSAppleEventDescriptor.appleEvent(withEventClass: kCoreEventClass,
-                eventID: kAEReopenApplication,
-                targetDescriptor: targetDescriptor,
-                returnID: AEReturnID(kAutoGenerateReturnID),
-                transactionID: AETransactionID(kAnyTransactionID))
+                                                      eventID: kAEReopenApplication,
+                                                      targetDescriptor: targetDescriptor,
+                                                      returnID: AEReturnID(kAutoGenerateReturnID),
+                                                      transactionID: AETransactionID(kAnyTransactionID))
         AESendMessage(event.aeDesc, nil, AESendMode(kAENoReply), kAEDefaultTimeout)
     }
 }
 
 private let dockerDesktopLastUsedThreshold: TimeInterval = 1 * 30 * 24 * 60 * 60 // 1 month
 
-struct InstalledApps {
+enum InstalledApps {
     // lazy init
     static let dockerDesktopRecentlyUsed = isDockedDesktopRecentlyUsed()
     static func isDockedDesktopRecentlyUsed() -> Bool {
@@ -260,13 +260,15 @@ struct InstalledApps {
             .compactMap { bundleId in
                 if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first,
                    let launchDate = runningApp.launchDate,
-                   let bundleURL = runningApp.bundleURL {
+                   let bundleURL = runningApp.bundleURL
+                {
                     return (BundleInfo(id: bundleId, url: bundleURL), true, launchDate)
                 }
 
                 if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
                    let attributes = NSMetadataItem(url: bundleUrl),
-                   let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date {
+                   let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date
+                {
                     return (BundleInfo(id: bundleId, url: bundleUrl), false, date)
                 }
 
@@ -288,7 +290,7 @@ struct BundleInfo {
     let url: URL
 }
 
-struct Users {
+enum Users {
     static let gidAdmin: gid_t = 80
 
     // lazy init
@@ -304,7 +306,7 @@ struct Users {
     }
 }
 
-struct K8sConstants {
+enum K8sConstants {
     static let context = "orbstack"
     static let apiResId = K8SResourceId.service(namespace: "default", name: "kubernetes")
 }

@@ -15,7 +15,7 @@ private func makeRelativeDateFormatter() -> RelativeDateTimeFormatter {
 enum K8SResourceId: Equatable, Identifiable, Hashable {
     // uid isn't very useful. it breaks using ID as a check
     // (node, namespace, name) is unique
-    // TODO maybe we do want uid, but exclude it from Identifiable and Hashable for matching
+    // TODO: maybe we do want uid, but exclude it from Identifiable and Hashable for matching
     case pod(namespace: String, name: String)
     case deployment(namespace: String, name: String)
     case statefulSet(namespace: String, name: String)
@@ -36,41 +36,41 @@ enum K8SResourceId: Equatable, Identifiable, Hashable {
         "\(namespace)/\(name)"
     }
 
-    // TODO there's gotta be a better way to do this
+    // TODO: there's gotta be a better way to do this
     var name: String {
         switch self {
-        case .pod(_, let name):
+        case let .pod(_, name):
             return name
-        case .deployment(_, let name):
+        case let .deployment(_, name):
             return name
-        case .statefulSet(_, let name):
+        case let .statefulSet(_, name):
             return name
-        case .daemonSet(_, let name):
+        case let .daemonSet(_, name):
             return name
-        case .job(_, let name):
+        case let .job(_, name):
             return name
-        case .replicaSet(_, let name):
+        case let .replicaSet(_, name):
             return name
-        case .service(_, let name):
+        case let .service(_, name):
             return name
         }
     }
 
     var namespace: String {
         switch self {
-        case .pod(let namespace, _):
+        case let .pod(namespace, _):
             return namespace
-        case .deployment(let namespace, _):
+        case let .deployment(namespace, _):
             return namespace
-        case .statefulSet(let namespace, _):
+        case let .statefulSet(namespace, _):
             return namespace
-        case .daemonSet(let namespace, _):
+        case let .daemonSet(namespace, _):
             return namespace
-        case .job(let namespace, _):
+        case let .job(namespace, _):
             return namespace
-        case .replicaSet(let namespace, _):
+        case let .replicaSet(namespace, _):
             return namespace
-        case .service(let namespace, _):
+        case let .service(namespace, _):
             return namespace
         }
     }
@@ -142,8 +142,8 @@ struct K8SPod: K8SResource, Codable, Equatable, Hashable {
     }
 
     var preferredDomain: String {
-        // TODO domains
-        //"\(name).\(namespace).svc.cluster.local"
+        // TODO: domains
+        // "\(name).\(namespace).svc.cluster.local"
         status.podIP ?? "localhost"
     }
 
@@ -153,14 +153,14 @@ struct K8SPod: K8SResource, Codable, Equatable, Hashable {
 
     var ageStr: String {
         relativeDateFormatter.localizedString(for: metadata.creationTimestamp, relativeTo: Date())
-            // TODO do this better
+            // TODO: do this better
             .replacingOccurrences(of: " ago", with: "")
             .replacingOccurrences(of: "in ", with: "")
     }
 }
 
 struct K8SPodMetadata: Codable, Equatable, Hashable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let name: String
     let namespace: String
     let uid: String
@@ -171,7 +171,7 @@ struct K8SPodMetadata: Codable, Equatable, Hashable {
 }
 
 struct K8SPodOwnerReference: Codable, Equatable, Hashable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let apiVersion: String?
     let kind: String?
     let name: String?
@@ -181,7 +181,7 @@ struct K8SPodOwnerReference: Codable, Equatable, Hashable {
 }
 
 struct K8SPodSpec: Codable, Equatable, Hashable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let serviceAccount: String?
     let serviceAccountName: String?
     let nodeName: String?
@@ -190,7 +190,7 @@ struct K8SPodSpec: Codable, Equatable, Hashable {
 }
 
 struct K8SPodToleration: Codable, Equatable, Hashable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let key: String?
     let op: String?
     let effect: String?
@@ -215,7 +215,7 @@ struct K8SPodStatus: Codable, Equatable, Hashable {
 }
 
 struct K8SContainerStatus: Codable, Equatable, Hashable, Identifiable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let name: String?
     // I think this is polymorphic
     let state: K8SContainerState?
@@ -309,7 +309,7 @@ struct K8SService: K8SResource, Codable, Equatable, Hashable {
         return "\(preferredDomain):\(firstPort.port)"
     }
 
-    func wrapURL(host: String) -> String? {
+    func wrapURL(host _: String) -> String? {
         let tcpPort = spec.ports?.first(where: { $0.match(proto: "TCP", port: 443, name: "https") })
             ?? spec.ports?.first(where: { $0.match(proto: "TCP", port: 80, name: "http") })
         guard let tcpPort else { return nil }
@@ -341,7 +341,7 @@ struct K8SService: K8SResource, Codable, Equatable, Hashable {
     var isWebService: Bool {
         spec.ports?.contains { port in
             port.proto == "TCP" &&
-                    (port.match(proto: "TCP", port: 443, name: "https") ||
+                (port.match(proto: "TCP", port: 443, name: "https") ||
                     port.match(proto: "TCP", port: 80, name: "http"))
         } ?? false
     }
@@ -352,14 +352,14 @@ struct K8SService: K8SResource, Codable, Equatable, Hashable {
 
     var ageStr: String {
         relativeDateFormatter.localizedString(for: metadata.creationTimestamp, relativeTo: Date())
-        // TODO do this better
-        .replacingOccurrences(of: " ago", with: "")
-        .replacingOccurrences(of: "in ", with: "")
+            // TODO: do this better
+            .replacingOccurrences(of: " ago", with: "")
+            .replacingOccurrences(of: "in ", with: "")
     }
 }
 
 struct K8SServiceMetadata: Codable, Equatable, Hashable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let name: String
     let namespace: String
     let uid: String
@@ -370,7 +370,7 @@ struct K8SServiceMetadata: Codable, Equatable, Hashable {
 }
 
 struct K8SServiceSpec: Codable, Equatable, Hashable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let clusterIP: String?
     let clusterIPs: [String]?
     let ipFamilies: [String]?
@@ -389,11 +389,11 @@ enum K8SServiceType: String, Codable, Equatable, Hashable {
 }
 
 struct K8SServicePort: Codable, Equatable, Hashable, Identifiable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let name: String?
     let proto: String?
     let port: Int
-    //let targetPort: IntOrString? // can be string
+    // let targetPort: IntOrString? // can be string
     let nodePort: Int?
     let appProtocol: String?
 
@@ -403,22 +403,22 @@ struct K8SServicePort: Codable, Equatable, Hashable, Identifiable {
 
     func match(proto: String, port: Int, name: String) -> Bool {
         self.proto == proto &&
-                (self.port == port || self.nodePort == port ||
-                        self.appProtocol == name || self.name == name)
+            (self.port == port || nodePort == port ||
+                appProtocol == name || self.name == name)
     }
 
     enum CodingKeys: String, CodingKey {
         case name
         case proto = "protocol"
         case port
-        //case targetPort
+        // case targetPort
         case nodePort
         case appProtocol
     }
 }
 
 struct K8SServiceStatus: Codable, Equatable, Hashable {
-    // TODO what's optional?
+    // TODO: what's optional?
     // polymorphic?
     let loadBalancer: K8SServiceLoadBalancer?
 }
@@ -428,6 +428,6 @@ struct K8SServiceLoadBalancer: Codable, Equatable, Hashable {
 }
 
 struct K8SServiceLoadBalancerIngress: Codable, Equatable, Hashable {
-    // TODO what's optional?
+    // TODO: what's optional?
     let ip: String?
 }

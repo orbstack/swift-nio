@@ -2,12 +2,12 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
-import SwiftUI
-import LaunchAtLogin
 import Combine
-import Sparkle
 import Defaults
+import Foundation
+import LaunchAtLogin
+import Sparkle
+import SwiftUI
 
 // need class to store published
 private class MachineSettingsViewModel: ObservableObject {
@@ -38,26 +38,26 @@ struct MachineSettingsView: View {
         SettingsStateWrapperView {
             Form {
                 #if arch(arm64)
-                Group {
-                    if #available(macOS 13, *) {
-                        Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
-                        .onChange(of: enableRosetta) { newValue in
-                            vmModel.trySetConfigKey(\.rosetta, newValue)
+                    Group {
+                        if #available(macOS 13, *) {
+                            Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
+                                .onChange(of: enableRosetta) { newValue in
+                                    vmModel.trySetConfigKey(\.rosetta, newValue)
+                                }
+                            Text("Faster. Only disable if you run into compatibility issues.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Toggle("Use Rosetta to run Intel code", isOn: .constant(false))
+                                .disabled(true)
+                            Text("Requires macOS 13 or newer")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                         }
-                        Text("Faster. Only disable if you run into compatibility issues.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    } else {
-                        Toggle("Use Rosetta to run Intel code", isOn: .constant(false))
-                        .disabled(true)
-                        Text("Requires macOS 13 or newer")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    }
 
-                    Spacer()
-                    .frame(height: 32)
-                }
+                        Spacer()
+                            .frame(height: 32)
+                    }
                 #endif
 
                 Group {
@@ -66,12 +66,12 @@ struct MachineSettingsView: View {
                     // e.g. up to 28 GiB on 32 GiB Macs
                     // OK because of macOS compression
                     let maxMemoryMib = max(systemMemMib * 0.80, systemMemMib - 4096)
-                    Slider(value: $model.memoryMib, in: 1024...maxMemoryMib, step: 1024) {
+                    Slider(value: $model.memoryMib, in: 1024 ... maxMemoryMib, step: 1024) {
                         VStack(alignment: .trailing) {
                             Text("Memory limit")
                             Text("\(model.memoryMib / 1024, specifier: "%.0f") GiB")
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(.secondary)
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.secondary)
                         }
                     } minimumValueLabel: {
                         Text("1 GiB")
@@ -83,14 +83,14 @@ struct MachineSettingsView: View {
                     }
 
                     let maxCpu = ProcessInfo.processInfo.processorCount
-                    Slider(value: $cpu, in: 1...Double(maxCpu), step: 1) {
+                    Slider(value: $cpu, in: 1 ... Double(maxCpu), step: 1) {
                         VStack(alignment: .trailing) {
                             Text("CPU limit")
                             let intCpu = Int(cpu + 0.5)
                             let label = (intCpu == maxCpu) ? "None" : "\(intCpu)00%"
                             Text(label)
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(.secondary)
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.secondary)
                         }
                     } minimumValueLabel: {
                         Text("100%")
@@ -101,38 +101,38 @@ struct MachineSettingsView: View {
                         vmModel.trySetConfigKey(\.cpu, UInt(newValue))
                     }
                     Text("Resources are used on demand, up to these limits. [Learn more](https://go.orbstack.dev/res-limits)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
 
                 Spacer()
-                .frame(height: 32)
+                    .frame(height: 32)
 
                 Toggle("Switch Docker & Kubernetes context automatically", isOn: $dockerSetContext)
-                .onChange(of: dockerSetContext) { newValue in
-                    vmModel.trySetConfigKey(\.dockerSetContext, newValue)
-                }
+                    .onChange(of: dockerSetContext) { newValue in
+                        vmModel.trySetConfigKey(\.dockerSetContext, newValue)
+                    }
 
                 let adminBinding = Binding<Bool>(
-                        get: { Users.hasAdmin && setupUseAdmin },
-                        set: { newValue in
-                            if newValue {
-                                vmModel.trySetConfigKey(\.setupUseAdmin, true)
-                                // reset dismiss count
-                                Defaults[.adminDismissCount] = 0
-                            } else {
-                                presentDisableAdmin = true
-                            }
+                    get: { Users.hasAdmin && setupUseAdmin },
+                    set: { newValue in
+                        if newValue {
+                            vmModel.trySetConfigKey(\.setupUseAdmin, true)
+                            // reset dismiss count
+                            Defaults[.adminDismissCount] = 0
+                        } else {
+                            presentDisableAdmin = true
                         }
+                    }
                 )
                 Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
-                .disabled(!Users.hasAdmin) // disabled + false if no admin
+                    .disabled(!Users.hasAdmin) // disabled + false if no admin
                 Text("This can improve performance and compatibility. [Learn more](https://go.orbstack.dev/admin)")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
 
                 Spacer()
-                .frame(height: 32)
+                    .frame(height: 32)
 
                 Button(action: {
                     Task {
@@ -165,10 +165,10 @@ struct MachineSettingsView: View {
             }
         } message: {
             Text("""
-                 This will disable performance improvements, better Docker compatibility, and potentially more features in the future.
+            This will disable performance improvements, better Docker compatibility, and potentially more features in the future.
 
-                 We recommend keeping this on.
-                 """)
+            We recommend keeping this on.
+            """)
         }
     }
 

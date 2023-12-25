@@ -23,37 +23,38 @@ struct DockerVolumeItem: View {
 
         let deletionList = resolveActionList()
         let deleteConfirmMsg = deletionList.count > 1 ?
-                "Delete \(deletionList.count) volumes?" :
-                "Delete \(deletionList.joined())?"
+            "Delete \(deletionList.count) volumes?" :
+            "Delete \(deletionList.joined())?"
 
         HStack {
             HStack {
                 let color = SystemColors.forString(volume.name)
                 Image(systemName: "externaldrive.fill")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
-                        .padding(.trailing, 8)
-                        .foregroundColor(color)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 32, height: 32)
+                    .padding(.trailing, 8)
+                    .foregroundColor(color)
 
                 VStack(alignment: .leading) {
                     Text(volume.name)
-                            .font(.body)
-                            .truncationMode(.tail)
-                            .lineLimit(1)
+                        .font(.body)
+                        .truncationMode(.tail)
+                        .lineLimit(1)
 
                     // can we find the size from system df?
                     if let dockerDf = vmModel.dockerSystemDf,
                        let dfVolume = dockerDf.volumes.first(where: { $0.name == volume.name }),
-                       let usageData = dfVolume.usageData {
+                       let usageData = dfVolume.usageData
+                    {
                         let fmtSize = ByteCountFormatter.string(fromByteCount: usageData.size, countStyle: .file)
                         Text("\(fmtSize), created \(volume.formattedCreatedAt)")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     } else {
                         Text("Created \(volume.formattedCreatedAt)")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -63,15 +64,16 @@ struct DockerVolumeItem: View {
                 openFolder()
             }) {
                 Image(systemName: "folder.fill")
-                // match ProgressIconButton size
-                .frame(width: 24, height: 24)
+                    // match ProgressIconButton size
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(.borderless)
             .disabled(actionInProgress)
             .help("Open volume")
 
             ProgressIconButton(systemImage: "trash.fill",
-                    actionInProgress: actionInProgress) {
+                               actionInProgress: actionInProgress)
+            {
                 // skip confirmation if Option pressed
                 if CGKeyCode.optionKeyPressed {
                     finishDelete()
@@ -87,7 +89,8 @@ struct DockerVolumeItem: View {
             openFolder()
         }
         .confirmationDialog(deleteConfirmMsg,
-                isPresented: $presentConfirmDelete) {
+                            isPresented: $presentConfirmDelete)
+        {
             Button("Delete", role: .destructive) {
                 finishDelete()
             }

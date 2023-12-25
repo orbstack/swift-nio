@@ -2,10 +2,10 @@
 // Created by Danny Lin on 5/22/23.
 //
 
-import Foundation
 import AppKit
 import CBridge
 import Defaults
+import Foundation
 
 private let guiBundleId = "dev.kdrag0n.MacVirt"
 
@@ -16,7 +16,7 @@ struct UserSettings: Codable {
 
 private func getUserSettings() -> UserSettings {
     return UserSettings(
-        // TODO better way to tell Go about GUI running
+        // TODO: better way to tell Go about GUI running
         showMenubarExtra: Defaults[.globalShowMenubarExtra] && !isGuiRunning(),
         updatesOptinChannel: Defaults[.updatesOptinChannel]
     )

@@ -1,6 +1,6 @@
 import Foundation
 
-struct HelperServer {
+enum HelperServer {
     static func symlink(req: PHSymlinkRequest) throws {
         activityTracker.begin()
         defer { activityTracker.end() }
@@ -9,7 +9,8 @@ struct HelperServer {
 
         // security: only allow dest to /usr/local/bin/* and /var/run/docker.sock
         guard req.dest == "/var/run/docker.sock" ||
-                      (req.dest.starts(with: "/usr/local/bin/") && !req.dest.contains("..")) else {
+            (req.dest.starts(with: "/usr/local/bin/") && !req.dest.contains(".."))
+        else {
             throw PHSymlinkError.pathNotAllowed
         }
 

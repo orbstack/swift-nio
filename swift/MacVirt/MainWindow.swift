@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  MainWindow.swift
 //  MacVirt
 //
 //  Created by Danny Lin on 1/11/23.

@@ -97,18 +97,18 @@ private struct DockerContainerListItemView: View {
 
     var body: some View {
         switch item {
-        case .sectionLabel(let label):
+        case let .sectionLabel(label):
             Text(label)
                 .font(.subheadline.bold())
                 .foregroundColor(.secondary)
-        case .container(let container):
+        case let .container(container):
             DockerContainerItem(container: container, isFirstInList: isFirstInList)
                 .equatable()
-        case .compose(let group, _):
+        case let .compose(group, _):
             DockerComposeGroupItem(composeGroup: group,
                                    isFirstInList: isFirstInList)
                 .equatable()
-        case .k8sGroup(let group, _):
+        case let .k8sGroup(group, _):
             DockerK8sGroupItem(group: group)
                 .equatable()
         }
@@ -194,7 +194,7 @@ private struct DockerContainersList: View {
             // special case: show example http://localhost if only visible container is getting-started
             // getting started hint box moves to bottom in this case
             if flatList.count == 1,
-               case .container(let container) = flatList[0],
+               case let .container(container) = flatList[0],
                container.image == "docker/getting-started"
             {
                 VStack {

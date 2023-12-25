@@ -24,7 +24,7 @@ struct ProgressIconButton: View {
             ZStack {
                 if actionInProgress {
                     ProgressView()
-                    .scaleEffect(0.75)
+                        .scaleEffect(0.75)
                 } else {
                     Image(systemName: systemImage)
                 }

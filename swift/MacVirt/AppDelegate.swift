@@ -19,7 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private var menuBar: MenuBarController?
 
-    func applicationWillFinishLaunching(_ notification: Notification) {
+    func applicationWillFinishLaunching(_: Notification) {
         UNUserNotificationCenter.current().delegate = self
 
         // don't allow opening duplicate app instance - just activate old one
@@ -42,8 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    func applicationDidFinishLaunching(_ aNotification: Notification) {
-
+    func applicationDidFinishLaunching(_: Notification) {
         if !AppConfig.debug {
             SentrySDK.start { options in
                 options.dsn = "https://fc975a3abcaa9803fc2405d8b4bb3b62@o120089.ingest.sentry.io/4504665519554560"
@@ -165,7 +164,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+    func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows: Bool) -> Bool {
         // normal behavior if hasVisibleWindows
         if hasVisibleWindows {
             return true
@@ -184,7 +183,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         return true
     }
 
-    func application(_ application: NSApplication, open urls: [URL]) {
+    func application(_: NSApplication, open urls: [URL]) {
         for url in urls {
             guard url.scheme == "orbstack" else {
                 continue
@@ -220,7 +219,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     // notification
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    func userNotificationCenter(_: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         if let url = (response.notification.request.content.userInfo["url"] as? String)?.toURL() {
             NSWorkspace.shared.open(url)
         }

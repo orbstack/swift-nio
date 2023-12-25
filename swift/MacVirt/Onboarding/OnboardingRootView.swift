@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/6/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct VisualEffectView: NSViewRepresentable {
     let blendingMode: NSVisualEffectView.BlendingMode
@@ -13,13 +13,14 @@ struct VisualEffectView: NSViewRepresentable {
 
     init(blendingMode: NSVisualEffectView.BlendingMode = .behindWindow,
          state: NSVisualEffectView.State = .followsWindowActiveState,
-         material: NSVisualEffectView.Material = .underWindowBackground) {
+         material: NSVisualEffectView.Material = .underWindowBackground)
+    {
         self.blendingMode = blendingMode
         self.state = state
         self.material = material
     }
 
-    func makeNSView(context: Context) -> NSVisualEffectView {
+    func makeNSView(context _: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
 
         view.blendingMode = blendingMode
@@ -29,8 +30,7 @@ struct VisualEffectView: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-    }
+    func updateNSView(_: NSVisualEffectView, context _: Context) {}
 }
 
 protocol OnboardingController {

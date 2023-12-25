@@ -16,11 +16,11 @@ private class CursorView: NSView {
 private struct CursorRegion: NSViewRepresentable {
     let cursor: NSCursor
 
-    func makeNSView(context: Context) -> CursorView {
+    func makeNSView(context _: Context) -> CursorView {
         return CursorView(frame: .zero)
     }
 
-    func updateNSView(_ nsView: CursorView, context: Context) {
+    func updateNSView(_ nsView: CursorView, context _: Context) {
         nsView.cursor = cursor
     }
 }

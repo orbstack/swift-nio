@@ -2,10 +2,10 @@
 // Created by Danny Lin on 5/7/23.
 //
 
-import Foundation
-import SwiftUI
 import Combine
 import Defaults
+import Foundation
+import SwiftUI
 
 private let maxLines = 5000
 private let maxChars = maxLines * 150 // avg line len - easier to do it like this
@@ -33,7 +33,7 @@ private let ansiColorPalette: [NSColor] = [
 
     // bright colors
     .systemGray, // "bright black" is used for dim text: echo -e '\e[90m2023-09-01T00:48:52.163\e[0m Starting'
-    // TODO blend 0.4 with textColor, for light and dark
+    // TODO: blend 0.4 with textColor, for light and dark
     .systemRed,
     .systemGreen,
     .systemOrange,
@@ -147,14 +147,14 @@ private class AsyncPipeReader {
 }
 
 private class CommandViewModel: ObservableObject {
-    let searchCommand = PassthroughSubject<(), Never>()
-    let clearCommand = PassthroughSubject<(), Never>()
-    let copyAllCommand = PassthroughSubject<(), Never>()
+    let searchCommand = PassthroughSubject<Void, Never>()
+    let clearCommand = PassthroughSubject<Void, Never>()
+    let copyAllCommand = PassthroughSubject<Void, Never>()
 }
 
 private class LogsViewModel: ObservableObject {
     var contents = NSMutableAttributedString()
-    let updateEvent = PassthroughSubject<(), Never>()
+    let updateEvent = PassthroughSubject<Void, Never>()
 
     var process: Process?
     private var lastAnsiState = AnsiState()
@@ -183,13 +183,16 @@ private class LogsViewModel: ObservableObject {
             }
 
             if case let .container(containerId) = cid,
-               containers.contains(where: { $0.id == containerId && $0.running }) {
+               containers.contains(where: { $0.id == containerId && $0.running })
+            {
                 self.restart()
             } else if let lastContainerName,
-                      containers.contains(where: { $0.names.contains(lastContainerName) && $0.running }) {
+                      containers.contains(where: { $0.names.contains(lastContainerName) && $0.running })
+            {
                 self.restart()
             } else if case let .compose(composeProject) = cid,
-                      containers.contains(where: { $0.composeProject == composeProject && $0.running }) {
+                      containers.contains(where: { $0.composeProject == composeProject && $0.running })
+            {
                 self.restart()
             }
         }.store(in: &cancellables)
@@ -365,19 +368,19 @@ private class LogsViewModel: ObservableObject {
                     state.bold = true
                 case 4:
                     state.underline = true
-                case 30...37:
+                case 30 ... 37:
                     state.colorFg = code - 30
                 case 39:
                     state.colorFg = nil
-                case 40...47:
+                case 40 ... 47:
                     state.colorBg = code - 40
                 case 49:
                     state.colorBg = nil
                 // bright = bold + color
-                case 90...97:
+                case 90 ... 97:
                     state.colorFg = 8 + code - 90
                     state.bold = true
-                case 100...107:
+                case 100 ... 107:
                     state.colorBg = 8 + code - 100
                     state.bold = true
                 default:
@@ -460,16 +463,17 @@ private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
     // this method: search works, no ugly selection, centered spacing, no recycling
     // https://christiantietze.de/posts/2017/07/nstextview-proper-line-height/
     func layoutManager(
-            _ layoutManager: NSLayoutManager,
-            shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
-            lineFragmentUsedRect: UnsafeMutablePointer<NSRect>,
-            baselineOffset: UnsafeMutablePointer<CGFloat>,
-            in textContainer: NSTextContainer,
-            forGlyphRange glyphRange: NSRange) -> Bool {
+        _: NSLayoutManager,
+        shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
+        lineFragmentUsedRect: UnsafeMutablePointer<NSRect>,
+        baselineOffset: UnsafeMutablePointer<CGFloat>,
+        in _: NSTextContainer,
+        forGlyphRange _: NSRange
+    ) -> Bool {
         let lineHeight = fontLineHeight * terminalLineHeight
         let baselineNudge = (lineHeight - fontLineHeight)
-                // The following factor is a result of experimentation:
-                * 0.6
+            // The following factor is a result of experimentation:
+            * 0.6
 
         var rect = lineFragmentRect.pointee
         rect.size.height = lineHeight
@@ -487,11 +491,11 @@ private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
     // this works, but puts all padding at the bottom,
     // and causes visible lines appearing/disappearing at top/bottom when scrolling slowly
     /*
-    func layoutManager(_ layoutManager: NSLayoutManager, lineSpacingAfterGlyphAt glyphIndex: Int,
-                       withProposedLineFragmentRect rect: NSRect) -> CGFloat {
-        5
-    }
-     */
+     func layoutManager(_ layoutManager: NSLayoutManager, lineSpacingAfterGlyphAt glyphIndex: Int,
+                        withProposedLineFragmentRect rect: NSRect) -> CGFloat {
+         5
+     }
+      */
 }
 
 private struct LogsTextView: NSViewRepresentable {
@@ -537,8 +541,8 @@ private struct LogsTextView: NSViewRepresentable {
             .throttle(for: 0.035, scheduler: DispatchQueue.main, latest: true)
             .sink { [weak textView] _ in
                 guard let textView else { return }
-                // TODO only scroll if at bottom
-                //let shouldScroll = abs(textView.visibleRect.maxY - textView.bounds.maxY) < bottomScrollThreshold
+                // TODO: only scroll if at bottom
+                // let shouldScroll = abs(textView.visibleRect.maxY - textView.bounds.maxY) < bottomScrollThreshold
                 textView.textStorage?.setAttributedString(model.contents)
 
                 NSAnimationContext.beginGrouping()
@@ -549,7 +553,7 @@ private struct LogsTextView: NSViewRepresentable {
         // trigger initial update
         model.updateEvent.send()
 
-        commandModel.searchCommand.sink { [weak textView] query in
+        commandModel.searchCommand.sink { [weak textView] _ in
             guard let textView else { return }
             // need .tag holder
             let button = NSButton()
@@ -601,18 +605,18 @@ private struct LogsView: View {
 
     var body: some View {
         LogsTextView(model: model, commandModel: commandModel, wordWrap: wordWrap)
-        .onAppear {
-            model.start(cmdExe: cmdExe, args: args + extraArgs)
-        }
-        .onDisappear {
-            model.stop()
-        }
-        .onChange(of: args) { newArgs in
-            model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
-        }
-        .onChange(of: extraArgs) { newExtraArgs in
-            model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
-        }
+            .onAppear {
+                model.start(cmdExe: cmdExe, args: args + extraArgs)
+            }
+            .onDisappear {
+                model.stop()
+            }
+            .onChange(of: args) { newArgs in
+                model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
+            }
+            .onChange(of: extraArgs) { newExtraArgs in
+                model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
+            }
     }
 }
 
@@ -640,36 +644,38 @@ private struct DockerLogsContentView: View {
             if allDisabled {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
             } else if case let .container(containerId) = cid,
-                      let container = containers.first(where: { $0.id == containerId }) {
+                      let container = containers.first(where: { $0.id == containerId })
+            {
                 LogsView(cmdExe: AppConfig.dockerExe,
-                        args: ["logs", "-f", "-n", String(maxLines), containerId],
-                        extraArgs: [],
-                        model: model)
-                .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
-                .onAppear {
-                    // save name so we can keep going after container is recreated
-                    model.lastContainerName = container.names.first
-                }
+                         args: ["logs", "-f", "-n", String(maxLines), containerId],
+                         extraArgs: [],
+                         model: model)
+                    .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
+                    .onAppear {
+                        // save name so we can keep going after container is recreated
+                        model.lastContainerName = container.names.first
+                    }
             } else if let containerName = model.lastContainerName,
-                      let container = containers.first(where: { $0.names.contains(containerName) }) {
+                      let container = containers.first(where: { $0.names.contains(containerName) })
+            {
                 // if restarted, use name
                 // don't update id - it'll cause unnecessary logs restart
                 LogsView(cmdExe: AppConfig.dockerExe,
-                        args: ["logs", "-f", "-n", String(maxLines), container.id],
-                        extraArgs: [],
-                        model: model)
-                .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
+                         args: ["logs", "-f", "-n", String(maxLines), container.id],
+                         extraArgs: [],
+                         model: model)
+                    .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
             } else if case let .compose(composeProject) = cid {
                 LogsView(cmdExe: AppConfig.dockerComposeExe,
-                        args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
-                        extraArgs: extraComposeArgs,
-                        model: model)
+                         args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
+                         extraArgs: extraComposeArgs,
+                         model: model)
             } else {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
             }
         }
         .onAppear {
-            // TODO why doesn't for-await + .task() work? (that way we get auto-cancel)
+            // TODO: why doesn't for-await + .task() work? (that way we get auto-cancel)
             model.monitorCommands(commandModel: commandModel)
             if let cid {
                 model.monitorContainers(vmModel: vmModel, cid: cid)
@@ -689,12 +695,12 @@ struct DockerLogsWindow: View {
         Group {
             if let containerId {
                 DockerLogsContentView(cid: .container(id: containerId), standalone: true)
-                .onAppear {
-                    windowTracker.openDockerLogWindowIds.insert(.container(id: containerId))
-                }
-                .onDisappear {
-                    windowTracker.openDockerLogWindowIds.remove(.container(id: containerId))
-                }
+                    .onAppear {
+                        windowTracker.openDockerLogWindowIds.insert(.container(id: containerId))
+                    }
+                    .onDisappear {
+                        windowTracker.openDockerLogWindowIds.remove(.container(id: containerId))
+                    }
             } else {
                 // must always have a view, or the window doesn't open on macOS 12{ url in  }
                 // EmptyView and Spacer don't work
@@ -740,15 +746,15 @@ struct DockerComposeLogsWindow: View {
 
                 if let composeProject {
                     let projectLogArgs = disabledChildren.isEmpty ? [] : // all
-                            children
-                            .map { $0.userName }
-                            .filter { !disabledChildren.contains($0) }
+                        children
+                        .map { $0.userName }
+                        .filter { !disabledChildren.contains($0) }
                     let allDisabled = disabledChildren.count == children.count && !children.isEmpty
 
                     NavigationLink(tag: "all", selection: selBinding) {
                         DockerLogsContentView(cid: .compose(project: composeProject),
-                                standalone: false, extraComposeArgs: projectLogArgs,
-                                allDisabled: allDisabled)
+                                              standalone: false, extraComposeArgs: projectLogArgs,
+                                              allDisabled: allDisabled)
                     } label: {
                         Label("All", systemImage: "square.stack.3d.up")
                     }
@@ -786,9 +792,9 @@ struct DockerComposeLogsWindow: View {
                                     Spacer()
 
                                     Toggle(isOn: enabledBinding) { EmptyView() }
-                                    .labelsHidden()
-                                    .toggleStyle(.checkbox)
-                                    .help("Show in All")
+                                        .labelsHidden()
+                                        .toggleStyle(.checkbox)
+                                        .help("Show in All")
                                 }
                                 .contextMenu {
                                     Toggle(isOn: enabledBinding) {
@@ -810,7 +816,8 @@ struct DockerComposeLogsWindow: View {
             // check "base64" query param
             // for backward compat with restored state URLs, this is query-gated
             if url.query?.contains("base64") == true,
-               let decoded = Data(base64URLEncoded: url.lastPathComponent) {
+               let decoded = Data(base64URLEncoded: url.lastPathComponent)
+            {
                 composeProject = String(data: decoded, encoding: .utf8)
             } else {
                 composeProject = url.lastPathComponent
@@ -871,7 +878,7 @@ private extension View {
     }
 }
 
-// TODO move to K8s/
+// TODO: move to K8s/
 private struct K8SLogsContentView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var commandModel: CommandViewModel
@@ -883,20 +890,21 @@ private struct K8SLogsContentView: View {
     var body: some View {
         K8SStateWrapperView(\.k8sPods) { pods, _ in
             if case let .pod(namespace, name) = kid,
-               pods.contains(where: { $0.id == kid }) {
+               pods.contains(where: { $0.id == kid })
+            {
                 LogsView(cmdExe: AppConfig.kubectlExe,
-                        args: ["logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)", "-f"],
-                        extraArgs: [],
-                        model: model)
-                .navigationTitle(WindowTitles.podLogs(name))
+                         args: ["logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)", "-f"],
+                         extraArgs: [],
+                         model: model)
+                    .navigationTitle(WindowTitles.podLogs(name))
             } else {
                 ContentUnavailableViewCompat("Pod Removed", systemImage: "trash", desc: "No logs available.")
             }
         }
         .onAppear {
-            // TODO why doesn't for-await + .task() work? (that way we get auto-cancel)
+            // TODO: why doesn't for-await + .task() work? (that way we get auto-cancel)
             model.monitorCommands(commandModel: commandModel)
-            // TODO equivalent of monitorContainers for pod recreate? or unlikely b/c of deployment + random names
+            // TODO: equivalent of monitorContainers for pod recreate? or unlikely b/c of deployment + random names
         }
         .frame(minWidth: 400, minHeight: 200)
     }
@@ -911,14 +919,15 @@ struct K8SPodLogsWindow: View {
     var body: some View {
         Group {
             if let namespaceAndName,
-               let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName) {
+               let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName)
+            {
                 K8SLogsContentView(kid: kid)
-                .onAppear {
-                    windowTracker.openK8sLogWindowIds.insert(kid)
-                }
-                .onDisappear {
-                    windowTracker.openK8sLogWindowIds.remove(kid)
-                }
+                    .onAppear {
+                        windowTracker.openK8sLogWindowIds.insert(kid)
+                    }
+                    .onDisappear {
+                        windowTracker.openK8sLogWindowIds.remove(kid)
+                    }
             } else {
                 // must always have a view, or the window doesn't open on macOS 12{ url in  }
                 // EmptyView and Spacer don't work
@@ -928,7 +937,8 @@ struct K8SPodLogsWindow: View {
         .environmentObject(commandModel)
         .onOpenURL { url in
             if let decoded = Data(base64URLEncoded: url.lastPathComponent),
-               let namespaceAndName = String(data: decoded, encoding: .utf8) {
+               let namespaceAndName = String(data: decoded, encoding: .utf8)
+            {
                 self.namespaceAndName = namespaceAndName
             }
         }
