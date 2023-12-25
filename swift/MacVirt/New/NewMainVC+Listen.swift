@@ -9,21 +9,10 @@ import SwiftUI
 
 extension NewMainViewController {
     func listen() {
-        model.$selection
-            .sink { [weak self] selection in
-                guard let self else { return }
-                // atomically update toolbar after SwiftUI views update
-                // however, first update needs to be sync before window renders
-                if isFirstUpdate {
-                    self.updateToolbarFromSelectionChange(toolbarIdentifier: selection)
-                    isFirstUpdate = false
-                } else {
-                    DispatchQueue.main.async {
-                        self.updateToolbarFromSelectionChange(toolbarIdentifier: selection)
-                    }
-                }
-            }
-            .store(in: &cancellables)
+        splitViewController.setOnTabChange { [weak self] tab in
+            guard let self else { return }
+            self.updateToolbarFromSelectionChange(toolbarIdentifier: tab)
+        }
 
         model.menuActionRouter.sink { [weak self] router in
             guard let self else { return }

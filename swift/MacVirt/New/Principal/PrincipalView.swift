@@ -8,6 +8,8 @@
 import SwiftUI
 
 class PrincipalViewController: NSViewController {
+    var onTabChange: ((NavTabId) -> Void)?
+
     init() {
         super.init(nibName: nil, bundle: nil)
     }
@@ -18,7 +20,10 @@ class PrincipalViewController: NSViewController {
     }
 
     override func loadView() {
-        let contentView = PrincipalView()
+        let contentView = PrincipalView { [weak self] in
+            guard let self else { return }
+            self.onTabChange?($0)
+        }
         let hostingView = NSHostingView(rootView: contentView)
         view = hostingView
     }
@@ -27,9 +32,11 @@ class PrincipalViewController: NSViewController {
 struct PrincipalView: View {
     @EnvironmentObject var model: VmViewModel
 
+    var onTabChange: (NavTabId) -> Void
+
     var body: some View {
         Group {
-            switch model.selection {
+            switch model.selectedTab {
             case .dockerContainers:
                 DockerContainersRootView(selection: model.initialDockerContainerSelection)
             case .dockerVolumes:
@@ -47,5 +54,11 @@ struct PrincipalView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            onTabChange(model.selectedTab)
+        }
+        .onChange(of: model.selectedTab) { tab in
+            onTabChange(tab)
+        }
     }
 }

@@ -37,7 +37,7 @@ class NewMainViewController: NSViewController {
         icon: "sidebar.right",
         title: "Toggle Inspector",
         action: #selector(actionToggleInspector),
-        isEnabledFollowsModelState: false
+        requiresVmRunning: false
     )
 
     lazy var containersFilterMenu = {
@@ -232,7 +232,7 @@ extension NewMainViewController {
         icon: String,
         title: String,
         action: Selector?,
-        isEnabledFollowsModelState: Bool = true
+        requiresVmRunning: Bool = true
     ) -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
         let image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)!
@@ -243,7 +243,7 @@ extension NewMainViewController {
         item.label = title // won't be shown actually because toolbar is `.iconOnly`
         item.toolTip = title
 
-        if isEnabledFollowsModelState {
+        if requiresVmRunning {
             model.$state.sink { [weak item] state in
                 item?.isEnabled = state == .running
             }.store(in: &cancellables)
@@ -256,7 +256,7 @@ extension NewMainViewController {
         itemIdentifier: NSToolbarItem.Identifier,
         icon: String,
         title: String,
-        isEnabledFollowsModelState: Bool = true,
+        requiresVmRunning: Bool = true,
         menuItems: [NSMenuItem]
     ) -> NSMenuToolbarItem {
         let menu = NSMenu(title: title)
@@ -268,7 +268,7 @@ extension NewMainViewController {
         item.isBordered = true
         item.toolTip = title
 
-        if isEnabledFollowsModelState {
+        if requiresVmRunning {
             model.$state.sink { [weak item] state in
                 item?.isEnabled = state == .running
             }.store(in: &cancellables)

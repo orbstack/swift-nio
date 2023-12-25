@@ -57,7 +57,7 @@ struct MachinesRootView: View {
                                     .font(.body)
                                     .padding(.bottom, 8)
                                 Button(action: {
-                                    vmModel.selection = .dockerContainers
+                                    vmModel.selectedTab = .dockerContainers
                                 }) {
                                     Text("Go to Containers")
                                 }

@@ -109,7 +109,7 @@ struct OnboardingModeView: View {
                     title: "Docker",
                     desc: "Build & run Docker containers",
                     action: {
-                        vmModel.selection = .dockerContainers
+                        vmModel.selectedTab = .dockerContainers
                         continueWith(.docker)
                     }
                 )
@@ -119,7 +119,7 @@ struct OnboardingModeView: View {
                     title: "Kubernetes",
                     desc: "Test Kubernetes deployments",
                     action: {
-                        vmModel.selection = .k8sPods
+                        vmModel.selectedTab = .k8sPods
                         continueWith(.k8s)
                     }
                 )
@@ -130,7 +130,7 @@ struct OnboardingModeView: View {
                     // match line count
                     desc: "Use a full Linux system\n ",
                     action: {
-                        vmModel.selection = .machines
+                        vmModel.selectedTab = .machines
                         continueWith(.linux)
                     }
                 )

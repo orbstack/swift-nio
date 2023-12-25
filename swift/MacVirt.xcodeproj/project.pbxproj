@@ -434,13 +434,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		3C0090212B26D7960000DFFA /* Toolbar */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Toolbar;
-			sourceTree = "<group>";
-		};
 		3CBBBF882B1AC37700BDBC87 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
@@ -477,7 +470,6 @@
 				3C1935F32B31325D009D2929 /* SplitViewController.swift */,
 				3CBBBF912B1AC3E400BDBC87 /* Utilities.swift */,
 				3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */,
-				3C0090212B26D7960000DFFA /* Toolbar */,
 				3CBBBF882B1AC37700BDBC87 /* Sidebar */,
 				3CBBBF892B1AC37A00BDBC87 /* Principal */,
 				3CBBBF8A2B1AC37F00BDBC87 /* Inspector */,

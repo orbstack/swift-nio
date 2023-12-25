@@ -55,7 +55,7 @@ struct NewMainView: View {
                url.pathComponents[1] == "containers" || url.pathComponents[1] == "projects"
             {
                 model.initialDockerContainerSelection = [.container(id: url.pathComponents[2])]
-                model.selection = .dockerContainers
+                model.selectedTab = .dockerContainers
             }
         }
         // error dialog

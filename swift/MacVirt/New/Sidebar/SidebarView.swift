@@ -31,10 +31,10 @@ struct SidebarView: View {
     var body: some View {
         // macOS <13 requires nullable selection
         let selBinding = Binding<NavTabId?>(get: {
-            model.selection
+            model.selectedTab
         }, set: {
             if let sel = $0 {
-                model.selection = sel
+                model.selectedTab = sel
             }
         })
 

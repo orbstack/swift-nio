@@ -73,4 +73,8 @@ class SplitViewController: NSSplitViewController {
         itemCCurrentlyCollapsed = itemC.isCollapsed
         lastKnownWidth = view.bounds.width
     }
+
+    func setOnTabChange(_ onTabChange: @escaping (NavTabId) -> Void) {
+        vcB.onTabChange = onTabChange
+    }
 }
