@@ -11,7 +11,6 @@ struct MachinesRootView: View {
     @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
 
-    @Default(.selectedTab) private var rootSelectedTab
     @State private var selection: String?
     @State private var creatingOpacity = 0.0
 
@@ -58,7 +57,7 @@ struct MachinesRootView: View {
                                         .font(.body)
                                         .padding(.bottom, 8)
                                 Button(action: {
-                                    rootSelectedTab = "docker"
+                                    vmModel.selection = .containers
                                 }) {
                                     Text("Go to Containers")
                                 }

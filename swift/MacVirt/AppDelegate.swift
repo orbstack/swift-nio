@@ -2,12 +2,12 @@
 // Created by Danny Lin on 2/6/23.
 //
 
-import Foundation
 import AppKit
+import Defaults
+import Foundation
 import Sentry
 import Sparkle
 import UserNotifications
-import Defaults
 
 private let debugAlwaysCliBackground = false
 
@@ -26,7 +26,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // skip vmgr executables because there used to be a bug where it would open with same bundle id as GUI
         // need to keep the fix around for a long time due to update
         if let existingApp = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
-                .first(where: { $0 != NSRunningApplication.current && $0.executableURL?.lastPathComponent != AppConfig.vmgrExeName }) {
+            .first(where: { $0 != NSRunningApplication.current && $0.executableURL?.lastPathComponent != AppConfig.vmgrExeName })
+        {
             print("App is already running")
             // activate first
             existingApp.activate(options: .activateIgnoringOtherApps)
@@ -42,6 +43,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+
         if !AppConfig.debug {
             SentrySDK.start { options in
                 options.dsn = "https://fc975a3abcaa9803fc2405d8b4bb3b62@o120089.ingest.sentry.io/4504665519554560"
@@ -76,16 +78,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Menu bar status item
         menuBar = MenuBarController(updaterController: updaterController!,
-                actionTracker: actionTracker, windowTracker: windowTracker,
-                vmModel: vmModel)
+                                    actionTracker: actionTracker, windowTracker: windowTracker,
+                                    vmModel: vmModel)
         windowTracker.menuBar = menuBar
 
         // launch at login: close all windows. works with SMAppService
         // only if menu bar enabled. otherwise there will be no windows
         let launchEvent = NSAppleEventManager.shared().currentAppleEvent
         if launchEvent?.eventID == kAEOpenApplication &&
-                   launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem &&
-                   Defaults[.globalShowMenubarExtra] {
+            launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem &&
+            Defaults[.globalShowMenubarExtra]
+        {
             for window in NSApp.windows {
                 if window.isUserFacing {
                     window.close()
@@ -198,7 +201,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
                 if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                    let queryItems = components.queryItems,
-                   let token = queryItems.first(where: { $0.name == "token" })?.value {
+                   let token = queryItems.first(where: { $0.name == "token" })?.value
+                {
                     var state = vmModel.drmState
                     state.refreshToken = token
                     vmModel.drmState = state
@@ -226,15 +230,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // macOS 14 breaks the "showSettingsWindow" private API, so we have to do this...
         // simulate Cmd-, shortcut
         let fakeEvent = NSEvent.keyEvent(with: .keyDown,
-                location: .zero,
-                modifierFlags: [.command],
-                timestamp: 0,
-                windowNumber: 0,
-                context: nil,
-                characters: ",",
-                charactersIgnoringModifiers: ",",
-                isARepeat: false,
-                keyCode: 0)!
+                                         location: .zero,
+                                         modifierFlags: [.command],
+                                         timestamp: 0,
+                                         windowNumber: 0,
+                                         context: nil,
+                                         characters: ",",
+                                         charactersIgnoringModifiers: ",",
+                                         isARepeat: false,
+                                         keyCode: 0)!
         NSApp.mainMenu?.performKeyEquivalent(with: fakeEvent)
     }
 }

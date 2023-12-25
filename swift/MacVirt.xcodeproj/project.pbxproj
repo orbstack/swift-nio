@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3C00901E2B26CBD30000DFFA /* NewMainVC+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */; };
+		3C0090232B26D7B80000DFFA /* NewToolbarIdentifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090222B26D7B80000DFFA /* NewToolbarIdentifier.swift */; };
+		3C0090252B2723E10000DFFA /* NewMainVC+Listen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */; };
+		3C0090272B27272E0000DFFA /* PublishedAppStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */; };
+		3C1935F22B313034009D2929 /* NewMainVC+SplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */; };
+		3C1935F42B31325D009D2929 /* SplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F32B31325D009D2929 /* SplitViewController.swift */; };
+		3CBBBF8C2B1AC38A00BDBC87 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8B2B1AC38A00BDBC87 /* SidebarView.swift */; };
+		3CBBBF8E2B1AC38D00BDBC87 /* PrincipalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8D2B1AC38D00BDBC87 /* PrincipalView.swift */; };
+		3CBBBF902B1AC39100BDBC87 /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8F2B1AC39100BDBC87 /* InspectorView.swift */; };
+		3CBBBF922B1AC3E400BDBC87 /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF912B1AC3E400BDBC87 /* Utilities.swift */; };
+		3CD16B6F2B10864E002FBB00 /* NewMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD16B6E2B10864E002FBB00 /* NewMainView.swift */; };
+		3CD16B712B108654002FBB00 /* NewMainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD16B702B108654002FBB00 /* NewMainViewController.swift */; };
 		B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */; };
 		B118B05969CAC4497636F8DE /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF90FB580B56419D1472 /* FFI.swift */; };
 		B118B059B171800F250B42CD /* PHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHClient.swift */; };
@@ -236,6 +248,18 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+Toolbar.swift"; sourceTree = "<group>"; };
+		3C0090222B26D7B80000DFFA /* NewToolbarIdentifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewToolbarIdentifier.swift; sourceTree = "<group>"; };
+		3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+Listen.swift"; sourceTree = "<group>"; };
+		3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedAppStorage.swift; sourceTree = "<group>"; };
+		3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+SplitView.swift"; sourceTree = "<group>"; };
+		3C1935F32B31325D009D2929 /* SplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitViewController.swift; sourceTree = "<group>"; };
+		3CBBBF8B2B1AC38A00BDBC87 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		3CBBBF8D2B1AC38D00BDBC87 /* PrincipalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrincipalView.swift; sourceTree = "<group>"; };
+		3CBBBF8F2B1AC39100BDBC87 /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
+		3CBBBF912B1AC3E400BDBC87 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
+		3CD16B6E2B10864E002FBB00 /* NewMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewMainView.swift; sourceTree = "<group>"; };
+		3CD16B702B108654002FBB00 /* NewMainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewMainViewController.swift; sourceTree = "<group>"; };
 		B118B0395DD7516D3F705FBC /* DockerK8sGroupItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerK8sGroupItem.swift; sourceTree = "<group>"; };
 		B118B065CF24496A8E43EC03 /* K8SUIHelpers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SUIHelpers.swift; sourceTree = "<group>"; };
 		B118B06A59C6893760E5F9AA /* ThinEnvironment.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ThinEnvironment.swift; sourceTree = "<group>"; };
@@ -414,6 +438,57 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3C0090212B26D7960000DFFA /* Toolbar */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Toolbar;
+			sourceTree = "<group>";
+		};
+		3CBBBF882B1AC37700BDBC87 /* Sidebar */ = {
+			isa = PBXGroup;
+			children = (
+				3CBBBF8B2B1AC38A00BDBC87 /* SidebarView.swift */,
+			);
+			path = Sidebar;
+			sourceTree = "<group>";
+		};
+		3CBBBF892B1AC37A00BDBC87 /* Principal */ = {
+			isa = PBXGroup;
+			children = (
+				3CBBBF8D2B1AC38D00BDBC87 /* PrincipalView.swift */,
+			);
+			path = Principal;
+			sourceTree = "<group>";
+		};
+		3CBBBF8A2B1AC37F00BDBC87 /* Inspector */ = {
+			isa = PBXGroup;
+			children = (
+				3CBBBF8F2B1AC39100BDBC87 /* InspectorView.swift */,
+			);
+			path = Inspector;
+			sourceTree = "<group>";
+		};
+		3CD16B6D2B108643002FBB00 /* New */ = {
+			isa = PBXGroup;
+			children = (
+				3CD16B6E2B10864E002FBB00 /* NewMainView.swift */,
+				3CD16B702B108654002FBB00 /* NewMainViewController.swift */,
+				3C0090222B26D7B80000DFFA /* NewToolbarIdentifier.swift */,
+				3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */,
+				3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */,
+				3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */,
+				3C1935F32B31325D009D2929 /* SplitViewController.swift */,
+				3CBBBF912B1AC3E400BDBC87 /* Utilities.swift */,
+				3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */,
+				3C0090212B26D7960000DFFA /* Toolbar */,
+				3CBBBF882B1AC37700BDBC87 /* Sidebar */,
+				3CBBBF892B1AC37A00BDBC87 /* Principal */,
+				3CBBBF8A2B1AC37F00BDBC87 /* Inspector */,
+			);
+			path = New;
+			sourceTree = "<group>";
+		};
 		B118B5A454DB12F33008959E /* Shared */ = {
 			isa = PBXGroup;
 			children = (
@@ -678,12 +753,13 @@
 				D80443CE2A1B404E00ED59C5 /* AppDelegate.swift */,
 				D8A32B95296F839100E56EEF /* Assets.xcassets */,
 				D80443BD2A1B404E00ED59C5 /* CommandsRootView.swift */,
+				D80443CF2A1B404E00ED59C5 /* MacVirtApp.swift */,
 				D80443D02A1B404E00ED59C5 /* MainWindow.swift */,
+				3CD16B6D2B108643002FBB00 /* New */,
 				D80443BE2A1B404E00ED59C5 /* Docker */,
 				D8694A372991EC5A0046B6B6 /* Info.plist */,
 				D80443A52A1B404E00ED59C5 /* Machines */,
 				D8A32B9A296F839100E56EEF /* MacVirt.entitlements */,
-				D80443CF2A1B404E00ED59C5 /* MacVirtApp.swift */,
 				D80443BA2A1B404E00ED59C5 /* MenuBar */,
 				D804439F2A1B404E00ED59C5 /* Onboarding */,
 				D80443DE2A1B404E00ED59C5 /* Preview Content */,
@@ -1004,6 +1080,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3C0090232B26D7B80000DFFA /* NewToolbarIdentifier.swift in Sources */,
 				D80443F92A1B404E00ED59C5 /* CommandsRootView.swift in Sources */,
 				D80443F42A1B404E00ED59C5 /* Operators.swift in Sources */,
 				D80444122A1B404E00ED59C5 /* DoubleClick.swift in Sources */,
@@ -1015,10 +1092,13 @@
 				D80443E42A1B404E00ED59C5 /* OnboardingViewModel.swift in Sources */,
 				D80443F52A1B404E00ED59C5 /* Utils.swift in Sources */,
 				D80444022A1B404E00ED59C5 /* DockerViewModel.swift in Sources */,
+				3C1935F22B313034009D2929 /* NewMainVC+SplitView.swift in Sources */,
 				D80444032A1B404E00ED59C5 /* DockerVolumeItem.swift in Sources */,
 				D80444132A1B404E00ED59C5 /* JsonRPC.swift in Sources */,
+				3CBBBF8E2B1AC38D00BDBC87 /* PrincipalView.swift in Sources */,
 				D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */,
 				D80443FB2A1B404E00ED59C5 /* DockerLogsWindow.swift in Sources */,
+				3C0090252B2723E10000DFFA /* NewMainVC+Listen.swift in Sources */,
 				D80443EE2A1B404E00ED59C5 /* StateWrapperView.swift in Sources */,
 				D80443ED2A1B404E00ED59C5 /* MachinesRootView.swift in Sources */,
 				D80444092A1B404E00ED59C5 /* AppDelegate.swift in Sources */,
@@ -1026,6 +1106,7 @@
 				D80443FC2A1B404E00ED59C5 /* DockerImagesRootView.swift in Sources */,
 				D8D1EEB32A8C7EC500C80718 /* DefaultsKeys.swift in Sources */,
 				D80443FA2A1B404E00ED59C5 /* DockerStateWrapperView.swift in Sources */,
+				3CD16B6F2B10864E002FBB00 /* NewMainView.swift in Sources */,
 				D80444012A1B404E00ED59C5 /* DockerFilterView.swift in Sources */,
 				D804440C2A1B404E00ED59C5 /* AppSettings.swift in Sources */,
 				D80443F12A1B404E00ED59C5 /* AppConfig.swift in Sources */,
@@ -1034,6 +1115,10 @@
 				D80444002A1B404E00ED59C5 /* DockerComposeGroupItem.swift in Sources */,
 				D80444112A1B404E00ED59C5 /* ActionTracker.swift in Sources */,
 				D80443F72A1B404E00ED59C5 /* MenuBarController.swift in Sources */,
+				3C00901E2B26CBD30000DFFA /* NewMainVC+Toolbar.swift in Sources */,
+				3CBBBF902B1AC39100BDBC87 /* InspectorView.swift in Sources */,
+				3CBBBF8C2B1AC38A00BDBC87 /* SidebarView.swift in Sources */,
+				3C0090272B27272E0000DFFA /* PublishedAppStorage.swift in Sources */,
 				D804440A2A1B404E00ED59C5 /* MacVirtApp.swift in Sources */,
 				D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */,
 				D80443FF2A1B404E00ED59C5 /* CreateVolumeView.swift in Sources */,
@@ -1042,6 +1127,7 @@
 				D80443EF2A1B404E00ED59C5 /* DaemonManager.swift in Sources */,
 				D804440B2A1B404E00ED59C5 /* MainWindow.swift in Sources */,
 				D80443F22A1B404E00ED59C5 /* SwiftUIUtils.swift in Sources */,
+				3CBBBF922B1AC3E400BDBC87 /* Utilities.swift in Sources */,
 				D80443E22A1B404E00ED59C5 /* OnboardingRootView.swift in Sources */,
 				D80444052A1B404E00ED59C5 /* DockerVolumesRootView.swift in Sources */,
 				D80444062A1B404E00ED59C5 /* DockerUI.swift in Sources */,
@@ -1049,6 +1135,7 @@
 				D804440F2A1B404E00ED59C5 /* NetworkSettingsView.swift in Sources */,
 				D80443F82A1B404E00ED59C5 /* WindowTracker.swift in Sources */,
 				D80444072A1B404E00ED59C5 /* DockerContainersRootView.swift in Sources */,
+				3C1935F42B31325D009D2929 /* SplitViewController.swift in Sources */,
 				D80443F02A1B404E00ED59C5 /* VmViewModel.swift in Sources */,
 				D80444082A1B404E00ED59C5 /* DockerInspect.swift in Sources */,
 				D80444152A1B404E00ED59C5 /* VmRPC.swift in Sources */,
@@ -1079,6 +1166,7 @@
 				B118B05A4822E6D2CE27AE32 /* CustomLink.swift in Sources */,
 				B118B4653B70C49EAB1B1094 /* DockerSettingsView.swift in Sources */,
 				B118B5BB973EBC5FD60C865B /* K8SSettingsView.swift in Sources */,
+				3CD16B712B108654002FBB00 /* NewMainViewController.swift in Sources */,
 				B118BF84ADD1FBB62A3DCA2E /* K8SFilterView.swift in Sources */,
 				B118B4DC48A219728BE68C4F /* K8SServiceItemView.swift in Sources */,
 				B118B99BAE17848A3498056C /* DockerK8sGroupItem.swift in Sources */,

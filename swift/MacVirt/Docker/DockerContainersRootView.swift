@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct ComposeGroup: Hashable, Equatable {
     let project: String
@@ -99,18 +99,18 @@ private struct DockerContainerListItemView: View {
         switch item {
         case .sectionLabel(let label):
             Text(label)
-            .font(.subheadline.bold())
-            .foregroundColor(.secondary)
+                .font(.subheadline.bold())
+                .foregroundColor(.secondary)
         case .container(let container):
             DockerContainerItem(container: container, isFirstInList: isFirstInList)
-            .equatable()
+                .equatable()
         case .compose(let group, _):
             DockerComposeGroupItem(composeGroup: group,
-                    isFirstInList: isFirstInList)
-            .equatable()
+                                   isFirstInList: isFirstInList)
+                .equatable()
         case .k8sGroup(let group, _):
             DockerK8sGroupItem(group: group)
-            .equatable()
+                .equatable()
         }
     }
 }
@@ -132,7 +132,7 @@ private struct DockerContainersList: View {
     let dockerVolumes: [DKVolume]?
 
     var body: some View {
-        // TODO bad for perf
+        // TODO: bad for perf
         let flatList = listData.flatMap { $0.items }
 
         VStack(spacing: 0) {
@@ -143,11 +143,11 @@ private struct DockerContainersList: View {
                 AKList(listData, selection: $selection, rowHeight: 32 + 8 + 8, flat: false) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     DockerContainerListItemView(item: item,
-                            isFirstInList: item.id == flatList.first?.id)
-                    // environment must be re-injected across boundary
-                    .environmentObject(vmModel)
-                    .environmentObject(windowTracker)
-                    .environmentObject(actionTracker)
+                                                isFirstInList: item.id == flatList.first?.id)
+                        // environment must be re-injected across boundary
+                        .environmentObject(vmModel)
+                        .environmentObject(windowTracker)
+                        .environmentObject(actionTracker)
                 }
                 .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
             } else {
@@ -171,13 +171,13 @@ private struct DockerContainersList: View {
                         Spacer()
                         // migration not previously done or dismissed
                         let isMigration = !dockerMigrationDismissed &&
-                                // docker desktop recently used
-                                InstalledApps.dockerDesktopRecentlyUsed &&
-                                // containers, images, volumes all empty
-                                allContainers.isEmpty &&
-                                dockerImages?.isEmpty == true &&
-                                dockerVolumes?.isEmpty == true &&
-                                !filterIsSearch // not searching
+                            // docker desktop recently used
+                            InstalledApps.dockerDesktopRecentlyUsed &&
+                            // containers, images, volumes all empty
+                            allContainers.isEmpty &&
+                            dockerImages?.isEmpty == true &&
+                            dockerVolumes?.isEmpty == true &&
+                            !filterIsSearch // not searching
                         if isMigration {
                             MigrationHintBox()
                         } else {
@@ -194,9 +194,9 @@ private struct DockerContainersList: View {
             // special case: show example http://localhost if only visible container is getting-started
             // getting started hint box moves to bottom in this case
             if flatList.count == 1,
-               case let .container(container) = flatList[0],
-               container.image == "docker/getting-started" {
-
+               case .container(let container) = flatList[0],
+               container.image == "docker/getting-started"
+            {
                 VStack {
                     Spacer()
                     HStack {
@@ -214,21 +214,20 @@ private struct DockerContainersList: View {
 
 struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
-    @Default(.dockerFilterShowStopped) private var filterShowStopped
-
     @State var selection: Set<DockerContainerId>
-    @State var searchQuery: String
 
     var body: some View {
-        DockerStateWrapperView(\.dockerContainers) { containers, dockerRecord in
+        let searchQuery = vmModel.searchText
+
+        DockerStateWrapperView(\.dockerContainers) { containers, _ in
             let runningCount = containers.filter { $0.running }.count
 
             let filteredContainers = containers.filter { container in
                 searchQuery.isEmpty ||
-                        container.id.localizedCaseInsensitiveContains(searchQuery) ||
-                        container.image.localizedCaseInsensitiveContains(searchQuery) ||
-                        container.imageId.localizedCaseInsensitiveContains(searchQuery) ||
-                        container.names.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
+                    container.id.localizedCaseInsensitiveContains(searchQuery) ||
+                    container.image.localizedCaseInsensitiveContains(searchQuery) ||
+                    container.imageId.localizedCaseInsensitiveContains(searchQuery) ||
+                    container.names.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
             }
 
             // 0 spacing to fix bg color gap between list and getting started hint
@@ -236,22 +235,17 @@ struct DockerContainersRootView: View {
             let listData = makeListData(runningItems: runningItems, stoppedItems: stoppedItems)
 
             DockerContainersList(
-                    filterIsSearch: !searchQuery.isEmpty,
-                    runningCount: runningCount,
-                    allContainers: containers,
-                    listData: listData,
-                    selection: $selection,
+                filterIsSearch: !searchQuery.isEmpty,
+                runningCount: runningCount,
+                allContainers: containers,
+                listData: listData,
+                selection: $selection,
 
-                    dockerImages: vmModel.dockerImages,
-                    dockerVolumes: vmModel.dockerVolumes
+                dockerImages: vmModel.dockerImages,
+                dockerVolumes: vmModel.dockerVolumes
             )
         }
         .navigationTitle("Containers")
-        .searchable(
-            text: $searchQuery,
-            placement: .toolbar,
-            prompt: "Search"
-        )
     }
 
     private func makeListData(runningItems: [DockerListItem], stoppedItems: [DockerListItem]) -> [AKSection<DockerListItem>] {
@@ -261,7 +255,7 @@ struct DockerContainersRootView: View {
             listData.append(AKSection(nil, runningItems))
         }
 
-        if filterShowStopped && !stoppedItems.isEmpty {
+        if vmModel.dockerFilterShowStopped && !stoppedItems.isEmpty {
             listData.append(AKSection("Stopped", stoppedItems))
         }
 

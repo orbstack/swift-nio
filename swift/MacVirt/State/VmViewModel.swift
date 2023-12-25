@@ -2,12 +2,12 @@
 // Created by Danny Lin on 2/5/23.
 //
 
-import Foundation
-import SwiftUI
-import Sentry
-import Virtualization
 import Combine
 import Defaults
+import Foundation
+import Sentry
+import SwiftUI
+import Virtualization
 
 private let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
 private let dockerSystemDfRatelimit = 1.0 * 60 * 60 // 1 hour
@@ -92,7 +92,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case signOutError(cause: Error)
     case refreshDrmError(cause: Error)
 
-    var errorUserInfo: [String : Any] {
+    var errorUserInfo: [String: Any] {
         // debug desc gives most info for sentry
         [NSDebugDescriptionErrorKey: "\(self)"]
     }
@@ -208,33 +208,33 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             switch reason {
             case .drm:
                 return """
-                       To fix this:
-                           • Check your internet connection
-                           • Make sure api-license.orbstack.dev isn't blocked
-                           • Check your proxy in Settings > Network
-                           • Make sure your date and time are correct
-                       """
+                To fix this:
+                    • Check your internet connection
+                    • Make sure api-license.orbstack.dev isn't blocked
+                    • Check your proxy in Settings > Network
+                    • Make sure your date and time are correct
+                """
             case .dataCorruption:
                 return """
-                       OrbStack data is corrupted and cannot be recovered.
+                OrbStack data is corrupted and cannot be recovered.
 
-                       To fix this, run "orb reset" in Terminal to delete your old data and start fresh.
+                To fix this, run "orb reset" in Terminal to delete your old data and start fresh.
 
-                       In the future, avoid unclean shutdowns to prevent this from happening again. This can also happen when Migration Assistant corrupts the data while it's being copied.
-                       """
+                In the future, avoid unclean shutdowns to prevent this from happening again. This can also happen when Migration Assistant corrupts the data while it's being copied.
+                """
             default:
                 return output
             }
         case .drmWarning(let event):
             return """
-                   \(event.lastError)
+            \(event.lastError)
 
-                   To fix this:
-                       • Check your internet connection
-                       • Make sure api-license.orbstack.dev isn't blocked
-                       • Check your proxy in Settings > Network
-                       • Make sure your date and time are correct
-                   """
+            To fix this:
+                • Check your internet connection
+                • Make sure api-license.orbstack.dev isn't blocked
+                • Check your proxy in Settings > Network
+                • Make sure your date and time are correct
+            """
         default:
             if let cause {
                 return fmtRpc(cause)
@@ -364,12 +364,14 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return true
         case .dockerVolumeActionError(let action, let cause):
             if action == "delete",
-               fmtRpc(cause) == "volume in use" {
+               fmtRpc(cause) == "volume in use"
+            {
                 return true
             }
         case .dockerImageActionError(let action, let cause):
             if action == "delete",
-               fmtRpc(cause) == "image in use" {
+               fmtRpc(cause) == "image in use"
+            {
                 return true
             }
 
@@ -416,6 +418,29 @@ class VmViewModel: ObservableObject {
     private let scon = SconService(client: JsonRPCClient(unixSocket: Files.sconSocket))
 
     let privHelper = PHClient()
+
+    // MARK: - New
+
+    @PublishedAppStorage("selectedTab") var selection = NewToolbarIdentifier.containers
+    @Published var searchText = ""
+    @Published var initialDockerContainerSelection: Set<DockerContainerId> = []
+    @Published var collapsed = false
+    @Published var presentAuth = false
+    
+    // the user's choice when the window is big enough
+    var sidebarPrefersCollapsed = false
+    var inspectorPrefersCollapsed = false
+    
+    // when pressing sidebar when super small
+    var collapsedPanelOverride: Panel?
+    
+//    var sidebarCollapsedOverride: Bool? = nil
+//    var inspectorCollapsedOverride: Bool? = nil
+
+    // MARK: - Filter defaults
+
+    @PublishedAppStorage("dockerFilterShowStopped") var dockerFilterShowStopped = true
+    @PublishedAppStorage("k8sFilterShowSystemNs") var k8sFilterShowSystemNs = false
 
     // TODO: fix state machine to deal with restarting
     @Published private(set) var isVmRestarting = false
@@ -475,7 +500,7 @@ class VmViewModel: ObservableObject {
     }
 
     // present bindings
-    // TODO move to MainWindow, pass down by environment?
+    // TODO: move to MainWindow, pass down by environment?
     @Published var presentProfileChanged: ProfileChangedAlert?
     @Published var presentAddPaths: AddPathsAlert?
     @Published var presentCreateMachine = false
@@ -599,7 +624,8 @@ class VmViewModel: ObservableObject {
 
     private func setError(_ error: VmError) {
         if let cause = error.cause,
-           case let cause as CancellationError = cause {
+           case let cause as CancellationError = cause
+        {
             NSLog("Ignoring cancellation error: \(cause)")
             return
         }
@@ -687,7 +713,7 @@ class VmViewModel: ObservableObject {
         let stoppedContainers = allContainers.filter { !$0.running }
         // sort alphabetically by name within each group
         containers = runningContainers.sorted { $0.name < $1.name } +
-                stoppedContainers.sorted { $0.name < $1.name }
+            stoppedContainers.sorted { $0.name < $1.name }
 
         // first new scon containers = scon is now running
         if isFirstContainers {
@@ -753,7 +779,8 @@ class VmViewModel: ObservableObject {
     func isDockerRunning() -> Bool {
         if let containers,
            let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
-           dockerContainer.state == .running || dockerContainer.state == .starting {
+           dockerContainer.state == .running || dockerContainer.state == .starting
+        {
             return true
         }
 
@@ -821,7 +848,7 @@ class VmViewModel: ObservableObject {
 
     private func _trySpawnDaemon() -> (spawned: Bool, task: Task<Void, Never>?) {
         do {
-            return (true, try spawnDaemon())
+            return try (true, spawnDaemon())
         } catch VmError.wrongArch {
             setError(.wrongArch)
             return (false, nil)
@@ -890,7 +917,7 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     func stop() async throws {
-        self.state = .stopping
+        state = .stopping
         do {
             try await vmgr.stop()
         } catch RPCError.eof {
@@ -1113,57 +1140,59 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerContainerStart(_ id: String) async {
-        await doTryDockerContainerAction("start", {
+        await doTryDockerContainerAction("start") {
             try await vmgr.dockerContainerStart(id)
-        })
+        }
     }
 
     func tryDockerContainerStop(_ id: String) async {
-        await doTryDockerContainerAction("stop", {
+        await doTryDockerContainerAction("stop") {
             try await vmgr.dockerContainerStop(id)
-        })
+        }
     }
 
     func tryDockerContainerKill(_ id: String) async {
-        await doTryDockerContainerAction("kill", {
+        await doTryDockerContainerAction("kill") {
             try await vmgr.dockerContainerKill(id)
-        })
+        }
     }
 
     func tryDockerContainerRestart(_ id: String) async {
-        await doTryDockerContainerAction("restart", {
+        await doTryDockerContainerAction("restart") {
             try await vmgr.dockerContainerRestart(id)
-        })
+        }
     }
 
     func tryDockerContainerPause(_ id: String) async {
-        await doTryDockerContainerAction("pause", {
+        await doTryDockerContainerAction("pause") {
             try await vmgr.dockerContainerPause(id)
-        })
+        }
     }
 
     func tryDockerContainerUnpause(_ id: String) async {
-        await doTryDockerContainerAction("unpause", {
+        await doTryDockerContainerAction("unpause") {
             try await vmgr.dockerContainerUnpause(id)
-        })
+        }
     }
 
     func tryDockerContainerRemove(_ id: String) async {
-        await doTryDockerContainerAction("delete", {
+        await doTryDockerContainerAction("delete") {
             try await vmgr.dockerContainerRemove(id)
-        })
+        }
     }
 
     @MainActor
     private func doTryDockerComposeAction(_ label: String, cid: DockerContainerId,
                                           args: [String], requiresConfig: Bool = false,
-                                          ignoreError: Bool = false) async {
-        if case let .compose(project) = cid {
+                                          ignoreError: Bool = false) async
+    {
+        if case .compose(let project) = cid {
             // find working dir from containers
             if let containers = dockerContainers,
                let container = containers.first(where: { container in
                    container.composeProject == project
-               }) {
+               })
+            {
                 // only pass configs and working dir if needed for action
                 // otherwise skip for robustness
                 // to avoid failing on missing working dir, deleted/moved configs, invalid syntax, etc.
@@ -1180,7 +1209,8 @@ class VmViewModel: ObservableObject {
 
                     // pass working dir if we have it
                     if let workingDir = container.labels?[DockerLabels.composeWorkingDir],
-                       FileManager.default.fileExists(atPath: workingDir) {
+                       FileManager.default.fileExists(atPath: workingDir)
+                    {
                         configArgs.append("--project-directory")
                         configArgs.append(workingDir)
                     }
@@ -1188,8 +1218,8 @@ class VmViewModel: ObservableObject {
 
                 do {
                     try await runProcessChecked(AppConfig.dockerComposeExe,
-                            ["-p", project] + configArgs + args,
-                            env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
+                                                ["-p", project] + configArgs + args,
+                                                env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
                 } catch {
                     if !ignoreError {
                         setError(.dockerComposeActionError(action: "\(label)", cause: error))
@@ -1223,9 +1253,9 @@ class VmViewModel: ObservableObject {
     func tryDockerComposeRemove(_ cid: DockerContainerId) async {
         // first try a 'down' to remove networks
         // fails if config is missing
-        // TODO just remove networks directly after 'rm'
+        // TODO: just remove networks directly after 'rm'
         await doTryDockerComposeAction("down", cid: cid, args: ["down", "--remove-orphans"],
-                requiresConfig: true, ignoreError: true)
+                                       requiresConfig: true, ignoreError: true)
 
         await doTryDockerComposeAction("delete", cid: cid, args: ["rm", "-f", "--stop"])
     }
@@ -1240,15 +1270,15 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerVolumeCreate(_ name: String) async {
-        await doTryDockerVolumeAction("create", {
+        await doTryDockerVolumeAction("create") {
             try await vmgr.dockerVolumeCreate(DKVolumeCreateOptions(name: name, labels: nil, driver: nil, driverOpts: nil))
-        })
+        }
     }
 
     func tryDockerVolumeRemove(_ name: String) async {
-        await doTryDockerVolumeAction("delete", {
+        await doTryDockerVolumeAction("delete") {
             try await vmgr.dockerVolumeRemove(name)
-        })
+        }
     }
 
     @MainActor
@@ -1261,9 +1291,9 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerImageRemove(_ id: String) async {
-        await doTryDockerImageAction("delete", {
+        await doTryDockerImageAction("delete") {
             try await vmgr.dockerImageRemove(id)
-        })
+        }
     }
 
     func dismissError() {
@@ -1373,7 +1403,7 @@ class VmViewModel: ObservableObject {
         await trySetConfigKeyAsync(\.k8sEnable, enable)
         k8sServices = nil
         k8sPods = nil
-        // TODO fix this and add proper dirty check. this breaks dirty state of other configs
+        // TODO: fix this and add proper dirty check. this breaks dirty state of other configs
         // needs to be set first, or k8s state wrapper doesn't update
         appliedConfig = config
 
@@ -1424,7 +1454,7 @@ class VmViewModel: ObservableObject {
         return containers.first { container in
             container.mounts.contains { mount in
                 mount.type == .volume &&
-                        mount.name == volume.name
+                    mount.name == volume.name
             }
         } != nil
     }

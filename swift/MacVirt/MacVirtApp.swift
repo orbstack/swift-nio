@@ -5,9 +5,9 @@
 //  Created by Danny Lin on 1/11/23.
 //
 
-import SwiftUI
-import Sparkle
 import Defaults
+import Sparkle
+import SwiftUI
 
 extension Scene {
     func windowResizabilityContentSize() -> some Scene {
@@ -68,9 +68,9 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
         let uuidBytes = readInstallID().uuid
         // take a big endian uint32 of the first 4 bytes
         let id4 = (UInt32(uuidBytes.0) << 24) |
-                (UInt32(uuidBytes.1) << 16) |
-                (UInt32(uuidBytes.2) << 8) |
-                UInt32(uuidBytes.3)
+            (UInt32(uuidBytes.1) << 16) |
+            (UInt32(uuidBytes.2) << 8) |
+            UInt32(uuidBytes.3)
         let bucket = id4 % 100
 
         #if arch(arm64)
@@ -100,7 +100,7 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
     }
 }
 
-struct AppLifecycle {
+enum AppLifecycle {
     static var forceTerminate = false
 }
 
@@ -111,8 +111,6 @@ struct MacVirtApp: App {
     @ObservedObject var vmModel = VmViewModel()
     @ObservedObject var actionTracker = ActionTracker()
     @ObservedObject var windowTracker = WindowTracker()
-
-    @Default(.selectedTab) private var rootSelectedTab
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
@@ -135,7 +133,7 @@ struct MacVirtApp: App {
                 updaterController.updater.checkForUpdates()
             }
         }
-        
+
         // redirect logs
         #if !DEBUG
         freopen(Files.guiLog, "w+", stderr)
@@ -149,16 +147,24 @@ struct MacVirtApp: App {
          */
 
         WindowGroup {
-            MainWindow()
-            .environmentObject(vmModel)
-            .environmentObject(windowTracker)
-            .environmentObject(actionTracker)
-            // workaround: default size uses min height on macOS 12, so this fixes default window size
-            // on macOS 13+ we can set smaller min and use windowDefaultSize
-            .frame(minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(), maxHeight: .infinity)
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
+            // MARK: - Old app
+
+            //            MainWindow()
+            //                .environmentObject(NewToolbarViewModel()) // for testing
+
+            // MARK: - New app
+
+            NewMainView()
+
+                .environmentObject(vmModel)
+                .environmentObject(windowTracker)
+                .environmentObject(actionTracker)
+                // workaround: default size uses min height on macOS 12, so this fixes default window size
+                // on macOS 13+ we can set smaller min and use windowDefaultSize
+                .frame(minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(), maxHeight: .infinity)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
@@ -192,7 +198,7 @@ struct MacVirtApp: App {
                     NSWorkspace.openSubwindow("docker/migration")
                 }
             }
-            //TODO command to create container
+            // TODO: command to create container
 
             CommandMenu("Account") {
                 Button("Sign In…") {
@@ -229,22 +235,21 @@ struct MacVirtApp: App {
             // keyboard tab nav for main window
             CommandMenu("Tab") {
                 Group {
-                    Button("Docker") {
-                    }
-                    .disabled(true)
+                    Button("Docker") {}
+                        .disabled(true)
 
                     Button("Containers") {
-                        rootSelectedTab = "docker"
+                        vmModel.selection = .containers
                     }
                     .keyboardShortcut("1", modifiers: [.command])
 
                     Button("Volumes") {
-                        rootSelectedTab = "docker-volumes"
+                        vmModel.selection = .volumes
                     }
                     .keyboardShortcut("2", modifiers: [.command])
 
                     Button("Images") {
-                        rootSelectedTab = "docker-images"
+                        vmModel.selection = .images
                     }
                     .keyboardShortcut("3", modifiers: [.command])
                 }
@@ -252,37 +257,34 @@ struct MacVirtApp: App {
                 Divider()
 
                 Group {
-                    Button("Kubernetes") {
-                    }
-                    .disabled(true)
+                    Button("Kubernetes") {}
+                        .disabled(true)
 
                     Button("Pods") {
-                        rootSelectedTab = "k8s-pods"
+                        vmModel.selection = .pods
                     }
                     .keyboardShortcut("4", modifiers: [.command])
 
                     Button("Services") {
-                        rootSelectedTab = "k8s-services"
+                        vmModel.selection = .services
                     }
                     .keyboardShortcut("5", modifiers: [.command])
                 }
 
                 Divider()
 
-                Button("Linux") {
-                }.disabled(true)
+                Button("Linux") {}.disabled(true)
 
                 Button("Machines") {
-                    rootSelectedTab = "machines"
+                    vmModel.selection = .machines
                 }.keyboardShortcut("6", modifiers: [.command])
 
                 Divider()
 
-                Button("Help") {
-                }.disabled(true)
+                Button("Help") {}.disabled(true)
 
                 Button("Commands") {
-                    rootSelectedTab = "cli"
+                    vmModel.selection = .commands
                 }.keyboardShortcut("7", modifiers: [.command])
             }
 
@@ -328,11 +330,11 @@ struct MacVirtApp: App {
 
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()
-            .environmentObject(vmModel)
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
-            //.frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
+                .environmentObject(vmModel)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
+            // .frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
@@ -343,11 +345,11 @@ struct MacVirtApp: App {
 
         WindowGroup(WindowTitles.containerLogsBase, id: "docker-container-logs") {
             DockerLogsWindow()
-            .environmentObject(vmModel)
-            .environmentObject(windowTracker)
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
+                .environmentObject(vmModel)
+                .environmentObject(windowTracker)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
         }
         // globally visible across all scenes!
         .commands {
@@ -361,11 +363,11 @@ struct MacVirtApp: App {
 
         WindowGroup(WindowTitles.projectLogsBase, id: "docker-compose-logs") {
             DockerComposeLogsWindow()
-            .environmentObject(vmModel)
-            .environmentObject(windowTracker)
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
+                .environmentObject(vmModel)
+                .environmentObject(windowTracker)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
         }
         .handlesExternalEvents(matching: ["docker/project-logs/"])
         .windowDefaultSize(width: 875, height: 625) // extra side for sidebar
@@ -373,11 +375,11 @@ struct MacVirtApp: App {
 
         WindowGroup(WindowTitles.podLogsBase, id: "k8s-pod-logs") {
             K8SPodLogsWindow()
-            .environmentObject(vmModel)
-            .environmentObject(windowTracker)
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
+                .environmentObject(vmModel)
+                .environmentObject(windowTracker)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
         }
         .handlesExternalEvents(matching: ["k8s/pod-logs/"])
         .windowDefaultSize(width: 875, height: 625) // extra side for sidebar
@@ -385,10 +387,10 @@ struct MacVirtApp: App {
 
         WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {
             DockerMigrationWindow()
-            .environmentObject(vmModel)
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
+                .environmentObject(vmModel)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
         }
         .handlesExternalEvents(matching: ["docker/migration"])
         .windowStyle(.hiddenTitleBar)
@@ -397,13 +399,12 @@ struct MacVirtApp: App {
         Group {
             WindowGroup("Diagnostic Report", id: "diagreport") {
                 DiagReporterView(isBugReport: false)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
+                    .onAppear {
+                        windowTracker.onWindowAppear()
+                    }
             }
             .commands {
-                CommandGroup(replacing: .newItem) {
-                }
+                CommandGroup(replacing: .newItem) {}
             }
             .handlesExternalEvents(matching: ["diagreport"])
             .windowStyle(.hiddenTitleBar)
@@ -411,13 +412,12 @@ struct MacVirtApp: App {
 
             WindowGroup("Report Bug", id: "bugreport") {
                 DiagReporterView(isBugReport: true)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
+                    .onAppear {
+                        windowTracker.onWindowAppear()
+                    }
             }
             .commands {
-                CommandGroup(replacing: .newItem) {
-                }
+                CommandGroup(replacing: .newItem) {}
             }
             .handlesExternalEvents(matching: ["bugreport"])
             .windowStyle(.hiddenTitleBar)
@@ -426,9 +426,9 @@ struct MacVirtApp: App {
 
         WindowGroup("Sign In", id: "auth") {
             AuthView(sheetPresented: nil)
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
@@ -440,9 +440,9 @@ struct MacVirtApp: App {
 
         WindowGroup("Send Feedback", id: "feedback") {
             FeedbackView()
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
@@ -453,10 +453,10 @@ struct MacVirtApp: App {
 
         Settings {
             AppSettings(updaterController: updaterController)
-            .environmentObject(vmModel)
-            .onAppear {
-                windowTracker.onWindowAppear()
-            }
+                .environmentObject(vmModel)
+                .onAppear {
+                    windowTracker.onWindowAppear()
+                }
         }
     }
 

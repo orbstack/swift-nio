@@ -5,11 +5,11 @@
 //  Created by Danny Lin on 1/11/23.
 //
 
+import CachedAsyncImage
+import Defaults
+import Sparkle
 import SwiftUI
 import UserNotifications
-import Sparkle
-import Defaults
-import CachedAsyncImage
 
 private let avatarRadius: Float = 32
 private let statusDotRadius: Float = 8
@@ -25,7 +25,7 @@ func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
     })
 }
 
-private struct NavTab: View {
+struct NavTab: View {
     private let label: String
     private let systemImage: String
 
@@ -36,11 +36,11 @@ private struct NavTab: View {
 
     var body: some View {
         Label(label, systemImage: systemImage)
-        .padding(.vertical, 4)
+            .padding(.vertical, 4)
     }
 }
 
-private struct UserSwitcherButton: View {
+struct UserSwitcherButton: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @Binding var presentAuth: Bool
@@ -62,36 +62,36 @@ private struct UserSwitcherButton: View {
                     if let imageURL = drmState.imageURL {
                         CachedAsyncImage(url: imageURL) { image in
                             image
-                            .resizable()
-                            // better interp to fix pixelation
-                            .interpolation(.high)
-                            // clip to circle
-                            .clipShape(Circle())
+                                .resizable()
+                                // better interp to fix pixelation
+                                .interpolation(.high)
+                                // clip to circle
+                                .clipShape(Circle())
                         } placeholder: {
                             Image(systemName: "person.circle")
-                            .resizable()
-                            .foregroundColor(.accentColor)
+                                .resizable()
+                                .foregroundColor(.accentColor)
                         }
                     } else {
                         Image(systemName: "person.circle")
-                        .resizable()
-                        .foregroundColor(.accentColor)
+                            .resizable()
+                            .foregroundColor(.accentColor)
                     }
                 }
                 .frame(width: CGFloat(avatarRadius), height: CGFloat(avatarRadius))
                 // mask
                 .mask {
                     Rectangle()
-                    .overlay(alignment: .topLeading) {
-                        // calculate a position intersecting the circle and y=-x from the bottom-right edge
-                        let x = avatarRadius * cos(Float.pi / 4) + (statusDotRadius / 2)
-                        let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
+                        .overlay(alignment: .topLeading) {
+                            // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                            let x = avatarRadius * cos(Float.pi / 4) + (statusDotRadius / 2)
+                            let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
 
-                        Circle()
-                        .frame(width: CGFloat(statusMarginRadius), height: CGFloat(statusMarginRadius))
-                        .position(x: CGFloat(x), y: CGFloat(y))
-                        .blendMode(.destinationOut)
-                    }
+                            Circle()
+                                .frame(width: CGFloat(statusMarginRadius), height: CGFloat(statusMarginRadius))
+                                .position(x: CGFloat(x), y: CGFloat(y))
+                                .blendMode(.destinationOut)
+                        }
                 }
                 // status dot
                 .overlay(alignment: .topLeading) {
@@ -100,27 +100,26 @@ private struct UserSwitcherButton: View {
                     let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
 
                     Circle()
-                    .fill(drmState.statusDotColor.opacity(0.85))
-                    .frame(width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius))
-                    .position(x: CGFloat(x), y: CGFloat(y))
+                        .fill(drmState.statusDotColor.opacity(0.85))
+                        .frame(width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius))
+                        .position(x: CGFloat(x), y: CGFloat(y))
                 }
                 .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
                     Text(drmState.title)
-                    .font(.headline)
-                    .lineLimit(1)
+                        .font(.headline)
+                        .lineLimit(1)
 
                     Text(drmState.subtitle)
-                    .font(.subheadline)
+                        .font(.subheadline)
                 }
 
                 // occupy all right space for border
                 Spacer()
             }
             .padding(12)
-            .onRawDoubleClick {
-            }
+            .onRawDoubleClick {}
         }
         .buttonStyle(.plain)
         // occupy full rect
@@ -153,440 +152,6 @@ private struct UserSwitcherButton: View {
             .disabled(!isLoggedIn)
         }
         .border(width: 1, edges: [.top], color: Color(NSColor.separatorColor).opacity(0.5))
-    }
-}
-
-struct MainWindow: View {
-    @Environment(\.controlActiveState) var controlActiveState
-    @EnvironmentObject private var model: VmViewModel
-    @EnvironmentObject private var windowTracker: WindowTracker
-
-    // SceneStorage inits too late
-    @Default(.selectedTab) private var selection
-    @Default(.onboardingCompleted) private var onboardingCompleted
-    @State private var presentError = false
-    @State private var pendingClose = false
-    @State private var collapsed = false
-    // with searchable, this breaks if it's on model, but works as state
-    @State private var presentDockerFilter = false
-    @State private var presentK8sFilter = false
-    @State private var presentAuth = false
-
-    @State private var initialDockerContainerSelection: Set<DockerContainerId> = []
-
-    @ViewBuilder
-    private var sidebarContents12: some View {
-        let selBinding = Binding<String?>(get: {
-            selection
-        }, set: {
-            if let sel = $0 {
-                selection = sel
-            }
-        })
-
-        // List(selection:) should NOT be used for navigation: https://kean.blog/post/triple-trouble
-        // it's a bit buggy when programmatically controlling selection (can have two nav links showing up as active at the same time for a few frames)
-        // but...
-        // the alternatives, NavigationLink(tag:selection:destination:label:), and NavigationLink(isActive:destination:label:), are more buggy
-        // if you hold up and down arrow keys, it consistently crashes on macOS 13.6 when transitioning between k8s pods/services tabs (when k8s is diasbled)
-        // so we still have to use this "wrong" method
-        // NavigationSplitView has no such bug, but it has the issue with slow sidebar show/hide
-        List(selection: selBinding) {
-            // on early macOS 14 betas, must put .tag() on Label or it crashes
-            // on macOS <=13, must put .tag() on NavigationLink or it doesn't work
-            // we use NavigationSplitView path for stability on macOS 14, so this doesn't matter
-            Section(header: Text("Docker")) {
-                NavigationLink {
-                    DockerContainersRootView(selection: initialDockerContainerSelection, searchQuery: "")
-                } label: {
-                    NavTab("Containers", systemImage: "shippingbox")
-                }
-                .tag("docker")
-                
-                NavigationLink {
-                    DockerVolumesRootView()
-                } label: {
-                    NavTab("Volumes", systemImage: "externaldrive")
-                }
-                .tag("docker-volumes")
-                
-                NavigationLink {
-                    DockerImagesRootView()
-                } label: {
-                    NavTab("Images", systemImage: "doc.zipper")
-                }
-                .tag("docker-images")
-            }
-            .tag("docker")
-
-            Section(header: Text("Kubernetes")) {
-                NavigationLink {
-                    K8SPodsView()
-                } label: {
-                    NavTab("Pods", systemImage: "helm")
-                }
-                .tag("k8s-pods")
-
-                NavigationLink {
-                    K8SServicesView()
-                } label: {
-                    NavTab("Services", systemImage: "network")
-                }
-                .tag("k8s-services")
-            }
-            
-            Section(header: Text("Linux")) {
-                NavigationLink {
-                    MachinesRootView()
-                } label: {
-                    NavTab("Machines", systemImage: "desktopcomputer")
-                }
-                .tag("machines")
-            }
-            
-            Section(header: Text("Help")) {
-                NavigationLink {
-                    CommandsRootView()
-                } label: {
-                    NavTab("Commands", systemImage: "terminal")
-                }
-                .tag("cli")
-            }
-        }
-        .listStyle(.sidebar)
-        .background(SplitViewAccessor(sideCollapsed: $collapsed))
-        // "Personal use only" subheadline
-        .frame(minWidth: 175)
-        .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
-            UserSwitcherButton(presentAuth: $presentAuth)
-        }
-    }
-
-    @available(macOS 14, *)
-    private var sidebarContents14: some View {
-        List(selection: $selection) {
-            Section(header: Text("Docker")) {
-                NavigationLink(value: "docker") {
-                    NavTab("Containers", systemImage: "shippingbox")
-                }
-
-                NavigationLink(value: "docker-volumes") {
-                    NavTab("Volumes", systemImage: "externaldrive")
-                }
-
-                NavigationLink(value: "docker-images") {
-                    NavTab("Images", systemImage: "doc.zipper")
-                }
-            }
-
-            Section(header: Text("Kubernetes")) {
-                NavigationLink(value: "k8s-pods") {
-                    NavTab("Pods", systemImage: "helm")
-                }
-
-                NavigationLink(value: "k8s-services") {
-                    NavTab("Services", systemImage: "network")
-                }
-            }
-
-            Section(header: Text("Linux")) {
-                NavigationLink(value: "machines") {
-                    NavTab("Machines", systemImage: "desktopcomputer")
-                }
-            }
-
-            Section(header: Text("Help")) {
-                NavigationLink(value: "cli") {
-                    NavTab("Commands", systemImage: "terminal")
-                }
-            }
-        }
-        .listStyle(.sidebar)
-        .background(SplitViewAccessor(sideCollapsed: $collapsed))
-        // "Personal use only" subheadline
-        .frame(minWidth: 165)
-        .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
-            UserSwitcherButton(presentAuth: $presentAuth)
-        }
-    }
-
-    var body: some View {
-        Group {
-            if #available(macOS 14, *) {
-                // use NavigationSplitView on macOS 14 to fix tab switching crash
-                // TODO: fix toggleSidebar button freezing for ~500 ms - that's why we don't use this on macOS 13
-                NavigationSplitView {
-                    sidebarContents14
-                } detail: {
-                    switch selection {
-                    case "docker":
-                        DockerContainersRootView(selection: initialDockerContainerSelection, searchQuery: "")
-                    case "docker-volumes":
-                        DockerVolumesRootView()
-                    case "docker-images":
-                        DockerImagesRootView()
-
-                    case "k8s-pods":
-                        K8SPodsView()
-                    case "k8s-services":
-                        K8SServicesView()
-                        
-                    case "machines":
-                        MachinesRootView()
-                        
-                    case "cli":
-                        CommandsRootView()
-                    
-                    default:
-                        Spacer()
-                    }
-                }
-            } else {
-                NavigationView {
-                    sidebarContents12
-
-                    ContentUnavailableViewCompat("No Tab Selected", systemImage: "questionmark.app.fill")
-                }
-            }
-        }
-        .sheet(isPresented: $presentAuth) {
-            AuthView(sheetPresented: $presentAuth)
-        }
-        .onOpenURL { url in
-            // for menu bar
-            // TODO unstable
-            if url.pathComponents.count >= 2,
-               url.pathComponents[1] == "containers" || url.pathComponents[1] == "projects" {
-                initialDockerContainerSelection = [.container(id: url.pathComponents[2])]
-                selection = "docker"
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                // on macOS 14, NavigationSplitView provides this button and we can't disable it
-                if #unavailable(macOS 14) {
-                    ToggleSidebarButton()
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                // conditional needs to be here because multiple .toolbar blocks doesn't work on macOS 12
-                if selection == "machines" {
-                    Button(action: {
-                        model.presentCreateMachine = true
-                    }) {
-                        Label("New Machine", systemImage: "plus")
-                    }
-                    // careful: .keyboardShortcut after sheet composability applies to entire view (including Picker items) on macOS 12
-                    .keyboardShortcut("n", modifiers: [.command])
-                    .sheet(isPresented: $model.presentCreateMachine) {
-                        CreateContainerView(isPresented: $model.presentCreateMachine)
-                    }
-                    .help("New Machine")
-                    .disabled(model.state != .running)
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                if selection == "docker-images" {
-                    Button(action: {
-                        NSWorkspace.openFolder(Folders.nfsDockerImages)
-                    }) {
-                        Label("Open Images", systemImage: "folder")
-                    }
-                    .help("Open Images")
-                    .disabled(model.state != .running)
-                    .keyboardShortcut("o", modifiers: [.command])
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                if selection == "docker-volumes" {
-                    Button(action: {
-                        NSWorkspace.openFolder(Folders.nfsDockerVolumes)
-                    }) {
-                        Label("Open Volumes", systemImage: "folder")
-                    }
-                    .help("Open Volumes")
-                    .disabled(model.state != .running)
-                    .keyboardShortcut("o", modifiers: [.command])
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                if selection == "docker-volumes" {
-                    Button(action: {
-                        model.presentCreateVolume = true
-                    }) {
-                        Label("New Volume", systemImage: "plus")
-                    }
-                    .help("New Volume")
-                    .disabled(model.state != .running)
-                    .keyboardShortcut("n", modifiers: [.command])
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                if selection == "docker" {
-                    Button(action: {
-                        presentDockerFilter = true
-                    }) {
-                        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
-                    }.popover(isPresented: $presentDockerFilter, arrowEdge: .bottom) {
-                        DockerFilterView()
-                    }
-                    .help("Filter Containers")
-                    .disabled(model.state != .running)
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                if selection == "k8s-pods" && model.config != nil {
-                    let binding = Binding(
-                            get: { model.config?.k8sEnable ?? true },
-                            set: { newValue in
-                                Task { @MainActor in
-                                    await model.tryStartStopK8s(enable: newValue)
-                                }
-                            }
-                    )
-
-                    Toggle("Enable Kubernetes", isOn: binding)
-                    .toggleStyle(.switch)
-                    .help("Enable Kubernetes")
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                if selection == "k8s-pods" || selection == "k8s-services" {
-                    Button(action: {
-                        presentK8sFilter = true
-                    }) {
-                        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
-                    }.popover(isPresented: $presentK8sFilter, arrowEdge: .bottom) {
-                        K8SFilterView()
-                    }
-                    .help("Filter")
-                    .disabled(model.state != .running)
-                }
-            }
-
-            ToolbarItem(placement: .automatic) {
-                if selection == "cli" {
-                    Button(action: {
-                        NSWorkspace.shared.open(URL(string: "https://go.orbstack.dev/cli")!)
-                    }) {
-                        Label("Go to Docs", systemImage: "questionmark.circle")
-                    }
-                    .help("Go to Docs")
-                }
-            }
-        }
-        .onAppear {
-            windowTracker.openMainWindowCount += 1
-            model.initLaunch()
-
-            // DO NOT use .task{} here.
-            // start tasks should NOT be canceled
-            Task { @MainActor in
-                let center = UNUserNotificationCenter.current()
-                do {
-                    let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-                    NSLog("notification request granted: \(granted)")
-                } catch {
-                    NSLog("notification request failed: \(error)")
-                }
-            }
-        }
-        .onDisappear {
-            windowTracker.openMainWindowCount -= 1
-        }
-        // error dialog
-        .alert(isPresented: $presentError, error: model.error) { error in
-            switch error {
-            case VmError.killswitchExpired:
-                Button("Update") {
-                    NSWorkspace.openSubwindow("update")
-                }
-
-                Button("Quit") {
-                    model.terminateAppNow()
-                }
-
-            case VmError.wrongArch:
-                Button("Download") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/download")!)
-                }
-
-                Button("Quit") {
-                    model.terminateAppNow()
-                }
-
-            default:
-                if model.state == .stopped && !model.reachedRunning {
-                    Button("Quit") {
-                        model.terminateAppNow()
-                    }
-                } else {
-                    Button("OK") {
-                        model.dismissError()
-                    }
-                }
-
-                if error.shouldShowLogs {
-                    Button("Report") {
-                        model.dismissError()
-                        openBugReport()
-
-                        // quit if the error is fatal
-                        if model.state == .stopped && !model.reachedRunning {
-                            model.terminateAppNow()
-                        }
-                    }
-                }
-            }
-        } message: { error in
-            if let msg = error.recoverySuggestion {
-                Text(truncateError(description: msg))
-            }
-        }
-        .onReceive(model.$error, perform: { error in
-            presentError = error != nil
-
-            if error == VmError.killswitchExpired {
-                // trigger updater as well
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    NSWorkspace.openSubwindow("update")
-                }
-            }
-        })
-        .onChange(of: presentError) {
-            if !$0 {
-                model.dismissError()
-            }
-        }
-        .alert("Shell profile changed", isPresented: bindOptionalBool($model.presentProfileChanged)) {
-        } message: {
-            if let info = model.presentProfileChanged {
-                Text("""
-                    \(Constants.userAppName)’s command-line tools have been added to your PATH.
-                    To use them in existing shells, run the following command:
-
-                    source \(info.profileRelPath)
-                    """)
-            }
-        }
-        .alert("Add tools to PATH", isPresented: bindOptionalBool($model.presentAddPaths)) {
-        } message: {
-            if let info = model.presentAddPaths {
-                let list = info.paths.joined(separator: "\n")
-                Text("""
-                     To use \(Constants.userAppName)’s command-line tools, add the following directories to your PATH:
-
-                     \(list)
-                     """)
-            }
-        }
     }
 }
 

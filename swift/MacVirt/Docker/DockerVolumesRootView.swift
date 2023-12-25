@@ -13,13 +13,14 @@ struct DockerVolumesRootView: View {
     @EnvironmentObject private var actionTracker: ActionTracker
 
     @State private var selection: Set<String> = []
-    @State private var searchQuery: String = ""
 
     var body: some View {
+        let searchQuery = vmModel.searchText
+
         DockerStateWrapperView(\.dockerVolumes) { volumes, _ in
             let filteredVolumes = volumes.filter { volume in
                 searchQuery.isEmpty ||
-                        volume.name.localizedCaseInsensitiveContains(searchQuery)
+                    volume.name.localizedCaseInsensitiveContains(searchQuery)
             }
 
             // 0 spacing to fix bg color gap between list and getting started hint
@@ -32,12 +33,12 @@ struct DockerVolumesRootView: View {
                     ]
 
                     AKList(listData, selection: $selection, rowHeight: 48) { volume in
-                        // TODO optimize: pass isMounted section info
+                        // TODO: optimize: pass isMounted section info
                         DockerVolumeItem(volume: volume)
-                        .id(volume.name)
-                        .environmentObject(vmModel)
-                        .environmentObject(windowTracker)
-                        .environmentObject(actionTracker)
+                            .id(volume.name)
+                            .environmentObject(vmModel)
+                            .environmentObject(windowTracker)
+                            .environmentObject(actionTracker)
                     }
                     .if(totalSizeFormatted != nil) { list in
                         list.navigationSubtitle(totalSizeFormatted ?? "")
@@ -68,11 +69,6 @@ struct DockerVolumesRootView: View {
             }
         }
         .navigationTitle("Volumes")
-        .searchable(
-            text: $searchQuery,
-            placement: .toolbar,
-            prompt: "Search"
-        )
         // SwiftUI bug: sheet in button keeps appearing and disappearing when searchable is there
         .sheet(isPresented: $vmModel.presentCreateVolume) {
             CreateVolumeView(isPresented: $vmModel.presentCreateVolume)
@@ -83,7 +79,8 @@ struct DockerVolumesRootView: View {
         if let dockerDf = vmModel.dockerSystemDf {
             let totalSize = filteredVolumes.reduce(Int64(0)) { acc, vol in
                 if let dfVolume = dockerDf.volumes.first(where: { $0.name == vol.name }),
-                   let usageData = dfVolume.usageData {
+                   let usageData = dfVolume.usageData
+                {
                     return acc + usageData.size
                 } else {
                     return acc
@@ -102,8 +99,9 @@ struct DockerVolumesRootView: View {
         if let volumes = vmModel.dockerVolumes,
            volumes.contains(where: { vol in
                vmModel.dockerSystemDf?.volumes
-                .first(where: { $0.name == vol.name }) == nil
-           }) {
+                   .first(where: { $0.name == vol.name }) == nil
+           })
+        {
             Task { @MainActor in
                 await vmModel.tryDockerSystemDf()
             }

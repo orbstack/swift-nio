@@ -2,18 +2,18 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 private struct GettingStartedHintBox: View {
     var body: some View {
         VStack(spacing: 8) {
             Text("Get started with an example")
-            .font(.title2)
-            .bold()
+                .font(.title2)
+                .bold()
             CopyableText("kubectl expose pod nginx --type=NodePort --port=80")
-            .font(.body.monospaced())
+                .font(.body.monospaced())
         }
         .padding(.vertical, 24)
         .padding(.horizontal, 48)
@@ -36,10 +36,10 @@ private struct K8SServicesList: View {
                 AKList(listItems, selection: $selection, rowHeight: 48) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     K8SServiceItemView(service: item)
-                    .equatable()
-                    .environmentObject(vmModel)
-                    .environmentObject(windowTracker)
-                    .environmentObject(actionTracker)
+                        .equatable()
+                        .environmentObject(vmModel)
+                        .environmentObject(windowTracker)
+                        .environmentObject(actionTracker)
                 }
             } else {
                 Spacer()
@@ -71,34 +71,32 @@ private struct K8SServicesList: View {
 }
 
 struct K8SServicesView: View {
-    @Default(.k8sFilterShowSystemNs) private var showSystemNs
-
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var selection: Set<K8SResourceId> = []
-    @State private var searchQuery = ""
 
     var body: some View {
+        let searchQuery = vmModel.searchText
+
         K8SStateWrapperView(\.k8sServices) { services, _ in
             let filteredServices = services.filter { service in
                 searchQuery.isEmpty ||
-                        service.metadata.name.localizedCaseInsensitiveContains(searchQuery) ||
-                        service.metadata.namespace.localizedCaseInsensitiveContains(searchQuery)
+                    service.metadata.name.localizedCaseInsensitiveContains(searchQuery) ||
+                    service.metadata.namespace.localizedCaseInsensitiveContains(searchQuery)
             }
 
-            let listItems = K8SResourceLists.groupItems(filteredServices,
-                    showSystemNs: showSystemNs)
+            let listItems = K8SResourceLists.groupItems(
+                filteredServices,
+                showSystemNs: vmModel.k8sFilterShowSystemNs
+            )
 
             // 0 spacing to fix bg color gap between list and getting started hint
-            K8SServicesList(filterIsSearch: !searchQuery.isEmpty,
-                    listItems: listItems,
-                    selection: $selection)
+            K8SServicesList(
+                filterIsSearch: !searchQuery.isEmpty,
+                listItems: listItems,
+                selection: $selection
+            )
         }
         .navigationTitle("Services")
-        .searchable(
-            text: $searchQuery,
-            placement: .toolbar,
-            prompt: "Search"
-        )
     }
 }

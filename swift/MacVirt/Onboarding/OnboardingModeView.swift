@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/6/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 private enum OnboardingMode {
     case docker
@@ -26,7 +26,7 @@ private struct ModeButton: View {
     let title: String
     let desc: String
     let action: () -> Void
-    
+
     @State private var hoverOpacity = 0.0
     @State private var activeOpacity = 0.0
 
@@ -41,29 +41,29 @@ private struct ModeButton: View {
         Button(action: action) {
             VStack {
                 Image(image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 48, height: 48)
-                        .padding(.bottom, 8)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 48, height: 48)
+                    .padding(.bottom, 8)
                 Text(title)
-                        .font(.title3)
-                        .fontWeight(.medium)
-                        .multilineTextAlignment(.center)
-                        .padding(.bottom, 2)
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 2)
                 Text(desc)
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             }
             .padding(16)
             .frame(width: 175, height: 175)
             .background(Color.primary.opacity(hoverOpacity * 0.025), in: RoundedRectangle(cornerRadius: Self.radius))
             .background(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), in: RoundedRectangle(cornerRadius: Self.radius))
             .cornerRadius(Self.radius)
-            /*.overlay(
-                RoundedRectangle(cornerRadius: Self.radius)
-                    .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
-            )*/
+            /* .overlay(
+                 RoundedRectangle(cornerRadius: Self.radius)
+                     .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
+             ) */
             .shadow(color: Color.primary.opacity(0.1), radius: 2, x: 0, y: 1)
         }
         .buttonStyle(.plain)
@@ -87,7 +87,6 @@ struct OnboardingModeView: View {
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
 
     let onboardingController: OnboardingController
-    @Default(.selectedTab) private var rootSelectedTab
 
     var body: some View {
         VStack {
@@ -110,7 +109,7 @@ struct OnboardingModeView: View {
                     title: "Docker",
                     desc: "Build & run Docker containers",
                     action: {
-                        rootSelectedTab = "docker"
+                        vmModel.selection = .containers
                         continueWith(.docker)
                     }
                 )
@@ -120,7 +119,7 @@ struct OnboardingModeView: View {
                     title: "Kubernetes",
                     desc: "Test Kubernetes deployments",
                     action: {
-                        rootSelectedTab = "k8s-pods"
+                        vmModel.selection = .pods
                         continueWith(.k8s)
                     }
                 )
@@ -131,7 +130,7 @@ struct OnboardingModeView: View {
                     // match line count
                     desc: "Use a full Linux system\n ",
                     action: {
-                        rootSelectedTab = "machines"
+                        vmModel.selection = .machines
                         continueWith(.linux)
                     }
                 )

@@ -11,14 +11,15 @@ struct DockerImagesRootView: View {
     @EnvironmentObject private var actionTracker: ActionTracker
 
     @State private var selection: Set<String> = []
-    @State private var searchQuery: String = ""
 
     var body: some View {
+        let searchQuery = vmModel.searchText
+
         DockerStateWrapperView(\.dockerImages) { images, _ in
             let filteredImages = images.filter { image in
                 searchQuery.isEmpty ||
-                        image.id.localizedCaseInsensitiveContains(searchQuery) ||
-                        image.repoTags?.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
+                    image.id.localizedCaseInsensitiveContains(searchQuery) ||
+                    image.repoTags?.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
             }
 
             // 0 spacing to fix bg color gap between list and getting started hint
@@ -41,11 +42,11 @@ struct DockerImagesRootView: View {
                     // 46 is empirically correct, matches auto height. not sure where it comes from
                     AKList(listData, selection: $selection, rowHeight: 46) { image in
                         DockerImageItem(image: image,
-                                isFirstInList: image.id == usedImages.first?.id)
-                        .equatable()
-                        .environmentObject(vmModel)
-                        .environmentObject(windowTracker)
-                        .environmentObject(actionTracker)
+                                        isFirstInList: image.id == usedImages.first?.id)
+                            .equatable()
+                            .environmentObject(vmModel)
+                            .environmentObject(windowTracker)
+                            .environmentObject(actionTracker)
                     }
                     .navigationSubtitle("\(totalSizeFormatted) total")
                 } else {
@@ -66,10 +67,5 @@ struct DockerImagesRootView: View {
             }
         }
         .navigationTitle("Images")
-        .searchable(
-            text: $searchQuery,
-            placement: .toolbar,
-            prompt: "Search"
-        )
     }
 }

@@ -29,7 +29,7 @@ private struct CommandSection<Content: View>: View {
                     Text(title)
                         .font(.title2)
                         .bold()
-                            // wrap, don't ellipsize
+                        // wrap, don't ellipsize
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -37,14 +37,14 @@ private struct CommandSection<Content: View>: View {
                 Text(desc)
                     .font(.title3)
                     .foregroundColor(.secondary)
-                        // wrap, don't ellipsize
+                    // wrap, don't ellipsize
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             content()
                 .padding(.top, 4)
         }.frame(maxWidth: .infinity)
-        .padding(8)
+            .padding(8)
     }
 }
 
@@ -66,10 +66,10 @@ private struct CommandBox: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                    .font(.title3)
-                    .bold()
-                    // wrap, don't ellipsize
-                    .fixedSize(horizontal: false, vertical: true)
+                .font(.title3)
+                .bold()
+                // wrap, don't ellipsize
+                .fixedSize(horizontal: false, vertical: true)
             if let desc {
                 Text(try! AttributedString(markdown: desc))
                     .font(.body)
@@ -81,16 +81,16 @@ private struct CommandBox: View {
             Group {
                 if selectable {
                     Text(command)
-                    .textSelectionWithWorkaround()
-                    .font(.body.monospaced())
-                    .padding(4)
-                    .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
-                } else {
-                    CopyableText(copyAs: command) {
-                        Text(command)
+                        .textSelectionWithWorkaround()
                         .font(.body.monospaced())
                         .padding(4)
                         .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                } else {
+                    CopyableText(copyAs: command) {
+                        Text(command)
+                            .font(.body.monospaced())
+                            .padding(4)
+                            .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 4))
                     }
                 }
             }
@@ -136,76 +136,76 @@ struct CommandsRootView: View {
 
                     CommandSection(systemImage: "terminal.fill", title: "Command line", desc: "Environment variables and SSH agent are forwarded by default.") {
                         CommandBox(
-                                title: "Start a shell",
-                                desc: "Log in as the default user in the machine you used most recently.",
-                                command: "orb"
+                            title: "Start a shell",
+                            desc: "Log in as the default user in the machine you used most recently.",
+                            command: "orb"
                         )
 
                         CommandBox(
-                                title: "Log in as a specific user and machine",
-                                desc: "Use the same flags as “orb shell”.",
-                                command: "orb -m ubuntu -u root"
+                            title: "Log in as a specific user and machine",
+                            desc: "Use the same flags as “orb shell”.",
+                            command: "orb -m ubuntu -u root"
                         )
 
                         CommandBox(
-                                title: "Run a command",
-                                desc: "Prefix any command with “orb” to run it in a Linux machine.",
-                                command: "orb uname -a"
+                            title: "Run a command",
+                            desc: "Prefix any command with “orb” to run it in a Linux machine.",
+                            command: "orb uname -a"
                         )
                     }
 
                     let sshConfigMsg = vmModel.isSshConfigWritable ? "" : "\nSee “orb ssh” for instructions to add OrbStack to your SSH config."
                     CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code.\(sshConfigMsg)") {
                         CommandBox(
-                                title: "Log in",
-                                desc: "Run a command or log in to the default machine.",
-                                command: "ssh orb"
+                            title: "Log in",
+                            desc: "Run a command or log in to the default machine.",
+                            command: "ssh orb"
                         )
 
                         CommandBox(
-                                title: "Specify machine and user",
-                                desc: "Run a command or log in as a specific user and machine.",
-                                command: "ssh root@ubuntu@orb"
+                            title: "Specify machine and user",
+                            desc: "Run a command or log in as a specific user and machine.",
+                            command: "ssh root@ubuntu@orb"
                         )
 
                         CommandBox(
-                                title: "Connection details for other apps",
-                                desc: "For apps that don’t use OpenSSH, you can use the following details.",
-                                command: """
-                                         Host: localhost
-                                         Port: 32222
-                                         User: default (or root@ubuntu)
-                                         Private key: ~/.orbstack/ssh/id_ed25519
-                                         """,
-                                selectable: true
+                            title: "Connection details for other apps",
+                            desc: "For apps that don’t use OpenSSH, you can use the following details.",
+                            command: """
+                            Host: localhost
+                            Port: 32222
+                            User: default (or root@ubuntu)
+                            Private key: ~/.orbstack/ssh/id_ed25519
+                            """,
+                            selectable: true
                         )
                     }
 
                     CommandSection(systemImage: "macwindow", title: "Linux → macOS") {
                         CommandBox(
-                                title: "Start a Mac shell",
-                                desc: "Start a shell from Linux.",
-                                command: "mac"
+                            title: "Start a Mac shell",
+                            desc: "Start a shell from Linux.",
+                            command: "mac"
                         )
 
                         CommandBox(
-                                title: "Run a Mac command",
-                                desc: "Run a command from Linux.",
-                                command: "mac uname -a"
+                            title: "Run a Mac command",
+                            desc: "Run a command from Linux.",
+                            command: "mac uname -a"
                         )
                     }
 
                     CommandSection(systemImage: "folder.fill", title: "File transfer", desc: "You can also use shared folders at ~/\(Folders.nfsName) and /Users to transfer files.") {
                         CommandBox(
-                                title: "Copy files from Mac to Linux",
-                                desc: "Push from Mac to the default Linux machine's home folder.",
-                                command: "orb push example.txt"
+                            title: "Copy files from Mac to Linux",
+                            desc: "Push from Mac to the default Linux machine's home folder.",
+                            command: "orb push example.txt"
                         )
 
                         CommandBox(
-                                title: "Copy files from Linux to Mac",
-                                desc: "Pull from the default Linux machine's home folder to Mac.",
-                                command: "orb pull example.txt"
+                            title: "Copy files from Linux to Mac",
+                            desc: "Pull from the default Linux machine's home folder to Mac.",
+                            command: "orb pull example.txt"
                         )
                     }
 
@@ -213,7 +213,7 @@ struct CommandsRootView: View {
                 }
                 Spacer()
             }
-                    .padding()
+            .padding()
         }
         .navigationTitle("Commands")
         .task {
