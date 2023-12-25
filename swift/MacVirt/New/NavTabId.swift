@@ -62,13 +62,16 @@ extension NSToolbarItem.Identifier {
 
     static let searchItem = NSToolbarItem.Identifier("searchItem")
 
-    static let leadingItems: [NSToolbarItem.Identifier] = [.toggleSidebarButton, .sidebarTrackingSeparator]
-
-    static let trailingItems: [NSToolbarItem.Identifier] = {
+    static let inspectorTrackingSeparatorCompat = {
         if #available(macOS 14.0, *) {
-            [.inspectorTrackingSeparator, .flexibleSpace, .toggleInspectorButton]
+            NSToolbarItem.Identifier.inspectorTrackingSeparator
         } else {
-            [.toggleInspectorButton]
+            NSToolbarItem.Identifier("inspectorTrackingSeparatorCompat")
         }
     }()
+
+    static let leadingItems: [NSToolbarItem.Identifier] =
+        [.toggleSidebarButton, .sidebarTrackingSeparator]
+    static let trailingItems: [NSToolbarItem.Identifier] =
+        [.inspectorTrackingSeparatorCompat, .flexibleSpace, .toggleInspectorButton]
 }
