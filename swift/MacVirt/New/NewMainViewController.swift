@@ -26,7 +26,10 @@ class NewMainViewController: NSViewController {
 
     // MARK: - Toolbar
 
-    var toolbar = NSToolbar(identifier: NavTabId.dockerContainers.rawValue)
+    // initial empty toolbar should have a different ID, so it doesn't affect first selected tab
+    var toolbar = NSToolbar(identifier: "__default")
+
+    var isFirstUpdate = true
 
     lazy var toggleSidebarButton = makeToolbarItem(
         itemIdentifier: .toggleSidebarButton,
