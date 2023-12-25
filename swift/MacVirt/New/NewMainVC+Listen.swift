@@ -5,7 +5,6 @@
 //  Created by Andrew Zheng on 12/11/23.
 //
 
-import Carbon.HIToolbox // for keyboard shortcuts
 import SwiftUI
 
 extension NewMainViewController {
@@ -17,37 +16,21 @@ extension NewMainViewController {
             }
             .store(in: &cancellables)
 
-        // keyboard shortcuts
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event -> NSEvent? in
-            guard let self else { return event }
+        model.menuActionRouter.sink { [weak self] router in
+            guard let self else { return }
 
-            if event.modifierFlags.contains(.command) {
-                switch Int(event.keyCode) {
-                case kVK_ANSI_N:
-                    switch self.model.selection {
-                    case .volumes:
-                        self.volumesPlusButton(nil)
-                    case .machines:
-                        self.machinesPlusButton(nil)
-                    default:
-                        break
-                    }
-                case kVK_ANSI_O:
-                    switch self.model.selection {
-                    case .images:
-                        self.imagesFolderButton(nil)
-                    case .volumes:
-                        self.volumesFolderButton(nil)
-                    default:
-                        break
-                    }
-                default:
-                    break
-                }
+            switch router {
+            case .newVolume:
+                self.volumesPlusButton(nil)
+            case .openVolumes:
+                self.volumesFolderButton(nil)
+            case .openImages:
+                self.imagesFolderButton(nil)
+            case .newMachine:
+                self.machinesPlusButton(nil)
             }
-
-            return event
         }
+        .store(in: &cancellables)
 
         splitViewController.userGestureCollapsedPanel = { [weak self] panel in
             guard let self else { return }

@@ -13,6 +13,13 @@ private let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
 private let dockerSystemDfRatelimit = 1.0 * 60 * 60 // 1 hour
 private let maxAdminDismissCount = 2 // auto-disable
 
+enum MenuActionRouter {
+    case newVolume
+    case openVolumes
+    case openImages
+    case newMachine
+}
+
 enum VmState: Int, Comparable {
     case stopped
     case spawning
@@ -433,9 +440,8 @@ class VmViewModel: ObservableObject {
     
     // when pressing sidebar when super small
     var collapsedPanelOverride: Panel?
+    var menuActionRouter = PassthroughSubject<MenuActionRouter, Never>()
     
-//    var sidebarCollapsedOverride: Bool? = nil
-//    var inspectorCollapsedOverride: Bool? = nil
 
     // MARK: - Filter defaults
 

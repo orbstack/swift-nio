@@ -23,7 +23,6 @@ class NewMainViewController: NSViewController {
     let splitViewController = SplitViewController()
 
     var cancellables = Set<AnyCancellable>()
-    var keyMonitor: Any?
 
     // MARK: - Toolbar
 

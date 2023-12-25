@@ -167,37 +167,67 @@ struct MacVirtApp: App {
                 }
         }
         .commands {
-            CommandGroup(replacing: .newItem) {}
-            SidebarCommands()
-            ToolbarCommands()
-            TextEditingCommands()
-            CommandGroup(after: .appInfo) {
-                CheckForUpdatesView(updater: updaterController.updater)
+            Group {
+                SidebarCommands()
+                ToolbarCommands()
+                TextEditingCommands()
+                CommandGroup(after: .appInfo) {
+                    CheckForUpdatesView(updater: updaterController.updater)
+                }
+                CommandGroup(before: .systemServices) {
+                    Button("Invite a Friend") {
+                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
+                    }
+                    Button("Documentation") {
+                        NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
+                    }
+                    Divider()
+                    Button("Report Bug") {
+                        openBugReport()
+                    }
+                    Button("Request Feature") {
+                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
+                    }
+                    Button("Send Feedback") {
+                        openFeedbackWindow()
+                    }
+                    Divider()
+                }
+                CommandGroup(before: .importExport) {
+                    Button("Migrate Docker Data…") {
+                        NSWorkspace.openSubwindow("docker/migration")
+                    }
+
+                    switch vmModel.selection {
+                    case .volumes:
+                        Divider()
+                        Button("New Volume") {
+                            vmModel.menuActionRouter.send(.newVolume)
+                        }
+                        .keyboardShortcut("n")
+
+                        Button("Open Volumes") {
+                            vmModel.menuActionRouter.send(.openVolumes)
+                        }
+                        .keyboardShortcut("o")
+                    case .images:
+                        Divider()
+                        Button("Open Images") {
+                            vmModel.menuActionRouter.send(.openImages)
+                        }
+                        .keyboardShortcut("o")
+                    case .machines:
+                        Divider()
+                        Button("New Machine") {
+                            vmModel.menuActionRouter.send(.newMachine)
+                        }
+                        .keyboardShortcut("n")
+                    default:
+                        EmptyView()
+                    }
+                }
             }
-            CommandGroup(before: .systemServices) {
-                Button("Invite a Friend") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
-                }
-                Button("Documentation") {
-                    NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
-                }
-                Divider()
-                Button("Report Bug") {
-                    openBugReport()
-                }
-                Button("Request Feature") {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
-                }
-                Button("Send Feedback") {
-                    openFeedbackWindow()
-                }
-                Divider()
-            }
-            CommandGroup(before: .importExport) {
-                Button("Migrate Docker Data…") {
-                    NSWorkspace.openSubwindow("docker/migration")
-                }
-            }
+
             // TODO: command to create container
 
             CommandMenu("Account") {
