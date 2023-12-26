@@ -334,7 +334,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
         }
         .inspectorContents(key: container.cid, listModel: listModel) {
-            detailsView
+            ScrollView {
+                detailsView
+            }
         }
     }
 

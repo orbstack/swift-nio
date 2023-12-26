@@ -29,11 +29,17 @@ struct InspectorView: View {
     @EnvironmentObject var navModel: MainNavViewModel
 
     var body: some View {
-        if let wrapper = navModel.inspectorContents {
-            wrapper.contents
-        } else {
-            EmptyView()
+        VStack {
+            if let wrapper = navModel.inspectorContents {
+                wrapper.contents
+            } else {
+                EmptyView()
+            }
         }
+        // you don't need this when you have a scroll view,
+        // but make sure to expand to fill all space.
+        // otherwise, the split view layout will break.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -52,7 +58,7 @@ private enum InspectorContentsKeys {
 
 struct InspectorContentsKey: PreferenceKey {
     static var defaultValue: InspectorWrapper =
-            InspectorWrapper(key: InspectorContentsKeys.def, contents: AnyView(EmptyView()))
+        .init(key: InspectorContentsKeys.def, contents: AnyView(EmptyView()))
 
     static func reduce(value: inout InspectorWrapper, nextValue: () -> InspectorWrapper) {
         let nextVal = nextValue()
