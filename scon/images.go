@@ -186,8 +186,8 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 			Revision: version,
 		}
 
-		// lxd.tar.xz
-		if item, ok := findItem(items, "lxd.tar.xz"); ok {
+		// incus.tar.xz
+		if item, ok := findItem(items, "incus.tar.xz"); ok {
 			img.MetadataURL = RepoLxd + "/" + item.Path
 			img.MetadataSha256 = item.Sha256
 		}
