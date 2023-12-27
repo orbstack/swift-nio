@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	RepoLxd    = "https://images.linuxcontainers.org"
+	RepoOrb    = "https://cdn-images.orbstack.dev"
 	RepoUbuntu = "https://cloud-images.ubuntu.com/releases"
 
 	maxSquashfsCpus      = 4
@@ -155,7 +155,7 @@ func findItem(items map[string]StreamsImage, ftype string) (*StreamsImage, bool)
 }
 
 func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
-	resp, err := imagesHttpClient.Get(RepoLxd + "/streams/v1/images.json")
+	resp, err := imagesHttpClient.Get(RepoOrb + "/streams/v1/images.json")
 	if err != nil {
 		return nil, fmt.Errorf("get index: %w", err)
 	}
@@ -186,22 +186,25 @@ func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
 			Revision: version,
 		}
 
-		// incus.tar.xz
-		if item, ok := findItem(items, "incus.tar.xz"); ok {
-			img.MetadataURL = RepoLxd + "/" + item.Path
+		// prefer orb.tar.xz, then incus.tar.xz
+		if item, ok := findItem(items, "orb.tar.xz"); ok {
+			img.MetadataURL = RepoOrb + "/" + item.Path
+			img.MetadataSha256 = item.Sha256
+		} else if item, ok := findItem(items, "incus.tar.xz"); ok {
+			img.MetadataURL = RepoOrb + "/" + item.Path
 			img.MetadataSha256 = item.Sha256
 		}
 
 		// take squashfs if available
 		if item, ok := findItem(items, "squashfs"); ok {
 			img.RootfsFormat = ImageFormatSquashfs
-			img.RootfsURL = RepoLxd + "/" + item.Path
+			img.RootfsURL = RepoOrb + "/" + item.Path
 			img.RootfsSha256 = item.Sha256
 			img.Size = item.Size
 		} else if item, ok := findItem(items, "root.tar.xz"); ok {
 			// otherwise, take tar.xz
 			img.RootfsFormat = ImageFormatTarXz
-			img.RootfsURL = RepoLxd + "/" + item.Path
+			img.RootfsURL = RepoOrb + "/" + item.Path
 			img.RootfsSha256 = item.Sha256
 			img.Size = item.Size
 		}
