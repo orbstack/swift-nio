@@ -413,6 +413,7 @@ kernel/net/netfilter/ipset/ip_set_hash_netport.ko
 kernel/net/netfilter/ipset/ip_set_hash_netiface.ko
 kernel/net/netfilter/ipset/ip_set_hash_netnet.ko
 kernel/net/netfilter/ipset/ip_set_hash_netportnet.ko
+kernel/net/netfilter/ipset/ip_set_list_set.ko
 kernel/net/netfilter/ipvs/ip_vs.ko
 kernel/net/netfilter/ipvs/ip_vs_rr.ko
 kernel/net/netfilter/ipvs/ip_vs_wrr.ko
