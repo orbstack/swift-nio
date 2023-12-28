@@ -590,6 +590,12 @@ outer:
 	// end
 	pool.StopAndWait()
 
+	// migrate docker credentials
+	err = m.migrateCredentials()
+	if err != nil {
+		return fmt.Errorf("migrate credentials: %w", err)
+	}
+
 	// restore ~/.docker/config.json credStore again if changed by starting Docker Desktop
 	err = dockerconf.FixDockerCredsStore()
 	if err != nil {
