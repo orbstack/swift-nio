@@ -162,6 +162,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 #if arch(arm64)
 @available(macOS 13.0, *)
 private func installRosetta() async throws {
+    // VZLinuxRosettaDirectoryShare.installRosetta is buggy and gets stuck on "Finding update"
     do {
         // use open -W to get output and check for canceled. can't run binary directly due to launch constraints
         // this works even for unpriv users. it's special
@@ -186,9 +187,6 @@ private func installRosetta() async throws {
         }
     } catch {
         NSLog("[VZF] Failed to install Rosetta with updater: \(error)")
-
-        // next: try VZLinuxRosettaDirectoryShare (buggy and gets stuck on Finding update)
-        try await VZLinuxRosettaDirectoryShare.installRosetta()
     }
 }
 #endif
