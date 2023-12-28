@@ -76,6 +76,8 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 		if retErr != nil && inRequest {
 			// send 502 error with body
 			resp := &http.Response{
+				ProtoMajor: 1,
+				ProtoMinor: 1,
 				StatusCode: http.StatusBadGateway,
 				Header:     http.Header{},
 				Body:       io.NopCloser(strings.NewReader(retErr.Error())),
@@ -107,6 +109,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 	// default buffer size is 4096!
 	// unfortunately it's very hard to make this adaptive, and we don't want too many slow 1-byte reads to avoid buffering
 	clientBufReader := bufio.NewReaderSize(clientConn, dockerProxyBufferSize)
+	upstreamBufReader := bufio.NewReaderSize(upstreamConn, dockerProxyBufferSize)
 	for {
 		// read request
 		logrus.Trace("hp: reading request")
@@ -155,7 +158,6 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 
 			// read response
 			logrus.Trace("hp: reading response")
-			upstreamBufReader := bufio.NewReaderSize(upstreamConn, dockerProxyBufferSize)
 			resp, err := http.ReadResponse(upstreamBufReader, req)
 			if err != nil {
 				return fmt.Errorf("read response: %w", err)
@@ -265,6 +267,16 @@ func copyBody(contentLength int64, transferEncoding []string, dst io.Writer, src
 		_, err := tcppump.CopyBuffer(chunkedWriter, chunkedReader, nil)
 		if err != nil {
 			return false, fmt.Errorf("copy TE: %w", err)
+		}
+
+		// read trailer crlf
+		var trailer [2]byte
+		_, err = io.ReadFull(src, trailer[:])
+		if err != nil {
+			return false, fmt.Errorf("read trailer: %w", err)
+		}
+		if trailer[0] != '\r' || trailer[1] != '\n' {
+			return false, fmt.Errorf("invalid trailer")
 		}
 
 		// write final empty chunk and trailer+crlf
