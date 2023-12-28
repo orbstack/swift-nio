@@ -23,6 +23,8 @@ import (
 const (
 	migrationAgentImage = "ghcr.io/orbstack/dmigrate-agent:1"
 
+	RemoteStopTimeout = 10 * time.Second
+
 	maxUnusedContainerAge = 1 * 30 * 24 * time.Hour // 1 month
 
 	minWorkers = 1

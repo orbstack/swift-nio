@@ -12,7 +12,7 @@ import (
 
 func (m *Migrator) migrateCredentials() error {
 	desktop := credclient.NewShellProgramFunc("docker-credential-desktop")
-	osxkeychain := credclient.NewShellProgramFunc(conf.CliXbinDir() + "/docker-credential-osxkeychain")
+	osxkeychain := credclient.NewShellProgramFunc(conf.FindXbin("docker-credential-osxkeychain"))
 
 	// only migrate if docker-credential-desktop is in PATH
 	desktopPath, err := exec.LookPath("docker-credential-desktop")
