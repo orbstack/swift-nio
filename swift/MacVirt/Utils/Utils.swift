@@ -79,7 +79,6 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
     let tmpDir = FileManager.default.temporaryDirectory
     let uuid = UUID().uuidString.prefix(8)
     let tmpFile = tmpDir.appendingPathComponent("orbstack-open-terminal_\(uuid).sh")
-    let tmpFileURL = URL(fileURLWithPath: tmpFile.path)
 
     // write command to tmp file
     // use cleanup function to do escape
@@ -87,18 +86,18 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
     let command = """
     #!/bin/sh -e
     cleanup() {
-        rm -f \(escapeShellArg(tmpFileURL.path))
+        rm -f \(escapeShellArg(tmpFile.path))
         kill -9 $PPID
     }
     trap cleanup EXIT
     \(escapeShellArgs([command] + args))
     """
-    try command.write(to: tmpFileURL, atomically: true, encoding: .utf8)
+    try command.write(to: tmpFile, atomically: true, encoding: .utf8)
 
     // make tmp file executable
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmpFileURL.path)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmpFile.path)
 
-    try await openViaAppleEvent(tmpFileURL, bundleId: terminalBundle.id) {
+    try await openViaAppleEvent(tmpFile, bundleId: terminalBundle.id) {
         try await runProcessChecked("/usr/bin/open", ["-b", terminalBundle.id])
     }
 }

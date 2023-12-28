@@ -162,12 +162,18 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 #if arch(arm64)
 @available(macOS 13.0, *)
 private func installRosetta() async throws {
-    //
     do {
-        // run binary directly so that we get output and can check whether it was canceled
-        // and also to wait for it (like open -W)
+        // use open -W to get output and check for canceled. can't run binary directly due to launch constraints
         // this works even for unpriv users. it's special
-        let output = try await runProcessChecked("/System/Library/CoreServices/Rosetta 2 Updater.app/Contents/MacOS/Rosetta 2 Updater", [])
+        // stdout doesn't work with /dev/stdout or /dev/fd/1 (perm denied), but file works
+        let uuid = UUID().uuidString.prefix(8)
+        let tmpFile = FileManager.default.temporaryDirectory
+        .appendingPathComponent("orbstack-install-rosetta_\(uuid).sh")
+        defer {
+            try? FileManager.default.removeItem(at: tmpFile)
+        }
+        try await runProcessChecked("/usr/bin/open", ["-W", "-o", tmpFile.path, "--stderr", tmpFile.path, "/System/Library/CoreServices/Rosetta 2 Updater.app"])
+        let output = try String(contentsOf: tmpFile)
         NSLog("[VZF] Rosetta install result: \(output)")
 
         // we kind of just ignore errors and report canceled, e.g. on network failure
