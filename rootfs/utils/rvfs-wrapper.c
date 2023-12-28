@@ -331,8 +331,16 @@ int main(int argc, char **argv) {
     }
 
     // no cloexec = duplicate fd leaked to process
-    // TODO: what if this is BINPRM_FLAGS_PATH_INACCESSIBLE?
-    fcntl(execfd, F_SETFD, FD_CLOEXEC);
+    // however, if it's cloexec, it's marked as BINPRM_FLAGS_PATH_INACCESSIBLE
+    // that means it actually tries to open the file by path instead of using fd
+    // breaks systemd-executor
+    if (access(exe_path, F_OK) == 0) {
+        fcntl(execfd, F_SETFD, FD_CLOEXEC);
+    } else {
+        // explicitly clear CLOEXEC from fd, which came from parent process
+        fcntl(execfd, F_SETFD, 0);
+        exe_path = "";
+    }
 
     // detect missing interpreter
     struct elf_info elf_info = {0};
@@ -474,7 +482,8 @@ int main(int argc, char **argv) {
     // doesn't 100% match kernel default binfmt_misc behavior, but shouldn't matter
     // can't use realpath because it resolves symlinks, breaking busybox w/o preserve-argv0
     char new_path_buf[PATH_MAX];
-    if (exe_path[0] != '/') {
+    // keep empty "" string
+    if (strcmp(exe_path, "") != 0 && exe_path[0] != '/') {
         char cwd[PATH_MAX];
         if (getcwd(cwd, sizeof(cwd)) == NULL) {
             // fall back to empty string, meaning that exe path becomes /dev/fd/<execfd>
