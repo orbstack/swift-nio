@@ -16,6 +16,8 @@ COMMITS=$(git rev-list --count HEAD)
 
 if [[ ! -z "${OVERRIDE_ARCHS:-}" ]]; then
     ARCHS=($OVERRIDE_ARCHS)
+    # debug: skip notarization if building for specific archs
+    NOTARIZE=false
 fi
 
 VMGR_BIN="OrbStack Helper"
