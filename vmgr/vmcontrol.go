@@ -239,6 +239,16 @@ func (h *VmControlServer) InternalDumpDebugInfo(ctx context.Context) (*vmtypes.D
 	}, nil
 }
 
+func (h *VmControlServer) InternalGetEnvPATH(ctx context.Context) (string, error) {
+	// get from user details
+	details, err := h.setupUserDetailsOnce()
+	if err != nil {
+		return "", err
+	}
+
+	return details.EnvPATH, nil
+}
+
 func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmtypes.EnvReport, error) {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -386,6 +396,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"InternalUpdateToken":            handler.New(s.InternalUpdateToken),
 		"InternalRefreshDrm":             handler.New(s.InternalRefreshDrm),
 		"InternalDumpDebugInfo":          handler.New(s.InternalDumpDebugInfo),
+		"InternalGetEnvPATH":             handler.New(s.InternalGetEnvPATH),
 
 		"DockerContainerStart":   handler.New(s.DockerContainerStart),
 		"DockerContainerStop":    handler.New(s.DockerContainerStop),

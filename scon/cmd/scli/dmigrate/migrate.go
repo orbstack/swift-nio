@@ -3,6 +3,7 @@ package dmigrate
 import (
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -589,6 +590,16 @@ outer:
 
 	// end
 	pool.StopAndWait()
+
+	// get correct shell PATH to look up cred helpers, before migrating
+	envPATH, err := vmclient.Client().InternalGetEnvPATH()
+	if err != nil {
+		return fmt.Errorf("get env PATH: %w", err)
+	}
+	err = os.Setenv("PATH", envPATH)
+	if err != nil {
+		return fmt.Errorf("set env PATH: %w", err)
+	}
 
 	// migrate docker credentials
 	err = m.migrateCredentials()

@@ -229,3 +229,13 @@ func (c *VmClient) InternalDumpDebugInfo() (*vmtypes.DebugInfo, error) {
 
 	return &info, nil
 }
+
+func (c *VmClient) InternalGetEnvPATH() (string, error) {
+	var path string
+	err := c.rpc.CallResult(context.TODO(), "InternalGetEnvPATH", nil, &path)
+	if err != nil {
+		return "", err
+	}
+
+	return path, nil
+}
