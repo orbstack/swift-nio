@@ -782,7 +782,7 @@ func (r *mdnsRegistry) ClearContainers() {
 // lets client to return NXDOMAIN immediately instead of hanging
 // https://datatracker.ietf.org/doc/html/rfc6762#section-6.1
 // otherwise macOS delays for several seconds if AAAA missing
-func nxdomain(q dns.Question) []dns.RR {
+func nxdomain(q dns.Question, ttl uint32) []dns.RR {
 	// flush all for synthetic ANY query
 	var qTypes []uint16
 	if q.Qtype == dns.TypeANY {
@@ -797,8 +797,9 @@ func nxdomain(q dns.Question) []dns.RR {
 			Name:   q.Name,
 			Rrtype: dns.TypeNSEC,
 			Class:  dns.ClassINET | mdnsCacheFlushRrclass,
-			// this is OK because we record it in cache-flush query history
-			Ttl: mdnsTTLSeconds,
+			// long ttl is OK for docker because we record it in cache-flush query history,
+			// but not for k8s
+			Ttl: ttl,
 		},
 		NextDomain: q.Name,
 		TypeBitMap: qTypes,
@@ -944,7 +945,7 @@ func (r *mdnsRegistry) queryKubeDns(q dns.Question) []dns.RR {
 
 	// 0 rrs = nxdomain (NSEC)
 	if len(rrs) == 0 {
-		return nxdomain(q)
+		return nxdomain(q, kubeDnsTTLSeconds)
 	}
 
 	// set cache flush on all records, and translate names back (if we changed to default ns)
@@ -976,7 +977,7 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 		// return NSEC only if it's under our main suffix
 		// otherwise we can't take responsibility for this name
 		if strings.HasSuffix(q.Name, mdnsContainerSuffixes[0]) {
-			return nxdomain(q)
+			return nxdomain(q, mdnsTTLSeconds)
 		} else {
 			return nil
 		}
@@ -987,20 +988,20 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 	if matchedKey != treeKey {
 		// this was a wildcard match. is that allowed?
 		if !entry.IsWildcard {
-			return nxdomain(q)
+			return nxdomain(q, mdnsTTLSeconds)
 		}
 
 		// make sure we're matching on a component boundary:
 		// check that the next character is a dot
 		// e.g. stack.local shouldn't match orbstack.local
 		if len(treeKey) > len(matchedKey) && treeKey[len(matchedKey)] != '.' {
-			return nxdomain(q)
+			return nxdomain(q, mdnsTTLSeconds)
 		}
 
 		// only allow one wildcard component, not *.*.*.
 		// do this by counting dots and making sure there's no more than one extra dot
 		if strings.Count(treeKey, ".") > strings.Count(matchedKey, ".")+1 {
-			return nxdomain(q)
+			return nxdomain(q, mdnsTTLSeconds)
 		}
 
 		// note: we do *NOT* check whether the matched key was a leaf node (i.e. has no children)
@@ -1015,7 +1016,7 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 	records := entry.ToRecords(q.Name, includeV4, includeV6, mdnsTTLSeconds)
 	if len(records) == 0 {
 		// no records, return NSEC b/c we still got a match
-		return nxdomain(q)
+		return nxdomain(q, mdnsTTLSeconds)
 	}
 
 	return records
