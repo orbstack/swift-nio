@@ -405,7 +405,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// if this is a cloud-init image, wait for cloud-init to finish before we do anything
 	// fixes errors like: ('ssh_authkey_fingerprints', KeyError("getpwnam(): name not found: 'ubuntu'"))
 	err := util.Run("cloud-init", "status", "--wait")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err != nil && !errors.Is(err, exec.ErrNotFound) {
 		logrus.WithError(err).Warn("failed to wait for cloud-init")
 	}
 
