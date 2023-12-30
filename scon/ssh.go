@@ -613,6 +613,7 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 	sshServerPub := &SshServer{
 		m: m,
 		Server: &ssh.Server{
+			Version: "OrbStack",
 			ChannelHandlers: map[string]ssh.ChannelHandler{
 				"session": ssh.DefaultSessionHandler,
 			},
