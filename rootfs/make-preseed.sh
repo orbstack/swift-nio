@@ -15,7 +15,7 @@ label: gpt
 size=1G, type=L, uuid=37d45f5c-49d5-47b4-9a75-fdb70418baf6
 EOF
 trap 'qemu-nbd -d /dev/nbd0 || :' EXIT
-mkfs.btrfs -L user-data-fs -m single -R quota,free-space-tree /dev/nbd0p1
+mkfs.btrfs -L user-data-fs -m single -O block-group-tree -R quota,free-space-tree /dev/nbd0p1
 
 # copy preseed data
 mount /dev/nbd0p1 /mnt
