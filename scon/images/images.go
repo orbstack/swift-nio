@@ -101,7 +101,7 @@ var (
 	ImageToLatestVersion = map[string]string{
 		//ImageAmazon: "current",
 		ImageAlma:      "9",
-		ImageAlpine:    "3.18",
+		ImageAlpine:    "3.19",
 		ImageArch:      "current",
 		ImageCentos:    "9-Stream",
 		ImageDebian:    "bookworm",
