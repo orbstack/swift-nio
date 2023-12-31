@@ -310,8 +310,7 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
                     @unknown default:
                         break
                     }
-                    // check for VZErrorDomain code 9
-                } catch let error as VZError where error.code == .operationCancelled {
+                } catch GovzfError.rosettaInstallCanceled {
                     // do nothing
                     rosettaCanceled = true
                 } catch {
