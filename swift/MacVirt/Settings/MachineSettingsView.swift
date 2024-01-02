@@ -83,10 +83,19 @@ struct MachineSettingsView: View {
                     }
 
                     let maxCpu = ProcessInfo.processInfo.processorCount
-                    Slider(value: $cpu, in: 1 ... Double(maxCpu), step: 1) {
+                    
+                    // add intermediate Binding that only calls `vmModel.trySetConfigKey` when the user manually drags the slider
+                    let cpuBinding: Binding<Double> = Binding {
+                        cpu
+                    } set: { newValue in
+                        cpu = newValue
+                        vmModel.trySetConfigKey(\.cpu, UInt(newValue))
+                    }
+
+                    Slider(value: cpuBinding, in: 1 ... Double(maxCpu), step: 1) {
                         VStack(alignment: .trailing) {
                             Text("CPU limit")
-                            let intCpu = Int(cpu + 0.5)
+                            let intCpu = Int(cpuBinding.wrappedValue + 0.5)
                             let label = (intCpu == maxCpu) ? "None" : "\(intCpu)00%"
                             Text(label)
                                 .font(.caption.monospacedDigit())
@@ -97,9 +106,7 @@ struct MachineSettingsView: View {
                     } maximumValueLabel: {
                         Text("None")
                     }
-                    .onChange(of: cpu) { newValue in
-                        vmModel.trySetConfigKey(\.cpu, UInt(newValue))
-                    }
+                    
                     Text("Resources are used on demand, up to these limits. [Learn more](https://go.orbstack.dev/res-limits)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
