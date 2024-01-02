@@ -420,29 +420,41 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
 
             VStack(alignment: .leading) {
-                HStack {
+                DividedVStack {
                     Button {
                         container.showLogs(windowTracker: windowTracker)
                     } label: {
                         Label("Logs", systemImage: "doc.text.magnifyingglass")
+                            .labelStyle(ItemRowLabelStyle())
                     }
-                    .controlSize(.large)
+                    .buttonStyle(ItemRowButtonStyle())
 
                     if isRunning {
                         Button {
                             container.openInTerminal()
                         } label: {
                             Label("Terminal", systemImage: "terminal")
+                                .labelStyle(ItemRowLabelStyle())
                         }
-                        .controlSize(.large)
+                        .buttonStyle(ItemRowButtonStyle())
 
                         Button {
                             container.openFolder()
                         } label: {
                             Label("Files", systemImage: "folder")
+                                .labelStyle(ItemRowLabelStyle())
                         }
-                        .controlSize(.large)
+                        .buttonStyle(ItemRowButtonStyle())
                     }
+                }
+                .background {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(Color.secondary, lineWidth: 1)
+                                .opacity(0.1)
+                        }
                 }
 
                 if isRunning && container.image == "docker/getting-started" {
@@ -615,5 +627,35 @@ extension BaseDockerContainerItem {
         } else {
             return [selfId]
         }
+    }
+}
+
+struct ItemRowLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.icon
+                .frame(width: 24)
+
+            configuration.title
+                .padding(.vertical)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            Image(systemName: "chevron.forward")
+                .foregroundColor(.secondary)
+                .imageScale(.small)
+        }
+        .padding(.horizontal)
+    }
+}
+
+struct ItemRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background {
+                Color.secondary.opacity(0.05)
+                    .opacity(configuration.isPressed ? 1 : 0)
+            }
     }
 }

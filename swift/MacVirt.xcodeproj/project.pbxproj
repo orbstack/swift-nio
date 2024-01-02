@@ -13,6 +13,7 @@
 		3C0090272B27272E0000DFFA /* PublishedAppStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */; };
 		3C1935F22B313034009D2929 /* NewMainVC+SplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */; };
 		3C1935F42B31325D009D2929 /* SplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F32B31325D009D2929 /* SplitViewController.swift */; };
+		3CA2669E2B43C8C900D4DA28 /* DividedVStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA2669D2B43C8C900D4DA28 /* DividedVStack.swift */; };
 		3CBBBF8C2B1AC38A00BDBC87 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8B2B1AC38A00BDBC87 /* SidebarView.swift */; };
 		3CBBBF8E2B1AC38D00BDBC87 /* PrincipalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8D2B1AC38D00BDBC87 /* PrincipalView.swift */; };
 		3CBBBF902B1AC39100BDBC87 /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8F2B1AC39100BDBC87 /* InspectorView.swift */; };
@@ -255,6 +256,7 @@
 		3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedAppStorage.swift; sourceTree = "<group>"; };
 		3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+SplitView.swift"; sourceTree = "<group>"; };
 		3C1935F32B31325D009D2929 /* SplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitViewController.swift; sourceTree = "<group>"; };
+		3CA2669D2B43C8C900D4DA28 /* DividedVStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividedVStack.swift; sourceTree = "<group>"; };
 		3CBBBF8B2B1AC38A00BDBC87 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		3CBBBF8D2B1AC38D00BDBC87 /* PrincipalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrincipalView.swift; sourceTree = "<group>"; };
 		3CBBBF8F2B1AC39100BDBC87 /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
@@ -551,6 +553,7 @@
 			children = (
 				D80443D82A1B404E00ED59C5 /* DoubleClick.swift */,
 				D80443B72A1B404E00ED59C5 /* Operators.swift */,
+				3CA2669D2B43C8C900D4DA28 /* DividedVStack.swift */,
 				D80443B92A1B404E00ED59C5 /* SplitViewAccessor.swift */,
 				D80443B52A1B404E00ED59C5 /* SwiftUIUtils.swift */,
 				D80443B82A1B404E00ED59C5 /* Utils.swift */,
@@ -1077,6 +1080,7 @@
 				D80443F92A1B404E00ED59C5 /* CommandsRootView.swift in Sources */,
 				D80443F42A1B404E00ED59C5 /* Operators.swift in Sources */,
 				D80444122A1B404E00ED59C5 /* DoubleClick.swift in Sources */,
+				3CA2669E2B43C8C900D4DA28 /* DividedVStack.swift in Sources */,
 				D80443EB2A1B404E00ED59C5 /* Images.swift in Sources */,
 				D80443FD2A1B404E00ED59C5 /* DockerImageItem.swift in Sources */,
 				D80443FE2A1B404E00ED59C5 /* DockerContainerItem.swift in Sources */,
