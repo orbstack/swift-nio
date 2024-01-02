@@ -631,15 +631,18 @@ extension BaseDockerContainerItem {
 }
 
 struct ItemRowLabelStyle: LabelStyle {
+    @ScaledMetric(relativeTo: .body) var iconWidth = 24
+
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.icon
-                .frame(width: 24)
+                // set a frame so it lines up
+                .frame(width: iconWidth)
 
             configuration.title
                 .padding(.vertical)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            
+
             Image(systemName: "chevron.forward")
                 .foregroundColor(.secondary)
                 .imageScale(.small)
