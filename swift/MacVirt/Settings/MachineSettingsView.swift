@@ -9,24 +9,13 @@ import LaunchAtLogin
 import Sparkle
 import SwiftUI
 
-// need class to store published
-private class MachineSettingsViewModel: ObservableObject {
-    @Published var memoryMib = 0.0
-
-    var memoryMibThrottled: Publishers.Throttle<Published<Double>.Publisher, DispatchQueue>?
-
-    init() {
-        // prevent slider from oscillating
-        memoryMibThrottled = $memoryMib.throttle(for: 0.1, scheduler: DispatchQueue.main, latest: true)
-    }
-}
 
 struct MachineSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @StateObject private var model = MachineSettingsViewModel()
     @StateObject private var windowHolder = WindowHolder()
 
+    @State private var memory = 0.0
     @State private var cpu = 1.0
     @State private var enableRosetta = true
     @State private var dockerSetContext = true
@@ -40,10 +29,12 @@ struct MachineSettingsView: View {
                 #if arch(arm64)
                     Group {
                         if #available(macOS 13, *) {
-                            Toggle("Use Rosetta to run Intel code", isOn: $enableRosetta)
-                                .onChange(of: enableRosetta) { newValue in
-                                    vmModel.trySetConfigKey(\.rosetta, newValue)
-                                }
+                            let enableRosettaBinding = bindingWithAction($enableRosetta) { newValue in
+                                vmModel.trySetConfigKey(\.rosetta, newValue)
+                            }
+
+                            Toggle("Use Rosetta to run Intel code", isOn: enableRosettaBinding)
+
                             Text("Faster. Only disable if you run into compatibility issues.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
@@ -66,29 +57,28 @@ struct MachineSettingsView: View {
                     // e.g. up to 28 GiB on 32 GiB Macs
                     // OK because of macOS compression
                     let maxMemoryMib = max(systemMemMib * 0.80, systemMemMib - 4096)
-                    Slider(value: $model.memoryMib, in: 1024 ... maxMemoryMib, step: 1024) {
+
+                    let memoryMibBinding = bindingWithAction($memory) { newValue in
+                        vmModel.memoryMib = newValue
+                    }
+
+                    Slider(value: memoryMibBinding, in: 1024 ... maxMemoryMib, step: 1024) {
                         VStack(alignment: .trailing) {
                             Text("Memory limit")
-                            Text("\(model.memoryMib / 1024, specifier: "%.0f") GiB")
+                            Text("\(memoryMibBinding.wrappedValue / 1024, specifier: "%.0f") GiB")
                                 .font(.caption.monospacedDigit())
                                 .foregroundColor(.secondary)
                         }
                     } minimumValueLabel: {
                         Text("1 GiB")
                     } maximumValueLabel: {
-                        Text("\(maxMemoryMib / 1024, specifier: "%.0f") GiB")
-                    }
-                    .onReceive(model.memoryMibThrottled!) { newValue in
-                        vmModel.trySetConfigKey(\.memoryMib, UInt64(newValue))
+                        Text("\(memoryMibBinding.wrappedValue / 1024, specifier: "%.0f") GiB")
                     }
 
                     let maxCpu = ProcessInfo.processInfo.processorCount
-                    
+
                     // add intermediate Binding that only calls `vmModel.trySetConfigKey` when the user manually drags the slider
-                    let cpuBinding: Binding<Double> = Binding {
-                        cpu
-                    } set: { newValue in
-                        cpu = newValue
+                    let cpuBinding = bindingWithAction($cpu) { newValue in
                         vmModel.trySetConfigKey(\.cpu, UInt(newValue))
                     }
 
@@ -106,7 +96,7 @@ struct MachineSettingsView: View {
                     } maximumValueLabel: {
                         Text("None")
                     }
-                    
+
                     Text("Resources are used on demand, up to these limits. [Learn more](https://go.orbstack.dev/res-limits)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -115,10 +105,10 @@ struct MachineSettingsView: View {
                 Spacer()
                     .frame(height: 32)
 
-                Toggle("Switch Docker & Kubernetes context automatically", isOn: $dockerSetContext)
-                    .onChange(of: dockerSetContext) { newValue in
-                        vmModel.trySetConfigKey(\.dockerSetContext, newValue)
-                    }
+                let dockerSetContextBinding = bindingWithAction($dockerSetContext) { newValue in
+                    vmModel.trySetConfigKey(\.dockerSetContext, newValue)
+                }
+                Toggle("Switch Docker & Kubernetes context automatically", isOn: dockerSetContextBinding)
 
                 let adminBinding = Binding<Bool>(
                     get: { Users.hasAdmin && setupUseAdmin },
@@ -132,6 +122,7 @@ struct MachineSettingsView: View {
                         }
                     }
                 )
+
                 Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
                     .disabled(!Users.hasAdmin) // disabled + false if no admin
                 Text("This can improve performance and compatibility. [Learn more](https://go.orbstack.dev/admin)")
@@ -180,10 +171,20 @@ struct MachineSettingsView: View {
     }
 
     private func updateFrom(_ config: VmConfig) {
-        model.memoryMib = Double(config.memoryMib)
+        vmModel.memoryMib = Double(config.memoryMib)
+        memory = Double(config.memoryMib)
         cpu = Double(config.cpu)
         enableRosetta = config.rosetta
         dockerSetContext = config.dockerSetContext
         setupUseAdmin = config.setupUseAdmin
+    }
+
+    func bindingWithAction<T>(_ binding: Binding<T>, action: @escaping (_ newValue: T) -> Void) -> Binding<T> {
+        return Binding<T> {
+            binding.wrappedValue
+        } set: { newValue in
+            binding.wrappedValue = newValue
+            action(newValue)
+        }
     }
 }
