@@ -49,10 +49,8 @@ struct StorageSettingsView: View {
                     }
                 }
 
-                Toggle("Hide OrbStack volume (shared Docker & Linux files)", isOn: $mountHideShared)
-                    .onChange(of: mountHideShared) { newValue in
-                        vmModel.trySetConfigKey(\.mountHideShared, newValue)
-                    }
+                Toggle("Hide OrbStack volume (shared Docker & Linux files)",
+                       isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared))
                 VStack {
                     Picker(selection: selBinding, label: Text("Data location")) {
                         Text("Default").tag(DirItem.def)

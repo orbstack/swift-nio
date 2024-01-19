@@ -244,6 +244,23 @@ extension Text {
     }
 }
 
+extension Slider {
+    init<V: BinaryInteger>(value: Binding<V>, in bounds: ClosedRange<V>, step: V = 1, @ViewBuilder label: () -> Label, @ViewBuilder minimumValueLabel: () -> ValueLabel, @ViewBuilder maximumValueLabel: () -> ValueLabel, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
+        let binding = Binding<Double>(
+            get: { Double(value.wrappedValue) },
+            set: { value.wrappedValue = V($0) }
+        )
+
+        self.init(value: binding,
+                  in: Double(bounds.lowerBound) ... Double(bounds.upperBound),
+                  step: Double(step),
+                  label: label,
+                  minimumValueLabel: minimumValueLabel,
+                  maximumValueLabel: maximumValueLabel,
+                  onEditingChanged: onEditingChanged)
+    }
+}
+
 extension NSWorkspace {
     static func openSubwindow(_ path: String) {
         NSWorkspace.shared.open(URL(string: "orbstack://\(path)")!)

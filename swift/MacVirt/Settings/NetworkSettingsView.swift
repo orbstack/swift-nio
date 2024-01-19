@@ -19,23 +19,26 @@ struct NetworkSettingsView: View {
     var body: some View {
         SettingsStateWrapperView {
             Form {
-                Toggle("Allow access to container domains & IPs", isOn: $networkBridge)
-                    .onChange(of: networkBridge) { newValue in
-                        vmModel.trySetConfigKey(\.networkBridge, newValue)
+                let networkBridgeBinding = Binding {
+                    networkBridge
+                } set: { newValue in
+                    vmModel.trySetConfigKey(\.networkBridge, newValue)
 
-                        // restart Docker if running
-                        if newValue != vmModel.config?.networkBridge {
-                            if vmModel.state == .running,
-                               let machines = vmModel.containers,
-                               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
-                               dockerRecord.state == .starting || dockerRecord.state == .running
-                            {
-                                Task { @MainActor in
-                                    await vmModel.tryRestartContainer(dockerRecord)
-                                }
+                    // restart Docker if running
+                    if newValue != vmModel.config?.networkBridge {
+                        if vmModel.state == .running,
+                           let machines = vmModel.containers,
+                           let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker }),
+                           dockerRecord.state == .starting || dockerRecord.state == .running
+                        {
+                            Task { @MainActor in
+                                await vmModel.tryRestartContainer(dockerRecord)
                             }
                         }
                     }
+                }
+                Toggle("Allow access to container domains & IPs",
+                       isOn: networkBridgeBinding)
                 Text("Use domains and IPs to connect to containers without port forwarding.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -43,11 +46,9 @@ struct NetworkSettingsView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
-                Toggle("Enable HTTPS for container domains", isOn: $networkHttps)
-                    .onChange(of: networkHttps) { newValue in
-                        // this one is live-reload
-                        vmModel.trySetConfigKey(\.networkHttps, newValue)
-                    }
+                // this one is live-reload
+                Toggle("Enable HTTPS for container domains",
+                       isOn: vmModel.bindingForConfig(\.networkHttps, state: $networkHttps))
                     .disabled(!networkBridge)
 
                 Spacer().frame(height: 32)

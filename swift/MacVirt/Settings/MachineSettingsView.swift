@@ -9,14 +9,13 @@ import LaunchAtLogin
 import Sparkle
 import SwiftUI
 
-
 struct MachineSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @StateObject private var windowHolder = WindowHolder()
 
-    @State private var memory = 0.0
-    @State private var cpu = 1.0
+    @State private var memoryMib: UInt64 = 0
+    @State private var cpu: UInt = 1
     @State private var enableRosetta = true
     @State private var dockerSetContext = true
     @State private var setupUseAdmin = true
@@ -29,11 +28,8 @@ struct MachineSettingsView: View {
                 #if arch(arm64)
                     Group {
                         if #available(macOS 13, *) {
-                            let enableRosettaBinding = bindingWithAction($enableRosetta) { newValue in
-                                vmModel.trySetConfigKey(\.rosetta, newValue)
-                            }
-
-                            Toggle("Use Rosetta to run Intel code", isOn: enableRosettaBinding)
+                            Toggle("Use Rosetta to run Intel code",
+                                   isOn: vmModel.bindingForConfig(\.rosetta, state: $enableRosetta))
 
                             Text("Faster. Only disable if you run into compatibility issues.")
                                 .font(.subheadline)
@@ -52,41 +48,34 @@ struct MachineSettingsView: View {
                 #endif
 
                 Group {
-                    let systemMemMib = Double(ProcessInfo.processInfo.physicalMemory / 1024 / 1024)
+                    let systemMemMib = ProcessInfo.processInfo.physicalMemory / 1024 / 1024
                     // 80% or (max - 4 GiB), whichever is greater
                     // e.g. up to 28 GiB on 32 GiB Macs
                     // OK because of macOS compression
-                    let maxMemoryMib = max(systemMemMib * 0.80, systemMemMib - 4096)
+                    let maxMemoryMib = max(systemMemMib * 80 / 100, systemMemMib - 4096)
 
-                    let memoryMibBinding = bindingWithAction($memory) { newValue in
-                        vmModel.memoryMib = newValue
-                    }
-
+                    let memoryMibBinding = vmModel.bindingForConfig(\.memoryMib, state: $memoryMib)
                     Slider(value: memoryMibBinding, in: 1024 ... maxMemoryMib, step: 1024) {
                         VStack(alignment: .trailing) {
                             Text("Memory limit")
-                            Text("\(memoryMibBinding.wrappedValue / 1024, specifier: "%.0f") GiB")
+                            Text("\(memoryMibBinding.wrappedValue / 1024) GiB")
                                 .font(.caption.monospacedDigit())
                                 .foregroundColor(.secondary)
                         }
                     } minimumValueLabel: {
                         Text("1 GiB")
                     } maximumValueLabel: {
-                        Text("\(memoryMibBinding.wrappedValue / 1024, specifier: "%.0f") GiB")
+                        Text("\(maxMemoryMib / 1024) GiB")
                     }
 
-                    let maxCpu = ProcessInfo.processInfo.processorCount
+                    let maxCpu = UInt(ProcessInfo.processInfo.processorCount)
 
-                    // add intermediate Binding that only calls `vmModel.trySetConfigKey` when the user manually drags the slider
-                    let cpuBinding = bindingWithAction($cpu) { newValue in
-                        vmModel.trySetConfigKey(\.cpu, UInt(newValue))
-                    }
-
-                    Slider(value: cpuBinding, in: 1 ... Double(maxCpu), step: 1) {
+                    let cpuBinding = vmModel.bindingForConfig(\.cpu, state: $cpu)
+                    Slider(value: cpuBinding, in: 1 ... maxCpu, step: 1) {
                         VStack(alignment: .trailing) {
                             Text("CPU limit")
-                            let intCpu = Int(cpuBinding.wrappedValue + 0.5)
-                            let label = (intCpu == maxCpu) ? "None" : "\(intCpu)00%"
+                            let curCpu = cpuBinding.wrappedValue
+                            let label = (curCpu == maxCpu) ? "None" : "\(curCpu)00%"
                             Text(label)
                                 .font(.caption.monospacedDigit())
                                 .foregroundColor(.secondary)
@@ -105,10 +94,8 @@ struct MachineSettingsView: View {
                 Spacer()
                     .frame(height: 32)
 
-                let dockerSetContextBinding = bindingWithAction($dockerSetContext) { newValue in
-                    vmModel.trySetConfigKey(\.dockerSetContext, newValue)
-                }
-                Toggle("Switch Docker & Kubernetes context automatically", isOn: dockerSetContextBinding)
+                Toggle("Switch Docker & Kubernetes context automatically",
+                       isOn: vmModel.bindingForConfig(\.dockerSetContext, state: $dockerSetContext))
 
                 let adminBinding = Binding<Bool>(
                     get: { Users.hasAdmin && setupUseAdmin },
@@ -171,20 +158,10 @@ struct MachineSettingsView: View {
     }
 
     private func updateFrom(_ config: VmConfig) {
-        vmModel.memoryMib = Double(config.memoryMib)
-        memory = Double(config.memoryMib)
-        cpu = Double(config.cpu)
+        memoryMib = config.memoryMib
+        cpu = config.cpu
         enableRosetta = config.rosetta
         dockerSetContext = config.dockerSetContext
         setupUseAdmin = config.setupUseAdmin
-    }
-
-    func bindingWithAction<T>(_ binding: Binding<T>, action: @escaping (_ newValue: T) -> Void) -> Binding<T> {
-        return Binding<T> {
-            binding.wrappedValue
-        } set: { newValue in
-            binding.wrappedValue = newValue
-            action(newValue)
-        }
     }
 }

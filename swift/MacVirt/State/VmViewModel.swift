@@ -479,7 +479,6 @@ class VmViewModel: ObservableObject {
     @Published private(set) var appliedConfig: VmConfig? // usually from last start
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false
-    @Published var memoryMib = 0.0
 
     // Docker
     @Published private(set) var dockerContainers: [DKContainer]?
@@ -617,16 +616,6 @@ class VmViewModel: ObservableObject {
                 self.setError(.eventDecodeError(cause: error))
             }
         }.store(in: &cancellables)
-
-        $memoryMib
-            .dropFirst() // skip the first publisher (called on startup)
-            .throttle(for: 0.1, scheduler: RunLoop.main, latest: true)
-            .sink { [weak self] newValue in
-                guard let self else { return }
-
-                trySetConfigKey(\.memoryMib, UInt64(newValue))
-            }
-            .store(in: &cancellables)
     }
 
     private func advanceStateAsync(_ state: VmState) {
@@ -1480,5 +1469,17 @@ class VmViewModel: ObservableObject {
         }
 
         return Set(containers.map { $0.imageId })
+    }
+
+    // intermediate Binding that only calls `vmModel.trySetConfigKey` when the user manually drags the slider
+    func bindingForConfig<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>,
+                                        state: Binding<T>) -> Binding<T>
+    {
+        Binding<T> {
+            state.wrappedValue
+        } set: { [self] newValue in
+            state.wrappedValue = newValue
+            trySetConfigKey(keyPath, newValue)
+        }
     }
 }

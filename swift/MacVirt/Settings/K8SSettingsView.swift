@@ -22,10 +22,8 @@ struct K8SSettingsView: View {
     var body: some View {
         SettingsStateWrapperView {
             Form {
-                Toggle("Enable Kubernetes cluster", isOn: $k8sEnable)
-                    .onChange(of: k8sEnable) { newValue in
-                        vmModel.trySetConfigKey(\.k8sEnable, newValue)
-                    }
+                Toggle("Enable Kubernetes cluster",
+                       isOn: vmModel.bindingForConfig(\.k8sEnable, state: $k8sEnable))
                 Text("Lightweight local cluster with UI & network integration. [Learn more](https://go.orbstack.dev/k8s)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -33,10 +31,8 @@ struct K8SSettingsView: View {
                 Spacer()
                     .frame(height: 32)
 
-                Toggle("Expose services to local network devices", isOn: $k8sExposeServices)
-                    .onChange(of: k8sExposeServices) { newValue in
-                        vmModel.trySetConfigKey(\.k8sExposeServices, newValue)
-                    }
+                Toggle("Expose services to local network devices",
+                       isOn: vmModel.bindingForConfig(\.k8sExposeServices, state: $k8sExposeServices))
                 Text("Includes NodePorts, LoadBalancers, and the Kubernetes API.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
