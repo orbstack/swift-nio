@@ -19,6 +19,7 @@ private let terminalColor = NSColor.textColor
 
 private let urlRegex = try! NSRegularExpression(pattern: #"http(s)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}(\.[a-z]{2,6})?\b([-a-zA-Z0-9@:%_\+.~#?&\/\/=]*)"#)
 private let ansiColorRegex = try! NSRegularExpression(pattern: #"\u001B\[([0-9]{1,2};?)*?m"#)
+private let unsupportedAnsiRegex = try! NSRegularExpression(pattern: #"\u001B\[(?:[=?].+[a-zA-Z]|\d+[a-zA-Z])"#)
 
 private let ansiColorPalette: [NSColor] = [
     // keep in mind that ansi colors are meant for white-on-black
@@ -399,6 +400,13 @@ private class LogsViewModel: ObservableObject {
         state.addAttribute(to: attributedStr, range: NSRange(location: lastI, length: terminalLine.utf16.count - lastI))
         lastAnsiState = state
         // then delete escapes
+        for match in matches.reversed() {
+            attributedStr.deleteCharacters(in: match.range)
+        }
+
+        // delete unsupported escapes (like ESC[?25l used by nextjs, and ESC[4D [move cursor by columns])
+        let newStr = attributedStr.string
+        matches = unsupportedAnsiRegex.matches(in: newStr, range: NSRange(location: 0, length: newStr.utf16.count))
         for match in matches.reversed() {
             attributedStr.deleteCharacters(in: match.range)
         }
