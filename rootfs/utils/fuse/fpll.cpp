@@ -72,7 +72,11 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 			((sizeof(fuse_ino_t) >= sizeof(uintptr_t)) ? 1 : -1); };
 #endif
 
-#define trace_printf(...) do {} while (0)
+#ifdef __DEBUG
+#define trace_printf(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
+#else
+#define trace_printf(fmt, ...)
+#endif
 
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, struct lo_inode *> ino_to_ptr;
 static phmap::parallel_flat_hash_map_m<fuse_ino_t, std::string> forgotten_inodes;
@@ -701,9 +705,12 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 	char *p;
 	size_t rem = size;
 	int err;
+	bool seeked = false;
 
 	(void) ino;
 
+	trace_printf("readdir: BEGIN\n");
+	trace_printf("readdir: ino=%lu, size=%lu, offset=%lu | d=%p | d->offset=%lu\n", ino, size, offset, d, d->offset);
 	buf = (char *) calloc(1, size);
 	if (!buf) {
 		err = ENOMEM;
@@ -712,23 +719,41 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 	p = buf;
 
 	if (offset != d->offset) {
+		trace_printf("readdir: seekdir: %lu\n", offset);
 		seekdir(d->dp, offset);
 		d->entry = NULL;
 		d->offset = offset;
+		seeked = true;
 	}
 	while (1) {
 		size_t entsize;
 		off_t nextoff;
 		const char *name;
 
+		trace_printf("readdir: *loop*\n");
 		if (!d->entry) {
+			trace_printf("readdir: call readdir\n");
 			errno = 0;
 			d->entry = readdir(d->dp);
+			if (seeked && d->entry && d->entry->d_off < offset) {
+				trace_printf("readdir: readdir: seeked and d_off < offset\n");
+				// only check on first entry after seek
+				seeked = false;
+				// simulate seek on broken virtiofs by reading and discarding entries
+				while (1) {
+					d->entry = readdir(d->dp);
+					if (!d->entry || d->entry->d_off >= offset) {
+						break;
+					}
+				}
+			}
 			if (!d->entry) {
 				if (errno) {  // Error
+					trace_printf("readdir: readdir: error %d\n", errno);
 					err = errno;
 					goto error;
 				} else {  // End of stream
+					trace_printf("readdir: readdir: EOF\n");
 					break; 
 				}
 			}
@@ -738,6 +763,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 		fuse_ino_t entry_ino = 0;
 		if (plus) {
 			struct fuse_entry_param e;
+			trace_printf("readdir: plus: entry=%s\n", name);
 			if (is_dot_or_dotdot(name)) {
 				e = {};
 				e.attr.st_ino = d->entry->d_ino;
@@ -756,6 +782,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 				.st_ino = d->entry->d_ino,
 				.st_mode = static_cast<mode_t>(d->entry->d_type << 12),
 			};
+			trace_printf("readdir: std: entry=%s nextoff=%lu\n", name, nextoff);
 			entsize = fuse_add_direntry(req, p, rem, name,
 						    &st, nextoff);
 		}
@@ -772,6 +799,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 		d->offset = nextoff;
 	}
 
+	trace_printf("readdir: END\n");
     err = 0;
 error:
     // If there's an error, we can only signal it if we haven't stored
