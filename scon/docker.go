@@ -246,17 +246,28 @@ func (h *DockerHooks) symlinkDirChildren(dir string) error {
 }
 
 func (h *DockerHooks) symlinkDirs() error {
+	// /opt, /var, /etc are the only conflicting macOS+Linux dirs relevant to users
+	// bin, sbin, usr are not normally relevant
 	err := h.symlinkDirChildren("/opt")
 	if err != nil {
 		return err
 	}
 
+	// people have tried to use /var/tmp but linux has that too,
+	// and sometimes it gets used... so not safe
 	err = h.symlinkDirChildren("/var")
 	if err != nil {
 		return err
 	}
 
 	err = h.symlinkDirChildren("/etc")
+	if err != nil {
+		return err
+	}
+
+	// we can even do / to cover cases like /srv, /nix!
+	// normally we already have everything linked/bind-mounted except /cores
+	err = h.symlinkDirChildren("/")
 	if err != nil {
 		return err
 	}
