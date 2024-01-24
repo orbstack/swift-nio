@@ -251,6 +251,11 @@ func (h *DockerHooks) symlinkDirs() error {
 		return err
 	}
 
+	err = h.symlinkDirChildren("/var")
+	if err != nil {
+		return err
+	}
+
 	err = h.symlinkDirChildren("/etc")
 	if err != nil {
 		return err
