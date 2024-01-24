@@ -229,17 +229,31 @@ func (h *DockerHooks) createDataDirs() error {
 
 // symlink everything from /mnt/mac/opt into /opt
 // TODO: reverse proxy + path translation
-func (h *DockerHooks) symlinkDirs() error {
-	entries, err := os.ReadDir(mounts.Virtiofs + "/opt")
+func (h *DockerHooks) symlinkDirChildren(dir string) error {
+	entries, err := os.ReadDir(mounts.Virtiofs + dir)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		err = h.rootfs.Symlink(mounts.Virtiofs+"/opt/"+entry.Name(), "/opt/"+entry.Name())
+		err = h.rootfs.Symlink(mounts.Virtiofs+dir+"/"+entry.Name(), dir+"/"+entry.Name())
 		if err != nil && !errors.Is(err, os.ErrExist) {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (h *DockerHooks) symlinkDirs() error {
+	err := h.symlinkDirChildren("/opt")
+	if err != nil {
+		return err
+	}
+
+	err = h.symlinkDirChildren("/etc")
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -600,7 +614,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		return fmt.Errorf("create data: %w", err)
 	}
 
-	// symlink /opt dirs
+	// symlink /etc and /opt entries
 	err = h.symlinkDirs()
 	if err != nil {
 		return fmt.Errorf("symlink dirs: %w", err)

@@ -240,6 +240,14 @@ func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	})
 	r.Out.Host = host
 
+	// set X-Forwarded-For and X-Forwarded-Proto to fix HTTPS redirect detection, even though source IP is same
+	// revproxy strips Forwarded, X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Proto
+	// restore XFF because we append to that, but the rest are overwritten
+	// also restore Forwarded (we don't use it though)
+	r.Out.Header["Forwarded"] = r.In.Header["Forwarded"]
+	r.Out.Header["X-Forwarded-For"] = r.In.Header["X-Forwarded-For"]
+	r.SetXForwarded()
+
 	// let's record the target IP
 	// client thinks each, so this is OK
 	// if we ever change this and allow connecting through proxy without, we'll have to revisit this and query from dns server instead
