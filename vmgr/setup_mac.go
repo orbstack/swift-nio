@@ -423,10 +423,19 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		}
 	}()
 
+	// get env, fix PATH
 	details, err := s.setupUserDetailsOnce()
 	if err != nil {
 		return nil, err
 	}
+
+	// write SSH key and config
+	// depends on PATH for edge cases like ssh_config Match exec "type orb"
+	err = setupPublicSSH()
+	if err != nil {
+		return nil, err
+	}
+
 	// split path
 	pathItems := strings.Split(details.EnvPATH, ":")
 

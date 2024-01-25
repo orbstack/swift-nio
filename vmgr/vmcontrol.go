@@ -45,7 +45,7 @@ import (
 
 const (
 	pprofExtra       = false
-	initSetupTimeout = 10 * time.Second
+	initSetupTimeout = 5 * time.Second
 	envReportTimeout = 10 * time.Second
 )
 

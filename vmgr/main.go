@@ -800,9 +800,6 @@ func runVmManager() {
 		return nil
 	})
 
-	// SSH key and config
-	runAsyncInitTask("public SSH setup", setupPublicSSH)
-
 	// status dir
 	runAsyncInitTask("status file", func() error {
 		return os.WriteFile(conf.StatusFileRunning(), []byte{}, 0644)
