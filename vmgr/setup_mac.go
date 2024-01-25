@@ -527,7 +527,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 			fallthrough
 		case "bash":
 			if profilePath == "" {
-				profilePath = details.Home + "/.profile"
+				profilePath = details.Home + "/.bash_profile"
 				initSnippetPath = conf.ShellInitDir() + "/init.bash"
 			}
 
