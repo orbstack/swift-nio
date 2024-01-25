@@ -250,26 +250,27 @@ func (h *DockerHooks) symlinkDirs() error {
 	// bin, sbin, usr are not normally relevant
 	err := h.symlinkDirChildren("/opt")
 	if err != nil {
-		return err
+		// apparently some dirs can be EACCES? "symlink dirs: open /mnt/mac/opt: permission denied"
+		logrus.WithError(err).Error("failed to symlink /opt")
 	}
 
 	// people have tried to use /var/tmp but linux has that too,
 	// and sometimes it gets used... so not safe
 	err = h.symlinkDirChildren("/var")
 	if err != nil {
-		return err
+		logrus.WithError(err).Error("failed to symlink /var")
 	}
 
 	err = h.symlinkDirChildren("/etc")
 	if err != nil {
-		return err
+		logrus.WithError(err).Error("failed to symlink /etc")
 	}
 
 	// we can even do / to cover cases like /srv, /nix!
 	// normally we already have everything linked/bind-mounted except /cores
 	err = h.symlinkDirChildren("/")
 	if err != nil {
-		return err
+		logrus.WithError(err).Error("failed to symlink /")
 	}
 
 	return nil
