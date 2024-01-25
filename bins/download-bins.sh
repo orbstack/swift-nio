@@ -37,3 +37,18 @@ chmod +x docker-credential-osxkeychain
 # kubectl
 curl -L "https://dl.k8s.io/release/v$KUBECTL_VERSION/bin/darwin/$GO_ARCH/kubectl" > kubectl
 chmod +x kubectl
+
+# docker cli completions
+popd
+rm -fr completions
+mkdir -p completions
+pushd completions
+curl -L "https://raw.githubusercontent.com/docker/cli/master/contrib/completion/bash/docker" > docker.bash
+curl -L "https://raw.githubusercontent.com/docker/cli/master/contrib/completion/fish/docker.fish" > docker.fish
+mkdir zsh
+curl -L "https://raw.githubusercontent.com/docker/cli/master/contrib/completion/zsh/_docker" > zsh/_docker
+
+# kubectl completions
+../$GO_ARCH/kubectl completion bash > kubectl.bash
+../$GO_ARCH/kubectl completion zsh > zsh/_kubectl
+../$GO_ARCH/kubectl completion fish > kubectl.fish

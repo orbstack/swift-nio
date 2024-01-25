@@ -152,6 +152,7 @@
 		D8D1EEB02A8C6E8000C80718 /* PHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHClient.swift */; };
 		D8D1EEB32A8C7EC500C80718 /* DefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */; };
 		D8D1EEB42A8C7EC500C80718 /* DefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */; };
+		D8E1F6972B624D320043B932 /* completions in Copy assets */ = {isa = PBXBuildFile; fileRef = D8E1F6962B624D320043B932 /* completions */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -239,6 +240,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 7;
 			files = (
+				D8E1F6972B624D320043B932 /* completions in Copy assets */,
 				D88F4EBD2999C98F00419B5C /* assets in Copy assets */,
 			);
 			name = "Copy assets";
@@ -391,6 +393,7 @@
 		D8A32B9A296F839100E56EEF /* MacVirt.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacVirt.entitlements; sourceTree = "<group>"; };
 		D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DiagReporterView.swift; sourceTree = "<group>"; };
 		D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultsKeys.swift; sourceTree = "<group>"; };
+		D8E1F6962B624D320043B932 /* completions */ = {isa = PBXFileReference; lastKnownFileType = folder; name = completions; path = ../bins/out/completions; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -711,6 +714,7 @@
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
+				D8E1F6962B624D320043B932 /* completions */,
 				D8715CC42A208EB80047A9BE /* External */,
 				B118B5A454DB12F33008959E /* Shared */,
 				D8A32B90296F839100E56EEF /* MacVirt */,

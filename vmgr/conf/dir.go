@@ -101,8 +101,13 @@ func MustExecutableDir() string {
 	return dir
 }
 
+func ResourcesDir() string {
+	// simpler for development
+	return MustExecutableDir() + "/../Resources"
+}
+
 func AssetsDir() string {
-	return MustExecutableDir() + "/../Resources/assets/" + buildVariant + "/" + Arch()
+	return MustExecutableDir() + "/../assets/" + buildVariant + "/" + Arch()
 }
 
 func GetAssetFile(name string) string {
@@ -203,6 +208,18 @@ func CliBinDir() string {
 
 func CliXbinDir() string {
 	return MustExecutableDir() + "/xbin"
+}
+
+func CliZshCompletionsDir() string {
+	return ResourcesDir() + "/completions/zsh"
+}
+
+func CliCompletionsDir() string {
+	return ResourcesDir() + "/completions"
+}
+
+func FishCompletionsDir() string {
+	return HomeDir() + "/.config/fish/completions"
 }
 
 func FindXbin(name string) string {

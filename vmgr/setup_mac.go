@@ -350,13 +350,16 @@ func writeShellProfileSnippets() error {
 
 	// append, not prepend.
 	// cmdlinks should probably be prepended but it causes issues with kubectl/docker/etc. overrides
-	bashSnippet := fmt.Sprintf(`export PATH="$PATH":%s`+"\n", shellescape.Quote(bin))
+	bashSnippetBase := fmt.Sprintf(`export PATH="$PATH":%s\n`, shellescape.Quote(bin))
+	bashSnippet := bashSnippetBase + "\n. " + shellescape.Quote(conf.CliCompletionsDir()+"/docker.bash") + "\n. " + shellescape.Quote(conf.CliCompletionsDir()+"/kubectl.bash")
 	err := os.WriteFile(shells+"/init.bash", []byte(bashSnippet), 0644)
 	if err != nil {
 		return err
 	}
 
-	zshSnippet := bashSnippet
+	// zsh loads completions from fpath, but this must be set *before* compinit
+	// people usually put compinit in .zshrc, and init.zsh should be included in .zprofile, so it should work
+	zshSnippet := bashSnippetBase + "\nfpath+=" + shellescape.Quote(conf.CliZshCompletionsDir())
 	err = os.WriteFile(shells+"/init.zsh", []byte(zshSnippet), 0644)
 	if err != nil {
 		return err
@@ -366,6 +369,27 @@ func writeShellProfileSnippets() error {
 	err = os.WriteFile(shells+"/init.fish", []byte(fishSnippet), 0644)
 	if err != nil {
 		return err
+	}
+
+	// install fish completions if ~/.config/fish exists
+	if err := unix.Access(conf.FishCompletionsDir(), unix.W_OK); err == nil {
+		// clear broken symlink but leave files alone
+		if err := unix.Access(conf.FishCompletionsDir()+"/docker.fish", unix.F_OK); errors.Is(err, unix.ENOENT) {
+			_ = os.Remove(conf.FishCompletionsDir() + "/docker.fish")
+		}
+		err = os.Symlink(conf.CliCompletionsDir()+"/docker.fish", conf.FishCompletionsDir()+"/docker.fish")
+		if err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+
+		// clear broken symlink but leave files alone
+		if err := unix.Access(conf.FishCompletionsDir()+"/kubectl.fish", unix.F_OK); errors.Is(err, unix.ENOENT) {
+			_ = os.Remove(conf.FishCompletionsDir() + "/kubectl.fish")
+		}
+		err = os.Symlink(conf.CliCompletionsDir()+"/kubectl.fish", conf.FishCompletionsDir()+"/kubectl.fish")
+		if err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
 	}
 
 	return nil
