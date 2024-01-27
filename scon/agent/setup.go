@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -119,16 +120,6 @@ func selectAdminGroups() []string {
 	return groups
 }
 
-func contains[T comparable](slice []T, item T) bool {
-	for _, i := range slice {
-		if i == item {
-			return true
-		}
-	}
-
-	return false
-}
-
 func addUserToGroupsFile(file string, username string, addGroups []string) error {
 	groupsData, err := os.ReadFile(file)
 	if err != nil {
@@ -146,7 +137,7 @@ func addUserToGroupsFile(file string, username string, addGroups []string) error
 		xPasswd := parts[1]
 		gid := parts[2]
 		members := strings.Split(parts[3], ",")
-		if contains(addGroups, group) {
+		if slices.Contains(addGroups, group) {
 			members = append(members, username)
 			lines[i] = fmt.Sprintf("%s:%s:%s:%s", group, xPasswd, gid, strings.Join(members, ","))
 		}
