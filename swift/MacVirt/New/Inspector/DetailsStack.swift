@@ -1,0 +1,50 @@
+//
+// Created by Danny Lin on 1/28/24.
+//
+
+import Foundation
+import SwiftUI
+
+struct DetailsStack<Content: View>: View {
+    @ViewBuilder private let content: () -> Content
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        HStack {
+            // keep this at leading
+            VStack(alignment: .leading, spacing: 20) {
+                content()
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+    }
+}
+
+struct DetailsSection<Content: View>: View {
+    private let label: String
+    private let indent: CGFloat
+    @ViewBuilder private let content: () -> Content
+
+    init(_ label: String, indent: CGFloat = 16, @ViewBuilder content: @escaping () -> Content) {
+        self.label = label
+        self.indent = indent
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 24) {
+                content()
+            }
+            .padding(.leading, indent)
+        }
+    }
+}

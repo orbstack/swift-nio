@@ -18,8 +18,6 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
         listModel.selection as! Set<K8SResourceId>
     }
 
-    @State private var presentPopover = false
-
     static func == (lhs: K8SPodItemView, rhs: K8SPodItemView) -> Bool {
         lhs.pod == rhs.pod
     }
@@ -95,16 +93,6 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
             // WA: crash on macOS 12 without nested HStack
             HStack {
-                ProgressIconButton(systemImage: "info.circle.fill",
-                                   actionInProgress: false)
-                {
-                    presentPopover = true
-                }
-                .help("Get Info")
-                .popover(isPresented: $presentPopover, arrowEdge: .leading) {
-                    detailsView
-                }
-
                 ProgressIconButton(systemImage: "trash.fill",
                                    actionInProgress: actionInProgress == .delete)
                 {
@@ -131,12 +119,6 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             Divider()
 
             Group {
-                Button(action: {
-                    presentPopover = true
-                }) {
-                    Label("Get Info", systemImage: "")
-                }
-
                 Button(action: {
                     pod.showLogs(windowTracker: windowTracker)
                 }) {
@@ -187,90 +169,6 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 }
             }
         }
-    }
-
-    private var detailsView: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            let isRunning = pod.uiState == .running
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Info")
-                    .font(.headline)
-                SimpleKvTable {
-                    let domain = pod.preferredDomain
-                    let ipAddress = pod.status.podIP
-
-                    SimpleKvTableRow("Status") {
-                        Text(pod.statusStr)
-                    }
-
-                    SimpleKvTableRow("Restarts") {
-                        Text("\(pod.restartCount)")
-                    }
-
-                    SimpleKvTableRow("Age") {
-                        Text(pod.ageStr)
-                    }
-
-                    // needs to be running w/ ip to have domain
-                    if let ipAddress,
-                       let url = URL(string: "http://\(domain)") {
-                        SimpleKvTableRow("Address") {
-                            if vmModel.netBridgeAvailable {
-                                CopyableText(copyAs: domain) {
-                                    CustomLink(domain, url: url)
-                                }
-                            } else {
-                                CopyableText(ipAddress)
-                            }
-                        }
-                    }
-                }
-                .padding(.leading, 16)
-            }
-
-            if pod.status.containerStatuses?.isEmpty == false {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Containers")
-                        .font(.headline)
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(pod.status.containerStatuses ?? []) { container in
-                            if let name = container.name {
-                                // TODO: link
-                                Label {
-                                    CopyableText(name)
-                                } icon: {
-                                    // icon = red/green status dot
-                                    Image(nsImage: SystemImages.statusDot(isRunning: container.ready ?? false))
-                                }
-                            }
-                        }
-                    }
-                    .padding(.leading, 16)
-                }
-            }
-
-            VStack(alignment: .leading) {
-                HStack {
-                    Button {
-                        pod.showLogs(windowTracker: windowTracker)
-                    } label: {
-                        Label("Logs", systemImage: "doc.text.magnifyingglass")
-                    }
-                    .controlSize(.large)
-
-                    if isRunning {
-                        Button {
-                            pod.openInTerminal()
-                        } label: {
-                            Label("Terminal", systemImage: "terminal")
-                        }
-                        .controlSize(.large)
-                    }
-                }
-            }
-        }
-        .padding(20)
     }
 
     var selfId: K8SResourceId {

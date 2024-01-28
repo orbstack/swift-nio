@@ -51,6 +51,7 @@ struct DockerVolumesRootView: View {
                             maybeRefreshDf()
                         }
                     }
+                    .inspectorSelection(selection)
                 } else {
                     Spacer()
 

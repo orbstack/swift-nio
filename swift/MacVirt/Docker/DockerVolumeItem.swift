@@ -48,11 +48,7 @@ struct DockerVolumeItem: View {
                        let usageData = dfVolume.usageData
                     {
                         let fmtSize = ByteCountFormatter.string(fromByteCount: usageData.size, countStyle: .file)
-                        Text("\(fmtSize), created \(volume.formattedCreatedAt)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("Created \(volume.formattedCreatedAt)")
+                        Text("\(fmtSize)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }

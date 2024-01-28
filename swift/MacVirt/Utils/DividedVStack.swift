@@ -1,7 +1,7 @@
 //
 //  DividedVStack.swift
 //  MacVirt
-//  
+//
 //  Created by Andrew Zheng (github.com/aheze) on 1/1/24.
 //  Copyright © 2024 Andrew Zheng. All rights reserved.
 //
@@ -64,6 +64,47 @@ struct DividedVStackLayout: _VariadicView_UnaryViewRoot {
                         .padding(.trailing, trailingMargin)
                 }
             }
+        }
+    }
+}
+
+struct DividedRowButton<Label: View>: View {
+    private let action: () -> Void
+    @ViewBuilder private let label: () -> Label
+
+    init(action: @escaping () -> Void, @ViewBuilder label: @escaping () -> Label) {
+        self.action = action
+        self.label = label
+    }
+
+    var body: some View {
+        Button(action: action) {
+            label()
+                .labelStyle(ItemRowLabelStyle())
+        }
+        .buttonStyle(ItemRowButtonStyle())
+    }
+}
+
+struct DividedButtonStack<Content: View>: View {
+    @ViewBuilder private let content: () -> Content
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        DividedVStack {
+            content()
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.secondary, lineWidth: 1)
+                        .opacity(0.1)
+                }
         }
     }
 }

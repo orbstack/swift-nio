@@ -41,6 +41,7 @@ private struct K8SServicesList: View {
                         .environmentObject(windowTracker)
                         .environmentObject(actionTracker)
                 }
+                .inspectorSelection(selection)
             } else {
                 Spacer()
 

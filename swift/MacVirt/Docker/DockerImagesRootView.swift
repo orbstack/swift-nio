@@ -49,6 +49,7 @@ struct DockerImagesRootView: View {
                             .environmentObject(actionTracker)
                     }
                     .navigationSubtitle("\(totalSizeFormatted) total")
+                    .inspectorSelection(selection)
                 } else {
                     Spacer()
 

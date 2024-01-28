@@ -310,10 +310,10 @@ struct SimpleKvTableRow<Content: View>: View {
     var body: some View {
         HStack(alignment: .top) {
             Text(label)
-            .fontWeight(.medium)
-            .alignmentGuide(.tableColumnAlignmentGuide) { context in
-                context[.trailing]
-            }
+                .fontWeight(.medium)
+                .alignmentGuide(.tableColumnAlignmentGuide) { context in
+                    context[.trailing]
+                }
 
             content()
         }

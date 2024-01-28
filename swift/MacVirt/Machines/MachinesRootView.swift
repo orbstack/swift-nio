@@ -27,6 +27,7 @@ struct MachinesRootView: View {
                                 .environmentObject(windowTracker)
                                 .environmentObject(actionTracker)
                         }
+                        .inspectorSelection((selection != nil) ? [selection!] : [])
                     } else {
                         Spacer()
                         HStack {

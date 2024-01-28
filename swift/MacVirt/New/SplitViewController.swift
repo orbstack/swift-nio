@@ -33,8 +33,10 @@ class SplitViewController: NSSplitViewController {
         itemA.minimumThickness = 165
         itemA.maximumThickness = 250
 
-        itemC.minimumThickness = 240
-        itemC.maximumThickness = 500
+        itemB.minimumThickness = 250
+
+        itemC.minimumThickness = 280
+        itemC.maximumThickness = 600
 
         if #available(macOS 14.0, *) {
             itemC.allowsFullHeightLayout = true

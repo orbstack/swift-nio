@@ -14,6 +14,23 @@ enum ContainerState: String, Codable {
     case stopping
     case stopped
     case deleting
+
+    var friendlyName: String {
+        switch self {
+        case .creating:
+            return "Creating"
+        case .starting:
+            return "Starting"
+        case .running:
+            return "Running"
+        case .stopping:
+            return "Stopping"
+        case .stopped:
+            return "Stopped"
+        case .deleting:
+            return "Deleting"
+        }
+    }
 }
 
 struct ImageSpec: Codable, Equatable {
@@ -44,6 +61,7 @@ struct ContainerRecord: AKListItem, Codable, Identifiable, Equatable {
 
 struct MachineConfig: Codable, Equatable {
     var isolated: Bool
+    var defaultUsername: String
 }
 
 struct CreateRequest: Codable {

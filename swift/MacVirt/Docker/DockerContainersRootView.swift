@@ -244,6 +244,7 @@ struct DockerContainersRootView: View {
                 dockerImages: vmModel.dockerImages,
                 dockerVolumes: vmModel.dockerVolumes
             )
+            .inspectorSelection(selection)
         }
         .navigationTitle("Containers")
     }

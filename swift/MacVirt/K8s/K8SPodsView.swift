@@ -99,6 +99,7 @@ struct K8SPodsView: View {
                         runningCount: runningCount,
                         listItems: listItems,
                         selection: $selection)
+                .inspectorSelection(selection)
         }
         .navigationTitle("Pods")
     }

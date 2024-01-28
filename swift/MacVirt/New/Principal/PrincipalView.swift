@@ -61,8 +61,8 @@ struct PrincipalView: View {
         .onChange(of: model.selectedTab) { tab in
             onTabChange(tab)
         }
-        .onPreferenceChange(InspectorContentsKey.self) { value in
-            navModel.inspectorContents = value
+        .onPreferenceChange(InspectorSelectionKey.self) { value in
+            navModel.inspectorSelection = value
         }
     }
 }

@@ -17,8 +17,6 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
         listModel.selection as! Set<K8SResourceId>
     }
 
-    @State private var presentPopover = false
-
     static func == (lhs: K8SServiceItemView, rhs: K8SServiceItemView) -> Bool {
         lhs.service == rhs.service
     }
@@ -74,16 +72,6 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                     .help("Open in Browser")
                 }
 
-                ProgressIconButton(systemImage: "info.circle.fill",
-                                   actionInProgress: false)
-                {
-                    presentPopover = true
-                }
-                .help("Get Info")
-                .popover(isPresented: $presentPopover, arrowEdge: .leading) {
-                    detailsView
-                }
-
                 ProgressIconButton(systemImage: "trash.fill",
                                    actionInProgress: actionInProgress == .delete)
                 {
@@ -110,12 +98,6 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             Divider()
 
             Group {
-                Button(action: {
-                    presentPopover = true
-                }) {
-                    Label("Get Info", systemImage: "")
-                }
-
                 Button(action: {
                     if let urlStr = service.wrapURL(host: service.preferredDomain),
                        let url = URL(string: urlStr)
@@ -167,72 +149,6 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                 }
             }
         }
-    }
-
-    private var detailsView: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Info")
-                    .font(.headline)
-                SimpleKvTable {
-                    let domain = service.preferredDomain
-                    let clusterIP = service.spec.clusterIP
-                    // redundant. our external ip is always the same as node
-                    // let externalIP = service.externalIP
-                    let address = service.wrapURL(host: domain) ?? service.preferredDomainAndPort
-                    let addressVisible = service.wrapURLNoScheme(host: domain) ?? service.preferredDomainAndPort
-                    let isWebService = service.isWebService
-
-                    SimpleKvTableRow("Type") {
-                        Text(service.spec.type.rawValue)
-                    }
-
-                    SimpleKvTableRow("Age") {
-                        Text(service.ageStr)
-                    }
-
-                    SimpleKvTableRow("Cluster IP") {
-                        if let clusterIP {
-                            CopyableText(clusterIP)
-                        }
-                    }
-
-                    if let url = URL(string: address) {
-                        SimpleKvTableRow("Address") {
-                            if isWebService {
-                                CopyableText(copyAs: service.preferredDomainAndPort) {
-                                    CustomLink(addressVisible, url: url)
-                                }
-                            } else {
-                                CopyableText(addressVisible)
-                            }
-                        }
-                    }
-                }
-                .padding(.leading, 16)
-            }
-
-            if service.spec.ports?.isEmpty == false {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Ports")
-                        .font(.headline)
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(service.spec.ports ?? []) { port in
-                            // TODO: dedupe logic
-                            let portNumber = service.spec.type == .loadBalancer ? port.port : (port.nodePort ?? port.port)
-                            // avoid pretty commas num format
-                            if port.proto != "TCP" {
-                                CopyableText("\(String(portNumber))/\(port.proto ?? "TCP")")
-                            } else {
-                                CopyableText(String(portNumber))
-                            }
-                        }
-                    }
-                    .padding(.leading, 16)
-                }
-            }
-        }
-        .padding(20)
     }
 
     var selfId: K8SResourceId {
