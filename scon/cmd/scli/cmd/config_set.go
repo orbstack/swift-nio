@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
@@ -101,8 +102,35 @@ Some options will only take effect after restarting the virtual machine.
 			config.SSHExposePort = val
 			rebootRequired = true
 		default:
-			cmd.PrintErrln("Unknown configuration key:", key)
-			os.Exit(1)
+			// machine.* = unified
+			if strings.HasPrefix(key, "machine.") {
+				// get machine name part
+				parts := strings.Split(key, ".")[1:]
+				if len(parts) < 2 {
+					checkCLI(errors.New("Invalid machine config key: " + key))
+				}
+
+				machineConfigKey := parts[len(parts)-1]
+				parts = parts[:len(parts)-1]
+				// unquote
+				machineName := strings.Replace(strings.Join(parts, "."), `"`, "", -1)
+				// get machine
+				machine, err := scli.Client().GetByName(machineName)
+				checkCLI(err)
+				// update config
+				switch machineConfigKey {
+				case "username":
+					machine.Config.DefaultUsername = value
+					err = scli.Client().ContainerSetConfig(machine, machine.Config)
+					checkCLI(err)
+				default:
+					checkCLI(errors.New("Unknown machine config key: " + key))
+				}
+			} else {
+				// unknown
+				cmd.PrintErrln("Unknown configuration key:", key)
+				os.Exit(1)
+			}
 		}
 
 		err = vmclient.Client().SetConfig(config)

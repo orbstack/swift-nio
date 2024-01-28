@@ -10,6 +10,6 @@ func init() {
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Configure OrbStack, Docker, and machines",
-	Long:  `Configure OrbStack, Docker, and machines.`,
+	Short: "Change OrbStack settings",
+	Long:  `Change OrbStack settings.`,
 }

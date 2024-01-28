@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
@@ -23,7 +24,7 @@ var configShowCmd = &cobra.Command{
 	Example: "  " + appid.ShortCmd + " show",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		scli.EnsureVMWithSpinner()
+		scli.EnsureSconVMWithSpinner()
 		config, err := vmclient.Client().GetConfig()
 		checkCLI(err)
 
@@ -35,6 +36,17 @@ var configShowCmd = &cobra.Command{
 		var configMap map[string]any
 		err = json.Unmarshal(jsonData, &configMap)
 		checkCLI(err)
+
+		// add machine configs
+		containers, err := scli.Client().ListContainers()
+		checkCLI(err)
+		for _, container := range containers {
+			namePart := container.Name
+			if strings.ContainsRune(namePart, '.') {
+				namePart = "\"" + namePart + "\""
+			}
+			configMap["machine."+namePart+".username"] = container.Config.DefaultUsername
+		}
 
 		// print keys in sorted order
 		lines := make([]string, 0, len(configMap))

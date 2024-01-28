@@ -21,7 +21,7 @@ var defaultCmd = &cobra.Command{
 You can remove the default machine by passing "none" as the machine name.
 If no default is set, the most recently-used machine will be used instead.
 
-Use "orb machine config" to change the default username.
+Use "orb config" to change the default username.
 `,
 	Example: "  " + appid.ShortCmd + " set-default ubuntu",
 	Args:    cobra.MaximumNArgs(1),
