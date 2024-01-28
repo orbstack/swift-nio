@@ -92,6 +92,22 @@ func (d *DockerAgent) filterNewNetworks(nets []dockertypes.Network) ([]dockertyp
 func (d *DockerAgent) refreshNetworks() error {
 	// no mu needed: FuncDebounce has mutex
 
+	if !d.networksRefreshed {
+		// on first refresh, update iptables. this isn't created immediately aftet start?
+
+		// delete DOCKER-ISOLATION-STAGE-1 chain jump to allow cross-bridge traffic
+		err := util.Run("iptables", "-D", "FORWARD", "-j", "DOCKER-ISOLATION-STAGE-1")
+		if err != nil {
+			logrus.WithError(err).Warn("failed to delete iptables jump")
+		}
+		err = util.Run("ip6tables", "-D", "FORWARD", "-j", "DOCKER-ISOLATION-STAGE-1")
+		if err != nil {
+			logrus.WithError(err).Warn("failed to delete iptables jump")
+		}
+
+		d.networksRefreshed = true
+	}
+
 	var newNetworks []dockertypes.Network
 	err := d.client.Call("GET", "/networks", nil, &newNetworks)
 	if err != nil {
