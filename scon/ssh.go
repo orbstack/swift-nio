@@ -196,14 +196,6 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 		containerName = defaultContainerName
 	}
 
-	// default user?
-	if user == "[default]" {
-		user, err = sv.m.defaultUser()
-		if err != nil {
-			return
-		}
-	}
-
 	container, err = sv.m.GetByName(containerName)
 	// try default container
 	if err != nil && len(userParts) == 1 {
@@ -216,6 +208,11 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 	if err != nil {
 		err = fmt.Errorf("machine not found: %s", containerName)
 		return
+	}
+
+	// default user?
+	if user == "[default]" || user == "default" {
+		user = container.config.DefaultUsername
 	}
 
 	if !conf.Debug() && container.builtin {

@@ -94,14 +94,6 @@ func (s *SconServer) SetDefaultContainer(ctx context.Context, record *types.Cont
 	return s.m.SetDefaultContainer(c)
 }
 
-func (s *SconServer) GetDefaultUsername(ctx context.Context) (string, error) {
-	return s.m.defaultUser()
-}
-
-func (s *SconServer) SetDefaultUsername(ctx context.Context, req types.SetDefaultUsernameRequest) error {
-	return s.m.SetDefaultUsername(req.Username)
-}
-
 func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
 	c, err := s.m.GetByID(record.ID)
 	if err != nil {
@@ -164,6 +156,19 @@ func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGe
 	}
 
 	return c.GetLogs(req.Type)
+}
+
+func (s *SconServer) ContainerSetConfig(ctx context.Context, req types.ContainerSetConfigRequest) error {
+	if req.Container == nil {
+		return errors.New("container is nil")
+	}
+
+	c, err := s.m.GetByID(req.Container.ID)
+	if err != nil {
+		return err
+	}
+
+	return c.SetConfig(req.Config)
 }
 
 func (s *SconServer) InternalReportStopped(ctx context.Context, req types.InternalReportStoppedRequest) error {
@@ -243,14 +248,13 @@ func (s *SconServer) Serve() error {
 		"GetByName":                             handler.New(s.GetByName),
 		"GetDefaultContainer":                   handler.New(s.GetDefaultContainer),
 		"SetDefaultContainer":                   handler.New(s.SetDefaultContainer),
-		"GetDefaultUsername":                    handler.New(s.GetDefaultUsername),
-		"SetDefaultUsername":                    handler.New(s.SetDefaultUsername),
 		"ContainerStart":                        handler.New(s.ContainerStart),
 		"ContainerStop":                         handler.New(s.ContainerStop),
 		"ContainerRestart":                      handler.New(s.ContainerRestart),
 		"ContainerDelete":                       handler.New(s.ContainerDelete),
 		"ContainerRename":                       handler.New(s.ContainerRename),
 		"ContainerGetLogs":                      handler.New(s.ContainerGetLogs),
+		"ContainerSetConfig":                    handler.New(s.ContainerSetConfig),
 		"InternalReportStopped":                 handler.New(s.InternalReportStopped),
 		"InternalDockerMigrationLoadImage":      handler.New(s.InternalDockerMigrationLoadImage),
 		"InternalDockerMigrationRunSyncServer":  handler.New(s.InternalDockerMigrationRunSyncServer),

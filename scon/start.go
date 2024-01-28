@@ -243,7 +243,7 @@ func (c *Container) configureLxc() error {
 		// because of dummy debugfs, we limit CAP_SYS_RAWIO so the systemd service condition fails
 		// otherwise it tries to mount if ConditionPathExists=/sys/kernel/debug and ConditionCapability=CAP_SYS_RAWIO
 		// HOWEVER, we need this for isolated
-		if c.isolated {
+		if c.config.Isolated {
 			set("lxc.cap.drop", "sys_rawio")
 		}
 		set("lxc.autodev", "1") // populate /dev
@@ -256,7 +256,7 @@ func (c *Container) configureLxc() error {
 		// make sure to block krpc if denylist
 		set("lxc.cgroup2.devices.deny", "a")
 		set("lxc.cgroup2.devices.allow", "b *:* m") // mknod block
-		if !c.isolated {
+		if !c.config.Isolated {
 			set("lxc.cgroup2.devices.allow", "b 7:* rwm")  // dev/loop*
 			set("lxc.cgroup2.devices.allow", "b 43:* rwm") // dev/nbd*
 		}
@@ -276,7 +276,7 @@ func (c *Container) configureLxc() error {
 		addDevOptional("/dev/net/tun")
 		addDevOptional("/dev/ppp")
 		addDevOptional("/dev/vhost-net")
-		if !c.isolated {
+		if !c.config.Isolated {
 			addDevOptional("/dev/kmsg")
 			addDevOptional("/dev/loop-control")
 			addDevOptional("/dev/autofs") // TODO security
@@ -309,7 +309,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.mount.entry", "/sys/kernel/security sys/kernel/security none rbind,create=dir,optional 0 0")
 		set("lxc.mount.entry", "bpf sys/fs/bpf bpf rw,nosuid,nodev,noexec,relatime,mode=700,optional 0 0")
 		bind("/sys/kernel/tracing", "/sys/kernel/tracing", "")
-		if !c.isolated {
+		if !c.config.Isolated {
 			// this is recursive (rbind) so no need for /sys/kernel/debug/tracing
 			bind("/sys/kernel/debug", "/sys/kernel/debug", "")
 		}
@@ -359,13 +359,13 @@ func (c *Container) configureLxc() error {
 		var policyType SeccompPolicyType
 		isEmulated := c.Image.Arch != runtime.GOARCH
 		if isEmulated {
-			if c.isolated {
+			if c.config.Isolated {
 				policyType = SeccompPolicyEmulatedIsolated
 			} else {
 				policyType = SeccompPolicyEmulated
 			}
 		} else {
-			if c.isolated {
+			if c.config.Isolated {
 				policyType = SeccompPolicyIsolated
 			} else {
 				policyType = SeccompPolicyDefault
@@ -399,7 +399,7 @@ func (c *Container) configureLxc() error {
 		bind(conf.C().GuestMountSrc, "/opt/orbstack-guest", "ro")
 
 		// isolated containers don't get bind mounts
-		if !c.isolated {
+		if !c.config.Isolated {
 			bind(conf.C().HostMountSrc, "/mnt/mac", "")
 			// we're doing this in kernel now, to avoid showing up in `df`
 			//bind(conf.C().FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
@@ -574,6 +574,19 @@ func (m *ConManager) insertContainerLocked(c *Container) error {
 }
 
 func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrite bool) (*Container, bool, error) {
+	// fix/upgrade container record:
+	// isolated = false
+	// empty (old/unset) default username -> set to default host user
+	//   * this case is also used for new machine creation with default username
+	if record.Config.DefaultUsername == "" {
+		logrus.WithField("container", record.Name).Debug("setting username to default")
+		defaultUser, err := m.defaultUser()
+		if err != nil {
+			return nil, false, fmt.Errorf("get default user: %w", err)
+		}
+		record.Config.DefaultUsername = defaultUser
+	}
+
 	c, err := m.newContainerLocked(record)
 	if err != nil {
 		return nil, false, err
@@ -915,7 +928,7 @@ func (c *Container) initNetPostStart() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.isolated {
+	if c.config.Isolated {
 		// isolated containers don't have auto listener or bpf reverse localhost forward
 		return nil
 	}

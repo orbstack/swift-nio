@@ -45,13 +45,17 @@ type ContainerRecord struct {
 }
 
 type MachineConfig struct {
-	Isolated bool `json:"isolated"`
+	Isolated        bool   `json:"isolated"`
+	DefaultUsername string `json:"default_username"`
 }
 
 type CreateRequest struct {
-	Name         string    `json:"name"`
-	Image        ImageSpec `json:"image"`
-	UserPassword string    `json:"user_password,omitempty"`
+	Name  string    `json:"name"`
+	Image ImageSpec `json:"image"`
+
+	// config
+	Config       MachineConfig `json:"config"`
+	UserPassword string        `json:"user_password,omitempty"`
 
 	CloudInitUserData string `json:"cloud_init_user_data"`
 }
@@ -90,11 +94,12 @@ type InternalDockerMigrationSyncDirsRequest struct {
 	Dirs  []string `json:"dirs"`
 }
 
-type SetDefaultUsernameRequest struct {
-	Username string `json:"username"`
-}
-
 type ContainerRenameRequest struct {
 	Container *ContainerRecord `json:"container"`
 	NewName   string           `json:"new_name"`
+}
+
+type ContainerSetConfigRequest struct {
+	Container *ContainerRecord `json:"container"`
+	Config    MachineConfig    `json:"config"`
 }

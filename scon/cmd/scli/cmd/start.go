@@ -59,6 +59,7 @@ If no machines are specified, the command will start all machines that were runn
 				// enable config
 				config, err := vmclient.Client().GetConfig()
 				checkCLI(err)
+				wasSet := config.K8sEnable
 				config.K8sEnable = true
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
@@ -68,7 +69,10 @@ If no machines are specified, the command will start all machines that were runn
 
 				spinner := spinutil.Start("green", "Starting k8s")
 				if c.State == types.ContainerStateRunning {
-					err = scli.Client().ContainerRestart(c)
+					// only restart if it wasn't previously set
+					if !wasSet {
+						err = scli.Client().ContainerRestart(c)
+					}
 				} else {
 					err = scli.Client().ContainerStart(c)
 				}

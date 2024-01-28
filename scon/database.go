@@ -20,7 +20,6 @@ const (
 	bktState             = "state"
 	ksLastContainerID    = "lastContainerID"
 	ksDefaultContainerID = "defaultContainerID"
-	ksDefaultUsername    = "defaultUsername"
 	ksDnsLastQueries     = "dnsLastQueries"
 
 	bktContainers = "containers"
@@ -262,14 +261,6 @@ func (db *Database) GetDefaultContainerID() (string, error) {
 
 func (db *Database) SetDefaultContainerID(id string) error {
 	return db.setSimpleStr(bktState, ksDefaultContainerID, id)
-}
-
-func (db *Database) GetDefaultUsername() (string, error) {
-	return db.getSimpleStr(bktState, ksDefaultUsername)
-}
-
-func (db *Database) SetDefaultUsername(username string) error {
-	return db.setSimpleStr(bktState, ksDefaultUsername, username)
 }
 
 func (db *Database) GetDnsRecentQueries() (map[string]mdnsQueryInfo, error) {

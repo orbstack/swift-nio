@@ -102,22 +102,6 @@ func (c *SconClient) SetDefaultContainer(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "SetDefaultContainer", record, &noResult)
 }
 
-func (c *SconClient) GetDefaultUsername() (string, error) {
-	var username string
-	err := c.rpc.CallResult(context.TODO(), "GetDefaultUsername", nil, &username)
-	if err != nil {
-		return "", err
-	}
-
-	return username, nil
-}
-
-func (c *SconClient) SetDefaultUsername(username string) error {
-	return c.rpc.CallResult(context.TODO(), "SetDefaultUsername", types.SetDefaultUsernameRequest{
-		Username: username,
-	}, &noResult)
-}
-
 func (c *SconClient) ContainerStart(record *types.ContainerRecord) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerStart", record, &noResult)
 }
@@ -152,6 +136,13 @@ func (c *SconClient) ContainerGetLogs(record *types.ContainerRecord, logType typ
 	}
 
 	return logs, nil
+}
+
+func (c *SconClient) ContainerSetConfig(record *types.ContainerRecord, config types.MachineConfig) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerSetConfig", types.ContainerSetConfigRequest{
+		Container: record,
+		Config:    config,
+	}, &noResult)
 }
 
 func (c *SconClient) InternalReportStopped(id string) error {

@@ -75,7 +75,9 @@ func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.
 		ID:    id,
 		Name:  name,
 		Image: image,
-		State: types.ContainerStateCreating,
+		// sanitized by restoreOneLocked
+		Config: args.Config,
+		State:  types.ContainerStateCreating,
 	}
 
 	m.containersMu.Lock()
@@ -181,11 +183,11 @@ func (c *Container) setupInitial(args *types.CreateRequest) error {
 	// tell agent to run setup
 	logrus.WithFields(logrus.Fields{
 		"uid":      hostUser.Uid,
-		"username": hostUser.Username,
+		"username": c.config.DefaultUsername,
 	}).Info("running initial setup")
 	err = c.UseAgent(func(a *agent.Client) error {
 		return a.InitialSetup(agent.InitialSetupArgs{
-			Username:    hostUser.Username,
+			Username:    c.config.DefaultUsername,
 			Uid:         hostUser.Uid,
 			HostHomeDir: hostUser.HomeDir,
 

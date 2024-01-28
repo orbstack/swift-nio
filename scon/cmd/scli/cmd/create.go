@@ -24,6 +24,7 @@ var (
 
 func init() {
 	rootCmd.AddCommand(createCmd)
+	createCmd.Flags().StringVarP(&flagUser, "user", "u", "", "Username for the default user")
 	createCmd.Flags().BoolVarP(&flagSetPassword, "set-password", "p", false, "Set a password for the default user")
 	createCmd.Flags().StringVarP(&flagArch, "arch", "a", "", "Override the default architecture")
 	createCmd.Flags().StringVarP(&flagUserData, "user-data", "c", "", "Path to Cloud-init user data file (for automatic setup)")
@@ -38,7 +39,7 @@ var createCmd = &cobra.Command{
 Version is optional; the latest stable version will be used if not specified.
 To remove a machine, use "` + appid.ShortCmd + ` delete".
 
-A Linux user will be created to match your macOS user. Use "--set-password" to set a password for both this user and root.
+By default, a Linux user will be created with the same name as your macOS user. Use "--user" to change the name, and "--set-password" to set a password for both this user and root.
 
 Supported distros: ` + strings.Join(images.Distros(), "  ") + `
 Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
@@ -103,6 +104,11 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 				Distro:  image,
 				Version: version,
 				Arch:    arch,
+			},
+			Config: types.MachineConfig{
+				// TODO
+				Isolated:        false,
+				DefaultUsername: flagUser,
 			},
 			UserPassword:      password,
 			CloudInitUserData: userData,

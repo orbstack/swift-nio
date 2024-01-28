@@ -48,8 +48,8 @@ type Container struct {
 	dir       string
 	rootfsDir string
 
-	builtin  bool
-	isolated bool
+	builtin bool
+	config  types.MachineConfig
 	// state
 	state atomic.Pointer[types.ContainerState]
 
@@ -81,13 +81,13 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 	dir := m.subdir("containers", id)
 
 	c := &Container{
-		ID:       record.ID,
-		Name:     record.Name,
-		Image:    record.Image,
-		builtin:  record.Builtin,
-		isolated: record.Config.Isolated,
-		dir:      dir,
-		manager:  m,
+		ID:      record.ID,
+		Name:    record.Name,
+		Image:   record.Image,
+		builtin: record.Builtin,
+		config:  record.Config,
+		dir:     dir,
+		manager: m,
 	}
 	// always create in stopped state
 	c.setState(types.ContainerStateStopped)
@@ -168,6 +168,8 @@ func (c *Container) toRecord() *types.ContainerRecord {
 		ID:    c.ID,
 		Name:  c.Name,
 		Image: c.Image,
+
+		Config: c.config,
 
 		Builtin: c.builtin,
 		State:   c.State(),
