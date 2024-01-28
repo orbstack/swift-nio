@@ -609,6 +609,7 @@ private struct LogsView: View {
     let cmdExe: String
     let args: [String]
     let extraArgs: [String]
+    let extraState: [String]
     let model: LogsViewModel
 
     var body: some View {
@@ -624,6 +625,9 @@ private struct LogsView: View {
             }
             .onChange(of: extraArgs) { newExtraArgs in
                 model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
+            }
+            .onChange(of: extraState) { _ in
+                model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
             }
     }
 }
@@ -657,6 +661,9 @@ private struct DockerLogsContentView: View {
                 LogsView(cmdExe: AppConfig.dockerExe,
                          args: ["logs", "-f", "-n", String(maxLines), containerId],
                          extraArgs: [],
+                         // trigger restart on start/stop state change
+                         // don't trigger on starting/stopping/deleting/...
+                         extraState: [container.state == "running" ? "running" : "not_running"],
                          model: model)
                     .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
                     .onAppear {
@@ -671,12 +678,14 @@ private struct DockerLogsContentView: View {
                 LogsView(cmdExe: AppConfig.dockerExe,
                          args: ["logs", "-f", "-n", String(maxLines), container.id],
                          extraArgs: [],
+                         extraState: [],
                          model: model)
                     .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
             } else if case let .compose(composeProject) = cid {
                 LogsView(cmdExe: AppConfig.dockerComposeExe,
                          args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
                          extraArgs: extraComposeArgs,
+                         extraState: [],
                          model: model)
             } else {
                 ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
@@ -903,6 +912,7 @@ private struct K8SLogsContentView: View {
                 LogsView(cmdExe: AppConfig.kubectlExe,
                          args: ["logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)", "-f"],
                          extraArgs: [],
+                         extraState: [],
                          model: model)
                     .navigationTitle(WindowTitles.podLogs(name))
             } else {
