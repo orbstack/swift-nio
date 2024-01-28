@@ -351,37 +351,39 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Info")
                     .font(.headline)
-                HStack(spacing: 12) {
+                SimpleKvTable(spacing: 4) {
                     let domain = container.preferredDomain
                     let ipAddress = container.ipAddress
 
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Status")
-                        Text("ID")
-                        Text("Image")
-                        if ipAddress != nil {
-                            Text("Address")
-                        }
+                    SimpleKvTableRow("Status") {
+                        Text(container.status)
                     }
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(container.status)
+                    SimpleKvTableRow("ID") {
                         CopyableText(String(container.id.prefix(12)), copyAs: container.id)
-                            .font(.body.monospaced())
+                        .font(.body.monospaced())
+                    }
+
+                    SimpleKvTableRow("Image") {
                         CopyableText(container.image)
-                            .frame(maxWidth: 300, alignment: .leading)
-                            .truncationMode(.tail)
-                        // needs to be running w/ ip to have domain
-                        if let ipAddress,
-                           let domain,
-                           let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
-                        {
-                            if vmModel.netBridgeAvailable {
-                                CopyableText(copyAs: domain) {
-                                    CustomLink(domain, url: url)
+                        .frame(maxWidth: 300, alignment: .leading)
+                        .truncationMode(.tail)
+                    }
+
+                    if ipAddress != nil {
+                        SimpleKvTableRow("Address") {
+                            // needs to be running w/ ip to have domain
+                            if let ipAddress,
+                               let domain,
+                               let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                            {
+                                if vmModel.netBridgeAvailable {
+                                    CopyableText(copyAs: domain) {
+                                        CustomLink(domain, url: url)
+                                    }
+                                } else {
+                                    CopyableText(ipAddress)
                                 }
-                            } else {
-                                CopyableText(ipAddress)
                             }
                         }
                     }

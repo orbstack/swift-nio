@@ -270,3 +270,52 @@ extension NSWorkspace {
         NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
     }
 }
+
+extension HorizontalAlignment {
+    private struct TableColumnAlignment: AlignmentID {
+        static func defaultValue(in context: ViewDimensions) -> CGFloat {
+            context[HorizontalAlignment.center]
+        }
+    }
+
+    static let tableColumnAlignmentGuide = HorizontalAlignment(TableColumnAlignment.self)
+}
+
+// can't use Grid(13) or Table(14 for tableColumnsVisible) due to macOS version req
+struct SimpleKvTable<Content: View>: View {
+    private let spacing: CGFloat
+    @ViewBuilder private let content: () -> Content
+
+    init(spacing: CGFloat = 0, @ViewBuilder content: @escaping () -> Content) {
+        self.spacing = spacing
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .tableColumnAlignmentGuide, spacing: spacing) {
+            content()
+        }
+    }
+}
+
+struct SimpleKvTableRow<Content: View>: View {
+    private let label: String
+    @ViewBuilder private let content: () -> Content
+
+    init(_ label: String, @ViewBuilder content: @escaping () -> Content) {
+        self.label = label
+        self.content = content
+    }
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(label)
+            .fontWeight(.medium)
+            .alignmentGuide(.tableColumnAlignmentGuide) { context in
+                context[.trailing]
+            }
+
+            content()
+        }
+    }
+}
