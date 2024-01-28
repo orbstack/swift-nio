@@ -107,7 +107,7 @@ func ResourcesDir() string {
 }
 
 func AssetsDir() string {
-	return MustExecutableDir() + "/../assets/" + buildVariant + "/" + Arch()
+	return ResourcesDir() + "/assets/" + buildVariant + "/" + Arch()
 }
 
 func GetAssetFile(name string) string {
