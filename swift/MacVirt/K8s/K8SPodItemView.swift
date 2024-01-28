@@ -8,6 +8,7 @@ import SwiftUI
 
 struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
     @EnvironmentObject var vmModel: VmViewModel
+    @EnvironmentObject var navModel: MainNavViewModel
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var windowTracker: WindowTracker
     @EnvironmentObject var listModel: AKListModel
@@ -115,7 +116,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {
-            presentPopover = true
+            navModel.expandInspector.send()
         }
         .akListContextMenu {
             Group {

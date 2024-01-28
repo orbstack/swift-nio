@@ -16,6 +16,7 @@ enum Panel {
 
 class NewMainViewController: NSViewController {
     var model: VmViewModel
+    var navModel: MainNavViewModel
 
     var horizontalConstraint: NSLayoutConstraint!
     var verticalConstraint: NSLayoutConstraint!
@@ -156,9 +157,14 @@ class NewMainViewController: NSViewController {
 
     // MARK: - Init
 
-    init(model: VmViewModel) {
+    init(model: VmViewModel, navModel: MainNavViewModel) {
         self.model = model
+        self.navModel = navModel
         super.init(nibName: nil, bundle: nil)
+
+        navModel.expandInspector.sink { [weak self] in
+            self?.splitViewController.itemC.animator().isCollapsed = false
+        }.store(in: &cancellables)
     }
 
     @available(*, unavailable)

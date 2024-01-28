@@ -12,7 +12,9 @@ struct NewMainView: View {
     @EnvironmentObject var model: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
 
-    @ObservedObject private var navModel = MainNavViewModel()
+    // must be StateObject to share this initial instance
+    // otherwise it's different at NewMainViewControllerRepresentable() init time and at later .environmentObject time
+    @StateObject private var navModel = MainNavViewModel()
 
     @State private var presentError = false
 
@@ -20,7 +22,8 @@ struct NewMainView: View {
         GeometryReader { geometry in
             NewMainViewControllerRepresentable(
                 size: geometry.size,
-                model: model
+                model: model,
+                navModel: navModel
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .environmentObject(navModel)
@@ -151,9 +154,10 @@ struct NewMainView: View {
 struct NewMainViewControllerRepresentable: NSViewControllerRepresentable {
     var size: CGSize
     var model: VmViewModel
+    var navModel: MainNavViewModel
 
     func makeNSViewController(context _: Context) -> NewMainViewController {
-        let controller = NewMainViewController(model: model)
+        let controller = NewMainViewController(model: model, navModel: navModel)
         controller.horizontalConstraint = controller.view.widthAnchor.constraint(equalToConstant: size.width)
         controller.verticalConstraint = controller.view.heightAnchor.constraint(equalToConstant: size.height)
         NSLayoutConstraint.activate([

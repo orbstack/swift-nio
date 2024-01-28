@@ -8,6 +8,7 @@ import SwiftUI
 
 struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
+    @EnvironmentObject var navModel: MainNavViewModel
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var windowTracker: WindowTracker
     @EnvironmentObject var listModel: AKListModel
@@ -180,6 +181,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
         }
         .padding(.vertical, 8)
+        .akListOnDoubleClick {
+            navModel.expandInspector.send()
+        }
         .akListContextMenu {
             Group {
                 if isRunning {

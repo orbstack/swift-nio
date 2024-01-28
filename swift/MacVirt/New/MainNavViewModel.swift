@@ -3,7 +3,10 @@
 //
 
 import Foundation
+import Combine
 
 class MainNavViewModel: ObservableObject {
     @Published var inspectorContents: InspectorWrapper? = nil
+
+    let expandInspector = PassthroughSubject<Void, Never>()
 }
