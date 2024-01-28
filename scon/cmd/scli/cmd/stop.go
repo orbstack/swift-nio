@@ -68,6 +68,7 @@ If no arguments are provided, this command will stop the entire OrbStack service
 				// disable config
 				config, err := vmclient.Client().GetConfig()
 				checkCLI(err)
+				wasSet := config.K8sEnable
 				config.K8sEnable = false
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
@@ -77,7 +78,10 @@ If no arguments are provided, this command will stop the entire OrbStack service
 
 				spinner := spinutil.Start("red", "Stopping k8s")
 				if c.State == types.ContainerStateRunning {
-					err = scli.Client().ContainerRestart(c)
+					// only restart if it was running
+					if wasSet {
+						err = scli.Client().ContainerRestart(c)
+					}
 				} else {
 					err = scli.Client().ContainerStop(c)
 				}
