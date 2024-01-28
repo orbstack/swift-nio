@@ -174,7 +174,7 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Info")
                     .font(.headline)
-                HStack(spacing: 12) {
+                SimpleKvTable {
                     let domain = service.preferredDomain
                     let clusterIP = service.spec.clusterIP
                     // redundant. our external ip is always the same as node
@@ -183,34 +183,22 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                     let addressVisible = service.wrapURLNoScheme(host: domain) ?? service.preferredDomainAndPort
                     let isWebService = service.isWebService
 
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Type")
-                        Text("Age")
-                        if clusterIP != nil {
-                            Text("Cluster IP")
-                        }
-                        /*
-                         if externalIP != nil {
-                             Text("External IP")
-                         }
-                         */
-                        if let url = URL(string: address) {
-                            Text("Address")
-                        }
+                    SimpleKvTableRow("Type") {
+                        Text(service.spec.type.rawValue)
                     }
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(service.spec.type.rawValue)
+                    SimpleKvTableRow("Age") {
                         Text(service.ageStr)
+                    }
+
+                    SimpleKvTableRow("Cluster IP") {
                         if let clusterIP {
                             CopyableText(clusterIP)
                         }
-                        /*
-                         if let externalIP {
-                             CopyableText(externalIP)
-                         }
-                          */
-                        if let url = URL(string: address) {
+                    }
+
+                    if let url = URL(string: address) {
+                        SimpleKvTableRow("Address") {
                             if isWebService {
                                 CopyableText(copyAs: service.preferredDomainAndPort) {
                                     CustomLink(addressVisible, url: url)

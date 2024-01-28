@@ -351,7 +351,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Info")
                     .font(.headline)
-                SimpleKvTable(spacing: 4) {
+                SimpleKvTable {
                     let domain = container.preferredDomain
                     let ipAddress = container.ipAddress
 
@@ -370,20 +370,18 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         .truncationMode(.tail)
                     }
 
-                    if ipAddress != nil {
+                    // needs to be running w/ ip to have domain
+                    if let ipAddress,
+                       let domain,
+                       let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                    {
                         SimpleKvTableRow("Address") {
-                            // needs to be running w/ ip to have domain
-                            if let ipAddress,
-                               let domain,
-                               let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
-                            {
-                                if vmModel.netBridgeAvailable {
-                                    CopyableText(copyAs: domain) {
-                                        CustomLink(domain, url: url)
-                                    }
-                                } else {
-                                    CopyableText(ipAddress)
+                            if vmModel.netBridgeAvailable {
+                                CopyableText(copyAs: domain) {
+                                    CustomLink(domain, url: url)
                                 }
+                            } else {
+                                CopyableText(ipAddress)
                             }
                         }
                     }

@@ -196,25 +196,26 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Info")
                     .font(.headline)
-                HStack(spacing: 12) {
+                SimpleKvTable {
                     let domain = pod.preferredDomain
                     let ipAddress = pod.status.podIP
 
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Status")
-                        Text("Restarts")
-                        Text("Age")
-                        if ipAddress != nil {
-                            Text("Address")
-                        }
+                    SimpleKvTableRow("Status") {
+                        Text(pod.statusStr)
                     }
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(pod.statusStr)
+                    SimpleKvTableRow("Restarts") {
                         Text("\(pod.restartCount)")
+                    }
+
+                    SimpleKvTableRow("Age") {
                         Text(pod.ageStr)
-                        // needs to be running w/ ip to have domain
-                        if let ipAddress, let url = URL(string: "http://\(domain)") {
+                    }
+
+                    // needs to be running w/ ip to have domain
+                    if let ipAddress,
+                       let url = URL(string: "http://\(domain)") {
+                        SimpleKvTableRow("Address") {
                             if vmModel.netBridgeAvailable {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)

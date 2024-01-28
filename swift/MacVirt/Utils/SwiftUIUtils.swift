@@ -286,7 +286,7 @@ struct SimpleKvTable<Content: View>: View {
     private let spacing: CGFloat
     @ViewBuilder private let content: () -> Content
 
-    init(spacing: CGFloat = 0, @ViewBuilder content: @escaping () -> Content) {
+    init(spacing: CGFloat = 4, @ViewBuilder content: @escaping () -> Content) {
         self.spacing = spacing
         self.content = content
     }
