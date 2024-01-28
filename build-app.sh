@@ -130,7 +130,7 @@ function package_one() {
     # dmg
     # use short ver due to 27 char limit: https://github.com/LinusU/node-alias/issues/7
     local dmg_title="Install OrbStack $SHORT_VER"
-    create-dmg --overwrite --identity="$SIGNING_CERT" --dmg-title="${dmg_title:0:27}" $arch/OrbStack.app $arch
+    pnpx create-dmg --overwrite --identity="$SIGNING_CERT" --dmg-title="${dmg_title:0:27}" $arch/OrbStack.app $arch
 
     name="$(basename $arch/*.dmg .dmg)"
     mv $arch/*.dmg "$arch/OrbStack_${LONG_VER}_${COMMITS}_$arch.dmg"
