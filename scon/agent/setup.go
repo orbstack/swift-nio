@@ -392,6 +392,51 @@ func configureSystemStandard(args InitialSetupArgs) error {
 	return nil
 }
 
+func (a *AgentServer) createUserAndGroup(username string, uid int, gid int, shell string) error {
+	logrus.Debug("Creating group")
+	uidStr := strconv.Itoa(uid)
+	gidStr := strconv.Itoa(gid)
+	groupName := username
+	// if it's all numeric, add a prefix. groupadd rejects numeric names
+	if _, err := strconv.Atoi(groupName); err == nil {
+		groupName = "g" + groupName
+	}
+	// NixOS can't have @
+	groupName = strings.ReplaceAll(groupName, "@", "_")
+	err := util.Run("groupadd", "--gid", gidStr, groupName)
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			// Busybox: this is ok, do nothing.
+			// Busybox adduser already creates user group with matching GID.
+		} else {
+			return err
+		}
+	}
+
+	// create user
+	// uid = host, gid = 1000+
+	logrus.WithField("user", username).WithField("uid", uid).Debug("Creating user")
+	// badname: Void rejects usernames with '.'
+	err = util.Run("useradd", "--uid", uidStr, "--gid", gidStr, "--badname", "--no-user-group", "--create-home", "--shell", shell, username)
+	if err != nil {
+		// older versions of shadow didn't have --badname (Rocky 8, etc.)
+		err = util.Run("useradd", "--uid", uidStr, "--gid", gidStr, "--no-user-group", "--create-home", "--shell", shell, username)
+		if err != nil {
+			// Busybox: add user + user group
+			if errors.Is(err, exec.ErrNotFound) {
+				err = util.Run("adduser", "-u", uidStr, "-D", "-s", shell, username)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	// if this is a cloud-init image, wait for cloud-init to finish before we do anything
 	// fixes errors like: ('ssh_authkey_fingerprints', KeyError("getpwnam(): name not found: 'ubuntu'"))
@@ -422,46 +467,11 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	}
 
 	// create user group
-	logrus.Debug("Creating group")
-	uidStr := strconv.Itoa(args.Uid)
 	gid := args.Uid
-	gidStr := strconv.Itoa(gid)
-	groupName := args.Username
-	// if it's all numeric, add a prefix. groupadd rejects numeric names
-	if _, err := strconv.Atoi(groupName); err == nil {
-		groupName = "g" + groupName
-	}
-	// NixOS can't have @
-	groupName = strings.ReplaceAll(groupName, "@", "_")
-	err = util.Run("groupadd", "--gid", gidStr, groupName)
-	if err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			// Busybox: this is ok, do nothing.
-			// Busybox adduser already creates user group with matching GID.
-		} else {
-			return err
-		}
-	}
-
-	// create user
-	// uid = host, gid = 1000+
-	logrus.WithField("user", args.Username).WithField("uid", args.Uid).Debug("Creating user")
-	// badname: Void rejects usernames with '.'
-	err = util.Run("useradd", "--uid", uidStr, "--gid", gidStr, "--badname", "--no-user-group", "--create-home", "--shell", shell, args.Username)
-	if err != nil {
-		// older versions of shadow didn't have --badname (Rocky 8, etc.)
-		err = util.Run("useradd", "--uid", uidStr, "--gid", gidStr, "--no-user-group", "--create-home", "--shell", shell, args.Username)
-		if err != nil {
-			// Busybox: add user + user group
-			if errors.Is(err, exec.ErrNotFound) {
-				err = util.Run("adduser", "-u", uidStr, "-D", "-s", shell, args.Username)
-				if err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
-		}
+	err = a.createUserAndGroup(args.Username, args.Uid, gid, shell)
+	// ignore if already exists
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		return err
 	}
 
 	// set password
@@ -474,12 +484,21 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		}
 	}
 
-	// look up new home
+	// look up new user info (home, uid, gid)
 	u, err := user.Lookup(args.Username)
 	if err != nil {
 		return err
 	}
 	home := u.HomeDir
+	// in case we're supposed to use an existing user, use that uid/gid
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return err
+	}
+	gid, err = strconv.Atoi(u.Gid)
+	if err != nil {
+		return err
+	}
 
 	// write ssh authorized keys
 	if len(args.SSHAuthorizedKeys) > 0 {
@@ -488,7 +507,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		if err != nil {
 			return err
 		}
-		err = os.Chown(home+"/.ssh", args.Uid, gid)
+		err = os.Chown(home+"/.ssh", uid, gid)
 		if err != nil {
 			return err
 		}
@@ -496,7 +515,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		if err != nil {
 			return err
 		}
-		err = os.Chown(home+"/.ssh/authorized_keys", args.Uid, gid)
+		err = os.Chown(home+"/.ssh/authorized_keys", uid, gid)
 		if err != nil {
 			return err
 		}
@@ -518,7 +537,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		}
 
 		// chown
-		err = os.Chown(home+"/.gitconfig", args.Uid, gid)
+		err = os.Chown(home+"/.gitconfig", uid, gid)
 		if err != nil {
 			return err
 		}
@@ -539,7 +558,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 				if err != nil {
 					return err
 				}
-				err = os.Chown(home+"/.ssh", args.Uid, gid)
+				err = os.Chown(home+"/.ssh", uid, gid)
 				if err != nil {
 					return err
 				}
@@ -547,7 +566,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 				if err != nil {
 					return err
 				}
-				err = os.Lchown(home+"/.ssh/"+sshFile.Name(), args.Uid, gid)
+				err = os.Lchown(home+"/.ssh/"+sshFile.Name(), uid, gid)
 				if err != nil {
 					return err
 				}
