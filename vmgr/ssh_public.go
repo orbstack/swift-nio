@@ -14,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
+	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/util/sshconfig"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -78,8 +79,8 @@ Host %s
   IdentitiesOnly yes
 `, appid.ShortAppName, quotedCmd, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, relHome, relHome)
 
-	// write extra config
-	err = os.WriteFile(conf.ExtraSshDir()+"/config", []byte(sshConfigSection), 0644)
+	// write extra config atomically - openssh reads it on-demand after match
+	err = util.WriteFileAtomic(conf.ExtraSshDir()+"/config", []byte(sshConfigSection), 0644)
 	if err != nil {
 		return err
 	}
