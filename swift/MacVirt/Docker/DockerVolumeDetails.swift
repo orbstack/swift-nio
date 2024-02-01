@@ -68,14 +68,12 @@ struct DockerVolumeDetails: View {
             if let labels = volume.labels,
                !labels.isEmpty
             {
-                DetailsSection("Labels") {
-                    ScrollView(.horizontal) {
-                        SimpleKvTable {
-                            let sortedLabels = labels.sorted { $0.key < $1.key }
-                            ForEach(sortedLabels, id: \.key) { key, value in
-                                SimpleKvTableRow(key) {
-                                    Text(value)
-                                }
+                ScrollableDetailsSection("Labels") {
+                    SimpleKvTable {
+                        let sortedLabels = labels.sorted { $0.key < $1.key }
+                        ForEach(sortedLabels, id: \.key) { key, value in
+                            SimpleKvTableRow(key) {
+                                Text(value)
                             }
                         }
                     }
@@ -85,14 +83,12 @@ struct DockerVolumeDetails: View {
             if let options = volume.options,
                !options.isEmpty
             {
-                DetailsSection("Options") {
-                    ScrollView(.horizontal) {
-                        SimpleKvTable {
-                            let sortedOptions = options.sorted { $0.key < $1.key }
-                            ForEach(sortedOptions, id: \.key) { key, value in
-                                SimpleKvTableRow(key) {
-                                    Text(value)
-                                }
+                ScrollableDetailsSection("Options") {
+                    SimpleKvTable {
+                        let sortedOptions = options.sorted { $0.key < $1.key }
+                        ForEach(sortedOptions, id: \.key) { key, value in
+                            SimpleKvTableRow(key) {
+                                Text(value)
                             }
                         }
                     }

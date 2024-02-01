@@ -15,19 +15,17 @@ struct DockerImageDetails: View {
         DetailsStack {
             DetailsSection("Info") {
                 // TODO: fix width constraints
-                ScrollView(.horizontal) {
-                    SimpleKvTable {
-                        SimpleKvTableRow("ID") {
-                            CopyableText(image.id)
-                        }
+                SimpleKvTable {
+                    SimpleKvTableRow("ID") {
+                        CopyableText(image.id)
+                    }
 
-                        SimpleKvTableRow("Created") {
-                            Text(image.formattedCreated)
-                        }
+                    SimpleKvTableRow("Created") {
+                        Text(image.formattedCreated)
+                    }
 
-                        SimpleKvTableRow("Size") {
-                            Text(image.formattedSize)
-                        }
+                    SimpleKvTableRow("Size") {
+                        Text(image.formattedSize)
                     }
                 }
             }
@@ -63,14 +61,12 @@ struct DockerImageDetails: View {
             if let labels = image.labels,
                !labels.isEmpty
             {
-                DetailsSection("Labels") {
-                    ScrollView(.horizontal) {
-                        SimpleKvTable {
-                            let sortedLabels = labels.sorted { $0.key < $1.key }
-                            ForEach(sortedLabels, id: \.key) { key, value in
-                                SimpleKvTableRow(key) {
-                                    Text(value)
-                                }
+                ScrollableDetailsSection("Labels") {
+                    SimpleKvTable {
+                        let sortedLabels = labels.sorted { $0.key < $1.key }
+                        ForEach(sortedLabels, id: \.key) { key, value in
+                            SimpleKvTableRow(key) {
+                                Text(value)
                             }
                         }
                     }

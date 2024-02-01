@@ -48,3 +48,34 @@ struct DetailsSection<Content: View>: View {
         }
     }
 }
+
+struct ScrollableDetailsSection<Content: View>: View {
+    private let label: String
+    private let indent: CGFloat
+    @ViewBuilder private let content: () -> Content
+
+    init(_ label: String, indent: CGFloat = 16, @ViewBuilder content: @escaping () -> Content) {
+        self.label = label
+        self.indent = indent
+        self.content = content
+    }
+
+    var body: some View {
+        DetailsSection(label, indent: 0) {
+            ScrollView(.horizontal) {
+                content()
+                .padding(4)
+                .padding(.leading, indent)
+            }
+            .background {
+                Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Rectangle()
+                    .strokeBorder(Color.secondary, lineWidth: 1)
+                    .opacity(0.1)
+                }
+            }
+        }
+    }
+}
