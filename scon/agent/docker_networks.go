@@ -92,24 +92,21 @@ func (d *DockerAgent) filterNewNetworks(nets []dockertypes.Network) ([]dockertyp
 func (d *DockerAgent) refreshNetworks() error {
 	// no mu needed: FuncDebounce has mutex
 
-	if !d.networksRefreshed {
-		// on first refresh, update iptables. this isn't created immediately aftet start?
-
-		// delete DOCKER-ISOLATION-STAGE-1 chain jump to allow cross-bridge traffic
-		err := util.Run("iptables", "-D", "FORWARD", "-j", "DOCKER-ISOLATION-STAGE-1")
-		if err != nil {
-			logrus.WithError(err).Warn("failed to delete iptables jump")
-		}
-		err = util.Run("ip6tables", "-D", "FORWARD", "-j", "DOCKER-ISOLATION-STAGE-1")
-		if err != nil {
-			logrus.WithError(err).Warn("failed to delete iptables jump")
-		}
-
-		d.networksRefreshed = true
+	// skip DOCKER-ISOLATION-STAGE-1 chain to allow cross-bridge traffic
+	// jump from FORWARD gets restored on every bridge creation, and STAGE-2 jumps are inserted, so we have to delete and reinsert
+	_ = util.Run("iptables", "-D", "DOCKER-ISOLATION-STAGE-1", "-j", "RETURN")
+	err := util.Run("iptables", "-I", "DOCKER-ISOLATION-STAGE-1", "-j", "RETURN")
+	if err != nil {
+		logrus.WithError(err).Warn("failed to add iptables rule")
+	}
+	_ = util.Run("ip6tables", "-D", "DOCKER-ISOLATION-STAGE-1", "-j", "RETURN")
+	err = util.Run("ip6tables", "-I", "DOCKER-ISOLATION-STAGE-1", "-j", "RETURN")
+	if err != nil {
+		logrus.WithError(err).Warn("failed to add iptables rule")
 	}
 
 	var newNetworks []dockertypes.Network
-	err := d.client.Call("GET", "/networks", nil, &newNetworks)
+	err = d.client.Call("GET", "/networks", nil, &newNetworks)
 	if err != nil {
 		return err
 	}

@@ -68,8 +68,6 @@ type DockerAgent struct {
 	uiEventDebounce          syncx.LeadingFuncDebounce
 	pendingUIEntities        [uitypes.DockerEntityMax_]bool
 
-	networksRefreshed bool
-
 	eventsConn io.Closer
 
 	dirSyncMu       syncx.Mutex
