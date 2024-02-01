@@ -21,7 +21,9 @@ struct DetailsStack<Content: View>: View {
 
             Spacer()
         }
-        .padding(.horizontal, 20)
+        // ideally only horizontal on macOS 14, but on macOS 12 toolbar is opaque,
+        // so no vertical padding is ugly
+        .padding(20)
     }
 }
 
