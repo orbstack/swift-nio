@@ -50,6 +50,7 @@
 		B118B68B99927A5EF567C5D9 /* DockerVolumeDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B716BC8E29CD3CD6AE40 /* DockerVolumeDetails.swift */; };
 		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
 		B118B6C34CBA6697634108B6 /* MainNavViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B8CEB4860DFE6B9BEFBD /* MainNavViewModel.swift */; };
+		B118B6EB7323A6023E5EE791 /* K8SGroupDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B58F6EED602C33432FD4 /* K8SGroupDetails.swift */; };
 		B118B77119F338910D52B7D2 /* DockerImageDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2CA5B8F56A911E3B0DA /* DockerImageDetails.swift */; };
 		B118B773879397647B754ADE /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */; };
 		B118B81365EA43CD9BD5FFF1 /* K8sRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1E2A991085A29F40FB3 /* K8sRPC.swift */; };
@@ -290,6 +291,7 @@
 		B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HelperToolInfoPlist.swift; sourceTree = "<group>"; };
 		B118B530786FB12B0A422003 /* K8SPodsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SPodsView.swift; sourceTree = "<group>"; };
 		B118B56B2F68D469F76481FD /* CopyableText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CopyableText.swift; sourceTree = "<group>"; };
+		B118B58F6EED602C33432FD4 /* K8SGroupDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SGroupDetails.swift; sourceTree = "<group>"; };
 		B118B5B2CF0210C1D968C7AC /* PHShared.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHShared.swift; sourceTree = "<group>"; };
 		B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerMigrationWindow.swift; sourceTree = "<group>"; };
 		B118B67B66A855D49B729379 /* Locks.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Locks.swift; sourceTree = "<group>"; };
@@ -526,6 +528,7 @@
 				B118B37A6E9BB62F82BD7354 /* K8SServiceItemView.swift */,
 				B118B329773504BB3337D9ED /* K8SPodDetails.swift */,
 				B118B3AAEC4D69D6E7940241 /* K8SServiceDetails.swift */,
+				B118B58F6EED602C33432FD4 /* K8SGroupDetails.swift */,
 			);
 			path = K8s;
 			sourceTree = "<group>";
@@ -1203,6 +1206,7 @@
 				B118BF9432DE5B82D325A31E /* DockerComposeGroupDetails.swift in Sources */,
 				B118BB872576F6CD4404591E /* MachineDetails.swift in Sources */,
 				B118B77119F338910D52B7D2 /* DockerImageDetails.swift in Sources */,
+				B118B6EB7323A6023E5EE791 /* K8SGroupDetails.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -80,6 +80,8 @@ struct InspectorView: View {
                     ScrollView {
                         if case let .compose(project) = selItem {
                             DockerComposeGroupDetails(project: project)
+                        } else if case .k8sGroup = selItem {
+                            K8SGroupDetails()
                         } else {
                             let container = model.dockerContainers?.first { $0.cid == selItem }
                             if let container {

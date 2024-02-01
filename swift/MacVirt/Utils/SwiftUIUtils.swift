@@ -300,10 +300,12 @@ struct SimpleKvTable<Content: View>: View {
 
 struct SimpleKvTableRow<Content: View>: View {
     private let label: String
+    private let lineLimit: Int?
     @ViewBuilder private let content: () -> Content
 
-    init(_ label: String, @ViewBuilder content: @escaping () -> Content) {
+    init(_ label: String, lineLimit: Int? = 1, @ViewBuilder content: @escaping () -> Content) {
         self.label = label
+        self.lineLimit = lineLimit
         self.content = content
     }
 
@@ -316,6 +318,7 @@ struct SimpleKvTableRow<Content: View>: View {
                 }
 
             content()
+            .lineLimit(lineLimit)
         }
     }
 }
