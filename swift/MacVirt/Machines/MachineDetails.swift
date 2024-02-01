@@ -21,6 +21,20 @@ struct MachineDetails: View {
                     SimpleKvTableRow("Address") {
                         CopyableText("\(record.name).orb.local")
                     }
+
+                    // for hacky alignment purposes, to match "Image" section...
+                    HStack(alignment: .top) {
+                        Text("Architecture")
+                            .fontWeight(.medium)
+                            .alignmentGuide(.tableColumnAlignmentGuide) { context in
+                                context[.trailing]
+                            }
+
+                        EmptyView()
+                    }
+                    .frame(maxHeight: 1)
+                    .opacity(0)
+                    .accessibility(hidden: true)
                 }
             }
 
@@ -43,6 +57,20 @@ struct MachineDetails: View {
                     SimpleKvTableRow("Username") {
                         Text(record.config.defaultUsername ?? Files.username)
                     }
+
+                    // for hacky alignment purposes, to match "Image" section...
+                    HStack(alignment: .top) {
+                        Text("Architecture")
+                            .fontWeight(.medium)
+                            .alignmentGuide(.tableColumnAlignmentGuide) { context in
+                                context[.trailing]
+                            }
+
+                        EmptyView()
+                    }
+                    .frame(maxHeight: 1)
+                    .opacity(0)
+                    .accessibility(hidden: true)
                 }
             }
         }
