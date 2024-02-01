@@ -207,6 +207,8 @@ enum Files {
     static let vmgrLog = "\(Folders.log)/vmgr.log"
     static let guiLog = "\(Folders.log)/gui.log"
     static let installId = "\(Folders.appData)/.installid"
+
+    static let username = NSUserName()
 }
 
 enum ContainerIds {

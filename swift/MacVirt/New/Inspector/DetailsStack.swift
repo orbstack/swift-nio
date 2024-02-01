@@ -66,17 +66,17 @@ struct ScrollableDetailsSection<Content: View>: View {
         DetailsSection(label, indent: 0) {
             ScrollView(.horizontal) {
                 content()
-                .padding(4)
-                .padding(.leading, indent)
+                    .padding(4)
+                    .padding(.leading, indent)
             }
             .background {
                 Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    Rectangle()
-                    .strokeBorder(Color.secondary, lineWidth: 1)
-                    .opacity(0.1)
-                }
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        Rectangle()
+                            .strokeBorder(Color.secondary, lineWidth: 1)
+                            .opacity(0.1)
+                    }
             }
         }
     }

@@ -61,12 +61,13 @@ struct ContainerRecord: AKListItem, Codable, Identifiable, Equatable {
 
 struct MachineConfig: Codable, Equatable {
     var isolated: Bool
-    var defaultUsername: String
+    var defaultUsername: String?
 }
 
 struct CreateRequest: Codable {
     var name: String
     var image: ImageSpec
+    var config: MachineConfig
     var userPassword: String?
     var cloudInitUserData: String?
 }

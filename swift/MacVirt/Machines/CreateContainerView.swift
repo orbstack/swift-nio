@@ -34,6 +34,7 @@ struct CreateContainerView: View {
     @State private var distro = Distro.ubuntu
     @State private var version = Distro.ubuntu.versions.last!.key
     @State private var cloudInitFile: URL? = nil
+    @State private var defaultUsername = ""
 
     @Binding var isPresented: Bool
 
@@ -95,32 +96,41 @@ struct CreateContainerView: View {
                         .frame(height: 20)
 
                     DisclosureGroup("Advanced") {
-                        let userDataBinding = Binding<FileItem> {
-                            if let cloudInitFile {
-                                return FileItem.file(cloudInitFile)
-                            } else {
-                                return FileItem.none
+                        Form {
+                            let userDataBinding = Binding<FileItem> {
+                                if let cloudInitFile {
+                                    return FileItem.file(cloudInitFile)
+                                } else {
+                                    return FileItem.none
+                                }
+                            } set: {
+                                switch $0 {
+                                case .none:
+                                    cloudInitFile = nil
+                                case .other:
+                                    selectCloudInitFile()
+                                default:
+                                    break
+                                }
                             }
-                        } set: {
-                            switch $0 {
-                            case .none:
-                                cloudInitFile = nil
-                            case .other:
-                                selectCloudInitFile()
-                            default:
-                                break
+                            Picker(selection: userDataBinding, label: Text("Cloud-init")) {
+                                Text("None").tag(FileItem.none)
+                                Divider()
+                                if let cloudInitFile {
+                                    Text(cloudInitFile.lastPathComponent).tag(FileItem.file(cloudInitFile))
+                                }
+                                Divider()
+                                Text("Select User Data…").tag(FileItem.other)
+                            }
+                            .disabled(!distro.hasCloudVariant)
+
+                            TextField(text: $defaultUsername, prompt: Text(Files.username)) {
+                                Label("Username", systemImage: "")
+                            }
+                            .onSubmit {
+                                create()
                             }
                         }
-                        Picker(selection: userDataBinding, label: Text("Cloud-init")) {
-                            Text("None").tag(FileItem.none)
-                            Divider()
-                            if let cloudInitFile {
-                                Text(cloudInitFile.lastPathComponent).tag(FileItem.file(cloudInitFile))
-                            }
-                            Divider()
-                            Text("Select User Data…").tag(FileItem.other)
-                        }
-                        .disabled(!distro.hasCloudVariant)
                     }
                     .frame(maxWidth: .infinity, maxHeight: 24, alignment: .leading)
                     .padding(.bottom, 20)
@@ -230,7 +240,8 @@ struct CreateContainerView: View {
 
         Task { @MainActor in
             await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch,
-                                             cloudInitUserData: cloudInitFile)
+                                             cloudInitUserData: cloudInitFile,
+                                             defaultUsername: defaultUsername.isEmpty ? nil : defaultUsername)
         }
         isPresented = false
     }

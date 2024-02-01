@@ -41,7 +41,7 @@ struct MachineDetails: View {
             DetailsSection("Settings") {
                 SimpleKvTable {
                     SimpleKvTableRow("Username") {
-                        Text(record.config.defaultUsername)
+                        Text(record.config.defaultUsername ?? Files.username)
                     }
                 }
             }

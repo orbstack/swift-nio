@@ -1029,7 +1029,7 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func createContainer(name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL?) async throws {
+    func createContainer(name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL?, defaultUsername: String?) async throws {
         let userData = try cloudInitUserData.flatMap { try String(contentsOf: $0) }
 
         try await scon.create(CreateRequest(name: name,
@@ -1037,14 +1037,15 @@ class VmViewModel: ObservableObject {
                                                              version: version,
                                                              arch: arch,
                                                              variant: ""),
+                                            config: MachineConfig(isolated: false, defaultUsername: defaultUsername),
                                             userPassword: nil,
                                             cloudInitUserData: userData))
     }
 
     @MainActor
-    func tryCreateContainer(name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL? = nil) async {
+    func tryCreateContainer(name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL? = nil, defaultUsername: String? = nil) async {
         do {
-            try await createContainer(name: name, distro: distro, version: version, arch: arch, cloudInitUserData: cloudInitUserData)
+            try await createContainer(name: name, distro: distro, version: version, arch: arch, cloudInitUserData: cloudInitUserData, defaultUsername: defaultUsername)
         } catch {
             setError(.containerCreateError(cause: error))
         }
