@@ -16,12 +16,12 @@ var logoutCmd = &cobra.Command{
 	Short: "Log out of your OrbStack account",
 	Long: `Log out of your OrbStack account, if logged in.
 `,
-	Example: "  " + appid.ShortCmd + " login",
+	Example: "  " + appid.ShortCmd + " logout",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		vmgrExe, err := vmclient.FindVmgrExe()
 		checkCLI(err)
-		err = util.Run(vmgrExe, "set-refresh-token", "")
+		err = util.Run(vmgrExe, "_set-refresh-token", "")
 		checkCLI(err)
 
 		// if running, update it in vmgr so it takes effect

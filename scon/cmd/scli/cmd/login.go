@@ -12,23 +12,31 @@ import (
 
 func init() {
 	rootCmd.AddCommand(authCmd)
+	authCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force re-login if already logged in")
 }
 
 var authCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Log in and activate your OrbStack license",
 	Long: `Log in to your OrbStack account and activate your license, if any.
+
+If you are already logged in, this command will do nothing unless you add --force.
 `,
 	Example: "  " + appid.ShortCmd + " login",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// TODO check if already logged in
+		vmgrExe, err := vmclient.FindVmgrExe()
+		checkCLI(err)
+		if err := util.Run(vmgrExe, "_check-refresh-token"); err == nil && !flagForce {
+			cmd.Println("Already logged in.")
+			return nil
+		}
 
 		client := appapi.NewClient()
 
 		// generate a token
 		var startResp drmtypes.StartAppAuthResponse
-		err := client.Post("/app/start_auth", nil, &startResp)
+		err = client.Post("/app/start_auth", nil, &startResp)
 		checkCLI(err)
 
 		// print
@@ -49,9 +57,7 @@ var authCmd = &cobra.Command{
 		// err = drmcore.SaveRefreshToken(waitResp.RefreshToken)
 		// checkCLI(err)
 		//TODO
-		vmgrExe, err := vmclient.FindVmgrExe()
-		checkCLI(err)
-		err = util.Run(vmgrExe, "set-refresh-token", waitResp.RefreshToken)
+		err = util.Run(vmgrExe, "_set-refresh-token", waitResp.RefreshToken)
 		checkCLI(err)
 
 		// if running, update it in vmgr so it takes effect
