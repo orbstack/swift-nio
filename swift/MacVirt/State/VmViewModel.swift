@@ -1255,13 +1255,9 @@ class VmViewModel: ObservableObject {
     }
 
     func tryDockerComposeRemove(_ cid: DockerContainerId) async {
-        // first try a 'down' to remove networks
-        // fails if config is missing
-        // TODO: just remove networks directly after 'rm'
-        await doTryDockerComposeAction("down", cid: cid, args: ["down", "--remove-orphans"],
-                                       requiresConfig: true, ignoreError: true)
-
-        await doTryDockerComposeAction("delete", cid: cid, args: ["rm", "-f", "--stop"])
+        // use 'down' to remove container and networks
+        // fails if config is missing, but we don't use configs anymore, so no need for 'rm' fallback
+        await doTryDockerComposeAction("down", cid: cid, args: ["down", "--remove-orphans"])
     }
 
     @MainActor
