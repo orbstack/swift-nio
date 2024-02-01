@@ -33,6 +33,40 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 	Example: "  " + appid.ShortCmd + " delete ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var containerNames []string
+		if flagAll {
+			containers, err := scli.Client().ListContainers()
+			checkCLI(err)
+
+			for _, c := range containers {
+				containerNames = append(containerNames, c.Name)
+			}
+		} else {
+			if len(args) == 0 {
+				return errors.New("no machines specified")
+			}
+
+			containerNames = args
+		}
+
+		recordsForNames := make(map[string]*types.ContainerRecord)
+		for _, name := range containerNames {
+			// k8s special case
+			if name == types.ContainerNameK8s {
+				continue
+			}
+
+			// try ID first
+			c, err := scli.Client().GetByID(name)
+			if err != nil {
+				// try name
+				c, err = scli.Client().GetByName(name)
+			}
+			checkCLI(err)
+
+			recordsForNames[c.Name] = c
+		}
+
 		// confirm if tty
 		if !flagForce && (flagAll || len(args) > 0) && term.IsTerminal(int(os.Stdin.Fd())) {
 			red := color.New(color.FgRed)
@@ -59,22 +93,6 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 				cmd.PrintErrln("Aborted")
 				os.Exit(1)
 			}
-		}
-
-		var containerNames []string
-		if flagAll {
-			containers, err := scli.Client().ListContainers()
-			checkCLI(err)
-
-			for _, c := range containers {
-				containerNames = append(containerNames, c.Name)
-			}
-		} else {
-			if len(args) == 0 {
-				return errors.New("no machines specified")
-			}
-
-			containerNames = args
 		}
 
 		for _, containerName := range containerNames {
@@ -117,14 +135,7 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 				continue
 			}
 
-			// try ID first
-			c, err := scli.Client().GetByID(containerName)
-			if err != nil {
-				// try name
-				c, err = scli.Client().GetByName(containerName)
-			}
-			checkCLI(err)
-
+			c := recordsForNames[containerName]
 			if flagAll && c.Builtin {
 				continue
 			}
@@ -132,7 +143,7 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 			// spinner
 			scli.EnsureSconVMWithSpinner()
 			spinner := spinutil.Start("red", "Deleting "+c.Name)
-			err = scli.Client().ContainerDelete(c)
+			err := scli.Client().ContainerDelete(c)
 			spinner.Stop()
 			checkCLI(err)
 		}
