@@ -101,7 +101,8 @@ func (d *DockerAgent) refreshNetworks() error {
 	}
 	_ = util.Run("ip6tables", "-D", "DOCKER-ISOLATION-STAGE-1", "-j", "RETURN")
 	err = util.Run("ip6tables", "-I", "DOCKER-ISOLATION-STAGE-1", "-j", "RETURN")
-	if err != nil {
+	// won't exist if no ipv6
+	if err != nil && !strings.Contains(err.Error(), "No chain/target/match by that name") {
 		logrus.WithError(err).Warn("failed to add iptables rule")
 	}
 
