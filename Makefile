@@ -2,7 +2,7 @@
 
 app:
 	@cd rootfs; make release
-	@cd bins; make -j2
+	@cd bins; make
 	@./build-app.sh
 
 serve:
