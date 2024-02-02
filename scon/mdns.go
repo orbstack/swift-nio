@@ -987,6 +987,7 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 	// if not an exact match: is wildcard allowed?
 	if matchedKey != treeKey {
 		// this was a wildcard match. is that allowed?
+		// allow any number of wildcard components (*.*)
 		if !entry.IsWildcard {
 			return nxdomain(q, mdnsTTLSeconds)
 		}
@@ -995,12 +996,6 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 		// check that the next character is a dot
 		// e.g. stack.local shouldn't match orbstack.local
 		if len(treeKey) > len(matchedKey) && treeKey[len(matchedKey)] != '.' {
-			return nxdomain(q, mdnsTTLSeconds)
-		}
-
-		// only allow one wildcard component, not *.*.*.
-		// do this by counting dots and making sure there's no more than one extra dot
-		if strings.Count(treeKey, ".") > strings.Count(matchedKey, ".")+1 {
 			return nxdomain(q, mdnsTTLSeconds)
 		}
 
