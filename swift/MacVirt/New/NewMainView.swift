@@ -148,6 +148,18 @@ struct NewMainView: View {
                 """)
             }
         }
+        .alert("Sign in", isPresented: .constant(model.mdmSsoDomain != nil && !model.drmState.isSignedIn)) {
+            Button("Sign In") {
+                model.presentAuth = true
+            }
+
+            Button("Quit") {
+                // clean shutdown flow
+                NSApp.terminate(nil)
+            }
+        } message: {
+            Text("Your organization requires you to sign in to \(Constants.userAppName).")
+        }
     }
 }
 

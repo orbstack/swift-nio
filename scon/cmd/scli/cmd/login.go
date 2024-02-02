@@ -10,9 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	flagDomain string
+)
+
 func init() {
 	rootCmd.AddCommand(authCmd)
 	authCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force re-login if already logged in")
+	authCmd.Flags().StringVarP(&flagDomain, "domain", "", "", "Domain for SSO")
 }
 
 var authCmd = &cobra.Command{
@@ -36,7 +41,9 @@ If you are already logged in, this command will do nothing unless you add --forc
 
 		// generate a token
 		var startResp drmtypes.StartAppAuthResponse
-		err = client.Post("/app/start_auth", nil, &startResp)
+		err = client.Post("/app/start_auth", drmtypes.StartAppAuthRequest{
+			SsoDomain: flagDomain,
+		}, &startResp)
 		checkCLI(err)
 
 		// print

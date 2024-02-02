@@ -5,6 +5,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import Defaults
 
 private enum AuthState {
     case loading
@@ -78,8 +79,14 @@ struct AuthView: View {
         .frame(width: 300, height: 300)
         .task {
             do {
+                var args = ["login"]
+                if let ssoDomain = Defaults[.mdmSsoDomain], !ssoDomain.isEmpty {
+                    args.append("--domain")
+                    args.append(ssoDomain)
+                }
+
                 // quiet mode: don't copy to clipboard or print extra stuff
-                try await runProcessChecked(AppConfig.ctlExe, ["login"])
+                try await runProcessChecked(AppConfig.ctlExe, args)
                 model.state = .done
             } catch let processError as ProcessError {
                 model.state = .error("(status \(processError.status)) \(processError.output)")

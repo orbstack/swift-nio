@@ -518,6 +518,9 @@ class VmViewModel: ObservableObject {
     @Published private(set) var dockerEnableIPv6 = false
     @Published var dockerConfigJson = "{\n}"
 
+    // cache for UI - one time on app start
+    let mdmSsoDomain = Defaults[.mdmSsoDomain]
+
     private var dockerSystemDfRunning = false
 
     var netBridgeAvailable: Bool {

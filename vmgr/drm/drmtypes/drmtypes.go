@@ -153,6 +153,10 @@ type UploadDiagReportResponse struct {
 	DownloadURL string `json:"download_url"`
 }
 
+type StartAppAuthRequest struct {
+	SsoDomain string `json:"sso_domain"`
+}
+
 type StartAppAuthResponse struct {
 	AuthURL   string `json:"auth_url"`
 	SessionID string `json:"session_id"`

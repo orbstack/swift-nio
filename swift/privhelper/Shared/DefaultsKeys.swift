@@ -183,6 +183,8 @@ extension Defaults.Keys {
     // login
     static let drmLastState = Key<DrmState?>("drm_lastState", default: nil, suite: suite)
 
+    static let mdmSsoDomain = Key<String?>("mdm_ssoDomain", default: nil, suite: suite)
+
     private static func getDefaultsSuite() -> UserDefaults {
         // vmgr has different bundle id, depending on signing id
         if Bundle.main.bundleIdentifier == guiBundleId {
