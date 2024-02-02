@@ -163,30 +163,27 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     @available(macOS 13.0, *)
     private func installRosetta() async throws {
         // VZLinuxRosettaDirectoryShare.installRosetta is buggy and gets stuck on "Finding update"
-        do {
-            // use open -W to get output and check for canceled. can't run binary directly due to launch constraints
-            // this works even for unpriv users. it's special
-            // stdout doesn't work with /dev/stdout or /dev/fd/1 (perm denied), but file works
-            let uuid = UUID().uuidString.prefix(8)
-            let tmpFile = FileManager.default.temporaryDirectory
-                .appendingPathComponent("orbstack-install-rosetta_\(uuid).sh")
-            defer {
-                try? FileManager.default.removeItem(at: tmpFile)
-            }
-            try await runProcessChecked("/usr/bin/open", ["-W", "-o", tmpFile.path, "--stderr", tmpFile.path, "/System/Library/CoreServices/Rosetta 2 Updater.app"])
-            let output = try String(contentsOf: tmpFile)
-            NSLog("[VZF] Rosetta install result: \(output)")
 
-            // we kind of just ignore errors and report canceled, e.g. on network failure
-            if output.contains("Code=3072") {
-                throw GovzfError.rosettaInstallCanceled
-            } else if output.contains("Success") {
-                return
-            } else {
-                throw GovzfError.rosettaInstallCanceled
-            }
-        } catch {
-            NSLog("[VZF] Failed to install Rosetta with updater: \(error)")
+        // use open -W to get output and check for canceled. can't run binary directly due to launch constraints
+        // this works even for unpriv users. it's special
+        // stdout doesn't work with /dev/stdout or /dev/fd/1 (perm denied), but file works
+        let uuid = UUID().uuidString.prefix(8)
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("orbstack-install-rosetta_\(uuid).sh")
+        defer {
+            try? FileManager.default.removeItem(at: tmpFile)
+        }
+        try await runProcessChecked("/usr/bin/open", ["-W", "-o", tmpFile.path, "--stderr", tmpFile.path, "/System/Library/CoreServices/Rosetta 2 Updater.app"])
+        let output = try String(contentsOf: tmpFile)
+        NSLog("[VZF] Rosetta install result: \(output)")
+
+        // we kind of just ignore errors and report canceled, e.g. on network failure
+        if output.contains("Code=3072") {
+            throw GovzfError.rosettaInstallCanceled
+        } else if output.contains("Success") {
+            return
+        } else {
+            throw GovzfError.rosettaInstallCanceled
         }
     }
 #endif
