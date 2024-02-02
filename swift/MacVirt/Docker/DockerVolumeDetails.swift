@@ -74,7 +74,7 @@ struct DockerVolumeDetails: View {
                         let sortedLabels = labels.sorted { $0.key < $1.key }
                         ForEach(sortedLabels, id: \.key) { key, value in
                             AlignedSimpleKvTableRow(key) {
-                                Text(value)
+                                CopyableText(value)
                             }
                         }
                     }
@@ -89,7 +89,7 @@ struct DockerVolumeDetails: View {
                         let sortedOptions = options.sorted { $0.key < $1.key }
                         ForEach(sortedOptions, id: \.key) { key, value in
                             AlignedSimpleKvTableRow(key) {
-                                Text(value)
+                                CopyableText(value)
                             }
                         }
                     }
