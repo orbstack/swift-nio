@@ -15,7 +15,7 @@ struct DockerImageDetails: View {
         DetailsStack {
             DetailsSection("Info") {
                 // TODO: fix width constraints
-                SimpleKvTable {
+                SimpleKvTable(longestLabel: "Created") {
                     SimpleKvTableRow("ID") {
                         CopyableText(image.id)
                     }
@@ -62,10 +62,10 @@ struct DockerImageDetails: View {
                !labels.isEmpty
             {
                 ScrollableDetailsSection("Labels") {
-                    SimpleKvTable {
+                    AlignedSimpleKvTable {
                         let sortedLabels = labels.sorted { $0.key < $1.key }
                         ForEach(sortedLabels, id: \.key) { key, value in
-                            SimpleKvTableRow(key) {
+                            AlignedSimpleKvTableRow(key) {
                                 Text(value)
                             }
                         }

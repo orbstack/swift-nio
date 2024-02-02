@@ -281,8 +281,77 @@ extension HorizontalAlignment {
     static let tableColumnAlignmentGuide = HorizontalAlignment(TableColumnAlignment.self)
 }
 
+// TODO: use preference to propagate up from SimpleKvTableRow... but how to measure? need multi-pass layout
+// but this will break if we localize (diff langs will have diff longest labels... depends on font too)
+private struct LongestLabelKey: EnvironmentKey {
+    static let defaultValue = ""
+}
+
+extension EnvironmentValues {
+    var longestLabelKey: String {
+        get { self[LongestLabelKey.self] }
+        set { self[LongestLabelKey.self] = newValue }
+    }
+}
+
 // can't use Grid(13) or Table(14 for tableColumnsVisible) due to macOS version req
+// this version is terribly hacky, doesn't use alignmentGuide
+// because alignmentGuide doesn't respect sidebar maxWidth in inspector
 struct SimpleKvTable<Content: View>: View {
+    private let spacing: CGFloat
+    private let longestLabel: String
+    @ViewBuilder private let content: () -> Content
+
+    init(spacing: CGFloat = 4, longestLabel: String, @ViewBuilder content: @escaping () -> Content) {
+        self.spacing = spacing
+        self.longestLabel = longestLabel
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            content()
+        }
+        .environment(\.longestLabelKey, longestLabel)
+    }
+}
+
+struct SimpleKvTableRow<Content: View>: View {
+    private let label: String
+    private let lineLimit: Int?
+    @ViewBuilder private let content: () -> Content
+
+    @Environment(\.longestLabelKey) private var longestLabel
+
+    init(_ label: String, lineLimit: Int? = 1, @ViewBuilder content: @escaping () -> Content) {
+        self.label = label
+        self.lineLimit = lineLimit
+        self.content = content
+    }
+
+    var body: some View {
+        HStack(alignment: .top) {
+            ZStack(alignment: .trailing) {
+                Text(longestLabel)
+                    .fontWeight(.medium)
+                    .frame(maxHeight: 1)
+                    .opacity(0)
+                    .accessibility(hidden: true)
+
+                Text(label)
+                    .fontWeight(.medium)
+            }
+
+            content()
+                .lineLimit(lineLimit)
+        }
+    }
+}
+
+
+// can't use Grid(13) or Table(14 for tableColumnsVisible) due to macOS version req
+// this is the alignmentGuide version, which is OK to use if it's in a ScrollView
+struct AlignedSimpleKvTable<Content: View>: View {
     private let spacing: CGFloat
     @ViewBuilder private let content: () -> Content
 
@@ -298,7 +367,7 @@ struct SimpleKvTable<Content: View>: View {
     }
 }
 
-struct SimpleKvTableRow<Content: View>: View {
+struct AlignedSimpleKvTableRow<Content: View>: View {
     private let label: String
     private let lineLimit: Int?
     @ViewBuilder private let content: () -> Content
@@ -312,10 +381,10 @@ struct SimpleKvTableRow<Content: View>: View {
     var body: some View {
         HStack(alignment: .top) {
             Text(label)
-                .fontWeight(.medium)
-                .alignmentGuide(.tableColumnAlignmentGuide) { context in
-                    context[.trailing]
-                }
+            .fontWeight(.medium)
+            .alignmentGuide(.tableColumnAlignmentGuide) { context in
+                context[.trailing]
+            }
 
             content()
             .lineLimit(lineLimit)

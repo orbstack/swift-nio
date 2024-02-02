@@ -16,7 +16,7 @@ struct K8SPodDetails: View {
             let isRunning = pod.uiState == .running
 
             DetailsSection("Info") {
-                SimpleKvTable {
+                SimpleKvTable(longestLabel: "Address") {
                     let domain = pod.preferredDomain
                     let ipAddress = pod.status.podIP
 

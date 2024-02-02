@@ -16,7 +16,7 @@ struct DockerContainerDetails: View {
             let isRunning = container.running
 
             DetailsSection("Info") {
-                SimpleKvTable {
+                SimpleKvTable(longestLabel: "Address") {
                     let domain = container.preferredDomain
                     let ipAddress = container.ipAddress
 

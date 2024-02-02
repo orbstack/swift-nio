@@ -13,7 +13,7 @@ struct K8SServiceDetails: View {
     var body: some View {
         DetailsStack {
             DetailsSection("Info") {
-                SimpleKvTable {
+                SimpleKvTable(longestLabel: "Cluster IP") {
                     let domain = service.preferredDomain
                     let clusterIP = service.spec.clusterIP
                     // redundant. our external ip is always the same as node

@@ -18,7 +18,7 @@ struct K8SGroupDetails: View {
                     ForEach(pods) { pod in
                         Label {
                             CopyableText(pod.name)
-                            .lineLimit(1)
+                                .lineLimit(1)
                         } icon: {
                             // icon = red/green status dot
                             Image(nsImage: SystemImages.statusDot(isRunning: pod.statusStr == "Running"))

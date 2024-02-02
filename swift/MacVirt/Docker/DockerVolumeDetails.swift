@@ -14,7 +14,7 @@ struct DockerVolumeDetails: View {
     var body: some View {
         DetailsStack {
             DetailsSection("Info") {
-                SimpleKvTable {
+                SimpleKvTable(longestLabel: "Mountpoint") {
                     SimpleKvTableRow("Created") {
                         Text(volume.formattedCreatedAt)
                     }
@@ -69,10 +69,10 @@ struct DockerVolumeDetails: View {
                !labels.isEmpty
             {
                 ScrollableDetailsSection("Labels") {
-                    SimpleKvTable {
+                    AlignedSimpleKvTable {
                         let sortedLabels = labels.sorted { $0.key < $1.key }
                         ForEach(sortedLabels, id: \.key) { key, value in
-                            SimpleKvTableRow(key) {
+                            AlignedSimpleKvTableRow(key) {
                                 Text(value)
                             }
                         }
@@ -84,10 +84,10 @@ struct DockerVolumeDetails: View {
                !options.isEmpty
             {
                 ScrollableDetailsSection("Options") {
-                    SimpleKvTable {
+                    AlignedSimpleKvTable {
                         let sortedOptions = options.sorted { $0.key < $1.key }
                         ForEach(sortedOptions, id: \.key) { key, value in
-                            SimpleKvTableRow(key) {
+                            AlignedSimpleKvTableRow(key) {
                                 Text(value)
                             }
                         }

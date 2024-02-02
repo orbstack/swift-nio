@@ -14,32 +14,19 @@ struct MachineDetails: View {
     var body: some View {
         DetailsStack {
             DetailsSection("Info") {
-                SimpleKvTable {
+                // match Image section
+                SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Status") {
                         Text(record.state.friendlyName)
                     }
                     SimpleKvTableRow("Address") {
                         CopyableText("\(record.name).orb.local")
                     }
-
-                    // for hacky alignment purposes, to match "Image" section...
-                    HStack(alignment: .top) {
-                        Text("Architecture")
-                            .fontWeight(.medium)
-                            .alignmentGuide(.tableColumnAlignmentGuide) { context in
-                                context[.trailing]
-                            }
-
-                        EmptyView()
-                    }
-                    .frame(maxHeight: 1)
-                    .opacity(0)
-                    .accessibility(hidden: true)
                 }
             }
 
             DetailsSection("Image") {
-                SimpleKvTable {
+                SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Distro") {
                         Text(Distro.allCases.first(where: { $0.rawValue == record.image.distro })?.friendlyName ?? record.image.distro)
                     }
@@ -53,24 +40,11 @@ struct MachineDetails: View {
             }
 
             DetailsSection("Settings") {
-                SimpleKvTable {
+                // match Image section
+                SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Username") {
                         Text(record.config.defaultUsername ?? Files.username)
                     }
-
-                    // for hacky alignment purposes, to match "Image" section...
-                    HStack(alignment: .top) {
-                        Text("Architecture")
-                            .fontWeight(.medium)
-                            .alignmentGuide(.tableColumnAlignmentGuide) { context in
-                                context[.trailing]
-                            }
-
-                        EmptyView()
-                    }
-                    .frame(maxHeight: 1)
-                    .opacity(0)
-                    .accessibility(hidden: true)
                 }
             }
         }
