@@ -441,27 +441,27 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addSeparator()
 
-        submenu.addActionItem("ID: \(container.id.prefix(12))") {
+        submenu.addActionItem("ID: \(container.id.prefix(12))", icon: systemImage("doc.on.doc")) {
             NSPasteboard.copy(container.id)
         }
 
         // in case of pinned hashes
         let truncatedImage = container.image.prefix(lineLimit) +
             (container.image.count > lineLimit ? "…" : "")
-        submenu.addActionItem("Image: \(truncatedImage)") {
+        submenu.addActionItem("Image: \(truncatedImage)", icon: systemImage("doc.on.doc")) {
             NSPasteboard.copy(container.image)
         }
 
         if let ipAddress = container.ipAddress {
             if vmModel.netBridgeAvailable {
                 if let domain = container.preferredDomain {
-                    submenu.addActionItem("Address: \(domain)") {
+                    submenu.addActionItem("Address: \(domain)", icon: systemImage("doc.on.doc")) {
                         // copy it. Open in Browser is for opening
                         NSPasteboard.copy(domain)
                     }
                 }
             } else {
-                submenu.addActionItem("IP: \(ipAddress)") {
+                submenu.addActionItem("IP: \(ipAddress)", icon: systemImage("doc.on.doc")) {
                     NSPasteboard.copy(ipAddress)
                 }
             }
@@ -654,7 +654,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if running {
             let domain = "\(record.name).orb.local"
-            submenu.addActionItem("Address: \(domain)", disabled: !vmModel.netBridgeAvailable) {
+            submenu.addActionItem("Address: \(domain)", icon: systemImage("doc.on.doc"), disabled: !vmModel.netBridgeAvailable) {
                 NSPasteboard.copy(domain)
             }
         }
