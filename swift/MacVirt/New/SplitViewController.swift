@@ -30,7 +30,7 @@ class SplitViewController: NSSplitViewController {
         addSplitViewItem(itemB)
         addSplitViewItem(itemC)
 
-        itemA.minimumThickness = 165
+        itemA.minimumThickness = 170
         itemA.maximumThickness = 250
 
         itemB.minimumThickness = 250

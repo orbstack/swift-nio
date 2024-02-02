@@ -155,6 +155,12 @@ class NewMainViewController: NSViewController {
         return item
     }()
 
+    lazy var licenseBadgeItem = {
+        let item = NSToolbarItem(itemIdentifier: .licenseBadge)
+        item.view = NSHostingView(rootView: LicenseBadgeView(vmModel: model))
+        return item
+    }()
+
     // MARK: - Init
 
     init(model: VmViewModel, navModel: MainNavViewModel) {

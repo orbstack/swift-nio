@@ -68,6 +68,10 @@ extension NewMainViewController: NSToolbarDelegate {
             return searchItem
         case .inspectorTrackingSeparatorCompat:
             return NSTrackingSeparatorToolbarItem(identifier: itemIdentifier, splitView: splitViewController.splitView, dividerIndex: 1)
+
+        case .licenseBadge:
+            return licenseBadgeItem
+
         default:
             break
         }

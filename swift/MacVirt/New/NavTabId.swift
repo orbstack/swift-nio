@@ -61,6 +61,8 @@ extension NSToolbarItem.Identifier {
 
     static let searchItem = NSToolbarItem.Identifier("searchItem")
 
+    static let licenseBadge = NSToolbarItem.Identifier("licenseBadge")
+
     static let toggleInspectorCompat = {
         if #available(macOS 14.0, *) {
             NSToolbarItem.Identifier.toggleInspector
@@ -80,5 +82,5 @@ extension NSToolbarItem.Identifier {
     static let leadingItems: [NSToolbarItem.Identifier] =
         [.toggleSidebar, .sidebarTrackingSeparator]
     static let trailingItems: [NSToolbarItem.Identifier] =
-        [.inspectorTrackingSeparatorCompat, .flexibleSpace, .toggleInspectorCompat]
+        [.inspectorTrackingSeparatorCompat, .flexibleSpace, .licenseBadge, .toggleInspectorCompat]
 }
