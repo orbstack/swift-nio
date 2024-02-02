@@ -348,7 +348,6 @@ struct SimpleKvTableRow<Content: View>: View {
     }
 }
 
-
 // can't use Grid(13) or Table(14 for tableColumnsVisible) due to macOS version req
 // this is the alignmentGuide version, which is OK to use if it's in a ScrollView
 struct AlignedSimpleKvTable<Content: View>: View {
@@ -381,13 +380,13 @@ struct AlignedSimpleKvTableRow<Content: View>: View {
     var body: some View {
         HStack(alignment: .top) {
             Text(label)
-            .fontWeight(.medium)
-            .alignmentGuide(.tableColumnAlignmentGuide) { context in
-                context[.trailing]
-            }
+                .fontWeight(.medium)
+                .alignmentGuide(.tableColumnAlignmentGuide) { context in
+                    context[.trailing]
+                }
 
             content()
-            .lineLimit(lineLimit)
+                .lineLimit(lineLimit)
         }
     }
 }

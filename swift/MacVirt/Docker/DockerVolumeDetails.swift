@@ -14,7 +14,8 @@ struct DockerVolumeDetails: View {
     var body: some View {
         DetailsStack {
             DetailsSection("Info") {
-                SimpleKvTable(longestLabel: "Mountpoint") {
+                let showMountpoint = volume.mountpoint != "/var/lib/docker/volumes/\(volume.name)/_data"
+                SimpleKvTable(longestLabel: showMountpoint ? "Mountpoint" : "Created") {
                     SimpleKvTableRow("Created") {
                         Text(volume.formattedCreatedAt)
                     }
@@ -29,7 +30,7 @@ struct DockerVolumeDetails: View {
                         }
                     }
 
-                    if volume.mountpoint != "/var/lib/docker/volumes/\(volume.name)/_data" {
+                    if showMountpoint {
                         SimpleKvTableRow("Mountpoint") {
                             Text("\(volume.mountpoint)")
                                 .font(.body.monospaced())
