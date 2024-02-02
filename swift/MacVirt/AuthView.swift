@@ -79,7 +79,8 @@ struct AuthView: View {
         .frame(width: 300, height: 300)
         .task {
             do {
-                var args = ["login"]
+                // GUI will never trigger reauth if not needed (e.g. for switch org)
+                var args = ["login", "-f"]
                 if let ssoDomain = Defaults[.mdmSsoDomain], !ssoDomain.isEmpty {
                     args.append("--domain")
                     args.append(ssoDomain)
