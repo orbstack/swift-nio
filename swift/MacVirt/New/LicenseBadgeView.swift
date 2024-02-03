@@ -10,7 +10,7 @@ struct LicenseBadgeView: View {
     @ObservedObject var vmModel: VmViewModel
 
     var body: some View {
-        if vmModel.drmState.statusDotColor == .red {
+        if vmModel.drmState.subtitle == "Personal use only" {
             Text("Personal use only")
                 .font(.caption)
                 .padding(.vertical, 4)

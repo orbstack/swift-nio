@@ -58,6 +58,10 @@ struct UserSwitcherButton: View {
             HStack(spacing: 0) {
                 var drmState = vmModel.drmState
 
+                let subtitle = drmState.subtitle
+                // "Personal use only" is shown in badge instead
+                let showStatusDotAndSubtitle = subtitle != "Personal use only"
+
                 Group {
                     if let imageURL = drmState.imageURL {
                         CachedAsyncImage(url: imageURL) { image in
@@ -83,26 +87,30 @@ struct UserSwitcherButton: View {
                 .mask {
                     Rectangle()
                         .overlay(alignment: .topLeading) {
-                            // calculate a position intersecting the circle and y=-x from the bottom-right edge
-                            let x = avatarRadius * cos(Float.pi / 4) + (statusDotRadius / 2)
-                            let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
+                            if showStatusDotAndSubtitle {
+                                // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                                let x = avatarRadius * cos(Float.pi / 4) + (statusDotRadius / 2)
+                                let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
 
-                            Circle()
+                                Circle()
                                 .frame(width: CGFloat(statusMarginRadius), height: CGFloat(statusMarginRadius))
                                 .position(x: CGFloat(x), y: CGFloat(y))
                                 .blendMode(.destinationOut)
+                            }
                         }
                 }
                 // status dot
                 .overlay(alignment: .topLeading) {
-                    // calculate a position intersecting the circle and y=-x from the bottom-right edge
-                    let x = avatarRadius * cos(Float.pi / 4) + (statusDotRadius / 2)
-                    let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
+                    if showStatusDotAndSubtitle {
+                        // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                        let x = avatarRadius * cos(Float.pi / 4) + (statusDotRadius / 2)
+                        let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
 
-                    Circle()
+                        Circle()
                         .fill(drmState.statusDotColor.opacity(0.85))
                         .frame(width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius))
                         .position(x: CGFloat(x), y: CGFloat(y))
+                    }
                 }
                 .padding(.trailing, 8)
 
@@ -111,8 +119,11 @@ struct UserSwitcherButton: View {
                         .font(.headline)
                         .lineLimit(1)
 
-                    Text(drmState.subtitle)
+                    // shown in badge
+                    if showStatusDotAndSubtitle {
+                        Text(drmState.subtitle)
                         .font(.subheadline)
+                    }
                 }
 
                 // occupy all right space for border

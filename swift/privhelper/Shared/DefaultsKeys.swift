@@ -104,7 +104,7 @@ struct DrmState: Codable, Defaults.Serializable {
                     ?? "(no name)"
             } else {
                 // nothing
-                return "Sign in"
+                return "Sign In"
             }
         }
     }
