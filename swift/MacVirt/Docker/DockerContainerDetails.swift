@@ -22,6 +22,7 @@ struct DockerContainerDetails: View {
 
                     SimpleKvTableRow("Status") {
                         Text(container.status)
+                        .lineLimit(nil)
                     }
 
                     SimpleKvTableRow("ID") {

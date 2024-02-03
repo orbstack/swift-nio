@@ -36,7 +36,7 @@ struct DockerImageDetails: View {
                 DetailsSection("Tags") {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(tags, id: \.self) { tag in
-                            Text(tag)
+                            CopyableText(tag)
                         }
                     }
                 }

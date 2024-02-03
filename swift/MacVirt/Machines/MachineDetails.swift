@@ -21,6 +21,7 @@ struct MachineDetails: View {
                     }
                     SimpleKvTableRow("Address") {
                         CopyableText("\(record.name).orb.local")
+                        .lineLimit(nil)
                     }
                 }
             }
