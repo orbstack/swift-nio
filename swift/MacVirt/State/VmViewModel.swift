@@ -8,6 +8,7 @@ import Foundation
 import Sentry
 import SwiftUI
 import Virtualization
+import SecureXPC
 
 private let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
 private let dockerSystemDfRatelimit = 1.0 * 60 * 60 // 1 hour
@@ -242,6 +243,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
                 • Check your proxy in Settings > Network
                 • Make sure your date and time are correct
             """
+        case .setupError(XPCError.connectionInvalid):
+            return "Privileged helper failed to start. Please enable it or disable admin privileges in Settings > System."
         default:
             if let cause {
                 return fmtRpc(cause)
