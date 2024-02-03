@@ -350,7 +350,7 @@ func writeShellProfileSnippets() error {
 
 	// append, not prepend.
 	// cmdlinks should probably be prepended but it causes issues with kubectl/docker/etc. overrides
-	bashSnippetBase := fmt.Sprintf(`export PATH="$PATH":%s\n`, shellescape.Quote(bin))
+	bashSnippetBase := fmt.Sprintf(`export PATH="$PATH":%s`+"\n", shellescape.Quote(bin))
 	// completions don't work with old macOS bash 3.2, and also require bash-completion
 	bashSnippet := bashSnippetBase
 	err := os.WriteFile(shells+"/init.bash", []byte(bashSnippet), 0644)
