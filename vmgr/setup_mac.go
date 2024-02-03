@@ -458,7 +458,8 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	// depends on PATH for edge cases like ssh_config Match exec "type orb"
 	err = setupPublicSSH()
 	if err != nil {
-		return nil, err
+		// TODO: fix ssh config parsing for env vars in Host blocks
+		logrus.WithError(err).Warn("failed to set up SSH config")
 	}
 
 	// split path
