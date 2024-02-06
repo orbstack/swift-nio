@@ -553,7 +553,11 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 			fallthrough
 		case "bash":
 			if profilePath == "" {
+				// prefer bash_profile, otherwise use profile
 				profilePath = details.Home + "/.bash_profile"
+				if err := unix.Access(profilePath, unix.F_OK); errors.Is(err, os.ErrNotExist) {
+					profilePath = details.Home + "/.profile"
+				}
 				initSnippetPath = conf.ShellInitDir() + "/init.bash"
 			}
 
