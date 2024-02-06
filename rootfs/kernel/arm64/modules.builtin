@@ -5,8 +5,8 @@ kernel/arch/arm64/crypto/ghash-ce.ko
 kernel/arch/arm64/crypto/polyval-ce.ko
 kernel/arch/arm64/crypto/aes-ce-cipher.ko
 kernel/arch/arm64/crypto/aes-ce-ccm.ko
-kernel/arch/arm64/crypto/aes-ce-blk.ko
-kernel/arch/arm64/crypto/aes-neon-blk.ko
+kernel/arch/arm64/crypto/aes-glue-ce.ko
+kernel/arch/arm64/crypto/aes-glue-neon.ko
 kernel/arch/arm64/crypto/sha256-arm64.ko
 kernel/arch/arm64/crypto/sha512-arm64.ko
 kernel/arch/arm64/crypto/chacha-neon.ko
@@ -43,7 +43,6 @@ kernel/fs/nls/nls_cp437.ko
 kernel/fs/nls/nls_ascii.ko
 kernel/fs/nls/nls_iso8859-1.ko
 kernel/fs/nls/nls_utf8.ko
-kernel/fs/nls/nls_ucs2_utils.ko
 kernel/fs/smb/common/cifs_arc4.ko
 kernel/fs/smb/common/cifs_md4.ko
 kernel/fs/smb/client/cifs.ko
@@ -64,7 +63,7 @@ kernel/crypto/crypto.ko
 kernel/crypto/crypto_algapi.ko
 kernel/crypto/aead.ko
 kernel/crypto/geniv.ko
-kernel/crypto/crypto_skcipher.ko
+kernel/crypto/skcipher.ko
 kernel/crypto/seqiv.ko
 kernel/crypto/echainiv.ko
 kernel/crypto/crypto_hash.ko
@@ -125,7 +124,6 @@ kernel/lib/crypto/libcurve25519-generic.ko
 kernel/lib/crypto/libcurve25519.ko
 kernel/lib/crypto/libsha1.ko
 kernel/lib/crypto/libsha256.ko
-kernel/lib/crypto/mpi/mpi.ko
 kernel/lib/crc16.ko
 kernel/lib/crc-itu-t.ko
 kernel/lib/crc32.ko
@@ -145,6 +143,7 @@ kernel/lib/ts_kmp.ko
 kernel/lib/ts_bm.ko
 kernel/lib/ts_fsm.ko
 kernel/lib/glob.ko
+kernel/lib/mpi/mpi.ko
 kernel/lib/asn1_decoder.ko
 kernel/lib/oid_registry.ko
 kernel/drivers/pci/controller/pci-host-common.ko
@@ -163,10 +162,10 @@ kernel/drivers/tty/n_null.ko
 kernel/drivers/tty/serial/serial_base.ko
 kernel/drivers/tty/serial/8250/8250.ko
 kernel/drivers/tty/serial/8250/8250_base.ko
+kernel/drivers/tty/serial/8250/8250_pci.ko
 kernel/drivers/tty/serial/8250/8250_exar.ko
 kernel/drivers/tty/serial/8250/8250_fsl.ko
 kernel/drivers/tty/serial/8250/8250_of.ko
-kernel/drivers/tty/serial/8250/8250_pci.ko
 kernel/drivers/tty/serial/amba-pl011.ko
 kernel/drivers/char/virtio_console.ko
 kernel/drivers/char/hw_random/rng-core.ko
@@ -193,7 +192,6 @@ kernel/drivers/net/wireguard/wireguard.ko
 kernel/drivers/net/macvlan.ko
 kernel/drivers/net/macvtap.ko
 kernel/drivers/net/mii.ko
-kernel/drivers/net/netkit.ko
 kernel/drivers/net/phy/mdio_devres.ko
 kernel/drivers/net/phy/phylink.ko
 kernel/drivers/net/phy/libphy.ko
@@ -261,6 +259,7 @@ kernel/drivers/firmware/arm_scpi.ko
 kernel/drivers/firmware/scpi_pm_domain.ko
 kernel/drivers/firmware/arm_scmi/scmi-core.ko
 kernel/drivers/firmware/arm_scmi/scmi-module.ko
+kernel/drivers/firmware/arm_scmi/scmi_pm_domain.ko
 kernel/drivers/hid/hid.ko
 kernel/drivers/hid/hid-generic.ko
 kernel/drivers/hid/hid-logitech.ko
@@ -474,6 +473,7 @@ kernel/net/ipv4/tcp_cubic.ko
 kernel/net/xfrm/xfrm_algo.ko
 kernel/net/xfrm/xfrm_user.ko
 kernel/net/xfrm/xfrm_ipcomp.ko
+kernel/net/unix/unix.ko
 kernel/net/unix/unix_diag.ko
 kernel/net/ipv6/ipv6.ko
 kernel/net/ipv6/esp6.ko
