@@ -41,12 +41,15 @@ enum EntitlementStatus: Int, Codable {
     case green = 2
 }
 
-struct DrmState: Codable, Defaults.Serializable {
+class DrmState: Codable, Defaults.Serializable {
     var refreshToken: String?
     var entitlementTier: EntitlementTier
     var entitlementType: EntitlementType
     var entitlementMessage: String?
     var entitlementStatus: EntitlementStatus?
+
+    // TODO: deal with mutation
+    private lazy var claims: [String: Any] = decodeClaims() ?? [:]
 
     init(refreshToken: String? = nil, entitlementTier: EntitlementTier = .none,
          entitlementType: EntitlementType = .none, entitlementMessage: String? = nil,
@@ -58,9 +61,6 @@ struct DrmState: Codable, Defaults.Serializable {
         self.entitlementMessage = entitlementMessage
         self.entitlementStatus = entitlementStatus
     }
-
-    // TODO: deal with mutation
-    private lazy var claims: [String: Any]? = decodeClaims()
 
     private func decodeClaims() -> [String: Any]? {
         guard let refreshToken else {
@@ -79,37 +79,40 @@ struct DrmState: Codable, Defaults.Serializable {
 
     // TODO: err cond
     var imageURL: URL? {
-        mutating get {
-            if let claims,
-               let imageURL = claims["_uim"] as? String
-            {
-                return URL(string: imageURL)
-            } else {
-                return nil
-            }
+        if let imageURL = claims["_uim"] as? String {
+            return URL(string: imageURL)
+        } else {
+            return nil
         }
     }
 
     var title: String {
-        mutating get {
-            if let claims,
-               let title = claims["_unm"] as? String
-            {
-                return title
-            } else if let claims,
-                      let email = claims["_uem"] as? String
-            {
-                // fallback to email. not all users have name
-                return email.components(separatedBy: "@").first
+        if let title = claims["_unm"] as? String {
+            return title
+        } else if let email = claims["_uem"] as? String {
+            // fallback to email. not all users have name
+            return email.components(separatedBy: "@").first
                     ?? "(no name)"
-            } else {
-                // nothing
-                return "Sign In"
-            }
+        } else {
+            // nothing
+            return "Sign In"
+        }
+    }
+
+    var expired: Bool {
+        if let expiresAt = claims["exp"] as? TimeInterval {
+            // NO leeway - to warn before vmgr does
+            return Date.now > Date(timeIntervalSince1970: expiresAt)
+        } else {
+            return false
         }
     }
 
     var subtitle: String {
+        if expired {
+            return "Sign in again"
+        }
+
         // 1. entitlement message
         if let entitlementMessage {
             return entitlementMessage
@@ -129,6 +132,10 @@ struct DrmState: Codable, Defaults.Serializable {
     }
 
     var statusDotColor: Color {
+        if expired {
+            return .red
+        }
+
         switch entitlementStatus {
         case .red:
             return .red
@@ -139,12 +146,13 @@ struct DrmState: Codable, Defaults.Serializable {
         case nil:
             // fallback for version upgrade w/ old token
             return entitlementType == .trial ? .yellow :
-                (entitlementTier == .none ? .red : .green)
+                    (entitlementTier == .none ? .red : .green)
         }
     }
 
     var isSignedIn: Bool {
-        refreshToken != nil && refreshToken != previewRefreshToken
+        // expired = user should sign in again (force it in the case of MDM SSO enforcement)
+        refreshToken != nil && refreshToken != previewRefreshToken && !expired
     }
 }
 

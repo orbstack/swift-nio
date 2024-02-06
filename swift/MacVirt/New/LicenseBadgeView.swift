@@ -10,8 +10,9 @@ struct LicenseBadgeView: View {
     @ObservedObject var vmModel: VmViewModel
 
     var body: some View {
-        if vmModel.drmState.subtitle == "Personal use only" {
-            Text("Personal use only")
+        // "Personal use only" and "Sign in again"
+        if vmModel.drmState.statusDotColor == .red {
+            Text(vmModel.drmState.subtitle)
                 .font(.caption)
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
@@ -19,7 +20,11 @@ struct LicenseBadgeView: View {
                 .background(.thinMaterial)
                 .background(Color.red.opacity(0.5))
                 .onTapGesture {
-                    NSWorkspace.shared.open(URL(string: "https://orbstack.dev/pricing")!)
+                    if vmModel.drmState.subtitle == "Sign in again" {
+                        vmModel.presentAuth = true
+                    } else {
+                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/pricing")!)
+                    }
                 }
                 .clipShape(Capsule())
         } else {
