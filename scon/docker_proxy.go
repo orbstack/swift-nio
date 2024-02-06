@@ -150,9 +150,11 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			defer freezer.DecRef()
 
 			// send request
-			logrus.Trace("hp: writing request")
+			logrus.Trace("hp: writing request ", req.Method, req.URL)
 			err = req.Write(upstreamConn)
-			if err != nil {
+			// why doesn't errors.Is(err, unix.EPIPE) work here?
+			if err != nil && !strings.Contains(err.Error(), "write: broken pipe") {
+				// can still attempt to read a response if we got cut off.
 				return fmt.Errorf("write request: %w", err)
 			}
 
@@ -186,7 +188,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			// send response *without* body, but with Content-Length and Transfer-Encoding
 			// Response.Write excludes those headers, so roll our own
 			// complicated status text is to preserve original status line w/o duplicate status code
-			logrus.Trace("hp: writing response")
+			logrus.Trace("hp: writing response ", resp.Status)
 			_, err = fmt.Fprintf(clientConn, "HTTP/%d.%d %03d %s\r\n", resp.ProtoMajor, resp.ProtoMinor, resp.StatusCode, strings.TrimPrefix(resp.Status, strconv.Itoa(resp.StatusCode)+" "))
 			if err != nil {
 				return fmt.Errorf("write response: %w", err)
