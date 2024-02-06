@@ -270,9 +270,9 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string, fs
 	layerDirs := make([]string, 0, 1+len(img.GraphDriver.Data))
 	// upper first
 	upperPath := strings.TrimPrefix(img.GraphDriver.Data["UpperDir"], "/var/lib/docker")
-	// an image should never have no layers
+	// images can have zero layers... see repro in vmgr/tests
 	if upperPath == "" {
-		return fmt.Errorf("image '%s' has no upper dir", tag)
+		return nil
 	}
 
 	// scope to securefs
