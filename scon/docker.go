@@ -236,7 +236,14 @@ func (h *DockerHooks) symlinkDirChildren(dir string) error {
 	}
 
 	for _, entry := range entries {
-		err = h.rootfs.Symlink(mounts.Virtiofs+dir+"/"+entry.Name(), dir+"/"+entry.Name())
+		// skip anything that should be a bind mount, so lxc mounts work
+		linkDest := dir + "/" + entry.Name()
+		// fix double slash
+		if slices.Contains(mounts.LinkedPaths[:], strings.TrimPrefix(linkDest, "/")) {
+			continue
+		}
+
+		err = h.rootfs.Symlink(mounts.Virtiofs+dir+"/"+entry.Name(), linkDest)
 		if err != nil && !errors.Is(err, os.ErrExist) {
 			return err
 		}
