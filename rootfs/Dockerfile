@@ -73,7 +73,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 <<EOT sh -eux
 mkdir /out
 cd /build
-git clone --depth 1 -b v1.1.7 https://github.com/opencontainers/runc
+git clone --depth 1 -b v1.1.12 https://github.com/opencontainers/runc
 cd runc
 patch -p1 < ../runc.patch
 EXTRA_LDFLAGS="-s -w" make static
@@ -127,7 +127,8 @@ RUN apk add --no-cache \
     pigz \
     # Docker engine deps
     ca-certificates \
-    runc \
+    # important to pin version for security
+    runc=1.1.12-r0 \
     containerd \
     # support Docker build from git repos
     git \
