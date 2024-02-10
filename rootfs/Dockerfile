@@ -138,9 +138,22 @@ RUN apk add --no-cache \
     # /etc/localtime for containers
     tzdata \
     # for kubectl port-forward
-    socat \
+    socat
     # for tls proxy
-    ipset
+    #ipset
+
+# workaround: latest ipset edge 7.20-r0 segfaults
+RUN <<EOT sh -eux
+if [[ "\$(uname -m)" == "x86_64" ]]; then
+    wget https://dl-cdn.alpinelinux.org/alpine/v3.19/main/x86_64/ipset-7.19-r2.apk
+    apk add --no-cache --no-network ./ipset-7.19-r2.apk
+    rm -f ipset-7.19-r2.apk
+else
+    wget https://dl-cdn.alpinelinux.org/alpine/v3.19/main/aarch64/ipset-7.19-r2.apk
+    apk add --no-cache --no-network ./ipset-7.19-r2.apk
+    rm -f ipset-7.19-r2.apk
+fi
+EOT
 
 # Official Docker engine build
 RUN <<EOT sh -eux
