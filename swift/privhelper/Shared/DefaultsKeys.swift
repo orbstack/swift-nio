@@ -152,7 +152,8 @@ class DrmState: Codable, Defaults.Serializable {
 
     var isSignedIn: Bool {
         // expired = user should sign in again (force it in the case of MDM SSO enforcement)
-        refreshToken != nil && refreshToken != previewRefreshToken && !expired
+        // apparently sometimes there's an empty/broken token causing UI state mismatch, so use title as canonical source
+        refreshToken != nil && refreshToken != previewRefreshToken && !expired && title != "Sign In"
     }
 }
 
