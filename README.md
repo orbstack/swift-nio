@@ -3,7 +3,8 @@
 ## Developer onboarding
 
 - Install and start a release build of OrbStack
-- Set `GOPRIVATE` and ssh->git redirect
+- Set `GOPRIVATE=github.com/orbstack/*-macvirt` in global shell environment
+- Install GitHub CLI, sign in, and configure Git for HTTPS: `gh login && gh auth setup-git`
 - Build rootfs: `cd rootfs; make`
 - Build CLI: `cd scon; make`
 - Build kernel from https://github.com/orbstack/linux-macvirt-priv
