@@ -5,3 +5,4 @@
 *.zip
 /updates/
 /out/
+/config.local.sh

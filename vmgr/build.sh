@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 VMGR_BIN="OrbStack Helper"
 
 # default dev signing cert
-SIGNING_CERT="${SIGNING_CERT:-"Apple Development: Danny Lin (A2LS84RQFY)"}"
+source ../config.sh
 
 # translate Go to Swift arch
 if [[ "${GOARCH:-arm64}" == "arm64" ]]; then
@@ -49,4 +49,4 @@ fi
 # -R doesn't follow symlinks
 cp -R bundle/. "$BUNDLE_OUT/Contents"
 # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
-codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
+codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT_DEV" "$BUNDLE_OUT" || :

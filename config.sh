@@ -22,3 +22,7 @@ SENTRY_ORG=kdrag0n
 SENTRY_PROJECT=orbstack
 
 CDN_BASE_URL=https://cdn-updates.orbstack.dev
+
+_SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+source "$_SCRIPT_DIR/config.local.sh" || :
+unset _SCRIPT_DIR
