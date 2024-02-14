@@ -79,6 +79,16 @@ Host %s
   IdentitiesOnly yes
 `, appid.ShortAppName, quotedCmd, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, relHome, relHome)
 
+	// debug VM ssh server
+	if conf.Debug() {
+		sshConfigSection += `
+Host ovm
+  Hostname 127.0.0.1
+  User root
+  Port 2222
+`
+	}
+
 	// write extra config atomically - openssh reads it on-demand after match
 	err = util.WriteFileAtomic(conf.ExtraSshDir()+"/config", []byte(sshConfigSection), 0644)
 	if err != nil {
