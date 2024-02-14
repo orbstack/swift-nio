@@ -25,7 +25,7 @@
     1. Copy "Provisioning UDID" from System Information
         - Hold Option > Apple logo in menu bar > System Information
     1. Ping Danny to add you to the Apple Developer team. Include your UDID.
-    1. Settings > Accounts > sign in with Apple ID
+    1. Xcode Settings > Accounts > sign in with Apple ID
     1. Select the "Orbital Labs, LLC (U.S.)" team > Manage Certificates
     1. Add a new Apple Development certificate
     1. Ping Danny to create a provisioning profile for you
