@@ -54,9 +54,12 @@
         - On arm64: `pacman -Syu base-devel bc cpio`
         - On x86: `pacman -Syu base-devel bc aarch64-linux-gnu-binutils aarch64-linux-gnu-gcc aarch64-linux-gnu-glibc cpio`
     1. `git clone git@github.com:orbstack/linux-macvirt-priv`
-    1. `source setup.sh; restore_config; marm`
-    1. `git checkout mac-6.7.x-fuse-bpf`
-    1. Move to `assets/debug/arm64/kernel`
+        - Must be on Linux file system due to case sensitivity (run `cd` — should be in /home, not /Users)
+    1. `git checkout mac-6.7.x-fuse-bpf` (current dev branch)
+    1. `source setup.sh`
+    1. `restore_config`
+    1. `marm`
+    1. Copy `out/arch/arm64/boot/Image` to `assets/debug/arm64/kernel` in repo root
 1. Build and run app in Xcode
     1. Select scheme `MacVirt`
     2. Click the play button
@@ -123,6 +126,18 @@ It's hard to replace PID 1, so just build a new rootfs and restart vmgr.
 ### GUI
 
 Open Xcode and run the `MacVirt` scheme.
+
+### Kernel
+
+- To load helper functions: `source setup.sh`
+- To restore config to committed version: `restore_config`
+- To build for arm64: `marm`
+- To edit config: `marm nconfig` (or `marm menuconfig` if you prefer)
+- To build for x86: `mx86` (usually not needed)
+- To build for both arm64 and x86: `mall` (usually not needed)
+- To commit current config: `cpconfig`
+
+After every build, copy `out/arch/arm64/boot/Image` to `assets/debug/arm64/kernel` and restart vmgr.
 
 ### orbfs
 
