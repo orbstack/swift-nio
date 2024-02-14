@@ -17,6 +17,8 @@ else
     SWIFT_ARCH="x86_64"
 fi
 
+SIGNING_CERT="${SIGNING_CERT:-$SIGNING_CERT_DEV}"
+
 BUNDLE_OUT="${BUNDLE_OUT:-$PWD/../out/$VMGR_BIN.app}"
 BUNDLE_BIN="$BUNDLE_OUT/Contents/MacOS"
 BIN_OUT="$BUNDLE_BIN/$VMGR_BIN"
@@ -49,4 +51,4 @@ fi
 # -R doesn't follow symlinks
 cp -R bundle/. "$BUNDLE_OUT/Contents"
 # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
-codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT_DEV" "$BUNDLE_OUT" || :
+codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
