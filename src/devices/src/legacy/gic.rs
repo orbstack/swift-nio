@@ -31,7 +31,7 @@ pub struct Gic {
     cpu_size: u64,
     ctlr: u32,
     irq_cfg: [u8; IRQ_NUM as usize],
-    vcpus: Vec<VcpuInfo>,
+    vcpus: BTreeMap<u8, VcpuInfo>,
     vcpu_count: u8,
     irq_target: [u8; IRQ_NUM as usize],
     vtimer_irq: u32,
@@ -49,7 +49,7 @@ impl Gic {
             cpu_size: GICv2::get_cpu_size(),
             ctlr: 0,
             irq_cfg: [0; IRQ_NUM as usize],
-            vcpus: Vec::new(),
+            vcpus: BTreeMap::new(),
             vcpu_count: 0,
             irq_target: [0; IRQ_NUM as usize],
             vtimer_irq: GTIMER_VIRT + 16,
@@ -68,16 +68,24 @@ impl Gic {
     }
 
     fn set_irq_common(&mut self, vcpuid: u8, irq_line: u32) {
-        let vcpu = &mut self.vcpus[vcpuid as usize];
-        vcpu.pending_irqs.push_back(irq_line);
-
-        match vcpu.status {
-            VcpuStatus::Waiting => {
-                vcpu.wfe_thread.unpark();
-                vcpu.status = VcpuStatus::Running;
+        match self.vcpus.entry(vcpuid) {
+            Entry::Vacant(_) => {
+                panic!("Unknown vCPU id: {}", vcpuid);
             }
-            VcpuStatus::Running => {
-                vcpu_request_exit(vcpuid as u64).unwrap();
+            Entry::Occupied(mut vcpu_entry) => {
+                let vcpu = vcpu_entry.get_mut();
+
+                vcpu.pending_irqs.push_back(irq_line);
+
+                match vcpu.status {
+                    VcpuStatus::Waiting => {
+                        vcpu.wfe_thread.unpark();
+                        vcpu.status = VcpuStatus::Running;
+                    }
+                    VcpuStatus::Running => {
+                        vcpu_request_exit(vcpuid as u64).unwrap();
+                    }
+                }
             }
         }
     }
@@ -106,41 +114,59 @@ impl Gic {
 
     pub fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread) {
         assert!(vcpuid < MAX_CPUS);
-        let info = VcpuInfo {
-            status: VcpuStatus::Running,
-            wfe_thread,
-            pending_irqs: VecDeque::new(),
-        };
-        // insert at index and grow if needed
-        if vcpuid as usize >= self.vcpus.len() {
-            self.vcpus.push(info);
-        } else {
-            self.vcpus[vcpuid as usize] = info;
-        }
+        self.vcpus.insert(
+            vcpuid as u8,
+            VcpuInfo {
+                status: VcpuStatus::Running,
+                wfe_thread,
+                pending_irqs: VecDeque::new(),
+            },
+        );
         assert!(self.vcpus.len() <= MAX_CPUS as usize);
         self.vcpu_count = self.vcpus.len() as u8;
     }
 
     pub fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
         assert!(vcpuid < MAX_CPUS);
-        let vcpu = &mut self.vcpus[vcpuid as usize];
-        if vcpu.pending_irqs.is_empty() {
-            vcpu.status = VcpuStatus::Waiting;
-            true
-        } else {
-            false
+        match self.vcpus.entry(vcpuid as u8) {
+            Entry::Vacant(_) => {
+                panic!("Unknown vCPU id: {}", vcpuid);
+            }
+            Entry::Occupied(mut vcpu_entry) => {
+                let vcpu = vcpu_entry.get_mut();
+                if vcpu.pending_irqs.is_empty() {
+                    vcpu.status = VcpuStatus::Waiting;
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
     pub fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool {
         assert!(vcpuid < MAX_CPUS);
-        let vcpu = &self.vcpus[vcpuid as usize];
-        !vcpu.pending_irqs.is_empty()
+        match self.vcpus.entry(vcpuid as u8) {
+            Entry::Vacant(_) => {
+                panic!("Unknown vCPU id: {}", vcpuid);
+            }
+            Entry::Occupied(mut vcpu_entry) => {
+                let vcpu = vcpu_entry.get_mut();
+                !vcpu.pending_irqs.is_empty()
+            }
+        }
     }
 
     fn get_pending_irq(&mut self, vcpuid: u8) -> u32 {
-        let vcpu = &mut self.vcpus[vcpuid as usize];
-        vcpu.pending_irqs.pop_front().unwrap_or(1023)
+        match self.vcpus.entry(vcpuid) {
+            Entry::Vacant(_) => {
+                panic!("Unknown vCPU id: {}", vcpuid);
+            }
+            Entry::Occupied(mut vcpu_entry) => {
+                let vcpu = vcpu_entry.get_mut();
+                vcpu.pending_irqs.pop_front().unwrap_or(1023)
+            }
+        }
     }
 
     fn handle_dist_read8(&mut self, vcpuid: u64, offset: u64, _data: &mut [u8]) {
