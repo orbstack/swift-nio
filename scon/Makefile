@@ -5,7 +5,7 @@ all: scli
 scli:
 	@mkdir -p ../out
 	@go build -o ../out/scli ./cmd/scli
-	@source ../config.sh; codesign -f --timestamp --options=runtime --entitlements scli.entitlements -i dev.kdrag0n.MacVirt.scli -s "$$SIGNING_CERT_DEV" ../out/scli || :
+	@bash -c 'source ../config.sh; codesign -f --timestamp --options=runtime --entitlements scli.entitlements -i dev.kdrag0n.MacVirt.scli -s "$$SIGNING_CERT_DEV" ../out/scli || :'
 
 # cat buffering improves speed a lot on virtiofs
 bpf/vmlinux.h: /sys/kernel/btf/vmlinux
