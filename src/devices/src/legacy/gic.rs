@@ -16,13 +16,11 @@ use crate::bus::BusDevice;
 const IRQ_NUM: u32 = 64;
 const MAX_CPUS: u64 = 8;
 
-#[derive(Clone)]
 enum VcpuStatus {
     Running,
     Waiting,
 }
 
-#[derive(Clone)]
 struct VcpuInfo {
     status: VcpuStatus,
     pending_irqs: VecDeque<u32>,
@@ -114,8 +112,11 @@ impl Gic {
             pending_irqs: VecDeque::new(),
         };
         // insert at index and grow if needed
-        self.vcpus.resize(vcpuid as usize + 1, info.clone());
-        self.vcpus[vcpuid as usize] = info;
+        if vcpuid as usize >= self.vcpus.len() {
+            self.vcpus.push(info);
+        } else {
+            self.vcpus[vcpuid as usize] = info;
+        }
         assert!(self.vcpus.len() <= MAX_CPUS as usize);
         self.vcpu_count = self.vcpus.len() as u8;
     }
