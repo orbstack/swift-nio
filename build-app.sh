@@ -57,7 +57,7 @@ function build_one() {
     BUILD_TYPE=release \
         EXTRA_LDFLAGS="-s -w" \
         BUNDLE_OUT="$OUT/$VMGR_BIN.app" \
-        SIGNING_CERT="$SIGNING_CERT" \
+        SIGNING_CERT_OVERRIDE="$SIGNING_CERT" \
         ./build.sh -tags release -trimpath
     popd
 
