@@ -65,5 +65,6 @@ ubuntu:focal
 ubuntu:jammy
 ubuntu:lunar
 ubuntu:mantic
+ubuntu:noble
 ubuntu:xenial
 voidlinux:current
