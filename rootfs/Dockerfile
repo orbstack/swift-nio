@@ -377,6 +377,7 @@ ARG ARCH=arm64
 COPY rootfs/kernel/${ARCH} /opt/orbstack-guest/lib/modules/0.0.0
 
 # debug services
+COPY rootfs/config/authorized_keys /root/.ssh/authorized_keys
 RUN <<EOT sh -eux
 # kernel module info for modprobe
 depmod -b /opt/orbstack-guest 0.0.0
@@ -385,18 +386,12 @@ mv /opt/orbstack-guest/lib/modules/0.0.0 /opt/orbstack-guest/lib/modules/current
 if [[ "$TYPE" == "debug" ]]; then
     chown 0600 /etc/ssh/*key*
     sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
-
-    mkdir /root/.ssh
-echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKE7Zy5HlH2BhRzz23wfmoO0LsSoxOfX0saf6HiL5c/c
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBWbetK7Sysq0tmjM0Hr7pwBupdEgoyDme2bcU/K30BG
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL+9Oxe4UXm5wNkkT0dx07HGFN6eqjIFzMx98oWSPCPt
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ/wCg/nWi0s+OYvjdW6JdxYaXpoO/fZvzwu0RRszPir' > /root/.ssh/authorized_keys
-
     echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
 else
     # release
     # remove ssh host keys
     rm -fr /etc/ssh
+    rm -fr /root/.ssh
     # uninstall apk
     apk del apk-tools kmod
 fi
