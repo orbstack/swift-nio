@@ -52,3 +52,6 @@ fi
 cp -R bundle/. "$BUNDLE_OUT/Contents"
 # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
 codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
+
+# for xcode app debug build - assets loaded from symlinked debug bundle
+mkdir -p ../swift/build/assets
