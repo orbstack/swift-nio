@@ -43,7 +43,6 @@ use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 #[cfg(target_os = "linux")]
 use std::time::Duration;
-use std::sync::Arc;
 use crate::macos::Parker;
 
 #[cfg(target_arch = "x86_64")]
