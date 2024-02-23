@@ -18,6 +18,7 @@ var (
 	flagUsePath  bool
 	flagMachine  string
 	flagUser     string
+	flagWorkdir  string
 	FlagWantHelp bool
 )
 
@@ -25,6 +26,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Use a specific machine")
 	runCmd.Flags().StringVarP(&flagUser, "user", "u", "", "Run as a specific user")
+	runCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
 	runCmd.Flags().BoolVarP(&flagUseShell, "shell", "s", false, "Use the login shell instead of running command directly")
 	runCmd.Flags().BoolVarP(&flagUsePath, "path", "p", false, "Translate absolute macOS paths to Linux paths")
 }
@@ -65,6 +67,8 @@ func ParseRunFlags(args []string) ([]string, error) {
 					flagMachine = valuePart
 				case "-u", "--user", "-user":
 					flagUser = valuePart
+				case "-w", "--workdir", "-workdir":
+					flagWorkdir = valuePart
 				// bools: allow true/false
 				case "-s", "--shell", "-shell":
 					flagUseShell = valuePart == "true"
@@ -80,6 +84,8 @@ func ParseRunFlags(args []string) ([]string, error) {
 				lastStringFlag = &flagMachine
 			case "-u", "--user", "-user":
 				lastStringFlag = &flagUser
+			case "-w", "--workdir", "-workdir":
+				lastStringFlag = &flagWorkdir
 			// don't allow two-part bool
 			default:
 				return nil, errors.New("unknown flag " + arg)
@@ -172,11 +178,17 @@ See "orb create --help" for supported distros and options.
 			})
 		}
 
+		var workdir *string
+		if flagWorkdir != "" {
+			workdir = &flagWorkdir
+		}
+
 		exitCode, err := shell.RunSSH(shell.CommandOpts{
 			CombinedArgs: args,
 			// if use shell, then args are joined by space and passed to shell as script
 			UseShell:      flagUseShell,
 			ContainerName: containerName,
+			Dir:           workdir,
 			User:          flagUser,
 		})
 		if err != nil {
