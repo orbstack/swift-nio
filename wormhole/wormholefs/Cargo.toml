@@ -1,0 +1,21 @@
+[package]
+name = "wormholefs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libc = "0.2.151"
+nix = { version = "0.27.1", features = ["fs", "dir", "mount", "ioctl", "user"] }
+fuse-backend-rs = "0.11.0"
+vm-memory = "0.10"
+tracing = { version = "0.1.40", features = ["release_max_level_info"] }
+tracing-subscriber = "0.3.18"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+aya = { git = "ssh://git@github.com/orbstack/aya-macvirt.git", package = "aya", rev = "c053f4d" }
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true
