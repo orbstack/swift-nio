@@ -8,7 +8,7 @@ import (
 type SeccompPolicyType int
 
 const (
-	SeccompPolicyDefault SeccompPolicyType = iota
+	SeccompPolicyNone SeccompPolicyType = iota
 	SeccompPolicyIsolated
 	// rosetta
 	SeccompPolicyEmulated
@@ -16,10 +16,11 @@ const (
 	_seccompPolicyMax
 )
 
-// block btrfs quota ioctl = EPERM
+// we block BTRFS_IOC_QUOTA_CTL in kernel now
+// must keep privileged machines free of seccomp, because it breaks CRIU
+// https://github.com/orbstack/orbstack/issues/958
 const seccompPolicyBase = `2
 denylist
-ioctl errno 1 [1,3222311976,SCMP_CMP_EQ]
 `
 
 // block prctl(PR_SET_MDWE, *) = EINVAL, new in kernel 6.3
@@ -41,7 +42,7 @@ open_by_handle_at errno 1
 
 func writeSeccompPolicies(tmpDir string) ([_seccompPolicyMax]string, error) {
 	policies := map[SeccompPolicyType]string{
-		SeccompPolicyDefault:          seccompPolicyBase,
+		// none
 		SeccompPolicyIsolated:         seccompPolicyBase + seccompPolicyIsolated,
 		SeccompPolicyEmulated:         seccompPolicyBase + seccompPolicyEmulated,
 		SeccompPolicyEmulatedIsolated: seccompPolicyBase + seccompPolicyEmulated + seccompPolicyIsolated,

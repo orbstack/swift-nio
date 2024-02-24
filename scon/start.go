@@ -368,10 +368,12 @@ func (c *Container) configureLxc() error {
 			if c.config.Isolated {
 				policyType = SeccompPolicyIsolated
 			} else {
-				policyType = SeccompPolicyDefault
+				policyType = SeccompPolicyNone
 			}
 		}
-		set("lxc.seccomp.profile", m.seccompPolicyPaths[policyType])
+		if policyType != SeccompPolicyNone {
+			set("lxc.seccomp.profile", m.seccompPolicyPaths[policyType])
+		}
 
 		// faster ipv6 config
 		set("lxc.sysctl.net.ipv6.conf.eth0.accept_dad", "0")
