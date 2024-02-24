@@ -924,6 +924,7 @@ enum StatusDot {
     case green
     case orange
     case red
+    case gray
 
     var color: NSColor {
         switch self {
@@ -933,6 +934,8 @@ enum StatusDot {
             return NSColor.systemOrange
         case .red:
             return NSColor.systemRed
+        case .gray:
+            return NSColor.systemGray
         }
     }
 }

@@ -36,6 +36,8 @@ struct DKContainer: Codable, Identifiable, Hashable {
     var statusDot: StatusDot {
         if status.contains("(unhealthy)") {
             return .orange
+        } else if state == "paused" {
+            return .gray
         } else if running {
             return .green
         } else {
