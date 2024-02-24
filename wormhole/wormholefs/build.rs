@@ -11,7 +11,14 @@ fn compile_bpf() {
         .status().unwrap();
     assert!(status.success());
 
-    // strip BTF
+    // strip DWARF
+    let status = Command::new("llvm-strip")
+        .args(&["-g", "wormholefs_bpf.o"])
+        .current_dir(cwd)
+        .status().unwrap();
+    assert!(status.success());
+
+    // strip BTF strings
     let status = Command::new("go")
         .args(&["run", "./cmd/btfstrip", &(cwd.to_string() + "/wormholefs_bpf.o")])
         .current_dir("../../scon")

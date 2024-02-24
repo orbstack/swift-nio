@@ -16,6 +16,9 @@ tracing-subscriber = "0.3.18"
 [target.'cfg(target_os = "linux")'.dependencies]
 aya = { git = "ssh://git@github.com/orbstack/aya-macvirt.git", package = "aya", rev = "c053f4d" }
 
+[profile.release]
+strip = true
+
 [profile.release-with-debug]
 inherits = "release"
 debug = true
