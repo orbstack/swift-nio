@@ -19,9 +19,16 @@ fn compile_bpf() {
     assert!(status.success());
 
     // strip BTF strings
+    /*
     let status = Command::new("go")
         .args(&["run", "./cmd/btfstrip", &(cwd.to_string() + "/wormholefs_bpf.o")])
         .current_dir("../../scon")
+        .status().unwrap();
+    assert!(status.success());
+    */
+    let status = Command::new("btfstrip")
+        .args(&["wormholefs_bpf.o"])
+        .current_dir(cwd)
         .status().unwrap();
     assert!(status.success());
 }

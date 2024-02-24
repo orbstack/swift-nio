@@ -264,26 +264,30 @@ enum InstalledApps {
                    let launchDate = runningApp.launchDate,
                    let bundleURL = runningApp.bundleURL
                 {
-                    return (BundleInfo(id: bundleId, url: bundleURL), true, launchDate)
+                    return (bundle: BundleInfo(id: bundleId, url: bundleURL), running: true, timestamp: launchDate)
                 }
 
                 if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
                    let attributes = NSMetadataItem(url: bundleUrl),
                    let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date
                 {
-                    return (BundleInfo(id: bundleId, url: bundleUrl), false, date)
+                    return (bundle: BundleInfo(id: bundleId, url: bundleUrl), running: false, timestamp: date)
                 }
 
                 return nil
             }
+            .map { x in
+                print("terminal: \(x)")
+                return x
+            }
             // sort by running first, then by last used
             .sorted { a, b in
-                if a.1 != b.1 {
-                    return a.1
+                if a.running != b.running {
+                    return a.running
                 }
-                return a.2 > b.2
+                return a.timestamp > b.timestamp
             }
-            .first?.0 ?? BundleInfo(id: "com.apple.Terminal", url: URL(fileURLWithPath: ""))
+            .first?.bundle ?? BundleInfo(id: "com.apple.Terminal", url: URL(fileURLWithPath: ""))
     }
 }
 

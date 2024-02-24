@@ -184,6 +184,31 @@ cd orbfs
 cargo bench
 ```
 
+### wormholefs
+
+Install btfstrip in a Linux machine:
+
+```bash
+cd scon
+go build -o ~/bin/btfstrip ./cmd/btfstrip
+```
+
+Build and run:
+
+```bash
+cd wormhole
+cargo build && sudo target/debug/wormholefs /tmp /dev /mnt/tmp
+```
+
+### wormhole rootfs
+
+In a NixOS machine:
+
+```bash
+cd wormhole
+nix-build os/docker.nix
+```
+
 ## Licenses generation
 
 To install tools for generating licenses:

@@ -6,6 +6,7 @@ FROM alpine:20230329 AS base
 FROM alpine:3.18 AS stable-base
 FROM debian:sid-slim AS debian
 FROM rust:1.70-alpine3.18 AS rust-base
+FROM nixos/nix:2.20.3 AS nix-base
 
 
 
@@ -38,15 +39,19 @@ EOT
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
 <<EOT sh -eux
-    cd /build/scon
-    mkdir -p /out && ./build-release.sh /out ${TYPE}
+cd /build/scon
+mkdir -p /out && ./build-release.sh /out ${TYPE}
+
+# btfstrip for wormholefs build
+go build -o /out/btfstrip ./cmd/btfstrip
 EOT
 
-# Build Rust - vinit
+# Build Rust - vinit, wormholefsd
 # workaround for Rosetta bug: use Rust image to avoid patchelf
 FROM rust-base AS rust-build
-# dep needed with rust image
-RUN apk add --no-cache musl-dev
+# dep needed with rust image: to build wormholefs bpf
+RUN apk add --no-cache musl-dev \
+    llvm clang linux-headers libbpf-dev
 COPY vinit /build/vinit
 ARG ARCH=arm64
 ARG TYPE=release
@@ -62,6 +67,21 @@ else
 fi
 mkdir /out
 cp target/${TYPE}/vinit target/${TYPE}/b3enc target/${TYPE}/simplevisor /out/
+EOT
+# wormholefsd
+COPY --from=go-build /out/btfstrip /bin/btfstrip
+COPY wormhole/wormholefs /build/wormholefs
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/build/wormholefs/target,id=${ARCH} \
+    --mount=type=ssh,required=true \
+<<EOT sh -eux
+cd /build/wormholefs
+if [[ "$TYPE" == "debug" ]]; then
+    cargo build
+else
+    cargo build --release
+fi
+cp target/${TYPE}/wormholefsd /out/
 EOT
 
 # Build Rosetta runc override
@@ -100,6 +120,21 @@ strip /out/* /out-guest/*
 
 # append runc.arm64 to rvfs-wrapper
 cat /build/runc >> /out/rstub
+EOT
+
+# Build wormhole's debugos rootfs
+FROM nix-base as nix-build
+RUN nix-channel --update
+COPY wormhole/os /build/os
+RUN <<EOT sh -eux
+mkdir /build-result
+cd /build-result
+nix-build /build/os/docker.nix
+tar xzf result
+
+mkdir /out
+cd /out
+tar xf /build-result/*/layer.tar
 EOT
 
 # Generate Rosetta deltas (need Debian for bsdiff)
@@ -461,6 +496,9 @@ COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vinit
 COPY --from=rust-build /out/vinit /opt/orb/
 COPY --from=rust-build /out/simplevisor /opt/orbstack-guest/
+# wormhole
+COPY --from=rust-build /out/wormholefsd /opt/orbstack-guest/
+COPY --from=nix-build /out /opt/wormhole-rootfs
 # macctl
 COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/
 # scon
