@@ -10,6 +10,13 @@ fn compile_bpf() {
         .current_dir(cwd)
         .status().unwrap();
     assert!(status.success());
+
+    // strip BTF
+    let status = Command::new("go")
+        .args(&["run", "./cmd/btfstrip", &(cwd.to_string() + "/wormholefs_bpf.o")])
+        .current_dir("../../scon")
+        .status().unwrap();
+    assert!(status.success());
 }
 
 #[cfg(not(target_os = "linux"))]

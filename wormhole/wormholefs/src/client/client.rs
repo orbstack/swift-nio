@@ -1,9 +1,9 @@
 use std::{error::Error, ffi::CString, io::{IoSlice, Read, Write}, mem::size_of, os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, sync::Mutex};
 
-use aya::{programs::Fuse, BpfLoader, VerifierLogLevel};
+use aya::{include_bytes_aligned, programs::Fuse, BpfLoader, VerifierLogLevel};
 use fuse_backend_rs::{transport::{Reader, FuseBuf}, abi::fuse_abi::{InHeader, InitIn, InitOut, KERNEL_VERSION, KERNEL_MINOR_VERSION, OutHeader}, api::filesystem::FsOptions};
 use nix::{fcntl::{open, OFlag}, mount::{mount, MsFlags}, sys::stat::Mode};
-use tracing::{trace, debug, trace_span};
+use tracing::{trace, debug};
 use vm_memory::ByteValued;
 
 use crate::client::generated::{androidfuse, fuse};
@@ -31,16 +31,16 @@ impl WormholeFs {
         // load bpf program
         let mut bpf = BpfLoader::new()
             .verifier_log_level(VerifierLogLevel::all())
-            .load_file("wormholefs_bpf.o")?;
+            .load(include_bytes_aligned!("../../wormholefs_bpf.o"))?;
         let bpf_prog: &mut Fuse = bpf.program_mut("fuse_wormholefs").unwrap().try_into()?;
         bpf_prog.load()?;
         let options = format!("fd={},user_id=0,group_id=0,rootmode=0040000,root_dir={},root_bpf={},default_permissions,allow_other", fuse_file.as_raw_fd(), root_fd, bpf_prog.fd()?.as_fd().as_raw_fd());
 
         // mount
         mount(Some("wormhole"), fuse_root, Some("fuse.orb.wormhole"), MsFlags::empty(), Some(options.as_str()))?;
-    
+
         let fuse_root_fd = unsafe { OwnedFd::from_raw_fd(open(fuse_root, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC, Mode::empty())?) };
-        // set canonical_mnt
+        // set canonical_mnt for file handles
         unsafe { ioctl::fuse_set_mnt(fuse_file.as_raw_fd(), fuse_root_fd.as_raw_fd() as u64)? };
 
         // open wormhole dir
@@ -69,14 +69,12 @@ impl WormholeFs {
 
             match in_header.opcode {
                 x if x == fuse::fuse_opcode_FUSE_INIT => {
-                    let _span = trace_span!("init").entered();
-            
                     let init_in: InitIn = reader.read_obj()?;
                     debug!("init: {:?}", init_in);
 
                     // validate
                     if init_in.major != KERNEL_VERSION || init_in.minor < KERNEL_MINOR_VERSION {
-                        panic!("kernel version mismatch");
+                        panic!("kernel version mismatch: {:?}", init_in);
                     }
 
                     let options = FsOptions::ASYNC_READ | FsOptions::POSIX_LOCKS | FsOptions::ATOMIC_O_TRUNC | FsOptions::BIG_WRITES | FsOptions::SPLICE_WRITE | FsOptions::SPLICE_MOVE | FsOptions::SPLICE_READ | FsOptions::FLOCK_LOCKS | FsOptions::HAS_IOCTL_DIR | FsOptions::AUTO_INVAL_DATA | FsOptions::DO_READDIRPLUS | FsOptions::READDIRPLUS_AUTO | FsOptions::ASYNC_DIO | FsOptions::PARALLEL_DIROPS | FsOptions::HANDLE_KILLPRIV | FsOptions::POSIX_ACL | FsOptions::ABORT_ERROR | FsOptions::MAX_PAGES | FsOptions::CACHE_SYMLINKS | FsOptions::MAP_ALIGNMENT | FsOptions::INIT_EXT;
@@ -106,8 +104,6 @@ impl WormholeFs {
                 },
 
                 x if x == fuse::fuse_opcode_FUSE_LOOKUP => {
-                    let _span = trace_span!("lookup-post").entered();
-            
                     // read everything:
                     // 1. name + null terminator
                     let name_len = in_header.len - size_of::<fuse::fuse_in_header>() as u32; // incl. null
@@ -176,7 +172,7 @@ impl WormholeFs {
                 },
 
                 _ => {
-                    panic!("unknown opcode");
+                    panic!("unknown opcode: {:?}", in_header);
                 },
             }
         }
