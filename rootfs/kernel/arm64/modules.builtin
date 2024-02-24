@@ -526,6 +526,8 @@ kernel/net/l2tp/l2tp_core.ko
 kernel/net/8021q/8021q.ko
 kernel/net/wireless/cfg80211.ko
 kernel/net/mac80211/mac80211.ko
+kernel/net/tipc/tipc.ko
+kernel/net/tipc/diag.ko
 kernel/net/9p/9pnet.ko
 kernel/net/9p/9pnet_fd.ko
 kernel/net/dns_resolver/dns_resolver.ko
