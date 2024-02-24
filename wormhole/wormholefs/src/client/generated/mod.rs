@@ -3,10 +3,6 @@ use vm_memory::ByteValued;
 #[allow(warnings, unused)]
 pub mod androidfuse;
 #[allow(warnings, unused)]
-pub mod fanotify;
-#[allow(warnings, unused)]
-pub mod fcntl;
-#[allow(warnings, unused)]
 pub mod fuse;
 
 
