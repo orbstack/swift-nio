@@ -78,8 +78,9 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		// on ARM: kpti is free with E0PD
 		// But on x86, there are too many, just disable it like Docker
 		// Also prevent TSC from being disabled after sleep with tsc=reliable
-		// disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
-		cmdline = append(cmdline, "mitigations=off", "clocksource=tsc", "tsc=reliable", "hpet=disable")
+		cmdline = append(cmdline, "mitigations=off", "clocksource=tsc", "tsc=reliable")
+		// on vzf: disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
+		cmdline = append(cmdline, "hpet=disable")
 	}
 	if c.DiskRootfs != "" {
 		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")

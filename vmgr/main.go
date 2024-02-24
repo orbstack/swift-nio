@@ -176,7 +176,7 @@ func tryForceStop(vm *vzf.Machine) (err error) {
 		}
 	}()
 
-	err = vm.Stop()
+	err = vm.ForceStop()
 	return
 }
 

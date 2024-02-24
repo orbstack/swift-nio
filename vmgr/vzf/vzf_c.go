@@ -199,7 +199,7 @@ func (m *Machine) Start() error {
 	})
 }
 
-func (m *Machine) Stop() error {
+func (m *Machine) ForceStop() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Stop(ptr)
 	})
