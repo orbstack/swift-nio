@@ -1,4 +1,3 @@
-use libc::{pthread_setschedparam, pthread_self, SCHED_FIFO, sched_param};
 use wormholefs::client::client::WormholeFs;
 use tracing::Level;
 use tracing_subscriber::fmt::format::FmtSpan;
