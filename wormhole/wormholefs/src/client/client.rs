@@ -85,7 +85,12 @@ impl WormholeFs {
         let mut buf = [0u8; 65536];
         let mut fuse_file = self.fuse_file.lock().unwrap();
         loop {
-            let n = fuse_file.read(&mut buf)?;
+            let n = match fuse_file.read(&mut buf) {
+                Ok(n) => n,
+                // ENODEV = unmounted
+                Err(e) if e.raw_os_error() == Some(libc::ENODEV) => return Ok(()),
+                Err(e) => return Err(e.into()),
+            };
             if n < size_of::<fuse::fuse_in_header>() {
                 break;
             }
