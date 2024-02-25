@@ -16,6 +16,7 @@ const (
 
 	Opt             = "/opt/" + appid.AppName + "-guest"
 	Pstub           = Opt + "/pstub"
+	Cattach         = Opt + "/cattach"
 	Bin             = Opt + "/bin"
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"

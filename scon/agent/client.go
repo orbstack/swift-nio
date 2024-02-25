@@ -151,9 +151,9 @@ func (c *Client) ResolveSSHDir(args ResolveSSHDirArgs) (string, error) {
 	return dir, nil
 }
 
-func (c *Client) SpawnProcess(args SpawnProcessArgs, stdin, stdout, stderr *os.File) (*PidfdProcess, error) {
-	// send 3 fds
-	seq, err := c.fdx.SendFiles(stdin, stdout, stderr)
+func (c *Client) SpawnProcess(args SpawnProcessArgs, childFiles []*os.File) (*PidfdProcess, error) {
+	// send fds
+	seq, err := c.fdx.SendFiles(childFiles...)
 	if err != nil {
 		return nil, err
 	}
@@ -308,6 +308,23 @@ func (c *Client) DockerFastDf() (*dockertypes.SystemDf, error) {
 	}
 
 	return &df, nil
+}
+
+func (c *Client) DockerPrepWormhole(args PrepWormholeArgs) (*PrepWormholeResponse, *os.File, error) {
+	var reply PrepWormholeResponse
+	err := c.rpc.Call("a.DockerPrepWormhole", PrepWormholeArgs{
+		ContainerID: args.ContainerID,
+	}, &reply)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rootfsFile, err := c.fdx.RecvFile(reply.RootfsSeq)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &reply, rootfsFile, nil
 }
 
 func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {

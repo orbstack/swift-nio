@@ -115,6 +115,12 @@ func closeAll(fds []int) {
 	}
 }
 
+func closeAllFiles(fds []*os.File) {
+	for _, fd := range fds {
+		fd.Close()
+	}
+}
+
 func (f *Fdx) gcLoop() error {
 	ticker := time.NewTicker(fdxGcInterval)
 	defer ticker.Stop()

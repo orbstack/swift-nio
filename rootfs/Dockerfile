@@ -46,7 +46,7 @@ mkdir -p /out && ./build-release.sh /out ${TYPE}
 go build -o /out/btfstrip ./cmd/btfstrip
 EOT
 
-# Build Rust - vinit, wormholefsd
+# Build Rust - vinit, wormholefsd, cattach
 # workaround for Rosetta bug: use Rust image to avoid patchelf
 FROM rust-base AS rust-build
 # dep needed with rust image: to build wormholefs bpf
@@ -81,7 +81,7 @@ if [[ "$TYPE" == "debug" ]]; then
 else
     cargo build --release
 fi
-cp target/${TYPE}/wormholefsd /out/
+cp target/${TYPE}/wormholefsd target/${TYPE}/cattach /out/
 EOT
 
 # Build Rosetta runc override
@@ -135,6 +135,9 @@ tar xzf result
 mkdir /out
 cd /out
 tar xf /build-result/*/layer.tar
+
+mv bin nix/
+mkdir nix/run
 EOT
 
 # Generate Rosetta deltas (need Debian for bsdiff)
@@ -361,7 +364,7 @@ RUN apk add --no-cache \
 ARG TYPE=release
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
-    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk socat llvm clang linux-headers libbpf-dev bpftool
+    apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk socat llvm clang linux-headers libbpf-dev cargo
 fi
 EOT
 
@@ -497,7 +500,8 @@ COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 COPY --from=rust-build /out/vinit /opt/orb/
 COPY --from=rust-build /out/simplevisor /opt/orbstack-guest/
 # wormhole
-COPY --from=rust-build /out/wormholefsd /opt/orbstack-guest/
+COPY --from=rust-build /out/wormholefsd /opt/orb/
+COPY --from=rust-build /out/cattach /opt/orbstack-guest/
 COPY --from=nix-build /out /opt/wormhole-rootfs
 # macctl
 COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/

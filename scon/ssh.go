@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -163,7 +164,7 @@ func (sv *SshServer) handleConn(s ssh.Session) {
 	s.Exit(0)
 }
 
-func (sv *SshServer) resolveUser(userReq string) (container *Container, user string, err error) {
+func (sv *SshServer) resolveUser(userReq string) (container *Container, user string, isWormhole bool, err error) {
 	// user and container
 	userParts := strings.Split(userReq, "@")
 	if len(userParts) > 2 {
@@ -215,7 +216,11 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 		user = container.config.DefaultUsername
 	}
 
-	if !conf.Debug() && container.builtin {
+	if container.ID == ContainerIDDocker && strings.HasPrefix(user, "wormhole:") {
+		// wormhole is OK on release builds
+		isWormhole = true
+		user = user[len("wormhole:"):]
+	} else if !conf.Debug() && container.builtin {
 		err = fmt.Errorf("cannot enter builtin machine: %s", containerName)
 		return
 	}
@@ -238,7 +243,7 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	_, _, isPty := s.Pty()
 	printErr = isPty
 
-	container, user, err := sv.resolveUser(s.User())
+	container, user, isWormhole, err := sv.resolveUser(s.User())
 	if err != nil {
 		return
 	}
@@ -251,8 +256,13 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	// ok, container is up, now handle the request
 	switch s.Subsystem() {
 	case "session", "":
-		return sv.handleCommandSession(s, container, user)
+		return sv.handleCommandSession(s, container, user, isWormhole)
 	case "sftp":
+		if isWormhole {
+			err = fmt.Errorf("sftp not supported with wormhole")
+			return
+		}
+
 		return false, sv.handleSftp(s, container, user)
 	default:
 		err = fmt.Errorf("unknown subsystem: %s", s.Subsystem())
@@ -260,7 +270,52 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 }
 
-func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string) (printErr bool, err error) {
+func recvOneFd(conn *net.UnixConn) (int, error) {
+	minOob := unix.CmsgSpace(4)
+	oob := make([]byte, unix.CmsgSpace(4))
+	msg := make([]byte, 8)
+
+	n, oobn, _, _, err := conn.ReadMsgUnix(msg, oob)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, io.ErrUnexpectedEOF
+	}
+	if oobn < minOob {
+		return 0, errors.New("short oob read")
+	}
+	if n != len(msg) {
+		return 0, errors.New("short msg read")
+	}
+
+	var scms []unix.SocketControlMessage
+	scms, err = unix.ParseSocketControlMessage(oob[:oobn])
+	if err != nil {
+		return 0, err
+	}
+	if len(scms) != 1 {
+		return 0, errors.New("unexpected number of socket control messages")
+	}
+
+	// cloexec safe: Go sets MSG_CMSG_CLOEXEC
+	var fds []int
+	fds, err = unix.ParseUnixRights(&scms[0])
+	if err != nil {
+		return 0, err
+	}
+	if len(fds) != 1 {
+		// close all
+		for _, fd := range fds {
+			unix.Close(fd)
+		}
+		return 0, errors.New("unexpected number of fds")
+	}
+
+	return fds[0], nil
+}
+
+func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (printErr bool, err error) {
 	ptyReq, winCh, isPty := s.Pty()
 	printErr = isPty
 
@@ -291,6 +346,12 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		"cmd":  s.RawCommand(),
 		"meta": meta,
 	}).Debug("SSH connection - command session")
+
+	var wormholeContainerID string
+	if isWormhole {
+		wormholeContainerID = user
+		user = "root"
+	}
 
 	// pwd
 	cwd, err := UseAgentRet(container, func(a *agent.Client) (string, error) {
@@ -426,6 +487,78 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	cmd.CombinedArgs = combinedArgs
 
 	err = container.UseAgent(func(a *agent.Client) error {
+		// wormhole case is different
+		if isWormhole {
+			wormholeResp, rootfsFile, err := a.DockerPrepWormhole(agent.PrepWormholeArgs{
+				ContainerID: wormholeContainerID,
+			})
+			if err != nil {
+				return err
+			}
+			defer rootfsFile.Close()
+
+			// create socketpair to receive fd
+			socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM|unix.SOCK_CLOEXEC, 0)
+			if err != nil {
+				return err
+			}
+			socketFile0 := os.NewFile(uintptr(socketFds[0]), "fd-sock")
+			socketFile1 := os.NewFile(uintptr(socketFds[1]), "fd-sock")
+			defer socketFile0.Close()
+			defer socketFile1.Close()
+
+			socketConn0, err := net.FileConn(socketFile0)
+			if err != nil {
+				return err
+			}
+			defer socketConn0.Close() // dup
+
+			// take the rust side out of nonblock
+			socketFile1.Fd()
+
+			// create detached fuse mount
+			fuseCmd := exec.Command("/opt/orb/wormholefsd", fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), rootfsFile.Fd()), "/opt/wormhole-rootfs/nix")
+			fuseCmd.Stdin = socketFile1
+			fuseCmd.Stdout = os.Stdout
+			fuseCmd.Stderr = os.Stderr
+			// for debugging
+			fuseCmd.Env = append(os.Environ(), "RUST_BACKTRACE=full")
+			err = fuseCmd.Start()
+			if err != nil {
+				return err
+			}
+			// close immediately to avoid blocking if process crashes
+			socketFile0.Close()
+			socketFile1.Close()
+
+			// wait for the process in bg
+			go func() {
+				err := fuseCmd.Wait()
+				if err != nil {
+					logrus.WithError(err).Error("wormholefsd failed")
+				}
+			}()
+
+			// wait to receive fd via stdin socket
+			// write side will be closed if rust daemon exits
+			fuseMountFd, err := recvOneFd(socketConn0.(*net.UnixConn))
+			if err != nil {
+				return fmt.Errorf("receive mount fd: %w", err)
+			}
+
+			fuseMountFile := os.NewFile(uintptr(fuseMountFd), "fuse mount")
+			defer fuseMountFile.Close()
+
+			cmd.User = ""
+			cmd.DoLogin = false
+			cmd.ReplaceShell = false
+			// will be fd 3 in child process
+			cmd.ExtraFiles = []*os.File{fuseMountFile}
+			cmd.CombinedArgs = []string{mounts.Cattach, strconv.Itoa(wormholeResp.InitPid), wormholeResp.WorkingDir, "3"}
+			// for debugging
+			cmd.Env.SetPair("RUST_BACKTRACE=full")
+		}
+
 		return cmd.Start(a)
 	})
 	if err != nil {
@@ -550,9 +683,13 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 
 	dest := net.JoinHostPort(d.DestAddr, strconv.FormatInt(int64(d.DestPort), 10))
 
-	container, _, err := sv.resolveUser(ctx.User())
+	container, _, isWormhole, err := sv.resolveUser(ctx.User())
 	if err != nil {
 		newChan.Reject(gossh.ConnectionFailed, err.Error())
+		return
+	}
+	if isWormhole {
+		newChan.Reject(gossh.ConnectionFailed, "wormhole not supported")
 		return
 	}
 

@@ -1,12 +1,17 @@
-use std::{error::Error, ffi::CString, io::{IoSlice, Read, Write}, mem::size_of, os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, sync::Mutex};
+use std::{ffi::CString, io::{IoSlice, Read, Write}, mem::size_of, os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, sync::Mutex};
 
 use aya::{include_bytes_aligned, programs::Fuse, BpfLoader, VerifierLogLevel};
 use fuse_backend_rs::{transport::{Reader, FuseBuf}, abi::fuse_abi::{InHeader, InitIn, InitOut, KERNEL_VERSION, KERNEL_MINOR_VERSION, OutHeader}, api::filesystem::FsOptions};
-use nix::{fcntl::{open, OFlag}, mount::{mount, MsFlags}, sys::stat::Mode};
+use nix::{fcntl::{open, openat, OFlag}, sys::{socket::{sendmsg, ControlMessage, MsgFlags}, stat::Mode}};
 use tracing::{trace, debug};
 use vm_memory::ByteValued;
 
-use crate::client::generated::{androidfuse, fuse};
+use crate::{client::generated::{androidfuse, fuse}, newmount::{fsconfig, fsmount, fsopen, move_mount, FSCONFIG_CMD_CREATE, FSCONFIG_SET_FLAG, FSCONFIG_SET_STRING, FSMOUNT_CLOEXEC, FSOPEN_CLOEXEC}};
+
+#[cfg(debug_assertions)]
+const VERIFIER_LOG_LEVEL: VerifierLogLevel = VerifierLogLevel::all();
+#[cfg(not(debug_assertions))]
+const VERIFIER_LOG_LEVEL: VerifierLogLevel = VerifierLogLevel::none();
 
 mod ioctl {
     nix::ioctl_write_int!(fuse_set_mnt, 229, 125);
@@ -19,29 +24,51 @@ pub struct WormholeFs {
 }
 
 impl WormholeFs {
-    pub fn new(backing_root: &str, wormhole_root: &str, fuse_root: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(backing_root: &str, wormhole_root: &str, fuse_root: Option<&str>) -> anyhow::Result<Self> {
         // open fuse device
         let fuse_fd = open("/dev/fuse", OFlag::O_RDWR | OFlag::O_CLOEXEC, Mode::empty())?;
         let fuse_file = unsafe { std::fs::File::from_raw_fd(fuse_fd) };
     
         // open root dir (mount, not backing)
-        std::fs::create_dir_all(fuse_root)?;
         let root_fd = open(backing_root, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC, Mode::empty())?;
     
         // load bpf program
         let mut bpf = BpfLoader::new()
-            .verifier_log_level(VerifierLogLevel::all())
+            .verifier_log_level(VERIFIER_LOG_LEVEL)
             .load(include_bytes_aligned!("../../wormholefs_bpf.o"))?;
         let bpf_prog: &mut Fuse = bpf.program_mut("fuse_wormholefs").unwrap().try_into()?;
         bpf_prog.load()?;
-        let options = format!("fd={},user_id=0,group_id=0,rootmode=0040000,root_dir={},root_bpf={},default_permissions,allow_other", fuse_file.as_raw_fd(), root_fd, bpf_prog.fd()?.as_fd().as_raw_fd());
 
-        // mount
-        mount(Some("wormhole"), fuse_root, Some("fuse.orb.wormhole"), MsFlags::empty(), Some(options.as_str()))?;
+        // create detached mount
+        let sb_fd = fsopen("fuse", FSOPEN_CLOEXEC)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_STRING, Some("source"), Some("wormhole"), 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_STRING, Some("subtype"), Some("orb.wormhole"), 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_STRING, Some("fd"), Some(&format!("{}", fuse_file.as_raw_fd())), 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_STRING, Some("user_id"), Some("0"), 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_STRING, Some("group_id"), Some("0"), 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_STRING, Some("rootmode"), Some("0040000"), 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_STRING, Some("root_dir"), Some(&format!("{}", root_fd)), 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_STRING, Some("root_bpf"), Some(&format!("{}", bpf_prog.fd()?.as_fd().as_raw_fd())), 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_FLAG, Some("default_permissions"), None, 0)?;
+        fsconfig(&sb_fd, FSCONFIG_SET_FLAG, Some("allow_other"), None, 0)?;
+        fsconfig(&sb_fd, FSCONFIG_CMD_CREATE, None, None, 0)?;
+        let fuse_mount_fd = fsmount(&sb_fd, FSMOUNT_CLOEXEC, 0)?;
 
-        let fuse_root_fd = unsafe { OwnedFd::from_raw_fd(open(fuse_root, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC, Mode::empty())?) };
+        if let Some(fuse_root) = fuse_root {
+            std::fs::create_dir_all(fuse_root)?;
+            move_mount(&fuse_mount_fd, None, fuse_root)?;
+        } else {
+            // send fd via SCM_RIGHTS. stdin should be a unix stream socket
+            let msg = 0u64.to_ne_bytes();
+            let fds = [fuse_mount_fd.as_raw_fd()];
+            let cmsg = ControlMessage::ScmRights(&fds);
+            sendmsg::<()>(0, &[IoSlice::new(&msg)], &[cmsg], MsgFlags::empty(), None)?;
+        }
+
         // set canonical_mnt for file handles
-        unsafe { ioctl::fuse_set_mnt(fuse_file.as_raw_fd(), fuse_root_fd.as_raw_fd() as u64)? };
+        // the ioctl only takes real file/dir fds, not O_PATH (which fsmount returns)
+        let fuse_mount_dirfd = unsafe { OwnedFd::from_raw_fd(openat(fuse_mount_fd.as_raw_fd(), ".", OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC, Mode::empty())?) };
+        unsafe { ioctl::fuse_set_mnt(fuse_file.as_raw_fd(), fuse_mount_dirfd.as_raw_fd() as u64)? };
 
         // open wormhole dir
         let wormhole_dir_fd = unsafe { OwnedFd::from_raw_fd(open(wormhole_root, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC, Mode::empty())?) };
@@ -54,7 +81,7 @@ impl WormholeFs {
         Ok(client)
     }
 
-    pub fn read_fuse_events(&self) -> Result<(), Box<dyn Error>> {
+    pub fn read_fuse_events(&self) -> anyhow::Result<()> {
         let mut buf = [0u8; 65536];
         let mut fuse_file = self.fuse_file.lock().unwrap();
         loop {

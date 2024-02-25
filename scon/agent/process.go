@@ -168,17 +168,16 @@ func parsePamEnv() ([]string, bool, error) {
 
 func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessReply) (err error) {
 	// receive fds
-	stdios, err := a.fdx.RecvFiles(args.FdxSeq)
+	childFds, err := a.fdx.RecvFiles(args.FdxSeq)
 	// returning sets err
 	if err != nil {
 		return err
 	}
-	stdin := stdios[0]
-	stdout := stdios[1]
-	stderr := stdios[2]
-	defer stdin.Close()
-	defer stdout.Close()
-	defer stderr.Close()
+	stdin := childFds[0]
+	stdout := childFds[1]
+	stderr := childFds[2]
+	// any additional fds are passed to the process
+	defer closeAllFiles(childFds)
 
 	// resolve the pty, if any
 	var ptyF *os.File
@@ -331,7 +330,7 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 	}
 	proc, err := os.StartProcess(exePath, args.CombinedArgs, &os.ProcAttr{
 		Dir:   args.Dir,
-		Files: []*os.File{stdin, stdout, stderr},
+		Files: childFds,
 		Env:   args.Env.ToPairs(),
 		Sys:   attrs,
 	})
@@ -388,6 +387,7 @@ type AgentCommand struct {
 	Stdin        io.Reader
 	Stdout       io.Writer
 	Stderr       io.Writer
+	ExtraFiles   []*os.File
 	User         string
 
 	// special login stuff
@@ -471,6 +471,9 @@ func (c *AgentCommand) Start(agent *Client) error {
 	stdout.Fd()
 	stderr.Fd()
 
+	childFiles := []*os.File{stdin, stdout, stderr}
+	childFiles = append(childFiles, c.ExtraFiles...)
+
 	var err error
 	c.Process, err = agent.SpawnProcess(SpawnProcessArgs{
 		CombinedArgs: c.CombinedArgs,
@@ -483,7 +486,7 @@ func (c *AgentCommand) Start(agent *Client) error {
 		DoLogin:      c.DoLogin,
 		ReplaceShell: c.ReplaceShell,
 		Argv0:        c.Argv0,
-	}, stdin, stdout, stderr)
+	}, childFiles)
 	if err != nil {
 		return err
 	}
