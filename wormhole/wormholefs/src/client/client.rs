@@ -11,7 +11,7 @@ use crate::{client::generated::{androidfuse, fuse}, newmount::{fsconfig, fsmount
 #[cfg(debug_assertions)]
 const VERIFIER_LOG_LEVEL: VerifierLogLevel = VerifierLogLevel::all();
 #[cfg(not(debug_assertions))]
-const VERIFIER_LOG_LEVEL: VerifierLogLevel = VerifierLogLevel::none();
+const VERIFIER_LOG_LEVEL: VerifierLogLevel = VerifierLogLevel::empty();
 
 mod ioctl {
     nix::ioctl_write_int!(fuse_set_mnt, 229, 125);
