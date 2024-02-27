@@ -348,7 +348,7 @@ struct MacVirtApp: App {
             }
         }
         .handlesExternalEvents(matching: ["main", "docker/containers/", "docker/projects/"])
-        .windowDefaultSize(width: 850, height: 600)
+        .windowDefaultSize(width: 975, height: 650)
 
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()
