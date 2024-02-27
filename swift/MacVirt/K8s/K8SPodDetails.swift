@@ -49,6 +49,22 @@ struct K8SPodDetails: View {
                 }
             }
 
+            DividedButtonStack {
+                DividedRowButton {
+                    pod.showLogs(windowTracker: windowTracker)
+                } label: {
+                    Label("Logs", systemImage: "doc.text.magnifyingglass")
+                }
+
+                if isRunning {
+                    DividedRowButton {
+                        pod.openInTerminal()
+                    } label: {
+                        Label("Terminal", systemImage: "terminal")
+                    }
+                }
+            }
+
             if pod.status.containerStatuses?.isEmpty == false {
                 DetailsSection("Containers") {
                     VStack(alignment: .leading, spacing: 4) {
@@ -63,22 +79,6 @@ struct K8SPodDetails: View {
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            DividedButtonStack {
-                DividedRowButton {
-                    pod.showLogs(windowTracker: windowTracker)
-                } label: {
-                    Label("Logs", systemImage: "doc.text.magnifyingglass")
-                }
-
-                if isRunning {
-                    DividedRowButton {
-                        pod.openInTerminal()
-                    } label: {
-                        Label("Terminal", systemImage: "terminal")
                     }
                 }
             }

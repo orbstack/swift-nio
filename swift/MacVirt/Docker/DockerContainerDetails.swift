@@ -54,34 +54,6 @@ struct DockerContainerDetails: View {
                 }
             }
 
-            if !container.ports.isEmpty {
-                DetailsSection("Ports") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(container.ports) { port in
-                            CopyableText(copyAs: "\(port.localPort)") {
-                                CustomLink(port.formatted) {
-                                    port.openUrl()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !container.mounts.isEmpty {
-                DetailsSection("Mounts") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(container.mounts) { mount in
-                            CopyableText(copyAs: mount.getOpenPath()) {
-                                CustomLink(mount.formatted) {
-                                    mount.openSourceDirectory()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             DividedButtonStack {
                 DividedRowButton {
                     container.showLogs(windowTracker: windowTracker)
@@ -108,6 +80,34 @@ struct DockerContainerDetails: View {
                             NSWorkspace.shared.open(URL(string: "http://localhost")!)
                         } label: {
                             Label("Open Tutorial", systemImage: "questionmark.circle")
+                        }
+                    }
+                }
+            }
+
+            if !container.ports.isEmpty {
+                DetailsSection("Ports") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(container.ports) { port in
+                            CopyableText(copyAs: "\(port.localPort)") {
+                                CustomLink(port.formatted) {
+                                    port.openUrl()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !container.mounts.isEmpty {
+                DetailsSection("Mounts") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(container.mounts) { mount in
+                            CopyableText(copyAs: mount.getOpenPath()) {
+                                CustomLink(mount.formatted) {
+                                    mount.openSourceDirectory()
+                                }
+                            }
                         }
                     }
                 }
