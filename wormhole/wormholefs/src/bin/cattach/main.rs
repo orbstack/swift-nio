@@ -1,7 +1,7 @@
 use std::{ffi::CString, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
-use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, waitpid, SYS_capset, SYS_seccomp, AT_RECURSIVE, OPEN_TREE_CLOEXEC, OPEN_TREE_CLONE, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_ATTACH, PTRACE_DETACH};
-use nix::{errno::Errno, fcntl::{openat, OFlag}, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}}, unistd::{chdir, chroot, execve, fchdir, fork, getpid, setgid, setgroups, ForkResult, Gid}};
+use libc::{prlimit, ptrace, setxattr, sock_filter, sock_fprog, syscall, waitpid, SYS_capset, SYS_seccomp, AT_RECURSIVE, OPEN_TREE_CLOEXEC, OPEN_TREE_CLONE, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_ATTACH, PTRACE_DETACH};
+use nix::{errno::Errno, fcntl::{openat, OFlag}, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}}, unistd::{access, chdir, chroot, execve, fchdir, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid}};
 use pidfd::PidFd;
 use tracing::{trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -113,6 +113,26 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn is_root_readonly(proc_mounts: &str) -> bool {
+    for line in proc_mounts.lines() {
+        // skip empty lines
+        if line.is_empty() {
+            continue;
+        }
+
+        // get mount path
+        let mut iter = line.split_whitespace();
+        let path = iter.nth(1).unwrap();
+        let flags = iter.nth(1).unwrap().split(',').collect::<Vec<&str>>();
+        if path == "/" {
+            return flags.contains(&"ro");
+        }
+    }
+
+    // no / found?
+    false
+}
+
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
 // this does *not* include ALL process attributes like sched affinity, dumpable, securebits, etc. that docker doesn't set
 fn main() -> anyhow::Result<()> {
@@ -125,7 +145,7 @@ fn main() -> anyhow::Result<()> {
     // usage: attach-ctr <init_pid> <workdir> <fd_fusebpf_mount_tree>
     let init_pid = std::env::args().nth(1).unwrap().parse::<i32>()?;
     let workdir = std::env::args().nth(2).unwrap();
-    let new_rootfs_fd = unsafe { OwnedFd::from_raw_fd(std::env::args().nth(3).unwrap().parse::<i32>()?) };
+    let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(std::env::args().nth(3).unwrap().parse::<i32>()?) };
 
     trace!("open pidfd");
     let pidfd = PidFd::open(init_pid)?;
@@ -162,40 +182,36 @@ fn main() -> anyhow::Result<()> {
     trace!("mounts: set propagation to private");
     mount_common("/", "/", None, MsFlags::MS_REC | MsFlags::MS_PRIVATE, None)?;
 
-    // [mounts] mirror mounts and pseudo-filesystems onto /
-    // to avoid weird fuse-bpf semantics, esp. for /proc
-    // also helps preserve masked mounts (we don't use AT_RECURSIVE but we mirror all binds)
-    // everything else (i.e. standard overlayfs) is OK going through fuse-bpf
-    trace!("mounts: mirror mounts onto new rootfs");
-    // save fuse-bpf path fds to keep inode/dentry alive
-    let mut mounted_over_fds: Vec<OwnedFd> = Vec::new();
-    for line in proc_mounts.lines() {
-        // skip empty lines
-        if line.is_empty() {
-            continue;
-        }
+    // need to create /nix?
+    match access("/nix", AccessFlags::F_OK) {
+        Ok(_) => {},
+        Err(Errno::ENOENT) => {
+            // check attributes of '/' mount to deal with read-only containers
+            let is_root_readonly = is_root_readonly(&proc_mounts);
+            if is_root_readonly {
+                trace!("mounts: remount / as rw");
+                mount_common("/", "/", None, MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY, None)?;
+            }
 
-        // get mount path
-        let path = line.split_whitespace().into_iter().nth(1).unwrap();
-        // skip /
-        if path == "/" {
-            continue;
-        }
+            // use create_dir_all to avoid race with another cattach
+            trace!("mounts: create /nix directory");
+            std::fs::create_dir_all("/nix")?;
 
-        // open dest fd
-        let dest_fd = unsafe { OwnedFd::from_raw_fd(openat(new_rootfs_fd.as_raw_fd(), path, OFlag::O_RDONLY | OFlag::O_CLOEXEC, Mode::empty())?) };
-        // save to keep inode/dentry alive
-        mounted_over_fds.push(dest_fd);
+            // set xattr so we know to delete it later
+            trace!("mounts: set xattr on /nix");
+            xattr::set("/nix", "user.orbstack.wormhole", b"1")?;
 
-        let tree_fd = open_tree(path, OPEN_TREE_CLOEXEC | OPEN_TREE_CLONE)?;
-        move_mount(&tree_fd, Some(&new_rootfs_fd), path)?;
+            if is_root_readonly {
+                trace!("mounts: remount / as ro");
+                mount_common("/", "/", None, MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY, None)?;
+            }
+        },
+        Err(e) => return Err(e.into()),
     }
 
-    // magic incantation from vinit
-    trace!("mounts: mount fuse bpf onto /");
-    fchdir(new_rootfs_fd.as_raw_fd())?;
-    move_mount(&new_rootfs_fd, None, "/")?;
-    chroot(".")?;
+    // bind mount wormhole mount tree onto /nix
+    trace!("mounts: bind mount wormhole mount tree onto /nix");
+    move_mount(&wormhole_mount_fd, None, "/nix")?;
 
     trace!("set umask");
     umask(Mode::from_bits(0o022).unwrap());
@@ -228,6 +244,7 @@ fn main() -> anyhow::Result<()> {
     let mut cstr_envs = proc_env.split('\0')
         // append to PATH
         .map(|s| if s.starts_with("PATH=") { format!("PATH={}:{}", s, APPEND_PATH) } else { s.to_string() })
+        .filter(|s| !s.is_empty())
         .map(|s| CString::new(s))
         .collect::<anyhow::Result<Vec<_>, _>>()?;
     // append extra envs
@@ -239,13 +256,11 @@ fn main() -> anyhow::Result<()> {
     cstr_envs.reserve(INHERIT_ENVS.len());
     for &env in INHERIT_ENVS {
         if let Ok(val) = std::env::var(env) {
-            cstr_envs.push(CString::new(val)?);
+            cstr_envs.push(CString::new(format!("{}={}", env, val))?);
         }
     }
 
     // close lingering fds before user-controlled chdir
-    // keep mounted_over_fds in parent (waitpid) process to keep inode/dentry alive
-    drop(new_rootfs_fd);
 
     // then chdir to requested workdir (must do / first to avoid rel path vuln)
     // can fail (falls back to /)
@@ -283,7 +298,8 @@ fn main() -> anyhow::Result<()> {
         copy_seccomp_filter(init_pid, 0)?;
     }
 
-    // copy capabilities and add CAP_SYS_PTRACE
+    // copy capabilities
+    // ptrace is actually allowed by default caps!
     // must be after seccomp: if we drop CAP_SYS_ADMIN and don't have NO_NEW_PRIVS, we can't set a seccomp filter
     // works because docker's seccomp filter allows capset/capget
     // order: ambient, bounding, effective, inheritable, permitted
@@ -345,12 +361,15 @@ fn main() -> anyhow::Result<()> {
             if res < 0 {
                 return Err(Errno::last().into());
             }
+
+            // only safe to delete /nix if we're the last cattach
+            
         }
         ForkResult::Child => {
             // child
             // TODO: must double fork and exit intermediate child to reparent to pid 1
             trace!("child: execve");
-            execve(&CString::new("/bin/sh")?, &[CString::new("-sh")?], &cstr_envs)?;
+            execve(&CString::new("/nix/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
         }
     }
 

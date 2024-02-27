@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -497,63 +496,19 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			}
 			defer rootfsFile.Close()
 
-			// create socketpair to receive fd
-			socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM|unix.SOCK_CLOEXEC, 0)
+			wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, "/opt/wormhole-rootfs/nix", unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE)
 			if err != nil {
 				return err
 			}
-			socketFile0 := os.NewFile(uintptr(socketFds[0]), "fd-sock")
-			socketFile1 := os.NewFile(uintptr(socketFds[1]), "fd-sock")
-			defer socketFile0.Close()
-			defer socketFile1.Close()
 
-			socketConn0, err := net.FileConn(socketFile0)
-			if err != nil {
-				return err
-			}
-			defer socketConn0.Close() // dup
-
-			// take the rust side out of nonblock
-			socketFile1.Fd()
-
-			// create detached fuse mount
-			fuseCmd := exec.Command("/opt/orb/wormholefsd", fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), rootfsFile.Fd()), "/opt/wormhole-rootfs/nix")
-			fuseCmd.Stdin = socketFile1
-			fuseCmd.Stdout = os.Stdout
-			fuseCmd.Stderr = os.Stderr
-			// for debugging
-			fuseCmd.Env = append(os.Environ(), "RUST_BACKTRACE=full")
-			err = fuseCmd.Start()
-			if err != nil {
-				return err
-			}
-			// close immediately to avoid blocking if process crashes
-			socketFile0.Close()
-			socketFile1.Close()
-
-			// wait for the process in bg
-			go func() {
-				err := fuseCmd.Wait()
-				if err != nil {
-					logrus.WithError(err).Error("wormholefsd failed")
-				}
-			}()
-
-			// wait to receive fd via stdin socket
-			// write side will be closed if rust daemon exits
-			fuseMountFd, err := recvOneFd(socketConn0.(*net.UnixConn))
-			if err != nil {
-				return fmt.Errorf("receive mount fd: %w", err)
-			}
-
-			fuseMountFile := os.NewFile(uintptr(fuseMountFd), "fuse mount")
-			defer fuseMountFile.Close()
+			wormholeMountFile := os.NewFile(uintptr(wormholeMountFd), "wormhole mount")
+			defer wormholeMountFile.Close()
 
 			cmd.User = ""
 			cmd.DoLogin = false
 			cmd.ReplaceShell = false
 			// will be fd 3 in child process
-			cmd.ExtraFiles = []*os.File{fuseMountFile}
+			cmd.ExtraFiles = []*os.File{wormholeMountFile}
 			cmd.CombinedArgs = []string{mounts.Cattach, strconv.Itoa(wormholeResp.InitPid), wormholeResp.WorkingDir, "3"}
 			// for debugging
 			cmd.Env.SetPair("RUST_BACKTRACE=full")

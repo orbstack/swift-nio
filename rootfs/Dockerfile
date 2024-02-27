@@ -504,7 +504,6 @@ COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 COPY --from=rust-build /out/vinit /opt/orb/
 COPY --from=rust-build /out/simplevisor /opt/orbstack-guest/
 # wormhole
-COPY --from=rust-build /out/wormholefsd /opt/orb/
 COPY --from=rust-build /out/cattach /opt/orbstack-guest/
 COPY --from=nix-build /out /opt/wormhole-rootfs
 # macctl
