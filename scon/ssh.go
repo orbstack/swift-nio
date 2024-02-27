@@ -183,22 +183,23 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 		containerName = userParts[0]
 	}
 
-	// default container?
-	defaultContainer, _, err := sv.m.GetDefaultContainer()
-	if err != nil {
-		if errors.Is(err, ErrNoMachines) {
-			err = fmt.Errorf("%s", noMachinesMsg)
-		}
-		return
-	}
-	defaultContainerName := defaultContainer.Name
-	if containerName == "default" {
-		containerName = defaultContainerName
-	}
-
 	container, err = sv.m.GetByName(containerName)
 	// try default container
 	if err != nil && len(userParts) == 1 {
+		// default container?
+		var defaultContainer *Container
+		defaultContainer, _, err = sv.m.GetDefaultContainer()
+		if err != nil {
+			if errors.Is(err, ErrNoMachines) {
+				err = fmt.Errorf("%s", noMachinesMsg)
+			}
+			return
+		}
+		defaultContainerName := defaultContainer.Name
+		if containerName == "default" {
+			containerName = defaultContainerName
+		}
+
 		container, err = sv.m.GetByName(defaultContainerName)
 		if err == nil {
 			containerName = defaultContainerName
