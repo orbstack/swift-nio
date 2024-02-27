@@ -124,7 +124,11 @@ EOT
 
 # Build wormhole's debugos rootfs
 FROM nix-base as nix-build
-RUN nix-channel --update
+RUN <<EOT sh -eux
+# disable seccomp to fix rosetta build
+echo 'filter-syscalls = false' >> /etc/nix/nix.conf
+nix-channel --update
+EOT
 COPY wormhole/os /build/os
 RUN <<EOT sh -eux
 mkdir /build-result
