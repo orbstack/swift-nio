@@ -1,0 +1,29 @@
+zsh-users/zsh-completions
+agkozak/zsh-z
+mafredri/zsh-async
+sindresorhus/pure
+zsh-users/zsh-history-substring-search
+zpm-zsh/colors
+zpm-zsh/autoenv
+
+caarlos0/ports kind:path
+caarlos0/zsh-git-fetch-merge kind:path
+caarlos0/zsh-open-pr kind:path
+bigH/git-fuzzy path:bin kind:path
+
+sorin-ionescu/prezto path:modules/helper
+sorin-ionescu/prezto path:modules/spectrum
+sorin-ionescu/prezto path:modules/environment
+sorin-ionescu/prezto path:modules/terminal
+sorin-ionescu/prezto path:modules/editor
+sorin-ionescu/prezto path:modules/history
+# must be before modules/utility
+sorin-ionescu/prezto path:modules/gnu-utility
+sorin-ionescu/prezto path:modules/utility
+sorin-ionescu/prezto path:modules/pacman
+sorin-ionescu/prezto path:modules/git
+
+# keep at end
+zdharma-continuum/fast-syntax-highlighting
+zsh-users/zsh-autosuggestions
+sorin-ionescu/prezto path:modules/completion

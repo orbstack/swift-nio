@@ -36,17 +36,18 @@ pkgs.dockerTools.buildImageWithNixDb {
         openssh
         wget
         tcpdump
+        dig.host
         # dev
         jq
-        # vim
+        vim
         nano
         fd
         ripgrep
+        lsd
         # system
         htop
         lsof
         strace
-        ncdu
         # self-ref!
         nix
 

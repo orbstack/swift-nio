@@ -128,6 +128,8 @@ RUN <<EOT sh -eux
 # disable seccomp to fix rosetta build
 echo 'filter-syscalls = false' >> /etc/nix/nix.conf
 nix-channel --update
+# for zsh cloning
+nix-env -iA nixpkgs.git
 EOT
 COPY wormhole/os /build/os
 RUN <<EOT sh -eux
@@ -142,6 +144,11 @@ tar xf /build-result/*/layer.tar
 
 mv bin nix/
 mkdir nix/run
+
+mkdir nix/zsh
+cd nix/zsh
+bash /build/os/zsh/clone.sh
+cp /build/os/zsh/.zshrc .zshrc
 EOT
 
 # Generate Rosetta deltas (need Debian for bsdiff)

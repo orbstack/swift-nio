@@ -1,16 +1,16 @@
-use std::{ffi::CString, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
+use std::{ffi::CString, os::fd::{FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
-use libc::{prlimit, ptrace, setxattr, sock_filter, sock_fprog, syscall, waitpid, SYS_capset, SYS_seccomp, AT_RECURSIVE, OPEN_TREE_CLOEXEC, OPEN_TREE_CLONE, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_ATTACH, PTRACE_DETACH};
-use nix::{errno::Errno, fcntl::{openat, OFlag}, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}}, unistd::{access, chdir, chroot, execve, fchdir, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid}};
+use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, waitpid, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_ATTACH, PTRACE_DETACH};
+use nix::{errno::Errno, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid}};
 use pidfd::PidFd;
 use tracing::{trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use wormholefs::newmount::{move_mount, open_tree};
+use wormholefs::newmount::move_mount;
 
 mod pidfd;
 
 const EXTRA_ENV: &[&str] = &[
-    "ZDOTDIR=/nix",
+    "ZDOTDIR=/nix/zsh",
     // TODO: fill in this path
     "GIT_SSL_CAINFO=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt",
     "NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt",
