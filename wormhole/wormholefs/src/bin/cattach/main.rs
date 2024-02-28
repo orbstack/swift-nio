@@ -15,6 +15,10 @@ const EXTRA_ENV: &[&str] = &[
     "GIT_SSL_CAINFO=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt",
     "NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt",
     "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt",
+
+    // fixes nixos + zsh bug with duplicated chars in prompt after tab completion
+    // https://github.com/nix-community/home-manager/issues/3711
+    "LANG=C.UTF-8",
 ];
 const INHERIT_ENVS: &[&str] = &[
     "TERM",
