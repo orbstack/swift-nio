@@ -300,7 +300,8 @@ class PacketProcessor {
                 // skip udp header (8) and last byte (1) of mDNS packet:
                 // mDNSResponder sends 14-byte "Owner" OPT at the end, in additional section, with sequence number
                 // too much work to parse questions section and exclude additional, so just skip last byte for debounce
-                let payloadLen = try (pkt.load(offset: 14 + 40 + 2 + 2) as UInt16).bigEndian - 8 - 1
+                // to deal with fragmented IPv6 (large mDNS), read payload len from ipv6. it's the same but next_header is fragment header and not UDP in that case
+                let payloadLen = try (pkt.load(offset: 14 + 4) as UInt16).bigEndian - 8 - 1
                 let payloadPtr = try pkt.slicePtr(offset: 14 + 40 + 8, len: Int(payloadLen))
                 let payload = Array(UnsafeBufferPointer(start: payloadPtr.bindMemory(to: UInt8.self, capacity: Int(payloadLen)), count: Int(payloadLen)))
                 if !PacketCoordinator.shouldPassMdns(payload: payload) {
@@ -336,7 +337,8 @@ class PacketProcessor {
                 // skip udp header (8) and last byte (1) of mDNS packet:
                 // mDNSResponder sends 14-byte "Owner" OPT at the end, in additional section, with sequence number
                 // too much work to parse questions section and exclude additional, so just skip last byte for debounce
-                let payloadLen = try (pkt.load(offset: 14 + 20 + 2 + 2) as UInt16).bigEndian - 8 - 1
+                // to deal with fragmented IPv4 (large mDNS), read payload len from ipv4. it's the same but +20 for IP header
+                let payloadLen = try (pkt.load(offset: 14 + 2) as UInt16).bigEndian - 20 - 8 - 1
                 let payloadPtr = try pkt.slicePtr(offset: 14 + 20 + 8, len: Int(payloadLen))
                 let payload = Array(UnsafeBufferPointer(start: payloadPtr.bindMemory(to: UInt8.self, capacity: Int(payloadLen)), count: Int(payloadLen)))
                 if !PacketCoordinator.shouldPassMdns(payload: payload) {
