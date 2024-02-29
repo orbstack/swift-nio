@@ -26,8 +26,6 @@ zstyle ':prezto:module:gnu-utility' prefix g
 
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-completions/zsh-completions.plugin.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-completions )
-source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-agkozak-SLASH-zsh-z/zsh-z.plugin.zsh
-fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-agkozak-SLASH-zsh-z )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-mafredri-SLASH-zsh-async/async.plugin.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-mafredri-SLASH-zsh-async )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sindresorhus-SLASH-pure/pure.plugin.zsh
