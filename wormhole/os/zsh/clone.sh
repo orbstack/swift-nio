@@ -14,3 +14,6 @@ for repo in $repos; do
     git clone --depth 1 https://github.com/$user/$repo $path
     rm -rf $path/.git
 done
+
+# recursively delete .gif, .svg files
+find cache -name '*.gif' -o -name '*.svg' -exec rm -f {} \;
