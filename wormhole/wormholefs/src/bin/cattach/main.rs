@@ -265,6 +265,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     // close lingering fds before user-controlled chdir
+    drop(wormhole_mount_fd);
 
     // then chdir to requested workdir (must do / first to avoid rel path vuln)
     // can fail (falls back to /)
