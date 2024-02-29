@@ -73,7 +73,7 @@ var dockerInitCommands = [][]string{
 	{"iptables", "-t", "nat", "-N", "ORB-PREROUTING"},
 	{"iptables", "-t", "nat", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
 	// 172.17.0.1 IP gateway compat. people hard code this...
-	{"iptables", "-t", "nat", "-A", "ORB-PREROUTING", "-s", "192.168.215.0/24,192.168.228.0/24,192.168.247.0/24,192.168.207.0/24,192.168.167.0/24,192.168.107.0/24,192.168.237.0/24,192.168.148.0/24,192.168.214.0/24,192.168.165.0/24,192.168.227.0/24,192.168.181.0/24,192.168.158.0/24,192.168.117.0/24,192.168.155.0/24", "-d", "172.17.0.1", "-j", "DNAT", "--to-destination", "198.19.249.2"},
+	{"iptables", "-t", "nat", "-A", "ORB-PREROUTING", "!", "-s", "172.17.0.0/16", "-d", "172.17.0.1", "-j", "DNAT", "--to-destination", "198.19.249.2"},
 	{"iptables", "-t", "nat", "-N", "ORB-POSTROUTING"},
 	{"iptables", "-t", "nat", "-A", "POSTROUTING", "-j", "ORB-POSTROUTING"},
 	// "fix" ipv4 docker port forward source IPs. normally docker only does DNAT w/o MASQUERADE to preserve source IP, but our source IP is internal vnet and people expect it to come from the machine like normal linux loopback
