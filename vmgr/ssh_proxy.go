@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -45,4 +46,12 @@ func runSshProxyFdpass() {
 		check(err)
 	})
 	check(err)
+
+	// wait for ssh to receive the fd and close its side of the socketpair
+	// needed to prevent race where fd is in SCM_RIGHTS but not yet received, and then we exit, and XNU closes the connection
+	var data [1]byte
+	_, err = sshSock.Read(data[:])
+	if err != io.EOF {
+		panic(err)
+	}
 }
