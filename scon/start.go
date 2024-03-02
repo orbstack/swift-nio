@@ -176,7 +176,7 @@ func (c *Container) configureLxc() error {
 	}
 
 	// configs
-	rootfs := path.Join(c.dir, "rootfs")
+	rootfs := c.dir + "/rootfs"
 	err = os.MkdirAll(rootfs, 0755)
 	if err != nil {
 		return err

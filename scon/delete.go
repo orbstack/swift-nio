@@ -9,12 +9,40 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/sysx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
 func deleteRootfs(rootfs string) error {
 	logrus.WithField("rootfs", rootfs).Debug("deleting rootfs")
+
+	// swapoff on all swapfiles
+	// we can't get full path in /proc/swaps from root ns - it's not translated
+	// shows up as path relative to container mount ns instead
+	// so just disable all swapfiles in case this container has one
+	// otherwise we can't unlink the swapfile (EPERM)
+	swaps, err := os.ReadFile("/proc/swaps")
+	if err != nil {
+		return fmt.Errorf("read swaps: %w", err)
+	}
+	for _, line := range strings.Split(string(swaps), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		// Type column
+		if fields[1] != "file" {
+			continue
+		}
+
+		// disable this swap
+		// fails with ENOENT if it's not in this container's rootfs
+		err = sysx.Swapoff(rootfs + "/rootfs/" + fields[0])
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			return fmt.Errorf("swapoff: %w", err)
+		}
+	}
 
 	// list and delete btrfs subvolumes first
 	// lxd can leave read-only subvols:
