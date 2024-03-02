@@ -8,7 +8,7 @@ import (
 
 func ReadForHost(host string) (map[string]string, error) {
 	// print k/v pairs for host
-	rawOut, err := util.RunWithEnv([]string{"_ORB_CALLER=1"}, "ssh", "-G", host)
+	rawOut, err := util.Run("ssh", "-G", host)
 	if err != nil {
 		return nil, err
 	}
