@@ -60,12 +60,14 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
     private let makeRowView: (Item) -> ItemView
     private var singleSelection = false
     private var flat = false
+    private var autosaveName: String? = nil
 
     // hierarchical OR flat, with sections, multiple selection
     init(_ sections: [AKSection<Item>],
          selection: Binding<Set<Item.ID>>,
          rowHeight: CGFloat? = nil,
          flat: Bool = true,
+         autosaveName: String? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
     {
         self.sections = sections
@@ -73,6 +75,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
         self.rowHeight = rowHeight
         self.makeRowView = makeRowView
         self.flat = flat
+        self.autosaveName = autosaveName
     }
 
     var body: some View {
@@ -81,6 +84,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
                        rowHeight: rowHeight,
                        singleSelection: singleSelection,
                        isFlat: flat,
+                       autosaveName: autosaveName,
                        makeRowView: makeRowView)
             // fix toolbar color and blur (fullSizeContentView)
             .ignoresSafeArea()
@@ -97,6 +101,7 @@ extension AKList {
          selection singleBinding: Binding<Item.ID?>,
          rowHeight: CGFloat? = nil,
          flat: Bool = true,
+         autosaveName: String? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
     {
         let selBinding = Binding<Set<Item.ID>>(
@@ -115,6 +120,7 @@ extension AKList {
                   selection: selBinding,
                   rowHeight: rowHeight,
                   flat: flat,
+                  autosaveName: autosaveName,
                   makeRowView: makeRowView)
         singleSelection = true
     }
@@ -124,12 +130,14 @@ extension AKList {
          selection: Binding<Set<Item.ID>>,
          rowHeight: CGFloat? = nil,
          flat: Bool = true,
+         autosaveName: String? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
     {
         self.init(AKSection.single(items),
                   selection: selection,
                   rowHeight: rowHeight,
                   flat: flat,
+                  autosaveName: autosaveName,
                   makeRowView: makeRowView)
     }
 
@@ -138,12 +146,14 @@ extension AKList {
          selection singleBinding: Binding<Item.ID?>,
          rowHeight: CGFloat? = nil,
          flat: Bool = true,
+         autosaveName: String? = nil,
          @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
     {
         self.init(AKSection.single(items),
                   selection: singleBinding,
                   rowHeight: rowHeight,
                   flat: flat,
+                  autosaveName: autosaveName,
                   makeRowView: makeRowView)
         singleSelection = true
     }
@@ -343,6 +353,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     let rowHeight: CGFloat?
     let singleSelection: Bool
     let isFlat: Bool
+    let autosaveName: String?
     let makeRowView: (Item) -> ItemView
 
     final class Coordinator: NSObject, NSOutlineViewDelegate, NSOutlineViewDataSource {
@@ -507,6 +518,30 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             } else {
                 return nil
             }
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, persistentObjectForItem item: Any?) -> Any? {
+            guard let item = item as? AKNode else { return nil }
+            if item.type == .item {
+                // returning swift obj breaks NSOutlineView
+                // HACK: Swift hash values are diff across execs/runs due to seed
+                return "\((item.value as! Item).id)"
+            } else {
+                return nil
+            }
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, itemForPersistentObject object: Any) -> Any? {
+            guard let stringId = object as? String else { return nil }
+
+            // scan root nodes for matching id hashValue
+            // (we only support autosaving root node expansion)
+            for node in objCache.values {
+                if "\((node.value as! Item).id)" == stringId {
+                    return node
+                }
+            }
+            return nil
         }
 
         @objc func onDoubleClick(_ sender: Any) {
@@ -690,6 +725,12 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // this makes the updating non-atomic but it's fine
         if coordinator.lastSections == nil {
             completeUpdate(coordinator: coordinator, nsView: nsView)
+            // restore after initial update
+            if let autosaveName {
+                let outlineView = nsView.documentView as! NSOutlineView
+                outlineView.autosaveExpandedItems = true
+                outlineView.autosaveName = autosaveName
+            }
         } else {
             DispatchQueue.main.async {
                 completeUpdate(coordinator: coordinator, nsView: nsView)

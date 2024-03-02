@@ -165,6 +165,8 @@ extension Defaults.Keys {
 
 //    static let dockerFilterShowStopped = Key<Bool>("docker_filterShowStopped", default: true, suite: suite)
     static let dockerMigrationDismissed = Key<Bool>("docker_migrationDismissed", default: false, suite: suite)
+    // for AKList autosaveName
+    static let docker_autosaveOutline = "docker_autosaveOutline"
 
     static let logsWordWrap = Key<Bool>("logs_wordWrap", default: true, suite: suite)
 
