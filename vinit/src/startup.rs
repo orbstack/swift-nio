@@ -533,19 +533,31 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// btrfs COW means that setting perms requires a new metadata block
+// that's not possible if qgroup is set to exactly used, or negative, resulting in ENOSPC on boot
+// so avoid changing perms if not necessary
+fn maybe_set_permissions(path: &str, mode: u32) -> Result<(), Box<dyn Error>> {
+    // only set if it's different
+    let current_mode = fs::metadata(path)?.permissions().mode();
+    if (current_mode & 0o777) != mode {
+        fs::set_permissions(path, Permissions::from_mode(mode))?;
+    }
+    Ok(())
+}
+
 fn init_data() -> Result<(), Box<dyn Error>> {
     // guest tools
     fs::create_dir_all("/data/guest-state/bin/cmdlinks")?;
-    fs::set_permissions("/data/guest-state/bin", Permissions::from_mode(0o755))?;
-    fs::set_permissions("/data/guest-state/bin/cmdlinks", Permissions::from_mode(0o755))?;
+    maybe_set_permissions("/data/guest-state/bin", 0o755)?;
+    maybe_set_permissions("/data/guest-state/bin/cmdlinks", 0o755)?;
     bind_mount("/data/guest-state", "/opt/orbstack-guest/data", None)?;
 
     // debug root home
     if DEBUG {
         fs::create_dir_all("/data/dev-root-home/.ssh")?;
         fs::copy("/root/.ssh/authorized_keys", "/data/dev-root-home/.ssh/authorized_keys")?;
-        fs::set_permissions("/data/dev-root-home/.ssh", Permissions::from_mode(0o700))?;
-        fs::set_permissions("/data/dev-root-home/.ssh/authorized_keys", Permissions::from_mode(0o600))?;
+        maybe_set_permissions("/data/dev-root-home/.ssh", 0o700)?;
+        maybe_set_permissions("/data/dev-root-home/.ssh/authorized_keys", 0o600)?;
         bind_mount("/data/dev-root-home", "/root", None)?;
     }
 
