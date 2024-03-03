@@ -102,8 +102,10 @@ async fn sys_shutdown(
 
 // btrfs doesn't really have this much overhead
 const BASE_FS_OVERHEAD: u64 = 100 * 1024 * 1024; // 100MiB
+// can't use more than 95% of the host's free space
+const MAX_HOST_FS_PERCENT: u64 = 95;
 // can't boot without free space for scon db. leave some - I/O error + R/O remount is better than no boot
-const MIN_FREE_SPACE: u64 = 4 * 1024 * 1024; // 4 MiB
+const MIN_FREE_SPACE: u64 = 2 * 1024 * 1024; // 2 MiB
 
 // report disk stats
 async fn disk_report_stats(
@@ -118,22 +120,24 @@ async fn disk_report_stats(
     // (blocks - free) = df
     // (blocks - avail) = matches qgroup rfer, when we have quota statfs
     let guest_fs_size = guest_statfs.blocks() * guest_statfs.block_size();
-    let guest_avail = guest_statfs.blocks_available() * guest_statfs.block_size();
+    let guest_free = guest_statfs.blocks_available() * guest_statfs.block_size();
 
     // Total free space for data img on host
-    let total_host_free = host_fs_free + data_img_size;
-    let max_fs_size = (total_host_free as f64) * 0.97;
-    // Subtract FS overhead
-    let max_data_size = max_fs_size - (BASE_FS_OVERHEAD as f64);
-    let max_data_size = max_data_size.round() as u64;
+    // = 95% of free space, plus existing data img size
+    // can't take 95% of the sum, because it's possible that data img size > free space
+    let max_fs_size = (host_fs_free * MAX_HOST_FS_PERCENT / 100) + data_img_size;
+    // Subtract FS overhead - we're setting FS quota, not disk img size limit
+    // so FS limit should be a bit lower than the disk img
+    let max_data_size = max_fs_size - BASE_FS_OVERHEAD;
 
     // For quota, just use that size.
 
     // Don't limit it more than currently used (according to qgroup)
-    let guest_used = guest_fs_size - guest_avail;
+    let guest_used = guest_fs_size - guest_free;
+    // prevent ENOSPC boot failure by always leaving a bit of free space
     let max_data_size = max_data_size.max(guest_used) + MIN_FREE_SPACE;
 
-    //info!("guest_fs_size={} guest_avail={} total_host_free={} max_fs_size={} max_data_size={} guest_used={}", guest_fs_size, guest_avail, total_host_free, max_fs_size, max_data_size, guest_used);
+    //info!("guest_fs_size={} guest_free={} total_host_free={} max_fs_size={} max_data_size={} guest_used={}", guest_fs_size, guest_free, total_host_free, max_fs_size, max_data_size, guest_used);
     disk_manager.update_quota(max_data_size).await?;
 
     Ok(())
