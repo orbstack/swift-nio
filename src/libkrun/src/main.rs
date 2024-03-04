@@ -1,0 +1,138 @@
+use std::fmt;
+
+use polly::event_manager::EventManager;
+use vmm::{
+    resources::VmResources,
+    vmm_config::{
+        boot_source::{BootSourceConfig, DEFAULT_KERNEL_CMDLINE},
+        fs::FsDeviceConfig,
+        kernel_bundle::KernelBundle,
+        machine_config::VmConfig,
+        vsock::VsockDeviceConfig,
+    },
+};
+
+const KRUNFW_MIN_VERSION: u32 = 4;
+const INIT_PATH: &str = "/init.krun";
+
+#[link(name = "krunfw")]
+extern "C" {
+    fn krunfw_get_version() -> u32;
+
+    fn krunfw_get_kernel(
+        load_addr: *mut u64,
+        entry_addr: *mut u64,
+        size: *mut libc::size_t,
+    ) -> *mut libc::c_char;
+}
+
+fn main() -> anyhow::Result<()> {
+    // === Configure the VM === //
+
+    let mut vmr = VmResources::default();
+
+    // Set the kernel image
+    {
+        let krunfw_version = unsafe { krunfw_get_version() };
+        if krunfw_version < KRUNFW_MIN_VERSION {
+            anyhow::bail!("unsupported libkrunfw version: expected >= {KRUNFW_MIN_VERSION}, got {krunfw_version}");
+        }
+
+        let mut kernel_guest_addr: u64 = 0;
+        let mut kernel_entry_addr: u64 = 0;
+        let mut kernel_size: usize = 0;
+        let kernel_host_addr = unsafe {
+            krunfw_get_kernel(
+                &mut kernel_guest_addr as *mut u64,
+                &mut kernel_entry_addr as *mut u64,
+                &mut kernel_size as *mut usize,
+            )
+        };
+
+        vmr.set_kernel_bundle(KernelBundle {
+            host_addr: kernel_host_addr as u64,
+            guest_addr: kernel_guest_addr,
+            entry_addr: kernel_entry_addr,
+            size: kernel_size,
+        })
+        .map_err(to_anyhow_error)?;
+    }
+
+    // Set the kernel boot config
+    {
+        let reserve_str = "0x10000\\$0x18690000".to_string();
+        let exec_path = "".to_string();
+        let work_dir = "".to_string();
+        let rlimits = "".to_string();
+        let env = "".to_string();
+        let args = "".to_string();
+
+        let boot_source = BootSourceConfig {
+            kernel_cmdline_prolog: Some(format!(
+                "{DEFAULT_KERNEL_CMDLINE} memmap={reserve_str} init={INIT_PATH} {exec_path} {work_dir} {rlimits} {env}",
+            )),
+            kernel_cmdline_epilog: Some(format!(" -- {args}")),
+        };
+
+        vmr.set_boot_source(boot_source).map_err(to_anyhow_error)?;
+    }
+
+    // Configure its allowed resources
+    {
+        let num_vcpus = 2;
+        let mem_size_mib = 1024;
+
+        let vm_config = VmConfig {
+            vcpu_count: Some(num_vcpus),
+            mem_size_mib: Some(mem_size_mib),
+            ht_enabled: Some(false),
+            cpu_template: None,
+        };
+
+        vmr.set_vm_config(&vm_config).map_err(to_anyhow_error)?;
+    }
+
+    // Configure its mounted root
+    {
+        let fs_id = "/dev/root".to_string();
+        let shared_dir = "res/drive".to_string();
+
+        vmr.add_fs_device(FsDeviceConfig {
+            fs_id,
+            shared_dir,
+            mapped_volumes: None,
+        })
+        .map_err(to_anyhow_error)?;
+    }
+
+    // Set its network config
+    {
+        let vsock_device_config = VsockDeviceConfig {
+            vsock_id: "vsock0".to_string(),
+            guest_cid: 3,
+            host_port_map: None,
+            unix_ipc_port_map: None,
+        };
+        vmr.set_vsock_device(vsock_device_config)
+            .map_err(to_anyhow_error)?;
+    }
+
+    // === Start the VM === //
+
+    let mut event_manager = EventManager::new().map_err(to_anyhow_error_dbg)?;
+
+    let vmm =
+        vmm::builder::build_microvm(&vmr, &mut event_manager, None).map_err(to_anyhow_error)?;
+
+    loop {
+        event_manager.run().map_err(to_anyhow_error_dbg)?;
+    }
+}
+
+fn to_anyhow_error<E: fmt::Display>(err: E) -> anyhow::Error {
+    anyhow::anyhow!("{err}")
+}
+
+fn to_anyhow_error_dbg<E: fmt::Debug>(err: E) -> anyhow::Error {
+    anyhow::anyhow!("{err:?}")
+}

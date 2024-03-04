@@ -24,10 +24,7 @@ devices = { path = "../devices" }
 polly = { path = "../polly" }
 utils = { path = "../utils" }
 vmm = { path = "../vmm" }
+anyhow = "1.0.80"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }
-
-[lib]
-name = "krun"
-crate-type = ["cdylib"]
