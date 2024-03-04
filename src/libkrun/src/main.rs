@@ -1,5 +1,8 @@
 use std::fmt;
 
+use crossbeam_channel::unbounded;
+use hvf::MemoryMapping;
+use log::error;
 use polly::event_manager::EventManager;
 use vmm::{
     resources::VmResources,
@@ -121,8 +124,25 @@ fn main() -> anyhow::Result<()> {
 
     let mut event_manager = EventManager::new().map_err(to_anyhow_error_dbg)?;
 
+    let (sender, receiver) = unbounded();
     let vmm =
-        vmm::builder::build_microvm(&vmr, &mut event_manager, None).map_err(to_anyhow_error)?;
+        vmm::builder::build_microvm(&vmr, &mut event_manager, None, sender).map_err(to_anyhow_error)?;
+
+    let mapper_vmm = vmm.clone();
+
+    std::thread::spawn(move || loop {
+        match receiver.recv() {
+            Err(e) => error!("Error in receiver: {:?}", e),
+            Ok(m) => match m {
+                MemoryMapping::AddMapping(s, h, g, l) => {
+                    mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
+                }
+                MemoryMapping::RemoveMapping(s, g, l) => {
+                    mapper_vmm.lock().unwrap().remove_mapping(s, g, l)
+                }
+            },
+        }
+    });
 
     loop {
         event_manager.run().map_err(to_anyhow_error_dbg)?;
