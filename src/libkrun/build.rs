@@ -1,10 +1,9 @@
 fn main() {
     #[cfg(target_os = "macos")]
     println!("cargo:rustc-link-lib=framework=Hypervisor");
-    #[cfg(target_os = "macos")]
-    println!("cargo:rustc-link-search=/opt/homebrew/lib");
-    #[cfg(all(not(feature = "tee"), not(feature = "efi")))]
-    println!("cargo:rustc-link-lib=krunfw");
-    #[cfg(feature = "tee")]
-    println!("cargo:rustc-link-lib=krunfw-sev");
+    println!("cargo:rustc-link-lib=krunfw.4");
+    println!(
+        "cargo:rustc-link-search={}/../../res",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+    );
 }

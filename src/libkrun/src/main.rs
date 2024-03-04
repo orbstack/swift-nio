@@ -103,7 +103,6 @@ fn main() -> anyhow::Result<()> {
         vmr.add_fs_device(FsDeviceConfig {
             fs_id,
             shared_dir,
-            mapped_volumes: None,
         })
         .map_err(to_anyhow_error)?;
     }
