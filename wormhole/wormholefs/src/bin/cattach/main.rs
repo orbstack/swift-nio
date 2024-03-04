@@ -11,10 +11,9 @@ mod pidfd;
 
 const EXTRA_ENV: &[&str] = &[
     "ZDOTDIR=/nix/zsh",
-    // TODO: fill in this path
-    "GIT_SSL_CAINFO=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt",
-    "NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt",
-    "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt",
+    "GIT_SSL_CAINFO=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt",
+    "NIX_SSL_CERT_FILE=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt",
+    "SSL_CERT_FILE=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt",
 
     // fixes nixos + zsh bug with duplicated chars in prompt after tab completion
     // https://github.com/nix-community/home-manager/issues/3711
@@ -25,7 +24,7 @@ const INHERIT_ENVS: &[&str] = &[
     "SSH_CONNECTION",
     "SSH_AUTH_SOCK",
 ];
-const APPEND_PATH: &str = "/nix/bin";
+const APPEND_PATH: &str = "/nix/var/nix/profiles/default/bin";
 
 // type mismatch: musl=c_int, glibc=c_uint
 const PTRACE_SECCOMP_GET_FILTER: libc::c_uint = 0x420c;
@@ -374,7 +373,7 @@ fn main() -> anyhow::Result<()> {
             // child
             // TODO: must double fork and exit intermediate child to reparent to pid 1
             trace!("child: execve");
-            execve(&CString::new("/nix/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
+            execve(&CString::new("/nix/var/nix/profiles/default/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
         }
     }
 
