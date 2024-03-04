@@ -22,7 +22,9 @@ type Volume struct {
 }
 
 func (v Volume) Identifier() string {
-	return v.Name
+	// volume names are NOT unique. we need to identify recreated volumes with the same name
+	// there's no ID, so use CreatedAt|Name as an approximation (fails when CreatedAt is the same, in seconds...)
+	return v.CreatedAt + "|" + v.Name
 }
 
 type VolumeUsageData struct {
