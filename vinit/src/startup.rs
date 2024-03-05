@@ -182,7 +182,19 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     // nfsd
     mount("nfsd", "/proc/fs/nfsd", "nfsd", secure_flags, None)?;
     // to prevent EBUSY, set options before starting anything
-    fs::write("/proc/fs/nfsd/nfsv4leasetime", "30")?;
+    // set lease time to 5 years:
+    //   - kernel math's max value is (lease_time * 1e9 * 2) in 64 bits, so limit is 9223372036
+    //     * 5 years = 157680000 - is safe
+    //   - days/weeks is too short: what if the renew timer fires in sleep and causes timeout?
+    //     * fundamental problem: kernel can run when userspace can't
+    //     * non-issue for standard nfs, because kernel sends network req out to remote server, which is running
+    //     * unavoidable issue for local nfs, because userspace can't be running
+    //     * but very unlikely to have random fs request while userspace can't run - could have renew timer though
+    //   - if this breaks and gets a lock stuck, there's little diff between 6 months and 5 years (to the user)
+    //   - getting rid of renew timer saves CPU and reduces chances of unmount during sleep
+    //   - is safe because we only have one client
+    //   - 30 sec grace period is safe, but wasteful, and already bad enough UX if we end up hanging for 30s
+    fs::write("/proc/fs/nfsd/nfsv4leasetime", format!("{}", 5 * 365 * 24 * 3600))?;
     fs::write("/proc/fs/nfsd/nfsv4gracetime", "1")?;
 
     // for security, seal all directories/files we expose to machines as read-only
