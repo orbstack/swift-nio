@@ -92,6 +92,7 @@ func doMount(spec Spec) error {
 	// for making NFSv4 over UNIX sockets work.
 	// nocallback - fix nfs client id EINVAL with unix socket. callbacks are unused anyway - they're for delegation handoff with multiple clients
 	// mutejukebox = don't show "fs not responding" dialog
+	// can't use namedattr: Linux nfs server doesn't support it because it's more like resource streams than xattrs
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_FLAGS
 	flags := nfs_sys_prot.NfsMattrFlags{
 		Mask: []uint32{
