@@ -101,7 +101,7 @@ strip runc
 mv runc /out/
 EOT
 
-# Build C - vsocknfs, rvfs-wrapper, fuse passthrough "fpll"
+# Build C - rvfs-wrapper, fuse passthrough "fpll"
 FROM base AS c-base
 RUN apk add --no-cache alpine-sdk linux-headers fuse3-dev
 FROM c-base AS c-build
@@ -113,7 +113,6 @@ mkdir /out /out-guest
 g++ -O2 -Wall /build/fuse/fpll.cpp $(pkg-config fuse3 --cflags --libs) -o /out/fpll
 EOT
 RUN <<EOT sh -eux
-gcc -O2 -Wall -o /out/vsocknfs /build/vsocknfs.c
 gcc -O2 -Wall -static -o /out/rstub /build/rvfs-wrapper.c
 gcc -O2 -Wall -static -o /out-guest/pstub /build/pstub.c
 strip /out/* /out-guest/*

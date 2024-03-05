@@ -766,17 +766,17 @@ func runVmManager() {
 	}
 
 	// special NFS forward
-	// vsock is slightly faster, esp. for small files (because latency)
+	// tcp is faster and probably more stable
 	nfsFwdSpec := vnet.ForwardSpec{
 		// dynamically assigned port
 		Host:  "tcp:127.0.0.1:0",
-		Guest: "vsock:" + str(ports.GuestNFS),
+		Guest: "tcp:" + str(ports.GuestNFS),
 	}
 	nfsFwd, err := vnetwork.StartForward(nfsFwdSpec)
 	if err != nil {
 		errorx.Fatalf("host forward failed: %w", err)
 	}
-	nfsPort := nfsFwd.(*tcpfwd.StreamVsockHostForward).TcpPort()
+	nfsPort := nfsFwd.(*tcpfwd.TcpHostForward).TcpPort()
 	hcServer.NfsPort = nfsPort
 
 	defer os.Remove(conf.DockerSocket())

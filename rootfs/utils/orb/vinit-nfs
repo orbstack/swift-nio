@@ -12,5 +12,3 @@ set -euo pipefail
 
 #--debug
 /opt/pkg/rpc.nfsd 8 --no-udp --no-nfs-version 3
-
-/opt/orb/vsocknfs > /proc/fs/nfsd/portlist

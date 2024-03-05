@@ -320,13 +320,13 @@ func (m *NfsMirrorManager) updateExportsLocked() error {
 		return nil
 	}
 
-	// 127.0.0.8 = vsock
+	// 198.19.248.1 = host tcp
 	// root export needs to be rw for machines
 	// docker/volumes export has different uid/gid
 	exportsBase := fmt.Sprintf(`
-/nfs/root/ro 127.0.0.8(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
-/nfs/root/ro/docker/volumes 127.0.0.8(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
-/nfs/root/ro/docker/containers 127.0.0.8(rw,async,fsid=2,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
+/nfs/root/ro 198.19.248.1(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
+/nfs/root/ro/docker/volumes 198.19.248.1(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
+/nfs/root/ro/docker/containers 198.19.248.1(rw,async,fsid=2,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
 `, m.hostUid, m.hostUid)
 
 	destLines := make([]string, 0, len(m.dests))
@@ -340,7 +340,7 @@ func (m *NfsMirrorManager) updateExportsLocked() error {
 		if entry.Rw {
 			perms = "rw"
 		}
-		destLines = append(destLines, fmt.Sprintf("%s 127.0.0.8(%s,async,fsid=%d,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", path, perms, entry.Fsid))
+		destLines = append(destLines, fmt.Sprintf("%s 198.19.248.1(%s,async,fsid=%d,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", path, perms, entry.Fsid))
 	}
 	exportsBase += strings.Join(destLines, "\n")
 
