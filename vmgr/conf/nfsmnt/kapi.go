@@ -141,8 +141,11 @@ func doMount(spec Spec) error {
 		nfs_sys_prot.WriteNfsMattrNfsPort(&attrVals, nfs_sys_prot.NfsMattrNfsPort(spec.TcpPort))
 	}
 
+	// disable dead timeout
+	// combined with mmap'd holder fd to prevent is_mobile "squishy" force unmount, this allows using soft mounts (so truly stuck operations will return ETIMEDOUT instead of being stuck in uninterruptible wait) without risk of auto force unmount
+	// check XNU code for how this works. by default "soft" enables deadtimeout=60, but nm_curdeadtimeout <= 0 disables it
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_DEAD_TIMEOUT
-	toNfstime32(10 * time.Second).WriteTo(&attrVals)
+	toNfstime32(0).WriteTo(&attrVals)
 
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_FS_LOCATIONS
 	fsLocations := nfs_sys_prot.NfsFsLocations{
