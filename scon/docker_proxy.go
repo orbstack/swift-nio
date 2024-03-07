@@ -125,19 +125,6 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 		// restore Host (deleted by ReadRequest)
 		req.Header.Set("Host", req.Host)
 
-		// if we're starting a container, we need to synchronize container change events for NFS unmount
-		// this prevents overlayfs upperdir/workdir concurrent reuse race
-		// TODO check full path. this skips /containers/ check because of optional API version prefix
-		if strings.HasSuffix(req.URL.Path, "/start") {
-			logrus.Debug("synchronizing events for container start")
-			err := p.container.UseAgent(func(a *agent.Client) error {
-				return a.DockerSyncEvents()
-			})
-			if err != nil {
-				logrus.WithError(err).Error("failed to synchronize events for container start")
-			}
-		}
-
 		err = func() error {
 			// take freezer ref on a per-request level
 			// fixes idle conns from user's tools keeping machine alive

@@ -39,7 +39,9 @@ const (
 	SconGuestSocket     = Run + "/scon-guest.sock"
 	ExtraCerts          = Run + "/extra-certs.crt"
 
-	DockerSocket = "/var/run/docker.sock"
+	// docker guest paths
+	DockerSocket         = "/var/run/docker.sock"
+	DockerRuncWrapSocket = "/run/rc.sock" // same on host
 
 	// host paths
 	LaunchdSshAgentListeners  = "/opt/orb/launchd-ssh-agent-listeners"

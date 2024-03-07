@@ -248,11 +248,6 @@ func (a *AgentServer) DockerDialSocket(_ None, reply *uint64) error {
 	return nil
 }
 
-func (a *AgentServer) DockerSyncEvents(_ None, _ *None) error {
-	a.docker.containerRefreshDebounce.CallNow()
-	return nil
-}
-
 func (a *AgentServer) DockerWaitStart(_ None, _ *None) error {
 	a.docker.InitDone.Wait()
 	return nil

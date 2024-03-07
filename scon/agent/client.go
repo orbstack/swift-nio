@@ -200,16 +200,6 @@ func (c *Client) DockerDialSocket() (net.Conn, error) {
 	return net.FileConn(file)
 }
 
-func (c *Client) DockerSyncEvents() error {
-	var none None
-	err := c.rpc.Call("a.DockerSyncEvents", None{}, &none)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (c *Client) DockerCheckIdle() (bool, error) {
 	var idle bool
 	err := c.rpc.Call("a.DockerCheckIdle", None{}, &idle)

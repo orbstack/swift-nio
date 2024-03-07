@@ -14,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -27,6 +28,10 @@ type SconGuestServer struct {
 	dockerMachine   *Container
 	vlanRouterIfi   int
 	vlanMacTemplate net.HardwareAddr
+
+	// only for OnDockerContainersChanged for now
+	mu                    syncx.Mutex
+	dockerContainersCache map[string]dockertypes.ContainerSummaryMin
 }
 
 func (s *SconGuestServer) Ping(_ None, _ *None) error {
@@ -123,8 +128,38 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	return nil
 }
 
+func (s *SconGuestServer) onDockerContainerRemovedFromCache(cid string) error {
+	// needs mutex! called from both scon guest rpc and from runc wrap server
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// look up in cache
+	ctr, ok := s.dockerContainersCache[cid]
+	if !ok {
+		// not running, or not yet added to scon (due to debounce delay)
+		return nil
+	}
+
+	logrus.WithField("cid", cid).Debug("removing container due to restart")
+	return s.onDockerContainersChangedLocked(sgtypes.ContainersDiff{
+		Diff: sgtypes.Diff[dockertypes.ContainerSummaryMin]{
+			Added:   nil,
+			Removed: []dockertypes.ContainerSummaryMin{ctr},
+		},
+		AddedRootfsFdxSeqs: nil,
+	})
+}
+
 // note: this is for start/stop, not create/delete
 func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff, _ *None) error {
+	// needs mutex! called from both scon guest rpc and from runc wrap server
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.onDockerContainersChangedLocked(diff)
+}
+
+func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.ContainersDiff) error {
 	dockerBpf := s.dockerMachine.bpf // nil if not running anymore
 
 	// IMPORTANT: must not return from this function before reading and closing fds from AddedRootfsFdxSeqs
@@ -132,6 +167,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 	// update mDNS registry
 	// must remove before adding in case of recreate with same IPs/domain
 	for _, ctr := range diff.Removed {
+		delete(s.dockerContainersCache, ctr.ID)
 		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
 
 		if dockerBpf != nil {
@@ -145,40 +181,38 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 		}
 
 		// unmount from nfs (ignore error)
-		name := ctr.ID
+		prettyName := ctr.ID
 		if len(ctr.Names) > 0 {
-			name = strings.TrimPrefix(ctr.Names[0], "/")
+			prettyName = strings.TrimPrefix(ctr.Names[0], "/")
 		}
-		if strings.Contains(name, "/") {
-			logrus.WithField("cid", name).Error("invalid container ID")
-		} else {
-			// detach fuse mount first to avoid user-facing errors (socket not connected)
-			err := s.m.nfsRoot.Unmount("docker/containers/" + name)
-			if err != nil {
-				logrus.WithError(err).WithField("cid", name).Error("failed to unmount container")
-			}
 
-			// must flush exports immediately for nfsd to close fds
-			err = s.m.nfsRoot.Flush()
-			if err != nil {
-				logrus.WithError(err).Error("failed to flush nfs")
-			}
+		// detach fuse mount first to avoid user-facing errors (socket not connected)
+		err := s.m.nfsRoot.Unmount("docker/containers/" + prettyName)
+		if err != nil {
+			logrus.WithError(err).WithField("cname", prettyName).Error("failed to unmount container")
+		}
 
-			// kill fuse server to release fds
-			// note: we may enter this code path even if it was never mounted (i.e. too fast)
-			err = s.m.fpll.StopMount(nfsDirRoot + "/ro/docker/containers/" + name)
-			if err != nil {
-				logrus.WithError(err).WithField("cid", name).Error("failed to stop fs server")
-			}
+		// must flush exports immediately for nfsd to close fds
+		err = s.m.nfsRoot.Flush()
+		if err != nil {
+			logrus.WithError(err).Error("failed to flush nfs")
+		}
 
-			// finally unmount underlying overlayfs
-			err = s.m.nfsContainers.Unmount(name)
-			if err != nil {
-				logrus.WithError(err).WithField("cid", name).Error("failed to unmount rootfs")
-			}
+		// kill fuse server to release fds
+		// note: we may enter this code path even if it was never mounted (i.e. too fast)
+		err = s.m.fpll.StopMount(nfsDirRoot + "/ro/docker/containers/" + prettyName)
+		if err != nil {
+			logrus.WithError(err).WithField("cname", prettyName).Error("failed to stop fs server")
+		}
+
+		// finally unmount underlying overlayfs
+		err = s.m.nfsContainers.Unmount(prettyName)
+		if err != nil {
+			logrus.WithError(err).WithField("cname", prettyName).Error("failed to unmount rootfs")
 		}
 	}
 	for i, ctr := range diff.Added {
+		s.dockerContainersCache[ctr.ID] = ctr
 		ctrIPs := s.m.net.mdnsRegistry.AddContainer(&ctr)
 
 		if dockerBpf != nil {
@@ -324,6 +358,13 @@ func (s *SconGuestServer) OnDockerRefsChanged(_ None, _ *None) error {
 	return nil
 }
 
+func (s *SconGuestServer) clearDockerContainersCache() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	clear(s.dockerContainersCache)
+}
+
 func ListenSconGuest(m *ConManager) error {
 	dockerMachine, err := m.GetByID(ContainerIDDocker)
 	if err != nil {
@@ -341,10 +382,11 @@ func ListenSconGuest(m *ConManager) error {
 	}
 
 	server := &SconGuestServer{
-		m:               m,
-		dockerMachine:   dockerMachine,
-		vlanRouterIfi:   vlanRouterIf.Index,
-		vlanMacTemplate: vlanMacTemplate,
+		m:                     m,
+		dockerMachine:         dockerMachine,
+		vlanRouterIfi:         vlanRouterIf.Index,
+		vlanMacTemplate:       vlanMacTemplate,
+		dockerContainersCache: make(map[string]dockertypes.ContainerSummaryMin),
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("scg", server)
@@ -362,5 +404,17 @@ func ListenSconGuest(m *ConManager) error {
 		rpcServer.Accept(listener)
 	}()
 
+	runcWrap, err := NewRuncWrapServer(server)
+	if err != nil {
+		return err
+	}
+	go func() {
+		err := runcWrap.Serve()
+		if err != nil {
+			logrus.WithError(err).Error("runc wrap server failed")
+		}
+	}()
+
+	m.sconGuest = server
 	return nil
 }

@@ -319,6 +319,9 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	cm.set("lxc.mount.entry", "none realtmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,create=dir,optional,size=80% 0 0")
 	// extra linked path: /System
 	cm.bind(mounts.Virtiofs+"/System", "/System", "")
+	// services
+	// no stat: socket doesn't exist yet at config time
+	cm.bind(mounts.DockerRuncWrapSocket, mounts.DockerRuncWrapSocket, "nostat")
 
 	hostUser, err := c.manager.host.GetUser()
 	if err != nil {
@@ -776,6 +779,9 @@ func (h *DockerHooks) PostStop(c *Container) error {
 	if err != nil {
 		return fmt.Errorf("unmount nfs containers: %w", err)
 	}
+
+	// clear docker containers cache
+	c.manager.sconGuest.clearDockerContainersCache()
 
 	return nil
 }

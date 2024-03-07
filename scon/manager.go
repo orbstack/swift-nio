@@ -62,6 +62,7 @@ type ConManager struct {
 	uiEventDebounce   syncx.LeadingFuncDebounce
 	uiInitContainers  sync.WaitGroup
 	vmConfig          *vmconfig.VmConfig
+	sconGuest         *SconGuestServer
 
 	// auto forward
 	forwards   map[sysnet.ListenerKey]ForwardState
@@ -259,9 +260,13 @@ func (m *ConManager) Start() error {
 	go runOne("RPC server", func() error {
 		return ListenScon(m, dockerMachine)
 	})
-	go runOne("guest RPC server", func() error {
-		return ListenSconGuest(m)
-	})
+
+	// RPC guest server must be started synchronously:
+	// docker machine bind mounts /run/rc.sock (runc wrap server) which depends on scon guest
+	err = ListenSconGuest(m)
+	if err != nil {
+		return fmt.Errorf("listen guest: %w", err)
+	}
 
 	// start all pending containers
 	// do not alert the UI until all are started, to give it a consistent restored state

@@ -115,6 +115,7 @@ EOT
 RUN <<EOT sh -eux
 gcc -O2 -Wall -static -o /out/rstub /build/rvfs-wrapper.c
 gcc -O2 -Wall -static -o /out-guest/pstub /build/pstub.c
+gcc -O2 -Wall -static -o /out-guest/runc-wrapper /build/runc-wrapper.c
 strip /out/* /out-guest/*
 
 # append runc.arm64 to rvfs-wrapper
@@ -214,6 +215,10 @@ mv docker/dockerd docker/docker-init /usr/local/bin/
 cd /
 rm -rf /work
 EOT
+
+# runc wrapper
+RUN mv /usr/bin/runc /usr/bin/.runc
+COPY --from=c-build /out-guest/runc-wrapper /usr/bin/runc
 
 # k3s
 ARG ARCH=arm64

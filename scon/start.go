@@ -108,19 +108,24 @@ func addInitBindMount(c *Container, src, dst, opts string) error {
 		extraOpts = "," + opts
 	}
 
-	stat, err := os.Stat(src)
-	if err != nil {
-		return err
+	isDir := false
+	if opts != "nostat" {
+		stat, err := os.Stat(src)
+		if err != nil {
+			return err
+		}
+
+		isDir = stat.IsDir()
 	}
 
 	createType := "file"
 	bindType := "bind"
-	if stat.IsDir() {
+	if isDir {
 		createType = "dir"
 		bindType = "rbind"
 	}
 
-	err = c.setLxcConfig("lxc.mount.entry", fmt.Sprintf("%s %s none %s,create=%s,optional%s 0 0", src, strings.TrimPrefix(dst, "/"), bindType, createType, extraOpts))
+	err := c.setLxcConfig("lxc.mount.entry", fmt.Sprintf("%s %s none %s,create=%s,optional%s 0 0", src, strings.TrimPrefix(dst, "/"), bindType, createType, extraOpts))
 	if err != nil {
 		return err
 	}
