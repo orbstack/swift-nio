@@ -379,15 +379,13 @@ fi
 EOT
 
 # extract needed nfs utils, discard the rest to reduce size (python)
-# keep required libs
 RUN <<EOT sh -eux
 mkdir /opt/pkg
 cd /opt/pkg
 
-cp $(command -v exportfs) $(command -v rpc.nfsd) $(command -v rpc.mountd) /opt/pkg/
+cp $(command -v rpc.nfsd) /opt/pkg/
 
 apk del nfs-utils
-apk add --no-cache libtirpc
 EOT
 
 # qemu for arm64 host

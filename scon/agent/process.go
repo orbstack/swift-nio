@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/orbstack/macvirt/scon/agent/envutil"
+	"github.com/orbstack/macvirt/scon/util/sysx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -526,24 +527,7 @@ func (p *PidfdProcess) Signal(sig os.Signal) error {
 }
 
 func (p *PidfdProcess) Wait() error {
-	for {
-		fds := [1]unix.PollFd{
-			{
-				Fd:     int32(p.f.Fd()),
-				Events: unix.POLLIN,
-			},
-		}
-		_, err := unix.Poll(fds[:], 0)
-		if err == nil {
-			break
-		}
-		if err == unix.EINTR {
-			continue
-		}
-		return err
-	}
-
-	return nil
+	return sysx.PollFd(int(p.f.Fd()), unix.POLLIN)
 }
 
 func (p *PidfdProcess) WaitStatus() (int, error) {

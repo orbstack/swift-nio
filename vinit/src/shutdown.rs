@@ -1,4 +1,4 @@
-use std::{error::Error, fs::{self, DirEntry}, time::Duration, os::{fd::{AsRawFd}}, io::{self}, sync::Arc, path::Path};
+use std::{error::Error, fs::{self, DirEntry}, io, os::fd::AsRawFd, path::Path, sync::Arc, time::{Duration, SystemTime}};
 
 use nix::{sys::{signal::{kill, Signal}, reboot::{reboot, RebootMode}}, mount::{umount2, MntFlags}, unistd::{Pid, self}};
 
@@ -193,10 +193,14 @@ fn unmount_all_round() -> Result<bool, Box<dyn Error>> {
 async fn stop_nfs() -> Result<(), Box<dyn Error>> {
     let _guard = PROCESS_WAIT_LOCK.lock().await;
 
-    tokio::process::Command::new("/opt/pkg/exportfs")
-        .arg("-uav")
-        .status()
-        .await?;
+    // flush kernel nfsd cache after scon (rpc channel client) stops
+    // equivalent to "exportfs -uav" which deletes etab and flushes
+    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+    std::fs::write("/proc/net/rpc/auth.unix.ip/flush", format!("{}\n", now))?;
+    std::fs::write("/proc/net/rpc/auth.unix.gid/flush", format!("{}\n", now))?;
+    std::fs::write("/proc/net/rpc/nfsd.fh/flush", format!("{}\n", now))?;
+    std::fs::write("/proc/net/rpc/nfsd.export/flush", format!("{}\n", now))?;
+
     tokio::process::Command::new("/opt/pkg/rpc.nfsd")
         .arg("0")
         .status()
@@ -239,7 +243,6 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
         });
 
     // stop NFS
-    // rpc.mountd will be killed below
     timeline.begin("Stop NFS");
     stop_nfs().await
         .unwrap_or_else(|e| {

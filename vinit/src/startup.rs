@@ -852,17 +852,6 @@ async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &
     // this is only for USB devices, nbd, etc. so no need to wait for it to settle
     service_tracker.spawn(Service::UDEV, &mut Command::new("/sbin/udevd"))?;
 
-    // rpc.mountd
-    // must start before scon sets up nfs exports
-    service_tracker.spawn(Service::NFS_MOUNTD, &mut Command::new("/opt/pkg/rpc.mountd")
-        .arg("--no-udp")
-        .arg("--no-nfs-version").arg("2")
-        .arg("--no-nfs-version").arg("3")
-        //.arg("--debug").arg("all")
-        .arg("--foreground")
-        // hide debug output
-        .stdout(Stdio::null()))?;
-
     // scon
     service_tracker.spawn(Service::SCON, &mut Command::new("/opt/orb/scon")
         .arg("mgr")

@@ -120,11 +120,18 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 				return
 			}
 
+			err = mgr.nfsRoot.StartNfsdRpcServers()
+			if err != nil {
+				logrus.WithError(err).Error("failed to start nfsd rpc servers")
+				return
+			}
+
 			// don't init nfs more than once. causes issues with exports
 			if data, err := os.ReadFile("/proc/fs/nfsd/portlist"); err == nil && len(strings.TrimSpace(string(data))) > 0 {
 				logrus.Debug("nfs already initialized")
 			} else {
-				err := util.RunInheritOut("/opt/orb/vinit-nfs")
+				// 8 threads
+				err := util.RunInheritOut("/opt/pkg/rpc.nfsd", "8", "--no-udp", "--no-nfs-version", "3")
 				if err != nil {
 					logrus.WithError(err).Error("failed to start nfs")
 					return

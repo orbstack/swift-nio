@@ -47,15 +47,6 @@ impl Service {
         clean_stop: false,
     };
 
-    // critical because macOS NFS can freeze, or even worse, kernel panic if it crashes
-    // nfs4 still needs this - kernel nfsd talks to it
-    pub const NFS_MOUNTD: Service = Service {
-        name: "mountd",
-        critical: true,
-        restartable: true,
-        clean_stop: false,
-    };
-
     pub const MERGERFS_IMAGES: Service = Service {
         name: "images-fs",
         critical: false,

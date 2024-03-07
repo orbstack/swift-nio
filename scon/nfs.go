@@ -9,9 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/securefs"
-	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -21,10 +19,6 @@ const (
 	nfsDirRoot        = "/nfs/root"
 	nfsDirContainers  = "/nfs/containers"
 	nfsDirForMachines = "/nfs/for-machines"
-
-	fstypeFuseBind = "fbind"
-
-	nfsExportsDebounce = 250 * time.Millisecond
 )
 
 type NfsMirrorManager struct {
@@ -38,6 +32,9 @@ type NfsMirrorManager struct {
 	hostUid         int
 	controlsExports bool
 	exportsDirty    bool
+
+	// if controlsExports
+	exports map[string]nfsExportEntry
 }
 
 type nfsMountEntry struct {
@@ -54,20 +51,21 @@ func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
 		controlsExports: controlsExports,
 		// start as dirty so initial flush works, before nfs init
 		exportsDirty: controlsExports,
+		exports:      make(map[string]nfsExportEntry),
 	}
 
 	return m
 }
 
-func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFunc func(destPath string) error) error {
-	// special case for FUSE bind mount for nfs containers-export
-	needsExports := fstype != "" // typically for overlay or fuse
-	if fstype == fstypeFuseBind {
-		// FUSE bind mount does also need fsid
-		needsExports = true
-		fstype = ""
-	}
+func (m *NfsMirrorManager) StartNfsdRpcServers() error {
+	// order in which kernel/client hits these
+	go runOne("rpc/auth.unix.ip", serveAuthUnixIp)
+	go runOne("rpc/nfsd.fh", m.serveNfsdFh)
+	go runOne("rpc/nfsd.export", m.serveNfsdExports)
+	return nil
+}
 
+func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFunc func(destPath string) error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -106,7 +104,7 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	entry := nfsMountEntry{
 		Rw: flags&unix.MS_RDONLY == 0,
 	}
-	if needsExports && m.controlsExports {
+	if m.controlsExports {
 		m.nextFsid++
 		entry.Fsid = m.nextFsid
 		m.exportsDirty = true
@@ -130,7 +128,7 @@ func (m *NfsMirrorManager) unmountLocked(subdest string) error {
 	backingPath := m.rwDir + subdest
 	mountPath := m.roDir + subdest
 
-	entry, ok := m.dests[mountPath]
+	_, ok := m.dests[mountPath]
 	if !ok {
 		return nil
 	}
@@ -154,9 +152,7 @@ func (m *NfsMirrorManager) unmountLocked(subdest string) error {
 	}
 
 	delete(m.dests, mountPath)
-	if entry.Fsid != 0 {
-		m.exportsDirty = true
-	}
+	m.exportsDirty = true
 	return nil
 }
 
@@ -320,41 +316,64 @@ func (m *NfsMirrorManager) updateExportsLocked() error {
 		return nil
 	}
 
-	// 198.19.248.1 = host tcp
 	// root export needs to be rw for machines
 	// docker/volumes export has different uid/gid
-	exportsBase := fmt.Sprintf(`
-/nfs/root/ro 198.19.248.1(rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check,anonuid=%d,anongid=%d)
-/nfs/root/ro/docker/volumes 198.19.248.1(rw,async,fsid=1,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
-/nfs/root/ro/docker/containers 198.19.248.1(rw,async,fsid=2,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)
-`, m.hostUid, m.hostUid)
+	exports := make(map[string]nfsExportEntry)
+	exports[nfsExportRoot] = nfsExportEntry{
+		flags:   nfsExpBaseFlags,
+		anonUid: m.hostUid,
+		anonGid: m.hostUid, // as gid too
+		fsid:    0,
+	}
+	exports["/nfs/root/ro/docker/volumes"] = nfsExportEntry{
+		flags:   nfsExpBaseFlags,
+		anonUid: 0,
+		anonGid: 0,
+		fsid:    1,
+	}
+	exports["/nfs/root/ro/docker/containers"] = nfsExportEntry{
+		flags:   nfsExpBaseFlags,
+		anonUid: 0,
+		anonGid: 0,
+		fsid:    2,
+	}
 
-	destLines := make([]string, 0, len(m.dests))
 	for path, entry := range m.dests {
-		if entry.Fsid == 0 {
-			// doesn't need fsid, handled by mount propagation
-			continue
+		exp := nfsExportEntry{
+			flags:   nfsExpBaseFlags,
+			anonUid: 0,
+			anonGid: 0,
+			fsid:    uint32(entry.Fsid),
+		}
+		if !entry.Rw {
+			exp.flags |= NFSEXP_READONLY
 		}
 
-		perms := "ro"
-		if entry.Rw {
-			perms = "rw"
-		}
-		destLines = append(destLines, fmt.Sprintf("%s 198.19.248.1(%s,async,fsid=%d,crossmnt,insecure,all_squash,no_subtree_check,anonuid=0,anongid=0)", path, perms, entry.Fsid))
+		println("add export: ", path)
+		exports[path] = exp
 	}
-	exportsBase += strings.Join(destLines, "\n")
 
-	err := os.WriteFile(conf.C().EtcExports, []byte(exportsBase), 0644)
+	// flush all
+	now := time.Now().Unix()
+	nowStr := strconv.FormatInt(now, 10)
+	err := os.WriteFile("/proc/net/rpc/auth.unix.ip/flush", []byte(nowStr), 0)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile("/proc/net/rpc/auth.unix.gid/flush", []byte(nowStr), 0)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile("/proc/net/rpc/nfsd.fh/flush", []byte(nowStr), 0)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile("/proc/net/rpc/nfsd.export/flush", []byte(nowStr), 0)
 	if err != nil {
 		return err
 	}
 
-	// can't write directly to /proc because etab needs to be written for rpc.mountd
-	err = util.Run("/opt/pkg/exportfs", "-ar")
-	if err != nil {
-		return err
-	}
-
+	m.exports = exports
 	m.exportsDirty = false
 	return nil
 }

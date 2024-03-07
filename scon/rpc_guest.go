@@ -112,7 +112,7 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	}
 
 	// mount to export with new fsid
-	err = s.m.nfsRoot.Mount("", "docker/containers/"+name, fstypeFuseBind, 0, "", func(destPath string) error {
+	err = s.m.nfsRoot.Mount("", "docker/containers/"+name, "", 0, "", func(destPath string) error {
 		// TODO: shadow mount is NOT needed for /nfs/containers
 		return s.m.fpll.StartMount(nfsDirContainers+"/ro/"+name, destPath)
 	})
