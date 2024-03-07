@@ -143,18 +143,15 @@ struct MachineSettingsView: View {
         }
         .padding()
         .background(WindowAccessor(holder: windowHolder))
-        .alert("Disable privileged features?", isPresented: $presentDisableAdmin) {
-            Button("Cancel", role: .cancel) {}
-            Button("Disable", role: .destructive) {
-                vmModel.trySetConfigKey(\.setupUseAdmin, false)
-            }
-        } message: {
-            Text("""
-            This will disable performance improvements, better Docker compatibility, and potentially more features in the future.
+        .akAlert("Disable privileged features?", isPresented: $presentDisableAdmin,
+                desc: """
+                      This will disable performance improvements, better Docker compatibility, and potentially more features in the future.
 
-            We recommend keeping this on.
-            """)
-        }
+                      We recommend keeping this on.
+                      """,
+                button1Label: "Disable",
+                button1Action: { vmModel.trySetConfigKey(\.setupUseAdmin, false) },
+                button2Label: "Cancel")
     }
 
     private func updateFrom(_ config: VmConfig) {

@@ -25,6 +25,7 @@
 		B118B059B171800F250B42CD /* PHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHClient.swift */; };
 		B118B05A4822E6D2CE27AE32 /* CustomLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4E4BEA14F3804B048B1 /* CustomLink.swift */; };
 		B118B076E8CB7033926025A7 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1DCE616676E483BB2BB /* FeedbackView.swift */; };
+		B118B0B04390F03CD1EAA096 /* AKAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC7076F4FB6E3224B434 /* AKAlert.swift */; };
 		B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE46918C0AB595ADE247 /* RenameContainerView.swift */; };
 		B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
 		B118B0FC989BF42C8A2B6EE2 /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
@@ -316,6 +317,7 @@
 		B118BB2A7BF402695260775E /* IPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
 		B118BBF4988AABF0AB93C4EA /* K8SPodItemView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SPodItemView.swift; sourceTree = "<group>"; };
 		B118BC5ED0519B7B337DA8D6 /* DockerComposeGroupDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerComposeGroupDetails.swift; sourceTree = "<group>"; };
+		B118BC7076F4FB6E3224B434 /* AKAlert.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AKAlert.swift; sourceTree = "<group>"; };
 		B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
 		B118BD52B15443D1329C832A /* Packets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
 		B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PrivHelperFFI.swift; sourceTree = "<group>"; };
@@ -592,6 +594,7 @@
 				B118B06A59C6893760E5F9AA /* ThinEnvironment.swift */,
 				B118B56B2F68D469F76481FD /* CopyableText.swift */,
 				B118BEBDA570BE498B231235 /* CursorRegion.swift */,
+				B118BC7076F4FB6E3224B434 /* AKAlert.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1211,6 +1214,7 @@
 				B118B77119F338910D52B7D2 /* DockerImageDetails.swift in Sources */,
 				B118B6EB7323A6023E5EE791 /* K8SGroupDetails.swift in Sources */,
 				B118B1D666CB270A1C79F4E6 /* LicenseBadgeView.swift in Sources */,
+				B118B0B04390F03CD1EAA096 /* AKAlert.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -15,16 +15,6 @@ private let avatarRadius: Float = 32
 private let statusDotRadius: Float = 8
 private let statusMarginRadius: Float = 12
 
-func bindOptionalBool<T>(_ binding: Binding<T?>) -> Binding<Bool> {
-    Binding<Bool>(get: {
-        binding.wrappedValue != nil
-    }, set: {
-        if !$0 {
-            binding.wrappedValue = nil
-        }
-    })
-}
-
 struct NavTab: View {
     private let label: String
     private let systemImage: String

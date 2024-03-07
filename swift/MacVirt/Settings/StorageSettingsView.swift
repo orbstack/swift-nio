@@ -105,42 +105,39 @@ struct StorageSettingsView: View {
                 }
             }
         }
-        .alert("Reset Docker data?", isPresented: $presentConfirmResetDockerData) {
-            Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) {
-                Task {
-                    if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
-                        await vmModel.tryDeleteContainer(dockerRecord)
-                        await vmModel.tryStartContainer(dockerRecord)
+        .akAlert("Reset Docker data?", isPresented: $presentConfirmResetDockerData,
+                desc: "All Docker containers, images, volumes, and other data will be permanently lost.\n\nKubernetes data will also be deleted.",
+                button1Label: "Reset",
+                button1Action: {
+                    Task {
+                        if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
+                            await vmModel.tryDeleteContainer(dockerRecord)
+                            await vmModel.tryStartContainer(dockerRecord)
+                        }
                     }
-                }
-            }
-        } message: {
-            Text("All Docker containers, images, volumes, and other data will be permanently lost.\n\nKubernetes data will also be deleted.")
-        }
-        .alert("Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData) {
-            Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) {
-                Task {
-                    if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
-                        await vmModel.tryInternalDeleteK8s()
-                        await vmModel.tryStartContainer(dockerRecord)
+                },
+                button2Label: "Cancel")
+        .akAlert("Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
+                desc: "All Kubernetes deployments, pods, services, and other data will be permanently lost.",
+                button1Label: "Reset",
+                button1Action: {
+                    Task {
+                        if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
+                            await vmModel.tryInternalDeleteK8s()
+                            await vmModel.tryStartContainer(dockerRecord)
+                        }
                     }
-                }
-            }
-        } message: {
-            Text("All Kubernetes deployments, pods, services, and other data will be permanently lost.")
-        }
-        .alert("Reset all data?", isPresented: $presentConfirmResetAllData) {
-            Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) {
-                Task {
-                    await vmModel.tryResetData()
-                }
-            }
-        } message: {
-            Text("All Docker data (containers, images, volumes, etc.) and Linux machines will be permanently lost.")
-        }
+                },
+                button2Label: "Cancel")
+        .akAlert("Reset all data?", isPresented: $presentConfirmResetAllData,
+                desc: "All Docker data (containers, images, volumes, etc.) and Linux machines will be permanently lost.",
+                button1Label: "Reset",
+                button1Action: {
+                    Task {
+                        await vmModel.tryResetData()
+                    }
+                },
+                button2Label: "Cancel")
         .padding()
         .background(WindowAccessor(holder: windowHolder))
     }

@@ -16,8 +16,6 @@ struct NewMainView: View {
     // otherwise it's different at NewMainViewControllerRepresentable() init time and at later .environmentObject time
     @StateObject private var navModel = MainNavViewModel()
 
-    @State private var presentError = false
-
     var body: some View {
         GeometryReader { geometry in
             NewMainViewControllerRepresentable(
@@ -54,6 +52,14 @@ struct NewMainView: View {
         .sheet(isPresented: $model.presentAuth) {
             AuthView(sheetPresented: $model.presentAuth)
         }
+        .onChange(of: model.presentAuth) { isPresented in
+            if !isPresented {
+                // sheet dismissed
+                // reopen force SSO sign-in dialog if not signed in (i.e. auth flow dismissed)
+                // onDisappear in sheet doesn't work
+                model.updateForceSignIn()
+            }
+        }
         .onOpenURL { url in
             // for menu bar
             // TODO: unstable
@@ -65,40 +71,52 @@ struct NewMainView: View {
             }
         }
         // error dialog
-        .alert(isPresented: $presentError, error: model.error) { error in
+        .akAlert(presentedValue: $model.error) { error in
+            var content = AKAlertContent(title: error.errorDescription ?? "Error",
+                    desc: error.recoverySuggestion,
+                    style: .critical)
+
+            switch error {
+            case VmError.dockerExitError:
+                fallthrough
+            case VmError.vmgrExit:
+                fallthrough
+            case VmError.spawnExit:
+                content.scrollableText = true
+            default:
+                content.scrollableText = false
+            }
+            
             switch error {
             case VmError.killswitchExpired:
-                Button("Update") {
+                content.addButton("Update") {
                     NSWorkspace.openSubwindow("update")
                 }
 
-                Button("Quit") {
+                content.addButton("Quit") {
                     model.terminateAppNow()
                 }
 
             case VmError.wrongArch:
-                Button("Download") {
+                content.addButton("Download") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/download")!)
                 }
 
-                Button("Quit") {
+                content.addButton("Quit") {
                     model.terminateAppNow()
                 }
 
             default:
                 if model.state == .stopped && !model.reachedRunning {
-                    Button("Quit") {
+                    content.addButton("Quit") {
                         model.terminateAppNow()
                     }
                 } else {
-                    Button("OK") {
-                        model.dismissError()
-                    }
+                    content.addButton("OK")
                 }
 
                 if error.shouldShowLogs {
-                    Button("Report") {
-                        model.dismissError()
+                    content.addButton("Report") {
                         openBugReport()
 
                         // quit if the error is fatal
@@ -108,14 +126,10 @@ struct NewMainView: View {
                     }
                 }
             }
-        } message: { error in
-            if let msg = error.recoverySuggestion {
-                Text(truncateError(description: msg))
-            }
+
+            return content
         }
         .onReceive(model.$error, perform: { error in
-            presentError = error != nil
-
             if error == VmError.killswitchExpired {
                 // trigger updater as well
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
@@ -123,43 +137,30 @@ struct NewMainView: View {
                 }
             }
         })
-        .onChange(of: presentError) {
-            if !$0 {
-                model.dismissError()
-            }
-        }
-        .alert("Shell profile changed", isPresented: bindOptionalBool($model.presentProfileChanged)) {} message: {
-            if let info = model.presentProfileChanged {
-                Text("""
-                \(Constants.userAppName)’s command-line tools have been added to your PATH.
-                To use them in existing shells, run the following command:
+        .akAlert(presentedValue: $model.presentProfileChanged) { info in
+            AKAlertContent(title: "Shell profile changed",
+                    desc: """
+                          \(Constants.userAppName)’s command-line tools have been added to your PATH.
+                          To use them in existing shells, run the following command:
 
-                source \(info.profileRelPath)
-                """)
-            }
+                          source \(info.profileRelPath)
+                          """)
         }
-        .alert("Add tools to PATH", isPresented: bindOptionalBool($model.presentAddPaths)) {} message: {
-            if let info = model.presentAddPaths {
-                let list = info.paths.joined(separator: "\n")
-                Text("""
-                To use \(Constants.userAppName)’s command-line tools, add the following directories to your PATH:
+        .akAlert(presentedValue: $model.presentAddPaths) { info in
+            AKAlertContent(title: "Add tools to PATH",
+                    desc: """
+                          To use \(Constants.userAppName)’s command-line tools, add the following directories to your PATH:
 
-                \(list)
-                """)
-            }
+                          \(info.paths.joined(separator: "\n"))
+                          """)
         }
-        .alert("Sign in", isPresented: .constant(model.mdmSsoDomain != nil && !model.drmState.isSignedIn)) {
-            Button("Sign In") {
-                model.presentAuth = true
-            }
-
-            Button("Quit") {
+        .akAlert("Sign in", isPresented: $model.presentForceSignIn,
+                desc: { "Your organization requires you to sign in to \(Constants.userAppName)." },
+                button1Label: "Sign In",
+                button1Action: { model.presentAuth = true },
+                button2Label: "Quit",
                 // clean shutdown flow
-                NSApp.terminate(nil)
-            }
-        } message: {
-            Text("Your organization requires you to sign in to \(Constants.userAppName).")
-        }
+                button2Action: { NSApp.terminate(nil) })
     }
 }
 

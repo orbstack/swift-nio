@@ -133,30 +133,27 @@ struct DockerMigrationWindow: View {
                 }
             }
         }
-        .alert(model.entityMigrationStarted ? "Some data couldn’t be migrated" : "Failed to start migration",
-               isPresented: $presentErrors)
-        {
-            Button("OK", role: .cancel) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    windowHolder.window?.close()
-                }
-            }
-        } message: {
-            Text(truncateError(description: model.errors.joined(separator: "\n")))
-        }
-        .alert("Replace existing data?", isPresented: $presentConfirmExisting) {
-            Button("Cancel", role: .cancel) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    windowHolder.window?.close()
-                }
-            }
-            Button("Migrate", role: .destructive) {
-                model.start()
-                presentConfirmExisting = false
-            }
-        } message: {
-            Text("You already have Docker containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results.")
-        }
+        .akAlert(model.entityMigrationStarted ? "Some data couldn’t be migrated" : "Failed to start migration",
+               isPresented: $presentErrors,
+                desc: { truncateError(description: model.errors.joined(separator: "\n")) },
+                button1Label: "OK",
+                button1Action: {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        windowHolder.window?.close()
+                    }
+                })
+        .akAlert("Replace existing data?", isPresented: $presentConfirmExisting,
+                desc: "You already have Docker containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results.",
+                button1Label: "Migrate",
+                button1Action: {
+                    model.start()
+                },
+                button2Label: "Cancel",
+                button2Action: {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        windowHolder.window?.close()
+                    }
+                })
         .frame(width: 450)
     }
 }

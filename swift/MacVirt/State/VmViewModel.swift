@@ -413,11 +413,11 @@ private func fmtRpc(_ error: Error) -> String {
     }
 }
 
-struct ProfileChangedAlert {
+struct ProfileChangedAlert: Equatable {
     let profileRelPath: String
 }
 
-struct AddPathsAlert {
+struct AddPathsAlert: Equatable {
     let paths: [String]
 }
 
@@ -476,7 +476,7 @@ class VmViewModel: ObservableObject {
     }
 
     @Published private(set) var containers: [ContainerRecord]?
-    @Published private(set) var error: VmError?
+    @Published var error: VmError?
 
     // vmgr basic state
     @Published private(set) var appliedConfig: VmConfig? // usually from last start
@@ -521,8 +521,7 @@ class VmViewModel: ObservableObject {
     @Published private(set) var dockerEnableIPv6 = false
     @Published var dockerConfigJson = "{\n}"
 
-    // cache for UI - one time on app start
-    let mdmSsoDomain = Defaults[.mdmSsoDomain]
+    @Published var presentForceSignIn = false
 
     private var dockerSystemDfRunning = false
 
@@ -558,6 +557,7 @@ class VmViewModel: ObservableObject {
                     }
                     if let drmState = event.drmState {
                         self.drmState = drmState
+                        self.updateForceSignIn()
                     }
                 }
 
@@ -622,6 +622,8 @@ class VmViewModel: ObservableObject {
                 self.setError(.eventDecodeError(cause: error))
             }
         }.store(in: &cancellables)
+
+        updateForceSignIn()
     }
 
     private func advanceStateAsync(_ state: VmState) {
@@ -1303,10 +1305,6 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func dismissError() {
-        error = nil
-    }
-
     func tryLoadDockerConfig() {
         do {
             let jsonText = try String(contentsOf: URL(fileURLWithPath: Files.dockerDaemonConfig), encoding: .utf8)
@@ -1484,5 +1482,9 @@ class VmViewModel: ObservableObject {
             state.wrappedValue = newValue
             trySetConfigKey(keyPath, newValue)
         }
+    }
+
+    func updateForceSignIn() {
+        presentForceSignIn = Defaults[.mdmSsoDomain] != nil && !drmState.isSignedIn
     }
 }

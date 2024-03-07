@@ -18,6 +18,7 @@ private class AuthViewModel: ObservableObject {
 }
 
 struct AuthView: View {
+    @EnvironmentObject var vmModel: VmViewModel
     @StateObject private var model = AuthViewModel()
     @StateObject private var windowHolder = WindowHolder()
 
