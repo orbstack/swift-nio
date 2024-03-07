@@ -357,10 +357,10 @@ RUN apk add --no-cache \
     # basic
     chrony eudev \
     # disk
-    sfdisk nfs-utils \
+    sfdisk \
     # scon deps
     lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz btrfs-progs \
-    # modprobe metadata
+    # modprobe metadata (UNINSTALLED later in release)
     kmod \
     # qemu for other archs, common between x86 and arm.
     # latest is probably best, esp. for riscv which is less mature
@@ -376,16 +376,6 @@ RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
     apk add --no-cache neovim iperf3 iproute2 agetty openssh tmux htop strace curl evtest powertop sysstat quota-tools util-linux tcpdump ethtool mtr bind btrfs-progs-extra f2fs-tools fish go git lxc-dev alpine-sdk socat llvm clang linux-headers libbpf-dev cargo
 fi
-EOT
-
-# extract needed nfs utils, discard the rest to reduce size (python)
-RUN <<EOT sh -eux
-mkdir /opt/pkg
-cd /opt/pkg
-
-cp $(command -v rpc.nfsd) /opt/pkg/
-
-apk del nfs-utils
 EOT
 
 # qemu for arm64 host

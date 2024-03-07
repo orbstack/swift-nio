@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/util/sysx"
+	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -48,6 +51,9 @@ const (
 
 	nfsExportRoot    = "/nfs/root/ro"
 	nfsAllowedClient = netconf.VnetGatewayIP4
+
+	nfsdListenAddr = netconf.VnetGuestIP4
+	nfsdThreads    = 8
 )
 
 type nfsExportEntry struct {
@@ -55,6 +61,41 @@ type nfsExportEntry struct {
 	anonUid int
 	anonGid int
 	fsid    uint32
+}
+
+func startNfsd() error {
+	// only nfs 4
+	err := os.WriteFile("/proc/fs/nfsd/versions", []byte("-2 -3 +4 +4.1 +4.2\n"), 0)
+	if err != nil {
+		return err
+	}
+
+	// listen on IPv4 port 2049 on vnet interface, nonblock off
+	listener, err := net.Listen("tcp", nfsdListenAddr+":"+strconv.Itoa(ports.GuestNFS))
+	if err != nil {
+		return err
+	}
+
+	listenerFile, err := listener.(*net.TCPListener).File()
+	listener.Close() // dup
+	if err != nil {
+		return err
+	}
+	defer listenerFile.Close()
+
+	// write fd to /proc/fs/nfsd/portlist
+	err = os.WriteFile("/proc/fs/nfsd/portlist", []byte(strconv.Itoa(int(listenerFile.Fd()))), 0)
+	if err != nil {
+		return err
+	}
+
+	// start with 8 threads
+	err = os.WriteFile("/proc/fs/nfsd/threads", []byte(strconv.Itoa(nfsdThreads)), 0)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func serveAuthUnixIp() error {

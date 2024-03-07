@@ -130,8 +130,7 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 			if data, err := os.ReadFile("/proc/fs/nfsd/portlist"); err == nil && len(strings.TrimSpace(string(data))) > 0 {
 				logrus.Debug("nfs already initialized")
 			} else {
-				// 8 threads
-				err := util.RunInheritOut("/opt/pkg/rpc.nfsd", "8", "--no-udp", "--no-nfs-version", "3")
+				err := startNfsd()
 				if err != nil {
 					logrus.WithError(err).Error("failed to start nfs")
 					return

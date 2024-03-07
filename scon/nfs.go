@@ -349,7 +349,6 @@ func (m *NfsMirrorManager) updateExportsLocked() error {
 			exp.flags |= NFSEXP_READONLY
 		}
 
-		println("add export: ", path)
 		exports[path] = exp
 	}
 
