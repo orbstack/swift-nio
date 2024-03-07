@@ -201,10 +201,8 @@ async fn stop_nfs() -> Result<(), Box<dyn Error>> {
     std::fs::write("/proc/net/rpc/nfsd.fh/flush", format!("{}\n", now))?;
     std::fs::write("/proc/net/rpc/nfsd.export/flush", format!("{}\n", now))?;
 
-    tokio::process::Command::new("/opt/pkg/rpc.nfsd")
-        .arg("0")
-        .status()
-        .await?;
+    // stop nfsd (set threads to 0)
+    std::fs::write("/proc/fs/nfsd/threads", "0")?;
 
     Ok(())
 }
