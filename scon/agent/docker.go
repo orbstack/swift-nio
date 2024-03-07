@@ -61,10 +61,10 @@ type DockerAgent struct {
 	fullImageCache map[string]cachedImage
 
 	// refreshing w/ debounce+diff ensures consistent snapshots
-	containerRefreshDebounce syncx.FuncDebounce
-	networkRefreshDebounce   syncx.FuncDebounce
-	volumeRefreshDebounce    syncx.FuncDebounce
-	imageRefreshDebounce     syncx.FuncDebounce
+	containerRefreshDebounce syncx.LeadingFuncDebounce
+	networkRefreshDebounce   syncx.LeadingFuncDebounce
+	volumeRefreshDebounce    syncx.LeadingFuncDebounce
+	imageRefreshDebounce     syncx.LeadingFuncDebounce
 	uiEventDebounce          syncx.LeadingFuncDebounce
 	pendingUIEntities        [uitypes.DockerEntityMax_]bool
 
@@ -105,7 +105,7 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 		tlsProxyEnabled: isTls,
 	}
 
-	dockerAgent.containerRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+	dockerAgent.containerRefreshDebounce = *syncx.NewLeadingFuncDebounce(dockerRefreshDebounce, func() {
 		dockerAgent.incWakeRef()
 		defer dockerAgent.decWakeRef()
 
@@ -114,7 +114,7 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 			logrus.WithError(err).Error("failed to refresh containers")
 		}
 	})
-	dockerAgent.networkRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+	dockerAgent.networkRefreshDebounce = *syncx.NewLeadingFuncDebounce(dockerRefreshDebounce, func() {
 		dockerAgent.incWakeRef()
 		defer dockerAgent.decWakeRef()
 
@@ -123,7 +123,7 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 			logrus.WithError(err).Error("failed to refresh networks")
 		}
 	})
-	dockerAgent.volumeRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+	dockerAgent.volumeRefreshDebounce = *syncx.NewLeadingFuncDebounce(dockerRefreshDebounce, func() {
 		dockerAgent.incWakeRef()
 		defer dockerAgent.decWakeRef()
 
@@ -132,7 +132,7 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 			logrus.WithError(err).Error("failed to refresh volumes")
 		}
 	})
-	dockerAgent.imageRefreshDebounce = syncx.NewFuncDebounce(dockerRefreshDebounce, func() {
+	dockerAgent.imageRefreshDebounce = *syncx.NewLeadingFuncDebounce(dockerRefreshDebounce, func() {
 		dockerAgent.incWakeRef()
 		defer dockerAgent.decWakeRef()
 
@@ -141,7 +141,7 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 			logrus.WithError(err).Error("failed to refresh networks")
 		}
 	})
-	dockerAgent.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
+	dockerAgent.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {
 		dockerAgent.incWakeRef()
 		defer dockerAgent.decWakeRef()
 
@@ -152,7 +152,7 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 
 		// do not consider us fully started (freezable) until first event is sent.
 		dockerAgent.InitDone.Set(true)
-	}, uitypes.UIEventDebounce)
+	})
 
 	if isK8s {
 		dockerAgent.k8s = &K8sAgent{
