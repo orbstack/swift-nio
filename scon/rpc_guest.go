@@ -125,9 +125,6 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 
 // note: this is for start/stop, not create/delete
 func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff, _ *None) error {
-	// must not release lock - bpf is protected by c.mu
-	s.dockerMachine.mu.RLock()
-	defer s.dockerMachine.mu.RUnlock()
 	dockerBpf := s.dockerMachine.bpf // nil if not running anymore
 
 	// IMPORTANT: must not return from this function before reading and closing fds from AddedRootfsFdxSeqs
@@ -219,7 +216,7 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 				}
 			}
 
-			return s.dockerMachine.bpf.CfwdUpdateNetNamespaces(entries)
+			return dockerBpf.CfwdUpdateNetNamespaces(entries)
 		})
 		if err != nil {
 			return fmt.Errorf("update cfwd: %w", err)

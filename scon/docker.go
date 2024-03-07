@@ -693,7 +693,7 @@ func (h *DockerHooks) PostStart(c *Container) error {
 	// prevent freeze if k8s enabled
 	// too complicated to freeze it due to async pod lifecycle
 	if c.manager.k8sEnabled {
-		freezer.incRefCLocked()
+		freezer.IncRef()
 	}
 
 	// trigger an initial freeze once docker starts

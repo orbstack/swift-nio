@@ -17,8 +17,8 @@ var (
 
 func (c *Container) GetIPAddrs() ([]net.IP, error) {
 	// race is OK as long as it doesn't race with writer (start/stop)
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.ipAddrsMu.Lock()
+	defer c.ipAddrsMu.Unlock()
 
 	return c.getIPAddrsLocked()
 }

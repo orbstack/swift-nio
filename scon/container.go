@@ -68,6 +68,7 @@ type Container struct {
 	fwdDirtyFlags     uint32
 	agent             atomic.Pointer[agent.Client]
 	bpf               *bpf.ContainerBpfManager
+	ipAddrsMu         syncx.Mutex
 	ipAddrs           []net.IP
 	initPid           int
 	initPidFile       *os.File
@@ -216,7 +217,7 @@ func (c *Container) refreshState() error {
 	return nil
 }
 
-func (c *Container) addDeviceNodeLocked(src string, dst string) error {
+func (c *Container) addDeviceNode(src string, dst string) error {
 	err := c.lxc.AddDeviceNode(src, dst)
 	if err != nil {
 		return err
@@ -225,20 +226,10 @@ func (c *Container) addDeviceNodeLocked(src string, dst string) error {
 	return nil
 }
 
-func (c *Container) addDeviceNode(src string, dst string) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.addDeviceNodeLocked(src, dst)
-}
-
 func (c *Container) removeDeviceNode(src string, dst string) error {
-	// lock not needed: UseAgent takes rlock
-
 	// can't use lxc.RemoveDeviceNode because node is already gone from host
 	// just delete the node in the container
 	// don't bother to update the devices cgroup bpf filter
-	// TODO use proc root fd
 	err := c.UseMountNs(func() error {
 		return os.Remove(dst)
 	})
@@ -252,8 +243,8 @@ func (c *Container) removeDeviceNode(src string, dst string) error {
 func (c *Container) acquireAgent(needFreezerRef bool, needLock bool) (*Freezer, *agent.Client, error) {
 	// only keep lock for duration of agent acquire
 	if needLock {
-		c.mu.Lock()
-		defer c.mu.Unlock()
+		c.mu.RLock()
+		defer c.mu.RUnlock()
 	}
 
 	if !c.Running() {
@@ -265,14 +256,14 @@ func (c *Container) acquireAgent(needFreezerRef bool, needLock bool) (*Freezer, 
 	if needFreezerRef {
 		freezer = c.Freezer()
 		if freezer != nil {
-			freezer.incRefCLocked()
+			freezer.IncRef()
 		}
 	}
 
 	agent := c.agent.Load()
 	if agent == nil {
 		if freezer != nil {
-			freezer.decRefCLocked()
+			freezer.DecRef()
 		}
 		return nil, nil, ErrAgentDead
 	}
@@ -289,12 +280,7 @@ func (c *Container) useAgentInternal(fn func(*agent.Client) error, needFreezerRe
 	}
 
 	if freezer != nil {
-		if needLock {
-			// relock if needed to dec ref
-			defer freezer.DecRef()
-		} else {
-			defer freezer.decRefCLocked()
-		}
+		defer freezer.DecRef()
 	}
 
 	// ... so we make the actual agent call outside the lock (if caller isn't locked)

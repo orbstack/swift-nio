@@ -13,6 +13,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -40,6 +41,8 @@ type PmonEvent struct {
 type CfwdContainerMeta = lfwdCfwdContainerMeta
 
 type ContainerBpfManager struct {
+	mu syncx.Mutex
+
 	cgPath      string
 	netnsCookie uint64
 
@@ -67,8 +70,10 @@ func NewContainerBpfManager(cgPath string, netnsCookie uint64) (*ContainerBpfMan
 	}, nil
 }
 
-// called with c.mu held
 func (b *ContainerBpfManager) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	var errs []error
 	for _, c := range b.closers {
 		err := c.Close()
@@ -85,8 +90,10 @@ func (b *ContainerBpfManager) Close() error {
 	return errors.Join(errs...)
 }
 
-// called with c.mu held
 func (b *ContainerBpfManager) LfwdBlockPort(port uint16) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.lfwdBlockedPorts == nil {
 		return nil
 	}
@@ -103,8 +110,10 @@ func (b *ContainerBpfManager) LfwdBlockPort(port uint16) error {
 	return nil
 }
 
-// called with c.mu held
 func (b *ContainerBpfManager) LfwdUnblockPort(port uint16) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.lfwdBlockedPorts == nil {
 		return nil
 	}
@@ -121,8 +130,7 @@ func (b *ContainerBpfManager) LfwdUnblockPort(port uint16) error {
 	return nil
 }
 
-// called with c.mu held
-func (b *ContainerBpfManager) attachOneCg(typ ebpf.AttachType, prog *ebpf.Program) error {
+func (b *ContainerBpfManager) attachOneCgLocked(typ ebpf.AttachType, prog *ebpf.Program) error {
 	l, err := link.AttachCgroup(link.CgroupOptions{
 		Path:    b.cgPath,
 		Attach:  typ,
@@ -135,7 +143,7 @@ func (b *ContainerBpfManager) attachOneCg(typ ebpf.AttachType, prog *ebpf.Progra
 	return nil
 }
 
-func (b *ContainerBpfManager) attachOneKretprobe(prog *ebpf.Program, symbol string) error {
+func (b *ContainerBpfManager) attachOneKretprobeLocked(prog *ebpf.Program, symbol string) error {
 	l, err := link.Kretprobe(symbol, prog, nil)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
@@ -144,8 +152,10 @@ func (b *ContainerBpfManager) attachOneKretprobe(prog *ebpf.Program, symbol stri
 	return nil
 }
 
-// called with c.mu held
 func (b *ContainerBpfManager) AttachLfwd() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	// must load a new instance to set a different netns cookie in config map
 	// maps are per-program instance
 	// and this is an unpinned program (no ref in /sys/fs/bpf), so it'll be destroyed
@@ -170,30 +180,30 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 	}
 	b.closers = append(b.closers, objs)
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet4Connect, objs.LfwdConnect4)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupInet4Connect, objs.LfwdConnect4)
 	if err != nil {
 		return err
 	}
 
 	// lfwd
-	err = b.attachOneCg(ebpf.AttachCGroupUDP4Sendmsg, objs.LfwdSendmsg4)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupUDP4Sendmsg, objs.LfwdSendmsg4)
 	if err != nil {
 		return err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCgroupInet4GetPeername, objs.LfwdGetpeername4)
+	err = b.attachOneCgLocked(ebpf.AttachCgroupInet4GetPeername, objs.LfwdGetpeername4)
 	if err != nil {
 		return err
 	}
-	err = b.attachOneCg(ebpf.AttachCGroupInet6Connect, objs.LfwdConnect6)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupInet6Connect, objs.LfwdConnect6)
 	if err != nil {
 		return err
 	}
-	err = b.attachOneCg(ebpf.AttachCGroupUDP6Sendmsg, objs.LfwdSendmsg6)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupUDP6Sendmsg, objs.LfwdSendmsg6)
 	if err != nil {
 		return err
 	}
-	err = b.attachOneCg(ebpf.AttachCgroupInet6GetPeername, objs.LfwdGetpeername6)
+	err = b.attachOneCgLocked(ebpf.AttachCgroupInet6GetPeername, objs.LfwdGetpeername6)
 	if err != nil {
 		return err
 	}
@@ -206,7 +216,7 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 	return nil
 }
 
-func (b *ContainerBpfManager) attachCfwdNetns(prog *ebpf.Program, key string) error {
+func (b *ContainerBpfManager) attachCfwdNetnsLocked(prog *ebpf.Program, key string) error {
 	nsFd, err := unix.Open("/run/docker/netns/"+key, unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return fmt.Errorf("open netns: %w", err)
@@ -234,8 +244,10 @@ func checkIsNsfs(entry fs.DirEntry) bool {
 }
 
 // NOTE: runs in container mount ns
-// called with c.mu held for read
 func (b *ContainerBpfManager) CfwdUpdateNetNamespaces(entries []fs.DirEntry) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.cfwdNetnsProg == nil {
 		return nil
 	}
@@ -255,7 +267,7 @@ func (b *ContainerBpfManager) CfwdUpdateNetNamespaces(entries []fs.DirEntry) err
 
 		// this is new
 		logrus.WithField("netns", nsKey).Debug("attach cfwd netns")
-		err := b.attachCfwdNetns(b.cfwdNetnsProg, nsKey)
+		err := b.attachCfwdNetnsLocked(b.cfwdNetnsProg, nsKey)
 		if err != nil {
 			return err
 		}
@@ -284,8 +296,10 @@ func ipToCfwdKey(ip net.IP) lfwdCfwdIpKey {
 	return key
 }
 
-// called with c.mu held for read
 func (b *ContainerBpfManager) CfwdAddHostIP(ip net.IP) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.cfwdHostIps == nil {
 		return nil
 	}
@@ -293,8 +307,10 @@ func (b *ContainerBpfManager) CfwdAddHostIP(ip net.IP) error {
 	return b.cfwdHostIps.Put(ipToCfwdKey(ip), byte(1))
 }
 
-// called with c.mu held for read
 func (b *ContainerBpfManager) CfwdRemoveHostIP(ip net.IP) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.cfwdHostIps == nil {
 		return nil
 	}
@@ -302,8 +318,10 @@ func (b *ContainerBpfManager) CfwdRemoveHostIP(ip net.IP) error {
 	return b.cfwdHostIps.Delete(ipToCfwdKey(ip))
 }
 
-// called with c.mu held for read
 func (b *ContainerBpfManager) CfwdAddContainerMeta(ip net.IP, meta CfwdContainerMeta) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.cfwdContainerMetas == nil {
 		return nil
 	}
@@ -311,8 +329,10 @@ func (b *ContainerBpfManager) CfwdAddContainerMeta(ip net.IP, meta CfwdContainer
 	return b.cfwdContainerMetas.Put(ipToCfwdKey(ip), meta)
 }
 
-// called with c.mu held for read
 func (b *ContainerBpfManager) CfwdRemoveContainerMeta(ip net.IP) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.cfwdContainerMetas == nil {
 		return nil
 	}
@@ -320,8 +340,10 @@ func (b *ContainerBpfManager) CfwdRemoveContainerMeta(ip net.IP) error {
 	return b.cfwdContainerMetas.Delete(ipToCfwdKey(ip))
 }
 
-// called with c.mu held
 func (b *ContainerBpfManager) AttachPmon(includeNft bool) (*ringbuf.Reader, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	// k3s cgroup ID = inode
 	var cgroupID uint64
 	if includeNft {
@@ -366,50 +388,50 @@ func (b *ContainerBpfManager) AttachPmon(includeNft bool) (*ringbuf.Reader, erro
 	}
 	b.closers = append(b.closers, &objs)
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet4PostBind, objs.PmonPostBind4)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupInet4PostBind, objs.PmonPostBind4)
 	if err != nil {
 		return nil, err
 	}
-	err = b.attachOneCg(ebpf.AttachCGroupInet4Connect, objs.PmonConnect4)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupInet4Connect, objs.PmonConnect4)
 	if err != nil {
 		return nil, err
 	}
-	err = b.attachOneCg(ebpf.AttachCGroupUDP4Recvmsg, objs.PmonRecvmsg4)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupUDP4Recvmsg, objs.PmonRecvmsg4)
 	if err != nil {
 		return nil, err
 	}
-	err = b.attachOneCg(ebpf.AttachCGroupUDP4Sendmsg, objs.PmonSendmsg4)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupUDP4Sendmsg, objs.PmonSendmsg4)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.attachOneCg(ebpf.AttachCGroupInet6PostBind, objs.PmonPostBind6)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupInet6PostBind, objs.PmonPostBind6)
 	if err != nil {
 		return nil, err
 	}
-	err = b.attachOneCg(ebpf.AttachCGroupInet6Connect, objs.PmonConnect6)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupInet6Connect, objs.PmonConnect6)
 	if err != nil {
 		return nil, err
 	}
-	err = b.attachOneCg(ebpf.AttachCGroupUDP6Recvmsg, objs.PmonRecvmsg6)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupUDP6Recvmsg, objs.PmonRecvmsg6)
 	if err != nil {
 		return nil, err
 	}
-	err = b.attachOneCg(ebpf.AttachCGroupUDP6Sendmsg, objs.PmonSendmsg6)
+	err = b.attachOneCgLocked(ebpf.AttachCGroupUDP6Sendmsg, objs.PmonSendmsg6)
 	if err != nil {
 		return nil, err
 	}
-	err = b.attachOneCg(ebpf.AttachCgroupInetSockRelease, objs.PmonSockRelease)
+	err = b.attachOneCgLocked(ebpf.AttachCgroupInetSockRelease, objs.PmonSockRelease)
 	if err != nil {
 		return nil, err
 	}
 
 	if includeNft {
-		err = b.attachOneKretprobe(objs.NfTablesNewrule, "nf_tables_newrule")
+		err = b.attachOneKretprobeLocked(objs.NfTablesNewrule, "nf_tables_newrule")
 		if err != nil {
 			return nil, err
 		}
-		err = b.attachOneKretprobe(objs.NfTablesDelrule, "nf_tables_delrule")
+		err = b.attachOneKretprobeLocked(objs.NfTablesDelrule, "nf_tables_delrule")
 		if err != nil {
 			return nil, err
 		}

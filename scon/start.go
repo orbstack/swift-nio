@@ -737,7 +737,7 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 		return err
 	}
 	for _, src := range extraDevSrcs {
-		err := c.addDeviceNodeLocked(src, src)
+		err := c.addDeviceNode(src, src)
 		if err != nil {
 			return err
 		}

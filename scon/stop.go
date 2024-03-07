@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/lxc/go-lxc"
@@ -49,10 +50,10 @@ func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState,
 	// must unfreeze so agent responds
 	freezer := c.Freezer()
 	if freezer != nil {
-		freezer.incRefCLocked()
+		freezer.IncRef()
 		// unfreeze to prevent it from getting stuck in case of error (failed stop)
 		// we close the freezer so it's a no-op if it's not stuck
-		defer freezer.decRefCLocked()
+		defer freezer.DecRef()
 	}
 
 	// tell agent to prepare for stop
@@ -133,7 +134,9 @@ func (c *Container) onStopLocked() error {
 	// remove from mDNS registry
 	c.manager.net.mdnsRegistry.RemoveMachine(c)
 	// discard cached IP addresses
+	c.ipAddrsMu.Lock()
 	c.ipAddrs = nil
+	c.ipAddrsMu.Unlock()
 
 	// stop bpf
 	if c.bpf != nil {
@@ -152,6 +155,7 @@ func (c *Container) onStopLocked() error {
 	c.initPidFile = nil
 
 	// cancel listener update
+	atomic.StoreUint32(&c.fwdDirtyFlags, 0)
 	c.autofwdDebounce.Cancel()
 
 	// stop agent (after listeners removed and processes reaped)

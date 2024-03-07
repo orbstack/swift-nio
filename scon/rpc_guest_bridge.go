@@ -268,19 +268,18 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 
 	// add host ip to cfwd bpf
 	// TODO: fix potential race if host connects after interface is up, but before this
-	s.dockerMachine.mu.RLock()
-	defer s.dockerMachine.mu.RUnlock()
-	if s.dockerMachine.bpf != nil {
+	dockerBpf := s.dockerMachine.bpf
+	if dockerBpf != nil {
 		if config.IP4Subnet.IsValid() {
 			hostIP := config.HostIP4().IP
-			err := s.dockerMachine.bpf.CfwdAddHostIP(hostIP)
+			err := dockerBpf.CfwdAddHostIP(hostIP)
 			if err != nil {
 				return fmt.Errorf("add host ip %+v to cfwd: %w", hostIP, err)
 			}
 		}
 		if config.IP6Subnet.IsValid() {
 			hostIP := config.HostIP6().IP
-			err := s.dockerMachine.bpf.CfwdAddHostIP(hostIP)
+			err := dockerBpf.CfwdAddHostIP(hostIP)
 			if err != nil {
 				return fmt.Errorf("add host ip %+v to cfwd: %w", hostIP, err)
 			}
@@ -330,19 +329,18 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 	}
 
 	// remove host ip from cfwd bpf
-	s.dockerMachine.mu.RLock()
-	defer s.dockerMachine.mu.RUnlock()
-	if s.dockerMachine.bpf != nil {
+	dockerBpf := s.dockerMachine.bpf
+	if dockerBpf != nil {
 		if config.IP4Subnet.IsValid() {
 			hostIP := config.HostIP4().IP
-			err := s.dockerMachine.bpf.CfwdRemoveHostIP(hostIP)
+			err := dockerBpf.CfwdRemoveHostIP(hostIP)
 			if err != nil {
 				return fmt.Errorf("remove host ip %+v from cfwd: %w", hostIP, err)
 			}
 		}
 		if config.IP6Subnet.IsValid() {
 			hostIP := config.HostIP6().IP
-			err := s.dockerMachine.bpf.CfwdRemoveHostIP(hostIP)
+			err := dockerBpf.CfwdRemoveHostIP(hostIP)
 			if err != nil {
 				return fmt.Errorf("remove host ip %+v from cfwd: %w", hostIP, err)
 			}
