@@ -738,19 +738,21 @@ func (h *HcontrolServer) InternalUnmountNfs() error {
 		return nil
 	}
 
-	// attempt to close nfs holder
-	err := h.closeNfsHolder()
-	if err != nil {
-		logrus.WithError(err).Error("failed to close NFS holder")
-	}
-
+	// force unmounting NFS always works on macOS, even if files are open
 	logrus.Info("Unmounting NFS...")
-	err = util.WithTimeout1(func() error {
+	err := util.WithTimeout1(func() error {
 		return nfsmnt.UnmountNfs()
 	}, nfsUnmountTimeout)
 	if err != nil {
 		logrus.WithError(err).Error("NFS unmount failed")
 		return err
+	}
+
+	// attempt to close nfs holder after unmount
+	// should always succeed since force unmount should succeed
+	err = h.closeNfsHolder()
+	if err != nil {
+		logrus.WithError(err).Error("failed to close NFS holder")
 	}
 
 	logrus.Info("NFS unmounted")
