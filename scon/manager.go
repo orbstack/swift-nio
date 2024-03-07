@@ -163,7 +163,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 	}
 	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db, mgr)
 	mgr.nfsForAll = NewMultiNfsMirror(mgr.nfsRoot, mgr.nfsForMachines)
-	mgr.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
+	mgr.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {
 		// wait for initial starts
 		mgr.uiInitContainers.Wait()
 
@@ -178,7 +178,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 				CurrentMachines: records,
 			},
 		})
-	}, uitypes.UIEventDebounce)
+	})
 
 	// prevent UI from getting an event
 	mgr.uiInitContainers.Add(1)
@@ -294,7 +294,7 @@ func (m *ConManager) Start() error {
 
 	// release the initial ui lock, now that container start jobs are pending, and trigger
 	m.uiInitContainers.Done()
-	m.uiEventDebounce.Trigger()
+	m.uiEventDebounce.Call()
 
 	logrus.Info("started")
 	return nil
@@ -458,7 +458,7 @@ func (m *ConManager) removeContainer(c *Container) error {
 		return err
 	}
 
-	m.uiEventDebounce.Trigger()
+	m.uiEventDebounce.Call()
 
 	return nil
 }

@@ -9,13 +9,13 @@ func TestLeadingFuncDebounce(t *testing.T) {
 	t.Parallel()
 
 	var count int
-	debounced := NewLeadingFuncDebounce(func() {
+	debounced := NewLeadingFuncDebounce(100*time.Millisecond, func() {
 		count++
-	}, 100*time.Millisecond)
+	})
 
-	debounced.Trigger()
-	debounced.Trigger()
-	debounced.Trigger()
+	debounced.Call()
+	debounced.Call()
+	debounced.Call()
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -23,15 +23,15 @@ func TestLeadingFuncDebounce(t *testing.T) {
 		t.Fatal("expected count to be 2")
 	}
 
-	debounced.Trigger()
+	debounced.Call()
 	time.Sleep(200 * time.Millisecond)
 
 	if count != 3 {
 		t.Fatal("expected count to be 3; got", count)
 	}
 
-	debounced.Trigger()
-	debounced.Trigger()
+	debounced.Call()
+	debounced.Call()
 	time.Sleep(50 * time.Millisecond)
 
 	if count != 4 {
@@ -44,14 +44,14 @@ func TestLeadingFuncDebounceSlow(t *testing.T) {
 	t.Parallel()
 
 	var count int
-	debounced := NewLeadingFuncDebounce(func() {
+	debounced := NewLeadingFuncDebounce(100*time.Millisecond, func() {
 		time.Sleep(200 * time.Millisecond)
 		count++
-	}, 100*time.Millisecond)
+	})
 
-	debounced.Trigger()
-	debounced.Trigger()
-	debounced.Trigger()
+	debounced.Call()
+	debounced.Call()
+	debounced.Call()
 
 	time.Sleep(300 * time.Millisecond)
 
@@ -61,7 +61,7 @@ func TestLeadingFuncDebounceSlow(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		before := time.Now()
-		debounced.Trigger()
+		debounced.Call()
 		if time.Since(before) > 100*time.Millisecond {
 			t.Fatal("expected trigger to be fast")
 		}
@@ -77,16 +77,16 @@ func TestLeadingFuncDebounceRealWorld(t *testing.T) {
 	t.Parallel()
 
 	var count int
-	debounced := NewLeadingFuncDebounce(func() {
+	debounced := NewLeadingFuncDebounce(100*time.Millisecond, func() {
 		time.Sleep(1 * time.Second)
 		count++
-	}, 100*time.Millisecond)
+	})
 
-	debounced.Trigger()
+	debounced.Call()
 
 	time.Sleep(50 * time.Millisecond)
 
-	debounced.Trigger()
+	debounced.Call()
 
 	time.Sleep(3 * time.Second)
 

@@ -718,14 +718,14 @@ func runVmManager() {
 		hcontrol:     hcServer,
 	}
 	controlServer.setupUserDetailsOnce = sync.OnceValues(controlServer.doGetUserDetailsAndSetupEnv)
-	controlServer.uiEventDebounce = *syncx.NewLeadingFuncDebounce(func() {
+	controlServer.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {
 		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 			Vmgr: &uitypes.VmgrEvent{
 				VmConfig: vmconfig.Get(),
 				DrmState: drmClient.GenerateUIState(),
 			},
 		})
-	}, uitypes.UIEventDebounce)
+	})
 	vmcontrolCleanup, err := controlServer.Serve()
 	check(err)
 	defer vmcontrolCleanup()

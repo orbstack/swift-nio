@@ -665,7 +665,7 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 	serviceInformer := informerFactory.Core().V1().Services()
 	serviceLister := serviceInformer.Lister()
 
-	debounce := vmgrsyncx.NewLeadingFuncDebounce(func() {
+	debounce := vmgrsyncx.NewLeadingFuncDebounce(k8sUIEventDebounce, func() {
 		pods, err := podLister.List(labels.Everything())
 		if err != nil {
 			logrus.WithError(err).Error("failed to list pods")
@@ -692,12 +692,12 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 				CurrentServices: services,
 			},
 		})
-	}, k8sUIEventDebounce)
+	})
 
 	handler := cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj any) { debounce.Trigger() },
-		UpdateFunc: func(oldObj, newObj any) { debounce.Trigger() },
-		DeleteFunc: func(obj any) { debounce.Trigger() },
+		AddFunc:    func(obj any) { debounce.Call() },
+		UpdateFunc: func(oldObj, newObj any) { debounce.Call() },
+		DeleteFunc: func(obj any) { debounce.Call() },
 	}
 	podInformer.Informer().AddEventHandler(handler)
 	serviceInformer.Informer().AddEventHandler(handler)

@@ -16,14 +16,14 @@ type LeadingFuncDebounce struct {
 	pending  bool
 }
 
-func NewLeadingFuncDebounce(fn func(), duration time.Duration) *LeadingFuncDebounce {
+func NewLeadingFuncDebounce(duration time.Duration, fn func()) *LeadingFuncDebounce {
 	return &LeadingFuncDebounce{
 		fn:       fn,
 		duration: duration,
 	}
 }
 
-func (d *LeadingFuncDebounce) Trigger() {
+func (d *LeadingFuncDebounce) Call() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

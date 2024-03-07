@@ -187,7 +187,7 @@ func (s *VmControlServer) k8sClient() (*kubernetes.Clientset, error) {
 
 func (s *VmControlServer) GuiReportStarted(ctx context.Context) error {
 	s.hcontrol.K8sReportGuiStarted()
-	s.uiEventDebounce.Trigger()
+	s.uiEventDebounce.Call()
 	return nil
 }
 
@@ -453,7 +453,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 	// send new configs to GUI
 	go func() {
 		for range vmconfig.SubscribeDiff() {
-			s.uiEventDebounce.Trigger()
+			s.uiEventDebounce.Call()
 		}
 	}()
 

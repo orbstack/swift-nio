@@ -223,7 +223,7 @@ func (s *SconServer) InternalDeleteK8s(ctx context.Context) error {
 }
 
 func (s *SconServer) InternalGuiReportStarted(ctx context.Context) error {
-	s.m.uiEventDebounce.Trigger()
+	s.m.uiEventDebounce.Call()
 
 	// try refreshing docker too
 	c, err := s.m.GetByID(ContainerIDDocker)

@@ -379,7 +379,7 @@ func (d *DockerAgent) triggerUIEvent(entity uitypes.DockerEntity) {
 	defer d.mu.Unlock()
 
 	d.pendingUIEntities[entity] = true
-	d.uiEventDebounce.Trigger()
+	d.uiEventDebounce.Call()
 }
 
 func (d *DockerAgent) triggerAllUIEvents() {
@@ -389,7 +389,7 @@ func (d *DockerAgent) triggerAllUIEvents() {
 	for i := range d.pendingUIEntities {
 		d.pendingUIEntities[i] = true
 	}
-	d.uiEventDebounce.Trigger()
+	d.uiEventDebounce.Call()
 }
 
 func (d *DockerAgent) doSendUIEvent() error {

@@ -187,7 +187,7 @@ func (c *Container) persist() error {
 	}
 
 	// also notify UI of state change
-	c.manager.uiEventDebounce.Trigger()
+	c.manager.uiEventDebounce.Call()
 
 	return nil
 }
