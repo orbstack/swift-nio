@@ -158,8 +158,10 @@ func doMount(spec Spec) error {
 	}
 	fsLocations.WriteTo(&attrVals)
 
+	// subpath doesn't matter with nfsv4 + hacked up mount
+	// but on macOS 14.4+ Finder uses it for folder name, and :/ shows ':'
 	attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_MNTFROM
-	nfs_sys_prot.WriteNfsMattrMntfrom(&attrVals, "OrbStack:/")
+	nfs_sys_prot.WriteNfsMattrMntfrom(&attrVals, "OrbStack:/OrbStack")
 
 	if isUnix {
 		attrMask[0] |= 1 << nfs_sys_prot.NFS_MATTR_LOCAL_NFS_PORT
