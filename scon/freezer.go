@@ -16,22 +16,20 @@ var (
 )
 
 type Freezer struct {
+	mu        syncx.Mutex
 	container *Container
-	count     atomic.Int32
+	count     int
 	predicate func() (bool, error)
 	debounce  atomic.Pointer[syncx.FuncDebounce]
 }
 
-// freezer does not have its own lock
-// instead, it uses the container's lock
-// otherwise we run into inconsistent lock order issues
 func NewContainerFreezer(c *Container, debouncePeriod time.Duration, predicate func() (bool, error)) *Freezer {
 	f := &Freezer{
 		container: c,
+		// start with 1 ref
+		count:     1,
 		predicate: predicate,
 	}
-	// start with a ref
-	f.count.Store(1)
 	debounce := syncx.NewFuncDebounce(debouncePeriod, func() {
 		err := f.tryFreeze()
 		if err != nil {
@@ -44,20 +42,24 @@ func NewContainerFreezer(c *Container, debouncePeriod time.Duration, predicate f
 }
 
 func (f *Freezer) IncRef() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	debounce := f.debounce.Load()
 	if debounce == nil {
 		return
 	}
 
 	debounce.Cancel()
-	newCount := f.count.Add(1)
+	f.count++
+	newCount := f.count
 	if verboseDebug {
 		logrus.WithField("count", newCount).Debug("freezer inc ref")
 	}
 
 	if newCount == 1 {
 		logrus.Debug("freezer first ref, unfreezing")
-		err := f.doUnfreeze()
+		err := f.doUnfreezeLocked()
 		if err != nil {
 			logrus.WithError(err).Error("failed to thaw cfref on ref")
 		}
@@ -65,12 +67,16 @@ func (f *Freezer) IncRef() {
 }
 
 func (f *Freezer) DecRef() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	debounce := f.debounce.Load()
 	if debounce == nil {
 		return
 	}
 
-	newCount := f.count.Add(-1)
+	f.count--
+	newCount := f.count
 	if verboseDebug {
 		logrus.WithField("count", newCount).Debug("freezer dec ref")
 	}
@@ -85,12 +91,10 @@ func (f *Freezer) DecRef() {
 }
 
 func (f *Freezer) tryFreeze() error {
-	// take container lock
-	f.container.mu.Lock()
-	defer f.container.mu.Unlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-	count := f.count.Load()
-	if count > 0 {
+	if f.count > 0 {
 		logrus.Debug("freeze blocked: refs >= 1")
 		return nil
 	}
@@ -125,25 +129,15 @@ func (f *Freezer) tryFreeze() error {
 		return err
 	}
 
-	// one more sanity check: if there's another ref now, unfreeze
-	if f.count.Load() > 0 {
-		logrus.Warn("cfref count increased in critical section, undoing")
-		err := f.doUnfreeze()
-		if err != nil {
-			logrus.WithError(err).Error("failed to thaw cfref on ref inconsistency")
-		}
-	}
-
 	return nil
 }
 
-func (f *Freezer) doUnfreeze() error {
-	c := f.container
-	if !c.IsFrozen() {
+func (f *Freezer) doUnfreezeLocked() error {
+	if !f.container.IsFrozen() {
 		return nil
 	}
 
-	err := c.Unfreeze()
+	err := f.container.Unfreeze()
 	if err != nil && !errors.Is(err, lxc.ErrNotFrozen) {
 		return err
 	}
