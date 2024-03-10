@@ -15,48 +15,26 @@ use vmm::{
     },
 };
 
-const KRUNFW_MIN_VERSION: u32 = 4;
 const INIT_PATH: &str = "/init.krun";
-
-#[link(name = "krunfw")]
-extern "C" {
-    fn krunfw_get_version() -> u32;
-
-    fn krunfw_get_kernel(
-        load_addr: *mut u64,
-        entry_addr: *mut u64,
-        size: *mut libc::size_t,
-    ) -> *mut libc::c_char;
-}
 
 fn main() -> anyhow::Result<()> {
     // === Configure the VM === //
 
     let mut vmr = VmResources::default();
 
+    // read kernel
+    let mut kernel_bytes = std::fs::read("/Applications/OrbStack.app/Contents/Resources/assets/release/arm64/kernel")?;
+    // pad up to page size boundary
+    let zeros = vec![0u8; 16384 - (kernel_bytes.len() % 16384)];
+    kernel_bytes.extend_from_slice(&zeros);
+
     // Set the kernel image
     {
-        let krunfw_version = unsafe { krunfw_get_version() };
-        if krunfw_version < KRUNFW_MIN_VERSION {
-            anyhow::bail!("unsupported libkrunfw version: expected >= {KRUNFW_MIN_VERSION}, got {krunfw_version}");
-        }
-
-        let mut kernel_guest_addr: u64 = 0;
-        let mut kernel_entry_addr: u64 = 0;
-        let mut kernel_size: usize = 0;
-        let kernel_host_addr = unsafe {
-            krunfw_get_kernel(
-                &mut kernel_guest_addr as *mut u64,
-                &mut kernel_entry_addr as *mut u64,
-                &mut kernel_size as *mut usize,
-            )
-        };
-
         vmr.set_kernel_bundle(KernelBundle {
-            host_addr: kernel_host_addr as u64,
-            guest_addr: kernel_guest_addr,
-            entry_addr: kernel_entry_addr,
-            size: kernel_size,
+            host_addr: kernel_bytes.as_ptr() as u64,
+            guest_addr: 0x80000000,
+            entry_addr: 0x80000000,
+            size: kernel_bytes.len(),
         })
         .map_err(to_anyhow_error)?;
     }
@@ -108,6 +86,8 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Set its network config
+    // TODO: replace with virtio-net or add TSI to macvirt test kernel
+    /*
     {
         let vsock_device_config = VsockDeviceConfig {
             vsock_id: "vsock0".to_string(),
@@ -118,6 +98,7 @@ fn main() -> anyhow::Result<()> {
         vmr.set_vsock_device(vsock_device_config)
             .map_err(to_anyhow_error)?;
     }
+    */
 
     // === Start the VM === //
 
