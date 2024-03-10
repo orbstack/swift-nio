@@ -59,23 +59,24 @@ struct ElasticSearchHit {
 
 #[derive(Serialize, Deserialize)]
 struct ElasticSearchSource {
+    // to minimize risk of null/type breakage, parse as few fields as possible
     package_attr_name: String,
-    package_attr_set: String,
-    package_pname: String,
+    //package_attr_set: String,
+    //package_pname: String,
     package_pversion: String,
     package_platforms: Vec<String>,
     //package_outputs: Vec<String>,
     //package_default_output: String,
-    package_programs: Vec<String>,
+    //package_programs: Vec<String>,
     //package_license: Vec<String>,
-    package_license_set: Vec<String>,
+    //package_license_set: Vec<String>,
     // not String
     //package_maintainers: Vec<String>,
     //package_maintainers_set: Vec<String>,
-    package_description: String,
+    package_description: Option<String>,
     //package_longDescription: Option<String>,
     //package_hydra: Option<String>,
-    package_system: String,
+    //package_system: String,
     //package_homepage: Vec<String>,
 }
 
@@ -141,7 +142,7 @@ fn search_by_name(query: &str) -> anyhow::Result<Vec<ElasticSearchSource>> {
                                                 "case_insensitive": true
                                             }
                                         }
-                                    },
+                                    }
                                 ]
                             }
                         }
@@ -219,7 +220,11 @@ fn print_search_results(results: Vec<ElasticSearchSource>) {
         }
 
         println!("{}  {}", source.package_attr_name.bold(), source.package_pversion.dimmed());
-        println!("  {}", source.package_description);
+        if let Some(desc) = source.package_description {
+            println!("  {}", desc);
+        } else {
+            println!("  (no description)");
+        }
         if i < len - 1 {
             println!("");
         }
