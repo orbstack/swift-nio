@@ -159,7 +159,7 @@ ln -s /nix/orb/sys/.bin nix/var/nix/gcroots/orb-bin2
 ln -s /nix/orb/sys/share nix/var/nix/gcroots/orb-share
 ln -s /nix/orb/sys/etc nix/var/nix/gcroots/orb-etc
 
-mkdir -p nix/orb/sys/zsh nix/orb/data/cache nix/orb/data/tmp
+mkdir -p nix/orb/sys/zsh nix/orb/data/cache nix/orb/data/tmp nix/orb/data/home/.config/htop
 cd nix/orb/sys/zsh
 bash /build/os/zsh/clone.sh
 cp /build/os/zsh/.zshrc .zshrc

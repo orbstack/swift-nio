@@ -24,7 +24,7 @@ func (a *AgentServer) DockerPrepWormhole(args *PrepWormholeArgs, reply *PrepWorm
 	}
 	initPid := ctr.State.Pid
 	if initPid == 0 {
-		return fmt.Errorf("container %s has no init pid", args.ContainerID)
+		return fmt.Errorf("container %s is not running", args.ContainerID)
 	}
 
 	fd, err := unix.Open(fmt.Sprintf("/proc/%d/root", initPid), unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)

@@ -1,7 +1,7 @@
-use std::{collections::HashMap, ffi::CString, os::fd::{FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
+use std::{collections::HashMap, ffi::CString, os::fd::{FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}, thread::sleep, time::Duration};
 
-use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, waitpid, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_ATTACH, PTRACE_DETACH};
-use nix::{errno::Errno, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid}};
+use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
+use nix::{errno::Errno, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitPidFlag, WaitStatus}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid, Pid}};
 use pidfd::PidFd;
 use tracing::{trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -84,17 +84,27 @@ fn mount_common(source: &str, dest: &str, fstype: Option<&str>, flags: MsFlags, 
 
 fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
     // attach via ptrace
-    // this stops the process for a bit, but SECCOMP_GET_FILTER doesn't work with a SEIZEd process
+    // SECCOMP_GET_FILTER requires ptrace-stop
+    // safer way to stop (no signal races): PTRACE_SEIZE, then PTRACE_INTERRUPT
     trace!("seccomp: ptrace attach");
-    let ret = unsafe { ptrace(PTRACE_ATTACH, pid, 0, 0) };
+    let ret = unsafe { ptrace(PTRACE_SEIZE, pid, 0, 0) };
     if ret < 0 {
         return Err(Errno::last().into());
     }
 
-    // wait for ptrace to attach
-    let ret = unsafe { waitpid(pid, null_mut(), 0) };
+    // then interrupt
+    let ret = unsafe { ptrace(PTRACE_INTERRUPT, pid, 0, 0) };
     if ret < 0 {
         return Err(Errno::last().into());
+    }
+
+    // wait for it to enter ptrace-stop
+    loop {
+        let res = waitpid(Pid::from_raw(pid), None)?;
+        match res {
+            WaitStatus::PtraceEvent(_, _, PTRACE_EVENT_STOP) => break,
+            _ => {}
+        }
     }
 
     // get instruction count in seccomp filter
@@ -157,6 +167,39 @@ fn is_root_readonly(proc_mounts: &str) -> bool {
 
     // no / found?
     false
+}
+
+fn reap_last_zombies() -> anyhow::Result<()> {
+    // wait up to 25 ms for zombies to exit
+    sleep(Duration::from_millis(25));
+
+    // reap all remaining zombies
+    loop {
+        match waitpid(None, Some(WaitPidFlag::WNOHANG)) {
+            Ok(_) => {}
+            Err(Errno::ECHILD) => return Ok(()),
+            Err(e) => return Err(e.into()),
+        }
+    }
+}
+
+fn run_subreaper(payload_pid: Pid) -> anyhow::Result<()> {
+    // keep waiting for processes
+    loop {
+        let res = waitpid(None, None)?;
+        match res {
+            // exit/return if exited/signaled process is the payload (to signal grandparent waiter)
+            WaitStatus::Exited(pid, _) if pid == payload_pid => break,
+            WaitStatus::Signaled(pid, _, _) if pid == payload_pid => break,
+            // do nothing for zombie processes - just reap them
+            _ => {}
+        }
+    }
+
+    // to reap grandchildren, don't exit immediately
+    // but also don't kill them -- allow bg services to keep running
+    reap_last_zombies()?;
+    Ok(())
 }
 
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
@@ -388,21 +431,40 @@ fn main() -> anyhow::Result<()> {
     trace!("fork into ns");
     match unsafe { fork()? } {
         ForkResult::Parent { child } => {
-            // parent
+            // parent 1 = waiter
             trace!("parent: waitpid");
-            let res = unsafe { waitpid(child.as_raw(), null_mut(), 0) };
-            if res < 0 {
-                return Err(Errno::last().into());
+            loop {
+                // wait until child (subreaper! not payload) exits or is killed
+                let res = waitpid(child, None)?;
+                match res {
+                    WaitStatus::Exited(_, _) => break,
+                    WaitStatus::Signaled(_, _, _) => break,
+                    _ => {}
+                }
             }
 
             // only safe to delete /nix if we're the last cattach
             
         }
         ForkResult::Child => {
-            // child
-            // TODO: must double fork and exit intermediate child to reparent to pid 1
-            trace!("child: execve");
-            execve(&CString::new("/nix/orb/sys/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
+            // child 1 = subreaper
+            trace!("subreaper: fork");
+            // become subreaper, so children get a subreaper flag at fork time
+            prctl::set_child_subreaper(true)?;
+            // fork again...
+            match unsafe { fork()? } {
+                ForkResult::Parent { child } => {
+                    // parent 2 = subreaper
+                    // subreaper helps us deal with zsh's zombie processes in any container where init is not a shell (e.g. distroless)
+                    trace!("subreaper: loop");
+                    run_subreaper(child)?;
+                }
+                ForkResult::Child => {
+                    // child 2 = payload
+                    trace!("child: execve");
+                    execve(&CString::new("/nix/orb/sys/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
+                }
+            }
         }
     }
 
