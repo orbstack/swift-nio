@@ -47,8 +47,7 @@ const INHERIT_ENVS: &[&str] = &[
     "SSH_CONNECTION",
     "SSH_AUTH_SOCK",
 ];
-const PREPEND_PATH: &str = "/nix/var/nix/profiles/default/bin";
-const APPEND_PATH: &str = "/nix/orb/sys/bin";
+const PREPEND_PATH: &str = "/nix/var/nix/profiles/default/bin:/nix/orb/sys/bin";
 
 // type mismatch: musl=c_int, glibc=c_uint
 const PTRACE_SECCOMP_GET_FILTER: libc::c_uint = 0x420c;
@@ -276,7 +275,7 @@ fn main() -> anyhow::Result<()> {
         .map(|s| (s[0].to_string(), s[1].to_string()))
         .collect::<HashMap<String, String>>();
     // edit PATH (append and prepend)
-    env_map.insert("PATH".to_string(), format!("{}:{}:{}", PREPEND_PATH, env_map.get("PATH").unwrap_or(&"".to_string()), APPEND_PATH));
+    env_map.insert("PATH".to_string(), format!("{}:{}", PREPEND_PATH, env_map.get("PATH").unwrap_or(&"".to_string())));
     // append extra envs
     env_map.reserve(EXTRA_ENV.len() + INHERIT_ENVS.len());
     for (k, v) in EXTRA_ENV {
@@ -403,7 +402,7 @@ fn main() -> anyhow::Result<()> {
             // child
             // TODO: must double fork and exit intermediate child to reparent to pid 1
             trace!("child: execve");
-            execve(&CString::new(APPEND_PATH.to_string() + "/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
+            execve(&CString::new("/nix/orb/sys/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
         }
     }
 
