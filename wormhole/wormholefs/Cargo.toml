@@ -13,6 +13,14 @@ tracing = { version = "0.1.40", features = ["release_max_level_info"] }
 tracing-subscriber = "0.3.18"
 anyhow = { version = "1.0.80", features = ["backtrace"] }
 xattr = "1.3.1"
+clap = { version = "4.5.2", features = ["derive"] }
+# rustls makes static build easier
+reqwest = { version = "0.11.25", features = ["blocking", "json", "rustls"], default-features = false }
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.114"
+colored = "2.1.0"
+# aws-lc-rs requires cmake, etc. use ring to simplify build
+rustls = { version = "0.23.1", features = ["ring", "log", "logging", "std", "tls12"], default-features = false }
 
 [profile.release]
 strip = true

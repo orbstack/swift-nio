@@ -32,10 +32,6 @@ source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sindresorhus-SL
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sindresorhus-SLASH-pure )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-history-substring-search/zsh-history-substring-search.plugin.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-history-substring-search )
-source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zpm-zsh-SLASH-colors/colors.plugin.zsh
-fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zpm-zsh-SLASH-colors )
-source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zpm-zsh-SLASH-autoenv/autoenv.plugin.zsh
-fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zpm-zsh-SLASH-autoenv )
 export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-ports:$PATH"
 export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-zsh-git-fetch-merge:$PATH"
 export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-zsh-open-pr:$PATH"
@@ -189,10 +185,14 @@ notify() {
 }
 
 # update completion cache max once per day
-_comp_files=(${ZDOTDIR:-$HOME}/.zcompdump(Nm-20))
+_comp_files=(${XDG_CACHE_HOME}/.zcompdump(Nm-20))
 if (( $#_comp_files )); then
   compinit -i -C
 else
   compinit -i
 fi
 unset _comp_files
+
+# help
+echo "Welcome to OrbStack Debug Shell!"
+echo "Use 'dctl' to install and remove packages."

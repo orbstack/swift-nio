@@ -1,4 +1,4 @@
-use std::{ffi::CString, os::fd::{FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
+use std::{collections::HashMap, ffi::CString, os::fd::{FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, waitpid, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_ATTACH, PTRACE_DETACH};
 use nix::{errno::Errno, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid}};
@@ -9,22 +9,43 @@ use wormholefs::newmount::move_mount;
 
 mod pidfd;
 
-const EXTRA_ENV: &[&str] = &[
-    "ZDOTDIR=/nix/zsh",
-    "GIT_SSL_CAINFO=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt",
-    "NIX_SSL_CERT_FILE=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt",
-    "SSL_CERT_FILE=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt",
+const EXTRA_ENV: &[(&str, &str)] = &[
+    ("ZDOTDIR", "/nix/orb/zsh"),
+    ("LESSHISTFILE", "/nix/orb/home/.lesshst"),
+    ("GIT_SSL_CAINFO", "/nix/orb/etc/ssl/certs/ca-bundle.crt"),
+    ("NIX_SSL_CERT_FILE", "/nix/orb/etc/ssl/certs/ca-bundle.crt"),
+    ("SSL_CERT_FILE", "/nix/orb/etc/ssl/certs/ca-bundle.crt"),
+    ("NIX_CONF_DIR", "/nix/orb/etc"),
+    // not needed: compiled into ncurses, but keep this for xterm-kitty
+    ("TERMINFO_DIRS", "/nix/var/nix/profiles/default/share/terminfo:/nix/orb/share/terminfo"),
+    ("NIX_PROFILES", "/nix/var/nix/profiles/default"),
+    ("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/nix/var/nix/profiles/default/share:/nix/orb/share"),
+    ("XDG_CONFIG_DIRS", "/etc/xdg:/nix/var/nix/profiles/default/etc/xdg:/nix/orb/etc/xdg"),
+    //("MANPATH", "/nix/var/nix/profiles/default/share/man:/nix/orb/share/man"),
+    // no NIX_PATH: we have no channels
+    ("LIBEXEC_PATH", "/nix/var/nix/profiles/default/libexec:/nix/orb/libexec"),
+    ("INFOPATH", "/nix/var/nix/profiles/default/share/info:/nix/orb/share/info"),
+    //("LESSKEYIN_SYSTEM", "/nix/store/jsyxjk9lcrvncmnpjghlp0ar258z3rdy-lessconfig"),
+    ("XDG_CACHE_HOME", "/nix/orb/cache"),
+
+    // allow non-free pkgs (requires passing --impure to commands)
+    ("NIXPKGS_ALLOW_UNFREE", "1"),
+    // allow insecure (e.g. python2)
+    ("NIXPKGS_ALLOW_INSECURE", "1"),
 
     // fixes nixos + zsh bug with duplicated chars in prompt after tab completion
     // https://github.com/nix-community/home-manager/issues/3711
-    "LANG=C.UTF-8",
+    ("LANG", "C.UTF-8"),
+    // not set by scon because user=""
+    ("USER", "root"),
 ];
 const INHERIT_ENVS: &[&str] = &[
     "TERM",
     "SSH_CONNECTION",
     "SSH_AUTH_SOCK",
 ];
-const APPEND_PATH: &str = "/nix/var/nix/profiles/default/bin";
+const PREPEND_PATH: &str = "/nix/var/nix/profiles/default/bin";
+const APPEND_PATH: &str = "/nix/orb/bin";
 
 // type mismatch: musl=c_int, glibc=c_uint
 const PTRACE_SECCOMP_GET_FILTER: libc::c_uint = 0x420c;
@@ -244,24 +265,30 @@ fn main() -> anyhow::Result<()> {
 
     // copy env
     trace!("copy env");
-    let mut cstr_envs = proc_env.split('\0')
-        // append to PATH
-        .map(|s| if s.starts_with("PATH=") { format!("PATH={}:{}", s, APPEND_PATH) } else { s.to_string() })
-        .filter(|s| !s.is_empty())
-        .map(|s| CString::new(s))
-        .collect::<anyhow::Result<Vec<_>, _>>()?;
+    // convert to HashMap, to allow for overriding
+    let mut env_map = proc_env.split('\0')
+        .map(|s| s.splitn(2, '=').collect::<Vec<&str>>())
+        // skip invalid entries with no =
+        .filter(|s| s.len() == 2)
+        .map(|s| (s[0].to_string(), s[1].to_string()))
+        .collect::<HashMap<String, String>>();
+    // edit PATH (append and prepend)
+    env_map.insert("PATH".to_string(), format!("{}:{}:{}", PREPEND_PATH, env_map.get("PATH").unwrap_or(&"".to_string()), APPEND_PATH));
     // append extra envs
-    cstr_envs.reserve(EXTRA_ENV.len());
-    for &env in EXTRA_ENV {
-        cstr_envs.push(CString::new(env)?);
+    env_map.reserve(EXTRA_ENV.len() + INHERIT_ENVS.len());
+    for (k, v) in EXTRA_ENV {
+        env_map.insert(k.to_string(), v.to_string());
     }
     // inherit some envs from ssh client 
-    cstr_envs.reserve(INHERIT_ENVS.len());
-    for &env in INHERIT_ENVS {
-        if let Ok(val) = std::env::var(env) {
-            cstr_envs.push(CString::new(format!("{}={}", env, val))?);
+    for &key in INHERIT_ENVS {
+        if let Ok(val) = std::env::var(key) {
+            env_map.insert(key.to_string(), val.to_string());
         }
     }
+    // convert back to CStrings
+    let cstr_envs = env_map.iter()
+        .map(|(k, v)| CString::new(format!("{}={}", k, v)))
+        .collect::<anyhow::Result<Vec<_>, _>>()?;
 
     // close lingering fds before user-controlled chdir
     drop(wormhole_mount_fd);
@@ -315,13 +342,13 @@ fn main() -> anyhow::Result<()> {
     let cap_amb = u64::from_str_radix(init_status.get("CapAmb:").unwrap().get(0).unwrap(), 16)?;
     // ambient: clear all, then raise set caps
     trace!("copy capabilities: ambient");
-    let ret = unsafe { libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0) };
+    let ret = unsafe { libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) };
     if ret < 0 {
         return Err(Errno::last().into());
     }
     for i in 0..num_caps {
         if cap_amb & (1 << i) != 0 {
-            let ret = unsafe { libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i as i32) };
+            let ret = unsafe { libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i as i32, 0, 0) };
             if ret < 0 {
                 return Err(Errno::last().into());
             }
@@ -331,7 +358,7 @@ fn main() -> anyhow::Result<()> {
     trace!("copy capabilities: bounding");
     for i in 0..num_caps {
         if cap_bnd & (1 << i) == 0 {
-            let ret = unsafe { libc::prctl(PR_CAPBSET_DROP, i as i32) };
+            let ret = unsafe { libc::prctl(PR_CAPBSET_DROP, i as i32, 0, 0, 0) };
             if ret < 0 {
                 return Err(Errno::last().into());
             }
@@ -373,7 +400,7 @@ fn main() -> anyhow::Result<()> {
             // child
             // TODO: must double fork and exit intermediate child to reparent to pid 1
             trace!("child: execve");
-            execve(&CString::new("/nix/var/nix/profiles/default/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
+            execve(&CString::new(APPEND_PATH.to_string() + "/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
         }
     }
 

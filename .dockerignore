@@ -3,5 +3,6 @@ rootfs/out/
 rootfs/live/
 scon/bpf/*bpfel*
 vinit/target/
+wormhole/wormholefs/target/
 *.o
 *.pcap

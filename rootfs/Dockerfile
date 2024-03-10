@@ -5,7 +5,7 @@ ARG HOST_ARCH=amd64
 FROM alpine:20230329 AS base
 FROM alpine:3.18 AS stable-base
 FROM debian:sid-slim AS debian
-FROM rust:1.70-alpine3.18 AS rust-base
+FROM rust:1.76-alpine3.19 AS rust-base
 FROM nixos/nix:2.20.3 AS nix-base
 
 
@@ -81,7 +81,7 @@ if [[ "$TYPE" == "debug" ]]; then
 else
     cargo build --release
 fi
-cp target/${TYPE}/wormholefsd target/${TYPE}/cattach /out/
+cp target/${TYPE}/dctl target/${TYPE}/cattach /out/
 EOT
 
 # Build Rosetta runc override
@@ -127,29 +127,47 @@ FROM nix-base as nix-build
 RUN <<EOT sh -eux
 # disable seccomp to fix rosetta build
 echo 'filter-syscalls = false' >> /etc/nix/nix.conf
+# enable flakes
+echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
 nix-channel --update
 # for zsh cloning
 nix-env -iA nixpkgs.git
 EOT
 COPY wormhole/os /build/os
-RUN <<EOT sh -eux
+RUN --mount=type=cache,target=/nix-cache \
+<<EOT sh -eux
 mkdir /build-result
 cd /build-result
-nix-build /build/os/docker.nix
+# TODO: cache with --store /nix-cache --eval-store local
+nix build /build/os
 tar xzf result
 
 mkdir /out
 cd /out
 tar xf /build-result/*/layer.tar
 
-mv bin nix/
-mkdir nix/run
+mkdir -p nix/orb/run
+mv bin etc share libexec nix/orb/
+mkdir nix/orb/.bin
+# hide nix tools
+mv nix/orb/bin/nix* nix/orb/.bin/
 
-mkdir nix/zsh
-cd nix/zsh
+# set up gc roots
+mkdir -p nix/var/nix/gcroots
+ln -s /nix/orb/bin nix/var/nix/gcroots/orb-bin
+ln -s /nix/orb/.bin nix/var/nix/gcroots/orb-bin2
+ln -s /nix/orb/share nix/var/nix/gcroots/orb-share
+ln -s /nix/orb/etc nix/var/nix/gcroots/orb-etc
+ln -s /nix/orb/libexec nix/var/nix/gcroots/orb-libexec
+
+mkdir nix/orb/zsh nix/orb/cache
+cd nix/orb/zsh
 bash /build/os/zsh/clone.sh
 cp /build/os/zsh/.zshrc .zshrc
 EOT
+COPY wormhole/os/nix.conf /out/nix/orb/etc/nix.conf
+# add 'o' command
+COPY --from=rust-build /out/dctl /out/nix/orb/bin/
 
 # Generate Rosetta deltas (need Debian for bsdiff)
 FROM debian as rosetta-deltas
