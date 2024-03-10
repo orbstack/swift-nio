@@ -23,10 +23,13 @@ fn main() -> anyhow::Result<()> {
     let mut vmr = VmResources::default();
 
     // read kernel
-    let mut kernel_bytes = std::fs::read("/Applications/OrbStack.app/Contents/Resources/assets/release/arm64/kernel")?;
+    let mut kernel_bytes =
+        std::fs::read("/Applications/OrbStack.app/Contents/Resources/assets/release/arm64/kernel")?;
     // pad up to page size boundary
-    let zeros = vec![0u8; 16384 - (kernel_bytes.len() % 16384)];
-    kernel_bytes.extend_from_slice(&zeros);
+    kernel_bytes.resize(
+        kernel_bytes.len() + (16384 - (kernel_bytes.len() % 16384)),
+        0,
+    );
 
     // Set the kernel image
     {
