@@ -3,7 +3,7 @@ use std::{collections::HashMap, ffi::CString, os::fd::{FromRawFd, OwnedFd}, path
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
 use nix::{errno::Errno, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitPidFlag, WaitStatus}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid, Pid}};
 use pidfd::PidFd;
-use tracing::{trace, Level};
+use tracing::{error, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormholefs::newmount::move_mount;
 
@@ -340,7 +340,9 @@ fn main() -> anyhow::Result<()> {
 
     // then chdir to requested workdir (must do / first to avoid rel path vuln)
     // can fail (falls back to /)
-    _ = chdir(Path::new(&workdir));
+    if let Err(e) = chdir(Path::new(&workdir)) {
+        error!("failed to set working directory: {}", e);
+    }
 
     trace!("attach remaining namespaces");
     // entering current userns will return EINVAL. ignore that
