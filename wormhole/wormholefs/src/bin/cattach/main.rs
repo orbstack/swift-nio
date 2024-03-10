@@ -259,7 +259,7 @@ fn main() -> anyhow::Result<()> {
             let is_root_readonly = is_root_readonly(&proc_mounts);
             if is_root_readonly {
                 trace!("mounts: remount / as rw");
-                mount_common("/", "/", None, MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY, None)?;
+                mount_common("/", "/", None, MsFlags::MS_REMOUNT, None)?;
             }
 
             // use create_dir_all to avoid race with another cattach
