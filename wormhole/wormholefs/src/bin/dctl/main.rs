@@ -227,6 +227,11 @@ fn print_search_results(results: Vec<ElasticSearchSource>) {
 }
 
 fn gc_nix_store() -> anyhow::Result<()> {
+    // wipe profile history
+    Command::new(NIX_BIN.to_string() + "/nix")
+        .args(&["profile", "wipe-history", "--profile", PROFILE_PATH])
+        .status()?;
+
     Command::new(NIX_BIN.to_string() + "/nix-store")
         .args(&["--gc"])
         .env("HOME", NIX_HOME)
