@@ -147,7 +147,7 @@ cd /out
 tar xf /build-result/*/layer.tar
 
 mkdir -p nix/orb/sys
-mv bin etc share libexec nix/orb/sys/
+mv bin etc share nix/orb/sys/
 mkdir nix/orb/sys/.bin
 # hide nix tools
 mv nix/orb/sys/bin/nix* nix/orb/sys/.bin/
@@ -158,7 +158,6 @@ ln -s /nix/orb/sys/bin nix/var/nix/gcroots/orb-bin
 ln -s /nix/orb/sys/.bin nix/var/nix/gcroots/orb-bin2
 ln -s /nix/orb/sys/share nix/var/nix/gcroots/orb-share
 ln -s /nix/orb/sys/etc nix/var/nix/gcroots/orb-etc
-ln -s /nix/orb/sys/libexec nix/var/nix/gcroots/orb-libexec
 
 mkdir -p nix/orb/sys/zsh nix/orb/data/cache nix/orb/data/tmp
 cd nix/orb/sys/zsh

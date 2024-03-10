@@ -57,7 +57,7 @@
               # already dep of htop
               python3
           ];
-          pathsToLink = [ "/bin" "/etc" "/share" "/libexec" ];
+          pathsToLink = [ "/bin" "/etc/ssl/certs" "/share/terminfo" "/share/man" ];
         };
 
         config = {
