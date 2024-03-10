@@ -28,17 +28,14 @@
               gnugrep
               less
               kitty.terminfo
-              # procps
-              # util-linux
-              gnutar # TODO: bsdtar?
+              procps
+              util-linux
+              gnutar
               # network
               curl
               cacert
               iproute2
               iputils
-              openssh
-              wget
-              tcpdump
               dig.host
               # dev
               jq
@@ -56,7 +53,9 @@
 
               # nice to have but too many deps:
               #neovim
-              #git
+              git
+              # already dep of htop
+              python3
           ];
           pathsToLink = [ "/bin" "/etc" "/share" "/libexec" ];
         };

@@ -10,23 +10,23 @@ use wormholefs::newmount::move_mount;
 mod pidfd;
 
 const EXTRA_ENV: &[(&str, &str)] = &[
-    ("ZDOTDIR", "/nix/orb/zsh"),
-    ("LESSHISTFILE", "/nix/orb/home/.lesshst"),
-    ("GIT_SSL_CAINFO", "/nix/orb/etc/ssl/certs/ca-bundle.crt"),
-    ("NIX_SSL_CERT_FILE", "/nix/orb/etc/ssl/certs/ca-bundle.crt"),
-    ("SSL_CERT_FILE", "/nix/orb/etc/ssl/certs/ca-bundle.crt"),
-    ("NIX_CONF_DIR", "/nix/orb/etc"),
+    ("ZDOTDIR", "/nix/orb/sys/zsh"),
+    ("LESSHISTFILE", "/nix/orb/data/home/.lesshst"),
+    ("GIT_SSL_CAINFO", "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt"),
+    ("NIX_SSL_CERT_FILE", "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt"),
+    ("SSL_CERT_FILE", "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt"),
+    ("NIX_CONF_DIR", "/nix/orb/sys/etc"),
     // not needed: compiled into ncurses, but keep this for xterm-kitty
-    ("TERMINFO_DIRS", "/nix/var/nix/profiles/default/share/terminfo:/nix/orb/share/terminfo"),
+    ("TERMINFO_DIRS", "/nix/var/nix/profiles/default/share/terminfo:/nix/orb/sys/share/terminfo"),
     ("NIX_PROFILES", "/nix/var/nix/profiles/default"),
-    ("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/nix/var/nix/profiles/default/share:/nix/orb/share"),
-    ("XDG_CONFIG_DIRS", "/etc/xdg:/nix/var/nix/profiles/default/etc/xdg:/nix/orb/etc/xdg"),
-    //("MANPATH", "/nix/var/nix/profiles/default/share/man:/nix/orb/share/man"),
+    ("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/nix/var/nix/profiles/default/share:/nix/orb/sys/share"),
+    ("XDG_CONFIG_DIRS", "/etc/xdg:/nix/var/nix/profiles/default/etc/xdg:/nix/orb/sys/etc/xdg"),
+    //("MANPATH", "/nix/var/nix/profiles/default/share/man:/nix/orb/sys/share/man"),
     // no NIX_PATH: we have no channels
-    ("LIBEXEC_PATH", "/nix/var/nix/profiles/default/libexec:/nix/orb/libexec"),
-    ("INFOPATH", "/nix/var/nix/profiles/default/share/info:/nix/orb/share/info"),
+    ("LIBEXEC_PATH", "/nix/var/nix/profiles/default/libexec:/nix/orb/sys/libexec"),
+    ("INFOPATH", "/nix/var/nix/profiles/default/share/info:/nix/orb/sys/share/info"),
     //("LESSKEYIN_SYSTEM", "/nix/store/jsyxjk9lcrvncmnpjghlp0ar258z3rdy-lessconfig"),
-    ("XDG_CACHE_HOME", "/nix/orb/cache"),
+    ("XDG_CACHE_HOME", "/nix/orb/data/cache"),
 
     // allow non-free pkgs (requires passing --impure to commands)
     ("NIXPKGS_ALLOW_UNFREE", "1"),
@@ -38,6 +38,9 @@ const EXTRA_ENV: &[(&str, &str)] = &[
     ("LANG", "C.UTF-8"),
     // not set by scon because user=""
     ("USER", "root"),
+
+    // move ~/.config/htop/htoprc to persist across containers
+    ("HTOPRC", "/nix/orb/data/home/.config/htop/htoprc"),
 ];
 const INHERIT_ENVS: &[&str] = &[
     "TERM",
@@ -45,7 +48,7 @@ const INHERIT_ENVS: &[&str] = &[
     "SSH_AUTH_SOCK",
 ];
 const PREPEND_PATH: &str = "/nix/var/nix/profiles/default/bin";
-const APPEND_PATH: &str = "/nix/orb/bin";
+const APPEND_PATH: &str = "/nix/orb/sys/bin";
 
 // type mismatch: musl=c_int, glibc=c_uint
 const PTRACE_SECCOMP_GET_FILTER: libc::c_uint = 0x420c;

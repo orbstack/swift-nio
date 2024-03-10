@@ -6,7 +6,9 @@ use serde_json::json;
 use serde::{Serialize, Deserialize};
 
 const PROFILE_PATH: &str = "/nix/var/nix/profiles/default";
-const NIX_BIN: &str = "/nix/orb/.bin";
+const NIX_BIN: &str = "/nix/orb/sys/.bin";
+const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
+const NIX_HOME: &str = "/nix/orb/data/home";
 
 #[cfg(target_arch = "x86_64")]
 const CURRENT_PLATFORM: &str = "x86_64-linux";
@@ -226,7 +228,9 @@ fn print_search_results(results: Vec<ElasticSearchSource>) {
 
 fn gc_nix_store() -> anyhow::Result<()> {
     Command::new(NIX_BIN.to_string() + "/nix-store")
-        .args(&["gc", "--print-roots"])
+        .args(&["--gc"])
+        .env("HOME", NIX_HOME)
+        .env("TMPDIR", NIX_TMPDIR)
         .status()?;
 
     Ok(())
@@ -239,6 +243,8 @@ fn cmd_install(name: &[String]) -> anyhow::Result<()> {
         .args(&name.iter()
             .map(|name| format!("nixpkgs#{}", name))
             .collect::<Vec<String>>())
+            .env("HOME", NIX_HOME)
+            .env("TMPDIR", NIX_TMPDIR)
         .status()?;
 
     Ok(())
@@ -251,6 +257,8 @@ fn cmd_uninstall(name: &[String]) -> anyhow::Result<()> {
         .args(&name.iter()
             .map(|name| format!(".*\\.{}", name))
             .collect::<Vec<String>>())
+            .env("HOME", NIX_HOME)
+            .env("TMPDIR", NIX_TMPDIR)
         .status()?;
     gc_nix_store()?;
 
@@ -271,6 +279,8 @@ fn cmd_upgrade(name: Option<Vec<String>>) -> anyhow::Result<()> {
         .args(&name.iter()
             .map(|name| format!("nixpkgs#{}", name))
             .collect::<Vec<String>>())
+            .env("HOME", NIX_HOME)
+            .env("TMPDIR", NIX_TMPDIR)
         .status()?;
     gc_nix_store()?;
 

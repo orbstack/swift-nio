@@ -146,28 +146,28 @@ mkdir /out
 cd /out
 tar xf /build-result/*/layer.tar
 
-mkdir -p nix/orb/run
-mv bin etc share libexec nix/orb/
-mkdir nix/orb/.bin
+mkdir -p nix/orb/sys
+mv bin etc share libexec nix/orb/sys/
+mkdir nix/orb/sys/.bin
 # hide nix tools
-mv nix/orb/bin/nix* nix/orb/.bin/
+mv nix/orb/sys/bin/nix* nix/orb/sys/.bin/
 
 # set up gc roots
 mkdir -p nix/var/nix/gcroots
-ln -s /nix/orb/bin nix/var/nix/gcroots/orb-bin
-ln -s /nix/orb/.bin nix/var/nix/gcroots/orb-bin2
-ln -s /nix/orb/share nix/var/nix/gcroots/orb-share
-ln -s /nix/orb/etc nix/var/nix/gcroots/orb-etc
-ln -s /nix/orb/libexec nix/var/nix/gcroots/orb-libexec
+ln -s /nix/orb/sys/bin nix/var/nix/gcroots/orb-bin
+ln -s /nix/orb/sys/.bin nix/var/nix/gcroots/orb-bin2
+ln -s /nix/orb/sys/share nix/var/nix/gcroots/orb-share
+ln -s /nix/orb/sys/etc nix/var/nix/gcroots/orb-etc
+ln -s /nix/orb/sys/libexec nix/var/nix/gcroots/orb-libexec
 
-mkdir nix/orb/zsh nix/orb/cache
-cd nix/orb/zsh
+mkdir -p nix/orb/sys/zsh nix/orb/data/cache nix/orb/data/tmp
+cd nix/orb/sys/zsh
 bash /build/os/zsh/clone.sh
 cp /build/os/zsh/.zshrc .zshrc
 EOT
-COPY wormhole/os/nix.conf /out/nix/orb/etc/nix.conf
+COPY wormhole/os/nix.conf /out/nix/orb/sys/etc/nix.conf
 # add 'o' command
-COPY --from=rust-build /out/dctl /out/nix/orb/bin/
+COPY --from=rust-build /out/dctl /out/nix/orb/sys/bin/
 
 # Generate Rosetta deltas (need Debian for bsdiff)
 FROM debian as rosetta-deltas
