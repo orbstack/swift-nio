@@ -85,7 +85,7 @@ fn search_by_name(query: &str) -> anyhow::Result<Vec<ElasticSearchSource>> {
         .basic_auth("aWVSALXpZv", Some("X8gPHnzL52wFEekuxsfQ9cSh"))
         .json(&json!({
             "from": 0,
-            "size": 50,
+            "size": 10,
             "sort": [
                 {
                     "_score": "desc",
