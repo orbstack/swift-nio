@@ -40,7 +40,6 @@ nixos:23.11
 nixos:unstable
 openeuler:20.03
 openeuler:22.03
-openeuler:23.03
 openeuler:23.09
 opensuse:15.4
 opensuse:15.5
