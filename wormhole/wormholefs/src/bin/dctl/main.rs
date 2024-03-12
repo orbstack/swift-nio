@@ -10,6 +10,10 @@ const NIX_BIN: &str = "/nix/orb/sys/.bin";
 const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
 const NIX_HOME: &str = "/nix/orb/data/home";
 
+const ELASTICSEARCH_URL: &str = "https://search.nixos.org/backend/latest-*-nixos-unstable/_search";
+const ELASTICSEARCH_USERNAME: &str = "aWVSALXpZv";
+const ELASTICSEARCH_PASSWORD: &str = "X8gPHnzL52wFEekuxsfQ9cSh";
+
 #[cfg(target_arch = "x86_64")]
 const CURRENT_PLATFORM: &str = "x86_64-linux";
 #[cfg(target_arch = "aarch64")]
@@ -82,8 +86,8 @@ struct ElasticSearchSource {
 
 fn search_by_name(query: &str) -> anyhow::Result<Vec<ElasticSearchSource>> {
     let client = reqwest::blocking::Client::new();
-    let resp = client.post("https://search.nixos.org/backend/latest-*-nixos-unstable/_search")
-        .basic_auth("aWVSALXpZv", Some("X8gPHnzL52wFEekuxsfQ9cSh"))
+    let resp = client.post(ELASTICSEARCH_URL)
+        .basic_auth(ELASTICSEARCH_USERNAME, Some(ELASTICSEARCH_PASSWORD))
         .json(&json!({
             "from": 0,
             "size": 10,
@@ -161,8 +165,8 @@ fn search_by_name(query: &str) -> anyhow::Result<Vec<ElasticSearchSource>> {
 
 fn search_by_program(query: &str) -> anyhow::Result<Option<ElasticSearchSource>> {
     let client = reqwest::blocking::Client::new();
-    let resp = client.post("https://search.nixos.org/backend/latest-*-nixos-unstable/_search")
-        .basic_auth("aWVSALXpZv", Some("X8gPHnzL52wFEekuxsfQ9cSh"))
+    let resp = client.post(ELASTICSEARCH_URL)
+        .basic_auth(ELASTICSEARCH_USERNAME, Some(ELASTICSEARCH_PASSWORD))
         .json(&json!({
             "from": 0,
             "size": 1,
@@ -276,7 +280,6 @@ fn cmd_uninstall(name: &[String]) -> anyhow::Result<()> {
 }
 
 fn cmd_list() -> anyhow::Result<()> {
-    
     Ok(())
 }
 

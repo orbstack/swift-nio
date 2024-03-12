@@ -79,7 +79,7 @@ func ParseDebugFlags(args []string) ([]string, error) {
 
 var debugCmd = &cobra.Command{
 	Use:     "debug [flags] -- [COMMAND] [ARGS]...",
-	Aliases: []string{"exec", "shell"},
+	Aliases: []string{"wormhole"},
 	Short:   "Debug a Docker container",
 	Long: `Debug a Docker container.
 `,
