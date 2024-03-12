@@ -910,7 +910,7 @@ private struct K8SLogsContentView: View {
                pods.contains(where: { $0.id == kid })
             {
                 LogsView(cmdExe: AppConfig.kubectlExe,
-                         args: ["logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)", "-f"],
+                         args: ["logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)", "-f", "--all-containers=true"],
                          extraArgs: [],
                          extraState: [],
                          model: model)
