@@ -152,12 +152,9 @@ mkdir nix/orb/sys/.bin
 # hide nix tools
 mv nix/orb/sys/bin/nix* nix/orb/sys/.bin/
 
-# set up gc roots
-mkdir -p nix/var/nix/gcroots
-ln -s /nix/orb/sys/bin nix/var/nix/gcroots/orb-bin
-ln -s /nix/orb/sys/.bin nix/var/nix/gcroots/orb-bin2
-ln -s /nix/orb/sys/share nix/var/nix/gcroots/orb-share
-ln -s /nix/orb/sys/etc nix/var/nix/gcroots/orb-etc
+# no need to create gcroots - we use custom gc path filtering in rust
+# instead create list of all store paths in base image
+ls nix/store > nix/orb/sys/.base.list
 
 mkdir -p nix/orb/sys/zsh nix/orb/data/cache nix/orb/data/tmp nix/orb/data/home/.config/htop
 cd nix/orb/sys/zsh

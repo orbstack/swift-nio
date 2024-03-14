@@ -1,5 +1,6 @@
-use std::process::Command;
+use std::{collections::HashSet, fs, process::Command};
 
+use anyhow::anyhow;
 use colored::Colorize;
 use clap::{Parser, Subcommand};
 use serde_json::json;
@@ -10,6 +11,7 @@ const NIX_BIN: &str = "/nix/orb/sys/.bin";
 const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
 const NIX_HOME: &str = "/nix/orb/data/home";
 
+// index version varies (42 as of writing) but * works
 const ELASTICSEARCH_URL: &str = "https://search.nixos.org/backend/latest-*-nixos-unstable/_search";
 const ELASTICSEARCH_USERNAME: &str = "aWVSALXpZv";
 const ELASTICSEARCH_PASSWORD: &str = "X8gPHnzL52wFEekuxsfQ9cSh";
@@ -236,36 +238,73 @@ fn print_search_results(results: Vec<ElasticSearchSource>) {
 }
 
 fn gc_nix_store() -> anyhow::Result<()> {
-    // wipe profile history
-    Command::new(NIX_BIN.to_string() + "/nix")
+    // wipe profile history to clear refs to uninstalled pkgs
+    // no need to do this on installation
+    let status = Command::new(NIX_BIN.to_string() + "/nix")
         .args(&["profile", "wipe-history", "--profile", PROFILE_PATH])
         .status()?;
+    if !status.success() {
+        return Err(anyhow!("failed to wipe profile history ({})", status));
+    }
 
-    Command::new(NIX_BIN.to_string() + "/nix-store")
-        .args(&["--gc"])
+    // we don't ship a nix.db that includes base image paths, and symlinking them into gcroots gets ignored because nix-store checks whether paths are in db's valid paths table
+    // so use --print-dead to get a list of paths that it *wants* to delete, and filter out the base image paths
+    let output = Command::new(NIX_BIN.to_string() + "/nix-store")
+        .args(&["--gc", "--print-dead", "--quiet"])
         .env("HOME", NIX_HOME)
         .env("TMPDIR", NIX_TMPDIR)
+        .output()?;
+    if !output.status.success() {
+        return Err(anyhow!("failed to enumerate store ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
+    }
+
+    // load base image paths
+    let base_paths_data = fs::read_to_string("/nix/orb/sys/.base.list")?;
+    let base_paths = base_paths_data
+        .lines()
+        .collect::<HashSet<_>>();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let paths = stdout
+        .lines()
+        // skip paths that are in the base image paths
+        // list only contains last path component
+        .filter(|path| !base_paths.contains(path.split('/').last().unwrap()))
+        .collect::<Vec<_>>();
+
+    // pass non-base paths to nix-store --delete
+    // TODO: use --stdin to avoid too many args
+    // (nix command "nix store delete" fetches from flake registry for some reason?)
+    let status = Command::new(NIX_BIN.to_string() + "/nix-store")
+        .args(&["--delete", "--quiet"])
+        .args(&paths)
         .status()?;
+    if !status.success() {
+        return Err(anyhow!("failed to delete from store ({})", status));
+    }
 
     Ok(())
 }
 
 fn cmd_install(name: &[String]) -> anyhow::Result<()> {
-    Command::new(NIX_BIN.to_string() + "/nix")
+    let status = Command::new(NIX_BIN.to_string() + "/nix")
         .args(&["profile", "install", "--profile", PROFILE_PATH, "--impure"])
         // prepend "nixpkgs#" to each
         .args(&name.iter()
             .map(|name| format!("nixpkgs#{}", name))
-            .collect::<Vec<String>>())
+            .collect::<Vec<_>>())
             .env("HOME", NIX_HOME)
             .env("TMPDIR", NIX_TMPDIR)
         .status()?;
+    if !status.success() {
+        return Err(anyhow!("failed to install packages ({})", status));
+    }
 
     Ok(())
 }
 
 fn cmd_uninstall(name: &[String]) -> anyhow::Result<()> {
-    Command::new(NIX_BIN.to_string() + "/nix")
+    let status = Command::new(NIX_BIN.to_string() + "/nix")
         .args(&["profile", "remove", "--profile", PROFILE_PATH, "--impure"])
         // prepend ".*\." to each
         .args(&name.iter()
@@ -274,6 +313,9 @@ fn cmd_uninstall(name: &[String]) -> anyhow::Result<()> {
             .env("HOME", NIX_HOME)
             .env("TMPDIR", NIX_TMPDIR)
         .status()?;
+    if !status.success() {
+        return Err(anyhow!("failed to uninstall packages ({})", status));
+    }
     gc_nix_store()?;
 
     Ok(())
@@ -286,15 +328,18 @@ fn cmd_list() -> anyhow::Result<()> {
 fn cmd_upgrade(name: Option<Vec<String>>) -> anyhow::Result<()> {
     let name = name.unwrap_or_default();
 
-    Command::new(NIX_BIN.to_string() + "/nix")
+    let status = Command::new(NIX_BIN.to_string() + "/nix")
         .args(&["profile", "upgrade", "--profile", PROFILE_PATH, "--impure"])
         // prepend "nixpkgs#" to each
         .args(&name.iter()
             .map(|name| format!("nixpkgs#{}", name))
-            .collect::<Vec<String>>())
+            .collect::<Vec<_>>())
             .env("HOME", NIX_HOME)
             .env("TMPDIR", NIX_TMPDIR)
         .status()?;
+    if !status.success() {
+        return Err(anyhow!("failed to upgrade packages ({})", status));
+    }
     gc_nix_store()?;
 
     Ok(())
