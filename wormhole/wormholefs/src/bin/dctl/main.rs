@@ -367,7 +367,7 @@ fn read_env() -> anyhow::Result<WormholeEnv> {
             // - write default env
             let env = WormholeEnv::default();
             write_flake(&env)?;
-            build_flake_env()?;
+            update_flake_lock()?;
             write_env(&env)?;
             return Ok(env);
         }
@@ -467,7 +467,7 @@ fn cmd_install(name: &[String]) -> anyhow::Result<()> {
         // TODO: faster way to do this, without 130ms overhead
         let mut output = new_nix_command("nix")
             .args(&["eval", "--json", "--impure"])
-            .arg(format!("nixpkgs#{}.version", pkg_name))
+            .arg(format!("nixpkgs#{}", pkg_name))
             .output()?;
         if !output.status.success() {
             // try searching by program name
@@ -564,17 +564,24 @@ fn cmd_list() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_upgrade() -> anyhow::Result<()> {
-    // create if first time
-    let mut env = read_env()?;
-
-    // nix flake update --commit-lock-file
+fn update_flake_lock() -> anyhow::Result<()> {
+    // passing --output-lock-file suppresses "warning: creating lock file"
+    // nix flake update --output-lock-file flake.lock
     let status = new_nix_command("nix")
-        .args(&["flake", "update", "--commit-lock-file", "--impure"])
+        .args(&["flake", "update", "--output-lock-file", "flake.lock", "--impure"])
         .status()?;
     if !status.success() {
         return Err(anyhow!("failed to update lock ({})", status));
     }
+
+    Ok(())
+}
+
+fn cmd_upgrade() -> anyhow::Result<()> {
+    // create if first time
+    let mut env = read_env()?;
+
+    update_flake_lock()?;
 
     build_flake_env()?;
     gc_nix_store()?;
