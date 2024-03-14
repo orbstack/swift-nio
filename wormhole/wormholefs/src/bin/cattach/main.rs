@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ffi::CString, os::fd::{FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}, thread::sleep, time::Duration};
+use std::{cmp::min, collections::HashMap, env::args_os, ffi::CString, fmt::Write, os::fd::{FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}, thread::sleep, time::Duration};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
 use nix::{errno::Errno, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitPidFlag, WaitStatus}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid, Pid}};
@@ -453,6 +453,29 @@ fn main() -> anyhow::Result<()> {
             trace!("subreaper: fork");
             // become subreaper, so children get a subreaper flag at fork time
             prctl::set_child_subreaper(true)?;
+            // set process name
+            let cstr = CString::new("orb-wormhole")?;
+            prctl::set_name(&cstr)?;
+            for (i, arg) in args_os().enumerate() {
+                println!("arg: {:?}", arg);
+                let ptr = arg.as_encoded_bytes().as_ptr() as *mut u8;
+                if i == 0 {
+                    // copy as many bytes as possible
+                    let cstr_bytes = cstr.to_bytes_with_nul();
+                    let len = min(arg.len() + 1, cstr_bytes.len());
+                    println!("copy len: {}", len);
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(cstr_bytes.as_ptr(), ptr, len);
+                    }
+                } else {
+                    // zero it
+                    let len = arg.len() + 1;
+                    println!("zero len: {}", len);
+                    unsafe {
+                        std::ptr::write_bytes(ptr, 0, len);
+                    }
+                }
+            }
             // fork again...
             match unsafe { fork()? } {
                 ForkResult::Parent { child } => {

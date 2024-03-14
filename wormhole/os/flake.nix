@@ -48,27 +48,14 @@
               htop
               lsof
               strace
-              # self-ref!
-              nix
+              # stable nix is 2.18 - we want profile pkg names
+              nixVersions.nix_2_20
 
               # nice to have but too many deps:
               #neovim
               git
           ];
           pathsToLink = [ "/bin" "/etc/ssl/certs" "/share/terminfo" "/share/man" ];
-        };
-
-        config = {
-          Cmd = [ "/bin/zsh" ];
-          Env = [
-            "ZDOTDIR=/nix"
-            "GIT_SSL_CAINFO=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-            "NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-            "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-
-            # TODO: MANPATH
-            # TODO at runtime: HOSTNAME, PWD, HOME, USER, PATH
-          ];
         };
       };
     });

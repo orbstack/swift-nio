@@ -293,8 +293,8 @@ fn cmd_install(name: &[String]) -> anyhow::Result<()> {
         .args(&name.iter()
             .map(|name| format!("nixpkgs#{}", name))
             .collect::<Vec<_>>())
-            .env("HOME", NIX_HOME)
-            .env("TMPDIR", NIX_TMPDIR)
+        .env("HOME", NIX_HOME)
+        .env("TMPDIR", NIX_TMPDIR)
         .status()?;
     if !status.success() {
         return Err(anyhow!("failed to install packages ({})", status));
@@ -306,12 +306,9 @@ fn cmd_install(name: &[String]) -> anyhow::Result<()> {
 fn cmd_uninstall(name: &[String]) -> anyhow::Result<()> {
     let status = Command::new(NIX_BIN.to_string() + "/nix")
         .args(&["profile", "remove", "--profile", PROFILE_PATH, "--impure"])
-        // prepend ".*\." to each
-        .args(&name.iter()
-            .map(|name| format!(".*\\.{}", name))
-            .collect::<Vec<String>>())
-            .env("HOME", NIX_HOME)
-            .env("TMPDIR", NIX_TMPDIR)
+        .args(name)
+        .env("HOME", NIX_HOME)
+        .env("TMPDIR", NIX_TMPDIR)
         .status()?;
     if !status.success() {
         return Err(anyhow!("failed to uninstall packages ({})", status));
@@ -330,12 +327,9 @@ fn cmd_upgrade(name: Option<Vec<String>>) -> anyhow::Result<()> {
 
     let status = Command::new(NIX_BIN.to_string() + "/nix")
         .args(&["profile", "upgrade", "--profile", PROFILE_PATH, "--impure"])
-        // prepend "nixpkgs#" to each
-        .args(&name.iter()
-            .map(|name| format!("nixpkgs#{}", name))
-            .collect::<Vec<_>>())
-            .env("HOME", NIX_HOME)
-            .env("TMPDIR", NIX_TMPDIR)
+        .args(name)
+        .env("HOME", NIX_HOME)
+        .env("TMPDIR", NIX_TMPDIR)
         .status()?;
     if !status.success() {
         return Err(anyhow!("failed to upgrade packages ({})", status));

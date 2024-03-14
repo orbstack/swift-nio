@@ -6,7 +6,7 @@ FROM alpine:20230329 AS base
 FROM alpine:3.18 AS stable-base
 FROM debian:sid-slim AS debian
 FROM rust:1.76-alpine3.19 AS rust-base
-FROM nixos/nix:2.20.3 AS nix-base
+FROM nixos/nix:2.20.5 AS nix-base
 
 
 
@@ -155,6 +155,13 @@ mv nix/orb/sys/bin/nix* nix/orb/sys/.bin/
 # no need to create gcroots - we use custom gc path filtering in rust
 # instead create list of all store paths in base image
 ls nix/store > nix/orb/sys/.base.list
+
+# we don't need this to be valid nix anymore (due to no nix.db)
+# so delete stuff we don't need:
+# locales
+find nix/store -name '*.mo' -delete
+# python3 (75M) - brought in by vim
+rm -fr nix/store/*-python3-*
 
 mkdir -p nix/orb/sys/zsh nix/orb/data/cache nix/orb/data/tmp nix/orb/data/home/.config/htop
 cd nix/orb/sys/zsh

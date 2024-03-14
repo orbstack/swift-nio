@@ -16,5 +16,5 @@ for repo in $repos; do
 done
 
 # recursively delete .gif, .svg files
-find cache -name '*.gif' -exec rm -f {} \;
-find cache -name '*.svg' -exec rm -f {} \;
+find cache -name '*.gif' -delete
+find cache -name '*.svg' -delete
