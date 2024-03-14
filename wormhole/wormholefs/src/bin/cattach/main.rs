@@ -17,21 +17,16 @@ const EXTRA_ENV: &[(&str, &str)] = &[
     ("SSL_CERT_FILE", "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt"),
     ("NIX_CONF_DIR", "/nix/orb/sys/etc"),
     // not needed: compiled into ncurses, but keep this for xterm-kitty
-    ("TERMINFO_DIRS", "/nix/var/nix/profiles/default/share/terminfo:/nix/orb/sys/share/terminfo"),
-    ("NIX_PROFILES", "/nix/var/nix/profiles/default"),
-    ("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/nix/var/nix/profiles/default/share:/nix/orb/sys/share"),
-    ("XDG_CONFIG_DIRS", "/etc/xdg:/nix/var/nix/profiles/default/etc/xdg:/nix/orb/sys/etc/xdg"),
-    //("MANPATH", "/nix/var/nix/profiles/default/share/man:/nix/orb/sys/share/man"),
+    ("TERMINFO_DIRS", "/nix/orb/data/.env-out/share/terminfo:/nix/orb/sys/share/terminfo"),
+    ("NIX_PROFILES", "/nix/orb/data/.env-out"),
+    ("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/nix/orb/data/.env-out/share:/nix/orb/sys/share"),
+    ("XDG_CONFIG_DIRS", "/etc/xdg:/nix/orb/data/.env-out/etc/xdg:/nix/orb/sys/etc/xdg"),
+    //("MANPATH", "/nix/orb/data/.env-out/share/man:/nix/orb/sys/share/man"),
     // no NIX_PATH: we have no channels
-    ("LIBEXEC_PATH", "/nix/var/nix/profiles/default/libexec:/nix/orb/sys/libexec"),
-    ("INFOPATH", "/nix/var/nix/profiles/default/share/info:/nix/orb/sys/share/info"),
+    ("LIBEXEC_PATH", "/nix/orb/data/.env-out/libexec:/nix/orb/sys/libexec"),
+    ("INFOPATH", "/nix/orb/data/.env-out/share/info:/nix/orb/sys/share/info"),
     //("LESSKEYIN_SYSTEM", "/nix/store/jsyxjk9lcrvncmnpjghlp0ar258z3rdy-lessconfig"),
     ("XDG_CACHE_HOME", "/nix/orb/data/cache"),
-
-    // allow non-free pkgs (requires passing --impure to commands)
-    ("NIXPKGS_ALLOW_UNFREE", "1"),
-    // allow insecure (e.g. python2)
-    ("NIXPKGS_ALLOW_INSECURE", "1"),
 
     // fixes nixos + zsh bug with duplicated chars in prompt after tab completion
     // https://github.com/nix-community/home-manager/issues/3711
@@ -47,7 +42,7 @@ const INHERIT_ENVS: &[&str] = &[
     "SSH_CONNECTION",
     "SSH_AUTH_SOCK",
 ];
-const PREPEND_PATH: &str = "/nix/var/nix/profiles/default/bin:/nix/orb/sys/bin";
+const PREPEND_PATH: &str = "/nix/orb/data/.env-out/bin:/nix/orb/sys/bin";
 
 // type mismatch: musl=c_int, glibc=c_uint
 const PTRACE_SECCOMP_GET_FILTER: libc::c_uint = 0x420c;
@@ -457,20 +452,17 @@ fn main() -> anyhow::Result<()> {
             let cstr = CString::new("orb-wormhole")?;
             prctl::set_name(&cstr)?;
             for (i, arg) in args_os().enumerate() {
-                println!("arg: {:?}", arg);
                 let ptr = arg.as_encoded_bytes().as_ptr() as *mut u8;
                 if i == 0 {
                     // copy as many bytes as possible
                     let cstr_bytes = cstr.to_bytes_with_nul();
                     let len = min(arg.len() + 1, cstr_bytes.len());
-                    println!("copy len: {}", len);
                     unsafe {
                         std::ptr::copy_nonoverlapping(cstr_bytes.as_ptr(), ptr, len);
                     }
                 } else {
                     // zero it
                     let len = arg.len() + 1;
-                    println!("zero len: {}", len);
                     unsafe {
                         std::ptr::write_bytes(ptr, 0, len);
                     }

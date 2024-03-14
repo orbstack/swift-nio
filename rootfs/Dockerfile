@@ -130,8 +130,8 @@ echo 'filter-syscalls = false' >> /etc/nix/nix.conf
 # enable flakes
 echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
 nix-channel --update
-# for zsh cloning
-nix-env -iA nixpkgs.git
+# for zsh cloning and CNF processing
+nix-env -iA nixpkgs.git nixpkgs.sqlite nixpkgs.gnutar nixpkgs.curl nixpkgs.xz
 EOT
 COPY wormhole/os /build/os
 RUN --mount=type=cache,target=/nix-cache \
@@ -141,6 +141,11 @@ cd /build-result
 # TODO: cache with --store /nix-cache --eval-store local
 nix build /build/os
 tar xzf result
+
+# download CNF database
+mkdir /cnf
+cd /cnf
+curl -L https://nixos.org/channels/nixos-unstable/nixexprs.tar.xz | tar -xJvf - --wildcards '*/programs.sqlite'
 
 mkdir /out
 cd /out
@@ -163,7 +168,10 @@ find nix/store -name '*.mo' -delete
 # python3 (75M) - brought in by vim
 rm -fr nix/store/*-python3-*
 
-mkdir -p nix/orb/sys/zsh nix/orb/data/cache nix/orb/data/tmp nix/orb/data/home/.config/htop
+# convert CNF database
+sqlite3 -csv /cnf/*/programs.sqlite "select name, package from Programs where system = '\$(uname -m)-linux';" > nix/orb/sys/.programs.csv
+
+mkdir -p nix/orb/sys/zsh nix/orb/data/cache nix/orb/data/tmp nix/orb/data/home/.config/htop nix/orb/data/env
 cd nix/orb/sys/zsh
 bash /build/os/zsh/clone.sh
 cp /build/os/zsh/.zshrc .zshrc

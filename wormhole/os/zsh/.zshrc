@@ -186,6 +186,16 @@ notify() {
     printf "\x1b]99;i=1:d=1:p=body;$2\x1b\\"
 }
 
+command_not_found_handler() {
+    /nix/orb/sys/bin/dctl __command_not_found "$@"
+    if [[ $? -eq 126 ]]; then
+        # command was just installed
+        "$@"
+    else
+        return 127
+    fi
+}
+
 # update completion cache max once per day
 _comp_files=(${XDG_CACHE_HOME}/.zcompdump(Nm-20))
 if (( $#_comp_files )); then
