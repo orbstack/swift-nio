@@ -54,8 +54,6 @@
               # nice to have but too many deps:
               #neovim
               git
-              # already dep of htop
-              python3
           ];
           pathsToLink = [ "/bin" "/etc/ssl/certs" "/share/terminfo" "/share/man" ];
         };
