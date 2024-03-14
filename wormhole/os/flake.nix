@@ -11,7 +11,7 @@
     });
   in {
     packages = forEachSupportedSystem ({ pkgs, system }: {
-      default = pkgs.dockerTools.buildImageWithNixDb {
+      default = pkgs.dockerTools.buildImage {
         name = "ghcr.io/orbstack/wormhole-os";
 
         copyToRoot = pkgs.buildEnv {
