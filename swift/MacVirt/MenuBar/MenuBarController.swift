@@ -34,7 +34,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private var lastSyntheticVmState = VmState.stopped
     private var isAnimating = false
     private var lastTargetIsActive = false
-    var quitInitiated = false
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -343,8 +342,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
                 AppLifecycle.forceTerminate = true
             }
 
-            // quick-quit logic for user-initiated menu bar quit
-            quitInitiated = true
+            // activate in case terminate is blocked by an alert
+            NSApp.activate(ignoringOtherApps: true)
+
             NSApp.terminate(self)
         }
     }
