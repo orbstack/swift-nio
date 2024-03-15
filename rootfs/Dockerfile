@@ -169,7 +169,7 @@ rm -fr nix/store/*-python3-*
 # convert CNF database
 sqlite3 -csv /cnf/*/programs.sqlite "select name, package from Programs where system = '\$(uname -m)-linux';" > nix/orb/sys/.programs.csv
 
-mkdir -p nix/orb/sys/zsh nix/orb/sys/.base nix/orb/data/cache nix/orb/data/tmp nix/orb/data/home/.config nix/orb/data/env nix/var
+mkdir -p nix/orb/sys/zsh nix/orb/sys/.base nix/orb/data/home nix/orb/data/tmp nix/orb/data/env nix/var
 cd nix/orb/sys/zsh
 bash /build/os/zsh/clone.sh
 cp /build/os/zsh/.zshrc .zshrc

@@ -48,6 +48,7 @@
               htop
               lsof
               strace
+              man
               # stable nix is 2.18 - we want profile pkg names
               nixVersions.nix_2_20
 
