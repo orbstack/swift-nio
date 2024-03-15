@@ -21,6 +21,7 @@ serde_json = "1.0.114"
 colored = "2.1.0"
 # aws-lc-rs requires cmake, etc. use ring to simplify build
 rustls = { version = "0.23.1", features = ["ring", "log", "logging", "std", "tls12"], default-features = false }
+ctrlc = "3.4.4"
 
 [profile.release]
 strip = true

@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fs, process::Command};
+use std::{collections::{HashMap, HashSet}, fs, os::unix::process::CommandExt, process::Command};
 
 use anyhow::anyhow;
 
@@ -41,18 +41,32 @@ pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
 }
 
 fn new_command(bin: &str) -> Command {
+    //ctrlc::
     let mut cmd = Command::new(format!("{}/{}", NIX_BIN, bin));
-    cmd
-        .current_dir(ENV_PATH)
-        // allow non-free pkgs (requires passing --impure to commands)
-        // note: cache.nixos.org doesn't have these pkgs cached
-        .env("NIXPKGS_ALLOW_UNFREE", "1")
-        // allow insecure (e.g. python2)
-        .env("NIXPKGS_ALLOW_INSECURE", "1")
-        // nix creates ~/.nix-profile symlink without this
-        .env("HOME", NIX_HOME)
-        // and extracts stuff in /tmp
-        .env("TMPDIR", NIX_TMPDIR);
+    unsafe {
+        cmd
+            .current_dir(ENV_PATH)
+            // allow non-free pkgs (requires passing --impure to commands)
+            // note: cache.nixos.org doesn't have these pkgs cached
+            .env("NIXPKGS_ALLOW_UNFREE", "1")
+            // allow insecure (e.g. python2)
+            .env("NIXPKGS_ALLOW_INSECURE", "1")
+            // nix creates ~/.nix-profile symlink without this
+            .env("HOME", NIX_HOME)
+            // and extracts stuff in /tmp
+            .env("TMPDIR", NIX_TMPDIR)
+            // tie child lifetime to dctl
+            // processes are spawned by main thread, so it's safe
+            // but use SIGINT, not SIGKILL, for safety
+            .pre_exec(|| {
+                let ret = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGINT);
+                if ret != 0 {
+                    Err(std::io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            });
+    }
     cmd
 }
 
