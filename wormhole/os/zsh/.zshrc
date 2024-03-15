@@ -1,4 +1,8 @@
-# my (new) zsh setup
+# Copyright 2024 Orbital Labs, LLC. All rights reserved.
+#
+# Unauthorized copying of this software and associated documentation files (the "Software"), via any medium, is strictly prohibited. Confidential and proprietary.
+#
+# The above copyright notice shall be included in all copies or substantial portions of the Software.
 
 # -- early vars
 export VISUAL=vim
@@ -206,6 +210,9 @@ command_not_found_handler() {
     fi
 }
 
+# prezto completion runs zcompdump with 20h cache
+
 # help
 echo "Welcome to OrbStack Debug Shell!"
 echo "Use 'dctl' to install and remove packages."
+# blank line added by prompt

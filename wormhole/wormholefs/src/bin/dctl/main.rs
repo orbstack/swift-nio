@@ -73,7 +73,7 @@ enum Commands {
 }
 
 fn read_env() -> anyhow::Result<FlockGuard<WormholeEnv>> {
-    let lock = Flock::new_nonblock(ENV_LOCK_PATH)?;
+    let lock = Flock::new_nonblock_path(ENV_LOCK_PATH)?;
     let env_json = match fs::read_to_string(ENV_PATH.to_string() + "/wormhole.json") {
         Ok(json) => json,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {

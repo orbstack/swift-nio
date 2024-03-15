@@ -1,8 +1,9 @@
-use std::{collections::{HashMap, HashSet}, fs, os::unix::process::CommandExt, process::{Command, ExitStatus, Output}, sync::atomic::{AtomicUsize, Ordering}};
+use std::{collections::HashMap, fs::{self, File}, io::Write, os::unix::process::CommandExt, process::{Command, ExitStatus, Output}, sync::atomic::{AtomicUsize, Ordering}};
 
 use anyhow::anyhow;
+use nix::unistd::getpid;
 
-use crate::{base_img, config, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH};
+use crate::{base_img, config, flock::Flock, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH};
 
 const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
 const NIX_HOME: &str = "/nix/orb/data/home";
@@ -93,37 +94,40 @@ fn new_command(bin: &str) -> Command {
 
 pub fn gc_store() -> anyhow::Result<()> {
     // we don't ship a nix.db that includes base image paths, and symlinking them into gcroots gets ignored because nix-store checks whether paths are in db's valid paths table
-    // so use --print-dead to get a list of paths that it *wants* to delete, and filter out the base image paths
-    let output = run_with_output(new_command("nix-store")
-        .args(&["--gc", "--print-dead", "--quiet"]))?;
-    if !output.status.success() {
-        return Err(anyhow!("failed to enumerate store ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
-    }
+    // so abuse package manager temproots mechanism to inject roots WITHOUT isValidPath check
+    // https://github.com/NixOS/nix/blob/c152c2767a262b772c912287e1c2d85173b4781c/src/libstore/gc.cc#L197
 
     // load base image paths
-    let base_paths: HashSet<String> = base_img::list()?;
-
-    // load current flake input paths (nixpkgs source)
-    let flake_inputs = read_flake_inputs()?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let paths = stdout
-        .lines()
-        // skip paths that are in the base image paths, or are in flake inputs
-        // list only contains last path component
-        .filter(|path| !base_paths.contains(path.split('/').last().unwrap()) && !flake_inputs.contains(&path.to_string()))
-        .collect::<Vec<_>>();
-
-    // pass non-base paths to nix-store --delete
-    // TODO: use --stdin to avoid too many args
-    // (nix command "nix store delete" fetches from flake registry for some reason?)
-    let status = run_with_status(new_command("nix-store")
-        .args(&["--delete", "--quiet"])
-        .args(&paths))?;
-    if !status.success() {
-        return Err(anyhow!("failed to delete from store ({})", status));
+    let mut roots: Vec<String> = base_img::list()?;
+    // prepend /nix/store/ to all paths
+    for path in &mut roots {
+        *path = format!("/nix/store/{}", path);
     }
 
+    // load current flake input paths (nixpkgs source)
+    roots.extend(read_flake_inputs()?);
+
+    // add ending null
+    roots.push("".to_string());
+
+    // write temporary roots in state dir
+    std::fs::create_dir_all("/nix/var/nix/temproots")?;
+    let pid = getpid();
+    let mut file = File::create(format!("/nix/var/nix/temproots/{}", pid))?;
+    // write null-separated paths
+    let roots_data = roots.join("\0");
+    file.write_all(roots_data.as_bytes())?;
+    // hold exclusive flock to make nix think we're still alive
+    let _flock = Flock::new_nonblock_file(file)?;
+
+    let status = run_with_status(new_command("nix-store")
+        .args(&["--gc", "--quiet"]))?;
+    if !status.success() {
+        return Err(anyhow!("failed to GC store ({})", status));
+    }
+
+    // delete file
+    std::fs::remove_file(format!("/nix/var/nix/temproots/{}", pid))?;
     Ok(())
 }
 

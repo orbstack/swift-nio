@@ -35,8 +35,12 @@ pub struct Flock {
 }
 
 impl Flock {
-    pub fn new_nonblock(path: &str) -> anyhow::Result<Self> {
+    pub fn new_nonblock_path(path: &str) -> anyhow::Result<Self> {
         let file = File::open(path)?;
+        Ok(Self::new_nonblock_file(file)?)
+    }
+
+    pub fn new_nonblock_file(file: File) -> anyhow::Result<Self> {
         match flock(file.as_raw_fd(), FlockArg::LockExclusiveNonblock) {
             Ok(_) => Ok(Flock { _file: file }),
             Err(Errno::EAGAIN) => Err(anyhow!("another instance of dctl is running")),
