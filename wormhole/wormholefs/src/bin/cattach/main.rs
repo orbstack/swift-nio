@@ -56,6 +56,11 @@ const SECCOMP_SET_MODE_FILTER: libc::c_uint = 1;
 const _LINUX_CAPABILITY_VERSION_3: u32 = 0x20080522;
 const _LINUX_CAPABILITY_U32S_3: u32 = 2;
 
+// kernel 6.3
+const PR_SET_MDWE: i32 = 65;
+const PR_MDWE_REFUSE_EXEC_GAIN: i32 = 1;
+const PR_MDWE_NO_INHERIT: i32 = 2;
+
 #[repr(C)]
 struct CapUserHeader {
     version: u32,
@@ -231,6 +236,10 @@ fn main() -> anyhow::Result<()> {
 
     // prevent tracing
     prctl::set_dumpable(false)?;
+    // prevent write-execute maps
+    unsafe {
+        libc::prctl(PR_SET_MDWE, PR_MDWE_REFUSE_EXEC_GAIN | PR_MDWE_NO_INHERIT, 0, 0, 0);
+    }
 
     // copy before entering container mount ns
     // /proc/self link reads ENOENT if pidns of mount and current process don't match

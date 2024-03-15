@@ -4,7 +4,7 @@ use libc::mmap;
 use nix::errno::Errno;
 
 pub fn prctl_death_sig() -> anyhow::Result<()> {
-    let ret = unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) };
+    let ret = unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) };
     if ret != 0 {
         return Err(Errno::last().into());
     }

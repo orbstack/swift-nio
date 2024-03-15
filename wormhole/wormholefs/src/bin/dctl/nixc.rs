@@ -81,7 +81,7 @@ fn new_command(bin: &str) -> Command {
             // processes are spawned by main thread, so it's safe
             // but use SIGINT, not SIGKILL, for safety
             .pre_exec(|| {
-                let ret = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGINT);
+                let ret = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGINT, 0, 0, 0);
                 if ret != 0 {
                     Err(std::io::Error::last_os_error())
                 } else {
