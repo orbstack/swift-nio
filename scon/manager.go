@@ -225,7 +225,12 @@ func (m *ConManager) Start() error {
 	if err != nil {
 		logrus.WithError(err).Error("Failed to get extra certs")
 	}
-	err = common.WriteCaCerts(securefs.Default(), "/etc/ssl/certs", extraCerts)
+	os.Setenv("SSL_CERT_DIR", "/run/certs")
+	err = os.MkdirAll("/run/certs", 0700)
+	if err != nil {
+		return err
+	}
+	err = common.WriteCaCerts(securefs.Default(), "/run/certs", extraCerts)
 	if err != nil {
 		return fmt.Errorf("write certs: %w", err)
 	}
