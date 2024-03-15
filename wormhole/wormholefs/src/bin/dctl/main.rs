@@ -1,10 +1,10 @@
-use std::{collections::{HashMap, HashSet}, fs, io::Write, process::Command, time::{Duration, SystemTime}};
+use std::{fs, io::Write, time::{Duration, SystemTime}};
 
 use anyhow::anyhow;
 use colored::Colorize;
 use clap::{Parser, Subcommand};
 use flock::{Flock, FlockGuard};
-use model::{NixFlakeArchive, WormholeEnv, CURRENT_VERSION};
+use model::{WormholeEnv, CURRENT_VERSION};
 use programs::read_and_find_program;
 use search::SearchQuery;
 
@@ -13,16 +13,11 @@ mod model;
 mod programs;
 mod flock;
 mod search;
+mod nixc;
 
-const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
-const NIX_HOME: &str = "/nix/orb/data/home";
-
-const ENV_OUT_PATH: &str = "/nix/orb/data/.env-out";
 const ENV_PATH: &str = "/nix/orb/data/env";
 // just use the directory, which is guaranteed to exist on overlayfs
 const ENV_LOCK_PATH: &str = ENV_PATH;
-
-const NIX_BIN: &str = "/nix/orb/sys/.bin";
 
 // 30 days
 // cache.nixos.org retention is supposed to be forever
@@ -75,103 +70,6 @@ enum Commands {
     },
 }
 
-fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
-    // load current flake input paths (nixpkgs source)
-    /*
-{
-  "inputs": {
-    "nixpkgs": {
-      "inputs": {},
-      "path": "/nix/store/ihkdxl68qh2kcsr33z2jhvfdrpcf7xrg-source"
-    }
-  },
-  "path": "/nix/store/zkspxz1kd4wz90lmszaycb1kzx0ff4i5-source"
-}
-     */
-    let output = new_nix_command("nix")
-        .args(&["flake", "archive", "--json", "--dry-run", "--impure"])
-        .output()?;
-    if !output.status.success() {
-        return Err(anyhow!("failed to read flake inputs ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
-    }
-
-    let flake_archive = serde_json::from_slice::<NixFlakeArchive>(&output.stdout)?;
-    let mut inputs = flake_archive.inputs.values()
-        .map(|input| input.path.clone())
-        .collect::<Vec<_>>();
-    inputs.push(flake_archive.path);
-
-    Ok(inputs)
-}
-
-fn new_nix_command(bin: &str) -> Command {
-    let mut cmd = Command::new(format!("{}/{}", NIX_BIN, bin));
-    cmd
-        .current_dir(ENV_PATH)
-        // allow non-free pkgs (requires passing --impure to commands)
-        // note: cache.nixos.org doesn't have these pkgs cached
-        .env("NIXPKGS_ALLOW_UNFREE", "1")
-        // allow insecure (e.g. python2)
-        .env("NIXPKGS_ALLOW_INSECURE", "1")
-        // nix creates ~/.nix-profile symlink without this
-        .env("HOME", NIX_HOME)
-        // and extracts stuff in /tmp
-        .env("TMPDIR", NIX_TMPDIR);
-    cmd
-}
-
-fn gc_nix_store() -> anyhow::Result<()> {
-    // we don't ship a nix.db that includes base image paths, and symlinking them into gcroots gets ignored because nix-store checks whether paths are in db's valid paths table
-    // so use --print-dead to get a list of paths that it *wants* to delete, and filter out the base image paths
-    let output = new_nix_command("nix-store")
-        .args(&["--gc", "--print-dead", "--quiet"])
-        .output()?;
-    if !output.status.success() {
-        return Err(anyhow!("failed to enumerate store ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
-    }
-
-    // load base image paths
-    let base_paths_data = fs::read_to_string("/nix/orb/sys/.base.list")?;
-    let base_paths = base_paths_data
-        .lines()
-        .collect::<HashSet<_>>();
-
-    // load current flake input paths (nixpkgs source)
-    let flake_inputs = read_flake_inputs()?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let paths = stdout
-        .lines()
-        // skip paths that are in the base image paths, or are in flake inputs
-        // list only contains last path component
-        .filter(|path| !base_paths.contains(path.split('/').last().unwrap()) && !flake_inputs.contains(&path.to_string()))
-        .collect::<Vec<_>>();
-
-    // pass non-base paths to nix-store --delete
-    // TODO: use --stdin to avoid too many args
-    // (nix command "nix store delete" fetches from flake registry for some reason?)
-    let status = new_nix_command("nix-store")
-        .args(&["--delete", "--quiet"])
-        .args(&paths)
-        .status()?;
-    if !status.success() {
-        return Err(anyhow!("failed to delete from store ({})", status));
-    }
-
-    Ok(())
-}
-
-fn build_flake_env() -> anyhow::Result<()> {
-    let status = new_nix_command("nix")
-        .args(&["build", "--impure", "--out-link", ENV_OUT_PATH])
-        .status()?;
-    if !status.success() {
-        return Err(anyhow!("failed to rebuild environment ({})", status));
-    }
-
-    Ok(())
-}
-
 fn read_env() -> anyhow::Result<FlockGuard<WormholeEnv>> {
     let lock = Flock::new_nonblock(ENV_LOCK_PATH)?;
     let env_json = match fs::read_to_string(ENV_PATH.to_string() + "/wormhole.json") {
@@ -182,8 +80,8 @@ fn read_env() -> anyhow::Result<FlockGuard<WormholeEnv>> {
             // - create lock
             // - write default env
             let env = WormholeEnv::default();
-            write_flake(&env)?;
-            update_flake_lock()?;
+            nixc::write_flake(&env)?;
+            nixc::update_flake_lock()?;
             write_env(&env)?;
             return Ok(FlockGuard::new(lock, env));
         }
@@ -218,86 +116,12 @@ fn write_env(env: &WormholeEnv) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn write_flake(env: &WormholeEnv) -> anyhow::Result<()> {
-    // generate pkglist
-    let pkg_list = env.packages
-        .iter()
-        .map(|pkg| pkg.attr_path.clone())
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    // generate flake.nix:
-    // format! requires too much escaping
-    // TODO: could use builtins.fromJSON (builtins.readFile "wormhole.json")
-    let data = r#"
-{
-  inputs = {
-    nixpkgs.url = "flake:nixpkgs";
-  };
-
-  outputs = { self, nixpkgs }: let
-    supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
-    forEachSupportedSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
-      pkgs = import nixpkgs { inherit system; };
-      system = system;
-    });
-  in {
-    packages = forEachSupportedSystem ({ pkgs, system }: {
-      default = pkgs.buildEnv {
-          name = "wormhole-env";
-          paths = with pkgs; [ PKGLIST ];
-          pathsToLink = [ "/" ];
-        };
-    });
-  };
-}
-    "#.replace("PKGLIST", &pkg_list);
-    fs::write(ENV_PATH.to_string() + "/flake.nix", data)?;
-
-    Ok(())
-}
-
-// maps to symbolic name (incl. version)
-fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<String, String>> {
-    // takes ~150 ms
-    // O(1) wrt. number of packages
-
-    // saves 30+ ms per package to use .name (guaranteed to exist on derivations)
-    // evaluating store path requires evaluating inputs, which is slow
-    // and takes care of cases like "dctl install python3.name" -- string won't have a name
-    //_flake: [ (_flake.neovim or null).name or null (_flake.htop or null).name or null (_flake.python3.version or null).name or null (_flake.neovasdim or null).name or null ]
-    let nix_expr_pkglist = attr_paths.iter()
-        .map(|name| format!("(_flake.{} or null).name or null", name))
-        .collect::<Vec<_>>()
-        .join(" ");
-    let nix_expr = format!("_flake: [ {} ]", nix_expr_pkglist);
-
-    let output = new_nix_command("nix")
-        .args(&["eval", "--json", "--impure", &format!("nixpkgs#.legacyPackages.{}", config::CURRENT_PLATFORM), "--apply"])
-        .arg(nix_expr)
-        .output()?;
-    if !output.status.success() {
-        return Err(anyhow!("failed to find packages ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
-    }
-
-    // parse json
-    let str_json = String::from_utf8_lossy(&output.stdout);
-    let pkg_names: Vec<Option<String>> = serde_json::from_str(&str_json)?;
-
-    // - by matching index, map package attribute path to symbolic name
-    // - only include non-null
-    Ok(pkg_names.into_iter()
-        .enumerate()
-        .filter_map(|(i, name)| name.map(|name| (attr_paths[i].clone(), name)))
-        .collect())
-}
-
 fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
     let mut has_error = false;
     let mut has_success = false;
 
     let mut env = read_env()?;
-    let mut found_pkgs = resolve_package_names(attr_paths)?;
+    let mut found_pkgs = nixc::resolve_package_names(attr_paths)?;
     for iter_name in attr_paths {
         let mut attr_path = iter_name.clone();
 
@@ -322,7 +146,7 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
 
                 // try again (in case cnf.sqlite doesn't match new nixpkgs)
                 attr_path = new_pkg_name;
-                found_pkgs.extend(resolve_package_names(&[attr_path.clone()])?);
+                found_pkgs.extend(nixc::resolve_package_names(&[attr_path.clone()])?);
             }
         }
         if !found_pkgs.contains_key(&attr_path) {
@@ -341,8 +165,8 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
     }
 
     if has_success {
-        write_flake(&env)?;
-        build_flake_env()?;
+        nixc::write_flake(&env)?;
+        nixc::build_flake_env()?;
         // commit success
         write_env(&env)?;
 
@@ -386,14 +210,14 @@ fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
     }
 
     if num_success > 0 {
-        write_flake(&env)?;
-        build_flake_env()?;
+        nixc::write_flake(&env)?;
+        nixc::build_flake_env()?;
         // commit success
         write_env(&env)?;
 
         // no auto-update on uninstall - that's not expected to cause a network fetch
 
-        gc_nix_store()?;
+        nixc::gc_store()?;
     }
 
     if has_error {
@@ -416,24 +240,11 @@ fn cmd_list() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn update_flake_lock() -> anyhow::Result<()> {
-    // passing --output-lock-file suppresses "warning: creating lock file"
-    // nix flake update --output-lock-file flake.lock
-    let status = new_nix_command("nix")
-        .args(&["flake", "update", "--output-lock-file", "flake.lock", "--impure"])
-        .status()?;
-    if !status.success() {
-        return Err(anyhow!("failed to update lock ({})", status));
-    }
-
-    Ok(())
-}
-
 fn do_upgrade(env: &mut WormholeEnv) -> anyhow::Result<()> {
-    update_flake_lock()?;
+    nixc::update_flake_lock()?;
 
-    build_flake_env()?;
-    gc_nix_store()?;
+    nixc::build_flake_env()?;
+    nixc::gc_store()?;
 
     // update last_updated_at
     env.last_updated_at = SystemTime::now();
