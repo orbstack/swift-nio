@@ -7,7 +7,6 @@ use flock::{Flock, FlockGuard};
 use model::{WormholeEnv, CURRENT_VERSION};
 use programs::read_and_find_program;
 use search::SearchQuery;
-use vm_memory::AtomicInteger;
 
 mod base_img;
 mod config;
@@ -54,7 +53,7 @@ enum Commands {
     #[clap(alias("ls"))]
     List,
     /// Update packages + index
-    /// TODO: should this be the same?
+    // TODO: should this be the same?
     #[clap(alias("update"), alias("up"))]
     Upgrade,
     /// Search for packages
