@@ -53,6 +53,7 @@
 #include <sys/xattr.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/prctl.h>
 
 #include <thread>
 #include "passthrough_helpers.h"
@@ -1380,6 +1381,9 @@ int main(int argc, char *argv[])
 
 	if (fuse_set_signal_handlers(se) != 0)
 	    goto err_out2;
+
+	// GFP_NOIO on allocations to prevent deadlock (k5.6+)
+	prctl(PR_SET_IO_FLUSHER, 1, 0, 0, 0);
 
 	if (fuse_session_mount(se, opts.mountpoint) != 0)
 	    goto err_out3;
