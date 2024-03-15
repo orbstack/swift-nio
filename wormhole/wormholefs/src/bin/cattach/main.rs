@@ -27,7 +27,6 @@ const EXTRA_ENV: &[(&str, &str)] = &[
     ("LIBEXEC_PATH", "/nix/orb/data/.env-out/libexec:/nix/orb/sys/libexec"),
     ("INFOPATH", "/nix/orb/data/.env-out/share/info:/nix/orb/sys/share/info"),
     //("LESSKEYIN_SYSTEM", "/nix/store/jsyxjk9lcrvncmnpjghlp0ar258z3rdy-lessconfig"),
-    ("XDG_CACHE_HOME", "/nix/orb/data/cache"),
 
     // fixes nixos + zsh bug with duplicated chars in prompt after tab completion
     // https://github.com/nix-community/home-manager/issues/3711
@@ -37,6 +36,8 @@ const EXTRA_ENV: &[(&str, &str)] = &[
 
     // e.g. for ~/.config/htop/htoprc
     ("XDG_CONFIG_HOME", "/nix/orb/data/home/.config"),
+    // for nix and other programs, incl. .zsh_history
+    ("XDG_CACHE_HOME", "/nix/orb/data/home/.cache"),
 ];
 const INHERIT_ENVS: &[&str] = &[
     "TERM",
