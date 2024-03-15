@@ -165,6 +165,9 @@ mv nix/orb/sys/bin/nix* nix/orb/sys/.bin/
 find nix/store -name '*.mo' -delete
 # python3 (75M) - brought in by vim
 rm -fr nix/store/*-python3-*
+# nix store has no write perm for owner by default
+# need this to make it work for containers without CAP_DAC_OVERRIDE, even with uid=0 gid=0
+chmod 755 nix/store
 
 # convert CNF database
 sqlite3 -csv /cnf/*/programs.sqlite "select name, package from Programs where system = '\$(uname -m)-linux';" > nix/orb/sys/.programs.csv

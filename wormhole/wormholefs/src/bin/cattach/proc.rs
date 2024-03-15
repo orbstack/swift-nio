@@ -1,4 +1,4 @@
-use std::{ffi::CString, ptr::null_mut};
+use std::{ffi::{c_char, CString}, ptr::null_mut};
 
 use libc::mmap;
 use nix::errno::Errno;
@@ -20,7 +20,7 @@ pub fn set_cmdline_name(name: &str) -> anyhow::Result<()> {
     if argv_start.is_null() {
         return Err(Errno::last().into());
     }
-    let argv_start = argv_start as *mut u8;
+    let argv_start = argv_start as *mut c_char;
 
     unsafe {
         // copy null-terminated name
