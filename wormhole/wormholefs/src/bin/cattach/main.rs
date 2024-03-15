@@ -344,8 +344,10 @@ fn main() -> anyhow::Result<()> {
 
     // then chdir to requested workdir (must do / first to avoid rel path vuln)
     // can fail (falls back to /)
-    if let Err(e) = chdir(Path::new(&workdir)) {
-        error!("failed to set working directory: {}", e);
+    if !workdir.is_empty() {
+        if let Err(e) = chdir(Path::new(&workdir)) {
+            error!("failed to set working directory: {}", e);
+        }
     }
 
     trace!("attach remaining namespaces");
