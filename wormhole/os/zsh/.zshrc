@@ -187,7 +187,7 @@ notify() {
 }
 
 command_not_found_handler() {
-    /nix/orb/sys/bin/dctl __command_not_found "$@"
+    /nix/orb/sys/bin/dctl __command_not_found "$1"
     if [[ $? -eq 126 ]]; then
         # command was just installed
         "$@"

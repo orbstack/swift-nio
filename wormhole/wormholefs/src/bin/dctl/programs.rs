@@ -28,14 +28,21 @@ pub fn read_and_find_program(prog_name: &str) -> anyhow::Result<Option<String>> 
     // then sort by comparator:
     // 1. (bool) whether pkg name starts with prog_name (true = first)
     // 2. (int) length of pkg name (shortest first)
+    // 3. alphanumeric (e.g. python312 > python310)
+    // examples:
+    //   - sorted for node: ["nodejs_21", "nodejs_20", "nodejs_18", "nodejs-slim", "nodejs-slim_21", "nodejs-slim_18", "graalvmCEPackages.graalnodejs"]
+    //   - sorted for python: ["python3", "python39", "python313", "python312", "python310", "python3Full", "python39Full", "python313Full", "python312Full", "python310Full", "python3Minimal", "qtile", "jupyter", "jupyter-all", "graalvmCEPackages.graalpy"]
     pkgs.sort_by(|a, b| {
         let a_starts = a.starts_with(prog_name);
         let b_starts = b.starts_with(prog_name);
         if a_starts != b_starts {
-            a_starts.cmp(&b_starts)
-        } else {
+            b_starts.cmp(&a_starts)
+        } else if a.len() != b.len() {
             a.len().cmp(&b.len())
+        } else {
+            b.cmp(a)
         }
     });
+
     Ok(pkgs.first().map(|p| p.to_string()))
 }

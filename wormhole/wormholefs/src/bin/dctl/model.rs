@@ -25,7 +25,8 @@ impl Default for WormholeEnv {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Package {
-    pub name: String,
+    pub attr_path: String,
+    pub symbolic_name: String,
 }
 
 #[derive(Serialize, Deserialize)]

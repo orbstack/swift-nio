@@ -1,33 +1,28 @@
-use std::{collections::HashSet, fs, io::Write, process::Command, time::{Duration, SystemTime}};
+use std::{collections::{HashMap, HashSet}, fs, io::Write, process::Command, time::{Duration, SystemTime}};
 
 use anyhow::anyhow;
 use colored::Colorize;
 use clap::{Parser, Subcommand};
+use flock::{Flock, FlockGuard};
 use model::{NixFlakeArchive, WormholeEnv, CURRENT_VERSION};
 use programs::read_and_find_program;
-use serde_json::json;
-use serde::{Serialize, Deserialize};
+use search::SearchQuery;
 
+mod config;
 mod model;
 mod programs;
+mod flock;
+mod search;
 
 const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
 const NIX_HOME: &str = "/nix/orb/data/home";
 
 const ENV_OUT_PATH: &str = "/nix/orb/data/.env-out";
 const ENV_PATH: &str = "/nix/orb/data/env";
+// just use the directory, which is guaranteed to exist on overlayfs
+const ENV_LOCK_PATH: &str = ENV_PATH;
 
 const NIX_BIN: &str = "/nix/orb/sys/.bin";
-
-// index version varies (42 as of writing) but * works
-const ELASTICSEARCH_URL: &str = "https://search.nixos.org/backend/latest-*-nixos-unstable/_search";
-const ELASTICSEARCH_USERNAME: &str = "aWVSALXpZv";
-const ELASTICSEARCH_PASSWORD: &str = "X8gPHnzL52wFEekuxsfQ9cSh";
-
-#[cfg(target_arch = "x86_64")]
-const CURRENT_PLATFORM: &str = "x86_64-linux";
-#[cfg(target_arch = "aarch64")]
-const CURRENT_PLATFORM: &str = "aarch64-linux";
 
 // 30 days
 // cache.nixos.org retention is supposed to be forever
@@ -80,187 +75,6 @@ enum Commands {
     },
 }
 
-#[derive(Serialize, Deserialize)]
-struct ElasticSearchResponse {
-    hits: ElasticSearchHits,
-}
-
-#[derive(Serialize, Deserialize)]
-struct ElasticSearchHits {
-    hits: Vec<ElasticSearchHit>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct ElasticSearchHit {
-    _score: f64,
-    _source: ElasticSearchSource,
-}
-
-#[derive(Serialize, Deserialize)]
-struct ElasticSearchSource {
-    // to minimize risk of null/type breakage, parse as few fields as possible
-    package_attr_name: String,
-    //package_attr_set: String,
-    //package_pname: String,
-    package_pversion: String,
-    package_platforms: Vec<String>,
-    //package_outputs: Vec<String>,
-    //package_default_output: String,
-    //package_programs: Vec<String>,
-    //package_license: Vec<String>,
-    //package_license_set: Vec<String>,
-    // not String
-    //package_maintainers: Vec<String>,
-    //package_maintainers_set: Vec<String>,
-    package_description: Option<String>,
-    //package_longDescription: Option<String>,
-    //package_hydra: Option<String>,
-    //package_system: String,
-    //package_homepage: Vec<String>,
-}
-
-enum SearchQuery {
-    Name(String),
-    Program(String),
-}
-
-impl SearchQuery {
-    fn to_json(&self) -> serde_json::Value {
-        match self {
-            SearchQuery::Name(name) => json!({
-                "bool": {
-                    "filter": [
-                        {
-                            "term": {
-                                "type": {
-                                    "value": "package",
-                                    "_name": "filter_packages"
-                                }
-                            }
-                        }
-                    ],
-                    "must": [
-                        {
-                            "dis_max": {
-                                "tie_breaker": 0.7,
-                                "queries": [
-                                    {
-                                        "multi_match": {
-                                            "type": "cross_fields",
-                                            "query": name,
-                                            "analyzer": "whitespace",
-                                            "auto_generate_synonyms_phrase_query": false,
-                                            "operator": "and",
-                                            "_name": "multi_match_query",
-                                            "fields": [
-                                                "package_attr_name^9",
-                                                "package_attr_name.*^5.3999999999999995",
-                                                "package_programs^9",
-                                                "package_programs.*^5.3999999999999995",
-                                                "package_pname^6",
-                                                "package_pname.*^3.5999999999999996",
-                                                "package_description^1.3",
-                                                "package_description.*^0.78",
-                                                "package_longDescription^1",
-                                                "package_longDescription.*^0.6",
-                                                "flake_name^0.5",
-                                                "flake_name.*^0.3"
-                                            ]
-                                        }
-                                    },
-                                    {
-                                        "wildcard": {
-                                            "package_attr_name": {
-                                                "value": format!("*{}*", name),
-                                                "case_insensitive": true
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }),
-            SearchQuery::Program(program) => json!({
-                "bool": {
-                    "filter": [
-                        {
-                            "term": {
-                                "type": {
-                                    "value": "package",
-                                    "_name": "filter_packages"
-                                }
-                            }
-                        }
-                    ],
-                    "must": [
-                        {
-                            "dis_max": {
-                                "tie_breaker": 0.7,
-                                "queries": [
-                                    {
-                                        "match": {
-                                            "package_programs": program,
-                                        }
-                                    },
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }),
-        }
-    }
-}
-
-fn search_elastic(query: SearchQuery) -> anyhow::Result<Vec<ElasticSearchSource>> {
-    let client = reqwest::blocking::Client::new();
-    let resp = client.post(ELASTICSEARCH_URL)
-        .basic_auth(ELASTICSEARCH_USERNAME, Some(ELASTICSEARCH_PASSWORD))
-        .json(&json!({
-            "from": 0,
-            "size": 50,
-            "sort": [
-                {
-                    "_score": "desc",
-                    "package_attr_name": "desc",
-                    "package_pversion": "desc"
-                }
-            ],
-            "query": query.to_json(),
-        }))
-        .send()?;
-
-    let body = resp.json::<ElasticSearchResponse>()?;
-    Ok(body.hits.hits
-        .into_iter()
-        .map(|hit| hit._source)
-        .collect())
-}
-
-fn print_search_results(results: Vec<ElasticSearchSource>) {
-    let len = results.len();
-    for (i, source) in results.into_iter().rev().enumerate() {
-        // must be available for current platform
-        if !source.package_platforms.contains(&CURRENT_PLATFORM.to_string()) {
-            continue;
-        }
-
-        println!("{}  {}", source.package_attr_name.bold(), source.package_pversion.dimmed());
-        if let Some(desc) = source.package_description {
-            println!("  {}", desc);
-        } else {
-            println!("  (no description)");
-        }
-        if i < len - 1 {
-            println!("");
-        }
-    }
-
-    println!("\n{}", "(most relevant result last)".dimmed())
-}
-
 fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
     // load current flake input paths (nixpkgs source)
     /*
@@ -278,7 +92,7 @@ fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
         .args(&["flake", "archive", "--json", "--dry-run", "--impure"])
         .output()?;
     if !output.status.success() {
-        return Err(anyhow!("failed to read flake inputs ({})", output.status));
+        return Err(anyhow!("failed to read flake inputs ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
     }
 
     let flake_archive = serde_json::from_slice::<NixFlakeArchive>(&output.stdout)?;
@@ -301,6 +115,7 @@ fn new_nix_command(bin: &str) -> Command {
         .env("NIXPKGS_ALLOW_INSECURE", "1")
         // nix creates ~/.nix-profile symlink without this
         .env("HOME", NIX_HOME)
+        // and extracts stuff in /tmp
         .env("TMPDIR", NIX_TMPDIR);
     cmd
 }
@@ -357,7 +172,8 @@ fn build_flake_env() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn read_env() -> anyhow::Result<WormholeEnv> {
+fn read_env() -> anyhow::Result<FlockGuard<WormholeEnv>> {
+    let lock = Flock::new_nonblock(ENV_LOCK_PATH)?;
     let env_json = match fs::read_to_string(ENV_PATH.to_string() + "/wormhole.json") {
         Ok(json) => json,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -369,7 +185,7 @@ fn read_env() -> anyhow::Result<WormholeEnv> {
             write_flake(&env)?;
             update_flake_lock()?;
             write_env(&env)?;
-            return Ok(env);
+            return Ok(FlockGuard::new(lock, env));
         }
         Err(e) => return Err(e.into()),
     };
@@ -379,7 +195,7 @@ fn read_env() -> anyhow::Result<WormholeEnv> {
         return Err(anyhow!("wormhole.json version mismatch (expected {}, got {})", CURRENT_VERSION, env.version));
     }
 
-    Ok(env)
+    Ok(FlockGuard::new(lock, env))
 }
 
 fn write_env(env: &WormholeEnv) -> anyhow::Result<()> {
@@ -406,7 +222,7 @@ fn write_flake(env: &WormholeEnv) -> anyhow::Result<()> {
     // generate pkglist
     let pkg_list = env.packages
         .iter()
-        .map(|pkg| pkg.name.clone())
+        .map(|pkg| pkg.attr_path.clone())
         .collect::<Vec<_>>()
         .join(" ");
 
@@ -441,57 +257,84 @@ fn write_flake(env: &WormholeEnv) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_install(name: &[String]) -> anyhow::Result<()> {
+// maps to symbolic name (incl. version)
+fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<String, String>> {
+    // takes ~150 ms
+    // O(1) wrt. number of packages
+
+    // saves 30+ ms per package to use .name (guaranteed to exist on derivations)
+    // evaluating store path requires evaluating inputs, which is slow
+    // and takes care of cases like "dctl install python3.name" -- string won't have a name
+    //_flake: [ (_flake.neovim or null).name or null (_flake.htop or null).name or null (_flake.python3.version or null).name or null (_flake.neovasdim or null).name or null ]
+    let nix_expr_pkglist = attr_paths.iter()
+        .map(|name| format!("(_flake.{} or null).name or null", name))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let nix_expr = format!("_flake: [ {} ]", nix_expr_pkglist);
+
+    let output = new_nix_command("nix")
+        .args(&["eval", "--json", "--impure", &format!("nixpkgs#.legacyPackages.{}", config::CURRENT_PLATFORM), "--apply"])
+        .arg(nix_expr)
+        .output()?;
+    if !output.status.success() {
+        return Err(anyhow!("failed to find packages ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
+    }
+
+    // parse json
+    let str_json = String::from_utf8_lossy(&output.stdout);
+    let pkg_names: Vec<Option<String>> = serde_json::from_str(&str_json)?;
+
+    // - by matching index, map package attribute path to symbolic name
+    // - only include non-null
+    Ok(pkg_names.into_iter()
+        .enumerate()
+        .filter_map(|(i, name)| name.map(|name| (attr_paths[i].clone(), name)))
+        .collect())
+}
+
+fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
     let mut has_error = false;
     let mut has_success = false;
 
     let mut env = read_env()?;
-    for iter_name in name {
-        let mut pkg_name = iter_name.clone();
+    let mut found_pkgs = resolve_package_names(attr_paths)?;
+    for iter_name in attr_paths {
+        let mut attr_path = iter_name.clone();
 
         // make sure pkg isn't already installed
-        if env.packages.iter().any(|p| p.name == *pkg_name) {
-            eprintln!("{}", format!("package '{}' already installed", pkg_name).red());
+        if env.packages.iter().any(|p| p.attr_path == *attr_path) {
+            eprintln!("{}", format!("package '{}' already installed", attr_path).red());
             has_error = true;
             continue;
         }
 
         // validate package name
-        if !pkg_name.chars().all(|c| PACKAGE_ALLOWED_CHARS.contains(c)) {
-            eprintln!("{}", format!("package name '{}' contains invalid characters", pkg_name).red());
+        if !attr_path.chars().all(|c| PACKAGE_ALLOWED_CHARS.contains(c)) {
+            eprintln!("{}", format!("package name '{}' contains invalid characters", attr_path).red());
             has_error = true;
             continue;
         }
 
         // make sure package exists
-        // TODO: faster way to do this, without 130ms overhead
-        let mut output = new_nix_command("nix")
-            .args(&["eval", "--json", "--impure"])
-            .arg(format!("nixpkgs#{}", pkg_name))
-            .output()?;
-        if !output.status.success() {
-            // try searching by program name
-            if let Some(new_pkg_name) = programs::read_and_find_program(&pkg_name)? {
-                println!("{}", format!("using package '{}' to provide '{}'", new_pkg_name, pkg_name).dimmed());
+        if !found_pkgs.contains_key(&attr_path) {
+            if let Some(new_pkg_name) = programs::read_and_find_program(&attr_path)? {
+                println!("{}", format!("using package '{}' to provide '{}'", new_pkg_name, attr_path).dimmed());
 
-                // try again
-                pkg_name = new_pkg_name;
-                output = new_nix_command("nix")
-                    .args(&["eval", "--json", "--impure"])
-                    // .version is 30 ms faster (160->130ms) but doesn't work for 'neovim'???
-                    .arg(format!("nixpkgs#{}", pkg_name))
-                    .output()?;
+                // try again (in case cnf.sqlite doesn't match new nixpkgs)
+                attr_path = new_pkg_name;
+                found_pkgs.extend(resolve_package_names(&[attr_path.clone()])?);
             }
         }
-        if !output.status.success() {
-            eprintln!("{}", format!("package '{}' not found", pkg_name).red());
+        if !found_pkgs.contains_key(&attr_path) {
+            eprintln!("{}", format!("package '{}' not found", attr_path).red());
             has_error = true;
             continue;
         }
 
         // add package to env
         let pkg = model::Package {
-            name: pkg_name.to_string(),
+            attr_path: attr_path.to_string(),
+            symbolic_name: found_pkgs[&attr_path].to_string(),
         };
         env.packages.push(pkg);
         has_success = true;
@@ -505,37 +348,44 @@ fn cmd_install(name: &[String]) -> anyhow::Result<()> {
 
         // do we need to do auto-update?
         if env.last_updated_at.elapsed()? > AUTO_UPDATE_INTERVAL {
-            cmd_upgrade()?;
+            do_upgrade(&mut env)?;
         }
     }
 
     if has_error {
         return Err(anyhow!("failed to install some packages"));
     } else {
-        println!("{}", format!("installed {} packages", name.len()).green());
+        let symbolic_names = found_pkgs.values()
+            .map(|name| name.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!("{}", format!("installed {} package{}: {}", found_pkgs.len(), if found_pkgs.len() == 1 { "" } else { "s" }, symbolic_names).green());
         Ok(())
     }
 }
 
-fn cmd_uninstall(name: &[String]) -> anyhow::Result<()> {
+fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
     let mut has_error = false;
-    let mut has_success = false;
+    let mut num_success = 0;
 
     let mut env = read_env()?;
-    for pkg_name in name {
+    let mut uninstalled_names = Vec::new();
+    for attr_path in attr_paths {
         // make sure pkg is installed
-        if !env.packages.iter().any(|p| p.name == *pkg_name) {
-            eprintln!("{}", format!("package '{}' not installed", pkg_name).red());
+        if !env.packages.iter().any(|p| p.attr_path == *attr_path) {
+            eprintln!("{}", format!("package '{}' not installed", attr_path).red());
             has_error = true;
             continue;
         }
 
         // remove package from env
-        env.packages.retain(|p| p.name != *pkg_name);
-        has_success = true;
+        let package = env.packages.iter().find(|p| p.attr_path == *attr_path).unwrap();
+        uninstalled_names.push(package.symbolic_name.clone());
+        env.packages.retain(|p| p.attr_path != *attr_path);
+        num_success += 1;
     }
 
-    if has_success {
+    if num_success > 0 {
         write_flake(&env)?;
         build_flake_env()?;
         // commit success
@@ -549,16 +399,18 @@ fn cmd_uninstall(name: &[String]) -> anyhow::Result<()> {
     if has_error {
         return Err(anyhow!("failed to uninstall some packages"));
     } else {
-        println!("{}", format!("uninstalled {} packages", name.len()).green());
+        let symbolic_names = uninstalled_names.join(", ");
+        println!("{}", format!("uninstalled {} package{}: {}", num_success, if num_success == 1 { "" } else { "s" }, symbolic_names).green());
         Ok(())
     }
 }
 
 fn cmd_list() -> anyhow::Result<()> {
-    let env = read_env()?;
+    let mut env = read_env()?;
 
+    env.packages.sort_by(|a, b| a.attr_path.cmp(&b.attr_path));
     for pkg in &env.packages {
-        println!("{}", pkg.name);
+        println!("{}  {}", pkg.attr_path, format!("({})", pkg.symbolic_name).dimmed());
     }
 
     Ok(())
@@ -577,10 +429,7 @@ fn update_flake_lock() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_upgrade() -> anyhow::Result<()> {
-    // create if first time
-    let mut env = read_env()?;
-
+fn do_upgrade(env: &mut WormholeEnv) -> anyhow::Result<()> {
     update_flake_lock()?;
 
     build_flake_env()?;
@@ -593,14 +442,21 @@ fn cmd_upgrade() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn cmd_upgrade() -> anyhow::Result<()> {
+    // create if first time
+    let mut env = read_env()?;
+    do_upgrade(&mut env)?;
+    Ok(())
+}
+
 fn cmd_search(query: &str, by_program: bool) -> anyhow::Result<()> {
     let query = if by_program {
         SearchQuery::Program(query.to_string())
     } else {
         SearchQuery::Name(query.to_string())
     };
-    let results = search_elastic(query)?;
-    print_search_results(results);
+    let results = search::search_elastic(query)?;
+    search::print_results(results);
 
     Ok(())
 }
