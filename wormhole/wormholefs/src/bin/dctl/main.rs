@@ -1,4 +1,4 @@
-use std::{fs, io::Write, time::{Duration, SystemTime}};
+use std::{fs, io::Write, sync::atomic::Ordering, time::{Duration, SystemTime}};
 
 use anyhow::anyhow;
 use colored::Colorize;
@@ -7,7 +7,9 @@ use flock::{Flock, FlockGuard};
 use model::{WormholeEnv, CURRENT_VERSION};
 use programs::read_and_find_program;
 use search::SearchQuery;
+use vm_memory::AtomicInteger;
 
+mod base_img;
 mod config;
 mod model;
 mod programs;
@@ -40,13 +42,13 @@ enum Commands {
     #[clap(alias("add"), alias("i"))]
     Install {
         #[arg(required=true, num_args=1..)]
-        name: Vec<String>,
+        package: Vec<String>,
     },
     /// Uninstall package(s)
     #[clap(alias("remove"), alias("rm"), alias("del"))]
     Uninstall {
         #[arg(required=true, num_args=1..)]
-        name: Vec<String>,
+        package: Vec<String>,
     },
     /// List installed packages
     #[clap(alias("ls"))]
@@ -58,6 +60,7 @@ enum Commands {
     /// Search for packages
     Search {
         query: String,
+        /// Search by program/executable name
         #[arg(short, long)]
         program: bool,
     },
@@ -66,7 +69,7 @@ enum Commands {
     #[clap(hide=true)]
     #[command(name="__command_not_found")]
     CommandNotFound {
-        name: String,
+        cmd: String,
     },
 }
 
@@ -117,26 +120,23 @@ fn write_env(env: &WormholeEnv) -> anyhow::Result<()> {
 }
 
 fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
-    let mut has_error = false;
-    let mut has_success = false;
+    base_img::restore_missing()?; // to run 'nix' if last install was interrupted with SIGKILL/panic
 
     let mut env = read_env()?;
     let mut found_pkgs = nixc::resolve_package_names(attr_paths)?;
+    let mut new_names = Vec::new();
     for iter_name in attr_paths {
         let mut attr_path = iter_name.clone();
 
         // make sure pkg isn't already installed
         if env.packages.iter().any(|p| p.attr_path == *attr_path) {
             eprintln!("{}", format!("package '{}' already installed", attr_path).red());
-            has_error = true;
             continue;
         }
 
         // validate package name
         if !attr_path.chars().all(|c| PACKAGE_ALLOWED_CHARS.contains(c)) {
-            eprintln!("{}", format!("package name '{}' contains invalid characters", attr_path).red());
-            has_error = true;
-            continue;
+            return Err(anyhow!("package name '{}' contains invalid characters", attr_path));
         }
 
         // make sure package exists
@@ -150,9 +150,7 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
             }
         }
         if !found_pkgs.contains_key(&attr_path) {
-            eprintln!("{}", format!("package '{}' not found", attr_path).red());
-            has_error = true;
-            continue;
+            return Err(anyhow!("package '{}' not found", attr_path));
         }
 
         // add package to env
@@ -160,13 +158,14 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
             attr_path: attr_path.to_string(),
             symbolic_name: found_pkgs[&attr_path].to_string(),
         };
+        new_names.push(pkg.symbolic_name.clone());
         env.packages.push(pkg);
-        has_success = true;
     }
 
-    if has_success {
+    if !new_names.is_empty() {
         nixc::write_flake(&env)?;
         nixc::build_flake_env()?;
+        base_img::restore_missing()?; // if interrupted
         // commit success
         write_env(&env)?;
 
@@ -176,40 +175,30 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
         }
     }
 
-    if has_error {
-        return Err(anyhow!("failed to install some packages"));
-    } else {
-        let symbolic_names = found_pkgs.values()
-            .map(|name| name.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        println!("{}", format!("installed {} package{}: {}", found_pkgs.len(), if found_pkgs.len() == 1 { "" } else { "s" }, symbolic_names).green());
-        Ok(())
-    }
+    let symbolic_names = new_names.join(" ");
+    println!("{}", format!("installed {} package{}: {}", new_names.len(), if new_names.len() == 1 { "" } else { "s" }, symbolic_names).green());
+    Ok(())
 }
 
 fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
-    let mut has_error = false;
-    let mut num_success = 0;
+    base_img::restore_missing()?; // to run 'nix' if last install was interrupted with SIGKILL/panic
 
     let mut env = read_env()?;
-    let mut uninstalled_names = Vec::new();
+    let mut removed_names = Vec::new();
     for attr_path in attr_paths {
         // make sure pkg is installed
         if !env.packages.iter().any(|p| p.attr_path == *attr_path) {
             eprintln!("{}", format!("package '{}' not installed", attr_path).red());
-            has_error = true;
             continue;
         }
 
         // remove package from env
         let package = env.packages.iter().find(|p| p.attr_path == *attr_path).unwrap();
-        uninstalled_names.push(package.symbolic_name.clone());
+        removed_names.push(package.symbolic_name.clone());
         env.packages.retain(|p| p.attr_path != *attr_path);
-        num_success += 1;
     }
 
-    if num_success > 0 {
+    if !removed_names.is_empty() {
         nixc::write_flake(&env)?;
         nixc::build_flake_env()?;
         // commit success
@@ -218,14 +207,13 @@ fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
         // no auto-update on uninstall - that's not expected to cause a network fetch
 
         nixc::gc_store()?;
-    }
+        base_img::restore_missing()?; // if uninstalled something that includes a base path
 
-    if has_error {
-        return Err(anyhow!("failed to uninstall some packages"));
-    } else {
-        let symbolic_names = uninstalled_names.join(", ");
-        println!("{}", format!("uninstalled {} package{}: {}", num_success, if num_success == 1 { "" } else { "s" }, symbolic_names).green());
+        let symbolic_names = removed_names.join(" ");
+        println!("{}", format!("uninstalled {} package{}: {}", removed_names.len(), if removed_names.len() == 1 { "" } else { "s" }, symbolic_names).green());
         Ok(())
+    } else {
+        Err(anyhow!("no packages uninstalled"))
     }
 }
 
@@ -245,6 +233,7 @@ fn do_upgrade(env: &mut WormholeEnv) -> anyhow::Result<()> {
 
     nixc::build_flake_env()?;
     nixc::gc_store()?;
+    base_img::restore_missing()?; // if uninstalled an old version of a package that includes a base path
 
     // update last_updated_at
     env.last_updated_at = SystemTime::now();
@@ -293,14 +282,26 @@ fn cmd_cnf(name: &str) -> anyhow::Result<()> {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
+    ctrlc::set_handler(|| {
+        // if a nix command is running, wait for it to exit and return an error to the caller. all processes in foreground process group (same pgid) will receive SIGINT
+        let num_running_procs = nixc::NUM_RUNNING_PROCS.load(Ordering::Relaxed);
+        if num_running_procs > 0 {
+            eprintln!("{}", "\ninterrupting...".red());
+            return;
+        }
+
+        // otherwise exit
+        std::process::exit(1);
+    })?;
+
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Commands::Install { name } => {
-            cmd_install(&name)?;
+        Commands::Install { package } => {
+            cmd_install(&package)?;
         }
-        Commands::Uninstall { name } => {
-            cmd_uninstall(&name)?;
+        Commands::Uninstall { package } => {
+            cmd_uninstall(&package)?;
         }
         Commands::List => {
             cmd_list()?;
@@ -311,8 +312,8 @@ fn main() -> anyhow::Result<()> {
         Commands::Search { program, query } => {
             cmd_search(query, *program)?;
         }
-        Commands::CommandNotFound { name } => {
-            cmd_cnf(&name)?;
+        Commands::CommandNotFound { cmd } => {
+            cmd_cnf(&cmd)?;
         }
     }
 

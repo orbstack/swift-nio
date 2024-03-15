@@ -1,16 +1,16 @@
-use std::{env, error::Error, fs::{self, Permissions, OpenOptions, File}, time::{Instant, Duration}, os::{unix::{prelude::{PermissionsExt, FileExt}, fs::chroot}}, process::{Command, Stdio}, io::{Write}, net::UdpSocket, sync::Arc};
+use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instant, Duration}, os::unix::{prelude::{PermissionsExt, FileExt}, fs::chroot}, process::{Command, Stdio}, io::Write, net::UdpSocket, sync::Arc};
 
 use anyhow::anyhow;
-use elf::{ElfBytes, endian::{LittleEndian, NativeEndian}, ElfStream};
+use elf::{endian::NativeEndian, ElfStream};
 use mkswap::SwapWriter;
 use netlink_packet_route::{LinkMessage, link, FR_ACT_TO_TBL};
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec, mman::{mlockall, MlockAllFlags}}, mount::{MsFlags}, unistd::{sethostname}, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId, clock_gettime}};
+use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId, clock_gettime}};
 use futures_util::TryStreamExt;
 use tracing::log::debug;
 
 use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, Timeline, vcontrol, action::SystemAction};
 use crate::service::{ServiceTracker, Service};
-use tokio::{sync::{Mutex, mpsc::{Sender}}};
+use tokio::sync::{Mutex, mpsc::Sender};
 
 use crate::ethtool::ETHTOOL_STSO;
 
@@ -90,12 +90,16 @@ fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> Result<(), Bo
     mount_common(source, dest, None, flags.unwrap_or(MsFlags::empty()) | MsFlags::MS_BIND, None)
 }
 
+fn bind_mount_ro(source: &str, dest: &str) -> Result<(), Box<dyn Error>> {
+    bind_mount(source, dest, None)?;
+    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
+    bind_mount(dest, dest, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
+    Ok(())
+}
+
 fn seal_read_only(path: &str) -> Result<(), Box<dyn Error>> {
     // prevents machines from reopening /proc/<agent>/exe as writable. CVE-2019-5736
-    bind_mount(path, path, None)?;
-    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
-    bind_mount(path, path, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
-    Ok(())
+    bind_mount_ro(path, path)
 }
 
 fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
@@ -106,31 +110,28 @@ fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
     let upper_flags = merged_flags | MsFlags::MS_NOSUID;
     mount("tmpfs", "/run", "tmpfs", upper_flags, None)?;
     // create directories
-    fs::create_dir_all("/run/overlay/root")?;
-    fs::create_dir_all("/run/overlay/upper")?;
-    fs::create_dir_all("/run/overlay/work")?;
-    fs::create_dir_all("/run/overlay/merged")?;
-    // bind mount root
-    bind_mount("/", "/run/overlay/root", None)?;
+    fs::create_dir_all("/run/upper")?;
+    fs::create_dir_all("/run/work")?;
+    fs::create_dir_all("/run/merged")?;
     // mount overlayfs - with vanity name for "df"
-    mount("orbstack", "/run/overlay/merged", "overlay", merged_flags, Some("lowerdir=/run/overlay/root,upperdir=/run/overlay/upper,workdir=/run/overlay/work"))?;
+    mount("orbstack", "/run/merged", "overlay", merged_flags, Some("lowerdir=/,upperdir=/run/upper,workdir=/run/work"))?;
 
     // make original fs available for debugging
     if DEBUG {
-        fs::create_dir_all("/run/overlay/merged/orig/run")?;
-        bind_mount("/run", "/run/overlay/merged/orig/run", None)?;
-        fs::create_dir_all("/run/overlay/merged/orig/root")?;
-        bind_mount("/", "/run/overlay/merged/orig/root", None)?;
+        fs::create_dir_all("/run/merged/orig/run")?;
+        bind_mount("/run", "/run/merged/orig/run", None)?;
+        fs::create_dir_all("/run/merged/orig/root")?;
+        bind_mount("/", "/run/merged/orig/root", None)?;
     }
 
     // switch root
     /*
     equivalent to:
-        cd /run/overlay/merged
+        cd /run/merged
         mount --move . /
         chroot .
     */
-    env::set_current_dir("/run/overlay/merged")?;
+    env::set_current_dir("/run/merged")?;
     mount_common(".", "/", None, MsFlags::MS_MOVE, None)?;
     chroot(".")?;
 
@@ -513,9 +514,7 @@ fn create_mirror_dir(dir: &str) -> Result<(String, String), Box<dyn Error>> {
 
     // seal ro copy:
     // read-only bind (+ rshared, for scon bind mounts)
-    bind_mount(&rw_dir, &ro_dir, Some(MsFlags::MS_REC)).unwrap();
-    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
-    bind_mount(&ro_dir, &ro_dir, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY)).unwrap();
+    bind_mount_ro(&rw_dir, &ro_dir)?;
     // and finally, make it shared (doesn't work as flag in above calls)
     mount_common(&ro_dir, &ro_dir, None, MsFlags::MS_SHARED, None).unwrap();
     Ok((ro_dir, rw_dir))
@@ -563,6 +562,20 @@ fn init_data() -> Result<(), Box<dyn Error>> {
     maybe_set_permissions("/data/guest-state/bin", 0o755)?;
     maybe_set_permissions("/data/guest-state/bin/cmdlinks", 0o755)?;
     bind_mount("/data/guest-state", "/opt/orbstack-guest/data", None)?;
+
+    // wormhole overlay
+    fs::create_dir_all("/data/wormhole/overlay/upper")?;
+    fs::create_dir_all("/data/wormhole/overlay/work")?;
+    // mount a r-w overlay for writing
+    mount("wormhole", "/mnt/wormhole-overlay", "overlay", MsFlags::MS_NOATIME, Some("lowerdir=/opt/wormhole-rootfs,upperdir=/data/wormhole/overlay/upper,workdir=/data/wormhole/overlay/work")).unwrap();
+    // mount a r-o nix to protect /nix/orb/sys and prevent creating files in /nix/.
+    bind_mount_ro("/opt/wormhole-rootfs", "/mnt/wormhole-unified")?;
+    // make /nix/orb/data, /nix/store, and /nix/var writable
+    bind_mount("/mnt/wormhole-overlay/nix/orb/data", "/mnt/wormhole-unified/nix/orb/data", None)?;
+    bind_mount("/mnt/wormhole-overlay/nix/store", "/mnt/wormhole-unified/nix/store", None)?;
+    bind_mount("/mnt/wormhole-overlay/nix/var", "/mnt/wormhole-unified/nix/var", None)?;
+    // expose read-only base store
+    bind_mount_ro("/opt/wormhole-rootfs/nix/store", "/mnt/wormhole-unified/nix/orb/sys/.base")?;
 
     // debug root home
     if DEBUG {

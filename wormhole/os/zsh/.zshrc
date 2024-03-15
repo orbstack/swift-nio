@@ -24,6 +24,16 @@ zstyle ':prezto:module:editor' dot-expansion yes
 zstyle ':prezto:module:utility' safe-ops no
 zstyle ':prezto:module:gnu-utility' prefix g
 
+mkc() {
+    mkdir -p "$1" && cd "$1" || return 1
+}
+
+# before completion module
+_mkc() {
+    #compdef mkc
+    _files -W "$1" -/
+}
+
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-completions/zsh-completions.plugin.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-completions )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-mafredri-SLASH-zsh-async/async.plugin.zsh
@@ -46,8 +56,6 @@ source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-S
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/terminal )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/editor/init.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/editor )
-source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/history/init.zsh
-fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/history )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/gnu-utility/init.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/gnu-utility )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/utility/init.zsh
@@ -75,7 +83,19 @@ setopt EXTENDED_GLOB
 setopt CLOBBER
 setopt MENU_COMPLETE
 setopt PUSHDSILENT
-setopt HIST_IGNORE_SPACE
+
+# history
+setopt BANG_HIST              # Treat the '!' character specially during expansion.
+setopt EXTENDED_HISTORY       # Write the history file in the ':start:elapsed;command' format.
+setopt SHARE_HISTORY          # Share history between all sessions.
+setopt HIST_EXPIRE_DUPS_FIRST # Expire a duplicate event first when trimming history.
+setopt HIST_IGNORE_DUPS       # Do not record an event that was just recorded again.
+setopt HIST_IGNORE_ALL_DUPS   # Delete an old recorded event if a new event is a duplicate.
+setopt HIST_FIND_NO_DUPS      # Do not display a previously found event.
+setopt HIST_IGNORE_SPACE      # Do not record an event starting with a space.
+setopt HIST_SAVE_NO_DUPS      # Do not write a duplicate event to the history file.
+setopt HIST_VERIFY            # Do not execute immediately upon history expansion.
+setopt HIST_BEEP              # Beep when accessing non-existent history.
 
 # -- aliases
 alias .='source'
@@ -105,11 +125,10 @@ if type lsd > /dev/null; then
 fi
 
 # -- tweaks
-HISTSIZE=1500
-SAVEHIST=1500
-setopt autocd extendedglob
-bindkey -e
-zstyle :compinstall filename "$ZDOTDIR/.zshrc"
+HISTFILE="${XDG_CACHE_HOME:-$HOME/.cache}/.zsh_history"
+HISTSIZE=10000 # in memory
+SAVEHIST=10000 # persistent
+bindkey -e # emacs keymap
 # disable correction - requires rehash after pkg install
 unsetopt correct
 
@@ -136,15 +155,6 @@ zstyle ':completion:*' menu select=2
 user() {
     # cd /home/$1 # don't usually need to look up the real user home in passwd
     sudo sh -c "cd /home/$1; su -s /bin/bash $1"
-}
-
-mkc() {
-    mkdir -p "$1" && cd "$1" || return 1
-}
-
-_mkc() {
-    #compdef mkc
-    _files -W "$1" -/
 }
 
 ### GENERAL FUNCTIONS
@@ -195,15 +205,6 @@ command_not_found_handler() {
         return 127
     fi
 }
-
-# update completion cache max once per day
-_comp_files=(${XDG_CACHE_HOME}/.zcompdump(Nm-20))
-if (( $#_comp_files )); then
-  compinit -i -C
-else
-  compinit -i
-fi
-unset _comp_files
 
 # help
 echo "Welcome to OrbStack Debug Shell!"

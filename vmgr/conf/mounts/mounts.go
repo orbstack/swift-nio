@@ -43,10 +43,11 @@ const (
 	DockerSocket         = "/var/run/docker.sock"
 	DockerRuncWrapSocket = "/run/rc.sock" // same on host
 
-	// host paths
+	// VM host paths
 	LaunchdSshAgentListeners  = "/opt/orb/launchd-ssh-agent-listeners"
 	DockerSshAgentProxySocket = "/run/docker-ssh-agent-proxy.sock"
 	NfsContainers             = "/nfs/containers"
+	WormholeUnifiedNix         = "/mnt/wormhole-unified/nix"
 )
 
 // mac

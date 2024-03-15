@@ -497,7 +497,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			}
 			defer rootfsFile.Close()
 
-			wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, "/opt/wormhole-rootfs/nix", unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE)
+			wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, mounts.WormholeUnifiedNix, unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			if err != nil {
 				return err
 			}

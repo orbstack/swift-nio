@@ -1,8 +1,8 @@
-use std::{collections::{HashMap, HashSet}, fs, os::unix::process::CommandExt, process::Command};
+use std::{collections::{HashMap, HashSet}, fs, os::unix::process::CommandExt, process::{Command, ExitStatus, Output}, sync::atomic::{AtomicUsize, Ordering}};
 
 use anyhow::anyhow;
 
-use crate::{config, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH};
+use crate::{base_img, config, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH};
 
 const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
 const NIX_HOME: &str = "/nix/orb/data/home";
@@ -10,6 +10,28 @@ const NIX_HOME: &str = "/nix/orb/data/home";
 const ENV_OUT_PATH: &str = "/nix/orb/data/.env-out";
 
 const NIX_BIN: &str = "/nix/orb/sys/.bin";
+
+pub static NUM_RUNNING_PROCS: AtomicUsize = AtomicUsize::new(0);
+
+struct ProcessGuard;
+
+impl Drop for ProcessGuard {
+    fn drop(&mut self) {
+        NUM_RUNNING_PROCS.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+fn run_with_output(cmd: &mut Command) -> std::io::Result<Output> {
+    NUM_RUNNING_PROCS.fetch_add(1, Ordering::Relaxed);
+    let _guard = ProcessGuard;
+    cmd.output()
+}
+
+fn run_with_status(cmd: &mut Command) -> std::io::Result<ExitStatus> {
+    NUM_RUNNING_PROCS.fetch_add(1, Ordering::Relaxed);
+    let _guard = ProcessGuard;
+    cmd.status()
+}
 
 pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
     // load current flake input paths (nixpkgs source)
@@ -24,9 +46,8 @@ pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
   "path": "/nix/store/zkspxz1kd4wz90lmszaycb1kzx0ff4i5-source"
 }
      */
-    let output = new_command("nix")
-        .args(&["flake", "archive", "--json", "--dry-run", "--impure"])
-        .output()?;
+    let output: Output = run_with_output(new_command("nix")
+        .args(&["flake", "archive", "--json", "--dry-run", "--impure"]))?;
     if !output.status.success() {
         return Err(anyhow!("failed to read flake inputs ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
     }
@@ -73,18 +94,14 @@ fn new_command(bin: &str) -> Command {
 pub fn gc_store() -> anyhow::Result<()> {
     // we don't ship a nix.db that includes base image paths, and symlinking them into gcroots gets ignored because nix-store checks whether paths are in db's valid paths table
     // so use --print-dead to get a list of paths that it *wants* to delete, and filter out the base image paths
-    let output = new_command("nix-store")
-        .args(&["--gc", "--print-dead", "--quiet"])
-        .output()?;
+    let output = run_with_output(new_command("nix-store")
+        .args(&["--gc", "--print-dead", "--quiet"]))?;
     if !output.status.success() {
         return Err(anyhow!("failed to enumerate store ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
     }
 
     // load base image paths
-    let base_paths_data = fs::read_to_string("/nix/orb/sys/.base.list")?;
-    let base_paths = base_paths_data
-        .lines()
-        .collect::<HashSet<_>>();
+    let base_paths: HashSet<String> = base_img::list()?;
 
     // load current flake input paths (nixpkgs source)
     let flake_inputs = read_flake_inputs()?;
@@ -100,10 +117,9 @@ pub fn gc_store() -> anyhow::Result<()> {
     // pass non-base paths to nix-store --delete
     // TODO: use --stdin to avoid too many args
     // (nix command "nix store delete" fetches from flake registry for some reason?)
-    let status = new_command("nix-store")
+    let status = run_with_status(new_command("nix-store")
         .args(&["--delete", "--quiet"])
-        .args(&paths)
-        .status()?;
+        .args(&paths))?;
     if !status.success() {
         return Err(anyhow!("failed to delete from store ({})", status));
     }
@@ -112,9 +128,8 @@ pub fn gc_store() -> anyhow::Result<()> {
 }
 
 pub fn build_flake_env() -> anyhow::Result<()> {
-    let status = new_command("nix")
-        .args(&["build", "--impure", "--out-link", ENV_OUT_PATH])
-        .status()?;
+    let status = run_with_status(new_command("nix")
+        .args(&["build", "--impure", "--out-link", ENV_OUT_PATH]))?;
     if !status.success() {
         return Err(anyhow!("failed to rebuild environment ({})", status));
     }
@@ -176,10 +191,9 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
         .join(" ");
     let nix_expr = format!("_flake: [ {} ]", nix_expr_pkglist);
 
-    let output = new_command("nix")
+    let output = run_with_output(new_command("nix")
         .args(&["eval", "--json", "--impure", &format!("nixpkgs#.legacyPackages.{}", config::CURRENT_PLATFORM), "--apply"])
-        .arg(nix_expr)
-        .output()?;
+        .arg(nix_expr))?;
     if !output.status.success() {
         return Err(anyhow!("failed to find packages ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
     }
@@ -199,9 +213,8 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
 pub fn update_flake_lock() -> anyhow::Result<()> {
     // passing --output-lock-file suppresses "warning: creating lock file"
     // nix flake update --output-lock-file flake.lock
-    let status = new_command("nix")
-        .args(&["flake", "update", "--output-lock-file", "flake.lock", "--impure"])
-        .status()?;
+    let status = run_with_status(new_command("nix")
+        .args(&["flake", "update", "--output-lock-file", "flake.lock", "--impure"]))?;
     if !status.success() {
         return Err(anyhow!("failed to update lock ({})", status));
     }

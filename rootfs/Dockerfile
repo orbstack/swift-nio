@@ -158,8 +158,6 @@ mkdir nix/orb/sys/.bin
 mv nix/orb/sys/bin/nix* nix/orb/sys/.bin/
 
 # no need to create gcroots - we use custom gc path filtering in rust
-# instead create list of all store paths in base image
-ls nix/store > nix/orb/sys/.base.list
 
 # we don't need this to be valid nix anymore (due to no nix.db)
 # so delete stuff we don't need:
@@ -171,7 +169,7 @@ rm -fr nix/store/*-python3-*
 # convert CNF database
 sqlite3 -csv /cnf/*/programs.sqlite "select name, package from Programs where system = '\$(uname -m)-linux';" > nix/orb/sys/.programs.csv
 
-mkdir -p nix/orb/sys/zsh nix/orb/sys/.base nix/orb/data/cache nix/orb/data/tmp nix/orb/data/home/.config/htop nix/orb/data/env
+mkdir -p nix/orb/sys/zsh nix/orb/sys/.base nix/orb/data/cache nix/orb/data/tmp nix/orb/data/home/.config nix/orb/data/env nix/var
 cd nix/orb/sys/zsh
 bash /build/os/zsh/clone.sh
 cp /build/os/zsh/.zshrc .zshrc
@@ -477,11 +475,7 @@ rm -f /etc/motd
 mkdir -p /usr/lib/lxc/rootfs
 
 # Mountpoints
-mkdir /nfs
-mkdir /data
-mkdir /mnt/mac
-mkdir /mnt/rosetta
-mkdir /mnt/rv
+mkdir /nfs /data /mnt/mac /mnt/rosetta /mnt/rv /mnt/wormhole-overlay /mnt/wormhole-unified
 
 # binfmt vanity links
 ln -s /tmp/rstub '[rosetta]' # (real rosetta is in rvfs)

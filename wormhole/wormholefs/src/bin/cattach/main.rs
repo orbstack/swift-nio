@@ -35,8 +35,8 @@ const EXTRA_ENV: &[(&str, &str)] = &[
     // not set by scon because user=""
     ("USER", "root"),
 
-    // move ~/.config/htop/htoprc to persist across containers
-    ("HTOPRC", "/nix/orb/data/home/.config/htop/htoprc"),
+    // e.g. for ~/.config/htop/htoprc
+    ("XDG_CONFIG_HOME", "/nix/orb/data/home/.config"),
 ];
 const INHERIT_ENVS: &[&str] = &[
     "TERM",
