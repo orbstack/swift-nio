@@ -44,8 +44,6 @@ source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-mafredri-SLASH-
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-mafredri-SLASH-zsh-async )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sindresorhus-SLASH-pure/pure.plugin.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sindresorhus-SLASH-pure )
-source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-history-substring-search/zsh-history-substring-search.plugin.zsh
-fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-history-substring-search )
 export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-ports:$PATH"
 export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-zsh-git-fetch-merge:$PATH"
 export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-zsh-open-pr:$PATH"
@@ -75,9 +73,6 @@ source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-zsh-users-SLASH-zsh-autosuggestions )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/completion/init.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/completion )
-
-bindkey "$terminfo[kcuu1]" history-substring-search-up
-bindkey "$terminfo[kcud1]" history-substring-search-down
 
 # -- flags
 setopt AUTO_CD
