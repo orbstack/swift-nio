@@ -9,6 +9,7 @@ use wormhole::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::
 
 use crate::proc::wait_for_exit;
 
+mod drm;
 mod pidfd;
 mod proc;
 mod subreaper;
@@ -308,6 +309,10 @@ fn main() -> anyhow::Result<()> {
     let workdir = std::env::args().nth(2).unwrap();
     let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(std::env::args().nth(3).unwrap().parse::<i32>()?) };
     let entry_shell_cmd = std::env::args().nth(4).unwrap();
+    let drm_token = std::env::args().nth(5).unwrap();
+    trace!("entry shell cmd: {:?}", entry_shell_cmd);
+    trace!("drm token: {:?}", drm_token);
+    drm::verify_token(&drm_token)?;
 
     trace!("open pidfd");
     let pidfd = PidFd::open(init_pid)?;
