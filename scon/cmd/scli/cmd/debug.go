@@ -91,15 +91,19 @@ var debugCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// parse flags
 		var err error
-		args, err = ParseDebugFlags(args)
-		if err != nil {
-			return err
-		}
-		if len(args) == 0 || FlagWantHelp {
+		if len(args) == 0 {
 			cmd.Help()
 			return nil
 		}
 		containerID := args[0]
+		args, err = ParseDebugFlags(args[1:])
+		if err != nil {
+			return err
+		}
+		if FlagWantHelp {
+			cmd.Help()
+			return nil
+		}
 
 		scli.EnsureSconVMWithSpinner()
 
@@ -110,7 +114,7 @@ var debugCmd = &cobra.Command{
 		}
 
 		exitCode, err := shell.RunSSH(shell.CommandOpts{
-			CombinedArgs:  args[1:],
+			CombinedArgs:  args,
 			ContainerName: types.ContainerDocker,
 			Dir:           &workdir,
 			User:          "wormhole:" + containerID,

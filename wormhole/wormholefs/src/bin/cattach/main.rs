@@ -575,7 +575,7 @@ fn main() -> anyhow::Result<()> {
                             // kill self if parent (cattach subreaper) dies
                             // but allow bg processes to keep running
                             proc::prctl_death_sig()?;
-                            execve(&CString::new("/nix/orb/sys/bin/dctl")?, &[CString::new("dctl")?, CString::new("__entrypoint")?, CString::new(entry_shell_cmd)?], &cstr_envs)?;
+                            execve(&CString::new("/nix/orb/sys/bin/dctl")?, &[CString::new("dctl")?, CString::new("__entrypoint")?, CString::new("--")?, CString::new(entry_shell_cmd)?], &cstr_envs)?;
                             unreachable!();
                         }
                     }
