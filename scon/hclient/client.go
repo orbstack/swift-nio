@@ -95,13 +95,13 @@ func (c *Client) GetGitConfig() (map[string]string, error) {
 }
 
 func (c *Client) GetLastDrmResult() (*drmtypes.Result, error) {
-	var result drmtypes.Result
+	var result *drmtypes.Result
 	err := c.rpc.Call("hc.GetLastDrmResult", None{}, &result)
 	if err != nil {
 		return nil, err
 	}
 
-	return &result, nil
+	return result, nil
 }
 
 func (c *Client) GetDockerMachineConfig() (htypes.DockerMachineConfig, error) {

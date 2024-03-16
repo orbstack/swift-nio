@@ -187,6 +187,8 @@ func (c *DrmClient) setState(state drmtypes.State) {
 }
 
 func (c *DrmClient) LastResult() *drmtypes.Result {
+	c.restored.Wait()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -198,9 +200,6 @@ func (c *DrmClient) UpdateResult() (*drmtypes.Result, error) {
 }
 
 func (c *DrmClient) Run() {
-	// sleep for a few sec to allow for proxy settings to load
-	time.Sleep(3 * time.Second)
-
 	ticker := time.NewTicker(evaluateInterval)
 	defer ticker.Stop()
 
@@ -223,6 +222,9 @@ func (c *DrmClient) Run() {
 	if err != nil {
 		dlog("restore state timed out: ", err)
 	}
+
+	// sleep for a few sec to allow for proxy settings to load
+	time.Sleep(3 * time.Second)
 
 	// force first check after restored
 	shouldForce := true

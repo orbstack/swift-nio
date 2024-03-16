@@ -309,6 +309,19 @@ func (m *ConManager) Start() error {
 	m.uiInitContainers.Done()
 	m.uiEventDebounce.Call()
 
+	// prepopulate drm result to get correct license status on start
+	go func() {
+		result, err := m.host.GetLastDrmResult()
+		if err != nil {
+			logrus.WithError(err).Error("failed to get initial drm result")
+			return
+		}
+
+		if result != nil {
+			m.drm.dispatchResult(result)
+		}
+	}()
+
 	logrus.Info("started")
 	return nil
 }

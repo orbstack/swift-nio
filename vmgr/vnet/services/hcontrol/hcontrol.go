@@ -247,16 +247,8 @@ func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
 	return nil
 }
 
-func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error {
-	result, err := h.drmClient.UpdateResult()
-	if err != nil {
-		return err
-	}
-	if result == nil {
-		return errors.New("no result available")
-	}
-
-	*reply = *result
+func (h *HcontrolServer) GetLastDrmResult(_ None, reply **drmtypes.Result) error {
+	*reply = h.drmClient.LastResult()
 	return nil
 }
 
