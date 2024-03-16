@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ffi::CString, fs::File, io::ErrorKind, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
-use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
+use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setsid, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
 use pidfd::PidFd;
 use tracing::{error, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -433,12 +433,12 @@ fn main() -> anyhow::Result<()> {
         // parent 1 = host monitor
         ForkResult::Parent { child } => {
             let _span = span!(Level::TRACE, "monitor").entered();
-            trace!("waitpid");
 
             // close unnecessary fds
             drop(pidfd);
 
             // wait until child (intermediate) exits
+            trace!("waitpid");
             wait_for_exit(child)?;
 
             // try to delete /nix
@@ -447,8 +447,7 @@ fn main() -> anyhow::Result<()> {
 
         // child 1 = intermediate
         ForkResult::Child => {
-            let _span = span!(Level::TRACE, "intermediate").entered();
-            trace!("fork");
+            let _span = span!(Level::TRACE, "inter").entered();
 
             // kill self if parent (cattach waiter) dies
             proc::prctl_death_sig()?;
@@ -556,7 +555,6 @@ fn main() -> anyhow::Result<()> {
                 // child 2 = subreaper
                 ForkResult::Child => {
                     let _span = span!(Level::TRACE, "subreaper").entered();
-                    trace!("fork");
 
                     // become subreaper, so children get a subreaper flag at fork time
                     prctl::set_child_subreaper(true)?;
@@ -564,6 +562,7 @@ fn main() -> anyhow::Result<()> {
                     proc::prctl_death_sig()?;
 
                     // fork again...
+                    trace!("fork");
                     match unsafe { fork()? } {
                         // parent 2 = subreaper
                         ForkResult::Parent { child } => {
@@ -575,10 +574,14 @@ fn main() -> anyhow::Result<()> {
                         // child 2 = payload
                         ForkResult::Child => {
                             let _span = span!(Level::TRACE, "payload");
-                            trace!("execve");
+
                             // kill self if parent (cattach subreaper) dies
                             // but allow bg processes to keep running
                             proc::prctl_death_sig()?;
+                            // become session leader
+                            setsid()?;
+
+                            trace!("execve");
                             execve(&CString::new("/nix/orb/sys/bin/dctl")?, &[CString::new("dctl")?, CString::new("__entrypoint")?, CString::new("--")?, CString::new(entry_shell_cmd)?], &cstr_envs)?;
                             unreachable!();
                         }
