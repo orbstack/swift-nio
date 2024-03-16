@@ -1,6 +1,6 @@
 use std::{ffi::CString, mem::size_of, os::fd::{AsRawFd, FromRawFd, OwnedFd}};
 
-use libc::{syscall, SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_fspick, SYS_move_mount, SYS_open_tree, AT_FDCWD};
+use libc::{syscall, SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_fspick, SYS_mount_setattr, SYS_move_mount, SYS_open_tree, AT_FDCWD};
 
 use crate::err;
 
@@ -67,9 +67,9 @@ pub fn move_mount(tree_fd: &OwnedFd, dest_fd: Option<&OwnedFd>, dest: &str) -> a
     Ok(())
 }
 
-pub fn mount_setattr(dirfd: &OwnedFd, path: &str, flags: u32, attr: &MountAttr) -> anyhow::Result<()> {
+pub fn mount_setattr(dirfd: Option<&OwnedFd>, path: &str, flags: u32, attr: &MountAttr) -> anyhow::Result<()> {
     let path = CString::new(path)?;
     let attr = attr as *const MountAttr;
-    unsafe { err(syscall(SYS_fsmount, dirfd.as_raw_fd(), path.into_raw(), flags, attr, size_of::<MountAttr>()))? };
+    unsafe { err(syscall(SYS_mount_setattr, dirfd.map(|d| d.as_raw_fd()).unwrap_or(AT_FDCWD), path.into_raw(), flags, attr, size_of::<MountAttr>()))? };
     Ok(())
 }

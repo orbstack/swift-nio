@@ -5,7 +5,7 @@ use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags,
 use pidfd::PidFd;
 use tracing::{error, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use wormholefs::{flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::move_mount, err};
+use wormholefs::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY}};
 
 use crate::proc::wait_for_exit;
 
@@ -178,7 +178,12 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
             let is_root_readonly = is_root_readonly(proc_mounts);
             if is_root_readonly {
                 trace!("mounts: remount / as rw");
-                mount_common("/", "/", None, MsFlags::MS_REMOUNT, None)?;
+                mount_setattr(None, "/", 0, &MountAttr {
+                    attr_set: 0,
+                    attr_clr: MOUNT_ATTR_RDONLY,
+                    propagation: 0,
+                    userns_fd: 0,
+                })?;
             }
 
             // use create_dir_all to avoid race with another cattach
@@ -191,7 +196,12 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
 
             if is_root_readonly {
                 trace!("mounts: remount / as ro");
-                mount_common("/", "/", None, MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY, None)?;
+                mount_setattr(None, "/", 0, &MountAttr {
+                    attr_set: MOUNT_ATTR_RDONLY,
+                    attr_clr: 0,
+                    propagation: 0,
+                    userns_fd: 0,
+                })?;
             }
         },
         Err(e) => return Err(e.into()),
@@ -260,7 +270,12 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     let is_root_readonly = is_root_readonly(&proc_mounts);
     if is_root_readonly {
         trace!("mounts: remount / as rw");
-        mount_common("/", "/", None, MsFlags::MS_REMOUNT, None)?;
+        mount_setattr(None, "/", 0, &MountAttr {
+            attr_set: 0,
+            attr_clr: MOUNT_ATTR_RDONLY,
+            propagation: 0,
+            userns_fd: 0,
+        })?;
     }
 
     trace!("delete_nix_dir: deleting /nix");
@@ -268,7 +283,12 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
 
     if is_root_readonly {
         trace!("mounts: remount / as ro");
-        mount_common("/", "/", None, MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY, None)?;
+        mount_setattr(None, "/", 0, &MountAttr {
+            attr_set: MOUNT_ATTR_RDONLY,
+            attr_clr: 0,
+            propagation: 0,
+            userns_fd: 0,
+        })?;
     }
 
     Ok(())
