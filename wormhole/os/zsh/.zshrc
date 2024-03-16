@@ -209,7 +209,7 @@ command_not_found_handler() {
 
 # help
 echo "Welcome to OrbStack Debug Shell!"
-echo "This shell provides tools to make it easy to debug any container (even distroless/read-only)."
+echo "This shell provides useful commands & tools, making it easy to debug any container (even if minimal)."
 echo "Use 'dctl' to install and remove packages."
 echo
 echo "Learn more: https://go.orbstack.dev/debug"

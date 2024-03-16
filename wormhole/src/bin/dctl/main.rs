@@ -3,11 +3,14 @@ use std::{ffi::CString, fs::{self, File}, io::Write, sync::atomic::Ordering, tim
 use anyhow::anyhow;
 use colored::Colorize;
 use clap::{Parser, Subcommand};
+use config::HIDE_BUILTIN_PACKAGES;
 use model::{WormholeEnv, CURRENT_VERSION};
 use nix::unistd::execv;
 use programs::read_and_find_program;
 use search::SearchQuery;
 use wormhole::flock::{Flock, FlockGuard};
+
+use crate::config::BUILTIN_PACKAGES;
 
 mod base_img;
 mod config;
@@ -136,7 +139,7 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
         let mut attr_path = iter_name.clone();
 
         // make sure pkg isn't already installed
-        if env.packages.iter().any(|p| p.attr_path == *attr_path) {
+        if env.packages.iter().any(|p| p.attr_path == *attr_path) || BUILTIN_PACKAGES.contains(&attr_path.as_str()) {
             eprintln!("{}", format!("package '{}' already installed", attr_path).red());
             continue;
         }
@@ -193,6 +196,11 @@ fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
     let mut env = read_env()?;
     let mut removed_names = Vec::new();
     for attr_path in attr_paths {
+        if BUILTIN_PACKAGES.contains(&attr_path.as_str()) {
+            eprintln!("{}", format!("cannot uninstall builtin package {}", attr_path).red());
+            continue;
+        }
+
         // make sure pkg is installed
         if !env.packages.iter().any(|p| p.attr_path == *attr_path) {
             eprintln!("{}", format!("package '{}' not installed", attr_path).red());
@@ -226,6 +234,18 @@ fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
 
 fn cmd_list() -> anyhow::Result<()> {
     let mut env = read_env()?;
+
+    // add synthetic packages for builtins
+    for pkg in BUILTIN_PACKAGES {
+        if HIDE_BUILTIN_PACKAGES.contains(&pkg) {
+            continue;
+        }
+
+        env.packages.push(model::Package {
+            attr_path: pkg.to_string(),
+            symbolic_name: pkg.to_string(),
+        });
+    }
 
     env.packages.sort_by(|a, b| a.attr_path.cmp(&b.attr_path));
     for pkg in &env.packages {
