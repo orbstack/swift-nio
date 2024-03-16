@@ -153,7 +153,7 @@ pub fn gc_store() -> anyhow::Result<()> {
     let roots_data = roots.join("\0");
     file.write_all(roots_data.as_bytes())?;
     // hold exclusive flock to make nix think we're still alive
-    let _flock = Flock::new_ofd(file, FlockMode::Exclusive, FlockWait::NonBlocking)?;
+    let _flock = Flock::new_nonblock_legacy_excl(file)?;
 
     run_with_status_checked("GC store", false, new_command("nix-store")
         .args(&["--gc", "--quiet"]))?;

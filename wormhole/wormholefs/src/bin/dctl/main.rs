@@ -72,6 +72,7 @@ enum Commands {
 }
 
 fn read_env() -> anyhow::Result<FlockGuard<WormholeEnv>> {
+    // exclusive locks don't work on dirs (can't open for writing)
     let lock = Flock::new_nonblock_legacy_excl(File::open(ENV_LOCK_PATH)?)?;
     let env_json = match fs::read_to_string(ENV_PATH.to_string() + "/wormhole.json") {
         Ok(json) => json,
