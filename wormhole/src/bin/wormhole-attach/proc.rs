@@ -2,7 +2,7 @@ use std::{ffi::{c_char, CString}, ptr::null_mut};
 
 use libc::mmap;
 use nix::{errno::Errno, sys::wait::{waitpid, WaitStatus}, unistd::Pid};
-use wormholefs::err;
+use wormhole::err;
 
 pub fn prctl_death_sig() -> anyhow::Result<()> {
     unsafe { err(libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0))? };

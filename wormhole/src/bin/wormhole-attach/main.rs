@@ -5,7 +5,7 @@ use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags,
 use pidfd::PidFd;
 use tracing::{error, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use wormholefs::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY}};
+use wormhole::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY}};
 
 use crate::proc::wait_for_exit;
 

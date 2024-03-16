@@ -7,7 +7,7 @@ use model::{WormholeEnv, CURRENT_VERSION};
 use nix::unistd::execv;
 use programs::read_and_find_program;
 use search::SearchQuery;
-use wormholefs::flock::{Flock, FlockGuard};
+use wormhole::flock::{Flock, FlockGuard};
 
 mod base_img;
 mod config;

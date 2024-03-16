@@ -41,17 +41,12 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 <<EOT sh -eux
 cd /build/scon
 mkdir -p /out && ./build-release.sh /out ${TYPE}
-
-# btfstrip for wormholefs build
-go build -o /out/btfstrip ./cmd/btfstrip
 EOT
 
-# Build Rust - vinit, wormholefsd, cattach
+# Build Rust - vinit, wormhole-attach, dctl
 # workaround for Rosetta bug: use Rust image to avoid patchelf
 FROM rust-base AS rust-build
-# dep needed with rust image: to build wormholefs bpf
-RUN apk add --no-cache musl-dev \
-    llvm clang linux-headers libbpf-dev
+RUN apk add --no-cache musl-dev
 COPY vinit /build/vinit
 ARG ARCH=arm64
 ARG TYPE=release
@@ -68,20 +63,19 @@ fi
 mkdir /out
 cp target/${TYPE}/vinit target/${TYPE}/b3enc target/${TYPE}/simplevisor /out/
 EOT
-# wormholefsd
-COPY --from=go-build /out/btfstrip /bin/btfstrip
-COPY wormhole/wormholefs /build/wormholefs
+# wormhole
+COPY wormhole /build/wormhole
 RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/build/wormholefs/target,id=${ARCH} \
+    --mount=type=cache,target=/build/wormhole/target,id=${ARCH} \
     --mount=type=ssh,required=true \
 <<EOT sh -eux
-cd /build/wormholefs
+cd /build/wormhole
 if [[ "$TYPE" == "debug" ]]; then
     cargo build
 else
     cargo build --release
 fi
-cp target/${TYPE}/dctl target/${TYPE}/cattach /out/
+cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach /out/
 EOT
 
 # Build Rosetta runc override
@@ -529,7 +523,7 @@ COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 COPY --from=rust-build /out/vinit /opt/orb/
 COPY --from=rust-build /out/simplevisor /opt/orbstack-guest/
 # wormhole
-COPY --from=rust-build /out/cattach /opt/orbstack-guest/
+COPY --from=rust-build /out/wormhole-attach /opt/orbstack-guest/
 COPY --from=nix-build /out /opt/wormhole-rootfs
 # macctl
 COPY --from=go-build /out/macctl /opt/orbstack-guest/bin/

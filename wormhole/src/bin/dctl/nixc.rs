@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs::{self, File}, io::Write, os::unix::process::
 
 use anyhow::anyhow;
 use nix::unistd::getpid;
-use wormholefs::flock::Flock;
+use wormhole::flock::Flock;
 
 use crate::{base_img, config, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH};
 

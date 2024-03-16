@@ -16,7 +16,7 @@ const (
 
 	Opt             = "/opt/" + appid.AppName + "-guest"
 	Pstub           = Opt + "/pstub"
-	Cattach         = Opt + "/cattach"
+	WormholeAttach  = Opt + "/wormhole-attach"
 	Bin             = Opt + "/bin"
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"
@@ -47,7 +47,7 @@ const (
 	LaunchdSshAgentListeners  = "/opt/orb/launchd-ssh-agent-listeners"
 	DockerSshAgentProxySocket = "/run/docker-ssh-agent-proxy.sock"
 	NfsContainers             = "/nfs/containers"
-	WormholeUnifiedNix         = "/mnt/wormhole-unified/nix"
+	WormholeUnifiedNix        = "/mnt/wormhole-unified/nix"
 )
 
 // mac

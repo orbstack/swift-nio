@@ -518,7 +518,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			cmd.ReplaceShell = false
 			// will be fd 3 in child process
 			cmd.ExtraFiles = []*os.File{wormholeMountFile}
-			cmd.CombinedArgs = []string{mounts.Cattach, strconv.Itoa(wormholeResp.InitPid), workDir, "3", shellCmd}
+			cmd.CombinedArgs = []string{mounts.WormholeAttach, strconv.Itoa(wormholeResp.InitPid), workDir, "3", shellCmd}
 			// for debugging
 			cmd.Env.SetPair("RUST_BACKTRACE=full")
 		}
