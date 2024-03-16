@@ -2,8 +2,9 @@ use std::{collections::HashMap, fs::{self, File}, io::Write, os::unix::process::
 
 use anyhow::anyhow;
 use nix::unistd::getpid;
+use wormholefs::flock::{Flock, FlockMode, FlockWait};
 
-use crate::{base_img, config, flock::Flock, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH};
+use crate::{base_img, config, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH};
 
 const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
 const NIX_HOME: &str = "/nix/orb/data/home";
@@ -118,7 +119,7 @@ pub fn gc_store() -> anyhow::Result<()> {
     let roots_data = roots.join("\0");
     file.write_all(roots_data.as_bytes())?;
     // hold exclusive flock to make nix think we're still alive
-    let _flock = Flock::new_nonblock_file(file)?;
+    let _flock = Flock::new_ofd(file, FlockMode::Exclusive, FlockWait::NonBlocking)?;
 
     let status = run_with_status(new_command("nix-store")
         .args(&["--gc", "--quiet"]))?;

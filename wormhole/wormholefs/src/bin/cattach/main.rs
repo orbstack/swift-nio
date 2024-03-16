@@ -1,14 +1,19 @@
-use std::{collections::HashMap, ffi::CString, os::fd::{FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}, thread::sleep, time::Duration};
+use std::{collections::HashMap, ffi::CString, fs::File, io::ErrorKind, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
-use nix::{errno::Errno, mount::MsFlags, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitPidFlag, WaitStatus}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid, Pid}};
+use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid, Pid}};
 use pidfd::PidFd;
-use tracing::{error, trace, Level};
+use tracing::{error, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use wormholefs::newmount::move_mount;
+use wormholefs::{flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::move_mount, err};
+
+use crate::proc::wait_for_exit;
 
 mod pidfd;
 mod proc;
+mod subreaper;
+
+const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 
 const EXTRA_ENV: &[(&str, &str)] = &[
     ("ZDOTDIR", "/nix/orb/sys/zsh"),
@@ -89,16 +94,10 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
     // SECCOMP_GET_FILTER requires ptrace-stop
     // safer way to stop (no signal races): PTRACE_SEIZE, then PTRACE_INTERRUPT
     trace!("seccomp: ptrace attach");
-    let ret = unsafe { ptrace(PTRACE_SEIZE, pid, 0, 0) };
-    if ret < 0 {
-        return Err(Errno::last().into());
-    }
+    unsafe { err(ptrace(PTRACE_SEIZE, pid, 0, 0))? };
 
     // then interrupt
-    let ret = unsafe { ptrace(PTRACE_INTERRUPT, pid, 0, 0) };
-    if ret < 0 {
-        return Err(Errno::last().into());
-    }
+    unsafe { err(ptrace(PTRACE_INTERRUPT, pid, 0, 0))? };
 
     // wait for it to enter ptrace-stop
     loop {
@@ -111,10 +110,7 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
 
     // get instruction count in seccomp filter
     trace!("seccomp: ptrace get filter size");
-    let insn_count = unsafe { ptrace(PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(), pid, index, null::<sock_filter>()) };
-    if insn_count < 0 {
-        return Err(Errno::last().into());
-    }
+    let insn_count = unsafe { err(ptrace(PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(), pid, index, null::<sock_filter>()))? };
 
     // dump filter
     trace!("seccomp: dump filter");
@@ -124,17 +120,11 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
         jf: 0,
         k: 0,
     }; insn_count as usize];
-    let ret = unsafe { ptrace(PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(), pid, index, filter.as_mut_ptr() as *mut sock_filter) };
-    if ret < 0 {
-        return Err(Errno::last().into());
-    }
+    unsafe { err(ptrace(PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(), pid, index, filter.as_mut_ptr() as *mut sock_filter))? };
 
     // detach ptrace
     trace!("seccomp: detach ptrace");
-    let ret = unsafe { ptrace(PTRACE_DETACH, pid, 0, 0) };
-    if ret < 0 {
-        return Err(Errno::last().into());
-    }
+    unsafe { err(ptrace(PTRACE_DETACH, pid, 0, 0))? };
 
     // create sock_fprog
     let fprog = sock_fprog {
@@ -143,65 +133,144 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
     };
     // set filter
     trace!("seccomp: set filter");
-    let ret = unsafe { syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &fprog as *const sock_fprog) };
-    if ret < 0 {
-        return Err(Errno::last().into());
-    }
+    unsafe { err(syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &fprog as *const sock_fprog))? };
 
     Ok(())
 }
 
-fn is_root_readonly(proc_mounts: &str) -> bool {
-    for line in proc_mounts.lines() {
+struct Mount {
+    dest: String,
+    flags: Vec<String>,
+}
+
+fn parse_proc_mounts(proc_mounts: &str) -> anyhow::Result<Vec<Mount>> {
+    Ok(proc_mounts.lines()
         // skip empty lines
-        if line.is_empty() {
-            continue;
-        }
-
+        .filter(|line| !line.is_empty())
         // get mount path
-        let mut iter = line.split_whitespace();
-        let path = iter.nth(1).unwrap();
-        let flags = iter.nth(1).unwrap().split(',').collect::<Vec<&str>>();
-        if path == "/" {
-            return flags.contains(&"ro");
-        }
-    }
-
-    // no / found?
-    false
+        .map(|line| {
+            let mut iter = line.split_ascii_whitespace();
+            let dest = iter.nth(1).unwrap().to_string();
+            let flags = iter.nth(1).unwrap().split(',').map(|s| s.to_string()).collect();
+            Mount {
+                dest,
+                flags,
+            }
+        })
+        .collect())
 }
 
-fn reap_last_zombies() -> anyhow::Result<()> {
-    // wait up to 25 ms for zombies to exit
-    sleep(Duration::from_millis(25));
-
-    // reap all remaining zombies
-    loop {
-        match waitpid(None, Some(WaitPidFlag::WNOHANG)) {
-            Ok(WaitStatus::StillAlive) => return Ok(()),
-            Ok(_) => {}
-            Err(Errno::ECHILD) => return Ok(()),
-            Err(e) => return Err(e.into()),
-        }
-    }
+fn is_root_readonly(proc_mounts: &[Mount]) -> bool {
+    proc_mounts.iter()
+        .any(|m| m.dest == "/" && m.flags.contains(&"ro".to_string()))
 }
 
-fn run_subreaper(payload_pid: Pid) -> anyhow::Result<()> {
-    // keep waiting for processes
-    loop {
-        let res = waitpid(None, None)?;
-        match res {
-            // exit/return if exited/signaled process is the payload (to signal grandparent waiter)
-            WaitStatus::Exited(pid, _) if pid == payload_pid => break,
-            WaitStatus::Signaled(pid, _, _) if pid == payload_pid => break,
-            // do nothing for zombie processes - just reap them
-            _ => {}
+fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
+    trace!("create_nix_dir: wait for lock");
+    let _flock = Flock::new_ofd(File::create(DIR_CREATE_LOCK)?, FlockMode::Exclusive, FlockWait::Blocking)?;
+    match access("/nix", AccessFlags::F_OK) {
+        Ok(_) => {
+            // continue to lock
+            trace!("create_nix_dir: already exists");
+        },
+        Err(Errno::ENOENT) => {
+            // check attributes of '/' mount to deal with read-only containers
+            let is_root_readonly = is_root_readonly(proc_mounts);
+            if is_root_readonly {
+                trace!("mounts: remount / as rw");
+                mount_common("/", "/", None, MsFlags::MS_REMOUNT, None)?;
+            }
+
+            // use create_dir_all to avoid race with another cattach
+            trace!("mounts: create /nix directory");
+            std::fs::create_dir_all("/nix")?;
+
+            // set xattr so we know to delete it later (i.e. we created it)
+            trace!("mounts: set xattr on /nix");
+            xattr::set("/nix", "user.orbstack.wormhole", b"1")?;
+
+            if is_root_readonly {
+                trace!("mounts: remount / as ro");
+                mount_common("/", "/", None, MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY, None)?;
+            }
+        },
+        Err(e) => return Err(e.into()),
+    }
+
+    // take a shared lock as a refcount
+    trace!("create_nix_dir: take shared ref lock");
+    let ref_lock = Flock::new_ofd(File::open("/nix")?, FlockMode::Shared, FlockWait::NonBlocking)?;
+    Ok(FlockGuard::new(ref_lock, ()))
+}
+
+fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyhow::Result<()> {
+    // try to unmount everything on our view of /nix recursively
+    let mounts_file = unsafe { File::from_raw_fd(openat(proc_self_fd.as_raw_fd(), "mounts", OFlag::O_RDONLY | OFlag::O_CLOEXEC, Mode::empty())?) };
+    let proc_mounts = parse_proc_mounts(&std::io::read_to_string(mounts_file)?)?;
+    for mnt in proc_mounts.iter().rev() {
+        if mnt.dest == "/nix" || mnt.dest.starts_with("/nix/") {
+            trace!("delete_nix_dir: unmount {}", mnt.dest);
+            match umount2(Path::new(&mnt.dest), MntFlags::UMOUNT_NOFOLLOW) {
+                Ok(_) => {}
+                Err(Errno::EBUSY) => {
+                    // still in use (bg / forked process)
+                    trace!("delete_nix_dir: mounts still in use");
+                    return Ok(());
+                }
+                Err(e) => return Err(e.into()),
+            }
         }
     }
 
-    // to reap grandchildren, don't exit immediately
-    // but also don't kill them -- allow bg services to keep running
-    reap_last_zombies()?;
+    trace!("delete_nix_dir: wait for lock");
+    let _flock = Flock::new_ofd(File::create(DIR_CREATE_LOCK)?, FlockMode::Exclusive, FlockWait::Blocking)?;
+
+    // drop our ref
+    drop(nix_flock_ref);
+
+    // check whether we created /nix
+    match xattr::get("/nix", "user.orbstack.wormhole") {
+        Ok(_) => {
+            // success - we created /nix; continue
+            trace!("delete_nix_dir: found /nix created by us");
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            // we didn't create /nix, so don't delete it
+            trace!("delete_nix_dir: /nix not created by us");
+            return Ok(());
+        }
+        Err(e) => return Err(e.into()),
+    }
+
+    // check whether there are any remaining refs
+    if Flock::check_ofd(File::open("/nix")?, FlockMode::Exclusive)? {
+        // success - no refs; continue
+        trace!("delete_nix_dir: no refs");
+    } else {
+        // there are still active refs, so we can't delete /nix
+        trace!("delete_nix_dir: refs still active");
+        return Ok(());
+    }
+
+    // good to go for deletion:
+    // - we created it (according to xattr)
+    // - no remaining refs (according to flock)
+
+    // check attributes of '/' mount to deal with read-only containers
+    let is_root_readonly = is_root_readonly(&proc_mounts);
+    if is_root_readonly {
+        trace!("mounts: remount / as rw");
+        mount_common("/", "/", None, MsFlags::MS_REMOUNT, None)?;
+    }
+
+    trace!("delete_nix_dir: deleting /nix");
+    std::fs::remove_dir("/nix")?;
+
+    if is_root_readonly {
+        trace!("mounts: remount / as ro");
+        mount_common("/", "/", None, MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY, None)?;
+    }
+
     Ok(())
 }
 
@@ -228,7 +297,7 @@ fn main() -> anyhow::Result<()> {
     let oom_score_adj = std::fs::read_to_string(format!("/proc/{}/oom_score_adj", init_pid))?;
     let proc_cgroup = std::fs::read_to_string(format!("/proc/{}/cgroup", init_pid))?;
     let proc_env = std::fs::read_to_string(format!("/proc/{}/environ", init_pid))?;
-    let proc_mounts = std::fs::read_to_string(format!("/proc/{}/mounts", init_pid))?;
+    let proc_mounts = parse_proc_mounts(&std::fs::read_to_string(format!("/proc/{}/mounts", init_pid))?)?;
     let num_caps = std::fs::read_to_string("/proc/sys/kernel/cap_last_cap")?.trim_end().parse::<u32>()? + 1;
 
     // set process name
@@ -255,8 +324,11 @@ fn main() -> anyhow::Result<()> {
     let self_pid: i32 = getpid().into();
     std::fs::write(format!("/sys/fs/cgroup/{}/cgroup.procs", cg_path), format!("{}", self_pid))?;
 
+    // save dirfd of /proc/self in old mount ns
+    let proc_self_fd = unsafe { OwnedFd::from_raw_fd(open("/proc/self", OFlag::O_PATH | OFlag::O_CLOEXEC, Mode::empty())?) };
+
     trace!("attach most namespaces");
-    setns(&pidfd, CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWCGROUP | CloneFlags::CLONE_NEWUTS | CloneFlags::CLONE_NEWIPC | CloneFlags::CLONE_NEWNET | CloneFlags::CLONE_NEWPID)?;
+    setns(&pidfd, CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWCGROUP | CloneFlags::CLONE_NEWUTS | CloneFlags::CLONE_NEWIPC | CloneFlags::CLONE_NEWNET)?;
 
     trace!("unshare mount ns");
     unshare(CloneFlags::CLONE_NEWNS)?;
@@ -265,31 +337,7 @@ fn main() -> anyhow::Result<()> {
     mount_common("/", "/", None, MsFlags::MS_REC | MsFlags::MS_PRIVATE, None)?;
 
     // need to create /nix?
-    match access("/nix", AccessFlags::F_OK) {
-        Ok(_) => {},
-        Err(Errno::ENOENT) => {
-            // check attributes of '/' mount to deal with read-only containers
-            let is_root_readonly = is_root_readonly(&proc_mounts);
-            if is_root_readonly {
-                trace!("mounts: remount / as rw");
-                mount_common("/", "/", None, MsFlags::MS_REMOUNT, None)?;
-            }
-
-            // use create_dir_all to avoid race with another cattach
-            trace!("mounts: create /nix directory");
-            std::fs::create_dir_all("/nix")?;
-
-            // set xattr so we know to delete it later
-            trace!("mounts: set xattr on /nix");
-            xattr::set("/nix", "user.orbstack.wormhole", b"1")?;
-
-            if is_root_readonly {
-                trace!("mounts: remount / as ro");
-                mount_common("/", "/", None, MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY, None)?;
-            }
-        },
-        Err(e) => return Err(e.into()),
-    }
+    let nix_flock_ref = create_nix_dir(&proc_mounts)?;
 
     // bind mount wormhole mount tree onto /nix
     trace!("mounts: bind mount wormhole mount tree onto /nix");
@@ -300,10 +348,10 @@ fn main() -> anyhow::Result<()> {
 
     trace!("parse proc status info");
     let init_status = proc_status.lines()
-        .map(|line| line.split_ascii_whitespace().collect::<Vec<&str>>())
+        .map(|line| line.split_ascii_whitespace().collect::<Vec<_>>())
         // parse into key-value <&str, Vec<String>>
-        .map(|line| (line[0], line.iter().skip(1).map(|s| s.to_string()).collect::<Vec<String>>()))
-        .collect::<std::collections::HashMap<&str, Vec<String>>>();
+        .map(|line| (line[0], line.iter().skip(1).map(|s| s.to_string()).collect::<Vec<_>>()))
+        .collect::<HashMap<_, _>>();
 
     trace!("copy gid");
     let gid = init_status.get("Gid:").unwrap().get(0).unwrap();
@@ -348,143 +396,167 @@ fn main() -> anyhow::Result<()> {
         .map(|(k, v)| CString::new(format!("{}={}", k, v)))
         .collect::<anyhow::Result<Vec<_>, _>>()?;
 
-    // close lingering fds before user-controlled chdir
+    // close unnecessary fds
     drop(wormhole_mount_fd);
 
-    // then chdir to requested workdir (must do / first to avoid rel path vuln)
-    // can fail (falls back to /)
-    if !workdir.is_empty() {
-        if let Err(e) = chdir(Path::new(&workdir)) {
-            error!("failed to set working directory: {}", e);
-        }
-    }
-
-    trace!("attach remaining namespaces");
-    // entering current userns will return EINVAL. ignore that
-    match setns(&pidfd, CloneFlags::CLONE_NEWUSER) {
-        Ok(_) => {},
-        Err(Errno::EINVAL) => trace!("set user ns failed with EINVAL, continuing"),
-        Err(e) => return Err(e.into()),
-    }
-
-    trace!("copy rlimits");
-    for &res in &[libc::RLIMIT_CPU, libc::RLIMIT_FSIZE, libc::RLIMIT_DATA, libc::RLIMIT_STACK, libc::RLIMIT_CORE, libc::RLIMIT_RSS, libc::RLIMIT_NPROC, libc::RLIMIT_NOFILE, libc::RLIMIT_MEMLOCK, libc::RLIMIT_AS, libc::RLIMIT_LOCKS, libc::RLIMIT_SIGPENDING, libc::RLIMIT_MSGQUEUE, libc::RLIMIT_NICE, libc::RLIMIT_RTPRIO, libc::RLIMIT_RTTIME] {
-        let mut rlimit = libc::rlimit {
-            rlim_cur: 0,
-            rlim_max: 0,
-        };
-        // read init_pid's rlimit
-        if unsafe { prlimit(init_pid, res, null(), &mut rlimit) } != 0 {
-            return Err(Errno::last().into());
-        }
-        // write to self
-        if unsafe { prlimit(0, res, &rlimit, null_mut()) } != 0 {
-            return Err(Errno::last().into());
-        }
-    }
-
-    // copy seccomp:
-    // use ptrace + PTRACE_SECCOMP_GET_FILTER to dump BPF filters
-    trace!("copy seccomp");
-    let has_seccomp = init_status.get("Seccomp:").unwrap().get(0).unwrap() != "0";
-    if has_seccomp {
-        copy_seccomp_filter(init_pid, 0)?;
-    }
-
-    // copy capabilities
-    // ptrace is actually allowed by default caps!
-    // must be after seccomp: if we drop CAP_SYS_ADMIN and don't have NO_NEW_PRIVS, we can't set a seccomp filter
-    // works because docker's seccomp filter allows capset/capget
-    // order: ambient, bounding, effective, inheritable, permitted
-    trace!("copy capabilities");
-    let cap_inh = u64::from_str_radix(init_status.get("CapInh:").unwrap().get(0).unwrap(), 16)?;
-    let cap_prm = u64::from_str_radix(init_status.get("CapPrm:").unwrap().get(0).unwrap(), 16)?;
-    let cap_eff = u64::from_str_radix(init_status.get("CapEff:").unwrap().get(0).unwrap(), 16)?;
-    let cap_bnd = u64::from_str_radix(init_status.get("CapBnd:").unwrap().get(0).unwrap(), 16)?;
-    let cap_amb = u64::from_str_radix(init_status.get("CapAmb:").unwrap().get(0).unwrap(), 16)?;
-    // ambient: clear all, then raise set caps
-    trace!("copy capabilities: ambient");
-    let ret = unsafe { libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) };
-    if ret < 0 {
-        return Err(Errno::last().into());
-    }
-    for i in 0..num_caps {
-        if cap_amb & (1 << i) != 0 {
-            let ret = unsafe { libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i as i32, 0, 0) };
-            if ret < 0 {
-                return Err(Errno::last().into());
-            }
-        }
-    }
-    // bounding: drop all unset caps
-    trace!("copy capabilities: bounding");
-    for i in 0..num_caps {
-        if cap_bnd & (1 << i) == 0 {
-            let ret = unsafe { libc::prctl(PR_CAPBSET_DROP, i as i32, 0, 0, 0) };
-            if ret < 0 {
-                return Err(Errno::last().into());
-            }
-        }
-    }
-    // set eff/prm/inh
-    trace!("copy capabilities: effective/permitted/inheritable");
-    let cap_user_hdr = CapUserHeader {
-        version: _LINUX_CAPABILITY_VERSION_3,
-        pid: self_pid,
-    };
-    let cap_user_data = CapUserData {
-        effective_lo: (cap_eff & 0xffffffff) as u32,
-        permitted_lo: (cap_prm & 0xffffffff) as u32,
-        inheritable_lo: (cap_inh & 0xffffffff) as u32,
-        effective_hi: (cap_eff >> 32) as u32,
-        permitted_hi: (cap_prm >> 32) as u32,
-        inheritable_hi: (cap_inh >> 32) as u32,
-    };
-    let ret = unsafe { syscall(SYS_capset, &cap_user_hdr as *const CapUserHeader, &cap_user_data as *const CapUserData) };
-    if ret < 0 {
-        return Err(Errno::last().into());
-    }
-
-    trace!("fork into ns");
+    trace!("fork into intermediate");
     match unsafe { fork()? } {
+        // parent 1 = host monitor
         ForkResult::Parent { child } => {
-            // parent 1 = waiter
-            trace!("parent: waitpid");
-            loop {
-                // wait until child (subreaper! not payload) exits or is killed
-                let res = waitpid(child, None)?;
-                match res {
-                    WaitStatus::Exited(_, _) => break,
-                    WaitStatus::Signaled(_, _, _) => break,
-                    _ => {}
-                }
-            }
+            let _span = span!(Level::TRACE, "monitor").entered();
+            trace!("waitpid");
 
-            // only safe to delete /nix if we're the last cattach
-            
+            // close unnecessary fds
+            drop(pidfd);
+
+            // wait until child (intermediate) exits
+            wait_for_exit(child)?;
+
+            // try to delete /nix
+            delete_nix_dir(&proc_self_fd, nix_flock_ref)?;
         }
+
+        // child 1 = intermediate
         ForkResult::Child => {
-            // child 1 = subreaper
-            trace!("subreaper: fork");
-            // become subreaper, so children get a subreaper flag at fork time
-            prctl::set_child_subreaper(true)?;
+            let _span = span!(Level::TRACE, "intermediate").entered();
+            trace!("fork");
+
             // kill self if parent (cattach waiter) dies
             proc::prctl_death_sig()?;
+
+            // close lingering fds before user-controlled chdir
+            drop(nix_flock_ref);
+            drop(proc_self_fd);
+
+            // then chdir to requested workdir (must do / first to avoid rel path vuln)
+            // can fail (falls back to /)
+            if !workdir.is_empty() {
+                if let Err(e) = chdir(Path::new(&workdir)) {
+                    error!("failed to set working directory: {}", e);
+                }
+            }
+
+            // finish attaching
+
+            trace!("attach remaining namespaces");
+            setns(&pidfd, CloneFlags::CLONE_NEWPID)?; // for child
+            // entering current userns will return EINVAL. ignore that
+            match setns(&pidfd, CloneFlags::CLONE_NEWUSER) {
+                Ok(_) => {},
+                Err(Errno::EINVAL) => trace!("set user ns failed with EINVAL, continuing"),
+                Err(e) => return Err(e.into()),
+            }
+            drop(pidfd);
+
+            trace!("copy rlimits");
+            for &res in &[libc::RLIMIT_CPU, libc::RLIMIT_FSIZE, libc::RLIMIT_DATA, libc::RLIMIT_STACK, libc::RLIMIT_CORE, libc::RLIMIT_RSS, libc::RLIMIT_NPROC, libc::RLIMIT_NOFILE, libc::RLIMIT_MEMLOCK, libc::RLIMIT_AS, libc::RLIMIT_LOCKS, libc::RLIMIT_SIGPENDING, libc::RLIMIT_MSGQUEUE, libc::RLIMIT_NICE, libc::RLIMIT_RTPRIO, libc::RLIMIT_RTTIME] {
+                let mut rlimit = libc::rlimit {
+                    rlim_cur: 0,
+                    rlim_max: 0,
+                };
+                // read init_pid's rlimit
+                if unsafe { prlimit(init_pid, res, null(), &mut rlimit) } != 0 {
+                    return Err(Errno::last().into());
+                }
+                // write to self
+                if unsafe { prlimit(0, res, &rlimit, null_mut()) } != 0 {
+                    return Err(Errno::last().into());
+                }
+            }
+
+            // copy seccomp:
+            // use ptrace + PTRACE_SECCOMP_GET_FILTER to dump BPF filters
+            trace!("copy seccomp");
+            let has_seccomp = init_status.get("Seccomp:").unwrap().get(0).unwrap() != "0";
+            if has_seccomp {
+                copy_seccomp_filter(init_pid, 0)?;
+            }
+
+            // copy capabilities
+            // ptrace is actually allowed by default caps!
+            // must be after seccomp: if we drop CAP_SYS_ADMIN and don't have NO_NEW_PRIVS, we can't set a seccomp filter
+            // works because docker's seccomp filter allows capset/capget
+            // order: ambient, bounding, effective, inheritable, permitted
+            trace!("copy capabilities");
+            let cap_inh = u64::from_str_radix(init_status.get("CapInh:").unwrap().get(0).unwrap(), 16)?;
+            let cap_prm = u64::from_str_radix(init_status.get("CapPrm:").unwrap().get(0).unwrap(), 16)?;
+            let cap_eff = u64::from_str_radix(init_status.get("CapEff:").unwrap().get(0).unwrap(), 16)?;
+            let cap_bnd = u64::from_str_radix(init_status.get("CapBnd:").unwrap().get(0).unwrap(), 16)?;
+            let cap_amb = u64::from_str_radix(init_status.get("CapAmb:").unwrap().get(0).unwrap(), 16)?;
+            // ambient: clear all, then raise set caps
+            trace!("copy capabilities: ambient");
+            unsafe { err(libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0))? };
+            for i in 0..num_caps {
+                if cap_amb & (1 << i) != 0 {
+                    unsafe { err(libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i as i32, 0, 0))? };
+                }
+            }
+            // bounding: drop all unset caps
+            trace!("copy capabilities: bounding");
+            for i in 0..num_caps {
+                if cap_bnd & (1 << i) == 0 {
+                    unsafe { err(libc::prctl(PR_CAPBSET_DROP, i as i32, 0, 0, 0))? };
+                }
+            }
+            // set eff/prm/inh
+            trace!("copy capabilities: effective/permitted/inheritable");
+            let cap_user_hdr = CapUserHeader {
+                version: _LINUX_CAPABILITY_VERSION_3,
+                pid: 0,
+            };
+            let cap_user_data = CapUserData {
+                effective_lo: (cap_eff & 0xffffffff) as u32,
+                permitted_lo: (cap_prm & 0xffffffff) as u32,
+                inheritable_lo: (cap_inh & 0xffffffff) as u32,
+                effective_hi: (cap_eff >> 32) as u32,
+                permitted_hi: (cap_prm >> 32) as u32,
+                inheritable_hi: (cap_inh >> 32) as u32,
+            };
+            unsafe { err(syscall(SYS_capset, &cap_user_hdr as *const CapUserHeader, &cap_user_data as *const CapUserData))? };
+
             // fork again...
             match unsafe { fork()? } {
+                // parent 2 = intermediate (waiter)
                 ForkResult::Parent { child } => {
-                    // parent 2 = subreaper
-                    // subreaper helps us deal with zsh's zombie processes in any container where init is not a shell (e.g. distroless)
-                    trace!("subreaper: loop");
-                    run_subreaper(child)?;
+                    trace!("loop");
+
+                    // this process has no reason to keep existing.
+                    // we only need to keep a monitor on the host, and subreaper in the pid ns
+                    // once this exits, child (subreaper) will be reparented to host monitor in host pid ns
+                    // TODO exit
+                    // std::process::exit(0);
+                    wait_for_exit(child)?;
                 }
+
+                // child 2 = subreaper
                 ForkResult::Child => {
-                    // child 2 = payload
-                    trace!("child: execve");
-                    // kill self if parent (cattach subreaper) dies
-                    // but allow bg processes to keep running
+                    let _span = span!(Level::TRACE, "subreaper").entered();
+                    trace!("fork");
+
+                    // become subreaper, so children get a subreaper flag at fork time
+                    prctl::set_child_subreaper(true)?;
+                    // kill self if parent (cattach waiter) dies
                     proc::prctl_death_sig()?;
-                    execve(&CString::new("/nix/orb/sys/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
+
+                    // fork again...
+                    match unsafe { fork()? } {
+                        // parent 2 = subreaper
+                        ForkResult::Parent { child } => {
+                            // subreaper helps us deal with zsh's zombie processes in any container where init is not a shell (e.g. distroless)
+                            trace!("loop");
+                            subreaper::run(child)?;
+                        }
+
+                        // child 2 = payload
+                        ForkResult::Child => {
+                            let _span = span!(Level::TRACE, "payload");
+                            trace!("execve");
+                            // kill self if parent (cattach subreaper) dies
+                            // but allow bg processes to keep running
+                            proc::prctl_death_sig()?;
+                            execve(&CString::new("/nix/orb/sys/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
+                        }
+                    }
                 }
             }
         }

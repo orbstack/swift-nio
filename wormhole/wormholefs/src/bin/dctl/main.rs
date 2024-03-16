@@ -1,18 +1,17 @@
-use std::{fs, io::Write, sync::atomic::Ordering, time::{Duration, SystemTime}};
+use std::{fs::{self, File}, io::Write, sync::atomic::Ordering, time::{Duration, SystemTime}};
 
 use anyhow::anyhow;
 use colored::Colorize;
 use clap::{Parser, Subcommand};
-use flock::{Flock, FlockGuard};
 use model::{WormholeEnv, CURRENT_VERSION};
 use programs::read_and_find_program;
 use search::SearchQuery;
+use wormholefs::flock::{Flock, FlockGuard};
 
 mod base_img;
 mod config;
 mod model;
 mod programs;
-mod flock;
 mod search;
 mod nixc;
 
@@ -73,7 +72,7 @@ enum Commands {
 }
 
 fn read_env() -> anyhow::Result<FlockGuard<WormholeEnv>> {
-    let lock = Flock::new_nonblock_path(ENV_LOCK_PATH)?;
+    let lock = Flock::new_nonblock_legacy_excl(File::open(ENV_LOCK_PATH)?)?;
     let env_json = match fs::read_to_string(ENV_PATH.to_string() + "/wormhole.json") {
         Ok(json) => json,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {

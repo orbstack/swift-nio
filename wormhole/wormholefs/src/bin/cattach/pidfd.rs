@@ -7,7 +7,7 @@ pub struct PidFd(OwnedFd);
 impl PidFd {
     pub fn open(pid: i32) -> std::io::Result<Self> {
         let fd = unsafe { syscall(SYS_pidfd_open, pid, PIDFD_NONBLOCK) };
-        if fd < 0 {
+        if fd == -1 {
             return Err(std::io::Error::last_os_error());
         }
         let fd = unsafe { OwnedFd::from_raw_fd(fd as _) };

@@ -1,13 +1,26 @@
 use std::{ffi::{c_char, CString}, ptr::null_mut};
 
 use libc::mmap;
-use nix::errno::Errno;
+use nix::{errno::Errno, sys::wait::{waitpid, WaitStatus}, unistd::Pid};
 
 pub fn prctl_death_sig() -> anyhow::Result<()> {
     let ret = unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) };
     if ret != 0 {
         return Err(Errno::last().into());
     }
+    Ok(())
+}
+
+pub fn wait_for_exit(pid: Pid) -> anyhow::Result<()> {
+    loop {
+        let res = waitpid(pid, None)?;
+        match res {
+            WaitStatus::Exited(_, _) => break,
+            WaitStatus::Signaled(_, _, _) => break,
+            _ => {}
+        }
+    }
+
     Ok(())
 }
 
