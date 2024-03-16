@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ffi::CString, fs::File, io::ErrorKind, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
-use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setsid, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
+use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setsid, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
 use pidfd::PidFd;
 use tracing::{error, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -321,9 +321,6 @@ fn main() -> anyhow::Result<()> {
     let proc_mounts = parse_proc_mounts(&std::fs::read_to_string(format!("/proc/{}/mounts", init_pid))?)?;
     let num_caps = std::fs::read_to_string("/proc/sys/kernel/cap_last_cap")?.trim_end().parse::<u32>()? + 1;
 
-    // set process name
-    proc::set_cmdline_name("orb-wormhole")?;
-
     // prevent tracing
     prctl::set_dumpable(false)?;
     // prevent write-execute maps
@@ -337,19 +334,28 @@ fn main() -> anyhow::Result<()> {
     std::fs::write("/proc/self/oom_score_adj", oom_score_adj)?;
 
     // cgroupfs in mount ns is mounted in container's cgroupns
-    trace!("copy cgroup");
-    let cg_path = proc_cgroup.lines().next().unwrap()
+    {
+        trace!("copy cgroup");
+        let cg_path = proc_cgroup.lines().next().unwrap()
         .split(':')
         .last()
         .unwrap();
-    let self_pid: i32 = getpid().into();
-    std::fs::write(format!("/sys/fs/cgroup/{}/cgroup.procs", cg_path), format!("{}", self_pid))?;
+        let self_pid: i32 = getpid().into();
+        std::fs::write(format!("/sys/fs/cgroup/{}/cgroup.procs", cg_path), format!("{}", self_pid))?;
+    }
 
     // save dirfd of /proc/self in old mount ns
     let proc_self_fd = unsafe { OwnedFd::from_raw_fd(open("/proc/self", OFlag::O_PATH | OFlag::O_CLOEXEC, Mode::empty())?) };
 
     trace!("attach most namespaces");
     setns(&pidfd, CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWCGROUP | CloneFlags::CLONE_NEWUTS | CloneFlags::CLONE_NEWIPC | CloneFlags::CLONE_NEWNET)?;
+
+    // set process name
+    {
+        let uname = uname()?;
+        let hostname = uname.nodename().to_str().unwrap();
+        proc::set_cmdline_name(&format!("orb-wormhole: container {}", hostname))?;
+    }
 
     trace!("unshare mount ns");
     unshare(CloneFlags::CLONE_NEWNS)?;
