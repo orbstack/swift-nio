@@ -420,7 +420,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         submenu.addActionItem("Terminal", icon: systemImage("terminal"), disabled: !container.running) {
-            container.openInTerminal()
+            container.openDebugShellFallback()
+        }
+
+        submenu.addActionItem("Debug", icon: systemImage("ladybug"), disabled: !container.running) {
+            container.openDebugShell()
         }
 
         submenu.addActionItem("Files", icon: systemImage("folder"), disabled: !container.running) {

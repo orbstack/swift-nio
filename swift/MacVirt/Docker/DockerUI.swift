@@ -7,11 +7,31 @@ import Defaults
 import Foundation
 
 extension DKContainer {
-    func openInTerminal() {
+    func openInPlainTerminal() {
         Task {
             do {
                 // prefer bash, otherwise use sh
                 try await openTerminal(AppConfig.dockerExe, ["--context", "orbstack", "exec", "-it", id, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"])
+            } catch {
+                NSLog("Open terminal failed: \(error)")
+            }
+        }
+    }
+
+    func openDebugShellFallback() {
+        Task {
+            do {
+                try await openTerminal(AppConfig.ctlExe, ["debug", "--fallback", id])
+            } catch {
+                NSLog("Open terminal failed: \(error)")
+            }
+        }
+    }
+
+    func openDebugShell() {
+        Task {
+            do {
+                try await openTerminal(AppConfig.ctlExe, ["debug", id])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }

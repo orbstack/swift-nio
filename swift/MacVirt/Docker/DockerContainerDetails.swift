@@ -63,9 +63,19 @@ struct DockerContainerDetails: View {
 
                 if isRunning {
                     DividedRowButton {
-                        container.openInTerminal()
+                        container.openDebugShellFallback()
                     } label: {
                         Label("Terminal", systemImage: "terminal")
+                    }
+
+                    DividedRowButton {
+                        if vmModel.isLicensed {
+                            container.openDebugShell()
+                        } else {
+                            vmModel.presentRequiresLicense = true
+                        }
+                    } label: {
+                        Label("Debug", systemImage: "ladybug")
                     }
 
                     DividedRowButton {

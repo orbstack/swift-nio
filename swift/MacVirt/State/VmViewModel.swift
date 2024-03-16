@@ -512,6 +512,7 @@ class VmViewModel: ObservableObject {
     @Published var presentAddPaths: AddPathsAlert?
     @Published var presentCreateMachine = false
     @Published var presentCreateVolume = false
+    @Published var presentRequiresLicense = false
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -527,6 +528,10 @@ class VmViewModel: ObservableObject {
 
     var netBridgeAvailable: Bool {
         config?.networkBridge != false
+    }
+
+    var isLicensed: Bool {
+        drmState.entitlementTier != .none && !drmState.expired
     }
 
     init() {
