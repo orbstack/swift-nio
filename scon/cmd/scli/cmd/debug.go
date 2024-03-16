@@ -6,16 +6,24 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
+)
+
+var (
+	flagFallback bool
 )
 
 func init() {
 	rootCmd.AddCommand(debugCmd)
 	debugCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
+	debugCmd.Flags().BoolVarP(&flagFallback, "fallback", "f", false, "Fallback to 'docker exec' if no Pro license")
 }
 
 func ParseDebugFlags(args []string) ([]string, error) {
@@ -37,6 +45,9 @@ func ParseDebugFlags(args []string) ([]string, error) {
 			case "-h", "--help", "-help":
 				FlagWantHelp = true
 				continue
+			case "-f", "--fallback", "-fallback":
+				flagFallback = true
+				continue
 			}
 
 			// 2. look for a pair
@@ -46,6 +57,9 @@ func ParseDebugFlags(args []string) ([]string, error) {
 				switch keyPart {
 				case "-w", "--workdir", "-workdir":
 					flagWorkdir = valuePart
+				// bools: allow true/false
+				case "-f", "--fallback", "-fallback":
+					flagFallback = valuePart == "true"
 				}
 				continue
 			}
@@ -80,8 +94,12 @@ func ParseDebugFlags(args []string) ([]string, error) {
 var debugCmd = &cobra.Command{
 	Use:     "debug [flags] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"wormhole"},
-	Short:   "Debug a Docker container",
-	Long: `Debug a Docker container.
+	Short:   "Debug a Docker container with extra commands",
+	Long: `Debug a Docker container, with useful commands and tools that make it easy to debug any container (even minimal, distroless, and read-only containers).
+
+You can also use 'dctl' in the debug shell to install and remove packages.
+
+Pro only: requires a Pro license for OrbStack.
 `,
 	Example: "  " + appid.ShortCmd + " debug mysql1",
 	Args:    cobra.ArbitraryArgs,
@@ -122,6 +140,32 @@ var debugCmd = &cobra.Command{
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "\n%v\n", err)
 			os.Exit(1)
+		}
+
+		// 125 = requires Pro
+		if exitCode == 125 {
+			if flagFallback {
+				fmt.Fprintln(os.Stderr, color.New(color.FgBlue).Sprintf(`%s making it easy to debug any container (even minimal/distroless).
+It also allows installing over 80,000 packages.
+
+To use Debug Shell, get a Pro license: https://orbstack.dev/pricing
+
+Learn more: https://go.orbstack.dev/debug
+`, color.New(color.Bold).Sprint("NEW: OrbStack Debug Shell provides useful commands & tools,")))
+
+				// fallback to docker exec
+				// prefer bash, otherwise use sh
+				err = unix.Exec(conf.FindXbin("docker"), []string{"docker", "--context", "orbstack", "exec", "-it", containerID, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"}, os.Environ())
+				checkCLI(err)
+			} else {
+				fmt.Fprintln(os.Stderr, color.New(color.FgRed).Sprintf(`A Pro license is required to use OrbStack Debug Shell.
+%s making it easy to debug any container (even minimal/distroless).
+It also allows installing over 80,000 packages.
+
+Learn more: https://go.orbstack.dev/debug
+Get a license: https://orbstack.dev/pricing
+`, color.New(color.Bold).Sprint("Debug Shell provides useful commands & tools,")))
+			}
 		}
 
 		os.Exit(exitCode)

@@ -20,6 +20,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
+	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
@@ -270,51 +271,6 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 }
 
-func recvOneFd(conn *net.UnixConn) (int, error) {
-	minOob := unix.CmsgSpace(4)
-	oob := make([]byte, unix.CmsgSpace(4))
-	msg := make([]byte, 8)
-
-	n, oobn, _, _, err := conn.ReadMsgUnix(msg, oob)
-	if err != nil {
-		return 0, err
-	}
-	if n == 0 {
-		return 0, io.ErrUnexpectedEOF
-	}
-	if oobn < minOob {
-		return 0, errors.New("short oob read")
-	}
-	if n != len(msg) {
-		return 0, errors.New("short msg read")
-	}
-
-	var scms []unix.SocketControlMessage
-	scms, err = unix.ParseSocketControlMessage(oob[:oobn])
-	if err != nil {
-		return 0, err
-	}
-	if len(scms) != 1 {
-		return 0, errors.New("unexpected number of socket control messages")
-	}
-
-	// cloexec safe: Go sets MSG_CMSG_CLOEXEC
-	var fds []int
-	fds, err = unix.ParseUnixRights(&scms[0])
-	if err != nil {
-		return 0, err
-	}
-	if len(fds) != 1 {
-		// close all
-		for _, fd := range fds {
-			unix.Close(fd)
-		}
-		return 0, errors.New("unexpected number of fds")
-	}
-
-	return fds[0], nil
-}
-
 func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (printErr bool, err error) {
 	ptyReq, winCh, isPty := s.Pty()
 	printErr = isPty
@@ -351,6 +307,13 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	if isWormhole {
 		wormholeContainerID = user
 		user = "root"
+
+		// check for Pro license
+		drmResult := sv.m.drm.lastResult
+		if drmResult == nil || drmResult.ClaimInfo.EntitlementTier == drmtypes.EntitlementTierNone {
+			err = &ExitError{status: 125}
+			return
+		}
 	}
 
 	// pwd
@@ -518,7 +481,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			cmd.ReplaceShell = false
 			// will be fd 3 in child process
 			cmd.ExtraFiles = []*os.File{wormholeMountFile}
-			cmd.CombinedArgs = []string{mounts.WormholeAttach, strconv.Itoa(wormholeResp.InitPid), workDir, "3", shellCmd}
+			cmd.CombinedArgs = []string{mounts.WormholeAttach, strconv.Itoa(wormholeResp.InitPid), workDir, "3", shellCmd, sv.m.drm.lastResult.EntitlementToken}
 			// for debugging
 			cmd.Env.SetPair("RUST_BACKTRACE=full")
 		}

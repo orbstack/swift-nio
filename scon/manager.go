@@ -63,6 +63,7 @@ type ConManager struct {
 	uiInitContainers  sync.WaitGroup
 	vmConfig          *vmconfig.VmConfig
 	sconGuest         *SconGuestServer
+	drm               *DrmMonitor
 
 	// auto forward
 	forwards   map[sysnet.ListenerKey]ForwardState
@@ -240,6 +241,16 @@ func (m *ConManager) Start() error {
 		return err
 	}
 
+	// drm monitor
+	drmMonitor := &DrmMonitor{
+		conManager: m,
+		//TODO identifiers
+		//TODO version
+		verifier: sjwt.NewVerifier(nil, drmtypes.AppVersion{}),
+	}
+	m.drm = drmMonitor
+	go runOne("DRM monitor", drmMonitor.Start)
+
 	// services
 	go runOne("SSH server", func() error {
 		cleanup, err := m.runSSHServer(conf.C().SSHListenIP4, conf.C().SSHListenIP6)
@@ -288,14 +299,6 @@ func (m *ConManager) Start() error {
 		}(c)
 	}
 
-	// drm monitor
-	drmMonitor := &DrmMonitor{
-		conManager: m,
-		//TODO identifiers
-		//TODO version
-		verifier: sjwt.NewVerifier(nil, drmtypes.AppVersion{}),
-	}
-	go runOne("DRM monitor", drmMonitor.Start)
 	go runOne("internal RPC server", func() error {
 		_, err := ListenSconInternal(m, drmMonitor)
 		return err
