@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ffi::CString, fs::File, io::ErrorKind, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
-use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fork, getpid, setgid, setgroups, AccessFlags, ForkResult, Gid, Pid}};
+use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
 use pidfd::PidFd;
 use tracing::{error, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -374,15 +374,23 @@ fn main() -> anyhow::Result<()> {
         .map(|line| (line[0], line.iter().skip(1).map(|s| s.to_string()).collect::<Vec<_>>()))
         .collect::<HashMap<_, _>>();
 
-    trace!("copy gid");
+    // TODO: support setting uid
+    trace!("copy uid/gid");
+    let uid = 0;
+    let uid: Uid = uid.into();
     let gid = init_status.get("Gid:").unwrap().get(0).unwrap();
-    setgid(gid.parse::<u32>()?.into())?;
+    let gid: Gid = gid.parse::<u32>()?.into();
+    fchown(0, Some(uid), Some(gid))?;
+    fchown(1, Some(uid), Some(gid))?;
+    fchown(2, Some(uid), Some(gid))?;
+    setuid(uid.into())?;
+    setgid(gid)?;
 
     trace!("copy supplementary groups");
     let groups = init_status.get("Groups:").unwrap();
     setgroups(&groups.iter()
         .map(|s| s.parse::<u32>().unwrap().into())
-        .collect::<Vec<Gid>>())?;
+        .collect::<Vec<_>>())?;
 
     trace!("copy NO_NEW_PRIVS");
     let no_new_privs = init_status.get("NoNewPrivs:").unwrap().get(0).unwrap();
