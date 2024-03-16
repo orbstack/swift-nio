@@ -163,7 +163,7 @@ struct NewMainView: View {
                 button2Action: { NSApp.terminate(nil) })
         .akAlert("Pro license required", isPresented: $model.presentRequiresLicense,
                 desc: "To use OrbStack Debug Shell, purchase a Pro license.",
-                button1Label: "Get License",
+                button1Label: "Get Pro",
                 button1Action: { NSWorkspace.shared.open(URL(string: "https://orbstack.dev/pricing")!) },
                 button2Label: "Cancel")
     }
