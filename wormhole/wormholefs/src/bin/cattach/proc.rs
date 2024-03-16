@@ -2,12 +2,10 @@ use std::{ffi::{c_char, CString}, ptr::null_mut};
 
 use libc::mmap;
 use nix::{errno::Errno, sys::wait::{waitpid, WaitStatus}, unistd::Pid};
+use wormholefs::err;
 
 pub fn prctl_death_sig() -> anyhow::Result<()> {
-    let ret = unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) };
-    if ret != 0 {
-        return Err(Errno::last().into());
-    }
+    unsafe { err(libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0))? };
     Ok(())
 }
 
@@ -41,24 +39,13 @@ pub fn set_cmdline_name(name: &str) -> anyhow::Result<()> {
 
         // set new argv
         let argv_end = argv_start.add(name.len() + 1);
-        let ret = libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_START, argv_start, 0, 0);
-        if ret != 0 {
+        if let Err(_) = err(libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_START, argv_start, 0, 0)) {
             // bounds check... have to set end first
-            let ret = libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_END, argv_end, 0, 0);
-            if ret != 0 {
-                return Err(Errno::last().into());
-            }
-
-            let ret = libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_START, argv_start, 0, 0);
-            if ret != 0 {
-                return Err(Errno::last().into());
-            }
+            err(libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_END, argv_end, 0, 0))?;
+            err(libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_START, argv_start, 0, 0))?;
         } else {
             // other case: start first
-            let ret = libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_END, argv_end, 0, 0);
-            if ret != 0 {
-                return Err(Errno::last().into());
-            }
+            err(libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_END, argv_end, 0, 0))?;
         }
     }
 

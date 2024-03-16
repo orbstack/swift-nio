@@ -476,13 +476,9 @@ fn main() -> anyhow::Result<()> {
                     rlim_max: 0,
                 };
                 // read init_pid's rlimit
-                if unsafe { prlimit(init_pid, res, null(), &mut rlimit) } != 0 {
-                    return Err(Errno::last().into());
-                }
+                unsafe { err(prlimit(init_pid, res, null(), &mut rlimit))? };
                 // write to self
-                if unsafe { prlimit(0, res, &rlimit, null_mut()) } != 0 {
-                    return Err(Errno::last().into());
-                }
+                unsafe { err(prlimit(0, res, &rlimit, null_mut()))? };
             }
 
             // copy seccomp:

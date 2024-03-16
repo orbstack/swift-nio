@@ -117,7 +117,7 @@ fn new_command(bin: &str) -> Command {
             // but use SIGINT, not SIGKILL, for safety
             .pre_exec(|| {
                 let ret = libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGINT, 0, 0, 0);
-                if ret != 0 {
+                if ret == -1 {
                     Err(std::io::Error::last_os_error())
                 } else {
                     Ok(())
