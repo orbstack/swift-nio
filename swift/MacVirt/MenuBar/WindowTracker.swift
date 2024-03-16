@@ -61,18 +61,15 @@ class WindowTracker: ObservableObject {
     }
 
     func onWindowAppear() {
-        print("onWindowAppear")
         updateState(isWindowAppearing: true)
     }
 
     private func onWindowDisappear(closingWindow: NSWindow?) {
-        print("onWindowDisappear")
         updateState(closingWindow: closingWindow)
     }
 
     private func updateState(closingWindow: NSWindow? = nil, isWindowAppearing: Bool = false) {
         let newPolicy = derivePolicy(closingWindow: closingWindow, isWindowAppearing: isWindowAppearing)
-        print("updateState closingWindow=\(closingWindow) isWindowAppearing=\(isWindowAppearing), derivePolicy=\(newPolicy)")
         setPolicyDebounce.call { [self] in
             setPolicy(newPolicy)
         }
@@ -84,9 +81,6 @@ class WindowTracker: ObservableObject {
             return .regular
         }
 
-        for window in NSApp.windows {
-            print("window: \(window) isUserFacing=\(window.isUserFacing) styleMask=\(window.styleMask) isVisible=\(window.isVisible) isMiniaturized=\(window.isMiniaturized) title=\(window.title)")
-        }
         // this is for when we have a menu bar app:
         // check windows
         let windowCount = NSApp.windows

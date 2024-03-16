@@ -514,7 +514,6 @@ private struct LogsTextView: NSViewRepresentable {
     class Coordinator {
         var cancellables = Set<AnyCancellable>()
         var layoutManagerDelegate: NSLayoutManagerDelegate?
-        var didBecomeFirstResponder = false
         var lastWordWrap = true
     }
 
@@ -568,6 +567,10 @@ private struct LogsTextView: NSViewRepresentable {
             button.tag = NSTextFinder.Action.showFindInterface.rawValue
             textView.performFindPanelAction(button)
         }.store(in: &context.coordinator.cancellables)
+
+        DispatchQueue.main.async {
+            textView.window?.makeFirstResponder(textView)
+        }
 
         return scrollView
     }
