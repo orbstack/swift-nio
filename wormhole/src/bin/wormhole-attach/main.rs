@@ -309,6 +309,20 @@ fn set_ctty() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn detach_ctty() -> anyhow::Result<()> {
+    // are any stdio fds ttys?
+    let stdio_fds = [0, 1, 2];
+    for fd in stdio_fds {
+        if unsafe { libc::isatty(fd) } == 1 {
+            // detach it
+            unsafe { err(libc::ioctl(fd, libc::TIOCNOTTY, 0))? };
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
 // this does *not* include ALL process attributes like sched affinity, dumpable, securebits, etc. that docker doesn't set
 fn main() -> anyhow::Result<()> {
@@ -452,6 +466,10 @@ fn main() -> anyhow::Result<()> {
 
     // close unnecessary fds
     drop(wormhole_mount_fd);
+
+    // detach ctty so child (after setsid) can take it
+    // it can't steal because CAP_SYS_ADMIN has been dropped
+    detach_ctty()?;
 
     trace!("fork into intermediate");
     match unsafe { fork()? } {
