@@ -243,7 +243,7 @@ fn cmd_list() -> anyhow::Result<()> {
 
         env.packages.push(model::Package {
             attr_path: pkg.to_string(),
-            symbolic_name: pkg.to_string(),
+            symbolic_name: "builtin".to_string(),
         });
     }
 
