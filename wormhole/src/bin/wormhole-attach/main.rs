@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ffi::CString, fs::File, io::ErrorKind, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
-use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setsid, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
+use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
 use pidfd::PidFd;
 use tracing::{error, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -295,34 +295,6 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     Ok(())
 }
 
-fn set_ctty() -> anyhow::Result<()> {
-    // are any stdio fds ttys?
-    let stdio_fds = [0, 1, 2];
-    for fd in stdio_fds {
-        if unsafe { libc::isatty(fd) } == 1 {
-            // set it as ctty
-            unsafe { err(libc::ioctl(fd, libc::TIOCSCTTY, 0))? };
-            break;
-        }
-    }
-
-    Ok(())
-}
-
-fn detach_ctty() -> anyhow::Result<()> {
-    // are any stdio fds ttys?
-    let stdio_fds = [0, 1, 2];
-    for fd in stdio_fds {
-        if unsafe { libc::isatty(fd) } == 1 {
-            // detach it
-            unsafe { err(libc::ioctl(fd, libc::TIOCNOTTY, 0))? };
-            break;
-        }
-    }
-
-    Ok(())
-}
-
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
 // this does *not* include ALL process attributes like sched affinity, dumpable, securebits, etc. that docker doesn't set
 fn main() -> anyhow::Result<()> {
@@ -466,10 +438,6 @@ fn main() -> anyhow::Result<()> {
 
     // close unnecessary fds
     drop(wormhole_mount_fd);
-
-    // detach ctty so child (after setsid) can take it
-    // it can't steal because CAP_SYS_ADMIN has been dropped
-    detach_ctty()?;
 
     trace!("fork into intermediate");
     match unsafe { fork()? } {
@@ -621,9 +589,6 @@ fn main() -> anyhow::Result<()> {
                             // kill self if parent (cattach subreaper) dies
                             // but allow bg processes to keep running
                             proc::prctl_death_sig()?;
-                            // become session leader
-                            setsid()?;
-                            set_ctty()?;
 
                             trace!("execve");
                             execve(&CString::new("/nix/orb/sys/bin/dctl")?, &[CString::new("dctl")?, CString::new("__entrypoint")?, CString::new("--")?, CString::new(entry_shell_cmd)?], &cstr_envs)?;
