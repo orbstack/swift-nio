@@ -23,16 +23,54 @@ impl Drop for ProcessGuard {
     }
 }
 
-fn run_with_output(cmd: &mut Command) -> std::io::Result<Output> {
+fn run_with_output_checked(action: &str, restore_if_failed: bool, cmd: &mut Command) -> anyhow::Result<Output> {
     NUM_RUNNING_PROCS.fetch_add(1, Ordering::Relaxed);
     let _guard = ProcessGuard;
-    cmd.output()
+
+    let output = cmd.output()?;
+    if !output.status.success() {
+        // try to restore missing paths if failed
+        if restore_if_failed {
+            if let Err(e) = base_img::restore_missing() {
+                eprintln!("failed to restore missing paths: {}", e);
+            }
+
+            // also repair nix db
+            if let Err(e) = run_with_status_checked("repair nix db", false, new_command("nix-store")
+                .args(&["--verify", "--repair", "--quiet"])) {
+                eprintln!("failed to repair nix db: {}", e);
+            }
+        }
+
+        return Err(anyhow!("failed to {} ({}): {}", action, output.status, String::from_utf8_lossy(&output.stderr)));
+    }
+
+    Ok(output)
 }
 
-fn run_with_status(cmd: &mut Command) -> std::io::Result<ExitStatus> {
+fn run_with_status_checked(action: &str, restore_if_failed: bool, cmd: &mut Command) -> anyhow::Result<ExitStatus> {
     NUM_RUNNING_PROCS.fetch_add(1, Ordering::Relaxed);
     let _guard = ProcessGuard;
-    cmd.status()
+
+    let status = cmd.status()?;
+    if !status.success() {
+        // try to restore missing paths if failed
+        if restore_if_failed {
+            if let Err(e) = base_img::restore_missing() {
+                eprintln!("failed to restore missing paths: {}", e);
+            }
+
+            // also repair nix db
+            if let Err(e) = run_with_status_checked("repair nix db", false, new_command("nix-store")
+                .args(&["--verify", "--repair", "--quiet"])) {
+                eprintln!("failed to repair nix db: {}", e);
+            }
+        }
+
+        return Err(anyhow!("failed to {} ({})", action, status));
+    }
+
+    Ok(status)
 }
 
 pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
@@ -48,11 +86,8 @@ pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
   "path": "/nix/store/zkspxz1kd4wz90lmszaycb1kzx0ff4i5-source"
 }
      */
-    let output: Output = run_with_output(new_command("nix")
+    let output: Output = run_with_output_checked("read flake inputs", true, new_command("nix")
         .args(&["flake", "archive", "--json", "--dry-run", "--impure"]))?;
-    if !output.status.success() {
-        return Err(anyhow!("failed to read flake inputs ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
-    }
 
     let flake_archive = serde_json::from_slice::<NixFlakeArchive>(&output.stdout)?;
     let mut inputs = flake_archive.inputs.values()
@@ -64,7 +99,6 @@ pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
 }
 
 fn new_command(bin: &str) -> Command {
-    //ctrlc::
     let mut cmd = Command::new(format!("{}/{}", NIX_BIN, bin));
     unsafe {
         cmd
@@ -121,11 +155,8 @@ pub fn gc_store() -> anyhow::Result<()> {
     // hold exclusive flock to make nix think we're still alive
     let _flock = Flock::new_ofd(file, FlockMode::Exclusive, FlockWait::NonBlocking)?;
 
-    let status = run_with_status(new_command("nix-store")
+    run_with_status_checked("GC store", false, new_command("nix-store")
         .args(&["--gc", "--quiet"]))?;
-    if !status.success() {
-        return Err(anyhow!("failed to GC store ({})", status));
-    }
 
     // delete file
     std::fs::remove_file(format!("/nix/var/nix/temproots/{}", pid))?;
@@ -133,11 +164,8 @@ pub fn gc_store() -> anyhow::Result<()> {
 }
 
 pub fn build_flake_env() -> anyhow::Result<()> {
-    let status = run_with_status(new_command("nix")
+    run_with_status_checked("rebuild env", true, new_command("nix")
         .args(&["build", "--impure", "--out-link", ENV_OUT_PATH]))?;
-    if !status.success() {
-        return Err(anyhow!("failed to rebuild environment ({})", status));
-    }
 
     Ok(())
 }
@@ -196,12 +224,9 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
         .join(" ");
     let nix_expr = format!("_flake: [ {} ]", nix_expr_pkglist);
 
-    let output = run_with_output(new_command("nix")
+    let output = run_with_output_checked("find packages", false, new_command("nix")
         .args(&["eval", "--json", "--impure", &format!("nixpkgs#.legacyPackages.{}", config::CURRENT_PLATFORM), "--apply"])
         .arg(nix_expr))?;
-    if !output.status.success() {
-        return Err(anyhow!("failed to find packages ({}): {}", output.status, String::from_utf8_lossy(&output.stderr)));
-    }
 
     // parse json
     let str_json = String::from_utf8_lossy(&output.stdout);
@@ -218,11 +243,8 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
 pub fn update_flake_lock() -> anyhow::Result<()> {
     // passing --output-lock-file suppresses "warning: creating lock file"
     // nix flake update --output-lock-file flake.lock
-    let status = run_with_status(new_command("nix")
+    run_with_status_checked("update lock", true, new_command("nix")
         .args(&["flake", "update", "--output-lock-file", "flake.lock", "--impure"]))?;
-    if !status.success() {
-        return Err(anyhow!("failed to update lock ({})", status));
-    }
 
     Ok(())
 }
