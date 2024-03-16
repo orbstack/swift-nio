@@ -3,11 +3,20 @@ use nix::errno::Errno;
 pub mod newmount;
 pub mod flock;
 
-pub fn err<T: IsMinusOne>(ret: T) -> nix::Result<T> {
+fn _err<T: IsMinusOne>(ret: T) -> nix::Result<T> {
     if ret.is_minus_one() {
         Err(Errno::last().into())
     } else {
         Ok(ret)
+    }
+}
+
+pub fn err<T: IsMinusOne + Copy>(ret: T) -> nix::Result<T> {
+    loop {
+        match _err(ret) {
+            Err(Errno::EINTR) => {}
+            other => return other,
+        }
     }
 }
 
