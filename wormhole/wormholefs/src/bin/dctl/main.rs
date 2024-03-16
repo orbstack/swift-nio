@@ -1,9 +1,10 @@
-use std::{fs::{self, File}, io::Write, sync::atomic::Ordering, time::{Duration, SystemTime}};
+use std::{ffi::CString, fs::{self, File}, io::Write, sync::atomic::Ordering, time::{Duration, SystemTime}};
 
 use anyhow::anyhow;
 use colored::Colorize;
 use clap::{Parser, Subcommand};
 use model::{WormholeEnv, CURRENT_VERSION};
+use nix::unistd::execv;
 use programs::read_and_find_program;
 use search::SearchQuery;
 use wormholefs::flock::{Flock, FlockGuard};
@@ -69,6 +70,13 @@ enum Commands {
     CommandNotFound {
         cmd: String,
     },
+
+    /// Internal entry point
+    #[clap(hide=true)]
+    #[command(name="__entrypoint")]
+    Entrypoint {
+        cmd: String,
+    }
 }
 
 fn read_env() -> anyhow::Result<FlockGuard<WormholeEnv>> {
@@ -278,6 +286,21 @@ fn cmd_cnf(name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn cmd_entrypoint(cmd: &str) -> anyhow::Result<()> {
+    // restore missing base paths
+    base_img::restore_missing()?;
+
+    // run command
+    let mut args = vec![CString::new("-zsh")?];
+    if !cmd.is_empty() {
+        args.push(CString::new("-c")?);
+        args.push(CString::new(cmd)?);
+    }
+
+    execv(&CString::new("/nix/orb/sys/bin/zsh")?, &args)?;
+    unreachable!();
+}
+
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
@@ -313,6 +336,9 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::CommandNotFound { cmd } => {
             cmd_cnf(&cmd)?;
+        }
+        Commands::Entrypoint { cmd } => {
+            cmd_entrypoint(&cmd)?;
         }
     }
 

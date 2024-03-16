@@ -469,6 +469,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 	// after stdin/stdout setup, to deal with nixos su
 	var combinedArgs []string
+	var shellCmd string
 	if meta.RawCommand {
 		// raw command (JSON)
 		var rawArgs []string
@@ -477,11 +478,13 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			return
 		}
 		// still go through shell to get PATH
-		combinedArgs = []string{agent.ShellSentinel, "-c", shellescape.QuoteCommand(rawArgs)}
+		shellCmd = shellescape.QuoteCommand(rawArgs)
+		combinedArgs = []string{agent.ShellSentinel, "-c", shellCmd}
 	} else {
 		combinedArgs = []string{agent.ShellSentinel}
 		if s.RawCommand() != "" {
-			combinedArgs = append(combinedArgs, "-c", s.RawCommand())
+			shellCmd = s.RawCommand()
+			combinedArgs = append(combinedArgs, "-c", shellCmd)
 		}
 	}
 	cmd.CombinedArgs = combinedArgs
@@ -505,12 +508,17 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			wormholeMountFile := os.NewFile(uintptr(wormholeMountFd), "wormhole mount")
 			defer wormholeMountFile.Close()
 
+			workDir := wormholeResp.WorkingDir
+			if meta.Pwd != "" {
+				workDir = meta.Pwd
+			}
+
 			cmd.User = ""
 			cmd.DoLogin = false
 			cmd.ReplaceShell = false
 			// will be fd 3 in child process
 			cmd.ExtraFiles = []*os.File{wormholeMountFile}
-			cmd.CombinedArgs = []string{mounts.Cattach, strconv.Itoa(wormholeResp.InitPid), wormholeResp.WorkingDir, "3"}
+			cmd.CombinedArgs = []string{mounts.Cattach, strconv.Itoa(wormholeResp.InitPid), workDir, "3", shellCmd}
 			// for debugging
 			cmd.Env.SetPair("RUST_BACKTRACE=full")
 		}

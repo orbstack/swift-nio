@@ -307,6 +307,7 @@ fn main() -> anyhow::Result<()> {
     let init_pid = std::env::args().nth(1).unwrap().parse::<i32>()?;
     let workdir = std::env::args().nth(2).unwrap();
     let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(std::env::args().nth(3).unwrap().parse::<i32>()?) };
+    let entry_shell_cmd = std::env::args().nth(4).unwrap();
 
     trace!("open pidfd");
     let pidfd = PidFd::open(init_pid)?;
@@ -574,7 +575,8 @@ fn main() -> anyhow::Result<()> {
                             // kill self if parent (cattach subreaper) dies
                             // but allow bg processes to keep running
                             proc::prctl_death_sig()?;
-                            execve(&CString::new("/nix/orb/sys/bin/zsh")?, &[CString::new("-zsh")?], &cstr_envs)?;
+                            execve(&CString::new("/nix/orb/sys/bin/dctl")?, &[CString::new("dctl")?, CString::new("__entrypoint")?, CString::new(entry_shell_cmd)?], &cstr_envs)?;
+                            unreachable!();
                         }
                     }
                 }

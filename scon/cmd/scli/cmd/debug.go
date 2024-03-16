@@ -103,15 +103,16 @@ var debugCmd = &cobra.Command{
 
 		scli.EnsureSconVMWithSpinner()
 
-		var workdir *string
+		// don't use default (host) workdir
+		workdir := ""
 		if flagWorkdir != "" {
-			workdir = &flagWorkdir
+			workdir = flagWorkdir
 		}
 
 		exitCode, err := shell.RunSSH(shell.CommandOpts{
 			CombinedArgs:  args[1:],
 			ContainerName: types.ContainerDocker,
-			Dir:           workdir,
+			Dir:           &workdir,
 			User:          "wormhole:" + containerID,
 		})
 		if err != nil {
