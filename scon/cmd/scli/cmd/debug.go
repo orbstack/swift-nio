@@ -26,9 +26,10 @@ func init() {
 	debugCmd.Flags().BoolVarP(&flagFallback, "fallback", "f", false, "Fallback to 'docker exec' if no Pro license")
 }
 
-func ParseDebugFlags(args []string) ([]string, error) {
+func ParseDebugFlags(args []string) ([]string, *string, error) {
 	inFlag := false
 	lastI := -1 // deal with empty case
+	var containerID *string
 	var lastStringFlag *string
 	var arg string
 	for lastI, arg = range args {
@@ -70,12 +71,17 @@ func ParseDebugFlags(args []string) ([]string, error) {
 				lastStringFlag = &flagWorkdir
 			// don't allow two-part bool
 			default:
-				return nil, errors.New("unknown flag " + arg)
+				return nil, nil, errors.New("unknown flag " + arg)
 			}
 			inFlag = true
-		} else {
+		} else if containerID == nil {
 			// we've encountered an argument that's not a flag or a flag value.
-			// this is the end of the flags, so we can stop parsing
+			// this first positional arg is the container ID.
+			binding := arg // new var binding for pointer
+			containerID = &binding
+		} else {
+			// we've already consumed a positional arg, and this is positional[1].
+			// this marks the end of flags
 			lastI -= 1 // not consumed
 			break
 		}
@@ -84,11 +90,11 @@ func ParseDebugFlags(args []string) ([]string, error) {
 	if inFlag {
 		// we're in a flag, but we've reached the end of the args.
 		// this is an error
-		return nil, errors.New("missing value for flag " + args[lastI])
+		return nil, nil, errors.New("missing value for flag " + args[lastI])
 	}
 
 	// skip the flags and value we got
-	return args[lastI+1:], nil
+	return args[lastI+1:], containerID, nil
 }
 
 func fallbackDockerExec(containerID string) error {
@@ -114,19 +120,15 @@ Pro only: requires a Pro license for OrbStack.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// parse flags
 		var err error
-		if len(args) == 0 {
-			cmd.Help()
-			return nil
-		}
-		containerID := args[0]
-		args, err = ParseDebugFlags(args[1:])
+		args, containerIDp, err := ParseDebugFlags(args)
 		if err != nil {
 			return err
 		}
-		if FlagWantHelp {
+		if containerIDp == nil || FlagWantHelp {
 			cmd.Help()
 			return nil
 		}
+		containerID := *containerIDp
 
 		scli.EnsureSconVMWithSpinner()
 
@@ -175,6 +177,11 @@ Get a license: https://orbstack.dev/pricing
 
 		// 124 = requested fallback mode, and container is Nix
 		if exitCode == 124 {
+			fmt.Fprintln(os.Stderr, color.New(color.FgYellow).Sprint(`OrbStack Debug Shell does not yet support Nix containers.
+Falling back to 'docker exec'.
+Learn more: https://go.orbstack.dev/debug
+`))
+
 			// fallback to docker exec
 			err = fallbackDockerExec(containerID)
 			checkCLI(err)
