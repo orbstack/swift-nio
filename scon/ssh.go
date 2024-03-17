@@ -20,7 +20,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
-	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
@@ -309,8 +308,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		user = "root"
 
 		// check for Pro license
-		drmResult := sv.m.drm.lastResult
-		if drmResult == nil || drmResult.ClaimInfo.EntitlementTier == drmtypes.EntitlementTierNone {
+		if !sv.m.drm.isLicensed() {
 			err = &ExitError{status: 125}
 			return
 		}

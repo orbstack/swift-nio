@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/killswitch"
+	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/sirupsen/logrus"
@@ -34,6 +36,8 @@ type DrmMonitor struct {
 	lastResult    *drmtypes.Result
 	verifier      *sjwt.Verifier
 	deadlineTimer *time.Timer
+
+	initRestored syncx.CondBool
 }
 
 // scon (VM side) drm:
@@ -51,6 +55,17 @@ func (m *DrmMonitor) Start() error {
 	// set deadline
 	m.deadlineTimer = time.AfterFunc(drmEventDeadline, m.onDeadlineReached)
 
+	// prepopulate drm result to get correct license status on start
+	result, err := m.conManager.host.GetLastDrmResult()
+	if err != nil {
+		return fmt.Errorf("get last drm result: %w", err)
+	}
+
+	if result != nil {
+		m.dispatchResult(result)
+	}
+
+	m.initRestored.Set(true)
 	return nil
 }
 
@@ -105,6 +120,11 @@ func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 	m.lastResult = result
 	dlog("dispatch: ok", m.lastResult)
 	return true
+}
+
+func (m *DrmMonitor) isLicensed() bool {
+	m.initRestored.Wait()
+	return m.lastResult != nil && m.lastResult.ClaimInfo.EntitlementTier != drmtypes.EntitlementTierNone
 }
 
 type None struct{}

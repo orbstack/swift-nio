@@ -247,6 +247,8 @@ func (m *ConManager) Start() error {
 		//TODO identifiers
 		//TODO version
 		verifier: sjwt.NewVerifier(nil, drmtypes.AppVersion{}),
+
+		initRestored: syncx.NewCondBool(),
 	}
 	m.drm = drmMonitor
 	go runOne("DRM monitor", drmMonitor.Start)
@@ -308,19 +310,6 @@ func (m *ConManager) Start() error {
 	// release the initial ui lock, now that container start jobs are pending, and trigger
 	m.uiInitContainers.Done()
 	m.uiEventDebounce.Call()
-
-	// prepopulate drm result to get correct license status on start
-	go func() {
-		result, err := m.host.GetLastDrmResult()
-		if err != nil {
-			logrus.WithError(err).Error("failed to get initial drm result")
-			return
-		}
-
-		if result != nil {
-			m.drm.dispatchResult(result)
-		}
-	}()
 
 	logrus.Info("started")
 	return nil
