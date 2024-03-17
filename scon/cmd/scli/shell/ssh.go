@@ -13,6 +13,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/conf/sshpath"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -44,12 +45,13 @@ var (
 )
 
 type CommandOpts struct {
-	CombinedArgs  []string
-	UseShell      bool
-	ExtraEnv      map[string]string
-	User          string
-	Dir           *string
-	ContainerName string
+	CombinedArgs     []string
+	UseShell         bool
+	ExtraEnv         map[string]string
+	User             string
+	Dir              *string
+	ContainerName    string
+	WormholeFallback bool
 }
 
 func RunSSH(opts CommandOpts) (int, error) {
@@ -83,8 +85,9 @@ func RunSSH(opts CommandOpts) (int, error) {
 	}
 	defer session.Close()
 
-	meta := sshenv.CmdMeta{
-		RawCommand: !opts.UseShell && len(opts.CombinedArgs) > 0,
+	meta := sshtypes.SshMeta{
+		RawCommand:       !opts.UseShell && len(opts.CombinedArgs) > 0,
+		WormholeFallback: opts.WormholeFallback,
 	}
 
 	// individual ptys
@@ -182,7 +185,7 @@ func RunSSH(opts CommandOpts) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	clientEnv[sshenv.KeyMeta] = string(metaBytes)
+	clientEnv[sshtypes.KeyMeta] = string(metaBytes)
 
 	// send all env
 	for k, v := range clientEnv {

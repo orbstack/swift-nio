@@ -27,7 +27,7 @@ func (a *AgentServer) DockerPrepWormhole(args *PrepWormholeArgs, reply *PrepWorm
 		return fmt.Errorf("container %s is not running", args.ContainerID)
 	}
 
-	fd, err := unix.Open(fmt.Sprintf("/proc/%d/root", initPid), unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	fd, err := unix.Open(fmt.Sprintf("/proc/%d/root", initPid), unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return err
 	}

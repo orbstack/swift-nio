@@ -12,7 +12,7 @@ import (
 )
 
 func WriteHostnameFiles(rootfs string, oldName string, newName string, runCommands bool) error {
-	fs, err := securefs.NewFS(rootfs)
+	fs, err := securefs.NewFromPath(rootfs)
 	if err != nil {
 		return err
 	}

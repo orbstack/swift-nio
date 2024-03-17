@@ -19,7 +19,6 @@ import (
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
-	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
@@ -282,12 +281,12 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	for _, kv := range s.Environ() {
 		env.SetPair(kv)
 	}
-	if metaStr, ok := env[sshenv.KeyMeta]; ok {
+	if metaStr, ok := env[sshtypes.KeyMeta]; ok {
 		err = json.Unmarshal([]byte(metaStr), &meta)
 		if err != nil {
 			return
 		}
-		delete(env, sshenv.KeyMeta)
+		delete(env, sshtypes.KeyMeta)
 	} else {
 		meta = defaultMeta
 		meta.PtyStdin = isPty
@@ -460,6 +459,14 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 				return err
 			}
 			defer rootfsFile.Close()
+
+			isNix, err := isNixContainer(rootfsFile)
+			if err != nil {
+				return err
+			}
+			if isNix && meta.WormholeFallback {
+				return &ExitError{status: 124}
+			}
 
 			wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, mounts.WormholeUnifiedNix, unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			if err != nil {

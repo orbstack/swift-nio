@@ -267,7 +267,7 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 }
 
 func (s *SconGuestServer) OnDockerImagesChanged(diff sgtypes.Diff[sgtypes.TaggedImage], _ *None) error {
-	fs, err := securefs.NewFS(conf.C().DockerDataDir)
+	fs, err := securefs.NewFromPath(conf.C().DockerDataDir)
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func mountVolume(nfs NfsMirror, vol *dockertypes.Volume, fs *securefs.FS) error 
 }
 
 func (s *SconGuestServer) OnDockerVolumesChanged(diff sgtypes.Diff[*dockertypes.Volume], _ *None) error {
-	fs, err := securefs.NewFS(conf.C().DockerDataDir)
+	fs, err := securefs.NewFromPath(conf.C().DockerDataDir)
 	if err != nil {
 		return err
 	}

@@ -159,7 +159,7 @@ type DockerHooks struct {
 }
 
 func newDockerHooks() (*DockerHooks, error) {
-	rootfs, err := securefs.NewFS(conf.C().DockerRootfs)
+	rootfs, err := securefs.NewFromPath(conf.C().DockerRootfs)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (h *DockerHooks) createDataDirs() error {
 	if err != nil {
 		return err
 	}
-	kfs, err := securefs.NewFS(conf.C().K8sDataDir)
+	kfs, err := securefs.NewFromPath(conf.C().K8sDataDir)
 	if err != nil {
 		return err
 	}

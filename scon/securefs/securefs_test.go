@@ -509,7 +509,7 @@ func TestCloexec(t *testing.T) {
 	t.Parallel()
 
 	// open etc/passwd
-	fs, err := NewFS("/etc")
+	fs, err := NewFromPath("/etc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +542,7 @@ func TestCloexec(t *testing.T) {
 func TestNonExistentRoot(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewFS("/nonexistent")
+	_, err := NewFromPath("/nonexistent")
 	if !errors.Is(err, unix.ENOENT) {
 		t.Fatal("expected error")
 	}
@@ -551,7 +551,7 @@ func TestNonExistentRoot(t *testing.T) {
 func TestFileAsRoot(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewFS("/etc/passwd")
+	_, err := NewFromPath("/etc/passwd")
 	if !errors.Is(err, unix.ENOTDIR) {
 		t.Fatal("expected error")
 	}

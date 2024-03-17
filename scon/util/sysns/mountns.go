@@ -41,6 +41,7 @@ func WithMountNs[T any](newNsFd int, fn func() (T, error)) (T, error) {
 		return zero, fmt.Errorf("unshare: %w", err)
 	}
 	// revert to host mount ns
+	defer unix.Chdir("/")
 	defer unix.Setns(hostMountnsFd, unix.CLONE_NEWNS)
 
 	// now we have a different mount ns from original process.
@@ -49,7 +50,11 @@ func WithMountNs[T any](newNsFd int, fn func() (T, error)) (T, error) {
 	if err != nil {
 		return zero, err
 	}
-	// chdir and chroot not needed
+	// chdir needed to prevent relative symlink vuln
+	err = unix.Chdir("/")
+	if err != nil {
+		return zero, err
+	}
 
 	return fn()
 }

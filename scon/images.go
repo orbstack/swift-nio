@@ -399,7 +399,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	}
 	logrus.WithField("metadata", meta).Debug("loaded metadata")
 
-	fs, err := securefs.NewFS(rootfsDir)
+	fs, err := securefs.NewFromPath(rootfsDir)
 	if err != nil {
 		return err
 	}

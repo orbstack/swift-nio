@@ -13,9 +13,9 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/orbstack/macvirt/scon/agent/envutil"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
-	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/setup/userutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -51,7 +51,7 @@ var (
 		ssh.SIGUSR2: unix.SIGUSR2,
 	}
 
-	defaultMeta = sshenv.CmdMeta{
+	defaultMeta = sshtypes.SshMeta{
 		RawCommand: false,
 		PtyStdin:   true,
 		PtyStdout:  true,
@@ -80,16 +80,16 @@ func handleSshConn(s ssh.Session) error {
 	env := envutil.ToMap(os.Environ())
 
 	// add everything from client
-	var meta sshenv.CmdMeta
+	var meta sshtypes.SshMeta
 	for _, kv := range s.Environ() {
 		env.SetPair(kv)
 	}
-	if metaStr, ok := env[sshenv.KeyMeta]; ok {
+	if metaStr, ok := env[sshtypes.KeyMeta]; ok {
 		err := json.Unmarshal([]byte(metaStr), &meta)
 		if err != nil {
 			return err
 		}
-		delete(env, sshenv.KeyMeta)
+		delete(env, sshtypes.KeyMeta)
 	} else {
 		meta = defaultMeta
 	}

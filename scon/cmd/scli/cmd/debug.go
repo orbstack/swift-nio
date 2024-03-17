@@ -91,6 +91,11 @@ func ParseDebugFlags(args []string) ([]string, error) {
 	return args[lastI+1:], nil
 }
 
+func fallbackDockerExec(containerID string) error {
+	// prefer bash, otherwise use sh
+	return unix.Exec(conf.FindXbin("docker"), []string{"docker", "--context", "orbstack", "exec", "-it", containerID, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"}, os.Environ())
+}
+
 var debugCmd = &cobra.Command{
 	Use:     "debug [flags] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"wormhole"},
@@ -132,10 +137,11 @@ Pro only: requires a Pro license for OrbStack.
 		}
 
 		exitCode, err := shell.RunSSH(shell.CommandOpts{
-			CombinedArgs:  args,
-			ContainerName: types.ContainerDocker,
-			Dir:           &workdir,
-			User:          "wormhole:" + containerID,
+			CombinedArgs:     args,
+			ContainerName:    types.ContainerDocker,
+			Dir:              &workdir,
+			User:             "wormhole:" + containerID,
+			WormholeFallback: flagFallback,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "\n%v\n", err)
@@ -154,8 +160,7 @@ Learn more: https://go.orbstack.dev/debug
 `, color.New(color.Bold).Sprint("NEW: OrbStack Debug Shell provides useful commands & tools,")))
 
 				// fallback to docker exec
-				// prefer bash, otherwise use sh
-				err = unix.Exec(conf.FindXbin("docker"), []string{"docker", "--context", "orbstack", "exec", "-it", containerID, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"}, os.Environ())
+				err = fallbackDockerExec(containerID)
 				checkCLI(err)
 			} else {
 				fmt.Fprintln(os.Stderr, color.New(color.FgRed).Sprintf(`A Pro license is required to use OrbStack Debug Shell.
@@ -166,6 +171,13 @@ Learn more: https://go.orbstack.dev/debug
 Get a license: https://orbstack.dev/pricing
 `, color.New(color.Bold).Sprint("Debug Shell provides useful commands & tools,")))
 			}
+		}
+
+		// 124 = requested fallback mode, and container is Nix
+		if exitCode == 124 {
+			// fallback to docker exec
+			err = fallbackDockerExec(containerID)
+			checkCLI(err)
 		}
 
 		os.Exit(exitCode)

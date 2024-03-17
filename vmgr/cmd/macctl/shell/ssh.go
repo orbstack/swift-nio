@@ -12,6 +12,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/conf/sshpath"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -94,7 +95,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	}
 	defer session.Close()
 
-	meta := sshenv.CmdMeta{
+	meta := sshtypes.SshMeta{
 		RawCommand: !opts.UseShell && len(opts.CombinedArgs) > 0,
 		Argv0:      opts.Argv0,
 	}
@@ -185,7 +186,7 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	clientEnv[sshenv.KeyMeta] = string(metaBytes)
+	clientEnv[sshtypes.KeyMeta] = string(metaBytes)
 
 	// send all env
 	for k, v := range clientEnv {

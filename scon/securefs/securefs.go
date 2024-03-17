@@ -12,24 +12,28 @@ import (
 )
 
 type FS struct {
-	root string
-	dfd  int
+	dfd int
 }
 
-func NewFS(root string) (*FS, error) {
+func NewFromPath(root string) (*FS, error) {
 	dfd, err := unix.Open(root, unix.O_DIRECTORY|unix.O_PATH|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	return &FS{
-		root: root,
-		dfd:  dfd,
+		dfd: dfd,
+	}, nil
+}
+
+func NewFromDirfd(dfd int) (*FS, error) {
+	return &FS{
+		dfd: dfd,
 	}, nil
 }
 
 var Default = sync.OnceValue(func() *FS {
-	fs, err := NewFS("/")
+	fs, err := NewFromPath("/")
 	if err != nil {
 		panic(err)
 	}
@@ -220,7 +224,7 @@ func (fs *FS) ResolvePath(name string) (string, error) {
 
 // quick functions
 func OpenFile(at string, name string, flag int, perm os.FileMode) (*os.File, error) {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +234,7 @@ func OpenFile(at string, name string, flag int, perm os.FileMode) (*os.File, err
 }
 
 func Open(at string, name string) (*os.File, error) {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +244,7 @@ func Open(at string, name string) (*os.File, error) {
 }
 
 func Create(at string, name string) (*os.File, error) {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +254,7 @@ func Create(at string, name string) (*os.File, error) {
 }
 
 func ReadFile(at string, name string) ([]byte, error) {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +264,7 @@ func ReadFile(at string, name string) ([]byte, error) {
 }
 
 func WriteFile(at string, name string, data []byte, perm os.FileMode) error {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return err
 	}
@@ -270,7 +274,7 @@ func WriteFile(at string, name string, data []byte, perm os.FileMode) error {
 }
 
 func Remove(at string, name string) error {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return err
 	}
@@ -280,7 +284,7 @@ func Remove(at string, name string) error {
 }
 
 func Symlink(at string, oldname, newname string) error {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return err
 	}
@@ -290,7 +294,7 @@ func Symlink(at string, oldname, newname string) error {
 }
 
 func Mkdir(at string, name string, perm os.FileMode) error {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return err
 	}
@@ -300,7 +304,7 @@ func Mkdir(at string, name string, perm os.FileMode) error {
 }
 
 func MkdirAll(at string, path string, perm os.FileMode) error {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return err
 	}
@@ -310,7 +314,7 @@ func MkdirAll(at string, path string, perm os.FileMode) error {
 }
 
 func ReadDir(at string, name string) ([]os.DirEntry, error) {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +324,7 @@ func ReadDir(at string, name string) ([]os.DirEntry, error) {
 }
 
 func ResolvePath(at string, name string) (string, error) {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return "", err
 	}
@@ -330,7 +334,7 @@ func ResolvePath(at string, name string) (string, error) {
 }
 
 func Stat(at string, name string) (os.FileInfo, error) {
-	fs, err := NewFS(at)
+	fs, err := NewFromPath(at)
 	if err != nil {
 		return nil, err
 	}
