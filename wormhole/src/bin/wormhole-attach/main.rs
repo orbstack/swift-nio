@@ -342,8 +342,8 @@ fn main() -> anyhow::Result<()> {
         std::fs::write(format!("/sys/fs/cgroup/{}/cgroup.procs", cg_path), format!("{}", self_pid))?;
     }
 
-    // save dirfd of /proc/self in old mount ns
-    let proc_self_fd = unsafe { OwnedFd::from_raw_fd(open("/proc/self", OFlag::O_PATH | OFlag::O_CLOEXEC, Mode::empty())?) };
+    // save dirfd of /proc/thread-self in old mount ns
+    let proc_self_fd = unsafe { OwnedFd::from_raw_fd(open("/proc/thread-self", OFlag::O_PATH | OFlag::O_CLOEXEC, Mode::empty())?) };
 
     trace!("attach most namespaces");
     setns(&pidfd, CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWCGROUP | CloneFlags::CLONE_NEWUTS | CloneFlags::CLONE_NEWIPC | CloneFlags::CLONE_NEWNET)?;
