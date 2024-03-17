@@ -18,7 +18,6 @@ centos:9-Stream
 debian:bookworm
 debian:bullseye
 debian:buster
-debian:sid
 debian:trixie
 devuan:beowulf
 devuan:chimaera
