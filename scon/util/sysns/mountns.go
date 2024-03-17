@@ -3,6 +3,7 @@ package sysns
 import (
 	"fmt"
 	"runtime"
+	"sync"
 
 	"golang.org/x/sys/unix"
 )
@@ -14,46 +15,43 @@ func init() {
 	runtime.LockOSThread()
 }
 
-type result[T any] struct {
-	val T
-	err error
-}
+var getHostMountnsFd = sync.OnceValue(func() int {
+	fd, err := unix.Open("/proc/thread-self/ns/mnt", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		panic(err)
+	}
+	return fd
+})
 
 func WithMountNs[T any](newNsFd int, fn func() (T, error)) (T, error) {
-	// LockOSThread is per-goroutine, so make a new temp goroutine
-	resultCh := make(chan result[T])
-	go func() {
-		// wrap func for return value
-		ret, err := func() (T, error) {
-			var zero T
+	var zero T
 
-			// lock this thread, and never unlock it.
-			runtime.LockOSThread()
+	// lock this thread, and never unlock it.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 
-			// unshare mount namespace, as it's per-process
-			// this makes a new process with everything but mount ns shared
-			// implies CLONE_FS: current working dir, etc.
-			err := unix.Unshare(unix.CLONE_NEWNS)
-			if err != nil {
-				return zero, fmt.Errorf("unshare: %w", err)
-			}
+	// open current mount ns
+	hostMountnsFd := getHostMountnsFd()
 
-			// now we have a different mount ns from original process.
-			// switch to target mount ns
-			err = unix.Setns(newNsFd, unix.CLONE_NEWNS)
-			if err != nil {
-				return zero, err
-			}
-			// chdir and chroot not needed
+	// unshare mount namespace, as it's per-process
+	// this makes a new process with everything but mount ns shared
+	// implies CLONE_FS: current working dir, etc.
+	err := unix.Unshare(unix.CLONE_NEWNS)
+	if err != nil {
+		return zero, fmt.Errorf("unshare: %w", err)
+	}
+	// revert to host mount ns
+	defer unix.Setns(hostMountnsFd, unix.CLONE_NEWNS)
 
-			// run the func. when it's done, the thread will exit because we never called UnlockOSThread
-			return fn()
-		}()
-		resultCh <- result[T]{ret, err}
-	}()
+	// now we have a different mount ns from original process.
+	// switch to target mount ns
+	err = unix.Setns(newNsFd, unix.CLONE_NEWNS)
+	if err != nil {
+		return zero, err
+	}
+	// chdir and chroot not needed
 
-	result := <-resultCh
-	return result.val, result.err
+	return fn()
 }
 
 func WithMountNs1(newNsFd int, fn func() error) error {
