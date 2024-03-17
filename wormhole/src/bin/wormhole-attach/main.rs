@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ffi::CString, fs::File, io::ErrorKind, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
+use std::{collections::HashMap, ffi::CString, fs::File, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
 use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
@@ -240,17 +240,10 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     drop(nix_flock_ref);
 
     // check whether we created /nix
-    match xattr::get("/nix", "user.orbstack.wormhole") {
-        Ok(_) => {
-            // success - we created /nix; continue
-            trace!("delete_nix_dir: found /nix created by us");
-        }
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            // we didn't create /nix, so don't delete it
-            trace!("delete_nix_dir: /nix not created by us");
-            return Ok(());
-        }
-        Err(e) => return Err(e.into()),
+    if let None = xattr::get("/nix", "user.orbstack.wormhole")? {
+        // we didn't create /nix, so don't delete it
+        trace!("delete_nix_dir: /nix not created by us");
+        return Ok(());
     }
 
     // check whether there are any remaining refs
@@ -417,7 +410,7 @@ fn main() -> anyhow::Result<()> {
         // skip invalid entries with no =
         .filter(|s| s.len() == 2)
         .map(|s| (s[0].to_string(), s[1].to_string()))
-        .collect::<HashMap<String, String>>();
+        .collect::<HashMap<_, _>>();
     // edit PATH (append and prepend)
     env_map.insert("PATH".to_string(), format!("{}:{}", PREPEND_PATH, env_map.get("PATH").unwrap_or(&"".to_string())));
     // append extra envs
