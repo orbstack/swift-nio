@@ -225,8 +225,9 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
     let nix_expr = format!("_flake: [ {} ]", nix_expr_pkglist);
 
     let output = run_with_output_checked("find packages", false, new_command("nix")
-        .args(&["eval", "--json", "--impure", &format!("nixpkgs#.legacyPackages.{}", config::CURRENT_PLATFORM), "--apply"])
+        .args(&["eval", "--json", "--impure", "--inputs-from", ".", &format!("nixpkgs#.legacyPackages.{}", config::CURRENT_PLATFORM), "--apply"])
         // for progress output
+        .stdin(Stdio::inherit())
         .stderr(Stdio::inherit())
         .arg(nix_expr))?;
 
