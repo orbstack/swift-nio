@@ -7,6 +7,7 @@ use crate::Error as DeviceError;
 
 use super::backend::{NetBackend, ReadError, WriteError};
 use super::device::{FrontendError, RxError, TxError, VirtioNetBackend};
+use super::dgram::Dgram;
 
 use std::os::fd::AsRawFd;
 use std::sync::atomic::AtomicUsize;
@@ -68,6 +69,7 @@ impl NetWorker {
             VirtioNetBackend::Gvproxy(path) => {
                 Box::new(Gvproxy::new(path).unwrap()) as Box<dyn NetBackend + Send>
             }
+            VirtioNetBackend::Dgram(fd) => Box::new(Dgram::new(fd).unwrap()) as Box<dyn NetBackend + Send>,
         };
 
         Self {
