@@ -43,6 +43,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/services"
@@ -169,20 +170,10 @@ func setupDockerContext() error {
 	return nil
 }
 
-func tryForceStop(vm *vzf.Machine) (err error) {
+func tryGracefulStop(vm vmm.Machine, vc *vclient.VClient) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("force stop panic: %v", r)
-		}
-	}()
-
-	err = vm.ForceStop()
-	return
-}
-
-func tryGracefulStop(vm *vzf.Machine, vc *vclient.VClient) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
+			// FIXME: could come from gvisor (vinit call)
 			err = fmt.Errorf("graceful stop panic: %v", r)
 		}
 	}()
@@ -194,7 +185,7 @@ func tryGracefulStop(vm *vzf.Machine, vc *vclient.VClient) (err error) {
 
 		// assume that main goroutine would've exited by now, so program would've exited
 		// safe because onStop hook will never be set for graceful stop
-		err := tryForceStop(vm)
+		err := vm.ForceStop()
 		if err != nil {
 			logrus.WithError(err).Error("failed to force stop VM after graceful stop timeout")
 		}
@@ -212,7 +203,7 @@ func tryGracefulStop(vm *vzf.Machine, vc *vclient.VClient) (err error) {
 
 	// 2. force
 	logrus.Debug("trying to stop VM via force vz")
-	err = tryForceStop(vm)
+	err = vm.ForceStop()
 	if err == nil {
 		return
 	} else {
@@ -222,7 +213,7 @@ func tryGracefulStop(vm *vzf.Machine, vc *vclient.VClient) (err error) {
 	return
 }
 
-func migrateStateV1ToV2(state *vmconfig.VmgrState) error {
+func migrateStateV1ToV2() error {
 	logrus.WithFields(logrus.Fields{
 		"from": "1",
 		"to":   "2",
@@ -274,7 +265,7 @@ func migrateState() error {
 
 		// v2: 0.4.1 - moved nfs mount from ~/Linux to ~/OrbStack
 		if ver == 1 {
-			err := migrateStateV1ToV2(state)
+			err := migrateStateV1ToV2()
 			if err != nil {
 				return err
 			}
@@ -565,7 +556,7 @@ func runVmManager() {
 
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
-	vnetwork, vm := CreateVm(&VmParams{
+	vnetwork, vm := CreateVm(vzf.Monitor, &VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
 		Memory: vmconfig.Get().MemoryMiB,
@@ -840,7 +831,7 @@ func runVmManager() {
 			go func() {
 				switch stopReq.Type {
 				case types.StopTypeForce:
-					err := tryForceStop(vm)
+					err := vm.ForceStop()
 					if err != nil {
 						logrus.WithError(err).Error("VM force stop failed")
 						returnCh <- struct{}{}
@@ -856,11 +847,11 @@ func runVmManager() {
 
 		case newState := <-stateChan:
 			switch newState {
-			case vzf.MachineStateStarting:
+			case vmm.MachineStateStarting:
 				logrus.Info("[VM] starting")
-			case vzf.MachineStateStopping:
+			case vmm.MachineStateStopping:
 				logrus.Info("[VM] stopping")
-			case vzf.MachineStateRunning:
+			case vmm.MachineStateRunning:
 				logrus.Info("[VM] started")
 				if !vmHasStarted {
 					err := controlServer.onStart()
@@ -869,7 +860,7 @@ func runVmManager() {
 					}
 				}
 				vmHasStarted = true
-			case vzf.MachineStateStopped:
+			case vmm.MachineStateStopped:
 				logrus.Info("[VM] stopped")
 				err = controlServer.onStop()
 				if err != nil {
@@ -877,14 +868,14 @@ func runVmManager() {
 					return
 				}
 				return
-			case vzf.MachineStateError:
+			case vmm.MachineStateError:
 				logrus.Error("[VM] error")
 				return
-			case vzf.MachineStatePaused:
+			case vmm.MachineStatePaused:
 				logrus.Debug("[VM] paused")
-			case vzf.MachineStateResuming:
+			case vmm.MachineStateResuming:
 				logrus.Debug("[VM] resuming")
-			case vzf.MachineStatePausing:
+			case vmm.MachineStatePausing:
 				logrus.Debug("[VM] pausing")
 			}
 

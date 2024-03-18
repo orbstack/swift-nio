@@ -12,7 +12,6 @@
 struct GResultCreate {
     void* ptr;
     char* err;
-    bool rosetta_canceled;
 };
 
 struct GResultErr {

@@ -17,9 +17,9 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
+	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -54,7 +54,7 @@ type VClient struct {
 	client    *http.Client
 	lastStats diskReportStats
 	dataFile  *os.File
-	vm        *vzf.Machine
+	vm        vmm.Machine
 
 	signalStopCh     chan struct{}
 	requestStopCh    chan<- types.StopRequest
@@ -67,7 +67,7 @@ type diskReportStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport, vm *vzf.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
+func newWithTransport(tr *http.Transport, vm vmm.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
 	httpClient := &http.Client{
 		Transport: tr,
 		Timeout:   requestTimeout,
@@ -87,7 +87,7 @@ func newWithTransport(tr *http.Transport, vm *vzf.Machine, requestStopCh chan<- 
 	}, nil
 }
 
-func NewWithNetwork(n *vnet.Network, vm *vzf.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
+func NewWithNetwork(n *vnet.Network, vm vmm.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{

@@ -377,10 +377,10 @@ func swext_brnet_create(configJsonStr: UnsafePointer<CChar>) -> GResultCreate {
         let obj = try BridgeNetwork(config: config)
         // take a long-lived ref for Go
         let ptr = Unmanaged.passRetained(obj).toOpaque()
-        return GResultCreate(ptr: ptr, err: nil, rosetta_canceled: false)
+        return GResultCreate(ptr: ptr, err: nil)
     } catch {
         let prettyError = "\(error)"
-        return GResultCreate(ptr: nil, err: strdup(prettyError), rosetta_canceled: false)
+        return GResultCreate(ptr: nil, err: strdup(prettyError))
     }
 }
 

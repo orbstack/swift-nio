@@ -16,6 +16,8 @@ struct GResultErr govzf_run_Machine_Resume(void* ptr);
 struct GResultIntErr govzf_run_Machine_ConnectVsock(void* ptr, uint32_t port);
 void govzf_run_Machine_finalize(void* ptr);
 
+struct GResultIntErr swext_install_rosetta();
+
 char* swext_proxy_get_settings(bool need_auth);
 struct GResultErr swext_proxy_monitor_changes(void);
 
@@ -63,6 +65,7 @@ import (
 	"unsafe"
 
 	"github.com/orbstack/macvirt/vmgr/uitypes"
+	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/sirupsen/logrus"
 )
 
@@ -82,39 +85,24 @@ func errFromResult(result C.struct_GResultErr) error {
  * Virtual Machine
  */
 
-type Machine struct {
+type machine struct {
 	mu     sync.RWMutex
 	ptr    atomicUnsafePointer
 	handle cgo.Handle
 
 	retainFiles []*os.File
 
-	stateChan chan MachineState
+	stateChan chan vmm.MachineState
 }
 
-type MachineState int
-
-// matches Swift enum
-const (
-	MachineStateStopped MachineState = iota
-	MachineStateRunning
-	MachineStatePaused
-	MachineStateError
-	MachineStateStarting
-	MachineStatePausing
-	MachineStateResuming
-	// macOS 12
-	MachineStateStopping
-)
-
 //export govzf_event_Machine_onStateChange
-func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state MachineState) {
-	vm := cgo.Handle(vmHandle).Value().(*Machine)
+func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state int) {
+	vm := cgo.Handle(vmHandle).Value().(*machine)
 
 	// no lock needed: channel never changes
 	ch := vm.stateChan
 	go func() {
-		ch <- state
+		ch <- vmm.MachineState(state)
 	}()
 }
 
@@ -125,22 +113,22 @@ func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state MachineState)
 //
 //export govzf_event_Machine_deinit
 func govzf_event_Machine_deinit(vmHandle C.uintptr_t) {
-	vm := cgo.Handle(vmHandle).Value().(*Machine)
+	vm := cgo.Handle(vmHandle).Value().(*machine)
 
 	cgo.Handle(vm.handle).Delete()
 	vm.handle = 0
 }
 
-func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
+func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machine, error) {
 	// encode to json
 	specStr, err := json.Marshal(spec)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	// create Go object
-	vm := &Machine{
-		stateChan:   make(chan MachineState, 1),
+	vm := &machine{
+		stateChan:   make(chan vmm.MachineState, 1),
 		retainFiles: retainFiles,
 	}
 	handle := cgo.NewHandle(vm)
@@ -154,22 +142,22 @@ func NewMachine(spec VzSpec, retainFiles []*os.File) (*Machine, bool, error) {
 	// wait for result
 	if result.err != nil {
 		handle.Delete()
-		return nil, bool(result.rosetta_canceled), errFromC(result.err)
+		return nil, errFromC(result.err)
 	}
 
 	// set ptr
 	vm.ptr.Store(result.ptr)
 	// ref ok: this just drops Go ref; Swift ref is still held if alive
-	runtime.SetFinalizer(vm, (*Machine).Close)
+	runtime.SetFinalizer(vm, (*machine).Close)
 
-	return vm, bool(result.rosetta_canceled), nil
+	return vm, nil
 }
 
-func (m *Machine) StateChan() <-chan MachineState {
+func (m *machine) StateChan() <-chan vmm.MachineState {
 	return m.stateChan
 }
 
-func (m *Machine) callGenericErr(fn func(unsafe.Pointer) C.struct_GResultErr) error {
+func (m *machine) callGenericErr(fn func(unsafe.Pointer) C.struct_GResultErr) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	ptr := m.ptr.Load()
@@ -181,7 +169,7 @@ func (m *Machine) callGenericErr(fn func(unsafe.Pointer) C.struct_GResultErr) er
 	return errFromC(res.err)
 }
 
-func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntErr) (int64, error) {
+func (m *machine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntErr) (int64, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	ptr := m.ptr.Load()
@@ -193,37 +181,37 @@ func (m *Machine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntE
 	return int64(res.value), errFromC(res.err)
 }
 
-func (m *Machine) Start() error {
+func (m *machine) Start() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Start(ptr)
 	})
 }
 
-func (m *Machine) ForceStop() error {
+func (m *machine) ForceStop() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Stop(ptr)
 	})
 }
 
-func (m *Machine) RequestStop() error {
+func (m *machine) RequestStop() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_RequestStop(ptr)
 	})
 }
 
-func (m *Machine) Pause() error {
+func (m *machine) Pause() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Pause(ptr)
 	})
 }
 
-func (m *Machine) Resume() error {
+func (m *machine) Resume() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.govzf_run_Machine_Resume(ptr)
 	})
 }
 
-func (m *Machine) ConnectVsock(port uint32) (net.Conn, error) {
+func (m *machine) ConnectVsock(port uint32) (net.Conn, error) {
 	fd, err := m.callGenericErrInt(func(ptr unsafe.Pointer) C.struct_GResultIntErr {
 		return C.govzf_run_Machine_ConnectVsock(ptr, C.uint32_t(port))
 	})
@@ -242,7 +230,7 @@ func (m *Machine) ConnectVsock(port uint32) (net.Conn, error) {
 	return conn, nil
 }
 
-func (m *Machine) Close() error {
+func (m *machine) Close() error {
 	// if we try to get write lock, and ConnectVsock is hanging b/c VM is frozen,
 	// then we'll wait forever. Instead, CAS the pointer.
 	// Hacky but this seems like the best solution.
@@ -264,6 +252,23 @@ func (m *Machine) Close() error {
 	}
 
 	return nil
+}
+
+/*
+ * Rosetta
+ */
+
+type RosettaStatus int
+
+const (
+	RosettaStatusUnsupported RosettaStatus = iota
+	RosettaStatusInstalled
+	RosettaStatusInstallCanceled
+)
+
+func SwextInstallRosetta() (RosettaStatus, error) {
+	res := C.swext_install_rosetta()
+	return RosettaStatus(res.value), errFromC(res.err)
 }
 
 /*

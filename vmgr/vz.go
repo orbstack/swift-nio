@@ -11,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
@@ -49,15 +50,7 @@ type VmParams struct {
 	HealthCheckCh chan<- struct{}
 }
 
-func findBestMtu() int {
-	if osver.IsAtLeast("v13.0") {
-		return vnet.PreferredMTU
-	} else {
-		return vnet.BaseMTU
-	}
-}
-
-func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
+func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/vinit",
@@ -101,7 +94,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 	}
 	logrus.Debug("cmdline", cmdline)
 
-	spec := vzf.VzSpec{
+	spec := vmm.VzSpec{
 		Cpus:             c.Cpus,
 		Memory:           c.Memory * 1024 * 1024,
 		Kernel:           c.Kernel,
@@ -136,7 +129,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 			check(err)
 		}
 
-		spec.Console = &vzf.ConsoleSpec{
+		spec.Console = &vmm.ConsoleSpec{
 			ReadFd:  int(conRead.Fd()),
 			WriteFd: int(conWrite.Fd()),
 		}
@@ -144,7 +137,7 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 	}
 
 	// Network
-	mtu := findBestMtu()
+	mtu := monitor.NetworkMTU()
 	spec.Mtu = mtu
 	// gvnet
 	var vnetwork *vnet.Network
@@ -177,18 +170,21 @@ func CreateVm(c *VmParams) (*vnet.Network, *vzf.Machine) {
 		retainFiles = append(retainFiles, c.NetworkPairFile)
 	}
 
-	// must retain files or they get closed by Go finalizer!
-	// causes flaky console
-	vm, rosettaCanceled, err := vzf.NewMachine(spec, retainFiles)
+	// install Rosetta
+	rosettaStatus, err := vzf.SwextInstallRosetta()
 	check(err)
-
-	if rosettaCanceled {
-		logrus.Info("user canceled Rosetta install, saving preference")
+	if rosettaStatus != vzf.RosettaStatusInstalled {
+		logrus.Info("Rosetta not supported or install canceled; saving preference")
 		err := vmconfig.Update(func(c *vmconfig.VmConfig) {
 			c.Rosetta = false
 		})
 		check(err)
 	}
+
+	// must retain files or they get closed by Go finalizer!
+	// causes flaky console
+	vm, err := monitor.NewMachine(&spec, retainFiles)
+	check(err)
 
 	return vnetwork, vm
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	hcsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol"
 	"github.com/orbstack/macvirt/vmgr/vzf"
@@ -50,7 +51,7 @@ const (
 )
 
 type VmControlServer struct {
-	vm               *vzf.Machine
+	vm               vmm.Machine
 	vc               *vclient.VClient
 	doneCh           chan struct{}
 	stopCh           chan<- types.StopRequest

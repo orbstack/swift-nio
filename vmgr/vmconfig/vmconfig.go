@@ -233,7 +233,7 @@ func Defaults() *VmConfig {
 	return &VmConfig{
 		MemoryMiB:         calcMemory() / 1024 / 1024,
 		CPU:               runtime.NumCPU(),
-		Rosetta:           true,
+		Rosetta:           runtime.GOARCH == "arm64",
 		NetworkProxy:      ProxyAuto,
 		NetworkBridge:     true,
 		NetworkHttps:      true,

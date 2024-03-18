@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/udpfwd"
+	"github.com/orbstack/macvirt/vmgr/vnet/vnettypes"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -39,9 +40,6 @@ import (
 )
 
 const (
-	PreferredMTU = 65535
-	// fallback on macOS 12
-	BaseMTU     = 1500
 	capturePcap = false
 	nicID       = 1
 
@@ -125,7 +123,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	// - guest -> host: 65535 (TSO from 1500)
 	// - host -> guest: 65517 (65535 - 10 (vnet_hdr) - 8 (ipv6 overhead))
 	// but that's ok, because official MTU on the Linux side is 1500. 65535 is a TSO detail
-	if opts.LinkMTU > BaseMTU {
+	if opts.LinkMTU > vnettypes.BaseMTU {
 		// IPv6 gets truncated without -8 bytes on GSOMaxSize. TODO: why?
 		// also, we don't strictly need -8 on MTU, only GSOMaxSize. but just make it match to avoid issues
 		linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize + 8)

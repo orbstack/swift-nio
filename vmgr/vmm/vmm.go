@@ -5,18 +5,50 @@ import (
 	"os"
 )
 
-type VmmType int
+type MachineState int
 
+// matches Swift enum
 const (
-	VmmVzf VmmType = iota
-	VmmOrbvmm
+	MachineStateStopped MachineState = iota
+	MachineStateRunning
+	MachineStatePaused
+	MachineStateError
+	MachineStateStarting
+	MachineStatePausing
+	MachineStateResuming
+	// (VZF) macOS 12
+	MachineStateStopping
 )
 
-type VmParams struct {
+type ConsoleSpec struct {
+	ReadFd  int `json:"readFd"`
+	WriteFd int `json:"writeFd"`
 }
 
-type VMM interface {
-	CreateVM(c *VmParams, retainFiles []*os.File) (Machine, bool, error)
+type VzSpec struct {
+	Cpus             int          `json:"cpus"`
+	Memory           uint64       `json:"memory"`
+	Kernel           string       `json:"kernel"`
+	Cmdline          string       `json:"cmdline"`
+	Console          *ConsoleSpec `json:"console"`
+	Mtu              int          `json:"mtu"`
+	MacAddressPrefix string       `json:"macAddressPrefix"`
+	NetworkNat       bool         `json:"networkNat"`
+	NetworkFds       []int        `json:"networkFds"`
+	Rng              bool         `json:"rng"`
+	DiskRootfs       string       `json:"diskRootfs,omitempty"`
+	DiskData         string       `json:"diskData,omitempty"`
+	DiskSwap         string       `json:"diskSwap,omitempty"`
+	Balloon          bool         `json:"balloon"`
+	Vsock            bool         `json:"vsock"`
+	Virtiofs         bool         `json:"virtiofs"`
+	Rosetta          bool         `json:"rosetta"`
+	Sound            bool         `json:"sound"`
+}
+
+type Monitor interface {
+	NewMachine(c *VzSpec, retainFiles []*os.File) (Machine, error)
+	NetworkMTU() int
 }
 
 type Machine interface {
@@ -26,5 +58,6 @@ type Machine interface {
 	Pause() error
 	Resume() error
 	ConnectVsock(port uint32) (net.Conn, error)
+	StateChan() <-chan MachineState
 	Close() error
 }

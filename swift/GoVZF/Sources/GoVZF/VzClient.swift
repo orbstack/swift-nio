@@ -188,7 +188,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     }
 #endif
 
-private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrapper, Bool) {
+private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapper {
     let minCpus = VZVirtualMachineConfiguration.minimumAllowedCPUCount
     let maxCpus = VZVirtualMachineConfiguration.maximumAllowedCPUCount
     let minMemory = VZVirtualMachineConfiguration.minimumAllowedMemorySize
@@ -287,34 +287,15 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
     }
 
     // Rosetta
-    var rosettaCanceled = false
     #if arch(arm64)
-        if #available(macOS 13, *) {
-            if spec.rosetta {
-                do {
-                    switch VZLinuxRosettaDirectoryShare.availability {
-                    case .notSupported:
-                        // do nothing
-                        break
-                    case .notInstalled:
-                        try await installRosetta()
-                        fallthrough
-                    case .installed:
-                        let dir = try VZLinuxRosettaDirectoryShare()
-                        let fs = VZVirtioFileSystemDeviceConfiguration(tag: "rosetta")
-                        fs.share = dir
-                        fsDevices.append(fs)
-                    @unknown default:
-                        break
-                    }
-                } catch GovzfError.rosettaInstallCanceled {
-                    // do nothing
-                    rosettaCanceled = true
-                } catch {
-                    throw error
-                }
-            }
+    if #available(macOS 13, *) {
+        if spec.rosetta {
+            let dir = try VZLinuxRosettaDirectoryShare()
+            let fs = VZVirtioFileSystemDeviceConfiguration(tag: "rosetta")
+            fs.share = dir
+            fsDevices.append(fs)
         }
+    }
     #endif
     config.directorySharingDevices = fsDevices
 
@@ -332,7 +313,37 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> (VmWrap
 
     // Create
     let vm = VZVirtualMachine(configuration: config, queue: vzQueue)
-    return (VmWrapper(goHandle: goHandle, vz: vm), rosettaCanceled)
+    return VmWrapper(goHandle: goHandle, vz: vm)
+}
+
+@_cdecl("swext_install_rosetta")
+func post_installRosetta() -> GResultIntErr {
+    #if arch(arm64)
+    if #available(macOS 13, *) {
+        return doGenericErrInt {
+            do {
+                switch VZLinuxRosettaDirectoryShare.availability {
+                case .notSupported:
+                    return 0
+                case .notInstalled:
+                    try await installRosetta()
+                    return 1
+                case .installed:
+                    return 1
+                @unknown default:
+                    return 0
+                }
+            } catch GovzfError.rosettaInstallCanceled {
+                return 2
+            } catch {
+                throw error
+            }
+        }
+    }
+    #endif
+
+    // notSupported
+    return GResultIntErr(value: 0, err: nil)
 }
 
 @_cdecl("govzf_run_NewMachine")
@@ -341,13 +352,13 @@ func post_NewMachine(goHandle: uintptr_t, configJsonStr: UnsafePointer<CChar>) -
     let result = ResultWrapper<GResultCreate>()
     Task.detached {
         do {
-            let (wrapper, rosettaCanceled) = try await createVm(goHandle: goHandle, spec: config)
+            let wrapper = try await createVm(goHandle: goHandle, spec: config)
             // take a long-lived ref for Go
             let ptr = Unmanaged.passRetained(wrapper).toOpaque()
-            result.set(GResultCreate(ptr: ptr, err: nil, rosetta_canceled: rosettaCanceled))
+            result.set(GResultCreate(ptr: ptr, err: nil))
         } catch {
             let prettyError = "\(error)"
-            result.set(GResultCreate(ptr: nil, err: strdup(prettyError), rosetta_canceled: false))
+            result.set(GResultCreate(ptr: nil, err: strdup(prettyError)))
         }
     }
     return result.wait()

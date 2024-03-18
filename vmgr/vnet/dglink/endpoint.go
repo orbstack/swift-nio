@@ -312,7 +312,7 @@ func New(opts *Options) (stack.LinkEndpoint, error) {
 	return e, nil
 }
 
-func createInboundDispatcher(e *endpoint, fd int, isSocket bool, fID int32) (linkDispatcher, error) {
+func createInboundDispatcher(e *endpoint, fd int, isSocket bool, _ int32) (linkDispatcher, error) {
 	// By default use the readv() dispatcher as it works with all kinds of
 	// FDs (tap/tun/unix domain sockets and af_packet).
 	inboundDispatcher, err := newReadVDispatcher(fd, e)
@@ -525,7 +525,7 @@ func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
 	return rawfile.NonBlockingWriteIovec(fd, iovecs)
 }
 
-func (e *endpoint) sendBatch(batchFDInfo fdInfo, pkts []stack.PacketBufferPtr) (int, tcpip.Error) {
+func (e *endpoint) sendBatch(_ fdInfo, pkts []stack.PacketBufferPtr) (int, tcpip.Error) {
 	var written int
 	var err tcpip.Error
 	for written < len(pkts) {
