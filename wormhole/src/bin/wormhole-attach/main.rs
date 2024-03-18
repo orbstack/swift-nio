@@ -297,9 +297,9 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     // stdin, stdout, stderr are expected to be 0,1,2 and will be propagated to the child
-    // usage: attach-ctr <init_pid> <workdir> <fd_fusebpf_mount_tree>
+    // usage: attach-ctr <init_pid> <container_workdir> <fd_fusebpf_mount_tree> <command> <drm_token>
     let init_pid = std::env::args().nth(1).unwrap().parse::<i32>()?;
-    let workdir = std::env::args().nth(2).unwrap();
+    let container_workdir = std::env::args().nth(2).unwrap();
     let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(std::env::args().nth(3).unwrap().parse::<i32>()?) };
     let entry_shell_cmd = std::env::args().nth(4).unwrap();
     let drm_token = std::env::args().nth(5).unwrap();
@@ -462,15 +462,20 @@ fn main() -> anyhow::Result<()> {
 
             // then chdir to requested workdir (must do / first to avoid rel path vuln)
             // can fail (falls back to /)
-            if !workdir.is_empty() {
-                if let Err(e) = chdir(Path::new(&workdir)) {
-                    error!("failed to set working directory: {}", e);
-                }
+            let target_workdir = if container_workdir.is_empty() {
+                // copy cwd of init pid
+                format!("/proc/{}/cwd", init_pid)
+            } else {
+                container_workdir
+            };
+            if let Err(e) = chdir(Path::new(&target_workdir)) {
+                error!("failed to set working directory: {}", e);
             }
 
             // finish attaching
 
             trace!("attach remaining namespaces");
+            // use a separate call to detect EINVAL on NEWUSER
             setns(&pidfd, CloneFlags::CLONE_NEWPID)?; // for child
             // entering current userns will return EINVAL. ignore that
             match setns(&pidfd, CloneFlags::CLONE_NEWUSER) {
