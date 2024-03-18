@@ -244,12 +244,10 @@ func (m *machine) Close() error {
 		C.govzf_run_Machine_finalize(ptr)
 	}
 
-	if len(m.retainFiles) > 0 {
-		for _, f := range m.retainFiles {
-			f.Close()
-		}
-		m.retainFiles = nil
+	for _, f := range m.retainFiles {
+		f.Close()
 	}
+	m.retainFiles = nil
 
 	return nil
 }
