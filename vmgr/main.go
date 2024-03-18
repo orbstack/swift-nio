@@ -35,6 +35,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/osver"
+	"github.com/orbstack/macvirt/vmgr/rsvm"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
@@ -554,9 +555,14 @@ func runVmManager() {
 		errorx.Fatalf("failed to lock data: %w", err)
 	}
 
+	var monitor vmm.Monitor = vzf.Monitor
+	if os.Getenv("VMM") == "rsvm" {
+		monitor = rsvm.Monitor
+	}
+
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
-	vnetwork, vm := CreateVm(vzf.Monitor, &VmParams{
+	vnetwork, vm := CreateVm(monitor, &VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
 		Memory: vmconfig.Get().MemoryMiB,

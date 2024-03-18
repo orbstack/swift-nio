@@ -11,6 +11,7 @@ run-raw: vmgr
 
 ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib-debug
+	@cd ~/code/vm/libkrun; cargo build
 	@./build.sh
 
 scli:
