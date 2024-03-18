@@ -5,6 +5,7 @@ authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
 edition = "2021"
 
 [features]
+default = ["net", "blk"]
 tee = []
 amd-sev = [ "blk", "tee", "codicon", "kbs-types", "procfs", "serde", "serde_json", "sev", "curl" ]
 net = []

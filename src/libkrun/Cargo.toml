@@ -6,6 +6,7 @@ edition = "2021"
 build = "build.rs"
 
 [features]
+default = ["net", "blk"]
 tee = []
 amd-sev = [ "blk", "tee" ]
 net = []
