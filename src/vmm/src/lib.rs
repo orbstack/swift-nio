@@ -335,9 +335,9 @@ impl Vmm {
     pub fn stop(&mut self, exit_code: i32) {
         info!("Vmm is stopping.");
 
-        if let Err(e) = term_set_canonical_mode() {
-            log::error!("Failed to restore terminal to canonical mode: {e}")
-        }
+        // if let Err(e) = term_set_canonical_mode() {
+        //     log::error!("Failed to restore terminal to canonical mode: {e}")
+        // }
 
         for observer in &self.exit_observers {
             observer
