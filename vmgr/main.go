@@ -813,10 +813,14 @@ func runVmManager() {
 		},
 	})
 
+	err = controlServer.onStart()
+	if err != nil {
+		logrus.WithError(err).Error("vmcontrol start hook failed")
+	}
+
 	logrus.Debug("waiting for VM to start")
 	returnCh := make(chan struct{}, 1)
 	errCh := make(chan error, 1)
-	vmHasStarted := false
 	for {
 		select {
 		case <-returnCh:
@@ -853,13 +857,6 @@ func runVmManager() {
 				logrus.Info("[VM] stopping")
 			case vmm.MachineStateRunning:
 				logrus.Info("[VM] started")
-				if !vmHasStarted {
-					err := controlServer.onStart()
-					if err != nil {
-						logrus.WithError(err).Error("vmcontrol start hook failed")
-					}
-				}
-				vmHasStarted = true
 			case vmm.MachineStateStopped:
 				logrus.Info("[VM] stopped")
 				err = controlServer.onStop()
