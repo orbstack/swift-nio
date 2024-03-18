@@ -270,7 +270,7 @@ pub struct HvfVcpu<'a> {
 impl<'a> HvfVcpu<'a> {
     pub fn new(parker: Arc<dyn Parkable>) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
-        let vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
+        let mut vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
         let cntfrq: u64 = 24000000;
 
         // TODO - Once inline assembly is stabilized in Rust, re-enable this:
@@ -279,7 +279,7 @@ impl<'a> HvfVcpu<'a> {
         let ret = unsafe {
             hv_vcpu_create(
                 &mut vcpuid,
-                &vcpu_exit_ptr as *const _ as *mut *mut _,
+                &mut vcpu_exit_ptr as *mut *mut _,
                 std::ptr::null_mut(),
             )
         };
@@ -326,8 +326,8 @@ impl<'a> HvfVcpu<'a> {
     }
 
     fn read_reg(&self, reg: u32) -> Result<u64, Error> {
-        let val: u64 = 0;
-        let ret = unsafe { hv_vcpu_get_reg(self.vcpuid, reg, &val as *const _ as *mut _) };
+        let mut val: u64 = 0;
+        let ret = unsafe { hv_vcpu_get_reg(self.vcpuid, reg, &mut val as *mut _) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadRegister)
         } else {
@@ -345,8 +345,8 @@ impl<'a> HvfVcpu<'a> {
     }
 
     fn read_sys_reg(&self, reg: u16) -> Result<u64, Error> {
-        let val: u64 = 0;
-        let ret = unsafe { hv_vcpu_get_sys_reg(self.vcpuid, reg, &val as *const _ as *mut _) };
+        let mut val: u64 = 0;
+        let ret = unsafe { hv_vcpu_get_sys_reg(self.vcpuid, reg, &mut val as *mut _) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadSystemRegister)
         } else {
