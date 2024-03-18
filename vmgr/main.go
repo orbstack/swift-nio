@@ -571,9 +571,10 @@ func runVmManager() {
 		NetworkHostBridges: 2, // machine + VlanRouter
 		MacAddressPrefix:   netconf.GuestMACPrefix,
 		// doesn't work so let's just hide it
-		Balloon:  false,
-		Rng:      true,
-		Vsock:    true,
+		Balloon: false,
+		Rng:     true,
+		// no longer used (NFS is now TCP)
+		Vsock:    false,
 		Virtiofs: true,
 		Rosetta:  vmconfig.Get().Rosetta,
 		// useful once we have graphics
