@@ -71,13 +71,15 @@ private enum GovzfError: Error {
 class VmWrapper: NSObject, VZVirtualMachineDelegate {
     var goHandle: uintptr_t
     private var vz: VZVirtualMachine
-    private var vsockDevice: VZVirtioSocketDevice
+    private var vsockDevice: VZVirtioSocketDevice?
     private var stateObserver: NSKeyValueObservation?
 
     init(goHandle: uintptr_t, vz: VZVirtualMachine) {
         // must init before calling super
         self.vz = vz
-        vsockDevice = vz.socketDevices[0] as! VZVirtioSocketDevice
+        if !vz.socketDevices.isEmpty {
+            vsockDevice = vz.socketDevices[0] as! VZVirtioSocketDevice
+        }
         self.goHandle = goHandle
 
         // init the rest
@@ -145,7 +147,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 
     func connectVsock(_ port: UInt32) async throws -> Int32 {
         let conn = try await asyncifyResult { [self] fn in
-            vsockDevice.connect(toPort: port, completionHandler: fn)
+            vsockDevice!.connect(toPort: port, completionHandler: fn)
         }
         // dropping connection object closes the fd, so dup it
         let fd = dup(conn.fileDescriptor)
