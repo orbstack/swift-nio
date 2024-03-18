@@ -42,6 +42,12 @@ pub fn input_empty() -> Result<Box<dyn PortInput + Send>, nix::Error> {
     Ok(Box::new(PortInputEmpty {}))
 }
 
+pub fn input_from_raw_fd_dup(fd: RawFd) -> Result<Box<dyn PortInput + Send>, nix::Error> {
+    let fd = dup_raw_fd_into_owned(fd)?;
+    make_non_blocking(&fd)?;
+    Ok(Box::new(PortInputFd(fd)))
+}
+
 pub fn output_file(file: File) -> Result<Box<dyn PortOutput + Send>, nix::Error> {
     output_to_raw_fd_dup(file.as_raw_fd())
 }

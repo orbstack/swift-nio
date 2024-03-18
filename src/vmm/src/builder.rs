@@ -10,6 +10,7 @@ use std::fs::File;
 use std::io;
 #[cfg(target_os = "linux")]
 use std::os::fd::AsRawFd;
+use std::os::fd::RawFd;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -73,6 +74,12 @@ use crate::macos::Parker;
 
 #[cfg(feature = "efi")]
 static EDK2_BINARY: &[u8] = include_bytes!("../../../edk2/KRUN_EFI.silent.fd");
+
+#[derive(Clone, Debug)]
+pub struct ConsoleFds {
+    pub read_fd: RawFd,
+    pub write_fd: RawFd,
+}
 
 /// Errors associated with starting the instance.
 #[derive(Debug)]
@@ -1121,15 +1128,14 @@ fn attach_console_devices(
     vmm: &mut Vmm,
     event_manager: &mut EventManager,
     intc: Option<Arc<Mutex<Gic>>>,
-    console_output: Option<PathBuf>,
+    console_output: Option<ConsoleFds>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
     let ports = if let Some(console_output) = console_output {
-        let file = File::create(console_output.as_path()).map_err(OpenConsoleFile)?;
         vec![PortDescription::Console {
-            input: Some(port_io::input_empty().unwrap()),
-            output: Some(port_io::output_file(file).unwrap()),
+            input: Some(port_io::input_from_raw_fd_dup(console_output.read_fd).unwrap()),
+            output: Some(port_io::output_to_raw_fd_dup(console_output.write_fd).unwrap()),
         }]
     } else {
         let stdin_is_terminal = isatty(STDIN_FILENO).unwrap_or(false);

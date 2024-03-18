@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "tee")]
 use kbs_types::Tee;
 
+use crate::builder::ConsoleFds;
 #[cfg(feature = "blk")]
 use crate::vmm_config::block::{BlockBuilder, BlockConfigError, BlockDeviceConfig};
 use crate::vmm_config::boot_source::{BootSourceConfig, BootSourceConfigError};
@@ -111,7 +112,7 @@ pub struct VmResources {
     /// Flags for the virtio-gpu device.
     pub gpu_virgl_flags: Option<u32>,
     /// File to send console output.
-    pub console_output: Option<PathBuf>,
+    pub console_output: Option<ConsoleFds>,
 }
 
 impl VmResources {
@@ -249,7 +250,7 @@ impl VmResources {
         self.gpu_virgl_flags = Some(virgl_flags);
     }
 
-    pub fn set_console_output(&mut self, console_output: PathBuf) {
+    pub fn set_console_output(&mut self, console_output: ConsoleFds) {
         self.console_output = Some(console_output);
     }
 
