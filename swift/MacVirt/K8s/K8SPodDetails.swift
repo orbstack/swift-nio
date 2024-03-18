@@ -82,6 +82,24 @@ struct K8SPodDetails: View {
                     }
                 }
             }
+
+            if pod.status.ephemeralContainerStatuses?.isEmpty == false {
+                DetailsSection("Ephemeral Containers") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(pod.status.ephemeralContainerStatuses ?? []) { container in
+                            if let name = container.name {
+                                // TODO: link
+                                Label {
+                                    CopyableText(name)
+                                } icon: {
+                                    // icon = red/green status dot
+                                    Image(nsImage: SystemImages.statusDot(isRunning: container.ready ?? false))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

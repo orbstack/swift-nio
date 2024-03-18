@@ -211,6 +211,7 @@ struct K8SPodStatus: Codable, Equatable, Hashable {
     let podIPs: [K8SPodIP]? // v6
     let startTime: Date?
     let containerStatuses: [K8SContainerStatus]?
+    let ephemeralContainerStatuses: [K8SContainerStatus]?
     let qosClass: String?
 }
 
