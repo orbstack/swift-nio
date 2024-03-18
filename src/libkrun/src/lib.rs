@@ -242,7 +242,10 @@ impl Machine {
         
                 std::thread::spawn(move || loop {
                     match receiver.recv() {
-                        Err(e) => error!("Error in receiver: {:?}", e),
+                        Err(e) => {
+                            error!("Error in receiver: {:?}", e);
+                            break;
+                        },
                         Ok(m) => match m {
                             MemoryMapping::AddMapping(s, h, g, l) => {
                                 mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
