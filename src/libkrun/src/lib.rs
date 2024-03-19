@@ -226,56 +226,43 @@ impl Machine {
     }
 
     fn start(&mut self) -> anyhow::Result<()> {
-        let (result_sender, result_receiver) = crossbeam_channel::bounded(0);
+        let mut event_manager = EventManager::new()
+            .map_err(to_anyhow_error_dbg)?;
 
-        let vmr = self.vmr.take().unwrap();
-        std::thread::spawn(move || {
-            let start_vmm = || -> anyhow::Result<EventManager> {
-                let mut event_manager = EventManager::new()
-                .map_err(to_anyhow_error_dbg)?;
-    
-                let (sender, receiver) = unbounded();
-                let vmm = vmm::builder::build_microvm(&vmr, &mut event_manager, None, sender)
-                    .map_err(to_anyhow_error)?;
+        let (sender, receiver) = unbounded();
+        let vmr = self.vmr.as_ref()
+            .ok_or_else(|| anyhow!("already started"))?;
+        let vmm = vmm::builder::build_microvm(vmr, &mut event_manager, None, sender)
+            .map_err(to_anyhow_error)?;
 
-                let mapper_vmm = vmm.clone();
-        
-                std::thread::spawn(move || loop {
-                    match receiver.recv() {
-                        Err(e) => {
-                            error!("Error in receiver: {:?}", e);
-                            break;
-                        },
-                        Ok(m) => match m {
-                            MemoryMapping::AddMapping(s, h, g, l) => {
-                                mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
-                            }
-                            MemoryMapping::RemoveMapping(s, g, l) => {
-                                mapper_vmm.lock().unwrap().remove_mapping(s, g, l)
-                            }
-                        },
+        let mapper_vmm = vmm.clone();
+
+        std::thread::spawn(move || loop {
+            match receiver.recv() {
+                Err(e) => {
+                    error!("Error in receiver: {:?}", e);
+                    break;
+                },
+                Ok(m) => match m {
+                    MemoryMapping::AddMapping(s, h, g, l) => {
+                        mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
                     }
-                });
+                    MemoryMapping::RemoveMapping(s, g, l) => {
+                        mapper_vmm.lock().unwrap().remove_mapping(s, g, l)
+                    }
+                },
+            }
+        });
 
-                Ok(event_manager)
-            };
-
-            let mut event_manager = match start_vmm() {
-                Ok(event_manager) => event_manager,
-                Err(e) => return result_sender.send(Err(e)).unwrap(),
-            };
-            result_sender.send(Ok(())).unwrap();
+        std::thread::spawn(move || {
             loop {
                 event_manager.run().unwrap();
             }
         });
 
-        if let Err(e) = result_receiver.recv().unwrap() {
-            return Err(e);
-        }
-
         // must be retained until copied into guest memory by build_microvm
         self.kernel_bytes.take().unwrap();
+        self.vmr.take().unwrap();
         Ok(())
     }
 
@@ -287,6 +274,7 @@ impl Machine {
 fn return_owned_cstr(s: &str) -> *const c_char {
     // important: copy and leak the newly allocated string
     let s = CString::new(s).unwrap();
+    // required to make it safe to free from C if rust isn't using system allocator
     unsafe {
         strdup(s.as_ptr())
     }

@@ -65,7 +65,7 @@ pub trait Subscriber {
 /// Manages I/O notifications using epoll mechanism.
 pub struct EventManager {
     epoll: Epoll,
-    subscribers: HashMap<RawFd, Arc<Mutex<dyn Subscriber>>, RandomState>,
+    subscribers: HashMap<RawFd, Arc<Mutex<dyn Subscriber + Send>>, RandomState>,
     ready_events: Vec<EpollEvent>,
 }
 
@@ -93,7 +93,7 @@ impl EventManager {
     }
 
     /// Returns a clone of the subscriber associated with the `fd`.
-    pub fn subscriber(&self, fd: Pollable) -> Result<Arc<Mutex<dyn Subscriber>>> {
+    pub fn subscriber(&self, fd: Pollable) -> Result<Arc<Mutex<dyn Subscriber + Send>>> {
         self.subscribers
             .get(&fd)
             .ok_or(Error::NotFound(fd))
@@ -106,7 +106,7 @@ impl EventManager {
     // subscriber to call `register` directly when it needs to register an event and not have
     // all events registered at once. This way we can also remove the `interest_list` which is
     // only used once in this function.
-    pub fn add_subscriber(&mut self, subscriber: Arc<Mutex<dyn Subscriber>>) -> Result<()> {
+    pub fn add_subscriber(&mut self, subscriber: Arc<Mutex<dyn Subscriber + Send>>) -> Result<()> {
         // Unwrapping here is safe because we want to panic in case the lock is poisoned.
         let interest_list = subscriber.lock().unwrap().interest_list();
 
@@ -123,7 +123,7 @@ impl EventManager {
         &mut self,
         pollable: Pollable,
         epoll_event: EpollEvent,
-        subscriber: Arc<Mutex<dyn Subscriber>>,
+        subscriber: Arc<Mutex<dyn Subscriber + Send>>,
     ) -> Result<()> {
         if self.subscribers.contains_key(&pollable) {
             return Err(Error::AlreadyExists(pollable));
