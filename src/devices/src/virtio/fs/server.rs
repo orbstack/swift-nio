@@ -143,7 +143,7 @@ impl<F: FileSystem + Sync> Server<F> {
                 self.removemapping(in_header, r, w, shm.host_addr, shm.size as u64)
             }
             _ => reply_error(
-                io::Error::from_raw_os_error(libc::ENOSYS),
+                io::Error::from_raw_os_error(bindings::LINUX_ENOSYS),
                 in_header.unique,
                 w,
             ),
