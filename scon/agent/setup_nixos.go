@@ -194,8 +194,8 @@ with lib;
   '';
 
   # extra certificates
-  security.pki.certificateFiles = [
-    "%s"
+  security.pki.certificates = [
+    (builtins.readFile "%s")
   ];
 
   # indicate builder support for emulated architectures
