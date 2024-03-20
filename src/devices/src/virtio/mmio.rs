@@ -300,8 +300,12 @@ impl BusDevice for MmioTransport {
                     0x38 => self.update_queue_field(|q| q.size = v as u16),
                     0x44 => self.update_queue_field(|q| q.ready = v == 1),
                     0x50 => {
-                        if let Some(eventfd) = self.queue_evts.get(v as usize) {
-                            eventfd.write(v as u64).unwrap();
+                        //TODO: special case for fs
+                        let mut device = self.device.lock().unwrap();
+                        if !device.handle_event_sync(v as usize) {
+                            if let Some(eventfd) = self.queue_evts.get(v as usize) {
+                                eventfd.write(v as u64).unwrap();
+                            }
                         }
                     }
                     0x64 => {

@@ -48,6 +48,7 @@ pub struct Fs {
     shm_region: Option<VirtioShmRegion>,
     passthrough_cfg: passthrough::Config,
     worker_thread: Option<JoinHandle<()>>,
+    worker: Option<FsWorker>,
     worker_stopfd: EventFd,
 }
 
@@ -89,6 +90,7 @@ impl Fs {
             shm_region: None,
             passthrough_cfg: fs_cfg,
             worker_thread: None,
+            worker: None,
             worker_stopfd: EventFd::new(EFD_NONBLOCK).map_err(FsError::EventFd)?,
         })
     }
@@ -177,6 +179,15 @@ impl VirtioDevice for Fs {
         );
     }
 
+    fn handle_event_sync(&mut self, queue_index: usize) -> bool {
+        if let Some(worker) = &mut self.worker {
+            worker.handle_event_sync(queue_index);
+            true
+        } else {
+            false
+        }
+    }
+
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
         if self.worker_thread.is_some() {
             panic!("virtio_fs: worker thread already exists");
@@ -202,7 +213,8 @@ impl VirtioDevice for Fs {
             self.passthrough_cfg.clone(),
             self.worker_stopfd.try_clone().unwrap(),
         );
-        self.worker_thread = Some(worker.run());
+        self.worker = Some(worker);
+        //self.worker_thread = Some(self.worker.run());
 
         self.device_state = DeviceState::Activated(mem);
         Ok(())
