@@ -309,8 +309,8 @@ pub struct Context {
 impl From<fuse::InHeader> for Context {
     fn from(source: fuse::InHeader) -> Self {
         Context {
-            uid: source.uid,
-            gid: source.gid,
+            uid: 2092723257,
+            gid: 2051531525,
             pid: source.pid as i32,
         }
     }
