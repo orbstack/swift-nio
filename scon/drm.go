@@ -58,7 +58,11 @@ func (m *DrmMonitor) Start() error {
 	// prepopulate drm result to get correct license status on start
 	result, err := m.conManager.host.GetLastDrmResult()
 	if err != nil {
-		return fmt.Errorf("get last drm result: %w", err)
+		if err.Error() == "no result" {
+			result = nil
+		} else {
+			return fmt.Errorf("get last drm result: %w", err)
+		}
 	}
 
 	if result != nil {

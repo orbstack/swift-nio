@@ -247,9 +247,14 @@ func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
 	return nil
 }
 
-func (h *HcontrolServer) GetLastDrmResult(_ None, reply **drmtypes.Result) error {
-	*reply = h.drmClient.LastResult()
-	return nil
+func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error {
+	result := h.drmClient.LastResult()
+	if result != nil {
+		*reply = *result
+		return nil
+	} else {
+		return errors.New("no result")
+	}
 }
 
 func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMachineConfig) error {
