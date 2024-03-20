@@ -60,7 +60,6 @@ var Get = sync.OnceValue(func() *Version {
 	if rcNum > 0 {
 		code = code - 50 + rcNum
 	}
-	code += 1
 
 	return &Version{
 		Short:       short,
