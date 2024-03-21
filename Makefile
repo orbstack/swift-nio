@@ -13,3 +13,6 @@ pub:
 
 r2:
 	rclone sync -P updates/pub --order-by modtime,ascending r2:orbstack-updates
+
+cdn:
+	rclone sync -P updates/cdn --order-by modtime,ascending r2:orbstack-web
