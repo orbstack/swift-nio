@@ -3,7 +3,7 @@ use std::{collections::HashMap, ffi::CString, fs::File, os::fd::{AsRawFd, FromRa
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
 use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
 use pidfd::PidFd;
-use tracing::{error, span, trace, Level};
+use tracing::{debug, error, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY}};
 
@@ -469,7 +469,8 @@ fn main() -> anyhow::Result<()> {
                 container_workdir
             };
             if let Err(e) = chdir(Path::new(&target_workdir)) {
-                error!("failed to set working directory: {}", e);
+                // fail silently. this happens when workdir doesn't exist
+                debug!("failed to set working directory: {}", e);
             }
 
             // finish attaching
