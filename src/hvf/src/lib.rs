@@ -11,9 +11,10 @@ mod bindings;
 use bindings::*;
 
 use std::convert::TryInto;
+use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc};
-use std::sync::atomic::{Ordering};
+use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
@@ -40,6 +41,10 @@ const EC_AA64_SMC: u64 = 0x17;
 const EC_SYSTEMREGISTERTRAP: u64 = 0x18;
 const EC_DATAABORT: u64 = 0x24;
 const EC_AA64_BKPT: u64 = 0x3c;
+
+const SYS_REG_SENTINEL: u64 = 0xb724_5c1e_68e7_5fc5;
+const ACTLR_EL1_EN_TSO: u64 = 0x2;
+static ACTLR_EL1_OFFSET: AtomicIsize = AtomicIsize::new(-1);
 
 macro_rules! arm64_sys_reg {
     ($name: tt, $op0: tt, $op1: tt, $op2: tt, $crn: tt, $crm: tt) => {
@@ -267,6 +272,22 @@ pub struct HvfVcpu<'a> {
     pending_park: bool,
 }
 
+extern "C" {
+    pub fn _hv_vcpu_get_context(vcpu: hv_vcpu_t) -> *mut c_void;
+}
+
+// must be 8-byte aligned, so go in units of 8 bytes
+fn search_8b_linear(haystack_ptr: *mut u64, needle: u64, haystack_bytes: usize) -> Option<usize> {
+    let mut i = 0;
+    while i < (haystack_bytes / 8) {
+        if unsafe { *haystack_ptr.offset(i as isize) } == needle as u64 {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
 impl<'a> HvfVcpu<'a> {
     pub fn new(parker: Arc<dyn Parkable>) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
@@ -302,22 +323,10 @@ impl<'a> HvfVcpu<'a> {
     }
 
     pub fn set_initial_state(&self, entry_addr: u64, fdt_addr: u64) -> Result<(), Error> {
-        let ret =
-            unsafe { hv_vcpu_set_reg(self.vcpuid, hv_reg_t_HV_REG_CPSR, PSTATE_FAULT_BITS_64) };
-        if ret != HV_SUCCESS {
-            return Err(Error::VcpuInitialRegisters);
-        }
-
-        let ret = unsafe { hv_vcpu_set_reg(self.vcpuid, hv_reg_t_HV_REG_PC, entry_addr) };
-        if ret != HV_SUCCESS {
-            return Err(Error::VcpuInitialRegisters);
-        }
-
-        let ret = unsafe { hv_vcpu_set_reg(self.vcpuid, hv_reg_t_HV_REG_X0, fdt_addr) };
-        if ret != HV_SUCCESS {
-            return Err(Error::VcpuInitialRegisters);
-        }
-
+        self.write_reg(hv_reg_t_HV_REG_CPSR, PSTATE_FAULT_BITS_64)?;
+        self.write_reg(hv_reg_t_HV_REG_PC, entry_addr)?;
+        self.write_reg(hv_reg_t_HV_REG_X0, fdt_addr)?;
+        self.write_tso_sys_reg(true)?;
         Ok(())
     }
 
@@ -362,6 +371,53 @@ impl<'a> HvfVcpu<'a> {
         } else {
             Ok(())
         }
+    }
+
+    fn write_tso_sys_reg(&self, en_tso: bool) -> Result<(), Error> {
+        // get pointer to vcpu context struct for this vcpu
+        // this is actually in a global array indexed by vcpuid
+        let vcpu_ptr = unsafe { _hv_vcpu_get_context(self.vcpuid) };
+        if vcpu_ptr.is_null() {
+            return Err(Error::VcpuInitialRegisters);
+        }
+
+        // back up sctlr_el1
+        let sctlr_el1 = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_SCTLR_EL1)?;
+
+        // search for sentinel starting at vcpu_ptr
+        // since it's a linear array of all vcpus, there's probably at least 4096 bytes we can read
+        // but ideally we'd have segfault recovery here
+        // at least use linear search to be safe in case we might go out of bounds near the end
+        // also: for perf and safety, we only have to do this once globally
+        let mut actlr_el1_offset = ACTLR_EL1_OFFSET.load(Ordering::Relaxed);
+        if actlr_el1_offset == -1 {
+            // set sctlr_el1 to sentinel value
+            self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_SCTLR_EL1, SYS_REG_SENTINEL)?;
+
+            let sctlr_offset = search_8b_linear(vcpu_ptr as *mut u64, SYS_REG_SENTINEL, 4096)
+                .ok_or(Error::VcpuInitialRegisters)?;
+            // actlr_el1 (0xc081) has always been before sctlr_el1 (0xc080)
+            // TODO: impossible to do this better? (setting all sysregs and finding holes doesn't work -- there are too many holes)
+            actlr_el1_offset = sctlr_offset as isize * 8 - 8;
+            ACTLR_EL1_OFFSET.store(actlr_el1_offset, Ordering::Relaxed);
+        }
+
+        let actlr_el1_ptr = unsafe { vcpu_ptr.offset(actlr_el1_offset) as *mut u64 };
+
+        // set EN_TSO to 1 (enable TSO) on ACTLR_EL1
+        unsafe {
+            if en_tso {
+                *actlr_el1_ptr |= ACTLR_EL1_EN_TSO;
+            } else {
+                *actlr_el1_ptr &= !ACTLR_EL1_EN_TSO;
+            }
+        }
+
+        // restore sctlr_el1 to original value
+        // this should also flag regs as dirty
+        self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_SCTLR_EL1, sctlr_el1)?;
+
+        Ok(())
     }
 
     pub fn run(&mut self, pending_irq: bool) -> Result<VcpuExit, Error> {
