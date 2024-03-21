@@ -86,7 +86,7 @@ var (
 		ImageCentos: "8-Stream",
 		ImageDebian: "buster",
 		ImageDevuan: "beowulf",
-		ImageFedora: "37",
+		ImageFedora: "38",
 		//ImageGentoo:    "current",
 		//ImageKali:      "current",
 		ImageNixos:     "22.11",
