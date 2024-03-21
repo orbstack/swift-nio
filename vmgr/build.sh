@@ -40,8 +40,12 @@ CGO_LDFLAGS="-mmacosx-version-min=12.3" \
 go build -buildmode=pie -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
 
 # strip for release
+codesign_flags=()
 if [[ "${BUILD_TYPE:-debug}" == "release" ]]; then
     strip "$BIN_OUT"
+    # only need timestamp for release notarization
+    # omit in debug to allow working offline
+    codesign_flags+=(--timestamp)
 fi
 
 # make a fake app bundle for embedded.provisionprofile to work
@@ -51,7 +55,7 @@ fi
 # -R doesn't follow symlinks
 cp -R bundle/. "$BUNDLE_OUT/Contents"
 # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
-codesign -f --timestamp --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
+codesign -f "${codesign_flags[@]}" --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
 
 # for xcode app debug build - assets loaded from symlinked debug bundle
 mkdir -p ../swift/build/assets
