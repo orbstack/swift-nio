@@ -171,14 +171,16 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 	}
 
 	// install Rosetta
-	rosettaStatus, err := vzf.SwextInstallRosetta()
-	check(err)
-	if rosettaStatus != vzf.RosettaStatusInstalled {
-		logrus.Info("Rosetta not supported or install canceled; saving preference")
-		err := vmconfig.Update(func(c *vmconfig.VmConfig) {
-			c.Rosetta = false
-		})
+	if c.Rosetta {
+		rosettaStatus, err := vzf.SwextInstallRosetta()
 		check(err)
+		if rosettaStatus != vzf.RosettaStatusInstalled {
+			logrus.Info("Rosetta not supported or install canceled; saving preference")
+			err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+				c.Rosetta = false
+			})
+			check(err)
+		}
 	}
 
 	// must retain files or they get closed by Go finalizer!
