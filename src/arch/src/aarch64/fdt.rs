@@ -15,6 +15,8 @@ use super::get_fdt_addr;
 use super::gic::GICDevice;
 use super::layout::{GTIMER_HYP, GTIMER_PHYS, GTIMER_SEC, GTIMER_VIRT};
 use crate::ArchMemoryInfo;
+use rand::rngs::OsRng;
+use rand::RngCore;
 use vm_fdt::{Error as FdtError, FdtWriter};
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryError, GuestMemoryMmap};
 
@@ -204,6 +206,9 @@ fn create_chosen_node(
             initrd_config.address.raw_value() + initrd_config.size as u64,
         )?;
     }
+
+    // KASLR
+    fdt.property_u64("kaslr-seed", OsRng::default().next_u64())?;
 
     fdt.end_node(chosen_node)?;
 
