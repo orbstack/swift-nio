@@ -518,9 +518,12 @@ impl PassthroughFs {
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
-    fn do_lookup(&self, parent: Inode, name: &CStr) -> io::Result<Entry> {
+    fn do_lookup(&self, parent: Inode, name: &CStr, ctx: &Context) -> io::Result<Entry> {
         let c_path = self.name_to_path(parent, name)?;
-        let st = lstat(&c_path, false)?;
+        let mut st = lstat(&c_path, false)?;
+        // TODO: remove on perms
+        st.st_uid = ctx.uid;
+        st.st_gid = ctx.gid;
 
         debug!(
             "do_lookup: inode={} path={}",
@@ -680,10 +683,12 @@ impl PassthroughFs {
         Err(ebadf())
     }
 
-    fn do_getattr(&self, inode: Inode) -> io::Result<(bindings::stat64, Duration)> {
+    fn do_getattr(&self, inode: Inode, ctx: Context) -> io::Result<(bindings::stat64, Duration)> {
         let c_path = self.inode_to_path(inode)?;
 
-        let st = lstat(&c_path, false)?;
+        let mut st = lstat(&c_path, false)?;
+        st.st_uid = ctx.uid;
+        st.st_gid = ctx.gid;
 
         Ok((st, self.cfg.attr_timeout))
     }
@@ -821,6 +826,9 @@ impl FileSystem for PassthroughFs {
             st.st_size = INIT_BINARY.len() as i64;
             st.st_ino = self.init_inode;
             st.st_mode = 0o100_755;
+            // TODO: remove when we implement perms
+            st.st_uid = _ctx.uid;
+            st.st_gid = _ctx.gid;
 
             Ok(Entry {
                 inode: self.init_inode,
@@ -830,7 +838,7 @@ impl FileSystem for PassthroughFs {
                 entry_timeout: self.cfg.entry_timeout,
             })
         } else {
-            self.do_lookup(parent, name)
+            self.do_lookup(parent, name, &_ctx)
         }
         #[cfg(feature = "efi")]
         self.do_lookup(parent, name)
@@ -897,7 +905,7 @@ impl FileSystem for PassthroughFs {
                 Some((ctx.uid, ctx.gid)),
                 Some(mode & !umask),
             )?;
-            self.do_lookup(parent, name)
+            self.do_lookup(parent, name, &ctx)
         } else {
             Err(linux_error(io::Error::last_os_error()))
         }
@@ -942,7 +950,7 @@ impl FileSystem for PassthroughFs {
             // interior '\0' bytes. We trust the kernel to provide us with properly formatted data
             // so we'll just skip the checks here.
             let name = unsafe { CStr::from_bytes_with_nul_unchecked(dir_entry.name) };
-            let entry = self.do_lookup(inode, name)?;
+            let entry = self.do_lookup(inode, name, &_ctx)?;
 
             add_entry(dir_entry, entry)
         })
@@ -1024,7 +1032,7 @@ impl FileSystem for PassthroughFs {
         // Safe because we just opened this fd.
         let file = RwLock::new(unsafe { File::from_raw_fd(fd) });
 
-        let entry = self.do_lookup(parent, name)?;
+        let entry = self.do_lookup(parent, name, &ctx)?;
 
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
         let data = HandleData {
@@ -1118,7 +1126,7 @@ impl FileSystem for PassthroughFs {
         inode: Inode,
         _handle: Option<Handle>,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        self.do_getattr(inode)
+        self.do_getattr(inode, _ctx)
     }
 
     fn setattr(
@@ -1237,7 +1245,7 @@ impl FileSystem for PassthroughFs {
             }
         }
 
-        self.do_getattr(inode)
+        self.do_getattr(inode, _ctx)
     }
 
     fn rename(
@@ -1287,7 +1295,7 @@ impl FileSystem for PassthroughFs {
                 }
             }
 
-            let entry = self.do_lookup(newdir, newname)?;
+            let entry = self.do_lookup(newdir, newname, &ctx)?;
             self.forget(ctx, entry.inode, 1);
 
             Ok(())
@@ -1333,7 +1341,7 @@ impl FileSystem for PassthroughFs {
             }
 
             unsafe { libc::close(fd) };
-            self.do_lookup(parent, name)
+            self.do_lookup(parent, name, &ctx)
         }
     }
 
@@ -1350,7 +1358,7 @@ impl FileSystem for PassthroughFs {
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::link(orig_c_path.as_ptr(), link_c_path.as_ptr()) };
         if res == 0 {
-            self.do_lookup(newparent, newname)
+            self.do_lookup(newparent, newname, &_ctx)
         } else {
             Err(linux_error(io::Error::last_os_error()))
         }
@@ -1374,7 +1382,7 @@ impl FileSystem for PassthroughFs {
                 set_secctx(StatFile::Path(&c_path), secctx, true)?
             };
 
-            let mut entry = self.do_lookup(parent, name)?;
+            let mut entry = self.do_lookup(parent, name, &ctx)?;
             let mode = libc::S_IFLNK | 0o777;
             set_xattr_stat(
                 StatFile::Path(&c_path),
@@ -1492,6 +1500,8 @@ impl FileSystem for PassthroughFs {
             return Ok(());
         }
 
+        // TODO: re-enable perm checks once we implement perms
+        /*
         if (mode & libc::R_OK) != 0
             && ctx.uid != 0
             && (st.st_uid != ctx.uid || st.st_mode & 0o400 == 0)
@@ -1520,6 +1530,7 @@ impl FileSystem for PassthroughFs {
         {
             return Err(linux_error(io::Error::from_raw_os_error(libc::EACCES)));
         }
+        */
 
         Ok(())
     }

@@ -560,8 +560,8 @@ impl From<bindings::stat64> for Attr {
             #[cfg(target_os = "macos")]
             mode: st.st_mode as u32,
             nlink: st.st_nlink as u32,
-            uid: 2092723257,
-            gid: 2051531525,
+            uid: st.st_uid,
+            gid: st.st_gid,
             rdev: st.st_rdev as u32,
             blksize: st.st_blksize as u32,
             ..Default::default()
