@@ -22,7 +22,6 @@ debian:trixie
 devuan:beowulf
 devuan:chimaera
 devuan:daedalus
-fedora:37
 fedora:38
 fedora:39
 funtoo:1.4
