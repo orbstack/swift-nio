@@ -93,6 +93,8 @@ impl Machine {
             mem_size_mib: Some(spec.memory / 1024 / 1024),
             ht_enabled: Some(false),
             cpu_template: None,
+            #[cfg(target_arch = "aarch64")]
+            enable_tso: spec.rosetta,
         })
         .map_err(to_anyhow_error)?;
 

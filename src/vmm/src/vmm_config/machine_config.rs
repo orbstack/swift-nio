@@ -43,6 +43,8 @@ pub struct VmConfig {
     pub ht_enabled: Option<bool>,
     /// A CPU template that it is used to filter the CPU features exposed to the guest.
     pub cpu_template: Option<CpuFeaturesTemplate>,
+    #[cfg(target_arch = "aarch64")]
+    pub enable_tso: bool,
 }
 
 impl Default for VmConfig {
@@ -52,6 +54,8 @@ impl Default for VmConfig {
             mem_size_mib: Some(128),
             ht_enabled: Some(false),
             cpu_template: None,
+            #[cfg(target_arch = "aarch64")]
+            enable_tso: false,
         }
     }
 }

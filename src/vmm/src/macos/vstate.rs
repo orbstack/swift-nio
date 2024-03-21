@@ -317,6 +317,8 @@ pub struct VcpuConfig {
     pub ht_enabled: bool,
     /// CPUID template to use.
     pub cpu_template: Option<CpuFeaturesTemplate>,
+    #[cfg(target_arch = "aarch64")]
+    pub enable_tso: bool,
 }
 
 // Using this for easier explicit type-casting to help IDEs interpret the code.
@@ -329,6 +331,7 @@ pub struct Vcpu {
     boot_receiver: Option<Receiver<u64>>,
     boot_senders: Option<Vec<Sender<u64>>>,
     fdt_addr: u64,
+    enable_tso: bool,
     mmio_bus: Option<devices::Bus>,
     #[cfg_attr(all(test, target_arch = "aarch64"), allow(unused))]
     exit_evt: EventFd,
@@ -431,6 +434,7 @@ impl Vcpu {
             boot_receiver,
             boot_senders: None,
             fdt_addr: 0,
+            enable_tso: false,
             mmio_bus: None,
             exit_evt,
             mpidr: 0,
@@ -468,9 +472,10 @@ impl Vcpu {
     /// * `vm_fd` - The kvm `VmFd` for this microvm.
     /// * `guest_mem` - The guest memory used by this microvm.
     /// * `kernel_load_addr` - Offset from `guest_mem` at which the kernel is loaded.
-    pub fn configure_aarch64(&mut self, guest_mem: &GuestMemoryMmap) -> Result<()> {
+    pub fn configure_aarch64(&mut self, guest_mem: &GuestMemoryMmap, enable_tso: bool) -> Result<()> {
         self.mpidr = (self.id as u64) << 8;
         self.fdt_addr = arch::aarch64::get_fdt_addr(guest_mem);
+        self.enable_tso = enable_tso;
 
         Ok(())
     }
@@ -608,7 +613,7 @@ impl Vcpu {
         };
 
         hvf_vcpu
-            .set_initial_state(entry_addr, self.fdt_addr)
+            .set_initial_state(entry_addr, self.fdt_addr, self.enable_tso)
             .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
         loop {

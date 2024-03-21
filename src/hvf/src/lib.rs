@@ -322,11 +322,13 @@ impl<'a> HvfVcpu<'a> {
         })
     }
 
-    pub fn set_initial_state(&self, entry_addr: u64, fdt_addr: u64) -> Result<(), Error> {
+    pub fn set_initial_state(&self, entry_addr: u64, fdt_addr: u64, enable_tso: bool) -> Result<(), Error> {
         self.write_reg(hv_reg_t_HV_REG_CPSR, PSTATE_FAULT_BITS_64)?;
         self.write_reg(hv_reg_t_HV_REG_PC, entry_addr)?;
         self.write_reg(hv_reg_t_HV_REG_X0, fdt_addr)?;
-        self.write_tso_sys_reg(true)?;
+        if enable_tso {
+            self.write_tso_sys_reg(true)?;
+        }
         Ok(())
     }
 

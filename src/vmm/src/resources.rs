@@ -124,6 +124,8 @@ impl VmResources {
             vcpu_count: self.vm_config().vcpu_count.unwrap(),
             ht_enabled: self.vm_config().ht_enabled.unwrap(),
             cpu_template: self.vm_config().cpu_template,
+            #[cfg(target_arch = "aarch64")]
+            enable_tso: self.vm_config().enable_tso,
         }
     }
 
