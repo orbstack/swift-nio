@@ -3,16 +3,13 @@ package scli
 import (
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/vmgr/buildid"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"golang.org/x/term"
 )
@@ -26,7 +23,6 @@ const (
     │              Run "orb update" to update.              │
     │                                                       │
 	│  Updates include improvements, features, and fixes.   │
-	│            This version expires in %2d days.           │
     │                                                       │
     ╰───────────────────────────────────────────────────────╯
 `
@@ -82,11 +78,6 @@ func tryPrintUpdateWarning() {
     │                                                       │
     │`)
 		fmt.Fprint(os.Stderr, `  Updates include improvements, features, and fixes.   `)
-		yellow.Fprint(os.Stderr, `│
-    │`)
-		fmt.Fprint(os.Stderr, `            This version expires in `)
-		purple.Fprintf(os.Stderr, `%2d`, int(math.Round(max(time.Until(killswitch.ExpiryTime).Hours()/24, 0))))
-		fmt.Fprint(os.Stderr, ` days.           `)
 		yellow.Fprint(os.Stderr, `│
     │                                                       │
     ╰───────────────────────────────────────────────────────╯
