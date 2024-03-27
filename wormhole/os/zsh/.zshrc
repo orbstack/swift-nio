@@ -100,6 +100,7 @@ setopt HIST_BEEP              # Beep when accessing non-existent history.
 alias .='source'
 alias grep='grep --color=auto'
 alias diff='diff --color=auto'
+alias ip='ip --color=auto'
 
 alias p='git cherry-pick'
 alias x='git reset HEAD --hard && git cherry-pick --abort'
