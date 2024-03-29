@@ -381,7 +381,7 @@ impl<'a> HvfVcpu<'a> {
         assert!(reg < 32);
 
         if reg == 31 {
-            log::warn!("Attempted to write to `xzr`; ignored");
+            // ignore attempt to write to xzr
             Ok(())
         } else {
             self.write_raw_reg(hv_reg_t_HV_REG_X0 + reg, val)
