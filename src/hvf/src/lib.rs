@@ -10,6 +10,7 @@
 mod bindings;
 use bindings::*;
 
+use std::arch::asm;
 use std::cell::Cell;
 use std::convert::TryInto;
 use std::ffi::c_void;
@@ -297,10 +298,9 @@ impl<'a> HvfVcpu<'a> {
     pub fn new(parker: Arc<dyn Parkable>) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
         let mut vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
-        let cntfrq: u64 = 24000000;
 
-        // TODO - Once inline assembly is stabilized in Rust, re-enable this:
-        //unsafe { asm!("mrs {}, cntfrq_el0", out(reg) cntfrq) };
+        let cntfrq: u64;
+        unsafe { asm!("mrs {}, cntfrq_el0", out(reg) cntfrq) };
 
         let ret = unsafe {
             hv_vcpu_create(
