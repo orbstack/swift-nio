@@ -14,6 +14,8 @@
 	<true/>
 	<key>com.apple.security.hypervisor</key>
 	<true/>
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
 	<key>com.apple.vm.networking</key>
 	<true/>
 	<key>keychain-access-groups</key>
