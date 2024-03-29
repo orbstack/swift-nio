@@ -3,8 +3,6 @@
 
 use std::{boxed::Box, result};
 
-use super::gicv2::GICv2;
-
 /// Errors thrown while setting up the GIC.
 #[derive(Debug)]
 pub enum Error {}
@@ -72,8 +70,8 @@ pub trait GICDevice: Send {
 
 /// Create a GIC device.
 ///
-/// It will try to create by default a GICv3 device. If that fails it will try
-/// to fall-back to a GICv2 device.
+/// It will try to create by default a GICv3 device.
 pub fn create_gic(vcpu_count: u64) -> Result<Box<dyn GICDevice>> {
-    GICv2::new(vcpu_count)
+    // super::gicv2::GICv2::new(vcpu_count)
+    super::gicv3::GICv3::new(vcpu_count)
 }

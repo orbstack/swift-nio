@@ -30,7 +30,11 @@ zerocopy-derive = { version = "0.6.3", optional = true }
 arch = { path = "../arch" }
 utils = { path = "../utils" }
 polly = { path = "../polly" }
-rutabaga_gfx = { path = "../rutabaga_gfx", features = ["virgl_renderer", "virgl_renderer_next"], optional = true }
+gicv3 = { path = "../gicv3" }
+rutabaga_gfx = { path = "../rutabaga_gfx", features = [
+    "virgl_renderer",
+    "virgl_renderer_next",
+], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }

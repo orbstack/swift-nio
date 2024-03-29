@@ -9,8 +9,8 @@ use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
-use std::sync::{Arc, Mutex, Barrier};
-use std::sync::atomic::{Ordering, AtomicBool};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -22,7 +22,7 @@ use arch;
 use arch::aarch64::gic::GICDevice;
 use crossbeam_channel::{unbounded, Receiver, RecvTimeoutError, Sender};
 use devices::legacy::Gic;
-use hvf::{HvfVcpu, HvfVm, VcpuExit, Parkable};
+use hvf::{HvfVcpu, HvfVm, Parkable, VcpuExit};
 use utils::eventfd::EventFd;
 use vm_memory::{
     Address, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap, GuestMemoryRegion,
@@ -162,7 +162,10 @@ impl Parkable for Parker {
         // then we can unmap the memory
         let regions = self.regions.lock().unwrap();
         for region in regions.iter() {
-            debug!("unmap_memory: {:x} {:x}", region.guest_start_addr, region.size);
+            debug!(
+                "unmap_memory: {:x} {:x}",
+                region.guest_start_addr, region.size
+            );
             self.hvf_vm
                 .unmap_memory(region.guest_start_addr, region.size)
                 .unwrap();
@@ -177,13 +180,12 @@ impl Parkable for Parker {
         // remap the memory
         let regions = self.regions.lock().unwrap();
         for region in regions.iter() {
-            debug!("map_memory: {:x} {:x} {:x}", region.host_start_addr, region.guest_start_addr, region.size);
+            debug!(
+                "map_memory: {:x} {:x} {:x}",
+                region.host_start_addr, region.guest_start_addr, region.size
+            );
             self.hvf_vm
-                .map_memory(
-                    region.host_start_addr,
-                    region.guest_start_addr,
-                    region.size,
-                )
+                .map_memory(region.host_start_addr, region.guest_start_addr, region.size)
                 .unwrap();
         }
 
@@ -297,10 +299,8 @@ impl Vm {
     }
 
     pub fn set_vcpus(&mut self, vcpus: &[Vcpu]) {
-        self.parker.set_vcpu_ids(
-            vcpus.iter()
-            .map(|vcpu| vcpu.id as u64)
-            .collect());
+        self.parker
+            .set_vcpu_ids(vcpus.iter().map(|vcpu| vcpu.id as u64).collect());
     }
 
     pub fn get_parker(&self) -> Arc<Parker> {
@@ -472,7 +472,11 @@ impl Vcpu {
     /// * `vm_fd` - The kvm `VmFd` for this microvm.
     /// * `guest_mem` - The guest memory used by this microvm.
     /// * `kernel_load_addr` - Offset from `guest_mem` at which the kernel is loaded.
-    pub fn configure_aarch64(&mut self, guest_mem: &GuestMemoryMmap, enable_tso: bool) -> Result<()> {
+    pub fn configure_aarch64(
+        &mut self,
+        guest_mem: &GuestMemoryMmap,
+        enable_tso: bool,
+    ) -> Result<()> {
         self.mpidr = (self.id as u64) << 8;
         self.fdt_addr = arch::aarch64::get_fdt_addr(guest_mem);
         self.enable_tso = enable_tso;
@@ -568,8 +572,28 @@ impl Vcpu {
                     info!("vCPU {} received shutdown signal", vcpuid);
                     Ok(VcpuEmulation::Stopped)
                 }
-                VcpuExit::SystemRegister => {
-                    debug!("vCPU {} accessed a system register", vcpuid);
+                VcpuExit::SystemRegister {
+                    sys_reg,
+                    arg_reg_idx,
+                    is_read,
+                } => {
+                    if let Some(ref mmio_bus) = self.mmio_bus {
+                        if is_read {
+                            hvf_vcpu
+                                .write_gp_reg(arg_reg_idx, mmio_bus.read_sysreg(vcpuid, sys_reg))
+                                .unwrap()
+                        } else {
+                            mmio_bus.write_sysreg(
+                                vcpuid,
+                                sys_reg,
+                                hvf_vcpu.read_gp_reg(arg_reg_idx).unwrap(),
+                            );
+                        }
+                    } else {
+                        log::error!("`mmio_bus` not initialized before first sysreg access");
+                        hvf_vcpu.write_raw_reg(arg_reg_idx, 0).unwrap();
+                    }
+
                     Ok(VcpuEmulation::Handled)
                 }
                 VcpuExit::VtimerActivated => {
@@ -613,7 +637,7 @@ impl Vcpu {
         };
 
         hvf_vcpu
-            .set_initial_state(entry_addr, self.fdt_addr, self.enable_tso)
+            .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
             .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
         loop {
@@ -623,9 +647,7 @@ impl Vcpu {
                 // Emulation was interrupted by a breakpoint.
                 Ok(VcpuEmulation::Interrupted) => self.wait_for_resume(),
                 // Wait for an external event.
-                Ok(VcpuEmulation::WaitForEvent) => {
-                    self.wait_for_event(hvf_vcpuid, None)
-                }
+                Ok(VcpuEmulation::WaitForEvent) => self.wait_for_event(hvf_vcpuid, None),
                 Ok(VcpuEmulation::WaitForEventExpired) => (),
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
                     self.wait_for_event(hvf_vcpuid, Some(timeout))
@@ -644,11 +666,7 @@ impl Vcpu {
         }
     }
 
-    fn wait_for_event(
-        &mut self,
-        hvf_vcpuid: u64,
-        timeout: Option<Duration>,
-    ) {
+    fn wait_for_event(&mut self, hvf_vcpuid: u64, timeout: Option<Duration>) {
         if self.intc.lock().unwrap().vcpu_should_wait(hvf_vcpuid) {
             if let Some(timeout) = timeout {
                 thread::park_timeout(timeout);

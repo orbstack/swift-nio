@@ -1,7 +1,6 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crossbeam_channel::Sender;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, VecDeque};
 use std::convert::TryInto;
@@ -11,7 +10,7 @@ use arch::aarch64::gicv2::GICv2;
 use arch::aarch64::layout::GTIMER_VIRT;
 use hvf::{vcpu_request_exit, vcpu_set_vtimer_mask};
 
-use crate::bus::BusDevice;
+use super::UserspaceGicImpl;
 
 const IRQ_NUM: u32 = 64;
 const MAX_CPUS: u64 = 8;
@@ -27,7 +26,7 @@ struct VcpuInfo {
     wfe_thread: Thread,
 }
 
-pub struct Gic {
+pub struct UserspaceGicV2 {
     cpu_size: u64,
     ctlr: u32,
     irq_cfg: [u8; IRQ_NUM as usize],
@@ -37,14 +36,8 @@ pub struct Gic {
     vtimer_irq: u32,
 }
 
-impl Default for Gic {
+impl Default for UserspaceGicV2 {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Gic {
-    pub fn new() -> Self {
         Self {
             cpu_size: GICv2::get_cpu_size(),
             ctlr: 0,
@@ -55,18 +48,9 @@ impl Gic {
             vtimer_irq: GTIMER_VIRT + 16,
         }
     }
+}
 
-    /// Get the address of the GICv2 distributor + CPU interface.
-    pub const fn get_addr() -> u64 {
-        // The CPU interface mapping starts before the distributor, so use it here.
-        GICv2::get_cpu_addr()
-    }
-
-    /// Get the size of the GICv2 distributor + CPU interface.
-    pub const fn get_size() -> u64 {
-        GICv2::get_dist_size() + GICv2::get_cpu_size()
-    }
-
+impl UserspaceGicV2 {
     fn set_irq_common(&mut self, vcpuid: u8, irq_line: u32) {
         match self.vcpus.entry(vcpuid) {
             Entry::Vacant(_) => {
@@ -90,71 +74,9 @@ impl Gic {
         }
     }
 
-    pub fn set_sgi_irq(&mut self, vcpuid: u8, irq_line: u32) {
+    fn set_sgi_irq(&mut self, vcpuid: u8, irq_line: u32) {
         assert!(irq_line < 16);
         self.set_irq_common(vcpuid, irq_line);
-    }
-
-    pub fn set_vtimer_irq(&mut self, vcpuid: u64) {
-        assert!(vcpuid < MAX_CPUS);
-        self.set_irq_common(vcpuid as u8, self.vtimer_irq);
-    }
-
-    pub fn set_irq(&mut self, irq_line: u32) {
-        for vcpuid in 0..self.vcpu_count {
-            if (self.irq_target[irq_line as usize] & (1 << vcpuid)) == 0 {
-                continue;
-            }
-
-            debug!("signaling irq={} to vcpuid={}", irq_line, vcpuid);
-
-            self.set_irq_common(vcpuid, irq_line);
-        }
-    }
-
-    pub fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread) {
-        assert!(vcpuid < MAX_CPUS);
-        self.vcpus.insert(
-            vcpuid as u8,
-            VcpuInfo {
-                status: VcpuStatus::Running,
-                wfe_thread,
-                pending_irqs: VecDeque::new(),
-            },
-        );
-        assert!(self.vcpus.len() <= MAX_CPUS as usize);
-        self.vcpu_count = self.vcpus.len() as u8;
-    }
-
-    pub fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
-        assert!(vcpuid < MAX_CPUS);
-        match self.vcpus.entry(vcpuid as u8) {
-            Entry::Vacant(_) => {
-                panic!("Unknown vCPU id: {}", vcpuid);
-            }
-            Entry::Occupied(mut vcpu_entry) => {
-                let vcpu = vcpu_entry.get_mut();
-                if vcpu.pending_irqs.is_empty() {
-                    vcpu.status = VcpuStatus::Waiting;
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-    }
-
-    pub fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool {
-        assert!(vcpuid < MAX_CPUS);
-        match self.vcpus.entry(vcpuid as u8) {
-            Entry::Vacant(_) => {
-                panic!("Unknown vCPU id: {}", vcpuid);
-            }
-            Entry::Occupied(mut vcpu_entry) => {
-                let vcpu = vcpu_entry.get_mut();
-                !vcpu.pending_irqs.is_empty()
-            }
-        }
     }
 
     fn get_pending_irq(&mut self, vcpuid: u8) -> u32 {
@@ -323,7 +245,18 @@ impl Gic {
     }
 }
 
-impl BusDevice for Gic {
+impl UserspaceGicImpl for UserspaceGicV2 {
+    // === MMIO === //
+
+    fn get_addr(&self) -> u64 {
+        // The CPU interface mapping starts before the distributor, so use it here.
+        GICv2::get_cpu_addr()
+    }
+
+    fn get_size(&self) -> u64 {
+        GICv2::get_dist_size() + GICv2::get_cpu_size()
+    }
+
     fn read(&mut self, vcpuid: u64, offset: u64, data: &mut [u8]) {
         if offset >= self.cpu_size {
             let offset = offset - self.cpu_size;
@@ -358,6 +291,72 @@ impl BusDevice for Gic {
                 2 => self.handle_cpu_write16(vcpuid, offset, data),
                 4 => self.handle_cpu_write32(vcpuid, offset, data),
                 _ => panic!("GIC CPU unsupported write size"),
+            }
+        }
+    }
+
+    // === IRQ Assertion === //
+
+    fn set_vtimer_irq(&mut self, vcpuid: u64) {
+        assert!(vcpuid < MAX_CPUS);
+        self.set_irq_common(vcpuid as u8, self.vtimer_irq);
+    }
+
+    fn set_irq(&mut self, irq_line: u32) {
+        for vcpuid in 0..self.vcpu_count {
+            if (self.irq_target[irq_line as usize] & (1 << vcpuid)) == 0 {
+                continue;
+            }
+
+            debug!("signaling irq={} to vcpuid={}", irq_line, vcpuid);
+
+            self.set_irq_common(vcpuid, irq_line);
+        }
+    }
+
+    // === VCPU management === //
+
+    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread) {
+        assert!(vcpuid < MAX_CPUS);
+        self.vcpus.insert(
+            vcpuid as u8,
+            VcpuInfo {
+                status: VcpuStatus::Running,
+                wfe_thread,
+                pending_irqs: VecDeque::new(),
+            },
+        );
+        assert!(self.vcpus.len() <= MAX_CPUS as usize);
+        self.vcpu_count = self.vcpus.len() as u8;
+    }
+
+    fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
+        assert!(vcpuid < MAX_CPUS);
+        match self.vcpus.entry(vcpuid as u8) {
+            Entry::Vacant(_) => {
+                panic!("Unknown vCPU id: {}", vcpuid);
+            }
+            Entry::Occupied(mut vcpu_entry) => {
+                let vcpu = vcpu_entry.get_mut();
+                if vcpu.pending_irqs.is_empty() {
+                    vcpu.status = VcpuStatus::Waiting;
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool {
+        assert!(vcpuid < MAX_CPUS);
+        match self.vcpus.entry(vcpuid as u8) {
+            Entry::Vacant(_) => {
+                panic!("Unknown vCPU id: {}", vcpuid);
+            }
+            Entry::Occupied(mut vcpu_entry) => {
+                let vcpu = vcpu_entry.get_mut();
+                !vcpu.pending_irqs.is_empty()
             }
         }
     }

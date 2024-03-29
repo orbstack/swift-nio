@@ -156,12 +156,12 @@ impl Balloon {
                     desc.addr, host_addr, desc.len
                 );
                 unsafe {
-                   let res = libc::madvise(
+                    let res = libc::madvise(
                         host_addr as *mut libc::c_void,
                         desc.len.try_into().unwrap(),
                         libc::MADV_FREE_REUSABLE,
                     );
-                   debug!("ballon res = {:?}", res);
+                    debug!("ballon res = {:?}", res);
                 };
             }
 

@@ -24,11 +24,25 @@ use crate::virtio::AsAny;
 pub trait BusDevice: AsAny + Send {
     /// Reads at `offset` from this device
     fn read(&mut self, vcpuid: u64, offset: u64, data: &mut [u8]) {}
+
     /// Writes at `offset` into this device
     fn write(&mut self, vcpuid: u64, offset: u64, data: &[u8]) {}
+
     /// Triggers the `irq_mask` interrupt on this device
     fn interrupt(&self, irq_mask: u32) -> io::Result<()> {
         Ok(())
+    }
+
+    fn read_sysreg(&mut self, vcpuid: u64, reg: u64) -> u64 {
+        unimplemented!();
+    }
+
+    fn write_sysreg(&mut self, vcpuid: u64, reg: u64, value: u64) {
+        unimplemented!();
+    }
+
+    fn iter_sysregs(&self) -> Vec<u64> {
+        Vec::new()
     }
 }
 
@@ -80,6 +94,7 @@ impl PartialOrd for BusRange {
 #[derive(Clone, Default)]
 pub struct Bus {
     devices: BTreeMap<BusRange, Arc<Mutex<dyn BusDevice>>>,
+    sysreg_handlers: BTreeMap<u64, Arc<Mutex<dyn BusDevice>>>,
 }
 
 impl Bus {
@@ -87,6 +102,7 @@ impl Bus {
     pub fn new() -> Bus {
         Bus {
             devices: BTreeMap::new(),
+            sysreg_handlers: BTreeMap::new(),
         }
     }
 
@@ -116,6 +132,15 @@ impl Bus {
             return Err(Error::Overlap);
         }
 
+        // Reject all system register overlaps
+        let sys_regs = device.lock().unwrap().iter_sysregs();
+        if sys_regs
+            .iter()
+            .any(|sys_reg| self.sysreg_handlers.contains_key(sys_reg))
+        {
+            return Err(Error::Overlap);
+        }
+
         // Reject all cases where the new device's base is within an old device's range.
         if self.get_device(base).is_some() {
             return Err(Error::Overlap);
@@ -131,6 +156,10 @@ impl Bus {
             if start >= base {
                 return Err(Error::Overlap);
             }
+        }
+
+        for sys_reg in sys_regs {
+            self.sysreg_handlers.insert(sys_reg, device.clone());
         }
 
         if self.devices.insert(BusRange(base, len), device).is_some() {
@@ -167,6 +196,31 @@ impl Bus {
             true
         } else {
             false
+        }
+    }
+
+    pub fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64 {
+        if let Some(handler) = self.sysreg_handlers.get(&reg) {
+            handler
+                .lock()
+                .expect("Failed to acquire device lock")
+                .read_sysreg(vcpuid, reg)
+        } else {
+            log::warn!("Unhandled read to from register for PE {vcpuid}: READ from {reg}");
+            0
+        }
+    }
+
+    pub fn write_sysreg(&self, vcpuid: u64, reg: u64, value: u64) {
+        if let Some(handler) = self.sysreg_handlers.get(&reg) {
+            handler
+                .lock()
+                .expect("Failed to acquire device lock")
+                .write_sysreg(vcpuid, reg, value);
+        } else {
+            log::warn!(
+                "Unhandled write to system register for PE {vcpuid}: WRITE {value} to {reg}"
+            );
         }
     }
 }

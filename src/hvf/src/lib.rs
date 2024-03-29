@@ -10,15 +10,25 @@
 mod bindings;
 use bindings::*;
 
+use std::cell::Cell;
 use std::convert::TryInto;
 use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
-use std::sync::{Arc};
-use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
 use log::debug;
+
+// FIXME: Riley - Do not update these in release.
+thread_local! {
+    static LAST_DBG_PC: Cell<u64> = const { Cell::new(u64::MAX) };
+}
+
+pub fn last_dbg_pc() -> u64 {
+    LAST_DBG_PC.get()
+}
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -248,7 +258,11 @@ pub enum VcpuExit<'a> {
     MmioWrite(u64, &'a [u8]),
     SecureMonitorCall,
     Shutdown,
-    SystemRegister,
+    SystemRegister {
+        sys_reg: u64,
+        arg_reg_idx: u32,
+        is_read: bool,
+    },
     VtimerActivated,
     WaitForEvent,
     WaitForEventExpired,
@@ -322,10 +336,17 @@ impl<'a> HvfVcpu<'a> {
         })
     }
 
-    pub fn set_initial_state(&self, entry_addr: u64, fdt_addr: u64, enable_tso: bool) -> Result<(), Error> {
-        self.write_reg(hv_reg_t_HV_REG_CPSR, PSTATE_FAULT_BITS_64)?;
-        self.write_reg(hv_reg_t_HV_REG_PC, entry_addr)?;
-        self.write_reg(hv_reg_t_HV_REG_X0, fdt_addr)?;
+    pub fn set_initial_state(
+        &self,
+        entry_addr: u64,
+        fdt_addr: u64,
+        mpidr: u64,
+        enable_tso: bool,
+    ) -> Result<(), Error> {
+        self.write_raw_reg(hv_reg_t_HV_REG_CPSR, PSTATE_FAULT_BITS_64)?;
+        self.write_raw_reg(hv_reg_t_HV_REG_PC, entry_addr)?;
+        self.write_raw_reg(hv_reg_t_HV_REG_X0, fdt_addr)?;
+        self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, mpidr)?;
         if enable_tso {
             self.write_tso_sys_reg(true)?;
         }
@@ -336,9 +357,9 @@ impl<'a> HvfVcpu<'a> {
         self.vcpuid
     }
 
-    fn read_reg(&self, reg: u32) -> Result<u64, Error> {
+    pub fn read_raw_reg(&self, reg: u32) -> Result<u64, Error> {
         let mut val: u64 = 0;
-        let ret = unsafe { hv_vcpu_get_reg(self.vcpuid, reg, &mut val as *mut _) };
+        let ret = unsafe { hv_vcpu_get_reg(self.vcpuid, reg, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadRegister)
         } else {
@@ -346,7 +367,7 @@ impl<'a> HvfVcpu<'a> {
         }
     }
 
-    fn write_reg(&self, reg: u32, val: u64) -> Result<(), Error> {
+    pub fn write_raw_reg(&self, reg: u32, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_reg(self.vcpuid, reg, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetRegister)
@@ -355,9 +376,30 @@ impl<'a> HvfVcpu<'a> {
         }
     }
 
+    pub fn read_gp_reg(&self, reg: u32) -> Result<u64, Error> {
+        assert!(reg < 32);
+
+        if reg == 31 {
+            Ok(0)
+        } else {
+            self.read_raw_reg(hv_reg_t_HV_REG_X0 + reg)
+        }
+    }
+
+    pub fn write_gp_reg(&self, reg: u32, val: u64) -> Result<(), Error> {
+        assert!(reg < 32);
+
+        if reg == 31 {
+            log::warn!("Attempted to write to `xzr`; ignored");
+            Ok(())
+        } else {
+            self.write_raw_reg(hv_reg_t_HV_REG_X0 + reg, val)
+        }
+    }
+
     fn read_sys_reg(&self, reg: u16) -> Result<u64, Error> {
         let mut val: u64 = 0;
-        let ret = unsafe { hv_vcpu_get_sys_reg(self.vcpuid, reg, &mut val as *mut _) };
+        let ret = unsafe { hv_vcpu_get_sys_reg(self.vcpuid, reg, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadSystemRegister)
         } else {
@@ -438,13 +480,13 @@ impl<'a> HvfVcpu<'a> {
                     ),
                 };
 
-                self.write_reg(hv_reg_t_HV_REG_X0 + mmio_read.srt, val)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X0 + mmio_read.srt, val)?;
             }
         }
 
         if self.pending_advance_pc {
-            let pc = self.read_reg(hv_reg_t_HV_REG_PC)?;
-            self.write_reg(hv_reg_t_HV_REG_PC, pc + 4)?;
+            let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
+            self.write_raw_reg(hv_reg_t_HV_REG_PC, pc + 4)?;
             self.pending_advance_pc = false;
         }
 
@@ -465,7 +507,7 @@ impl<'a> HvfVcpu<'a> {
 
                 match ec {
                     EC_AA64_HVC => {
-                        let val = self.read_reg(hv_reg_t_HV_REG_X0)?;
+                        let val = self.read_raw_reg(hv_reg_t_HV_REG_X0)?;
 
                         debug!("HVC: 0x{:x}", val);
                         let ret = match val {
@@ -473,10 +515,10 @@ impl<'a> HvfVcpu<'a> {
                             0x8400_0006 => Some(2),
                             0x8400_0009 => return Ok(VcpuExit::Shutdown),
                             0xc400_0003 => {
-                                let mpidr = self.read_reg(hv_reg_t_HV_REG_X1)?;
-                                let entry = self.read_reg(hv_reg_t_HV_REG_X2)?;
-                                let context_id = self.read_reg(hv_reg_t_HV_REG_X3)?;
-                                self.write_reg(hv_reg_t_HV_REG_X0, 0)?;
+                                let mpidr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                                let entry = self.read_raw_reg(hv_reg_t_HV_REG_X2)?;
+                                let context_id = self.read_raw_reg(hv_reg_t_HV_REG_X3)?;
+                                self.write_raw_reg(hv_reg_t_HV_REG_X0, 0)?;
                                 return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
                             }
                             _ => {
@@ -486,7 +528,7 @@ impl<'a> HvfVcpu<'a> {
                         };
 
                         if let Some(ret) = ret {
-                            self.write_reg(hv_reg_t_HV_REG_X0, ret)?;
+                            self.write_raw_reg(hv_reg_t_HV_REG_X0, ret)?;
                         }
 
                         Ok(VcpuExit::HypervisorCall)
@@ -498,22 +540,22 @@ impl<'a> HvfVcpu<'a> {
                         Ok(VcpuExit::SecureMonitorCall)
                     }
                     EC_SYSTEMREGISTERTRAP => {
-                        let isread: bool = (syndrome & 1) != 0;
-                        let rt: u32 = ((syndrome >> 5) & 0x1f) as u32;
-                        let reg: u64 = syndrome & SYSREG_MASK;
+                        let is_read: bool = (syndrome & 1) != 0;
+                        let arg_reg_idx: u32 = ((syndrome >> 5) & 0x1f) as u32;
+                        let sys_reg: u64 = syndrome & SYSREG_MASK;
 
-                        debug!("sysreg operation reg={} (op0={} op1={} op2={} crn={} crm={}) isread={:?}",
-                               reg, (reg >> 20) & 0x3,
-                               (reg >> 14) & 0x7, (reg >> 17) & 0x7,
-                               (reg >> 10) & 0xf, (reg >> 1) & 0xf,
-                               isread);
-
-                        if isread && rt < 31 {
-                            self.write_reg(rt, 0)?;
-                        }
+                        log::debug!("sysreg operation reg={} target={arg_reg_idx} (op0={} op1={} op2={} crn={} crm={}) isread={:?}",
+                               sys_reg, (sys_reg >> 20) & 0x3,
+                               (sys_reg >> 14) & 0x7, (sys_reg >> 17) & 0x7,
+                               (sys_reg >> 10) & 0xf, (sys_reg >> 1) & 0xf,
+                               is_read);
 
                         self.pending_advance_pc = true;
-                        Ok(VcpuExit::SystemRegister)
+                        Ok(VcpuExit::SystemRegister {
+                            sys_reg,
+                            arg_reg_idx,
+                            is_read,
+                        })
                     }
                     EC_DATAABORT => {
                         let isv: bool = (syndrome & (1 << 24)) != 0;
@@ -531,9 +573,11 @@ impl<'a> HvfVcpu<'a> {
                         let pa = self.vcpu_exit.exception.physical_address;
                         self.pending_advance_pc = true;
 
+                        LAST_DBG_PC.set(self.read_raw_reg(hv_reg_t_HV_REG_PC)?);
+
                         if iswrite {
                             let val = if srt < 31 {
-                                self.read_reg(hv_reg_t_HV_REG_X0 + srt)?
+                                self.read_raw_reg(hv_reg_t_HV_REG_X0 + srt)?
                             } else {
                                 0u64
                             };
@@ -585,7 +629,7 @@ impl<'a> HvfVcpu<'a> {
             }
             HV_EXIT_REASON_VTIMER_ACTIVATED => Ok(VcpuExit::VtimerActivated),
             _ => {
-                let pc = self.read_reg(hv_reg_t_HV_REG_PC)?;
+                let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
                 panic!(
                     "unexpected exit reason: vcpuid={} 0x{:x} at pc=0x{:x}",
                     self.id(),
@@ -594,5 +638,16 @@ impl<'a> HvfVcpu<'a> {
                 );
             }
         }
+    }
+}
+
+pub fn vcpu_read_mpidr(vcpu_id: u64) -> Result<u64, Error> {
+    let mut val: u64 = 0;
+    let ret = unsafe { hv_vcpu_get_sys_reg(vcpu_id, hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, &mut val) };
+
+    if ret != HV_SUCCESS {
+        Err(Error::VcpuReadSystemRegister)
+    } else {
+        Ok(val)
     }
 }

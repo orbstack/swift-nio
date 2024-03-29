@@ -6,7 +6,7 @@ edition = "2021"
 
 [features]
 tee = []
-amd-sev = [ "tee" ]
+amd-sev = ["tee"]
 efi = []
 
 [dependencies]
@@ -15,6 +15,7 @@ vm-memory = { version = ">=0.13", features = ["backend-mmap"] }
 
 arch_gen = { path = "../arch_gen" }
 utils = { path = "../utils" }
+gicv3 = { path = "../gicv3" }
 rand = "0.8.5"
 
 [target.'cfg(target_os = "linux")'.dependencies]

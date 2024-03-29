@@ -264,13 +264,12 @@ impl MMIODeviceManager {
     /// Register a MMIO GIC device.
     pub fn register_mmio_gic(&mut self, _vm: &Vm, intc: Option<Arc<Mutex<Gic>>>) -> Result<()> {
         if let Some(intc) = intc {
-            self.bus
-                .insert(
-                    intc,
-                    devices::legacy::Gic::get_addr(),
-                    devices::legacy::Gic::get_size(),
-                )
-                .map_err(Error::BusError)?;
+            let (addr, size) = {
+                let intc = intc.lock().unwrap();
+                (intc.get_addr(), intc.get_size())
+            };
+
+            self.bus.insert(intc, addr, size).map_err(Error::BusError)?;
         }
 
         Ok(())

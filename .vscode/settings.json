@@ -1,3 +1,9 @@
 {
-    "rust-analyzer.showUnlinkedFileNotification": false
+    "editor.formatOnSave": true,
+    "editor.insertSpaces": true,
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    // libkrun tests have not been updated in a while and spam the error console
+    "rust-analyzer.cargo.unsetTest": [
+        "arch", "arch_gen", "cpuid", "devices", "hvf", "kernel", "libkrun", "polly", "utils", "vmm",
+    ],
 }

@@ -33,6 +33,7 @@ use hvf::MemoryMapping;
 use kbs_types::Tee;
 
 use crate::device_manager;
+use crate::macos::Parker;
 #[cfg(feature = "tee")]
 use crate::resources::TeeConfig;
 #[cfg(target_os = "linux")]
@@ -70,7 +71,6 @@ use vm_memory::mmap::MmapRegion;
 use vm_memory::Bytes;
 use vm_memory::GuestMemory;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
-use crate::macos::Parker;
 
 #[cfg(feature = "efi")]
 static EDK2_BINARY: &[u8] = include_bytes!("../../../edk2/KRUN_EFI.silent.fd");

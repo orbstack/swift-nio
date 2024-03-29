@@ -37,13 +37,13 @@ pub use hvf::MemoryMapping;
 #[cfg(target_os = "macos")]
 use macos::vstate;
 
+use crate::macos::Parker;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 #[cfg(target_os = "linux")]
 use std::time::Duration;
-use crate::macos::Parker;
 
 #[cfg(target_arch = "x86_64")]
 use crate::device_manager::legacy::PortIODeviceManager;
@@ -227,8 +227,10 @@ impl Vmm {
         for mut vcpu in vcpus.drain(..) {
             vcpu.set_mmio_bus(self.mmio_device_manager.bus.clone());
 
-            self.vcpus_handles
-                .push(vcpu.start_threaded(self.parker.clone()).map_err(Error::VcpuHandle)?);
+            self.vcpus_handles.push(
+                vcpu.start_threaded(self.parker.clone())
+                    .map_err(Error::VcpuHandle)?,
+            );
         }
 
         // The vcpus start off in the `Paused` state, let them run.
@@ -348,9 +350,10 @@ impl Vmm {
 
         // Exit from Firecracker using the provided exit code. Safe because we're terminating
         // the process anyway.
-        unsafe {
-            libc::_exit(exit_code);
-        }
+        // FIXME: Riley - add this back
+        // unsafe {
+        //     libc::_exit(exit_code);
+        // }
     }
 
     #[cfg(target_os = "linux")]
