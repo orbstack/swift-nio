@@ -21,15 +21,6 @@ use std::time::Duration;
 use crossbeam_channel::Sender;
 use log::debug;
 
-// FIXME: Riley - Do not update these in release.
-thread_local! {
-    static LAST_DBG_PC: Cell<u64> = const { Cell::new(u64::MAX) };
-}
-
-pub fn last_dbg_pc() -> u64 {
-    LAST_DBG_PC.get()
-}
-
 extern "C" {
     pub fn mach_absolute_time() -> u64;
 }
@@ -572,8 +563,6 @@ impl<'a> HvfVcpu<'a> {
 
                         let pa = self.vcpu_exit.exception.physical_address;
                         self.pending_advance_pc = true;
-
-                        LAST_DBG_PC.set(self.read_raw_reg(hv_reg_t_HV_REG_PC)?);
 
                         if iswrite {
                             let val = if srt < 31 {

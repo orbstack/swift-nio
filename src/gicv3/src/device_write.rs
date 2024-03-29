@@ -19,10 +19,7 @@ impl GicV3 {
         reg: GicSysReg,
         value: u64,
     ) {
-        log::trace!(
-            "--- Write GIC sysreg, PE: {pe:?}, PC: {:x}, REG: {reg:?}, VAL: {value:b}",
-            hvf::last_dbg_pc(),
-        );
+        log::trace!("--- Write GIC sysreg, PE: {pe:?}, REG: {reg:?}, VAL: {value:b}",);
 
         match reg {
             GicSysReg::CNTPCT_EL0 => todo!(),
@@ -178,11 +175,7 @@ impl GicV3 {
     }
 
     pub fn write(&mut self, pe: PeId, mut req: MmioWriteRequest<'_>) {
-        log::trace!(
-            "--- Write GIC MMIO, PE: {pe:?}, PC: {:x}, MEM: {:?}",
-            hvf::last_dbg_pc(),
-            req.req_range(),
-        );
+        log::trace!("--- Write GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range(),);
 
         req.handle_sub(mmio_range!(GicFullMap, gicd), |req| {
             self.write_distributor(pe, req)

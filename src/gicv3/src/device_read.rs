@@ -14,11 +14,7 @@ impl GicV3 {
         pe: PeId,
         reg: GicSysReg,
     ) -> u64 {
-        log::trace!(
-            "--- Read GIC sysreg, PE: {pe:?}, PC: {:x}, REG: {:?}",
-            hvf::last_dbg_pc(),
-            reg,
-        );
+        log::trace!("--- Read GIC sysreg, PE: {pe:?}, REG: {:?}", reg,);
 
         match reg {
             GicSysReg::CNTPCT_EL0 => todo!(),
@@ -124,11 +120,7 @@ impl GicV3 {
         pe: PeId,
         mut req: MmioReadRequest<'_>,
     ) {
-        log::trace!(
-            "--- Read GIC MMIO, PE: {pe:?}, PC: {:x}, MEM: {:?}",
-            hvf::last_dbg_pc(),
-            req.req_range(),
-        );
+        log::trace!("--- Read GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range(),);
 
         req.handle_sub(mmio_range!(GicFullMap, gicd), |req| {
             self.read_distributor(pe, req)
