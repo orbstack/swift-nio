@@ -97,26 +97,31 @@ impl<T> IntoMmioRange for TypedMmioRange<T> {
 
 #[doc(hidden)]
 pub mod mmio_range_macro_internals {
+    use super::TypedMmioRange;
     use std::marker::PhantomData;
 
-    pub use {super::TypedMmioRange, memoffset::span_of, std::primitive::u64};
+    pub use std::mem::offset_of;
 
-    pub fn infer_ty<In, Out>(_: impl FnOnce(&In) -> &Out) -> PhantomData<fn(Out) -> Out> {
-        PhantomData
+    pub fn create_mmio_range<In, Field>(
+        _binder: impl FnOnce(&In) -> &Field,
+        offset: usize,
+    ) -> TypedMmioRange<Field> {
+        TypedMmioRange {
+            _ty: PhantomData,
+            start: offset as u64,
+            end: (offset + std::mem::size_of::<Field>()) as u64,
+        }
     }
 }
 
 #[macro_export]
 macro_rules! mmio_range {
-    ($ty:path, $field:ident) => {{
-        let span = $crate::mmio_util::mmio_range_macro_internals::span_of!($ty, $field);
-
-        $crate::mmio_util::mmio_range_macro_internals::TypedMmioRange {
-            _ty: $crate::mmio_util::mmio_range_macro_internals::infer_ty::<$ty, _>(|v| &v.$field),
-            start: span.start as $crate::mmio_util::mmio_range_macro_internals::u64,
-            end: span.end as $crate::mmio_util::mmio_range_macro_internals::u64,
-        }
-    }};
+    ($ty:path, $field:ident) => {
+        $crate::mmio_util::mmio_range_macro_internals::create_mmio_range::<$ty, _>(
+            |v| &v.$field,
+            $crate::mmio_util::mmio_range_macro_internals::offset_of!($ty, $field),
+        )
+    };
 }
 
 pub use mmio_range;

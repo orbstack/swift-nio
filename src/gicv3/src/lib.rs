@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod device;
 mod device_read;
 mod device_write;
