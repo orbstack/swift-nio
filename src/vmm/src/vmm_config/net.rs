@@ -15,6 +15,8 @@ pub struct NetworkInterfaceConfig {
     pub backend: VirtioNetBackend,
     /// MAC address.
     pub mac: [u8; 6],
+    /// MTU.
+    pub mtu: u16,
 }
 
 /// Errors associated with `NetworkInterfaceConfig`.
@@ -85,7 +87,7 @@ impl NetBuilder {
     /// Creates a Net device from a NetworkInterfaceConfig.
     pub fn create_net(cfg: NetworkInterfaceConfig) -> Result<Net> {
         // Create and return the Net device
-        Net::new(cfg.iface_id, cfg.backend, cfg.mac)
+        Net::new(cfg.iface_id, cfg.backend, cfg.mac, cfg.mtu)
             .map_err(NetworkInterfaceError::CreateNetworkDevice)
     }
 }

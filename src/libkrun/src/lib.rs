@@ -56,7 +56,7 @@ struct VzSpec {
     kernel: String,
     cmdline: String,
     console: Option<ConsoleSpec>,
-    mtu: u32,
+    mtu: u16,
     mac_address_prefix: String,
     network_nat: bool,
     network_fds: Vec<i32>,
@@ -138,13 +138,13 @@ impl Machine {
             return Err(anyhow!("network_nat is not supported"));
         }
         for (i, net_fd) in spec.network_fds.iter().enumerate() {
-            // TODO: MTU
             let mac_addr = format!("{}:{:02x}", spec.mac_address_prefix, i + 1);
 
             vmr.add_network_interface(NetworkInterfaceConfig {
                 iface_id: format!("eth{}", i),
                 backend: VirtioNetBackend::Dgram(*net_fd),
                 mac: parse_mac_addr(&mac_addr)?,
+                mtu: spec.mtu,
             })
             .map_err(to_anyhow_error)?;
         }

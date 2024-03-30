@@ -23,7 +23,7 @@ use std::sync::{Arc, Mutex};
 use utils::eventfd::{EventFd, EFD_NONBLOCK};
 use virtio_bindings::virtio_net::{
     VIRTIO_NET_F_CSUM, VIRTIO_NET_F_GUEST_CSUM, VIRTIO_NET_F_GUEST_TSO4, VIRTIO_NET_F_GUEST_UFO,
-    VIRTIO_NET_F_HOST_TSO4, VIRTIO_NET_F_HOST_UFO, VIRTIO_NET_F_MAC,
+    VIRTIO_NET_F_HOST_TSO4, VIRTIO_NET_F_HOST_UFO, VIRTIO_NET_F_MAC, VIRTIO_NET_F_MTU,
 };
 use virtio_bindings::virtio_ring::VIRTIO_RING_F_EVENT_IDX;
 use vm_memory::{ByteValued, GuestMemoryError, GuestMemoryMmap};
@@ -58,6 +58,7 @@ struct VirtioNetConfig {
     mac: [u8; 6],
     status: u16,
     max_virtqueue_pairs: u16,
+    mtu: u16,
 }
 
 // Safe because it only has data and has no implicit padding.
@@ -93,7 +94,7 @@ pub struct Net {
 
 impl Net {
     /// Create a new virtio network device using the backend
-    pub fn new(id: String, cfg_backend: VirtioNetBackend, mac: [u8; 6]) -> Result<Self> {
+    pub fn new(id: String, cfg_backend: VirtioNetBackend, mac: [u8; 6], mtu: u16) -> Result<Self> {
         let avail_features = 1 << VIRTIO_NET_F_GUEST_CSUM
             | 1 << VIRTIO_NET_F_CSUM
             | 1 << VIRTIO_NET_F_GUEST_TSO4
@@ -101,6 +102,7 @@ impl Net {
             | 1 << VIRTIO_NET_F_GUEST_UFO
             | 1 << VIRTIO_NET_F_HOST_UFO
             | 1 << VIRTIO_NET_F_MAC
+            | 1 << VIRTIO_NET_F_MTU
             | 1 << VIRTIO_RING_F_EVENT_IDX
             | 1 << VIRTIO_F_VERSION_1;
 
@@ -115,6 +117,7 @@ impl Net {
             mac,
             status: 0,
             max_virtqueue_pairs: 0,
+            mtu,
         };
 
         Ok(Net {
