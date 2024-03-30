@@ -9,6 +9,5 @@ type monitor struct{}
 var Monitor = &monitor{}
 
 func (m monitor) NetworkMTU() int {
-	// TODO
-	return vnettypes.BaseMTU
+	return vnettypes.PreferredMTU
 }
