@@ -20,6 +20,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+use libc::{fpunchhole_t, off_t};
 use log::{error, warn};
 use utils::eventfd::{EventFd, EFD_NONBLOCK};
 use virtio_bindings::{
@@ -107,6 +108,21 @@ impl DiskProperties {
         Ok(())
     }
 
+    pub fn punch_hole(&self, offset: usize, len: usize) -> std::io::Result<()> {
+        let punchhole = fpunchhole_t {
+            fp_flags: 0,
+            reserved: 0,
+            fp_offset: offset as off_t,
+            fp_length: len as off_t,
+        };
+
+        let ret = unsafe { libc::fcntl(self.file.as_raw_fd(), libc::F_PUNCHHOLE, &punchhole) };
+        if ret == -1 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
     fn build_device_id(disk_file: &File) -> result::Result<String, Error> {
         let blk_metadata = disk_file.metadata().map_err(Error::GetFileMetadata)?;
         // This is how kvmtool does it.
@@ -163,10 +179,40 @@ impl Drop for DiskProperties {
 
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C, packed)]
+struct VirtioBlkGeometry {
+    cylinders: u16,
+    heads: u8,
+    sectors: u8,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+#[repr(C, packed)]
+struct VirtioBlkTopology {
+    physical_block_exp: u8,
+    alignment_offset: u8,
+    min_io_size: u16,
+    opt_io_size: u32,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+#[repr(C, packed)]
 struct VirtioBlkConfig {
     capacity: u64,
     size_max: u32,
     seg_max: u32,
+    geometry: VirtioBlkGeometry,
+    blk_size: u32,
+    topology: VirtioBlkTopology,
+    writeback: u8,
+    unused0: u8,
+    num_queues: u16,
+    max_discard_sectors: u32,
+    max_discard_seg: u32,
+    discard_sector_alignment: u32,
+    max_write_zeroes_sectors: u32,
+    max_write_zeroes_seg: u32,
+    write_zeroes_may_unmap: u8,
+    unused1: [u8; 3],
 }
 
 // Safe because it only has data and has no implicit padding.
@@ -219,6 +265,8 @@ impl Block {
 
         let mut avail_features = (1u64 << VIRTIO_F_VERSION_1)
             | (1u64 << VIRTIO_BLK_F_FLUSH)
+            | (1u64 << VIRTIO_BLK_F_DISCARD)
+            | (1u64 << VIRTIO_BLK_F_WRITE_ZEROES)
             | (1u64 << VIRTIO_BLK_F_SEG_MAX)
             | (1u64 << VIRTIO_RING_F_EVENT_IDX);
 
@@ -235,6 +283,13 @@ impl Block {
             size_max: 0,
             // QUEUE_SIZE - 2
             seg_max: 254,
+            max_discard_sectors: u32::MAX,
+            max_discard_seg: 32,
+            discard_sector_alignment: 65536 / 512, // 64k
+            max_write_zeroes_sectors: u32::MAX,
+            max_write_zeroes_seg: 32,
+            write_zeroes_may_unmap: 1,
+            ..Default::default()
         };
 
         Ok(Block {

@@ -6,6 +6,7 @@ use super::super::{Queue, VIRTIO_MMIO_INT_VRING};
 use super::device::{CacheType, DiskProperties};
 
 use std::io::{self, Write};
+use std::mem::size_of;
 use std::os::fd::AsRawFd;
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -23,6 +24,7 @@ const FLUSH_INTERVAL: Duration = Duration::from_millis(500);
 pub enum RequestError {
     FlushingToDisk(io::Error),
     InvalidDataLength,
+    WriteZeroes(io::Error),
     ReadingFromDescriptor(io::Error),
     WritingToDescriptor(io::Error),
     UnknownRequest,
@@ -62,6 +64,15 @@ pub struct BlockWorker {
 
     last_flushed_at: Instant,
 }
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub struct VirtioBlkDiscardWriteZeroes {
+    pub sector: __le64,
+    pub num_sectors: __le32,
+    pub flags: __le32,
+}
+unsafe impl ByteValued for VirtioBlkDiscardWriteZeroes {}
 
 impl BlockWorker {
     #[allow(clippy::too_many_arguments)]
@@ -244,6 +255,35 @@ impl BlockWorker {
                         .read_to_at(&self.disk.file, data_len, request_header.sector * 512)
                         .map_err(RequestError::ReadingFromDescriptor)
                 }
+            }
+            VIRTIO_BLK_T_DISCARD | VIRTIO_BLK_T_WRITE_ZEROES => {
+                while reader.available_bytes() >= size_of::<VirtioBlkDiscardWriteZeroes>() {
+                    let seg: VirtioBlkDiscardWriteZeroes = reader
+                        .read_obj()
+                        .map_err(RequestError::ReadingFromDescriptor)?;
+
+                    let offset = seg.sector * 512;
+                    let len = (seg.num_sectors * 512) as u64;
+                    if offset + len > self.disk.nsectors() * 512 {
+                        return Err(RequestError::InvalidDataLength);
+                    }
+
+                    match self.disk.punch_hole(offset as usize, len as usize) {
+                        Ok(_) => (),
+                        Err(_) => {
+                            // only diff: DISCARD fails gracefully and is ignored; WRITE_ZEROES needs a fallback if not supported by FS
+                            if request_header.request_type == VIRTIO_BLK_T_WRITE_ZEROES {
+                                // TODO fallback. we only support APFS so this is impossible
+                                return Err(RequestError::WriteZeroes(
+                                    io::Error::from_raw_os_error(libc::EOPNOTSUPP),
+                                ));
+                            } else {
+                                // ignore error
+                            }
+                        }
+                    }
+                }
+                Ok(reader.bytes_read())
             }
             VIRTIO_BLK_T_FLUSH => match self.disk.cache_type() {
                 CacheType::Writeback => {
