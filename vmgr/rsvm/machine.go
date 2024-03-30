@@ -65,10 +65,6 @@ type machine struct {
 func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machine, error) {
 	// TODO: allow disabling
 	spec.Balloon = true
-	// TODO: GICv3
-	if spec.Cpus > 8 {
-		spec.Cpus = 8
-	}
 
 	// encode to json
 	specStr, err := json.Marshal(spec)
