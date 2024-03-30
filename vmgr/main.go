@@ -316,6 +316,7 @@ func flushDisk() error {
 // must do it before creating VM config, or storage config/attachment is reported as invalid on vm.Start()
 // --
 // this deals with cases like vmgr force stop + VMM cleaning up a lot of fds before exiting
+// TODO: this can be done better with rsvm
 func ensureDataLock() error {
 	dataImg, err := os.OpenFile(conf.DataImage(), os.O_RDWR, 0644)
 	if err != nil {
@@ -576,8 +577,8 @@ func runVmManager() {
 		NetworkNat:         useNat,
 		NetworkHostBridges: 2, // machine + VlanRouter
 		MacAddressPrefix:   netconf.GuestMACPrefix,
-		// doesn't work so let's just hide it
-		Balloon: false,
+		// doesn't work on vzf so let's just hide it
+		Balloon: monitor == rsvm.Monitor,
 		Rng:     true,
 		// no longer used (NFS is now TCP)
 		Vsock:    false,
@@ -590,7 +591,9 @@ func runVmManager() {
 		HealthCheckCh: healthCheckCh,
 	})
 	defer vnetwork.Close()
-	defer runOne("flush disk", flushDisk)
+	if monitor != rsvm.Monitor {
+		defer runOne("flush disk", flushDisk)
+	}
 	// close in case we need to release disk flock for next start
 	defer vm.Close()
 
