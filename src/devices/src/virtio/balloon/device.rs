@@ -146,7 +146,7 @@ impl Balloon {
             // madvise
             // remap
             // and unpark
-            //self.parker.as_ref().unwrap().park().unwrap();
+            self.parker.as_ref().unwrap().park().unwrap();
 
             let index = head.index;
             for desc in head.into_iter() {
@@ -165,7 +165,7 @@ impl Balloon {
                 };
             }
 
-            //self.parker.as_ref().unwrap().unpark().unwrap();
+            self.parker.as_ref().unwrap().unpark().unwrap();
             have_used = true;
             if let Err(e) = self.queues[FRQ_INDEX].add_used(mem, index, 0) {
                 error!("failed to add used elements to the queue: {:?}", e);

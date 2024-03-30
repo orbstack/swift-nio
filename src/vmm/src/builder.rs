@@ -1052,14 +1052,14 @@ fn create_vcpus_aarch64(
         )
         .map_err(Error::Vcpu)?;
 
-        vcpu.configure_aarch64(guest_mem, vcpu_config.enable_tso).map_err(Error::Vcpu)?;
+        vcpu.configure_aarch64(guest_mem, vcpu_config.enable_tso)
+            .map_err(Error::Vcpu)?;
 
         vcpus.push(vcpu);
     }
 
     vcpus[0].set_boot_senders(boot_senders);
 
-    vm.set_vcpus(&vcpus);
     Ok(vcpus)
 }
 

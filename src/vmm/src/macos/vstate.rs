@@ -11,7 +11,7 @@ use std::io;
 use std::result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
-use std::thread;
+use std::thread::{self, Thread};
 use std::time::Duration;
 
 use super::super::TimestampUs;
@@ -111,6 +111,7 @@ pub struct Parker {
     // everything in here must be Send
     hvf_vm: HvfVm,
     vcpu_ids: Mutex<Vec<u64>>,
+    vcpu_threads: Mutex<Vec<Thread>>,
     pending_park: AtomicBool,
     // we use this both when parking and when unparking
     barrier: Barrier,
@@ -127,7 +128,8 @@ impl Parker {
     pub fn new(vcpu_count: u8, hvf_vm: HvfVm) -> Self {
         Parker {
             hvf_vm,
-            vcpu_ids: Mutex::new(Vec::new()),
+            vcpu_ids: Mutex::new(Vec::with_capacity(vcpu_count as usize)),
+            vcpu_threads: Mutex::new(Vec::with_capacity(vcpu_count as usize)),
             pending_park: AtomicBool::new(false),
             barrier: Barrier::new(usize::from(vcpu_count) + 1),
             regions: Mutex::new(Vec::new()),
@@ -137,11 +139,6 @@ impl Parker {
     pub fn set_regions(&self, new_regions: Vec<MapRegion>) {
         let mut regions = self.regions.lock().unwrap();
         *regions = new_regions;
-    }
-
-    pub fn set_vcpu_ids(&self, new_vcpu_ids: Vec<u64>) {
-        let mut vcpu_ids = self.vcpu_ids.lock().unwrap();
-        *vcpu_ids = new_vcpu_ids;
     }
 }
 
@@ -155,6 +152,12 @@ impl Parkable for Parker {
         let mut vcpu_ids = self.vcpu_ids.lock().unwrap();
         debug!("force vcpus to exit: {:?}", vcpu_ids);
         self.hvf_vm.force_exits(&mut vcpu_ids).unwrap();
+        drop(vcpu_ids);
+
+        // kick from WFE
+        for vcpu_thread in self.vcpu_threads.lock().unwrap().iter() {
+            vcpu_thread.unpark();
+        }
 
         // 2. wait for all vcpus to reach this point
         self.barrier.wait();
@@ -200,17 +203,22 @@ impl Parkable for Parker {
         Ok(())
     }
 
-    fn before_vcpu_run(&self) -> std::result::Result<(), hvf::Error> {
+    fn before_vcpu_run(&self, vcpuid: u64) -> std::result::Result<(), hvf::Error> {
         // problem: cpus stuck in VcpuEmulation::WaitForEvent won't hit this
         // need an atomic vcpu count
         if self.pending_park.load(Ordering::SeqCst) {
-            debug!("before_vcpu_run begin");
+            debug!("before_vcpu_run begin @ {vcpuid}");
             self.barrier.wait();
             self.barrier.wait();
             debug!("before_vcpu_run end");
         }
 
         Ok(())
+    }
+
+    fn register_vcpu(&self, vcpuid: u64, wfe_thread: Thread) {
+        self.vcpu_ids.lock().unwrap().push(vcpuid);
+        self.vcpu_threads.lock().unwrap().push(wfe_thread);
     }
 }
 
@@ -296,11 +304,6 @@ impl Vm {
         } else {
             reply_sender.send(true).unwrap();
         }
-    }
-
-    pub fn set_vcpus(&mut self, vcpus: &[Vcpu]) {
-        self.parker
-            .set_vcpu_ids(vcpus.iter().map(|vcpu| vcpu.id as u64).collect());
     }
 
     pub fn get_parker(&self) -> Arc<Parker> {
@@ -622,13 +625,15 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     pub fn run(&mut self, parker: Arc<Parker>) {
-        let mut hvf_vcpu = HvfVcpu::new(parker).expect("Can't create HVF vCPU");
+        let mut hvf_vcpu = HvfVcpu::new(parker.clone()).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();
 
         self.intc
             .lock()
             .unwrap()
             .register_vcpu(hvf_vcpuid, thread::current());
+
+        parker.register_vcpu(hvf_vcpuid, thread::current());
 
         let entry_addr = if let Some(boot_receiver) = &self.boot_receiver {
             boot_receiver.recv().unwrap()

@@ -1,4 +1,9 @@
-use std::{ffi::{c_char, CStr, CString}, fmt, os::raw::c_void, sync::{Arc, Mutex}};
+use std::{
+    ffi::{c_char, CStr, CString},
+    fmt,
+    os::raw::c_void,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::anyhow;
 use crossbeam_channel::unbounded;
@@ -228,11 +233,12 @@ impl Machine {
     }
 
     fn start(&mut self) -> anyhow::Result<()> {
-        let mut event_manager = EventManager::new()
-            .map_err(to_anyhow_error_dbg)?;
+        let mut event_manager = EventManager::new().map_err(to_anyhow_error_dbg)?;
 
         let (sender, receiver) = unbounded();
-        let vmr = self.vmr.as_ref()
+        let vmr = self
+            .vmr
+            .as_ref()
             .ok_or_else(|| anyhow!("already started"))?;
         let vmm = vmm::builder::build_microvm(vmr, &mut event_manager, None, sender)
             .map_err(to_anyhow_error)?;
@@ -244,7 +250,7 @@ impl Machine {
                 Err(e) => {
                     error!("Error in receiver: {:?}", e);
                     break;
-                },
+                }
                 Ok(m) => match m {
                     MemoryMapping::AddMapping(s, h, g, l) => {
                         mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
@@ -256,10 +262,8 @@ impl Machine {
             }
         });
 
-        std::thread::spawn(move || {
-            loop {
-                event_manager.run().unwrap();
-            }
+        std::thread::spawn(move || loop {
+            event_manager.run().unwrap();
         });
 
         // must be retained until copied into guest memory by build_microvm
@@ -277,13 +281,16 @@ fn return_owned_cstr(s: &str) -> *const c_char {
     // important: copy and leak the newly allocated string
     let s = CString::new(s).unwrap();
     // required to make it safe to free from C if rust isn't using system allocator
-    unsafe {
-        strdup(s.as_ptr())
-    }
+    unsafe { strdup(s.as_ptr()) }
 }
 
 #[no_mangle]
-pub extern "C" fn rsvm_new_machine(go_handle: *mut c_void, spec_json: *const c_char) -> GResultCreate {
+pub extern "C" fn rsvm_new_machine(
+    go_handle: *mut c_void,
+    spec_json: *const c_char,
+) -> GResultCreate {
+    env_logger::init();
+
     fn inner(_: *mut c_void, spec_json: *const c_char) -> anyhow::Result<*mut c_void> {
         let spec = unsafe { CStr::from_ptr(spec_json) };
         let spec = spec.to_str()?;
@@ -321,8 +328,12 @@ pub extern "C" fn rsvm_machine_stop(ptr: *mut c_void) -> GResultErr {
     }
 
     match inner(ptr) {
-        Ok(()) => GResultErr { err: std::ptr::null() },
-        Err(e) => GResultErr { err: return_owned_cstr(&e.to_string()) },
+        Ok(()) => GResultErr {
+            err: std::ptr::null(),
+        },
+        Err(e) => GResultErr {
+            err: return_owned_cstr(&e.to_string()),
+        },
     }
 }
 
@@ -348,8 +359,12 @@ pub extern "C" fn rsvm_machine_start(ptr: *mut c_void) -> GResultErr {
     }
 
     match inner(ptr) {
-        Ok(()) => GResultErr { err: std::ptr::null() },
-        Err(e) => GResultErr { err: return_owned_cstr(&e.to_string()) },
+        Ok(()) => GResultErr {
+            err: std::ptr::null(),
+        },
+        Err(e) => GResultErr {
+            err: return_owned_cstr(&e.to_string()),
+        },
     }
 }
 
