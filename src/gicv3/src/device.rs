@@ -224,6 +224,7 @@ impl GicV3 {
 
         for (pe, pe_state) in &mut self.pe_states {
             Self::send_interrupt_inner(handler, *pe, pe_state, int_id);
+            break;
         }
     }
 
