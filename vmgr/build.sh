@@ -34,7 +34,7 @@ if [[ -f "$BIN_OUT" ]]; then
 fi
 
 # same logic for Rust lib
-RUST_LIB_PATH="$HOME/code/vm/libkrun/target/${BUILD_TYPE:-debug}/libkrun.a"
+RUST_LIB_PATH="$HOME/code/vm/libkrun/target/${RUST_BUILD_TYPE:-debug}/libkrun.a"
 if [[ -f "$BIN_OUT" ]]; then
     if [[ ! -f "$RUST_LIB_PATH" ]] || [[ "$(stat -f "%m" "$RUST_LIB_PATH")" -gt "$(stat -f "%m" "$BIN_OUT")" ]]; then
         rm -f "$BIN_OUT"
