@@ -224,21 +224,23 @@ func (t *tlsProxy) Start() error {
 }
 
 func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
-	// use SNI if Host is missing
-	host := r.In.Host
-	if host == "" {
-		host = r.In.TLS.ServerName
-	}
-
 	// passthrough URL to host
+	dialHost := r.In.TLS.ServerName
 	r.SetURL(&url.URL{
 		Scheme: "http",
-		// Host is mandatory. we don't have access to SNI here
-		Host: host,
-		// this is *base* path
+		// Host is mandatory
+		// always use SNI for upstream, so we can pass through any Host header
+		Host: dialHost,
+		// SetURL takes *base* path
 		Path: "/",
 	})
-	r.Out.Host = host
+
+	// Host header to send to upstream server, *not* for connecting to upstream
+	hostHeader := r.In.Host
+	if hostHeader == "" {
+		hostHeader = r.In.TLS.ServerName
+	}
+	r.Out.Host = hostHeader
 
 	// set X-Forwarded-For and X-Forwarded-Proto to fix HTTPS redirect detection, even though source IP is same
 	// revproxy strips Forwarded, X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Proto
@@ -275,7 +277,7 @@ func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	localAddr.Port = 80
 
 	// save all the IP info
-	t.hostDialLRU.Add(host, hostDialInfo{
+	t.hostDialLRU.Add(dialHost, hostDialInfo{
 		// looks reversed but this is correct due to proxy/server roles
 		bindAddr: &net.TCPAddr{
 			IP:   remoteAddr,
