@@ -122,6 +122,13 @@ with lib;
 func configureSystemNixos(args InitialSetupArgs) error {
 	// write nix snippet
 	logrus.Debug("Writing nix snippet")
+
+	// can't use builtins.readFile in pure flakes, w/o inputs.*
+	extraCertsData, err := os.ReadFile(mounts.ExtraCerts)
+	if err != nil {
+		return err
+	}
+
 	// systemd-resolved and systemd-networkd removed from WatchdogSec list:
 	// nixos unstable (as of 02/22/2024) does not have these services,
 	// and adding WatchdogSec causes them to be generated with ONLY WatchdogSec and nothing else,
@@ -195,15 +202,17 @@ with lib;
 
   # extra certificates
   security.pki.certificates = [
-    (builtins.readFile "%s")
+    ''
+%s
+    ''
   ];
 
   # indicate builder support for emulated architectures
   nix.extraOptions = "extra-platforms = x86_64-linux i686-linux";
 }
-`, args.Username, args.Timezone, mounts.ExtraCerts)
+`, args.Username, args.Timezone, string(extraCertsData))
 
-	err := os.WriteFile("/etc/nixos/orbstack.nix", []byte(nixSnippet), 0644)
+	err = os.WriteFile("/etc/nixos/orbstack.nix", []byte(nixSnippet), 0644)
 	if err != nil {
 		return err
 	}
