@@ -11,10 +11,13 @@ use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 use utils::epoll::{ControlOperation, Epoll, EpollEvent, EventSet};
 use utils::eventfd::EventFd;
 use virtio_bindings::virtio_blk::*;
 use vm_memory::{ByteValued, GuestMemoryMmap};
+
+const FLUSH_INTERVAL: Duration = Duration::from_millis(500);
 
 #[derive(Debug)]
 pub enum RequestError {
@@ -56,6 +59,8 @@ pub struct BlockWorker {
     mem: GuestMemoryMmap,
     disk: DiskProperties,
     stop_fd: EventFd,
+
+    last_flushed_at: Instant,
 }
 
 impl BlockWorker {
@@ -82,6 +87,8 @@ impl BlockWorker {
             mem,
             disk,
             stop_fd,
+
+            last_flushed_at: Instant::now(),
         }
     }
 
@@ -240,9 +247,19 @@ impl BlockWorker {
             }
             VIRTIO_BLK_T_FLUSH => match self.disk.cache_type() {
                 CacheType::Writeback => {
-                    let diskfile = self.disk.file_mut();
-                    diskfile.flush().map_err(RequestError::FlushingToDisk)?;
-                    diskfile.sync_all().map_err(RequestError::FlushingToDisk)?;
+                    // F_FULLFSYNC is very expensive on Apple SSDs, so only do it every 500ms (leading edge)
+                    // barrier suffices for other cases
+                    if Instant::now() - self.last_flushed_at > FLUSH_INTERVAL {
+                        let diskfile = self.disk.file_mut();
+                        diskfile.sync_all().map_err(RequestError::FlushingToDisk)?;
+                        // get timestamp *after* sync
+                        // clock_gettime is much cheaper than fsync
+                        self.last_flushed_at = Instant::now();
+                    } else {
+                        self.disk
+                            .fsync_barrier()
+                            .map_err(RequestError::FlushingToDisk)?;
+                    }
                     Ok(0)
                 }
                 CacheType::Unsafe => Ok(0),

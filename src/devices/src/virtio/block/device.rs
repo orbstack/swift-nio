@@ -9,6 +9,7 @@ use std::cmp;
 use std::convert::From;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Seek, SeekFrom, Write};
+use std::os::fd::AsRawFd;
 #[cfg(target_os = "linux")]
 use std::os::linux::fs::MetadataExt;
 #[cfg(target_os = "macos")]
@@ -96,6 +97,14 @@ impl DiskProperties {
 
     pub fn image_id(&self) -> &[u8] {
         &self.image_id
+    }
+
+    pub fn fsync_barrier(&self) -> std::io::Result<()> {
+        let ret = unsafe { libc::fcntl(self.file.as_raw_fd(), libc::F_BARRIERFSYNC, 0) };
+        if ret == -1 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
     }
 
     fn build_device_id(disk_file: &File) -> result::Result<String, Error> {
