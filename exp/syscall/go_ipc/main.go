@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 )
@@ -23,10 +21,7 @@ func now() uint64 {
 }
 
 func main() {
-	r, w, err := os.Pipe()
-	if err != nil {
-		panic(err)
-	}
+	ch := make(chan uint64, 1)
 
 	// receiver
 	var wg sync.WaitGroup
@@ -39,13 +34,12 @@ func main() {
 		var iters uint64
 
 		for {
-			var buf [8]byte
-			n, err := r.Read(buf[:])
-			if err != nil || n != 8 {
-				fmt.Println("read error")
+			recvTs := <-ch
+			// 0 = break
+			if recvTs == 0 {
 				break
 			}
-			recvTs := binary.LittleEndian.Uint64(buf[:])
+
 			sendTs := now()
 			latency := (sendTs - recvTs) / 1000
 			totalLat += latency
@@ -87,20 +81,12 @@ func main() {
 		if sendTs-start > DURATION {
 			break
 		}
-		var buf [8]byte
-		binary.LittleEndian.PutUint64(buf[:], sendTs)
-		n, err := w.Write(buf[:])
-		if err != nil {
-			panic(err)
-		}
-		if n != 8 {
-			panic("write error")
-		}
+		ch <- sendTs
 		time.Sleep(time.Millisecond)
 	}
 
 	// wait for receiver
-	r.Close()
-	w.Close()
+	ch <- 0
 	wg.Wait()
+	close(ch)
 }
