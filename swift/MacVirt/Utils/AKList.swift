@@ -806,9 +806,10 @@ private struct BoundingBoxOverlayView: NSViewRepresentable {
 
 extension View {
     // SwiftUI rejects menu(forEvent:) unless it thinks it owns the view at which
-    // the click occurred. add a big NSView overlay to fix it
+    // the click occurred. add a big NSView background to fix it
+    // overlay breaks tooltip hover
     func akListContextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
-        overlay { BoundingBoxOverlayView() }
+        background { BoundingBoxOverlayView() }
             .contextMenu(menuItems: menuItems)
     }
 
