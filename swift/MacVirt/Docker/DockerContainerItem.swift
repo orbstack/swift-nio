@@ -13,6 +13,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var windowTracker: WindowTracker
     @EnvironmentObject var listModel: AKListModel
 
+    @State private var presentConfirmDelete = false
+
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
     @Default(.tipsContainerFilesShow) private var tipsContainerFilesShow
 
@@ -30,6 +32,11 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     var body: some View {
         let isRunning = container.running
         let actionInProgress = actionTracker.ongoingFor(selfId)
+        
+        let deletionList = resolveActionList()
+        let deleteConfirmMsg = deletionList.count > 1 ?
+            "Delete containers?" :
+            "Delete container?"
 
         HStack {
             HStack {
@@ -174,13 +181,22 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 ProgressIconButton(systemImage: "trash.fill",
                                    actionInProgress: actionInProgress == .delete)
                 {
-                    finishDelete()
+                    presentConfirmDelete = true
                 }
                 .disabled(actionInProgress != nil)
                 .help("Delete container")
             }
         }
         .padding(.vertical, 8)
+        .confirmationDialog(deleteConfirmMsg,
+                            isPresented: $presentConfirmDelete)
+        {
+            Button("Delete", role: .destructive) {
+                finishDelete()
+            }
+        } message: {
+            Text("Data will be permanently lost.")
+        }
         .akListOnDoubleClick {
             navModel.expandInspector.send()
         }
@@ -210,7 +226,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 .disabled(actionInProgress != nil || !isRunning)
 
                 Button(action: {
-                    finishDelete()
+                    presentConfirmDelete = true
                 }) {
                     Label("Delete", systemImage: "")
                 }

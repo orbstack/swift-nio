@@ -11,6 +11,8 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var windowTracker: WindowTracker
     @EnvironmentObject var listModel: AKListModel
+    
+    @State private var presentConfirmDelete = false
 
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
 
@@ -108,13 +110,23 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 ProgressIconButton(systemImage: "trash.fill",
                                    actionInProgress: actionInProgress == .delete)
                 {
-                    finishDelete()
+                    presentConfirmDelete = true
                 }
                 .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
                 .help("Delete project")
             }
         }
         .padding(.vertical, 8)
+        // projects are always multiple containers, so no need to change msg
+        .confirmationDialog("Delete containers?",
+                            isPresented: $presentConfirmDelete)
+        {
+            Button("Delete", role: .destructive) {
+                finishDelete()
+            }
+        } message: {
+            Text("Data will be permanently lost.")
+        }
         .akListContextMenu {
             Group {
                 Button("Start") {
@@ -130,7 +142,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isFullCompose)
 
                 Button("Delete") {
-                    finishDelete()
+                    presentConfirmDelete = true
                 }.disabled(actionInProgress != nil || !composeGroup.isFullCompose)
 
                 Button("Kill") {
