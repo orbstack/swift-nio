@@ -18,6 +18,7 @@ struct VzSpec: Codable {
     var memory: UInt64
     var kernel: String
     var cmdline: String
+    var initrd: String?
     var console: ConsoleSpec?
     var mtu: Int
     var macAddressPrefix: String
@@ -98,7 +99,8 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     }
 
     func guestDidStop(_: VZVirtualMachine) {
-        NSLog("[VZF] Guest stopped")
+        // no need to log this - will emit a stopped event to state channel
+        //NSLog("[VZF] Guest stopped")
     }
 
     func virtualMachine(_: VZVirtualMachine, didStopWithError error: Error) {
@@ -199,6 +201,9 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
     let config = VZVirtualMachineConfiguration()
     let bl = VZLinuxBootLoader(kernelURL: URL(fileURLWithPath: spec.kernel))
     bl.commandLine = spec.cmdline
+    if let initrd = spec.initrd {
+        bl.initialRamdiskURL = URL(fileURLWithPath: initrd)
+    }
     config.bootLoader = bl
     config.cpuCount = max(min(spec.cpus, maxCpus), minCpus)
     config.memorySize = max(min(spec.memory, maxMemory), minMemory)
