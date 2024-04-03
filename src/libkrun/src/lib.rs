@@ -55,6 +55,7 @@ struct VzSpec {
     memory: usize,
     kernel: String,
     cmdline: String,
+    initrd: Option<String>,
     console: Option<ConsoleSpec>,
     mtu: u16,
     mac_address_prefix: String,
@@ -124,6 +125,11 @@ impl Machine {
             kernel_cmdline_epilog: Some("".to_string()),
         })
         .map_err(to_anyhow_error)?;
+
+        // initrd
+        if let Some(_) = &spec.initrd {
+            return Err(anyhow!("initrd is not supported"));
+        }
 
         // console
         if let Some(console) = &spec.console {
