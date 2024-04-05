@@ -30,11 +30,13 @@ import "C"
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"runtime"
 	"runtime/cgo"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/orbstack/macvirt/vmgr/vmm"
@@ -52,19 +54,33 @@ func errFromResult(result C.struct_GResultErr) error {
 	return errFromC(result.err)
 }
 
+// not possible to have more than one VM in the same process due to HVF limitations, so no point in supporting that
+var vmCreated atomic.Bool
+
+// ... which means state chan can be global
+var stateChan = make(chan vmm.MachineState, 1)
+
+//export rsvm_go_on_state_change
+func rsvm_go_on_state_change(state int) {
+	// no lock needed: channel never changes
+	ch := stateChan
+	go func() {
+		ch <- vmm.MachineState(state)
+	}()
+}
+
 type machine struct {
 	mu     sync.RWMutex
 	ptr    atomicUnsafePointer
 	handle cgo.Handle
 
 	retainFiles []*os.File
-
-	stateChan chan vmm.MachineState
 }
 
 func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machine, error) {
-	// TODO: allow disabling
-	spec.Balloon = true
+	if !vmCreated.CompareAndSwap(false, true) {
+		return nil, fmt.Errorf("only one VM can be created in a process")
+	}
 
 	// encode to json
 	specStr, err := json.Marshal(spec)
@@ -74,7 +90,6 @@ func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machi
 
 	// create Go object
 	vm := &machine{
-		stateChan:   make(chan vmm.MachineState, 1),
 		retainFiles: retainFiles,
 	}
 	handle := cgo.NewHandle(vm)
@@ -152,7 +167,7 @@ func (m *machine) ConnectVsock(port uint32) (net.Conn, error) {
 }
 
 func (m *machine) StateChan() <-chan vmm.MachineState {
-	return m.stateChan
+	return stateChan
 }
 
 func (m *machine) Close() error {
