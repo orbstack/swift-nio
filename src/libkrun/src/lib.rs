@@ -290,6 +290,12 @@ fn return_owned_cstr(s: &str) -> *const c_char {
     unsafe { strdup(s.as_ptr()) }
 }
 
+const MACHINE_STATE_STOPPED: u32 = 0;
+
+extern "C" {
+    fn rsvm_go_on_state_change(state: u32);
+}
+
 #[no_mangle]
 pub extern "C" fn rsvm_new_machine(
     go_handle: *mut c_void,
