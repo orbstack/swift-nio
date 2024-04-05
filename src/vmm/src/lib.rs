@@ -40,6 +40,7 @@ use macos::vstate;
 use crate::macos::Parker;
 use std::fmt::{Display, Formatter};
 use std::io;
+use std::os::fd::RawFd;
 use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 #[cfg(target_os = "linux")]
@@ -207,6 +208,10 @@ pub struct Vmm {
 }
 
 impl Vmm {
+    pub fn get_exit_evt(&self) -> RawFd {
+        self.exit_evt.as_raw_fd()
+    }
+
     /// Gets the the specified bus device.
     pub fn get_bus_device(
         &self,
@@ -333,13 +338,11 @@ impl Vmm {
             .map_err(Error::I8042Error)
     }
 
-    /// Waits for all vCPUs to exit and terminates the Firecracker process.
-    pub fn stop(&mut self, exit_code: i32) {
+    /// Waits for all vCPUs to exit.
+    pub fn wait_for_vcpus_to_exit(&mut self, exit_code: i32) {
         info!("Vmm is stopping.");
 
-        // if let Err(e) = term_set_canonical_mode() {
-        //     log::error!("Failed to restore terminal to canonical mode: {e}")
-        // }
+        // TODO: Expose `exit_code`
 
         for observer in &self.exit_observers {
             observer
@@ -347,13 +350,6 @@ impl Vmm {
                 .expect("Poisoned mutex for exit observer")
                 .on_vmm_exit();
         }
-
-        // Exit from Firecracker using the provided exit code. Safe because we're terminating
-        // the process anyway.
-        // FIXME: Riley - add this back
-        // unsafe {
-        //     libc::_exit(exit_code);
-        // }
     }
 
     #[cfg(target_os = "linux")]
@@ -414,7 +410,8 @@ impl Subscriber for Vmm {
                     _ => None,
                 })
                 .unwrap_or(FC_EXIT_CODE_OK);
-            self.stop(i32::from(exit_code));
+
+            self.wait_for_vcpus_to_exit(i32::from(exit_code));
         } else {
             error!("Spurious EventManager event for handler: Vmm");
         }

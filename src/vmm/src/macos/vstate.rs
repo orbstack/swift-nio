@@ -684,6 +684,8 @@ impl Vcpu {
     fn wait_for_resume(&mut self) {}
 
     fn exit(&mut self, exit_code: u8) {
+        log::info!("VCPU exiting with code {exit_code:?}");
+
         self.response_sender
             .send(VcpuResponse::Exited(exit_code))
             .expect("failed to send Exited status");

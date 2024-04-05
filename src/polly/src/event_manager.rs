@@ -97,7 +97,7 @@ impl EventManager {
         self.subscribers
             .get(&fd)
             .ok_or(Error::NotFound(fd))
-            .map(|subscriber| subscriber.clone())
+            .cloned()
     }
 
     /// Register a new subscriber. All events that the subscriber is interested are registered.
@@ -209,6 +209,10 @@ impl EventManager {
         self.dispatch_events(event_count);
 
         Ok(event_count)
+    }
+
+    pub fn last_ready_events(&self) -> &[EpollEvent] {
+        &self.ready_events
     }
 
     fn dispatch_events(&mut self, event_count: usize) {

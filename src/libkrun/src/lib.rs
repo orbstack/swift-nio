@@ -248,6 +248,7 @@ impl Machine {
             .ok_or_else(|| anyhow!("already started"))?;
         let vmm = vmm::builder::build_microvm(vmr, &mut event_manager, None, sender)
             .map_err(to_anyhow_error)?;
+        let exit_evt = vmm.lock().unwrap().get_exit_evt();
 
         let mapper_vmm = vmm.clone();
 
@@ -270,6 +271,16 @@ impl Machine {
 
         std::thread::spawn(move || loop {
             event_manager.run().unwrap();
+
+            if event_manager
+                .last_ready_events()
+                .iter()
+                .any(|ev| ev.fd() == exit_evt)
+            {
+                log::info!("VM successfully torn-down.");
+                unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
+                break;
+            }
         });
 
         // must be retained until copied into guest memory by build_microvm
@@ -290,10 +301,13 @@ fn return_owned_cstr(s: &str) -> *const c_char {
     unsafe { strdup(s.as_ptr()) }
 }
 
-const MACHINE_STATE_STOPPED: u32 = 0;
+// TODO: Add cfg for this.
+fn init_logger_once() {
+    use std::sync::Once;
 
-extern "C" {
-    fn rsvm_go_on_state_change(state: u32);
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| env_logger::init());
 }
 
 #[no_mangle]
@@ -301,7 +315,7 @@ pub extern "C" fn rsvm_new_machine(
     go_handle: *mut c_void,
     spec_json: *const c_char,
 ) -> GResultCreate {
-    env_logger::init();
+    init_logger_once();
 
     fn inner(_: *mut c_void, spec_json: *const c_char) -> anyhow::Result<*mut c_void> {
         let spec = unsafe { CStr::from_ptr(spec_json) };
@@ -322,28 +336,6 @@ pub extern "C" fn rsvm_new_machine(
         },
         Err(e) => GResultCreate {
             ptr: std::ptr::null_mut(),
-            err: return_owned_cstr(&e.to_string()),
-        },
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn rsvm_machine_stop(ptr: *mut c_void) -> GResultErr {
-    fn inner(ptr: *mut c_void) -> anyhow::Result<()> {
-        assert_eq!(ptr as usize, VM_PTR, "invalid pointer");
-
-        let mut option = GLOBAL_VM.lock().unwrap();
-        let machine = option.as_mut().unwrap();
-        machine.stop()?;
-
-        Ok(())
-    }
-
-    match inner(ptr) {
-        Ok(()) => GResultErr {
-            err: std::ptr::null(),
-        },
-        Err(e) => GResultErr {
             err: return_owned_cstr(&e.to_string()),
         },
     }
@@ -377,7 +369,41 @@ pub extern "C" fn rsvm_machine_start(ptr: *mut c_void) -> GResultErr {
         Err(e) => GResultErr {
             err: return_owned_cstr(&e.to_string()),
         },
+        Ok(()) => GResultErr {
+            err: std::ptr::null(),
+        },
+        Err(e) => GResultErr {
+            err: return_owned_cstr(&e.to_string()),
+        },
     }
+}
+
+#[no_mangle]
+pub extern "C" fn rsvm_machine_stop(ptr: *mut c_void) -> GResultErr {
+    fn inner(ptr: *mut c_void) -> anyhow::Result<()> {
+        assert_eq!(ptr as usize, VM_PTR, "invalid pointer");
+
+        let mut option = GLOBAL_VM.lock().unwrap();
+        let machine = option.as_mut().unwrap();
+        machine.stop()?;
+
+        Ok(())
+    }
+
+    match inner(ptr) {
+        Ok(()) => GResultErr {
+            err: std::ptr::null(),
+        },
+        Err(e) => GResultErr {
+            err: return_owned_cstr(&e.to_string()),
+        },
+    }
+}
+
+const MACHINE_STATE_STOPPED: u32 = 0;
+
+extern "C" {
+    fn rsvm_go_on_state_change(state: u32);
 }
 
 fn to_anyhow_error<E: fmt::Display>(err: E) -> anyhow::Error {
