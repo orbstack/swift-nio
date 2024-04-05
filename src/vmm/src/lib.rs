@@ -54,6 +54,8 @@ use crate::terminal::term_set_canonical_mode;
 use crate::vstate::VcpuEvent;
 use crate::vstate::{Vcpu, VcpuHandle, VcpuResponse, Vm};
 
+use hvf::Parkable;
+
 use arch::ArchMemoryInfo;
 use arch::DeviceType;
 use arch::InitrdConfig;
@@ -207,9 +209,28 @@ pub struct Vmm {
     pio_device_manager: PortIODeviceManager,
 }
 
+#[derive(Clone)]
+pub struct VmmShutdownHandle(Arc<Parker>);
+
+impl VmmShutdownHandle {
+    pub fn request_shutdown(&self) {
+        self.0.park();
+
+        // N.B. we have to do this in the parked section since, otherwise, a shutdown vcpu will never
+        // reach the parking section.
+        self.0.flag_for_shutdown_while_parked();
+
+        self.0.unpark();
+    }
+}
+
 impl Vmm {
-    pub fn get_exit_evt(&self) -> RawFd {
+    pub fn exit_evt(&self) -> RawFd {
         self.exit_evt.as_raw_fd()
+    }
+
+    pub fn shutdown_handle(&self) -> VmmShutdownHandle {
+        VmmShutdownHandle(self.parker.clone())
     }
 
     /// Gets the the specified bus device.

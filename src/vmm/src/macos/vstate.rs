@@ -10,7 +10,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Barrier, Mutex, RwLock};
 use std::thread::{self, Thread};
 use std::time::Duration;
 
@@ -116,6 +116,7 @@ pub struct Parker {
     // we use this both when parking and when unparking
     barrier: Barrier,
     regions: Mutex<Vec<MapRegion>>,
+    shutdown_requested: AtomicBool,
 }
 
 pub struct MapRegion {
@@ -133,6 +134,7 @@ impl Parker {
             pending_park: AtomicBool::new(false),
             barrier: Barrier::new(usize::from(vcpu_count) + 1),
             regions: Mutex::new(Vec::new()),
+            shutdown_requested: AtomicBool::new(false),
         }
     }
 
@@ -219,6 +221,14 @@ impl Parkable for Parker {
     fn register_vcpu(&self, vcpuid: u64, wfe_thread: Thread) {
         self.vcpu_ids.lock().unwrap().push(vcpuid);
         self.vcpu_threads.lock().unwrap().push(wfe_thread);
+    }
+
+    fn should_shutdown(&self) -> bool {
+        self.shutdown_requested.load(Ordering::SeqCst)
+    }
+
+    fn flag_for_shutdown_while_parked(&self) {
+        self.shutdown_requested.store(true, Ordering::SeqCst);
     }
 }
 

@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use crossbeam_channel::unbounded;
 use devices::virtio::{net::device::VirtioNetBackend, CacheType};
 use hvf::MemoryMapping;
@@ -22,6 +22,7 @@ use vmm::{
         kernel_bundle::KernelBundle, machine_config::VmConfig, net::NetworkInterfaceConfig,
         vsock::VsockDeviceConfig,
     },
+    Vmm, VmmShutdownHandle,
 };
 
 #[repr(C)]
@@ -85,6 +86,7 @@ fn parse_mac_addr(s: &str) -> anyhow::Result<[u8; 6]> {
 
 struct Machine {
     vmr: Option<VmResources>,
+    vmm_shutdown: Option<VmmShutdownHandle>,
     // must be kept in memory until start
     kernel_bytes: Option<Vec<u8>>,
 }
@@ -234,11 +236,14 @@ impl Machine {
 
         Ok(Machine {
             vmr: Some(vmr),
+            vmm_shutdown: None,
             kernel_bytes: Some(kernel_bytes),
         })
     }
 
     fn start(&mut self) -> anyhow::Result<()> {
+        anyhow::ensure!(self.vmm_shutdown.is_none(), "vmm already started");
+
         let mut event_manager = EventManager::new().map_err(to_anyhow_error_dbg)?;
 
         let (sender, receiver) = unbounded();
@@ -248,7 +253,7 @@ impl Machine {
             .ok_or_else(|| anyhow!("already started"))?;
         let vmm = vmm::builder::build_microvm(vmr, &mut event_manager, None, sender)
             .map_err(to_anyhow_error)?;
-        let exit_evt = vmm.lock().unwrap().get_exit_evt();
+        let exit_evt = vmm.lock().unwrap().exit_evt();
 
         let mapper_vmm = vmm.clone();
 
@@ -283,14 +288,23 @@ impl Machine {
             }
         });
 
+        self.vmm_shutdown = Some(vmm.lock().unwrap().shutdown_handle());
+
         // must be retained until copied into guest memory by build_microvm
         self.kernel_bytes.take().unwrap();
         self.vmr.take().unwrap();
         Ok(())
     }
 
-    fn stop(&self) -> anyhow::Result<()> {
-        unimplemented!()
+    fn stop(&mut self) -> anyhow::Result<()> {
+        self.vmm_shutdown
+            .take()
+            .context("no vmm set")?
+            .request_shutdown();
+
+        log::info!("Requested hard stop on VM");
+
+        Ok(())
     }
 }
 

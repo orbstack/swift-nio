@@ -187,6 +187,8 @@ pub trait Parkable: Send + Sync {
     fn unpark(&self) -> Result<(), Error>;
     fn before_vcpu_run(&self, vcpuid: u64) -> Result<(), Error>;
     fn register_vcpu(&self, vcpuid: u64, wfe_thread: Thread);
+    fn should_shutdown(&self) -> bool;
+    fn flag_for_shutdown_while_parked(&self);
 }
 
 #[derive(Clone, Debug)]
@@ -459,6 +461,9 @@ impl<'a> HvfVcpu<'a> {
 
     pub fn run(&mut self, pending_irq: bool) -> Result<VcpuExit, Error> {
         self.parker.before_vcpu_run(self.vcpuid).unwrap();
+        if self.parker.should_shutdown() {
+            return Ok(VcpuExit::Shutdown);
+        }
 
         if let Some(mmio_read) = self.pending_mmio_read.take() {
             if mmio_read.srt < 31 {
