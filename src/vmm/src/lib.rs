@@ -214,7 +214,15 @@ pub struct VmmShutdownHandle(Arc<Parker>);
 
 impl VmmShutdownHandle {
     pub fn request_shutdown(&self) {
-        self.0.park();
+        if self.0.park().is_err() {
+            log::info!(
+                "`VmmShutdownHandle::request_shutdown` ignored because a vcpu already left the run \
+                 loop; the vcpu should exit soon enough, anyways"
+            );
+            return;
+        };
+
+        log::info!("Requesting hard stop on VM");
 
         // N.B. we have to do this in the parked section since, otherwise, a shutdown vcpu will never
         // reach the parking section.

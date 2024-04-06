@@ -183,12 +183,19 @@ pub fn vcpu_set_vtimer_mask(vcpuid: u64, masked: bool) -> Result<(), Error> {
 }
 
 pub trait Parkable: Send + Sync {
-    fn park(&self) -> Result<(), Error>;
-    fn unpark(&self) -> Result<(), Error>;
-    fn before_vcpu_run(&self, vcpuid: u64) -> Result<(), Error>;
+    fn park(&self) -> Result<(), ParkError>;
+    fn unpark(&self);
+    fn before_vcpu_run(&self, vcpuid: u64);
     fn register_vcpu(&self, vcpuid: u64, wfe_thread: Thread);
+    fn mark_can_no_longer_park(&self);
+
     fn should_shutdown(&self) -> bool;
     fn flag_for_shutdown_while_parked(&self);
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum ParkError {
+    CanNoLongerPark,
 }
 
 #[derive(Clone, Debug)]
@@ -279,7 +286,6 @@ pub struct HvfVcpu<'a> {
     mmio_buf: [u8; 8],
     pending_mmio_read: Option<MmioRead>,
     pending_advance_pc: bool,
-    pending_park: bool,
 }
 
 extern "C" {
@@ -327,7 +333,6 @@ impl<'a> HvfVcpu<'a> {
             mmio_buf: [0; 8],
             pending_mmio_read: None,
             pending_advance_pc: false,
-            pending_park: false,
         })
     }
 
@@ -460,7 +465,8 @@ impl<'a> HvfVcpu<'a> {
     }
 
     pub fn run(&mut self, pending_irq: bool) -> Result<VcpuExit, Error> {
-        self.parker.before_vcpu_run(self.vcpuid).unwrap();
+        self.parker.before_vcpu_run(self.vcpuid);
+
         if self.parker.should_shutdown() {
             return Ok(VcpuExit::Shutdown);
         }

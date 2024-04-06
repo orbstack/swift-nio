@@ -139,6 +139,8 @@ impl Balloon {
         let mut have_used = false;
 
         while let Some(head) = self.queues[FRQ_INDEX].pop(mem) {
+            have_used = true;
+
             // the idea:
             // to work around macos bug,
             // force vcpus to exit and park them
@@ -146,7 +148,9 @@ impl Balloon {
             // madvise
             // remap
             // and unpark
-            self.parker.as_ref().unwrap().park().unwrap();
+            if self.parker.as_ref().unwrap().park().is_err() {
+                break;
+            }
 
             let index = head.index;
             for desc in head.into_iter() {
@@ -165,8 +169,7 @@ impl Balloon {
                 };
             }
 
-            self.parker.as_ref().unwrap().unpark().unwrap();
-            have_used = true;
+            self.parker.as_ref().unwrap().unpark();
             if let Err(e) = self.queues[FRQ_INDEX].add_used(mem, index, 0) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }

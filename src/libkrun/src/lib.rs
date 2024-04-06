@@ -302,8 +302,6 @@ impl Machine {
             .context("no vmm set")?
             .request_shutdown();
 
-        log::info!("Requested hard stop on VM");
-
         Ok(())
     }
 }

@@ -10,19 +10,20 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Barrier, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread::{self, Thread};
 use std::time::Duration;
 
 use super::super::TimestampUs;
 use super::super::{FC_EXIT_CODE_GENERIC_ERROR, FC_EXIT_CODE_OK};
+use super::barrier::BreakableBarrier;
 use crate::vmm_config::machine_config::CpuFeaturesTemplate;
 
 use arch;
 use arch::aarch64::gic::GICDevice;
 use crossbeam_channel::{unbounded, Receiver, RecvTimeoutError, Sender};
 use devices::legacy::Gic;
-use hvf::{HvfVcpu, HvfVm, Parkable, VcpuExit};
+use hvf::{HvfVcpu, HvfVm, ParkError, Parkable, VcpuExit};
 use utils::eventfd::EventFd;
 use vm_memory::{
     Address, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap, GuestMemoryRegion,
@@ -114,7 +115,7 @@ pub struct Parker {
     vcpu_threads: Mutex<Vec<Thread>>,
     pending_park: AtomicBool,
     // we use this both when parking and when unparking
-    barrier: Barrier,
+    barrier: BreakableBarrier,
     regions: Mutex<Vec<MapRegion>>,
     shutdown_requested: AtomicBool,
 }
@@ -132,7 +133,7 @@ impl Parker {
             vcpu_ids: Mutex::new(Vec::with_capacity(vcpu_count as usize)),
             vcpu_threads: Mutex::new(Vec::with_capacity(vcpu_count as usize)),
             pending_park: AtomicBool::new(false),
-            barrier: Barrier::new(usize::from(vcpu_count) + 1),
+            barrier: BreakableBarrier::new(usize::from(vcpu_count) + 1),
             regions: Mutex::new(Vec::new()),
             shutdown_requested: AtomicBool::new(false),
         }
@@ -145,7 +146,7 @@ impl Parker {
 }
 
 impl Parkable for Parker {
-    fn park(&self) -> std::result::Result<(), hvf::Error> {
+    fn park(&self) -> std::result::Result<(), ParkError> {
         debug!("park begin");
         // 1. set bool
         self.pending_park.store(true, Ordering::SeqCst);
@@ -162,7 +163,9 @@ impl Parkable for Parker {
         }
 
         // 2. wait for all vcpus to reach this point
-        self.barrier.wait();
+        if self.barrier.wait().is_broken() {
+            return Err(ParkError::CanNoLongerPark);
+        }
 
         // then we can unmap the memory
         let regions = self.regions.lock().unwrap();
@@ -180,7 +183,7 @@ impl Parkable for Parker {
         Ok(())
     }
 
-    fn unpark(&self) -> std::result::Result<(), hvf::Error> {
+    fn unpark(&self) {
         debug!("unpark begin");
         // remap the memory
         let regions = self.regions.lock().unwrap();
@@ -199,13 +202,20 @@ impl Parkable for Parker {
 
         // 2. all vcpus are waiting on the barrier
         // so trigger it
-        self.barrier.wait();
+        if self.barrier.wait().is_broken() {
+            unreachable!(
+                "barrier broken while vcpus were parked, even though only vcpus can break it"
+            );
+        }
 
         debug!("unpark end");
-        Ok(())
     }
 
-    fn before_vcpu_run(&self, vcpuid: u64) -> std::result::Result<(), hvf::Error> {
+    fn mark_can_no_longer_park(&self) {
+        self.barrier.destroy();
+    }
+
+    fn before_vcpu_run(&self, vcpuid: u64) {
         // problem: cpus stuck in VcpuEmulation::WaitForEvent won't hit this
         // need an atomic vcpu count
         if self.pending_park.load(Ordering::SeqCst) {
@@ -214,8 +224,6 @@ impl Parkable for Parker {
             self.barrier.wait();
             debug!("before_vcpu_run end");
         }
-
-        Ok(())
     }
 
     fn register_vcpu(&self, vcpuid: u64, wfe_thread: Thread) {
@@ -679,6 +687,8 @@ impl Vcpu {
                 }
             }
         }
+
+        parker.mark_can_no_longer_park();
     }
 
     fn wait_for_event(&mut self, hvf_vcpuid: u64, timeout: Option<Duration>) {
