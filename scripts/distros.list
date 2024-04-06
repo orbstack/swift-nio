@@ -39,6 +39,9 @@ nixos:unstable
 openeuler:20.03
 openeuler:22.03
 openeuler:23.09
+opensuse:15.4
+opensuse:15.5
+opensuse:tumbleweed
 openwrt:21.02
 openwrt:22.03
 openwrt:23.05
