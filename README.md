@@ -53,7 +53,7 @@
     1. Install dependencies: `sudo pacman -Syu base-devel bc cpio clang lld llvm`
     1. `git clone git@github.com:orbstack/linux-macvirt-priv`
         - Must be on Linux file system due to case sensitivity (run `cd` — should be in /home, not /Users)
-    1. `git checkout mac-6.7.x-fuse-bpf` (current dev branch)
+    1. `git checkout mac-6.7.x` (current dev branch)
     1. `source setup.sh`
     1. `restore_config`
     1. `marm`
