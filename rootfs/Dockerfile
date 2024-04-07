@@ -178,7 +178,7 @@ COPY --from=rust-build /out/dctl /out/nix/orb/sys/bin/
 # Generate Rosetta deltas (need Debian for bsdiff)
 FROM debian as rosetta-deltas
 RUN apt-get update && \
-    apt-get install -y curl python3.10 bsdiff b3sum 7zip
+    apt-get install -y curl python3.11 bsdiff b3sum 7zip
 COPY rootfs/utils/rosetta /work/
 WORKDIR /work
 COPY --from=rust-build /out/b3enc /work/
@@ -201,7 +201,7 @@ RUN apk add --no-cache \
     # Docker engine deps
     ca-certificates \
     # important to pin version for security
-    runc=1.1.12-r0 \
+    runc=1.1.12-r2 \
     containerd \
     # support Docker build from git repos
     git \
