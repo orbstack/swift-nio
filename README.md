@@ -18,9 +18,10 @@
 1. Install and start a [release build of OrbStack](https://orbstack.dev/download)
 1. Add `GOPRIVATE=github.com/orbstack/*-macvirt` to global shell environment (`~/.profile`)
 1. Install GitHub CLI: `brew install gh`
-    1. Sign in: `gh login`
+    1. Sign in: `gh auth login`
     1. Configure Git for HTTPS: `gh auth setup-git`
 1. Install Xcode
+1. Install Xcode Command Line Tools: `xcode-select --install`
 1. Set up code signing
     1. Copy "Provisioning UDID" from System Information
         - Hold Option > Apple logo in menu bar > System Information
@@ -31,23 +32,24 @@
     1. Ping Danny to create a provisioning profile for you
         - Install the profile
         - **DO NOT CONTINUE** until this is done
+    1. Install Worldwide Developer Relations [G3 and G6 certificates](https://www.apple.com/certificateauthority/)
 1. Create `config.local.sh` in repo root with `SIGNING_CERT_DEV="..."`
     - Search for "Apple Development" in Keychain Access and copy the full certificate name
     - Example: `Apple Development: Danny Lin (A2LS84RQFY)`
-1. Add your SSH public key to `authorized_keys` in `rootfs/Dockerfile`
+1. Add your SSH public key to `rootfs/config/authorized_keys`
     - You can commit and push this as a PR
 1. Build Kubernetes
     1. **TODO**
     1. For now, [grab binary from Slack](https://orbstack.slack.com/archives/C058SB82RUP/p1707796843420459?thread_ts=1707796032.071449&cid=C058SB82RUP)
     1. Download and save to `rootfs/k8s/k3s-arm64`
-1. Build debug rootfs: `cd rootfs; make`
-1. Build debug CLI (orb command): `cd scon; make`
-1. Download binaries: `cd bins; make`
-1. Quit the release build of OrbStack
 1. Symlink your macvirt repo root to `~/code/projects/macvirt`
     - `mkdir -p ~/code/projects; ln -s $PWD/.. ~/code/projects/macvirt`
     - **TODO: remove the need for this in the future**
 1. Build debug vmgr: `cd vmgr; make`
+1. Build debug rootfs: `cd rootfs; make`
+1. Build debug CLI (orb command): `cd scon; make`
+1. Download binaries: `cd bins; make`
+1. Quit the release build of OrbStack
 1. Build kernel
     1. Create Arch machine in OrbStack (to get latest GCC)
     1. Install dependencies: `sudo pacman -Syu base-devel bc cpio clang lld llvm`
