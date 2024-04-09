@@ -11,6 +11,7 @@ run-raw: vmgr
 
 ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib-debug
+	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
 	@if [[ "$(RUST_BUILD_TYPE)" == "release" ]]; then \
 		cd ../vendor/libkrun; cargo build --release; \
 	else \
