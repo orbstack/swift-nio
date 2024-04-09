@@ -556,8 +556,9 @@ func runVmManager() {
 		errorx.Fatalf("failed to lock data: %w", err)
 	}
 
+	// rsvm if supported
 	var monitor vmm.Monitor = vzf.Monitor
-	if os.Getenv("VMM") == "rsvm" {
+	if runtime.GOARCH == "arm64" {
 		monitor = rsvm.Monitor
 	}
 
