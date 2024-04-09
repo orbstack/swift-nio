@@ -12,9 +12,9 @@ run-raw: vmgr
 ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib-debug
 	@if [[ "$(RUST_BUILD_TYPE)" == "release" ]]; then \
-		cd ~/code/vm/libkrun; cargo build --release; \
+		cd ../vendor/libkrun; cargo build --release; \
 	else \
-		cd ~/code/vm/libkrun; cargo build; \
+		cd ../vendor/libkrun; cargo build; \
 	fi
 	@./build.sh
 
