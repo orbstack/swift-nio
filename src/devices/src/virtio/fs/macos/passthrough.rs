@@ -28,13 +28,9 @@ use super::super::filesystem::{
 };
 use super::super::fuse;
 
-const INIT_CSTR: &[u8] = b"init.krun\0";
 const XATTR_KEY: &[u8] = b"user.containers.override_stat\0";
 
 const UID_MAX: u32 = u32::MAX - 1;
-
-#[cfg(not(feature = "efi"))]
-static INIT_BINARY: &[u8] = include_bytes!("../../../../../../init/init");
 
 type Inode = u64;
 type Handle = u64;
@@ -405,7 +401,6 @@ impl Default for Config {
 pub struct PassthroughFs {
     root_inode: u64,
     root_device: i32,
-    init_inode: u64,
 
     handles: RwLock<BTreeMap<Handle, Arc<HandleData>>>,
     next_handle: AtomicU64,
@@ -440,7 +435,6 @@ impl PassthroughFs {
         Ok(PassthroughFs {
             root_inode: st.st_ino,
             root_device: st.st_dev,
-            init_inode: fuse::ROOT_ID + 1,
 
             handles: RwLock::new(BTreeMap::new()),
             next_handle: AtomicU64::new(1),
@@ -818,28 +812,9 @@ impl FileSystem for PassthroughFs {
 
     fn lookup(&self, _ctx: Context, parent: Inode, name: &CStr) -> io::Result<Entry> {
         debug!("lookup: {:?}", name);
-        let _init_name = unsafe { CStr::from_bytes_with_nul_unchecked(INIT_CSTR) };
 
         #[cfg(not(feature = "efi"))]
-        if self.init_inode != 0 && name == _init_name {
-            let mut st: bindings::stat64 = unsafe { mem::zeroed() };
-            st.st_size = INIT_BINARY.len() as i64;
-            st.st_ino = self.init_inode;
-            st.st_mode = 0o100_755;
-            // TODO: remove when we implement perms
-            st.st_uid = _ctx.uid;
-            st.st_gid = _ctx.gid;
-
-            Ok(Entry {
-                inode: self.init_inode,
-                generation: 0,
-                attr: st,
-                attr_timeout: self.cfg.attr_timeout,
-                entry_timeout: self.cfg.entry_timeout,
-            })
-        } else {
-            self.do_lookup(parent, name, &_ctx)
-        }
+        return self.do_lookup(parent, name, &_ctx);
         #[cfg(feature = "efi")]
         self.do_lookup(parent, name)
     }
@@ -962,11 +937,7 @@ impl FileSystem for PassthroughFs {
         inode: Inode,
         flags: u32,
     ) -> io::Result<(Option<Handle>, OpenOptions)> {
-        if inode == self.init_inode {
-            Ok((Some(self.init_handle), OpenOptions::empty()))
-        } else {
-            self.do_open(inode, flags)
-        }
+        self.do_open(inode, flags)
     }
 
     fn release(
@@ -1072,10 +1043,6 @@ impl FileSystem for PassthroughFs {
         _flags: u32,
     ) -> io::Result<usize> {
         debug!("read: {:?}", inode);
-        #[cfg(not(feature = "efi"))]
-        if inode == self.init_inode {
-            return w.write(&INIT_BINARY[offset as usize..(offset + (size as u64)) as usize]);
-        }
 
         let data = self
             .handles
@@ -1595,10 +1562,6 @@ impl FileSystem for PassthroughFs {
 
         if !self.cfg.xattr {
             return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
-        }
-
-        if inode == self.init_inode {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::ENODATA)));
         }
 
         if name.to_bytes() == XATTR_KEY {
