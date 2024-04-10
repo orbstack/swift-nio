@@ -41,6 +41,7 @@ type VmConfig struct {
 	NetworkHttps      bool   `json:"network.https"`
 	MountHideShared   bool   `json:"mount_hide_shared"`
 	DataDir           string `json:"data_dir,omitempty"`
+	DataAllowBackup   bool   `json:"data_allow_backup"`
 	DockerSetContext  bool   `json:"docker.set_context"`
 	DockerNodeName    string `json:"docker.node_name"`
 	SetupUseAdmin     bool   `json:"setup.use_admin"`
@@ -239,6 +240,7 @@ func Defaults() *VmConfig {
 		NetworkHttps:      true,
 		MountHideShared:   false,
 		DataDir:           "",
+		DataAllowBackup:   false,
 		DockerSetContext:  true,
 		DockerNodeName:    "orbstack",
 		SetupUseAdmin:     true,

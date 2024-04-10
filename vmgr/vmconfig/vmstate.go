@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	CurrentVersion = 2
+	CurrentVersion = 3
 )
 
 var (

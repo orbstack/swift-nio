@@ -254,6 +254,23 @@ func migrateStateV1ToV2() error {
 	return nil
 }
 
+func migrateStateV2ToV3() error {
+	logrus.WithFields(logrus.Fields{
+		"from": "2",
+		"to":   "3",
+	}).Info("migrating state")
+
+	// set DataAllowBackup to true - old default
+	err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+		c.DataAllowBackup = true
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func migrateState() error {
 	old := vmconfig.GetState()
 	logrus.Debug("old state: ", old)
@@ -272,6 +289,15 @@ func migrateState() error {
 			}
 
 			ver = 2
+		}
+
+		if ver == 2 {
+			err := migrateStateV2ToV3()
+			if err != nil {
+				return err
+			}
+
+			ver = 3
 		}
 
 		ver = vmconfig.CurrentVersion
@@ -561,6 +587,24 @@ func runVmManager() {
 	if runtime.GOARCH == "arm64" {
 		monitor = rsvm.Monitor
 	}
+
+	// set time machine backup xattr
+	err = util.SetBackupExclude(conf.DataImage(), !vmconfig.Get().DataAllowBackup)
+	check(err)
+	// always exclude swap
+	err = util.SetBackupExclude(conf.SwapImage(), false)
+	check(err)
+	// update xattr on config change
+	go func() {
+		for diff := range vmconfig.SubscribeDiff() {
+			if diff.New.DataAllowBackup != diff.Old.DataAllowBackup {
+				err = util.SetBackupExclude(conf.DataImage(), !diff.New.DataAllowBackup)
+				if err != nil {
+					logrus.WithError(err).Error("failed to set backup exclude on data image")
+				}
+			}
+		}
+	}()
 
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
