@@ -24,8 +24,8 @@ func FixDockerCredsStore() error {
 			return err
 		}
 
-		// check if it's set to desktop
-		if config["credsStore"] == "desktop" {
+		// check if it's set to desktop, or is not set
+		if config["credsStore"] == "" || config["credsStore"] == "desktop" {
 			// regardless of whether docker-credential-desktop exists, change it to osxkeychain.
 			// because "desktop" doesn't work without dialing desktop socket
 			logrus.Debug("docker-credential-desktop doesn't exist, changing credsStore to osxkeychain")
