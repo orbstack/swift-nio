@@ -4,7 +4,9 @@ package util
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/orbstack/macvirt/scon/util"
 	"golang.org/x/sys/unix"
 )
 
@@ -29,4 +31,13 @@ func SetBackupExclude(path string, exclude bool) error {
 	}
 
 	return nil
+}
+
+func CheckTimeMachineEnabled() bool {
+	output, err := util.RunWithOutput("tmutil", "destinationinfo")
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(output, "ID")
 }

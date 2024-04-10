@@ -260,9 +260,10 @@ func migrateStateV2ToV3() error {
 		"to":   "3",
 	}).Info("migrating state")
 
-	// set DataAllowBackup to true - old default
+	// old default: set DataAllowBackup to true - IF time machine is enabled
+	// otherwise, set to false
 	err := vmconfig.Update(func(c *vmconfig.VmConfig) {
-		c.DataAllowBackup = true
+		c.DataAllowBackup = util.CheckTimeMachineEnabled()
 	})
 	if err != nil {
 		return err
