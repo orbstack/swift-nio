@@ -21,6 +21,7 @@ struct StorageSettingsView: View {
 
     @State private var mountHideShared = false
     @State private var dataDir: String?
+    @State private var dataAllowBackup = false
 
     @State private var presentConfirmResetDockerData = false
     @State private var presentConfirmResetK8sData = false
@@ -51,6 +52,10 @@ struct StorageSettingsView: View {
 
                 Toggle("Hide OrbStack volume (shared Docker & Linux files)",
                        isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared))
+
+                Spacer()
+                    .frame(height: 32)
+
                 VStack {
                     Picker(selection: selBinding, label: Text("Data location")) {
                         Text("Default").tag(DirItem.def)
@@ -64,6 +69,8 @@ struct StorageSettingsView: View {
                     }
                 }
                 .frame(maxWidth: 256)
+                Toggle("Include data in Time Machine backups",
+                       isOn: vmModel.bindingForConfig(\.dataAllowBackup, state: $dataAllowBackup))
 
                 Spacer()
                     .frame(height: 32)
@@ -89,7 +96,7 @@ struct StorageSettingsView: View {
                     }
                 }) {
                     Text("Apply")
-                    // TODO: dockerSetContext doesn't require restart
+                    // TODO: dataAllowBackup doesn't require restart
                 }
                 .disabled(vmModel.appliedConfig == vmModel.config)
                 .keyboardShortcut("s")
@@ -169,5 +176,6 @@ struct StorageSettingsView: View {
     private func updateFrom(_ config: VmConfig) {
         mountHideShared = config.mountHideShared
         dataDir = config.dataDir
+        dataAllowBackup = config.dataAllowBackup
     }
 }
