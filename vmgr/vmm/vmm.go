@@ -21,8 +21,9 @@ const (
 )
 
 type ConsoleSpec struct {
-	ReadFd  int `json:"readFd"`
-	WriteFd int `json:"writeFd"`
+	Earlycon bool `json:"earlycon"`
+	ReadFd   int  `json:"readFd"`
+	WriteFd  int  `json:"writeFd"`
 }
 
 type VzSpec struct {
@@ -30,6 +31,7 @@ type VzSpec struct {
 	Memory           uint64       `json:"memory"`
 	Kernel           string       `json:"kernel"`
 	Cmdline          string       `json:"cmdline"`
+	Initrd           string       `json:"initrd,omitempty"`
 	Console          *ConsoleSpec `json:"console"`
 	Mtu              int          `json:"mtu"`
 	MacAddressPrefix string       `json:"macAddressPrefix"`
@@ -44,6 +46,7 @@ type VzSpec struct {
 	Virtiofs         bool         `json:"virtiofs"`
 	Rosetta          bool         `json:"rosetta"`
 	Sound            bool         `json:"sound"`
+	Rconfig          []byte       `json:"rconfig,omitempty"`
 }
 
 type Monitor interface {

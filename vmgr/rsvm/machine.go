@@ -24,6 +24,8 @@ struct GResultCreate rsvm_new_machine(uintptr_t handle, const char* config_json_
 struct GResultErr rsvm_machine_start(void* ptr);
 struct GResultErr rsvm_machine_stop(void* ptr);
 void rsvm_machine_destroy(void* ptr);
+
+void rsvm_set_rinit_data(const char* ptr, size_t len);
 */
 import "C"
 
@@ -190,4 +192,8 @@ func (m *machine) Close() error {
 	m.retainFiles = nil
 
 	return nil
+}
+
+func SetRinitData(data []byte) {
+	C.rsvm_set_rinit_data(C.CString(string(data)), C.size_t(len(data)))
 }

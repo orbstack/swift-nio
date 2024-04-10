@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strconv"
@@ -9,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/osver"
+	"github.com/orbstack/macvirt/vmgr/rsvm"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
@@ -48,6 +51,89 @@ type VmParams struct {
 
 	StopCh        chan<- types.StopRequest
 	HealthCheckCh chan<- struct{}
+}
+
+type RinitData struct {
+	Data []byte
+}
+
+func RunRinitVm() (*RinitData, error) {
+	// read fd = /dev/null
+	conRead, err := os.Open("/dev/null")
+	if err != nil {
+		return nil, fmt.Errorf("open read: %w", err)
+	}
+	defer conRead.Close()
+
+	// write fd = stdout
+	pipeRead, conWrite, err := os.Pipe()
+	if err != nil {
+		return nil, fmt.Errorf("pipe: %w", err)
+	}
+	defer pipeRead.Close()
+	defer conWrite.Close()
+
+	// bare minimum for VM to boot
+	spec := vmm.VzSpec{
+		Cpus:   1,
+		Memory: 32 * 1024 * 1024, // 32M
+		Kernel: conf.GetAssetFile("kernel.ri"),
+		// no quiet: kernel is built without printk
+		// arm64 only
+		Cmdline:    "console=hvc0 swiotlb=noforce",
+		Initrd:     conf.GetAssetFile("rpack"),
+		NetworkFds: []int{},
+		Rosetta:    true,
+		Console: &vmm.ConsoleSpec{
+			ReadFd:  int(conRead.Fd()),
+			WriteFd: int(conWrite.Fd()),
+		},
+	}
+
+	machine, err := vzf.Monitor.NewMachine(&spec, []*os.File{conRead, conWrite})
+	if err != nil {
+		return nil, fmt.Errorf("new machine: %w", err)
+	}
+	defer machine.Close()
+	defer machine.ForceStop()
+
+	// read from pipe
+	pipeDataChan := make(chan []byte, 1)
+	go func() {
+		data, err := io.ReadAll(pipeRead)
+		if err != nil {
+			logrus.WithError(err).Error("read from pipe failed")
+			pipeDataChan <- nil
+		} else {
+			pipeDataChan <- data
+		}
+	}()
+
+	err = machine.Start()
+	if err != nil {
+		return nil, fmt.Errorf("start machine: %w", err)
+	}
+
+	// wait for stop or error
+	stateChan := machine.StateChan()
+	for state := range stateChan {
+		logrus.WithField("state", state).Debug("rinit vm state")
+		if state == vmm.MachineStateError {
+			return nil, fmt.Errorf("rinit vm error")
+		} else if state == vmm.MachineStateStopped {
+			break
+		}
+	}
+
+	// close pipe
+	conWrite.Close()
+	// wait for result
+	data := <-pipeDataChan
+	if data == nil {
+		return nil, fmt.Errorf("read from pipe failed")
+	}
+
+	return &RinitData{Data: data}, nil
 }
 
 func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
@@ -187,6 +273,33 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 	// causes flaky console
 	vm, err := monitor.NewMachine(&spec, retainFiles)
 	check(err)
+
+	if c.Rosetta {
+		// if it's not VZF, we need to get rinit data from VZF
+		// takes ~90ms so do it async. not worth caching
+		if monitor != vzf.Monitor {
+			go func() {
+				logrus.Debug("running rinit")
+				rinitData, err := RunRinitVm()
+				if err != nil {
+					logrus.WithError(err).Error("failed to run rinit")
+
+					// set empty data (to prevent hang), then force shutdown
+					rsvm.SetRinitData([]byte{})
+					err = vm.ForceStop()
+					if err != nil {
+						logrus.WithError(err).Error("failed to force stop VM after rinit")
+					}
+
+					return
+				}
+
+				// report to rsvm
+				logrus.Debug("finishing rinit")
+				rsvm.SetRinitData(rinitData.Data)
+			}()
+		}
+	}
 
 	return vnetwork, vm
 }
