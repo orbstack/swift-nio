@@ -19,6 +19,8 @@ pub mod macos;
 pub use macos::fs_utils;
 #[cfg(target_os = "macos")]
 pub use macos::passthrough;
+#[cfg(target_os = "macos")]
+pub mod rosetta;
 
 use super::bindings;
 use super::descriptor_utils;

@@ -301,6 +301,7 @@ dependencies = [
  "log",
  "lru",
  "nix 0.24.3",
+ "once_cell",
  "polly",
  "rand",
  "rutabaga_gfx",

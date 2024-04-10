@@ -19,6 +19,7 @@ use std::time::Duration;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
+use crate::virtio::rosetta::get_rosetta_data;
 
 use super::super::super::linux_errno::{linux_error, LINUX_ERANGE};
 use super::super::bindings;
@@ -27,6 +28,9 @@ use super::super::filesystem::{
     OpenOptions, SetattrValid, ZeroCopyReader, ZeroCopyWriter,
 };
 use super::super::fuse;
+
+// _IOC(_IOC_READ, 0x61, 0x22, 0x45)
+const IOCTL_ROSETTA: u32 = 0x8045_6122;
 
 const XATTR_KEY: &[u8] = b"user.containers.override_stat\0";
 
@@ -377,6 +381,8 @@ pub struct Config {
     ///
     /// The default is `None`.
     pub proc_sfd_rawfd: Option<RawFd>,
+
+    pub allow_rosetta_ioctl: bool,
 }
 
 impl Default for Config {
@@ -389,6 +395,7 @@ impl Default for Config {
             root_dir: String::from("/"),
             xattr: true,
             proc_sfd_rawfd: None,
+            allow_rosetta_ioctl: false,
         }
     }
 }
@@ -404,7 +411,6 @@ pub struct PassthroughFs {
 
     handles: RwLock<BTreeMap<Handle, Arc<HandleData>>>,
     next_handle: AtomicU64,
-    init_handle: u64,
 
     // Whether writeback caching is enabled for this directory. This will only be true when
     // `cfg.writeback` is true and `init` was called with `FsOptions::WRITEBACK_CACHE`.
@@ -438,7 +444,6 @@ impl PassthroughFs {
 
             handles: RwLock::new(BTreeMap::new()),
             next_handle: AtomicU64::new(1),
-            init_handle: 0,
 
             writeback: AtomicBool::new(false),
             cfg,
@@ -1768,6 +1773,31 @@ impl FileSystem for PassthroughFs {
             Err(linux_error(io::Error::last_os_error()))
         } else {
             Ok(res as u64)
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn ioctl(
+        &self,
+        _ctx: Context,
+        _inode: Self::Inode,
+        _ohandle: Self::Handle,
+        _flags: u32,
+        cmd: u32,
+        _arg: u64,
+        _in_size: u32,
+        out_size: u32,
+    ) -> io::Result<Vec<u8>> {
+        if self.cfg.allow_rosetta_ioctl && cmd == IOCTL_ROSETTA {
+            let resp = get_rosetta_data();
+            if resp.len() >= out_size as usize {
+                debug!("returning rosetta data: {:?}", &resp[..out_size as usize]);
+                Ok(resp[..out_size as usize].to_vec())
+            } else {
+                Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)))
+            }
+        } else {
+            Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)))
         }
     }
 }

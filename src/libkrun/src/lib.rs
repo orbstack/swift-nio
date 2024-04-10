@@ -221,7 +221,6 @@ impl Machine {
 
         // rosetta
         if spec.rosetta {
-            // TODO: TSO, ioctl, etc.
             vmr.add_fs_device(FsDeviceConfig {
                 fs_id: "rosetta".to_string(),
                 shared_dir: "/Library/Apple/usr/libexec/oah/RosettaLinux".to_string(),
@@ -321,6 +320,13 @@ fn init_logger_once() {
     static INIT: Once = Once::new();
 
     INIT.call_once(|| env_logger::init());
+}
+
+#[no_mangle]
+pub extern "C" fn rsvm_set_rinit_data(ptr: *const c_void, size: usize) {
+    devices::virtio::fs::rosetta::set_rosetta_data(unsafe {
+        std::slice::from_raw_parts(ptr as *const u8, size)
+    });
 }
 
 #[no_mangle]

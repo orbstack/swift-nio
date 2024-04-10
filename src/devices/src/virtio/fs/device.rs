@@ -66,6 +66,7 @@ impl Fs {
 
         let avail_features = (1u64 << VIRTIO_F_VERSION_1) | (1u64 << VIRTIO_RING_F_EVENT_IDX);
 
+        let allow_rosetta_ioctl = fs_id == "rosetta";
         let tag = fs_id.into_bytes();
         let mut config = VirtioFsConfig::default();
         config.tag[..tag.len()].copy_from_slice(tag.as_slice());
@@ -73,6 +74,7 @@ impl Fs {
 
         let fs_cfg = passthrough::Config {
             root_dir: shared_dir,
+            allow_rosetta_ioctl,
             ..Default::default()
         };
 
