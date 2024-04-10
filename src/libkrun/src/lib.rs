@@ -255,24 +255,25 @@ impl Machine {
             .map_err(to_anyhow_error)?;
         let exit_evt = vmm.lock().unwrap().exit_evt();
 
-        let mapper_vmm = vmm.clone();
-
-        std::thread::spawn(move || loop {
-            match receiver.recv() {
-                Err(e) => {
-                    error!("Error in receiver: {:?}", e);
-                    break;
+        if vmr.gpu_virgl_flags.is_some() {
+            let mapper_vmm = vmm.clone();
+            std::thread::spawn(move || loop {
+                match receiver.recv() {
+                    Err(e) => {
+                        error!("Error in receiver: {:?}", e);
+                        break;
+                    }
+                    Ok(m) => match m {
+                        MemoryMapping::AddMapping(s, h, g, l) => {
+                            mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
+                        }
+                        MemoryMapping::RemoveMapping(s, g, l) => {
+                            mapper_vmm.lock().unwrap().remove_mapping(s, g, l)
+                        }
+                    },
                 }
-                Ok(m) => match m {
-                    MemoryMapping::AddMapping(s, h, g, l) => {
-                        mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
-                    }
-                    MemoryMapping::RemoveMapping(s, g, l) => {
-                        mapper_vmm.lock().unwrap().remove_mapping(s, g, l)
-                    }
-                },
-            }
-        });
+            });
+        }
 
         std::thread::spawn(move || loop {
             event_manager.run().unwrap();
