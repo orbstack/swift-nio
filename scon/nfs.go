@@ -38,8 +38,10 @@ type NfsMirrorManager struct {
 }
 
 type nfsMountEntry struct {
-	Fsid int
-	Rw   bool
+	Fsid      int
+	ClientUid int
+	ClientGid int
+	Rw        bool
 }
 
 func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
@@ -65,7 +67,7 @@ func (m *NfsMirrorManager) StartNfsdRpcServers() error {
 	return nil
 }
 
-func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFunc func(destPath string) error) error {
+func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, flags uintptr, data string, clientUid int, clientGid int, mountFunc func(destPath string) error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -102,7 +104,15 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 
 	// fsid is only needed for overlay and fuse (non-bind mounts)
 	entry := nfsMountEntry{
-		Rw: flags&unix.MS_RDONLY == 0,
+		Rw:        flags&unix.MS_RDONLY == 0,
+		ClientUid: clientUid,
+		ClientGid: clientGid,
+	}
+	if entry.ClientUid == -1 {
+		entry.ClientUid = m.hostUid
+	}
+	if entry.ClientGid == -1 {
+		entry.ClientGid = m.hostUid
 	}
 	if m.controlsExports {
 		m.nextFsid++
@@ -113,8 +123,8 @@ func (m *NfsMirrorManager) Mount(source string, subdest string, fstype string, f
 	return nil
 }
 
-func (m *NfsMirrorManager) MountBind(source string, subdest string) error {
-	return m.Mount(source, subdest, "", unix.MS_BIND, "", nil)
+func (m *NfsMirrorManager) MountBind(source string, subdest string, clientUid int, clientGid int) error {
+	return m.Mount(source, subdest, "", unix.MS_BIND, "", clientUid, clientGid, nil)
 }
 
 func (m *NfsMirrorManager) Unmount(subdest string) error {
@@ -198,7 +208,7 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 			return nil
 		}
 
-		err := m.nfsForAll.MountBind(c.rootfsDir, c.Name)
+		err := m.nfsForAll.MountBind(c.rootfsDir, c.Name, -1, -1)
 		if err != nil {
 			return err
 		}
@@ -296,7 +306,7 @@ func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string, fs
 	}
 
 	subDest := "docker/images/" + tag
-	err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"), nil)
+	err = m.Mount("img", subDest, "overlay", unix.MS_RDONLY, "redirect_dir=nofollow,nfs_export=on,lowerdir="+strings.Join(layerDirs, ":"), 0, 0, nil)
 	if err != nil {
 		return fmt.Errorf("mount overlay on %s: %w", subDest, err)
 	}
@@ -341,8 +351,8 @@ func (m *NfsMirrorManager) updateExportsLocked() error {
 	for path, entry := range m.dests {
 		exp := nfsExportEntry{
 			flags:   nfsExpBaseFlags,
-			anonUid: 0,
-			anonGid: 0,
+			anonUid: entry.ClientUid,
+			anonGid: entry.ClientGid,
 			fsid:    uint32(entry.Fsid),
 		}
 		if !entry.Rw {

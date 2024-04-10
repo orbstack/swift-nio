@@ -45,13 +45,13 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	defer func() {
 		if retErr != nil {
 			_ = c.manager.nfsForAll.Unmount(newName)
-			err2 := c.manager.nfsForAll.MountBind(c.rootfsDir, oldName)
+			err2 := c.manager.nfsForAll.MountBind(c.rootfsDir, oldName, -1, -1)
 			if err2 != nil {
 				logrus.WithError(err2).Error("failed to remount old name after error")
 			}
 		}
 	}()
-	err = c.manager.nfsForAll.MountBind(c.rootfsDir, newName)
+	err = c.manager.nfsForAll.MountBind(c.rootfsDir, newName, -1, -1)
 	if err != nil {
 		return "", err
 	}

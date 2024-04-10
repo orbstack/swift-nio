@@ -78,7 +78,7 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	}
 
 	// move mount
-	err = s.m.nfsContainers.Mount("", name, "", 0, "", func(destPath string) error {
+	err = s.m.nfsContainers.Mount("", name, "", 0, "", 0, 0, func(destPath string) error {
 		err := unix.MoveMount(fd, "", unix.AT_FDCWD, destPath, unix.MOVE_MOUNT_F_EMPTY_PATH)
 		if err != nil {
 			return fmt.Errorf("move mount %s: %w", destPath, err)
@@ -117,7 +117,7 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	}
 
 	// mount to export with new fsid
-	err = s.m.nfsRoot.Mount("", "docker/containers/"+name, "", 0, "", func(destPath string) error {
+	err = s.m.nfsRoot.Mount("", "docker/containers/"+name, "", 0, "", 0, 0, func(destPath string) error {
 		// TODO: shadow mount is NOT needed for /nfs/containers
 		return s.m.fpll.StartMount(nfsDirContainers+"/ro/"+name, destPath)
 	})
@@ -308,7 +308,7 @@ func mountVolume(nfs NfsMirror, vol *dockertypes.Volume, fs *securefs.FS) error 
 	}
 	defer unix.Close(fd)
 
-	err = nfs.MountBind("/proc/self/fd/"+strconv.Itoa(fd), "docker/volumes/"+vol.Name)
+	err = nfs.MountBind("/proc/self/fd/"+strconv.Itoa(fd), "docker/volumes/"+vol.Name, -1, -1)
 	if err != nil {
 		return fmt.Errorf("mount volume: %w", err)
 	}
