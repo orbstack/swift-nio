@@ -17,7 +17,6 @@ pub struct UserspaceGicV3 {
 
 struct WfeThread {
     thread: Thread,
-    was_parked: bool,
 }
 
 const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
@@ -92,13 +91,8 @@ impl UserspaceGicImpl for UserspaceGicV3 {
 
     fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread) {
         log::trace!("v3::register_vcpu({vcpuid}, {wfe_thread:?})");
-        self.wfe_threads.insert(
-            PeId(vcpuid),
-            WfeThread {
-                thread: wfe_thread,
-                was_parked: false,
-            },
-        );
+        self.wfe_threads
+            .insert(PeId(vcpuid), WfeThread { thread: wfe_thread });
     }
 
     fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
@@ -109,10 +103,6 @@ impl UserspaceGicImpl for UserspaceGicV3 {
             },
             vcpuid,
         );
-
-        if can_park {
-            self.wfe_threads.get_mut(&vcpuid).unwrap().was_parked = true;
-        }
 
         can_park
     }
@@ -133,11 +123,8 @@ struct HvfGicEventHandler<'a> {
 
 impl GicV3EventHandler for HvfGicEventHandler<'_> {
     fn kick_vcpu_for_irq(&mut self, pe: PeId) {
-        let waker = self.wakers.get_mut(&pe).unwrap();
-        if waker.was_parked {
-            waker.thread.unpark();
-            waker.was_parked = false;
-        }
+        let waker = self.wakers.get(&pe).unwrap();
+        waker.thread.unpark();
 
         hvf::vcpu_request_exit(pe.0).unwrap();
     }
