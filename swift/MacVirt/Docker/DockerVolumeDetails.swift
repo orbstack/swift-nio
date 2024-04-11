@@ -52,7 +52,7 @@ struct DockerVolumeDetails: View {
 
             let usedByContainers = vmModel.dockerContainers?
                 .lazy
-                .filter { $0.mounts.contains(where: { $0.type == .volume && $0.name == volume.name }) ?? false }
+                .filter { $0.mounts.contains(where: { $0.type == .volume && $0.name == volume.name }) }
                 .sorted { $0.userName < $1.userName }
             if let usedByContainers,
                !usedByContainers.isEmpty
