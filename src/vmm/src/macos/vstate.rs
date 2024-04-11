@@ -149,7 +149,7 @@ impl Parkable for Parker {
     fn park(&self) -> std::result::Result<(), ParkError> {
         debug!("park begin");
         // 1. set bool
-        self.pending_park.store(true, Ordering::SeqCst);
+        self.pending_park.store(true, Ordering::Relaxed);
 
         // force all vcpus to exit
         let mut vcpu_ids = self.vcpu_ids.lock().unwrap();
@@ -198,7 +198,7 @@ impl Parkable for Parker {
         }
 
         // 1. clear bool
-        self.pending_park.store(false, Ordering::SeqCst);
+        self.pending_park.store(false, Ordering::Relaxed);
 
         // 2. all vcpus are waiting on the barrier
         // so trigger it
@@ -218,7 +218,7 @@ impl Parkable for Parker {
     fn before_vcpu_run(&self, vcpuid: u64) {
         // problem: cpus stuck in VcpuEmulation::WaitForEvent won't hit this
         // need an atomic vcpu count
-        if self.pending_park.load(Ordering::SeqCst) {
+        if self.pending_park.load(Ordering::Relaxed) {
             debug!("before_vcpu_run begin @ {vcpuid}");
             self.barrier.wait();
             self.barrier.wait();
@@ -232,11 +232,11 @@ impl Parkable for Parker {
     }
 
     fn should_shutdown(&self) -> bool {
-        self.shutdown_requested.load(Ordering::SeqCst)
+        self.shutdown_requested.load(Ordering::Relaxed)
     }
 
     fn flag_for_shutdown_while_parked(&self) {
-        self.shutdown_requested.store(true, Ordering::SeqCst);
+        self.shutdown_requested.store(true, Ordering::Relaxed);
     }
 }
 
