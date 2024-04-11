@@ -69,7 +69,9 @@ impl NetWorker {
             VirtioNetBackend::Gvproxy(path) => {
                 Box::new(Gvproxy::new(path).unwrap()) as Box<dyn NetBackend + Send>
             }
-            VirtioNetBackend::Dgram(fd) => Box::new(Dgram::new(fd).unwrap()) as Box<dyn NetBackend + Send>,
+            VirtioNetBackend::Dgram(fd) => {
+                Box::new(Dgram::new(fd).unwrap()) as Box<dyn NetBackend + Send>
+            }
         };
 
         Self {

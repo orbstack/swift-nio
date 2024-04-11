@@ -13,8 +13,8 @@ pub const TX_INDEX: usize = 1;
 
 mod backend;
 pub mod device;
-mod gvproxy;
 mod dgram;
+mod gvproxy;
 mod passt;
 mod worker;
 

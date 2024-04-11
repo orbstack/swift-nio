@@ -70,8 +70,8 @@ impl NetBackend for Dgram {
     /// If this function returns WriteError::PartialWrite, you have to finish the write using
     /// try_finish_write.
     fn write_frame(&mut self, hdr_len: usize, buf: &mut [u8]) -> Result<(), WriteError> {
-        let ret = send(self.fd, &buf[hdr_len..], MsgFlags::empty())
-            .map_err(WriteError::Internal)?;
+        let ret =
+            send(self.fd, &buf[hdr_len..], MsgFlags::empty()).map_err(WriteError::Internal)?;
         debug!(
             "Written frame size={}, written={}",
             buf.len() - hdr_len,

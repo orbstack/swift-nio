@@ -197,6 +197,6 @@ impl FsWorker {
             //     break;
             // }
             break;
-        };
+        }
     }
 }
