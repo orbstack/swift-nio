@@ -167,6 +167,12 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			if resp.StatusCode != http.StatusSwitchingProtocols && resp.ContentLength == -1 && !slices.Contains(resp.TransferEncoding, "chunked") {
 				resp.Header.Set("Connection", "close")
 			}
+			// if client wants to close the conn (but server didn't request it), also set Connection=close
+			// "close" is the only valid value: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
+			// no value = implicit keep-alive
+			if req.Header.Get("Connection") == "close" {
+				resp.Header.Set("Connection", "close")
+			}
 
 			if resp.Trailer != nil {
 				return fmt.Errorf("trailer not supported")
@@ -230,6 +236,11 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 				if closeConn {
 					return errCloseConn
 				}
+			}
+
+			// if we said we're closing the conn (either by upstream or by client request), then do it
+			if resp.Header.Get("Connection") == "close" {
+				return errCloseConn
 			}
 
 			return nil
