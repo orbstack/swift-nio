@@ -19,7 +19,7 @@ struct MachineDetails: View {
                     SimpleKvTableRow("Status") {
                         Text(record.state.friendlyName)
                     }
-                    SimpleKvTableRow("Address") {
+                    SimpleKvTableRow("Domain") {
                         CopyableText("\(record.name).orb.local")
                         .lineLimit(nil)
                     }

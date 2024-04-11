@@ -37,7 +37,7 @@ struct K8SServiceDetails: View {
                     }
 
                     if let url = URL(string: address) {
-                        SimpleKvTableRow("Address") {
+                        SimpleKvTableRow("Domain") {
                             if isWebService {
                                 CopyableText(copyAs: service.preferredDomainAndPort) {
                                     CustomLink(addressVisible, url: url)

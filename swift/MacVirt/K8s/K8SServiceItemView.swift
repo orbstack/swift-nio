@@ -124,7 +124,7 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                         NSPasteboard.copy(service.wrapURL(host: service.preferredDomain) ??
                             service.preferredDomainAndPort)
                     }) {
-                        Label("Address", systemImage: "")
+                        Label("Domain", systemImage: "")
                     }.disabled(vmModel.config?.networkBridge == false)
 
                     let clusterIP = service.spec.clusterIP
