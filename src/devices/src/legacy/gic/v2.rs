@@ -360,4 +360,8 @@ impl UserspaceGicImpl for UserspaceGicV2 {
             }
         }
     }
+
+    fn kick_vcpu(&mut self, _vcpuid: u64) {
+        todo!();
+    }
 }

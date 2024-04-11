@@ -115,6 +115,12 @@ impl UserspaceGicImpl for UserspaceGicV3 {
             PeId(vcpuid),
         )
     }
+
+    fn kick_vcpu(&mut self, vcpuid: u64) {
+        // force exit not needed for non-IRQ kick
+        let waker = self.wfe_threads.get(&PeId(vcpuid)).unwrap();
+        waker.thread.unpark();
+    }
 }
 
 struct HvfGicEventHandler<'a> {
