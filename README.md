@@ -49,7 +49,6 @@
 1. Build debug rootfs: `cd rootfs; make`
 1. Build debug CLI (orb command): `cd scon; make`
 1. Download binaries: `cd bins; make`
-1. Quit the release build of OrbStack
 1. Build kernel
     1. Create Arch machine in OrbStack (to get latest GCC)
     1. Install dependencies: `sudo pacman -Syu base-devel bc cpio clang lld llvm`
@@ -60,6 +59,7 @@
     1. `restore_config`
     1. `marm`
     1. Copy `out/arch/arm64/boot/Image` to `assets/debug/arm64/kernel` in repo root
+1. Quit the release build of OrbStack
 1. Build and run app in Xcode
     1. Select scheme `MacVirt`
     2. Click the play button
