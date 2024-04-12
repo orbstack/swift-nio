@@ -38,10 +38,7 @@
     - Example: `Apple Development: Danny Lin (A2LS84RQFY)`
 1. Add your SSH public key to `rootfs/config/authorized_keys`
     - You can commit and push this as a PR
-1. Build Kubernetes
-    1. **TODO**
-    1. For now, [grab binary from Slack](https://orbstack.slack.com/archives/C058SB82RUP/p1707796843420459?thread_ts=1707796032.071449&cid=C058SB82RUP)
-    1. Download and save to `rootfs/k8s/k3s-arm64`
+1. Build Kubernetes: `./scripts/build-k8s.sh`
 1. Symlink your macvirt repo root to `~/code/projects/macvirt`
     - `mkdir -p ~/code/projects; ln -s $PWD/.. ~/code/projects/macvirt`
     - **TODO: remove the need for this in the future**
