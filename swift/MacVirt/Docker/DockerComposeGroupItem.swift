@@ -17,6 +17,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
 
     var composeGroup: ComposeGroup
+    var children: [DockerListItem]
     var selection: Set<DockerContainerId> {
         listModel.selection as! Set<DockerContainerId>
     }
@@ -30,6 +31,11 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     var body: some View {
         let isRunning = composeGroup.anyRunning
         let actionInProgress = actionTracker.ongoingFor(selfId)
+        let firstChild = if case let .container(container) = children.first {
+            container
+        } else {
+            DKContainer?(nil)
+        }
 
         HStack {
             HStack {
@@ -158,12 +164,27 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
             Divider()
 
-            Button(action: {
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(composeGroup.project, forType: .string)
-            }) {
-                Label("Copy Name", systemImage: "doc.on.doc")
+            Group {
+                Button(action: {
+                    NSPasteboard.copy(composeGroup.project)
+                }) {
+                    Label("Copy Name", systemImage: "")
+                }
+
+                if let projectPath = firstChild?.composeConfigFiles?.first {
+                    Button(action: {
+                        NSPasteboard.copy(projectPath)
+                    }) {
+                        Label("Copy Path", systemImage: "")
+                    }
+
+                    Button(action: {
+                        let parentDir = URL(fileURLWithPath: projectPath).deletingLastPathComponent().path
+                        NSWorkspace.shared.selectFile(projectPath, inFileViewerRootedAtPath: parentDir)
+                    }) {
+                        Label("Show in Finder", systemImage: "")
+                    }
+                }
             }
         }
     }

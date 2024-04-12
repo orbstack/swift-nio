@@ -13,10 +13,10 @@ struct DockerComposeGroupDetails: View {
 
     var body: some View {
         DetailsStack {
-            DetailsSection("Containers in Group") {
-                let containers = vmModel.dockerContainers?
-                    .filter { $0.composeProject == project } ?? []
+            let containers = vmModel.dockerContainers?
+                .filter { $0.composeProject == project } ?? []
 
+            DetailsSection("Containers in Group") {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(containers) { container in
                         // TODO: link
@@ -26,6 +26,17 @@ struct DockerComposeGroupDetails: View {
                             // icon = red/green status dot
                             Image(nsImage: SystemImages.statusDot(container.statusDot))
                         }
+                    }
+                }
+            }
+
+            if let projectPath = containers.first?.composeConfigFiles?.first {
+                DividedButtonStack {
+                    DividedRowButton {
+                        let parentDir = URL(fileURLWithPath: projectPath).deletingLastPathComponent().path
+                        NSWorkspace.shared.selectFile(projectPath, inFileViewerRootedAtPath: parentDir)
+                    } label: {
+                        Label("Show in Finder", systemImage: "folder")
                     }
                 }
             }

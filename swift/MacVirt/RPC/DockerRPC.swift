@@ -57,6 +57,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         labels?[DockerLabels.composeNumber]
     }
 
+    var composeConfigFiles: [String]? {
+        labels?[DockerLabels.composeConfigFiles]?.split(separator: ",").map { String($0) }
+    }
+
     var isFullCompose: Bool {
         composeProject != nil && composeService != nil
     }
