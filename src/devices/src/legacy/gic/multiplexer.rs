@@ -46,10 +46,6 @@ impl Gic {
     pub fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool {
         self.0.vcpu_has_pending_irq(vcpuid)
     }
-
-    pub fn kick_vcpu(&mut self, vcpuid: u64) {
-        self.0.kick_vcpu(vcpuid)
-    }
 }
 
 impl BusDevice for Gic {
@@ -114,6 +110,4 @@ pub trait UserspaceGicImpl: 'static + Send {
     fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool;
 
     fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool;
-
-    fn kick_vcpu(&mut self, vcpuid: u64);
 }

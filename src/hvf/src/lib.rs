@@ -270,8 +270,6 @@ pub enum VcpuExit<'a> {
     WaitForEvent,
     WaitForEventExpired,
     WaitForEventTimeout(Duration),
-    PvlockPark,
-    PvlockUnpark(u64),
 }
 
 struct MmioRead {
@@ -526,13 +524,6 @@ impl<'a> HvfVcpu<'a> {
                                 let context_id = self.read_raw_reg(hv_reg_t_HV_REG_X3)?;
                                 self.write_raw_reg(hv_reg_t_HV_REG_X0, 0)?;
                                 return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
-                            }
-                            0xc300_0005 => {
-                                return Ok(VcpuExit::PvlockPark);
-                            }
-                            0xc300_0006 => {
-                                let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
-                                return Ok(VcpuExit::PvlockUnpark(vcpuid));
                             }
                             _ => {
                                 debug!("HVC call unhandled");

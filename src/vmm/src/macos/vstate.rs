@@ -634,14 +634,6 @@ impl Vcpu {
                     debug!("vCPU {} WaitForEventTimeout timeout={:?}", vcpuid, duration);
                     Ok(VcpuEmulation::WaitForEventTimeout(duration))
                 }
-                VcpuExit::PvlockPark => {
-                    debug!("vCPU {} PvlockPark", vcpuid);
-                    Ok(VcpuEmulation::PvlockPark)
-                }
-                VcpuExit::PvlockUnpark(vcpuid) => {
-                    debug!("vCPU {} PvlockUnpark vcpuid={}", vcpuid, vcpuid);
-                    Ok(VcpuEmulation::PvlockUnpark(vcpuid))
-                }
             },
             Err(e) => {
                 panic!("Error running HVF vCPU: {:?}", e);
@@ -682,10 +674,6 @@ impl Vcpu {
                 Ok(VcpuEmulation::WaitForEventExpired) => (),
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
                     self.wait_for_event(hvf_vcpuid, Some(timeout))
-                }
-                Ok(VcpuEmulation::PvlockPark) => thread::park(),
-                Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {
-                    self.intc.lock().unwrap().kick_vcpu(vcpuid)
                 }
                 // The guest was rebooted or halted.
                 Ok(VcpuEmulation::Stopped) => {
@@ -804,8 +792,6 @@ enum VcpuEmulation {
     WaitForEvent,
     WaitForEventExpired,
     WaitForEventTimeout(Duration),
-    PvlockPark,
-    PvlockUnpark(u64),
 }
 
 #[cfg(test)]
