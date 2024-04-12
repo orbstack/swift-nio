@@ -1,10 +1,11 @@
 [workspace]
 members = [
-    "src/gicv3",
-    "src/libkrun",
-    "src/kruntest",
-    "src/counter",
     "src/counter-proc",
+    "src/counter",
+    "src/gicv3",
+    "src/gruel",
+    "src/kruntest",
+    "src/libkrun",
 ]
 resolver = "2"
 #panic = "abort"

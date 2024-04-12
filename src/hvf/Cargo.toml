@@ -15,7 +15,7 @@ arch = { path = "../arch" }
 bitflags = "2.4.2"
 anyhow = "1.0.83"
 rustc-hash = "1.1.0"
-libc = "0.2.154"
+libc = "0.2.153"
 nix = "0.28.0"
 counter = { path = "../counter" }
 dlopen = "0.1.8"
