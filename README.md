@@ -93,7 +93,7 @@ To build & run vmgr:
 
 ```bash
 cd vmgr
-make
+make run
 ```
 
 Stop with ^C.
