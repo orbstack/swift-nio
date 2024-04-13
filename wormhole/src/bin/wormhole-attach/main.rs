@@ -50,6 +50,12 @@ const INHERIT_ENVS: &[&str] = &[
     "SSH_CONNECTION",
     "SSH_AUTH_SOCK",
 ];
+const EXCLUDE_ENVS: &[&str] = &[
+    // LD_PRELOAD libs may depend on musl (which fails to load in nix rpath) or conflicting glibc
+    // checking the lib's DT_NEEDED is pointless: impossible to have a statically-linked dynamic lib
+    // https://github.com/orbstack/orbstack/issues/1131
+    "LD_PRELOAD",
+];
 const PREPEND_PATH: &str = "/nix/orb/data/.env-out/bin:/nix/orb/sys/bin";
 
 // type mismatch: musl=c_int, glibc=c_uint
@@ -410,6 +416,8 @@ fn main() -> anyhow::Result<()> {
         // skip invalid entries with no =
         .filter(|s| s.len() == 2)
         .map(|s| (s[0].to_string(), s[1].to_string()))
+        // exclude envs that are known to cause issues
+        .filter(|(k, _)| !EXCLUDE_ENVS.contains(&k.as_str()))
         .collect::<HashMap<_, _>>();
     // edit PATH (append and prepend)
     env_map.insert("PATH".to_string(), format!("{}:{}", PREPEND_PATH, env_map.get("PATH").unwrap_or(&"".to_string())));
