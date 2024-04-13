@@ -1,8 +1,14 @@
 [workspace]
-members = [ "src/gicv3","src/libkrun"]
+members = ["src/gicv3", "src/libkrun"]
 resolver = "2"
 #panic = "abort"
 
 [profile.release]
 #panic = "abort"
 lto = true
+strip = true
+
+[profile.release-with-debug]
+inherits = "release"
+lto = "thin"
+debug = true
