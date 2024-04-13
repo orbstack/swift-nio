@@ -88,6 +88,7 @@ fn item_to_value(item: &[u8], radix: u32) -> Option<u32> {
 }
 
 fn get_xattr_stat(file: StatFile) -> io::Result<Option<(u32, u32, u32)>> {
+    /*
     let mut buf: Vec<u8> = vec![0; 32];
     let res = match file {
         StatFile::Path(path) => unsafe {
@@ -155,6 +156,8 @@ fn get_xattr_stat(file: StatFile) -> io::Result<Option<(u32, u32, u32)>> {
     };
 
     Ok(Some((uid, gid, mode)))
+    */
+    Ok(None)
 }
 
 fn is_valid_owner(owner: Option<(u32, u32)>) -> bool {
@@ -170,6 +173,7 @@ fn is_valid_owner(owner: Option<(u32, u32)>) -> bool {
 // We won't need this once expressions like "if let ... &&" are allowed.
 #[allow(clippy::unnecessary_unwrap)]
 fn set_xattr_stat(file: StatFile, owner: Option<(u32, u32)>, mode: Option<u32>) -> io::Result<()> {
+    /*
     let (new_owner, new_mode) = if is_valid_owner(owner) && mode.is_some() {
         (owner.unwrap(), mode.unwrap())
     } else {
@@ -234,6 +238,8 @@ fn set_xattr_stat(file: StatFile, owner: Option<(u32, u32)>, mode: Option<u32>) 
     } else {
         Ok(())
     }
+    */
+    Ok(())
 }
 
 fn fstat(fd: RawFd, host: bool) -> io::Result<bindings::stat64> {
