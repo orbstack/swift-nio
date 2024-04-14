@@ -29,6 +29,7 @@ use nix::NixPath;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
+use crate::virtio::fs::multikey::MultikeyBTreeMap;
 use crate::virtio::linux_errno::nix_linux_error;
 use crate::virtio::rosetta::get_rosetta_data;
 use crate::virtio::NfsInfo;
@@ -392,14 +393,24 @@ impl Default for Config {
     }
 }
 
+struct NodeData {
+    nodeid: NodeId,
+    dev_ino: DevIno,
+    refcount: AtomicU64,
+}
+
+type DevIno = (i32, u64);
+
 /// A file system that simply "passes through" all requests it receives to the underlying file
 /// system. To keep the implementation simple it servers the contents of its root directory. Users
 /// that wish to serve only a specific directory should set up the environment so that that
 /// directory ends up as the root of the file system process. One way to accomplish this is via a
 /// combination of mount namespaces and the pivot_root system call.
 pub struct PassthroughFs {
-    root_inode: u64,
-    root_device: i32,
+    root_dev_ino: DevIno,
+
+    nodeids: Mutex<MultikeyBTreeMap<NodeId, DevIno, NodeData>>,
+    next_nodeid: AtomicU64,
 
     handles: RwLock<BTreeMap<Handle, Arc<HandleData>>>,
     next_handle: AtomicU64,
@@ -415,8 +426,10 @@ impl PassthroughFs {
         let st = nix::sys::stat::stat(Path::new(&cfg.root_dir))?;
 
         Ok(PassthroughFs {
-            root_inode: st.st_ino,
-            root_device: st.st_dev,
+            root_dev_ino: (st.st_dev, st.st_ino),
+
+            nodeids: Mutex::new(MultikeyBTreeMap::new()),
+            next_nodeid: AtomicU64::new(fuse::ROOT_ID + 1),
 
             handles: RwLock::new(BTreeMap::new()),
             next_handle: AtomicU64::new(1),
@@ -426,30 +439,32 @@ impl PassthroughFs {
         })
     }
 
-    fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
-        let inode = if nodeid == fuse::ROOT_ID {
-            self.root_inode
-        } else {
-            nodeid
-        };
+    fn resolve_nodeid(&self, nodeid: NodeId) -> io::Result<DevIno> {
+        if nodeid == fuse::ROOT_ID {
+            // we don't keep a refcount for root
+            return Ok(self.root_dev_ino);
+        }
 
-        let cstr =
-            CString::new(format!("/.vol/{}/{}", self.root_device, inode)).map_err(|_| einval())?;
+        let nodeids = self.nodeids.lock().unwrap();
+        let node = nodeids.get(&nodeid).ok_or_else(ebadf)?;
+        Ok(node.dev_ino)
+    }
+
+    fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
+        let (device, inode) = self.resolve_nodeid(nodeid)?;
+
+        let cstr = CString::new(format!("/.vol/{}/{}", device, inode)).map_err(|_| einval())?;
         debug!("nodeid_to_path: {}", cstr.to_string_lossy());
         Ok(cstr)
     }
 
     fn name_to_path(&self, parent: NodeId, name: &CStr) -> io::Result<CString> {
-        let parent = if parent == fuse::ROOT_ID {
-            self.root_inode
-        } else {
-            parent
-        };
+        let (parent_device, parent_inode) = self.resolve_nodeid(parent)?;
 
         let cstr = CString::new(format!(
             "/.vol/{}/{}/{}",
-            self.root_device,
-            parent,
+            parent_device,
+            parent_inode,
             name.to_string_lossy()
         ))
         .map_err(|_| einval())?;
@@ -509,18 +524,55 @@ impl PassthroughFs {
         st.st_gid = ctx.gid;
 
         debug!(
-            "do_lookup: nodeid={} path={}",
+            "do_lookup: ino={} path={}",
             st.st_ino,
             c_path.to_str().unwrap()
         );
 
+        let mut nodeids = self.nodeids.lock().unwrap();
+        let dev_ino = (st.st_dev, st.st_ino);
+        let nodeid = if let Some(node) = nodeids.get_alt(&dev_ino) {
+            // there is already a nodeid for this (dev, ino)
+            // increment the refcount and return it
+            node.refcount.fetch_add(1, Ordering::Relaxed);
+            node.nodeid
+        } else {
+            // this (dev, ino) is new
+            // create a new nodeid and return it
+            let nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
+            nodeids.insert(
+                nodeid,
+                dev_ino,
+                NodeData {
+                    nodeid,
+                    dev_ino,
+                    refcount: AtomicU64::new(1),
+                },
+            );
+            nodeid
+        };
+
         Ok(Entry {
-            nodeid: st.st_ino,
+            nodeid,
             generation: st.st_gen as u64,
             attr: st,
             attr_timeout: self.cfg.attr_timeout,
             entry_timeout: self.cfg.entry_timeout,
         })
+    }
+
+    fn do_forget(&self, nodeid: NodeId, count: u64) {
+        debug!("do_forget: nodeid={} count={}", nodeid, count);
+        let mut nodeids = self.nodeids.lock().unwrap();
+        if let Some(node) = nodeids.get(&nodeid) {
+            // decrement the refcount
+            node.refcount.fetch_sub(count, Ordering::Relaxed);
+
+            if node.refcount.load(Ordering::Relaxed) == 0 {
+                // this nodeid is no longer in use
+                nodeids.remove(&nodeid);
+            }
+        }
     }
 
     fn do_readdir<F>(
@@ -800,9 +852,15 @@ impl FileSystem for PassthroughFs {
         self.do_lookup(parent, name, &_ctx)
     }
 
-    fn forget(&self, _ctx: Context, _nodeid: NodeId, _count: u64) {}
+    fn forget(&self, _ctx: Context, _nodeid: NodeId, _count: u64) {
+        self.do_forget(_nodeid, _count)
+    }
 
-    fn batch_forget(&self, _ctx: Context, _requests: Vec<(NodeId, u64)>) {}
+    fn batch_forget(&self, _ctx: Context, _requests: Vec<(NodeId, u64)>) {
+        for (nodeid, count) in _requests {
+            self.do_forget(nodeid, count)
+        }
+    }
 
     fn opendir(
         &self,

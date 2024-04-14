@@ -112,6 +112,10 @@ where
         self.alt.clear();
         self.main.clear()
     }
+
+    pub fn len(&self) -> usize {
+        self.main.len()
+    }
 }
 
 #[cfg(test)]
