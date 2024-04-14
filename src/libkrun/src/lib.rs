@@ -304,7 +304,7 @@ impl Machine {
     fn stop(&mut self) -> anyhow::Result<()> {
         self.vmm_shutdown
             .take()
-            .context("no vmm set")?
+            .context("force stop already requested")?
             .request_shutdown();
 
         Ok(())
