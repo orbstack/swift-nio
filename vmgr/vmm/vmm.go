@@ -26,6 +26,13 @@ type ConsoleSpec struct {
 	WriteFd  int  `json:"writeFd"`
 }
 
+type NfsInfo struct {
+	DirInode       uint64 `json:"dirInode"`
+	DirName        string `json:"dirName"`
+	ParentDirInode uint64 `json:"parentDirInode"`
+	EmptyDirInode  uint64 `json:"emptyDirInode"`
+}
+
 type VzSpec struct {
 	Cpus             int          `json:"cpus"`
 	Memory           uint64       `json:"memory"`
@@ -47,6 +54,9 @@ type VzSpec struct {
 	Rosetta          bool         `json:"rosetta"`
 	Sound            bool         `json:"sound"`
 	Rconfig          []byte       `json:"rconfig,omitempty"`
+
+	// for loop prevention
+	NfsInfo *NfsInfo `json:"nfsInfo"`
 }
 
 type Monitor interface {

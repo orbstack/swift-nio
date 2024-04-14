@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/rsvm"
 	"github.com/orbstack/macvirt/vmgr/types"
@@ -197,6 +200,37 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 		Virtiofs:   c.Virtiofs,
 		Rosetta:    c.Rosetta,
 		Sound:      c.Sound,
+	}
+
+	// FS: virtiofs<->nfs deadlock/loop prevention
+	if c.Virtiofs {
+		// create if not exists
+		dirPath := coredir.EnsureNfsMountpoint()
+		dirName := filepath.Base(coredir.NfsMountpoint())
+
+		// follow symlinks (no lstat). safe because it's guaranteed to be unmounted,
+		// and FUSE server never follows symlinks -- every lookup returns symlinks
+		dirStat, err := os.Stat(dirPath)
+		check(err)
+		dirInode := dirStat.Sys().(*syscall.Stat_t).Ino
+
+		// same for parent. needed to handle lookup case (with no preceding readdir)
+		parentDirPath := filepath.Dir(coredir.NfsMountpoint())
+		parentDirStat, err := os.Stat(parentDirPath)
+		check(err)
+		parentDirInode := parentDirStat.Sys().(*syscall.Stat_t).Ino
+
+		// also stat /var/empty
+		emptyDirStat, err := os.Stat("/var/empty")
+		check(err)
+		emptyDirInode := emptyDirStat.Sys().(*syscall.Stat_t).Ino
+
+		spec.NfsInfo = &vmm.NfsInfo{
+			DirInode:       dirInode,
+			DirName:        dirName,
+			ParentDirInode: parentDirInode,
+			EmptyDirInode:  emptyDirInode,
+		}
 	}
 
 	// Console
