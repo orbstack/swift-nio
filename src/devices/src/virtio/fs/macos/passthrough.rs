@@ -1468,8 +1468,9 @@ impl FileSystem for PassthroughFs {
 
         let fd = data.file.write().unwrap().as_raw_fd();
 
+        // use barrier fsync to preserve semantics and avoid DB corruption
         // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::fsync(fd) };
+        let res = unsafe { libc::fcntl(fd, libc::F_BARRIERFSYNC, 0) };
 
         if res == 0 {
             Ok(())
