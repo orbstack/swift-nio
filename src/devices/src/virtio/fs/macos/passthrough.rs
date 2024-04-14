@@ -538,7 +538,7 @@ impl PassthroughFs {
 
         Ok(Entry {
             inode: st.st_ino,
-            generation: 0,
+            generation: st.st_gen as u64,
             attr: st,
             attr_timeout: self.cfg.attr_timeout,
             entry_timeout: self.cfg.entry_timeout,
