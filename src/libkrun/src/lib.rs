@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{anyhow, Context};
 use crossbeam_channel::unbounded;
-use devices::virtio::{net::device::VirtioNetBackend, CacheType};
+use devices::virtio::{net::device::VirtioNetBackend, CacheType, NfsInfo};
 use hvf::MemoryMapping;
 use libc::strdup;
 use log::error;
@@ -22,7 +22,7 @@ use vmm::{
         kernel_bundle::KernelBundle, machine_config::VmConfig, net::NetworkInterfaceConfig,
         vsock::VsockDeviceConfig,
     },
-    Vmm, VmmShutdownHandle,
+    VmmShutdownHandle,
 };
 
 #[repr(C)]
@@ -71,6 +71,9 @@ struct VzSpec {
     virtiofs: bool,
     rosetta: bool,
     sound: bool,
+
+    // for loop prevention
+    nfs_info: Option<NfsInfo>,
 }
 
 // due to HVF limitations, we can't have more than one VM per process, so this simplifies things
@@ -215,6 +218,7 @@ impl Machine {
             vmr.add_fs_device(FsDeviceConfig {
                 fs_id: "mac".to_string(),
                 shared_dir: "/".to_string(),
+                nfs_info: spec.nfs_info.clone(),
             })
             .map_err(to_anyhow_error)?;
         }
@@ -224,6 +228,7 @@ impl Machine {
             vmr.add_fs_device(FsDeviceConfig {
                 fs_id: "rosetta".to_string(),
                 shared_dir: "/Library/Apple/usr/libexec/oah/RosettaLinux".to_string(),
+                nfs_info: None,
             })
             .map_err(to_anyhow_error)?;
         }

@@ -24,6 +24,7 @@ pub mod rosetta;
 
 use super::bindings;
 use super::descriptor_utils;
+use serde::{Deserialize, Serialize};
 
 pub use self::defs::uapi::VIRTIO_ID_FS as TYPE_FS;
 pub use self::device::Fs;
@@ -69,6 +70,15 @@ pub enum FsError {
     InvalidXattrSize((u32, usize)),
     QueueReader(DescriptorError),
     QueueWriter(DescriptorError),
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NfsInfo {
+    dir_inode: u64,
+    dir_name: String,
+    parent_dir_inode: u64,
+    empty_dir_inode: u64,
 }
 
 type Result<T> = std::result::Result<T, FsError>;

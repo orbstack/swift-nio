@@ -11,9 +11,9 @@ use vm_memory::{ByteValued, GuestMemoryMmap};
 use super::super::{
     ActivateResult, DeviceState, FsError, Queue as VirtQueue, VirtioDevice, VirtioShmRegion,
 };
-use super::passthrough;
 use super::worker::FsWorker;
 use super::{defs, defs::uapi};
+use super::{passthrough, NfsInfo};
 use crate::legacy::Gic;
 
 #[derive(Copy, Clone)]
@@ -56,6 +56,7 @@ impl Fs {
     pub(crate) fn with_queues(
         fs_id: String,
         shared_dir: String,
+        nfs_info: Option<NfsInfo>,
         queues: Vec<VirtQueue>,
     ) -> super::Result<Fs> {
         let mut queue_events = Vec::new();
@@ -75,6 +76,7 @@ impl Fs {
         let fs_cfg = passthrough::Config {
             root_dir: shared_dir,
             allow_rosetta_ioctl,
+            nfs_info,
             ..Default::default()
         };
 
@@ -97,12 +99,12 @@ impl Fs {
         })
     }
 
-    pub fn new(fs_id: String, shared_dir: String) -> super::Result<Fs> {
+    pub fn new(fs_id: String, shared_dir: String, nfs_info: Option<NfsInfo>) -> super::Result<Fs> {
         let queues: Vec<VirtQueue> = defs::QUEUE_SIZES
             .iter()
             .map(|&max_size| VirtQueue::new(max_size))
             .collect();
-        Self::with_queues(fs_id, shared_dir, queues)
+        Self::with_queues(fs_id, shared_dir, nfs_info, queues)
     }
 
     pub fn id(&self) -> &str {

@@ -20,6 +20,7 @@ use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
 use crate::virtio::rosetta::get_rosetta_data;
+use crate::virtio::NfsInfo;
 
 use super::super::super::linux_errno::{linux_error, LINUX_ERANGE};
 use super::super::bindings;
@@ -389,6 +390,7 @@ pub struct Config {
     pub proc_sfd_rawfd: Option<RawFd>,
 
     pub allow_rosetta_ioctl: bool,
+    pub nfs_info: Option<NfsInfo>,
 }
 
 impl Default for Config {
@@ -402,6 +404,7 @@ impl Default for Config {
             xattr: true,
             proc_sfd_rawfd: None,
             allow_rosetta_ioctl: false,
+            nfs_info: None,
         }
     }
 }
@@ -524,7 +527,15 @@ impl PassthroughFs {
     }
 
     fn do_lookup(&self, parent: Inode, name: &CStr, ctx: &Context) -> io::Result<Entry> {
-        let c_path = self.name_to_path(parent, name)?;
+        let mut c_path = self.name_to_path(parent, name)?;
+        // looking up nfs mountpoint should return a dummy empty dir
+        // for simplicity we can always just use /var/empty
+        if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
+            if nfs_info.parent_dir_inode == parent && nfs_info.dir_name == name.to_string_lossy() {
+                c_path = CString::new("/var/empty")?;
+            }
+        }
+
         let mut st = lstat(&c_path, false)?;
         // TODO: remove on perms
         st.st_uid = ctx.uid;
@@ -609,9 +620,17 @@ impl PassthroughFs {
                 continue;
             }
 
+            let mut ino = unsafe { (*dentry).d_ino };
+            if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
+                // replace nfs mountpoint ino with /var/empty - that's what lookup returns
+                if ino == nfs_info.dir_inode {
+                    ino = nfs_info.empty_dir_inode;
+                }
+            }
+
             let res = unsafe {
                 add_entry(DirEntry {
-                    ino: (*dentry).d_ino,
+                    ino,
                     offset: (ds.offset + 1) as u64,
                     type_: u32::from((*dentry).d_type),
                     name: &name,

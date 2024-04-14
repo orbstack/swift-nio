@@ -36,6 +36,7 @@ rutabaga_gfx = { path = "../rutabaga_gfx", features = [
     "virgl_renderer_next",
 ], optional = true }
 once_cell = "1.19.0"
+serde = { version = "1.0.197", features = ["derive"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }

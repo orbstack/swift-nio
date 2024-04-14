@@ -305,6 +305,7 @@ dependencies = [
  "polly",
  "rand",
  "rutabaga_gfx",
+ "serde",
  "thiserror",
  "utils",
  "virtio-bindings",
