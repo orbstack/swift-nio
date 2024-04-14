@@ -6,6 +6,7 @@ use std::mem;
 
 use super::bindings;
 use bitflags::bitflags;
+use nix::sys::statvfs::Statvfs;
 use vm_memory::ByteValued;
 
 /// Version number of this interface.
@@ -602,17 +603,17 @@ impl From<bindings::statvfs64> for Kstatfs {
     }
 }
 #[cfg(target_os = "macos")]
-impl From<bindings::statvfs64> for Kstatfs {
-    fn from(st: bindings::statvfs64) -> Self {
+impl From<Statvfs> for Kstatfs {
+    fn from(st: Statvfs) -> Self {
         Kstatfs {
-            blocks: st.f_blocks as u64,
-            bfree: st.f_bfree as u64,
-            bavail: st.f_bavail as u64,
-            files: st.f_files as u64,
-            ffree: st.f_ffree as u64,
-            bsize: st.f_bsize as u32,
-            namelen: st.f_namemax as u32,
-            frsize: st.f_frsize as u32,
+            blocks: st.blocks() as u64,
+            bfree: st.blocks_free() as u64,
+            bavail: st.blocks_available() as u64,
+            files: st.files() as u64,
+            ffree: st.files_free() as u64,
+            bsize: st.block_size() as u32,
+            namelen: st.name_max() as u32,
+            frsize: st.fragment_size() as u32,
             ..Default::default()
         }
     }

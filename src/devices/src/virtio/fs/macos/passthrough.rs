@@ -9,20 +9,27 @@ use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
 use std::io;
-use std::mem::MaybeUninit;
+use std::os::fd::OwnedFd;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::path::Path;
+use std::ptr::slice_from_raw_parts;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
+use nix::fcntl::OFlag;
 use nix::sys::stat::fchmod;
 use nix::sys::stat::Mode;
+use nix::sys::statvfs::statvfs;
+use nix::sys::statvfs::Statvfs;
+use nix::unistd::ftruncate;
+use nix::NixPath;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
+use crate::virtio::linux_errno::nix_linux_error;
 use crate::virtio::rosetta::get_rosetta_data;
 use crate::virtio::NfsInfo;
 
@@ -37,7 +44,7 @@ use super::super::fuse;
 // _IOC(_IOC_READ, 0x61, 0x22, 0x45)
 const IOCTL_ROSETTA: u32 = 0x8045_6122;
 
-const XATTR_KEY: &[u8] = b"user.containers.override_stat\0";
+const XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
 
 const UID_MAX: u32 = u32::MAX - 1;
 
@@ -247,60 +254,32 @@ fn set_xattr_stat(file: StatFile, owner: Option<(u32, u32)>, mode: Option<u32>) 
     Ok(())
 }
 
-fn fstat(fd: RawFd, host: bool) -> io::Result<bindings::stat64> {
-    let mut st = MaybeUninit::<bindings::stat64>::zeroed();
+fn lstat(c_path: &CString, host: bool) -> io::Result<bindings::stat64> {
+    let mut st = nix::sys::stat::lstat(c_path.as_ref()).map_err(nix_linux_error)?;
 
-    // Safe because the kernel will only write data in `st` and we check the return
-    // value.
-    let res = unsafe { libc::fstat(fd, st.as_mut_ptr()) };
-    if res >= 0 {
-        // Safe because the kernel guarantees that the struct is now fully initialized.
-        let mut st = unsafe { st.assume_init() };
-
-        if !host {
-            if let Some((uid, gid, mode)) = get_xattr_stat(StatFile::Fd(fd))? {
-                st.st_uid = uid;
-                st.st_gid = gid;
-                if mode as u16 & libc::S_IFMT == 0 {
-                    st.st_mode = (st.st_mode & libc::S_IFMT) | mode as u16;
-                } else {
-                    st.st_mode = mode as u16;
-                }
+    if !host {
+        if let Some((uid, gid, mode)) = get_xattr_stat(StatFile::Path(c_path))? {
+            st.st_uid = uid;
+            st.st_gid = gid;
+            if mode as u16 & libc::S_IFMT == 0 {
+                st.st_mode = (st.st_mode & libc::S_IFMT) | mode as u16;
+            } else {
+                st.st_mode = mode as u16;
             }
         }
-
-        Ok(st)
-    } else {
-        Err(linux_error(io::Error::last_os_error()))
     }
+
+    Ok(st)
 }
 
-fn lstat(c_path: &CString, host: bool) -> io::Result<bindings::stat64> {
-    let mut st = MaybeUninit::<bindings::stat64>::zeroed();
-
-    // Safe because the kernel will only write data in `st` and we check the return
-    // value.
-    let res = unsafe { libc::lstat(c_path.as_ptr(), st.as_mut_ptr()) };
-    if res >= 0 {
-        // Safe because the kernel guarantees that the struct is now fully initialized.
-        let mut st = unsafe { st.assume_init() };
-
-        if !host {
-            if let Some((uid, gid, mode)) = get_xattr_stat(StatFile::Path(c_path))? {
-                st.st_uid = uid;
-                st.st_gid = gid;
-                if mode as u16 & libc::S_IFMT == 0 {
-                    st.st_mode = (st.st_mode & libc::S_IFMT) | mode as u16;
-                } else {
-                    st.st_mode = mode as u16;
-                }
-            }
-        }
-
-        Ok(st)
-    } else {
-        Err(linux_error(io::Error::last_os_error()))
-    }
+fn openat<T: AsRawFd, P: ?Sized + NixPath>(
+    fd: T,
+    path: &P,
+    oflag: OFlag,
+    mode: Mode,
+) -> io::Result<OwnedFd> {
+    let fd = nix::fcntl::openat(fd.as_raw_fd(), path, oflag, mode).map_err(nix_linux_error)?;
+    Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
 /// The caching policy that the file system should report to the FUSE client. By default the FUSE
@@ -433,23 +412,7 @@ pub struct PassthroughFs {
 
 impl PassthroughFs {
     pub fn new(cfg: Config) -> io::Result<PassthroughFs> {
-        let root = CString::new(cfg.root_dir.as_str()).expect("CString::new failed");
-
-        // Safe because this doesn't modify any memory and we check the return value.
-        let fd = unsafe {
-            libc::openat(
-                libc::AT_FDCWD,
-                root.as_ptr(),
-                libc::O_NOFOLLOW | libc::O_CLOEXEC,
-            )
-        };
-        if fd < 0 {
-            return Err(linux_error(io::Error::last_os_error()));
-        }
-
-        let st = fstat(fd, true)?;
-
-        unsafe { libc::close(fd) };
+        let st = nix::sys::stat::stat(Path::new(&cfg.root_dir))?;
 
         Ok(PassthroughFs {
             root_inode: st.st_ino,
@@ -609,16 +572,14 @@ impl PassthroughFs {
                 break;
             }
 
-            let mut name: Vec<u8> = Vec::new();
-
-            unsafe {
-                for c in &(*dentry).d_name {
-                    if *c == 0 {
-                        break;
-                    }
-                    name.push(*c as u8);
-                }
-            }
+            let name = unsafe {
+                CStr::from_bytes_until_nul(&*slice_from_raw_parts(
+                    (*dentry).d_name.as_ptr() as *const u8,
+                    (*dentry).d_name.len(),
+                ))
+                .unwrap()
+                .to_bytes()
+            };
 
             if name == b"." || name == b".." {
                 continue;
@@ -637,7 +598,7 @@ impl PassthroughFs {
                     ino,
                     offset: (ds.offset + 1) as u64,
                     type_: u32::from((*dentry).d_type),
-                    name: &name,
+                    name,
                 })
             };
 
@@ -829,28 +790,14 @@ impl FileSystem for PassthroughFs {
         self.handles.write().unwrap().clear();
     }
 
-    fn statfs(&self, _ctx: Context, inode: Inode) -> io::Result<bindings::statvfs64> {
-        let mut out = MaybeUninit::<bindings::statvfs64>::zeroed();
-
+    fn statfs(&self, _ctx: Context, inode: Inode) -> io::Result<Statvfs> {
         let c_path = self.inode_to_path(inode)?;
-
-        // Safe because this will only modify `out` and we check the return value.
-        let res = unsafe { bindings::statvfs64(c_path.as_ptr(), out.as_mut_ptr()) };
-        if res == 0 {
-            // Safe because the kernel guarantees that `out` has been initialized.
-            Ok(unsafe { out.assume_init() })
-        } else {
-            Err(linux_error(io::Error::last_os_error()))
-        }
+        statvfs(c_path.as_ref()).map_err(nix_linux_error)
     }
 
     fn lookup(&self, _ctx: Context, parent: Inode, name: &CStr) -> io::Result<Entry> {
         debug!("lookup: {:?}", name);
-
-        #[cfg(not(feature = "efi"))]
-        return self.do_lookup(parent, name, &_ctx);
-        #[cfg(feature = "efi")]
-        self.do_lookup(parent, name)
+        self.do_lookup(parent, name, &_ctx)
     }
 
     fn forget(&self, _ctx: Context, _inode: Inode, _count: u64) {}
@@ -902,7 +849,7 @@ impl FileSystem for PassthroughFs {
         let c_path = self.name_to_path(parent, name)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::mkdir(c_path.as_ptr(), 0o700) };
+        let res = unsafe { libc::mkdir(c_path.as_ptr(), (mode & !umask) as u16) };
         if res == 0 {
             // Set security context
             if let Some(secctx) = extensions.secctx {
@@ -1177,13 +1124,13 @@ impl FileSystem for PassthroughFs {
                 attr.st_uid
             } else {
                 // Cannot use -1 here because these are unsigned values.
-                ::std::u32::MAX
+                std::u32::MAX
             };
             let gid = if valid.contains(SetattrValid::GID) {
                 attr.st_gid
             } else {
                 // Cannot use -1 here because these are unsigned values.
-                ::std::u32::MAX
+                std::u32::MAX
             };
 
             set_xattr_stat(StatFile::Path(&c_path), Some((uid, gid)), None)?;
@@ -1191,17 +1138,15 @@ impl FileSystem for PassthroughFs {
 
         if valid.contains(SetattrValid::SIZE) {
             // Safe because this doesn't modify any memory and we check the return value.
-            let res = match data {
-                Data::Handle(_, fd) => unsafe { libc::ftruncate(fd, attr.st_size) },
+            match data {
+                Data::Handle(_, fd) => ftruncate(fd, attr.st_size),
                 _ => {
                     // There is no `ftruncateat` so we need to get a new fd and truncate it.
                     let f = self.open_inode(inode, libc::O_NONBLOCK | libc::O_RDWR)?;
-                    unsafe { libc::ftruncate(f.as_raw_fd(), attr.st_size) }
+                    ftruncate(f.as_raw_fd(), attr.st_size)
                 }
-            };
-            if res < 0 {
-                return Err(linux_error(io::Error::last_os_error()));
             }
+            .map_err(nix_linux_error)?;
         }
 
         if valid.intersects(SetattrValid::ATIME | SetattrValid::MTIME) {
@@ -1821,12 +1766,10 @@ impl FileSystem for PassthroughFs {
             let resp = get_rosetta_data();
             if resp.len() >= out_size as usize {
                 debug!("returning rosetta data: {:?}", &resp[..out_size as usize]);
-                Ok(resp[..out_size as usize].to_vec())
-            } else {
-                Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)))
+                return Ok(resp[..out_size as usize].to_vec());
             }
-        } else {
-            Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)))
         }
+
+        Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)))
     }
 }

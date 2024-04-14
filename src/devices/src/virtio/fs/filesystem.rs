@@ -16,6 +16,7 @@ pub use super::fuse::FsOptions;
 pub use fuse::OpenOptions;
 pub use fuse::RemovemappingOne;
 pub use fuse::SetattrValid;
+use nix::sys::statvfs::Statvfs;
 
 /// Information about a path in the filesystem.
 pub struct Entry {
@@ -839,16 +840,8 @@ pub trait FileSystem {
     }
 
     /// Get information about the file system.
-    fn statfs(&self, ctx: Context, inode: Self::Inode) -> io::Result<bindings::statvfs64> {
-        // Safe because we are zero-initializing a struct with only POD fields.
-        let mut st: bindings::statvfs64 = unsafe { mem::zeroed() };
-
-        // This matches the behavior of libfuse as it returns these values if the
-        // filesystem doesn't implement this method.
-        st.f_namemax = 255;
-        st.f_bsize = 512;
-
-        Ok(st)
+    fn statfs(&self, ctx: Context, inode: Self::Inode) -> io::Result<Statvfs> {
+        Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
     /// Set an extended attribute.

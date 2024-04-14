@@ -182,3 +182,7 @@ pub fn linux_errno_raw(errno: i32) -> i32 {
         _ => LINUX_EIO,
     }
 }
+
+pub fn nix_linux_error(errno: nix::Error) -> std::io::Error {
+    std::io::Error::from_raw_os_error(linux_errno_raw(errno as i32))
+}
