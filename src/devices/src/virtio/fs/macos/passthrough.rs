@@ -1439,34 +1439,15 @@ impl FileSystem for PassthroughFs {
     fn flush(
         &self,
         _ctx: Context,
-        nodeid: NodeId,
-        handle: Handle,
+        _nodeid: NodeId,
+        _handle: Handle,
         _lock_owner: u64,
     ) -> io::Result<()> {
-        let data = self
-            .handles
-            .read()
-            .unwrap()
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(Arc::clone)
-            .ok_or_else(ebadf)?;
-
-        // Since this method is called whenever an fd is closed in the client, we can emulate that
-        // behavior by doing the same thing (dup-ing the fd and then immediately closing it). Safe
-        // because this doesn't modify any memory and we check the return values.
-        unsafe {
-            let newfd = libc::dup(data.file.write().unwrap().as_raw_fd());
-            if newfd == -1 {
-                return Err(linux_error(io::Error::last_os_error()));
-            }
-
-            if libc::close(newfd) == -1 {
-                Err(linux_error(io::Error::last_os_error()))
-            } else {
-                Ok(())
-            }
-        }
+        // returning ENOSYS causes no_flush=1 to be set, skipping future calls
+        // we could emulate this with dup+close to trigger nfs_vnop_close on NFS,
+        // but it's usually ok to just wait for last fd to be closed (i.e. RELEASE)
+        // multi-fd is rare anyway
+        Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)))
     }
 
     fn fsync(
