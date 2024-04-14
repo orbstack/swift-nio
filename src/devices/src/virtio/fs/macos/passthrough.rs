@@ -450,12 +450,16 @@ impl PassthroughFs {
         Ok(node.dev_ino)
     }
 
-    fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
+    fn nodeid_to_path_and_ino(&self, nodeid: NodeId) -> io::Result<(CString, u64)> {
         let (device, inode) = self.resolve_nodeid(nodeid)?;
 
         let cstr = CString::new(format!("/.vol/{}/{}", device, inode)).map_err(|_| einval())?;
         debug!("nodeid_to_path: {}", cstr.to_string_lossy());
-        Ok(cstr)
+        Ok((cstr, inode))
+    }
+
+    fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
+        Ok(self.nodeid_to_path_and_ino(nodeid)?.0)
     }
 
     fn name_to_path(&self, parent: NodeId, name: &CStr) -> io::Result<CString> {
@@ -492,7 +496,7 @@ impl PassthroughFs {
             flags &= !libc::O_APPEND;
         }
 
-        let c_path = self.nodeid_to_path(nodeid)?;
+        let (c_path, ino) = self.nodeid_to_path_and_ino(nodeid)?;
 
         let fd = unsafe {
             libc::open(
@@ -501,7 +505,14 @@ impl PassthroughFs {
             )
         };
         if fd == -1 {
-            return Err(linux_error(io::Error::last_os_error()));
+            // if ino == 2 (standard unix root inode) and errno == ENOENT,
+            // it means the FS doesn't support volfs
+            let error = io::Error::last_os_error();
+            return if ino == 2 && error.kind() == io::ErrorKind::NotFound {
+                Err(linux_error(io::Error::from_raw_os_error(libc::EOPNOTSUPP)))
+            } else {
+                Err(linux_error(error))
+            };
         }
 
         // Safe because we just opened this fd.
