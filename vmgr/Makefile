@@ -9,6 +9,9 @@ run: vmgr
 run-raw: vmgr
 	@"../out/OrbStack Helper.app/Contents/MacOS/OrbStack Helper" vmgr
 
+# dev == debug
+RUST_BUILD_TYPE ?= dev
+
 ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib-debug
 	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
