@@ -5,17 +5,21 @@
 use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::ffi::{CStr, CString};
+use std::fs::set_permissions;
 use std::fs::File;
+use std::fs::Permissions;
 use std::io;
-#[cfg(not(feature = "efi"))]
-use std::mem;
 use std::mem::MaybeUninit;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
+use nix::sys::stat::fchmod;
+use nix::sys::stat::Mode;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
@@ -996,11 +1000,6 @@ impl FileSystem for PassthroughFs {
         let c_path = self.name_to_path(parent, name)?;
 
         let flags = self.parse_open_flags(flags as i32);
-        let hostmode = if (flags & libc::O_DIRECTORY) != 0 {
-            0o700
-        } else {
-            0o600
-        };
 
         // Safe because this doesn't modify any memory and we check the return value. We don't
         // really check `flags` because if the kernel can't handle poorly specified flags then we
@@ -1009,7 +1008,7 @@ impl FileSystem for PassthroughFs {
             libc::open(
                 c_path.as_ptr(),
                 flags | libc::O_CREAT | libc::O_CLOEXEC | libc::O_NOFOLLOW,
-                hostmode,
+                mode,
             )
         };
         if fd < 0 {
@@ -1159,12 +1158,16 @@ impl FileSystem for PassthroughFs {
         };
 
         if valid.contains(SetattrValid::MODE) {
+            // TODO: store sticky bit in xattr
             match data {
                 Data::Handle(_, fd) => {
-                    set_xattr_stat(StatFile::Fd(fd), None, Some(attr.st_mode as u32))?
+                    fchmod(fd, Mode::from_bits_truncate(attr.st_mode))?;
                 }
                 Data::FilePath => {
-                    set_xattr_stat(StatFile::Path(&c_path), None, Some(attr.st_mode as u32))?
+                    set_permissions(
+                        Path::new(&*c_path.to_string_lossy()),
+                        Permissions::from_mode(attr.st_mode as u32),
+                    )?;
                 }
             }
         }
