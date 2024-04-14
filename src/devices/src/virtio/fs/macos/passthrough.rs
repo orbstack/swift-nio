@@ -49,6 +49,10 @@ const XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
 
 const UID_MAX: u32 = u32::MAX - 1;
 
+// 2 hours
+// we invalidate via krpc
+const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(2 * 60 * 60);
+
 type NodeId = u64;
 type Handle = u64;
 
@@ -380,11 +384,12 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            entry_timeout: Duration::from_secs(5),
-            attr_timeout: Duration::from_secs(5),
+            entry_timeout: DEFAULT_CACHE_TTL,
+            attr_timeout: DEFAULT_CACHE_TTL,
             cache_policy: Default::default(),
             writeback: false,
             root_dir: String::from("/"),
+            // OK for perf because we block security.capability in kernel
             xattr: true,
             proc_sfd_rawfd: None,
             allow_rosetta_ioctl: false,
