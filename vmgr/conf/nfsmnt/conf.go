@@ -18,7 +18,7 @@ func MountNfs(tcpPort int) error {
 		IsUnix:     false,
 		Addr:       "127.0.0.1",
 		TcpPort:    uint16(tcpPort),
-		TargetPath: coredir.NfsMountpoint(),
+		TargetPath: coredir.EnsureNfsMountpoint(),
 	})
 	if err != nil {
 		return fmt.Errorf("mount nfs: %w", err)
@@ -27,6 +27,7 @@ func MountNfs(tcpPort int) error {
 	return nil
 }
 
+// use raw path (no stat/ensure dir) to prevent hang if broken
 func UnmountNfs() error {
 	return unix.Unmount(coredir.NfsMountpoint(), unix.MNT_FORCE)
 }

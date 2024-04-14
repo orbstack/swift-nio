@@ -71,7 +71,12 @@ func VmStateFile() string {
 	return AppDir() + "/vmstate.json"
 }
 
-// used in linux macctl
+// raw version to prevent freeze if last vmgr process left nfs mounted
 func NfsMountpoint() string {
-	return ensureDir(HomeDir() + "/" + mounts.NfsDirName)
+	return HomeDir() + "/" + mounts.NfsDirName
+}
+
+// only stat if explicitly requested, since this is so dangerous
+func EnsureNfsMountpoint() string {
+	return ensureDir(NfsMountpoint())
 }

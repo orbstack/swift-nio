@@ -436,19 +436,16 @@ func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
 	}
 
 	// prep: create nfs dir, write readme, make read-only
-	dir := coredir.NfsMountpoint()
-	// only if not mounted yet
-	if !nfsmnt.IsMountpoint(dir) {
-		// coredir.NfsMountpoint() already calls mkdir
-		err := os.WriteFile(dir+"/README.txt", []byte(nfsReadmeText), 0644)
-		// permission error is normal, that means it's already read only
-		if err != nil && !errors.Is(err, os.ErrPermission) {
-			logrus.WithError(err).Error("failed to write NFS readme")
-		}
-		err = os.Chmod(dir, 0555)
-		if err != nil {
-			logrus.WithError(err).Error("failed to chmod NFS dir")
-		}
+	dir := coredir.EnsureNfsMountpoint()
+	// coredir.NfsMountpoint() already calls mkdir
+	err := os.WriteFile(dir+"/README.txt", []byte(nfsReadmeText), 0644)
+	// permission error is normal, that means it's already read only
+	if err != nil && !errors.Is(err, os.ErrPermission) {
+		logrus.WithError(err).Error("failed to write NFS readme")
+	}
+	err = os.Chmod(dir, 0555)
+	if err != nil {
+		logrus.WithError(err).Error("failed to chmod NFS dir")
 	}
 
 	if h.NfsPort == 0 {
@@ -456,16 +453,8 @@ func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
 	}
 
 	logrus.Info("Mounting NFS...")
-	err := nfsmnt.MountNfs(h.NfsPort)
+	err = nfsmnt.MountNfs(h.NfsPort)
 	if err != nil {
-		// if already mounted, we'll just reuse it
-		// careful, this could hang
-		if nfsmnt.IsMountpoint(dir) {
-			logrus.Info("NFS already mounted")
-			h.nfsMounted = true
-			return nil
-		}
-
 		logrus.WithError(err).Error("NFS mount failed")
 		return err
 	}

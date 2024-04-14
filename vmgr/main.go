@@ -607,6 +607,14 @@ func runVmManager() {
 		}
 	}()
 
+	// force-unmount nfs
+	// needed to make it safe to stat this later for virtio nfs loop protection
+	err = nfsmnt.UnmountNfs()
+	// EINVAL = not mounted, ENOENT = mountpoint not created
+	if err != nil && !errors.Is(err, unix.EINVAL) && !errors.Is(err, unix.ENOENT) {
+		logrus.WithError(err).Error("failed to unmount nfs")
+	}
+
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
 	vnetwork, vm := CreateVm(monitor, &VmParams{
