@@ -48,7 +48,7 @@ const XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
 
 const UID_MAX: u32 = u32::MAX - 1;
 
-type Inode = u64;
+type NodeId = u64;
 type Handle = u64;
 
 struct DirStream {
@@ -57,7 +57,7 @@ struct DirStream {
 }
 
 struct HandleData {
-    inode: Inode,
+    nodeid: NodeId,
     file: RwLock<File>,
     dirstream: Mutex<DirStream>,
 }
@@ -426,20 +426,20 @@ impl PassthroughFs {
         })
     }
 
-    fn inode_to_path(&self, inode: Inode) -> io::Result<CString> {
-        let inode = if inode == fuse::ROOT_ID {
+    fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
+        let inode = if nodeid == fuse::ROOT_ID {
             self.root_inode
         } else {
-            inode
+            nodeid
         };
 
         let cstr =
             CString::new(format!("/.vol/{}/{}", self.root_device, inode)).map_err(|_| einval())?;
-        debug!("inode_to_path: {}", cstr.to_string_lossy());
+        debug!("nodeid_to_path: {}", cstr.to_string_lossy());
         Ok(cstr)
     }
 
-    fn name_to_path(&self, parent: Inode, name: &CStr) -> io::Result<CString> {
+    fn name_to_path(&self, parent: NodeId, name: &CStr) -> io::Result<CString> {
         let parent = if parent == fuse::ROOT_ID {
             self.root_inode
         } else {
@@ -457,7 +457,7 @@ impl PassthroughFs {
         Ok(cstr)
     }
 
-    fn open_inode(&self, inode: Inode, mut flags: i32) -> io::Result<File> {
+    fn open_nodeid(&self, nodeid: NodeId, mut flags: i32) -> io::Result<File> {
         // When writeback caching is enabled, the kernel may send read requests even if the
         // userspace program opened the file write-only. So we need to ensure that we have opened
         // the file for reading as well as writing.
@@ -477,7 +477,7 @@ impl PassthroughFs {
             flags &= !libc::O_APPEND;
         }
 
-        let c_path = self.inode_to_path(inode)?;
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         let fd = unsafe {
             libc::open(
@@ -493,7 +493,7 @@ impl PassthroughFs {
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
-    fn do_lookup(&self, parent: Inode, name: &CStr, ctx: &Context) -> io::Result<Entry> {
+    fn do_lookup(&self, parent: NodeId, name: &CStr, ctx: &Context) -> io::Result<Entry> {
         let mut c_path = self.name_to_path(parent, name)?;
         // looking up nfs mountpoint should return a dummy empty dir
         // for simplicity we can always just use /var/empty
@@ -509,13 +509,13 @@ impl PassthroughFs {
         st.st_gid = ctx.gid;
 
         debug!(
-            "do_lookup: inode={} path={}",
+            "do_lookup: nodeid={} path={}",
             st.st_ino,
             c_path.to_str().unwrap()
         );
 
         Ok(Entry {
-            inode: st.st_ino,
+            nodeid: st.st_ino,
             generation: st.st_gen as u64,
             attr: st,
             attr_timeout: self.cfg.attr_timeout,
@@ -525,7 +525,7 @@ impl PassthroughFs {
 
     fn do_readdir<F>(
         &self,
-        inode: Inode,
+        nodeid: NodeId,
         handle: Handle,
         size: u32,
         offset: u64,
@@ -543,7 +543,7 @@ impl PassthroughFs {
             .read()
             .unwrap()
             .get(&handle)
-            .filter(|hd| hd.inode == inode)
+            .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
@@ -623,14 +623,14 @@ impl PassthroughFs {
         Ok(())
     }
 
-    fn do_open(&self, inode: Inode, flags: u32) -> io::Result<(Option<Handle>, OpenOptions)> {
+    fn do_open(&self, nodeid: NodeId, flags: u32) -> io::Result<(Option<Handle>, OpenOptions)> {
         let flags = self.parse_open_flags(flags as i32);
 
-        let file = RwLock::new(self.open_inode(inode, flags)?);
+        let file = RwLock::new(self.open_nodeid(nodeid, flags)?);
 
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
         let data = HandleData {
-            inode,
+            nodeid,
             file,
             dirstream: Mutex::new(DirStream {
                 stream: 0,
@@ -657,11 +657,11 @@ impl PassthroughFs {
         Ok((Some(handle), opts))
     }
 
-    fn do_release(&self, inode: Inode, handle: Handle) -> io::Result<()> {
+    fn do_release(&self, nodeid: NodeId, handle: Handle) -> io::Result<()> {
         let mut handles = self.handles.write().unwrap();
 
         if let btree_map::Entry::Occupied(e) = handles.entry(handle) {
-            if e.get().inode == inode {
+            if e.get().nodeid == nodeid {
                 // We don't need to close the file here because that will happen automatically when
                 // the last `Arc` is dropped.
                 e.remove();
@@ -672,8 +672,8 @@ impl PassthroughFs {
         Err(ebadf())
     }
 
-    fn do_getattr(&self, inode: Inode, ctx: Context) -> io::Result<(bindings::stat64, Duration)> {
-        let c_path = self.inode_to_path(inode)?;
+    fn do_getattr(&self, nodeid: NodeId, ctx: Context) -> io::Result<(bindings::stat64, Duration)> {
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         let mut st = lstat(&c_path, false)?;
         st.st_uid = ctx.uid;
@@ -685,11 +685,11 @@ impl PassthroughFs {
     fn do_unlink(
         &self,
         _ctx: Context,
-        parent: Inode,
+        parent: NodeId,
         name: &CStr,
         flags: libc::c_int,
     ) -> io::Result<()> {
-        let c_path = self.inode_to_path(parent)?;
+        let c_path = self.nodeid_to_path(parent)?;
 
         let fd = unsafe { libc::open(c_path.as_ptr(), libc::O_NOFOLLOW | libc::O_CLOEXEC) };
         if fd < 0 {
@@ -769,7 +769,7 @@ fn set_secctx(file: StatFile, secctx: SecContext, symlink: bool) -> io::Result<(
 }
 
 impl FileSystem for PassthroughFs {
-    type Inode = Inode;
+    type NodeId = NodeId;
     type Handle = Handle;
 
     fn init(&self, capable: FsOptions) -> io::Result<FsOptions> {
@@ -790,33 +790,33 @@ impl FileSystem for PassthroughFs {
         self.handles.write().unwrap().clear();
     }
 
-    fn statfs(&self, _ctx: Context, inode: Inode) -> io::Result<Statvfs> {
-        let c_path = self.inode_to_path(inode)?;
+    fn statfs(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {
+        let c_path = self.nodeid_to_path(nodeid)?;
         statvfs(c_path.as_ref()).map_err(nix_linux_error)
     }
 
-    fn lookup(&self, _ctx: Context, parent: Inode, name: &CStr) -> io::Result<Entry> {
+    fn lookup(&self, _ctx: Context, parent: NodeId, name: &CStr) -> io::Result<Entry> {
         debug!("lookup: {:?}", name);
         self.do_lookup(parent, name, &_ctx)
     }
 
-    fn forget(&self, _ctx: Context, _inode: Inode, _count: u64) {}
+    fn forget(&self, _ctx: Context, _nodeid: NodeId, _count: u64) {}
 
-    fn batch_forget(&self, _ctx: Context, _requests: Vec<(Inode, u64)>) {}
+    fn batch_forget(&self, _ctx: Context, _requests: Vec<(NodeId, u64)>) {}
 
     fn opendir(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         flags: u32,
     ) -> io::Result<(Option<Handle>, OpenOptions)> {
-        self.do_open(inode, flags | libc::O_DIRECTORY as u32)
+        self.do_open(nodeid, flags | libc::O_DIRECTORY as u32)
     }
 
     fn releasedir(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         _flags: u32,
         handle: Handle,
     ) -> io::Result<()> {
@@ -825,7 +825,7 @@ impl FileSystem for PassthroughFs {
             .read()
             .unwrap()
             .get(&handle)
-            .filter(|hd| hd.inode == inode)
+            .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
@@ -834,13 +834,13 @@ impl FileSystem for PassthroughFs {
             unsafe { libc::closedir(ds.stream as *mut libc::DIR) };
         }
 
-        self.do_release(inode, handle)
+        self.do_release(nodeid, handle)
     }
 
     fn mkdir(
         &self,
         ctx: Context,
-        parent: Inode,
+        parent: NodeId,
         name: &CStr,
         mode: u32,
         umask: u32,
@@ -867,14 +867,14 @@ impl FileSystem for PassthroughFs {
         }
     }
 
-    fn rmdir(&self, ctx: Context, parent: Inode, name: &CStr) -> io::Result<()> {
+    fn rmdir(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<()> {
         self.do_unlink(ctx, parent, name, libc::AT_REMOVEDIR)
     }
 
     fn readdir<F>(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         handle: Handle,
         size: u32,
         offset: u64,
@@ -883,13 +883,13 @@ impl FileSystem for PassthroughFs {
     where
         F: FnMut(DirEntry) -> io::Result<usize>,
     {
-        self.do_readdir(inode, handle, size, offset, add_entry)
+        self.do_readdir(nodeid, handle, size, offset, add_entry)
     }
 
     fn readdirplus<F>(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         handle: Handle,
         size: u32,
         offset: u64,
@@ -898,7 +898,7 @@ impl FileSystem for PassthroughFs {
     where
         F: FnMut(DirEntry, Entry) -> io::Result<usize>,
     {
-        self.do_readdir(inode, handle, size, offset, |dir_entry| {
+        self.do_readdir(nodeid, handle, size, offset, |dir_entry| {
             // Safe because the kernel guarantees that the buffer is nul-terminated. Additionally,
             // the kernel will pad the name with '\0' bytes up to 8-byte alignment and there's no
             // way for us to know exactly how many padding bytes there are. This would cause
@@ -906,7 +906,7 @@ impl FileSystem for PassthroughFs {
             // interior '\0' bytes. We trust the kernel to provide us with properly formatted data
             // so we'll just skip the checks here.
             let name = unsafe { CStr::from_bytes_with_nul_unchecked(dir_entry.name) };
-            let entry = self.do_lookup(inode, name, &_ctx)?;
+            let entry = self.do_lookup(nodeid, name, &_ctx)?;
 
             add_entry(dir_entry, entry)
         })
@@ -915,29 +915,29 @@ impl FileSystem for PassthroughFs {
     fn open(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         flags: u32,
     ) -> io::Result<(Option<Handle>, OpenOptions)> {
-        self.do_open(inode, flags)
+        self.do_open(nodeid, flags)
     }
 
     fn release(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         _flags: u32,
         handle: Handle,
         _flush: bool,
         _flock_release: bool,
         _lock_owner: Option<u64>,
     ) -> io::Result<()> {
-        self.do_release(inode, handle)
+        self.do_release(nodeid, handle)
     }
 
     fn create(
         &self,
         ctx: Context,
-        parent: Inode,
+        parent: NodeId,
         name: &CStr,
         mode: u32,
         flags: u32,
@@ -983,7 +983,7 @@ impl FileSystem for PassthroughFs {
 
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
         let data = HandleData {
-            inode: entry.inode,
+            nodeid: entry.nodeid,
             file,
             dirstream: Mutex::new(DirStream {
                 stream: 0,
@@ -1003,14 +1003,14 @@ impl FileSystem for PassthroughFs {
         Ok((entry, Some(handle), opts))
     }
 
-    fn unlink(&self, ctx: Context, parent: Inode, name: &CStr) -> io::Result<()> {
+    fn unlink(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<()> {
         self.do_unlink(ctx, parent, name, 0)
     }
 
     fn read<W: io::Write + ZeroCopyWriter>(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         handle: Handle,
         mut w: W,
         size: u32,
@@ -1018,14 +1018,14 @@ impl FileSystem for PassthroughFs {
         _lock_owner: Option<u64>,
         _flags: u32,
     ) -> io::Result<usize> {
-        debug!("read: {:?}", inode);
+        debug!("read: {:?}", nodeid);
 
         let data = self
             .handles
             .read()
             .unwrap()
             .get(&handle)
-            .filter(|hd| hd.inode == inode)
+            .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
@@ -1038,7 +1038,7 @@ impl FileSystem for PassthroughFs {
     fn write<R: io::Read + ZeroCopyReader>(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         handle: Handle,
         mut r: R,
         size: u32,
@@ -1053,7 +1053,7 @@ impl FileSystem for PassthroughFs {
             .read()
             .unwrap()
             .get(&handle)
-            .filter(|hd| hd.inode == inode)
+            .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
@@ -1066,35 +1066,35 @@ impl FileSystem for PassthroughFs {
     fn getattr(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         _handle: Option<Handle>,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        self.do_getattr(inode, _ctx)
+        self.do_getattr(nodeid, _ctx)
     }
 
     fn setattr(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         attr: bindings::stat64,
         handle: Option<Handle>,
         valid: SetattrValid,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        let c_path = self.inode_to_path(inode)?;
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         enum Data {
             Handle(Arc<HandleData>, RawFd),
             FilePath,
         }
 
-        // If we have a handle then use it otherwise get a new fd from the inode.
+        // If we have a handle then use it otherwise get a new fd from the nodeid.
         let data = if let Some(handle) = handle {
             let hd = self
                 .handles
                 .read()
                 .unwrap()
                 .get(&handle)
-                .filter(|hd| hd.inode == inode)
+                .filter(|hd| hd.nodeid == nodeid)
                 .map(Arc::clone)
                 .ok_or_else(ebadf)?;
 
@@ -1142,7 +1142,7 @@ impl FileSystem for PassthroughFs {
                 Data::Handle(_, fd) => ftruncate(fd, attr.st_size),
                 _ => {
                     // There is no `ftruncateat` so we need to get a new fd and truncate it.
-                    let f = self.open_inode(inode, libc::O_NONBLOCK | libc::O_RDWR)?;
+                    let f = self.open_nodeid(nodeid, libc::O_NONBLOCK | libc::O_RDWR)?;
                     ftruncate(f.as_raw_fd(), attr.st_size)
                 }
             }
@@ -1190,15 +1190,15 @@ impl FileSystem for PassthroughFs {
             }
         }
 
-        self.do_getattr(inode, _ctx)
+        self.do_getattr(nodeid, _ctx)
     }
 
     fn rename(
         &self,
         ctx: Context,
-        olddir: Inode,
+        olddir: NodeId,
         oldname: &CStr,
-        newdir: Inode,
+        newdir: NodeId,
         newname: &CStr,
         flags: u32,
     ) -> io::Result<()> {
@@ -1241,7 +1241,7 @@ impl FileSystem for PassthroughFs {
             }
 
             let entry = self.do_lookup(newdir, newname, &ctx)?;
-            self.forget(ctx, entry.inode, 1);
+            self.forget(ctx, entry.nodeid, 1);
 
             Ok(())
         } else {
@@ -1252,7 +1252,7 @@ impl FileSystem for PassthroughFs {
     fn mknod(
         &self,
         ctx: Context,
-        parent: Inode,
+        parent: NodeId,
         name: &CStr,
         mode: u32,
         _rdev: u32,
@@ -1293,11 +1293,11 @@ impl FileSystem for PassthroughFs {
     fn link(
         &self,
         _ctx: Context,
-        inode: Inode,
-        newparent: Inode,
+        nodeid: NodeId,
+        newparent: NodeId,
         newname: &CStr,
     ) -> io::Result<Entry> {
-        let orig_c_path = self.inode_to_path(inode)?;
+        let orig_c_path = self.nodeid_to_path(nodeid)?;
         let link_c_path = self.name_to_path(newparent, newname)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
@@ -1313,7 +1313,7 @@ impl FileSystem for PassthroughFs {
         &self,
         ctx: Context,
         linkname: &CStr,
-        parent: Inode,
+        parent: NodeId,
         name: &CStr,
         extensions: Extensions,
     ) -> io::Result<Entry> {
@@ -1343,8 +1343,8 @@ impl FileSystem for PassthroughFs {
         }
     }
 
-    fn readlink(&self, _ctx: Context, inode: Inode) -> io::Result<Vec<u8>> {
-        let c_path = self.inode_to_path(inode)?;
+    fn readlink(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Vec<u8>> {
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         let mut buf = vec![0; libc::PATH_MAX as usize];
         let res = unsafe {
@@ -1365,7 +1365,7 @@ impl FileSystem for PassthroughFs {
     fn flush(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         handle: Handle,
         _lock_owner: u64,
     ) -> io::Result<()> {
@@ -1374,7 +1374,7 @@ impl FileSystem for PassthroughFs {
             .read()
             .unwrap()
             .get(&handle)
-            .filter(|hd| hd.inode == inode)
+            .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
@@ -1398,7 +1398,7 @@ impl FileSystem for PassthroughFs {
     fn fsync(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         _datasync: bool,
         handle: Handle,
     ) -> io::Result<()> {
@@ -1407,7 +1407,7 @@ impl FileSystem for PassthroughFs {
             .read()
             .unwrap()
             .get(&handle)
-            .filter(|hd| hd.inode == inode)
+            .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
@@ -1427,15 +1427,15 @@ impl FileSystem for PassthroughFs {
     fn fsyncdir(
         &self,
         ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         datasync: bool,
         handle: Handle,
     ) -> io::Result<()> {
-        self.fsync(ctx, inode, datasync, handle)
+        self.fsync(ctx, nodeid, datasync, handle)
     }
 
-    fn access(&self, ctx: Context, inode: Inode, mask: u32) -> io::Result<()> {
-        let c_path = self.inode_to_path(inode)?;
+    fn access(&self, ctx: Context, nodeid: NodeId, mask: u32) -> io::Result<()> {
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         let st = lstat(&c_path, false)?;
 
@@ -1484,14 +1484,14 @@ impl FileSystem for PassthroughFs {
     fn setxattr(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         name: &CStr,
         value: &[u8],
         flags: u32,
     ) -> io::Result<()> {
         debug!(
-            "setxattr: inode={} name={:?} value={:?}",
-            inode, name, value
+            "setxattr: nodeid={} name={:?} value={:?}",
+            nodeid, name, value
         );
 
         if !self.cfg.xattr {
@@ -1510,7 +1510,7 @@ impl FileSystem for PassthroughFs {
             mflags |= libc::XATTR_REPLACE;
         }
 
-        let c_path = self.inode_to_path(inode)?;
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe {
@@ -1533,11 +1533,11 @@ impl FileSystem for PassthroughFs {
     fn getxattr(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         name: &CStr,
         size: u32,
     ) -> io::Result<GetxattrReply> {
-        debug!("getxattr: inode={} name={:?}, size={}", inode, name, size);
+        debug!("getxattr: nodeid={} name={:?}, size={}", nodeid, name, size);
 
         if !self.cfg.xattr {
             return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
@@ -1549,7 +1549,7 @@ impl FileSystem for PassthroughFs {
 
         let mut buf = vec![0; size as usize];
 
-        let c_path = self.inode_to_path(inode)?;
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         // Safe because this will only modify the contents of `buf`
         let res = unsafe {
@@ -1585,14 +1585,14 @@ impl FileSystem for PassthroughFs {
         }
     }
 
-    fn listxattr(&self, _ctx: Context, inode: Inode, size: u32) -> io::Result<ListxattrReply> {
+    fn listxattr(&self, _ctx: Context, nodeid: NodeId, size: u32) -> io::Result<ListxattrReply> {
         if !self.cfg.xattr {
             return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
         }
 
         let mut buf = vec![0; 512_usize];
 
-        let c_path = self.inode_to_path(inode)?;
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         // Safe because this will only modify the contents of `buf`.
         let res = unsafe {
@@ -1641,7 +1641,7 @@ impl FileSystem for PassthroughFs {
         }
     }
 
-    fn removexattr(&self, _ctx: Context, inode: Inode, name: &CStr) -> io::Result<()> {
+    fn removexattr(&self, _ctx: Context, nodeid: NodeId, name: &CStr) -> io::Result<()> {
         if !self.cfg.xattr {
             return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
         }
@@ -1652,7 +1652,7 @@ impl FileSystem for PassthroughFs {
             )));
         }
 
-        let c_path = self.inode_to_path(inode)?;
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::removexattr(c_path.as_ptr(), name.as_ptr(), 0) };
@@ -1667,7 +1667,7 @@ impl FileSystem for PassthroughFs {
     fn fallocate(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         handle: Handle,
         _mode: u32,
         offset: u64,
@@ -1678,7 +1678,7 @@ impl FileSystem for PassthroughFs {
             .read()
             .unwrap()
             .get(&handle)
-            .filter(|hd| hd.inode == inode)
+            .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
@@ -1713,7 +1713,7 @@ impl FileSystem for PassthroughFs {
     fn lseek(
         &self,
         _ctx: Context,
-        inode: Inode,
+        nodeid: NodeId,
         handle: Handle,
         offset: u64,
         whence: u32,
@@ -1723,7 +1723,7 @@ impl FileSystem for PassthroughFs {
             .read()
             .unwrap()
             .get(&handle)
-            .filter(|hd| hd.inode == inode)
+            .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
@@ -1754,7 +1754,7 @@ impl FileSystem for PassthroughFs {
     fn ioctl(
         &self,
         _ctx: Context,
-        _inode: Self::Inode,
+        _nodeid: Self::NodeId,
         _ohandle: Self::Handle,
         _flags: u32,
         cmd: u32,

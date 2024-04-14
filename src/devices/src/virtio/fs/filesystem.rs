@@ -6,7 +6,6 @@ use std::convert::TryInto;
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io;
-use std::mem;
 use std::time::Duration;
 
 use super::bindings;
@@ -24,7 +23,7 @@ pub struct Entry {
     /// negative entry. Returning `ENOENT` also means a negative entry but setting this to `0`
     /// allows the kernel to cache the negative result for `entry_timeout`. The value should be
     /// produced by converting a `FileSystem::Inode` into a `u64`.
-    pub inode: u64,
+    pub nodeid: u64,
 
     /// The generation number for this `Entry`. Typically used for network file systems. An `inode`
     /// / `generation` pair must be unique over the lifetime of the file system (rather than just
@@ -51,7 +50,7 @@ pub struct Entry {
 impl From<Entry> for fuse::EntryOut {
     fn from(entry: Entry) -> fuse::EntryOut {
         fuse::EntryOut {
-            nodeid: entry.inode,
+            nodeid: entry.nodeid,
             generation: entry.generation,
             entry_valid: entry.entry_timeout.as_secs(),
             attr_valid: entry.attr_timeout.as_secs(),
@@ -359,7 +358,7 @@ pub trait FileSystem {
     ///
     /// Note that if a file system will be exported over NFS the `Inode`'s lifetime must extend even
     /// beyond `forget`. See the `generation` field in `Entry`.
-    type Inode: From<u64> + Into<u64>;
+    type NodeId: From<u64> + Into<u64>;
 
     /// Represents a file or directory that is open for reading/writing.
     type Handle: From<u64> + Into<u64>;
@@ -386,7 +385,7 @@ pub trait FileSystem {
     ///
     /// If this call is successful then the lookup count of the `Inode` associated with the returned
     /// `Entry` must be increased by 1.
-    fn lookup(&self, ctx: Context, parent: Self::Inode, name: &CStr) -> io::Result<Entry> {
+    fn lookup(&self, ctx: Context, parent: Self::NodeId, name: &CStr) -> io::Result<Entry> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
@@ -395,13 +394,13 @@ pub trait FileSystem {
     /// Called when the kernel removes an inode from its internal caches. `count` indicates the
     /// amount by which the lookup count for the inode should be decreased. If reducing the lookup
     /// count by `count` causes it to go to zero, then the implementation may delete the `Inode`.
-    fn forget(&self, ctx: Context, inode: Self::Inode, count: u64) {}
+    fn forget(&self, ctx: Context, inode: Self::NodeId, count: u64) {}
 
     /// Forget about multiple inodes.
     ///
     /// `requests` is a vector of `(inode, count)` pairs. See the documentation for `forget` for
     /// more information.
-    fn batch_forget(&self, ctx: Context, requests: Vec<(Self::Inode, u64)>) {
+    fn batch_forget(&self, ctx: Context, requests: Vec<(Self::NodeId, u64)>) {
         for (inode, count) in requests {
             self.forget(ctx, inode, count)
         }
@@ -424,7 +423,7 @@ pub trait FileSystem {
     fn getattr(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Option<Self::Handle>,
     ) -> io::Result<(bindings::stat64, Duration)> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
@@ -450,7 +449,7 @@ pub trait FileSystem {
     fn setattr(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         attr: bindings::stat64,
         handle: Option<Self::Handle>,
         valid: SetattrValid,
@@ -459,7 +458,7 @@ pub trait FileSystem {
     }
 
     /// Read a symbolic link.
-    fn readlink(&self, ctx: Context, inode: Self::Inode) -> io::Result<Vec<u8>> {
+    fn readlink(&self, ctx: Context, inode: Self::NodeId) -> io::Result<Vec<u8>> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
@@ -475,7 +474,7 @@ pub trait FileSystem {
         &self,
         ctx: Context,
         linkname: &CStr,
-        parent: Self::Inode,
+        parent: Self::NodeId,
         name: &CStr,
         extensions: Extensions,
     ) -> io::Result<Entry> {
@@ -497,7 +496,7 @@ pub trait FileSystem {
     fn mknod(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         name: &CStr,
         mode: u32,
         rdev: u32,
@@ -518,7 +517,7 @@ pub trait FileSystem {
     fn mkdir(
         &self,
         ctx: Context,
-        parent: Self::Inode,
+        parent: Self::NodeId,
         name: &CStr,
         mode: u32,
         umask: u32,
@@ -532,7 +531,7 @@ pub trait FileSystem {
     /// If the file's inode lookup count is non-zero, then the file system is expected to delay
     /// removal of the inode until the lookup count goes to zero. See the documentation of the
     /// `forget` function for more information.
-    fn unlink(&self, ctx: Context, parent: Self::Inode, name: &CStr) -> io::Result<()> {
+    fn unlink(&self, ctx: Context, parent: Self::NodeId, name: &CStr) -> io::Result<()> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
@@ -541,7 +540,7 @@ pub trait FileSystem {
     /// If the directory's inode lookup count is non-zero, then the file system is expected to delay
     /// removal of the inode until the lookup count goes to zero. See the documentation of the
     /// `forget` function for more information.
-    fn rmdir(&self, ctx: Context, parent: Self::Inode, name: &CStr) -> io::Result<()> {
+    fn rmdir(&self, ctx: Context, parent: Self::NodeId, name: &CStr) -> io::Result<()> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
@@ -560,9 +559,9 @@ pub trait FileSystem {
     fn rename(
         &self,
         ctx: Context,
-        olddir: Self::Inode,
+        olddir: Self::NodeId,
         oldname: &CStr,
-        newdir: Self::Inode,
+        newdir: Self::NodeId,
         newname: &CStr,
         flags: u32,
     ) -> io::Result<()> {
@@ -578,8 +577,8 @@ pub trait FileSystem {
     fn link(
         &self,
         ctx: Context,
-        inode: Self::Inode,
-        newparent: Self::Inode,
+        inode: Self::NodeId,
+        newparent: Self::NodeId,
         newname: &CStr,
     ) -> io::Result<Entry> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
@@ -628,7 +627,7 @@ pub trait FileSystem {
     fn open(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         flags: u32,
     ) -> io::Result<(Option<Self::Handle>, OpenOptions)> {
         // Matches the behavior of libfuse.
@@ -653,7 +652,7 @@ pub trait FileSystem {
     fn create(
         &self,
         ctx: Context,
-        parent: Self::Inode,
+        parent: Self::NodeId,
         name: &CStr,
         mode: u32,
         flags: u32,
@@ -682,7 +681,7 @@ pub trait FileSystem {
     fn read<W: io::Write + ZeroCopyWriter>(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         w: W,
         size: u32,
@@ -716,7 +715,7 @@ pub trait FileSystem {
     fn write<R: io::Read + ZeroCopyReader>(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         r: R,
         size: u32,
@@ -754,7 +753,7 @@ pub trait FileSystem {
     fn flush(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         lock_owner: u64,
     ) -> io::Result<()> {
@@ -777,7 +776,7 @@ pub trait FileSystem {
     fn fsync(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         datasync: bool,
         handle: Self::Handle,
     ) -> io::Result<()> {
@@ -800,7 +799,7 @@ pub trait FileSystem {
     fn fallocate(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         mode: u32,
         offset: u64,
@@ -829,7 +828,7 @@ pub trait FileSystem {
     fn release(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         flags: u32,
         handle: Self::Handle,
         flush: bool,
@@ -840,7 +839,7 @@ pub trait FileSystem {
     }
 
     /// Get information about the file system.
-    fn statfs(&self, ctx: Context, inode: Self::Inode) -> io::Result<Statvfs> {
+    fn statfs(&self, ctx: Context, inode: Self::NodeId) -> io::Result<Statvfs> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
@@ -855,7 +854,7 @@ pub trait FileSystem {
     fn setxattr(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         name: &CStr,
         value: &[u8],
         flags: u32,
@@ -877,7 +876,7 @@ pub trait FileSystem {
     fn getxattr(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         name: &CStr,
         size: u32,
     ) -> io::Result<GetxattrReply> {
@@ -896,7 +895,12 @@ pub trait FileSystem {
     /// If this method fails with an `ENOSYS` error, then the kernel will treat that as a permanent
     /// failure. The kernel will return `EOPNOTSUPP` for all future calls to `listxattr` without
     /// forwarding them to the file system.
-    fn listxattr(&self, ctx: Context, inode: Self::Inode, size: u32) -> io::Result<ListxattrReply> {
+    fn listxattr(
+        &self,
+        ctx: Context,
+        inode: Self::NodeId,
+        size: u32,
+    ) -> io::Result<ListxattrReply> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
@@ -905,7 +909,7 @@ pub trait FileSystem {
     /// If this method fails with an `ENOSYS` error, then the kernel will treat that as a permanent
     /// failure. The kernel will return `EOPNOTSUPP` for all future calls to `removexattr` without
     /// forwarding them to the file system.
-    fn removexattr(&self, ctx: Context, inode: Self::Inode, name: &CStr) -> io::Result<()> {
+    fn removexattr(&self, ctx: Context, inode: Self::NodeId, name: &CStr) -> io::Result<()> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
@@ -928,7 +932,7 @@ pub trait FileSystem {
     fn opendir(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         flags: u32,
     ) -> io::Result<(Option<Self::Handle>, OpenOptions)> {
         // Matches the behavior of libfuse.
@@ -965,7 +969,7 @@ pub trait FileSystem {
     fn readdir<F>(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         size: u32,
         offset: u64,
@@ -1004,7 +1008,7 @@ pub trait FileSystem {
     fn readdirplus<F>(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         size: u32,
         offset: u64,
@@ -1032,7 +1036,7 @@ pub trait FileSystem {
     fn fsyncdir(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         datasync: bool,
         handle: Self::Handle,
     ) -> io::Result<()> {
@@ -1052,7 +1056,7 @@ pub trait FileSystem {
     fn releasedir(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         flags: u32,
         handle: Self::Handle,
     ) -> io::Result<()> {
@@ -1069,7 +1073,7 @@ pub trait FileSystem {
     /// If this method returns an `ENOSYS` error, then the kernel will treat it as a permanent
     /// success: all future calls to `access` will return success without being forwarded to the
     /// file system.
-    fn access(&self, ctx: Context, inode: Self::Inode, mask: u32) -> io::Result<()> {
+    fn access(&self, ctx: Context, inode: Self::NodeId, mask: u32) -> io::Result<()> {
         Err(io::Error::from_raw_os_error(bindings::LINUX_ENOSYS))
     }
 
@@ -1077,7 +1081,7 @@ pub trait FileSystem {
     fn lseek(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         offset: u64,
         whence: u32,
@@ -1089,10 +1093,10 @@ pub trait FileSystem {
     fn copyfilerange(
         &self,
         ctx: Context,
-        inode_in: Self::Inode,
+        inode_in: Self::NodeId,
         handle_in: Self::Handle,
         offset_in: u64,
-        inode_out: Self::Inode,
+        inode_out: Self::NodeId,
         handle_out: Self::Handle,
         offset_out: u64,
         len: u64,
@@ -1106,7 +1110,7 @@ pub trait FileSystem {
     fn setupmapping(
         &self,
         _ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         foffset: u64,
         len: u64,
@@ -1132,7 +1136,7 @@ pub trait FileSystem {
     fn ioctl(
         &self,
         ctx: Context,
-        inode: Self::Inode,
+        inode: Self::NodeId,
         handle: Self::Handle,
         flags: u32,
         cmd: u32,
