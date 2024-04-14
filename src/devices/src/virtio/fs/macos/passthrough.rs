@@ -1489,52 +1489,7 @@ impl FileSystem for PassthroughFs {
         self.fsync(ctx, nodeid, datasync, handle)
     }
 
-    fn access(&self, ctx: Context, nodeid: NodeId, mask: u32) -> io::Result<()> {
-        let c_path = self.nodeid_to_path(nodeid)?;
-
-        let st = lstat(&c_path, false)?;
-
-        let mode = mask as i32 & (libc::R_OK | libc::W_OK | libc::X_OK);
-
-        if mode == libc::F_OK {
-            // The file exists since we were able to call `stat(2)` on it.
-            return Ok(());
-        }
-
-        // TODO: re-enable perm checks once we implement perms
-        /*
-        if (mode & libc::R_OK) != 0
-            && ctx.uid != 0
-            && (st.st_uid != ctx.uid || st.st_mode & 0o400 == 0)
-            && (st.st_gid != ctx.gid || st.st_mode & 0o040 == 0)
-            && st.st_mode & 0o004 == 0
-        {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::EACCES)));
-        }
-
-        if (mode & libc::W_OK) != 0
-            && ctx.uid != 0
-            && (st.st_uid != ctx.uid || st.st_mode & 0o200 == 0)
-            && (st.st_gid != ctx.gid || st.st_mode & 0o020 == 0)
-            && st.st_mode & 0o002 == 0
-        {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::EACCES)));
-        }
-
-        // root can only execute something if it is executable by one of the owner, the group, or
-        // everyone.
-        if (mode & libc::X_OK) != 0
-            && (ctx.uid != 0 || st.st_mode & 0o111 == 0)
-            && (st.st_uid != ctx.uid || st.st_mode & 0o100 == 0)
-            && (st.st_gid != ctx.gid || st.st_mode & 0o010 == 0)
-            && st.st_mode & 0o001 == 0
-        {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::EACCES)));
-        }
-        */
-
-        Ok(())
-    }
+    // access not implemented: we use default_permissions
 
     fn setxattr(
         &self,
