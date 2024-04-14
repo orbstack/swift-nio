@@ -137,7 +137,7 @@ fn get_xattr_stat(file: StatFile) -> io::Result<Option<(u32, u32, u32)>> {
             )
         },
     };
-    if res < 0 {
+    if res == -1 {
         debug!("fget_xattr error: {}", res);
         return Ok(None);
     }
@@ -246,7 +246,7 @@ fn set_xattr_stat(file: StatFile, owner: Option<(u32, u32)>, mode: Option<u32>) 
         },
     };
 
-    if res < 0 {
+    if res == -1 {
         Err(linux_error(io::Error::last_os_error()))
     } else {
         Ok(())
@@ -500,7 +500,7 @@ impl PassthroughFs {
                 (flags | libc::O_CLOEXEC) & (!libc::O_NOFOLLOW) & (!libc::O_EXLOCK),
             )
         };
-        if fd < 0 {
+        if fd == -1 {
             return Err(linux_error(io::Error::last_os_error()));
         }
 
@@ -744,7 +744,7 @@ impl PassthroughFs {
         let c_path = self.nodeid_to_path(parent)?;
 
         let fd = unsafe { libc::open(c_path.as_ptr(), libc::O_NOFOLLOW | libc::O_CLOEXEC) };
-        if fd < 0 {
+        if fd == -1 {
             return Err(io::Error::last_os_error());
         }
 
@@ -1016,7 +1016,7 @@ impl FileSystem for PassthroughFs {
                 mode,
             )
         };
-        if fd < 0 {
+        if fd == -1 {
             return Err(linux_error(io::Error::last_os_error()));
         }
 
@@ -1243,7 +1243,7 @@ impl FileSystem for PassthroughFs {
                     res
                 },
             };
-            if res < 0 {
+            if res == -1 {
                 return Err(io::Error::last_os_error());
             }
         }
@@ -1326,7 +1326,7 @@ impl FileSystem for PassthroughFs {
                 0o600,
             )
         };
-        if fd < 0 {
+        if fd == -1 {
             Err(linux_error(io::Error::last_os_error()))
         } else {
             // Set security context
@@ -1412,7 +1412,7 @@ impl FileSystem for PassthroughFs {
                 buf.len(),
             )
         };
-        if res < 0 {
+        if res == -1 {
             return Err(linux_error(io::Error::last_os_error()));
         }
 
@@ -1441,11 +1441,11 @@ impl FileSystem for PassthroughFs {
         // because this doesn't modify any memory and we check the return values.
         unsafe {
             let newfd = libc::dup(data.file.write().unwrap().as_raw_fd());
-            if newfd < 0 {
+            if newfd == -1 {
                 return Err(linux_error(io::Error::last_os_error()));
             }
 
-            if libc::close(newfd) < 0 {
+            if libc::close(newfd) == -1 {
                 Err(linux_error(io::Error::last_os_error()))
             } else {
                 Ok(())
@@ -1631,7 +1631,7 @@ impl FileSystem for PassthroughFs {
                 )
             }
         };
-        if res < 0 {
+        if res == -1 {
             return Err(linux_error(io::Error::last_os_error()));
         }
 
@@ -1661,7 +1661,7 @@ impl FileSystem for PassthroughFs {
                 0,
             )
         };
-        if res < 0 {
+        if res == -1 {
             return Err(linux_error(io::Error::last_os_error()));
         }
 
@@ -1751,10 +1751,10 @@ impl FileSystem for PassthroughFs {
         };
 
         let res = unsafe { libc::fcntl(fd, libc::F_PREALLOCATE, &mut fs as *mut _) };
-        if res < 0 {
+        if res == -1 {
             fs.fst_flags = libc::F_ALLOCATEALL;
             let res = unsafe { libc::fcntl(fd, libc::F_PREALLOCATE, &mut fs as &mut _) };
-            if res < 0 {
+            if res == -1 {
                 return Err(linux_error(io::Error::last_os_error()));
             }
         }
@@ -1801,7 +1801,7 @@ impl FileSystem for PassthroughFs {
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::lseek(fd, offset as bindings::off64_t, mwhence as libc::c_int) };
-        if res < 0 {
+        if res == -1 {
             Err(linux_error(io::Error::last_os_error()))
         } else {
             Ok(res as u64)
