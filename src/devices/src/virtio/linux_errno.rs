@@ -57,6 +57,7 @@ const LINUX_EPROTOTYPE: i32 = 91;
 const LINUX_ENOPROTOOPT: i32 = 92;
 const LINUX_EPROTONOSUPPORT: i32 = 93;
 const LINUX_ESOCKTNOSUPPORT: i32 = 94;
+const LINUX_ENOTSUP: i32 = 95;
 const LINUX_EOPNOTSUPP: i32 = 95;
 const LINUX_EPFNOSUPPORT: i32 = 96;
 const LINUX_EAFNOSUPPORT: i32 = 97;
@@ -176,6 +177,7 @@ pub fn linux_errno_raw(errno: i32) -> i32 {
         libc::ENOSTR => LINUX_ENOSTR,
         libc::EPROTO => LINUX_EPROTO,
         libc::ETIME => LINUX_ETIME,
+        libc::ENOTSUP => LINUX_ENOTSUP,
         libc::EOPNOTSUPP => LINUX_EOPNOTSUPP,
         libc::ENOTRECOVERABLE => LINUX_ENOTRECOVERABLE,
         libc::EOWNERDEAD => LINUX_EOWNERDEAD,
