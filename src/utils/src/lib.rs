@@ -20,5 +20,6 @@ pub mod rand;
 #[cfg(target_os = "linux")]
 pub mod signal;
 pub mod sm;
+pub mod span;
 pub mod syscall;
 pub mod time;
