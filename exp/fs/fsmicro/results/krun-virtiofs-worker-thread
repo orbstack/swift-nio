@@ -1,0 +1,25 @@
+create+delete file      time:   [197.03 µs 199.76 µs 202.45 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+
+open file               time:   [28.839 µs 30.178 µs 31.550 µs]
+
+lstat file              time:   [216.34 ns 216.61 ns 216.92 ns]
+Found 9 outliers among 100 measurements (9.00%)
+  5 (5.00%) high mild
+  4 (4.00%) high severe
+
+write file              time:   [18.578 µs 18.842 µs 19.187 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  1 (1.00%) low severe
+  3 (3.00%) low mild
+  4 (4.00%) high severe
+
+create+delete dir       time:   [189.65 µs 192.12 µs 194.74 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe

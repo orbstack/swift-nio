@@ -1,0 +1,30 @@
+create+delete file      time:   [35.375 µs 35.907 µs 36.508 µs]
+                        change: [-1.0064% +1.6976% +4.4408%] (p = 0.22 > 0.05)
+                        No change in performance detected.
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
+
+open file               time:   [4.1278 µs 4.2735 µs 4.4287 µs]
+                        change: [-6.0129% -2.1368% +2.1701%] (p = 0.30 > 0.05)
+                        No change in performance detected.
+Found 6 outliers among 100 measurements (6.00%)
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+
+lstat file              time:   [646.02 ns 686.02 ns 727.70 ns]
+                        change: [-7.8372% -0.0193% +8.0812%] (p = 1.00 > 0.05)
+                        No change in performance detected.
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+
+write file              time:   [1.0317 µs 1.0609 µs 1.0923 µs]
+                        change: [-0.8604% +4.1444% +9.7328%] (p = 0.13 > 0.05)
+                        No change in performance detected.
+Found 5 outliers among 100 measurements (5.00%)
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+
+create+delete dir       time:   [35.564 µs 36.143 µs 36.699 µs]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
