@@ -21,13 +21,16 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
+use nix::errno::Errno;
 use nix::fcntl::OFlag;
 use nix::sys::stat::fchmod;
 use nix::sys::stat::Mode;
 use nix::sys::statfs::statfs;
 use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
+use nix::unistd::access;
 use nix::unistd::ftruncate;
+use nix::unistd::AccessFlags;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
@@ -1457,7 +1460,21 @@ impl FileSystem for PassthroughFs {
         let old_cpath = self.name_to_path(olddir, oldname.to_string_lossy())?;
         let new_cpath = self.name_to_path(newdir, newname.to_string_lossy())?;
 
-        let res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
+        let mut res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
+        // ENOTSUP = not supported by FS (e.g. NFS). retry and simulate if only flag is RENAME_EXCL
+        // GNU coreutils 'mv' uses RENAME_EXCL so this is common
+        // (hard to simulate RENAME_SWAP)
+        if res == -1 && Errno::last() == Errno::ENOTSUP && mflags == libc::RENAME_EXCL {
+            // EXCL means that target must not exist, so check it
+            match access(new_cpath.as_ref(), AccessFlags::F_OK) {
+                Ok(_) => return Err(linux_error(io::Error::from_raw_os_error(libc::EEXIST))),
+                Err(Errno::ENOENT) => {}
+                Err(e) => return Err(linux_error(io::Error::from_raw_os_error(e as i32))),
+            }
+
+            res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), 0) }
+        }
+
         if res == 0 {
             if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0 {
                 let fd = unsafe {
