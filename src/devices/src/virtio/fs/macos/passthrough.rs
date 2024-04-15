@@ -617,12 +617,12 @@ impl PassthroughFs {
     }
 
     fn do_lookup<N: Display>(&self, parent: NodeId, name: N, ctx: &Context) -> io::Result<Entry> {
-        let (mut c_path, (parent_dev, _)) = self.name_to_path_and_devino(parent, &name)?;
+        let (mut c_path, (parent_dev, parent_ino)) = self.name_to_path_and_devino(parent, &name)?;
         // looking up nfs mountpoint should return a dummy empty dir
         // for simplicity we can always just use /var/empty
         if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
             if nfs_info.parent_dir_dev == parent_dev
-                && nfs_info.parent_dir_inode == parent
+                && nfs_info.parent_dir_inode == parent_ino
                 && nfs_info.dir_name == name.to_string()
             {
                 c_path = CString::new("/var/empty")?;
