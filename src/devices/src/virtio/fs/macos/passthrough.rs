@@ -10,6 +10,7 @@ use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
 use std::io;
+use std::mem;
 use std::os::fd::OwnedFd;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
@@ -23,10 +24,10 @@ use std::time::Duration;
 use nix::fcntl::OFlag;
 use nix::sys::stat::fchmod;
 use nix::sys::stat::Mode;
+use nix::sys::statfs::statfs;
 use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
 use nix::unistd::ftruncate;
-use nix::NixPath;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
@@ -53,7 +54,11 @@ const UID_MAX: u32 = u32::MAX - 1;
 // 2 hours
 // we invalidate via krpc
 const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(2 * 60 * 60);
+
 const NSEC_PER_SEC: u64 = 1_000_000_000;
+// maxfilesperproc=10240 on 8 GB x86
+// must keep our own fd limit to avoid breaking vmgr
+const MAX_PATH_FDS: u64 = 8000;
 
 type NodeId = u64;
 type Handle = u64;
@@ -301,14 +306,19 @@ fn lstat(c_path: &CString, host: bool) -> io::Result<bindings::stat64> {
     Ok(st)
 }
 
-fn openat<T: AsRawFd, P: ?Sized + NixPath>(
-    fd: T,
-    path: &P,
-    oflag: OFlag,
-    mode: Mode,
-) -> io::Result<OwnedFd> {
-    let fd = nix::fcntl::openat(fd.as_raw_fd(), path, oflag, mode).map_err(nix_linux_error)?;
-    Ok(unsafe { OwnedFd::from_raw_fd(fd) })
+fn get_path_by_fd<T: AsRawFd>(fd: T) -> io::Result<String> {
+    // allocate it on stack
+    debug!("get_path_by_fd: fd={}", fd.as_raw_fd());
+    let mut path_buf: [u8; 1024] = [0; 1024];
+    let ret = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETPATH, &mut path_buf) };
+    if ret == -1 {
+        return Err(io::Error::last_os_error());
+    }
+
+    // cstr to find length
+    let cstr = CStr::from_bytes_until_nul(&path_buf).map_err(|_| einval())?;
+    // safe: kernel guarantees UTF-8
+    Ok(unsafe { String::from_utf8_unchecked(cstr.to_bytes().to_vec()) })
 }
 
 /// The caching policy that the file system should report to the FUSE client. By default the FUSE
@@ -427,6 +437,9 @@ struct NodeData {
     dev_ino: DevIno,
     refcount: AtomicU64,
     last_ctime: AtomicU64,
+
+    // if volfs not supported
+    fd: Option<OwnedFd>,
 }
 
 type DevIno = (i32, u64);
@@ -442,6 +455,10 @@ pub struct PassthroughFs {
 
     handles: RwLock<BTreeMap<Handle, Arc<HandleData>>>,
     next_handle: AtomicU64,
+
+    // volfs supported?
+    dev_info: Mutex<BTreeMap<i32, bool>>,
+    num_open_fds: AtomicU64,
 
     // Whether writeback caching is enabled for this directory. This will only be true when
     // `cfg.writeback` is true and `init` was called with `FsOptions::WRITEBACK_CACHE`.
@@ -467,8 +484,12 @@ impl PassthroughFs {
                 // refcount 2 so it can never be dropped
                 refcount: AtomicU64::new(2),
                 last_ctime: AtomicU64::new(st_ctime(&st)),
+                fd: None,
             },
         );
+
+        let mut dev_info = BTreeMap::new();
+        dev_info.insert(st.st_dev, true);
 
         Ok(PassthroughFs {
             nodeids: RwLock::new(nodeids),
@@ -477,26 +498,39 @@ impl PassthroughFs {
             handles: RwLock::new(BTreeMap::new()),
             next_handle: AtomicU64::new(1),
 
+            dev_info: Mutex::new(dev_info),
+            num_open_fds: AtomicU64::new(0),
+
             writeback: AtomicBool::new(false),
             cfg,
         })
     }
 
-    fn get_nodeid(&self, nodeid: NodeId) -> io::Result<DevIno> {
+    // TODO: fix possible race with fd close, without Arc
+    fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, Option<RawFd>)> {
         let nodeids = self.nodeids.read().unwrap();
         let node = nodeids.get(&nodeid).ok_or_else(ebadf)?;
-        Ok(node.dev_ino)
+        Ok((node.dev_ino, node.fd.as_ref().map(|fd| fd.as_raw_fd())))
     }
 
-    fn nodeid_to_path_and_devino(&self, nodeid: NodeId) -> io::Result<(CString, DevIno)> {
-        let (device, inode) = self.get_nodeid(nodeid)?;
-
-        let cstr = CString::new(format!("/.vol/{}/{}", device, inode)).map_err(|_| einval())?;
-        Ok((cstr, (device, inode)))
-    }
-
+    // note: /.vol (volfs) is undocumented and deprecated
+    // but worst-case scenario: we can use public APIs (fsgetpath) to get the path,
+    // and also cache O_EVTONLY fds and paths.
+    // lstat realpath=681.85ns, volfs=895.88ns, fsgetpath=1.1478us, lstat+fsgetpath=1.8592us
+    // TODO: unify with name_to_path(NodeId, Option<N>)
     fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
-        Ok(self.nodeid_to_path_and_devino(nodeid)?.0)
+        let ((device, inode), fd) = self.get_nodeid(nodeid)?;
+        let path = if let Some(fd) = fd {
+            // to minimize race window and support renames, get latest path from fd
+            // this also allows minimal opens (EVTONLY | RDONLY)
+            // TODO: all handlers should support Fd or Path. this is just lowest-effort impl
+            get_path_by_fd(fd)?
+        } else {
+            format!("/.vol/{}/{}", device, inode)
+        };
+
+        let cstr = CString::new(path).map_err(|_| einval())?;
+        Ok(cstr)
     }
 
     fn name_to_path_and_devino<N: Display>(
@@ -504,10 +538,17 @@ impl PassthroughFs {
         parent: NodeId,
         name: N,
     ) -> io::Result<(CString, DevIno)> {
-        let (parent_device, parent_inode) = self.get_nodeid(parent)?;
+        let ((parent_device, parent_inode), fd) = self.get_nodeid(parent)?;
+        let path = if let Some(fd) = fd {
+            // to minimize race window and support renames, get latest path from fd
+            // this also allows minimal opens (EVTONLY | RDONLY)
+            // TODO: all handlers should support Fd or Path. this is just lowest-effort impl
+            format!("{}/{}", get_path_by_fd(fd)?, name)
+        } else {
+            format!("/.vol/{}/{}/{}", parent_device, parent_inode, name)
+        };
 
-        let cstr = CString::new(format!("/.vol/{}/{}/{}", parent_device, parent_inode, name))
-            .map_err(|_| einval())?;
+        let cstr = CString::new(path).map_err(|_| einval())?;
         Ok((cstr, (parent_device, parent_inode)))
     }
 
@@ -535,7 +576,7 @@ impl PassthroughFs {
             flags &= !libc::O_APPEND;
         }
 
-        let (c_path, (_, ino)) = self.nodeid_to_path_and_devino(nodeid)?;
+        let c_path = self.nodeid_to_path(nodeid)?;
 
         let fd = unsafe {
             libc::open(
@@ -544,18 +585,32 @@ impl PassthroughFs {
             )
         };
         if fd == -1 {
-            // if ino == 2 (standard unix root inode) and errno == ENOENT,
-            // it means the FS doesn't support volfs
-            let error = io::Error::last_os_error();
-            return if ino == 2 && error.kind() == io::ErrorKind::NotFound {
-                Err(linux_error(io::Error::from_raw_os_error(libc::EOPNOTSUPP)))
-            } else {
-                Err(linux_error(error))
-            };
+            return Err(io::Error::last_os_error());
         }
 
         // Safe because we just opened this fd.
         Ok(unsafe { File::from_raw_fd(fd) })
+    }
+
+    fn dev_supports_volfs(&self, dev: i32, c_path: &CString) -> io::Result<bool> {
+        let mut dev_info = self.dev_info.lock().unwrap();
+        if let Some(supported) = dev_info.get(&dev) {
+            return Ok(*supported);
+        }
+
+        // not in cache: check it
+        // statfs doesn't trigger TCC (only open does)
+        let stf = statfs(c_path.as_ref()).map_err(nix_linux_error)?;
+        // transmute type (repr(transparent))
+        let stf = unsafe { mem::transmute::<_, libc::statfs>(stf) };
+        let supported = (stf.f_flags & libc::MNT_DOVOLFS as u32) != 0;
+
+        debug!(
+            "dev_supports_volfs: dev={} path={:?} supported={}",
+            dev, c_path, supported
+        );
+        dev_info.insert(dev, supported);
+        Ok(supported)
     }
 
     fn do_lookup<N: Display>(&self, parent: NodeId, name: N, ctx: &Context) -> io::Result<Entry> {
@@ -577,7 +632,8 @@ impl PassthroughFs {
         st.st_gid = ctx.gid;
 
         debug!(
-            "do_lookup: ino={} path={}",
+            "do_lookup: dev={} ino={} path={}",
+            st.st_dev,
             st.st_ino,
             c_path.to_str().unwrap()
         );
@@ -593,6 +649,34 @@ impl PassthroughFs {
             // this (dev, ino) is new
             // create a new nodeid and return it
             let nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
+
+            // open fd if volfs is not supported
+            let fd = if !self.dev_supports_volfs(st.st_dev, &c_path)? {
+                debug!("open fd");
+
+                // TODO: evict fds and cache as paths
+                if self.num_open_fds.fetch_add(1, Ordering::Relaxed) > MAX_PATH_FDS {
+                    self.num_open_fds.fetch_sub(1, Ordering::Relaxed);
+                    return Err(linux_error(io::Error::from_raw_os_error(libc::ENFILE)));
+                }
+
+                let fd = nix::fcntl::open(
+                    c_path.as_ref(),
+                    unsafe {
+                        OFlag::from_bits_unchecked(
+                            // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
+                            libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
+                        )
+                    },
+                    Mode::empty(),
+                )
+                .map_err(nix_linux_error)?;
+                Some(unsafe { OwnedFd::from_raw_fd(fd) })
+            } else {
+                debug!("skip open");
+                None
+            };
+
             nodeids.insert(
                 nodeid,
                 dev_ino,
@@ -601,6 +685,7 @@ impl PassthroughFs {
                     dev_ino,
                     refcount: AtomicU64::new(1),
                     last_ctime: AtomicU64::new(st_ctime(&st)),
+                    fd,
                 },
             );
             nodeid
@@ -626,6 +711,11 @@ impl PassthroughFs {
         if let Some(node) = nodeids.get(&nodeid) {
             // decrement the refcount
             if node.refcount.fetch_sub(count, Ordering::Relaxed) == count {
+                // decrement open fds
+                if let Some(_) = node.fd.as_ref() {
+                    self.num_open_fds.fetch_sub(1, Ordering::Relaxed);
+                }
+
                 // count - count = 0
                 // this nodeid is no longer in use
                 nodeids.remove(&nodeid);
@@ -727,12 +817,12 @@ impl PassthroughFs {
                     }
                 }
                 Err(e) => {
-                    warn!(
-                        "virtio-fs: error adding entry {}: {:?}",
+                    error!(
+                        "failed to add entry {}: {:?}",
                         std::str::from_utf8(&name).unwrap(),
                         e
                     );
-                    break;
+                    continue;
                 }
             }
         }
@@ -770,7 +860,6 @@ impl PassthroughFs {
                     if let Some(node) = self.nodeids.read().unwrap().get(&nodeid) {
                         let ctime = st_ctime(&st);
                         if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
-                            //println!()
                             opts |= OpenOptions::KEEP_CACHE;
                         }
                     }
@@ -1042,7 +1131,9 @@ impl FileSystem for PassthroughFs {
         F: FnMut(DirEntry, Entry) -> io::Result<usize>,
     {
         self.do_readdir(nodeid, handle, size, offset, |dir_entry| {
-            // TODO: unwind
+            // refcount doesn't get messed up on error:
+            // failed entries are skipped, but readdirplus still returns success
+            // (necessary because FUSE doesn't retry readdirplus)
             let name = unsafe { std::str::from_utf8_unchecked(dir_entry.name) };
             let entry = self.do_lookup(nodeid, name, &_ctx)?;
 
