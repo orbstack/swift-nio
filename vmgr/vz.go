@@ -212,24 +212,26 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 		// and FUSE server never follows symlinks -- every lookup returns symlinks
 		dirStat, err := os.Stat(dirPath)
 		check(err)
-		dirInode := dirStat.Sys().(*syscall.Stat_t).Ino
+		dirStatSys := dirStat.Sys().(*syscall.Stat_t)
 
 		// same for parent. needed to handle lookup case (with no preceding readdir)
 		parentDirPath := filepath.Dir(coredir.NfsMountpoint())
 		parentDirStat, err := os.Stat(parentDirPath)
 		check(err)
-		parentDirInode := parentDirStat.Sys().(*syscall.Stat_t).Ino
+		parentDirStatSys := parentDirStat.Sys().(*syscall.Stat_t)
 
 		// also stat /var/empty
 		emptyDirStat, err := os.Stat("/var/empty")
 		check(err)
-		emptyDirInode := emptyDirStat.Sys().(*syscall.Stat_t).Ino
+		emptyDirStatSys := emptyDirStat.Sys().(*syscall.Stat_t)
 
 		spec.NfsInfo = &vmm.NfsInfo{
-			DirInode:       dirInode,
+			DirDev:         dirStatSys.Dev,
+			DirInode:       dirStatSys.Ino,
 			DirName:        dirName,
-			ParentDirInode: parentDirInode,
-			EmptyDirInode:  emptyDirInode,
+			ParentDirDev:   parentDirStatSys.Dev,
+			ParentDirInode: parentDirStatSys.Ino,
+			EmptyDirInode:  emptyDirStatSys.Ino,
 		}
 	}
 

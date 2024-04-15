@@ -27,8 +27,10 @@ type ConsoleSpec struct {
 }
 
 type NfsInfo struct {
+	DirDev         int32  `json:"dirDev"`
 	DirInode       uint64 `json:"dirInode"`
 	DirName        string `json:"dirName"`
+	ParentDirDev   int32  `json:"parentDirDev"`
 	ParentDirInode uint64 `json:"parentDirInode"`
 	EmptyDirInode  uint64 `json:"emptyDirInode"`
 }
