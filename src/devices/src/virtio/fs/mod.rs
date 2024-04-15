@@ -75,8 +75,10 @@ pub enum FsError {
 #[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NfsInfo {
+    dir_dev: i32,
     dir_inode: u64,
     dir_name: String,
+    parent_dir_dev: i32,
     parent_dir_inode: u64,
     empty_dir_inode: u64,
 }
