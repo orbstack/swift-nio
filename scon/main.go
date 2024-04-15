@@ -143,13 +143,6 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 					return
 				}
 			}
-
-			// bind into containers
-			err = mgr.onHostNfsMounted()
-			if err != nil {
-				logrus.WithError(err).Error("failed to bind nfs after mount")
-				return
-			}
 		}()
 	}
 

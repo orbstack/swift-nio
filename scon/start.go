@@ -197,6 +197,11 @@ func (c *Container) configureLxc() error {
 		return err
 	}
 
+	hostUser, err := m.host.GetUser()
+	if err != nil {
+		return err
+	}
+
 	sshAgentSocks, err := c.manager.host.GetSSHAgentSockets()
 	if err != nil {
 		return err
@@ -295,7 +300,7 @@ func (c *Container) configureLxc() error {
 			// it only needs stat, but no harm in letting people access this if they need to for whatever reason
 			addDevOptional(conf.C().DataFsDevice)
 		} else {
-			// non-isolated should still be able to stat, for k3s. just deny it via devices cgroup
+			// isolated should still be able to stat, for k3s. just deny it via devices cgroup
 			bind(conf.C().DataFsDevice, conf.C().DataFsDevice, "")
 		}
 
@@ -427,10 +432,10 @@ func (c *Container) configureLxc() error {
 			// bind NFS root at /mnt/machines for access
 			// must be rslave for agent's ~/OrbStack bind to work later
 			bind(nfsDirForMachines+"/ro", "/mnt/machines", "ro,rslave")
-			// we also bind it to ~/OrbStack later so paths work correctly
-			// but must do it AFTER macOS host mounts NFS on the path
-			// otherwise, kernel sees that inode has changed and unmounts everything
-			// https://github.com/torvalds/linux/commit/8ed936b5671bfb33d89bc60bdcc7cf0470ba52fe
+			// also bind it to ~/OrbStack so paths work correctly
+			// with krun/rsvm VMM, this is OK because we replace the dir with /var/empty, and inode never changes
+			// will break with VZF's virtiofs server!
+			bind(nfsDirForMachines+"/ro", hostUser.HomeDir+"/"+mounts.NfsDirName, "ro,rslave")
 		}
 
 		// allow hook to override this
@@ -971,19 +976,6 @@ func (c *Container) postStartAsync(a *agent.Client) error {
 	err = a.GetAgentPidFd()
 	if err != nil {
 		return fmt.Errorf("get agent pidfd: %w", err)
-	}
-
-	// bind mount NFS if ok (i.e. if host already did)
-	if c.manager.hostNfsMounted {
-		hostUser, err := c.manager.host.GetUser()
-		if err != nil {
-			return err
-		}
-
-		err = bindMountNfsRoot(c, "/mnt/machines", hostUser.HomeDir+"/"+mounts.NfsDirName)
-		if err != nil {
-			return fmt.Errorf("bind mount home machines: %w", err)
-		}
 	}
 
 	return nil
