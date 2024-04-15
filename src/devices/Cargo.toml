@@ -41,3 +41,10 @@ serde = { version = "1.0.197", features = ["derive"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }
 lru = ">=0.9"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "virtiofs"
+harness = false
