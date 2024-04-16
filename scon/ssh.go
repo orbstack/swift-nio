@@ -108,6 +108,7 @@ var (
 		ssh.SIGHUP:  unix.SIGHUP,
 		ssh.SIGILL:  unix.SIGILL,
 		ssh.SIGINT:  unix.SIGINT,
+		ssh.SIGKILL: unix.SIGKILL,
 		ssh.SIGPIPE: unix.SIGPIPE,
 		ssh.SIGQUIT: unix.SIGQUIT,
 		ssh.SIGSEGV: unix.SIGSEGV,
@@ -517,12 +518,18 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	s.Signals(fwdSigChan)
 	go func() {
 		for {
-			sig, ok := <-fwdSigChan
+			sshSig, ok := <-fwdSigChan
 			if !ok {
 				return
 			}
 
-			err := cmd.Process.Signal(sshSigMap[sig])
+			sig := sshSigMap[sshSig]
+			if sig == nil {
+				logrus.WithField("sig", sshSig).Error("unknown SSH signal")
+				return
+			}
+
+			err := cmd.Process.Signal(sig)
 			if err != nil {
 				logrus.Error("SSH signal forward failed: ", err)
 			}
