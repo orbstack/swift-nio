@@ -22,9 +22,12 @@ use super::fuse::*;
 use super::{FsError as Error, Result};
 use crate::virtio::VirtioShmRegion;
 
-const MAX_BUFFER_SIZE: u32 = 1 << 20;
+const MAX_BUFFER_SIZE: u32 = 524288;
 const BUFFER_HEADER_SIZE: u32 = 0x1000;
 const DIRENT_PADDING: [u8; 8] = [0; 8];
+
+const FUSE_PAGE_SIZE: u32 = 4096;
+pub const MAX_PAGES: u32 = ((MAX_BUFFER_SIZE - 1) / FUSE_PAGE_SIZE) + 1;
 
 struct ZCReader<'a>(Reader<'a>);
 
@@ -867,9 +870,6 @@ impl<F: FileSystem + Sync> Server<F> {
         let flags_64 = ((flags2 as u64) << 32) | (flags as u64);
         let capable = FsOptions::from_bits_truncate(flags_64);
 
-        let page_size: u32 = unsafe { libc::sysconf(libc::_SC_PAGESIZE).try_into().unwrap() };
-        let max_pages = ((MAX_BUFFER_SIZE - 1) / page_size) + 1;
-
         match self.fs.init(capable) {
             Ok(want) => {
                 let enabled = (capable & (want | supported)).bits();
@@ -884,7 +884,7 @@ impl<F: FileSystem + Sync> Server<F> {
                     congestion_threshold: (::std::u16::MAX / 4) * 3,
                     max_write: MAX_BUFFER_SIZE,
                     time_gran: 1, // nanoseconds
-                    max_pages: max_pages.try_into().unwrap(),
+                    max_pages: MAX_PAGES.try_into().unwrap(),
                     map_alignment: 0,
                     flags2: (enabled >> 32) as u32,
                     ..Default::default()
