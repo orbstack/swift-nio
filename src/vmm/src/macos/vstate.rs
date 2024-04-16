@@ -612,7 +612,7 @@ impl Vcpu {
                         }
                     } else {
                         log::error!("`mmio_bus` not initialized before first sysreg access");
-                        hvf_vcpu.write_raw_reg(arg_reg_idx, 0).unwrap();
+                        hvf_vcpu.write_gp_reg(arg_reg_idx, 0).unwrap();
                     }
 
                     Ok(VcpuEmulation::Handled)
