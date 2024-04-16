@@ -146,7 +146,7 @@ impl FsWorker {
                 .disable_notification(&self.mem)
                 .unwrap();
 
-            self.process_queue(queue_index, false);
+            self.process_queue(queue_index);
 
             if !self.queues[queue_index]
                 .enable_notification(&self.mem)
@@ -165,7 +165,7 @@ impl FsWorker {
                 .disable_notification(&self.mem)
                 .unwrap();
 
-            self.process_queue(queue_index, true);
+            self.process_queue(queue_index);
 
             if !self.queues[queue_index]
                 .enable_notification(&self.mem)
@@ -247,44 +247,33 @@ impl FsWorker {
         Ok(0)
     }
 
-    fn process_queue(&mut self, queue_index: usize, is_sync: bool) {
+    fn process_queue(&mut self, queue_index: usize) {
         let queue = &mut self.queues[queue_index];
-        let mut last_popped = Instant::now();
-        loop {
-            while let Some(head) = queue.pop(&self.mem) {
-                let reader = Reader::new(&self.mem, head.clone())
-                    .map_err(FsError::QueueReader)
-                    .unwrap();
-                let writer = Writer::new(&self.mem, head.clone())
-                    .map_err(FsError::QueueWriter)
-                    .unwrap();
+        while let Some(head) = queue.pop(&self.mem) {
+            let reader = Reader::new(&self.mem, head.clone())
+                .map_err(FsError::QueueReader)
+                .unwrap();
+            let writer = Writer::new(&self.mem, head.clone())
+                .map_err(FsError::QueueWriter)
+                .unwrap();
 
-                if let Err(e) = self.server.handle_message(reader, writer, None) {
-                    error!("error handling message: {:?}", e);
-                }
-
-                if let Err(e) = queue.add_used(&self.mem, head.index, 0) {
-                    error!("failed to add used elements to the queue: {:?}", e);
-                }
-
-                if queue.needs_notification(&self.mem).unwrap() {
-                    self.interrupt_status
-                        .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
-                    if let Some(intc) = &self.intc {
-                        intc.lock().unwrap().set_irq(self.irq_line.unwrap());
-                    } else if let Err(e) = self.interrupt_evt.write(1) {
-                        error!("Failed to signal used queue: {:?}", e);
-                    }
-                }
-                last_popped = Instant::now();
+            if let Err(e) = self.server.handle_message(reader, writer, None) {
+                error!("error handling message: {:?}", e);
             }
 
-            // let now = Instant::now();
-            // let elapsed = now.duration_since(last_popped);
-            // if elapsed.as_micros() > 50 {
-            //     break;
-            // }
-            break;
+            if let Err(e) = queue.add_used(&self.mem, head.index, 0) {
+                error!("failed to add used elements to the queue: {:?}", e);
+            }
+
+            if queue.needs_notification(&self.mem).unwrap() {
+                self.interrupt_status
+                    .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
+                if let Some(intc) = &self.intc {
+                    intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+                } else if let Err(e) = self.interrupt_evt.write(1) {
+                    error!("Failed to signal used queue: {:?}", e);
+                }
+            }
         }
     }
 }
