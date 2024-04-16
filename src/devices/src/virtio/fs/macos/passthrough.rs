@@ -21,6 +21,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
+use libc::AT_FDCWD;
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
 use nix::sys::stat::fchmod;
@@ -920,16 +921,10 @@ impl PassthroughFs {
         name: &CStr,
         flags: libc::c_int,
     ) -> io::Result<()> {
-        let c_path = self.nodeid_to_path(parent)?;
-
-        let fd = unsafe { libc::open(c_path.as_ptr(), libc::O_NOFOLLOW | libc::O_CLOEXEC) };
-        if fd == -1 {
-            return Err(io::Error::last_os_error());
-        }
+        let c_path = self.name_to_path(parent, name.to_string_lossy())?;
 
         // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::unlinkat(fd, name.as_ptr(), flags) };
-        unsafe { libc::close(fd) };
+        let res = unsafe { libc::unlinkat(AT_FDCWD, c_path.as_ptr(), flags) };
 
         if res == 0 {
             Ok(())
