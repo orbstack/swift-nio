@@ -7,7 +7,7 @@ use criterion::{ criterion_group, criterion_main, Criterion};
 use nix::{
     fcntl::{open, OFlag},
     sys::{
-        stat::{lstat, Mode},
+        stat::{fstat, lstat, Mode},
         uio::pwrite,
     },
     unistd::{mkdir, unlink},
@@ -55,6 +55,13 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             .unwrap(),
         )
     };
+
+    c.bench_function("fstat file", |b| {
+        b.iter(|| {
+            let _ = fstat(file.as_raw_fd()).unwrap();
+        })
+    });
+
     c.bench_function("write file", |b| {
         b.iter(|| {
             let buf = [0u8; 1024];
