@@ -50,11 +50,19 @@ const INHERIT_ENVS: &[&str] = &[
     "SSH_CONNECTION",
     "SSH_AUTH_SOCK",
 ];
+// there's no generic solution for problematic env vars...
+// but we need to inherit env for many apps to work correctly
 const EXCLUDE_ENVS: &[&str] = &[
     // LD_PRELOAD libs may depend on musl (which fails to load in nix rpath) or conflicting glibc
     // checking the lib's DT_NEEDED is pointless: impossible to have a statically-linked dynamic lib
     // https://github.com/orbstack/orbstack/issues/1131
     "LD_PRELOAD",
+
+    // BASH_ENV is basically bashrc, but for *all* bash instances, including #! shell scripts
+    // nix has binaries like "manpath" that are bash wrapper scripts
+    // if BASH_ENV script (e.g. bashrc -> nvm) runs such commands (e.g. manpath), we get infinite recursion
+    // https://github.com/orbstack/orbstack/issues/1096
+    "BASH_ENV",
 ];
 const PREPEND_PATH: &str = "/nix/orb/data/.env-out/bin:/nix/orb/sys/bin";
 
