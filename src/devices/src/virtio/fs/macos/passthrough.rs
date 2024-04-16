@@ -654,7 +654,11 @@ impl PassthroughFs {
             let nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
 
             // open fd if volfs is not supported
-            let fd = if !self.dev_supports_volfs(st.st_dev, &c_path)? {
+            // but DO NOT open char devs or block devs - could block, will likely fail, doesn't work thru virtiofs
+            let typ = st.st_mode & libc::S_IFMT;
+            let fd = if (typ != libc::S_IFCHR && typ != libc::S_IFBLK)
+                && !self.dev_supports_volfs(st.st_dev, &c_path)?
+            {
                 debug!("open fd");
 
                 // TODO: evict fds and cache as paths
