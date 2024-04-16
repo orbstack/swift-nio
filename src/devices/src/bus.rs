@@ -14,6 +14,8 @@ use std::io;
 use std::result;
 use std::sync::{Arc, Mutex};
 
+use rustc_hash::FxHashMap;
+
 use crate::virtio::AsAny;
 
 /// Trait for devices that respond to reads or writes in an arbitrary address space.
@@ -102,7 +104,7 @@ impl PartialOrd for BusRange {
 #[derive(Clone, Default)]
 pub struct Bus {
     devices: BTreeMap<BusRange, Arc<Mutex<dyn BusDevice>>>,
-    sysreg_handlers: BTreeMap<u64, Arc<Mutex<dyn BusDevice>>>,
+    sysreg_handlers: FxHashMap<u64, Arc<Mutex<dyn BusDevice>>>,
     hvc_handlers: Vec<Arc<Mutex<dyn BusDevice>>>,
 }
 
@@ -111,7 +113,7 @@ impl Bus {
     pub fn new() -> Bus {
         Bus {
             devices: BTreeMap::new(),
-            sysreg_handlers: BTreeMap::new(),
+            sysreg_handlers: FxHashMap::default(),
             hvc_handlers: Vec::new(),
         }
     }
