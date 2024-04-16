@@ -175,6 +175,23 @@ impl<'a> DescriptorChainConsumer<'a> {
     }
 }
 
+// compat with FuseArg
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct GuestIoSlice {
+    len: u64,
+    addr: GuestAddress,
+}
+
+impl GuestIoSlice {
+    pub fn new(addr: GuestAddress, len: usize) -> GuestIoSlice {
+        GuestIoSlice {
+            len: len as u64,
+            addr,
+        }
+    }
+}
+
 /// Provides high-level interface over the sequence of memory regions
 /// defined by readable descriptors in the descriptor chain.
 ///
@@ -210,6 +227,39 @@ impl<'a> Reader<'a> {
                 region
                     .deref()
                     .get_slice(offset.raw_value() as usize, desc.len as usize)
+                    .map_err(Error::VolatileMemoryError)
+            })
+            .collect::<Result<VecDeque<VolatileSlice<'a>>>>()?;
+        Ok(Reader {
+            buffer: DescriptorChainConsumer {
+                buffers,
+                bytes_consumed: 0,
+            },
+        })
+    }
+
+    pub fn new_from_slices(
+        mem: &'a GuestMemoryMmap,
+        slices1: &[GuestIoSlice],
+        slices2: &[GuestIoSlice],
+    ) -> Result<Reader<'a>> {
+        let mut total_len: usize = 0;
+        let buffers = slices1
+            .iter()
+            .chain(slices2.iter())
+            .map(|s| {
+                // Verify that summing the slice sizes does not overflow.
+                // This can happen if a driver tricks a device into reading more data than
+                // fits in a `usize`.
+                total_len = total_len
+                    .checked_add(s.len as usize)
+                    .ok_or(Error::DescriptorChainOverflow)?;
+
+                let region = mem.find_region(s.addr).ok_or(Error::FindMemoryRegion)?;
+                let offset = s.addr.checked_sub(region.start_addr().raw_value()).unwrap();
+                region
+                    .deref()
+                    .get_slice(offset.raw_value() as usize, s.len as usize)
                     .map_err(Error::VolatileMemoryError)
             })
             .collect::<Result<VecDeque<VolatileSlice<'a>>>>()?;
@@ -366,6 +416,39 @@ impl<'a> Writer<'a> {
             })
             .collect::<Result<VecDeque<VolatileSlice<'a>>>>()?;
 
+        Ok(Writer {
+            buffer: DescriptorChainConsumer {
+                buffers,
+                bytes_consumed: 0,
+            },
+        })
+    }
+
+    pub fn new_from_slices(
+        mem: &'a GuestMemoryMmap,
+        slices1: &[GuestIoSlice],
+        slices2: &[GuestIoSlice],
+    ) -> Result<Writer<'a>> {
+        let mut total_len: usize = 0;
+        let buffers = slices1
+            .iter()
+            .chain(slices2.iter())
+            .map(|s| {
+                // Verify that summing the slice sizes does not overflow.
+                // This can happen if a driver tricks a device into writing more data than
+                // fits in a `usize`.
+                total_len = total_len
+                    .checked_add(s.len as usize)
+                    .ok_or(Error::DescriptorChainOverflow)?;
+
+                let region = mem.find_region(s.addr).ok_or(Error::FindMemoryRegion)?;
+                let offset = s.addr.checked_sub(region.start_addr().raw_value()).unwrap();
+                region
+                    .deref()
+                    .get_slice(offset.raw_value() as usize, s.len as usize)
+                    .map_err(Error::VolatileMemoryError)
+            })
+            .collect::<Result<VecDeque<VolatileSlice<'a>>>>()?;
         Ok(Writer {
             buffer: DescriptorChainConsumer {
                 buffers,

@@ -573,6 +573,17 @@ impl Vcpu {
                     debug!("vCPU {} HVC", vcpuid);
                     Ok(VcpuEmulation::Handled)
                 }
+                VcpuExit::HypervisorIoCall { dev_id, args_ptr } => {
+                    debug!(
+                        "vCPU {} HVC IO: dev_id={} args_ptr={}",
+                        vcpuid, dev_id, args_ptr
+                    );
+                    if let Some(ref mmio_bus) = self.mmio_bus {
+                        let ret = mmio_bus.call_hvc(dev_id, args_ptr);
+                        hvf_vcpu.write_gp_reg(0, ret as u64).unwrap();
+                    }
+                    Ok(VcpuEmulation::Handled)
+                }
                 VcpuExit::MmioRead(addr, data) => {
                     if let Some(ref mmio_bus) = self.mmio_bus {
                         mmio_bus.read(vcpuid, addr, data);

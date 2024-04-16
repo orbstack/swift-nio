@@ -257,6 +257,10 @@ pub enum VcpuExit<'a> {
     Canceled,
     CpuOn(u64, u64, u64),
     HypervisorCall,
+    HypervisorIoCall {
+        dev_id: usize,
+        args_ptr: usize,
+    },
     MmioRead(u64, &'a mut [u8]),
     MmioWrite(u64, &'a [u8]),
     SecureMonitorCall,
@@ -524,6 +528,11 @@ impl<'a> HvfVcpu<'a> {
                                 let context_id = self.read_raw_reg(hv_reg_t_HV_REG_X3)?;
                                 self.write_raw_reg(hv_reg_t_HV_REG_X0, 0)?;
                                 return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
+                            }
+                            0xc400_002a => {
+                                let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
+                                let args_ptr = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as usize;
+                                return Ok(VcpuExit::HypervisorIoCall { dev_id, args_ptr });
                             }
                             _ => {
                                 debug!("HVC call unhandled");

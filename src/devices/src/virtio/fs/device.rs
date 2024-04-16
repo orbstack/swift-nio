@@ -192,6 +192,28 @@ impl VirtioDevice for Fs {
         }
     }
 
+    fn handle_hvc_sync(&mut self, args_ptr: usize) -> i64 {
+        if let Some(worker) = &mut self.worker {
+            match worker.handle_hvc_sync(args_ptr) {
+                Ok(ret) => ret,
+                Err(e) => {
+                    error!("error handling HVC: {:?}", e);
+                    -1
+                }
+            }
+        } else {
+            -1
+        }
+    }
+
+    fn get_hvc_id(&self) -> Option<usize> {
+        Some(if self.passthrough_cfg.root_dir == "/" {
+            0
+        } else {
+            1
+        })
+    }
+
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
         if self.worker_thread.is_some() {
             panic!("virtio_fs: worker thread already exists");

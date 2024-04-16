@@ -64,8 +64,16 @@ pub trait VirtioDevice: AsAny + Send {
     /// Sets the irq line assigned to this device
     fn set_irq_line(&mut self, irq: u32);
 
-    fn handle_event_sync(&mut self, queue_index: usize) -> bool {
+    fn handle_event_sync(&mut self, _queue_index: usize) -> bool {
         false
+    }
+
+    fn handle_hvc_sync(&mut self, _args_ptr: usize) -> i64 {
+        -1
+    }
+
+    fn get_hvc_id(&self) -> Option<usize> {
+        None
     }
 
     /// The set of feature bits shifted by `page * 32`.

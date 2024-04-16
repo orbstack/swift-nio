@@ -353,6 +353,14 @@ impl BusDevice for MmioTransport {
         self.locked_device().interrupt_evt().write(1).unwrap();
         Ok(())
     }
+
+    fn call_hvc(&mut self, args_ptr: usize) -> i64 {
+        self.device.lock().unwrap().handle_hvc_sync(args_ptr)
+    }
+
+    fn get_hvc_id(&self) -> Option<usize> {
+        self.device.lock().unwrap().get_hvc_id()
+    }
 }
 
 #[cfg(test)]
