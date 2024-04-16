@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use std::collections::btree_map;
-use std::collections::BTreeMap;
+use std::collections::hash_map;
 use std::ffi::{CStr, CString};
 use std::fmt::Display;
 use std::fs::set_permissions;
@@ -32,10 +31,11 @@ use nix::sys::statvfs::Statvfs;
 use nix::unistd::access;
 use nix::unistd::ftruncate;
 use nix::unistd::AccessFlags;
+use rustc_hash::FxHashMap;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
-use crate::virtio::fs::multikey::MultikeyBTreeMap;
+use crate::virtio::fs::multikey::MultikeyFxHashMap;
 use crate::virtio::linux_errno::nix_linux_error;
 use crate::virtio::rosetta::get_rosetta_data;
 use crate::virtio::NfsInfo;
@@ -454,14 +454,14 @@ type DevIno = (i32, u64);
 /// directory ends up as the root of the file system process. One way to accomplish this is via a
 /// combination of mount namespaces and the pivot_root system call.
 pub struct PassthroughFs {
-    nodeids: RwLock<MultikeyBTreeMap<NodeId, DevIno, NodeData>>,
+    nodeids: RwLock<MultikeyFxHashMap<NodeId, DevIno, NodeData>>,
     next_nodeid: AtomicU64,
 
-    handles: RwLock<BTreeMap<Handle, Arc<HandleData>>>,
+    handles: RwLock<FxHashMap<Handle, Arc<HandleData>>>,
     next_handle: AtomicU64,
 
     // volfs supported?
-    dev_info: Mutex<BTreeMap<i32, bool>>,
+    dev_info: Mutex<FxHashMap<i32, bool>>,
     num_open_fds: AtomicU64,
 
     // Whether writeback caching is enabled for this directory. This will only be true when
@@ -478,7 +478,7 @@ impl PassthroughFs {
     pub fn new(cfg: Config) -> io::Result<PassthroughFs> {
         // init with root nodeid
         let st = nix::sys::stat::stat(Path::new(&cfg.root_dir))?;
-        let mut nodeids = MultikeyBTreeMap::new();
+        let mut nodeids = MultikeyFxHashMap::new();
         nodeids.insert(
             fuse::ROOT_ID,
             (st.st_dev, st.st_ino),
@@ -492,14 +492,14 @@ impl PassthroughFs {
             },
         );
 
-        let mut dev_info = BTreeMap::new();
+        let mut dev_info = FxHashMap::default();
         dev_info.insert(st.st_dev, true);
 
         Ok(PassthroughFs {
             nodeids: RwLock::new(nodeids),
             next_nodeid: AtomicU64::new(fuse::ROOT_ID + 1),
 
-            handles: RwLock::new(BTreeMap::new()),
+            handles: RwLock::new(FxHashMap::default()),
             next_handle: AtomicU64::new(1),
 
             dev_info: Mutex::new(dev_info),
@@ -892,7 +892,7 @@ impl PassthroughFs {
     fn do_release(&self, nodeid: NodeId, handle: Handle) -> io::Result<()> {
         let mut handles = self.handles.write().unwrap();
 
-        if let btree_map::Entry::Occupied(e) = handles.entry(handle) {
+        if let hash_map::Entry::Occupied(e) = handles.entry(handle) {
             if e.get().nodeid == nodeid {
                 // We don't need to close the file here because that will happen automatically when
                 // the last `Arc` is dropped.

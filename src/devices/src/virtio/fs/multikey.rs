@@ -2,15 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use std::borrow::Borrow;
-use std::collections::BTreeMap;
+use std::{borrow::Borrow, hash::Hash};
 
-/// A BTreeMap that supports 2 types of keys per value. All the usual restrictions and warnings for
-/// `std::collections::BTreeMap` also apply to this struct. Additionally, there is a 1:1
+use rustc_hash::FxHashMap;
+
+/// A FxHashMap that supports 2 types of keys per value. All the usual restrictions and warnings for
+/// `std::collections::FxHashMap` also apply to this struct. Additionally, there is a 1:1
 /// relationship between the 2 key types. In other words, for each `K1` in the map, there is exactly
 /// one `K2` in the map and vice versa.
 #[derive(Default)]
-pub struct MultikeyBTreeMap<K1, K2, V>
+pub struct MultikeyFxHashMap<K1, K2, V>
 where
     K1: Ord,
     K2: Ord,
@@ -18,20 +19,20 @@ where
     // We need to keep a copy of the second key in the main map so that we can remove entries using
     // just the main key. Otherwise we would require the caller to provide both keys when calling
     // `remove`.
-    main: BTreeMap<K1, (K2, V)>,
-    alt: BTreeMap<K2, K1>,
+    main: FxHashMap<K1, (K2, V)>,
+    alt: FxHashMap<K2, K1>,
 }
 
-impl<K1, K2, V> MultikeyBTreeMap<K1, K2, V>
+impl<K1, K2, V> MultikeyFxHashMap<K1, K2, V>
 where
-    K1: Clone + Ord,
-    K2: Clone + Ord,
+    K1: Clone + Ord + Hash,
+    K2: Clone + Ord + Hash,
 {
-    /// Create a new empty MultikeyBTreeMap.
+    /// Create a new empty MultikeyFxHashMap.
     pub fn new() -> Self {
-        MultikeyBTreeMap {
-            main: BTreeMap::default(),
-            alt: BTreeMap::default(),
+        MultikeyFxHashMap {
+            main: FxHashMap::default(),
+            alt: FxHashMap::default(),
         }
     }
 
@@ -42,7 +43,7 @@ where
     pub fn get<Q>(&self, key: &Q) -> Option<&V>
     where
         K1: Borrow<Q>,
-        Q: Ord + ?Sized,
+        Q: Ord + ?Sized + Hash,
     {
         self.main.get(key).map(|(_, v)| v)
     }
@@ -58,7 +59,7 @@ where
     pub fn get_alt<Q2>(&self, key: &Q2) -> Option<&V>
     where
         K2: Borrow<Q2>,
-        Q2: Ord + ?Sized,
+        Q2: Ord + ?Sized + Hash,
     {
         if let Some(k) = self.alt.get(key) {
             self.get(k)
@@ -99,7 +100,7 @@ where
     pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
     where
         K1: Borrow<Q>,
-        Q: Ord + ?Sized,
+        Q: Ord + ?Sized + Hash,
     {
         self.main.remove(key).map(|(k2, v)| {
             self.alt.remove(&k2);
@@ -124,7 +125,7 @@ mod test {
 
     #[test]
     fn get() {
-        let mut m = MultikeyBTreeMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -137,7 +138,7 @@ mod test {
 
     #[test]
     fn update_main_key() {
-        let mut m = MultikeyBTreeMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -159,7 +160,7 @@ mod test {
 
     #[test]
     fn update_alt_key() {
-        let mut m = MultikeyBTreeMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -184,7 +185,7 @@ mod test {
 
     #[test]
     fn update_value() {
-        let mut m = MultikeyBTreeMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -203,7 +204,7 @@ mod test {
 
     #[test]
     fn update_both_keys_main() {
-        let mut m = MultikeyBTreeMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -235,7 +236,7 @@ mod test {
 
     #[test]
     fn update_both_keys_alt() {
-        let mut m = MultikeyBTreeMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -264,7 +265,7 @@ mod test {
 
     #[test]
     fn remove() {
-        let mut m = MultikeyBTreeMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;

@@ -399,6 +399,7 @@ dependencies = [
  "once_cell",
  "polly",
  "rand",
+ "rustc-hash",
  "rutabaga_gfx",
  "serde",
  "thiserror",
