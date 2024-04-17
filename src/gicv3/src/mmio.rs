@@ -290,8 +290,6 @@ crate::c_enum! {
     #[derive(Debug, Copy, Clone, Eq, PartialEq)]
     #[allow(non_camel_case_types)]
     pub enum GicSysReg(u64) {
-        CNTPCT_EL0 = 0x32F800,
-        PMCCNTR_EL0 = 0x30E41A,
         ICC_AP0R0_EL1 = 0x383010,
         ICC_AP0R1_EL1 = 0x3A3010,
         ICC_AP0R2_EL1 = 0x3C3010,

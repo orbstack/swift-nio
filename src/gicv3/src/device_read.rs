@@ -17,8 +17,6 @@ impl GicV3 {
         log::trace!("--- Read GIC sysreg, PE: {pe:?}, REG: {:?}", reg,);
 
         match reg {
-            GicSysReg::CNTPCT_EL0 => todo!(),
-            GicSysReg::PMCCNTR_EL0 => todo!(),
             GicSysReg::ICC_AP0R0_EL1 => todo!(),
             GicSysReg::ICC_AP0R1_EL1 => todo!(),
             GicSysReg::ICC_AP0R2_EL1 => todo!(),
