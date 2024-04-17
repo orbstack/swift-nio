@@ -7,7 +7,7 @@ use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
 use std::io;
-use std::mem;
+use std::mem::{self, ManuallyDrop};
 use std::os::fd::OwnedFd;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
@@ -68,6 +68,8 @@ const NSEC_PER_SEC: u64 = 1_000_000_000;
 // must keep our own fd limit to avoid breaking vmgr
 const MAX_PATH_FDS: u64 = 8000;
 
+const CLONE_NOFOLLOW: u32 = 0x0001;
+
 type NodeId = u64;
 type Handle = u64;
 
@@ -78,8 +80,24 @@ struct DirStream {
 
 struct HandleData {
     nodeid: NodeId,
-    file: RwLock<File>,
+    file: RwLock<ManuallyDrop<File>>,
     dirstream: Mutex<DirStream>,
+}
+
+impl Drop for HandleData {
+    fn drop(&mut self) {
+        let ds = self.dirstream.lock();
+        if ds.stream != 0 {
+            // this is a dir, and it had a stream open
+            // closedir *closes* the fd passed to fdopendir (which is the fd that File holds)
+            // so this invalidates the OwnedFd ownership
+            unsafe { libc::closedir(ds.stream as *mut libc::DIR) };
+        } else {
+            // this is a file, or a dir with no stream open
+            // manually drop File to close OwnedFd
+            unsafe { ManuallyDrop::drop(&mut self.file.write()) };
+        }
+    }
 }
 
 #[repr(C, packed)]
@@ -91,8 +109,6 @@ struct LinuxDirent64 {
     d_ty: libc::c_uchar,
 }
 unsafe impl ByteValued for LinuxDirent64 {}
-
-const CLONE_NOFOLLOW: u32 = 0x0001;
 
 fn ebadf() -> io::Error {
     linux_error(io::Error::from_raw_os_error(libc::EBADF))
@@ -473,6 +489,10 @@ type DevIno = (i32, u64);
 /// directory ends up as the root of the file system process. One way to accomplish this is via a
 /// combination of mount namespaces and the pivot_root system call.
 pub struct PassthroughFs {
+    // this is intentionally a bit racy, for performance
+    // we get away with it because:
+    // - nodeids are always unique and never reused or replaced, due to atomic u64 key
+    // - reverse (DevIno) mappings are fallible and creating duplicate nodeids is OK
     nodeids: MultikeyFxDashMap<NodeId, DevIno, NodeData>,
     next_nodeid: AtomicU64,
 
@@ -532,6 +552,7 @@ impl PassthroughFs {
 
     // TODO: fix possible race with fd close, without Arc
     fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, NodeFlags, Option<RawFd>)> {
+        // race OK: primary key lookup only
         let node = self.nodeids.get(&nodeid).ok_or_else(ebadf)?;
         Ok((
             node.dev_ino,
@@ -666,21 +687,17 @@ impl PassthroughFs {
             c_path.to_str().unwrap()
         );
 
+        // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
         let dev_ino = (st.st_dev, st.st_ino);
-        let mut nodeid = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
+        let nodeid = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
             // there is already a nodeid for this (dev, ino)
             // increment the refcount and return it
             node.refcount.fetch_add(1, Ordering::Relaxed);
             node.nodeid
         } else {
-            0
-        };
-
-        // must be a separate expression so nodeids.read() lock guard gets dropped
-        if nodeid == 0 {
             // this (dev, ino) is new
             // create a new nodeid and return it
-            nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
+            let nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
 
             // open fd if volfs is not supported
             // but DO NOT open char devs or block devs - could block, will likely fail, doesn't work thru virtiofs
@@ -726,7 +743,9 @@ impl PassthroughFs {
                 node.flags |= NodeFlags::LINK_AS_CLONE;
             }
 
+            // deadlock OK: we're not holding a ref, since lookup returned None
             self.nodeids.insert(nodeid, dev_ino, node);
+            nodeid
         };
 
         Ok(Entry {
@@ -745,9 +764,9 @@ impl PassthroughFs {
 
     fn do_forget(&self, nodeid: NodeId, count: u64) {
         debug!("do_forget: nodeid={} count={}", nodeid, count);
-        if let dashmap::mapref::entry::Entry::Occupied(e) = self.nodeids.entry(nodeid) {
+        // race OK: primary key lookup only
+        if let Some(node) = self.nodeids.get(&nodeid) {
             // decrement the refcount
-            let node = e.get();
             if node.refcount.fetch_sub(count, Ordering::Relaxed) == count {
                 // count - count = 0
                 // this nodeid is no longer in use
@@ -758,10 +777,14 @@ impl PassthroughFs {
                 }
 
                 // remove from multikey alt mapping, so next lookup with (dev,ino) creates a new nodeid
-                self.nodeids.remove_alt(node);
+                // race OK: we make sure K2 will never map to a missing K1
+                self.nodeids.remove_alt(&node);
 
                 // remove nodeid from map. nodeids are never reused
-                e.remove();
+                // race OK: if there's a race and someone gets K2->K1 mapping, then finds that K1 is missing, it's OK because we'll just create a new nodeid for the same K2
+                // deadlock OK: we drop node ref to release read lock for the shard. avoid .entry() because it takes write shard lock
+                drop(node);
+                self.nodeids.remove_main(&nodeid);
             }
         }
     }
@@ -787,10 +810,12 @@ impl PassthroughFs {
             .filter(|hd| hd.nodeid == nodeid)
             .map(|v| v.clone())
             .ok_or_else(ebadf)?;
+        // race OK: FUSE won't FORGET until all handles are closed
         let (dev, _) = self.nodeids.get(&nodeid).ok_or_else(ebadf)?.dev_ino;
 
         let mut ds = data.dirstream.lock();
 
+        // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries
         let dir_stream = if ds.stream == 0 {
             let dir = unsafe { libc::fdopendir(data.file.write().as_raw_fd()) };
             if dir.is_null() {
@@ -875,7 +900,7 @@ impl PassthroughFs {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
         let data = HandleData {
             nodeid,
-            file: RwLock::new(file),
+            file: RwLock::new(ManuallyDrop::new(file)),
             dirstream: Mutex::new(DirStream {
                 stream: 0,
                 offset: 0,
@@ -892,6 +917,8 @@ impl PassthroughFs {
                 if flags & libc::O_DIRECTORY == 0 {
                     // file: provide CTO consistency
                     // check ctime, and invalidate cache if ctime has changed
+                    // race OK: we'll just be missing cache for a file
+                    // TODO: reuse from earlier lookup
                     if let Some(node) = self.nodeids.get(&nodeid) {
                         let ctime = st_ctime(&st);
                         if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
@@ -1083,18 +1110,6 @@ impl FileSystem for PassthroughFs {
         _flags: u32,
         handle: Handle,
     ) -> io::Result<()> {
-        let data = self
-            .handles
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(|v| v.clone())
-            .ok_or_else(ebadf)?;
-
-        let ds = data.dirstream.lock();
-        if ds.stream != 0 {
-            unsafe { libc::closedir(ds.stream as *mut libc::DIR) };
-        }
-
         self.do_release(nodeid, handle)
     }
 
@@ -1235,7 +1250,7 @@ impl FileSystem for PassthroughFs {
         };
 
         // Safe because we just opened this fd.
-        let file = RwLock::new(unsafe { File::from_raw_fd(fd) });
+        let file = RwLock::new(ManuallyDrop::new(unsafe { File::from_raw_fd(fd) }));
 
         let entry = self.do_lookup(parent, &name.to_string_lossy(), &ctx)?;
 
@@ -1257,6 +1272,8 @@ impl FileSystem for PassthroughFs {
             CachePolicy::Auto => {
                 // file: provide CTO consistency
                 // check ctime, and invalidate cache if ctime has changed
+                // race OK: we'll just be missing cache for a file
+                // TODO: reuse from earlier lookup
                 if let Some(node) = self.nodeids.get(&entry.nodeid) {
                     let ctime = st_ctime(&entry.attr);
                     if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
@@ -1679,6 +1696,7 @@ impl FileSystem for PassthroughFs {
             .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
+        // doesn't need exclusive fd access, but it should be a barrier point
         let fd = data.file.write().as_raw_fd();
 
         // use barrier fsync to preserve semantics and avoid DB corruption

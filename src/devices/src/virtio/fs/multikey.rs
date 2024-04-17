@@ -83,44 +83,26 @@ where
 
     /// Inserts a new entry into the map with the given keys and value.
     ///
-    /// Returns `None` if the map did not have an entry with `k1` or `k2` present. If exactly one
-    /// key was present, then the value associated with that key is updated, the other key is
-    /// removed, and the old value is returned. If **both** keys were present then the value
-    /// associated with the main key is updated, the value associated with the alternate key is
-    /// removed, and the old value associated with the main key is returned.
-    pub fn insert(&self, k1: K1, k2: K2, v: V) -> Option<V> {
-        let oldval = if let Some(oldkey) = self.alt.insert(k2.clone(), k1.clone()) {
-            self.main.remove(&oldkey).map(|(_, v)| v)
-        } else {
-            None
-        };
-        self.main.insert(k1, v).or(oldval).map(|v| {
-            let oldk2 = v.to_alt_key();
-            if oldk2 != k2 {
-                self.alt.remove(&oldk2);
-            }
-            v
-        })
+    /// it's not worth dealing with conflicts. K1 conflicts are impossible due to atomics.
+    /// K2 should be overwritten if it exists.
+    pub fn insert(&self, k1: K1, k2: K2, v: V) {
+        // always add K1 first to prevent race. reverse mapping requires original to exist already
+        self.main.insert(k1.clone(), v);
+        // add or replace K2->K1 mapping to new K1 value
+        self.alt.insert(k2, k1);
     }
 
-    /// Remove a key from the map, returning the value associated with that key if it was previously
-    /// in the map.
-    ///
-    /// The key may be any borrowed form of `K1``, but the ordering on the borrowed form must match
-    /// the ordering on `K1`.
-    pub fn remove<Q>(&self, key: &Q) -> Option<V>
+    // dual-remove can be racy, so user must deal with the precise k1/k2 removal semantics
+    pub fn remove_main<Q>(&self, key: &Q)
     where
         K1: Borrow<Q>,
         Q: Ord + ?Sized + Hash,
     {
-        self.main.remove(key).map(|(_, v)| {
-            self.alt.remove(&v.to_alt_key());
-            v
-        })
+        self.main.remove(key);
     }
 
-    pub fn remove_alt(&self, value: &V) -> Option<K1> {
-        self.alt.remove(&value.to_alt_key()).map(|(_, k1)| k1)
+    pub fn remove_alt(&self, value: &V) {
+        self.alt.remove(&value.to_alt_key());
     }
 
     pub fn entry(&self, key: K1) -> dashmap::mapref::entry::Entry<K1, V, S> {
