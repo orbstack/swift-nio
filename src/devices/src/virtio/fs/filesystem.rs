@@ -363,6 +363,10 @@ pub trait FileSystem {
     /// Represents a file or directory that is open for reading/writing.
     type Handle: From<u64> + Into<u64>;
 
+    fn hvc_id(&self) -> Option<usize> {
+        None
+    }
+
     /// Initialize the file system.
     ///
     /// This method is called when a connection to the FUSE kernel module is first established. The

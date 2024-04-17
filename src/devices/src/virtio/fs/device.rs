@@ -11,6 +11,9 @@ use vm_memory::{ByteValued, GuestMemoryMmap};
 use super::super::{
     ActivateResult, DeviceState, FsError, Queue as VirtQueue, VirtioDevice, VirtioShmRegion,
 };
+use super::hvc::FsHvcDevice;
+use super::macos::passthrough::PassthroughFs;
+use super::server::Server;
 use super::worker::FsWorker;
 use super::{defs, defs::uapi};
 use super::{passthrough, NfsInfo};
@@ -46,10 +49,9 @@ pub struct Fs {
     device_state: DeviceState,
     config: VirtioFsConfig,
     shm_region: Option<VirtioShmRegion>,
-    passthrough_cfg: passthrough::Config,
     worker_thread: Option<JoinHandle<()>>,
-    worker: Option<FsWorker>,
     worker_stopfd: EventFd,
+    server: Arc<Server<PassthroughFs>>,
 }
 
 impl Fs {
@@ -92,10 +94,11 @@ impl Fs {
             device_state: DeviceState::Inactive,
             config,
             shm_region: None,
-            passthrough_cfg: fs_cfg,
             worker_thread: None,
-            worker: None,
             worker_stopfd: EventFd::new(EFD_NONBLOCK).map_err(FsError::EventFd)?,
+            server: Arc::new(Server::new(
+                PassthroughFs::new(fs_cfg).map_err(FsError::CreateServer)?,
+            )),
         })
     }
 
@@ -117,6 +120,10 @@ impl Fs {
 
     pub fn set_shm_region(&mut self, shm_region: VirtioShmRegion) {
         self.shm_region = Some(shm_region);
+    }
+
+    pub fn create_hvc_device(&self, mem: GuestMemoryMmap) -> FsHvcDevice {
+        FsHvcDevice::new(mem, self.server.clone())
     }
 }
 
@@ -183,37 +190,6 @@ impl VirtioDevice for Fs {
         );
     }
 
-    fn handle_event_sync(&mut self, queue_index: usize) -> bool {
-        if let Some(worker) = &mut self.worker {
-            worker.handle_event_sync(queue_index);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn handle_hvc_sync(&mut self, args_ptr: usize) -> i64 {
-        if let Some(worker) = &mut self.worker {
-            match worker.handle_hvc_sync(args_ptr) {
-                Ok(ret) => ret,
-                Err(e) => {
-                    error!("error handling HVC: {:?}", e);
-                    -1
-                }
-            }
-        } else {
-            -1
-        }
-    }
-
-    fn get_hvc_id(&self) -> Option<usize> {
-        Some(if self.passthrough_cfg.root_dir == "/" {
-            0
-        } else {
-            1
-        })
-    }
-
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
         if self.worker_thread.is_some() {
             panic!("virtio_fs: worker thread already exists");
@@ -236,11 +212,10 @@ impl VirtioDevice for Fs {
             self.intc.clone(),
             self.irq_line,
             mem.clone(),
-            self.passthrough_cfg.clone(),
+            self.server.clone(),
             self.worker_stopfd.try_clone().unwrap(),
         );
-        self.worker = Some(worker);
-        //self.worker_thread = Some(self.worker.run());
+        self.worker_thread = Some(worker.run());
 
         self.device_state = DeviceState::Activated(mem);
         Ok(())

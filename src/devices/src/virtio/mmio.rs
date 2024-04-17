@@ -5,7 +5,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -300,12 +299,8 @@ impl BusDevice for MmioTransport {
                     0x38 => self.update_queue_field(|q| q.size = v as u16),
                     0x44 => self.update_queue_field(|q| q.ready = v == 1),
                     0x50 => {
-                        //TODO: special case for fs
-                        let mut device = self.device.lock().unwrap();
-                        if !device.handle_event_sync(v as usize) {
-                            if let Some(eventfd) = self.queue_evts.get(v as usize) {
-                                eventfd.write(v as u64).unwrap();
-                            }
+                        if let Some(eventfd) = self.queue_evts.get(v as usize) {
+                            eventfd.write(v as u64).unwrap();
                         }
                     }
                     0x64 => {
@@ -352,14 +347,6 @@ impl BusDevice for MmioTransport {
         // write() is safe to unwrap because the inner syscall is tailored to be safe as well.
         self.locked_device().interrupt_evt().write(1).unwrap();
         Ok(())
-    }
-
-    fn call_hvc(&mut self, args_ptr: usize) -> i64 {
-        self.device.lock().unwrap().handle_hvc_sync(args_ptr)
-    }
-
-    fn get_hvc_id(&self) -> Option<usize> {
-        self.device.lock().unwrap().get_hvc_id()
     }
 }
 

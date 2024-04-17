@@ -2,6 +2,7 @@ mod device;
 #[allow(dead_code)]
 mod filesystem;
 pub mod fuse;
+mod hvc;
 #[allow(dead_code)]
 mod multikey;
 mod server;
@@ -56,6 +57,8 @@ pub enum FsError {
     EncodeMessage(io::Error),
     /// Failed to create event fd.
     EventFd(std::io::Error),
+    /// Failed to create server.
+    CreateServer(std::io::Error),
     /// The guest failed to send a require extensions.
     MissingExtension,
     /// One or more parameters are missing.

@@ -1119,6 +1119,17 @@ fn attach_fs_devices(
             MmioTransport::new(vmm.guest_memory().clone(), fs.clone()),
         )
         .map_err(RegisterFsDevice)?;
+
+        // add HVC device
+        vmm.mmio_device_manager
+            .bus
+            .insert_hvc(Arc::new(
+                fs.lock()
+                    .unwrap()
+                    .create_hvc_device(vmm.guest_memory().clone()),
+            ))
+            .unwrap();
+        //.map_err(RegisterFsDevice)?;
     }
 
     Ok(())

@@ -64,18 +64,6 @@ pub trait VirtioDevice: AsAny + Send {
     /// Sets the irq line assigned to this device
     fn set_irq_line(&mut self, irq: u32);
 
-    fn handle_event_sync(&mut self, _queue_index: usize) -> bool {
-        false
-    }
-
-    fn handle_hvc_sync(&mut self, _args_ptr: usize) -> i64 {
-        -1
-    }
-
-    fn get_hvc_id(&self) -> Option<usize> {
-        None
-    }
-
     /// The set of feature bits shifted by `page * 32`.
     fn avail_features_by_page(&self, page: u32) -> u32 {
         let avail_features = self.avail_features();
@@ -135,6 +123,11 @@ pub trait VirtioDevice: AsAny + Send {
     fn shm_region(&self) -> Option<&VirtioShmRegion> {
         None
     }
+}
+
+pub trait HvcDevice: Send + Sync {
+    fn call_hvc(&self, _args_ptr: usize) -> i64;
+    fn hvc_id(&self) -> Option<usize>;
 }
 
 pub trait VmmExitObserver: Send {

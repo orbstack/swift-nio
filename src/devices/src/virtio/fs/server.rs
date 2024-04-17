@@ -74,6 +74,10 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
+    pub fn hvc_id(&self) -> Option<usize> {
+        self.fs.hvc_id()
+    }
+
     #[allow(clippy::cognitive_complexity)]
     pub fn handle_message(
         &self,
