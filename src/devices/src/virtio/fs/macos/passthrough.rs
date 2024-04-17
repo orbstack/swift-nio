@@ -24,12 +24,13 @@ use nix::errno::Errno;
 use nix::fcntl::OFlag;
 use nix::sys::stat::fchmod;
 use nix::sys::stat::Mode;
-use nix::sys::statfs::statfs;
+use nix::sys::statfs::{fstatfs, statfs};
 use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
 use nix::unistd::access;
 use nix::unistd::ftruncate;
 use nix::unistd::AccessFlags;
+use nix::NixPath;
 use parking_lot::{Mutex, RwLock};
 use vm_memory::ByteValued;
 
@@ -483,6 +484,16 @@ bitflags! {
 
 type DevIno = (i32, u64);
 
+fn st_ctime(st: &bindings::stat64) -> u64 {
+    st.st_ctime as u64 * NSEC_PER_SEC + st.st_ctime_nsec as u64
+}
+
+#[derive(Clone, Debug)]
+enum FileRef {
+    Path(CString),
+    Fd(RawFd),
+}
+
 /// A file system that simply "passes through" all requests it receives to the underlying file
 /// system. To keep the implementation simple it servers the contents of its root directory. Users
 /// that wish to serve only a specific directory should set up the environment so that that
@@ -507,10 +518,6 @@ pub struct PassthroughFs {
     // `cfg.writeback` is true and `init` was called with `FsOptions::WRITEBACK_CACHE`.
     writeback: AtomicBool,
     cfg: Config,
-}
-
-fn st_ctime(st: &bindings::stat64) -> u64 {
-    st.st_ctime as u64 * NSEC_PER_SEC + st.st_ctime_nsec as u64
 }
 
 impl PassthroughFs {
@@ -640,21 +647,25 @@ impl PassthroughFs {
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
-    fn dev_supports_volfs(&self, dev: i32, c_path: &CString) -> io::Result<bool> {
+    fn dev_supports_volfs(&self, dev: i32, file_ref: &FileRef) -> io::Result<bool> {
         if let Some(supported) = self.dev_info.get(&dev) {
             return Ok(*supported);
         }
 
         // not in cache: check it
         // statfs doesn't trigger TCC (only open does)
-        let stf = statfs(c_path.as_ref()).map_err(nix_linux_error)?;
+        let stf = match file_ref {
+            FileRef::Path(c_path) => statfs(c_path.as_ref()),
+            FileRef::Fd(fd) => fstatfs(fd),
+        }
+        .map_err(nix_linux_error)?;
         // transmute type (repr(transparent))
         let stf = unsafe { mem::transmute::<_, libc::statfs>(stf) };
         let supported = (stf.f_flags & libc::MNT_DOVOLFS as u32) != 0;
 
         debug!(
-            "dev_supports_volfs: dev={} path={:?} supported={}",
-            dev, c_path, supported
+            "dev_supports_volfs: dev={} ref={:?} supported={}",
+            dev, file_ref, supported
         );
         // race OK: will be the same result
         self.dev_info.insert(dev, supported);
@@ -675,16 +686,25 @@ impl PassthroughFs {
             }
         }
 
-        let mut st = lstat(&c_path, false)?;
+        let st = lstat(&c_path, false)?;
+        self.finish_lookup(parent_flags, name, st, &FileRef::Path(c_path), ctx)
+    }
+
+    fn finish_lookup(
+        &self,
+        parent_flags: NodeFlags,
+        name: &str,
+        mut st: bindings::stat64,
+        file_ref: &FileRef,
+        ctx: &Context,
+    ) -> io::Result<Entry> {
         // TODO: remove on perms
         st.st_uid = ctx.uid;
         st.st_gid = ctx.gid;
 
         debug!(
-            "do_lookup: dev={} ino={} path={}",
-            st.st_dev,
-            st.st_ino,
-            c_path.to_str().unwrap()
+            "finish_lookup: dev={} ino={} ref={:?}",
+            st.st_dev, st.st_ino, file_ref
         );
 
         // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
@@ -703,7 +723,7 @@ impl PassthroughFs {
             // but DO NOT open char devs or block devs - could block, will likely fail, doesn't work thru virtiofs
             let typ = st.st_mode & libc::S_IFMT;
             let fd = if (typ != libc::S_IFCHR && typ != libc::S_IFBLK)
-                && !self.dev_supports_volfs(st.st_dev, &c_path)?
+                && !self.dev_supports_volfs(st.st_dev, &file_ref)?
             {
                 debug!("open fd");
 
@@ -713,16 +733,23 @@ impl PassthroughFs {
                     return Err(linux_error(io::Error::from_raw_os_error(libc::ENFILE)));
                 }
 
-                let fd = nix::fcntl::open(
-                    c_path.as_ref(),
-                    unsafe {
-                        OFlag::from_bits_unchecked(
-                            // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
-                            libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
-                        )
-                    },
-                    Mode::empty(),
-                )
+                let oflag = unsafe {
+                    OFlag::from_bits_unchecked(
+                        // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
+                        libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
+                    )
+                };
+
+                // must reopen even if we have fd, to get O_EVTONLY. dup can't do that
+                let fd = match file_ref {
+                    FileRef::Path(c_path) => {
+                        nix::fcntl::open(c_path.as_ref(), oflag, Mode::empty())
+                    }
+                    FileRef::Fd(fd) => {
+                        // TODO: faster to ask caller for c_path here
+                        nix::fcntl::open(Path::new(&get_path_by_fd(*fd)?), oflag, Mode::empty())
+                    }
+                }
                 .map_err(nix_linux_error)?;
                 Some(unsafe { OwnedFd::from_raw_fd(fd) })
             } else {
@@ -1122,7 +1149,8 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
+        let name = &name.to_string_lossy();
+        let c_path = self.name_to_path(parent, name)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::mkdir(c_path.as_ptr(), (mode & !umask) as u16) };
@@ -1137,7 +1165,7 @@ impl FileSystem for PassthroughFs {
                 Some((ctx.uid, ctx.gid)),
                 Some(mode & !umask),
             )?;
-            self.do_lookup(parent, &name.to_string_lossy(), &ctx)
+            self.do_lookup(parent, name, &ctx)
         } else {
             Err(linux_error(io::Error::last_os_error()))
         }
@@ -1217,7 +1245,8 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<(Entry, Option<Handle>, OpenOptions)> {
-        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
+        let name = &name.to_string_lossy();
+        let (c_path, _, parent_flags) = self.name_to_path_and_data(parent, name)?;
 
         let flags = self.parse_open_flags(flags as i32);
 
@@ -1252,7 +1281,8 @@ impl FileSystem for PassthroughFs {
         // Safe because we just opened this fd.
         let file = RwLock::new(ManuallyDrop::new(unsafe { File::from_raw_fd(fd) }));
 
-        let entry = self.do_lookup(parent, &name.to_string_lossy(), &ctx)?;
+        let st = fstat(fd, false)?;
+        let entry = self.finish_lookup(parent_flags, name, st, &FileRef::Fd(fd), &ctx)?;
 
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
         let data = HandleData {
@@ -1548,7 +1578,8 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
+        let name = &name.to_string_lossy();
+        let c_path = self.name_to_path(parent, name)?;
 
         let fd = unsafe {
             libc::open(
@@ -1575,7 +1606,7 @@ impl FileSystem for PassthroughFs {
             }
 
             unsafe { libc::close(fd) };
-            self.do_lookup(parent, &name.to_string_lossy(), &ctx)
+            self.do_lookup(parent, name, &ctx)
         }
     }
 
@@ -1620,7 +1651,8 @@ impl FileSystem for PassthroughFs {
         name: &CStr,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
+        let name = &name.to_string_lossy();
+        let c_path = self.name_to_path(parent, name)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::symlink(linkname.as_ptr(), c_path.as_ptr()) };
@@ -1630,7 +1662,7 @@ impl FileSystem for PassthroughFs {
                 set_secctx(StatFile::Path(&c_path), secctx, true)?
             };
 
-            let mut entry = self.do_lookup(parent, &name.to_string_lossy(), &ctx)?;
+            let mut entry = self.do_lookup(parent, name, &ctx)?;
             let mode = libc::S_IFLNK | 0o777;
             set_xattr_stat(
                 StatFile::Path(&c_path),
