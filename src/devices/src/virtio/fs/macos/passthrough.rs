@@ -1532,9 +1532,6 @@ impl FileSystem for PassthroughFs {
                 }
             }
 
-            let entry = self.do_lookup(newdir, &newname.to_string_lossy(), &ctx)?;
-            self.forget(ctx, entry.nodeid, 1);
-
             Ok(())
         } else {
             Err(linux_error(io::Error::last_os_error()))
