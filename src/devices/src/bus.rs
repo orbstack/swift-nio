@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 
 use rustc_hash::FxHashMap;
 
-use crate::virtio::AsAny;
+use crate::virtio::{AsAny, HvcDevice};
 
 /// Trait for devices that respond to reads or writes in an arbitrary address space.
 ///
@@ -43,16 +43,8 @@ pub trait BusDevice: AsAny + Send {
         unimplemented!();
     }
 
-    fn call_hvc(&mut self, args_ptr: usize) -> i64 {
-        unimplemented!();
-    }
-
     fn iter_sysregs(&self) -> Vec<u64> {
         Vec::new()
-    }
-
-    fn get_hvc_id(&self) -> Option<usize> {
-        None
     }
 }
 
@@ -105,7 +97,7 @@ impl PartialOrd for BusRange {
 pub struct Bus {
     devices: BTreeMap<BusRange, Arc<Mutex<dyn BusDevice>>>,
     sysreg_handlers: FxHashMap<u64, Arc<Mutex<dyn BusDevice>>>,
-    hvc_handlers: Vec<Arc<Mutex<dyn BusDevice>>>,
+    hvc_handlers: Vec<Arc<dyn HvcDevice>>,
 }
 
 impl Bus {
@@ -153,15 +145,6 @@ impl Bus {
             return Err(Error::Overlap);
         }
 
-        // reject HVC overlaps
-        let hvc_id = device.lock().unwrap().get_hvc_id();
-        let next_hvc_id = self.hvc_handlers.len();
-        if let Some(hvc_id) = hvc_id {
-            if hvc_id != next_hvc_id {
-                return Err(Error::Overlap);
-            }
-        }
-
         // Reject all cases where the new device's base is within an old device's range.
         if self.get_device(base).is_some() {
             return Err(Error::Overlap);
@@ -183,12 +166,25 @@ impl Bus {
             self.sysreg_handlers.insert(sys_reg, device.clone());
         }
 
-        if let Some(_) = hvc_id {
-            self.hvc_handlers.push(device.clone());
-        }
-
         if self.devices.insert(BusRange(base, len), device).is_some() {
             return Err(Error::Overlap);
+        }
+
+        Ok(())
+    }
+
+    pub fn insert_hvc(&mut self, device: Arc<dyn HvcDevice>) -> Result<()> {
+        // reject HVC overlaps
+        let hvc_id = device.hvc_id();
+        let next_hvc_id = self.hvc_handlers.len();
+        if let Some(hvc_id) = hvc_id {
+            if hvc_id != next_hvc_id {
+                return Err(Error::Overlap);
+            }
+        }
+
+        if let Some(_) = hvc_id {
+            self.hvc_handlers.push(device);
         }
 
         Ok(())
@@ -251,10 +247,7 @@ impl Bus {
 
     pub fn call_hvc(&self, dev_id: usize, args_ptr: usize) -> i64 {
         if let Some(handler) = self.hvc_handlers.get(dev_id) {
-            handler
-                .lock()
-                .expect("Failed to acquire device lock")
-                .call_hvc(args_ptr)
+            handler.call_hvc(args_ptr)
         } else {
             error!("unhandled io HVC call");
             -1
