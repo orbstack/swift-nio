@@ -461,7 +461,7 @@ pub struct PassthroughFs {
     next_handle: AtomicU64,
 
     // volfs supported?
-    dev_info: Mutex<FxHashMap<i32, bool>>,
+    dev_info: RwLock<FxHashMap<i32, bool>>,
     num_open_fds: AtomicU64,
 
     // Whether writeback caching is enabled for this directory. This will only be true when
@@ -502,7 +502,7 @@ impl PassthroughFs {
             handles: RwLock::new(FxHashMap::default()),
             next_handle: AtomicU64::new(1),
 
-            dev_info: Mutex::new(dev_info),
+            dev_info: RwLock::new(dev_info),
             num_open_fds: AtomicU64::new(0),
 
             writeback: AtomicBool::new(false),
@@ -597,8 +597,7 @@ impl PassthroughFs {
     }
 
     fn dev_supports_volfs(&self, dev: i32, c_path: &CString) -> io::Result<bool> {
-        let mut dev_info = self.dev_info.lock().unwrap();
-        if let Some(supported) = dev_info.get(&dev) {
+        if let Some(supported) = self.dev_info.read().unwrap().get(&dev) {
             return Ok(*supported);
         }
 
@@ -613,7 +612,8 @@ impl PassthroughFs {
             "dev_supports_volfs: dev={} path={:?} supported={}",
             dev, c_path, supported
         );
-        dev_info.insert(dev, supported);
+        // race OK: will be the same result
+        self.dev_info.write().unwrap().insert(dev, supported);
         Ok(supported)
     }
 
@@ -642,17 +642,21 @@ impl PassthroughFs {
             c_path.to_str().unwrap()
         );
 
-        let mut nodeids = self.nodeids.write().unwrap();
         let dev_ino = (st.st_dev, st.st_ino);
-        let nodeid = if let Some(node) = nodeids.get_alt(&dev_ino) {
+        let mut nodeid = if let Some(node) = self.nodeids.read().unwrap().get_alt(&dev_ino) {
             // there is already a nodeid for this (dev, ino)
             // increment the refcount and return it
             node.refcount.fetch_add(1, Ordering::Relaxed);
             node.nodeid
         } else {
+            0
+        };
+
+        // must be a separate expression so nodeids.read() lock guard gets dropped
+        if nodeid == 0 {
             // this (dev, ino) is new
             // create a new nodeid and return it
-            let nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
+            nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
 
             // open fd if volfs is not supported
             // but DO NOT open char devs or block devs - could block, will likely fail, doesn't work thru virtiofs
@@ -685,7 +689,7 @@ impl PassthroughFs {
                 None
             };
 
-            nodeids.insert(
+            self.nodeids.write().unwrap().insert(
                 nodeid,
                 dev_ino,
                 NodeData {
@@ -696,7 +700,6 @@ impl PassthroughFs {
                     fd,
                 },
             );
-            nodeid
         };
 
         Ok(Entry {
@@ -997,6 +1000,10 @@ fn set_secctx(file: StatFile, secctx: SecContext, symlink: bool) -> io::Result<(
 impl FileSystem for PassthroughFs {
     type NodeId = NodeId;
     type Handle = Handle;
+
+    fn hvc_id(&self) -> Option<usize> {
+        Some(if self.cfg.root_dir == "/" { 0 } else { 1 })
+    }
 
     fn init(&self, capable: FsOptions) -> io::Result<FsOptions> {
         // Safe because this doesn't modify any memory and there is no need to check the return
