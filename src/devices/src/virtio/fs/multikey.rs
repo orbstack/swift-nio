@@ -2,37 +2,50 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use std::{borrow::Borrow, hash::Hash};
+use std::{
+    borrow::Borrow,
+    hash::{BuildHasherDefault, Hash},
+};
 
-use rustc_hash::FxHashMap;
+use dashmap::mapref::one::Ref;
+use rustc_hash::FxHasher;
+
+use super::FxDashMap;
 
 /// A FxHashMap that supports 2 types of keys per value. All the usual restrictions and warnings for
 /// `std::collections::FxHashMap` also apply to this struct. Additionally, there is a 1:1
 /// relationship between the 2 key types. In other words, for each `K1` in the map, there is exactly
 /// one `K2` in the map and vice versa.
 #[derive(Default)]
-pub struct MultikeyFxHashMap<K1, K2, V>
+pub struct MultikeyFxDashMap<K1, K2, V>
 where
-    K1: Ord,
-    K2: Ord,
+    K1: Ord + Hash,
+    K2: Ord + Hash,
 {
     // We need to keep a copy of the second key in the main map so that we can remove entries using
     // just the main key. Otherwise we would require the caller to provide both keys when calling
     // `remove`.
-    main: FxHashMap<K1, (K2, V)>,
-    alt: FxHashMap<K2, K1>,
+    main: FxDashMap<K1, V>,
+    alt: FxDashMap<K2, K1>,
 }
 
-impl<K1, K2, V> MultikeyFxHashMap<K1, K2, V>
+pub trait ToAltKey<K2> {
+    fn to_alt_key(&self) -> K2;
+}
+
+type S = BuildHasherDefault<FxHasher>;
+
+impl<K1, K2, V> MultikeyFxDashMap<K1, K2, V>
 where
     K1: Clone + Ord + Hash,
     K2: Clone + Ord + Hash,
+    V: ToAltKey<K2>,
 {
     /// Create a new empty MultikeyFxHashMap.
     pub fn new() -> Self {
-        MultikeyFxHashMap {
-            main: FxHashMap::default(),
-            alt: FxHashMap::default(),
+        MultikeyFxDashMap {
+            main: FxDashMap::default(),
+            alt: FxDashMap::default(),
         }
     }
 
@@ -40,12 +53,12 @@ where
     ///
     /// The key may be any borrowed form of `K1``, but the ordering on the borrowed form must match
     /// the ordering on `K1`.
-    pub fn get<Q>(&self, key: &Q) -> Option<&V>
+    pub fn get<Q>(&self, key: &Q) -> Option<Ref<K1, V, S>>
     where
         K1: Borrow<Q>,
         Q: Ord + ?Sized + Hash,
     {
-        self.main.get(key).map(|(_, v)| v)
+        self.main.get(key)
     }
 
     /// Returns a reference to the value corresponding to the alternate key.
@@ -56,13 +69,13 @@ where
     /// Note that this method performs 2 lookups: one to get the main key and another to get the
     /// value associated with that key. For best performance callers should prefer the `get` method
     /// over this method whenever possible as `get` only needs to perform one lookup.
-    pub fn get_alt<Q2>(&self, key: &Q2) -> Option<&V>
+    pub fn get_alt<Q2>(&self, key: &Q2) -> Option<Ref<K1, V, S>>
     where
         K2: Borrow<Q2>,
         Q2: Ord + ?Sized + Hash,
     {
         if let Some(k) = self.alt.get(key) {
-            self.get(k)
+            self.get(&k)
         } else {
             None
         }
@@ -75,21 +88,19 @@ where
     /// removed, and the old value is returned. If **both** keys were present then the value
     /// associated with the main key is updated, the value associated with the alternate key is
     /// removed, and the old value associated with the main key is returned.
-    pub fn insert(&mut self, k1: K1, k2: K2, v: V) -> Option<V> {
+    pub fn insert(&self, k1: K1, k2: K2, v: V) -> Option<V> {
         let oldval = if let Some(oldkey) = self.alt.insert(k2.clone(), k1.clone()) {
-            self.main.remove(&oldkey)
+            self.main.remove(&oldkey).map(|(_, v)| v)
         } else {
             None
         };
-        self.main
-            .insert(k1, (k2.clone(), v))
-            .or(oldval)
-            .map(|(oldk2, v)| {
-                if oldk2 != k2 {
-                    self.alt.remove(&oldk2);
-                }
-                v
-            })
+        self.main.insert(k1, v).or(oldval).map(|v| {
+            let oldk2 = v.to_alt_key();
+            if oldk2 != k2 {
+                self.alt.remove(&oldk2);
+            }
+            v
+        })
     }
 
     /// Remove a key from the map, returning the value associated with that key if it was previously
@@ -97,19 +108,27 @@ where
     ///
     /// The key may be any borrowed form of `K1``, but the ordering on the borrowed form must match
     /// the ordering on `K1`.
-    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
+    pub fn remove<Q>(&self, key: &Q) -> Option<V>
     where
         K1: Borrow<Q>,
         Q: Ord + ?Sized + Hash,
     {
-        self.main.remove(key).map(|(k2, v)| {
-            self.alt.remove(&k2);
+        self.main.remove(key).map(|(_, v)| {
+            self.alt.remove(&v.to_alt_key());
             v
         })
     }
 
+    pub fn remove_alt(&self, value: &V) -> Option<K1> {
+        self.alt.remove(&value.to_alt_key()).map(|(_, k1)| k1)
+    }
+
+    pub fn entry(&self, key: K1) -> dashmap::mapref::entry::Entry<K1, V, S> {
+        self.main.entry(key)
+    }
+
     /// Clears the map, removing all values.
-    pub fn clear(&mut self) {
+    pub fn clear(&self) {
         self.alt.clear();
         self.main.clear()
     }
@@ -125,7 +144,7 @@ mod test {
 
     #[test]
     fn get() {
-        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxDashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -138,7 +157,7 @@ mod test {
 
     #[test]
     fn update_main_key() {
-        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxDashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -160,7 +179,7 @@ mod test {
 
     #[test]
     fn update_alt_key() {
-        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxDashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -185,7 +204,7 @@ mod test {
 
     #[test]
     fn update_value() {
-        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxDashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -204,7 +223,7 @@ mod test {
 
     #[test]
     fn update_both_keys_main() {
-        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxDashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -236,7 +255,7 @@ mod test {
 
     #[test]
     fn update_both_keys_alt() {
-        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxDashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;
@@ -265,7 +284,7 @@ mod test {
 
     #[test]
     fn remove() {
-        let mut m = MultikeyFxHashMap::<u64, i64, u32>::new();
+        let mut m = MultikeyFxDashMap::<u64, i64, u32>::new();
 
         let k1 = 0xc6c8_f5e0_b13e_ed40;
         let k2 = 0x1a04_ce4b_8329_14fe;

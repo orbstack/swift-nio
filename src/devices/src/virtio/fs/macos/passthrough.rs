@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use std::collections::hash_map;
 use std::ffi::{CStr, CString};
-use std::fmt::Display;
 use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
@@ -33,14 +31,13 @@ use nix::unistd::access;
 use nix::unistd::ftruncate;
 use nix::unistd::AccessFlags;
 use parking_lot::{Mutex, RwLock};
-use rustc_hash::FxHashMap;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::filesystem::SecContext;
-use crate::virtio::fs::multikey::MultikeyFxHashMap;
+use crate::virtio::fs::multikey::{MultikeyFxDashMap, ToAltKey};
 use crate::virtio::linux_errno::nix_linux_error;
 use crate::virtio::rosetta::get_rosetta_data;
-use crate::virtio::NfsInfo;
+use crate::virtio::{FxDashMap, NfsInfo};
 
 use super::super::super::linux_errno::{linux_error, LINUX_ERANGE};
 use super::super::bindings;
@@ -456,6 +453,12 @@ struct NodeData {
     fd: Option<OwnedFd>,
 }
 
+impl ToAltKey<DevIno> for NodeData {
+    fn to_alt_key(&self) -> DevIno {
+        self.dev_ino
+    }
+}
+
 bitflags! {
     pub struct NodeFlags: u32 {
         const LINK_AS_CLONE = 1 << 0;
@@ -470,14 +473,14 @@ type DevIno = (i32, u64);
 /// directory ends up as the root of the file system process. One way to accomplish this is via a
 /// combination of mount namespaces and the pivot_root system call.
 pub struct PassthroughFs {
-    nodeids: RwLock<MultikeyFxHashMap<NodeId, DevIno, NodeData>>,
+    nodeids: MultikeyFxDashMap<NodeId, DevIno, NodeData>,
     next_nodeid: AtomicU64,
 
-    handles: RwLock<FxHashMap<Handle, Arc<HandleData>>>,
+    handles: FxDashMap<Handle, Arc<HandleData>>,
     next_handle: AtomicU64,
 
     // volfs supported?
-    dev_info: RwLock<FxHashMap<i32, bool>>,
+    dev_info: FxDashMap<i32, bool>,
     num_open_fds: AtomicU64,
 
     // Whether writeback caching is enabled for this directory. This will only be true when
@@ -494,7 +497,7 @@ impl PassthroughFs {
     pub fn new(cfg: Config) -> io::Result<PassthroughFs> {
         // init with root nodeid
         let st = nix::sys::stat::stat(Path::new(&cfg.root_dir))?;
-        let mut nodeids = MultikeyFxHashMap::new();
+        let nodeids = MultikeyFxDashMap::new();
         nodeids.insert(
             fuse::ROOT_ID,
             (st.st_dev, st.st_ino),
@@ -509,17 +512,17 @@ impl PassthroughFs {
             },
         );
 
-        let mut dev_info = FxHashMap::default();
+        let dev_info = FxDashMap::default();
         dev_info.insert(st.st_dev, true);
 
         Ok(PassthroughFs {
-            nodeids: RwLock::new(nodeids),
+            nodeids,
             next_nodeid: AtomicU64::new(fuse::ROOT_ID + 1),
 
-            handles: RwLock::new(FxHashMap::default()),
+            handles: FxDashMap::default(),
             next_handle: AtomicU64::new(1),
 
-            dev_info: RwLock::new(dev_info),
+            dev_info,
             num_open_fds: AtomicU64::new(0),
 
             writeback: AtomicBool::new(false),
@@ -529,8 +532,7 @@ impl PassthroughFs {
 
     // TODO: fix possible race with fd close, without Arc
     fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, NodeFlags, Option<RawFd>)> {
-        let nodeids = self.nodeids.read();
-        let node = nodeids.get(&nodeid).ok_or_else(ebadf)?;
+        let node = self.nodeids.get(&nodeid).ok_or_else(ebadf)?;
         Ok((
             node.dev_ino,
             node.flags,
@@ -618,7 +620,7 @@ impl PassthroughFs {
     }
 
     fn dev_supports_volfs(&self, dev: i32, c_path: &CString) -> io::Result<bool> {
-        if let Some(supported) = self.dev_info.read().get(&dev) {
+        if let Some(supported) = self.dev_info.get(&dev) {
             return Ok(*supported);
         }
 
@@ -634,7 +636,7 @@ impl PassthroughFs {
             dev, c_path, supported
         );
         // race OK: will be the same result
-        self.dev_info.write().insert(dev, supported);
+        self.dev_info.insert(dev, supported);
         Ok(supported)
     }
 
@@ -665,7 +667,7 @@ impl PassthroughFs {
         );
 
         let dev_ino = (st.st_dev, st.st_ino);
-        let mut nodeid = if let Some(node) = self.nodeids.read().get_alt(&dev_ino) {
+        let mut nodeid = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
             // there is already a nodeid for this (dev, ino)
             // increment the refcount and return it
             node.refcount.fetch_add(1, Ordering::Relaxed);
@@ -724,7 +726,7 @@ impl PassthroughFs {
                 node.flags |= NodeFlags::LINK_AS_CLONE;
             }
 
-            self.nodeids.write().insert(nodeid, dev_ino, node);
+            self.nodeids.insert(nodeid, dev_ino, node);
         };
 
         Ok(Entry {
@@ -743,18 +745,23 @@ impl PassthroughFs {
 
     fn do_forget(&self, nodeid: NodeId, count: u64) {
         debug!("do_forget: nodeid={} count={}", nodeid, count);
-        let mut nodeids = self.nodeids.write();
-        if let Some(node) = nodeids.get(&nodeid) {
+        if let dashmap::mapref::entry::Entry::Occupied(e) = self.nodeids.entry(nodeid) {
             // decrement the refcount
+            let node = e.get();
             if node.refcount.fetch_sub(count, Ordering::Relaxed) == count {
+                // count - count = 0
+                // this nodeid is no longer in use
+
                 // decrement open fds
                 if let Some(_) = node.fd.as_ref() {
                     self.num_open_fds.fetch_sub(1, Ordering::Relaxed);
                 }
 
-                // count - count = 0
-                // this nodeid is no longer in use
-                nodeids.remove(&nodeid);
+                // remove from multikey alt mapping, so next lookup with (dev,ino) creates a new nodeid
+                self.nodeids.remove_alt(node);
+
+                // remove nodeid from map. nodeids are never reused
+                e.remove();
             }
         }
     }
@@ -776,12 +783,11 @@ impl PassthroughFs {
 
         let data = self
             .handles
-            .read()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
-            .map(Arc::clone)
+            .map(|v| v.clone())
             .ok_or_else(ebadf)?;
-        let (dev, _) = self.nodeids.read().get(&nodeid).ok_or_else(ebadf)?.dev_ino;
+        let (dev, _) = self.nodeids.get(&nodeid).ok_or_else(ebadf)?.dev_ino;
 
         let mut ds = data.dirstream.lock();
 
@@ -876,7 +882,7 @@ impl PassthroughFs {
             }),
         };
 
-        self.handles.write().insert(handle, Arc::new(data));
+        self.handles.insert(handle, Arc::new(data));
 
         let mut opts = OpenOptions::empty();
         match self.cfg.cache_policy {
@@ -886,7 +892,7 @@ impl PassthroughFs {
                 if flags & libc::O_DIRECTORY == 0 {
                     // file: provide CTO consistency
                     // check ctime, and invalidate cache if ctime has changed
-                    if let Some(node) = self.nodeids.read().get(&nodeid) {
+                    if let Some(node) = self.nodeids.get(&nodeid) {
                         let ctime = st_ctime(&st);
                         if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
                             opts |= OpenOptions::KEEP_CACHE;
@@ -911,9 +917,7 @@ impl PassthroughFs {
     }
 
     fn do_release(&self, nodeid: NodeId, handle: Handle) -> io::Result<()> {
-        let mut handles = self.handles.write();
-
-        if let hash_map::Entry::Occupied(e) = handles.entry(handle) {
+        if let dashmap::mapref::entry::Entry::Occupied(e) = self.handles.entry(handle) {
             if e.get().nodeid == nodeid {
                 // We don't need to close the file here because that will happen automatically when
                 // the last `Arc` is dropped.
@@ -1039,8 +1043,8 @@ impl FileSystem for PassthroughFs {
     }
 
     fn destroy(&self) {
-        self.nodeids.write().clear();
-        self.handles.write().clear();
+        self.handles.clear();
+        self.nodeids.clear();
     }
 
     fn statfs(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {
@@ -1081,10 +1085,9 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<()> {
         let data = self
             .handles
-            .read()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
-            .map(Arc::clone)
+            .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
         let ds = data.dirstream.lock();
@@ -1246,7 +1249,7 @@ impl FileSystem for PassthroughFs {
             }),
         };
 
-        self.handles.write().insert(handle, Arc::new(data));
+        self.handles.insert(handle, Arc::new(data));
 
         let mut opts = OpenOptions::empty();
         match self.cfg.cache_policy {
@@ -1254,7 +1257,7 @@ impl FileSystem for PassthroughFs {
             CachePolicy::Auto => {
                 // file: provide CTO consistency
                 // check ctime, and invalidate cache if ctime has changed
-                if let Some(node) = self.nodeids.read().get(&entry.nodeid) {
+                if let Some(node) = self.nodeids.get(&entry.nodeid) {
                     let ctime = st_ctime(&entry.attr);
                     if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
                         opts |= OpenOptions::KEEP_CACHE;
@@ -1286,10 +1289,9 @@ impl FileSystem for PassthroughFs {
 
         let data = self
             .handles
-            .read()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
-            .map(Arc::clone)
+            .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
         // This is safe because write_from uses preadv64, so the underlying file descriptor
@@ -1313,10 +1315,9 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<usize> {
         let data = self
             .handles
-            .read()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
-            .map(Arc::clone)
+            .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
         // This is safe because read_to uses pwritev64, so the underlying file descriptor
@@ -1353,10 +1354,9 @@ impl FileSystem for PassthroughFs {
         let data = if let Some(handle) = handle {
             let hd = self
                 .handles
-                .read()
                 .get(&handle)
                 .filter(|hd| hd.nodeid == nodeid)
-                .map(Arc::clone)
+                .map(|v| v.clone())
                 .ok_or_else(ebadf)?;
 
             let fd = hd.file.write().as_raw_fd();
@@ -1674,10 +1674,9 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<()> {
         let data = self
             .handles
-            .read()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
-            .map(Arc::clone)
+            .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
         let fd = data.file.write().as_raw_fd();
@@ -1900,10 +1899,9 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<()> {
         let data = self
             .handles
-            .read()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
-            .map(Arc::clone)
+            .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
         let fd = data.file.write().as_raw_fd();
@@ -1944,10 +1942,9 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<u64> {
         let data = self
             .handles
-            .read()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
-            .map(Arc::clone)
+            .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
         // SEEK_DATA and SEEK_HOLE have slightly different semantics

@@ -20,6 +20,7 @@ pub mod macos;
 pub use macos::fs_utils;
 #[cfg(target_os = "macos")]
 pub use macos::passthrough;
+use rustc_hash::FxHasher;
 #[cfg(target_os = "macos")]
 pub mod rosetta;
 
@@ -45,6 +46,7 @@ mod defs {
 }
 
 use std::ffi::{FromBytesWithNulError, FromVecWithNulError};
+use std::hash::BuildHasherDefault;
 use std::io;
 
 use descriptor_utils::Error as DescriptorError;
@@ -87,3 +89,5 @@ pub struct NfsInfo {
 }
 
 type Result<T> = std::result::Result<T, FsError>;
+
+pub(crate) type FxDashMap<K, V> = dashmap::DashMap<K, V, BuildHasherDefault<FxHasher>>;
