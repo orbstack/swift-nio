@@ -39,6 +39,7 @@ once_cell = "1.19.0"
 serde = { version = "1.0.197", features = ["derive"] }
 anyhow = "1.0.82"
 rustc-hash = "1.1.0"
+parking_lot = "0.12.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }

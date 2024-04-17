@@ -17,7 +17,7 @@ use std::path::Path;
 use std::ptr::slice_from_raw_parts;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use libc::AT_FDCWD;
@@ -31,6 +31,7 @@ use nix::sys::statvfs::Statvfs;
 use nix::unistd::access;
 use nix::unistd::ftruncate;
 use nix::unistd::AccessFlags;
+use parking_lot::{Mutex, RwLock};
 use rustc_hash::FxHashMap;
 use vm_memory::ByteValued;
 
@@ -512,7 +513,7 @@ impl PassthroughFs {
 
     // TODO: fix possible race with fd close, without Arc
     fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, Option<RawFd>)> {
-        let nodeids = self.nodeids.read().unwrap();
+        let nodeids = self.nodeids.read();
         let node = nodeids.get(&nodeid).ok_or_else(ebadf)?;
         Ok((node.dev_ino, node.fd.as_ref().map(|fd| fd.as_raw_fd())))
     }
@@ -597,7 +598,7 @@ impl PassthroughFs {
     }
 
     fn dev_supports_volfs(&self, dev: i32, c_path: &CString) -> io::Result<bool> {
-        if let Some(supported) = self.dev_info.read().unwrap().get(&dev) {
+        if let Some(supported) = self.dev_info.read().get(&dev) {
             return Ok(*supported);
         }
 
@@ -613,7 +614,7 @@ impl PassthroughFs {
             dev, c_path, supported
         );
         // race OK: will be the same result
-        self.dev_info.write().unwrap().insert(dev, supported);
+        self.dev_info.write().insert(dev, supported);
         Ok(supported)
     }
 
@@ -643,7 +644,7 @@ impl PassthroughFs {
         );
 
         let dev_ino = (st.st_dev, st.st_ino);
-        let mut nodeid = if let Some(node) = self.nodeids.read().unwrap().get_alt(&dev_ino) {
+        let mut nodeid = if let Some(node) = self.nodeids.read().get_alt(&dev_ino) {
             // there is already a nodeid for this (dev, ino)
             // increment the refcount and return it
             node.refcount.fetch_add(1, Ordering::Relaxed);
@@ -689,7 +690,7 @@ impl PassthroughFs {
                 None
             };
 
-            self.nodeids.write().unwrap().insert(
+            self.nodeids.write().insert(
                 nodeid,
                 dev_ino,
                 NodeData {
@@ -718,7 +719,7 @@ impl PassthroughFs {
 
     fn do_forget(&self, nodeid: NodeId, count: u64) {
         debug!("do_forget: nodeid={} count={}", nodeid, count);
-        let mut nodeids = self.nodeids.write().unwrap();
+        let mut nodeids = self.nodeids.write();
         if let Some(node) = nodeids.get(&nodeid) {
             // decrement the refcount
             if node.refcount.fetch_sub(count, Ordering::Relaxed) == count {
@@ -752,23 +753,16 @@ impl PassthroughFs {
         let data = self
             .handles
             .read()
-            .unwrap()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
-        let (dev, _) = self
-            .nodeids
-            .read()
-            .unwrap()
-            .get(&nodeid)
-            .ok_or_else(ebadf)?
-            .dev_ino;
+        let (dev, _) = self.nodeids.read().get(&nodeid).ok_or_else(ebadf)?.dev_ino;
 
-        let mut ds = data.dirstream.lock().unwrap();
+        let mut ds = data.dirstream.lock();
 
         let dir_stream = if ds.stream == 0 {
-            let dir = unsafe { libc::fdopendir(data.file.write().unwrap().as_raw_fd()) };
+            let dir = unsafe { libc::fdopendir(data.file.write().as_raw_fd()) };
             if dir.is_null() {
                 return Err(linux_error(io::Error::last_os_error()));
             }
@@ -858,7 +852,7 @@ impl PassthroughFs {
             }),
         };
 
-        self.handles.write().unwrap().insert(handle, Arc::new(data));
+        self.handles.write().insert(handle, Arc::new(data));
 
         let mut opts = OpenOptions::empty();
         match self.cfg.cache_policy {
@@ -868,7 +862,7 @@ impl PassthroughFs {
                 if flags & libc::O_DIRECTORY == 0 {
                     // file: provide CTO consistency
                     // check ctime, and invalidate cache if ctime has changed
-                    if let Some(node) = self.nodeids.read().unwrap().get(&nodeid) {
+                    if let Some(node) = self.nodeids.read().get(&nodeid) {
                         let ctime = st_ctime(&st);
                         if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
                             opts |= OpenOptions::KEEP_CACHE;
@@ -893,7 +887,7 @@ impl PassthroughFs {
     }
 
     fn do_release(&self, nodeid: NodeId, handle: Handle) -> io::Result<()> {
-        let mut handles = self.handles.write().unwrap();
+        let mut handles = self.handles.write();
 
         if let hash_map::Entry::Occupied(e) = handles.entry(handle) {
             if e.get().nodeid == nodeid {
@@ -1021,8 +1015,8 @@ impl FileSystem for PassthroughFs {
     }
 
     fn destroy(&self) {
-        self.nodeids.write().unwrap().clear();
-        self.handles.write().unwrap().clear();
+        self.nodeids.write().clear();
+        self.handles.write().clear();
     }
 
     fn statfs(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {
@@ -1064,13 +1058,12 @@ impl FileSystem for PassthroughFs {
         let data = self
             .handles
             .read()
-            .unwrap()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
-        let ds = data.dirstream.lock().unwrap();
+        let ds = data.dirstream.lock();
         if ds.stream != 0 {
             unsafe { libc::closedir(ds.stream as *mut libc::DIR) };
         }
@@ -1229,7 +1222,7 @@ impl FileSystem for PassthroughFs {
             }),
         };
 
-        self.handles.write().unwrap().insert(handle, Arc::new(data));
+        self.handles.write().insert(handle, Arc::new(data));
 
         let mut opts = OpenOptions::empty();
         match self.cfg.cache_policy {
@@ -1237,7 +1230,7 @@ impl FileSystem for PassthroughFs {
             CachePolicy::Auto => {
                 // file: provide CTO consistency
                 // check ctime, and invalidate cache if ctime has changed
-                if let Some(node) = self.nodeids.read().unwrap().get(&entry.nodeid) {
+                if let Some(node) = self.nodeids.read().get(&entry.nodeid) {
                     let ctime = st_ctime(&entry.attr);
                     if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
                         opts |= OpenOptions::KEEP_CACHE;
@@ -1270,7 +1263,6 @@ impl FileSystem for PassthroughFs {
         let data = self
             .handles
             .read()
-            .unwrap()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
@@ -1278,7 +1270,7 @@ impl FileSystem for PassthroughFs {
 
         // This is safe because write_from uses preadv64, so the underlying file descriptor
         // offset is not affected by this operation.
-        let f = data.file.read().unwrap();
+        let f = data.file.read();
         w.write_from(&f, size as usize, offset)
     }
 
@@ -1298,7 +1290,6 @@ impl FileSystem for PassthroughFs {
         let data = self
             .handles
             .read()
-            .unwrap()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
@@ -1306,7 +1297,7 @@ impl FileSystem for PassthroughFs {
 
         // This is safe because read_to uses pwritev64, so the underlying file descriptor
         // offset is not affected by this operation.
-        let f = data.file.read().unwrap();
+        let f = data.file.read();
         r.read_to(&f, size as usize, offset)
     }
 
@@ -1339,13 +1330,12 @@ impl FileSystem for PassthroughFs {
             let hd = self
                 .handles
                 .read()
-                .unwrap()
                 .get(&handle)
                 .filter(|hd| hd.nodeid == nodeid)
                 .map(Arc::clone)
                 .ok_or_else(ebadf)?;
 
-            let fd = hd.file.write().unwrap().as_raw_fd();
+            let fd = hd.file.write().as_raw_fd();
             Data::Handle(fd)
         } else {
             Data::FilePath
@@ -1647,13 +1637,12 @@ impl FileSystem for PassthroughFs {
         let data = self
             .handles
             .read()
-            .unwrap()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
-        let fd = data.file.write().unwrap().as_raw_fd();
+        let fd = data.file.write().as_raw_fd();
 
         // use barrier fsync to preserve semantics and avoid DB corruption
         // Safe because this doesn't modify any memory and we check the return value.
@@ -1874,13 +1863,12 @@ impl FileSystem for PassthroughFs {
         let data = self
             .handles
             .read()
-            .unwrap()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
             .ok_or_else(ebadf)?;
 
-        let fd = data.file.write().unwrap().as_raw_fd();
+        let fd = data.file.write().as_raw_fd();
 
         let mut fs = libc::fstore_t {
             fst_flags: libc::F_ALLOCATECONTIG,
@@ -1919,7 +1907,6 @@ impl FileSystem for PassthroughFs {
         let data = self
             .handles
             .read()
-            .unwrap()
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(Arc::clone)
@@ -1937,7 +1924,7 @@ impl FileSystem for PassthroughFs {
             whence as i32
         };
 
-        let fd = data.file.write().unwrap().as_raw_fd();
+        let fd = data.file.write().as_raw_fd();
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::lseek(fd, offset as bindings::off64_t, mwhence as libc::c_int) };
