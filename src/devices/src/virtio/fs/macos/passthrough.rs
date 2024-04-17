@@ -20,6 +20,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use bitflags::bitflags;
 use libc::AT_FDCWD;
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
@@ -53,6 +54,11 @@ use super::super::fuse;
 const IOCTL_ROSETTA: u32 = 0x8045_6122;
 
 const STAT_XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
+
+// pnpm and uv prefer clone, then fall back to hardlinks
+// hard links are very slow on APFS (~170us to link+unlink) vs. clone (~65us)
+const LINK_AS_CLONE_DIR_JS: &str = "node_modules";
+const LINK_AS_CLONE_DIR_PY: &str = "site-packages";
 
 const UID_MAX: u32 = u32::MAX - 1;
 
@@ -88,6 +94,8 @@ struct LinuxDirent64 {
     d_ty: libc::c_uchar,
 }
 unsafe impl ByteValued for LinuxDirent64 {}
+
+const CLONE_NOFOLLOW: u32 = 0x0001;
 
 fn ebadf() -> io::Error {
     linux_error(io::Error::from_raw_os_error(libc::EBADF))
@@ -442,9 +450,16 @@ struct NodeData {
     dev_ino: DevIno,
     refcount: AtomicU64,
     last_ctime: AtomicU64,
+    flags: NodeFlags,
 
     // if volfs not supported
     fd: Option<OwnedFd>,
+}
+
+bitflags! {
+    pub struct NodeFlags: u32 {
+        const LINK_AS_CLONE = 1 << 0;
+    }
 }
 
 type DevIno = (i32, u64);
@@ -489,6 +504,7 @@ impl PassthroughFs {
                 // refcount 2 so it can never be dropped
                 refcount: AtomicU64::new(2),
                 last_ctime: AtomicU64::new(st_ctime(&st)),
+                flags: NodeFlags::empty(),
                 fd: None,
             },
         );
@@ -512,10 +528,14 @@ impl PassthroughFs {
     }
 
     // TODO: fix possible race with fd close, without Arc
-    fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, Option<RawFd>)> {
+    fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, NodeFlags, Option<RawFd>)> {
         let nodeids = self.nodeids.read();
         let node = nodeids.get(&nodeid).ok_or_else(ebadf)?;
-        Ok((node.dev_ino, node.fd.as_ref().map(|fd| fd.as_raw_fd())))
+        Ok((
+            node.dev_ino,
+            node.flags,
+            node.fd.as_ref().map(|fd| fd.as_raw_fd()),
+        ))
     }
 
     // note: /.vol (volfs) is undocumented and deprecated
@@ -524,7 +544,7 @@ impl PassthroughFs {
     // lstat realpath=681.85ns, volfs=895.88ns, fsgetpath=1.1478us, lstat+fsgetpath=1.8592us
     // TODO: unify with name_to_path(NodeId, Option<N>)
     fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
-        let ((device, inode), fd) = self.get_nodeid(nodeid)?;
+        let ((device, inode), _, fd) = self.get_nodeid(nodeid)?;
         let path = if let Some(fd) = fd {
             // to minimize race window and support renames, get latest path from fd
             // this also allows minimal opens (EVTONLY | RDONLY)
@@ -538,12 +558,12 @@ impl PassthroughFs {
         Ok(cstr)
     }
 
-    fn name_to_path_and_devino<N: Display>(
+    fn name_to_path_and_data(
         &self,
         parent: NodeId,
-        name: N,
-    ) -> io::Result<(CString, DevIno)> {
-        let ((parent_device, parent_inode), fd) = self.get_nodeid(parent)?;
+        name: &str,
+    ) -> io::Result<(CString, DevIno, NodeFlags)> {
+        let ((parent_device, parent_inode), parent_flags, fd) = self.get_nodeid(parent)?;
         let path = if let Some(fd) = fd {
             // to minimize race window and support renames, get latest path from fd
             // this also allows minimal opens (EVTONLY | RDONLY)
@@ -554,11 +574,11 @@ impl PassthroughFs {
         };
 
         let cstr = CString::new(path).map_err(|_| einval())?;
-        Ok((cstr, (parent_device, parent_inode)))
+        Ok((cstr, (parent_device, parent_inode), parent_flags))
     }
 
-    fn name_to_path<N: Display>(&self, parent: NodeId, name: N) -> io::Result<CString> {
-        Ok(self.name_to_path_and_devino(parent, name)?.0)
+    fn name_to_path(&self, parent: NodeId, name: &str) -> io::Result<CString> {
+        Ok(self.name_to_path_and_data(parent, name)?.0)
     }
 
     fn open_nodeid(&self, nodeid: NodeId, mut flags: i32) -> io::Result<File> {
@@ -618,14 +638,15 @@ impl PassthroughFs {
         Ok(supported)
     }
 
-    fn do_lookup<N: Display>(&self, parent: NodeId, name: N, ctx: &Context) -> io::Result<Entry> {
-        let (mut c_path, (parent_dev, parent_ino)) = self.name_to_path_and_devino(parent, &name)?;
+    fn do_lookup(&self, parent: NodeId, name: &str, ctx: &Context) -> io::Result<Entry> {
+        let (mut c_path, (parent_dev, parent_ino), parent_flags) =
+            self.name_to_path_and_data(parent, &name)?;
         // looking up nfs mountpoint should return a dummy empty dir
         // for simplicity we can always just use /var/empty
         if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
             if nfs_info.parent_dir_dev == parent_dev
                 && nfs_info.parent_dir_inode == parent_ino
-                && nfs_info.dir_name == name.to_string()
+                && nfs_info.dir_name == name
             {
                 c_path = CString::new("/var/empty")?;
             }
@@ -690,17 +711,20 @@ impl PassthroughFs {
                 None
             };
 
-            self.nodeids.write().insert(
+            let mut node = NodeData {
                 nodeid,
                 dev_ino,
-                NodeData {
-                    nodeid,
-                    dev_ino,
-                    refcount: AtomicU64::new(1),
-                    last_ctime: AtomicU64::new(st_ctime(&st)),
-                    fd,
-                },
-            );
+                refcount: AtomicU64::new(1),
+                last_ctime: AtomicU64::new(st_ctime(&st)),
+                flags: parent_flags,
+                fd,
+            };
+
+            if name == LINK_AS_CLONE_DIR_JS || name == LINK_AS_CLONE_DIR_PY {
+                node.flags |= NodeFlags::LINK_AS_CLONE;
+            }
+
+            self.nodeids.write().insert(nodeid, dev_ino, node);
         };
 
         Ok(Entry {
@@ -918,7 +942,7 @@ impl PassthroughFs {
         name: &CStr,
         flags: libc::c_int,
     ) -> io::Result<()> {
-        let c_path = self.name_to_path(parent, name.to_string_lossy())?;
+        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::unlinkat(AT_FDCWD, c_path.as_ptr(), flags) };
@@ -1026,7 +1050,7 @@ impl FileSystem for PassthroughFs {
 
     fn lookup(&self, _ctx: Context, parent: NodeId, name: &CStr) -> io::Result<Entry> {
         debug!("lookup: {:?}", name);
-        self.do_lookup(parent, name.to_string_lossy(), &_ctx)
+        self.do_lookup(parent, &name.to_string_lossy(), &_ctx)
     }
 
     fn forget(&self, _ctx: Context, _nodeid: NodeId, _count: u64) {
@@ -1080,7 +1104,7 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        let c_path = self.name_to_path(parent, name.to_string_lossy())?;
+        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::mkdir(c_path.as_ptr(), (mode & !umask) as u16) };
@@ -1095,7 +1119,7 @@ impl FileSystem for PassthroughFs {
                 Some((ctx.uid, ctx.gid)),
                 Some(mode & !umask),
             )?;
-            self.do_lookup(parent, name.to_string_lossy(), &ctx)
+            self.do_lookup(parent, &name.to_string_lossy(), &ctx)
         } else {
             Err(linux_error(io::Error::last_os_error()))
         }
@@ -1175,7 +1199,7 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<(Entry, Option<Handle>, OpenOptions)> {
-        let c_path = self.name_to_path(parent, name.to_string_lossy())?;
+        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
 
         let flags = self.parse_open_flags(flags as i32);
 
@@ -1210,7 +1234,7 @@ impl FileSystem for PassthroughFs {
         // Safe because we just opened this fd.
         let file = RwLock::new(unsafe { File::from_raw_fd(fd) });
 
-        let entry = self.do_lookup(parent, name.to_string_lossy(), &ctx)?;
+        let entry = self.do_lookup(parent, &name.to_string_lossy(), &ctx)?;
 
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
         let data = HandleData {
@@ -1453,8 +1477,8 @@ impl FileSystem for PassthroughFs {
             return Err(linux_error(io::Error::from_raw_os_error(libc::EINVAL)));
         }
 
-        let old_cpath = self.name_to_path(olddir, oldname.to_string_lossy())?;
-        let new_cpath = self.name_to_path(newdir, newname.to_string_lossy())?;
+        let old_cpath = self.name_to_path(olddir, &oldname.to_string_lossy())?;
+        let new_cpath = self.name_to_path(newdir, &newname.to_string_lossy())?;
 
         let mut res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
         // ENOTSUP = not supported by FS (e.g. NFS). retry and simulate if only flag is RENAME_EXCL
@@ -1491,7 +1515,7 @@ impl FileSystem for PassthroughFs {
                 }
             }
 
-            let entry = self.do_lookup(newdir, newname.to_string_lossy(), &ctx)?;
+            let entry = self.do_lookup(newdir, &newname.to_string_lossy(), &ctx)?;
             self.forget(ctx, entry.nodeid, 1);
 
             Ok(())
@@ -1510,7 +1534,7 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        let c_path = self.name_to_path(parent, name.to_string_lossy())?;
+        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
 
         let fd = unsafe {
             libc::open(
@@ -1537,7 +1561,7 @@ impl FileSystem for PassthroughFs {
             }
 
             unsafe { libc::close(fd) };
-            self.do_lookup(parent, name.to_string_lossy(), &ctx)
+            self.do_lookup(parent, &name.to_string_lossy(), &ctx)
         }
     }
 
@@ -1549,15 +1573,29 @@ impl FileSystem for PassthroughFs {
         newname: &CStr,
     ) -> io::Result<Entry> {
         let orig_c_path = self.nodeid_to_path(nodeid)?;
-        let link_c_path = self.name_to_path(newparent, newname.to_string_lossy())?;
+        let newname = &newname.to_string_lossy();
+        let (link_c_path, _, parent_flags) = self.name_to_path_and_data(newparent, newname)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::link(orig_c_path.as_ptr(), link_c_path.as_ptr()) };
-        if res == 0 {
-            self.do_lookup(newparent, newname.to_string_lossy(), &_ctx)
+        let res = if parent_flags.contains(NodeFlags::LINK_AS_CLONE) {
+            // translate link to clonefile as a workaround for slow hardlinking on APFS, and because ioctl(FICLONE) semantics don't fit macOS well
+            let res = unsafe {
+                libc::clonefile(orig_c_path.as_ptr(), link_c_path.as_ptr(), CLONE_NOFOLLOW)
+            };
+            if res == -1 && Errno::last() == Errno::ENOTSUP {
+                // only APFS supports clonefile. fall back to link
+                unsafe { libc::link(orig_c_path.as_ptr(), link_c_path.as_ptr()) }
+            } else {
+                res
+            }
         } else {
-            Err(linux_error(io::Error::last_os_error()))
+            unsafe { libc::link(orig_c_path.as_ptr(), link_c_path.as_ptr()) }
+        };
+        if res == -1 {
+            return Err(linux_error(io::Error::last_os_error()));
         }
+
+        self.do_lookup(newparent, newname, &_ctx)
     }
 
     fn symlink(
@@ -1568,7 +1606,7 @@ impl FileSystem for PassthroughFs {
         name: &CStr,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        let c_path = self.name_to_path(parent, name.to_string_lossy())?;
+        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::symlink(linkname.as_ptr(), c_path.as_ptr()) };
@@ -1578,7 +1616,7 @@ impl FileSystem for PassthroughFs {
                 set_secctx(StatFile::Path(&c_path), secctx, true)?
             };
 
-            let mut entry = self.do_lookup(parent, name.to_string_lossy(), &ctx)?;
+            let mut entry = self.do_lookup(parent, &name.to_string_lossy(), &ctx)?;
             let mode = libc::S_IFLNK | 0o777;
             set_xattr_stat(
                 StatFile::Path(&c_path),
