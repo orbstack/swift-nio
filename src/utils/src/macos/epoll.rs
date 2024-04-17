@@ -237,16 +237,8 @@ impl Epoll {
         timeout: i32,
         events: &mut [EpollEvent],
     ) -> io::Result<usize> {
-        let _tout = if timeout >= 0 {
-            Some(Duration::from_millis(timeout as u64))
-        } else {
-            None
-        };
-
-        let ts = libc::timespec {
-            tv_sec: 3,
-            tv_nsec: 0,
-        };
+        // timeout unimplemented
+        assert!(timeout == -1);
 
         let mut kevs = vec![Kevent::default(); events.len()];
         debug!("kevs len: {}", kevs.len());
@@ -257,7 +249,7 @@ impl Epoll {
                 0,
                 kevs.as_mut_ptr() as *mut libc::kevent,
                 max_events as i32,
-                &ts as *const libc::timespec,
+                std::ptr::null(),
             )
         };
 
