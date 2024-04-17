@@ -1,17 +1,17 @@
 use std::{
-    fs::remove_dir,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    ffi::CString, fs::remove_dir, os::fd::{AsRawFd, FromRawFd, OwnedFd}
 };
 
 use criterion::{ criterion_group, criterion_main, Criterion};
 use nix::{
-    fcntl::{open, OFlag},
-    sys::{
+    fcntl::{open, OFlag}, libc::clonefile, sys::{
         stat::{fstat, lstat, Mode},
         uio::pwrite,
-    },
-    unistd::{mkdir, unlink},
+    }, unistd::{linkat, mkdir, unlink, LinkatFlags}
 };
+
+#[cfg(target_os = "macos")]
+const CLONE_NOFOLLOW: u32 = 0x0001;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let _ = unlink("a");
@@ -66,6 +66,25 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let buf = [0u8; 1024];
             pwrite(file.as_raw_fd(), &buf, 0).unwrap();
+        })
+    });
+
+    let _ = unlink("c");
+    c.bench_function("link+unlink file", |b| {
+        b.iter(|| {
+            let _ = linkat(None, "a", None, "c", LinkatFlags::NoSymlinkFollow).unwrap();
+            unlink("c").unwrap();
+        })
+    });
+
+    #[cfg(target_os = "macos")]
+    c.bench_function("clone+unlink file", |b| {
+        let str_a = CString::new("a").unwrap();
+        let str_c = CString::new("c").unwrap();
+        b.iter(|| {
+            let ret = unsafe { clonefile(str_a.as_ptr(), str_c.as_ptr(), CLONE_NOFOLLOW) };
+            assert_eq!(ret, 0);
+            unlink("c").unwrap();
         })
     });
 
