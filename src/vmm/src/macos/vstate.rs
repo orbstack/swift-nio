@@ -10,7 +10,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, Thread};
 use std::time::Duration;
 
@@ -21,7 +21,7 @@ use crate::vmm_config::machine_config::CpuFeaturesTemplate;
 
 use arch;
 use arch::aarch64::gic::GICDevice;
-use crossbeam_channel::{unbounded, Receiver, RecvTimeoutError, Sender};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use devices::legacy::Gic;
 use hvf::{HvfVcpu, HvfVm, ParkError, Parkable, VcpuExit};
 use utils::eventfd::EventFd;
@@ -220,8 +220,8 @@ impl Parkable for Parker {
         // need an atomic vcpu count
         if self.pending_park.load(Ordering::Relaxed) {
             debug!("before_vcpu_run begin @ {vcpuid}");
-            self.barrier.wait();
-            self.barrier.wait();
+            let _ = self.barrier.wait();
+            let _ = self.barrier.wait();
             debug!("before_vcpu_run end");
         }
     }
