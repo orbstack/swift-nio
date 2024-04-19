@@ -225,7 +225,7 @@ pub struct Block {
     cache_type: CacheType,
     disk_image_path: String,
     is_disk_read_only: bool,
-    worker_thread: Option<JoinHandle<()>>,
+    worker: Option<BlockWorker>,
     worker_stopfd: EventFd,
 
     // Virtio fields.
@@ -309,7 +309,7 @@ impl Block {
             device_state: DeviceState::Inactive,
             intc: None,
             irq_line: None,
-            worker_thread: None,
+            worker: None,
             worker_stopfd: EventFd::new(EFD_NONBLOCK)?,
         })
     }
@@ -402,7 +402,7 @@ impl VirtioDevice for Block {
     }
 
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
-        if self.worker_thread.is_some() {
+        if self.worker.is_some() {
             panic!("virtio_blk: worker thread already exists");
         }
 
@@ -430,20 +430,25 @@ impl VirtioDevice for Block {
             disk,
             self.worker_stopfd.try_clone().unwrap(),
         );
-        self.worker_thread = Some(worker.run());
+        self.worker = Some(worker);
 
         self.device_state = DeviceState::Activated(mem);
         Ok(())
     }
 
     fn reset(&mut self) -> bool {
-        if let Some(worker) = self.worker_thread.take() {
-            let _ = self.worker_stopfd.write(1);
-            if let Err(e) = worker.join() {
-                error!("error waiting for worker thread: {:?}", e);
-            }
-        }
+        self.worker.take();
         self.device_state = DeviceState::Inactive;
         true
+    }
+
+    fn supports_sync_event(&self) -> bool {
+        true
+    }
+
+    fn handle_sync_event(&mut self, _queue: u32) {
+        if let Some(ref mut worker) = self.worker {
+            worker.process_virtio_queues();
+        }
     }
 }

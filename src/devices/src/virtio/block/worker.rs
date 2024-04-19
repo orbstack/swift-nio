@@ -167,7 +167,7 @@ impl BlockWorker {
     }
 
     /// Process device virtio queue(s).
-    fn process_virtio_queues(&mut self) {
+    pub fn process_virtio_queues(&mut self) {
         let mem = self.mem.clone();
         loop {
             self.queue.disable_notification(&mem).unwrap();
