@@ -123,6 +123,12 @@ pub trait VirtioDevice: AsAny + Send {
     fn shm_region(&self) -> Option<&VirtioShmRegion> {
         None
     }
+
+    fn supports_sync_event(&self) -> bool {
+        false
+    }
+
+    fn handle_sync_event(&mut self, _queue: u32) {}
 }
 
 pub trait HvcDevice: Send + Sync {

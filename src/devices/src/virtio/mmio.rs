@@ -52,15 +52,17 @@ pub struct MmioTransport {
     pub(crate) interrupt_status: Arc<AtomicUsize>,
     queue_evts: Vec<EventFd>,
     shm_region_select: u32,
+    supports_sync_event: bool,
 }
 
 impl MmioTransport {
     /// Constructs a new MMIO transport for the given virtio device.
     pub fn new(mem: GuestMemoryMmap, device: Arc<Mutex<dyn VirtioDevice>>) -> MmioTransport {
-        let interrupt_status = device
-            .lock()
-            .expect("Poisoned device lock")
-            .interrupt_status();
+        let locked_device = device.lock().unwrap();
+        let interrupt_status = locked_device.interrupt_status();
+        let supports_sync_event = locked_device.supports_sync_event();
+
+        drop(locked_device);
 
         MmioTransport {
             device,
@@ -73,6 +75,7 @@ impl MmioTransport {
             interrupt_status,
             queue_evts: Vec::new(),
             shm_region_select: 0,
+            supports_sync_event,
         }
     }
 
@@ -299,8 +302,12 @@ impl BusDevice for MmioTransport {
                     0x38 => self.update_queue_field(|q| q.size = v as u16),
                     0x44 => self.update_queue_field(|q| q.ready = v == 1),
                     0x50 => {
-                        if let Some(eventfd) = self.queue_evts.get(v as usize) {
-                            eventfd.write(v as u64).unwrap();
+                        if self.supports_sync_event {
+                            self.device.lock().unwrap().handle_sync_event(v);
+                        } else {
+                            if let Some(eventfd) = self.queue_evts.get(v as usize) {
+                                eventfd.write(v as u64).unwrap();
+                            }
                         }
                     }
                     0x64 => {
