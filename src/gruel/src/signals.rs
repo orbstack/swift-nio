@@ -1,25 +1,20 @@
-// N.B. if you decide to optimize this module, I strongly encourage you to keep the existing naïve
+// N.B. if you decide to optimize this module, I strongly encourage you to keep this existing naïve
 // implementation as a debugging fallback.
 
 use std::{
-    fmt,
+    fmt, hash,
     marker::PhantomData,
     panic::Location,
     ptr::NonNull,
-    sync::{Arc, LockResult, Mutex},
+    sync::{Arc, Mutex},
 };
 
 use bitflags::Flags;
 use scopeguard::guard;
 
-// === RawSignalChannel === //
+use crate::util::unpoison;
 
-fn unpoison<T>(result: LockResult<T>) -> T {
-    match result {
-        Ok(guard) => guard,
-        Err(err) => err.into_inner(),
-    }
-}
+// === RawSignalChannel === //
 
 #[derive(Clone, Default)]
 pub struct RawSignalChannel {
@@ -58,6 +53,20 @@ impl fmt::Debug for RawSignalChannel {
 unsafe impl Send for RawSignalChannel {}
 unsafe impl Sync for RawSignalChannel {}
 
+impl hash::Hash for RawSignalChannel {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.state).hash(state);
+    }
+}
+
+impl Eq for RawSignalChannel {}
+
+impl PartialEq for RawSignalChannel {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.state, &other.state)
+    }
+}
+
 impl RawSignalChannel {
     pub fn new() -> Self {
         Self::default()
@@ -82,11 +91,12 @@ impl RawSignalChannel {
     ///
     /// - Spurious wake-up calls are not possible.
     /// - The `waker` may be called at any time, even before `runner` has executed.
+    /// - The `waker` may be called more than once.
     /// - `runner` may possibly never execute if the task is cancelled immediately.
     /// - The call to `open` cannot complete until the `waker` terminates.
     ///
     #[track_caller]
-    pub fn open<R>(
+    pub fn wait<R>(
         &self,
         wake_mask: u64,
         waker: impl FnMut(u64) + Send + Sync,
@@ -133,12 +143,13 @@ impl RawSignalChannel {
         Some(runner())
     }
 
-    /// Honors all signals under the specified mask, clearing them in the process.
-    pub fn honor(&self, mask: u64) -> u64 {
+    /// Takes all signals under the specified mask, clearing them in the process.
+    pub fn take(&self, mask: u64) -> u64 {
         let mut state = unpoison(self.state.lock());
 
+        let taken = state.asserted_mask & mask;
         state.asserted_mask &= !mask;
-        state.asserted_mask & mask
+        taken
     }
 
     /// Fetches a snapshot of the channel's state for debugging purposes.
@@ -226,17 +237,18 @@ impl<S: Flags<Bits = u64>> SignalChannel<S> {
     ///
     /// - Spurious wake-up calls are not possible.
     /// - The `waker` may be called at any time, even before `runner` has executed.
+    /// - The `waker` may be called more than once.
     /// - `runner` may possibly never execute if the task is cancelled immediately.
     /// - The call to `open` cannot complete until the `waker` terminates.
     ///
     #[track_caller]
-    pub fn open<R>(
+    pub fn wait<R>(
         &self,
         wake_mask: S,
         mut waker: impl FnMut(S) + Send + Sync,
         runner: impl FnOnce() -> R,
     ) -> Option<R> {
-        self.raw.open(
+        self.raw.wait(
             wake_mask.bits(),
             move |bits| waker(S::from_bits_retain(bits)),
             runner,
@@ -244,8 +256,8 @@ impl<S: Flags<Bits = u64>> SignalChannel<S> {
     }
 
     /// Honors all signals under the specified mask, clearing them in the process.
-    pub fn honor(&self, mask: S) -> S {
-        S::from_bits_retain(self.raw.honor(mask.bits()))
+    pub fn take(&self, mask: S) -> S {
+        S::from_bits_retain(self.raw.take(mask.bits()))
     }
 
     /// Fetches a snapshot of the channel's state for debugging purposes.
@@ -262,7 +274,7 @@ impl<S: Flags<Bits = u64>> SignalChannel<S> {
 
 // === BoundSignalChannel === //
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct BoundSignalChannel {
     pub channel: RawSignalChannel,
     pub mask: u64,
@@ -278,5 +290,85 @@ impl BoundSignalChannel {
 
     pub fn assert(&self) {
         self.channel.assert(self.mask);
+    }
+}
+
+// === Extensions === //
+
+// Core
+pub trait AnySignalChannel: Sized {
+    type Mask: Copy;
+
+    fn wait<R>(
+        &self,
+        wake_mask: Self::Mask,
+        waker: impl FnMut(Self::Mask) + Send + Sync,
+        runner: impl FnOnce() -> R,
+    ) -> Option<R>;
+}
+
+impl AnySignalChannel for RawSignalChannel {
+    type Mask = u64;
+
+    fn wait<R>(
+        &self,
+        wake_mask: Self::Mask,
+        waker: impl FnMut(Self::Mask) + Send + Sync,
+        runner: impl FnOnce() -> R,
+    ) -> Option<R> {
+        // inherent impls take priority during name resolution
+        self.wait(wake_mask, waker, runner)
+    }
+}
+
+impl<S: Flags<Bits = u64> + Copy> AnySignalChannel for SignalChannel<S> {
+    type Mask = S;
+
+    fn wait<R>(
+        &self,
+        wake_mask: Self::Mask,
+        waker: impl FnMut(Self::Mask) + Send + Sync,
+        runner: impl FnOnce() -> R,
+    ) -> Option<R> {
+        // inherent impls take priority during name resolution
+        self.wait(wake_mask, waker, runner)
+    }
+}
+
+// Idle
+pub trait ParkSignalChannelExt: AnySignalChannel {
+    fn wait_on_park(&self, wake_mask: Self::Mask) {
+        let thread = std::thread::current();
+        self.wait(wake_mask, |_| thread.unpark(), std::thread::park);
+    }
+}
+
+impl<T: AnySignalChannel> ParkSignalChannelExt for T {}
+
+// === Tests === //
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Barrier;
+
+    use crate::{ParkSignalChannelExt, RawSignalChannel};
+
+    #[test]
+    fn simple_wake_up() {
+        let start_barrier = Barrier::new(2);
+        let channel = RawSignalChannel::new();
+
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                start_barrier.wait();
+                channel.wait_on_park(u64::MAX);
+                assert_eq!(channel.take(1), 1);
+            });
+
+            s.spawn(|| {
+                start_barrier.wait();
+                channel.assert(1);
+            });
+        });
     }
 }

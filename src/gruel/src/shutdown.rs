@@ -1,1 +1,147 @@
-// TODO
+use core::fmt;
+use std::sync::{Arc, Condvar, Mutex};
+
+use generational_arena::{Arena, Index};
+use thiserror::Error;
+
+use crate::{util::unpoison, BoundSignalChannel};
+
+// === Errors === //
+
+#[derive(Debug, Clone, Error)]
+#[error("failed to spawn new task: shutdown already requested")]
+#[non_exhaustive]
+pub struct ShutdownAlreadyRequested;
+
+// === ShutdownSignal === //
+
+#[derive(Clone, Default)]
+pub struct ShutdownSignal(Arc<ShutdownSignalInner>);
+
+impl fmt::Debug for ShutdownSignal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ShutdownSignal").finish_non_exhaustive()
+    }
+}
+
+#[derive(Default)]
+struct ShutdownSignalInner {
+    state: Mutex<State>,
+    condvar: Condvar,
+}
+
+#[derive(Default)]
+struct State {
+    shutting_down: bool,
+    tasks: Arena<BoundSignalChannel>,
+}
+
+impl ShutdownSignal {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn spawn(
+        self,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+        let mut guard = unpoison(self.0.state.lock());
+
+        if guard.shutting_down {
+            return Err(ShutdownAlreadyRequested);
+        }
+
+        let index = guard.tasks.insert(signal);
+
+        drop(guard);
+
+        Ok(ShutdownTask {
+            signal: self,
+            index,
+        })
+    }
+
+    pub fn shutdown(&self) {
+        let mut guard = unpoison(self.0.state.lock());
+        guard.shutting_down = true;
+
+        for (_, task) in &guard.tasks {
+            // This is technically calling userland code but that routine should already be quite
+            // reentrancy-aware so this is unlikely to be the source of bugs.
+            task.assert();
+        }
+
+        let guard = unpoison(self.0.condvar.wait(guard));
+        assert!(guard.tasks.is_empty());
+    }
+}
+
+// === ShutdownTask === //
+
+#[derive(Debug)]
+pub struct ShutdownTask {
+    signal: ShutdownSignal,
+    index: Index,
+}
+
+impl Drop for ShutdownTask {
+    fn drop(&mut self) {
+        let mut guard = unpoison(self.signal.0.state.lock());
+
+        guard.tasks.remove(self.index);
+        if guard.shutting_down && guard.tasks.is_empty() {
+            self.signal.0.condvar.notify_all();
+        }
+    }
+}
+
+// === Tests === //
+
+#[cfg(test)]
+mod test {
+    use std::sync::Barrier;
+
+    use crate::{ParkSignalChannelExt, RawSignalChannel};
+
+    use super::*;
+
+    #[test]
+    fn does_notify() {
+        let subscriber_barrier = Barrier::new(2);
+        let shutdown = ShutdownSignal::new();
+
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                let signal = RawSignalChannel::new();
+                let task = shutdown
+                    .clone()
+                    .spawn(BoundSignalChannel {
+                        channel: signal.clone(),
+                        mask: 0b1,
+                    })
+                    .unwrap();
+
+                subscriber_barrier.wait();
+
+                while signal.take(0b1) == 0 {
+                    signal.wait_on_park(u64::MAX);
+                }
+
+                assert!(shutdown
+                    .clone()
+                    .spawn(BoundSignalChannel {
+                        channel: signal.clone(),
+                        mask: 0b1,
+                    })
+                    .is_err());
+
+                drop(task);
+            });
+
+            s.spawn(|| {
+                subscriber_barrier.wait();
+                shutdown.shutdown();
+            });
+        });
+    }
+}
