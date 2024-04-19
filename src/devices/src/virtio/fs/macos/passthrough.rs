@@ -724,12 +724,10 @@ impl PassthroughFs {
                     return Err(linux_error(io::Error::from_raw_os_error(libc::ENFILE)));
                 }
 
-                let oflag = unsafe {
-                    OFlag::from_bits_unchecked(
-                        // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
-                        libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
-                    )
-                };
+                let oflag = OFlag::from_bits_truncate(
+                    // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
+                    libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
+                );
 
                 // must reopen even if we have fd, to get O_EVTONLY. dup can't do that
                 let fd = match file_ref {
@@ -1535,7 +1533,7 @@ impl FileSystem for PassthroughFs {
                 if let Ok(fd) = nix::fcntl::open(
                     old_cpath.as_ref(),
                     OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
-                    unsafe { Mode::from_bits_unchecked(0o600) },
+                    Mode::from_bits_truncate(0o600),
                 ) {
                     let fd = unsafe { OwnedFd::from_raw_fd(fd) };
                     if let Err(e) = set_xattr_stat(
@@ -1572,7 +1570,7 @@ impl FileSystem for PassthroughFs {
                 nix::fcntl::open(
                     c_path.as_ref(),
                     OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
-                    Mode::from_bits_unchecked(0o600),
+                    Mode::from_bits_truncate(0o600),
                 )
                 .map_err(nix_linux_error)?,
             )
